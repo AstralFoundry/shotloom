@@ -6,8 +6,11 @@
   "description": "Tauri-powered workflow panel for AI comic production with a light asset-management UI.",
   "scripts": {
     "prepare:opencode": "node scripts/prepare-opencode-sidecar.mjs",
+    "predev": "npm run prepare:opencode",
     "predev:web": "npm run prepare:opencode",
     "prebuild": "npm run prepare:opencode",
+    "prebuild:desktop": "npm run prepare:opencode",
+    "pretauri": "npm run prepare:opencode",
     "dev": "tauri dev",
     "dev:web": "vite --host 127.0.0.1",
     "build": "vite build",

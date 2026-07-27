@@ -58,6 +58,7 @@ jobs:
 
       - run: npm ci
       - run: npm run check
+      - run: npm run prepare:opencode
 
       - name: Check Apple signing secrets
         if: runner.os == 'macOS'

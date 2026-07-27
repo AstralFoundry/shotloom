@@ -36,6 +36,25 @@ test('Tauri 随应用分发受保护的 OpenCode sidecar 和 MCP bridge', () => 
   assert.match(read('src-tauri/src/lib.rs'), /RunEvent::Exit[\s\S]*state\.shutdown/);
 });
 
+test('所有桌面构建入口都在 Cargo 或 Tauri 构建前准备平台 sidecar', () => {
+  const pkg = JSON.parse(read('package.json'));
+  assert.equal(pkg.scripts.predev, 'npm run prepare:opencode');
+  assert.equal(pkg.scripts['prebuild:desktop'], 'npm run prepare:opencode');
+  assert.equal(pkg.scripts.pretauri, 'npm run prepare:opencode');
+
+  const ci = read('.github/workflows/ci.yml');
+  const rustJob = ci.slice(ci.indexOf('\n  rust:'));
+  assert.ok(rustJob.indexOf('npm ci') < rustJob.indexOf('npm run prepare:opencode'));
+  assert.ok(
+    rustJob.indexOf('npm run prepare:opencode') <
+      rustJob.indexOf('cargo check --manifest-path src-tauri/Cargo.toml --lib'),
+  );
+
+  const release = read('.github/workflows/release.yml');
+  assert.ok(release.indexOf('npm run prepare:opencode') < release.indexOf('name: Check Apple signing secrets'));
+  assert.ok(release.indexOf('npm run prepare:opencode') < release.indexOf('name: Build release assets'));
+});
+
 test('OpenCode Runtime 使用持久 Session、子 Agent、Contract 与本地域工具桥', () => {
   const runtime = read('renderer/src/agent/runtime/OpenCodeRuntime.ts');
   assert.match(runtime, /openCodeSessionId/);
