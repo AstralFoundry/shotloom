@@ -1,0 +1,7 @@
+{
+  "id": "short-drama",
+  "category": "video",
+  "version": 7,
+  "triggers": { "keywords": ["短剧", "漫剧", "小说改编", "小说影视化", "章节改编", "故事改编", "剧本", "剧情视频", "连续剧情", "角色一致性", "分镜转视频", "对白"] },
+  "recipeIds": ["narrative-source-analysis", "screenplay-adaptation", "drama-plot-outline", "drama-character-extraction", "drama-scene-extraction", "drama-prop-extraction", "drama-shot-planning", "drama-character-turnaround", "drama-scene-image", "drama-prop-image", "video-storyboard-grid", "drama-shot-group-storyboard", "video-action-sequence-board", "video-frame-extraction", "drama-shot-video-generation", "video-audio-design"]
+}

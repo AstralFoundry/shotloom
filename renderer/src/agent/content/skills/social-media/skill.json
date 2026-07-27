@@ -1,0 +1,7 @@
+{
+  "id": "social-media",
+  "category": "social",
+  "version": 2,
+  "triggers": { "keywords": ["社媒", "小红书", "抖音", "视频号", "微博", "公众号", "Instagram", "TikTok", "内容矩阵", "种草", "封面", "配图"] },
+  "recipeIds": ["social-copywriting", "social-xiaohongshu-image", "social-douyin-cover", "social-ig-post", "social-weibo-wechat-image", "social-content-image", "general-video"]
+}

@@ -1,0 +1,959 @@
+use axum::{
+    extract::State,
+    http::{HeaderMap, StatusCode},
+    response::{IntoResponse, Response},
+    routing::{get, post},
+    Json, Router,
+};
+use futures_util::StreamExt;
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
+#[cfg(target_os = "macos")]
+use std::process::Command as StdCommand;
+use std::{collections::HashMap, net::TcpListener as StdTcpListener, sync::Arc, time::Duration};
+use tauri::{AppHandle, Emitter, Manager};
+use tauri_plugin_shell::{
+    process::{CommandChild, CommandEvent},
+    ShellExt,
+};
+use tokio::sync::{oneshot, Mutex, RwLock};
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RuntimeTool {
+    pub name: String,
+    pub description: String,
+    pub input_schema: Value,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RuntimeStatus {
+    pub state: String,
+    pub error: Option<String>,
+}
+
+#[derive(Debug)]
+struct ProcessState {
+    status: RuntimeStatus,
+    child: Option<CommandChild>,
+    configuration_key: Option<String>,
+    runtime_url: Option<String>,
+    runtime_token: Option<String>,
+    generation: u64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RuntimeHttpRequest {
+    pub method: String,
+    pub url: String,
+    pub headers: Vec<(String, String)>,
+    pub body: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RuntimeHttpResponse {
+    pub status: u16,
+    pub status_text: String,
+    pub headers: Vec<(String, String)>,
+    pub body: String,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RuntimeStreamEvent {
+    subscription_id: String,
+    event: Option<Value>,
+    error: Option<String>,
+    done: bool,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RuntimeConfiguration {
+    pub enabled_providers: Vec<String>,
+    pub model: String,
+    pub provider: Value,
+    pub agent: Value,
+    pub workspace_directory: String,
+}
+
+#[derive(Clone)]
+struct BridgeState {
+    app: Option<AppHandle>,
+    tools: Arc<RwLock<Vec<RuntimeTool>>>,
+    pending: Arc<Mutex<HashMap<String, oneshot::Sender<Result<Value, String>>>>>,
+    token: String,
+}
+
+pub struct AgentRuntimeState {
+    start_lock: Mutex<()>,
+    process: Mutex<ProcessState>,
+    bridge_cancel: Mutex<Option<oneshot::Sender<()>>>,
+    tools: Arc<RwLock<Vec<RuntimeTool>>>,
+    pending: Arc<Mutex<HashMap<String, oneshot::Sender<Result<Value, String>>>>>,
+    subscriptions: Mutex<HashMap<String, oneshot::Sender<()>>>,
+}
+
+impl AgentRuntimeState {
+    pub fn new() -> Self {
+        Self {
+            start_lock: Mutex::new(()),
+            process: Mutex::new(ProcessState {
+                status: RuntimeStatus {
+                    state: "stopped".into(),
+                    error: None,
+                },
+                child: None,
+                configuration_key: None,
+                runtime_url: None,
+                runtime_token: None,
+                generation: 0,
+            }),
+            bridge_cancel: Mutex::new(None),
+            tools: Arc::new(RwLock::new(Vec::new())),
+            pending: Arc::new(Mutex::new(HashMap::new())),
+            subscriptions: Mutex::new(HashMap::new()),
+        }
+    }
+
+    pub async fn shutdown(&self) -> Result<(), String> {
+        for (_, cancel) in self.subscriptions.lock().await.drain() {
+            let _ = cancel.send(());
+        }
+        if let Some(cancel) = self.bridge_cancel.lock().await.take() {
+            let _ = cancel.send(());
+        }
+        for (_, pending) in self.pending.lock().await.drain() {
+            let _ = pending.send(Err("Shotloom Agent Runtime stopped".into()));
+        }
+        let mut process = self.process.lock().await;
+        if let Some(child) = process.child.take() {
+            child.kill().map_err(|e| e.to_string())?;
+        }
+        process.status = RuntimeStatus {
+            state: "stopped".into(),
+            error: None,
+        };
+        process.configuration_key = None;
+        process.runtime_url = None;
+        process.runtime_token = None;
+        process.generation += 1;
+        Ok(())
+    }
+}
+
+fn available_port() -> Result<u16, String> {
+    let listener = StdTcpListener::bind(("127.0.0.1", 0)).map_err(|e| e.to_string())?;
+    listener
+        .local_addr()
+        .map(|addr| addr.port())
+        .map_err(|e| e.to_string())
+}
+
+fn parse_macos_system_proxy(output: &str) -> Option<String> {
+    let values = output
+        .lines()
+        .filter_map(|line| line.trim().split_once(':'))
+        .map(|(key, value)| (key.trim(), value.trim()))
+        .collect::<HashMap<_, _>>();
+    for prefix in ["HTTPS", "HTTP"] {
+        let enable_key = format!("{prefix}Enable");
+        let proxy_key = format!("{prefix}Proxy");
+        let port_key = format!("{prefix}Port");
+        if values.get(enable_key.as_str()) != Some(&"1") {
+            continue;
+        }
+        let host = values.get(proxy_key.as_str())?;
+        let port = values.get(port_key.as_str())?;
+        let proxy = format!("http://{host}:{port}");
+        if reqwest::Url::parse(&proxy).is_ok() {
+            return Some(proxy);
+        }
+    }
+    None
+}
+
+pub(crate) fn resolved_system_proxy_url() -> Option<String> {
+    for key in [
+        "HTTPS_PROXY",
+        "HTTP_PROXY",
+        "ALL_PROXY",
+        "https_proxy",
+        "http_proxy",
+        "all_proxy",
+    ] {
+        if let Ok(value) = std::env::var(key) {
+            if reqwest::Url::parse(value.trim()).is_ok() {
+                return Some(value.trim().to_string());
+            }
+        }
+    }
+    #[cfg(target_os = "macos")]
+    {
+        return StdCommand::new("/usr/sbin/scutil")
+            .arg("--proxy")
+            .output()
+            .ok()
+            .filter(|output| output.status.success())
+            .and_then(|output| String::from_utf8(output.stdout).ok())
+            .and_then(|output| parse_macos_system_proxy(&output));
+    }
+    #[cfg(not(target_os = "macos"))]
+    None
+}
+
+fn child_proxy_environment() -> Vec<(String, String)> {
+    let loopback = "127.0.0.1,localhost,::1";
+    let existing_no_proxy = std::env::var("NO_PROXY")
+        .or_else(|_| std::env::var("no_proxy"))
+        .unwrap_or_default();
+    let no_proxy = if existing_no_proxy.is_empty() {
+        loopback.to_string()
+    } else {
+        format!("{existing_no_proxy},{loopback}")
+    };
+    let mut environment = vec![
+        ("NO_PROXY".into(), no_proxy.clone()),
+        ("no_proxy".into(), no_proxy),
+    ];
+    let inherited_proxy = [
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "ALL_PROXY",
+        "http_proxy",
+        "https_proxy",
+        "all_proxy",
+    ]
+    .iter()
+    .any(|key| std::env::var(key).is_ok_and(|value| !value.trim().is_empty()));
+    if inherited_proxy {
+        return environment;
+    }
+    let system_proxy = resolved_system_proxy_url();
+    if let Some(proxy) = system_proxy {
+        for key in [
+            "HTTP_PROXY",
+            "HTTPS_PROXY",
+            "ALL_PROXY",
+            "http_proxy",
+            "https_proxy",
+            "all_proxy",
+        ] {
+            environment.push((key.into(), proxy.clone()));
+        }
+    }
+    environment
+}
+
+async fn mcp_health() -> impl IntoResponse {
+    Json(json!({ "ok": true, "service": "shotloom-mcp" }))
+}
+
+fn rpc_result(id: Value, result: Value) -> Response {
+    Json(json!({ "jsonrpc": "2.0", "id": id, "result": result })).into_response()
+}
+
+fn rpc_error(id: Value, code: i64, message: impl Into<String>) -> Response {
+    Json(json!({
+        "jsonrpc": "2.0",
+        "id": id,
+        "error": { "code": code, "message": message.into() }
+    }))
+    .into_response()
+}
+
+async fn mcp_post(
+    State(state): State<BridgeState>,
+    headers: HeaderMap,
+    Json(request): Json<Value>,
+) -> Response {
+    let expected = format!("Bearer {}", state.token);
+    if headers
+        .get("authorization")
+        .and_then(|value| value.to_str().ok())
+        != Some(expected.as_str())
+    {
+        return StatusCode::UNAUTHORIZED.into_response();
+    }
+    let id = request.get("id").cloned().unwrap_or(Value::Null);
+    let method = request.get("method").and_then(Value::as_str).unwrap_or("");
+    match method {
+        "initialize" => rpc_result(
+            id,
+            json!({
+                "protocolVersion": "2024-11-05",
+                "capabilities": { "tools": { "listChanged": true } },
+                "serverInfo": { "name": "shotloom", "version": env!("CARGO_PKG_VERSION") }
+            }),
+        ),
+        "notifications/initialized" | "notifications/cancelled" => {
+            StatusCode::ACCEPTED.into_response()
+        }
+        "ping" => rpc_result(id, json!({})),
+        "tools/list" => {
+            let tools = state.tools.read().await;
+            rpc_result(id, json!({ "tools": *tools }))
+        }
+        "tools/call" => {
+            let params = request.get("params").cloned().unwrap_or_else(|| json!({}));
+            let name = params.get("name").and_then(Value::as_str).unwrap_or("");
+            if !state
+                .tools
+                .read()
+                .await
+                .iter()
+                .any(|tool| tool.name == name)
+            {
+                return rpc_error(id, -32602, format!("Unknown Shotloom tool: {name}"));
+            }
+            let call_id = format!("mcp-{}", uuid_like());
+            let (tx, rx) = oneshot::channel();
+            state.pending.lock().await.insert(call_id.clone(), tx);
+            let payload = json!({
+                "callId": call_id,
+                "name": name,
+                "arguments": params.get("arguments").cloned().unwrap_or_else(|| json!({}))
+            });
+            let Some(app) = &state.app else {
+                state.pending.lock().await.remove(&call_id);
+                return rpc_error(id, -32603, "Shotloom application bridge is unavailable");
+            };
+            if let Err(error) = app.emit("agent-tool-request", payload) {
+                state.pending.lock().await.remove(&call_id);
+                return rpc_error(id, -32603, error.to_string());
+            }
+            match tokio::time::timeout(Duration::from_secs(600), rx).await {
+                Ok(Ok(Ok(value))) => rpc_result(
+                    id,
+                    json!({
+                        "content": [{ "type": "text", "text": serde_json::to_string(&value).unwrap_or_default() }],
+                        "structuredContent": value,
+                        "isError": false
+                    }),
+                ),
+                Ok(Ok(Err(error))) => rpc_result(
+                    id,
+                    json!({
+                        "content": [{ "type": "text", "text": error }],
+                        "isError": true
+                    }),
+                ),
+                Ok(Err(_)) => rpc_error(id, -32603, "Shotloom tool reply channel closed"),
+                Err(_) => {
+                    state.pending.lock().await.remove(&call_id);
+                    rpc_error(id, -32001, "Shotloom tool timed out")
+                }
+            }
+        }
+        _ if id.is_null() => StatusCode::ACCEPTED.into_response(),
+        _ => rpc_error(id, -32601, format!("Method not found: {method}")),
+    }
+}
+
+fn uuid_like() -> String {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
+    format!("{nanos:x}-{:x}", std::process::id())
+}
+
+async fn start_bridge(
+    app: AppHandle,
+    state: &AgentRuntimeState,
+    token: String,
+) -> Result<String, String> {
+    if let Some(cancel) = state.bridge_cancel.lock().await.take() {
+        let _ = cancel.send(());
+    }
+    let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
+        .await
+        .map_err(|e| e.to_string())?;
+    let port = listener.local_addr().map_err(|e| e.to_string())?.port();
+    let bridge = BridgeState {
+        app: Some(app),
+        tools: state.tools.clone(),
+        pending: state.pending.clone(),
+        token,
+    };
+    let router = Router::new()
+        .route("/health", get(mcp_health))
+        .route("/mcp", post(mcp_post))
+        .with_state(bridge);
+    let (cancel_tx, cancel_rx) = oneshot::channel();
+    *state.bridge_cancel.lock().await = Some(cancel_tx);
+    tauri::async_runtime::spawn(async move {
+        let server = axum::serve(listener, router).with_graceful_shutdown(async {
+            let _ = cancel_rx.await;
+        });
+        if let Err(error) = server.await {
+            eprintln!("Shotloom MCP bridge stopped: {error}");
+        }
+    });
+    Ok(format!("http://127.0.0.1:{port}/mcp"))
+}
+
+async fn wait_for_opencode_health(url: &str, token: &str) -> Result<(), String> {
+    let client = reqwest::Client::builder()
+        .connect_timeout(Duration::from_millis(250))
+        .timeout(Duration::from_millis(500))
+        .no_proxy()
+        .build()
+        .map_err(|e| e.to_string())?;
+    let health_url = format!("{url}/global/health");
+    for _ in 0..100 {
+        if let Ok(response) = client
+            .get(&health_url)
+            .basic_auth("opencode", Some(token))
+            .send()
+            .await
+        {
+            if response.status().is_success() {
+                return Ok(());
+            }
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    Err("OpenCode health check did not become ready".into())
+}
+
+#[tauri::command]
+pub async fn agent_runtime_start(
+    app: AppHandle,
+    state: tauri::State<'_, AgentRuntimeState>,
+    configuration: RuntimeConfiguration,
+) -> Result<RuntimeStatus, String> {
+    let _start_guard = state.start_lock.lock().await;
+    let workspace = std::path::PathBuf::from(&configuration.workspace_directory);
+    let metadata = std::fs::metadata(&workspace)
+        .map_err(|e| format!("OpenCode workspace is unavailable: {e}"))?;
+    if !metadata.is_dir() {
+        return Err("OpenCode workspace is not a directory".into());
+    }
+    let workspace = std::fs::canonicalize(workspace)
+        .map_err(|e| format!("OpenCode workspace cannot be resolved: {e}"))?;
+    let configuration_key = serde_json::to_string(&configuration).map_err(|e| e.to_string())?;
+    {
+        let mut process = state.process.lock().await;
+        if matches!(process.status.state.as_str(), "starting" | "ready")
+            && process.configuration_key.as_deref() == Some(configuration_key.as_str())
+        {
+            return Ok(process.status.clone());
+        }
+        if let Some(child) = process.child.take() {
+            child.kill().map_err(|e| e.to_string())?;
+        }
+        process.generation += 1;
+    }
+    let mcp_token = uuid_like();
+    let runtime_token = uuid_like();
+    let mcp_url = start_bridge(app.clone(), &state, mcp_token.clone()).await?;
+    {
+        let mut process = state.process.lock().await;
+        process.status = RuntimeStatus {
+            state: "starting".into(),
+            error: None,
+        };
+        process.configuration_key = Some(configuration_key);
+        process.runtime_url = None;
+        process.runtime_token = None;
+    }
+    let port = available_port()?;
+    let runtime_root = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?
+        .join("opencode-runtime");
+    let runtime_data = runtime_root.join("data");
+    let runtime_config = runtime_root.join("config");
+    let runtime_cache = runtime_root.join("cache");
+    for directory in [&runtime_data, &runtime_config, &runtime_cache] {
+        std::fs::create_dir_all(directory).map_err(|e| e.to_string())?;
+    }
+    let config = json!({
+        "$schema": "https://opencode.ai/config.json",
+        "autoupdate": false,
+        "share": "disabled",
+        "permission": {
+            "edit": "deny",
+            "bash": "deny",
+            "external_directory": "deny",
+            "webfetch": "deny"
+        },
+        "tools": {
+            "read": false, "write": false, "edit": false, "bash": false,
+            "glob": false, "grep": false, "webfetch": false
+        },
+        "mcp": {
+            "shotloom": {
+                "type": "remote", "url": mcp_url, "enabled": false, "timeout": 600000,
+                "headers": { "Authorization": format!("Bearer {mcp_token}") }
+            }
+        },
+        "enabled_providers": configuration.enabled_providers,
+        "model": configuration.model,
+        "provider": configuration.provider,
+        "agent": configuration.agent
+    });
+    let mut command = app
+        .shell()
+        .sidecar("opencode")
+        .map_err(|e| e.to_string())?
+        .args([
+            "serve".to_string(),
+            "--pure".to_string(),
+            "--hostname=127.0.0.1".to_string(),
+            format!("--port={port}"),
+        ])
+        .env("OPENCODE_CONFIG_CONTENT", config.to_string())
+        .env("OPENCODE_SERVER_PASSWORD", runtime_token.clone())
+        .env("XDG_DATA_HOME", &runtime_data)
+        .env("XDG_CONFIG_HOME", &runtime_config)
+        .env("XDG_CACHE_HOME", &runtime_cache)
+        .current_dir(workspace);
+    for (key, value) in child_proxy_environment() {
+        command = command.env(key, value);
+    }
+    let (mut events, child) = command.spawn().map_err(|e| e.to_string())?;
+    {
+        let mut process = state.process.lock().await;
+        process.child = Some(child);
+    }
+    let expected = format!("http://127.0.0.1:{port}");
+    let health_token = runtime_token.clone();
+    let generation = state.process.lock().await.generation;
+    let (ready_tx, ready_rx) = oneshot::channel::<Result<String, String>>();
+    let health_url = expected.clone();
+    tauri::async_runtime::spawn(async move {
+        let ready = wait_for_opencode_health(&health_url, &health_token)
+            .await
+            .map(|_| health_url);
+        let _ = ready_tx.send(ready);
+    });
+    let monitor_app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let mut output = String::new();
+        while let Some(event) = events.recv().await {
+            match event {
+                CommandEvent::Stdout(bytes) | CommandEvent::Stderr(bytes) => {
+                    output.push_str(&String::from_utf8_lossy(&bytes));
+                    if output.contains("opencode server listening") {
+                        output.clear();
+                    }
+                }
+                CommandEvent::Error(_) => {}
+                CommandEvent::Terminated(payload) => {
+                    let error = format!("OpenCode exited: {:?}", payload.code);
+                    let runtime = monitor_app.state::<AgentRuntimeState>();
+                    let mut process = runtime.process.lock().await;
+                    if process.generation == generation && process.status.state != "stopped" {
+                        process.status.state = "failed".into();
+                        process.status.error = Some(error);
+                        process.child = None;
+                    }
+                    break;
+                }
+                _ => {}
+            }
+        }
+    });
+    let ready = match tokio::time::timeout(Duration::from_secs(20), ready_rx).await {
+        Ok(Ok(result)) => result,
+        Ok(Err(_)) => Err("OpenCode startup monitor closed".to_string()),
+        Err(_) => Err("Timed out waiting for OpenCode to start".to_string()),
+    };
+    let mut process = state.process.lock().await;
+    match ready {
+        Ok(url) => {
+            process.status = RuntimeStatus {
+                state: "ready".into(),
+                error: None,
+            };
+            process.runtime_url = Some(url);
+            process.runtime_token = Some(runtime_token);
+            Ok(process.status.clone())
+        }
+        Err(error) => {
+            if let Some(child) = process.child.take() {
+                let _ = child.kill();
+            }
+            process.status.state = "failed".into();
+            process.status.error = Some(error.clone());
+            process.runtime_url = None;
+            process.runtime_token = None;
+            Err(error)
+        }
+    }
+}
+
+#[tauri::command]
+pub async fn agent_runtime_status(
+    state: tauri::State<'_, AgentRuntimeState>,
+) -> Result<RuntimeStatus, String> {
+    Ok(state.process.lock().await.status.clone())
+}
+
+async fn runtime_connection(state: &AgentRuntimeState) -> Result<(String, String), String> {
+    let process = state.process.lock().await;
+    if process.status.state != "ready" {
+        return Err(process
+            .status
+            .error
+            .clone()
+            .unwrap_or_else(|| "OpenCode Runtime is not ready".into()));
+    }
+    let url = process
+        .runtime_url
+        .clone()
+        .ok_or_else(|| "OpenCode Runtime URL is unavailable".to_string())?;
+    let token = process
+        .runtime_token
+        .clone()
+        .ok_or_else(|| "OpenCode Runtime credentials are unavailable".to_string())?;
+    Ok((url, token))
+}
+
+fn validate_runtime_url(base: &str, requested: &str) -> Result<reqwest::Url, String> {
+    let base = reqwest::Url::parse(base).map_err(|e| e.to_string())?;
+    if !requested.starts_with('/') || requested.starts_with("//") {
+        return Err("OpenCode request target must be a runtime-relative path".into());
+    }
+    base.join(requested).map_err(|e| e.to_string())
+}
+
+fn runtime_http_client() -> Result<reqwest::Client, String> {
+    reqwest::Client::builder()
+        .connect_timeout(Duration::from_secs(2))
+        .timeout(Duration::from_secs(620))
+        .no_proxy()
+        .build()
+        .map_err(|e| e.to_string())
+}
+
+fn runtime_event_client() -> Result<reqwest::Client, String> {
+    reqwest::Client::builder()
+        .connect_timeout(Duration::from_secs(2))
+        .no_proxy()
+        .build()
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn agent_runtime_request(
+    state: tauri::State<'_, AgentRuntimeState>,
+    request: RuntimeHttpRequest,
+) -> Result<RuntimeHttpResponse, String> {
+    let (base, token) = runtime_connection(&state).await?;
+    let url = validate_runtime_url(&base, &request.url)?;
+    let method = reqwest::Method::from_bytes(request.method.as_bytes())
+        .map_err(|_| format!("Invalid OpenCode HTTP method: {}", request.method))?;
+    let client = runtime_http_client()?;
+    let mut outgoing = client
+        .request(method, url)
+        .basic_auth("opencode", Some(token));
+    for (name, value) in request.headers {
+        if matches!(
+            name.to_ascii_lowercase().as_str(),
+            "authorization" | "host" | "content-length" | "connection"
+        ) {
+            continue;
+        }
+        let name = reqwest::header::HeaderName::from_bytes(name.as_bytes())
+            .map_err(|_| format!("Invalid OpenCode request header: {name}"))?;
+        let value = reqwest::header::HeaderValue::from_str(&value)
+            .map_err(|_| format!("Invalid value for OpenCode request header: {name}"))?;
+        outgoing = outgoing.header(name, value);
+    }
+    if let Some(body) = request.body {
+        outgoing = outgoing.body(body);
+    }
+    let response = outgoing
+        .send()
+        .await
+        .map_err(|e| format!("OpenCode transport failed: {e}"))?;
+    let status = response.status();
+    let headers = response
+        .headers()
+        .iter()
+        .filter_map(|(name, value)| {
+            value
+                .to_str()
+                .ok()
+                .map(|value| (name.to_string(), value.to_string()))
+        })
+        .collect();
+    let body = response
+        .text()
+        .await
+        .map_err(|e| format!("Failed to read OpenCode response: {e}"))?;
+    Ok(RuntimeHttpResponse {
+        status: status.as_u16(),
+        status_text: status.canonical_reason().unwrap_or("").to_string(),
+        headers,
+        body,
+    })
+}
+
+fn take_sse_frame(buffer: &mut Vec<u8>) -> Option<Vec<u8>> {
+    let delimiter = buffer
+        .windows(2)
+        .position(|window| window == b"\n\n")
+        .map(|index| (index, 2))
+        .or_else(|| {
+            buffer
+                .windows(4)
+                .position(|window| window == b"\r\n\r\n")
+                .map(|index| (index, 4))
+        })?;
+    let frame = buffer[..delimiter.0].to_vec();
+    buffer.drain(..delimiter.0 + delimiter.1);
+    Some(frame)
+}
+
+fn parse_sse_data(frame: &[u8]) -> Option<Value> {
+    let text = std::str::from_utf8(frame).ok()?;
+    let data = text
+        .lines()
+        .filter_map(|line| line.strip_prefix("data:").map(str::trim_start))
+        .collect::<Vec<_>>()
+        .join("\n");
+    if data.is_empty() {
+        return None;
+    }
+    serde_json::from_str(&data).ok()
+}
+
+#[tauri::command]
+pub async fn agent_runtime_subscribe(
+    app: AppHandle,
+    state: tauri::State<'_, AgentRuntimeState>,
+    subscription_id: String,
+    directory: String,
+) -> Result<(), String> {
+    let (base, token) = runtime_connection(&state).await?;
+    let mut url = reqwest::Url::parse(&format!("{base}/event")).map_err(|e| e.to_string())?;
+    url.query_pairs_mut().append_pair("directory", &directory);
+    let client = runtime_event_client()?;
+    let (cancel_tx, mut cancel_rx) = oneshot::channel();
+    if let Some(previous) = state
+        .subscriptions
+        .lock()
+        .await
+        .insert(subscription_id.clone(), cancel_tx)
+    {
+        let _ = previous.send(());
+    }
+    let task_app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let result = async {
+            let response = client
+                .get(url)
+                .basic_auth("opencode", Some(token))
+                .send()
+                .await
+                .map_err(|e| format!("OpenCode event transport failed: {e}"))?;
+            if !response.status().is_success() {
+                return Err(format!("OpenCode event stream returned {}", response.status()));
+            }
+            let mut stream = response.bytes_stream();
+            let mut buffer = Vec::new();
+            loop {
+                tokio::select! {
+                    _ = &mut cancel_rx => break,
+                    next = stream.next() => match next {
+                        Some(Ok(bytes)) => {
+                            buffer.extend_from_slice(&bytes);
+                            while let Some(frame) = take_sse_frame(&mut buffer) {
+                                if let Some(event) = parse_sse_data(&frame) {
+                                    let _ = task_app.emit("agent-runtime-event", RuntimeStreamEvent {
+                                        subscription_id: subscription_id.clone(),
+                                        event: Some(event),
+                                        error: None,
+                                        done: false,
+                                    });
+                                }
+                            }
+                        }
+                        Some(Err(error)) => return Err(format!("OpenCode event stream failed: {error}")),
+                        None => break,
+                    }
+                }
+            }
+            Ok::<(), String>(())
+        }
+        .await;
+        let _ = task_app.emit(
+            "agent-runtime-event",
+            RuntimeStreamEvent {
+                subscription_id: subscription_id.clone(),
+                event: None,
+                error: result.err(),
+                done: true,
+            },
+        );
+        task_app
+            .state::<AgentRuntimeState>()
+            .subscriptions
+            .lock()
+            .await
+            .remove(&subscription_id);
+    });
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn agent_runtime_unsubscribe(
+    state: tauri::State<'_, AgentRuntimeState>,
+    subscription_id: String,
+) -> Result<(), String> {
+    if let Some(cancel) = state.subscriptions.lock().await.remove(&subscription_id) {
+        let _ = cancel.send(());
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn agent_runtime_register_tools(
+    state: tauri::State<'_, AgentRuntimeState>,
+    tools: Vec<RuntimeTool>,
+) -> Result<usize, String> {
+    let mut target = state.tools.write().await;
+    *target = tools;
+    Ok(target.len())
+}
+
+#[tauri::command]
+pub async fn agent_tool_reply(
+    state: tauri::State<'_, AgentRuntimeState>,
+    call_id: String,
+    result: Option<Value>,
+    error: Option<String>,
+) -> Result<(), String> {
+    let sender = state
+        .pending
+        .lock()
+        .await
+        .remove(&call_id)
+        .ok_or_else(|| format!("Unknown or expired tool call: {call_id}"))?;
+    let reply = match error {
+        Some(error) => Err(error),
+        None => Ok(result.unwrap_or(Value::Null)),
+    };
+    sender
+        .send(reply)
+        .map_err(|_| "Tool caller no longer accepts a reply".to_string())
+}
+
+#[tauri::command]
+pub async fn agent_runtime_stop(state: tauri::State<'_, AgentRuntimeState>) -> Result<(), String> {
+    state.shutdown().await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::body::to_bytes;
+
+    fn bridge() -> BridgeState {
+        BridgeState {
+            app: None,
+            tools: Arc::new(RwLock::new(vec![RuntimeTool {
+                name: "get_canvas".into(),
+                description: "Read canvas".into(),
+                input_schema: json!({ "type": "object", "additionalProperties": false }),
+            }])),
+            pending: Arc::new(Mutex::new(HashMap::new())),
+            token: "secret".into(),
+        }
+    }
+
+    fn auth() -> HeaderMap {
+        let mut headers = HeaderMap::new();
+        headers.insert("authorization", "Bearer secret".parse().unwrap());
+        headers
+    }
+
+    async fn body(response: Response) -> Value {
+        serde_json::from_slice(&to_bytes(response.into_body(), 1_000_000).await.unwrap()).unwrap()
+    }
+
+    #[tokio::test]
+    async fn mcp_requires_bearer_auth() {
+        let response = mcp_post(
+            State(bridge()),
+            HeaderMap::new(),
+            Json(json!({
+                "jsonrpc": "2.0", "id": 1, "method": "tools/list"
+            })),
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn mcp_initializes_and_lists_registered_tools() {
+        let initialized = body(
+            mcp_post(
+                State(bridge()),
+                auth(),
+                Json(json!({
+                    "jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}
+                })),
+            )
+            .await,
+        )
+        .await;
+        assert_eq!(initialized["result"]["protocolVersion"], "2024-11-05");
+
+        let listed = body(
+            mcp_post(
+                State(bridge()),
+                auth(),
+                Json(json!({
+                    "jsonrpc": "2.0", "id": 2, "method": "tools/list"
+                })),
+            )
+            .await,
+        )
+        .await;
+        assert_eq!(listed["result"]["tools"][0]["name"], "get_canvas");
+        assert_eq!(
+            listed["result"]["tools"][0]["inputSchema"]["type"],
+            "object"
+        );
+    }
+
+    #[test]
+    fn gateway_only_accepts_runtime_relative_targets() {
+        let base = "http://127.0.0.1:61234";
+        assert_eq!(
+            validate_runtime_url(base, "/session?directory=%2Ftmp")
+                .unwrap()
+                .as_str(),
+            "http://127.0.0.1:61234/session?directory=%2Ftmp"
+        );
+        assert!(validate_runtime_url(base, "http://example.com/session").is_err());
+        assert!(validate_runtime_url(base, "//example.com/session").is_err());
+    }
+
+    #[test]
+    fn gateway_parses_complete_sse_frames() {
+        let mut buffer = b"data: {\"type\":\"message.part.updated\",\"text\":\"\xE7\x94\xBB\xE5\xB8\x83\"}\r\n\r\nrest".to_vec();
+        let frame = take_sse_frame(&mut buffer).unwrap();
+        let event = parse_sse_data(&frame).unwrap();
+        assert_eq!(event["text"], "画布");
+        assert_eq!(buffer, b"rest");
+    }
+
+    #[test]
+    fn macos_system_proxy_is_forwarded_as_an_http_connect_proxy() {
+        let proxy = parse_macos_system_proxy(
+            "<dictionary> {\n  HTTPEnable : 1\n  HTTPPort : 7897\n  HTTPProxy : 127.0.0.1\n  HTTPSEnable : 1\n  HTTPSPort : 7897\n  HTTPSProxy : 127.0.0.1\n}",
+        );
+        assert_eq!(proxy.as_deref(), Some("http://127.0.0.1:7897"));
+    }
+}

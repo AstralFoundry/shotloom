@@ -1,0 +1,63 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Shotloom",
+  "version": "0.1.1",
+  "identifier": "com.shotloom.app",
+  "plugins": {
+    "updater": {
+      "endpoints": [],
+      "pubkey": ""
+    }
+  },
+  "build": {
+    "beforeDevCommand": "npm run dev:web",
+    "devUrl": "http://127.0.0.1:5173",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist/renderer"
+  },
+  "app": {
+    "security": {
+      "csp": null,
+      "assetProtocol": {
+        "enable": true,
+        "scope": ["$APPDATA/**", "$HOME/**"]
+      }
+    },
+    "windows": [
+      {
+        "label": "main",
+        "title": "Shotloom",
+        "width": 1440,
+        "height": 900,
+        "minWidth": 1080,
+        "minHeight": 720,
+        "decorations": true,
+        "titleBarStyle": "Overlay",
+        "trafficLightPosition": { "x": 14, "y": 21 },
+        "hiddenTitle": true,
+        "resizable": true
+      }
+    ]
+  },
+  "bundle": {
+    "active": true,
+    "externalBin": ["binaries/opencode"],
+    "resources": ["resources/opencode-LICENSE.txt"],
+    "targets": "all",
+    "createUpdaterArtifacts": false,
+    "icon": [
+      "icons/app.png",
+      "icons/app.icns",
+      "icons/app.ico"
+    ],
+    "macOS": {
+      "minimumSystemVersion": "10.15"
+    },
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "languages": ["English", "SimpChinese"]
+      }
+    }
+  }
+}

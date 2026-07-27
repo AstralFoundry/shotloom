@@ -1,0 +1,7 @@
+{
+  "id": "ecommerce-product",
+  "category": "ecommerce",
+  "version": 2,
+  "triggers": { "keywords": ["详情页", "主图", "白底图", "卖点图", "产品场景图", "广告图", "淘宝", "天猫", "京东", "亚马逊", "洗图", "改图"] },
+  "recipeIds": ["ecommerce-text-plan", "ecommerce-style-reference", "ecommerce-ad-image", "ecommerce-scene-image", "ecommerce-remix-image"]
+}

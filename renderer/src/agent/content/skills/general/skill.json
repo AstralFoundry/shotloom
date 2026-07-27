@@ -1,0 +1,7 @@
+{
+  "id": "general",
+  "category": "general",
+  "version": 2,
+  "triggers": { "keywords": ["通用", "整理", "修改节点", "简单生成"] },
+  "recipeIds": ["general-image", "general-video", "general-audio", "general-text"]
+}

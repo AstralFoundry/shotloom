@@ -1,0 +1,346 @@
+{
+  "version": 2,
+  "inputRoles": {
+    "textContext": "文本或便签为目标生成节点提供语义上下文",
+    "referenceImage": "图片作为参考图，目标模型必须支持参考图输入",
+    "inputVideo": "视频作为视频生成输入，目标模型必须支持视频输入"
+  },
+  "commonProperties": {
+    "type": {
+      "type": "string",
+      "description": "动作类型；必须使用当前分支给出的精确枚举值"
+    },
+    "tempId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "本批次中新节点的稳定临时 ID；后续动作和 inputLinks 可直接引用"
+    },
+    "nodeId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "现有节点 ID、get_canvas 返回的 N-xx 别名，或本批次 tempId"
+    },
+    "assetId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "get_canvas full 视图中素材库条目的真实 asset ID"
+    },
+    "materialId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "get_canvas full 视图中素材文件的真实 material ID"
+    },
+    "assetName": {
+      "type": "string",
+      "minLength": 1,
+      "description": "素材库中的完整名称；仅在没有稳定 ID 时使用"
+    },
+    "nodeType": {
+      "type": "string",
+      "description": "节点类型"
+    },
+    "title": {
+      "type": "string",
+      "description": "简短中文标题"
+    },
+    "content": {
+      "type": "string",
+      "minLength": 1,
+      "description": "文本节点正文，可保存剧本、场次、分镜表或制作说明"
+    },
+    "prompt": {
+      "type": "string",
+      "minLength": 1,
+      "description": "画布生成节点的完整成品提示词；节点顶层唯一真值"
+    },
+    "model": {
+      "type": "string",
+      "minLength": 1,
+      "description": "inspect_model_catalog 返回的可用模型 ID；节点顶层唯一真值"
+    },
+    "recipeId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "本轮通过 load_recipe 加载、且 generationType 与节点类型匹配的 Recipe ID"
+    },
+    "config": {
+      "type": "object",
+      "description": "当前 model/mode 的真实参数；只使用运行时模型契约列出的 key，不得包含 prompt 或 model"
+    },
+    "outputSpec": {
+      "type": "object",
+      "description": "跨模型稳定的输出意图，可包含 aspectRatio、duration、resolution、generationCount、generateAudio、quality；运行时同步编译为当前模型真实参数",
+      "properties": {
+        "aspectRatio": { "type": "string" },
+        "duration": { "type": "number" },
+        "resolution": { "type": "string" },
+        "generationCount": { "type": "number" },
+        "generateAudio": { "type": "boolean" },
+        "quality": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "data": {
+      "type": "object",
+      "description": "资源或节点数据"
+    },
+    "inputLinks": {
+      "type": "array",
+      "description": "创建节点时同时建立真实输入边；输入类型由上游节点自动推断",
+      "items": {
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          }
+        },
+        "required": ["nodeId"],
+        "additionalProperties": false
+      }
+    },
+    "source": {
+      "type": "string",
+      "description": "源节点 ID、别名或 tempId"
+    },
+    "target": {
+      "type": "string",
+      "description": "目标节点 ID、别名或 tempId"
+    },
+    "edgeId": {
+      "type": "string"
+    },
+    "position": {
+      "type": "object",
+      "properties": {
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": false
+    },
+    "x": {
+      "type": "number"
+    },
+    "y": {
+      "type": "number"
+    },
+    "width": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "height": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "required": {
+      "type": "boolean"
+    },
+    "force": {
+      "type": "boolean"
+    },
+    "enabled": {
+      "type": "boolean",
+      "description": "启用或禁用连线；false 时下游任务执行会跳过该边"
+    }
+  },
+  "actions": {
+    "create_gen_node": {
+      "category": "generation",
+      "modelVisible": true,
+      "description": "创建图片、视频、音频或文本生成节点。必须提供顶层 prompt 和 model；跨模型输出要求写 outputSpec，config 只放当前模型契约明确支持的参数。运行时会同步编译，不增加模型调用。",
+      "properties": {
+        "nodeType": {
+          "type": "string",
+          "enum": [
+            "imageGeneration",
+            "videoGeneration",
+            "audioGeneration",
+            "textGeneration"
+          ],
+          "description": "生成节点类型"
+        }
+      },
+      "fields": [
+        "tempId",
+        "nodeType",
+        "title",
+        "prompt",
+        "model",
+        "recipeId",
+        "outputSpec",
+        "config",
+        "data",
+        "inputLinks",
+        "position",
+        "width",
+        "height"
+      ],
+      "required": [
+        "nodeType",
+        "prompt",
+        "model",
+        "recipeId"
+      ]
+    },
+    "create_note_node": {
+      "category": "canvas",
+      "modelVisible": true,
+      "description": "创建可继续连接和编排的文本节点，适合保存剧本、场次、分镜表与制作说明；不会调用生成模型。",
+      "fields": [
+        "tempId",
+        "title",
+        "content",
+        "position",
+        "width",
+        "height"
+      ],
+      "required": [
+        "content"
+      ]
+    },
+    "place_asset_on_canvas": {
+      "category": "canvas",
+      "modelVisible": true,
+      "description": "把素材库中已有真实文件放回画布，创建可连接下游的普通图片、视频、音频或文本节点，不重新生成媒体。优先使用 assetId 或 materialId；返回的 nodeId/tempId 可继续用于 connect_nodes。",
+      "fields": [
+        "tempId",
+        "assetId",
+        "materialId",
+        "assetName",
+        "title",
+        "position",
+        "width",
+        "height"
+      ],
+      "anyOfRequired": [
+        ["assetId"],
+        ["materialId"],
+        ["assetName"]
+      ]
+    },
+    "update_gen_config": {
+      "category": "generation",
+      "modelVisible": true,
+      "description": "更新现有生成节点。prompt/model 使用顶层字段；跨模型输出要求写 outputSpec，config 只提交当前模型契约支持且需要变化的参数。",
+      "fields": [
+        "nodeId",
+        "title",
+        "prompt",
+        "model",
+        "recipeId",
+        "outputSpec",
+        "config"
+      ],
+      "required": [
+        "nodeId"
+      ]
+    },
+    "start_generation": {
+      "category": "task",
+      "modelVisible": true,
+      "description": "启动一个已存在且配置完整的生成节点。返回 taskId 后用 inspect_tasks 核对真实状态，不要重复启动。",
+      "fields": [
+        "nodeId",
+        "force"
+      ],
+      "required": [
+        "nodeId"
+      ]
+    },
+    "connect_nodes": {
+      "category": "canvas",
+      "modelVisible": true,
+      "description": "连接两个现有节点。普通连线始终把上游结果作为下游真实输入，输入类型由上游节点自动推断；source/target 必须来自 get_canvas 或本批次 tempId。",
+      "fields": [
+        "source",
+        "target",
+        "required"
+      ],
+      "required": [
+        "source",
+        "target"
+      ]
+    },
+    "delete_edge": {
+      "category": "canvas",
+      "modelVisible": true,
+      "description": "删除连线；优先提供 edgeId，也可提供 source + target。",
+      "fields": [
+        "edgeId",
+        "source",
+        "target"
+      ],
+      "anyOfRequired": [
+        [
+          "edgeId"
+        ],
+        [
+          "source",
+          "target"
+        ]
+      ]
+    },
+    "delete_node": {
+      "category": "canvas",
+      "modelVisible": true,
+      "description": "删除节点及相关连线。只有用户目标明确要求删除时使用。",
+      "fields": [
+        "nodeId"
+      ],
+      "required": [
+        "nodeId"
+      ]
+    },
+    "move_node": {
+      "category": "canvas",
+      "modelVisible": true,
+      "description": "移动单个节点。提供 position 或 x/y；批量整理使用 mutate_canvas 的 autoLayout。",
+      "fields": [
+        "nodeId",
+        "position",
+        "x",
+        "y"
+      ],
+      "required": [
+        "nodeId"
+      ],
+      "anyOfRequired": [
+        [
+          "position"
+        ],
+        [
+          "x"
+        ],
+        [
+          "y"
+        ]
+      ]
+    },
+    "toggle_edge": {
+      "category": "canvas",
+      "modelVisible": true,
+      "description": "启用或禁用连线。禁用的边在任务执行时被跳过但不删除，用于 A/B 测试和可逆管线分支切换。优先提供 edgeId；也可提供 source + target。不提供 enabled 时自动翻转当前状态。",
+      "fields": [
+        "edgeId",
+        "source",
+        "target",
+        "enabled"
+      ],
+      "anyOfRequired": [
+        [
+          "edgeId"
+        ],
+        [
+          "source",
+          "target"
+        ]
+      ]
+    }
+  }
+}

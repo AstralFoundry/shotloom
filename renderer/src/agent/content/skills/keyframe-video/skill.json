@@ -1,0 +1,7 @@
+{
+  "id": "keyframe-video",
+  "category": "video",
+  "version": 3,
+  "triggers": { "keywords": ["关键帧视频", "首尾帧", "多关键帧", "分镜转视频", "动作过程", "姿势序列", "转场", "可控视频"] },
+  "recipeIds": ["keyframe-scene-script", "video-frame-extraction", "video-clip-generation"]
+}
