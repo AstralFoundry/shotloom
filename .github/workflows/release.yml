@@ -1,6 +1,7 @@
 name: Release
 
 on:
+  workflow_dispatch:
   push:
     tags: ["v*"]
 
@@ -132,12 +133,13 @@ jobs:
           name: ${{ matrix.artifact }}
           path: ${{ matrix.artifact-path }}
           if-no-files-found: error
-          retention-days: 1
+          retention-days: ${{ github.event_name == 'workflow_dispatch' && 7 || 1 }}
           compression-level: 0
 
   publish:
     name: Publish GitHub Release
     needs: build
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: write
