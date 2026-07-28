@@ -43,10 +43,18 @@ jobs:
             exit 1
           fi
 
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]] && \
-             gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" >/dev/null 2>&1; then
-            echo "::error::Tag $RELEASE_TAG already exists and will not be overwritten"
-            exit 1
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            if tag_commit="$(gh api "repos/$GITHUB_REPOSITORY/commits/$RELEASE_TAG" --jq '.sha' 2>/dev/null)"; then
+              if [[ "$tag_commit" != "$GITHUB_SHA" ]]; then
+                echo "::error::Tag $RELEASE_TAG already points to another commit and will not be overwritten"
+                exit 1
+              fi
+              if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+                echo "::error::Release $RELEASE_TAG already exists"
+                exit 1
+              fi
+              echo "::notice::Resuming the incomplete $RELEASE_TAG release from this commit"
+            fi
           fi
 
   build:
@@ -186,6 +194,8 @@ jobs:
       contents: write
 
     steps:
+      - uses: actions/checkout@v4
+
       - name: Download verified release assets
         uses: actions/download-artifact@v4
         with:
@@ -206,15 +216,22 @@ jobs:
           fi
 
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            tag_object="$(gh api --method POST "repos/$GITHUB_REPOSITORY/git/tags" \
-              --raw-field tag="$RELEASE_TAG" \
-              --raw-field message="Shotloom $RELEASE_TAG" \
-              --raw-field object="$GITHUB_SHA" \
-              --raw-field type="commit" \
-              --jq '.sha')"
-            gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
-              --raw-field ref="refs/tags/$RELEASE_TAG" \
-              --raw-field sha="$tag_object" >/dev/null
+            if tag_commit="$(gh api "repos/$GITHUB_REPOSITORY/commits/$RELEASE_TAG" --jq '.sha' 2>/dev/null)"; then
+              if [[ "$tag_commit" != "$GITHUB_SHA" ]]; then
+                echo "::error::Tag $RELEASE_TAG changed after validation"
+                exit 1
+              fi
+            else
+              tag_object="$(gh api --method POST "repos/$GITHUB_REPOSITORY/git/tags" \
+                --raw-field tag="$RELEASE_TAG" \
+                --raw-field message="Shotloom $RELEASE_TAG" \
+                --raw-field object="$GITHUB_SHA" \
+                --raw-field type="commit" \
+                --jq '.sha')"
+              gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
+                --raw-field ref="refs/tags/$RELEASE_TAG" \
+                --raw-field sha="$tag_object" >/dev/null
+            fi
           fi
 
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
