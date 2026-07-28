@@ -62,7 +62,7 @@ jobs:
       - run: npm run prepare:opencode
 
       - name: Check Apple signing secrets
-        if: runner.os == 'macOS'
+        if: runner.os == 'macOS' && github.event_name == 'push'
         shell: bash
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
@@ -85,7 +85,7 @@ jobs:
           fi
 
       - name: Import Apple Developer ID certificate
-        if: runner.os == 'macOS'
+        if: runner.os == 'macOS' && github.event_name == 'push'
         shell: bash
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
@@ -116,10 +116,10 @@ jobs:
       - name: Build release assets
         uses: tauri-apps/tauri-action@v1
         env:
-          APPLE_SIGNING_IDENTITY: ${{ runner.os == 'macOS' && secrets.APPLE_SIGNING_IDENTITY || '' }}
-          APPLE_ID: ${{ runner.os == 'macOS' && secrets.APPLE_ID || '' }}
-          APPLE_PASSWORD: ${{ runner.os == 'macOS' && secrets.APPLE_PASSWORD || '' }}
-          APPLE_TEAM_ID: ${{ runner.os == 'macOS' && secrets.APPLE_TEAM_ID || '' }}
+          APPLE_SIGNING_IDENTITY: ${{ runner.os == 'macOS' && github.event_name == 'push' && secrets.APPLE_SIGNING_IDENTITY || '' }}
+          APPLE_ID: ${{ runner.os == 'macOS' && github.event_name == 'push' && secrets.APPLE_ID || '' }}
+          APPLE_PASSWORD: ${{ runner.os == 'macOS' && github.event_name == 'push' && secrets.APPLE_PASSWORD || '' }}
+          APPLE_TEAM_ID: ${{ runner.os == 'macOS' && github.event_name == 'push' && secrets.APPLE_TEAM_ID || '' }}
         with:
           retryAttempts: 2
           tauriScript: npm run tauri
