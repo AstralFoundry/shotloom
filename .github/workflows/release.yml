@@ -1,7 +1,14 @@
 name: Release
+run-name: ${{ github.event_name == 'workflow_dispatch' && format('Package and release {0}', inputs.version) || format('Release {0}', github.ref_name) }}
 
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: "版本标签（必须与项目版本一致）"
+        required: true
+        default: "v0.1.2"
+        type: string
   push:
     tags: ["v*"]
 
@@ -13,8 +20,38 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  validate:
+    name: Validate release version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate version and tag availability
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.version || github.ref_name }}
+        run: |
+          if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Version must use a v-prefixed semantic version, for example v0.1.2"
+            exit 1
+          fi
+
+          package_version="$(node -p "require('./package.json').version")"
+          if [[ "$RELEASE_TAG" != "v$package_version" ]]; then
+            echo "::error::Requested tag $RELEASE_TAG does not match project version v$package_version"
+            exit 1
+          fi
+
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]] && \
+             gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "::error::Tag $RELEASE_TAG already exists and will not be overwritten"
+            exit 1
+          fi
+
   build:
     name: ${{ matrix.name }}
+    needs: validate
     strategy:
       fail-fast: false
       matrix:
@@ -143,8 +180,7 @@ jobs:
 
   publish:
     name: Publish GitHub Release
-    needs: build
-    if: github.event_name == 'push'
+    needs: [validate, build]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -161,12 +197,24 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.version || github.ref_name }}
         run: |
           mapfile -d '' assets < <(find release-assets -type f -print0)
           if (( ${#assets[@]} == 0 )); then
             echo "::error::No release assets were downloaded"
             exit 1
+          fi
+
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            tag_object="$(gh api --method POST "repos/$GITHUB_REPOSITORY/git/tags" \
+              --raw-field tag="$RELEASE_TAG" \
+              --raw-field message="Shotloom $RELEASE_TAG" \
+              --raw-field object="$GITHUB_SHA" \
+              --raw-field type="commit" \
+              --jq '.sha')"
+            gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
+              --raw-field ref="refs/tags/$RELEASE_TAG" \
+              --raw-field sha="$tag_object" >/dev/null
           fi
 
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
