@@ -1,7 +1,4 @@
-import {
-  abortAgent,
-  runAgent,
-} from "../../agent";
+import { abortAgent, runAgent } from "../../agent";
 import {
   resolveClarification,
   resolveToolConfirmation,
@@ -24,13 +21,11 @@ import {
   settingsStore,
 } from "../../store/settingsStore";
 import { uid } from "../../utils/format";
-import type {
-  CopilotController,
-  CopilotMessage,
-} from "../copilot/CopilotPanel";
+import type { CopilotController, CopilotMessage } from "../copilot/CopilotPanel";
 import { CopilotRuntimePresenter } from "../copilot/CopilotRuntimePresenter";
 import { showToast } from "../store/overlayStore";
 import { setSelectedNodeIds } from "../../store/nodeStore";
+import { toRaw } from "../../store/domainReactivity.js";
 
 type Loose = Record<string, any>;
 type CopilotSendPayload = {
@@ -48,19 +43,37 @@ type AgentResume = {
 const listeners = new Set<() => void>();
 let busy = false;
 let activeRequestId = "";
-const notify = () => listeners.forEach((listener) => listener());
+let revision = 0;
+let textModelConfigSource: object | null = null;
+let cachedTextModels: Array<{ id: string; label: string }> = [];
+const notify = () => {
+  revision += 1;
+  listeners.forEach((listener) => listener());
+};
 export const subscribeCopilot = (listener: () => void) => {
   listeners.add(listener);
   return () => listeners.delete(listener);
 };
+export const getCopilotRevision = () => revision;
 function active() {
   return getActiveCopilotConversation(store.project) as Loose;
 }
+function availableTextModels() {
+  const source = toRaw(settingsStore.providerConfigs) as object;
+  if (source === textModelConfigSource) return cachedTextModels;
+  textModelConfigSource = source;
+  const catalog = getAvailableAgentModelCatalog();
+  cachedTextModels = (
+    catalog.find((item: Loose) => item.type === "textGeneration")?.models || []
+  ).map((model: Loose) => ({
+    id: model.id,
+    label: model.name || getModelInfo(model.id)?.name || model.id,
+  }));
+  return cachedTextModels;
+}
 function pushMessage(message: Loose) {
   const conversation = active();
-  conversation.messages = conversation.messages.filter((item: Loose) =>
-    !item.transient
-  );
+  conversation.messages = conversation.messages.filter((item: Loose) => !item.transient);
   conversation.messages.push({
     id: uid(),
     createdAt: new Date().toISOString(),
@@ -78,7 +91,8 @@ function pushMessage(message: Loose) {
 }
 function pushTyping() {
   const id = uid();
-  active().messages.push({
+  const conversation = toRaw(active()) as Loose;
+  conversation.messages.push({
     id,
     role: "assistant",
     title: "助手正在处理",
@@ -91,15 +105,14 @@ function pushTyping() {
   return id;
 }
 function patchMessage(id: string, patch: Loose) {
-  const item = active().messages.find((message: Loose) => message.id === id);
+  const conversation = toRaw(active()) as Loose;
+  const item = conversation.messages.find((message: Loose) => message.id === id);
   if (item) Object.assign(item, patch);
   notify();
 }
 function finalizeMessage(id: string, patch: Loose) {
-  const conversation = active();
-  const item = conversation.messages.find((message: Loose) =>
-    message.id === id
-  );
+  const conversation = toRaw(active()) as Loose;
+  const item = conversation.messages.find((message: Loose) => message.id === id);
   if (!item) return pushMessage(patch);
   Object.assign(item, patch, {
     id: item.id,
@@ -132,21 +145,15 @@ export function copilotData() {
       }
     }
   }
-  const catalog = getAvailableAgentModelCatalog();
-  const textModels =
-    (catalog.find((item: Loose) => item.type === "textGeneration")?.models ||
-      []).map((model: Loose) => ({
-        id: model.id,
-        label: model.name || getModelInfo(model.id)?.name || model.id,
-      }));
+  const textModels = availableTextModels();
   const configured = settingsStore.agentPreferredTextModel;
   return {
     messages: conversation.messages as CopilotMessage[],
-    conversations: (store.project.copilotConversations || []).map((
-      item: Loose,
-    ) => {
-      const pending = interactionList.filter((interaction) =>
-        interaction.conversationId === String(item.id) && interaction.status === "pending");
+    conversations: (store.project.copilotConversations || []).map((item: Loose) => {
+      const pending = interactionList.filter(
+        (interaction) =>
+          interaction.conversationId === String(item.id) && interaction.status === "pending",
+      );
       return {
         id: item.id,
         title: item.title,
@@ -154,12 +161,12 @@ export function copilotData() {
         pendingInteractionCount: pending.length,
         waitingKind: pending.some((interaction) => interaction.kind === "question")
           ? "question"
-          : pending.length ? "tool_confirmation" : "",
+          : pending.length
+            ? "tool_confirmation"
+            : "",
       };
     }),
-    activeConversationId: String(
-      store.project.activeCopilotConversationId || "",
-    ),
+    activeConversationId: String(store.project.activeCopilotConversationId || ""),
     busy,
     textModel: textModels.some((item: Loose) => item.id === configured)
       ? configured
@@ -183,19 +190,18 @@ async function send(
   }
   busy = true;
   notify();
-  const messageText = payload.text.trim() ||
-    "请结合我选择的节点和附件继续处理。";
+  const messageText = payload.text.trim() || "请结合我选择的节点和附件继续处理。";
   if (!resume && !options.skipUserMessage) {
     pushMessage({
       role: "user",
       title: "你的消息",
       content: messageText,
       meta: [
-        ...(payload.nodeMentions as Loose[]).map((node) =>
-          `@${node.alias || node.id} ${node.title || "未命名节点"}`
+        ...(payload.nodeMentions as Loose[]).map(
+          (node) => `@${node.alias || node.id} ${node.title || "未命名节点"}`,
         ),
-        ...(payload.attachments as Loose[]).map((file) =>
-          `附件 ${file.name || file.fileName || "未命名文件"}`
+        ...(payload.attachments as Loose[]).map(
+          (file) => `附件 ${file.name || file.fileName || "未命名文件"}`,
         ),
       ],
     });
@@ -217,7 +223,7 @@ async function send(
   };
   try {
     const result = await runAgent(
-      ({
+      {
         message: messageText,
         model: payload.model,
         attachments: payload.attachments as Loose[],
@@ -225,16 +231,14 @@ async function send(
         continuation: resume?.payload.continuation,
         projectKey,
         conversationId: conversation.id,
-      }) as any,
+      } as any,
       (event: Loose) => {
         if (event.type === "run_started") activeRequestId = String(event.requestId || "");
-        if (
-          store.project !== project || getAgentProjectKey() !== projectKey
-        ) return;
+        if (store.project !== project || getAgentProjectKey() !== projectKey) return;
         const effect = presentation.consume(event);
         if (effect.textChanged) schedule();
         if (effect.contextUsage) {
-          conversation.contextUsage = effect.contextUsage;
+          (toRaw(conversation) as Loose).contextUsage = effect.contextUsage;
           notify();
         }
         if (effect.messagePatch) patchMessage(typingId, effect.messagePatch);
@@ -244,8 +248,7 @@ async function send(
     if (store.project !== project || getAgentProjectKey() !== projectKey) {
       return;
     }
-    conversation.contextUsage = result?.contextUsage ||
-      conversation.contextUsage || null;
+    conversation.contextUsage = result?.contextUsage || conversation.contextUsage || null;
     conversation.updatedAt = new Date().toISOString();
     flush();
     finalizeMessage(typingId, {
@@ -267,15 +270,15 @@ async function send(
         ...(cancelled
           ? {}
           : {
-            error: `Agent 运行失败：${error}`,
-            retryable: true,
-            retryPayload: {
-              text: payload.text,
-              model: payload.model,
-              attachments: [...payload.attachments],
-              nodeMentions: [...payload.nodeMentions],
-            },
-          }),
+              error: `Agent 运行失败：${error}`,
+              retryable: true,
+              retryPayload: {
+                text: payload.text,
+                model: payload.model,
+                attachments: [...payload.attachments],
+                nodeMentions: [...payload.nodeMentions],
+              },
+            }),
         ...presentation.snapshot({ toolCalls: presentation.failRunningTools() }),
       });
     }
@@ -300,9 +303,7 @@ export const copilotController: CopilotController = {
   },
   retry: (messageId) => {
     if (busy) return;
-    const message = active().messages.find((item: Loose) =>
-      item.id === messageId
-    );
+    const message = active().messages.find((item: Loose) => item.id === messageId);
     if (!message?.retryable || !message.retryPayload) {
       showToast("这条失败消息没有可用的重试信息");
       return;
@@ -322,7 +323,11 @@ export const copilotController: CopilotController = {
     );
   },
   clear: () => {
-    if (listAgentInteractions({ pendingOnly: true }).some((item) => item.conversationId === String(active().id || ""))) {
+    if (
+      listAgentInteractions({ pendingOnly: true }).some(
+        (item) => item.conversationId === String(active().id || ""),
+      )
+    ) {
       showToast("当前对话仍有问题或操作等待处理，完成后才能清空");
       return;
     }
@@ -377,19 +382,23 @@ export const copilotController: CopilotController = {
     const value = payload as Loose;
     const interactionId = String(value.interactionId || "");
     if (!interactionId) return;
-    void resolveToolConfirmation(interactionId, true, !busy).then((resolution) => {
-      if (resolution.resume) void send(resolution.resume.payload, resolution.resume);
-      notify();
-    }).catch((cause) => showToast(cause instanceof Error ? cause.message : String(cause)));
+    void resolveToolConfirmation(interactionId, true, !busy)
+      .then((resolution) => {
+        if (resolution.resume) void send(resolution.resume.payload, resolution.resume);
+        notify();
+      })
+      .catch((cause) => showToast(cause instanceof Error ? cause.message : String(cause)));
   },
   rejectToolCall: (payload: unknown) => {
     const value = payload as Loose;
     const interactionId = String(value.interactionId || "");
     if (!interactionId) return;
-    void resolveToolConfirmation(interactionId, false, !busy).then((resolution) => {
-      if (resolution.resume) void send(resolution.resume.payload, resolution.resume);
-      notify();
-    }).catch((cause) => showToast(cause instanceof Error ? cause.message : String(cause)));
+    void resolveToolConfirmation(interactionId, false, !busy)
+      .then((resolution) => {
+        if (resolution.resume) void send(resolution.resume.payload, resolution.resume);
+        notify();
+      })
+      .catch((cause) => showToast(cause instanceof Error ? cause.message : String(cause)));
   },
   focusNodes: (nodeIds) => {
     const existing = new Set((store.project.nodes || []).map((node: Loose) => String(node.id)));

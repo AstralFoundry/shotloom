@@ -1,8 +1,8 @@
 import { computed } from '@/store/domainReactivity';
 import { store, touchProject } from '@/store/projectStore';
 
-// 每条撤销记录都包含完整节点快照。大型工作流中 40 条会把项目文件膨胀数 MB，
-// 拖垮启动 IPC 和 Agent 画布上下文；8 条足够覆盖近期误操作，同时保持文件可控。
+// 结构性操作仍需完整快照；高频移动只记录受影响节点的坐标。
+// 限制近期记录数量，避免项目文件、启动 IPC 和 Agent 画布上下文持续膨胀。
 export const MAX_CANVAS_HISTORY = 8;
 
 function clone(value) {
@@ -26,10 +26,25 @@ function ensureHistory() {
   if (!Array.isArray(store.project.canvasRedoStack)) store.project.canvasRedoStack = [];
 }
 
-export const canUndoCanvas = computed(() => Array.isArray(store.project.canvasHistory) && store.project.canvasHistory.length > 0);
-export const canRedoCanvas = computed(() => Array.isArray(store.project.canvasRedoStack) && store.project.canvasRedoStack.length > 0);
+export const canUndoCanvas = computed(
+  () => Array.isArray(store.project.canvasHistory) && store.project.canvasHistory.length > 0,
+);
+export const canRedoCanvas = computed(
+  () => Array.isArray(store.project.canvasRedoStack) && store.project.canvasRedoStack.length > 0,
+);
 
 function restore(entry) {
+  if (entry?.kind === 'node-positions') {
+    const positions = new Map((entry.positions || []).map((item) => [item.id, item]));
+    for (const node of store.project.nodes || []) {
+      const position = positions.get(node.id);
+      if (!position) continue;
+      node.x = position.x;
+      node.y = position.y;
+    }
+    touchProject();
+    return;
+  }
   store.project.nodes = clone(entry.nodes || []);
   store.project.edges = clone(entry.edges || []);
   store.project.materials = clone(entry.materials || []);
@@ -41,6 +56,29 @@ function restore(entry) {
 export function recordCanvasHistory(label) {
   ensureHistory();
   store.project.canvasHistory.unshift(snapshot(label));
+  store.project.canvasHistory = store.project.canvasHistory.slice(0, MAX_CANVAS_HISTORY);
+  store.project.canvasRedoStack = [];
+}
+
+function nodePositionSnapshot(nodeIds, label) {
+  const ids = new Set(nodeIds);
+  return {
+    kind: 'node-positions',
+    label,
+    createdAt: new Date().toISOString(),
+    positions: (store.project.nodes || [])
+      .filter((node) => ids.has(node.id))
+      .map((node) => ({
+        id: node.id,
+        x: Number(node.x) || 0,
+        y: Number(node.y) || 0,
+      })),
+  };
+}
+
+export function recordCanvasPositionHistory(nodeIds, label = '移动节点') {
+  ensureHistory();
+  store.project.canvasHistory.unshift(nodePositionSnapshot(nodeIds, label));
   store.project.canvasHistory = store.project.canvasHistory.slice(0, MAX_CANVAS_HISTORY);
   store.project.canvasRedoStack = [];
 }
@@ -68,7 +106,14 @@ export function undoCanvas() {
   ensureHistory();
   const previous = store.project.canvasHistory.shift();
   if (!previous) return false;
-  store.project.canvasRedoStack.unshift(snapshot('重做快照'));
+  store.project.canvasRedoStack.unshift(
+    previous.kind === 'node-positions'
+      ? nodePositionSnapshot(
+          previous.positions.map((item) => item.id),
+          '重做移动',
+        )
+      : snapshot('重做快照'),
+  );
   store.project.canvasRedoStack = store.project.canvasRedoStack.slice(0, MAX_CANVAS_HISTORY);
   restore(previous);
   return true;
@@ -78,7 +123,14 @@ export function redoCanvas() {
   ensureHistory();
   const next = store.project.canvasRedoStack.shift();
   if (!next) return false;
-  store.project.canvasHistory.unshift(snapshot('撤销快照'));
+  store.project.canvasHistory.unshift(
+    next.kind === 'node-positions'
+      ? nodePositionSnapshot(
+          next.positions.map((item) => item.id),
+          '撤销移动',
+        )
+      : snapshot('撤销快照'),
+  );
   store.project.canvasHistory = store.project.canvasHistory.slice(0, MAX_CANVAS_HISTORY);
   restore(next);
   return true;

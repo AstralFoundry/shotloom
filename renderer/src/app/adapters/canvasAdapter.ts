@@ -11,14 +11,12 @@ import {
 } from "../../store/assetStore.js";
 import { useLocalAssetInProject } from "../../store/localAssetLibraryStore.js";
 import { addCanvasEdge } from "../../store/canvasGraphStore.js";
-import {
-  pasteStagedWorkflow,
-  stageSelectedWorkflow,
-} from "../../store/clipboardStore.js";
+import { pasteStagedWorkflow, stageSelectedWorkflow } from "../../store/clipboardStore.js";
 import {
   canRedoCanvas,
   canUndoCanvas,
   recordCanvasHistory,
+  recordCanvasPositionHistory,
   redoCanvas,
   undoCanvas,
 } from "../../store/canvasHistoryStore.js";
@@ -29,7 +27,11 @@ import {
   selectNode,
   setSelectedNodeIds,
 } from "../../store/nodeStore.js";
-import { store as rawStore, touchProject } from "../../store/projectStore.js";
+import {
+  persistCanvasViewport,
+  store as rawStore,
+  touchProject,
+} from "../../store/projectStore.js";
 import {
   archiveResourceNode,
   connectResourceToNode,
@@ -50,9 +52,7 @@ import type {
 const store: any = rawStore;
 let fitViewHandler: (() => void) | null = null;
 let videoEditorOpener: ((id: string) => void) | null = null;
-export function registerVideoEditorOpener(
-  handler: ((id: string) => void) | null,
-) {
+export function registerVideoEditorOpener(handler: ((id: string) => void) | null) {
   videoEditorOpener = handler;
 }
 
@@ -61,27 +61,26 @@ async function createUploadedNode(rawFile: any, position = { x: 120, y: 90 }) {
   const path = file.path || file.filePath || "";
   if (!path) return showToast("文件未写入项目资源目录，已跳过");
   const resourceType = inferFileResourceType(file);
-  const nodeType = resourceType === "video"
-    ? "videoGeneration"
-    : resourceType === "audio"
-    ? "audioGeneration"
-    : resourceType === "text"
-    ? "textGeneration"
-    : "imageGeneration";
+  const nodeType =
+    resourceType === "video"
+      ? "videoGeneration"
+      : resourceType === "audio"
+        ? "audioGeneration"
+        : resourceType === "text"
+          ? "textGeneration"
+          : "imageGeneration";
   const registered = file.reusedMaterialId
     ? {
-      material: store.project.materials.find((item: any) =>
-        item.id === file.reusedMaterialId
-      ),
-      asset: null,
-    }
+        material: store.project.materials.find((item: any) => item.id === file.reusedMaterialId),
+        asset: null,
+      }
     : registerImportedMaterial(file, {
-      resourceType,
-      source: "canvas-upload",
-      sourceType: "canvas-upload",
-      nodeType,
-      assetTag: "画布上传",
-    });
+        resourceType,
+        source: "canvas-upload",
+        sourceType: "canvas-upload",
+        nodeType,
+        assetTag: "画布上传",
+      });
   if (!registered.material) return;
   const node: any = addNode(nodeType);
   node.title = file.name || file.fileName || "未命名文件";
@@ -111,52 +110,67 @@ export function canvasViewData() {
     store.selectedNodeIds?.length
       ? store.selectedNodeIds
       : store.selectedNodeId
-      ? [store.selectedNodeId]
-      : [],
+        ? [store.selectedNodeId]
+        : [],
   );
+  const materialsByNode = new Map<string, any[]>();
+  for (const material of store.project.materials || []) {
+    const nodeId = String(material.nodeId || "");
+    if (!nodeId) continue;
+    const items = materialsByNode.get(nodeId) || [];
+    items.push(material);
+    materialsByNode.set(nodeId, items);
+  }
+  const legacyBySource = new Map<string, any[]>();
+  for (const item of store.project.nodes || []) {
+    if (item.type !== "resource" || item.archived || !item.generatedFrom?.nodeId) continue;
+    const sourceId = String(item.generatedFrom.nodeId);
+    const items = legacyBySource.get(sourceId) || [];
+    items.push(item);
+    legacyBySource.set(sourceId, items);
+  }
+  const availableModelsByType = new Map<string, string[]>();
   return {
-    nodes: (store.project.nodes || []).filter((node: WorkflowNodeData) =>
-      node.type !== "resource"
-    ).map((node: any) => {
-      const direct = Array.isArray(node.generatedOutputs)
-        ? node.generatedOutputs
-        : [];
-      const materials = (store.project.materials || []).filter((item: any) =>
-        item.nodeId === node.id
-      ).map((item: any) => ({
-        ...item,
-        id: `material:${item.id}`,
-        title: item.name,
-        fileName: item.name,
-        filePath: item.filePath || item.path,
-      }));
-      const legacy = (store.project.nodes || []).filter((item: any) =>
-        item.type === "resource" && !item.archived &&
-        item.generatedFrom?.nodeId === node.id
-      );
-      const seen = new Set<string>();
-      const generatedOutputs = [...direct, ...materials, ...legacy].filter(
-        (item: any) => {
-          const key = String(item.id || item.filePath || item.path || "");
-          if (!key || seen.has(key)) return false;
-          seen.add(key);
-          return true;
-        },
-      ).map((item: any, index: number, items: any[]) => ({
-        ...item,
-        selected: node.selectedOutputNodeId
-          ? String(item.id) === String(node.selectedOutputNodeId)
-          : index === items.length - 1,
-      }));
-      return {
-        ...node,
-        generatedOutputs,
-        availableModels: /Generation$/.test(node.type)
-          ? getAvailableModelIdsByType(node.type)
-          : [],
-        selected: selected.has(node.id),
-      };
-    }),
+    nodes: (store.project.nodes || [])
+      .filter((node: WorkflowNodeData) => node.type !== "resource")
+      .map((node: any) => {
+        const direct = Array.isArray(node.generatedOutputs) ? node.generatedOutputs : [];
+        const materials = (materialsByNode.get(node.id) || []).map((item: any) => ({
+          ...item,
+          id: `material:${item.id}`,
+          title: item.name,
+          fileName: item.name,
+          filePath: item.filePath || item.path,
+        }));
+        const legacy = legacyBySource.get(node.id) || [];
+        const seen = new Set<string>();
+        const generatedOutputs = [...direct, ...materials, ...legacy]
+          .filter((item: any) => {
+            const key = String(item.id || item.filePath || item.path || "");
+            if (!key || seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          })
+          .map((item: any, index: number, items: any[]) => ({
+            ...item,
+            selected: node.selectedOutputNodeId
+              ? String(item.id) === String(node.selectedOutputNodeId)
+              : index === items.length - 1,
+          }));
+        return {
+          ...node,
+          generatedOutputs,
+          availableModels: /Generation$/.test(node.type)
+            ? availableModelsByType.get(node.type) ||
+              (() => {
+                const models = getAvailableModelIdsByType(node.type);
+                availableModelsByType.set(node.type, models);
+                return models;
+              })()
+            : [],
+          selected: selected.has(node.id),
+        };
+      }),
     edges: store.project.edges || [],
     viewport: store.project.canvasViewport || { x: 0, y: 0, zoom: 1 },
     history: {
@@ -169,7 +183,9 @@ export function canvasViewData() {
 export const canvasController: WorkflowCanvasController = {
   moveNodes(positions, options = {}) {
     if (!positions.length) return;
-    if (options.recordHistory !== false) recordCanvasHistory("移动节点");
+    if (options.recordHistory !== false) {
+      recordCanvasPositionHistory(positions.map((item) => item.id));
+    }
     const map = new Map(positions.map((item) => [item.id, item]));
     for (const node of store.project.nodes || []) {
       const position = map.get(node.id);
@@ -190,23 +206,17 @@ export const canvasController: WorkflowCanvasController = {
   connect(connection: Connection) {
     if (!connection.source || !connection.target) return false;
     recordCanvasHistory("连接节点");
-    const result = addCanvasEdge(
-      store.project,
-      connection.source,
-      connection.target,
-      {
-        edge: {
-          sourceHandle: connection.sourceHandle,
-          targetHandle: connection.targetHandle,
-        },
+    const result = addCanvasEdge(store.project, connection.source, connection.target, {
+      edge: {
+        sourceHandle: connection.sourceHandle,
+        targetHandle: connection.targetHandle,
       },
-    );
+    });
     if (!result.ok) showToast(result.error || "连接失败");
     return result.ok;
   },
   saveViewport(viewport) {
-    store.project.canvasViewport = viewport;
-    touchProject({ sessionDelay: 400, coalesceSession: true });
+    persistCanvasViewport(viewport);
   },
   async createNodeAt(type, position) {
     if (type === "__upload__") {
@@ -242,14 +252,11 @@ export const canvasController: WorkflowCanvasController = {
     touchProject();
   },
   deleteSelection() {
-    if (
-      !(store.selectedNodeIds?.length || store.selectedNodeId ||
-        store.selectedEdgeId)
-    ) return;
+    if (!(store.selectedNodeIds?.length || store.selectedNodeId || store.selectedEdgeId)) return;
     recordCanvasHistory("删除画布选择");
     if (store.selectedEdgeId) {
-      store.project.edges = store.project.edges.filter((edge: { id: string }) =>
-        edge.id !== store.selectedEdgeId
+      store.project.edges = store.project.edges.filter(
+        (edge: { id: string }) => edge.id !== store.selectedEdgeId,
       );
       store.selectedEdgeId = null;
       touchProject();
@@ -270,8 +277,8 @@ export const canvasController: WorkflowCanvasController = {
   redo: redoCanvas,
   runSelection() {
     const ids = new Set(store.selectedNodeIds || []);
-    const nodes = (store.project.nodes || []).filter((node: any) =>
-      ids.has(node.id) && /Generation$/.test(node.type)
+    const nodes = (store.project.nodes || []).filter(
+      (node: any) => ids.has(node.id) && /Generation$/.test(node.type),
     );
     if (!nodes.length) return showToast("请选择可运行的生成节点");
     nodes.forEach((node: any) => runNode(node));
@@ -283,9 +290,7 @@ export const canvasController: WorkflowCanvasController = {
 
 export const nodeActions: WorkflowNodeActions = {
   update(id, patch) {
-    const node = store.project.nodes.find((item: WorkflowNodeData) =>
-      item.id === id
-    );
+    const node = store.project.nodes.find((item: WorkflowNodeData) => item.id === id);
     if (node) {
       Object.assign(node, patch);
       touchProject({ sessionDelay: 250, coalesceSession: true });
@@ -300,9 +305,7 @@ export const nodeActions: WorkflowNodeActions = {
     deleteNodeById(id);
   },
   async upload(id) {
-    const node = store.project.nodes.find((item: WorkflowNodeData) =>
-      item.id === id
-    );
+    const node = store.project.nodes.find((item: WorkflowNodeData) => item.id === id);
     if (!node || !/Generation$/.test(node.type)) return;
     const picked: any = await desktopApi.file.pickResource();
     if (!picked) return;
@@ -324,18 +327,16 @@ export const nodeActions: WorkflowNodeActions = {
     if (!path) return showToast("文件未写入项目资源目录");
     const registered: any = file.reusedMaterialId
       ? {
-        material: store.project.materials.find((item: any) =>
-          item.id === file.reusedMaterialId
-        ),
-        asset: null,
-      }
+          material: store.project.materials.find((item: any) => item.id === file.reusedMaterialId),
+          asset: null,
+        }
       : registerImportedMaterial(file, {
-        resourceType: expected.type,
-        source: "node-upload",
-        sourceType: "node-upload",
-        nodeType: node.type,
-        assetTag: "节点上传",
-      });
+          resourceType: expected.type,
+          source: "node-upload",
+          sourceType: "node-upload",
+          nodeType: node.type,
+          assetTag: "节点上传",
+        });
     if (!registered.material) return showToast("上传文件登记失败");
     let textContent = "";
     if (expected.type === "text") {
@@ -371,15 +372,15 @@ export const nodeActions: WorkflowNodeActions = {
     showToast("文件已上传到节点");
   },
   run(id) {
-    const node = store.project.nodes.find((item: WorkflowNodeData) =>
-      item.id === id
-    );
+    const node = store.project.nodes.find((item: WorkflowNodeData) => item.id === id);
     if (node) runNode(node);
   },
   useResource(id) {
-    const target = (store.project.nodes || []).find((node: WorkflowNodeData) =>
-      node.id !== id && (store.selectedNodeIds || []).includes(node.id) &&
-      /Generation$/.test(node.type)
+    const target = (store.project.nodes || []).find(
+      (node: WorkflowNodeData) =>
+        node.id !== id &&
+        (store.selectedNodeIds || []).includes(node.id) &&
+        /Generation$/.test(node.type),
     );
     if (!target) return showToast("请同时选择一个生成节点作为输入目标");
     recordCanvasHistory("连接资源输入");
@@ -393,15 +394,15 @@ export const nodeActions: WorkflowNodeActions = {
     const resourceType = inferFileResourceType(file);
     const registered = file.reusedMaterialId
       ? {
-        material: store.project.materials.find((item: WorkflowNodeData) =>
-          item.id === file.reusedMaterialId
-        ),
-      }
+          material: store.project.materials.find(
+            (item: WorkflowNodeData) => item.id === file.reusedMaterialId,
+          ),
+        }
       : registerImportedMaterial(file, {
-        resourceType,
-        source: "resource-replace",
-        sourceType: "resource-replace",
-      });
+          resourceType,
+          source: "resource-replace",
+          sourceType: "resource-replace",
+        });
     if (!registered.material) return showToast("替换资源失败");
     recordCanvasHistory("替换资源");
     const result = replaceResourceNode(store.project, id, {
@@ -418,9 +419,7 @@ export const nodeActions: WorkflowNodeActions = {
   archiveResource(id) {
     recordCanvasHistory("归档资源");
     const result = archiveResourceNode(store.project, id);
-    showToast(
-      result.ok ? "资源已归档，可用撤销恢复" : result.error || "归档失败",
-    );
+    showToast(result.ok ? "资源已归档，可用撤销恢复" : result.error || "归档失败");
   },
   selectOutput(nodeId, outputId) {
     recordCanvasHistory("选择生成输出");
@@ -434,8 +433,9 @@ export const nodeActions: WorkflowNodeActions = {
   async exportBoard(id, dataUrl) {
     recordCanvasHistory("导出画板");
     const index =
-      store.project.nodes.filter((node: WorkflowNodeData) =>
-        node.type === "resource" && (node.generatedFrom as any)?.nodeId === id
+      store.project.nodes.filter(
+        (node: WorkflowNodeData) =>
+          node.type === "resource" && (node.generatedFrom as any)?.nodeId === id,
       ).length + 1;
     let file = null;
     try {
@@ -450,26 +450,61 @@ export const nodeActions: WorkflowNodeActions = {
     showToast(result.ok ? "画板已导出为资源节点" : result.error || "导出失败");
   },
   async getDirectorIncomingImages(id) {
-    const sourceIds = new Set(
-      (store.project.edges || []).filter((edge: any) => edge.target === id)
-        .map((edge: any) => edge.source),
+    const incomingEdges = (store.project.edges || []).filter(
+      (edge: any) => edge.target === id && edge.data?.skipTaskInput !== true,
     );
-    const results: Array<{ nodeId: string; name: string; url: string }> = [];
-    for (const sourceId of sourceIds) {
-      const node: any = (store.project.nodes || []).find((item: any) =>
-        item.id === sourceId && !item.archived
+    const results: Array<{ edgeId: string; nodeId: string; name: string; url: string }> = [];
+    for (const edge of incomingEdges) {
+      const sourceId = edge.source;
+      const node: any = (store.project.nodes || []).find(
+        (item: any) => item.id === sourceId && !item.archived,
       );
       if (!node) continue;
-      const selectedMaterialId = String(node.selectedOutputNodeId || "")
-        .replace(/^material:/, "");
-      const material: any = (store.project.materials || []).find((item: any) =>
-        item.id === selectedMaterialId || item.id === node.materialId
-      ) || [...(store.project.materials || [])].find((item: any) =>
-        item.nodeId === node.id && String(item.resourceType || "").includes("image")
+      const directOutputs = Array.isArray(node.generatedOutputs) ? node.generatedOutputs : [];
+      const materials = (store.project.materials || [])
+        .filter((item: any) => item.nodeId === node.id)
+        .map((item: any) => ({ ...item, id: `material:${item.id}` }));
+      const resources = (store.project.nodes || []).filter(
+        (item: any) =>
+          item.type === "resource" && !item.archived && item.generatedFrom?.nodeId === node.id,
       );
+      const outputs = [...directOutputs, ...materials, ...resources];
+      const selectedId = String(node.selectedOutputNodeId || "");
+      const selected =
+        outputs.find((item: any) => String(item.id || "") === selectedId) ||
+        outputs.find((item: any) => item.selected) ||
+        outputs.at(-1);
+      const uploaded =
+        node.uploadedFile && typeof node.uploadedFile === "object" ? node.uploadedFile : null;
+      const candidate: any = selected || uploaded || node;
+      const mediaType = String(
+        candidate.resourceType || candidate.mimeType || candidate.type || node.resourceType || "",
+      ).toLowerCase();
+      const location = String(
+        candidate.fileName ||
+          candidate.filePath ||
+          candidate.path ||
+          candidate.url ||
+          candidate.remoteUrl ||
+          candidate.previewUrl ||
+          "",
+      )
+        .split(/[?#]/)[0]
+        .toLowerCase();
+      const imageSource =
+        node.type === "imageGeneration" ||
+        node.type === "board" ||
+        mediaType.includes("image") ||
+        /\.(?:png|jpe?g|webp|gif|avif|bmp|svg)$/.test(location);
+      if (!imageSource || /(?:video|audio|text)/.test(mediaType)) continue;
       const value = String(
-        node.url || node.resourceUrl || node.previewUrl || node.filePath ||
-          material?.path || material?.filePath || node.content || "",
+        candidate.url ||
+          candidate.remoteUrl ||
+          candidate.resourceUrl ||
+          candidate.previewUrl ||
+          candidate.filePath ||
+          candidate.path ||
+          "",
       );
       if (!value) continue;
       let url = value;
@@ -483,23 +518,36 @@ export const nodeActions: WorkflowNodeActions = {
           for (let offset = 0; offset < bytes.length; offset += chunkSize) {
             binary += String.fromCharCode(...bytes.subarray(offset, offset + chunkSize));
           }
-          const mimeType = String(node.mimeType || material?.mimeType || "image/png");
+          const mimeType = String(candidate.mimeType || candidate.type || "image/png");
           url = `data:${mimeType};base64,${btoa(binary)}`;
         } catch {
           continue;
         }
       }
       results.push({
+        edgeId: String(edge.id || ""),
         nodeId: node.id,
-        name: String(node.title || node.fileName || material?.name || "上游图片"),
+        name: String(
+          candidate.title || candidate.name || candidate.fileName || node.title || "上游图片",
+        ),
         url,
       });
     }
     return results;
   },
+  removeDirectorIncomingEdge(id, edgeId) {
+    const edge = (store.project.edges || []).find(
+      (item: any) => item.id === edgeId && item.target === id,
+    );
+    if (!edge) return;
+    recordCanvasHistory("移除 3D 导演台全景图连线");
+    store.project.edges = store.project.edges.filter((item: any) => item.id !== edgeId);
+    store.selectedEdgeId = null;
+    touchProject();
+  },
   async exportDirectorAsset(id, dataUrl, name, kind) {
-    const director: any = (store.project.nodes || []).find((item: any) =>
-      item.id === id && item.type === "threeDDirector"
+    const director: any = (store.project.nodes || []).find(
+      (item: any) => item.id === id && item.type === "threeDDirector",
     );
     if (!director || !dataUrl.startsWith("data:")) {
       showToast("3D 导演台输出数据无效");
@@ -514,24 +562,25 @@ export const nodeActions: WorkflowNodeActions = {
       showToast("3D 导演台输出未能写入项目素材目录");
       return null;
     }
-    const mimeType = dataUrl.slice(5, dataUrl.indexOf(";")) ||
-      (kind === "video" ? "video/webm" : "image/png");
-    const registered: any = registerImportedMaterial({
-      ...file,
-      name: file?.name || preferredName,
-      type: mimeType,
-      mimeType,
-    }, {
-      resourceType: kind,
-      source: "3d-director",
-      sourceType: "3d-director",
-      nodeType: kind === "video" ? "videoGeneration" : "imageGeneration",
-    });
+    const mimeType =
+      dataUrl.slice(5, dataUrl.indexOf(";")) || (kind === "video" ? "video/webm" : "image/png");
+    const registered: any = registerImportedMaterial(
+      {
+        ...file,
+        name: file?.name || preferredName,
+        type: mimeType,
+        mimeType,
+      },
+      {
+        resourceType: kind,
+        source: "3d-director",
+        sourceType: "3d-director",
+        nodeType: kind === "video" ? "videoGeneration" : "imageGeneration",
+      },
+    );
     if (!registered.material) return null;
     registered.material.nodeId = id;
-    const output: any = addNode(
-      kind === "video" ? "videoGeneration" : "imageGeneration",
-    );
+    const output: any = addNode(kind === "video" ? "videoGeneration" : "imageGeneration");
     output.title = preferredName;
     output.prompt = "";
     output.x = Math.round((Number(director.x) || 0) + 430);
@@ -564,18 +613,19 @@ export const nodeActions: WorkflowNodeActions = {
     if (message) showToast(message);
   },
   addBoardImage(id) {
-    const board = store.project.nodes.find((node: WorkflowNodeData) =>
-      node.id === id && node.type === "board"
+    const board = store.project.nodes.find(
+      (node: WorkflowNodeData) => node.id === id && node.type === "board",
     );
-    const resource = store.project.nodes.find((node: WorkflowNodeData) =>
-      node.type === "resource" && node.id !== id && !node.archived &&
-      (store.selectedNodeIds || []).includes(node.id) &&
-      String(node.resourceType || "").includes("image")
+    const resource = store.project.nodes.find(
+      (node: WorkflowNodeData) =>
+        node.type === "resource" &&
+        node.id !== id &&
+        !node.archived &&
+        (store.selectedNodeIds || []).includes(node.id) &&
+        String(node.resourceType || "").includes("image"),
     );
     if (!board || !resource) return showToast("请同时选择一个图片资源节点");
-    const src = String(
-      resource.filePath || resource.url || resource.content || "",
-    );
+    const src = String(resource.filePath || resource.url || resource.content || "");
     if (!src) return showToast("图片资源缺少可用地址");
     recordCanvasHistory("添加画板图片");
     board.boardData ||= { strokes: [], texts: [], images: [] };
@@ -636,31 +686,26 @@ export const canvasCommands = {
       store.selectedNodeIds?.length
         ? store.selectedNodeIds
         : store.selectedNodeId
-        ? [store.selectedNodeId]
-        : [],
+          ? [store.selectedNodeId]
+          : [],
     );
     if (!ids.size) return showToast("请先选择需要下载资源的节点");
     const paths = new Set<string>();
     for (const node of store.project.nodes || []) {
       if (ids.has(node.id) || ids.has(node.generatedFrom?.nodeId)) {
-        [
-          node.filePath,
-          node.localPath,
-          node.uploadedFile?.path,
-          node.uploadedFile?.filePath,
-        ].filter(Boolean).forEach((value) => paths.add(value));
+        [node.filePath, node.localPath, node.uploadedFile?.path, node.uploadedFile?.filePath]
+          .filter(Boolean)
+          .forEach((value) => paths.add(value));
       }
     }
     for (const material of store.project.materials || []) {
-      const referenced = (store.project.nodes || []).some((node: any) =>
-        ids.has(node.id) &&
-        (node.materialId === material.id ||
-          node.uploadedFile?.materialId === material.id)
+      const referenced = (store.project.nodes || []).some(
+        (node: any) =>
+          ids.has(node.id) &&
+          (node.materialId === material.id || node.uploadedFile?.materialId === material.id),
       );
       if (ids.has(material.nodeId) || referenced) {
-        [material.path, material.filePath].filter(Boolean).forEach((value) =>
-          paths.add(value)
-        );
+        [material.path, material.filePath].filter(Boolean).forEach((value) => paths.add(value));
       }
     }
     if (!paths.size) return showToast("所选节点没有可下载的本地资源");
@@ -685,29 +730,34 @@ export const canvasCommands = {
       store.selectedNodeIds?.length
         ? store.selectedNodeIds
         : store.selectedNodeId
-        ? [store.selectedNodeId]
-        : [],
+          ? [store.selectedNodeId]
+          : [],
     );
-    const sources = (store.project.nodes || []).filter((node: any) =>
-      ids.has(node.id) && !node.archived
-    ).sort((a: any, b: any) =>
-      (Number(a.x) || 0) - (Number(b.x) || 0) ||
-      (Number(a.y) || 0) - (Number(b.y) || 0)
-    ).map((node: any) => {
-      const task = [...(store.project.tasks || [])].reverse().find((
-        item: any,
-      ) => item.nodeId === node.id && item.status === "completed");
-      const archived = task?.result?.archivedFiles?.find((file: any) =>
-        String(file.resourceType || file.type || "").includes("video")
-      );
-      return {
-        node,
-        path: node.videoEdit?.exportedFile && !node.videoEdit?.dirty
-          ? node.videoEdit.exportedFile
-          : archived?.filePath || archived?.path || node.uploadedFile?.path ||
-            (node.resourceType === "video" ? node.filePath : ""),
-      };
-    }).filter((item: any) => item.path);
+    const sources = (store.project.nodes || [])
+      .filter((node: any) => ids.has(node.id) && !node.archived)
+      .sort(
+        (a: any, b: any) =>
+          (Number(a.x) || 0) - (Number(b.x) || 0) || (Number(a.y) || 0) - (Number(b.y) || 0),
+      )
+      .map((node: any) => {
+        const task = [...(store.project.tasks || [])]
+          .reverse()
+          .find((item: any) => item.nodeId === node.id && item.status === "completed");
+        const archived = task?.result?.archivedFiles?.find((file: any) =>
+          String(file.resourceType || file.type || "").includes("video"),
+        );
+        return {
+          node,
+          path:
+            node.videoEdit?.exportedFile && !node.videoEdit?.dirty
+              ? node.videoEdit.exportedFile
+              : archived?.filePath ||
+                archived?.path ||
+                node.uploadedFile?.path ||
+                (node.resourceType === "video" ? node.filePath : ""),
+        };
+      })
+      .filter((item: any) => item.path);
     if (sources.length < 2) {
       return showToast("请至少选择两个带本地文件的视频节点");
     }
@@ -718,17 +768,20 @@ export const canvasCommands = {
       );
       const path = result?.filePath || result?.path;
       if (!path) return;
-      const registered = registerImportedMaterial({
-        name: result.name || "merged.mp4",
-        path,
-        type: "video/mp4",
-        size: result.size || 0,
-      }, {
-        resourceType: "video",
-        source: "video-concat",
-        sourceType: "video-concat",
-        nodeType: "videoGeneration",
-      });
+      const registered = registerImportedMaterial(
+        {
+          name: result.name || "merged.mp4",
+          path,
+          type: "video/mp4",
+          size: result.size || 0,
+        },
+        {
+          resourceType: "video",
+          source: "video-concat",
+          sourceType: "video-concat",
+          nodeType: "videoGeneration",
+        },
+      );
       const node: any = addNode("videoGeneration");
       node.title = result.name || "拼接视频";
       node.prompt = "";
@@ -744,12 +797,8 @@ export const canvasCommands = {
         resourceType: "video",
         source: "video-concat",
       };
-      node.x = Math.max(...sources.map(({ node: source }: any) =>
-        Number(source.x) || 0
-      )) + 380;
-      node.y = Math.min(...sources.map(({ node: source }: any) =>
-        Number(source.y) || 0
-      ));
+      node.x = Math.max(...sources.map(({ node: source }: any) => Number(source.x) || 0)) + 380;
+      node.y = Math.min(...sources.map(({ node: source }: any) => Number(source.y) || 0));
       touchProject();
       showToast(`已拼接 ${result.sourceCount || sources.length} 个视频`);
     } catch (cause) {

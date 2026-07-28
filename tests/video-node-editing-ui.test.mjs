@@ -2,25 +2,75 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 test('视频节点只保留可点击的导出剪辑入口', async () => {
-  const source = await readFile(new URL('../renderer/src/app/canvas/GenerationNode.tsx', import.meta.url), 'utf8');
-  assert.match(source, /className="video-export-trigger"/); assert.match(source, />导出剪辑<\/button>/); assert.match(source, /actions\.openVideoEditor/);
+  const source = await readFile(
+    new URL('../renderer/src/app/canvas/GenerationNode.tsx', import.meta.url),
+    'utf8',
+  );
+  assert.match(source, /className="video-export-trigger"/);
+  assert.match(source, />\s*导出剪辑\s*<\/button>/);
+  assert.match(source, /actions\.openVideoEditor/);
   assert.doesNotMatch(source, /亮度|对比度|饱和度|trimStart|trimEnd/);
 });
 test('独立剪辑工作区接入真实桌面导出', async () => {
-  const workspace = await readFile(new URL('../renderer/src/app/editor/VideoEditorWorkspace.tsx', import.meta.url), 'utf8');
-  const root = await readFile(new URL('../renderer/src/app/ReactWorkbench.tsx', import.meta.url), 'utf8');
-  const runtime = await readFile(new URL('../renderer/src/services/openVideoRuntime.js', import.meta.url), 'utf8');
-  for (const pattern of [/splitSelected/, /deleteSelected/, /dragRef/, /undo/, /redo/, /createOpenVideoRuntime/, /onSelection/, /onTransformEnd/, /framePrev/, /frameNext/, /runCanvasAction/, /constrainTransformToCanvas/, /clip\.id === selectedId/, /activeTextClips/, /ov-text-preview-layer/, /importAssets/, /builtInStickers/, /transitions/, /effects/]) assert.match(workspace, pattern);
+  const workspace = await readFile(
+    new URL('../renderer/src/app/editor/VideoEditorWorkspace.tsx', import.meta.url),
+    'utf8',
+  );
+  const root = await readFile(
+    new URL('../renderer/src/app/ReactWorkbench.tsx', import.meta.url),
+    'utf8',
+  );
+  const runtime = await readFile(
+    new URL('../renderer/src/services/openVideoRuntime.js', import.meta.url),
+    'utf8',
+  );
+  for (const pattern of [
+    /splitSelected/,
+    /deleteSelected/,
+    /dragRef/,
+    /undo/,
+    /redo/,
+    /createOpenVideoRuntime/,
+    /onSelection/,
+    /onTransformEnd/,
+    /framePrev/,
+    /frameNext/,
+    /runCanvasAction/,
+    /constrainTransformToCanvas/,
+    /clip\.id === selectedId/,
+    /activeTextClips/,
+    /ov-text-preview-layer/,
+    /importAssets/,
+    /builtInStickers/,
+    /transitions/,
+    /effects/,
+  ])
+    assert.match(workspace, pattern);
   assert.match(root, /desktopApi\.file\.exportVideoProject/);
-  assert.match(runtime, /updateClip\(id, updates\) \{\s*return studio\.updateClip\(id, updates\);\s*\}/);
+  assert.match(
+    runtime,
+    /updateClip\(id, updates\) \{\s*return studio\.updateClip\(id, updates\);\s*\}/,
+  );
   assert.doesNotMatch(runtime, /updateClip\(id, updates\) \{\s*core\.clip\.update/);
-  assert.match(workspace, /const normalizedStyle = findEditorClip\(next, selectedId\)\?\.clip\.style;\s*Object\.assign\(runtimeUpdates, normalizedStyle \|\| updates\.style\)/);
+  assert.match(
+    workspace,
+    /const normalizedStyle = findEditorClip\(next, selectedId\)\?\.clip\.style;\s*Object\.assign\(runtimeUpdates, normalizedStyle \|\| updates\.style\)/,
+  );
   assert.doesNotMatch(workspace, /runtimeUpdates\.style = updates\.style/);
-  assert.match(workspace, /runtimeMutationRef\.current = true;\s*void runtime\.updateClip\(selectedId, runtimeUpdates\)/);
+  assert.match(
+    workspace,
+    /runtimeMutationRef\.current = true;\s*void runtime\.updateClip\(selectedId, runtimeUpdates\)/,
+  );
 });
 test('剪辑工作区用真实媒体元数据补齐主轨并提供本地文件回退', async () => {
-  const workspace = await readFile(new URL('../renderer/src/app/editor/VideoEditorWorkspace.tsx', import.meta.url), 'utf8');
-  const styles = await readFile(new URL('../renderer/src/app/editor/VideoEditorWorkspace.css', import.meta.url), 'utf8');
+  const workspace = await readFile(
+    new URL('../renderer/src/app/editor/VideoEditorWorkspace.tsx', import.meta.url),
+    'utf8',
+  );
+  const styles = await readFile(
+    new URL('../renderer/src/app/editor/VideoEditorWorkspace.css', import.meta.url),
+    'utf8',
+  );
   assert.match(workspace, /hydrateSourceProject/);
   assert.match(workspace, /onLoadedMetadata/);
   assert.match(workspace, /desktopApi\.file\.readArrayBuffer\(sourceFile\)/);
@@ -29,7 +79,10 @@ test('剪辑工作区用真实媒体元数据补齐主轨并提供本地文件�
   assert.match(styles, /same restrained, light workspace language/);
   assert.match(workspace, /createPortal/);
   assert.match(styles, /position: fixed/);
-  assert.match(styles, /grid-template-columns: 42px minmax\(230px, \.95fr\) minmax\(440px, 2fr\) minmax\(260px, 1fr\)/);
+  assert.match(
+    styles,
+    /grid-template-columns: 42px minmax\(230px, \.95fr\) minmax\(440px, 2fr\) minmax\(260px, 1fr\)/,
+  );
   assert.match(styles, /flex-direction: column/);
   assert.match(styles, /font-family:\s*inherit/);
   assert.match(styles, /\.ov-track\.type-video,\s*\.ov-track\.type-audio \{ height: 55px; \}/);
@@ -45,8 +98,14 @@ test('剪辑工作区用真实媒体元数据补齐主轨并提供本地文件�
 });
 
 test('剪辑工作区主动解码首帧并提供可编辑的中文文字预设', async () => {
-  const workspace = await readFile(new URL('../renderer/src/app/editor/VideoEditorWorkspace.tsx', import.meta.url), 'utf8');
-  const styles = await readFile(new URL('../renderer/src/app/editor/VideoEditorWorkspace.css', import.meta.url), 'utf8');
+  const workspace = await readFile(
+    new URL('../renderer/src/app/editor/VideoEditorWorkspace.tsx', import.meta.url),
+    'utf8',
+  );
+  const styles = await readFile(
+    new URL('../renderer/src/app/editor/VideoEditorWorkspace.css', import.meta.url),
+    'utf8',
+  );
   assert.match(workspace, /preload="auto"/);
   assert.match(workspace, /function primeSourcePreview/);
   assert.match(workspace, /video\.currentTime = frameTime/);
@@ -66,10 +125,16 @@ test('剪辑工作区主动解码首帧并提供可编辑的中文文字预设',
   assert.match(styles, /\.ov-text-preview-item \{[^}]*background:\s*transparent !important/);
   assert.match(workspace, /<IconSymbol name="copy" \/>复制/);
   assert.match(styles, /\.ov-inspector \{[^}]*overflow-x:\s*hidden;[^}]*overflow-y:\s*auto/);
-  assert.match(styles, /\.ov-inspector-section input,[\s\S]*?width:\s*100%;[\s\S]*?max-width:\s*100%/);
+  assert.match(
+    styles,
+    /\.ov-inspector-section input,[\s\S]*?width:\s*100%;[\s\S]*?max-width:\s*100%/,
+  );
   assert.match(styles, /\.ov-edit-buttons button:nth-child\(2\) \{ font-size: 0; \}/);
   assert.match(workspace, /function deleteAsset\(assetId: string\)/);
-  assert.match(workspace, /clips: track\.clips\.filter\(\(clip: any\) => clip\.assetId !== assetId\)/);
+  assert.match(
+    workspace,
+    /clips: track\.clips\.filter\(\(clip: any\) => clip\.assetId !== assetId\)/,
+  );
   assert.match(workspace, /className="ov-asset-delete"/);
   assert.match(workspace, /if \(found\?\.track\.locked\)/);
   assert.match(workspace, /updateEditorTrack\(source, found\.track\.id, \{ locked: false \}\)/);
@@ -78,14 +143,29 @@ test('剪辑工作区主动解码首帧并提供可编辑的中文文字预设',
   assert.match(styles, /\.ov-history \{[^}]*display:\s*flex/);
   assert.match(styles, /\.ov-asset-delete/);
   assert.match(styles, /--ov-ui-font-size:\s*13px/);
-  assert.match(styles, /\.ov-inspector-section label,[\s\S]*?font-size:\s*var\(--ov-ui-font-size\)/);
+  assert.match(
+    styles,
+    /\.ov-inspector-section label,[\s\S]*?font-size:\s*var\(--ov-ui-font-size\)/,
+  );
   assert.match(styles, /\.ov-inspector-section input,[\s\S]*?min-height:\s*32px/);
-  assert.match(styles, /\.ov-inspector-section input,[\s\S]*?\.ov-inspector-section textarea \{\s*font-size:\s*12px/);
+  assert.match(
+    styles,
+    /\.ov-inspector-section input,[\s\S]*?\.ov-inspector-section textarea \{\s*font-size:\s*12px/,
+  );
   assert.match(styles, /\.ov-ruler span \{[\s\S]*?font-size:\s*11px/);
   assert.match(workspace, /className="ov-inspector-section ov-transform-section"/);
-  assert.match(styles, /\.ov-transform-section input \{[^}]*min-height:\s*28px[^}]*font-size:\s*11px/);
-  assert.match(styles, /\.ov-transform-presets button,[\s\S]*?\.ov-inspector-actions button \{[^}]*font-size:\s*12px/);
-  assert.match(styles, /\.ov-inspector-section \.ov-check input\[type="checkbox"\] \{[^}]*width:\s*14px[^}]*height:\s*14px[^}]*min-height:\s*0/);
+  assert.match(
+    styles,
+    /\.ov-transform-section input \{[^}]*min-height:\s*28px[^}]*font-size:\s*11px/,
+  );
+  assert.match(
+    styles,
+    /\.ov-transform-presets button,[\s\S]*?\.ov-inspector-actions button \{[^}]*font-size:\s*12px/,
+  );
+  assert.match(
+    styles,
+    /\.ov-inspector-section \.ov-check input\[type="checkbox"\] \{[^}]*width:\s*14px[^}]*height:\s*14px[^}]*min-height:\s*0/,
+  );
   assert.match(workspace, /disabled=\{videoClips\.length < 2\}/);
   assert.match(workspace, /转场需要连接两段视频/);
   assert.match(workspace, /当前画面可直接预览/);

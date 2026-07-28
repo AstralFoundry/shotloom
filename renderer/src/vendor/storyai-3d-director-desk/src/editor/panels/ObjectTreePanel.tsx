@@ -1,5 +1,17 @@
 import { useEffect, useMemo, useState, type MouseEvent } from "react";
-import { Box, Camera, ChevronDown, ChevronRight, Eye, EyeOff, Lock, Search, Unlock, User, Users } from "lucide-react";
+import {
+  Box,
+  Camera,
+  ChevronDown,
+  ChevronRight,
+  Eye,
+  EyeOff,
+  Lock,
+  Search,
+  Unlock,
+  User,
+  Users,
+} from "lucide-react";
 import type { DirectorObject, DirectorObjectKind } from "../schema/directorProject";
 import { useDirectorStore } from "../store/directorStore";
 
@@ -45,12 +57,6 @@ function ObjectKindIcon({ icon }: { icon: ObjectTreeIconKind }) {
   );
 }
 
-function isEditableKeyboardTarget(target: EventTarget | null) {
-  if (!(target instanceof HTMLElement)) return false;
-
-  return target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName);
-}
-
 export function ObjectTreePanel() {
   const [query, setQuery] = useState("");
   const [expandedCrowdIds, setExpandedCrowdIds] = useState<string[]>([]);
@@ -65,27 +71,6 @@ export function ObjectTreePanel() {
   const setActiveCamera = useDirectorStore((state) => state.setActiveCamera);
   const toggleObjectVisible = useDirectorStore((state) => state.toggleObjectVisible);
   const toggleObjectLocked = useDirectorStore((state) => state.toggleObjectLocked);
-  const deleteSelectedObject = useDirectorStore((state) => state.deleteSelectedObject);
-
-  useEffect(() => {
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return;
-      if (event.key !== "Delete" && event.key !== "Backspace") return;
-      if (isEditableKeyboardTarget(event.target)) return;
-      const state = useDirectorStore.getState();
-      if (!state.selectedObjectId && state.selectedObjectIds.length === 0) return;
-
-      event.preventDefault();
-      deleteSelectedObject();
-    }
-
-    document.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [deleteSelectedObject]);
-
   const assetsById = useMemo(() => new Map(assets.map((asset) => [asset.id, asset])), [assets]);
   const isModelBackedObject = (object: DirectorObject | undefined) => {
     if (!object?.assetRefId) return false;
@@ -153,7 +138,7 @@ export function ObjectTreePanel() {
       geometry: regularItems.filter(
         (item) =>
           (item.object?.kind === "scene" && !isModelBackedObject(item.object)) ||
-          (item.object?.kind === "prop" && !item.object?.assetRefId)
+          (item.object?.kind === "prop" && !item.object?.assetRefId),
       ),
       myModels: regularItems.filter((item) => isModelBackedObject(item.object)),
       cameras: regularItems.filter((item) => item.object?.kind === "camera"),
@@ -181,7 +166,8 @@ export function ObjectTreePanel() {
       .map((item) => {
         if (!query.trim()) return item;
 
-        const matchedPreviewChildren = item.previewChildren?.filter((child) => child.name.includes(query)) ?? [];
+        const matchedPreviewChildren =
+          item.previewChildren?.filter((child) => child.name.includes(query)) ?? [];
         if (!item.name.includes(query) && matchedPreviewChildren.length === 0) return null;
 
         return matchedPreviewChildren.length
@@ -271,7 +257,9 @@ export function ObjectTreePanel() {
 
   function toggleCrowdExpanded(crowdId: string) {
     setExpandedCrowdIds((current) =>
-      current.includes(crowdId) ? current.filter((item) => item !== crowdId) : [...current, crowdId]
+      current.includes(crowdId)
+        ? current.filter((item) => item !== crowdId)
+        : [...current, crowdId],
     );
   }
 
@@ -304,12 +292,18 @@ export function ObjectTreePanel() {
       ) : (
         <div className="object-tree-groups" role="tree" aria-label="场景对象列表">
           {filteredGroups.map((group) => (
-            <section key={group.key} className="object-tree-group" role="group" aria-label={`${group.title}分组`}>
+            <section
+              key={group.key}
+              className="object-tree-group"
+              role="group"
+              aria-label={`${group.title}分组`}
+            >
               <h3>{group.title}</h3>
               <ul className="object-list">
                 {group.items.map((item) => {
                   const selected = item.crowdId
-                    ? selectedCrowdId === item.crowdId || item.objectIds.every((id) => selectedObjectIds.includes(id))
+                    ? selectedCrowdId === item.crowdId ||
+                      item.objectIds.every((id) => selectedObjectIds.includes(id))
                     : item.objectIds.length > 1
                       ? item.objectIds.every((id) => selectedObjectIds.includes(id))
                       : selectedObjectIds.length
@@ -385,10 +379,15 @@ export function ObjectTreePanel() {
                         ) : null}
                       </div>
                       {item.crowdId && expanded && item.previewChildren?.length ? (
-                        <ul className="object-crowd-preview-list" aria-label={`${item.name} 成员预览`}>
+                        <ul
+                          className="object-crowd-preview-list"
+                          aria-label={`${item.name} 成员预览`}
+                        >
                           {item.previewChildren.map((child) => (
                             <li key={child.id}>
-                              <div className={`object-row object-row-preview${selected ? " is-selected" : ""}`}>
+                              <div
+                                className={`object-row object-row-preview${selected ? " is-selected" : ""}`}
+                              >
                                 <span className="object-row-preview-spacer" aria-hidden="true" />
                                 <div className="object-row-main">
                                   <button

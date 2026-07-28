@@ -26,65 +26,57 @@ import type { MaterialsController } from "../views/MaterialsView";
 
 const materialMap = () =>
   new Map<string, MaterialItem>(
-    (store.project.materials || []).map((
-      item: MaterialItem,
-    ) => [String(item.id || ""), item]),
+    (store.project.materials || []).map((item: MaterialItem) => [String(item.id || ""), item]),
   );
 export function resourceLibraryData() {
   const materials = materialMap();
-  const projectAssets = (filteredAssets.value || []).map(
-    (asset: MaterialItem) => {
-      const material: MaterialItem =
-        materials.get(String(asset.materialId || "")) || ({} as MaterialItem);
-      return {
-        ...material,
-        id: material.id || asset.id,
-        assetId: asset.id,
-        name: asset.name || material.name || "未命名素材",
-        path: material.path || "",
-        ext: material.ext || "",
-        size: material.size || 0,
-        mimeType: material.mimeType || "",
-        resourceType: asset.resourceType || material.resourceType || "file",
-        sourceType: asset.sourceType || material.sourceType ||
-          material.source || "asset-library",
-        nodeType: asset.nodeType || material.nodeType || "",
-        note: asset.note || material.note || "",
-        content: material.content || asset.note || "",
-        importedAt: asset.createdAt || material.importedAt,
-        localLibraryAssetId: asset.localLibraryAssetId || "",
-        scopeLabel: asset.localLibraryAssetId ? "已加入通用" : "项目",
-        storageScope: material.storageScope || "project",
-      };
-    },
+  const visibleAssets = filteredAssets.value || [];
+  const projectAssetByLocalId = new Map<string, MaterialItem>(
+    (store.project.assets || [])
+      .filter((asset: MaterialItem) => asset.localLibraryAssetId)
+      .map((asset: MaterialItem) => [String(asset.localLibraryAssetId), asset]),
   );
-  const localAssets = (localAssetCards.value || []).map(
-    (item: MaterialItem) => {
-      const projectAsset = (store.project.assets || []).find((
-        asset: MaterialItem,
-      ) => asset.localLibraryAssetId === item.assetId);
-      const projectMaterial = projectAsset &&
-        materials.get(String(projectAsset.materialId || ""));
-      return {
-        ...item,
-        inCurrentProject: Boolean(projectAsset),
-        projectStorageScope: projectMaterial?.storageScope || "",
-        scopeLabel: projectAsset
-          ? `通用·${
-            projectMaterial?.storageScope === "library" ? "已引用" : "已复制"
-          }`
-          : "通用",
-      };
-    },
-  );
+  const projectAssets = visibleAssets.map((asset: MaterialItem) => {
+    const material: MaterialItem =
+      materials.get(String(asset.materialId || "")) || ({} as MaterialItem);
+    return {
+      ...material,
+      id: material.id || asset.id,
+      assetId: asset.id,
+      name: asset.name || material.name || "未命名素材",
+      path: material.path || "",
+      ext: material.ext || "",
+      size: material.size || 0,
+      mimeType: material.mimeType || "",
+      resourceType: asset.resourceType || material.resourceType || "file",
+      sourceType: asset.sourceType || material.sourceType || material.source || "asset-library",
+      nodeType: asset.nodeType || material.nodeType || "",
+      note: asset.note || material.note || "",
+      content: material.content || asset.note || "",
+      importedAt: asset.createdAt || material.importedAt,
+      localLibraryAssetId: asset.localLibraryAssetId || "",
+      scopeLabel: asset.localLibraryAssetId ? "已加入通用" : "项目",
+      storageScope: material.storageScope || "project",
+    };
+  });
+  const localAssets = (localAssetCards.value || []).map((item: MaterialItem) => {
+    const projectAsset = projectAssetByLocalId.get(String(item.assetId || ""));
+    const projectMaterial = projectAsset && materials.get(String(projectAsset.materialId || ""));
+    return {
+      ...item,
+      inCurrentProject: Boolean(projectAsset),
+      projectStorageScope: projectMaterial?.storageScope || "",
+      scopeLabel: projectAsset
+        ? `通用·${projectMaterial?.storageScope === "library" ? "已引用" : "已复制"}`
+        : "通用",
+    };
+  });
   return {
     materials: (store.project.materials || []) as MaterialItem[],
     projectAssets,
     localAssets,
     assetMaterialIds: new Set(
-      (filteredAssets.value || []).map((asset: MaterialItem) =>
-        String(asset.materialId || "")
-      ).filter(Boolean),
+      visibleAssets.map((asset: MaterialItem) => String(asset.materialId || "")).filter(Boolean),
     ),
   };
 }
@@ -161,9 +153,7 @@ export const assetsController: AssetsController = {
     showToast("已复制到当前项目");
   },
   async openLocalStorage() {
-    await desktopApi.file.openFolderPath(
-      await desktopApi.file.getGlobalAssetRoot(),
-    );
+    await desktopApi.file.openFolderPath(await desktopApi.file.getGlobalAssetRoot());
   },
   async importPackage() {
     await importResourcePackage();

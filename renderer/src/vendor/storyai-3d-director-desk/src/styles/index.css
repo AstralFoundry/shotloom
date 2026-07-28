@@ -3281,3 +3281,7 @@ textarea:focus-visible {
     max-width: calc(100% - 32px);
   }
 }
+html[data-embedded="canvas"] * {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}

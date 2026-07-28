@@ -129,7 +129,7 @@ export interface DirectorActions {
     patch: Partial<DirectorCameraShot> & {
       transform?: DirectorTransform;
       target?: [number, number, number];
-    }
+    },
   ) => void;
   beginUndoBatch: () => void;
   endUndoBatch: () => void;
@@ -206,9 +206,13 @@ function getInitialDirectorScenePersistenceScopeId() {
 
 let directorScenePersistenceScopeId: string | null = getInitialDirectorScenePersistenceScopeId();
 
-function getDirectorSceneStorageKey(scopeId: string | null | undefined = directorScenePersistenceScopeId) {
+function getDirectorSceneStorageKey(
+  scopeId: string | null | undefined = directorScenePersistenceScopeId,
+) {
   const normalizedScopeId = normalizeDirectorScenePersistenceScopeId(scopeId);
-  return normalizedScopeId ? `${DIRECTOR_SCENE_STORAGE_KEY_PREFIX}${normalizedScopeId}` : DIRECTOR_SCENE_STORAGE_KEY;
+  return normalizedScopeId
+    ? `${DIRECTOR_SCENE_STORAGE_KEY_PREFIX}${normalizedScopeId}`
+    : DIRECTOR_SCENE_STORAGE_KEY;
 }
 
 function setDirectorScenePersistenceScopeId(scopeId: string | null | undefined) {
@@ -219,7 +223,7 @@ function setDirectorScenePersistenceScopeId(scopeId: string | null | undefined) 
 function createTransform(
   position: [number, number, number],
   rotation: [number, number, number] = [0, 0, 0],
-  scale: [number, number, number] = [1, 1, 1]
+  scale: [number, number, number] = [1, 1, 1],
 ): DirectorTransform {
   return { position, rotation, scale };
 }
@@ -282,7 +286,7 @@ function readPersistedLocalModelAssets() {
         typeof asset.id === "string" &&
         typeof asset.fileName === "string" &&
         typeof asset.url === "string" &&
-        isLocalModelLibraryAsset(asset)
+        isLocalModelLibraryAsset(asset),
     );
   } catch {
     return [];
@@ -294,7 +298,10 @@ function writePersistedLocalModelAssets(assets: DirectorAssetRef[]) {
   if (!storage) return;
 
   try {
-    storage.setItem(LOCAL_MODEL_LIBRARY_STORAGE_KEY, JSON.stringify(assets.filter(isLocalModelLibraryAsset)));
+    storage.setItem(
+      LOCAL_MODEL_LIBRARY_STORAGE_KEY,
+      JSON.stringify(assets.filter(isLocalModelLibraryAsset)),
+    );
   } catch {
     // Local model files can exceed browser storage limits; keep the current scene usable if persistence fails.
   }
@@ -308,7 +315,9 @@ function persistLocalModelAsset(asset: DirectorAssetRef) {
 }
 
 function removePersistedLocalModelAsset(assetId: string) {
-  writePersistedLocalModelAssets(readPersistedLocalModelAssets().filter((asset) => asset.id !== assetId));
+  writePersistedLocalModelAssets(
+    readPersistedLocalModelAssets().filter((asset) => asset.id !== assetId),
+  );
 }
 
 function isDirectorProjectShape(value: unknown): value is DirectorProject {
@@ -325,7 +334,10 @@ function isDirectorProjectShape(value: unknown): value is DirectorProject {
   );
 }
 
-function withPersistedLocalAssets(project: DirectorProject, includePersistedLocalAssets = false): DirectorProject {
+function withPersistedLocalAssets(
+  project: DirectorProject,
+  includePersistedLocalAssets = false,
+): DirectorProject {
   if (!includePersistedLocalAssets) return project;
 
   const persistedAssets = readPersistedLocalModelAssets();
@@ -335,7 +347,10 @@ function withPersistedLocalAssets(project: DirectorProject, includePersistedLoca
 
   return {
     ...project,
-    assets: [...project.assets, ...persistedAssets.filter((asset) => !existingAssetIds.has(asset.id))],
+    assets: [
+      ...project.assets,
+      ...persistedAssets.filter((asset) => !existingAssetIds.has(asset.id)),
+    ],
   };
 }
 
@@ -386,10 +401,16 @@ function writePersistedDirectorState(state: DirectorState) {
   }
 }
 
-function createStateFromPersistedProject(project: DirectorProject, options: DirectorStateOptions = {}): DirectorState {
+function createStateFromPersistedProject(
+  project: DirectorProject,
+  options: DirectorStateOptions = {},
+): DirectorState {
   return {
     ...DEFAULT_UI_STATE,
-    project: withPersistedLocalAssets(migrateDirectorProject(cloneJsonValue(project)), options.includePersistedLocalAssets),
+    project: withPersistedLocalAssets(
+      migrateDirectorProject(cloneJsonValue(project)),
+      options.includePersistedLocalAssets,
+    ),
   };
 }
 
@@ -421,13 +442,15 @@ function readPersistedDirectorState(options: DirectorStateOptions = {}): Directo
       selectedCrowdId: typeof state.selectedCrowdId === "string" ? state.selectedCrowdId : null,
       directorInspectorMode: state.directorInspectorMode === "scene" ? "scene" : "auto",
       transformMode:
-        state.transformMode === "rotate" || state.transformMode === "scale" ? state.transformMode : "translate",
+        state.transformMode === "rotate" || state.transformMode === "scale"
+          ? state.transformMode
+          : "translate",
       viewportAspectRatio: state.viewportAspectRatio ?? "auto",
       viewportRuleOfThirdsEnabled: Boolean(state.viewportRuleOfThirdsEnabled),
       viewportPanelsCollapsed: Boolean(state.viewportPanelsCollapsed),
       project: withPersistedLocalAssets(
         migrateDirectorProject(cloneJsonValue(state.project)),
-        options.includePersistedLocalAssets
+        options.includePersistedLocalAssets,
       ),
     };
   } catch {
@@ -462,7 +485,9 @@ export function createDefaultDirectorProject({
     id: "cam_1",
     name: formatSceneItemName("机位", 1),
     fov: DEFAULT_DIRECTOR_CAMERA_VIEW_SNAPSHOT.fov,
-    transform: createTransform(getCameraRigPositionFromViewSnapshot(DEFAULT_DIRECTOR_CAMERA_VIEW_SNAPSHOT)),
+    transform: createTransform(
+      getCameraRigPositionFromViewSnapshot(DEFAULT_DIRECTOR_CAMERA_VIEW_SNAPSHOT),
+    ),
     targetMode: "manual",
     target: DEFAULT_DIRECTOR_CAMERA_VIEW_SNAPSHOT.target,
     lastCaptureUrl: null,
@@ -515,20 +540,24 @@ export function createInitialDirectorState(options: DirectorStateOptions = {}): 
 
   return {
     ...DEFAULT_UI_STATE,
-    project: createDefaultDirectorProject({ includePersistedLocalAssets: options.includePersistedLocalAssets }),
+    project: createDefaultDirectorProject({
+      includePersistedLocalAssets: options.includePersistedLocalAssets,
+    }),
   };
 }
 
 function updateObjectById(
   objects: DirectorObject[],
   id: string,
-  updater: (item: DirectorObject) => DirectorObject
+  updater: (item: DirectorObject) => DirectorObject,
 ) {
   return objects.map((item) => (item.id === id ? updater(item) : item));
 }
 
 function getNextCharacterColor(objects: DirectorObject[]) {
-  const usedColors = new Set(objects.filter((item) => item.kind === "character").map((item) => item.color));
+  const usedColors = new Set(
+    objects.filter((item) => item.kind === "character").map((item) => item.color),
+  );
   const unusedColor = CHARACTER_COLOR_PALETTE.find((color) => !usedColors.has(color));
 
   if (unusedColor) return unusedColor;
@@ -538,7 +567,9 @@ function getNextCharacterColor(objects: DirectorObject[]) {
 }
 
 function getGeometryPrimitiveLabel(geometryType: GeometryPrimitiveType) {
-  return GEOMETRY_PRIMITIVE_OPTIONS.find((option) => option.type === geometryType)?.label ?? "几何模型";
+  return (
+    GEOMETRY_PRIMITIVE_OPTIONS.find((option) => option.type === geometryType)?.label ?? "几何模型"
+  );
 }
 
 function getAddedModelColumnOffset(index: number) {
@@ -569,12 +600,17 @@ function getCrowdCharacterPositions(rows: number, columns: number, spacing: numb
   return positions;
 }
 
-function getCrowdCharacterOffset(objects: DirectorObject[], spacing: number): [number, number, number] {
+function getCrowdCharacterOffset(
+  objects: DirectorObject[],
+  spacing: number,
+): [number, number, number] {
   const safeSpacing = Math.max(0.1, spacing);
   const characterPositions = objects
     .filter((item) => item.kind === "character")
     .map((item) => item.transform.position);
-  const maxZ = characterPositions.length ? Math.max(...characterPositions.map((position) => position[2])) : 0;
+  const maxZ = characterPositions.length
+    ? Math.max(...characterPositions.map((position) => position[2]))
+    : 0;
 
   return [0, 0, Number((maxZ + safeSpacing * 2).toFixed(4))];
 }
@@ -590,14 +626,14 @@ function buildPresetCharacterObject(
   crowdMetadata?: {
     crowdId: string;
     crowdLabel: string;
-  }
+  },
 ) {
   const characterCount = state.project.objects.filter((item) => item.kind === "character").length;
   const characterIndex = characterCount + 1;
   const objectId = getNextSequentialId(
     state.project.objects.map((item) => item.id),
     "char_preset_",
-    characterIndex
+    characterIndex,
   );
   const normalizedBodyType = normalizeBodyType(bodyType);
 
@@ -647,7 +683,7 @@ function createSceneObjectFromAsset(asset: DirectorAssetRef, existingObjects: Di
   const nextObjectId = getNextSequentialId(
     existingObjects.map((item) => item.id),
     "obj_",
-    existingObjects.length + 1
+    existingObjects.length + 1,
   );
 
   return {
@@ -668,14 +704,14 @@ function refreshCamerasFocusedOnObject(cameras: DirectorCameraShot[], object: Di
           ...camera,
           target: getDirectorObjectFocusTarget(object),
         }
-      : camera
+      : camera,
   );
 }
 
 function refreshCamerasFocusedOnObjects(
   cameras: DirectorCameraShot[],
   objects: DirectorObject[],
-  focusedObjectIds: Iterable<string>
+  focusedObjectIds: Iterable<string>,
 ) {
   const focusedIdSet = new Set(focusedObjectIds);
   if (focusedIdSet.size === 0) return cameras;
@@ -683,7 +719,11 @@ function refreshCamerasFocusedOnObjects(
   const objectsById = new Map(objects.map((item) => [item.id, item]));
 
   return cameras.map((camera) => {
-    if (camera.targetMode !== "object" || !camera.targetObjectId || !focusedIdSet.has(camera.targetObjectId)) {
+    if (
+      camera.targetMode !== "object" ||
+      !camera.targetObjectId ||
+      !focusedIdSet.has(camera.targetObjectId)
+    ) {
       return camera;
     }
 
@@ -711,7 +751,10 @@ function getCrowdMemberIds(objects: DirectorObject[], crowdId: string) {
   return getCrowdMemberObjects(objects, crowdId).map((item) => item.id);
 }
 
-export function getCrowdAnchorTransform(objects: DirectorObject[], crowdId: string): DirectorTransform | null {
+export function getCrowdAnchorTransform(
+  objects: DirectorObject[],
+  crowdId: string,
+): DirectorTransform | null {
   const crowdMembers = getCrowdMemberObjects(objects, crowdId);
   if (!crowdMembers.length) return null;
 
@@ -722,7 +765,7 @@ export function getCrowdAnchorTransform(objects: DirectorObject[], crowdId: stri
       accumulator[2] += item.transform.position[2];
       return accumulator;
     },
-    [0, 0, 0] as [number, number, number]
+    [0, 0, 0] as [number, number, number],
   );
   const memberCount = crowdMembers.length;
   const anchorPosition = roundTransformTuple([
@@ -735,7 +778,7 @@ export function getCrowdAnchorTransform(objects: DirectorObject[], crowdId: stri
   return createTransform(
     anchorPosition,
     [...referenceMember.transform.rotation] as [number, number, number],
-    [...referenceMember.transform.scale] as [number, number, number]
+    [...referenceMember.transform.scale] as [number, number, number],
   );
 }
 
@@ -743,14 +786,14 @@ function getNextCrowdId(objects: DirectorObject[]) {
   return getNextSequentialId(
     objects.map((item) => item.crowdId).filter((item): item is string => typeof item === "string"),
     "crowd_",
-    1
+    1,
   );
 }
 
 function applyCrowdTransformPatch(
   objects: DirectorObject[],
   crowdId: string,
-  patch: Partial<DirectorTransform>
+  patch: Partial<DirectorTransform>,
 ) {
   const anchor = getCrowdAnchorTransform(objects, crowdId);
   if (!anchor) {
@@ -838,7 +881,7 @@ function createObjectIdForDuplicate(existingObjects: DirectorObject[], source: D
     return getNextSequentialId(
       existingObjects.map((item) => item.id),
       "cam_object_",
-      existingObjects.filter((item) => item.kind === "camera").length + 1
+      existingObjects.filter((item) => item.kind === "camera").length + 1,
     );
   }
 
@@ -846,7 +889,7 @@ function createObjectIdForDuplicate(existingObjects: DirectorObject[], source: D
     return getNextSequentialId(
       existingObjects.map((item) => item.id),
       "char_paste_",
-      existingObjects.filter((item) => item.kind === "character").length + 1
+      existingObjects.filter((item) => item.kind === "character").length + 1,
     );
   }
 
@@ -854,14 +897,21 @@ function createObjectIdForDuplicate(existingObjects: DirectorObject[], source: D
     return getNextSequentialId(
       existingObjects.map((item) => item.id),
       `geo_${source.geometryType}_copy_`,
-      existingObjects.length + 1
+      existingObjects.length + 1,
     );
   }
 
-  return getNextSequentialId(existingObjects.map((item) => item.id), "obj_", existingObjects.length + 1);
+  return getNextSequentialId(
+    existingObjects.map((item) => item.id),
+    "obj_",
+    existingObjects.length + 1,
+  );
 }
 
-function applyPositionOffset(position: [number, number, number], offset: number): [number, number, number] {
+function applyPositionOffset(
+  position: [number, number, number],
+  offset: number,
+): [number, number, number] {
   return [position[0] + offset, position[1], position[2] + offset];
 }
 
@@ -920,7 +970,7 @@ function pasteClipboardEntries(state: DirectorRuntimeState): DirectorRuntimeStat
       const nextCameraId = getNextSequentialId(
         nextCameras.map((item) => item.id),
         "cam_",
-        cameraIndex
+        cameraIndex,
       );
       const nextObjectId = createObjectIdForDuplicate(nextObjects, entry.object);
       idMap.set(entry.object.id, nextObjectId);
@@ -928,14 +978,18 @@ function pasteClipboardEntries(state: DirectorRuntimeState): DirectorRuntimeStat
         idMap.set(entry.object.linkedCameraId, nextCameraId);
       }
 
-      const targetObjectId = entry.camera.targetObjectId ? idMap.get(entry.camera.targetObjectId) : null;
+      const targetObjectId = entry.camera.targetObjectId
+        ? idMap.get(entry.camera.targetObjectId)
+        : null;
       const nextCamera: DirectorCameraShot = {
         ...entry.camera,
         id: nextCameraId,
         name: formatSceneItemName("机位", cameraIndex),
         transform: applyOffsetToTransform(entry.camera.transform, offset),
         target:
-          entry.camera.targetMode === "manual" ? applyPositionOffset(entry.camera.target, offset) : entry.camera.target,
+          entry.camera.targetMode === "manual"
+            ? applyPositionOffset(entry.camera.target, offset)
+            : entry.camera.target,
         targetObjectId: targetObjectId ?? entry.camera.targetObjectId ?? null,
         captures: [],
         lastCaptureUrl: null,
@@ -957,7 +1011,9 @@ function pasteClipboardEntries(state: DirectorRuntimeState): DirectorRuntimeStat
     const nextObjectId = createObjectIdForDuplicate(nextObjects, entry.object);
     idMap.set(entry.object.id, nextObjectId);
     const nextCharacterCount =
-      entry.object.kind === "character" ? nextObjects.filter((item) => item.kind === "character").length + 1 : null;
+      entry.object.kind === "character"
+        ? nextObjects.filter((item) => item.kind === "character").length + 1
+        : null;
     const duplicatedObject: DirectorObject = {
       ...entry.object,
       id: nextObjectId,
@@ -1000,8 +1056,8 @@ function pasteClipboardEntries(state: DirectorRuntimeState): DirectorRuntimeStat
     new Set(
       pastedObjectIds
         .map((objectId) => nextObjects.find((item) => item.id === objectId)?.crowdId)
-        .filter((crowdId): crowdId is string => typeof crowdId === "string")
-    )
+        .filter((crowdId): crowdId is string => typeof crowdId === "string"),
+    ),
   );
 
   return {
@@ -1017,7 +1073,7 @@ function pasteClipboardEntries(state: DirectorRuntimeState): DirectorRuntimeStat
       cameras: normalizedCameras,
       activeCameraId:
         lastPastedObject?.kind === "camera"
-          ? lastPastedObject.linkedCameraId ?? state.project.activeCameraId
+          ? (lastPastedObject.linkedCameraId ?? state.project.activeCameraId)
           : state.project.activeCameraId,
     },
   };
@@ -1033,21 +1089,26 @@ function trimUndoStack(stack: DirectorState[]) {
 
 export const useDirectorStore = create<DirectorStore>((set, get) => {
   const initialRuntimeState = createRuntimeStateFromPersistedState(
-    createInitialDirectorState({ includePersistedLocalAssets: true, includePersistedScene: true })
+    createInitialDirectorState({ includePersistedLocalAssets: true, includePersistedScene: true }),
   );
 
   function commitMutation(
     updater: (state: DirectorRuntimeState) => DirectorRuntimeState,
-    options: { trackUndo?: boolean; persist?: boolean } = {}
+    options: { trackUndo?: boolean; persist?: boolean } = {},
   ) {
     const { trackUndo = true, persist = true } = options;
 
     set((state) => {
       const currentState = state as DirectorRuntimeState;
-      const previousSnapshot = createUndoStackEntry(currentState);
+      const batchingTransform = trackUndo && currentState.undoBatchDepth > 0;
+      const previousSnapshot = batchingTransform
+        ? currentState.undoBatchSnapshot
+        : createUndoStackEntry(currentState);
       const nextState = updater(currentState);
-      const nextSnapshot = extractPersistedDirectorState(nextState);
-      const didChange = !isSameDirectorState(previousSnapshot, nextSnapshot);
+      const nextSnapshot = batchingTransform ? null : extractPersistedDirectorState(nextState);
+      const didChange = batchingTransform
+        ? nextState !== currentState
+        : !isSameDirectorState(previousSnapshot!, nextSnapshot!);
 
       if (!didChange) {
         return {
@@ -1059,22 +1120,22 @@ export const useDirectorStore = create<DirectorStore>((set, get) => {
         };
       }
 
-      const shouldCaptureUndoBatchSnapshot =
-        trackUndo && currentState.undoBatchDepth > 0 && currentState.undoBatchSnapshot === null;
       const nextUndoStack =
         trackUndo && currentState.undoBatchDepth === 0
-          ? trimUndoStack([...currentState.undoStack, previousSnapshot])
+          ? trimUndoStack([...currentState.undoStack, previousSnapshot!])
           : nextState.undoStack;
       const runtimeState: DirectorRuntimeState = {
         ...nextState,
         undoStack: nextUndoStack,
-        undoBatchSnapshot: shouldCaptureUndoBatchSnapshot ? previousSnapshot : nextState.undoBatchSnapshot,
+        undoBatchSnapshot: nextState.undoBatchSnapshot,
         undoBatchHasTrackedChanges:
-          trackUndo && currentState.undoBatchDepth > 0 ? true : nextState.undoBatchHasTrackedChanges,
+          trackUndo && currentState.undoBatchDepth > 0
+            ? true
+            : nextState.undoBatchHasTrackedChanges,
       };
 
-      if (persist) {
-        writePersistedDirectorState(extractPersistedDirectorState(runtimeState));
+      if (persist && !batchingTransform) {
+        writePersistedDirectorState(nextSnapshot!);
       }
 
       return runtimeState;
@@ -1094,8 +1155,12 @@ export const useDirectorStore = create<DirectorStore>((set, get) => {
         return {
           ...currentState,
           undoBatchDepth: currentState.undoBatchDepth + 1,
-          undoBatchSnapshot: currentState.undoBatchDepth === 0 ? createUndoStackEntry(currentState) : currentState.undoBatchSnapshot,
-          undoBatchHasTrackedChanges: currentState.undoBatchDepth === 0 ? false : currentState.undoBatchHasTrackedChanges,
+          undoBatchSnapshot:
+            currentState.undoBatchDepth === 0
+              ? createUndoStackEntry(currentState)
+              : currentState.undoBatchSnapshot,
+          undoBatchHasTrackedChanges:
+            currentState.undoBatchDepth === 0 ? false : currentState.undoBatchHasTrackedChanges,
         };
       });
     },
@@ -1117,6 +1182,10 @@ export const useDirectorStore = create<DirectorStore>((set, get) => {
           currentState.undoBatchHasTrackedChanges &&
           currentState.undoBatchSnapshot !== null &&
           !isSameDirectorState(currentState.undoBatchSnapshot, currentSnapshot);
+
+        if (shouldPushUndoEntry) {
+          writePersistedDirectorState(currentSnapshot);
+        }
 
         return {
           ...currentState,
@@ -1162,7 +1231,7 @@ export const useDirectorStore = create<DirectorStore>((set, get) => {
           ...state.project,
           activeCameraId:
             mode === "camera"
-              ? state.project.activeCameraId ?? state.project.cameras[0]?.id ?? null
+              ? (state.project.activeCameraId ?? state.project.cameras[0]?.id ?? null)
               : state.project.activeCameraId,
         },
       })),
@@ -1216,7 +1285,8 @@ export const useDirectorStore = create<DirectorStore>((set, get) => {
         const nextSelectedObjectIds = selectedObjectIds.includes(id)
           ? selectedObjectIds.filter((itemId) => itemId !== id)
           : [...selectedObjectIds, id];
-        const nextSelectedObjectId = nextSelectedObjectIds[nextSelectedObjectIds.length - 1] ?? null;
+        const nextSelectedObjectId =
+          nextSelectedObjectIds[nextSelectedObjectIds.length - 1] ?? null;
 
         return {
           ...state,
@@ -1274,7 +1344,9 @@ export const useDirectorStore = create<DirectorStore>((set, get) => {
         removePersistedLocalModelAsset(assetId);
 
         const removedObjectIds = new Set(
-          state.project.objects.filter((item) => item.assetRefId === assetId).map((item) => item.id)
+          state.project.objects
+            .filter((item) => item.assetRefId === assetId)
+            .map((item) => item.id),
         );
         const nextObjects = state.project.objects.filter((item) => item.assetRefId !== assetId);
         const nextCameras = state.project.cameras.map((camera) =>
@@ -1284,12 +1356,12 @@ export const useDirectorStore = create<DirectorStore>((set, get) => {
                 targetMode: "manual" as const,
                 targetObjectId: null,
               }
-            : camera
+            : camera,
         );
         const selectedObjectIds = state.selectedObjectIds.filter((id) => !removedObjectIds.has(id));
         const selectedObjectId =
           state.selectedObjectId && removedObjectIds.has(state.selectedObjectId)
-            ? selectedObjectIds[selectedObjectIds.length - 1] ?? null
+            ? (selectedObjectIds[selectedObjectIds.length - 1] ?? null)
             : state.selectedObjectId;
 
         return {
@@ -1315,7 +1387,8 @@ export const useDirectorStore = create<DirectorStore>((set, get) => {
               scale: patch.scale ?? currentObject.transform.scale,
             }
           : null;
-        const nextObject = currentObject && nextTransform ? { ...currentObject, transform: nextTransform } : null;
+        const nextObject =
+          currentObject && nextTransform ? { ...currentObject, transform: nextTransform } : null;
 
         return {
           ...state,
@@ -1337,7 +1410,7 @@ export const useDirectorStore = create<DirectorStore>((set, get) => {
                           ...camera,
                           transform: nextTransform,
                         }
-                      : camera
+                      : camera,
                   )
                 : nextObject
                   ? refreshCamerasFocusedOnObject(state.project.cameras, nextObject)
@@ -1358,7 +1431,7 @@ export const useDirectorStore = create<DirectorStore>((set, get) => {
             cameras: refreshCamerasFocusedOnObjects(
               state.project.cameras,
               nextTransformState.objects,
-              nextTransformState.changedObjectIds
+              nextTransformState.changedObjectIds,
             ),
           },
         };
@@ -1385,7 +1458,7 @@ export const useDirectorStore = create<DirectorStore>((set, get) => {
                   ...item,
                   crowdLabel: label,
                 }
-              : item
+              : item,
           ),
         },
       })),
@@ -1411,7 +1484,7 @@ export const useDirectorStore = create<DirectorStore>((set, get) => {
                   ...item,
                   color,
                 }
-              : item
+              : item,
           ),
         },
       })),
@@ -1437,9 +1510,11 @@ export const useDirectorStore = create<DirectorStore>((set, get) => {
                     ...item,
                     bodyType: normalizedBodyType,
                   }
-                : item
+                : item,
             ),
-            cameras: nextObject ? refreshCamerasFocusedOnObject(state.project.cameras, nextObject) : state.project.cameras,
+            cameras: nextObject
+              ? refreshCamerasFocusedOnObject(state.project.cameras, nextObject)
+              : state.project.cameras,
           },
         };
       }),
@@ -1467,7 +1542,9 @@ export const useDirectorStore = create<DirectorStore>((set, get) => {
                 scale: [scale, scale, scale],
               },
             })),
-            cameras: nextObject ? refreshCamerasFocusedOnObject(state.project.cameras, nextObject) : state.project.cameras,
+            cameras: nextObject
+              ? refreshCamerasFocusedOnObject(state.project.cameras, nextObject)
+              : state.project.cameras,
           },
         };
       }),
@@ -1486,7 +1563,7 @@ export const useDirectorStore = create<DirectorStore>((set, get) => {
             cameras: refreshCamerasFocusedOnObjects(
               state.project.cameras,
               nextTransformState.objects,
-              nextTransformState.changedObjectIds
+              nextTransformState.changedObjectIds,
             ),
           },
         };
@@ -1496,7 +1573,7 @@ export const useDirectorStore = create<DirectorStore>((set, get) => {
         const assetId = getNextSequentialId(
           state.project.assets.map((item) => item.id),
           "asset_",
-          state.project.assets.length + 1
+          state.project.assets.length + 1,
         );
         const nextAsset = {
           id: assetId,
@@ -1579,7 +1656,7 @@ export const useDirectorStore = create<DirectorStore>((set, get) => {
     addPresetCharacter: (bodyType = DEFAULT_CHARACTER_BODY_TYPE) =>
       commitMutation((state) => {
         const presetCharacterCount = state.project.objects.filter(
-          (item) => item.kind === "character" && item.id.startsWith("char_preset_")
+          (item) => item.kind === "character" && item.id.startsWith("char_preset_"),
         ).length;
         const presetCharacterIndex = presetCharacterCount + 1;
         const row = Math.floor((presetCharacterIndex - 1) / 4);
@@ -1617,14 +1694,19 @@ export const useDirectorStore = create<DirectorStore>((set, get) => {
               objects: nextObjects,
             },
           } as DirectorRuntimeState;
-          const nextObject = buildPresetCharacterObject(nextState, bodyType, [
-            Number((position[0] + offset[0]).toFixed(4)),
-            Number((position[1] + offset[1]).toFixed(4)),
-            Number((position[2] + offset[2]).toFixed(4)),
-          ], {
-            crowdId,
-            crowdLabel,
-          });
+          const nextObject = buildPresetCharacterObject(
+            nextState,
+            bodyType,
+            [
+              Number((position[0] + offset[0]).toFixed(4)),
+              Number((position[1] + offset[1]).toFixed(4)),
+              Number((position[2] + offset[2]).toFixed(4)),
+            ],
+            {
+              crowdId,
+              crowdLabel,
+            },
+          );
           nextObjects.push(nextObject);
           createdIds.push(nextObject.id);
         });
@@ -1648,9 +1730,13 @@ export const useDirectorStore = create<DirectorStore>((set, get) => {
     },
     addGeometryPrimitive: (geometryType) =>
       commitMutation((state) => {
-        const geometryObjects = state.project.objects.filter((item) => item.kind === "prop" && item.geometryType);
+        const geometryObjects = state.project.objects.filter(
+          (item) => item.kind === "prop" && item.geometryType,
+        );
         const geometryIndex = geometryObjects.length + 1;
-        const sameTypeCount = geometryObjects.filter((item) => item.geometryType === geometryType).length;
+        const sameTypeCount = geometryObjects.filter(
+          (item) => item.geometryType === geometryType,
+        ).length;
         const row = Math.floor((geometryIndex - 1) / 4);
         const column = (geometryIndex - 1) % 4;
         const x = column * 1.15 - 1.725;
@@ -1659,11 +1745,12 @@ export const useDirectorStore = create<DirectorStore>((set, get) => {
         const objectId = getNextSequentialId(
           state.project.objects.map((item) => item.id),
           `geo_${geometryType}_`,
-          geometryIndex
+          geometryIndex,
         );
         const nextObject: DirectorObject = {
           id: objectId,
-          name: sameTypeCount === 0 ? label : `${label}${String(sameTypeCount + 1).padStart(2, "0")}`,
+          name:
+            sameTypeCount === 0 ? label : `${label}${String(sameTypeCount + 1).padStart(2, "0")}`,
           kind: "prop",
           visible: true,
           locked: false,
@@ -1692,16 +1779,16 @@ export const useDirectorStore = create<DirectorStore>((set, get) => {
         const cameraId = getNextSequentialId(
           state.project.cameras.map((item) => item.id),
           "cam_",
-          cameraIndex
+          cameraIndex,
         );
         const objectId = getNextSequentialId(
           state.project.objects.map((item) => item.id),
           "cam_object_",
-          cameraIndex
+          cameraIndex,
         );
         nextCameraId = cameraId;
         const transform = createTransform(
-          snapshot ? getCameraRigPositionFromViewSnapshot(snapshot) : [cameraIndex * 1.2, 2.2, 9]
+          snapshot ? getCameraRigPositionFromViewSnapshot(snapshot) : [cameraIndex * 1.2, 2.2, 9],
         );
         const nextCamera: DirectorCameraShot = {
           id: cameraId,
@@ -1745,7 +1832,9 @@ export const useDirectorStore = create<DirectorStore>((set, get) => {
         const selectedObjectIds = getOrderedSelectedObjectIds(state);
         if (!selectedObjectIds.length) return state;
 
-        const selectedObjects = state.project.objects.filter((item) => selectedObjectIds.includes(item.id));
+        const selectedObjects = state.project.objects.filter((item) =>
+          selectedObjectIds.includes(item.id),
+        );
         if (!selectedObjects.length) {
           return {
             ...state,
@@ -1757,7 +1846,7 @@ export const useDirectorStore = create<DirectorStore>((set, get) => {
         const linkedCameraIds = new Set(
           selectedObjects
             .filter((item) => item.kind === "camera" && item.linkedCameraId)
-            .map((item) => item.linkedCameraId)
+            .map((item) => item.linkedCameraId),
         );
         const nextCameras = linkedCameraIds.size
           ? state.project.cameras.filter((camera) => !linkedCameraIds.has(camera.id))
@@ -1770,26 +1859,29 @@ export const useDirectorStore = create<DirectorStore>((set, get) => {
                 targetMode: "manual" as const,
                 targetObjectId: null,
               }
-            : camera
+            : camera,
         );
         const nextActiveCameraId =
           state.project.activeCameraId && linkedCameraIds.has(state.project.activeCameraId)
-            ? nextFocusedCameras[0]?.id ?? null
+            ? (nextFocusedCameras[0]?.id ?? null)
             : state.project.activeCameraId;
-        const nextObjects = state.project.objects.filter((item) => !selectedObjectIds.includes(item.id));
+        const nextObjects = state.project.objects.filter(
+          (item) => !selectedObjectIds.includes(item.id),
+        );
         const assetsById = new Map(state.project.assets.map((item) => [item.id, item]));
         const remainingAssetRefIds = new Set(
-          nextObjects.map((item) => item.assetRefId).filter((assetRefId): assetRefId is string => Boolean(assetRefId))
+          nextObjects
+            .map((item) => item.assetRefId)
+            .filter((assetRefId): assetRefId is string => Boolean(assetRefId)),
         );
         const removedAssetRefIds = new Set(
           selectedObjects
             .map((item) => item.assetRefId)
-            .filter(
-              (assetRefId): assetRefId is string => {
-                if (typeof assetRefId !== "string" || remainingAssetRefIds.has(assetRefId)) return false;
-                return assetsById.get(assetRefId)?.assetSource !== "local";
-              }
-            )
+            .filter((assetRefId): assetRefId is string => {
+              if (typeof assetRefId !== "string" || remainingAssetRefIds.has(assetRefId))
+                return false;
+              return assetsById.get(assetRefId)?.assetSource !== "local";
+            }),
         );
 
         return {
@@ -1870,7 +1962,7 @@ export const useDirectorStore = create<DirectorStore>((set, get) => {
                         }
                       : item.characterRig,
                   }
-                : item
+                : item,
             ),
           },
         };
@@ -1891,7 +1983,7 @@ export const useDirectorStore = create<DirectorStore>((set, get) => {
                   },
                 }
               : item.characterRig,
-            })),
+          })),
         },
       })),
     updateCrowdPoseControl: (crowdId, key, value) =>
@@ -1913,15 +2005,16 @@ export const useDirectorStore = create<DirectorStore>((set, get) => {
                       }
                     : item.characterRig,
                 }
-              : item
+              : item,
           ),
         },
       })),
     setActiveCamera: (cameraId) =>
       commitUiMutation((state) => {
         const selectedObjectId =
-          state.project.objects.find((item) => item.kind === "camera" && item.linkedCameraId === cameraId)?.id ??
-          null;
+          state.project.objects.find(
+            (item) => item.kind === "camera" && item.linkedCameraId === cameraId,
+          )?.id ?? null;
 
         return {
           ...state,
@@ -1938,7 +2031,8 @@ export const useDirectorStore = create<DirectorStore>((set, get) => {
       commitMutation((state) => {
         if (dataUrls.length === 0) return state;
 
-        const targetCameraId = cameraId ?? state.project.activeCameraId ?? state.project.cameras[0]?.id ?? null;
+        const targetCameraId =
+          cameraId ?? state.project.activeCameraId ?? state.project.cameras[0]?.id ?? null;
         if (!targetCameraId) return state;
 
         let updated = false;
@@ -1950,7 +2044,8 @@ export const useDirectorStore = create<DirectorStore>((set, get) => {
 
           return {
             ...camera,
-            lastCaptureUrl: nextCaptures[nextCaptures.length - 1]?.dataUrl ?? camera.lastCaptureUrl ?? null,
+            lastCaptureUrl:
+              nextCaptures[nextCaptures.length - 1]?.dataUrl ?? camera.lastCaptureUrl ?? null,
             captures: [...(camera.captures ?? []), ...nextCaptures],
           };
         });
@@ -1978,12 +2073,12 @@ export const useDirectorStore = create<DirectorStore>((set, get) => {
                   transform: patch.transform ?? item.transform,
                   target: patch.target ?? item.target,
                 }
-              : item
+              : item,
           ),
           objects: state.project.objects.map((item) =>
             item.kind === "camera" && item.linkedCameraId === cameraId && patch.transform
               ? { ...item, transform: patch.transform }
-              : item
+              : item,
           ),
         },
       })),
@@ -2042,7 +2137,10 @@ export const useDirectorStore = create<DirectorStore>((set, get) => {
       writePersistedDirectorState(extractPersistedDirectorState(get() as DirectorRuntimeState));
     },
     restoreLatestSnapshot: () => {
-      const snapshot = readPersistedDirectorState({ includePersistedLocalAssets: true, includePersistedScene: true });
+      const snapshot = readPersistedDirectorState({
+        includePersistedLocalAssets: true,
+        includePersistedScene: true,
+      });
       if (!snapshot) return;
 
       set({

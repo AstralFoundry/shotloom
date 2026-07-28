@@ -1,4 +1,4 @@
-import { reactive } from '@/store/domainReactivity';
+import { reactive, toRaw } from '@/store/domainReactivity';
 import { desktopApi } from '@/services/desktopApi';
 import { uid } from '@/utils/format';
 import { showToast } from '@/composables/useToast';
@@ -62,18 +62,24 @@ function normalizeProject(project) {
     task = {
       ...task,
       requestPayload: compactRequestPayload,
-      result: task?.result ? {
-        ...task.result,
-        requestPayload: summarizeGenerationPayload(task.result.requestPayload || compactRequestPayload),
-      } : task?.result,
+      result: task?.result
+        ? {
+            ...task.result,
+            requestPayload: summarizeGenerationPayload(
+              task.result.requestPayload || compactRequestPayload,
+            ),
+          }
+        : task?.result,
     };
     // 同步图片/文本请求没有服务端 task ID，只能依赖当前 WebView 中的 Promise。
     // 项目文件被重新读取意味着原 WebView 已不存在，这类 running 记录不可能恢复；
     // 立即转为可重试错误，不能永久伪装成“运行中”。异步视频有 remoteTaskId，
     // 继续保留 active 状态，交给 resumeRemoteTasks 查询真实远端终态。
-    if (['running', 'queued'].includes(task?.status)
-      && task?.runner === 'remote'
-      && !task?.remoteTaskId) {
+    if (
+      ['running', 'queued'].includes(task?.status) &&
+      task?.runner === 'remote' &&
+      !task?.remoteTaskId
+    ) {
       const error = '同步生成请求已随上次页面会话结束，无法恢复；请重试该节点';
       const node = nodeById.get(task.nodeId);
       if (node) {
@@ -86,20 +92,29 @@ function normalizeProject(project) {
         status: 'error',
         error,
         completedAt: new Date().toISOString(),
-        result: { ...(task.result || {}), requestPayload: compactRequestPayload, error, status: 'error' },
+        result: {
+          ...(task.result || {}),
+          requestPayload: compactRequestPayload,
+          error,
+          status: 'error',
+        },
       };
     }
     if (task?.status !== 'completed') return task;
     const node = nodeById.get(task.nodeId);
     if (node?.type !== 'textGeneration') return task;
-    const issue = generationOutputIssue(node.type, {
-      result: task.result?.output,
-      raw: task.result?.raw,
-    }, {
-      text: node.textContent || task.result?.text || '',
-      archivedFiles: task.result?.archivedFiles || [],
-      resultNodes: task.result?.resultNodes || [],
-    });
+    const issue = generationOutputIssue(
+      node.type,
+      {
+        result: task.result?.output,
+        raw: task.result?.raw,
+      },
+      {
+        text: node.textContent || task.result?.text || '',
+        archivedFiles: task.result?.archivedFiles || [],
+        resultNodes: task.result?.resultNodes || [],
+      },
+    );
     if (issue?.code !== 'empty-text-length') return task;
     const currentMaxTokens = Number(node.config?.maxTokens) || 2048;
     node.config = {
@@ -134,7 +149,9 @@ function normalizeProject(project) {
       .filter((edge) => nodeIds.has(edge.source) && nodeIds.has(edge.target))
       .filter((edge) => edge.kind !== 'dependency' && edge.data?.inputRole !== 'dependencyOnly'),
     tasks,
-    copilotConversations: Array.isArray(project?.copilotConversations) ? project.copilotConversations : [],
+    copilotConversations: Array.isArray(project?.copilotConversations)
+      ? project.copilotConversations
+      : [],
     activeCopilotConversationId: String(project?.activeCopilotConversationId || ''),
     canvasViewport: normalizeCanvasViewport(project?.canvasViewport),
     agentBatches: Array.isArray(project?.agentBatches) ? project.agentBatches : [],
@@ -143,12 +160,17 @@ function normalizeProject(project) {
       const { pendingContinuation: _removedLegacyCheckpoint, ...current } = run || {};
       return current;
     }),
-    agentRuntimeEvents: Array.isArray(project?.agentRuntimeEvents) ? project.agentRuntimeEvents : [],
+    agentRuntimeEvents: Array.isArray(project?.agentRuntimeEvents)
+      ? project.agentRuntimeEvents
+      : [],
     agentInteractions: Array.isArray(project?.agentInteractions) ? project.agentInteractions : [],
     productionPlans: Array.isArray(project?.productionPlans)
       ? project.productionPlans.filter((plan) => plan?.schemaVersion === 2)
       : [],
-    agentEvaluations: (Array.isArray(project?.agentEvaluations) ? project.agentEvaluations : []).map((evaluation) => {
+    agentEvaluations: (Array.isArray(project?.agentEvaluations)
+      ? project.agentEvaluations
+      : []
+    ).map((evaluation) => {
       const task = tasks.find((item) => item.id === evaluation.taskId);
       if (task?.status !== 'failed' || !task.error) return evaluation;
       return {
@@ -160,9 +182,11 @@ function normalizeProject(project) {
       };
     }),
     canvasHistory: Array.isArray(project?.canvasHistory)
-      ? project.canvasHistory.slice(0, MAX_CANVAS_HISTORY) : [],
+      ? project.canvasHistory.slice(0, MAX_CANVAS_HISTORY)
+      : [],
     canvasRedoStack: Array.isArray(project?.canvasRedoStack)
-      ? project.canvasRedoStack.slice(0, MAX_CANVAS_HISTORY) : [],
+      ? project.canvasRedoStack.slice(0, MAX_CANVAS_HISTORY)
+      : [],
     settings: {
       autoSave: project?.settings?.autoSave !== false,
       defaultTextModel: project?.settings?.defaultTextModel || base.settings.defaultTextModel,
@@ -280,7 +304,8 @@ function projectPersistenceSnapshot() {
     snapshot.copilotConversations = snapshot.copilotConversations.map((conversation) => ({
       ...conversation,
       messages: Array.isArray(conversation.messages)
-        ? conversation.messages.filter((message) => !message?.transient) : [],
+        ? conversation.messages.filter((message) => !message?.transient)
+        : [],
     }));
   }
   return snapshot;
@@ -305,14 +330,16 @@ export function persistSession() {
     edges: persisted ? [] : project.edges,
     tasks: persisted ? [] : project.tasks,
   };
-  desktopApi.project.syncCurrent?.({
-    project: snapshot.project,
-    projectDir: snapshot.projectDir,
-    filePath: snapshot.filePath,
-    nodes: snapshot.nodes,
-    edges: snapshot.edges,
-    tasks: snapshot.tasks,
-  }).catch(() => {});
+  desktopApi.project
+    .syncCurrent?.({
+      project: snapshot.project,
+      projectDir: snapshot.projectDir,
+      filePath: snapshot.filePath,
+      nodes: snapshot.nodes,
+      edges: snapshot.edges,
+      tasks: snapshot.tasks,
+    })
+    .catch(() => {});
   desktopApi.project.setWindowProjectName?.(snapshot.project?.name || '未命名项目').catch(() => {});
 }
 
@@ -334,6 +361,14 @@ export function touchProject({ sessionDelay = 100, coalesceSession = false } = {
   scheduleAutoSave();
 }
 
+export function persistCanvasViewport(viewport) {
+  const project = toRaw(store.project);
+  project.canvasViewport = viewport;
+  project.updatedAt = new Date().toISOString();
+  scheduleSessionPersist(400, { coalesce: true });
+  scheduleAutoSave();
+}
+
 export function isProjectAutoSaveEnabled() {
   return store.project?.settings?.autoSave !== false;
 }
@@ -347,10 +382,13 @@ function scheduleAutoSave(delay = AUTO_SAVE_DELAY_MS) {
   if (!autoSaveQueuedAt) autoSaveQueuedAt = Date.now();
   const remaining = Math.max(0, AUTO_SAVE_MAX_DELAY_MS - (Date.now() - autoSaveQueuedAt));
   if (autoSaveTimer) window.clearTimeout(autoSaveTimer);
-  autoSaveTimer = window.setTimeout(() => {
-    autoSaveTimer = null;
-    flushAutoSave();
-  }, Math.min(delay, remaining));
+  autoSaveTimer = window.setTimeout(
+    () => {
+      autoSaveTimer = null;
+      flushAutoSave();
+    },
+    Math.min(delay, remaining),
+  );
 }
 
 async function writeProjectFile({ updateRecent = false } = {}) {
@@ -414,22 +452,26 @@ export function initProjectCloneProgressListener() {
     if (!progress?.projectDir) return;
     store.cloneProgressByProject[progress.projectDir] = progress;
     if (progress.phase === 'completed' || progress.phase === 'failed') {
-      window.setTimeout(() => {
-        if (store.cloneProgressByProject[progress.projectDir] === progress) {
-          delete store.cloneProgressByProject[progress.projectDir];
-        }
-      }, progress.phase === 'completed' ? 800 : 2400);
+      window.setTimeout(
+        () => {
+          if (store.cloneProgressByProject[progress.projectDir] === progress) {
+            delete store.cloneProgressByProject[progress.projectDir];
+          }
+        },
+        progress.phase === 'completed' ? 800 : 2400,
+      );
     }
   });
 }
 
 export async function loadRecentProjects() {
   try {
-    const rootEntries = await desktopApi.project.listRoot?.(await ensureProjectRoot()) || [];
+    const rootEntries = (await desktopApi.project.listRoot?.(await ensureProjectRoot())) || [];
     const recentProjects = await desktopApi.recent.list();
-    const flattenProjects = (entries = []) => entries.flatMap((entry) => (
-      entry.kind === 'project' ? [entry] : flattenProjects(entry.children || [])
-    ));
+    const flattenProjects = (entries = []) =>
+      entries.flatMap((entry) =>
+        entry.kind === 'project' ? [entry] : flattenProjects(entry.children || []),
+      );
     const rootedProjects = flattenProjects(rootEntries);
     const rootedPaths = new Set(rootedProjects.map((project) => project.filePath));
     const externalRecent = recentProjects.filter((project) => !rootedPaths.has(project.filePath));
@@ -474,7 +516,10 @@ export async function createNewProject(name = '未命名项目', options = {}) {
   } else {
     store.projectDir = await desktopApi.project.createFolder(rootDir, store.project.name);
   }
-  const result = await desktopApi.project.save(store.projectDir, JSON.parse(JSON.stringify(store.project)));
+  const result = await desktopApi.project.save(
+    store.projectDir,
+    JSON.parse(JSON.stringify(store.project)),
+  );
   store.filePath = result.filePath;
   store.selectedNodeId = null;
   store.selectedNodeIds = [];
@@ -496,7 +541,10 @@ export async function createNewProject(name = '未命名项目', options = {}) {
 
 export async function saveProject() {
   if (!store.projectDir) {
-    store.projectDir = await desktopApi.project.createFolder(await ensureProjectRoot(), store.project.name);
+    store.projectDir = await desktopApi.project.createFolder(
+      await ensureProjectRoot(),
+      store.project.name,
+    );
   }
 
   if (autoSaveTimer) {
@@ -510,11 +558,9 @@ export async function saveProject() {
 }
 
 export async function openProjectFromDialog() {
-  const result = await (
-    desktopApi.project.openFolderDialog
-      ? desktopApi.project.openFolderDialog()
-      : desktopApi.project.openDialog()
-  );
+  const result = await (desktopApi.project.openFolderDialog
+    ? desktopApi.project.openFolderDialog()
+    : desktopApi.project.openDialog());
   if (!result) return false;
   if (result.ok === false) {
     showToast(result.error || '项目文件夹无法读取');
@@ -573,7 +619,10 @@ export async function cloneRecentProject(project) {
     phase: 'starting',
   };
   try {
-    const result = await desktopApi.project.cloneFolder?.(project.projectDir, `${project.name || '未命名项目'}-copy`);
+    const result = await desktopApi.project.cloneFolder?.(
+      project.projectDir,
+      `${project.name || '未命名项目'}-copy`,
+    );
     if (!result) {
       showToast('复制项目失败');
       delete store.cloneProgressByProject[project.projectDir];
@@ -643,10 +692,16 @@ export async function trashRecentProject(project) {
     return false;
   }
 
-  const deletingCurrentProject = Boolean(store.projectDir && project.projectDir === store.projectDir);
+  const deletingCurrentProject = Boolean(
+    store.projectDir && project.projectDir === store.projectDir,
+  );
   let deletedProjectId = deletingCurrentProject ? store.project?.id : '';
   if (!deletedProjectId && project.filePath) {
-    try { deletedProjectId = (await desktopApi.project.readFile(project.filePath))?.id || ''; } catch { /* stale entry */ }
+    try {
+      deletedProjectId = (await desktopApi.project.readFile(project.filePath))?.id || '';
+    } catch {
+      /* stale entry */
+    }
   }
   const previousIdentity = deletingCurrentProject
     ? { projectDir: store.projectDir, filePath: store.filePath }
@@ -719,7 +774,9 @@ export async function loadBoundWindowProject() {
     // 浏览器预览没有窗口级项目绑定，以项目库记录校验恢复会话，避免清空项目库后
     // localStorage 里的旧项目仍然点得进“继续创作”。
     if (desktopApi.platform === 'browser' && hasOpenProject()) {
-      const remainsInLibrary = store.recentProjects.some((project) => project.filePath === store.filePath);
+      const remainsInLibrary = store.recentProjects.some(
+        (project) => project.filePath === store.filePath,
+      );
       if (!remainsInLibrary) clearActiveProjectSession();
     }
     return false;
@@ -746,10 +803,12 @@ export async function loadBoundWindowProject() {
       clearActiveProjectSession();
       return false;
     }
-    if (restored?.hasFullProjectSnapshot
-      && store.projectDir === projectDir
-      && store.filePath === filePath
-      && store.project) {
+    if (
+      restored?.hasFullProjectSnapshot &&
+      store.projectDir === projectDir &&
+      store.filePath === filePath &&
+      store.project
+    ) {
       return false;
     }
     throw error;
@@ -769,7 +828,9 @@ async function applyOpenedProject(result) {
   store.selectedEdgeId = null;
   store.connectFromId = null;
   store.route = 'creation';
-  const { reconcileCurrentProjectLocalAssetReferences } = await import('@/store/localAssetLibraryStore');
+  const { reconcileCurrentProjectLocalAssetReferences } = await import(
+    '@/store/localAssetLibraryStore'
+  );
   await reconcileCurrentProjectLocalAssetReferences();
   await desktopApi.recent.add({
     name: store.project.name,
@@ -802,10 +863,11 @@ export async function migrateProjectRoot(targetRoot) {
   const result = await desktopApi.project.migrateRoot?.(store.recentProjects, targetRoot);
   if (!result?.root) return false;
   settingsStore.projectRootDir = result.root;
-  const movedCurrent = result.projects?.find((project) => (
-    (store.filePath && project.oldFilePath === store.filePath)
-    || (store.projectDir && project.oldProjectDir === store.projectDir)
-  ));
+  const movedCurrent = result.projects?.find(
+    (project) =>
+      (store.filePath && project.oldFilePath === store.filePath) ||
+      (store.projectDir && project.oldProjectDir === store.projectDir),
+  );
   if (movedCurrent) {
     store.projectDir = movedCurrent.projectDir;
     store.filePath = movedCurrent.filePath;
@@ -817,7 +879,7 @@ export async function migrateProjectRoot(targetRoot) {
 }
 
 async function ensureProjectRoot() {
-  const root = settingsStore.projectRootDir || await desktopApi.project.getDefaultRoot?.();
+  const root = settingsStore.projectRootDir || (await desktopApi.project.getDefaultRoot?.());
   const ensured = await desktopApi.project.ensureRoot?.(root);
   if (ensured && settingsStore.projectRootDir !== ensured) settingsStore.projectRootDir = ensured;
   return ensured || root || null;
@@ -825,12 +887,14 @@ async function ensureProjectRoot() {
 
 function uniqueProjects(projects) {
   const seen = new Set();
-  return projects.filter((project) => {
-    const key = project?.filePath;
-    if (!key || seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  }).sort((a, b) => new Date(b.lastOpenedAt) - new Date(a.lastOpenedAt));
+  return projects
+    .filter((project) => {
+      const key = project?.filePath;
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .sort((a, b) => new Date(b.lastOpenedAt) - new Date(a.lastOpenedAt));
 }
 
 // ── Store facade exports ────────────────────────────────────────────────────
@@ -839,23 +903,40 @@ export { showToast } from '@/composables/useToast';
 export { filteredAssets, importAssetFiles } from '@/store/assetStore';
 export { selectedNode };
 export {
-  nodeTypeLabel, defaultGenerationConfig, ensureGenerationConfig,
-  addNode, deleteNodeById, deleteSelectedNode, deleteSelectedNodes, selectNode,
-  selectedNodes, setSelectedNodeIds, startConnect,
+  nodeTypeLabel,
+  defaultGenerationConfig,
+  ensureGenerationConfig,
+  addNode,
+  deleteNodeById,
+  deleteSelectedNode,
+  deleteSelectedNodes,
+  selectNode,
+  selectedNodes,
+  setSelectedNodeIds,
+  startConnect,
 } from '@/store/nodeStore';
 export {
-  failedTaskStatuses, statusLabel, statusTone,
-  runNode, cancelTask, cancelNode, retryTask, retryNode,
-  canRetryTask, clearTasks, isHistoricalModelTask,
-  findLatestTaskForNode, clearActiveTaskForNode,
+  failedTaskStatuses,
+  statusLabel,
+  statusTone,
+  runNode,
+  cancelTask,
+  cancelNode,
+  retryTask,
+  retryNode,
+  canRetryTask,
+  clearTasks,
+  isHistoricalModelTask,
+  findLatestTaskForNode,
+  clearActiveTaskForNode,
 } from '@/store/taskStore';
 export {
-  stageSelectedWorkflow, pasteStagedWorkflow,
-  captureWorkflowSnapshot, importWorkflowTemplate,
+  stageSelectedWorkflow,
+  pasteStagedWorkflow,
+  captureWorkflowSnapshot,
+  importWorkflowTemplate,
 } from '@/store/clipboardStore';
-export {
-  deleteCanvasNodeData, remapImportedNodeReferences,
-} from '@/store/canvasGraphStore';
+export { deleteCanvasNodeData, remapImportedNodeReferences } from '@/store/canvasGraphStore';
 
 // ── Convenience ─────────────────────────────────────────────────────────────
 

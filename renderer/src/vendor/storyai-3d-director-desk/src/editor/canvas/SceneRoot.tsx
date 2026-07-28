@@ -1,6 +1,14 @@
 import { Html, Line, TransformControls, type TransformControlsProps } from "@react-three/drei";
 import { useLoader, type ThreeEvent } from "@react-three/fiber";
-import { Suspense, useCallback, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  Suspense,
+  useCallback,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { Box3, Matrix4, Quaternion, Vector3, type Group, type Object3D } from "three";
 import type { TransformControls as TransformControlsImpl } from "three-stdlib";
 import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader.js";
@@ -40,7 +48,8 @@ const VIEWPORT_CAMERA_BODY_SIZE: CameraWirePoint = [
   0.4 * VIEWPORT_CAMERA_VISUAL_SCALE,
   1 * VIEWPORT_CAMERA_VISUAL_SCALE,
 ];
-const VIEWPORT_CAMERA_BODY_FRONT_Z = VIEWPORT_CAMERA_BODY_CENTER[2] + VIEWPORT_CAMERA_BODY_SIZE[2] / 2;
+const VIEWPORT_CAMERA_BODY_FRONT_Z =
+  VIEWPORT_CAMERA_BODY_CENTER[2] + VIEWPORT_CAMERA_BODY_SIZE[2] / 2;
 const VIEWPORT_CAMERA_LENS_TIP: CameraWirePoint = [0, 0, 0.2 * VIEWPORT_CAMERA_VISUAL_SCALE];
 const ROLE_LABEL_DISTANCE_FACTOR = 3;
 const IMPORTED_MODEL_TARGET_MAX_SIZE = 2;
@@ -86,7 +95,7 @@ function ViewportTransformControls({
 }: {
   mode: TransformMode;
   object: TransformControlsProps["object"];
-  onObjectChange: TransformControlsProps["onObjectChange"];
+  onObjectChange: () => void;
   translationSnap?: number | null;
 }) {
   const controlsRef = useRef<TransformControlsImpl | null>(null);
@@ -105,8 +114,10 @@ function ViewportTransformControls({
       mode={mode}
       object={object}
       onMouseDown={beginUndoBatch}
-      onMouseUp={endUndoBatch}
-      onObjectChange={onObjectChange}
+      onMouseUp={() => {
+        onObjectChange();
+        endUndoBatch();
+      }}
       translationSnap={translationSnap ?? undefined}
       userData={{ [HIDE_FROM_VIEWPORT_CAPTURE_KEY]: true }}
     />
@@ -115,7 +126,7 @@ function ViewportTransformControls({
 
 export function getViewportCameraQuaternion(
   position: [number, number, number],
-  target: [number, number, number]
+  target: [number, number, number],
 ) {
   const origin = new Vector3(...position);
   const direction = new Vector3(...target).sub(origin);
@@ -150,7 +161,10 @@ export function getViewportCameraLabelY() {
   return modelTopY + VIEWPORT_OBJECT_LABEL_VERTICAL_GAP;
 }
 
-export function getImportedModelNormalization(bounds: Box3, targetMaxSize = IMPORTED_MODEL_TARGET_MAX_SIZE) {
+export function getImportedModelNormalization(
+  bounds: Box3,
+  targetMaxSize = IMPORTED_MODEL_TARGET_MAX_SIZE,
+) {
   if (bounds.isEmpty()) {
     return {
       position: [0, 0, 0] as [number, number, number],
@@ -167,7 +181,11 @@ export function getImportedModelNormalization(bounds: Box3, targetMaxSize = IMPO
   const scale = Number.isFinite(maxSize) && maxSize > 0 ? targetMaxSize / maxSize : 1;
 
   return {
-    position: [-center.x * scale, -bounds.min.y * scale, -center.z * scale] as [number, number, number],
+    position: [-center.x * scale, -bounds.min.y * scale, -center.z * scale] as [
+      number,
+      number,
+      number,
+    ],
     scale,
   };
 }
@@ -240,23 +258,23 @@ function createCircleWireframeLine({
 
 function createInvertedTetrahedronLensWireframeLines(): CameraWirePointLine[] {
   const backTopLeft: CameraWirePoint = [
-    -0.10 * VIEWPORT_CAMERA_VISUAL_SCALE,
-    0.10 * VIEWPORT_CAMERA_VISUAL_SCALE,
+    -0.1 * VIEWPORT_CAMERA_VISUAL_SCALE,
+    0.1 * VIEWPORT_CAMERA_VISUAL_SCALE,
     VIEWPORT_CAMERA_BODY_FRONT_Z,
   ];
   const backTopRight: CameraWirePoint = [
-    0.10 * VIEWPORT_CAMERA_VISUAL_SCALE,
-    0.10 * VIEWPORT_CAMERA_VISUAL_SCALE,
+    0.1 * VIEWPORT_CAMERA_VISUAL_SCALE,
+    0.1 * VIEWPORT_CAMERA_VISUAL_SCALE,
     VIEWPORT_CAMERA_BODY_FRONT_Z,
   ];
   const backBottomRight: CameraWirePoint = [
-    0.10 * VIEWPORT_CAMERA_VISUAL_SCALE,
-    -0.10 * VIEWPORT_CAMERA_VISUAL_SCALE,
+    0.1 * VIEWPORT_CAMERA_VISUAL_SCALE,
+    -0.1 * VIEWPORT_CAMERA_VISUAL_SCALE,
     VIEWPORT_CAMERA_BODY_FRONT_Z,
   ];
   const backBottomLeft: CameraWirePoint = [
-    -0.10 * VIEWPORT_CAMERA_VISUAL_SCALE,
-    -0.10 * VIEWPORT_CAMERA_VISUAL_SCALE,
+    -0.1 * VIEWPORT_CAMERA_VISUAL_SCALE,
+    -0.1 * VIEWPORT_CAMERA_VISUAL_SCALE,
     VIEWPORT_CAMERA_BODY_FRONT_Z,
   ];
 
@@ -289,7 +307,6 @@ function createInvertedTetrahedronLensWireframeLines(): CameraWirePointLine[] {
     [backTopRight, frontTopRight],
     [backBottomRight, frontBottomRight],
     [backBottomLeft, frontBottomLeft],
-
   ];
 }
 function withCameraPart(part: CameraWirePart, lines: CameraWirePointLine[]): CameraWireLine[] {
@@ -299,7 +316,10 @@ function withCameraPart(part: CameraWirePart, lines: CameraWirePointLine[]): Cam
 export function getViewportCameraBodyWireframeLines(): CameraWireLine[] {
   return [
     ...withCameraPart("body", [
-      ...createBoxWireframeLines({ center: VIEWPORT_CAMERA_BODY_CENTER, size: VIEWPORT_CAMERA_BODY_SIZE }),
+      ...createBoxWireframeLines({
+        center: VIEWPORT_CAMERA_BODY_CENTER,
+        size: VIEWPORT_CAMERA_BODY_SIZE,
+      }),
     ]),
     ...withCameraPart("lens", createInvertedTetrahedronLensWireframeLines()),
     ...withCameraPart("reel", [
@@ -369,13 +389,7 @@ function ObjModel({ url }: { url: string }) {
   return <NormalizedImportedObject object={object} />;
 }
 
-function ImportedModel({
-  fileName,
-  url,
-}: {
-  fileName: string;
-  url: string;
-}) {
+function ImportedModel({ fileName, url }: { fileName: string; url: string }) {
   if (/\.fbx$/i.test(fileName)) return <FbxModel url={url} />;
   if (/\.obj$/i.test(fileName)) return <ObjModel url={url} />;
   return null;
@@ -477,7 +491,9 @@ function ObjectSceneNode({
         : getGroundedLabelY(item.bodyType)
       : 1.25;
   const characterLabelY =
-    measuredCharacterLabel?.key === characterLabelKey ? measuredCharacterLabel.y : fallbackCharacterLabelY;
+    measuredCharacterLabel?.key === characterLabelKey
+      ? measuredCharacterLabel.y
+      : fallbackCharacterLabelY;
   const handleCharacterLabelAnchorYChange = useCallback(
     (anchorY: number) => {
       setMeasuredCharacterLabel((current) => {
@@ -493,7 +509,7 @@ function ObjectSceneNode({
         };
       });
     },
-    [characterLabelKey]
+    [characterLabelKey],
   );
 
   function commitTransformFromViewport() {
@@ -533,7 +549,9 @@ function ObjectSceneNode({
             />
           </Suspense>
           {showLabels ? (
-            <ViewportObjectLabel position={[0, characterLabelY, 0]}>{item.name}</ViewportObjectLabel>
+            <ViewportObjectLabel position={[0, characterLabelY, 0]}>
+              {item.name}
+            </ViewportObjectLabel>
           ) : null}
         </>
       ) : item.kind === "prop" && item.geometryType ? (
@@ -608,7 +626,7 @@ function CrowdTransformRig({
 }
 
 export function getViewportCameraFrustumLines(
-  _camera: DirectorCameraShot
+  _camera: DirectorCameraShot,
 ): Array<[[number, number, number], [number, number, number]]> {
   const frameDepth = VIEWPORT_CAMERA_FRUSTUM_DEPTH;
   const halfWidth = VIEWPORT_CAMERA_FRUSTUM_FRAME_WIDTH / 2;
@@ -656,7 +674,7 @@ function ViewportCameraRig({
   const frustumLines = useMemo(() => getViewportCameraFrustumLines(camera), [camera]);
   const cameraQuaternion = useMemo(
     () => getViewportCameraQuaternion(camera.transform.position, camera.target),
-    [camera.target, camera.transform.position]
+    [camera.target, camera.transform.position],
   );
 
   useLayoutEffect(() => {
@@ -667,10 +685,16 @@ function ViewportCameraRig({
     const group = groupRef.current;
     if (!group) return;
 
-    const position: [number, number, number] = [group.position.x, group.position.y, group.position.z];
+    const position: [number, number, number] = [
+      group.position.x,
+      group.position.y,
+      group.position.z,
+    ];
     const forward = VIEWPORT_CAMERA_FORWARD.clone().applyQuaternion(group.quaternion).normalize();
     const currentDistance = new Vector3(...camera.target).distanceTo(group.position);
-    const nextTarget = group.position.clone().add(forward.multiplyScalar(Math.max(currentDistance, 0.1)));
+    const nextTarget = group.position
+      .clone()
+      .add(forward.multiplyScalar(Math.max(currentDistance, 0.1)));
 
     updateCamera(camera.id, {
       transform: {
@@ -700,7 +724,11 @@ function ViewportCameraRig({
         <ViewportObjectLabel position={[0, cameraLabelY, 0]}>{camera.name}</ViewportObjectLabel>
       ) : null}
 
-      <mesh name={`${camera.id}-hit-area`} onClick={selectCameraFromViewport} position={cameraHitArea.position}>
+      <mesh
+        name={`${camera.id}-hit-area`}
+        onClick={selectCameraFromViewport}
+        position={cameraHitArea.position}
+      >
         <boxGeometry args={cameraHitArea.args} />
         <meshBasicMaterial depthWrite={false} opacity={0} transparent />
       </mesh>
@@ -767,7 +795,7 @@ export function SceneRoot() {
     return new Map(
       objects
         .filter((item) => item.kind === "camera" && item.linkedCameraId)
-        .map((item) => [item.linkedCameraId as string, item])
+        .map((item) => [item.linkedCameraId as string, item]),
     );
   }, [objects]);
   const crowdLocksById = useMemo(() => {
@@ -829,19 +857,23 @@ export function SceneRoot() {
             />
           );
         })}
-      {Array.from(new Set(objects.map((item) => item.crowdId).filter((item): item is string => typeof item === "string"))).map(
-        (crowdId) => (
-          <CrowdTransformRig
-            key={crowdId}
-            crowdId={crowdId}
-            objects={objects}
-            selected={selectedCrowdId === crowdId}
-            transformMode={transformMode}
-            transformable={!(crowdLocksById.get(crowdId) ?? false)}
-            translationSnap={translationSnap}
-          />
-        )
-      )}
+      {Array.from(
+        new Set(
+          objects
+            .map((item) => item.crowdId)
+            .filter((item): item is string => typeof item === "string"),
+        ),
+      ).map((crowdId) => (
+        <CrowdTransformRig
+          key={crowdId}
+          crowdId={crowdId}
+          objects={objects}
+          selected={selectedCrowdId === crowdId}
+          transformMode={transformMode}
+          transformable={!(crowdLocksById.get(crowdId) ?? false)}
+          translationSnap={translationSnap}
+        />
+      ))}
       {viewMode === "director"
         ? cameras
             .map((camera) => ({ camera, object: cameraObjectsByCameraId.get(camera.id) }))

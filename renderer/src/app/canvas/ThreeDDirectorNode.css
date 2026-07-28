@@ -18,6 +18,37 @@
   padding: 0 2px;
 }
 
+.director-node-drag-handle {
+  width: 22px;
+  height: 20px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  color: #92949a;
+  cursor: grab;
+  touch-action: none;
+}
+
+.director-node-drag-handle::before {
+  content: "";
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow:
+    0 5px currentColor,
+    5px 0 currentColor,
+    5px 5px currentColor;
+}
+
+.director-node-drag-handle:hover {
+  color: #55565b;
+}
+
+.director-node-drag-handle:active {
+  cursor: grabbing;
+}
+
 .director-node-kind {
   min-width: 0;
   flex: 1;
@@ -137,5 +168,57 @@
   display: block;
   border: 0;
   background: #fff;
+  transform: scale(.375);
   transform-origin: top left;
+  will-change: transform;
+}
+
+.director-node:not(.interacting) .director-node-workspace iframe {
+  pointer-events: none;
+}
+
+.director-node-entry-hint {
+  position: absolute;
+  z-index: 2;
+  right: 10px;
+  bottom: 10px;
+  padding: 5px 8px;
+  border: 1px solid #dedfe3;
+  border-radius: 7px;
+  color: #676970;
+  background: #fffffff0;
+  box-shadow: 0 1px 4px #00000012;
+  font-size: 10px;
+  line-height: 1;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+
+.director-node-workspace:hover .director-node-entry-hint {
+  opacity: 1;
+}
+
+.director-node-head button.director-node-done-button {
+  width: auto;
+  min-width: 34px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 6px;
+  color: #55565b;
+  background: #f2f3f5;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.director-node-head button.director-node-done-button:hover {
+  color: #171717;
+  background: #e7e8eb;
+}
+
+/* An iframe owns a separate pointer event surface. Disable it during an outer
+   node resize so the React Flow resizer always receives mouseup and can leave
+   the horizontal/vertical resize cursor state cleanly. */
+.director-node.resizing .director-node-workspace iframe {
+  pointer-events: none;
 }

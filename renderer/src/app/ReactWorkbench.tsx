@@ -15,10 +15,7 @@ import { loadAppSettings, settingsStore } from "../store/settingsStore.js";
 import { loadGlobalRecipes } from "../store/recipesStore.js";
 import { loadGlobalSkills } from "../store/skillsStore.js";
 import { resumeRemoteTasks } from "../store/taskStore.js";
-import {
-  getDomainRevision,
-  subscribeDomain,
-} from "../store/domainReactivity.js";
+import { getDomainRevision, subscribeDomain } from "../store/domainReactivity.js";
 import { registerUpdateBridge } from "../store/updateStore.js";
 import { canvasActionShortcutLabel } from "../utils/canvasActionShortcuts.js";
 import { AppShell } from "./AppShell";
@@ -32,12 +29,10 @@ import {
 import {
   copilotController,
   copilotData,
+  getCopilotRevision,
   subscribeCopilot,
 } from "./adapters/copilotAdapter";
-import {
-  projectLibraryController,
-  projectLibraryData,
-} from "./adapters/projectLibraryAdapter";
+import { projectLibraryController, projectLibraryData } from "./adapters/projectLibraryAdapter";
 import {
   assetsController,
   initializeResourceLibraries,
@@ -45,10 +40,7 @@ import {
   resourceLibraryData,
 } from "./adapters/resourceLibraryAdapter";
 import { taskController, taskViewData } from "./adapters/taskAdapter";
-import {
-  updateDialogController,
-  updateDialogData,
-} from "./adapters/updateAdapter";
+import { updateDialogController, updateDialogData } from "./adapters/updateAdapter";
 import { MediaViewer } from "./components/MediaViewer";
 import { ToastHost } from "./components/ToastHost";
 import { UpdateDialog } from "./components/UpdateDialog";
@@ -96,15 +88,11 @@ export function ReactWorkbench() {
       disposeClose = useWindowClose();
       disposeUpdate = registerUpdateBridge();
       refresh();
-    })().catch((cause) =>
-      showToast(cause instanceof Error ? cause.message : "应用初始化失败")
-    );
-    const unsubscribeCopilot = subscribeCopilot(refresh);
+    })().catch((cause) => showToast(cause instanceof Error ? cause.message : "应用初始化失败"));
     registerVideoEditorOpener(setEditorNodeId);
     return () => {
       cancelled = true;
       registerVideoEditorOpener(null);
-      unsubscribeCopilot();
       if (taskTimer) window.clearInterval(taskTimer);
       disposeClose?.();
       disposeUpdate?.();
@@ -116,21 +104,19 @@ export function ReactWorkbench() {
     useAppStore.getState().setCurrentProject(
       opened
         ? {
-          id: String(store.project.id),
-          name: store.project.name,
-          filePath: store.filePath,
-          projectDir: store.projectDir,
-          nodeCount: store.project.nodes.length,
-          edgeCount: store.project.edges.length,
-        }
+            id: String(store.project.id),
+            name: store.project.name,
+            filePath: store.filePath,
+            projectDir: store.projectDir,
+            nodeCount: store.project.nodes.length,
+            edgeCount: store.project.edges.length,
+          }
         : null,
     );
     navigateToRoute(store.route, { notify: false });
     const route = store.route as AppRoute;
     if (
-      ["projects", "creation", "tasks", "assets", "materials"].includes(
-        route,
-      ) &&
+      ["projects", "creation", "tasks", "assets", "materials"].includes(route) &&
       useAppStore.getState().route !== route
     ) {
       useAppStore.setState({ route });
@@ -144,156 +130,157 @@ export function ReactWorkbench() {
     }
   }, [appRoute]);
 
-  const projects = projectLibraryData();
-  const resources = resourceLibraryData();
-  const canvas = canvasViewData();
-  const copilot = copilotData();
+  const projects = appRoute === "projects" ? projectLibraryData() : null;
+  const resources = ["assets", "materials"].includes(appRoute) ? resourceLibraryData() : null;
+  const canvas = appRoute === "creation" ? canvasViewData() : null;
   const update = updateDialogData();
   const editorNode: any = editorNodeId
     ? store.project.nodes.find((node: any) => node.id === editorNodeId)
     : null;
   const editorTask: any = editorNode
-    ? [...(store.project.tasks || [])].reverse().find((task: any) =>
-      task.nodeId === editorNode.id && task.status === "completed"
-    )
+    ? [...(store.project.tasks || [])]
+        .reverse()
+        .find((task: any) => task.nodeId === editorNode.id && task.status === "completed")
     : null;
   const editorOutputs: any[] = editorNode
     ? [
-      ...(Array.isArray(editorNode.generatedOutputs)
-        ? editorNode.generatedOutputs
-        : []),
-      ...(store.project.materials || []).filter((item: any) =>
-        item.nodeId === editorNode.id
-      ).map((item: any) => ({
-        ...item,
-        id: `material:${item.id}`,
-        filePath: item.filePath || item.path,
-      })),
-      ...(store.project.nodes || []).filter((item: any) =>
-        item.type === "resource" && !item.archived &&
-        item.generatedFrom?.nodeId === editorNode.id
-      ),
-    ]
+        ...(Array.isArray(editorNode.generatedOutputs) ? editorNode.generatedOutputs : []),
+        ...(store.project.materials || [])
+          .filter((item: any) => item.nodeId === editorNode.id)
+          .map((item: any) => ({
+            ...item,
+            id: `material:${item.id}`,
+            filePath: item.filePath || item.path,
+          })),
+        ...(store.project.nodes || []).filter(
+          (item: any) =>
+            item.type === "resource" &&
+            !item.archived &&
+            item.generatedFrom?.nodeId === editorNode.id,
+        ),
+      ]
     : [];
   const isVideoOutput = (item: any) => {
-    const type = String(item?.resourceType || item?.mimeType || item?.type || "")
-      .toLowerCase();
+    const type = String(item?.resourceType || item?.mimeType || item?.type || "").toLowerCase();
     const path = String(item?.filePath || item?.path || item?.url || "")
-      .split(/[?#]/)[0].toLowerCase();
+      .split(/[?#]/)[0]
+      .toLowerCase();
     return type.includes("video") || /\.(mp4|mov|webm|m4v)$/.test(path);
   };
-  const selectedEditorOutput = editorOutputs.find((item: any) =>
-    String(item.id) === String(editorNode?.selectedOutputNodeId || "") &&
-    isVideoOutput(item)
-  ) || [...editorOutputs].reverse().find(isVideoOutput);
+  const selectedEditorOutput =
+    editorOutputs.find(
+      (item: any) =>
+        String(item.id) === String(editorNode?.selectedOutputNodeId || "") && isVideoOutput(item),
+    ) || [...editorOutputs].reverse().find(isVideoOutput);
   const editorFile = String(
     editorNode?.videoEdit?.exportedFile ||
-      selectedEditorOutput?.filePath || selectedEditorOutput?.path ||
+      selectedEditorOutput?.filePath ||
+      selectedEditorOutput?.path ||
       editorTask?.result?.archivedFiles?.find((file: any) =>
-        String(file.resourceType || file.type || "").includes("video")
-      )?.filePath || editorNode?.uploadedFile?.path || "",
+        String(file.resourceType || file.type || "").includes("video"),
+      )?.filePath ||
+      editorNode?.uploadedFile?.path ||
+      "",
   );
-  const editor = editorNode && editorFile
-    ? {
-      title: editorNode.title || "视频剪辑",
-      project: editorNode.videoEditProject,
-      sourceFile: editorFile,
-      sourceUrl: convertFileSrc(editorFile),
-      sourceName: editorFile.split(/[\\/]/).pop() || "video.mp4",
-      metadata: editorNode.metadata || editorTask?.result?.metadata || {},
-    }
-    : undefined;
+  const editor =
+    editorNode && editorFile
+      ? {
+          title: editorNode.title || "视频剪辑",
+          project: editorNode.videoEditProject,
+          sourceFile: editorFile,
+          sourceUrl: convertFileSrc(editorFile),
+          sourceName: editorFile.split(/[\\/]/).pop() || "video.mp4",
+          metadata: editorNode.metadata || editorTask?.result?.metadata || {},
+        }
+      : undefined;
   const editorController = editorNode
     ? {
-      persist(project: Record<string, unknown>) {
-        editorNode.videoEditProject = project;
-        editorNode.videoEdit = { ...(editorNode.videoEdit || {}), dirty: true };
-        touchProject({ sessionDelay: 300, coalesceSession: true });
-        refresh();
-      },
-      async export(project: Record<string, unknown>) {
-        const safeName = String(editorNode.title || "video").replace(
-          /[\\/:*?"<>|]/g,
-          "-",
-        );
-        const result = await desktopApi.file.exportVideoProject(
-          project,
-          `${safeName}-剪辑.mp4`,
-        );
-        if (!result) return null;
-        const filePath = result.filePath || result.path;
-        editorNode.videoEditProject = {
-          ...project,
-          lastExport: {
-            filePath,
-            duration: result.duration,
-            exportedAt: new Date().toISOString(),
-          },
-        };
-        editorNode.videoEdit = { exportedFile: filePath, dirty: false };
-        touchProject();
-        refresh();
-        showToast(`剪辑已导出：${result.name || "MP4"}`);
-        return result;
-      },
-      close() {
-        setEditorNodeId("");
-      },
-      async importAssets() {
-        const files = await desktopApi.file.importAsset();
-        return Promise.all(files.map(async (file: any, index: number) => {
-          const sourceFile = String(file.filePath || file.path || "");
-          const extension =
-            String(sourceFile).split(".").pop()?.toLowerCase() || "";
-          const type =
-            ["png", "jpg", "jpeg", "webp", "gif", "bmp"].includes(extension)
-              ? "image" as const
-              : ["mp3", "wav", "m4a", "aac", "flac", "ogg"].includes(extension)
-              ? "audio" as const
-              : "video" as const;
-          const sourceUrl = convertFileSrc(sourceFile);
-          const media = document.createElement(
-            type === "image" ? "img" : type === "audio" ? "audio" : "video",
-          );
-          const facts: any = await new Promise((resolve) => {
-            const done = () =>
-              resolve({
-                duration: Number((media as HTMLMediaElement).duration) || 0,
-                width: Number(
-                  (media as HTMLVideoElement).videoWidth ||
-                    (media as HTMLImageElement).naturalWidth,
-                ) || 0,
-                height: Number(
-                  (media as HTMLVideoElement).videoHeight ||
-                    (media as HTMLImageElement).naturalHeight,
-                ) || 0,
-              });
-            media.addEventListener(
-              type === "image" ? "load" : "loadedmetadata",
-              done,
-              { once: true },
-            );
-            media.addEventListener("error", () =>
-              resolve({ duration: 0, width: 0, height: 0 }), { once: true });
-            (media as HTMLMediaElement).src = sourceUrl;
-          });
-          return {
-            id: `asset-import-${Date.now().toString(36)}-${index}`,
-            type,
-            name: file.name || sourceFile.split(/[\\/]/).pop() || "素材",
-            sourceFile,
-            sourceUrl,
-            ...facts,
+        persist(project: Record<string, unknown>) {
+          editorNode.videoEditProject = project;
+          editorNode.videoEdit = { ...(editorNode.videoEdit || {}), dirty: true };
+          touchProject({ sessionDelay: 300, coalesceSession: true });
+          refresh();
+        },
+        async export(project: Record<string, unknown>) {
+          const safeName = String(editorNode.title || "video").replace(/[\\/:*?"<>|]/g, "-");
+          const result = await desktopApi.file.exportVideoProject(project, `${safeName}-剪辑.mp4`);
+          if (!result) return null;
+          const filePath = result.filePath || result.path;
+          editorNode.videoEditProject = {
+            ...project,
+            lastExport: {
+              filePath,
+              duration: result.duration,
+              exportedAt: new Date().toISOString(),
+            },
           };
-        }));
-      },
-    }
+          editorNode.videoEdit = { exportedFile: filePath, dirty: false };
+          touchProject();
+          refresh();
+          showToast(`剪辑已导出：${result.name || "MP4"}`);
+          return result;
+        },
+        close() {
+          setEditorNodeId("");
+        },
+        async importAssets() {
+          const files = await desktopApi.file.importAsset();
+          return Promise.all(
+            files.map(async (file: any, index: number) => {
+              const sourceFile = String(file.filePath || file.path || "");
+              const extension = String(sourceFile).split(".").pop()?.toLowerCase() || "";
+              const type = ["png", "jpg", "jpeg", "webp", "gif", "bmp"].includes(extension)
+                ? ("image" as const)
+                : ["mp3", "wav", "m4a", "aac", "flac", "ogg"].includes(extension)
+                  ? ("audio" as const)
+                  : ("video" as const);
+              const sourceUrl = convertFileSrc(sourceFile);
+              const media = document.createElement(
+                type === "image" ? "img" : type === "audio" ? "audio" : "video",
+              );
+              const facts: any = await new Promise((resolve) => {
+                const done = () =>
+                  resolve({
+                    duration: Number((media as HTMLMediaElement).duration) || 0,
+                    width:
+                      Number(
+                        (media as HTMLVideoElement).videoWidth ||
+                          (media as HTMLImageElement).naturalWidth,
+                      ) || 0,
+                    height:
+                      Number(
+                        (media as HTMLVideoElement).videoHeight ||
+                          (media as HTMLImageElement).naturalHeight,
+                      ) || 0,
+                  });
+                media.addEventListener(type === "image" ? "load" : "loadedmetadata", done, {
+                  once: true,
+                });
+                media.addEventListener(
+                  "error",
+                  () => resolve({ duration: 0, width: 0, height: 0 }),
+                  { once: true },
+                );
+                (media as HTMLMediaElement).src = sourceUrl;
+              });
+              return {
+                id: `asset-import-${Date.now().toString(36)}-${index}`,
+                type,
+                name: file.name || sourceFile.split(/[\\/]/).pop() || "素材",
+                sourceFile,
+                sourceUrl,
+                ...facts,
+              };
+            }),
+          );
+        },
+      }
     : undefined;
-  const views: Record<AppRoute, React.ReactNode> = {
-    projects: (
-      <ProjectsView {...projects} controller={projectLibraryController} />
-    ),
-    tasks: (
+  let activeView: React.ReactNode;
+  if (appRoute === "projects") {
+    activeView = <ProjectsView {...projects!} controller={projectLibraryController} />;
+  } else if (appRoute === "tasks") {
+    activeView = (
       <TasksView
         tasks={taskViewData()}
         onCancel={(id) => {
@@ -306,48 +293,47 @@ export function ReactWorkbench() {
           taskController.clear();
         }}
       />
-    ),
-    assets: (
+    );
+  } else if (appRoute === "assets") {
+    activeView = (
       <AssetsView
-        projectAssets={resources.projectAssets}
-        localAssets={resources.localAssets}
-        assetMaterialIds={resources.assetMaterialIds}
+        projectAssets={resources!.projectAssets}
+        localAssets={resources!.localAssets}
+        assetMaterialIds={resources!.assetMaterialIds}
         controller={assetsController}
       />
-    ),
-    materials: (
+    );
+  } else if (appRoute === "materials") {
+    activeView = (
       <MaterialsView
-        materials={resources.materials}
-        assetMaterialIds={resources.assetMaterialIds}
+        materials={resources!.materials}
+        assetMaterialIds={resources!.assetMaterialIds}
         controller={materialsController}
       />
-    ),
-    creation: (
+    );
+  } else {
+    activeView = (
       <CreationView
         data={{
-          ...canvas,
-          materials: {
-            library: resources.projectAssets,
-            local: resources.localAssets,
-            files: resources.materials,
-          },
-          copilot,
+          ...canvas!,
           shortcutLabels: {
-            fitView: canvasActionShortcutLabel(
-              settingsStore.canvasActionShortcuts.fitView,
-            ),
-            autoLayout: canvasActionShortcutLabel(
-              settingsStore.canvasActionShortcuts.autoLayout,
-            ),
+            fitView: canvasActionShortcutLabel(settingsStore.canvasActionShortcuts.fitView),
+            autoLayout: canvasActionShortcutLabel(settingsStore.canvasActionShortcuts.autoLayout),
           },
           ...(editor ? { editor } : {}),
         }}
         controller={{
           canvas: canvasController,
           nodes: nodeActions,
-          copilot: copilotController,
+          copilot: {
+            ...copilotController,
+            subscribe: subscribeCopilot,
+            getRevision: getCopilotRevision,
+            read: copilotData,
+          },
           applyMaterial: (item) => canvasCommands.applyMaterial(item),
           previewMaterial: assetsController.preview,
+          loadMaterials: resourceLibraryData,
           undo: canvasCommands.undo,
           redo: canvasCommands.redo,
           fitView: canvasCommands.fitView,
@@ -357,20 +343,22 @@ export function ReactWorkbench() {
           ...(editorController ? { editor: editorController } : {}),
         }}
       />
-    ),
-  };
+    );
+  }
   return (
     <>
       <AppShell
         platform={desktopApi.platform}
-        views={views}
-        onAddNode={(type) =>
-          canvasController.createNodeAt(type, { x: 120, y: 90 })}
+        view={activeView}
+        onAddNode={(type) => canvasController.createNodeAt(type, { x: 120, y: 90 })}
         onNotify={() =>
-          void desktopApi.notifyTask({
-            title: "Shotloom",
-            body: "通知功能可用。",
-          }).then(() => showToast("通知已发送"))}
+          void desktopApi
+            .notifyTask({
+              title: "Shotloom",
+              body: "通知功能可用。",
+            })
+            .then(() => showToast("通知已发送"))
+        }
         onSettings={() => setSettingsOpen(true)}
         onUpdate={() => void updateDialogController.check()}
         onNavigationBlocked={() => showToast("请先新建或打开一个项目")}
@@ -378,8 +366,7 @@ export function ReactWorkbench() {
       {settingsOpen && (
         <div
           className="modal-backdrop open settings-workbench-backdrop"
-          onMouseDown={(event) =>
-            event.target === event.currentTarget && setSettingsOpen(false)}
+          onMouseDown={(event) => event.target === event.currentTarget && setSettingsOpen(false)}
         >
           <section className="settings-workbench-modal">
             <SettingsFeature />
@@ -394,9 +381,7 @@ export function ReactWorkbench() {
           </section>
         </div>
       )}
-      {update.open && (
-        <UpdateDialog data={update} controller={updateDialogController} />
-      )}
+      {update.open && <UpdateDialog data={update} controller={updateDialogController} />}
       <MediaViewer />
       <ToastHost />
     </>

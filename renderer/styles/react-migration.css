@@ -13,8 +13,28 @@
   overflow: hidden;
   outline: none;
   background-color: #fafafa;
-  background-image: radial-gradient(circle at 1px 1px, rgba(0, 0, 0, .12) .7px, transparent .75px);
-  background-size: 20px 20px;
+  background-image: none;
+}
+
+.canvas-grid-layer {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+}
+
+/* A small visible graph is cheaper to move as one compositor layer in
+   WKWebView. Dense graphs stay unpromoted to avoid a graph-sized GPU texture. */
+.react-workflow-canvas.viewport-moving[data-viewport-layer="promote"] .react-flow__viewport {
+  will-change: transform;
+}
+
+.react-workflow-canvas.viewport-moving[data-viewport-layer="standard"] .react-flow__node.canvas-media-node {
+  will-change: transform;
+}
+
+.react-workflow-canvas .react-flow__node.dragging {
+  will-change: transform;
 }
 
 .react-flow__node-panel {
@@ -134,7 +154,8 @@
   min-width: 0;
 }
 
-.work-node-wrapper { z-index: 2; }
+.work-node-wrapper { z-index: 2; contain: layout style; }
+.react-flow__node-panel.canvas-node-image-generation { min-width: 0; }
 .canvas-node-resize-handle {
   z-index: 30 !important;
   width: 10px !important;
@@ -613,6 +634,7 @@
 .copilot-welcome-examples button:hover { border-color: rgba(0, 0, 0, .24); color: #000; background: rgba(0, 0, 0, .025); }
 
 .forge-copilot .copilot-input { position: relative; flex: 0 0 auto; margin: 0 16px 16px; padding: 8px; border: 1px solid #e6e6e6; border-radius: 12px; background: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, .025); transition: border-color .15s ease, box-shadow .15s ease; }
+.forge-copilot .copilot-message { content-visibility: auto; contain-intrinsic-size: auto 88px; }
 .forge-copilot .copilot-input:focus-within { border-color: rgba(0, 0, 0, .34); box-shadow: 0 10px 24px -20px rgba(17, 17, 19, .16), 0 1px 4px -3px rgba(17, 17, 19, .08); }
 .copilot-input > textarea { display: block; width: 100%; min-height: 52px; max-height: 180px; border: 0; border-radius: 0; outline: none; resize: none; padding: 4px 8px 8px; color: rgba(0, 0, 0, .82); background: transparent; font: 13px/1.55 inherit; }
 .copilot-input > textarea:focus { background: transparent; }
@@ -629,10 +651,10 @@
 .copilot-stop-mark { width: 10px; height: 10px; border-radius: 1px; background: currentColor; }
 .copilot-busy-tip { min-height: 30px; padding: 2px 2px 4px; display: flex; align-items: flex-start; gap: 9px; color: rgba(0, 0, 0, .48); font-size: 13px; line-height: 1.55; }
 .copilot-busy-braille { min-width: 35px; padding-top: 1px; flex: 0 0 auto; color: rgba(0, 0, 0, .46); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 14px; line-height: 1.4; letter-spacing: -.04em; white-space: nowrap; }
-.copilot-busy-copy { background: linear-gradient(110deg, currentColor 0%, currentColor 40%, rgba(255,255,255,.82) 50%, currentColor 60%, currentColor 100%); background-position: 150%; background-size: 220%; background-clip: text; -webkit-background-clip: text; -webkit-text-fill-color: transparent; animation: copilot-busy-shimmer 2.8s linear infinite; }
-@keyframes copilot-busy-shimmer { from { background-position: 150%; } to { background-position: -50%; } }
+.copilot-busy-copy { color: rgba(0, 0, 0, .48); animation: copilot-busy-pulse 1.8s ease-in-out infinite; will-change: opacity; }
+@keyframes copilot-busy-pulse { 50% { opacity: .58; } }
 @media (prefers-reduced-motion: reduce) {
-  .copilot-busy-copy { background: none; color: rgba(0, 0, 0, .48); -webkit-text-fill-color: currentColor; animation: none; }
+  .copilot-busy-copy { animation: none; }
 }
 .copilot-api-warning { margin-bottom: 7px; padding: 8px 9px; display: flex; gap: 7px; border: 1px solid #f0d6a7; border-radius: 8px; color: #8a5b08; background: #fffaf0; font-size: 10px; line-height: 1.45; }
 .copilot-api-warning svg { width: 13px; height: 13px; flex: 0 0 auto; }

@@ -70,7 +70,7 @@ function notifyPanoramaRemoved() {
       type: "storyai:director-desk-panorama-removed",
       payload: hostConnectedPanorama,
     },
-    getHostOrigin()
+    getHostOrigin(),
   );
   hostConnectedPanorama = null;
 }
@@ -107,6 +107,10 @@ function importHostPanorama(payload: HostPanoramaPayload) {
   const edgeId = normalizeString(payload.edgeId);
   const sourceNodeId = normalizeString(payload.sourceNodeId);
 
+  if (hostConnectedPanorama && useDirectorStore.getState().project.panoramaAssetId) {
+    suppressNextPanoramaRemovalNotice = true;
+    useDirectorStore.getState().removePanoramaAsset();
+  }
   hostConnectedPanorama = edgeId && sourceNodeId ? { edgeId, sourceNodeId } : null;
   useDirectorStore.getState().addImportedAsset({
     kind: "panorama",
@@ -115,6 +119,13 @@ function importHostPanorama(payload: HostPanoramaPayload) {
     url: imageUrl,
     projectionMode: "backdrop",
   });
+}
+
+function clearHostPanorama() {
+  if (!hostConnectedPanorama) return;
+  suppressNextPanoramaRemovalNotice = true;
+  useDirectorStore.getState().removePanoramaAsset();
+  hostConnectedPanorama = null;
 }
 
 function openHostSession(payload: HostSessionPayload) {
@@ -135,8 +146,13 @@ function openHostSession(payload: HostSessionPayload) {
 function isDirectorProject(value: unknown): value is DirectorProject {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const project = value as Partial<DirectorProject>;
-  return project.version === 1 && Boolean(project.scene) && Array.isArray(project.assets)
-    && Array.isArray(project.objects) && Array.isArray(project.cameras);
+  return (
+    project.version === 1 &&
+    Boolean(project.scene) &&
+    Array.isArray(project.assets) &&
+    Array.isArray(project.objects) &&
+    Array.isArray(project.cameras)
+  );
 }
 
 function subscribeToProjectChanges() {
@@ -152,7 +168,7 @@ function subscribeToProjectChanges() {
           type: "storyai:director-desk-project-changed",
           payload: { project: useDirectorStore.getState().project },
         },
-        getHostOrigin()
+        getHostOrigin(),
       );
     }, 180);
   });
@@ -162,7 +178,7 @@ export function postDirectorDeskCapturesToHost(
   captures: Array<{
     dataUrl: string;
     fileName?: string;
-  }>
+  }>,
 ) {
   const normalizedCaptures = captures
     .map((capture, index) => {
@@ -189,7 +205,7 @@ export function postDirectorDeskCapturesToHost(
         captures: normalizedCaptures,
       },
     },
-    getHostOrigin()
+    getHostOrigin(),
   );
 }
 
@@ -205,14 +221,16 @@ function handleHostMessage(event: MessageEvent) {
 
   if (event.data?.type === "storyai:director-desk-panorama") {
     importHostPanorama((event.data.payload || {}) as HostPanoramaPayload);
+    return;
+  }
+
+  if (event.data?.type === "storyai:director-desk-panorama-clear") {
+    clearHostPanorama();
   }
 }
 
 function notifyHostInteraction() {
-  window.parent?.postMessage(
-    { type: "storyai:director-desk-interaction" },
-    getHostOrigin()
-  );
+  window.parent?.postMessage({ type: "storyai:director-desk-interaction" }, getHostOrigin());
 }
 
 export function initDirectorDeskHostBridge() {

@@ -1841,9 +1841,8 @@ tr:last-child td {
   display: flex;
   align-items: center;
   gap: 7px;
-  background: rgba(255, 255, 255, .92);
+  background: #fff;
   box-shadow: 0 4px 14px rgba(0, 0, 0, .06);
-  backdrop-filter: blur(18px);
   pointer-events: none;
 }
 

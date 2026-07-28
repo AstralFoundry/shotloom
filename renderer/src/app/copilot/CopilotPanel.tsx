@@ -1,15 +1,20 @@
-import {
-  type KeyboardEvent,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 import { desktopApi } from "../../services/desktopApi.js";
 import { agentNodeAliasMaps } from "../../services/agentCanvasSnapshot.js";
 import { renderMarkdown } from "../../utils/copilotMarkdown.js";
 import { IconSymbol } from "../components/IconSymbol";
 import type { WorkflowNodeData } from "../canvas/WorkflowCanvas";
+
+const markdownByMessage = new WeakMap<CopilotMessage, { content: string; html: string }>();
+
+function messageMarkdown(message: CopilotMessage) {
+  const content = message.content || "";
+  const cached = markdownByMessage.get(message);
+  if (cached?.content === content) return cached.html;
+  const html = renderMarkdown(content);
+  markdownByMessage.set(message, { content, html });
+  return html;
+}
 
 export interface CopilotMessage {
   id: string;
@@ -22,22 +27,20 @@ export interface CopilotMessage {
   meta?: string[];
   toolCalls?: CopilotToolCall[];
   productionPlan?: ProductionPlanView;
-  clarifications?: Array<
-    {
-      interactionId?: string;
-      runId?: string;
-      questions?: Array<{
-        id?: string;
-        header?: string;
-        question?: string;
-        options?: string[];
-        multiple?: boolean;
-        required?: boolean;
-      }>;
-      answered?: boolean;
-      expired?: boolean;
-    }
-  >;
+  clarifications?: Array<{
+    interactionId?: string;
+    runId?: string;
+    questions?: Array<{
+      id?: string;
+      header?: string;
+      question?: string;
+      options?: string[];
+      multiple?: boolean;
+      required?: boolean;
+    }>;
+    answered?: boolean;
+    expired?: boolean;
+  }>;
 }
 interface ProductionPlanView {
   schemaVersion?: number;
@@ -77,14 +80,12 @@ export interface ConversationItem {
   waitingKind?: string;
 }
 export interface CopilotController {
-  send: (
-    payload: {
-      text: string;
-      model: string;
-      attachments: unknown[];
-      nodeMentions: unknown[];
-    },
-  ) => void;
+  send: (payload: {
+    text: string;
+    model: string;
+    attachments: unknown[];
+    nodeMentions: unknown[];
+  }) => void;
   clear: () => void;
   close: () => void;
   cancel: () => void;
@@ -119,7 +120,7 @@ function BusyBrailleSpinner() {
   useEffect(() => {
     const timer = window.setInterval(() => {
       setFrame((value) => (value + 1) % busyBrailleFrames.length);
-    }, 80);
+    }, 140);
     return () => window.clearInterval(timer);
   }, []);
   return (
@@ -146,25 +147,30 @@ function ToolActivity({
   return (
     <div className="copilot-tool-stream" ref={viewport} aria-label="Agent 工具调用">
       {tools.map((tool, index) => (
-        <div
-          key={tool.id || index}
-          className={`copilot-tool-call is-${tool.status || "idle"}`}
-        >
+        <div key={tool.id || index} className={`copilot-tool-call is-${tool.status || "idle"}`}>
           <i />
           <span>{tool.summary || tool.name || "正在处理"}</span>
           {tool.pending && tool.interactionId && (
             <span className="copilot-tool-confirm-actions">
               <button
-                onClick={() => controller.rejectToolCall({
-                  interactionId: tool.interactionId,
-                })}
-              >拒绝</button>
+                onClick={() =>
+                  controller.rejectToolCall({
+                    interactionId: tool.interactionId,
+                  })
+                }
+              >
+                拒绝
+              </button>
               <button
                 className="primary"
-                onClick={() => controller.approveToolCall({
-                  interactionId: tool.interactionId,
-                })}
-              >确认执行</button>
+                onClick={() =>
+                  controller.approveToolCall({
+                    interactionId: tool.interactionId,
+                  })
+                }
+              >
+                确认执行
+              </button>
             </span>
           )}
         </div>
@@ -188,7 +194,9 @@ function AgentRunActivity({
 }) {
   if (!tools.length) return null;
   return (
-    <section className={`copilot-run-activity${typing ? " is-running" : ""}${waitingForAnswer ? " is-waiting" : ""}`}>
+    <section
+      className={`copilot-run-activity${typing ? " is-running" : ""}${waitingForAnswer ? " is-waiting" : ""}`}
+    >
       <header>
         {typing && <BusyBrailleSpinner />}
         <strong>{typing ? title || "正在处理任务" : "执行记录"}</strong>
@@ -211,44 +219,73 @@ function AgentRunActivity({
 }
 
 const planStatusLabel: Record<string, string> = {
-  pending: '待编排', doing: '进行中', blocked: '受阻', done: '已完成',
+  pending: "待编排",
+  doing: "进行中",
+  blocked: "受阻",
+  done: "已完成",
 };
 
-function ProductionPlanCard({ plan, controller }: { plan?: ProductionPlanView; controller: CopilotController }) {
+function ProductionPlanCard({
+  plan,
+  controller,
+}: {
+  plan?: ProductionPlanView;
+  controller: CopilotController;
+}) {
   const stages = plan?.stages || [];
-  const active = stages.find((stage) => ['doing', 'blocked'].includes(String(stage.status || '')));
+  const active = stages.find((stage) => ["doing", "blocked"].includes(String(stage.status || "")));
   const [expanded, setExpanded] = useState(Boolean(active));
   useEffect(() => {
     if (active) setExpanded(true);
-    else if (stages.length && stages.every((stage) => stage.status === 'done')) setExpanded(false);
-  }, [active?.id, active?.status, stages.length, stages.filter((stage) => stage.status === 'done').length]);
+    else if (stages.length && stages.every((stage) => stage.status === "done")) setExpanded(false);
+  }, [
+    active?.id,
+    active?.status,
+    stages.length,
+    stages.filter((stage) => stage.status === "done").length,
+  ]);
   if (!plan || plan.schemaVersion !== 2 || !stages.length) return null;
-  const done = stages.filter((stage) => stage.status === 'done').length;
+  const done = stages.filter((stage) => stage.status === "done").length;
   return (
-    <details className="copilot-production-plan" open={expanded} onToggle={(event) => setExpanded(event.currentTarget.open)}>
+    <details
+      className="copilot-production-plan"
+      open={expanded}
+      onToggle={(event) => setExpanded(event.currentTarget.open)}
+    >
       <summary>
-        <span>{plan.executionMode === 'execute' ? '制作与执行' : '画布规划'}</span>
-        <strong>{plan.title || plan.goal || '画布制作'}</strong>
-        <em>{done}/{stages.length}</em>
+        <span>{plan.executionMode === "execute" ? "制作与执行" : "画布规划"}</span>
+        <strong>{plan.title || plan.goal || "画布制作"}</strong>
+        <em>
+          {done}/{stages.length}
+        </em>
       </summary>
-      <div className="copilot-production-plan-progress"><i style={{ width: `${Math.round(done / stages.length * 100)}%` }} /></div>
+      <div className="copilot-production-plan-progress">
+        <i style={{ width: `${Math.round((done / stages.length) * 100)}%` }} />
+      </div>
       <div className="copilot-production-plan-stages">
         {stages.map((stage, index) => (
-          <section key={stage.id || index} className={`is-${stage.status || 'pending'}`}>
-            <i>{stage.status === 'done' ? '✓' : index + 1}</i>
+          <section key={stage.id || index} className={`is-${stage.status || "pending"}`}>
+            <i>{stage.status === "done" ? "✓" : index + 1}</i>
             <div>
-              <header><strong>{stage.title || `阶段 ${index + 1}`}</strong><span>{planStatusLabel[String(stage.status || '')] || stage.status}</span></header>
+              <header>
+                <strong>{stage.title || `阶段 ${index + 1}`}</strong>
+                <span>{planStatusLabel[String(stage.status || "")] || stage.status}</span>
+              </header>
               {stage.description && <p>{stage.description}</p>}
-              {stage.status === 'pending' && !stage.authored && <small>阶段大纲 · 尚未编排工作项</small>}
+              {stage.status === "pending" && !stage.authored && (
+                <small>阶段大纲 · 尚未编排工作项</small>
+              )}
               {!!stage.workItems?.length && (
                 <details className="copilot-stage-work-items">
                   <summary>{stage.workItems.length} 项工作</summary>
                   {stage.workItems.map((workItem) => {
-                    const runtimeRef = stage.runtimeRefs?.find((ref) => ref.workItemId === workItem.id);
+                    const runtimeRef = stage.runtimeRefs?.find(
+                      (ref) => ref.workItemId === workItem.id,
+                    );
                     return (
                       <div key={workItem.id}>
                         <strong>{workItem.title}</strong>
-                        <span>{workItem.outputType || 'output'}</span>
+                        <span>{workItem.outputType || "output"}</span>
                         {workItem.prompt && <p>{workItem.prompt}</p>}
                         {runtimeRef?.nodeId && <small>节点已绑定</small>}
                         {runtimeRef?.taskId && <small>任务已绑定</small>}
@@ -257,10 +294,23 @@ function ProductionPlanCard({ plan, controller }: { plan?: ProductionPlanView; c
                   })}
                 </details>
               )}
-              {!!stage.runtimeRefs?.length && <small>{stage.runtimeRefs.filter((ref) => ref.nodeId).length} 个节点 · {stage.runtimeRefs.filter((ref) => ref.taskId).length} 个任务</small>}
+              {!!stage.runtimeRefs?.length && (
+                <small>
+                  {stage.runtimeRefs.filter((ref) => ref.nodeId).length} 个节点 ·{" "}
+                  {stage.runtimeRefs.filter((ref) => ref.taskId).length} 个任务
+                </small>
+              )}
               {stage.blockedReason && <small className="error">{stage.blockedReason}</small>}
               {!!stage.runtimeRefs?.some((ref) => ref.nodeId) && (
-                <button onClick={() => controller.focusNodes(stage.runtimeRefs?.flatMap((ref) => ref.nodeId ? [ref.nodeId] : []) || [])}>定位画布产物</button>
+                <button
+                  onClick={() =>
+                    controller.focusNodes(
+                      stage.runtimeRefs?.flatMap((ref) => (ref.nodeId ? [ref.nodeId] : [])) || [],
+                    )
+                  }
+                >
+                  定位画布产物
+                </button>
               )}
             </div>
           </section>
@@ -316,28 +366,30 @@ export function CopilotPanel({
   const messageList = useRef<HTMLDivElement>(null);
   const followsLatest = useRef(true);
   const previousMessageCount = useRef(messages.length);
-  const aliasMaps = useMemo(() => agentNodeAliasMaps(nodes as never[]), [
-    nodes,
-  ]);
+  const aliasMaps = useMemo(() => agentNodeAliasMaps(nodes as never[]), [nodes]);
   const mentionable = useMemo(
     () =>
-      nodes.filter((node) =>
-        !node.archived && !(node.type === "resource" && node.generatedFrom)
-      ).map((node) => ({
-        id: node.id,
-        alias: aliasMaps.aliasById[node.id] || "",
-        title: String(node.title || node.prompt || node.type || "未命名节点"),
-        typeLabel: typeLabels[node.type] || node.type,
-      })),
+      nodes
+        .filter((node) => !node.archived && !(node.type === "resource" && node.generatedFrom))
+        .map((node) => ({
+          id: node.id,
+          alias: aliasMaps.aliasById[node.id] || "",
+          title: String(node.title || node.prompt || node.type || "未命名节点"),
+          typeLabel: typeLabels[node.type] || node.type,
+        })),
     [nodes, aliasMaps],
   );
-  const options = mentionable.filter((node) =>
-    !mentions.some((item) => item.id === node.id) &&
-    (!mentionQuery ||
-      [node.alias, node.title, node.typeLabel].join(" ").toLowerCase().includes(
-        mentionQuery.toLowerCase(),
-      ))
-  ).slice(0, 8);
+  const options = mentionable
+    .filter(
+      (node) =>
+        !mentions.some((item) => item.id === node.id) &&
+        (!mentionQuery ||
+          [node.alias, node.title, node.typeLabel]
+            .join(" ")
+            .toLowerCase()
+            .includes(mentionQuery.toLowerCase())),
+    )
+    .slice(0, 8);
   useEffect(() => {
     const added = Math.max(0, messages.length - previousMessageCount.current);
     previousMessageCount.current = messages.length;
@@ -389,16 +441,12 @@ export function CopilotPanel({
     setMentionIndex(0);
     setMentionOpen(true);
   }
-  function insertMention(node: typeof mentionable[number]) {
+  function insertMention(node: (typeof mentionable)[number]) {
     const caret = textarea.current?.selectionStart ?? message.length;
     const before = message.slice(0, mentionStart >= 0 ? mentionStart : caret);
     const token = `@${node.alias}`;
-    setMessage(
-      `${before}${token} ${message.slice(caret).replace(/^[^\s@]*/, "")}`,
-    );
-    setMentions((items) =>
-      items.some((item) => item.id === node.id) ? items : [...items, node]
-    );
+    setMessage(`${before}${token} ${message.slice(caret).replace(/^[^\s@]*/, "")}`);
+    setMentions((items) => (items.some((item) => item.id === node.id) ? items : [...items, node]));
     setMentionOpen(false);
     requestAnimationFrame(() => textarea.current?.focus());
   }
@@ -407,23 +455,17 @@ export function CopilotPanel({
     if (!file) return;
     const key = file.path || file.filePath || file.name || file.fileName;
     setAttachments((items) =>
-      items.some((item) =>
-          (item.path || item.filePath || item.name || item.fileName) === key
-        )
+      items.some((item) => (item.path || item.filePath || item.name || item.fileName) === key)
         ? items
-        : [...items, file]
+        : [...items, file],
     );
   }
   function send() {
     if (busy || !textModels.length) return;
     const aliases = new Set(
-      (message.match(/@N-[A-Z0-9]+(?:-\d+)?\b/gi) || []).map((item) =>
-        item.slice(1).toUpperCase()
-      ),
+      (message.match(/@N-[A-Z0-9]+(?:-\d+)?\b/gi) || []).map((item) => item.slice(1).toUpperCase()),
     );
-    const activeMentions = mentions.filter((item) =>
-      aliases.has(item.alias.toUpperCase())
-    );
+    const activeMentions = mentions.filter((item) => aliases.has(item.alias.toUpperCase()));
     if (!message.trim() && !attachments.length && !activeMentions.length) {
       return;
     }
@@ -441,15 +483,13 @@ export function CopilotPanel({
   function keydown(event: KeyboardEvent<HTMLTextAreaElement>) {
     if (mentionOpen && event.key === "ArrowDown") {
       event.preventDefault();
-      setMentionIndex((value) =>
-        options.length ? (value + 1) % options.length : 0
-      );
+      setMentionIndex((value) => (options.length ? (value + 1) % options.length : 0));
       return;
     }
     if (mentionOpen && event.key === "ArrowUp") {
       event.preventDefault();
       setMentionIndex((value) =>
-        options.length ? (value - 1 + options.length) % options.length : 0
+        options.length ? (value - 1 + options.length) % options.length : 0,
       );
       return;
     }
@@ -466,14 +506,14 @@ export function CopilotPanel({
   }
   function clear() {
     if (
-      !busy && messages.length &&
-      window.confirm(
-        "清空当前对话和助手上下文？\n画布节点、任务和待确认计划不会被删除。",
-      )
-    ) controller.clear();
+      !busy &&
+      messages.length &&
+      window.confirm("清空当前对话和助手上下文？\n画布节点、任务和待确认计划不会被删除。")
+    )
+      controller.clear();
   }
-  const activeConversation = conversations.find((conversation) =>
-    conversation.id === activeConversationId
+  const activeConversation = conversations.find(
+    (conversation) => conversation.id === activeConversationId,
   );
   return (
     <aside
@@ -487,11 +527,7 @@ export function CopilotPanel({
               <strong>{activeConversation?.title || "新对话"}</strong>
             </span>
             <div className="copilot-header-actions">
-              <button
-                title="新建会话"
-                disabled={busy}
-                onClick={controller.newConversation}
-              >
+              <button title="新建会话" disabled={busy} onClick={controller.newConversation}>
                 <IconSymbol name="plus" />
               </button>
               <button
@@ -507,43 +543,33 @@ export function CopilotPanel({
             </div>
           </div>
         </header>
-        <div
-          ref={messageList}
-          className="copilot-message-list"
-          onScroll={updateScrollFollow}
-        >
-          {messages.length
-            ? messages.map((item, messageIndex) => (
+        <div ref={messageList} className="copilot-message-list" onScroll={updateScrollFollow}>
+          {messages.length ? (
+            messages.map((item, messageIndex) => (
               <article
                 key={`${item.id || "message"}-${messageIndex}`}
-                className={`copilot-message is-${item.role}${
-                  item.typing ? " typing" : ""
-                }`}
+                className={`copilot-message is-${item.role}${item.typing ? " typing" : ""}`}
               >
                 {!(item.role === "assistant" && item.typing) && (
                   <header>
-                    <strong>
-                      {item.title || (item.role === "user" ? "你" : "画布助手")}
-                    </strong>
+                    <strong>{item.title || (item.role === "user" ? "你" : "画布助手")}</strong>
                   </header>
                 )}
                 {item.content && (
                   <div
                     className="copilot-message-markdown"
                     dangerouslySetInnerHTML={{
-                      __html: renderMarkdown(item.content),
+                      __html: messageMarkdown(item),
                     }}
                   />
                 )}
-                {item.meta?.length
-                  ? (
-                    <div className="copilot-message-meta">
-                      {item.meta.map((value, index) => (
-                        <span key={index}>{value}</span>
-                      ))}
-                    </div>
-                  )
-                  : null}
+                {item.meta?.length ? (
+                  <div className="copilot-message-meta">
+                    {item.meta.map((value, index) => (
+                      <span key={index}>{value}</span>
+                    ))}
+                  </div>
+                ) : null}
                 {item.error && (
                   <div className="copilot-message-error-row">
                     <p className="copilot-message-error">{item.error}</p>
@@ -560,7 +586,8 @@ export function CopilotPanel({
                   </div>
                 )}
                 <ProductionPlanCard plan={item.productionPlan} controller={controller} />
-                {item.clarifications?.filter((question) => !question.answered)
+                {item.clarifications
+                  ?.filter((question) => !question.answered)
                   .map((question, index) => (
                     <section
                       key={question.interactionId || index}
@@ -572,30 +599,38 @@ export function CopilotPanel({
                         const selected = clarificationAnswers[interactionId]?.[questionId] || [];
                         return (
                           <div className="copilot-clarification-question" key={questionId}>
-                            {entry.header && <small className="copilot-clarification-label">{entry.header}</small>}
-                            <strong className="copilot-clarification-title">{entry.question || "需要补充信息"}</strong>
+                            {entry.header && (
+                              <small className="copilot-clarification-label">{entry.header}</small>
+                            )}
+                            <strong className="copilot-clarification-title">
+                              {entry.question || "需要补充信息"}
+                            </strong>
                             <div className="copilot-clarification-options">
                               {entry.options?.map((option) => (
                                 <button
                                   key={option}
                                   aria-pressed={selected.includes(option)}
                                   className={selected.includes(option) ? "active" : ""}
-                                  onClick={() => setClarificationAnswers((current) => {
-                                    const previous = current[interactionId]?.[questionId] || [];
-                                    const values = entry.multiple
-                                      ? previous.includes(option)
-                                        ? previous.filter((value) => value !== option)
-                                        : [...previous, option]
-                                      : [option];
-                                    return {
-                                      ...current,
-                                      [interactionId]: {
-                                        ...(current[interactionId] || {}),
-                                        [questionId]: values,
-                                      },
-                                    };
-                                  })}
-                                >{option}</button>
+                                  onClick={() =>
+                                    setClarificationAnswers((current) => {
+                                      const previous = current[interactionId]?.[questionId] || [];
+                                      const values = entry.multiple
+                                        ? previous.includes(option)
+                                          ? previous.filter((value) => value !== option)
+                                          : [...previous, option]
+                                        : [option];
+                                      return {
+                                        ...current,
+                                        [interactionId]: {
+                                          ...(current[interactionId] || {}),
+                                          [questionId]: values,
+                                        },
+                                      };
+                                    })
+                                  }
+                                >
+                                  {option}
+                                </button>
                               ))}
                             </div>
                           </div>
@@ -603,21 +638,32 @@ export function CopilotPanel({
                       })}
                       <div className="copilot-clarification-actions">
                         {!question.questions?.some((entry) => entry.required) && (
-                          <button onClick={() => controller.submitClarification({
-                            interactionId: question.interactionId,
-                            skipped: true,
-                            answers: [],
-                          })}>跳过</button>
+                          <button
+                            onClick={() =>
+                              controller.submitClarification({
+                                interactionId: question.interactionId,
+                                skipped: true,
+                                answers: [],
+                              })
+                            }
+                          >
+                            跳过
+                          </button>
                         )}
-                        <button className="primary" onClick={() => {
-                          const interactionId = String(question.interactionId || "");
-                          controller.submitClarification({
-                            interactionId,
-                            answers: Object.entries(clarificationAnswers[interactionId] || {}).map(
-                              ([questionId, values]) => ({ questionId, values }),
-                            ),
-                          });
-                        }}>提交回答</button>
+                        <button
+                          className="primary"
+                          onClick={() => {
+                            const interactionId = String(question.interactionId || "");
+                            controller.submitClarification({
+                              interactionId,
+                              answers: Object.entries(
+                                clarificationAnswers[interactionId] || {},
+                              ).map(([questionId, values]) => ({ questionId, values })),
+                            });
+                          }}
+                        >
+                          提交回答
+                        </button>
                       </div>
                     </section>
                   ))}
@@ -634,33 +680,35 @@ export function CopilotPanel({
                 )}
               </article>
             ))
-            : (
-              <div className="copilot-welcome">
-                <h3>Hi，准备开始创作了吗？</h3>
-                <p>试一试这些指令开始</p>
-                <div className="copilot-welcome-examples">
-                  <button onClick={() => setMessage("分析当前画布，告诉我下一步最值得做什么")}>分析当前画布</button>
-                  <button onClick={() => setMessage("把这段剧本拆成场次并整理到画布")}>拆分剧本场次</button>
-                  <button onClick={() => setMessage("检查失败节点并给出修复方案")}>检查失败节点</button>
-                </div>
-                <small>也可以直接输入消息，或添加本地文件</small>
+          ) : (
+            <div className="copilot-welcome">
+              <h3>Hi，准备开始创作了吗？</h3>
+              <p>试一试这些指令开始</p>
+              <div className="copilot-welcome-examples">
+                <button onClick={() => setMessage("分析当前画布，告诉我下一步最值得做什么")}>
+                  分析当前画布
+                </button>
+                <button onClick={() => setMessage("把这段剧本拆成场次并整理到画布")}>
+                  拆分剧本场次
+                </button>
+                <button onClick={() => setMessage("检查失败节点并给出修复方案")}>
+                  检查失败节点
+                </button>
               </div>
-            )}
-          {busy && !messages.some((item) =>
-            item.role === "assistant" && item.typing &&
-            Boolean(item.toolCalls?.length)
-          ) && (
-            <div
-              className="copilot-busy-tip"
-              role="status"
-              aria-live="polite"
-            >
-              <BusyBrailleSpinner />
-              <span className="copilot-busy-copy">
-                提示：使用 @ 引用画布节点，助手会结合当前内容继续处理。
-              </span>
+              <small>也可以直接输入消息，或添加本地文件</small>
             </div>
           )}
+          {busy &&
+            !messages.some(
+              (item) => item.role === "assistant" && item.typing && Boolean(item.toolCalls?.length),
+            ) && (
+              <div className="copilot-busy-tip" role="status" aria-live="polite">
+                <BusyBrailleSpinner />
+                <span className="copilot-busy-copy">
+                  提示：使用 @ 引用画布节点，助手会结合当前内容继续处理。
+                </span>
+              </div>
+            )}
         </div>
         {unreadMessages > 0 && (
           <button className="copilot-bottom-anchor" onClick={goToLatest}>
@@ -673,8 +721,7 @@ export function CopilotPanel({
             <div className="copilot-api-warning">
               <IconSymbol name="warning" />
               <span>
-                <strong>Agent 暂不可用</strong>请先在“设置 → API
-                厂商”配置文本模型。
+                <strong>Agent 暂不可用</strong>请先在“设置 → API 厂商”配置文本模型。
               </span>
             </div>
           )}
@@ -686,14 +733,9 @@ export function CopilotPanel({
                   <em>{item.title}</em>
                   <button
                     onClick={() => {
-                      setMentions((items) =>
-                        items.filter((value) => value.id !== item.id)
-                      );
+                      setMentions((items) => items.filter((value) => value.id !== item.id));
                       setMessage((value) =>
-                        value.replace(
-                          new RegExp(`@${item.alias}\\s*`, "ig"),
-                          "",
-                        )
+                        value.replace(new RegExp(`@${item.alias}\\s*`, "ig"), ""),
                       );
                     }}
                   >
@@ -711,11 +753,8 @@ export function CopilotPanel({
                   {String(file.name || file.fileName || "附件")}
                   <button
                     onClick={() =>
-                      setAttachments((items) =>
-                        items.filter((_, itemIndex) =>
-                          itemIndex !== index
-                        )
-                      )}
+                      setAttachments((items) => items.filter((_, itemIndex) => itemIndex !== index))
+                    }
                   >
                     ×
                   </button>
@@ -756,11 +795,7 @@ export function CopilotPanel({
             onKeyDown={keydown}
           />
           <div className="copilot-input-row">
-            <button
-              className="copilot-action-btn"
-              title="添加文件"
-              onClick={() => void attach()}
-            >
+            <button className="copilot-action-btn" title="添加文件" onClick={() => void attach()}>
               <IconSymbol name="plus" />
             </button>
             <span className="copilot-input-spacer" />
@@ -771,7 +806,9 @@ export function CopilotPanel({
               onChange={(e) => controller.changeModel(e.target.value)}
             >
               {textModels.map((model) => (
-                <option key={model.id} value={model.id}>{model.label}</option>
+                <option key={model.id} value={model.id}>
+                  {model.label}
+                </option>
               ))}
             </select>
             <button
@@ -781,9 +818,7 @@ export function CopilotPanel({
               aria-label={busy ? "停止生成" : "发送消息"}
               onClick={busy ? controller.cancel : send}
             >
-              {busy ? <span className="copilot-stop-mark" /> : (
-                <IconSymbol name="send" />
-              )}
+              {busy ? <span className="copilot-stop-mark" /> : <IconSymbol name="send" />}
             </button>
           </div>
         </div>
@@ -792,12 +827,7 @@ export function CopilotPanel({
         <aside className="copilot-conversation-drawer" aria-label="历史会话">
           <header>
             <strong>历史会话</strong>
-            <button
-              onClick={() =>
-                setDrawer(false)}
-            >
-              ×
-            </button>
+            <button onClick={() => setDrawer(false)}>×</button>
           </header>
           <button
             className="copilot-drawer-new"
@@ -833,9 +863,7 @@ export function CopilotPanel({
                   <span>
                     {conversation.title || "新对话"}
                     {Number(conversation.pendingInteractionCount) > 0 && (
-                      <em>
-                        {conversation.waitingKind === "question" ? "等待回答" : "等待确认"}
-                      </em>
+                      <em>{conversation.waitingKind === "question" ? "等待回答" : "等待确认"}</em>
                     )}
                   </span>
                 </button>
@@ -850,7 +878,8 @@ export function CopilotPanel({
                           conversation.title || "新对话"
                         }”？\n该会话的消息和 Agent 上下文将无法恢复。`,
                       )
-                    ) controller.deleteConversation(conversation.id);
+                    )
+                      controller.deleteConversation(conversation.id);
                   }}
                 >
                   <IconSymbol name="trash" />

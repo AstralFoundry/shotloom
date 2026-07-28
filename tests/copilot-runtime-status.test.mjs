@@ -2,10 +2,22 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-const panel = readFileSync(new URL('../renderer/src/app/copilot/CopilotPanel.tsx', import.meta.url), 'utf8');
-const presenter = readFileSync(new URL('../renderer/src/app/copilot/CopilotRuntimePresenter.ts', import.meta.url), 'utf8');
-const adapter = readFileSync(new URL('../renderer/src/app/adapters/copilotAdapter.ts', import.meta.url), 'utf8');
-const styles = readFileSync(new URL('../renderer/styles/react-migration.css', import.meta.url), 'utf8');
+const panel = readFileSync(
+  new URL('../renderer/src/app/copilot/CopilotPanel.tsx', import.meta.url),
+  'utf8',
+);
+const presenter = readFileSync(
+  new URL('../renderer/src/app/copilot/CopilotRuntimePresenter.ts', import.meta.url),
+  'utf8',
+);
+const adapter = readFileSync(
+  new URL('../renderer/src/app/adapters/copilotAdapter.ts', import.meta.url),
+  'utf8',
+);
+const styles = readFileSync(
+  new URL('../renderer/styles/react-migration.css', import.meta.url),
+  'utf8',
+);
 const baseStyles = readFileSync(new URL('../renderer/styles.css', import.meta.url), 'utf8');
 
 test('画布助手用统一点阵状态呈现 Agent 运行过程', () => {
@@ -15,23 +27,26 @@ test('画布助手用统一点阵状态呈现 Agent 运行过程', () => {
   assert.match(panel, /className="copilot-run-stop"/);
   assert.match(panel, /aria-label="停止 Agent"/);
   assert.match(styles, /\.copilot-run-stop > span/);
-  assert.match(styles, /\.copilot-run-activity > \.copilot-tool-stream \{[^}]*background:\s*transparent/);
+  assert.match(
+    styles,
+    /\.copilot-run-activity > \.copilot-tool-stream \{[^}]*background:\s*transparent/,
+  );
   assert.doesNotMatch(styles, /\.copilot-run-activity \{[^}]*border:/);
   assert.doesNotMatch(panel, /copilot-run-status|copilot-stop-button/);
 });
 
 test('消息发送后立即显示思考状态并把发送按钮切换为停止操作', () => {
-  assert.match(panel, /busy && !messages\.some/);
+  assert.match(panel, /busy &&[\s\S]*?!messages\.some/);
   assert.match(panel, /Boolean\(item\.toolCalls\?\.length\)/);
   assert.match(panel, /if \(!tools\.length\) return null/);
   assert.match(panel, /className="copilot-busy-tip"/);
   assert.match(panel, /busyBrailleFrames/);
-  assert.match(panel, /}, 80\)/);
+  assert.match(panel, /}, 140\)/);
   assert.match(panel, /提示：使用 @ 引用画布节点/);
   assert.match(panel, /onClick=\{busy \? controller\.cancel : send\}/);
   assert.match(panel, /copilot-stop-mark/);
   assert.match(styles, /copilot-busy-braille/);
-  assert.match(styles, /copilot-busy-shimmer/);
+  assert.match(styles, /copilot-busy-pulse/);
 });
 
 test('聊天正文不再铺开普通工具、技能和执行记录', () => {
@@ -70,7 +85,10 @@ test('制作计划跟随助手消息显示阶段和进度', () => {
   assert.match(styles, /copilot-production-plan/);
   assert.match(styles, /\.copilot-production-plan \{[^}]*border-top:/);
   assert.doesNotMatch(styles, /\.copilot-production-plan \{[^}]*border-radius:/);
-  assert.match(panel, /stages\.every\(\(stage\) => stage\.status === 'done'\)\) setExpanded\(false\)/);
+  assert.match(
+    panel,
+    /stages\.every\(\(stage\) => stage\.status === ["']done["']\)\)[\s\S]*?setExpanded\(false\)/,
+  );
 });
 
 test('@ 节点菜单在长别名下保持两行布局且不覆盖类型', () => {

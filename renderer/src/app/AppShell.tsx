@@ -5,7 +5,7 @@ import { type AppRoute, useAppStore } from "./store/appStore";
 
 interface AppShellProps {
   platform: string;
-  views: Record<AppRoute, ReactNode>;
+  view: ReactNode;
   onAddNode: (type: string) => void;
   onNotify: () => void;
   onSettings: () => void;
@@ -13,17 +13,15 @@ interface AppShellProps {
   onNavigationBlocked?: () => void;
 }
 
-export function AppShell(
-  {
-    platform,
-    views,
-    onAddNode,
-    onNotify,
-    onSettings,
-    onUpdate,
-    onNavigationBlocked,
-  }: AppShellProps,
-) {
+export function AppShell({
+  platform,
+  view,
+  onAddNode,
+  onNotify,
+  onSettings,
+  onUpdate,
+  onNavigationBlocked,
+}: AppShellProps) {
   const route = useAppStore((state) => state.route);
   const collapsed = useAppStore((state) => state.sidebarCollapsed);
   const toggleSidebar = useAppStore((state) => state.toggleSidebar);
@@ -44,11 +42,14 @@ export function AppShell(
     setSidebarPreviewClosing(false);
   }, [effectiveCollapsed]);
 
-  useEffect(() => () => {
-    if (sidebarPreviewTimer.current !== null) {
-      window.clearTimeout(sidebarPreviewTimer.current);
-    }
-  }, []);
+  useEffect(
+    () => () => {
+      if (sidebarPreviewTimer.current !== null) {
+        window.clearTimeout(sidebarPreviewTimer.current);
+      }
+    },
+    [],
+  );
 
   function changeSidebarPreview(open: boolean) {
     if (sidebarPreviewTimer.current !== null) {
@@ -99,16 +100,12 @@ export function AppShell(
     <div
       className={`app-shell route-${route}${overlaySidebar ? " sidebar-overlay-shell" : ""} sidebar-is-collapsed${
         sidebarPinnedOpen ? " sidebar-is-pinned" : ""
-      }${
-        previewActive && !sidebarPreviewClosing ? " sidebar-preview-open" : ""
-      }${
+      }${previewActive && !sidebarPreviewClosing ? " sidebar-preview-open" : ""}${
         previewActive && sidebarPreviewClosing ? " sidebar-preview-closing" : ""
       }`}
     >
       <TopBar platform={platform} />
-      <main
-        className="workspace sidebar-collapsed"
-      >
+      <main className="workspace sidebar-collapsed">
         <SideBar
           onAddNode={onAddNode}
           onNotify={onNotify}
@@ -120,7 +117,7 @@ export function AppShell(
           previewClosing={previewActive && sidebarPreviewClosing}
           onPreviewOpenChange={changeSidebarPreview}
         />
-        <section className="content">{views[route]}</section>
+        <section className="content">{view}</section>
       </main>
     </div>
   );

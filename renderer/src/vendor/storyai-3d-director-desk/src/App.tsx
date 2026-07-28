@@ -25,10 +25,14 @@ export default function App() {
   const setViewMode = useDirectorStore((state) => state.setViewMode);
 
   useEffect(() => {
+    document.documentElement.dataset.embedded = embeddedInCanvas ? "canvas" : "standalone";
     initDirectorDeskHostBridge();
     window.parent?.postMessage({ type: "storyai:director-desk-ready" }, window.location.origin);
-    return clearDirectorDeskHostBridge;
-  }, []);
+    return () => {
+      delete document.documentElement.dataset.embedded;
+      clearDirectorDeskHostBridge();
+    };
+  }, [embeddedInCanvas]);
 
   function handleClose() {
     window.parent?.postMessage({ type: "storyai:director-desk-close" }, window.location.origin);
@@ -46,7 +50,7 @@ export default function App() {
         results.map((result, index) => ({
           dataUrl: result.dataUrl,
           fileName: buildCaptureFileName(result, index),
-        }))
+        })),
       );
     } finally {
       setExportingPhoto(false);
@@ -56,6 +60,35 @@ export default function App() {
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
       if (event.defaultPrevented || isEditableShortcutTarget(event.target)) return;
+      if (embeddedInCanvas && event.key === "Escape") {
+        event.preventDefault();
+        window.parent?.postMessage(
+          { type: "storyai:director-desk-exit-interaction" },
+          window.location.origin,
+        );
+        return;
+      }
+      if (
+        !event.metaKey &&
+        !event.ctrlKey &&
+        !event.altKey &&
+        (event.key === "Delete" || event.key === "Backspace")
+      ) {
+        const state = useDirectorStore.getState();
+        const hasObjectSelection = Boolean(
+          state.selectedObjectId || state.selectedObjectIds.length || state.selectedCrowdId,
+        );
+        event.preventDefault();
+        if (hasObjectSelection) {
+          state.deleteSelectedObject();
+        } else if (embeddedInCanvas) {
+          window.parent?.postMessage(
+            { type: "storyai:director-desk-delete-node" },
+            window.location.origin,
+          );
+        }
+        return;
+      }
       if (!event.metaKey && !event.ctrlKey) return;
 
       const key = event.key.toLowerCase();
@@ -120,7 +153,12 @@ export default function App() {
             onClick={() => void handleExportPhoto()}
           >
             {exportingPhoto ? (
-              <LoaderCircle className="top-bar-export-spinner" aria-hidden="true" size={17} strokeWidth={2} />
+              <LoaderCircle
+                className="top-bar-export-spinner"
+                aria-hidden="true"
+                size={17}
+                strokeWidth={2}
+              />
             ) : (
               <ArrowUp aria-hidden="true" size={17} strokeWidth={2} />
             )}

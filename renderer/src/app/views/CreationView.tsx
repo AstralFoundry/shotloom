@@ -1,4 +1,11 @@
-import { type KeyboardEvent, type PointerEvent, useState } from "react";
+import {
+  lazy,
+  Suspense,
+  type KeyboardEvent,
+  type PointerEvent,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import type { Viewport } from "@xyflow/react";
 import { BottomModeBar } from "../canvas/BottomModeBar";
 import {
@@ -16,25 +23,29 @@ import {
   type CopilotMessage,
   CopilotPanel,
 } from "../copilot/CopilotPanel";
-import {
-  type VideoEditorAsset,
-  type VideoEditorController,
-  VideoEditorWorkspace,
-} from "../editor/VideoEditorWorkspace";
+import type { VideoEditorAsset, VideoEditorController } from "../editor/VideoEditorWorkspace";
+
+const VideoEditorWorkspace = lazy(() =>
+  import("../editor/VideoEditorWorkspace").then((module) => ({
+    default: module.VideoEditorWorkspace,
+  })),
+);
 
 export interface CreationViewController {
   canvas: WorkflowCanvasController;
   nodes: WorkflowNodeActions;
-  copilot: CopilotController;
-  applyMaterial: (
-    item: MaterialItem,
-    scope: "library" | "local" | "files",
-  ) => void | Promise<void>;
-  previewMaterial: (
-    item: MaterialItem,
-    src: string,
-    kind: "image" | "video",
-  ) => void;
+  copilot: CopilotController & {
+    subscribe: (listener: () => void) => () => void;
+    getRevision: () => number;
+    read: () => CreationCopilotData;
+  };
+  applyMaterial: (item: MaterialItem, scope: "library" | "local" | "files") => void | Promise<void>;
+  previewMaterial: (item: MaterialItem, src: string, kind: "image" | "video") => void;
+  loadMaterials: () => {
+    projectAssets: MaterialItem[];
+    localAssets: MaterialItem[];
+    materials: MaterialItem[];
+  };
   undo: () => void;
   redo: () => void;
   fitView: () => void;
@@ -47,19 +58,6 @@ export interface CreationViewData {
   nodes: WorkflowNodeData[];
   edges: WorkflowEdge[];
   viewport: Viewport;
-  materials: {
-    library: MaterialItem[];
-    local: MaterialItem[];
-    files: MaterialItem[];
-  };
-  copilot: {
-    messages: CopilotMessage[];
-    conversations: ConversationItem[];
-    activeConversationId: string;
-    busy: boolean;
-    textModel: string;
-    textModels: Array<{ id: string; label: string }>;
-  };
   history: { canUndo: boolean; canRedo: boolean };
   shortcutLabels: { fitView: string; autoLayout: string };
   editor?: {
@@ -79,34 +77,73 @@ export interface CreationViewData {
   };
 }
 
-export function CreationView(
-  { data, controller }: {
-    data: CreationViewData;
-    controller: CreationViewController;
-  },
-) {
+type CreationCopilotData = {
+  messages: CopilotMessage[];
+  conversations: ConversationItem[];
+  activeConversationId: string;
+  busy: boolean;
+  textModel: string;
+  textModels: Array<{ id: string; label: string }>;
+};
+
+function LiveCopilotPanel({
+  nodes,
+  controller,
+}: {
+  nodes: WorkflowNodeData[];
+  controller: CreationViewController["copilot"];
+}) {
+  useSyncExternalStore(controller.subscribe, controller.getRevision, controller.getRevision);
+  const data = controller.read();
+  return (
+    <CopilotPanel
+      messages={data.messages}
+      nodes={nodes}
+      busy={data.busy}
+      conversations={data.conversations}
+      activeConversationId={data.activeConversationId}
+      textModel={data.textModel}
+      textModels={data.textModels}
+      controller={controller}
+    />
+  );
+}
+
+export function CreationView({
+  data,
+  controller,
+}: {
+  data: CreationViewData;
+  controller: CreationViewController;
+}) {
   const [copilotVisible, setCopilotVisible] = useState(true);
   const [copilotWidth, setCopilotWidth] = useState(() => {
     const saved = Number(window.localStorage.getItem("shotloom:copilot-width-v3"));
-    const preferred = Math.round(window.innerWidth * .3);
+    const preferred = Math.round(window.innerWidth * 0.3);
     return Number.isFinite(saved) && saved > 0
       ? Math.min(560, Math.max(360, saved))
       : Math.min(520, Math.max(400, preferred));
   });
   const [picker, setPicker] = useState(false);
   const [scope, setScope] = useState<"library" | "local" | "files">("library");
-  const items = data.materials[scope];
+  const [materials, setMaterials] = useState<{
+    library: MaterialItem[];
+    local: MaterialItem[];
+    files: MaterialItem[];
+  }>({ library: [], local: [], files: [] });
+  const items = materials[scope];
   function openPicker() {
-    setScope(
-      data.materials.library.length
-        ? "library"
-        : data.materials.local.length
-        ? "local"
-        : "files",
-    );
+    const loaded = controller.loadMaterials();
+    const next = {
+      library: loaded.projectAssets,
+      local: loaded.localAssets,
+      files: loaded.materials,
+    };
+    setMaterials(next);
+    setScope(next.library.length ? "library" : next.local.length ? "local" : "files");
     setPicker(true);
   }
-  const copilotController: CopilotController = {
+  const copilotController: CreationViewController["copilot"] = {
     ...controller.copilot,
     close: () => setCopilotVisible(false),
   };
@@ -142,12 +179,10 @@ export function CreationView(
   return (
     <div className="forge-lite">
       <main
-        className={`forge-lite-main${
-          copilotVisible ? "" : " copilot-collapsed"
-        }`}
-        style={copilotVisible
-          ? { gridTemplateColumns: `minmax(0, 1fr) ${copilotWidth}px` }
-          : undefined}
+        className={`forge-lite-main${copilotVisible ? "" : " copilot-collapsed"}`}
+        style={
+          copilotVisible ? { gridTemplateColumns: `minmax(0, 1fr) ${copilotWidth}px` } : undefined
+        }
       >
         <WorkflowCanvas
           nodes={data.nodes}
@@ -186,27 +221,13 @@ export function CreationView(
             onKeyDown={resizeCopilotWithKeyboard}
           />
         )}
-        {copilotVisible
-          ? (
-            <CopilotPanel
-              messages={data.copilot.messages}
-              nodes={data.nodes}
-              busy={data.copilot.busy}
-              conversations={data.copilot.conversations}
-              activeConversationId={data.copilot.activeConversationId}
-              textModel={data.copilot.textModel}
-              textModels={data.copilot.textModels}
-              controller={copilotController}
-            />
-          )
-          : (
-            <button
-              className="forge-copilot-reopen"
-              onClick={() => setCopilotVisible(true)}
-            >
-              打开 Copilot
-            </button>
-          )}
+        {copilotVisible ? (
+          <LiveCopilotPanel nodes={data.nodes} controller={copilotController} />
+        ) : (
+          <button className="forge-copilot-reopen" onClick={() => setCopilotVisible(true)}>
+            打开 Copilot
+          </button>
+        )}
       </main>
       {picker && (
         <div
@@ -242,39 +263,39 @@ export function CreationView(
               </button>
             </div>
             <div className="canvas-material-picker-body">
-              {items.length
-                ? (
-                  <MaterialGrid
-                    materials={items}
-                    showLibraryAction={false}
-                    showFileAction={false}
-                    showRenameAction={false}
-                    showDeleteAction={false}
-                    clickToApply
-                    onPreview={controller.previewMaterial}
-                    onAction={(action, item) => {
-                      if (action === "apply-to-canvas") {
-                        void controller.applyMaterial(item, scope);
-                        setPicker(false);
-                      }
-                    }}
-                  />
-                )
-                : (
-                  <div className="canvas-material-empty">
-                    {scope === "library"
-                      ? "项目素材里还没有可用资源。"
-                      : scope === "local"
+              {items.length ? (
+                <MaterialGrid
+                  materials={items}
+                  showLibraryAction={false}
+                  showFileAction={false}
+                  showRenameAction={false}
+                  showDeleteAction={false}
+                  clickToApply
+                  onPreview={controller.previewMaterial}
+                  onAction={(action, item) => {
+                    if (action === "apply-to-canvas") {
+                      void controller.applyMaterial(item, scope);
+                      setPicker(false);
+                    }
+                  }}
+                />
+              ) : (
+                <div className="canvas-material-empty">
+                  {scope === "library"
+                    ? "项目素材里还没有可用资源。"
+                    : scope === "local"
                       ? "通用素材库还是空的。"
                       : "素材文件里还没有资源。"}
-                  </div>
-                )}
+                </div>
+              )}
             </div>
           </section>
         </div>
       )}
       {data.editor && controller.editor && (
-        <VideoEditorWorkspace {...data.editor} controller={controller.editor} />
+        <Suspense fallback={<div className="video-editor-loading">正在打开剪辑工作区…</div>}>
+          <VideoEditorWorkspace {...data.editor} controller={controller.editor} />
+        </Suspense>
       )}
     </div>
   );
