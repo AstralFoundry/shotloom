@@ -42,7 +42,10 @@
   "bundle": {
     "active": true,
     "externalBin": ["binaries/opencode"],
-    "resources": ["resources/opencode-LICENSE.txt"],
+    "resources": [
+      "resources/opencode-LICENSE.txt",
+      "zh-Hans.lproj/InfoPlist.strings"
+    ],
     "targets": "all",
     "createUpdaterArtifacts": false,
     "icon": [

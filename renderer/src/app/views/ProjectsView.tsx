@@ -86,6 +86,7 @@ export function ProjectsView(
   const [pending, setPending] = useState(false);
   const createInput = useRef<HTMLInputElement>(null);
   const renameInput = useRef<HTMLInputElement>(null);
+  const renameEntryKey = rename ? entryKey(rename.entry) : "";
   const currentFolder = folderPath.length
     ? findFolder(entries, folderPath.at(-1)!)
     : null;
@@ -101,7 +102,7 @@ export function ProjectsView(
   useEffect(() => {
     renameInput.current?.focus();
     renameInput.current?.select();
-  }, [rename]);
+  }, [renameEntryKey]);
   useEffect(() => {
     setFolderPath((path) =>
       path.filter((key) => Boolean(findFolder(entries, key)))

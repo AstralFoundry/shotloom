@@ -79,7 +79,7 @@ function createBrowserFallback() {
     file: {
       pathForFile: (file) => file?.path || '',
       importAsset: async () => [],
-      pickResource: async () => null,
+      pickResource: async (_resourceType) => null,
       saveJson: async (defaultName, data) => {
         const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);

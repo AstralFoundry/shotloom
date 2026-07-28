@@ -307,8 +307,6 @@ export const nodeActions: WorkflowNodeActions = {
   async upload(id) {
     const node = store.project.nodes.find((item: WorkflowNodeData) => item.id === id);
     if (!node || !/Generation$/.test(node.type)) return;
-    const picked: any = await desktopApi.file.pickResource();
-    if (!picked) return;
     const uploadKinds: Record<string, { type: string; label: string }> = {
       imageGeneration: { type: "image", label: "图片" },
       videoGeneration: { type: "video", label: "视频" },
@@ -317,6 +315,8 @@ export const nodeActions: WorkflowNodeActions = {
     };
     const expected = uploadKinds[String(node.type)];
     if (!expected) return;
+    const picked: any = await desktopApi.file.pickResource(expected.type);
+    if (!picked) return;
     const pickedType = inferFileResourceType(picked);
     if (pickedType !== expected.type) {
       showToast(`请选择${expected.label}文件`);

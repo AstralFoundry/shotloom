@@ -1,310 +1,182 @@
 <p align="center">
-  <img src="./src-tauri/icons/app.png" width="104" alt="Shotloom Logo" />
+  <img src="./src-tauri/icons/app.png" width="96" alt="Shotloom" />
 </p>
 
 <h1 align="center">Shotloom</h1>
 
 <p align="center">
-  <strong>面向 AI 影像创作的本地桌面工作台</strong>
-  <br />
-  在一张可视化画布上组织剧本、角色、分镜、图片、视频、声音与最终剪辑，<br />
-  让 Agent 参与规划和执行，同时让每一步结果都保持可见、可编辑、可追踪。
+  <strong>别让 AI 作品停留在聊天记录里。</strong>
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.1.1-6f66d8?style=flat-square" />
-  <img alt="Tauri" src="https://img.shields.io/badge/Tauri-2-24C8DB?style=flat-square&logo=tauri&logoColor=white" />
-  <img alt="React" src="https://img.shields.io/badge/React-19-20232A?style=flat-square&logo=react&logoColor=61DAFB" />
-  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-5.9-3178C6?style=flat-square&logo=typescript&logoColor=white" />
-  <img alt="Node.js" src="https://img.shields.io/badge/Node.js-%E2%89%A522.19-339933?style=flat-square&logo=node.js&logoColor=white" />
+  Shotloom 是面向 AI 影像创作者的桌面工作台——<br />
+  把散落的提示词、参考图、生成结果和创作意图，<br />
+  <strong>编织成一部真正可交付的作品</strong>，而不是散落各处、难以追溯的生成结果。
 </p>
 
 <p align="center">
-  <a href="#核心能力">核心能力</a> ·
-  <a href="#快速开始">快速开始</a> ·
-  <a href="#agent-工作方式">Agent 工作方式</a> ·
-  <a href="#技术架构">技术架构</a> ·
-  <a href="#开发与构建">开发与构建</a>
+  <a href="#-为什么是-shotloom">为什么是 Shotloom</a> ·
+  <a href="#-能力一览">能力一览</a> ·
+  <a href="#-界面预览">界面预览</a> ·
+  <a href="#-快速开始">快速开始</a> ·
+  <a href="#-开发">开发</a>
 </p>
 
 ---
 
-![Shotloom 复杂影像工作流与 Copilot](./docs/images/img_1.png)
+<br />
 
-> Shotloom 不是一个把提示词藏在聊天框里的生成器，而是一套以真实项目、真实节点和真实生成结果为基础的影像生产环境。
+![Shotloom 创作画布](./docs/images/img_1.png)
 
-## 为什么是 Shotloom
+<br />
 
-传统 AI 创作工具往往把剧本、提示词、参考图、生成结果和修改记录分散在不同页面里。项目一旦进入多角色、多镜头或多阶段制作，创作者很快就会失去上下文：不知道素材来自哪里，也无法确认哪些结果真正完成。
+## 🤔 为什么是 Shotloom
 
-Shotloom 将制作过程重新组织成一张持久化画布：
+用 AI 做影像创作，最难的其实不是「生成一张好图」。
 
-- 每个文本、图片、视频、音频和画板都是可引用的真实节点。
-- 节点之间的连线表达输入关系、制作依赖与视觉约束。
-- Copilot 可以理解完整画布、形成制作计划并通过受控工具实施操作。
-- Skill 决定领域工作方式，Recipe 决定生成节点如何组织专业提示词。
-- 项目任务、素材和生成结果在同一项目中归档，不依赖聊天记录维持事实。
+真正困难的，是**第三张之后**——当你生成了几十个版本，灵感在聊天窗口里来回滚动，参考图和结果散落在下载目录的各个角落，你已经分不清哪个版本是基于哪条提示词、用了哪张参考图、应该进剪辑还是进废纸篓。
 
-它适合短剧、广告、口播、社交媒体内容、商品视觉以及更完整的影视化开发流程。
+然后你打开剪辑软件，把勉强选出的几段拖进去，发现风格不统一、构图接不上——于是回到聊天窗口，再生成几版。循环往复。
 
-## 核心能力
+**Shotloom 把这个循环变成一条直线。**
 
-### 无限画布式影像编排
+| 你现在的困境 | Shotloom 的做法 |
+|---|---|
+| 提示词散落在聊天记录里 | 画布上的每个节点记录完整的提示词、参数与来源 |
+| 生成的素材堆满下载文件夹 | 素材自动归属到项目，始终可预览、可溯源 |
+| 不知道 A 图和 B 图是什么关系 | 连线表达参考、迭代与依赖，一眼看清整条链路 |
+| 生成归生成，剪辑归剪辑 | 从灵感到导出，在一个工具里自然走完 |
+| AI 助手对你的项目一无所知 | 助手直接读取画布上下文，给你针对性建议 |
 
-在 React Flow 驱动的工作区中自由组织制作链路。画布支持缩放、框选、节点拖动、快捷键、历史操作以及自动布局，并提供以下节点：
+**Shotloom 不是又一个 AI 生图工具。** 它是 AI 影像创作缺失的那一层——把提示词、素材、生成和后期串起来的工作台。
 
-- 图片生成
-- 视频生成
-- 音频生成
-- 文本生成
-- 3D 导演台
-- 画板与便签
-- 本地上传素材
+<br />
 
-节点引用会被保留为明确的输入职责，例如文本上下文、参考图和输入视频，而不是把所有附件无差别地拼进一次请求。
+## 🎯 能力一览
 
-### 画布内 Copilot
+<table>
+  <tr>
+    <td width="50%">
+      <h3>🎨 可视化创作画布</h3>
+      <p>像整理创意墙一样组织整条制作链路。文本、图片、视频、音频节点自由排布，连线表达上下文和依赖关系。支持缩放、框选、多选、拖拽、撤销、自动布局——以及直接拖入本地素材并即时预览。</p>
+    </td>
+    <td width="50%">
+      <h3>🤖 AI 创作助手</h3>
+      <p>不是通用聊天机器人。助手能读取你当前项目和画布内容，理解你在做什么、做到哪一步了。它能创建和连接节点、分析创作瓶颈、配合 Skill 和生成策略帮你把这一步走完——你看到的不是一段回复，而是画布上多出来的那几张图。</p>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <h3>🌀 多模态生成</h3>
+      <p>文字构思 → 静态画面 → 动态镜头 → 声音。在同一个工作区里衔接不同模态的模型。支持文本、图片、视频和音频模型，可配置不同 API 厂商和参数。参考图和视频输入直接来自画布上的节点，生成结果自动回到项目中。</p>
+    </td>
+    <td width="50%">
+      <h3>📦 项目与素材管理</h3>
+      <p>素材不再是无家可归的文件。素材设定（人物的外貌、场景的风格）和真实素材文件分开管理，支持项目内素材和本机通用素材。导入一个项目包，它就真的是一个完整的项目——不是一堆需要手动整理的文件夹。</p>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <h3>🎬 3D 导演台</h3>
+      <p>在生成之前，先想清楚机位、空间和角色关系。在三维场景中摆放角色、道具和摄影机，用画布上游的图片做场景参考。导出构图结果，继续用于后续节点——生成不再是开盲盒。</p>
+    </td>
+    <td width="50%">
+      <h3>✂️ 视频编辑器</h3>
+      <p>生成不是终点。多轨时间线、连续视频主轨、字幕、贴图、转场、画面变换、音量控制——在同一个应用里把可用镜头变成成片。最终直接从桌面导出视频文件。</p>
+    </td>
+  </tr>
+</table>
 
-Copilot 不只回答问题。它能够读取当前项目、选中节点和相关依赖，并根据用户要求：
+<br />
 
-- 分析已有画布和失败节点；
-- 拆解剧本、场次、角色与镜头；
-- 创建可调整的 Production Plan；
-- 建立并连接真实画布节点；
-- 调用已配置模型执行生成；
-- 根据任务、文件和工具回执核验完成状态。
-
-Agent Runtime 由 OpenCode sidecar 承载，通过本地工具桥与 Shotloom 通信。模型负责理解语义和选择工作流，应用层负责权限、事实、持久化与不可逆操作边界。
-
-### 多模态生成协议
-
-Shotloom 使用声明式模型目录描述不同厂商接口，而不是把供应商逻辑散落在界面代码中。每个模型可以独立定义：
-
-- API endpoint、鉴权方式和请求模板；
-- 文本、图片、视频与音频输入限制；
-- 同步结果或异步任务轮询路径；
-- 参数选项、默认值与输出能力；
-- 厂商响应中的结果提取规则。
-
-模型请求统一进入原生 Generation Gateway。凭据、代理、multipart 请求、超时和取消均由桌面层管理。
-
-### 专业 Skill 与 Recipe
-
-项目内置 8 套领域 Skill 和 48 套生成策略，覆盖：
-
-- 全流程影像制作与连续短剧；
-- 商业广告、主播口播与社媒内容；
-- 商品视觉和关键帧动态编排；
-- 原作分析、剧本改编、角色开发与镜头设计；
-- 分镜、连续动作、声音方案和后期执行文档。
-
-Skill 与 Recipe 可以在设置中查看、启停、编辑、导入和导出。内置内容通过版本迁移更新，同时保留用户的启用状态和本地自定义内容。
-
-### 项目、素材与任务
-
-每个项目拥有独立的画布、会话、任务和素材上下文：
-
-- 项目库负责创建、组织、导入和恢复项目；
-- 素材库按角色、场景、道具、风格和镜头管理可复用资产；
-- 素材文件保留导入文件与生成结果；
-- 项目任务展示真实执行状态、失败原因和输出记录；
-- 项目可以导出为包含清单和实体文件的原生项目包。
-
-### 3D 导演台
-
-3D 导演台为镜头预演提供角色、摄影机、场景、道具和全景背景控制。它可以作为普通画布节点参与工作流，并把构图结果导出回项目。
-
-### 内置视频编辑工作区
-
-生成视频可以直接进入独立剪辑工作区。当前编辑能力包括：
-
-- 多轨时间线与连续主轨；
-- 视频预览、裁切和音量控制；
-- 字幕与贴图轨道；
-- 画布变换与文字样式；
-- 转场、特效和桌面导出。
-
-## 产品界面
+## 📸 界面预览
 
 <table>
   <tr>
     <td width="50%">
       <img src="./docs/images/img_2.png" alt="Shotloom 项目库" />
-      <p align="center"><strong>项目库</strong><br /><sub>集中管理画布、文件夹与最近项目</sub></p>
+      <p align="center"><strong>项目库</strong> — 创建、整理和打开本地项目</p>
     </td>
     <td width="50%">
-      <img src="./docs/images/img_3.png" alt="Shotloom 3D 导演台" />
-      <p align="center"><strong>3D 导演台</strong><br /><sub>在画布中预演角色、摄影机与空间关系</sub></p>
+      <img src="./docs/images/img.png" alt="Shotloom 创作画布" />
+      <p align="center"><strong>创作画布</strong> — 组织节点、素材关系与生成任务</p>
     </td>
   </tr>
   <tr>
-    <td colspan="2">
-      <img src="./docs/images/img_4.png" alt="Shotloom 视频编辑工作区" />
-      <p align="center"><strong>视频编辑工作区</strong><br /><sub>从生成结果继续完成多轨剪辑、字幕设计与导出</sub></p>
+    <td width="50%">
+      <img src="./docs/images/img_3.png" alt="Shotloom 3D 导演台" />
+      <p align="center"><strong>3D 导演台</strong> — 预演摄影机、角色与空间关系</p>
+    </td>
+    <td width="50%">
+      <img src="./docs/images/img_4.png" alt="Shotloom 视频编辑器" />
+      <p align="center"><strong>视频编辑器</strong> — 剪辑、字幕、音效与导出</p>
     </td>
   </tr>
 </table>
 
-## Agent 工作方式
+<br />
 
-Shotloom 将语义决策与客观执行边界分开：模型理解创作目标，运行时保存并核验事实。
+## 🚀 快速开始
 
-```mermaid
-flowchart LR
-    U[用户目标] --> R[Router<br/>理解意图与选择 Skill]
-    R --> P[Planner<br/>形成可调整的制作计划]
-    P --> E[Executor<br/>调用真实画布工具]
-    E --> C[Canvas / Tasks / Assets<br/>持久化项目事实]
-    C --> V[Reviewer<br/>核验节点、任务与文件]
-    V --> O[完成说明或后续修正]
-    O -.需要继续.-> E
-```
+### 你需要准备
 
-核心原则：
+- **Node.js** ≥ 22.19.0，**npm** ≥ 10
+- **Rust** stable toolchain
+- 对应平台的 [Tauri 2 系统依赖](https://v2.tauri.app/start/prerequisites/)
 
-1. **语义交给模型**：不通过关键词、文本长度或节点数量猜测用户意图和制作复杂度。
-2. **事实来自项目**：节点、任务、文件和工具回执必须真实存在，完成声明必须有结果支持。
-3. **权限由运行时执行**：关闭“允许 Agent 运行节点”后，Agent 仍可规划画布，但不能启动付费生成。
-4. **计划可调整**：Planner 只负责计划；Executor 通过真实工具实施；Reviewer 根据落地结果检查完整性。
-5. **问题可以恢复**：可修正的工具问题返回给 Agent 继续处理，不因单个规划瑕疵终止整轮运行。
-
-## 快速开始
-
-### 环境要求
-
-- Node.js 22.19.0 或更高版本
-- npm 10 或更高版本
-- Rust stable toolchain
-- 对应平台的 Tauri 2 系统依赖
-
-当前自动发布目标为 macOS Apple Silicon、macOS Intel 和 Windows x64。Linux 可以从源码开发构建，但目前不在正式 Release 矩阵中。
-
-### 从源码启动桌面应用
+### 三行跑起来
 
 ```bash
 git clone https://github.com/AstralFoundry/shotloom.git
 cd shotloom
-npm ci
-npm run dev
+npm ci && npm run dev
 ```
 
-`npm run dev` 会自动完成以下工作：
+首次启动会编译 Rust 依赖，泡杯咖啡等一会儿。后续启动就很快了。
 
-1. 从当前平台对应的 `opencode-*` npm 包准备 OpenCode sidecar；
-2. 启动 Vite renderer；
-3. 编译并运行 Tauri 桌面应用；
-4. 监听前端和 Rust 代码变化。
-
-首次 Rust 编译需要下载依赖，耗时会明显长于后续启动。
-
-### 配置模型厂商
-
-应用可以在不配置模型的情况下打开和管理项目。需要使用 Copilot 或生成节点时：
-
-1. 打开左侧栏底部的 **设置**；
-2. 进入 **API 厂商**；
-3. 添加厂商连接并填写 API 地址与凭据；
-4. 为文本、图片、视频和音频选择默认模型；
-5. 回到画布运行节点或开始 Copilot 对话。
-
-厂商配置按模型协议保存。新增模型默认使用空白协议，便于根据厂商官方 API 文档逐项配置请求和响应规则。
-
-![Shotloom 空白画布与 Copilot](./docs/images/img.png)
-
-## 技术架构
-
-| 层级 | 技术 | 职责 |
-| --- | --- | --- |
-| Desktop Shell | Tauri 2 · Rust | 窗口、文件系统、对话框、sidecar、更新与原生导出 |
-| Renderer | React 19 · TypeScript · Vite | 产品界面、工作区和交互状态 |
-| Canvas | React Flow | 节点、连线、选择、视口和工作流交互 |
-| State | Zustand | 项目、画布、任务、设置、素材和会话状态 |
-| Agent Runtime | OpenCode SDK + protected sidecar | Session、模型调用、Skill 路由和工具桥 |
-| Generation | Native Generation Gateway | 凭据、请求编译、上传、轮询、取消和结果归档 |
-| 3D | React Three Fiber · Drei · Three.js | 导演台、角色、摄影机与场景预演 |
-| Video | OpenVideo Core · Pixi Engine | 多轨工程、预览、字幕、贴图与导出 |
-| Quality | TypeScript · Node test runner | 类型检查、契约测试和行为回归 |
-
-### 目录结构
-
-```text
-shotloom/
-├── renderer/
-│   ├── src/app/                 # React 工作台、画布、Copilot 与各业务页面
-│   ├── src/agent/               # Agent Contract、Skill 与 OpenCode Runtime
-│   ├── src/config/              # 模型目录与结构化动作契约
-│   ├── src/domain/              # Provider、Catalog 和 Graph 领域边界
-│   ├── src/services/            # 画布执行、生成网关适配与项目服务
-│   └── src/store/               # 项目级持久化状态
-├── src-tauri/
-│   ├── src/commands/            # 文件、项目、Agent 与生成网关原生命令
-│   ├── capabilities/            # Tauri 权限声明
-│   └── tauri.conf.json          # 窗口、Bundle 与 sidecar 配置
-├── scripts/                     # 平台 sidecar 准备脚本
-├── tests/                       # 契约和行为回归测试
-└── .github/workflows/           # CI 与跨平台 Release 流程
-```
-
-## 开发与构建
-
-### 常用命令
-
-| 命令 | 用途 |
-| --- | --- |
-| `npm run dev` | 启动完整 Tauri 桌面开发环境 |
-| `npm run dev:web` | 仅启动 Vite renderer，适合界面调试 |
-| `npm run check` | 顺序执行 TypeScript 检查和全部测试 |
-| `npm run typecheck` | 运行 `tsc --noEmit` |
-| `npm test` | 运行 Node 测试套件 |
-| `npm run build` | 构建 renderer 生产资源 |
-| `npm run build:desktop` | 构建当前平台桌面安装包 |
-| `npm run prepare:opencode` | 准备当前平台的 OpenCode sidecar |
-
-### 桌面构建
+只想调试前端界面？
 
 ```bash
-npm ci
-npm run check
-npm run build:desktop
+npm run dev:web
 ```
 
-Sidecar 文件不进入 Git。构建前置脚本会从锁定版本的 npm 平台包复制对应可执行文件，并按照 Tauri 要求命名：
+浏览器模式不提供文件系统访问、原生导出和本地运行能力，完整体验请用桌面版。
 
-```text
-src-tauri/binaries/opencode-<target-triple>[.exe]
-```
+### 接上模型
 
-CI 与 Release 工作流也会在 Cargo/Tauri 启动前执行同一准备步骤，避免 `externalBin` 缺失导致构建失败。
+不接模型也能用来建项目和整理素材。要用生成节点或 AI 助手时：
 
-### 发布流程
+1. 打开左侧栏 **设置 → API 厂商**
+2. 添加厂商，填写 API 地址和凭据
+3. 配置模型协议与参数
+4. 为文本、图片、视频、音频分别选择默认模型
 
-推送 `v*` 标签会触发跨平台 Release：
+不同厂商的接口有差异，以官方 API 文档为准。
 
-- macOS arm64 DMG
-- macOS x64 DMG
-- Windows x64 NSIS 安装包
+<br />
 
-macOS 正式发布需要配置 Developer ID 证书、公证账号和 Team ID。工作流会在构建前检查签名变量，任一缺失都会明确终止对应平台任务。
+## 🛠 开发
 
-## 数据与安全边界
+| 命令 | 做什么 |
+|---|---|
+| `npm run dev` | 启动 Tauri 桌面开发环境 |
+| `npm run dev:web` | 仅启动前端 dev server |
+| `npm run typecheck` | TypeScript 类型检查 |
+| `npm test` | 运行测试 |
+| `npm run check` | 类型检查 + 测试 |
+| `npm run build` | 构建前端资源 |
+| `npm run build:desktop` | 构建桌面应用 |
 
-- 项目、画布和素材以本地事实为准，不由聊天消息模拟完成状态。
-- API 凭据与厂商请求由原生桌面层管理，不注入普通 WebView 业务代码。
-- Agent 只能调用当前加载 Skill 可见的命名空间工具。
-- 生成节点的模型、提示词、输入角色和参数通过统一契约校验。
-- 付费执行受用户设置和权限策略约束；规划权限不会自动扩大为执行权限。
-- 项目删除、文件覆盖和外部发送等操作应继续遵守明确授权边界。
+### 技术栈
 
-## 当前状态
-
-Shotloom 目前处于快速迭代阶段，内部契约、模型目录和编辑能力仍可能演进。提交修改前建议运行：
-
-```bash
-npm run check
-cargo check --manifest-path src-tauri/Cargo.toml --lib
-```
-
-如果修改 Agent 行为，请同步检查 `AGENTS.md`、相关 Skill、Recipe、Contract 和回归测试，保持 Router、Planner、Executor、Reviewer 与 Runtime/Store 的职责边界清晰。
+| 层 | 选型 |
+|---|---|
+| 桌面框架 | Tauri 2 / Rust |
+| 前端 | React 19 / TypeScript / Vite |
+| 画布 | React Flow |
+| 状态管理 | Zustand |
+| 3D 渲染 | React Three Fiber / Three.js |
+| 视频引擎 | OpenVideo Core / Pixi |
 
 ---
 

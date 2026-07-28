@@ -1161,10 +1161,7 @@ fn export_video_editor_project(
         filters.push(format!("{}amix=inputs={}:normalize=0:dropout_transition=0,atrim=duration={duration:.6},asetpts=N/SR/TB[outa]", audio_labels.join(""), audio_labels.len()));
     }
 
-    let temp = parent.join(format!(
-        ".shotloom-project-export-{}.mp4",
-        chrono_stamp()
-    ));
+    let temp = parent.join(format!(".shotloom-project-export-{}.mp4", chrono_stamp()));
     command
         .arg("-filter_complex")
         .arg(filters.join(";"))
@@ -1249,8 +1246,7 @@ mod video_edit_tests {
         let Ok(ffmpeg) = media_tool("ffmpeg") else {
             return;
         };
-        let root =
-            std::env::temp_dir().join(format!("shotloom-video-project-{}", chrono_stamp()));
+        let root = std::env::temp_dir().join(format!("shotloom-video-project-{}", chrono_stamp()));
         fs::create_dir_all(&root).unwrap();
         let source = root.join("source.mp4");
         let sticker = root.join("sticker.png");

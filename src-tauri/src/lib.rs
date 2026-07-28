@@ -1,13 +1,98 @@
 mod commands;
 
+#[cfg(target_os = "macos")]
+fn prefer_simplified_chinese() {
+    use objc2_foundation::{NSArray, NSString, NSUserDefaults};
+
+    let language = NSString::from_str("zh-Hans");
+    let languages = NSArray::from_retained_slice(&[language]);
+    let key = NSString::from_str("AppleLanguages");
+    unsafe {
+        NSUserDefaults::standardUserDefaults().setObject_forKey(Some(&languages), &key);
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn macos_menu(app: &tauri::AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
+    use tauri::menu::{Menu, PredefinedMenuItem, Submenu};
+
+    let separator = || PredefinedMenuItem::separator(app);
+    Menu::with_items(
+        app,
+        &[
+            &Submenu::with_items(
+                app,
+                "Shotloom",
+                true,
+                &[
+                    &PredefinedMenuItem::about(app, Some("关于 Shotloom"), None)?,
+                    &separator()?,
+                    &PredefinedMenuItem::services(app, Some("服务"))?,
+                    &separator()?,
+                    &PredefinedMenuItem::hide(app, Some("隐藏 Shotloom"))?,
+                    &PredefinedMenuItem::hide_others(app, Some("隐藏其他"))?,
+                    &PredefinedMenuItem::show_all(app, Some("全部显示"))?,
+                    &separator()?,
+                    &PredefinedMenuItem::quit(app, Some("退出 Shotloom"))?,
+                ],
+            )?,
+            &Submenu::with_items(
+                app,
+                "文件",
+                true,
+                &[&PredefinedMenuItem::close_window(app, Some("关闭窗口"))?],
+            )?,
+            &Submenu::with_items(
+                app,
+                "编辑",
+                true,
+                &[
+                    &PredefinedMenuItem::undo(app, Some("撤销"))?,
+                    &PredefinedMenuItem::redo(app, Some("重做"))?,
+                    &separator()?,
+                    &PredefinedMenuItem::cut(app, Some("剪切"))?,
+                    &PredefinedMenuItem::copy(app, Some("复制"))?,
+                    &PredefinedMenuItem::paste(app, Some("粘贴"))?,
+                    &PredefinedMenuItem::select_all(app, Some("全选"))?,
+                ],
+            )?,
+            &Submenu::with_items(
+                app,
+                "显示",
+                true,
+                &[&PredefinedMenuItem::fullscreen(app, Some("进入全屏幕"))?],
+            )?,
+            &Submenu::with_items(
+                app,
+                "窗口",
+                true,
+                &[
+                    &PredefinedMenuItem::minimize(app, Some("最小化"))?,
+                    &PredefinedMenuItem::maximize(app, Some("缩放"))?,
+                    &separator()?,
+                    &PredefinedMenuItem::close_window(app, Some("关闭窗口"))?,
+                ],
+            )?,
+            &Submenu::with_items(app, "帮助", true, &[])?,
+        ],
+    )
+}
+
 pub fn run() {
-    let app = tauri::Builder::default()
+    #[cfg(target_os = "macos")]
+    prefer_simplified_chinese();
+
+    let builder = tauri::Builder::default()
         .manage(commands::AgentRuntimeState::new())
         .manage(commands::GenerationGatewayState::new())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_process::init());
+    #[cfg(target_os = "macos")]
+    let builder = builder.menu(macos_menu);
+
+    let app = builder
         .setup(|_app| {
             #[cfg(target_os = "windows")]
             {

@@ -11,6 +11,7 @@ import { withBuiltInRecipes, withoutBuiltInRecipes } from './builtInRecipes';
 import { modelJsonRequestBody, modelRequestEntries } from '@/utils/modelRequestBody.mjs';
 import { modelResponseError, parseModelResponseText } from '@/utils/modelResponseParsing.mjs';
 import { createChatCompletionStreamAccumulator, parseChatCompletionSseLine } from '@/utils/chatCompletionStream.mjs';
+import { resourceFileDialogFilters } from '@/utils/resourceFileTypes.mjs';
 
 const command = (channel, ...args) => {
   switch (channel) {
@@ -471,11 +472,22 @@ export function createTauriApi(browserFallback) {
       ...browserFallback.file,
       pathForFile: (file) => file?.path || '',
       importAsset: async () => {
-        const paths = await openDialog({ multiple: true, directory: false });
+        const paths = await openDialog({
+          title: '导入素材文件',
+          multiple: true,
+          directory: false,
+        });
         return (Array.isArray(paths) ? paths : paths ? [paths] : []).map((path) => ({ path, filePath: path, name: basename(path) }));
       },
-      pickResource: async () => {
-        const path = await openDialog({ multiple: false, directory: false });
+      pickResource: async (resourceType) => {
+        const filters = resourceFileDialogFilters(resourceType);
+        const resourceLabel = filters?.[0]?.name || '资源';
+        const path = await openDialog({
+          title: `选择${resourceLabel}文件`,
+          multiple: false,
+          directory: false,
+          filters,
+        });
         return path ? { path, filePath: path, name: basename(path) } : null;
       },
       saveJson: async (defaultName, data) => {
