@@ -215,30 +215,17 @@ jobs:
             exit 1
           fi
 
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            if tag_commit="$(gh api "repos/$GITHUB_REPOSITORY/commits/$RELEASE_TAG" --jq '.sha' 2>/dev/null)"; then
-              if [[ "$tag_commit" != "$GITHUB_SHA" ]]; then
-                echo "::error::Tag $RELEASE_TAG changed after validation"
-                exit 1
-              fi
-            else
-              tag_object="$(gh api --method POST "repos/$GITHUB_REPOSITORY/git/tags" \
-                --raw-field tag="$RELEASE_TAG" \
-                --raw-field message="Shotloom $RELEASE_TAG" \
-                --raw-field object="$GITHUB_SHA" \
-                --raw-field type="commit" \
-                --jq '.sha')"
-              gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
-                --raw-field ref="refs/tags/$RELEASE_TAG" \
-                --raw-field sha="$tag_object" >/dev/null
-            fi
-          fi
-
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             gh release upload "$RELEASE_TAG" "${assets[@]}" --clobber
           else
-            gh release create "$RELEASE_TAG" "${assets[@]}" \
-              --verify-tag \
-              --title "Shotloom $RELEASE_TAG" \
+            create_args=(
+              --title "Shotloom $RELEASE_TAG"
               --generate-notes
+            )
+            if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+              create_args+=(--target "$GITHUB_SHA")
+            else
+              create_args+=(--verify-tag)
+            fi
+            gh release create "$RELEASE_TAG" "${assets[@]}" "${create_args[@]}"
           fi
