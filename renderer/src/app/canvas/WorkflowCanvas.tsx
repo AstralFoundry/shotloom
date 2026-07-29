@@ -113,6 +113,7 @@ export interface WorkflowCanvasController {
 
 const RendererContext = createContext<Record<string, WorkflowNodeRenderer>>({});
 const ActionContext = createContext<WorkflowNodeActions | null>(null);
+export const MentionContext = createContext<((nodeId: string) => void) | null>(null);
 const VIEWPORT_LAYER_NODE_LIMIT = 24;
 const NODE_VIRTUALIZATION_THRESHOLD = 50;
 const MEDIA_NODE_TYPES = new Set([
@@ -168,15 +169,31 @@ function toFlowNodes(nodes: WorkflowNodeData[], edges: WorkflowEdge[] = []): Flo
       };
     });
 }
-const FallbackNode = memo(({ node, selected }: { node: WorkflowNodeData; selected: boolean }) => (
-  <article className={`react-workflow-node${selected ? " selected" : ""}`}>
-    <header>
-      <span>{node.type}</span>
-      <i className={`status-${node.status || "idle"}`} />
-    </header>
-    <strong>{node.title || "未命名节点"}</strong>
-  </article>
-));
+function FallbackNodeInner({ node, selected }: { node: WorkflowNodeData; selected: boolean }) {
+  const mentionInCopilot = useContext(MentionContext);
+  return (
+    <article className={`react-workflow-node${selected ? " selected" : ""}`}>
+      <header>
+        <span>{node.type}</span>
+        <i className={`status-${node.status || "idle"}`} />
+        {mentionInCopilot && (
+          <button
+            className="node-mention-btn"
+            title={`引用节点：${node.title || node.type}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              mentionInCopilot(node.id);
+            }}
+          >
+            @
+          </button>
+        )}
+      </header>
+      <strong>{node.title || "未命名节点"}</strong>
+    </article>
+  );
+}
+const FallbackNode = memo(FallbackNodeInner);
 
 /**
  * WKWebView repaints a full-size CSS radial gradient while the React Flow
@@ -385,6 +402,7 @@ export function WorkflowCanvas({
   nodeActions,
   controller,
   overlay,
+  mentionInCopilot,
 }: {
   nodes: WorkflowNodeData[];
   edges: WorkflowEdge[];
@@ -393,6 +411,7 @@ export function WorkflowCanvas({
   nodeActions: WorkflowNodeActions;
   controller: WorkflowCanvasController;
   overlay?: ReactNode;
+  mentionInCopilot?: (nodeId: string) => void;
 }) {
   const [flowNodes, setFlowNodes] = useState<FlowNode[]>(() => toFlowNodes(nodes, edges));
   const [instance, setInstance] = useState<ReactFlowInstance<
@@ -579,6 +598,7 @@ export function WorkflowCanvas({
   return (
     <RendererContext.Provider value={renderers}>
       <ActionContext.Provider value={nodeActions}>
+        <MentionContext.Provider value={mentionInCopilot || null}>
         <section
           ref={canvasRoot}
           className="react-workflow-canvas"
@@ -758,6 +778,7 @@ export function WorkflowCanvas({
           </div>
           {overlay}
         </section>
+        </MentionContext.Provider>
       </ActionContext.Provider>
     </RendererContext.Provider>
   );

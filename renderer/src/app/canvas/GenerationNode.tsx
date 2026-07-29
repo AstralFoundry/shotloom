@@ -1,8 +1,9 @@
-import { memo, useEffect, useMemo, useState } from "react";
+import { memo, useContext, useEffect, useMemo, useState } from "react";
 import { Handle, Position } from "@xyflow/react";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { desktopApi } from "../../services/desktopApi.js";
 import { getModelInfo, getModelSchema, getTypeMeta } from "../../domain/catalog/ModelCatalog";
+import { MentionContext } from "./WorkflowCanvas";
 import {
   aspectRatioStyle,
   isAspectRatioParam,
@@ -141,6 +142,7 @@ function useLocalPreview(item: Record<string, unknown> | null, kind: string) {
 
 export const GenerationNode: WorkflowNodeRenderer = memo(({ node, selected, actions }) => {
   const [openMenu, setOpenMenu] = useState("");
+  const mentionInCopilot = useContext(MentionContext);
   const promptCommit = useImeCommit<HTMLTextAreaElement>(String(node.prompt || ""), (value) =>
     actions.update(node.id, { prompt: value }),
   );
@@ -258,18 +260,32 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({ node, selected, acti
         <div className="work-node-kicker">
           <IconSymbol name={metaIcon} />
           <span>{metaLabel}</span>
-          {selected && node.type === "imageGeneration" && activeKind === "image" && (
+          {(selected || mentionInCopilot) && (
             <div className="work-node-kicker-actions">
-              <button
-                title="创建彩铅图片节点"
-                disabled={busy}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  void actions.applyColoredPencil(node.id);
-                }}
-              >
-                <IconSymbol name="pencil" />
-              </button>
+              {mentionInCopilot && (
+                <button
+                  className="node-mention-btn"
+                  title={`引用节点：${node.title || node.type}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    mentionInCopilot(node.id);
+                  }}
+                >
+                  @
+                </button>
+              )}
+              {selected && node.type === "imageGeneration" && activeKind === "image" && (
+                <button
+                  title="创建彩铅图片节点"
+                  disabled={busy}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void actions.applyColoredPencil(node.id);
+                  }}
+                >
+                  <IconSymbol name="pencil" />
+                </button>
+              )}
             </div>
           )}
         </div>

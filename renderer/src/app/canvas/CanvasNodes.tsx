@@ -1,8 +1,9 @@
-import { type ChangeEvent, memo } from "react";
+import { type ChangeEvent, memo, useContext } from "react";
 import { Handle, Position } from "@xyflow/react";
 import { IconSymbol } from "../components/IconSymbol";
 import { ResourcePreview } from "./ResourcePreview";
 import type { WorkflowNodeActions, WorkflowNodeData, WorkflowNodeRenderer } from "./WorkflowCanvas";
+import { MentionContext } from "./WorkflowCanvas";
 import { useImeCommit } from "./imeComposition";
 
 function Ports({ className }: { className: string }) {
@@ -25,6 +26,7 @@ function Ports({ className }: { className: string }) {
 }
 
 export const NoteNode: WorkflowNodeRenderer = memo(({ node, selected, actions }) => {
+  const mentionInCopilot = useContext(MentionContext);
   const update = (patch: Record<string, unknown>) =>
     actions.update(node.id, {
       ...patch,
@@ -53,16 +55,32 @@ export const NoteNode: WorkflowNodeRenderer = memo(({ node, selected, actions })
           {...titleCommit}
           onClick={(e) => e.stopPropagation()}
         />
-        {selected && (
-          <button
-            title="Delete"
-            onClick={(e) => {
-              e.stopPropagation();
-              actions.delete(node.id);
-            }}
-          >
-            <IconSymbol name="trash" />
-          </button>
+        {(selected || mentionInCopilot) && (
+          <div className="note-head-actions">
+            {mentionInCopilot && (
+              <button
+                className="node-mention-btn"
+                title={`引用节点：${node.title || "便签"}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  mentionInCopilot(node.id);
+                }}
+              >
+                @
+              </button>
+            )}
+            {selected && (
+              <button
+                title="Delete"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  actions.delete(node.id);
+                }}
+              >
+                <IconSymbol name="trash" />
+              </button>
+            )}
+          </div>
         )}
       </div>
       <textarea
@@ -76,7 +94,9 @@ export const NoteNode: WorkflowNodeRenderer = memo(({ node, selected, actions })
   );
 });
 
-export const UtilityNode: WorkflowNodeRenderer = memo(({ node, selected, actions }) => (
+export const UtilityNode: WorkflowNodeRenderer = memo(({ node, selected, actions }) => {
+  const mentionInCopilot = useContext(MentionContext);
+  return (
   <div className="utility-node-wrapper" onClick={(e) => e.stopPropagation()}>
     <div
       className={`utility-node utility-node-${node.type}${selected ? " selected" : ""}`}
@@ -94,17 +114,33 @@ export const UtilityNode: WorkflowNodeRenderer = memo(({ node, selected, actions
           }
           onClick={(e) => e.stopPropagation()}
         />
-        {selected && (
-          <button
-            className="utility-delete"
-            title="Delete"
-            onClick={(e) => {
-              e.stopPropagation();
-              actions.delete(node.id);
-            }}
-          >
-            <IconSymbol name="trash" />
-          </button>
+        {(selected || mentionInCopilot) && (
+          <>
+            {mentionInCopilot && (
+              <button
+                className="node-mention-btn"
+                title={`引用节点：${node.title || node.type}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  mentionInCopilot(node.id);
+                }}
+              >
+                @
+              </button>
+            )}
+            {selected && (
+              <button
+                className="utility-delete"
+                title="Delete"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  actions.delete(node.id);
+                }}
+              >
+                <IconSymbol name="trash" />
+              </button>
+            )}
+          </>
         )}
       </div>
       {node.type === "resource" ? (
@@ -121,7 +157,8 @@ export const UtilityNode: WorkflowNodeRenderer = memo(({ node, selected, actions
       )}
     </div>
   </div>
-));
+  );
+});
 
 export const defaultNodeRenderers: Record<string, WorkflowNodeRenderer> = {
   resource: UtilityNode,

@@ -1,7 +1,8 @@
-import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { memo, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Handle, Position } from "@xyflow/react";
 import { IconSymbol } from "../components/IconSymbol";
 import type { WorkflowNodeData, WorkflowNodeRenderer } from "./WorkflowCanvas";
+import { MentionContext } from "./WorkflowCanvas";
 import "./ThreeDDirectorNode.css";
 
 type IncomingImage = { edgeId: string; nodeId: string; name: string; url: string };
@@ -17,6 +18,7 @@ function readDirectorProject(node: WorkflowNodeData) {
 
 export const ThreeDDirectorNode: WorkflowNodeRenderer = memo(
   ({ node, selected, resizing, inputRevision, actions }) => {
+    const mentionInCopilot = useContext(MentionContext);
     const [incomingImages, setIncomingImages] = useState<IncomingImage[]>([]);
     const [interacting, setInteracting] = useState(false);
     const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -211,6 +213,18 @@ export const ThreeDDirectorNode: WorkflowNodeRenderer = memo(
               }}
             >
               完成
+            </button>
+          )}
+          {mentionInCopilot && (
+            <button
+              className="node-mention-btn nodrag"
+              title={`引用节点：${node.title || "3D导演台"}`}
+              onClick={(event) => {
+                event.stopPropagation();
+                mentionInCopilot(node.id);
+              }}
+            >
+              @
             </button>
           )}
           {selected && (

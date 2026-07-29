@@ -1,4 +1,4 @@
-import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
+import { forwardRef, type KeyboardEvent, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { desktopApi } from "../../services/desktopApi.js";
 import { agentNodeAliasMaps } from "../../services/agentCanvasSnapshot.js";
 import { renderMarkdown } from "../../utils/copilotMarkdown.js";
@@ -329,16 +329,11 @@ const typeLabels: Record<string, string> = {
   note: "便签",
   threeDDirector: "3D导演台",
 };
-export function CopilotPanel({
-  messages,
-  nodes,
-  busy,
-  conversations,
-  activeConversationId,
-  textModel,
-  textModels,
-  controller,
-}: {
+export interface CopilotPanelHandle {
+  /** 通过节点 id 添加引用，CopilotPanel 内部会查找 alias / title */
+  addNodeMentionById: (nodeId: string) => void;
+}
+interface CopilotPanelProps {
   messages: CopilotMessage[];
   nodes: WorkflowNodeData[];
   busy: boolean;
@@ -347,7 +342,17 @@ export function CopilotPanel({
   textModel: string;
   textModels: Array<{ id: string; label: string }>;
   controller: CopilotController;
-}) {
+}
+export const CopilotPanel = forwardRef<CopilotPanelHandle, CopilotPanelProps>(function CopilotPanel({
+  messages,
+  nodes,
+  busy,
+  conversations,
+  activeConversationId,
+  textModel,
+  textModels,
+  controller,
+}, ref) {
   const [drawer, setDrawer] = useState(false);
   const [message, setMessage] = useState("");
   const [attachments, setAttachments] = useState<Record<string, unknown>[]>([]);
@@ -379,6 +384,24 @@ export function CopilotPanel({
         })),
     [nodes, aliasMaps],
   );
+  const mentionableRef = useRef(mentionable);
+  mentionableRef.current = mentionable;
+  const addNodeMentionById = useCallback(
+    (nodeId: string) => {
+      const found = mentionableRef.current.find((node) => node.id === nodeId);
+      if (!found) return;
+      setMentions((items) => (items.some((item) => item.id === found.id) ? items : [...items, found]));
+      setMessage((value) => {
+        const token = `@${found.alias}`;
+        if (value.includes(token)) return value;
+        const trimmed = value.trimEnd();
+        return trimmed ? `${trimmed} ${token} ` : `${token} `;
+      });
+      requestAnimationFrame(() => textarea.current?.focus());
+    },
+    [],
+  );
+  useImperativeHandle(ref, () => ({ addNodeMentionById }), [addNodeMentionById]);
   const options = mentionable
     .filter(
       (node) =>
@@ -891,4 +914,4 @@ export function CopilotPanel({
       )}
     </aside>
   );
-}
+});

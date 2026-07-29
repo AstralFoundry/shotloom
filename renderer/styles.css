@@ -3081,6 +3081,28 @@ tr:last-child td {
   min-width: 4px;
 }
 
+/* ---- 节点 @ 引用按钮 ---- */
+.node-mention-btn {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: none;
+  color: #7f8d85;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.node-mention-btn:hover {
+  color: #1a1a1a;
+  background: rgba(0,0,0,.06);
+}
+
 .copilot-model-select {
   width: 116px;
   min-width: 72px;

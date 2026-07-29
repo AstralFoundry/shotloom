@@ -3,6 +3,7 @@ import {
   Suspense,
   type KeyboardEvent,
   type PointerEvent,
+  useRef,
   useState,
   useSyncExternalStore,
 } from "react";
@@ -22,6 +23,7 @@ import {
   type CopilotController,
   type CopilotMessage,
   CopilotPanel,
+  type CopilotPanelHandle,
 } from "../copilot/CopilotPanel";
 import type { VideoEditorAsset, VideoEditorController } from "../editor/VideoEditorWorkspace";
 
@@ -89,14 +91,17 @@ type CreationCopilotData = {
 function LiveCopilotPanel({
   nodes,
   controller,
+  copilotRef,
 }: {
   nodes: WorkflowNodeData[];
   controller: CreationViewController["copilot"];
+  copilotRef: React.Ref<CopilotPanelHandle>;
 }) {
   useSyncExternalStore(controller.subscribe, controller.getRevision, controller.getRevision);
   const data = controller.read();
   return (
     <CopilotPanel
+      ref={copilotRef}
       messages={data.messages}
       nodes={nodes}
       busy={data.busy}
@@ -117,6 +122,7 @@ export function CreationView({
   controller: CreationViewController;
 }) {
   const [copilotVisible, setCopilotVisible] = useState(true);
+  const copilotRef = useRef<CopilotPanelHandle>(null);
   const [copilotWidth, setCopilotWidth] = useState(() => {
     const saved = Number(window.localStorage.getItem("shotloom:copilot-width-v3"));
     const preferred = Math.round(window.innerWidth * 0.3);
@@ -191,6 +197,9 @@ export function CreationView({
           renderers={workflowNodeRenderers}
           nodeActions={controller.nodes}
           controller={controller.canvas}
+          mentionInCopilot={(nodeId) => {
+            copilotRef.current?.addNodeMentionById(nodeId);
+          }}
           overlay={
             <BottomModeBar
               canUndo={data.history.canUndo}
@@ -222,7 +231,11 @@ export function CreationView({
           />
         )}
         {copilotVisible ? (
-          <LiveCopilotPanel nodes={data.nodes} controller={copilotController} />
+          <LiveCopilotPanel
+            nodes={data.nodes}
+            controller={copilotController}
+            copilotRef={copilotRef}
+          />
         ) : (
           <button className="forge-copilot-reopen" onClick={() => setCopilotVisible(true)}>
             打开 Copilot

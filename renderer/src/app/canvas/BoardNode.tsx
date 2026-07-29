@@ -1,4 +1,4 @@
-import { memo, type PointerEvent, useEffect, useRef, useState } from "react";
+import { memo, type PointerEvent, useContext, useEffect, useRef, useState } from "react";
 import { Handle, Position } from "@xyflow/react";
 import {
   boardToDataUrl,
@@ -8,10 +8,12 @@ import {
 } from "../../utils/boardRender.js";
 import { toRaw } from "../../store/domainReactivity.js";
 import { IconSymbol } from "../components/IconSymbol";
+import { MentionContext } from "./WorkflowCanvas";
 import type { WorkflowNodeRenderer } from "./WorkflowCanvas";
 
 type Point = { x: number; y: number };
 export const BoardNode: WorkflowNodeRenderer = memo(({ node, selected, actions }) => {
+  const mentionInCopilot = useContext(MentionContext);
   const canvas = useRef<HTMLCanvasElement>(null);
   const [tool, setTool] = useState<"draw" | "text" | "crop">("draw");
   const [color, setColor] = useState("#1f2937");
@@ -131,6 +133,18 @@ export const BoardNode: WorkflowNodeRenderer = memo(({ node, selected, actions }
           onChange={(e) => actions.update(node.id, { title: e.target.value })}
           onClick={(e) => e.stopPropagation()}
         />
+        {mentionInCopilot && (
+          <button
+            className="node-mention-btn"
+            title={`引用节点：${node.title || "画板"}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              mentionInCopilot(node.id);
+            }}
+          >
+            @
+          </button>
+        )}
         <button
           title="导出图片"
           onClick={() => actions.exportBoard(node.id, boardToDataUrl(boardRef.current))}
