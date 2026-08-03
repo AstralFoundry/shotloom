@@ -26,6 +26,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Check updater signing secret
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          if [[ -z "$TAURI_SIGNING_PRIVATE_KEY" ]]; then
+            echo "::error::Missing required updater signing secret: TAURI_SIGNING_PRIVATE_KEY"
+            exit 1
+          fi
+
       - name: Validate version and tag availability
         shell: bash
         env:
@@ -171,7 +181,8 @@ jobs:
       - name: Build release assets
         uses: tauri-apps/tauri-action@v1
         env:
-          TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           retryAttempts: 2
           tauriScript: npm run tauri
