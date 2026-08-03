@@ -5,8 +5,10 @@
   "identifier": "com.shotloom.app",
   "plugins": {
     "updater": {
-      "endpoints": [],
-      "pubkey": ""
+      "endpoints": [
+        "https://github.com/AstralFoundry/shotloom/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEYyNzZGQUYyMkExODU5RDIKUldUU1dSZ3E4dnAyOGcyaDg2WWdtRFJNY3NrdVIwT0NiQjYrOXNaWG5pdXJFT2FlNW1RZEVCSnUK"
     }
   },
   "build": {
@@ -47,7 +49,7 @@
       "zh-Hans.lproj/InfoPlist.strings"
     ],
     "targets": "all",
-    "createUpdaterArtifacts": false,
+    "createUpdaterArtifacts": true,
     "icon": [
       "icons/app.png",
       "icons/app.icns",

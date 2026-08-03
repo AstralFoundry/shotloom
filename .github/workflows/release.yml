@@ -69,19 +69,19 @@ jobs:
             rust-target: aarch64-apple-darwin
             args: --target aarch64-apple-darwin --bundles dmg
             artifact: release-macos-arm64
-            artifact-path: src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
+            artifact-path: src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg*
           - name: macOS x64
             os: macos-15-intel
             rust-target: x86_64-apple-darwin
             args: --target x86_64-apple-darwin --bundles dmg
             artifact: release-macos-x64
-            artifact-path: src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/*.dmg
+            artifact-path: src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/*.dmg*
           - name: Windows x64
             os: windows-latest
             rust-target: x86_64-pc-windows-msvc
             args: --bundles nsis
             artifact: release-windows-x64
-            artifact-path: src-tauri/target/release/bundle/nsis/*.exe
+            artifact-path: src-tauri/target/release/bundle/nsis/*.exe*
 
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
@@ -170,6 +170,8 @@ jobs:
 
       - name: Build release assets
         uses: tauri-apps/tauri-action@v1
+        env:
+          TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
         with:
           retryAttempts: 2
           tauriScript: npm run tauri
@@ -229,3 +231,35 @@ jobs:
             fi
             gh release create "$RELEASE_TAG" "${assets[@]}" "${create_args[@]}"
           fi
+
+          # Generate latest.json for Tauri updater
+          version="${RELEASE_TAG#v}"
+          latest='{"version":"'"$version"'","notes":"See https://github.com/AstralFoundry/shotloom/releases/tag/'"$RELEASE_TAG"'","pub_date":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","platforms":{'
+
+          first=true
+          for sig in release-assets/*.sig; do
+            [[ -f "$sig" ]] || continue
+            base="${sig%.sig}"
+            installer="$(basename "$base")"
+            sig_content="$(cat "$sig")"
+
+            case "$installer" in
+              *aarch64*.dmg)   platform="darwin-aarch64" ;;
+              *x86_64*.dmg)    platform="darwin-x86_64" ;;
+              *x64*.exe)       platform="windows-x86_64" ;;
+              *)               echo "::warning::Unknown platform for $installer"; continue ;;
+            esac
+
+            url="https://github.com/AstralFoundry/shotloom/releases/download/$RELEASE_TAG/$installer"
+
+            [[ "$first" == true ]] && first=false || latest+=','
+            latest+='"'"$platform"'":{"signature":"'"$sig_content"'","url":"'"$url"'"}'
+          done
+          latest+='}}'
+
+          echo "$latest" > latest.json
+          echo "::group::latest.json"
+          cat latest.json
+          echo "::endgroup::"
+
+          gh release upload "$RELEASE_TAG" latest.json --clobber

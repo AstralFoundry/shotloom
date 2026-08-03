@@ -12,6 +12,14 @@ Configure these in **Settings → Secrets and variables → Actions** before pus
 - `APPLE_ID`: Apple Developer account email address.
 - `APPLE_PASSWORD`: App-specific password for that Apple ID.
 - `APPLE_TEAM_ID`: Apple Developer Team ID.
+- `TAURI_PRIVATE_KEY`: Private key for Tauri updater signature verification. Generate a key pair locally then paste the private key contents:
+
+  ```sh
+  npm run tauri signer generate -- --write-keys /tmp/shotloom-updater.key
+  cat /tmp/shotloom-updater.key
+  ```
+
+  Copy the output and set it as `TAURI_PRIVATE_KEY`. Keep the generated file secure or delete it after configuring the secret.
 
 The Apple account must be a paid Apple Developer Program account. A free account cannot notarize macOS applications.
 
