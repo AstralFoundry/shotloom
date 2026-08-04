@@ -125,14 +125,6 @@ export const BoardNode: WorkflowNodeRenderer = memo(({ node, selected, actions }
         position={Position.Right}
       />
       <div className="board-head">
-        <IconSymbol name="grid" />
-        <input
-          className="nodrag"
-          value={String(node.title || "画板")}
-          placeholder="画板"
-          onChange={(e) => actions.update(node.id, { title: e.target.value })}
-          onClick={(e) => e.stopPropagation()}
-        />
         {mentionInCopilot && (
           <button
             className="node-mention-btn"
@@ -145,6 +137,14 @@ export const BoardNode: WorkflowNodeRenderer = memo(({ node, selected, actions }
             @
           </button>
         )}
+        <IconSymbol name="grid" />
+        <input
+          className="nodrag"
+          value={String(node.title || "画板")}
+          placeholder="画板"
+          onChange={(e) => actions.update(node.id, { title: e.target.value })}
+          onClick={(e) => e.stopPropagation()}
+        />
         <button
           title="导出图片"
           onClick={() => actions.exportBoard(node.id, boardToDataUrl(boardRef.current))}

@@ -187,6 +187,18 @@ export const ThreeDDirectorNode: WorkflowNodeRenderer = memo(
         />
         <header className="director-node-head">
           <span className="director-node-drag-handle" title="拖动 3D 导演台" aria-hidden="true" />
+          {mentionInCopilot && (
+            <button
+              className="node-mention-btn nodrag"
+              title={`引用节点：${node.title || "3D导演台"}`}
+              onClick={(event) => {
+                event.stopPropagation();
+                mentionInCopilot(node.id);
+              }}
+            >
+              @
+            </button>
+          )}
           <label className="director-node-kind">
             <IconSymbol name="box" />
             <input
@@ -213,18 +225,6 @@ export const ThreeDDirectorNode: WorkflowNodeRenderer = memo(
               }}
             >
               完成
-            </button>
-          )}
-          {mentionInCopilot && (
-            <button
-              className="node-mention-btn nodrag"
-              title={`引用节点：${node.title || "3D导演台"}`}
-              onClick={(event) => {
-                event.stopPropagation();
-                mentionInCopilot(node.id);
-              }}
-            >
-              @
             </button>
           )}
           {selected && (
