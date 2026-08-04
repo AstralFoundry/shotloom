@@ -51,7 +51,7 @@ test('所有桌面构建入口都在 Cargo 或 Tauri 构建前准备平台 sidec
   );
 
   const release = read('.github/workflows/release.yml');
-  assert.ok(release.indexOf('npm run prepare:opencode') < release.indexOf('name: Check Apple signing secrets'));
+  assert.ok(release.indexOf('npm run prepare:opencode') < release.indexOf('name: Detect Apple signing credentials'));
   assert.ok(release.indexOf('npm run prepare:opencode') < release.indexOf('name: Build release assets'));
 });
 

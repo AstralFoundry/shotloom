@@ -26,4 +26,6 @@ test('release workflow publishes signed updater packages for every desktop targe
   assert.match(workflow, /\*x86_64\*\.app\.tar\.gz\).*darwin-x86_64/);
   assert.match(workflow, /find release-assets -type f -name '\*\.sig' -print0/);
   assert.match(workflow, /platform_count != 3/);
+  assert.match(workflow, /Publishing unsigned and unnotarized macOS artifacts/);
+  assert.match(workflow, /steps\.apple_signing\.outputs\.enabled == 'true'/);
 });

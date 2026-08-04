@@ -122,8 +122,9 @@ jobs:
       - run: npm run check
       - run: npm run prepare:opencode
 
-      - name: Check Apple signing secrets
-        if: runner.os == 'macOS' && github.event_name == 'push'
+      - name: Detect Apple signing credentials
+        id: apple_signing
+        if: runner.os == 'macOS'
         shell: bash
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
@@ -140,13 +141,15 @@ jobs:
             fi
           done
 
-          if (( ${#missing[@]} > 0 )); then
-            echo "::error::Missing required macOS release secrets: ${missing[*]}"
-            exit 1
+          if (( ${#missing[@]} == 0 )); then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Publishing unsigned and unnotarized macOS artifacts; missing Apple credentials: ${missing[*]}"
           fi
 
       - name: Import Apple Developer ID certificate
-        if: runner.os == 'macOS' && github.event_name == 'push'
+        if: runner.os == 'macOS' && steps.apple_signing.outputs.enabled == 'true'
         shell: bash
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
