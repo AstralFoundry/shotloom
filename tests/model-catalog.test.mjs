@@ -106,11 +106,41 @@ test('内置目录只包含已按官方接口核实的当前模型', () => {
     'deepseek-v4-pro', 'kimi-k3', 'glm-5.2', 'glm-image', 'cogvideox-3',
     'doubao-seedance-2-0-260128', 'doubao-seedance-2-0-fast-260128',
     'doubao-seedance-2-0-mini-260615',
+    'MiniMax-H3',
     'kling-3.0-turbo', 'kling-3.0', 'kling-3.0-omni',
   ]) assert.equal(ids.has(id), true, `缺少内置模型 ${id}`);
   for (const removed of ['gpt-5.5', 'gemini-3.5-flash', 'gemini-3.1-pro', 'kling-v3', 'happyhorse-1.1-t2v']) {
     assert.equal(ids.has(removed), false, `仍保留未经本轮官方核实的旧模型 ${removed}`);
   }
+});
+
+test('MiniMax H3 使用官方 Video Generation V2 任务协议', () => {
+  const model = catalog.models.find((item) => item.id === 'MiniMax-H3');
+  assert.equal(model.provider, 'minimax');
+  assert.deepEqual(model.modes.map((mode) => mode.id), ['text-to-video', 'first-frame-to-video']);
+  for (const mode of model.modes) {
+    assert.deepEqual(mode.endpoint, { method: 'POST', path: '/v2/video_generation', scope: 'root' });
+    assert.deepEqual(mode.taskEndpoint, { method: 'GET', path: '/v2/query/video_generation/{taskId}', scope: 'root' });
+    assert.equal(mode.taskIdPath, 'task_id');
+    assert.equal(mode.statusPath, 'task.status');
+    assert.equal(mode.errorPath, 'task.error.message');
+    assert.equal(mode.resultUrlPath, 'task.content.url');
+    assert.deepEqual(mode.params.find((param) => param.key === 'resolution').options, ['768P', '2K']);
+    assert.deepEqual(mode.outputConstraints.durations, [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]);
+  }
+
+  const textMode = model.modes.find((mode) => mode.id === 'text-to-video');
+  assert.deepEqual(textMode.inputConstraints.images, { min: 0, max: 0 });
+  assert.deepEqual(textMode.params.find((param) => param.key === 'aspectRatio').options, [
+    '21:9', '16:9', '4:3', '1:1', '3:4', '9:16',
+  ]);
+
+  const imageMode = model.modes.find((mode) => mode.id === 'first-frame-to-video');
+  assert.deepEqual(imageMode.inputConstraints.images, {
+    min: 1, max: 1, roles: ['referenceImage'], formats: ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif'],
+  });
+  assert.equal(imageMode.requestFields.imageContentRole, 'first_frame');
+  assert.equal(imageMode.requestTemplate.ratio, 'adaptive');
 });
 
 test('Kling 3.0 系列使用官方 API 2.0 视频任务协议', () => {

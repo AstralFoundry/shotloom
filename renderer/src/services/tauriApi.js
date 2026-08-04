@@ -113,9 +113,12 @@ function rasterizeImageDataUrl(dataUrl, width = 512, height = 512) {
 }
 
 async function materializeVideoProjectAssets(project) {
-  const prepared = typeof structuredClone === 'function'
-    ? structuredClone(project)
-    : JSON.parse(JSON.stringify(project));
+  let prepared;
+  try {
+    prepared = JSON.parse(JSON.stringify(project));
+  } catch (cause) {
+    throw new Error(`剪辑工程无法序列化：${cause instanceof Error ? cause.message : String(cause)}`);
+  }
   for (const asset of prepared?.assets || []) {
     if (asset.type !== 'image' || asset.sourceFile || !String(asset.sourceUrl || '').startsWith('data:image/')) continue;
     const dataUrl = String(asset.sourceUrl);

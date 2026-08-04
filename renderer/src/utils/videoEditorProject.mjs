@@ -32,7 +32,7 @@ export function createVideoEditorProject({
       fps: clamp(fps, 1, 120),
       backgroundColor: '#050608',
     },
-    assets: [
+    assets: sourceFile || sourceUrl ? [
       {
         id: assetId,
         type: 'video',
@@ -43,7 +43,7 @@ export function createVideoEditorProject({
         width: number(width, 1920),
         height: number(height, 1080),
       },
-    ],
+    ] : [],
     tracks: [
       {
         id: videoTrackId,
@@ -126,8 +126,9 @@ function migrateLegacyProject(project, options) {
   const asset = base.assets[0];
   const duration = Math.max(
     0,
-    number(options.duration ?? project?.sourceDuration ?? asset.duration),
+    number(options.duration ?? project?.sourceDuration ?? asset?.duration),
   );
+  if (!asset) return base;
   asset.duration = duration;
   const legacy = Array.isArray(project?.segments) ? project.segments : [];
   let cursor = 0;
@@ -290,6 +291,40 @@ export function editorClipDuration(clip) {
   return clip?.type === 'video' || clip?.type === 'audio'
     ? Math.max(0, number(clip.trimEnd) - number(clip.trimStart)) / clamp(clip.speed || 1, 0.5, 2)
     : Math.max(0, number(clip?.duration));
+}
+export function activeEditorClip(clips, time) {
+  let active = null;
+  for (const clip of clips || []) {
+    const start = number(clip.timelineStart);
+    const end = start + editorClipDuration(clip);
+    if (time >= start && time < end && (!active || start >= active.timelineStart)) {
+      active = clip;
+    }
+  }
+  return active;
+}
+export function snapEditorClipStart(project, clipId, requestedStart, tolerance) {
+  const found = findEditorClip(project, clipId);
+  if (!found) return requestedStart;
+  const duration = editorClipDuration(found.clip);
+  const boundaries = [0];
+  for (const clip of found.track.clips) {
+    if (clip.id === clipId) continue;
+    const start = number(clip.timelineStart);
+    boundaries.push(start, start + editorClipDuration(clip));
+  }
+  let best = requestedStart;
+  let distance = tolerance + Number.EPSILON;
+  for (const boundary of boundaries) {
+    for (const candidate of [boundary, boundary - duration]) {
+      const candidateDistance = Math.abs(candidate - requestedStart);
+      if (candidate >= 0 && candidateDistance < distance) {
+        best = candidate;
+        distance = candidateDistance;
+      }
+    }
+  }
+  return best;
 }
 export function videoEditorDuration(project) {
   return Math.max(

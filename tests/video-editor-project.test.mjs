@@ -3,12 +3,26 @@ import test from 'node:test';
 import {
   addEditorClip,
   addEditorTrack,
+  activeEditorClip,
   createVideoEditorProject,
   editorProjectToOpenVideo,
   normalizeVideoEditorProject,
+  snapEditorClipStart,
   updateEditorClip,
   videoEditorDuration,
 } from '../renderer/src/utils/videoEditorProject.mjs';
+
+test('空白剪辑工程无需源视频即可初始化', () => {
+  const project = normalizeVideoEditorProject(undefined, {
+    sourceFile: '',
+    sourceUrl: '',
+    duration: 0,
+  });
+  assert.equal(project.schema, 'shotloom.video-edit');
+  assert.deepEqual(project.assets, []);
+  assert.equal(project.tracks.find((track) => track.type === 'video').clips.length, 0);
+  assert.equal(videoEditorDuration(project), 0);
+});
 
 const ids = (() => {
   let value = 0;
@@ -91,6 +105,30 @@ test('视频静音只归零预览音量，不移除可重新开启的内嵌音�
   );
   assert.equal(converted.audio, true);
   assert.equal(converted.volume, 0);
+});
+
+test('重叠视频优先播放时间线上后出现的片段', () => {
+  const clips = [
+    { id: 'first', type: 'video', timelineStart: 0, trimStart: 0, trimEnd: 6, speed: 1 },
+    { id: 'second', type: 'video', timelineStart: 4, trimStart: 0, trimEnd: 6, speed: 1 },
+  ];
+  assert.equal(activeEditorClip(clips, 3).id, 'first');
+  assert.equal(activeEditorClip(clips, 5).id, 'second');
+  assert.equal(activeEditorClip(clips, 10), null);
+});
+
+test('拖动视频片段时开头和结尾都会吸附相邻边界', () => {
+  const project = createVideoEditorProject({ sourceUrl: 'asset://a', duration: 5, createId: ids });
+  const track = project.tracks[0];
+  const first = track.clips[0];
+  const next = addEditorClip(project, track.id, {
+    ...first,
+    id: 'second',
+    timelineStart: 7,
+  }, ids);
+  assert.equal(snapEditorClipStart(next, 'second', 5.08, .1), 5);
+  assert.equal(snapEditorClipStart(next, first.id, 1.92, .1), 2);
+  assert.equal(snapEditorClipStart(next, 'second', 6, .1), 6);
 });
 
 test('画布变换和文字样式保存在同一工程 JSON', () => {

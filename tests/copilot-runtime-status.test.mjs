@@ -20,9 +20,13 @@ const styles = readFileSync(
 );
 const baseStyles = readFileSync(new URL('../renderer/styles.css', import.meta.url), 'utf8');
 
-test('画布助手用统一点阵状态呈现 Agent 运行过程', () => {
+test('画布助手用可展开的纵向轨迹呈现 Agent 运行过程', () => {
   assert.match(panel, /copilot-run-activity/);
-  assert.match(panel, /typing && <BusyBrailleSpinner/);
+  assert.match(panel, /深思熟虑/);
+  assert.match(panel, /copilot-activity-group/);
+  assert.match(panel, /<strong>Skills<\/strong>/);
+  assert.match(panel, /tool\.effect === "media_generation"/);
+  assert.match(panel, /"等待批准"/);
   assert.doesNotMatch(styles, /copilot-run-spin/);
   assert.match(panel, /className="copilot-run-stop"/);
   assert.match(panel, /aria-label="停止 Agent"/);
@@ -31,7 +35,8 @@ test('画布助手用统一点阵状态呈现 Agent 运行过程', () => {
     styles,
     /\.copilot-run-activity > \.copilot-tool-stream \{[^}]*background:\s*transparent/,
   );
-  assert.doesNotMatch(styles, /\.copilot-run-activity \{[^}]*border:/);
+  assert.match(styles, /copilot-activity-chevron/);
+  assert.match(styles, /--activity-line/);
   assert.doesNotMatch(panel, /copilot-run-status|copilot-stop-button/);
 });
 
@@ -56,6 +61,14 @@ test('聊天正文不再铺开普通工具、技能和执行记录', () => {
   assert.doesNotMatch(panel, /copilot-skill-strip/);
   assert.doesNotMatch(panel, /copilot-work-log/);
   assert.doesNotMatch(presenter, /skillsUsed|workLog|subagents:/);
+});
+
+test('Presenter 保留真实 Skill、Recipe 和工具权限类型供运行轨迹分组', () => {
+  assert.match(presenter, /kind: 'skill'/);
+  assert.match(presenter, /kind: 'recipe'/);
+  assert.match(presenter, /kind: 'tool'/);
+  assert.match(presenter, /effect: String\(event\.effect/);
+  assert.match(presenter, /event\.type === 'skill_used'[\s\S]*?this\.tools\.push/);
 });
 
 test('完成态沿用流式正文而不是用最终响应整段覆盖', () => {

@@ -6,6 +6,8 @@ import keyframeVideo from '../agent/content/skills/keyframe-video/SKILL.md?raw';
 import keyframeVideoManifest from '../agent/content/skills/keyframe-video/skill.json';
 import shortDrama from '../agent/content/skills/short-drama/SKILL.md?raw';
 import shortDramaManifest from '../agent/content/skills/short-drama/skill.json';
+import scriptToVideo from '../agent/content/skills/script-to-video/SKILL.md?raw';
+import scriptToVideoManifest from '../agent/content/skills/script-to-video/skill.json';
 import socialMedia from '../agent/content/skills/social-media/SKILL.md?raw';
 import socialMediaManifest from '../agent/content/skills/social-media/skill.json';
 import talkingHead from '../agent/content/skills/talking-head/SKILL.md?raw';
@@ -69,6 +71,7 @@ export const builtInSkills = [
   parseBuiltInSkill(ecommerceProduct, ecommerceProductManifest),
   parseBuiltInSkill(general, generalManifest),
   parseBuiltInSkill(keyframeVideo, keyframeVideoManifest),
+  parseBuiltInSkill(scriptToVideo, scriptToVideoManifest),
   parseBuiltInSkill(shortDrama, shortDramaManifest),
   parseBuiltInSkill(socialMedia, socialMediaManifest),
   parseBuiltInSkill(talkingHead, talkingHeadManifest),

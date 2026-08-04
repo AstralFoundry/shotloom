@@ -7,6 +7,7 @@ interface AppShellProps {
   platform: string;
   view: ReactNode;
   onAddNode: (type: string) => void;
+  onVideoEdit: () => void;
   onNotify: () => void;
   onSettings: () => void;
   onUpdate: () => void;
@@ -17,6 +18,7 @@ export function AppShell({
   platform,
   view,
   onAddNode,
+  onVideoEdit,
   onNotify,
   onSettings,
   onUpdate,
@@ -108,6 +110,7 @@ export function AppShell({
       <main className="workspace sidebar-collapsed">
         <SideBar
           onAddNode={onAddNode}
+          onVideoEdit={onVideoEdit}
           onNotify={onNotify}
           onSettings={onSettings}
           onUpdate={onUpdate}

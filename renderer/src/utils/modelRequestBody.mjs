@@ -30,6 +30,7 @@ const DEFAULT_BASE_URLS = {
   openai: 'https://api.openai.com/v1',
   bytedance: 'https://ark.cn-beijing.volces.com/api/v3',
   kling: 'https://api-singapore.klingai.com',
+  minimax: 'https://api.minimax.io',
   google: 'https://generativelanguage.googleapis.com/v1beta',
   xai: 'https://api.x.ai/v1',
   anthropic: 'https://api.anthropic.com',

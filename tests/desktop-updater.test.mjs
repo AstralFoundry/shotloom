@@ -7,6 +7,11 @@ const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf
 test('desktop updater keeps the checked update for download and installation', () => {
   const api = read('renderer/src/services/tauriApi.js');
   const store = read('renderer/src/store/updateStore.js');
+  const dialog = read('renderer/src/app/components/UpdateDialog.tsx');
+  const checkFlow = store.slice(
+    store.indexOf('export async function checkForUpdate'),
+    store.indexOf('export async function downloadUpdate'),
+  );
 
   assert.match(api, /pendingUpdate = update/);
   assert.match(api, /await pendingUpdate\.download\(/);
@@ -15,6 +20,10 @@ test('desktop updater keeps the checked update for download and installation', (
   assert.doesNotMatch(api, /尚未配置 Tauri updater/);
   assert.match(store, /desktopApi\.update\.download\(\(progress\) =>/);
   assert.match(store, /applyAvailable\(result\.info \|\| updateStore\.info, 'ready'\)/);
+  assert.match(store, /result\.error \? '检查更新失败，请稍后重试'/);
+  assert.doesNotMatch(checkFlow, /updateStore\.error = result\.error \|\|/);
+  assert.match(dialog, /data\.checking[\s\S]*正在连接更新服务器/);
+  assert.match(dialog, /button-spinner/);
 });
 
 test('release workflow publishes signed updater packages for every desktop target', () => {

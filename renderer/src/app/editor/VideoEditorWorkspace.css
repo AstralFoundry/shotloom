@@ -21,6 +21,116 @@ body.video-editor-open {
   font-family: "Avenir Next", "PingFang SC", sans-serif;
   animation: ov-in 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
+
+.ov-import-source-menu {
+  margin: 0 12px 10px;
+  padding: 10px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+  border: 1px solid var(--ov-border);
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, .08);
+}
+
+.ov-import-source-menu strong {
+  grid-column: 1 / -1;
+  color: var(--ov-muted);
+  font-size: 11px;
+}
+
+.ov-import-source-menu button {
+  min-height: 34px;
+  border: 1px solid var(--ov-border);
+  border-radius: 8px;
+  background: var(--ov-panel-soft);
+  color: var(--ov-text);
+}
+
+.ov-import-browser-backdrop {
+  position: absolute;
+  z-index: 80;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 32px;
+  background: rgba(15, 23, 42, .28);
+  backdrop-filter: blur(3px);
+}
+
+.ov-import-browser {
+  width: min(760px, 90vw);
+  max-height: min(620px, 82vh);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+  border: 1px solid var(--ov-border);
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, .22);
+}
+
+.ov-import-browser > header {
+  padding: 16px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--ov-border);
+}
+
+.ov-import-browser > header div,
+.ov-import-browser-grid button span {
+  display: grid;
+  gap: 3px;
+  text-align: left;
+}
+
+.ov-import-browser > header span,
+.ov-import-browser-grid small {
+  color: var(--ov-muted);
+  font-size: 11px;
+}
+
+.ov-import-browser-grid {
+  padding: 14px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+  overflow: auto;
+}
+
+.ov-import-browser-grid button {
+  min-width: 0;
+  padding: 12px;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--ov-border);
+  border-radius: 10px;
+  background: var(--ov-panel-soft);
+}
+
+.ov-import-browser-grid button > svg {
+  width: 20px;
+  height: 20px;
+  color: var(--ov-accent);
+}
+
+.ov-import-browser-grid strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ov-import-browser-empty {
+  min-height: 220px;
+  display: grid;
+  place-items: center;
+  color: var(--ov-muted);
+  font-size: 13px;
+}
 .ov-editor button {
   border-radius: 3px;
   cursor: pointer;
@@ -1586,6 +1696,24 @@ body.video-editor-open {
   pointer-events: none;
 }
 .ov-clip-media :is(video, img) { width: 100%; height: 100%; display: block; object-fit: cover; }
+.ov-clip-media .ov-clip-filmstrip { object-fit: fill; }
+.ov-clip-filmstrip-window {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: block;
+  overflow: hidden;
+}
+.ov-clip-filmstrip-window .ov-clip-filmstrip { width: 100%; height: 100%; }
+.ov-clip-frame-loading {
+  width: 100%;
+  height: 100%;
+  display: block;
+  background: linear-gradient(110deg, #dceef8 28%, #eef7fc 42%, #dceef8 56%);
+  background-size: 240% 100%;
+  animation: ov-clip-frame-loading 1.2s linear infinite;
+}
+@keyframes ov-clip-frame-loading { to { background-position: -240% 0; } }
 .ov-clip.has-media small { color: #708997; }
 .ov-clip.has-thumbnail small { color: rgba(255, 255, 255, .8); }
 .ov-clip-text { border-color: #baa9f0; color: #463985; background: #eee9ff; }

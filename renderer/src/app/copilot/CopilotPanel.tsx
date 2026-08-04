@@ -4,6 +4,7 @@ import { agentNodeAliasMaps } from "../../services/agentCanvasSnapshot.js";
 import { renderMarkdown } from "../../utils/copilotMarkdown.js";
 import { IconSymbol } from "../components/IconSymbol";
 import type { WorkflowNodeData } from "../canvas/WorkflowCanvas";
+import { isImeKeyEvent } from "../canvas/imeComposition";
 
 const markdownByMessage = new WeakMap<CopilotMessage, { content: string; html: string }>();
 
@@ -65,6 +66,8 @@ interface ProductionPlanView {
 export interface CopilotToolCall {
   id?: string;
   name?: string;
+  kind?: "skill" | "recipe" | "tool";
+  effect?: string;
   status?: string;
   summary?: string;
   pending?: boolean;
@@ -139,6 +142,8 @@ function ToolActivity({
 }) {
   const viewport = useRef<HTMLDivElement>(null);
   const latest = tools.at(-1);
+  const methods = tools.filter((tool) => tool.kind === "skill" || tool.kind === "recipe");
+  const actions = tools.filter((tool) => tool.kind !== "skill" && tool.kind !== "recipe");
   useEffect(() => {
     const element = viewport.current;
     if (element) element.scrollTop = element.scrollHeight;
@@ -146,35 +151,67 @@ function ToolActivity({
   if (!tools.length) return null;
   return (
     <div className="copilot-tool-stream" ref={viewport} aria-label="Agent 工具调用">
-      {tools.map((tool, index) => (
-        <div key={tool.id || index} className={`copilot-tool-call is-${tool.status || "idle"}`}>
-          <i />
-          <span>{tool.summary || tool.name || "正在处理"}</span>
-          {tool.pending && tool.interactionId && (
-            <span className="copilot-tool-confirm-actions">
-              <button
-                onClick={() =>
-                  controller.rejectToolCall({
-                    interactionId: tool.interactionId,
-                  })
-                }
-              >
-                拒绝
-              </button>
-              <button
-                className="primary"
-                onClick={() =>
-                  controller.approveToolCall({
-                    interactionId: tool.interactionId,
-                  })
-                }
-              >
-                确认执行
-              </button>
-            </span>
-          )}
-        </div>
-      ))}
+      {methods.length > 0 && (
+        <details className="copilot-activity-group">
+          <summary>
+            <span className="copilot-activity-icon"><IconSymbol name="spark" /></span>
+            <strong>Skills</strong>
+            <em>{methods.length}</em>
+            <IconSymbol className="copilot-activity-chevron" name="chevron-down" />
+          </summary>
+          <div className="copilot-activity-methods">
+            {methods.map((tool, index) => (
+              <span key={tool.id || index}>{tool.summary || tool.name}</span>
+            ))}
+          </div>
+        </details>
+      )}
+      {actions.map((tool, index) => {
+        const generation = tool.effect === "media_generation";
+        const planning = tool.name?.startsWith("plan_");
+        const canvas = /canvas|node|edge|layout/.test(tool.name || "");
+        const label = generation ? "Generation" : planning ? "Planning" : canvas ? "Canvas" : "Action";
+        const icon = generation ? "film" : planning ? "list" : canvas ? "workflow" : "task";
+        const state = tool.pending
+          ? "等待批准"
+          : tool.status === "running"
+            ? "进行中"
+            : tool.status === "error"
+              ? "失败"
+              : "已完成";
+        return (
+          <details
+            key={tool.id || index}
+            className={`copilot-tool-call is-${tool.status || "idle"}`}
+            open={tool.pending || (index === actions.length - 1 && tool.status === "running")}
+          >
+            <summary>
+              <span className="copilot-activity-icon"><IconSymbol name={icon} /></span>
+              <strong>{label}</strong>
+              <em>{state}</em>
+              <IconSymbol className="copilot-activity-chevron" name="chevron-down" />
+            </summary>
+            <div className="copilot-tool-detail">
+              <p>{tool.summary || tool.name || "正在处理"}</p>
+              {tool.pending && tool.interactionId && (
+                <span className="copilot-tool-confirm-actions">
+                  <button
+                    onClick={() => controller.rejectToolCall({ interactionId: tool.interactionId })}
+                  >
+                    拒绝
+                  </button>
+                  <button
+                    className="primary"
+                    onClick={() => controller.approveToolCall({ interactionId: tool.interactionId })}
+                  >
+                    确认执行
+                  </button>
+                </span>
+              )}
+            </div>
+          </details>
+        );
+      })}
     </div>
   );
 }
@@ -198,9 +235,11 @@ function AgentRunActivity({
       className={`copilot-run-activity${typing ? " is-running" : ""}${waitingForAnswer ? " is-waiting" : ""}`}
     >
       <header>
-        {typing && <BusyBrailleSpinner />}
-        <strong>{typing ? title || "正在处理任务" : "执行记录"}</strong>
-        {!waitingForAnswer && <span>{tools.length} 项</span>}
+        <span className="copilot-activity-icon is-thinking">
+          <IconSymbol name="spark" />
+        </span>
+        <strong>深思熟虑</strong>
+        <span>{typing ? title || "正在处理任务" : "已完成"}</span>
         {typing && (
           <button
             className="copilot-run-stop"
@@ -504,6 +543,7 @@ export const CopilotPanel = forwardRef<CopilotPanelHandle, CopilotPanelProps>(fu
     setMentionOpen(false);
   }
   function keydown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (isImeKeyEvent(event.nativeEvent)) return;
     if (mentionOpen && event.key === "ArrowDown") {
       event.preventDefault();
       setMentionIndex((value) => (options.length ? (value + 1) % options.length : 0));

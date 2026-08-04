@@ -1,0 +1,32 @@
+{
+  "id": "script-to-video",
+  "category": "video",
+  "version": 1,
+  "triggers": {
+    "keywords": [
+      "剧本生视频",
+      "脚本生视频",
+      "上传剧本生成视频",
+      "剧本转视频",
+      "脚本转视频",
+      "Prompt Draft",
+      "Nano Banana 2",
+      "Seedance 2.0"
+    ]
+  },
+  "recipeIds": [
+    "narrative-source-analysis",
+    "video-character-design",
+    "drama-scene-extraction",
+    "drama-prop-extraction",
+    "drama-shot-planning",
+    "script-element-reference",
+    "video-shot-storyboard",
+    "video-action-sequence-board",
+    "video-frame-extraction",
+    "script-seedance-shot",
+    "video-clip-generation",
+    "video-audio-design",
+    "video-audio-production-sheet"
+  ]
+}

@@ -9,6 +9,7 @@ import { type AppRoute, useAppStore } from "../store/appStore";
 
 interface SideBarProps {
   onAddNode: (type: string) => void;
+  onVideoEdit: () => void;
   onNotify: () => void;
   onSettings: () => void;
   onUpdate: () => void;
@@ -22,6 +23,7 @@ interface SideBarProps {
 export function SideBar(
   {
     onAddNode,
+    onVideoEdit,
     onNotify,
     onSettings,
     onUpdate,
@@ -130,6 +132,14 @@ export function SideBar(
                 <>
                   <div className="side-title">节点</div>
                   <div className="side-list">
+                    <button
+                      className="side-item"
+                      title={iconRail ? "视频剪辑" : undefined}
+                      onClick={onVideoEdit}
+                    >
+                      <IconSymbol name="scissors" />
+                      <span>视频剪辑</span>
+                    </button>
                     {nodeTypes.map((item) => (
                       <button
                         key={item.id}

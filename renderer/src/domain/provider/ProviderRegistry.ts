@@ -88,6 +88,18 @@ const BUILT_IN_PROVIDERS: ProviderDefinition[] = [
     ],
   },
   {
+    id: 'minimax',
+    name: 'MiniMax',
+    description: 'MiniMax Hailuo 视频生成官方接口',
+    iconId: 'minimax',
+    authType: 'api-key',
+    defaultBaseUrl: 'https://api.minimax.io',
+    credentials: [
+      KEY_FIELD,
+      { key: 'baseUrl', label: '接口地址', required: false, placeholder: 'https://api.minimax.io' },
+    ],
+  },
+  {
     id: 'google',
     name: 'Google Gemini',
     description: 'Gemini / Imagen / Veo 官方接口',

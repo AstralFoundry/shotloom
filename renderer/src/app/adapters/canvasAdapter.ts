@@ -679,7 +679,16 @@ export const canvasCommands = {
       const referenced = await useLocalAssetInProject(item, { copy: false });
       material = { ...referenced.material, assetId: referenced.asset.id };
     }
-    applyMaterialToCanvas(material);
+    return applyMaterialToCanvas(material);
+  },
+  openBlankVideoEditor() {
+    recordCanvasHistory("新建视频剪辑");
+    const node: any = addNode("videoGeneration");
+    node.title = "视频剪辑";
+    node.videoEdit = { dirty: false };
+    touchProject();
+    if (videoEditorOpener) videoEditorOpener(node.id);
+    return node;
   },
   async exportSelectedAssets() {
     const ids = new Set(

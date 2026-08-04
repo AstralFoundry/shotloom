@@ -29,6 +29,7 @@ export const updateDialogController: UpdateDialogController = {
   close() {
     if (
       (updateStore.info as UpdateDialogData["info"])?.forceUpdate ||
+      updateStore.checking ||
       updateStore.phase === "downloading"
     ) return;
     updateStore.dialogOpen = false;

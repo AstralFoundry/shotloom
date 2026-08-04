@@ -916,21 +916,13 @@ fn media_tool(name: &str) -> Result<PathBuf, String> {
         .ok_or_else(|| format!("未找到 {name}。请安装 FFmpeg，或将 {executable} 放入应用资源目录"))
 }
 
-fn source_has_audio(ffprobe: &Path, source: &Path) -> bool {
-    Command::new(ffprobe)
-        .args([
-            "-v",
-            "error",
-            "-select_streams",
-            "a:0",
-            "-show_entries",
-            "stream=index",
-            "-of",
-            "csv=p=0",
-        ])
+fn source_has_audio(ffmpeg: &Path, source: &Path) -> bool {
+    Command::new(ffmpeg)
+        .args(["-v", "error", "-i"])
         .arg(source)
+        .args(["-map", "0:a:0", "-frames:a", "1", "-f", "null", "-"])
         .output()
-        .map(|output| output.status.success() && !output.stdout.is_empty())
+        .map(|output| output.status.success())
         .unwrap_or(false)
 }
 
@@ -951,8 +943,6 @@ fn export_video_editor_project(
         return Err("剪辑当前只支持导出 MP4".into());
     }
 
-    let ffmpeg = media_tool("ffmpeg")?;
-    let ffprobe = media_tool("ffprobe")?;
     let duration = video_editor_duration(&project);
     let mut referenced_assets = Vec::<(&VideoEditorAsset, PathBuf)>::new();
     for track in project.tracks.iter().filter(|track| !track.hidden) {
@@ -981,7 +971,53 @@ fn export_video_editor_project(
             .map(|index| index + 1)
     };
 
-    let mut command = Command::new(ffmpeg);
+    let visible_clips = project
+        .tracks
+        .iter()
+        .filter(|track| !track.hidden)
+        .flat_map(|track| track.clips.iter().map(move |clip| (track, clip)))
+        .collect::<Vec<_>>();
+    if let [(track, clip)] = visible_clips.as_slice() {
+        if clip.clip_type == "video" && !track.muted && !clip.muted {
+            if let Some((asset, source)) = referenced_assets
+                .iter()
+                .find(|(asset, _)| asset.id == clip.asset_id)
+            {
+                let source_is_mp4 = source
+                    .extension()
+                    .and_then(|value| value.to_str())
+                    .is_some_and(|value| value.eq_ignore_ascii_case("mp4"));
+                let unchanged = clip.timeline_start.abs() < 0.000_001
+                    && clip.trim_start.abs() < 0.000_001
+                    && (clip.trim_end - asset.duration).abs() < 0.002
+                    && (clip.speed - 1.0).abs() < 0.000_001
+                    && clip.transform.x.abs() < 0.001
+                    && clip.transform.y.abs() < 0.001
+                    && clip.transform.angle.abs() < 0.001
+                    && (clip.transform.opacity - 1.0).abs() < 0.001
+                    && (clip.transform.width - project.settings.width as f64).abs() < 0.5
+                    && (clip.transform.height - project.settings.height as f64).abs() < 0.5;
+                if source_is_mp4 && unchanged {
+                    if source != &target {
+                        fs::copy(source, &target)
+                            .map_err(|error| format!("无法复制原视频：{error}"))?;
+                    }
+                    let mut result = file_result(&target)?;
+                    if let Some(object) = result.as_object_mut() {
+                        object.insert("duration".into(), json!(duration));
+                        object.insert("trackCount".into(), json!(project.tracks.len()));
+                        object.insert("assetCount".into(), json!(project.assets.len()));
+                        object.insert("engine".into(), json!("direct-mp4-copy"));
+                    }
+                    return Ok(result);
+                }
+            }
+        }
+    }
+
+    let ffmpeg = media_tool("ffmpeg")?;
+
+    let mut command = Command::new(&ffmpeg);
     command
         .args([
             "-hide_banner",
@@ -1074,8 +1110,13 @@ fn export_video_editor_project(
                 };
                 let angle = clip.transform.angle.to_radians();
                 let opacity = clip.transform.opacity.clamp(0.0, 1.0);
+                let rotation_filter = if angle.abs() < 0.000_001 {
+                    String::new()
+                } else {
+                    format!(",rotate={angle:.8}:ow=rotw(iw):oh=roth(ih):c=none")
+                };
                 filters.push(format!(
-                    "[{input}:v]{source_filter},scale={width}:{height}:force_original_aspect_ratio=decrease,format=rgba,rotate={angle:.8}:ow=rotw(iw):oh=roth(ih):c=none,colorchannelmixer=aa={opacity:.5},setpts=PTS+{:.6}/TB[visual{visual_index}]",
+                    "[{input}:v]{source_filter},scale={width}:{height}:force_original_aspect_ratio=decrease,setsar=1,format=rgba{rotation_filter},colorchannelmixer=aa={opacity:.5},setpts=PTS+{:.6}/TB[visual{visual_index}]",
                     clip.timeline_start
                 ));
                 let next_canvas = format!("canvas{}", visual_index + 1);
@@ -1144,7 +1185,7 @@ fn export_video_editor_project(
                     .iter()
                     .find(|(asset, _)| asset.id == clip.asset_id)
                     .unwrap();
-                if source_has_audio(&ffprobe, &asset.1) {
+                if source_has_audio(&ffmpeg, &asset.1) {
                     let delay = (clip.timeline_start * 1000.0).round().max(0.0) as u64;
                     filters.push(format!(
                         "[{input}:a]atrim=start={:.6}:end={:.6},asetpts=PTS-STARTPTS,atempo={:.6},volume={:.5},adelay={delay}:all=1[audio{audio_index}]",
@@ -1240,6 +1281,93 @@ pub async fn file_export_video_project(
 #[cfg(test)]
 mod video_edit_tests {
     use super::*;
+
+    #[test]
+    fn unchanged_single_mp4_exports_without_ffmpeg() {
+        let root = std::env::temp_dir().join(format!("shotloom-direct-video-{}", chrono_stamp()));
+        fs::create_dir_all(&root).unwrap();
+        let source = root.join("source.mp4");
+        let target = root.join("export.mp4");
+        fs::write(&source, b"shotloom-mp4-passthrough").unwrap();
+        let project: VideoEditorProject = serde_json::from_value(json!({
+            "settings": { "width": 1248, "height": 704, "fps": 30, "backgroundColor": "#050608" },
+            "assets": [{ "id": "source", "type": "video", "sourceFile": source, "duration": 15.084 }],
+            "tracks": [{ "type": "video", "clips": [{
+                "id": "v1", "type": "video", "assetId": "source", "timelineStart": 0,
+                "trimStart": 0, "trimEnd": 15.084, "speed": 1,
+                "transform": { "x": 0, "y": 0, "width": 1248, "height": 704, "angle": 0, "opacity": 1 }
+            }]}]
+        })).unwrap();
+        let result =
+            export_video_editor_project(target.to_string_lossy().into_owned(), project).unwrap();
+        assert_eq!(result["engine"], "direct-mp4-copy");
+        assert_eq!(fs::read(&target).unwrap(), b"shotloom-mp4-passthrough");
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn ffmpeg_export_preserves_full_frame_when_source_sar_is_unspecified() {
+        let Ok(ffmpeg) = media_tool("ffmpeg") else {
+            return;
+        };
+        let root = std::env::temp_dir().join(format!("shotloom-video-sar-{}", chrono_stamp()));
+        fs::create_dir_all(&root).unwrap();
+        let source = root.join("source.mp4");
+        let target = root.join("export.mp4");
+        let frame = root.join("frame.png");
+        let generated = Command::new(&ffmpeg)
+            .args([
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-y",
+                "-f",
+                "lavfi",
+                "-i",
+                "color=c=0x147ad6:s=320x180:r=24:d=1",
+                "-vf",
+                "setsar=0",
+                "-c:v",
+                "libx264",
+                "-pix_fmt",
+                "yuv420p",
+            ])
+            .arg(&source)
+            .status()
+            .unwrap();
+        assert!(generated.success());
+        let project: VideoEditorProject = serde_json::from_value(json!({
+            "settings": { "width": 320, "height": 180, "fps": 24, "backgroundColor": "#050608" },
+            "assets": [{ "id": "source", "type": "video", "sourceFile": source, "duration": 1 }],
+            "tracks": [{ "type": "video", "clips": [{
+                "id": "v1", "type": "video", "assetId": "source", "timelineStart": 0,
+                "trimStart": 0.1, "trimEnd": 0.9, "speed": 1,
+                "transform": { "x": 0, "y": 0, "width": 320, "height": 180, "angle": 0, "opacity": 1 }
+            }]}]
+        })).unwrap();
+        export_video_editor_project(target.to_string_lossy().into_owned(), project).unwrap();
+        let extracted = Command::new(&ffmpeg)
+            .args([
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-y",
+                "-ss",
+                "0.2",
+                "-i",
+            ])
+            .arg(&target)
+            .args(["-frames:v", "1"])
+            .arg(&frame)
+            .status()
+            .unwrap();
+        assert!(extracted.success());
+        let pixels = image::open(&frame).unwrap().to_rgb8();
+        let top_left = pixels.get_pixel(8, 8);
+        assert!(top_left[2] > 150, "top-left pixel was {top_left:?}");
+        assert!(top_left[0] < 80, "top-left pixel was {top_left:?}");
+        let _ = fs::remove_dir_all(root);
+    }
 
     #[test]
     fn ffmpeg_exports_v2_project_with_overlay_text_audio_and_effect() {

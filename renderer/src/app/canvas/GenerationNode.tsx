@@ -25,7 +25,7 @@ import { DEFAULT_CAMERA_CONFIG, normalizeCameraConfig } from "../../utils/camera
 import { openMediaViewer, showToast } from "../store/overlayStore";
 import type { WorkflowNodeData, WorkflowNodeRenderer } from "./WorkflowCanvas";
 import { schedulePreviewLoad } from "./previewLoadQueue";
-import { useImeCommit } from "./imeComposition";
+import { isImeKeyEvent, useImeCommit } from "./imeComposition";
 import { imageCanvasNodeDimensions } from "../../domain/graph/CanvasNodeDimensions";
 
 interface OutputData {
@@ -490,7 +490,7 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({ node, selected, acti
               rows={2}
               {...promptCommit}
               onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                if (e.key === "Enter" && !e.shiftKey && !isImeKeyEvent(e.nativeEvent)) {
                   e.preventDefault();
                   actions.run(node.id);
                 }

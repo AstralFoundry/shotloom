@@ -62,6 +62,21 @@ test('方舟参考图内容按声明角色编译且保留纯文生视频', () =>
   ]);
 });
 
+test('MiniMax H3 首帧图编译为 V2 content 数组', () => {
+  assert.deepEqual(protocolMediaContent({
+    prompt: '镜头缓慢推近',
+    imageUrls: ['data:image/png;base64,aGVsbG8='],
+    imageRole: 'first_frame',
+  }), [
+    { type: 'text', text: '镜头缓慢推近' },
+    {
+      type: 'image_url',
+      image_url: { url: 'data:image/png;base64,aGVsbG8=' },
+      role: 'first_frame',
+    },
+  ]);
+});
+
 test('Kling API 2.0 协议生成首帧和多参考图 contents', () => {
   assert.deepEqual(protocolKlingContents({
     prompt: '镜头缓慢推进',
@@ -142,5 +157,9 @@ test('厂商根地址与官方原生接口路径只拼接一次', () => {
   assert.equal(
     modelApiUrl({}, '/text-to-video/kling-3.0', 'root', 'kling'),
     'https://api-singapore.klingai.com/text-to-video/kling-3.0',
+  );
+  assert.equal(
+    modelApiUrl({}, '/v2/video_generation', 'root', 'minimax'),
+    'https://api.minimax.io/v2/video_generation',
   );
 });

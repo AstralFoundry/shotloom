@@ -116,6 +116,8 @@ export class CopilotRuntimePresenter {
       this.tools.push({
         id: event.toolCallId || `runtime-tool-${this.tools.length + 1}`,
         name: name || 'tool',
+        kind: 'tool',
+        effect: String(event.effect || ''),
         summary: toolSummary(name, event.inputSummary),
         status: 'running',
         runId: event.requestId,
@@ -180,9 +182,25 @@ export class CopilotRuntimePresenter {
       }) };
     }
     if (event.type === 'skill_used') {
+      const id = `skill:${String(event.skillId || event.name || this.tools.length + 1)}`;
+      if (!this.tools.some((item) => item.id === id)) this.tools.push({
+        id,
+        name: String(event.name || event.skillId || 'Skill'),
+        kind: 'skill',
+        status: 'success',
+        summary: String(event.name || event.skillId || 'Skill'),
+      });
       return { messagePatch: this.snapshot({ title: '正在准备处理方法' }) };
     }
     if (event.type === 'recipe_used') {
+      const id = `recipe:${String(event.recipeId || event.name || this.tools.length + 1)}`;
+      if (!this.tools.some((item) => item.id === id)) this.tools.push({
+        id,
+        name: String(event.name || event.recipeId || 'Recipe'),
+        kind: 'recipe',
+        status: 'success',
+        summary: String(event.name || event.recipeId || 'Recipe'),
+      });
       return { messagePatch: this.snapshot({ title: '正在准备处理方法' }) };
     }
     return { messagePatch: this.snapshot({
