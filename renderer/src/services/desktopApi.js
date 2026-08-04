@@ -250,10 +250,6 @@ function createBrowserFallback() {
       check: async () => ({ hasUpdate: false, downloaded: false, info: null }),
       download: async () => ({ ok: false, error: '浏览器预览不支持下载安装包。' }),
       executeRestart: async () => ({ ok: false, error: '浏览器预览不支持安装更新。' }),
-      onAvailable: () => () => {},
-      onDownloadProgress: () => () => {},
-      onReady: () => () => {},
-      onError: () => () => {},
     },
     notifyTask: async () => ({ shown: false, reason: 'browser' }),
   };

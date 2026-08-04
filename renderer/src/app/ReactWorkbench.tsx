@@ -16,7 +16,6 @@ import { loadGlobalRecipes } from "../store/recipesStore.js";
 import { loadGlobalSkills } from "../store/skillsStore.js";
 import { resumeRemoteTasks } from "../store/taskStore.js";
 import { getDomainRevision, subscribeDomain } from "../store/domainReactivity.js";
-import { registerUpdateBridge } from "../store/updateStore.js";
 import { canvasActionShortcutLabel } from "../utils/canvasActionShortcuts.js";
 import { AppShell } from "./AppShell";
 import {
@@ -70,7 +69,6 @@ export function ReactWorkbench() {
   useEffect(() => {
     let taskTimer = 0;
     let disposeClose: undefined | (() => void);
-    let disposeUpdate: undefined | (() => void);
     let cancelled = false;
     void (async () => {
       await loadAppSettings();
@@ -86,7 +84,6 @@ export function ReactWorkbench() {
       taskTimer = window.setInterval(() => resumeRemoteTasks(), 5000);
       initProjectCloneProgressListener?.();
       disposeClose = useWindowClose();
-      disposeUpdate = registerUpdateBridge();
       refresh();
     })().catch((cause) => showToast(cause instanceof Error ? cause.message : "应用初始化失败"));
     registerVideoEditorOpener(setEditorNodeId);
@@ -95,7 +92,6 @@ export function ReactWorkbench() {
       registerVideoEditorOpener(null);
       if (taskTimer) window.clearInterval(taskTimer);
       disposeClose?.();
-      disposeUpdate?.();
     };
   }, []);
 

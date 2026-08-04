@@ -400,6 +400,8 @@ export function createTauriApi(browserFallback) {
   // 仅在确认 Tauri 环境后才读取当前窗口。模块也会被浏览器预览和契约测试导入，
   // 顶层调用 getCurrentWindow 会让非 Tauri 环境在初始化阶段直接崩溃。
   const currentWindow = getCurrentWindow();
+  let pendingUpdate = null;
+  let pendingUpdateDownloaded = false;
   const unsupported = (feature) => async () => { throw new Error(`${feature} 尚未迁移到 Tauri 原生层`); };
   const projectDialog = async (directoryOnly = false) => {
     const selected = await openDialog({
@@ -647,17 +649,71 @@ export function createTauriApi(browserFallback) {
       },
     },
     update: {
-      ...browserFallback.update,
       check: async () => {
         try {
           const update = await checkUpdate();
-          return { hasUpdate: Boolean(update), downloaded: false, info: update ? { version: update.version, notes: update.body } : null };
+          if (pendingUpdate && pendingUpdate !== update) {
+            await pendingUpdate.close().catch(() => {});
+          }
+          pendingUpdate = update;
+          pendingUpdateDownloaded = false;
+          return {
+            hasUpdate: Boolean(update),
+            downloaded: false,
+            info: update ? { version: update.version, releaseNotes: update.body || '' } : null,
+          };
         } catch (error) {
+          if (pendingUpdate) await pendingUpdate.close().catch(() => {});
+          pendingUpdate = null;
+          pendingUpdateDownloaded = false;
           return { hasUpdate: false, downloaded: false, info: null, error: error?.message || String(error) };
         }
       },
-      download: async () => ({ ok: false, error: '尚未配置 Tauri updater 发布公钥与 endpoint' }),
-      executeRestart: async () => { await relaunch(); return { ok: true }; },
+      download: async (onProgress) => {
+        if (!pendingUpdate) return { ok: false, error: '请先检查更新。' };
+        let received = 0;
+        let total = 0;
+        try {
+          await pendingUpdate.download((event) => {
+            if (event.event === 'Started') {
+              received = 0;
+              total = Number(event.data.contentLength || 0);
+            } else if (event.event === 'Progress') {
+              received += Number(event.data.chunkLength || 0);
+            } else if (event.event === 'Finished' && total > 0) {
+              received = total;
+            }
+            onProgress?.({
+              received,
+              total,
+              percent: total > 0 ? Math.min(100, Math.round((received / total) * 100)) : 0,
+            });
+          });
+          pendingUpdateDownloaded = true;
+          return {
+            ok: true,
+            info: {
+              version: pendingUpdate.version,
+              releaseNotes: pendingUpdate.body || '',
+              fileSize: total || undefined,
+            },
+          };
+        } catch (error) {
+          return { ok: false, error: error?.message || String(error) };
+        }
+      },
+      executeRestart: async () => {
+        if (!pendingUpdate || !pendingUpdateDownloaded) {
+          return { ok: false, error: '更新尚未下载完成。' };
+        }
+        try {
+          await pendingUpdate.install();
+          await relaunch();
+          return { ok: true };
+        } catch (error) {
+          return { ok: false, error: error?.message || String(error) };
+        }
+      },
     },
     notifyTask: async () => ({ shown: false, reason: 'tauri-notification-plugin-not-installed' }),
   };

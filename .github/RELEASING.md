@@ -1,6 +1,6 @@
 # Publishing a desktop release
 
-Pushing a `v*` tag runs the release workflow. It publishes notarized macOS DMGs for Apple Silicon and Intel Macs, plus a Windows x64 NSIS installer, to a GitHub Release. Workflow artifacts are retained for one day and used only to transfer files between build and publish jobs; end users download the native files from the Release page.
+Pushing a `v*` tag runs the release workflow. It publishes notarized macOS DMGs for Apple Silicon and Intel Macs, a Windows x64 NSIS installer, the signed updater packages, and `latest.json` to a GitHub Release. Workflow artifacts are retained for one day and used only to transfer files between build and publish jobs; end users download the native files from the Release page or through the in-app updater.
 
 ## Required repository secrets
 
@@ -47,3 +47,5 @@ git push origin v0.1.2
 ```
 
 The workflow intentionally fails the macOS jobs if signing or notarization credentials are absent. It does not upload unsigned macOS applications as successful release assets.
+
+The publish job also requires one signed updater package for each supported target. It fails instead of publishing an empty or incomplete `latest.json` when an updater signature is missing.
