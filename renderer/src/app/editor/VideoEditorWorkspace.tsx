@@ -15,14 +15,17 @@ import {
 import {
   addEditorClip,
   addEditorTrack,
+  activeEditorClip,
   editorClipDuration,
   findEditorClip,
   normalizeVideoEditorProject,
   removeEditorClip,
+  snapEditorClipStart,
   updateEditorClip,
   updateEditorTrack,
   videoEditorDuration,
 } from "../../utils/videoEditorProject.mjs";
+import { editorMediaMimeType } from "../../utils/editorMediaImport.mjs";
 import { desktopApi } from "../../services/desktopApi.js";
 import { type IconName, IconSymbol } from "../components/IconSymbol";
 import stickerActionUrl from "../../assets/stickers/action.svg?no-inline";
@@ -46,7 +49,9 @@ export interface VideoEditorController {
   persist: (project: EditorProject) => void;
   export: (project: EditorProject) => Promise<unknown>;
   close: () => void;
-  importAssets?: () => Promise<VideoEditorAsset[]>;
+  importAssets?: (
+    source?: "device" | "library" | "local" | "files",
+  ) => Promise<VideoEditorAsset[]>;
 }
 export interface VideoEditorWorkspaceProps {
   title?: string;
@@ -306,27 +311,46 @@ export function VideoEditorWorkspace(
   const [zoom, setZoom] = useState(64);
   const [engineReady, setEngineReady] = useState(false);
   const [engineError, setEngineError] = useState("");
-  const [playbackUrl, setPlaybackUrl] = useState(sourceUrl);
+  const initialVideoClip = initial.tracks
+    .find((track: any) => track.type === "video")?.clips
+    .find((clip: any) => clip.type === "video");
+  const initialPlaybackAsset = initial.assets.find((asset: any) =>
+    asset.id === initialVideoClip?.assetId
+  ) || initial.assets.find((asset: any) => asset.type === "video");
+  const [playbackUrl, setPlaybackUrl] = useState(
+    initialPlaybackAsset?.sourceUrl || sourceUrl,
+  );
+  const [runtimeMediaUrls, setRuntimeMediaUrls] = useState<Record<string, string>>({});
   const [sourceThumbnail, setSourceThumbnail] = useState("");
-  const [sourceState, setSourceState] = useState<"loading" | "ready" | "error">(
-    "loading",
+  const [sourceState, setSourceState] = useState<"empty" | "loading" | "ready" | "error">(
+    initialPlaybackAsset?.sourceUrl || sourceUrl ? "loading" : "empty",
   );
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState("");
   const [textNotice, setTextNotice] = useState("");
   const [toolNotice, setToolNotice] = useState("");
+  const [importMenu, setImportMenu] = useState<"all" | "image" | "">("");
+  const [importBrowser, setImportBrowser] = useState<{
+    title: string;
+    items: VideoEditorAsset[];
+    kind: "all" | "image";
+    loading: boolean;
+  } | null>(null);
   const [history, setHistory] = useState<EditorProject[]>([]);
   const [future, setFuture] = useState<EditorProject[]>([]);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const monitorRef = useRef<HTMLDivElement>(null);
   const fallbackRef = useRef<HTMLVideoElement>(null);
   const blobUrlRef = useRef("");
+  const runtimeBlobUrlsRef = useRef(new Map<string, { sourceFile: string; url: string }>());
+  const sourceFallbackPendingRef = useRef(false);
   const sourcePreviewPrimedRef = useRef(false);
   const runtimeRef = useRef<any>(null);
   const runtimeMutationRef = useRef(false);
   const canvasTransformSnapshotRef = useRef<EditorProject | null>(null);
-  const timelineFitRef = useRef(false);
+  const zoomTouchedRef = useRef(false);
   const timelineRef = useRef<HTMLDivElement>(null);
+  const [timelineViewport, setTimelineViewport] = useState({ left: 0, width: 1200 });
   const visualTransformRef = useRef<{
     id: string;
     mode: "move" | "resize" | "rotate";
@@ -350,11 +374,26 @@ export function VideoEditorWorkspace(
   >(null);
   const duration = videoEditorDuration(project);
   const selected = selectedId ? findEditorClip(project, selectedId) : null;
+  const directPreviewClips = project.tracks
+    .filter((track: any) => track.type === "video" && !track.hidden)
+    .flatMap((track: any) => track.clips)
+    .filter((clip: any) => clip.type === "video")
+    .sort((left: any, right: any) => left.timelineStart - right.timelineStart);
+  const directPreviewClip = directPreviewClips.length === 1
+    ? directPreviewClips[0]
+    : null;
+  const usesNativeSequencePreview = directPreviewClips.length > 1;
   const preferFallbackPreview = sourceState === "ready" &&
-    !project.tracks.some((track: any) =>
-      ["overlay", "effect", "transition"].includes(track.type) &&
-      track.clips.length > 0
-    );
+    (usesNativeSequencePreview || (
+      directPreviewClip?.timelineStart === 0 &&
+      directPreviewClip?.trimStart === 0 &&
+      directPreviewClip?.speed === 1 &&
+      Math.abs(editorClipDuration(directPreviewClip) - duration) < .001 &&
+      !project.tracks.some((track: any) =>
+        ["overlay", "effect", "transition"].includes(track.type) &&
+        track.clips.length > 0
+      )
+    ));
   const activeTextClips = useMemo(
     () => project.tracks
       .filter((track: any) => track.type === "text" && !track.hidden)
@@ -396,9 +435,35 @@ export function VideoEditorWorkspace(
     ],
     [allAssets],
   );
-  const primaryVideoAssetId = project.assets.find((asset: any) =>
-    asset.type === "video"
-  )?.id;
+  const primaryVideoAssetId = project.tracks
+    .find((track: any) => track.type === "video")?.clips
+    .find((clip: any) => clip.type === "video")?.assetId ||
+    project.assets.find((asset: any) => asset.type === "video")?.id;
+  const primaryVideoAsset = project.assets.find((asset: any) =>
+    asset.id === primaryVideoAssetId
+  );
+  const nativePreviewClip = usesNativeSequencePreview
+    ? activeEditorClip(directPreviewClips, time) ||
+      (time >= duration - .001 ? directPreviewClips.at(-1) : null)
+    : directPreviewClip;
+  const nativePreviewAsset = project.assets.find((asset: any) =>
+    asset.id === nativePreviewClip?.assetId
+  );
+  const nativePreviewUrl = nativePreviewAsset
+    ? runtimeMediaUrls[nativePreviewAsset.id] || nativePreviewAsset.sourceUrl
+    : playbackUrl;
+  const createStudioProject = useCallback((value: EditorProject) => {
+    return createOpenVideoStudioProject({
+      ...value,
+      assets: value.assets.map((asset: any) =>
+        ({
+          ...asset,
+          sourceUrl: runtimeMediaUrls[asset.id] ||
+            (asset.id === primaryVideoAssetId ? playbackUrl : asset.sourceUrl),
+        })
+      ),
+    });
+  }, [playbackUrl, primaryVideoAssetId, runtimeMediaUrls]);
   const visibleTracks = useMemo(
     () => project.tracks.filter((track: any) =>
       track.clips.length > 0 || ["video", "audio"].includes(track.type)
@@ -415,11 +480,7 @@ export function VideoEditorWorkspace(
   const previewAudio = useMemo(() => {
     for (const track of project.tracks) {
       if (track.type !== "video" || track.hidden) continue;
-      const clip = track.clips.find((item: any) =>
-        item.assetId === primaryVideoAssetId &&
-        time >= item.timelineStart &&
-        time <= item.timelineStart + editorClipDuration(item)
-      );
+      const clip = activeEditorClip(track.clips, time);
       if (!clip) continue;
       return {
         muted: track.muted === true || clip.muted === true,
@@ -427,7 +488,31 @@ export function VideoEditorWorkspace(
       };
     }
     return { muted: false, volume: 1 };
-  }, [primaryVideoAssetId, project.tracks, time]);
+  }, [project.tracks, time]);
+  const playbackStructureSignature = useMemo(() => JSON.stringify({
+    settings: {
+      width: project.settings.width,
+      height: project.settings.height,
+      fps: project.settings.fps,
+    },
+    tracks: project.tracks.map((track: any) => ({
+      id: track.id,
+      type: track.type,
+      hidden: track.hidden,
+      clips: track.clips.map((clip: any) => ({
+        id: clip.id,
+        type: clip.type,
+        assetId: clip.assetId,
+        timelineStart: clip.timelineStart,
+        trimStart: clip.trimStart,
+        trimEnd: clip.trimEnd,
+        duration: clip.duration,
+        speed: clip.speed,
+        fromClipId: clip.fromClipId,
+        toClipId: clip.toClipId,
+      })),
+    })),
+  }), [project.settings, project.tracks]);
 
   const commit = useCallback((next: EditorProject, record = true) => {
     if (next === projectRef.current) return;
@@ -479,7 +564,40 @@ export function VideoEditorWorkspace(
     if (added) setSelectedId(added.id);
     return added || null;
   }
+  function clipFocusTime(clip: EditorClip) {
+    const start = Math.max(0, Number(clip.timelineStart) || 0);
+    const clipDuration = editorClipDuration(clip);
+    if (clip.type !== "video" && clip.type !== "audio") return start;
+    return Math.min(
+      start + Math.max(0, clipDuration - .001),
+      start + 1 / projectRef.current.settings.fps,
+    );
+  }
   function addAsset(asset: VideoEditorAsset) {
+    const mediaDuration = Number(asset.duration);
+    if (asset.type !== "image" && (!Number.isFinite(mediaDuration) || mediaDuration <= 0)) {
+      setToolNotice(`“${asset.name}”读取失败，无法添加到时间线。`);
+      return;
+    }
+    if (asset.type !== "image") {
+      const matchingAssetIds = new Set(
+        projectRef.current.assets
+          .filter((item: any) =>
+            item.id === asset.id ||
+            (asset.sourceFile && item.sourceFile === asset.sourceFile)
+          )
+          .map((item: any) => item.id),
+      );
+      const existing = projectRef.current.tracks
+        .flatMap((track: any) => track.clips)
+        .find((clip: any) => matchingAssetIds.has(clip.assetId));
+      if (existing) {
+        setSelectedId(existing.id);
+        seekPreview(clipFocusTime(existing));
+        setToolNotice(`已定位到“${asset.name}”在时间线中的片段。`);
+        return;
+      }
+    }
     let next = projectRef.current;
     if (!next.assets.some((item: any) => item.id === asset.id)) {
       next = { ...next, assets: [...next.assets, clone(asset)] };
@@ -502,12 +620,20 @@ export function VideoEditorWorkspace(
       next = updateEditorTrack(next, track.id, { locked: false, hidden: false });
       track = next.tracks.find((item: any) => item.id === track.id);
     }
-    const trimEnd = asset.duration || 5;
+    const trimEnd = mediaDuration || 0;
     const clipId = createId("clip");
     const imageDuration = 4;
     const imageStart = duration > 0
       ? Math.min(time, Math.max(0, duration - imageDuration))
       : 0;
+    const videoStart = asset.type === "video"
+      ? Math.max(
+        0,
+        ...track.clips.map((clip: any) =>
+          Number(clip.timelineStart) + editorClipDuration(clip)
+        ),
+      )
+      : Math.min(time, duration);
     const canvasWidth = next.settings.width;
     const canvasHeight = next.settings.height;
     const sourceWidth = Math.max(1, Number(asset.width) || 512);
@@ -547,7 +673,7 @@ export function VideoEditorWorkspace(
           id: clipId,
           type: asset.type,
           assetId: asset.id,
-          timelineStart: Math.min(time, duration),
+          timelineStart: videoStart,
           trimStart: 0,
           trimEnd,
           speed: 1,
@@ -563,10 +689,29 @@ export function VideoEditorWorkspace(
       if (asset.type === "image") {
         seekPreview(imageStart + Math.min(.05, editorClipDuration(added) / 2));
         setToolNotice(`“${asset.name}”已添加到画面中央，可在画布拖动、缩放或旋转。`);
+      } else if (asset.type === "video") {
+        seekPreview(clipFocusTime(added));
+        setToolNotice(`“${asset.name}”已追加到视频轨末尾。`);
       }
-    } else if (asset.type === "image") {
-      setToolNotice("贴图添加失败，请重试。");
+    } else {
+      setToolNotice(
+        asset.type === "image"
+          ? "贴图添加失败，请重试。"
+          : `“${asset.name}”读取失败，无法添加到时间线。`,
+      );
     }
+  }
+  function activateAsset(asset: VideoEditorAsset) {
+    const existing = projectRef.current.tracks
+      .flatMap((track: any) => track.clips)
+      .find((clip: any) => clip.assetId === asset.id);
+    if (!existing) {
+      addAsset(asset);
+      return;
+    }
+    setSelectedId(existing.id);
+    seekPreview(clipFocusTime(existing));
+    setToolNotice(`已定位到“${asset.name}”。`);
   }
   function addText(preset = textPresets[0]) {
     const canvasWidth = projectRef.current.settings.width;
@@ -687,7 +832,7 @@ export function VideoEditorWorkspace(
         // root; a nested `style` object is discarded by its timeline adapter.
         runtimeMutationRef.current = true;
         void runtime.updateClip(selectedId, runtimeUpdates).catch(() => {
-          runtime.replaceProject(createOpenVideoStudioProject(next));
+          runtime.replaceProject(createStudioProject(next));
         });
       }
     }
@@ -856,8 +1001,21 @@ export function VideoEditorWorkspace(
     if (!runtime || preferFallbackPreview) {
       const video = fallbackRef.current;
       if (!video) return;
-      if (video.paused) {
-        video.currentTime = time >= duration - .02 ? 0 : time;
+      if (!playing) {
+        const start = time >= duration - .02 ? 0 : time;
+        if (start !== time) setTime(start);
+        const clip = activeEditorClip(directPreviewClips, start) ||
+          directPreviewClips.find((item: any) => item.timelineStart > start);
+        if (usesNativeSequencePreview && clip) {
+          if (clip.timelineStart > start) setTime(clip.timelineStart);
+          video.currentTime = Math.min(
+            clip.trimEnd - .001,
+            clip.trimStart + Math.max(0, start - clip.timelineStart) * clip.speed,
+          );
+          video.playbackRate = clip.speed;
+        } else {
+          video.currentTime = start;
+        }
         await video.play();
         setPlaying(true);
       } else {
@@ -880,9 +1038,37 @@ export function VideoEditorWorkspace(
     const value = Math.max(0, Math.min(duration, seconds));
     setTime(value);
     if (runtimeRef.current) void runtimeRef.current.seek(value);
-    if (fallbackRef.current && Math.abs(fallbackRef.current.currentTime - value) > .02) {
-      fallbackRef.current.currentTime = value;
+    const video = fallbackRef.current;
+    if (!video) return;
+    const clip = activeEditorClip(directPreviewClips, value) ||
+      (value >= duration - .001 ? directPreviewClips.at(-1) : null);
+    const mediaTime = usesNativeSequencePreview && clip
+      ? Math.min(
+        clip.trimEnd - .001,
+        clip.trimStart + Math.max(0, value - clip.timelineStart) * clip.speed,
+      )
+      : value;
+    if (Math.abs(video.currentTime - mediaTime) > .02) {
+      video.currentTime = mediaTime;
     }
+  }
+
+  function continueNativeSequence(clipId: string) {
+    if (!usesNativeSequencePreview) {
+      setPlaying(false);
+      return;
+    }
+    const index = directPreviewClips.findIndex((clip: any) => clip.id === clipId);
+    const next = directPreviewClips[index + 1];
+    if (!next) {
+      setTime(duration);
+      setPlaying(false);
+      return;
+    }
+    const currentEnd = directPreviewClips[index].timelineStart +
+      editorClipDuration(directPreviewClips[index]);
+    setTime(Math.max(currentEnd, next.timelineStart));
+    setPlaying(true);
   }
 
   function captureSourceThumbnail(video: HTMLVideoElement) {
@@ -894,13 +1080,6 @@ export function VideoEditorWorkspace(
       const context = canvas.getContext("2d", { willReadFrequently: true });
       if (!context) return;
       context.drawImage(video, 0, 0, 160, 90);
-      const pixels = context.getImageData(0, 0, 160, 90).data;
-      let luminance = 0;
-      for (let index = 0; index < pixels.length; index += 64) {
-        luminance += pixels[index] + pixels[index + 1] + pixels[index + 2];
-      }
-      const samples = Math.ceil(pixels.length / 64);
-      if (luminance / samples / 3 < 10) return;
       const thumbnail = canvas.toDataURL("image/jpeg", .72);
       if (thumbnail.length > 100) setSourceThumbnail(thumbnail);
     } catch {
@@ -912,7 +1091,7 @@ export function VideoEditorWorkspace(
     if (sourcePreviewPrimedRef.current || !video.duration || video.readyState < 2) return;
     sourcePreviewPrimedRef.current = true;
     const frameTime = Math.min(
-      Math.max(time, 1 / projectRef.current.settings.fps),
+      Math.max(time, 0),
       Math.max(0, video.duration - .04),
     );
     video.pause();
@@ -927,7 +1106,14 @@ export function VideoEditorWorkspace(
     try {
       await controller.export(projectRef.current);
     } catch (cause) {
-      setExportError(cause instanceof Error ? cause.message : "导出失败");
+      const message = cause instanceof Error
+        ? cause.message
+        : typeof cause === "string"
+        ? cause
+        : cause && typeof cause === "object" && "message" in cause
+        ? String((cause as { message: unknown }).message)
+        : "导出失败";
+      setExportError(message);
     } finally {
       setExporting(false);
     }
@@ -938,13 +1124,99 @@ export function VideoEditorWorkspace(
     return () => {
       document.body.classList.remove("video-editor-open");
       if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
+      for (const entry of runtimeBlobUrlsRef.current.values()) {
+        URL.revokeObjectURL(entry.url);
+      }
+      runtimeBlobUrlsRef.current.clear();
     };
   }, []);
+  const runtimeAssetSignature = project.assets
+    .map((asset: any) => `${asset.id}:${asset.type}:${asset.sourceFile || ""}`)
+    .join("|");
   useEffect(() => {
-    if (!duration || timelineFitRef.current) return;
-    timelineFitRef.current = true;
-    setZoom(Math.max(24, Math.min(180, (window.innerWidth - 120) / duration)));
+    let cancelled = false;
+    const assetsById = new Map(projectRef.current.assets.map((asset: any) => [asset.id, asset]));
+    for (const [assetId, entry] of runtimeBlobUrlsRef.current) {
+      const asset: any = assetsById.get(assetId);
+      if (asset?.sourceFile === entry.sourceFile) continue;
+      URL.revokeObjectURL(entry.url);
+      runtimeBlobUrlsRef.current.delete(assetId);
+    }
+    void Promise.all(
+      projectRef.current.assets.map(async (asset: any) => {
+        const sourceFile = String(asset.sourceFile || "");
+        if (!sourceFile || runtimeBlobUrlsRef.current.has(asset.id)) return;
+        try {
+          const buffer = await desktopApi.file.readArrayBuffer(sourceFile);
+          if (cancelled || !buffer?.byteLength) return;
+          const url = URL.createObjectURL(new Blob([
+            buffer,
+          ], { type: editorMediaMimeType(sourceFile, asset.type) }));
+          const previous = runtimeBlobUrlsRef.current.get(asset.id);
+          if (previous) URL.revokeObjectURL(previous.url);
+          runtimeBlobUrlsRef.current.set(asset.id, { sourceFile, url });
+        } catch {
+          // The stable asset URL remains available when a buffered preview cannot be created.
+        }
+      }),
+    ).then(() => {
+      if (cancelled) return;
+      setRuntimeMediaUrls(Object.fromEntries(
+        [...runtimeBlobUrlsRef.current].map(([assetId, entry]) => [assetId, entry.url]),
+      ));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [runtimeAssetSignature]);
+  useEffect(() => {
+    const runtimeUrl = primaryVideoAssetId
+      ? runtimeMediaUrls[primaryVideoAssetId]
+      : "";
+    if (!runtimeUrl || playbackUrl === runtimeUrl) return;
+    setPlaybackUrl(runtimeUrl);
+    setSourceState("loading");
+  }, [playbackUrl, primaryVideoAssetId, runtimeMediaUrls]);
+  useEffect(() => {
+    const canonicalUrl = primaryVideoAsset?.sourceUrl || sourceUrl;
+    if (!canonicalUrl) {
+      setPlaybackUrl("");
+      setSourceState("empty");
+      return;
+    }
+    if (blobUrlRef.current) {
+      URL.revokeObjectURL(blobUrlRef.current);
+      blobUrlRef.current = "";
+    }
+    sourceFallbackPendingRef.current = false;
+    setPlaybackUrl(canonicalUrl);
+    setSourceThumbnail("");
+    setSourceState("loading");
+    setEngineReady(false);
+  }, [primaryVideoAssetId, primaryVideoAsset?.sourceUrl, sourceUrl]);
+  useEffect(() => {
+    if (sourceState !== "loading" || playbackUrl.startsWith("blob:")) return;
+    const timer = window.setTimeout(() => void sourceFailed(), 3500);
+    return () => window.clearTimeout(timer);
+  }, [playbackUrl, sourceState, primaryVideoAsset?.sourceFile, sourceFile]);
+  useEffect(() => {
+    if (!duration || zoomTouchedRef.current) return;
+    const timelineWidth = timelineRef.current?.clientWidth || window.innerWidth;
+    const availableWidth = Math.max(1, timelineWidth - 112 - 24);
+    setZoom(Math.max(24, Math.min(180, availableWidth / duration)));
   }, [duration]);
+  useEffect(() => {
+    const timeline = timelineRef.current;
+    if (!timeline) return;
+    const sync = () => setTimelineViewport({
+      left: timeline.scrollLeft,
+      width: timeline.clientWidth,
+    });
+    sync();
+    const observer = new ResizeObserver(sync);
+    observer.observe(timeline);
+    return () => observer.disconnect();
+  }, []);
   useEffect(() => {
     sourcePreviewPrimedRef.current = false;
   }, [playbackUrl]);
@@ -958,13 +1230,15 @@ export function VideoEditorWorkspace(
     if (
       sourceState !== "ready" || !canvasRef.current || !playbackUrl ||
       !videoEditorDuration(projectRef.current) ||
+      preferFallbackPreview ||
       !getOpenVideoRuntimeSupport().preview
     ) return;
     let active = true;
+    setEngineReady(false);
     setEngineError("");
     void createOpenVideoRuntime({
       canvas: canvasRef.current,
-      project: createOpenVideoStudioProject(projectRef.current),
+      project: createStudioProject(projectRef.current),
       previewScale: .7,
       onTime: (value: number) => {
         if (active) {
@@ -1011,16 +1285,22 @@ export function VideoEditorWorkspace(
       runtimeRef.current?.destroy();
       runtimeRef.current = null;
     };
-  }, [playbackUrl, sourceState]);
+  }, [
+    createStudioProject,
+    playbackUrl,
+    playbackStructureSignature,
+    preferFallbackPreview,
+    sourceState,
+  ]);
   useEffect(() => {
     if (!runtimeRef.current || dragRef.current || visualTransformRef.current) return;
     if (runtimeMutationRef.current) {
       runtimeMutationRef.current = false;
       return;
     }
-    runtimeRef.current.replaceProject(createOpenVideoStudioProject(project));
+    runtimeRef.current.replaceProject(createStudioProject(project));
     if (selectedId) runtimeRef.current.selectClip(selectedId);
-  }, [project]);
+  }, [createStudioProject, project]);
   useEffect(() => {
     runtimeRef.current?.selectClip(selectedId);
   }, [selectedId]);
@@ -1076,7 +1356,7 @@ export function VideoEditorWorkspace(
       setFuture([]);
       controller.persist(projectRef.current);
       runtimeMutationRef.current = false;
-      runtimeRef.current?.replaceProject(createOpenVideoStudioProject(projectRef.current));
+      runtimeRef.current?.replaceProject(createStudioProject(projectRef.current));
       runtimeRef.current?.selectClip(gesture.id);
     };
     window.addEventListener("pointermove", move);
@@ -1087,7 +1367,7 @@ export function VideoEditorWorkspace(
       window.removeEventListener("pointerup", up);
       window.removeEventListener("pointercancel", up);
     };
-  }, [controller]);
+  }, [controller, createStudioProject]);
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape" && !exporting) controller.close();
@@ -1118,9 +1398,15 @@ export function VideoEditorWorkspace(
       const drag = dragRef.current;
       if (!drag) return;
       if (!drag.snapshot) drag.snapshot = clone(projectRef.current);
-      const nextStart = Math.max(
+      const requestedStart = Math.max(
         0,
         drag.timelineStart + (event.clientX - drag.startX) / zoom,
+      );
+      const nextStart = snapEditorClipStart(
+        projectRef.current,
+        drag.id,
+        requestedStart,
+        10 / zoom,
       );
       const next = updateEditorClip(projectRef.current, drag.id, {
         timelineStart: Math.round(nextStart * 100) / 100,
@@ -1140,7 +1426,7 @@ export function VideoEditorWorkspace(
       setFuture([]);
       controller.persist(projectRef.current);
       runtimeRef.current?.replaceProject(
-        createOpenVideoStudioProject(projectRef.current),
+        createStudioProject(projectRef.current),
       );
     };
     window.addEventListener("pointermove", move);
@@ -1149,13 +1435,18 @@ export function VideoEditorWorkspace(
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
     };
-  }, [controller, zoom]);
+  }, [controller, createStudioProject, zoom]);
 
   function sourceLoaded(video: HTMLVideoElement) {
+    const activeSourceFile = String(primaryVideoAsset?.sourceFile || sourceFile);
+    const activeSourceUrl = String(primaryVideoAsset?.sourceUrl || sourceUrl);
+    const activeSourceName = String(
+      primaryVideoAsset?.name || activeSourceFile.split(/[\\/]/).pop() || sourceName,
+    );
     const facts = {
-      sourceFile,
-      sourceUrl: playbackUrl,
-      sourceName,
+      sourceFile: activeSourceFile,
+      sourceUrl: activeSourceUrl,
+      sourceName: activeSourceName,
       duration: Number(video.duration) || Number(metadata?.duration) || 0,
       width: Number(video.videoWidth) || Number(metadata?.videoWidth) ||
         Number(metadata?.width) || 1920,
@@ -1174,15 +1465,17 @@ export function VideoEditorWorkspace(
   }
 
   async function sourceFailed() {
-    if (!sourceFile || playbackUrl.startsWith("blob:")) {
+    const activeSourceFile = String(primaryVideoAsset?.sourceFile || sourceFile);
+    if (sourceFallbackPendingRef.current) return;
+    if (!activeSourceFile || playbackUrl.startsWith("blob:")) {
       setSourceState("error");
       return;
     }
+    sourceFallbackPendingRef.current = true;
     try {
-      const buffer = await desktopApi.file.readArrayBuffer(sourceFile);
+      const buffer = await desktopApi.file.readArrayBuffer(activeSourceFile);
       if (!buffer?.byteLength) throw new Error("视频文件为空");
-      const extension = sourceName.split(".").pop()?.toLowerCase();
-      const mime = extension === "webm" ? "video/webm" : "video/mp4";
+      const mime = editorMediaMimeType(activeSourceFile, "video");
       const url = URL.createObjectURL(new Blob([buffer], { type: mime }));
       if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
       blobUrlRef.current = url;
@@ -1190,8 +1483,45 @@ export function VideoEditorWorkspace(
       setSourceState("loading");
     } catch {
       setSourceState("error");
+    } finally {
+      sourceFallbackPendingRef.current = false;
     }
   }
+
+  async function importFrom(source: "device" | "library" | "local" | "files") {
+    const kind = importMenu || "all";
+    setImportMenu("");
+    if (source === "device") {
+      const items = await controller.importAssets?.("device") || [];
+      const accepted = kind === "image" ? items.filter((item) => item.type === "image") : items;
+      if (kind === "image" && !accepted.length && items.length) {
+        setToolNotice("请选择 PNG、JPG、WebP 或 GIF 图片作为贴图。");
+      }
+      accepted.forEach(addAsset);
+      return;
+    }
+    const labels = {
+      library: "项目素材",
+      local: "通用素材库",
+      files: "素材文件",
+    };
+    setImportBrowser({ title: labels[source], items: [], kind, loading: true });
+    const items = await controller.importAssets?.(source) || [];
+    const accepted = kind === "image" ? items.filter((item) => item.type === "image") : items;
+    setImportBrowser({ title: labels[source], items: accepted, kind, loading: false });
+  }
+
+  const importSourceMenu = importMenu
+    ? (
+      <div className="ov-import-source-menu">
+        <strong>选择素材来源</strong>
+        <button onClick={() => void importFrom("library")}>项目素材</button>
+        <button onClick={() => void importFrom("local")}>通用素材库</button>
+        <button onClick={() => void importFrom("files")}>素材文件</button>
+        <button onClick={() => void importFrom("device")}>本地文件</button>
+      </div>
+    )
+    : null;
 
   const toolPanel = activeTool === "media"
     ? (
@@ -1200,21 +1530,16 @@ export function VideoEditorWorkspace(
           <strong>素材</strong>
           <span>{allAssets.length}</span>
           <button
-            onClick={() =>
-              void controller.importAssets?.().then((items) =>
-                items.forEach(addAsset)
-              )}
+            onClick={() => setImportMenu(importMenu ? "" : "all")}
           >
             <IconSymbol name="download" /> 导入
           </button>
         </div>
+        {importSourceMenu}
         {allAssets.length === 0 && (
           <button
             className="ov-import"
-            onClick={() =>
-              void controller.importAssets?.().then((items) =>
-                items.forEach(addAsset)
-              )}
+            onClick={() => setImportMenu(importMenu ? "" : "all")}
           >
             <IconSymbol name="download" />
             <strong>导入视频、图片或音频</strong>
@@ -1229,8 +1554,8 @@ export function VideoEditorWorkspace(
             >
               <button
                 className="ov-asset-preview"
-                title="双击添加到时间线"
-                onDoubleClick={() => addAsset(asset)}
+                title="定位到时间线"
+                onClick={() => activateAsset(asset)}
               >
               <span className="ov-asset-thumbnail">
                 {asset.type === "image"
@@ -1240,18 +1565,12 @@ export function VideoEditorWorkspace(
                     ? <img src={sourceThumbnail} />
                     : (
                     <video
-                      src={asset.sourceUrl}
+                      src={runtimeMediaUrls[asset.id] ||
+                        (asset.id === primaryVideoAssetId ? playbackUrl : asset.sourceUrl)}
                       muted
                       playsInline
                       preload="auto"
-                      onLoadedMetadata={(event) => {
-                        const video = event.currentTarget;
-                        video.currentTime = Math.min(
-                          Math.max(.12, video.duration * .08),
-                          Math.max(0, video.duration - .05),
-                        );
-                      }}
-                      onSeeked={(event) => {
+                      onLoadedData={(event) => {
                         if (asset.id === primaryVideoAssetId && !sourceThumbnail) {
                           captureSourceThumbnail(event.currentTarget);
                         }
@@ -1308,19 +1627,12 @@ export function VideoEditorWorkspace(
           <strong>贴图</strong>
           <span>{stickerAssets.length}</span>
           <button
-            onClick={() =>
-              void controller.importAssets?.().then((items) => {
-                const images = items.filter((item) => item.type === "image");
-                if (!images.length) {
-                  setToolNotice("请选择 PNG、JPG、WebP 或 GIF 图片作为贴图。");
-                  return;
-                }
-                images.forEach(addAsset);
-              })}
+            onClick={() => setImportMenu(importMenu ? "" : "image")}
           >
             <IconSymbol name="download" /> 导入图片
           </button>
         </div>
+        {importSourceMenu}
         <div className="ov-sticker-grid">
           {stickerAssets.map((asset) => (
             <button
@@ -1422,6 +1734,47 @@ export function VideoEditorWorkspace(
           </button>
         </div>
       </header>
+      {importBrowser && (
+        <div
+          className="ov-import-browser-backdrop"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setImportBrowser(null);
+          }}
+        >
+          <section className="ov-import-browser">
+            <header>
+              <div>
+                <strong>从{importBrowser.title}导入</strong>
+                <span>选择一个素材添加到当前剪辑工程</span>
+              </div>
+              <button onClick={() => setImportBrowser(null)}>关闭</button>
+            </header>
+            {importBrowser.loading ? (
+              <div className="ov-import-browser-empty">正在读取素材…</div>
+            ) : importBrowser.items.length ? (
+              <div className="ov-import-browser-grid">
+                {importBrowser.items.map((asset) => (
+                  <button
+                    key={asset.id}
+                    onClick={() => {
+                      addAsset(asset);
+                      setImportBrowser(null);
+                    }}
+                  >
+                    <IconSymbol name={asset.type === "video" ? "film" : asset.type === "image" ? "image" : "waveform"} />
+                    <span>
+                      <strong>{asset.name}</strong>
+                      <small>{asset.type.toUpperCase()}{asset.duration ? ` · ${formatTime(asset.duration)}` : ""}</small>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="ov-import-browser-empty">这里还没有可导入的素材</div>
+            )}
+          </section>
+        </div>
+      )}
       <main className="ov-stage">
         <nav className="ov-toolrail">
           {tools.map((tool) => (
@@ -1465,27 +1818,79 @@ export function VideoEditorWorkspace(
               className={engineReady && !preferFallbackPreview ? "active" : ""}
             />
             <video
+              key={usesNativeSequencePreview ? nativePreviewClip?.id || "gap" : "primary"}
               ref={fallbackRef}
               className={!engineReady || preferFallbackPreview ? "active" : ""}
-              src={playbackUrl}
+              src={usesNativeSequencePreview ? nativePreviewUrl : playbackUrl}
               muted={previewAudio.muted}
               playsInline
               preload="auto"
-              onLoadedMetadata={(event) => sourceLoaded(event.currentTarget)}
+              onLoadedMetadata={(event) => {
+                const video = event.currentTarget;
+                if (!usesNativeSequencePreview || nativePreviewAsset?.id === primaryVideoAssetId) {
+                  sourceLoaded(video);
+                }
+                if (!usesNativeSequencePreview || !nativePreviewClip) return;
+                video.playbackRate = nativePreviewClip.speed;
+                const mediaTime = Math.min(
+                  nativePreviewClip.trimEnd - .001,
+                  nativePreviewClip.trimStart +
+                    Math.max(0, time - nativePreviewClip.timelineStart) * nativePreviewClip.speed,
+                );
+                if (Math.abs(video.currentTime - mediaTime) > .02) {
+                  video.currentTime = mediaTime;
+                }
+              }}
               onLoadedData={(event) => {
-                captureSourceThumbnail(event.currentTarget);
-                primeSourcePreview(event.currentTarget);
+                const video = event.currentTarget;
+                if (!usesNativeSequencePreview || nativePreviewAsset?.id === primaryVideoAssetId) {
+                  captureSourceThumbnail(video);
+                  primeSourcePreview(video);
+                }
+                if (usesNativeSequencePreview && playing) {
+                  void video.play().catch(() => setPlaying(false));
+                }
               }}
               onSeeked={(event) => {
                 if (!sourceThumbnail) captureSourceThumbnail(event.currentTarget);
               }}
-              onError={() => void sourceFailed()}
+              onError={() => {
+                if (usesNativeSequencePreview) {
+                  setEngineError(`片段“${nativePreviewAsset?.name || "视频"}”载入失败`);
+                  setPlaying(false);
+                  return;
+                }
+                void sourceFailed();
+              }}
               onTimeUpdate={(event) => {
                 if (!engineReady || preferFallbackPreview) {
-                  setTime(event.currentTarget.currentTime);
+                  const video = event.currentTarget;
+                  if (usesNativeSequencePreview && nativePreviewClip) {
+                    const projectTime = nativePreviewClip.timelineStart +
+                      (video.currentTime - nativePreviewClip.trimStart) /
+                        nativePreviewClip.speed;
+                    const clipEnd = nativePreviewClip.timelineStart +
+                      editorClipDuration(nativePreviewClip);
+                    setTime(Math.min(clipEnd, Math.max(nativePreviewClip.timelineStart, projectTime)));
+                    if (
+                      playing &&
+                      video.currentTime >= nativePreviewClip.trimEnd -
+                        1 / project.settings.fps
+                    ) {
+                      continueNativeSequence(nativePreviewClip.id);
+                    }
+                  } else {
+                    setTime(video.currentTime);
+                  }
                 }
               }}
-              onEnded={() => setPlaying(false)}
+              onEnded={() => {
+                if (usesNativeSequencePreview && nativePreviewClip) {
+                  continueNativeSequence(nativePreviewClip.id);
+                } else {
+                  setPlaying(false);
+                }
+              }}
             />
             {activeImageClips.length > 0 && (
               <div className="ov-image-preview-layer">
@@ -1595,6 +2000,13 @@ export function VideoEditorWorkspace(
                 <span>源文件可能已移动或格式不受支持</span>
               </div>
             )}
+            {sourceState === "empty" && (
+              <div className="ov-monitor-state">
+                <IconSymbol name="film" />
+                <strong>空白剪辑工程</strong>
+                <span>从左侧素材面板导入视频开始剪辑</span>
+              </div>
+            )}
             <div className="ov-safe-frame" />
             <output>
               {formatTimecode(time)} <i>/</i> {formatTimecode(duration)}
@@ -1604,12 +2016,10 @@ export function VideoEditorWorkspace(
             <button
               title="上一帧"
               onClick={() => {
-                if (runtimeRef.current) void runtimeRef.current.framePrev();
-                else if (fallbackRef.current) {
-                  fallbackRef.current.currentTime = Math.max(
-                    0,
-                    time - 1 / project.settings.fps,
-                  );
+                if (runtimeRef.current && !preferFallbackPreview) {
+                  void runtimeRef.current.framePrev();
+                } else {
+                  seekPreview(time - 1 / project.settings.fps);
                 }
               }}
             >
@@ -1624,12 +2034,10 @@ export function VideoEditorWorkspace(
             <button
               title="下一帧"
               onClick={() => {
-                if (runtimeRef.current) void runtimeRef.current.frameNext();
-                else if (fallbackRef.current) {
-                  fallbackRef.current.currentTime = Math.min(
-                    duration,
-                    time + 1 / project.settings.fps,
-                  );
+                if (runtimeRef.current && !preferFallbackPreview) {
+                  void runtimeRef.current.frameNext();
+                } else {
+                  seekPreview(time + 1 / project.settings.fps);
                 }
               }}
             >
@@ -1689,19 +2097,34 @@ export function VideoEditorWorkspace(
           </div>
           <label>
             缩放<input
-              value={zoom}
+              value={Math.log(zoom / 24) / Math.log(
+                Math.max(180, project.settings.fps * 88) / 24,
+              ) * 1000}
               type="range"
-              min="24"
-              max="180"
-              onChange={(event) => setZoom(Number(event.target.value))}
+              min="0"
+              max="1000"
+              step="1"
+              onChange={(event) => {
+                zoomTouchedRef.current = true;
+                const maximum = Math.max(180, project.settings.fps * 88);
+                const ratio = Number(event.target.value) / 1000;
+                setZoom(24 * Math.pow(maximum / 24, ratio));
+              }}
             />
-            <output>{zoom}px/s</output>
+            <output>{Math.round(zoom)}px/s</output>
           </label>
         </div>
-        <div ref={timelineRef} className="ov-timeline-scroll">
+        <div
+          ref={timelineRef}
+          className="ov-timeline-scroll"
+          onScroll={(event) => setTimelineViewport({
+            left: event.currentTarget.scrollLeft,
+            width: event.currentTarget.clientWidth,
+          })}
+        >
           <div
             className="ov-timeline-content"
-            style={{ width: Math.max(1100, duration * zoom + 280) }}
+            style={{ width: Math.max(1100, 112 + duration * zoom + 24) }}
             onPointerDown={(event) => {
               if (
                 (event.target as Element).closest(".ov-clip,.ov-track-head")
@@ -1758,8 +2181,7 @@ export function VideoEditorWorkspace(
                     const hasMedia = Boolean(
                       mediaUrl && ["video", "image"].includes(clip.type),
                     );
-                    const hasThumbnail = clip.type === "image" ||
-                      Boolean(sourceThumbnail);
+                    const hasThumbnail = hasMedia;
                     return (
                     <button
                       key={clip.id}
@@ -1776,8 +2198,8 @@ export function VideoEditorWorkspace(
                         event.stopPropagation();
                         setSelectedId(clip.id);
                         const clipEnd = clip.timelineStart + editorClipDuration(clip);
-                        if (time < clip.timelineStart || time > clipEnd) {
-                          seekPreview(clip.timelineStart);
+                        if (time <= clip.timelineStart || time >= clipEnd) {
+                          seekPreview(clipFocusTime(clip));
                         }
                         dragRef.current = {
                           id: clip.id,
@@ -1786,19 +2208,35 @@ export function VideoEditorWorkspace(
                         };
                       }}
                       onDoubleClick={() => {
-                        setTime(clip.timelineStart);
-                        seekPreview(clip.timelineStart);
+                        seekPreview(clipFocusTime(clip));
                       }}
                     >
                       {hasMedia && (
                         <span
                           className="ov-clip-media"
                           aria-hidden="true"
-                          style={clip.type === "video" && sourceThumbnail
-                            ? { backgroundImage: `url(${sourceThumbnail})` }
-                            : undefined}
                         >
                           {clip.type === "image" && <img src={mediaUrl} />}
+                          {clip.type === "video" && (
+                            <VideoFilmstripThumbnail
+                              src={runtimeMediaUrls[clipAsset?.id] ||
+                                (clipAsset?.id === primaryVideoAssetId
+                                  ? playbackUrl
+                                  : mediaUrl)}
+                              start={Math.max(0, Number(clip.trimStart) || 0)}
+                              end={Math.max(0, Number(clip.trimEnd) || 0)}
+                              displayWidth={Math.max(12, editorClipDuration(clip) * zoom)}
+                              clipLeft={clip.timelineStart * zoom}
+                              viewportLeft={Math.max(0, timelineViewport.left - 112)}
+                              viewportWidth={Math.max(0, timelineViewport.width - 112)}
+                              zoom={zoom}
+                              fps={project.settings.fps}
+                              speed={Number(clip.speed) || 1}
+                              fallback={clipAsset?.id === primaryVideoAssetId
+                                ? sourceThumbnail
+                                : ""}
+                            />
+                          )}
                         </span>
                       )}
                       <i>
@@ -1844,7 +2282,7 @@ function PanelHeading({ title, count }: { title: string; count: number }) {
 function Ruler({ duration, zoom }: { duration: number; zoom: number }) {
   const step = zoom >= 100 ? 1 : zoom >= 48 ? 5 : 10;
   const ticks = [];
-  for (let value = 0; value <= duration + step; value += step) {
+  for (let value = 0; value <= duration; value += step) {
     ticks.push(value);
   }
   return (
@@ -1856,6 +2294,134 @@ function Ruler({ duration, zoom }: { duration: number; zoom: number }) {
         </span>
       ))}
     </div>
+  );
+}
+
+function VideoFilmstripThumbnail({
+  src,
+  start,
+  end,
+  displayWidth,
+  clipLeft,
+  viewportLeft,
+  viewportWidth,
+  zoom,
+  fps,
+  speed,
+  fallback,
+}: {
+  src?: string;
+  start: number;
+  end: number;
+  displayWidth: number;
+  clipLeft: number;
+  viewportLeft: number;
+  viewportWidth: number;
+  zoom: number;
+  fps: number;
+  speed: number;
+  fallback?: string;
+}) {
+  const [thumbnail, setThumbnail] = useState("");
+  const tileWidth = 88;
+  const visibleStart = Math.max(0, viewportLeft - clipLeft);
+  const visibleEnd = Math.min(
+    displayWidth,
+    viewportLeft + viewportWidth - clipLeft,
+  );
+  const firstSlot = Math.max(0, Math.floor(visibleStart / tileWidth));
+  const lastSlot = Math.max(firstSlot, Math.ceil(visibleEnd / tileWidth));
+  const sampleCount = visibleEnd > visibleStart ? lastSlot - firstSlot : 0;
+  useEffect(() => {
+    if (!src || !sampleCount) {
+      setThumbnail("");
+      return;
+    }
+    setThumbnail("");
+    let cancelled = false;
+    const video = document.createElement("video");
+    const sampleWidth = 160;
+    const sampleHeight = 90;
+    const canvas = document.createElement("canvas");
+    canvas.width = sampleWidth * sampleCount;
+    canvas.height = sampleHeight;
+    const context = canvas.getContext("2d");
+    let sampleIndex = 0;
+    video.muted = true;
+    video.playsInline = true;
+    video.preload = "auto";
+    const cleanup = () => {
+      window.clearTimeout(timer);
+      video.removeEventListener("loadeddata", loaded);
+      video.removeEventListener("seeked", captureSample);
+      video.removeEventListener("error", failed);
+      video.removeAttribute("src");
+      video.load();
+    };
+    const finish = (value: string) => {
+      if (!cancelled) setThumbnail(value);
+      cleanup();
+    };
+    const captureSample = () => {
+      if (!context || !video.videoWidth || !video.videoHeight) return finish("");
+      try {
+        context.drawImage(
+          video,
+          sampleIndex * sampleWidth,
+          0,
+          sampleWidth,
+          sampleHeight,
+        );
+        sampleIndex += 1;
+        if (sampleIndex >= sampleCount) {
+          finish(canvas.toDataURL("image/jpeg", .76));
+          return;
+        }
+        seekNextSample();
+      } catch {
+        finish("");
+      }
+    };
+    const seekNextSample = () => {
+      const sourceEnd = Math.min(
+        Math.max(start, end || video.duration),
+        Math.max(0, video.duration - .001),
+      );
+      const timelineOffset = (firstSlot + sampleIndex) * tileWidth / zoom;
+      const unalignedTarget = start + timelineOffset * speed;
+      const target = Math.min(
+        Math.max(0, video.duration - .001),
+        Math.min(sourceEnd, Math.round(unalignedTarget * fps) / fps),
+      );
+      if (Math.abs(video.currentTime - target) <= .001) captureSample();
+      else video.currentTime = target;
+    };
+    const loaded = () => {
+      seekNextSample();
+    };
+    const failed = () => finish("");
+    const timer = window.setTimeout(failed, 15_000);
+    video.addEventListener("loadeddata", loaded, { once: true });
+    video.addEventListener("seeked", captureSample);
+    video.addEventListener("error", failed, { once: true });
+    video.src = src;
+    video.load();
+    return () => {
+      cancelled = true;
+      cleanup();
+    };
+  }, [end, firstSlot, fps, sampleCount, speed, src, start, zoom]);
+  if (!sampleCount) return null;
+  const image = thumbnail || fallback;
+  return (
+    <span
+      className="ov-clip-filmstrip-window"
+      style={{ left: firstSlot * tileWidth, width: sampleCount * tileWidth }}
+    >
+      {image
+        ? <img className="ov-clip-filmstrip" src={image} alt="" draggable={false} />
+        : <span className="ov-clip-frame-loading" />}
+    </span>
   );
 }
 function Inspector({

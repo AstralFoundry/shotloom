@@ -2,6 +2,7 @@ import { useEffect, useReducer, useState, useSyncExternalStore } from "react";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { useWindowClose } from "../composables/useWindowClose";
 import { desktopApi } from "../services/desktopApi.js";
+import { copyFileIntoProjectAssets, inferFileResourceType } from "../store/assetStore.js";
 import {
   hasOpenProject,
   initProjectCloneProgressListener,
@@ -17,6 +18,10 @@ import { loadGlobalSkills } from "../store/skillsStore.js";
 import { resumeRemoteTasks } from "../store/taskStore.js";
 import { getDomainRevision, subscribeDomain } from "../store/domainReactivity.js";
 import { canvasActionShortcutLabel } from "../utils/canvasActionShortcuts.js";
+import {
+  inferEditorMediaType,
+  probeEditorMedia,
+} from "../utils/editorMediaImport.mjs";
 import { AppShell } from "./AppShell";
 import {
   canvasCommands,
@@ -179,13 +184,13 @@ export function ReactWorkbench() {
       "",
   );
   const editor =
-    editorNode && editorFile
+    editorNode
       ? {
           title: editorNode.title || "视频剪辑",
           project: editorNode.videoEditProject,
           sourceFile: editorFile,
-          sourceUrl: convertFileSrc(editorFile),
-          sourceName: editorFile.split(/[\\/]/).pop() || "video.mp4",
+          sourceUrl: editorFile ? convertFileSrc(editorFile) : "",
+          sourceName: editorFile.split(/[\\/]/).pop() || "未命名剪辑",
           metadata: editorNode.metadata || editorTask?.result?.metadata || {},
         }
       : undefined;
@@ -219,56 +224,57 @@ export function ReactWorkbench() {
         close() {
           setEditorNodeId("");
         },
-        async importAssets() {
-          const files = await desktopApi.file.importAsset();
-          return Promise.all(
-            files.map(async (file: any, index: number) => {
-              const sourceFile = String(file.filePath || file.path || "");
-              const extension = String(sourceFile).split(".").pop()?.toLowerCase() || "";
-              const type = ["png", "jpg", "jpeg", "webp", "gif", "bmp"].includes(extension)
-                ? ("image" as const)
-                : ["mp3", "wav", "m4a", "aac", "flac", "ogg"].includes(extension)
-                  ? ("audio" as const)
-                  : ("video" as const);
+        async importAssets(source = "device" as "device" | "library" | "local" | "files") {
+          const libraries = source === "device" ? null : resourceLibraryData();
+          const files: any[] = source === "device"
+            ? await desktopApi.file.importAsset()
+            : source === "library"
+              ? libraries?.projectAssets || []
+              : source === "local"
+                ? libraries?.localAssets || []
+                : libraries?.materials || [];
+          const mediaFiles = files.filter((file: any) =>
+            ["video", "audio", "image"].includes(inferFileResourceType(file))
+          );
+          const results = await Promise.allSettled(
+            mediaFiles.map(async (file: any, index: number) => {
+              const projectFile: any = source === "device"
+                ? await copyFileIntoProjectAssets(file)
+                : file;
+              const sourceFile = String(projectFile.filePath || projectFile.path || "");
+              if (!sourceFile) throw new Error("素材文件路径为空");
+              const type = inferEditorMediaType(sourceFile);
               const sourceUrl = convertFileSrc(sourceFile);
-              const media = document.createElement(
-                type === "image" ? "img" : type === "audio" ? "audio" : "video",
-              );
-              const facts: any = await new Promise((resolve) => {
-                const done = () =>
-                  resolve({
-                    duration: Number((media as HTMLMediaElement).duration) || 0,
-                    width:
-                      Number(
-                        (media as HTMLVideoElement).videoWidth ||
-                          (media as HTMLImageElement).naturalWidth,
-                      ) || 0,
-                    height:
-                      Number(
-                        (media as HTMLVideoElement).videoHeight ||
-                          (media as HTMLImageElement).naturalHeight,
-                      ) || 0,
-                  });
-                media.addEventListener(type === "image" ? "load" : "loadedmetadata", done, {
-                  once: true,
-                });
-                media.addEventListener(
-                  "error",
-                  () => resolve({ duration: 0, width: 0, height: 0 }),
-                  { once: true },
-                );
-                (media as HTMLMediaElement).src = sourceUrl;
+              const facts = await probeEditorMedia({
+                type,
+                sourceFile,
+                sourceUrl,
+                readArrayBuffer: desktopApi.file.readArrayBuffer,
+                probeNative: desktopApi.file.probeMedia,
               });
               return {
-                id: `asset-import-${Date.now().toString(36)}-${index}`,
+                id: String(projectFile.assetId || projectFile.id ||
+                  `asset-import-${Date.now().toString(36)}-${index}`),
                 type,
-                name: file.name || sourceFile.split(/[\\/]/).pop() || "素材",
+                name: projectFile.name || file.name || sourceFile.split(/[\\/]/).pop() || "素材",
                 sourceFile,
                 sourceUrl,
                 ...facts,
               };
             }),
           );
+          const imported = results.flatMap((result) =>
+            result.status === "fulfilled" ? [result.value] : []
+          );
+          const failed = results.length - imported.length;
+          if (failed) {
+            showToast(
+              failed === results.length
+                ? "视频读取失败，请确认文件未损坏且编码受系统支持"
+                : `${failed} 个素材读取失败，已导入其余素材`,
+            );
+          }
+          return imported;
         },
       }
     : undefined;
@@ -327,7 +333,9 @@ export function ReactWorkbench() {
             getRevision: getCopilotRevision,
             read: copilotData,
           },
-          applyMaterial: (item) => canvasCommands.applyMaterial(item),
+          async applyMaterial(item) {
+            await canvasCommands.applyMaterial(item);
+          },
           previewMaterial: assetsController.preview,
           loadMaterials: resourceLibraryData,
           undo: canvasCommands.undo,
@@ -347,6 +355,7 @@ export function ReactWorkbench() {
         platform={desktopApi.platform}
         view={activeView}
         onAddNode={(type) => canvasController.createNodeAt(type, { x: 120, y: 90 })}
+        onVideoEdit={() => canvasCommands.openBlankVideoEditor()}
         onNotify={() =>
           void desktopApi
             .notifyTask({

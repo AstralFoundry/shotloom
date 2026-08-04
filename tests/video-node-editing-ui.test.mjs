@@ -11,6 +11,48 @@ test('视频节点只保留可点击的导出剪辑入口', async () => {
   assert.match(source, /actions\.openVideoEditor/);
   assert.doesNotMatch(source, /亮度|对比度|饱和度|trimStart|trimEnd/);
 });
+test('画布左侧视频剪辑入口直接打开空白工程并在编辑器内选择素材来源', async () => {
+  const [sidebar, shell, workbench, workspace, adapter] = await Promise.all([
+    readFile(new URL('../renderer/src/app/layout/SideBar.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../renderer/src/app/AppShell.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../renderer/src/app/ReactWorkbench.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../renderer/src/app/editor/VideoEditorWorkspace.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../renderer/src/app/adapters/canvasAdapter.ts', import.meta.url), 'utf8'),
+  ]);
+  assert.match(sidebar, /onVideoEdit/);
+  assert.match(sidebar, /<span>视频剪辑<\/span>/);
+  assert.match(shell, /onVideoEdit=\{onVideoEdit\}/);
+  assert.match(workbench, /onVideoEdit=\{\(\) => canvasCommands\.openBlankVideoEditor\(\)\}/);
+  assert.match(workbench, /editorNode\s*\?\s*\{/);
+  assert.match(adapter, /openBlankVideoEditor\(\)/);
+  assert.match(adapter, /addNode\("videoGeneration"\)/);
+  assert.match(adapter, /videoEditorOpener\(node\.id\)/);
+  assert.match(workspace, /选择素材来源/);
+  assert.match(workspace, /项目素材/);
+  assert.match(workspace, /通用素材库/);
+  assert.match(workspace, /素材文件/);
+  assert.match(workspace, /本地文件/);
+  assert.match(workspace, /空白剪辑工程/);
+});
+test('桌面发布包携带对应平台的 FFmpeg sidecar', async () => {
+  const [manifest, packageJson, prepare, release, native] = await Promise.all([
+    readFile(new URL('../src-tauri/tauri.conf.json', import.meta.url), 'utf8'),
+    readFile(new URL('../package.json', import.meta.url), 'utf8'),
+    readFile(new URL('../scripts/prepare-media-sidecar.mjs', import.meta.url), 'utf8'),
+    readFile(new URL('../.github/workflows/release.yml', import.meta.url), 'utf8'),
+    readFile(new URL('../src-tauri/src/commands/file.rs', import.meta.url), 'utf8'),
+  ]);
+  assert.match(manifest, /"binaries\/ffmpeg"/);
+  assert.match(manifest, /FFmpeg-GPL-3\.0\.txt/);
+  assert.match(manifest, /FFmpeg-SOURCE\.txt/);
+  assert.match(packageJson, /"ffmpeg-static"/);
+  assert.match(packageJson, /"prepare:media"/);
+  assert.match(prepare, /ffmpeg-\$\{triple\}/);
+  assert.match(prepare, /spawnSync\(source, \['-version'\]/);
+  assert.match(release, /npm run prepare:media/);
+  assert.match(release, /npm rebuild ffmpeg-static --foreground-scripts/);
+  assert.doesNotMatch(native, /media_tool\("ffprobe"\)/);
+});
 test('独立剪辑工作区接入真实桌面导出', async () => {
   const workspace = await readFile(
     new URL('../renderer/src/app/editor/VideoEditorWorkspace.tsx', import.meta.url),
@@ -24,6 +66,10 @@ test('独立剪辑工作区接入真实桌面导出', async () => {
     new URL('../renderer/src/services/openVideoRuntime.js', import.meta.url),
     'utf8',
   );
+  const tauri = await readFile(
+    new URL('../renderer/src/services/tauriApi.js', import.meta.url),
+    'utf8',
+  );
   for (const pattern of [
     /splitSelected/,
     /deleteSelected/,
@@ -31,6 +77,7 @@ test('独立剪辑工作区接入真实桌面导出', async () => {
     /undo/,
     /redo/,
     /createOpenVideoRuntime/,
+    /playbackStructureSignature/,
     /onSelection/,
     /onTransformEnd/,
     /framePrev/,
@@ -47,6 +94,8 @@ test('独立剪辑工作区接入真实桌面导出', async () => {
   ])
     assert.match(workspace, pattern);
   assert.match(root, /desktopApi\.file\.exportVideoProject/);
+  assert.match(tauri, /prepared = JSON\.parse\(JSON\.stringify\(project\)\)/);
+  assert.doesNotMatch(tauri, /structuredClone\(project\)/);
   assert.match(
     runtime,
     /updateClip\(id, updates\) \{\s*return studio\.updateClip\(id, updates\);\s*\}/,
@@ -61,6 +110,14 @@ test('独立剪辑工作区接入真实桌面导出', async () => {
     workspace,
     /runtimeMutationRef\.current = true;\s*void runtime\.updateClip\(selectedId, runtimeUpdates\)/,
   );
+  assert.match(
+    workspace,
+    /playbackStructureSignature,[\s\S]*?preferFallbackPreview,[\s\S]*?sourceState/,
+  );
+  assert.match(workspace, /const usesNativeSequencePreview = directPreviewClips\.length > 1/);
+  assert.match(workspace, /function continueNativeSequence\(clipId: string\)/);
+  assert.match(workspace, /src=\{usesNativeSequencePreview \? nativePreviewUrl : playbackUrl\}/);
+  assert.match(workspace, /onEnded=\{\(\) => \{[\s\S]*?continueNativeSequence/);
 });
 test('剪辑工作区用真实媒体元数据补齐主轨并提供本地文件回退', async () => {
   const workspace = await readFile(
@@ -73,8 +130,21 @@ test('剪辑工作区用真实媒体元数据补齐主轨并提供本地文件�
   );
   assert.match(workspace, /hydrateSourceProject/);
   assert.match(workspace, /onLoadedMetadata/);
+  assert.match(workspace, /desktopApi\.file\.readArrayBuffer\(activeSourceFile\)/);
+  assert.match(workspace, /runtimeBlobUrlsRef/);
+  assert.match(workspace, /runtimeMediaUrls\[asset\.id\]/);
   assert.match(workspace, /desktopApi\.file\.readArrayBuffer\(sourceFile\)/);
-  assert.match(workspace, /fallbackRef\.current\.currentTime/);
+  assert.match(
+    workspace,
+    /primaryVideoAssetId = project\.tracks[\s\S]*?clip\.type === "video"\)\?\.assetId/,
+  );
+  assert.match(workspace, /primaryVideoAsset\?\.sourceUrl \|\| sourceUrl/);
+  assert.match(workspace, /window\.setTimeout\(\(\) => void sourceFailed\(\), 3500\)/);
+  assert.match(
+    workspace,
+    /runtimeMediaUrls\[asset\.id\] \|\|[\s\S]*?asset\.id === primaryVideoAssetId \? playbackUrl : asset\.sourceUrl/,
+  );
+  assert.match(workspace, /const video = fallbackRef\.current/);
   assert.match(styles, /--ov-bg: #f7f7f8/);
   assert.match(styles, /same restrained, light workspace language/);
   assert.match(workspace, /createPortal/);
@@ -109,6 +179,23 @@ test('剪辑工作区主动解码首帧并提供可编辑的中文文字预设',
   assert.match(workspace, /preload="auto"/);
   assert.match(workspace, /function primeSourcePreview/);
   assert.match(workspace, /video\.currentTime = frameTime/);
+  assert.match(workspace, /Math\.max\(time, 0\)/);
+  assert.doesNotMatch(workspace, /video\.duration \* \.08/);
+  assert.match(
+    workspace,
+    /start=\{Math\.max\(0, Number\(clip\.trimStart\) \|\| 0\)\}/,
+  );
+  assert.match(workspace, /function VideoFilmstripThumbnail/);
+  assert.match(workspace, /const sampleCount = visibleEnd > visibleStart \? lastSlot - firstSlot : 0/);
+  assert.match(workspace, /sampleIndex \* sampleWidth/);
+  assert.match(styles, /\.ov-clip-frame-loading/);
+  assert.match(styles, /\.ov-clip-media \.ov-clip-filmstrip \{ object-fit: fill; \}/);
+  assert.match(workspace, /Math\.max\(180, project\.settings\.fps \* 88\)/);
+  assert.match(workspace, /Math\.round\(unalignedTarget \* fps\) \/ fps/);
+  assert.match(workspace, /viewportLeft=\{Math\.max\(0, timelineViewport\.left - 112\)\}/);
+  assert.match(workspace, /112 \+ duration \* zoom \+ 24/);
+  assert.match(workspace, /const availableWidth = Math\.max\(1, timelineWidth - 112 - 24\)/);
+  assert.match(workspace, /zoomTouchedRef\.current = true/);
   assert.match(workspace, /await runtime\.seek/);
   assert.match(workspace, /const textPresets = \[/);
   assert.match(workspace, /清晰字幕/);
@@ -174,6 +261,16 @@ test('剪辑工作区主动解码首帧并提供可编辑的中文文字预设',
   assert.match(workspace, /video\.volume = previewAudio\.volume/);
   assert.match(workspace, /const stickerAssets = useMemo/);
   assert.match(workspace, /const imageStart = duration > 0/);
+  assert.match(workspace, /const videoStart = asset\.type === "video"/);
+  assert.match(workspace, /timelineStart: videoStart/);
+  assert.match(workspace, /已追加到视频轨末尾/);
+  assert.match(workspace, /function activateAsset\(asset: VideoEditorAsset\)/);
+  assert.match(workspace, /function clipFocusTime\(clip: EditorClip\)/);
+  assert.match(workspace, /start \+ 1 \/ projectRef\.current\.settings\.fps/);
+  assert.match(workspace, /onClick=\{\(\) => activateAsset\(asset\)\}/);
+  assert.doesNotMatch(workspace, /onDoubleClick=\{\(\) => addAsset\(asset\)\}/);
+  assert.match(workspace, /已定位到“\$\{asset\.name\}”在时间线中的片段/);
+  assert.match(workspace, /runtimeMediaUrls\[clipAsset\?\.id\]/);
   assert.match(workspace, /x: \(canvasWidth - imageWidth\) \/ 2/);
   assert.match(workspace, /已添加到画面中央/);
   assert.match(workspace, /导入图片/);

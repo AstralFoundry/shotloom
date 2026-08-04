@@ -43,9 +43,11 @@
   },
   "bundle": {
     "active": true,
-    "externalBin": ["binaries/opencode"],
+    "externalBin": ["binaries/opencode", "binaries/ffmpeg"],
     "resources": [
       "resources/opencode-LICENSE.txt",
+      "resources/FFmpeg-GPL-3.0.txt",
+      "resources/FFmpeg-SOURCE.txt",
       "zh-Hans.lproj/InfoPlist.strings"
     ],
     "targets": "all",
