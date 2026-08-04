@@ -13,6 +13,7 @@ const expectedIds = [
   'ecommerce-product',
   'general',
   'keyframe-video',
+  'script-to-video',
   'short-drama',
   'social-media',
   'talking-head',
@@ -23,6 +24,7 @@ const expectedNames = {
   'ecommerce-product': '商品视觉工坊',
   general: '基础任务助手',
   'keyframe-video': '关键帧动态编排',
+  'script-to-video': '剧本生视频（需上传剧本）',
   'short-drama': '连续短剧制作',
   'social-media': '社媒内容运营',
   'talking-head': '主播口播制作',
@@ -172,9 +174,32 @@ test('short-drama v7 支持小说改编并从当前内容成熟度继续', () =>
   assert.match(body, /不固定为一张|不要规定固定参考数量/);
 });
 
+test('script-to-video v1 使用两轮 Prompt Draft 确认和 Shotloom 原生生成契约', () => {
+  const { manifest, body } = parseSkill('script-to-video');
+  assert.equal(manifest.version, 1);
+  for (const recipeId of [
+    'script-element-reference', 'script-seedance-shot',
+    'drama-shot-planning', 'video-audio-production-sheet',
+  ]) assert.ok(manifest.recipeIds.includes(recipeId), `script-to-video 缺少 ${recipeId}`);
+  assert.match(body, /没有可读取的剧本正文[\s\S]*?request_clarification/);
+  assert.match(body, /Final_Video_Spec\.md/);
+  assert.match(body, /元素图 Prompt Draft 与强制确认/);
+  assert.match(body, /镜头视频 Prompt Draft 与强制确认/);
+  assert.match(body, /没有明确确认，严禁创建、配置或启动对应的图片生成节点/);
+  assert.match(body, /没有明确确认，严禁创建、配置或启动对应视频节点/);
+  assert.match(body, /摄像机 → 主体 → 空间 → 音频/);
+  assert.match(body, /不要用“0–3 秒、3–6 秒”/);
+  assert.match(body, /no music/);
+  assert.match(body, /no subtitles/);
+  assert.match(body, /只有所选模式真实提供清晰度参数时才请求 2K/);
+  assert.match(body, /当前 Shotloom Agent 没有可自动操作剪辑时间线的画布工具/);
+  assert.doesNotMatch(body, /resource_prepare_and_analyze|text_editor|storyboard_designer|media_generator|video_assembler|reply_to_user/);
+});
+
 test('视频类 Skill 根据镜头风险选择直接参考而不是固定一根线', () => {
   const expectedVersions = {
     'video-production': 9,
+    'script-to-video': 1,
     'short-drama': 7,
     'talking-head': 3,
     'video-ad': 3,
@@ -190,7 +215,7 @@ test('视频类 Skill 根据镜头风险选择直接参考而不是固定一根�
 });
 
 test('视频类 Skill 等待图片完成但不规划内部预处理节点', () => {
-  for (const id of ['keyframe-video', 'talking-head', 'video-ad', 'video-production']) {
+  for (const id of ['keyframe-video', 'talking-head', 'video-ad', 'video-production', 'script-to-video']) {
     const { body } = parseSkill(id);
     assert.doesNotMatch(body, /apply_colored_pencil/, `${id} 不应暴露内部彩铅动作`);
     assert.match(body, /内部.*运行时自动完成|内部输入适配由运行时自动完成/, `${id} 缺少内部适配说明`);

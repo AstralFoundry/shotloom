@@ -11,7 +11,7 @@ const videoPromptExecutionContract = [
   '最后单列“负面约束”，只列与当前内容有关的身份漂移、人数错误、五官肢体及手部异常、服装/商品/道具改变、空间跳变、动作瞬移、物理失真、镜头抖动、跳帧、闪烁、果冻感、低清模糊、塑料材质、错误文字和违背项目风格的表现，不要机械堆入无关禁词。',
 ].join('\n');
 
-function recipe({ id, name, generationType, operationTypes, description, requiredElements, guidance, version = 2 }) {
+function recipe({ id, name, generationType, operationTypes, description, requiredElements, guidance, version = 2, videoContract = videoPromptExecutionContract }) {
   return {
     id,
     name,
@@ -20,7 +20,7 @@ function recipe({ id, name, generationType, operationTypes, description, require
     operationTypes,
     systemPrompt: [
       `将当前节点的制作意图整理成${generationType === 'image' ? '图片' : generationType === 'video' ? '视频' : generationType === 'audio' ? '音频' : '文本'}模型能够直接执行的完整指令。`,
-      generationType === 'video' ? videoPromptExecutionContract : '',
+      generationType === 'video' ? videoContract : '',
       guidance,
       `最终指令不可遗漏这些信息：${requiredElements.join('、')}。`,
       '仅交付最终提示词；不要说明改写步骤，不要复述节点用途，不要附带候选版本，也不要用空泛质量词充数。',
@@ -72,6 +72,39 @@ const videoProductionRecipes = [
   recipe({ id: 'video-audio-production-sheet', name: '声音后期执行单', generationType: 'text', operationTypes: ['video-audio-production-sheet', 'sound-design-sheet'], description: '当没有音频模型或只需要制作规划时，生成可交付声音团队的时间码执行文档。', requiredElements: ['分段时间码', '对白及旁白', '环境声和拟音', '音乐结构', '混音建议与交付规格'], guidance: '沿画面时间线编写声音执行表，逐段列出对白或旁白逐字稿、环境氛围、拟音、关键同步点、音乐进出、声像与动态范围建议；文档开头必须声明这是声音制作方案，而不是已经生成的音频。' }),
 ];
 
+const seedancePromptExecutionContract = [
+  '视频提示词面向 Seedance 2.0 的自然语言协议，使用中文写作；角色说出的台词保持 Final_Video_Spec 指定的输出语言。',
+  '按“摄像机 → 主体 → 空间 → 音频”的顺序组织：先交代机位、景别、焦段和运动，再按发生顺序写人物的身体部位动作、表情与视线，然后说明主体和背景的空间变化，最后写对白、拟音和音乐约束。',
+  '每个节点只描述一次模型调用能够完成的 3–15 秒镜头。默认使用连续长镜头；只有当前模型模式明确支持多镜叙事时才用“镜头1、镜头2、镜头3”表达顺序节拍。不得使用“0–3秒、3–6秒”之类精确秒点强迫模型执行；需要真实切镜、换场或不连续时间时拆成多个视频节点。',
+  '动作必须落实到手、腿、头、肩、视线和身体重心，写明速度、幅度、方向、接触、停顿及先后因果；同时说明衣料、毛发、烟尘、光线和道具的连续反馈，以及镜头结束时可衔接下一镜的姿态、视线、持物和运动方向。',
+  '口头对白使用 {逐字台词}；非项目默认语言时在花括号前标明语言。音效使用 <声音描述>，正在播放的音乐使用 (音乐描述)，屏幕内必须生成的标题使用【精确文字】。独立旁白不写进视频提示词，交给单独声音节点。',
+  '除非本镜明确要求模型内生成音乐，结尾始终加入 no music；字幕交给后期，始终加入 no subtitles。最后追加与本镜相关的负面约束，抑制身份漂移、服装和道具变化、肢体错误、口型错位、空间跳变、动作瞬移、闪烁、跳帧、果冻感、错误文字与风格漂移。',
+].join('\n');
+
+const scriptToVideoRecipes = [
+  recipe({
+    id: 'script-element-reference',
+    name: '剧本元素一致性图',
+    generationType: 'image',
+    operationTypes: ['script-element-reference', 'script-character-board', 'script-scene-board', 'script-prop-board'],
+    description: '依据已确认剧本、成片规格和故事板，为跨镜角色、场景或关键道具制作稳定视觉依据。',
+    requiredElements: ['唯一 element_id', '可见身份与状态', '构图和景别', '主光与负补光', '克制调色', '材质细节', '跨镜不可变化特征', '无画面文字'],
+    guidance: '提示词使用中文自然语言，只描述物理可见内容，并把专业视觉术语、构图景别、主光方向与负补光、以一种主色占约九成的克制调色、材质渲染和可见微表情编织成完整导演指令；不得解释角色动机，不模仿在世艺术家的独特风格。角色采用横向 16:9 电影开发总板，在一张图内以半身主像配合正面、侧面、背面完整全身视图，锁定脸型、五官、体型、发型、服装、配件和剧情允许的状态变化；场景板锁定空间结构、重要物体位置、朝向、光向和可表演区域；道具板锁定形状、尺寸、材质、颜色、磨损与独特标记。用户已提供并指定的真实资产不重新生成。画面中不生成标题、标签、参数表或伪文字。',
+    version: 1,
+  }),
+  recipe({
+    id: 'script-seedance-shot',
+    name: 'Seedance 剧情长镜头',
+    generationType: 'video',
+    operationTypes: ['script-seedance-shot', 'script-to-video-shot', 'seedance-story-shot'],
+    description: '根据已确认的镜头 Prompt Draft 和真实元素图，为 Seedance 2.0 编写可直接执行的连续剧情镜头。',
+    requiredElements: ['镜头编号和总时长', '每项参考输入职责', '摄像机运动', '主体动作与表演', '空间和环境变化', '逐字对白与声音语法', '结束接点', 'no music', 'no subtitles', '针对性负面约束'],
+    guidance: '严格忠于已确认故事板中的场景顺序、动作结果和逐字台词。主关键帧负责起始构图，角色、场景、道具或动作参考只在当前镜头确有风险时连接；逐项说明每张输入约束的身份、服装、空间、材质、持物或动作，不固定参考数量，也不加入无关图片。提示词自包含复述不可变化的五官、脸型、发型、体型、服装、道具和场景轴线。若存在用户授权的音色参考，说明哪个角色使用哪项音频输入；旁白保持独立，不混入角色口型。',
+    version: 1,
+    videoContract: seedancePromptExecutionContract,
+  }),
+];
+
 const shortDramaRecipes = [
   recipe({ id: 'drama-plot-outline', name: '短剧叙事蓝图', generationType: 'text', operationTypes: ['drama-plot-outline'], description: '把初始故事构想整理成能够继续编剧和拆镜的短剧叙事蓝图。', requiredElements: ['主题及世界规则', '核心人物', '主要空间', '剧情推进线', '情绪变化轨迹'], guidance: '围绕用户故事交付主题、人物目标与冲突、场景清单、关键道具、分场概述、主要转折、情绪弧线及总时长；用户已指定的结局必须原样保留。' }),
   recipe({ id: 'drama-character-extraction', name: '短剧角色视觉档案', generationType: 'text', operationTypes: ['drama-character-extraction'], description: '从剧本中整理可在多个镜头重复使用的逐角色视觉档案。', requiredElements: ['人物姓名', '身份与年龄阶段', '外观识别特征', '服饰及配件', '固定不变项'], guidance: '每名角色单独记录，覆盖身份、年龄、脸型五官、发型肤色、体型、服装、配饰、色彩标签、剧情状态变化和不能改变的识别特征。' }),
@@ -109,6 +142,7 @@ const builtInRecipes = [
   ...ecommerceRecipes,
   ...socialRecipes,
   ...videoProductionRecipes,
+  ...scriptToVideoRecipes,
   ...shortDramaRecipes,
   ...keyframeRecipes,
   ...videoAdRecipes,

@@ -9,7 +9,7 @@ import {
 } from '../renderer/src/services/builtInRecipes.js';
 
 test('内置 Recipe 使用单一提示词策略结构', () => {
-  assert.equal(builtInRecipes.length, 48);
+  assert.equal(builtInRecipes.length, 50);
   assert.equal(new Set(builtInRecipes.map((recipe) => recipe.id)).size, builtInRecipes.length);
   for (const recipe of builtInRecipes) {
     assert.match(recipe.id, /^[a-z0-9_-]+$/);
@@ -83,7 +83,9 @@ test('短剧视频 Recipe 对真人质感模板做风格条件判断', () => {
 });
 
 test('所有视频 Recipe 生成完整分秒导演稿而不是简短质量词', () => {
-  const videoRecipes = builtInRecipes.filter((recipe) => recipe.generationType === 'video');
+  const videoRecipes = builtInRecipes.filter((recipe) =>
+    recipe.generationType === 'video' && recipe.id !== 'script-seedance-shot'
+  );
   assert.ok(videoRecipes.length >= 4);
   for (const recipe of videoRecipes) {
     const prompt = recipe.systemPrompt || '';
@@ -94,6 +96,23 @@ test('所有视频 Recipe 生成完整分秒导演稿而不是简短质量词', 
     assert.match(prompt, /说话者、逐字台词、开始结束时间/, `${recipe.id} 缺少台词同步`);
     assert.match(prompt, /最后单列“负面约束”/, `${recipe.id} 缺少负面约束`);
   }
+});
+
+test('剧本生视频使用独立的中文元素图和 Seedance 2.0 提示词协议', () => {
+  const byId = new Map(builtInRecipes.map((recipe) => [recipe.id, recipe]));
+  const image = byId.get('script-element-reference');
+  const video = byId.get('script-seedance-shot');
+  assert.equal(image?.generationType, 'image');
+  assert.match(image?.systemPrompt || '', /中文自然语言/);
+  assert.match(image?.systemPrompt || '', /横向 16:9 电影开发总板/);
+  assert.match(image?.systemPrompt || '', /不模仿在世艺术家/);
+  assert.equal(video?.generationType, 'video');
+  assert.match(video?.systemPrompt || '', /摄像机 → 主体 → 空间 → 音频/);
+  assert.match(video?.systemPrompt || '', /不得使用“0–3秒、3–6秒”/);
+  assert.match(video?.systemPrompt || '', /\{逐字台词\}/);
+  assert.match(video?.systemPrompt || '', /no music/);
+  assert.match(video?.systemPrompt || '', /no subtitles/);
+  assert.doesNotMatch(video?.systemPrompt || '', /覆盖完整总时长且不重叠、不留空档的时间码/);
 });
 
 test('关键帧、短剧和口播视频 Recipe 补充各自的时间轴执行细节', () => {
