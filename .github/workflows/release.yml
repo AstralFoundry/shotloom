@@ -206,7 +206,7 @@ jobs:
             [[ "$path" == *.sig ]] && updater_signatures+=("$path")
           done
           if (( ${#updater_signatures[@]} == 0 )); then
-            echo "::error::No signed updater artifact was generated. Check TAURI_PRIVATE_KEY and createUpdaterArtifacts."
+            echo "::error::No signed updater artifact was generated. Check TAURI_SIGNING_PRIVATE_KEY and createUpdaterArtifacts."
             exit 1
           fi
 

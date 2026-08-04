@@ -8,7 +8,7 @@
       "endpoints": [
         "https://github.com/AstralFoundry/shotloom/releases/latest/download/latest.json"
       ],
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEYyNzZGQUYyMkExODU5RDIKUldUU1dSZ3E4dnAyOGcyaDg2WWdtRFJNY3NrdVIwT0NiQjYrOXNaWG5pdXJFT2FlNW1RZEVCSnUK"
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDdCQTE4NUY3QkM1QUM5OUQKUldTZHlWcTg5NFdoZTF1OXhhR2N5enQ0blQ0N3RUSXowOXhpb1hLSXdHN0hpVmpjRlRtN0tUYSsK"
     }
   },
   "build": {
