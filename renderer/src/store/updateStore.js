@@ -17,28 +17,6 @@ function applyAvailable(info, phase = 'available') {
   if (info) updateStore.dialogOpen = true;
 }
 
-export function registerUpdateBridge() {
-  const unregister = [
-    desktopApi.update.onAvailable((info) => applyAvailable(info, 'available')),
-    desktopApi.update.onDownloadProgress((progress) => {
-      updateStore.progress = progress;
-      updateStore.phase = 'downloading';
-      updateStore.error = '';
-      updateStore.dialogOpen = true;
-    }),
-    desktopApi.update.onReady((info) => {
-      applyAvailable(info, 'ready');
-      updateStore.progress = { received: info?.fileSize || 0, total: info?.fileSize || 0, percent: 100 };
-    }),
-    desktopApi.update.onError((message) => {
-      updateStore.error = message || '更新失败';
-      updateStore.phase = updateStore.info ? updateStore.phase : 'idle';
-      updateStore.dialogOpen = true;
-    }),
-  ];
-  return () => unregister.forEach((fn) => fn?.());
-}
-
 export async function checkForUpdate({ openWhenNone = false } = {}) {
   updateStore.checking = true;
   try {
@@ -60,10 +38,17 @@ export async function checkForUpdate({ openWhenNone = false } = {}) {
 export async function downloadUpdate() {
   updateStore.phase = 'downloading';
   updateStore.error = '';
-  const result = await desktopApi.update.download();
+  updateStore.progress = { received: 0, total: 0, percent: 0 };
+  const result = await desktopApi.update.download((progress) => {
+    updateStore.progress = progress;
+  });
   if (!result.ok) {
     updateStore.error = result.error || '下载失败';
     updateStore.phase = 'available';
+  } else {
+    applyAvailable(result.info || updateStore.info, 'ready');
+    const fileSize = result.info?.fileSize || updateStore.progress?.total || 0;
+    updateStore.progress = { received: fileSize, total: fileSize, percent: 100 };
   }
   return result;
 }

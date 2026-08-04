@@ -69,13 +69,19 @@ jobs:
             rust-target: aarch64-apple-darwin
             args: --target aarch64-apple-darwin --bundles dmg
             artifact: release-macos-arm64
-            artifact-path: src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg*
+            artifact-path: |
+              src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
+              src-tauri/target/aarch64-apple-darwin/release/bundle/macos/*.app.tar.gz
+              src-tauri/target/aarch64-apple-darwin/release/bundle/macos/*.app.tar.gz.sig
           - name: macOS x64
             os: macos-15-intel
             rust-target: x86_64-apple-darwin
             args: --target x86_64-apple-darwin --bundles dmg
             artifact: release-macos-x64
-            artifact-path: src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/*.dmg*
+            artifact-path: |
+              src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/*.dmg
+              src-tauri/target/x86_64-apple-darwin/release/bundle/macos/*.app.tar.gz
+              src-tauri/target/x86_64-apple-darwin/release/bundle/macos/*.app.tar.gz.sig
           - name: Windows x64
             os: windows-latest
             rust-target: x86_64-pc-windows-msvc
@@ -179,6 +185,20 @@ jobs:
           uploadUpdaterJson: false
           uploadUpdaterSignatures: false
 
+      - name: Verify updater artifacts
+        shell: bash
+        run: |
+          shopt -s nullglob
+          signatures=(${{ matrix.artifact-path }})
+          updater_signatures=()
+          for path in "${signatures[@]}"; do
+            [[ "$path" == *.sig ]] && updater_signatures+=("$path")
+          done
+          if (( ${#updater_signatures[@]} == 0 )); then
+            echo "::error::No signed updater artifact was generated. Check TAURI_PRIVATE_KEY and createUpdaterArtifacts."
+            exit 1
+          fi
+
       - name: Upload temporary release artifact
         uses: actions/upload-artifact@v4
         with:
@@ -237,15 +257,15 @@ jobs:
           latest='{"version":"'"$version"'","notes":"See https://github.com/AstralFoundry/shotloom/releases/tag/'"$RELEASE_TAG"'","pub_date":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","platforms":{'
 
           first=true
-          for sig in release-assets/*.sig; do
-            [[ -f "$sig" ]] || continue
+          platform_count=0
+          while IFS= read -r -d '' sig; do
             base="${sig%.sig}"
             installer="$(basename "$base")"
             sig_content="$(cat "$sig")"
 
             case "$installer" in
-              *aarch64*.dmg)   platform="darwin-aarch64" ;;
-              *x86_64*.dmg)    platform="darwin-x86_64" ;;
+              *aarch64*.app.tar.gz) platform="darwin-aarch64" ;;
+              *x86_64*.app.tar.gz)  platform="darwin-x86_64" ;;
               *x64*.exe)       platform="windows-x86_64" ;;
               *)               echo "::warning::Unknown platform for $installer"; continue ;;
             esac
@@ -254,8 +274,14 @@ jobs:
 
             [[ "$first" == true ]] && first=false || latest+=','
             latest+='"'"$platform"'":{"signature":"'"$sig_content"'","url":"'"$url"'"}'
-          done
+            ((platform_count += 1))
+          done < <(find release-assets -type f -name '*.sig' -print0)
           latest+='}}'
+
+          if (( platform_count != 3 )); then
+            echo "::error::Expected 3 updater platforms, generated $platform_count"
+            exit 1
+          fi
 
           echo "$latest" > latest.json
           echo "::group::latest.json"
