@@ -22,6 +22,8 @@ test('release workflow publishes signed updater packages for every desktop targe
 
   assert.match(workflow, /bundle\/macos\/\*\.app\.tar\.gz/);
   assert.match(workflow, /bundle\/macos\/\*\.app\.tar\.gz\.sig/);
+  assert.match(workflow, /--target aarch64-apple-darwin --bundles dmg,app/);
+  assert.match(workflow, /--target x86_64-apple-darwin --bundles dmg,app/);
   assert.match(workflow, /renamed="\$\{archive%\.app\.tar\.gz\}_\$\{\{ matrix\.updater_suffix \}\}\.app\.tar\.gz"/);
   assert.match(workflow, /\*aarch64\*\.app\.tar\.gz\).*darwin-aarch64/);
   assert.match(workflow, /\*x86_64\*\.app\.tar\.gz\).*darwin-x86_64/);

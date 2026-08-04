@@ -77,7 +77,7 @@ jobs:
           - name: macOS arm64
             os: macos-15
             rust-target: aarch64-apple-darwin
-            args: --target aarch64-apple-darwin --bundles dmg
+            args: --target aarch64-apple-darwin --bundles dmg,app
             artifact: release-macos-arm64
             updater_suffix: aarch64
             artifact-path: |
@@ -87,7 +87,7 @@ jobs:
           - name: macOS x64
             os: macos-15-intel
             rust-target: x86_64-apple-darwin
-            args: --target x86_64-apple-darwin --bundles dmg
+            args: --target x86_64-apple-darwin --bundles dmg,app
             artifact: release-macos-x64
             updater_suffix: x86_64
             artifact-path: |
