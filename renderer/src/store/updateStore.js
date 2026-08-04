@@ -19,17 +19,22 @@ function applyAvailable(info, phase = 'available') {
 
 export async function checkForUpdate({ openWhenNone = false } = {}) {
   updateStore.checking = true;
+  updateStore.dialogOpen = true;
+  updateStore.info = null;
+  updateStore.progress = null;
+  updateStore.phase = 'idle';
+  updateStore.error = '';
   try {
     const result = await desktopApi.update.check();
     if (result.info) {
       applyAvailable(result.info, result.downloaded ? 'ready' : 'available');
     } else if (openWhenNone) {
-      updateStore.info = null;
-      updateStore.phase = 'idle';
-      updateStore.error = result.error || '当前已是最新版本';
-      updateStore.dialogOpen = true;
+      updateStore.error = result.error ? '检查更新失败，请稍后重试' : '当前已是最新版本';
     }
     return result;
+  } catch {
+    updateStore.error = '检查更新失败，请稍后重试';
+    return { hasUpdate: false, downloaded: false, info: null, error: updateStore.error };
   } finally {
     updateStore.checking = false;
   }

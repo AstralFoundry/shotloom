@@ -2371,6 +2371,169 @@
       ]
     },
     {
+      "id": "MiniMax-H3",
+      "name": "MiniMax Hailuo 03",
+      "provider": "minimax",
+      "type": "videoGeneration",
+      "sortOrder": 4,
+      "enabled": true,
+      "defaultMode": "text-to-video",
+      "modes": [
+        {
+          "id": "text-to-video",
+          "label": "文生视频",
+          "endpoint": {
+            "method": "POST",
+            "path": "/v2/video_generation",
+            "scope": "root"
+          },
+          "taskEndpoint": {
+            "method": "GET",
+            "path": "/v2/query/video_generation/{taskId}",
+            "scope": "root"
+          },
+          "isAsync": true,
+          "inputConstraints": {
+            "images": {
+              "min": 0,
+              "max": 0
+            }
+          },
+          "outputConstraints": {
+            "durations": [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+            "defaultDuration": 5,
+            "formats": ["mp4"]
+          },
+          "params": [
+            {
+              "key": "prompt",
+              "label": "提示词",
+              "type": "text",
+              "required": true
+            },
+            {
+              "key": "duration",
+              "label": "时长",
+              "type": "select",
+              "default": 5,
+              "numeric": true,
+              "options": [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+            },
+            {
+              "key": "aspectRatio",
+              "label": "比例",
+              "type": "select",
+              "default": "16:9",
+              "options": ["21:9", "16:9", "4:3", "1:1", "3:4", "9:16"]
+            },
+            {
+              "key": "resolution",
+              "label": "分辨率",
+              "type": "select",
+              "default": "768P",
+              "options": ["768P", "2K"]
+            }
+          ],
+          "auth": {
+            "type": "bearer"
+          },
+          "requestTemplate": {
+            "model": "{{model}}",
+            "content": "{{content}}",
+            "resolution": "{{params.resolution}}",
+            "duration": "{{params.duration}}",
+            "ratio": "{{params.aspectRatio}}"
+          },
+          "taskIdPath": "task_id",
+          "statusPath": "task.status",
+          "errorPath": "task.error.message",
+          "pollStatusMap": {
+            "queued": "running",
+            "running": "running",
+            "succeeded": "completed",
+            "failed": "failed",
+            "cancelled": "cancelled"
+          },
+          "resultUrlPath": "task.content.url"
+        },
+        {
+          "id": "first-frame-to-video",
+          "label": "首帧图生视频",
+          "endpoint": {
+            "method": "POST",
+            "path": "/v2/video_generation",
+            "scope": "root"
+          },
+          "taskEndpoint": {
+            "method": "GET",
+            "path": "/v2/query/video_generation/{taskId}",
+            "scope": "root"
+          },
+          "isAsync": true,
+          "inputConstraints": {
+            "images": {
+              "min": 1,
+              "max": 1,
+              "roles": ["referenceImage"],
+              "formats": ["jpg", "jpeg", "png", "webp", "heic", "heif"]
+            }
+          },
+          "outputConstraints": {
+            "durations": [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+            "defaultDuration": 5,
+            "formats": ["mp4"]
+          },
+          "requestFields": {
+            "imageContentRole": "first_frame"
+          },
+          "params": [
+            {
+              "key": "prompt",
+              "label": "提示词",
+              "type": "text",
+              "required": true
+            },
+            {
+              "key": "duration",
+              "label": "时长",
+              "type": "select",
+              "default": 5,
+              "numeric": true,
+              "options": [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+            },
+            {
+              "key": "resolution",
+              "label": "分辨率",
+              "type": "select",
+              "default": "768P",
+              "options": ["768P", "2K"]
+            }
+          ],
+          "auth": {
+            "type": "bearer"
+          },
+          "requestTemplate": {
+            "model": "{{model}}",
+            "content": "{{content}}",
+            "resolution": "{{params.resolution}}",
+            "duration": "{{params.duration}}",
+            "ratio": "adaptive"
+          },
+          "taskIdPath": "task_id",
+          "statusPath": "task.status",
+          "errorPath": "task.error.message",
+          "pollStatusMap": {
+            "queued": "running",
+            "running": "running",
+            "succeeded": "completed",
+            "failed": "failed",
+            "cancelled": "cancelled"
+          },
+          "resultUrlPath": "task.content.url"
+        }
+      ]
+    },
+    {
       "id": "doubao-seedance-2-0-260128",
       "name": "Doubao Seedance 2.0",
       "provider": "bytedance",

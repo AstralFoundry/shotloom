@@ -1,6 +1,7 @@
 import { IconSymbol } from "./IconSymbol";
 
 export interface UpdateDialogData {
+  checking?: boolean;
   phase: "idle" | "available" | "downloading" | "ready" | string;
   info: null | {
     version: string;
@@ -39,8 +40,10 @@ export function UpdateDialog(
 ) {
   const force = Boolean(data.info?.forceUpdate);
   const percent = Math.min(100, Math.max(0, data.progress?.percent || 0));
-  const closeAllowed = !force && data.phase !== "downloading";
-  const title = data.phase === "ready"
+  const closeAllowed = !force && !data.checking && data.phase !== "downloading";
+  const title = data.checking
+    ? "正在检查更新"
+    : data.phase === "ready"
     ? "更新已就绪"
     : data.phase === "downloading"
     ? "正在下载更新"
@@ -73,6 +76,17 @@ export function UpdateDialog(
           )}
         </div>
         <div className="modal-body">
+          {data.checking && (
+            <div className="update-summary">
+              <div className="update-icon">
+                <span className="button-spinner" />
+              </div>
+              <div>
+                <strong>正在连接更新服务器</strong>
+                <span>请稍候…</span>
+              </div>
+            </div>
+          )}
           {data.info && (
             <div className="update-summary">
               <div className="update-icon">
@@ -104,7 +118,7 @@ export function UpdateDialog(
           {data.error && <p className="update-error">{data.error}</p>}
         </div>
         <div className="modal-foot">
-          {!force && data.phase !== "downloading" && (
+          {!force && !data.checking && data.phase !== "downloading" && (
             <button
               className="button ghost"
               type="button"
@@ -113,7 +127,13 @@ export function UpdateDialog(
               以后
             </button>
           )}
-          {data.phase === "available"
+          {data.checking
+            ? (
+              <button className="button primary" type="button" disabled>
+                <span className="button-spinner" />检查中
+              </button>
+            )
+            : data.phase === "available"
             ? (
               <button
                 className="button primary"
