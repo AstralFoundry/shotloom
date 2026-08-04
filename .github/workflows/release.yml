@@ -79,6 +79,7 @@ jobs:
             rust-target: aarch64-apple-darwin
             args: --target aarch64-apple-darwin --bundles dmg
             artifact: release-macos-arm64
+            updater_suffix: aarch64
             artifact-path: |
               src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
               src-tauri/target/aarch64-apple-darwin/release/bundle/macos/*.app.tar.gz
@@ -88,6 +89,7 @@ jobs:
             rust-target: x86_64-apple-darwin
             args: --target x86_64-apple-darwin --bundles dmg
             artifact: release-macos-x64
+            updater_suffix: x86_64
             artifact-path: |
               src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/*.dmg
               src-tauri/target/x86_64-apple-darwin/release/bundle/macos/*.app.tar.gz
@@ -97,6 +99,7 @@ jobs:
             rust-target: x86_64-pc-windows-msvc
             args: --bundles nsis
             artifact: release-windows-x64
+            updater_suffix: ""
             artifact-path: src-tauri/target/release/bundle/nsis/*.exe*
 
     runs-on: ${{ matrix.os }}
@@ -202,13 +205,24 @@ jobs:
       - name: Verify updater artifacts
         shell: bash
         run: |
-          shopt -s nullglob
-          signatures=(${{ matrix.artifact-path }})
+          if [[ "${{ runner.os }}" == "macOS" ]]; then
+            shopt -s nullglob
+            archives=(src-tauri/target/${{ matrix.rust-target }}/release/bundle/macos/*.app.tar.gz)
+            if (( ${#archives[@]} != 1 )) || [[ ! -f "${archives[0]}.sig" ]]; then
+              echo "::error::Expected one signed macOS updater archive, found ${#archives[@]}"
+              exit 1
+            fi
+            archive="${archives[0]}"
+            renamed="${archive%.app.tar.gz}_${{ matrix.updater_suffix }}.app.tar.gz"
+            mv "$archive" "$renamed"
+            mv "$archive.sig" "$renamed.sig"
+          fi
+
           updater_signatures=()
-          for path in "${signatures[@]}"; do
-            [[ "$path" == *.sig ]] && updater_signatures+=("$path")
-          done
-          if (( ${#updater_signatures[@]} == 0 )); then
+          while IFS= read -r -d '' path; do
+            updater_signatures+=("$path")
+          done < <(find src-tauri/target -type f -name '*.sig' -print0)
+          if (( ${#updater_signatures[@]} != 1 )); then
             echo "::error::No signed updater artifact was generated. Check TAURI_SIGNING_PRIVATE_KEY and createUpdaterArtifacts."
             exit 1
           fi

@@ -22,9 +22,11 @@ test('release workflow publishes signed updater packages for every desktop targe
 
   assert.match(workflow, /bundle\/macos\/\*\.app\.tar\.gz/);
   assert.match(workflow, /bundle\/macos\/\*\.app\.tar\.gz\.sig/);
+  assert.match(workflow, /renamed="\$\{archive%\.app\.tar\.gz\}_\$\{\{ matrix\.updater_suffix \}\}\.app\.tar\.gz"/);
   assert.match(workflow, /\*aarch64\*\.app\.tar\.gz\).*darwin-aarch64/);
   assert.match(workflow, /\*x86_64\*\.app\.tar\.gz\).*darwin-x86_64/);
   assert.match(workflow, /find release-assets -type f -name '\*\.sig' -print0/);
+  assert.match(workflow, /find src-tauri\/target -type f -name '\*\.sig' -print0/);
   assert.match(workflow, /platform_count != 3/);
   assert.match(workflow, /Publishing unsigned and unnotarized macOS artifacts/);
   assert.match(workflow, /steps\.apple_signing\.outputs\.enabled == 'true'/);
