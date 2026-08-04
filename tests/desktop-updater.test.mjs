@@ -8,6 +8,7 @@ test('desktop updater keeps the checked update for download and installation', (
   const api = read('renderer/src/services/tauriApi.js');
   const store = read('renderer/src/store/updateStore.js');
   const dialog = read('renderer/src/app/components/UpdateDialog.tsx');
+  const styles = read('renderer/styles.css');
   const checkFlow = store.slice(
     store.indexOf('export async function checkForUpdate'),
     store.indexOf('export async function downloadUpdate'),
@@ -24,6 +25,13 @@ test('desktop updater keeps the checked update for download and installation', (
   assert.doesNotMatch(checkFlow, /updateStore\.error = result\.error \|\|/);
   assert.match(dialog, /data\.checking[\s\S]*正在连接更新服务器/);
   assert.match(dialog, /button-spinner/);
+  assert.match(dialog, /formatReleaseNotes/);
+  assert.match(dialog, /role="progressbar"/);
+  assert.match(dialog, /data\.phase !== "downloading"/);
+  assert.doesNotMatch(dialog, />\s*下载中\s*<\/button>/);
+  assert.doesNotMatch(dialog, /SHOTLOOM DESKTOP/);
+  assert.match(styles, /\.update-modal \{[\s\S]*border-radius: 10px/);
+  assert.match(styles, /\.progress-track span \{[\s\S]*background: #59616a/);
 });
 
 test('release workflow publishes signed updater packages for every desktop target', () => {

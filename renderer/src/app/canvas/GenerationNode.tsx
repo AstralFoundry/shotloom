@@ -258,34 +258,32 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({ node, selected, acti
     >
       <div className="work-visual-block">
         <div className="work-node-kicker">
+          {mentionInCopilot && (
+            <button
+              className="node-mention-btn"
+              title={`引用节点：${node.title || node.type}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                mentionInCopilot(node.id);
+              }}
+            >
+              @
+            </button>
+          )}
           <IconSymbol name={metaIcon} />
           <span>{metaLabel}</span>
-          {(selected || mentionInCopilot) && (
+          {selected && node.type === "imageGeneration" && activeKind === "image" && (
             <div className="work-node-kicker-actions">
-              {mentionInCopilot && (
-                <button
-                  className="node-mention-btn"
-                  title={`引用节点：${node.title || node.type}`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    mentionInCopilot(node.id);
-                  }}
-                >
-                  @
-                </button>
-              )}
-              {selected && node.type === "imageGeneration" && activeKind === "image" && (
-                <button
-                  title="创建彩铅图片节点"
-                  disabled={busy}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    void actions.applyColoredPencil(node.id);
-                  }}
-                >
-                  <IconSymbol name="pencil" />
-                </button>
-              )}
+              <button
+                title="创建彩铅图片节点"
+                disabled={busy}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void actions.applyColoredPencil(node.id);
+                }}
+              >
+                <IconSymbol name="pencil" />
+              </button>
             </div>
           )}
         </div>

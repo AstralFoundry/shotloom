@@ -48,6 +48,18 @@ export const NoteNode: WorkflowNodeRenderer = memo(({ node, selected, actions })
     >
       <Ports className="note-port" />
       <div className="note-head">
+        {mentionInCopilot && (
+          <button
+            className="node-mention-btn"
+            title={`引用节点：${node.title || "便签"}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              mentionInCopilot(node.id);
+            }}
+          >
+            @
+          </button>
+        )}
         <IconSymbol name="chat" />
         <input
           className="nodrag"
@@ -55,31 +67,17 @@ export const NoteNode: WorkflowNodeRenderer = memo(({ node, selected, actions })
           {...titleCommit}
           onClick={(e) => e.stopPropagation()}
         />
-        {(selected || mentionInCopilot) && (
+        {selected && (
           <div className="note-head-actions">
-            {mentionInCopilot && (
-              <button
-                className="node-mention-btn"
-                title={`引用节点：${node.title || "便签"}`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  mentionInCopilot(node.id);
-                }}
-              >
-                @
-              </button>
-            )}
-            {selected && (
-              <button
-                title="Delete"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  actions.delete(node.id);
-                }}
-              >
-                <IconSymbol name="trash" />
-              </button>
-            )}
+            <button
+              title="Delete"
+              onClick={(e) => {
+                e.stopPropagation();
+                actions.delete(node.id);
+              }}
+            >
+              <IconSymbol name="trash" />
+            </button>
           </div>
         )}
       </div>
@@ -104,6 +102,18 @@ export const UtilityNode: WorkflowNodeRenderer = memo(({ node, selected, actions
     >
       <Ports className="utility-port" />
       <div className="utility-head">
+        {mentionInCopilot && (
+          <button
+            className="node-mention-btn"
+            title={`引用节点：${node.title || node.type}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              mentionInCopilot(node.id);
+            }}
+          >
+            @
+          </button>
+        )}
         <IconSymbol name="image" />
         <input
           className="nodrag"
@@ -114,33 +124,17 @@ export const UtilityNode: WorkflowNodeRenderer = memo(({ node, selected, actions
           }
           onClick={(e) => e.stopPropagation()}
         />
-        {(selected || mentionInCopilot) && (
-          <>
-            {mentionInCopilot && (
-              <button
-                className="node-mention-btn"
-                title={`引用节点：${node.title || node.type}`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  mentionInCopilot(node.id);
-                }}
-              >
-                @
-              </button>
-            )}
-            {selected && (
-              <button
-                className="utility-delete"
-                title="Delete"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  actions.delete(node.id);
-                }}
-              >
-                <IconSymbol name="trash" />
-              </button>
-            )}
-          </>
+        {selected && (
+          <button
+            className="utility-delete"
+            title="Delete"
+            onClick={(e) => {
+              e.stopPropagation();
+              actions.delete(node.id);
+            }}
+          >
+            <IconSymbol name="trash" />
+          </button>
         )}
       </div>
       {node.type === "resource" ? (

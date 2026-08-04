@@ -32,6 +32,15 @@ function formatBytes(bytes = 0) {
   } ${units[index]}`;
 }
 
+function formatReleaseNotes(value = "") {
+  const notes = value.trim();
+  if (!notes) return "此版本包含功能改进与稳定性修复。";
+  if (/^see\s+https?:\/\//i.test(notes)) {
+    return "完整更新说明已发布在 GitHub Release。";
+  }
+  return notes;
+}
+
 export function UpdateDialog(
   { data, controller }: {
     data: UpdateDialogData;
@@ -41,6 +50,7 @@ export function UpdateDialog(
   const force = Boolean(data.info?.forceUpdate);
   const percent = Math.min(100, Math.max(0, data.progress?.percent || 0));
   const closeAllowed = !force && !data.checking && data.phase !== "downloading";
+  const totalBytes = data.progress?.total || data.info?.fileSize || 0;
   const title = data.checking
     ? "正在检查更新"
     : data.phase === "ready"
@@ -58,14 +68,16 @@ export function UpdateDialog(
         controller.close()}
     >
       <section
-        className="modal update-modal"
+        className={`modal update-modal update-${data.phase}${
+          data.checking ? " is-checking" : ""
+        }`}
         role="dialog"
         aria-modal="true"
         aria-label={title}
       >
-        <div className="modal-head">
+        <div className="modal-head update-modal-head">
           <h2 className="modal-title">{title}</h2>
-          {!force && (
+          {closeAllowed && (
             <button
               className="icon-btn"
               type="button"
@@ -77,47 +89,66 @@ export function UpdateDialog(
         </div>
         <div className="modal-body">
           {data.checking && (
-            <div className="update-summary">
-              <div className="update-icon">
-                <span className="button-spinner" />
-              </div>
+            <div className="update-checking-copy">
+              <span className="button-spinner" />
               <div>
                 <strong>正在连接更新服务器</strong>
-                <span>请稍候…</span>
+                <span>正在确认是否有可用的新版本，请稍候。</span>
               </div>
             </div>
           )}
           {data.info && (
-            <div className="update-summary">
-              <div className="update-icon">
-                <IconSymbol name="package" />
+            <>
+              <div className="update-version-card">
+                <span className="update-version-icon">
+                  <IconSymbol name="package" />
+                </span>
+                <div>
+                  <span>可用版本</span>
+                  <strong>Shotloom {data.info.version}</strong>
+                </div>
+                <span className="update-size">{formatBytes(totalBytes)}</span>
               </div>
-              <div>
-                <strong>v{data.info.version}</strong>
-                <span>{formatBytes(data.info.fileSize)}</span>
+              <div className="update-notes">
+                <span>本次更新</span>
+                <p>{formatReleaseNotes(data.info.releaseNotes)}</p>
               </div>
-            </div>
-          )}
-          {data.info?.releaseNotes && (
-            <p className="update-notes">{data.info.releaseNotes}</p>
+            </>
           )}
           {data.phase === "downloading" && (
-            <div className="update-progress">
-              <div className="progress-track">
+            <div className="update-progress" aria-live="polite">
+              <div className="update-progress-head">
+                <strong>正在下载</strong>
+                <span>{percent}%</span>
+              </div>
+              <div
+                className="progress-track"
+                role="progressbar"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={percent}
+              >
                 <span style={{ width: `${percent}%` }} />
               </div>
               <div className="progress-meta">
                 <span>
                   {formatBytes(data.progress?.received)} /{" "}
-                  {formatBytes(data.progress?.total || data.info?.fileSize)}
+                  {formatBytes(totalBytes)}
                 </span>
-                <strong>{percent}%</strong>
+                <span>下载完成后即可安装</span>
               </div>
+            </div>
+          )}
+          {data.phase === "ready" && (
+            <div className="update-ready-copy">
+              <IconSymbol name="check" />
+              <span>更新已下载完成，安装后 Shotloom 将自动重新启动。</span>
             </div>
           )}
           {data.error && <p className="update-error">{data.error}</p>}
         </div>
-        <div className="modal-foot">
+        {!data.checking && data.phase !== "downloading" && (
+        <div className="modal-foot update-modal-foot">
           {!force && !data.checking && data.phase !== "downloading" && (
             <button
               className="button ghost"
@@ -127,13 +158,7 @@ export function UpdateDialog(
               以后
             </button>
           )}
-          {data.checking
-            ? (
-              <button className="button primary" type="button" disabled>
-                <span className="button-spinner" />检查中
-              </button>
-            )
-            : data.phase === "available"
+          {data.phase === "available"
             ? (
               <button
                 className="button primary"
@@ -141,12 +166,6 @@ export function UpdateDialog(
                 onClick={() => void controller.download()}
               >
                 <IconSymbol name="download" />立即下载
-              </button>
-            )
-            : data.phase === "downloading"
-            ? (
-              <button className="button primary" type="button" disabled>
-                下载中
               </button>
             )
             : data.phase === "ready"
@@ -169,6 +188,7 @@ export function UpdateDialog(
               </button>
             )}
         </div>
+        )}
       </section>
     </div>
   );

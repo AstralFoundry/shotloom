@@ -174,8 +174,6 @@ function FallbackNodeInner({ node, selected }: { node: WorkflowNodeData; selecte
   return (
     <article className={`react-workflow-node${selected ? " selected" : ""}`}>
       <header>
-        <span>{node.type}</span>
-        <i className={`status-${node.status || "idle"}`} />
         {mentionInCopilot && (
           <button
             className="node-mention-btn"
@@ -188,6 +186,8 @@ function FallbackNodeInner({ node, selected }: { node: WorkflowNodeData; selecte
             @
           </button>
         )}
+        <span>{node.type}</span>
+        <i className={`status-${node.status || "idle"}`} />
       </header>
       <strong>{node.title || "未命名节点"}</strong>
     </article>
