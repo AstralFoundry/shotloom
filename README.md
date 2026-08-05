@@ -2,7 +2,7 @@
   <img src="./src-tauri/icons/app.png" width="96" alt="Shotloom" />
 </p>
 
-<h1 align="center">Shotloom</h1>
+<h1 align="center">织帧画布</h1>
 
 <p align="center">
   <strong>别让 AI 作品停留在聊天记录里。</strong>
