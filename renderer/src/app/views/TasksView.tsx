@@ -91,23 +91,26 @@ export function TasksView(
     <>
       <ProjectScopeHeader
         title="项目任务"
-        subtitle={`${filtered.length} 条记录 · ${activeCount} 个进行中`}
+        subtitle={`${filtered.length} 个任务${activeCount ? ` · ${activeCount} 个进行中` : ""}`}
         flat
+      />
+      <div
+        className="scroll-area task-browser"
+        onClick={() => setMenu(null)}
+        onContextMenu={openMenu}
       >
-        <div className="search">
+        <label className="task-search">
           <IconSymbol name="search" />
           <input
             value={keyword}
             onChange={(event) => setKeyword(event.target.value)}
             placeholder="搜索任务、类型、状态或错误"
           />
+        </label>
+        <div className="task-list-summary">
+          <span>生成任务</span>
+          <span>{filtered.length} 个任务 · {activeCount} 个进行中</span>
         </div>
-      </ProjectScopeHeader>
-      <div
-        className="scroll-area task-browser"
-        onClick={() => setMenu(null)}
-        onContextMenu={openMenu}
-      >
         {!filtered.length
           ? (
             <EmptyState
@@ -117,19 +120,13 @@ export function TasksView(
           )
           : (
             <section className="task-record-list">
-              <header className="task-list-head">
-                <div>
-                  <strong>生成记录</strong>
-                  <span>{filtered.length} 条</span>
-                </div>
-                <p>运行进度、结果状态与失败记录</p>
-              </header>
               {filtered.map((task) => {
                 const progress = task.status === "completed" ? 100 : Math.min(
                   100,
                   Math.max(0, Math.round(Number(task.progress) || 0)),
                 );
                 const status = task.historical ? "historical" : task.status;
+                const active = ["running", "queued"].includes(task.status);
                 return (
                   <article key={task.id} className={`task-record is-${status}`}>
                     <div className="task-record-icon">
@@ -145,9 +142,16 @@ export function TasksView(
                           {typeLabels[task.type || ""] || task.type ||
                             "生成任务"}
                         </span>
+                        <StatusPill status={status} />
                       </div>
+                      <p className={`task-record-description${task.error ? " is-error" : ""}`}>
+                        {task.error
+                          ? `${task.historical ? `旧模型 ${task.model} 的历史错误：` : ""}${task.error}`
+                          : task.model
+                            ? `使用 ${task.model} 执行${typeLabels[task.type || ""] || "生成"}任务`
+                            : `${typeLabels[task.type || ""] || "生成"}任务`}
+                      </p>
                       <div className="task-record-meta">
-                        {task.model && <span>{task.model}</span>}
                         <span>
                           {task.id
                             ? `#${String(task.id).slice(-8)}`
@@ -158,30 +162,16 @@ export function TasksView(
                             已重试 {task.retryCount}/{task.maxRetries ?? 2}
                           </em>
                         )}
+                        <time>{formatTime(task.createdAt)}</time>
                       </div>
-                      {task.error && (
-                        <p className="task-record-error" title={task.error}>
-                          {task.historical && (
-                            <>旧模型 {task.model} 的历史错误：</>
-                          )}
-                          {task.error}
-                        </p>
+                      {active && (
+                        <div className="task-record-progress">
+                          <div className="task-progress-track">
+                            <i><b style={{ width: `${progress}%` }} /></i>
+                          </div>
+                          <strong>{progress}%</strong>
+                        </div>
                       )}
-                    </div>
-                    <div className="task-record-progress">
-                      <div>
-                        <span>进度</span>
-                        <strong>{progress}%</strong>
-                      </div>
-                      <div className="task-progress-track">
-                        <i>
-                          <b style={{ width: `${progress}%` }} />
-                        </i>
-                      </div>
-                    </div>
-                    <div className="task-record-state">
-                      <StatusPill status={status} />
-                      <time>{formatTime(task.createdAt)}</time>
                     </div>
                     <div className="task-record-actions">
                       {task.status === "running" && (

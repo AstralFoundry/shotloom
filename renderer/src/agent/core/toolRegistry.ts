@@ -118,6 +118,10 @@ export function registerAgentTool<TInput extends JsonObject>(definition: AgentTo
   tools.set(definition.id, definition as AgentToolDefinition);
 }
 
+export function hasAgentTool(toolId: string): boolean {
+  return tools.has(toolId);
+}
+
 export function registerSkillTool<TInput extends JsonObject>(
   skillId: string,
   definition: AgentToolDefinition<TInput>,

@@ -38,15 +38,16 @@ test('素材视频优先流式展示，失败时使用正确 MIME 缓冲回退',
 test('素材卡片跳过视口外绘制且每张卡片独立维护预览状态', () => {
   assert.match(grid, /const MaterialPreview = memo/);
   assert.match(styles, /\.material-node-wrap \{[^}]*content-visibility: auto/);
-  assert.match(styles, /contain-intrinsic-size: 280px 240px/);
+  assert.match(styles, /contain-intrinsic-size: 280px 210px/);
 });
 
-test('竖图和长截图按真实方向使用更高的完整预览卡片', () => {
+test('素材卡片根据真实方向使用统一比例预览且不留下无意义空白', () => {
   assert.match(grid, /ratio < 0\.62 \? "tall" : ratio < 0\.9 \? "portrait"/);
   assert.match(grid, /updateLayout\(image\.naturalWidth, image\.naturalHeight\)/);
   assert.match(grid, /updateLayout\(video\.videoWidth, video\.videoHeight\)/);
-  assert.match(styles, /layout-portrait\)[^}]*height: 360px/);
-  assert.match(styles, /layout-tall\)[^}]*height: 420px/);
-  assert.match(styles, /\.material-node-preview \{[^}]*width: 100%;[^}]*height: 100%/);
-  assert.match(styles, /object-position: center top/);
+  assert.match(styles, /\.material-node-preview\.layout-portrait \{ aspect-ratio: 3 \/ 4/);
+  assert.match(styles, /\.material-node-preview\.layout-tall \{ aspect-ratio: 2 \/ 3/);
+  assert.match(styles, /\.material-node-preview \{[^}]*width: 100%;[^}]*aspect-ratio: 16 \/ 9/);
+  assert.match(styles, /object-position: center/);
+  assert.match(styles, /grid-template-areas: "icon title scope marker" "icon meta scope marker"/);
 });

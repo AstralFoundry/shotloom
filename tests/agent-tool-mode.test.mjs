@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 import {
@@ -38,4 +39,13 @@ test('命名空间工具预先暴露，但执行前必须加载对应 Skill', ()
   assert.equal(prepareAgentToolCall('skill_short_drama__inspect_structure', '{}', context).definition.id,
     'skill_short_drama__inspect_structure');
   clearAgentToolsForTests();
+});
+
+test('默认 Agent 工具以真实注册表为准并允许 Runtime 重复激活', () => {
+  const source = readFileSync(
+    new URL('../renderer/src/agent/tools/registerDefaultTools.ts', import.meta.url),
+    'utf8',
+  );
+  assert.match(source, /hasAgentTool\('get_canvas'\)/);
+  assert.doesNotMatch(source, /let registered = false/);
 });

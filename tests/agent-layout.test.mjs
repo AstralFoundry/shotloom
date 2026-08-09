@@ -4,6 +4,7 @@ import test from 'node:test';
 import {
   canvasNodeDimensions,
   layoutAgentNodes,
+  placeAgentNodesIncrementally,
 } from '../renderer/src/services/agentLayoutService.ts';
 import { imageCanvasNodeDimensions } from '../renderer/src/domain/graph/CanvasNodeDimensions.ts';
 
@@ -52,6 +53,90 @@ test('依赖列按节点宽度和水平间距排布且不会重叠', () => {
   assert.equal(source.x, 10);
   assert.equal(target.x, 10 + canvasNodeDimensions(source).width + 48);
   assert.ok(target.x >= source.x + canvasNodeDimensions(source).width);
+});
+
+test('整理选区保持原锚点并避开未选节点', () => {
+  const source = node('source', 'textGeneration', { x: 600, y: 300 });
+  const target = node('target', 'imageGeneration', { x: 650, y: 360 });
+  const blocker = node('blocker', 'imageGeneration', { x: 970, y: 300 });
+  const graph = project(
+    [source, target, blocker],
+    [{ source: source.id, target: target.id }],
+  );
+  const result = layoutAgentNodes(graph, [source.id, target.id], { scope: 'selection', gapX: 40 });
+
+  assert.ok(result.movedCount > 0);
+  assert.notEqual(source.x, 120, '选区整理不应跳回画布默认原点');
+  const targetRight = target.x + canvasNodeDimensions(target).width;
+  const blockerRight = blocker.x + canvasNodeDimensions(blocker).width;
+  assert.ok(
+    targetRight + 24 <= blocker.x || blockerRight + 24 <= source.x ||
+      target.y + canvasNodeDimensions(target).height + 24 <= blocker.y ||
+      blocker.y + canvasNodeDimensions(blocker).height + 24 <= target.y,
+    '整理结果不能覆盖未选节点',
+  );
+});
+
+test('选区可以沿连线纳入上下游但不移动不相连节点', () => {
+  const source = node('source', 'textGeneration', { x: 100, y: 100 });
+  const middle = node('middle', 'imageGeneration', { x: 500, y: 100 });
+  const target = node('target', 'videoGeneration', { x: 900, y: 100 });
+  const isolated = node('isolated', 'imageGeneration', { x: 1400, y: 100 });
+  const graph = project([source, middle, target, isolated], [
+    { source: source.id, target: middle.id },
+    { source: middle.id, target: target.id },
+  ]);
+  const result = layoutAgentNodes(graph, [middle.id], {
+    scope: 'selection',
+    includeConnected: true,
+  });
+
+  assert.deepEqual(new Set(result.nodeIds), new Set(['source', 'middle', 'target']));
+  assert.equal(isolated.x, 1400);
+  assert.ok(source.x < middle.x && middle.x < target.x);
+});
+
+test('横向、纵向和网格整理使用真实节点尺寸', () => {
+  const modes = ['horizontal', 'vertical', 'grid'];
+  for (const mode of modes) {
+    const nodes = [
+      node(`${mode}-a`, 'textGeneration', { x: 400, y: 300 }),
+      node(`${mode}-b`, 'imageGeneration', { x: 700, y: 500 }),
+      node(`${mode}-c`, 'videoGeneration', { x: 900, y: 700 }),
+      node(`${mode}-d`, 'audioGeneration', { x: 1100, y: 900 }),
+    ];
+    layoutAgentNodes(project(nodes), nodes.map((item) => item.id), {
+      scope: 'selection',
+      mode,
+      avoidCollisions: false,
+    });
+    if (mode === 'horizontal') assert.equal(new Set(nodes.map((item) => item.y)).size, 1);
+    if (mode === 'vertical') assert.equal(new Set(nodes.map((item) => item.x)).size, 1);
+    if (mode === 'grid') {
+      assert.equal(new Set(nodes.map((item) => item.x)).size, 2);
+      assert.equal(new Set(nodes.map((item) => item.y)).size, 2);
+    }
+  }
+});
+
+test('单个 Agent 新节点增量放在父节点右侧并避开已有节点', () => {
+  const parent = node('parent', 'imageGeneration', { x: 200, y: 180 });
+  const blocker = node('blocker', 'videoGeneration', { x: 690, y: 180 });
+  const created = node('created', 'videoGeneration', { x: 80, y: 80 });
+  const graph = project(
+    [parent, blocker, created],
+    [{ source: parent.id, target: created.id }],
+  );
+  const result = placeAgentNodesIncrementally(graph, [created.id], { gapX: 120 });
+
+  assert.equal(result.movedCount, 1);
+  assert.ok(created.x > parent.x);
+  assert.ok(
+    created.x + canvasNodeDimensions(created).width + 24 <= blocker.x ||
+      blocker.x + canvasNodeDimensions(blocker).width + 24 <= created.x ||
+      created.y + canvasNodeDimensions(created).height + 24 <= blocker.y ||
+      blocker.y + canvasNodeDimensions(blocker).height + 24 <= created.y,
+  );
 });
 
 test('工作流布局沿连线纳入缺少 runId 的旧共享资产但不移动无关节点', () => {

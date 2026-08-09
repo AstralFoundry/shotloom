@@ -70,6 +70,7 @@ export interface WorkflowNodeActions {
   archiveResource: (id: string) => void;
   selectOutput: (nodeId: string, outputId: string) => void;
   openVideoEditor: (id: string) => void;
+  addToVideoEditor: (id: string) => void | Promise<void>;
   exportBoard: (id: string, dataUrl: string) => void;
   getDirectorIncomingImages: (
     id: string,
@@ -114,6 +115,7 @@ export interface WorkflowCanvasController {
 const RendererContext = createContext<Record<string, WorkflowNodeRenderer>>({});
 const ActionContext = createContext<WorkflowNodeActions | null>(null);
 export const MentionContext = createContext<((nodeId: string) => void) | null>(null);
+export const CanvasOverlayRootContext = createContext<HTMLElement | null>(null);
 const VIEWPORT_LAYER_NODE_LIMIT = 24;
 const NODE_VIRTUALIZATION_THRESHOLD = 50;
 const MEDIA_NODE_TYPES = new Set([
@@ -426,6 +428,7 @@ export function WorkflowCanvas({
   const nodeChangeFrame = useRef(0);
   const movementEndTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const canvasRoot = useRef<HTMLElement>(null);
+  const [canvasOverlayRoot, setCanvasOverlayRoot] = useState<HTMLElement | null>(null);
   const menuLayer = useRef<CanvasMenuLayerHandle>(null);
   const visible = useMemo(() => nodes.filter((node) => !node.archived), [nodes]);
   const canonicalNodes = useMemo(() => toFlowNodes(visible, edges), [edges, visible]);
@@ -594,13 +597,18 @@ export function WorkflowCanvas({
       flowY: point.y,
     });
   }
+  const bindCanvasRoot = useCallback((element: HTMLElement | null) => {
+    canvasRoot.current = element;
+    setCanvasOverlayRoot(element);
+  }, []);
 
   return (
     <RendererContext.Provider value={renderers}>
       <ActionContext.Provider value={nodeActions}>
         <MentionContext.Provider value={mentionInCopilot || null}>
+        <CanvasOverlayRootContext.Provider value={canvasOverlayRoot}>
         <section
-          ref={canvasRoot}
+          ref={bindCanvasRoot}
           className="react-workflow-canvas"
           data-viewport-layer={visible.length <= VIEWPORT_LAYER_NODE_LIMIT ? "promote" : "standard"}
           tabIndex={0}
@@ -778,6 +786,7 @@ export function WorkflowCanvas({
           </div>
           {overlay}
         </section>
+        </CanvasOverlayRootContext.Provider>
         </MentionContext.Provider>
       </ActionContext.Provider>
     </RendererContext.Provider>

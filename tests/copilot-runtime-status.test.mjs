@@ -22,15 +22,20 @@ const baseStyles = readFileSync(new URL('../renderer/styles.css', import.meta.ur
 
 test('画布助手用可展开的纵向轨迹呈现 Agent 运行过程', () => {
   assert.match(panel, /copilot-run-activity/);
-  assert.match(panel, /深思熟虑/);
+  assert.doesNotMatch(panel, /深思熟虑/);
   assert.match(panel, /copilot-activity-group/);
-  assert.match(panel, /<strong>Skills<\/strong>/);
+  assert.match(panel, /copilot-preparation-group/);
+  assert.match(panel, /"处理过程"/);
+  assert.match(panel, /"已自动恢复"/);
+  assert.match(panel, /tool\.effect === "canvas_write"/);
   assert.match(panel, /tool\.effect === "media_generation"/);
+  assert.match(panel, /生成 1 个视频/);
+  assert.match(panel, /生成 1 张图片/);
   assert.match(panel, /"等待批准"/);
   assert.match(panel, /copilot-tool-status-icon/);
   assert.match(panel, /copilot-tool-spinner/);
   assert.match(panel, /copilot-tool-shimmer/);
-  assert.match(panel, /tool\.summary \|\| tool\.name \|\| "正在处理"/);
+  assert.match(panel, /toolActivityTitle\(tool\)/);
   assert.match(panel, /generation \? "生成" : planning \? "规划" : canvas \? "画布" : "工具"/);
   assert.doesNotMatch(styles, /copilot-run-spin/);
   assert.match(panel, /className="copilot-run-stop"/);
@@ -45,6 +50,7 @@ test('画布助手用可展开的纵向轨迹呈现 Agent 运行过程', () => {
   assert.match(styles, /@keyframes copilot-tool-shimmer/);
   assert.match(styles, /prefers-reduced-motion:[^}]+reduce[\s\S]*?\.copilot-tool-spinner/);
   assert.match(styles, /--activity-line/);
+  assert.match(styles, /\.copilot-preparation-group::before \{ display: none/);
   assert.doesNotMatch(panel, /copilot-run-status|copilot-stop-button/);
 });
 
@@ -64,7 +70,7 @@ test('消息发送后立即显示思考状态并把发送按钮切换为停止�
 
 test('聊天正文不再铺开普通工具、技能和执行记录', () => {
   assert.match(panel, /copilot-tool-stream/);
-  assert.match(panel, /element\.scrollTop = element\.scrollHeight/);
+  assert.match(styles, /\.copilot-run-activity > \.copilot-tool-stream \{[^}]*max-height:\s*none/);
   assert.match(baseStyles, /max-height:\s*82px/);
   assert.doesNotMatch(panel, /copilot-skill-strip/);
   assert.doesNotMatch(panel, /copilot-work-log/);
@@ -96,6 +102,16 @@ test('Agent 运行失败后可使用原请求重试且不重复插入用户消�
   assert.match(styles, /copilot-message-error-row button/);
 });
 
+test('相同 Runtime 失败合并成紧凑诊断卡', () => {
+  assert.match(panel, /compactRepeatedFailures/);
+  assert.match(panel, /repeatedFailureCount/);
+  assert.match(panel, /repeatsFollowingFailure/);
+  assert.match(panel, /copilot-failure-card/);
+  assert.match(panel, /查看诊断/);
+  assert.match(styles, /\.copilot-failure-card/);
+  assert.match(styles, /\.copilot-failure-heading span/);
+});
+
 test('制作计划跟随助手消息显示阶段和进度', () => {
   assert.match(panel, /ProductionPlanCard/);
   assert.match(panel, /画布规划/);
@@ -124,4 +140,12 @@ test('画布图片节点加入对话时自动携带当前图片产物', () => {
   assert.match(panel, /attachNodeImage\(found\)/);
   assert.match(panel, /attachNodeImage\(node\)/);
   assert.match(panel, /imageAttachment: _imageAttachment/);
+});
+
+test('已引用节点以名称、短别名和类型组成紧凑信息卡', () => {
+  assert.match(panel, /copilot-node-mention-icon/);
+  assert.match(panel, /copilot-node-mention-copy/);
+  assert.match(panel, /<strong>\{item\.title\}<\/strong>/);
+  assert.match(panel, /<small>@\{item\.alias\}<\/small>/);
+  assert.match(styles, /grid-template-columns:\s*18px minmax\(0, 1fr\) auto 20px/);
 });

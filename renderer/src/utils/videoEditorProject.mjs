@@ -175,6 +175,7 @@ function migrateLegacyProject(project, options) {
 function normalizeAsset(asset) {
   if (!asset || !['video', 'audio', 'image'].includes(asset.type)) return null;
   return {
+    ...copy(asset),
     id: String(asset.id || idFactory('asset')),
     type: asset.type,
     name: String(asset.name || '素材'),
@@ -184,6 +185,83 @@ function normalizeAsset(asset) {
     width: Math.max(0, number(asset.width)),
     height: Math.max(0, number(asset.height)),
   };
+}
+
+/**
+ * Add a canvas media result to an editor project without duplicating an
+ * already-added result. Canvas callers use a stable asset id, so reopening an
+ * output focuses the existing clip instead of silently growing the timeline.
+ */
+export function appendEditorMediaAsset(project, asset, {
+  imageDuration = 4,
+  createId = idFactory,
+} = {}) {
+  if (!asset || !['video', 'audio', 'image'].includes(asset.type)) {
+    return { project, added: false, clipId: '' };
+  }
+  let next = normalizeVideoEditorProject(project, { createId });
+  const existing = next.tracks
+    .flatMap((track) => track.clips)
+    .find((clip) => clip.assetId === String(asset.id));
+  if (existing) return { project: next, added: false, clipId: existing.id };
+
+  const normalizedAsset = normalizeAsset(asset);
+  if (!normalizedAsset) return { project, added: false, clipId: '' };
+  next = copy(next);
+  if (!next.assets.some((item) => item.id === normalizedAsset.id)) {
+    next.assets.push(normalizedAsset);
+  }
+
+  const trackType = asset.type === 'image' ? 'overlay' : asset.type;
+  let track = next.tracks.find((item) => item.type === trackType);
+  if (!track) {
+    next = addEditorTrack(
+      next,
+      trackType,
+      asset.type === 'image' ? '画面素材' : asset.type === 'audio' ? '音乐与音效' : '主画面',
+      createId,
+    );
+    track = next.tracks.find((item) => item.type === trackType);
+  }
+  if (!track) return { project, added: false, clipId: '' };
+
+  const clipId = createId('clip');
+  const timelineEnd = Math.max(
+    0,
+    ...track.clips.map((clip) => number(clip.timelineStart) + editorClipDuration(clip)),
+  );
+  const mediaDuration = Math.max(0, number(normalizedAsset.duration));
+  const clip = asset.type === 'image'
+    ? {
+        id: clipId,
+        type: 'image',
+        assetId: normalizedAsset.id,
+        src: normalizedAsset.sourceUrl,
+        timelineStart: timelineEnd,
+        duration: Math.max(MIN_DURATION, number(imageDuration, 4)),
+        transform: defaultTransform(
+          normalizedAsset.width || next.settings.width,
+          normalizedAsset.height || next.settings.height,
+          30,
+        ),
+      }
+    : {
+        id: clipId,
+        type: asset.type,
+        assetId: normalizedAsset.id,
+        timelineStart: timelineEnd,
+        trimStart: 0,
+        trimEnd: mediaDuration,
+        speed: 1,
+        muted: false,
+        volume: 1,
+      };
+  if (asset.type !== 'image' && mediaDuration < MIN_DURATION) {
+    return { project, added: false, clipId: '' };
+  }
+  next = addEditorClip(next, track.id, clip, createId);
+  const added = Boolean(findEditorClip(next, clipId));
+  return { project: added ? next : project, added, clipId: added ? clipId : '' };
 }
 
 function normalizeTrack(track, index, assets) {

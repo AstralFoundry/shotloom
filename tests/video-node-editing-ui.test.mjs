@@ -1,14 +1,18 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
-test('视频节点只保留可点击的导出剪辑入口', async () => {
-  const source = await readFile(
-    new URL('../renderer/src/app/canvas/GenerationNode.tsx', import.meta.url),
-    'utf8',
-  );
+test('图片、视频和音频节点共用直接加入剪辑入口', async () => {
+  const [source, adapter] = await Promise.all([
+    readFile(new URL('../renderer/src/app/canvas/GenerationNode.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../renderer/src/app/adapters/canvasAdapter.ts', import.meta.url), 'utf8'),
+  ]);
   assert.match(source, /className="video-export-trigger"/);
-  assert.match(source, />\s*导出剪辑\s*<\/button>/);
-  assert.match(source, /actions\.openVideoEditor/);
+  assert.match(source, /\["image", "video", "audio"\]\.includes\(activeKind\)/);
+  assert.match(source, /加入剪辑/);
+  assert.match(source, /actions\.addToVideoEditor/);
+  assert.match(adapter, /activeVideoEditorNodeId/);
+  assert.match(adapter, /appendEditorMediaAsset/);
+  assert.match(adapter, /sourceNodeId: id/);
   assert.doesNotMatch(source, /亮度|对比度|饱和度|trimStart|trimEnd/);
 });
 test('画布左侧视频剪辑入口直接打开空白工程并在编辑器内选择素材来源', async () => {

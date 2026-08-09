@@ -33,7 +33,7 @@ import {
   numberFromAgentAction as numberFromAction,
   sizeFromAgentAction as sizeFromAction,
 } from '@/services/agentNodeFactory';
-import { layoutAgentNodes } from '@/services/agentLayoutService';
+import { layoutAgentNodes, placeAgentNodesIncrementally } from '@/services/agentLayoutService';
 import {
   AgentProjectChangedError,
   createAgentProjectQueue,
@@ -472,11 +472,13 @@ async function executeAgentActionsNow(
   const shouldAutoLayout = body.autoLayout === true
     || (body.autoLayout == null && settingsStore.agentAutoLayout !== false)
     || (body.autoLayout !== false && createdNodeIds.length > 1 && settingsStore.agentAutoLayout !== false);
-  if (shouldAutoLayout && createdNodeIds.length > 1) {
-    layoutResult = layoutNodeIds(createdNodeIds, {
-      ...((body.layout || {}) as LooseRecord),
-      scope: 'workflow',
-    });
+  if (shouldAutoLayout && createdNodeIds.length > 0) {
+    layoutResult = createdNodeIds.length === 1
+      ? placeAgentNodesIncrementally(store.project, createdNodeIds)
+      : layoutNodeIds(createdNodeIds, {
+          ...((body.layout || {}) as LooseRecord),
+          scope: 'workflow',
+        });
   }
   if (body.selectCreated !== false && createdNodeIds.length) {
     store.selectedNodeIds = [...createdNodeIds];

@@ -26,6 +26,7 @@ import {
   type CopilotPanelHandle,
 } from "../copilot/CopilotPanel";
 import type { VideoEditorAsset, VideoEditorController } from "../editor/VideoEditorWorkspace";
+import type { AgentLayoutMode } from "../../services/agentLayoutService";
 
 const VideoEditorWorkspace = lazy(() =>
   import("../editor/VideoEditorWorkspace").then((module) => ({
@@ -51,7 +52,7 @@ export interface CreationViewController {
   undo: () => void;
   redo: () => void;
   fitView: () => void;
-  autoLayout: () => void;
+  autoLayout: (options?: { mode?: AgentLayoutMode; includeConnected?: boolean }) => boolean;
   exportSelected: () => void;
   mergeVideos: () => void;
   editor?: VideoEditorController;

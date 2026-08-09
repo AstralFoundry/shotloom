@@ -1905,6 +1905,43 @@ tr:last-child td {
 .canvas-shortcut-help dt { color: #64748b; font-size: 11px; }
 .canvas-shortcut-help dd { margin: 0; color: #334155; font-size: 11px; font-weight: 700; }
 
+.canvas-layout-menu,
+.canvas-layout-confirm {
+  position: absolute;
+  left: 50%;
+  bottom: 48px;
+  transform: translateX(-50%);
+  border: 1px solid #d8dee7;
+  border-radius: 10px;
+  color: #334155;
+  background: rgba(255, 255, 255, .98);
+  box-shadow: 0 14px 38px rgba(15, 23, 42, .14);
+  pointer-events: auto;
+}
+.canvas-layout-menu { width: 260px; padding: 11px; }
+.canvas-layout-menu > strong { display: block; font-size: 12px; }
+.canvas-layout-menu > span { display: block; margin-top: 2px; color: #89919d; font-size: 10px; }
+.canvas-layout-options { margin-top: 9px; display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+.bottom-mode-switch .canvas-layout-options button {
+  width: auto;
+  height: 34px;
+  border: 1px solid #e4e7eb;
+  border-radius: 7px;
+  padding: 0 9px;
+  display: flex;
+  justify-content: flex-start;
+  gap: 7px;
+  color: #46505c;
+  background: #fff;
+  font-size: 11px;
+}
+.canvas-layout-options button svg { width: 13px; height: 13px; }
+.canvas-layout-menu > label { margin-top: 9px; display: flex; align-items: center; gap: 7px; color: #66707c; font-size: 10px; }
+.canvas-layout-menu > label input { width: 13px; height: 13px; margin: 0; accent-color: #556f61; }
+.canvas-layout-confirm { padding: 8px 9px; display: flex; align-items: center; gap: 5px; white-space: nowrap; }
+.canvas-layout-confirm span { margin-right: 3px; color: #5f6873; font-size: 11px; }
+.bottom-mode-switch .canvas-layout-confirm button { width: auto; height: 27px; border-radius: 6px; padding: 0 8px; font-size: 10px; }
+
 .forge-copilot {
   position: relative;
   z-index: 100;

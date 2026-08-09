@@ -4,7 +4,10 @@ import { listAgentSteps } from '@/store/agentStepStore';
 import { listAgentEvaluations } from '@/store/agentEvaluationStore';
 import { listGeneratedResourcesForNode } from '@/store/resourceNodeStore';
 import { buildCanvasContext } from '@/services/agentCanvasContext';
+import { agentNodeAliasMaps } from './agentNodeAlias.mjs';
 import type { AgentNode, AgentProject, JsonObject } from './agentTypes';
+
+export { agentNodeAliasMaps, agentNodeStableAlias } from './agentNodeAlias.mjs';
 
 interface SnapshotOptions {
   project: AgentProject;
@@ -20,26 +23,6 @@ interface SnapshotOptions {
 const OUTPUT_NODE_TYPES = new Set([
   'imageGeneration', 'videoGeneration', 'audioGeneration', 'textGeneration', 'board', 'threeDDirector',
 ]);
-
-export function agentNodeAliasMaps(nodes: AgentNode[] = []) {
-  const aliasMap: Record<string, string> = {};
-  const aliasById: Record<string, string> = {};
-  const used = new Set<string>();
-  nodes.forEach((node, index) => {
-    let alias = agentNodeStableAlias(node);
-    if (used.has(alias)) alias = `${alias}-${String(index + 1).padStart(2, '0')}`;
-    used.add(alias);
-    aliasMap[alias] = node.id;
-    aliasById[node.id] = alias;
-  });
-  return { aliasMap, aliasById };
-}
-
-/** Deterministic alias: unlike array indexes it survives inserts, deletes and layout changes. */
-export function agentNodeStableAlias(node: Pick<AgentNode, 'id'>): string {
-  const slug = String(node?.id || '').replace(/[^a-z0-9]/gi, '').toUpperCase();
-  return `N-${slug || 'UNKNOWN'}`;
-}
 
 /**
  * 先构造 Renderer 内部完整事实，再由 agentCanvasContext 按请求裁剪。

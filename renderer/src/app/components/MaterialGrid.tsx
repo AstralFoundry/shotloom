@@ -291,22 +291,22 @@ export function MaterialGrid({
             className={`material-node-wrap${clickToApply ? " selectable" : ""}`}
             onClick={() => clickToApply && action("apply-to-canvas")}
           >
-            <div className="material-node-kicker">
-              <IconSymbol name={iconOf(file)} />
-              <strong title={file.name}>{file.name || "未命名文件"}</strong>
-              <em>
-                {typeOf(file)} · {formatSize(file.size)}
-              </em>
-              {file.scopeLabel && (
-                <span className={`material-scope scope-${file.storageScope || "project"}`}>
-                  {file.scopeLabel}
-                  {file.usageCount ? ` · ${file.usageCount}` : ""}
-                </span>
-              )}
-              {inLibrary && <i title="已收录到素材库" />}
-            </div>
             <div className="material-node">
               <MaterialPreview file={file} kind={kind} onPreview={onPreview} />
+              <div className="material-node-kicker">
+                <IconSymbol name={iconOf(file)} />
+                <strong title={file.name}>{file.name || "未命名文件"}</strong>
+                <em>
+                  {typeOf(file)} · {formatSize(file.size)}
+                </em>
+                {file.scopeLabel && (
+                  <span className={`material-scope scope-${file.storageScope || "project"}`}>
+                    {file.scopeLabel}
+                    {file.usageCount ? ` · ${file.usageCount}` : ""}
+                  </span>
+                )}
+                {inLibrary && <i title="已收录到素材库" />}
+              </div>
               <div className="material-node-actions">
                 {showApplyAction && (
                   <button

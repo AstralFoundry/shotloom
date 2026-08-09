@@ -1,7 +1,8 @@
-import { memo, useContext, useMemo, useState } from "react";
-import { Handle, Position } from "@xyflow/react";
+import { memo, type ReactNode, useCallback, useContext, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
+import { Handle, Position, type ReactFlowState, useStore } from "@xyflow/react";
 import { getModelInfo, getModelSchema, getTypeMeta } from "../../domain/catalog/ModelCatalog";
-import { MentionContext } from "./WorkflowCanvas";
+import { CanvasOverlayRootContext, MentionContext } from "./WorkflowCanvas";
 import {
   aspectRatioStyle,
   isAspectRatioParam,
@@ -78,6 +79,30 @@ function useLocalPreview(item: Record<string, unknown> | null, kind: string) {
   });
 }
 
+function ScreenSpaceComposer({ nodeId, children }: { nodeId: string; children: ReactNode }) {
+  const root = useContext(CanvasOverlayRootContext);
+  const selectPlacement = useCallback((state: ReactFlowState) => {
+    const internal = state.nodeLookup.get(nodeId);
+    const [viewportX, viewportY, zoom] = state.transform;
+    const position = internal?.internals.positionAbsolute;
+    const width = Number(internal?.measured.width || internal?.width || 0);
+    const height = Number(internal?.measured.height || internal?.height || 0);
+    return {
+      left: viewportX + (Number(position?.x || 0) + width / 2) * zoom,
+      top: viewportY + (Number(position?.y || 0) + height) * zoom + 10,
+    };
+  }, [nodeId]);
+  const placement = useStore(
+    selectPlacement,
+    (left, right) => left.left === right.left && left.top === right.top,
+  );
+  if (!root) return null;
+  return createPortal(
+    <div className="work-composer-anchor" style={placement}>{children}</div>,
+    root,
+  );
+}
+
 export const GenerationNode: WorkflowNodeRenderer = memo(({ node, selected, actions }) => {
   const [openMenu, setOpenMenu] = useState("");
   const mentionInCopilot = useContext(MentionContext);
@@ -98,16 +123,6 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({ node, selected, acti
   const uploadKind = uploaded ? kindOf(uploaded) : "";
   const active = (selectedOutput || uploaded) as unknown as Record<string, unknown> | null;
   const activeKind = selectedOutput ? outputKind : uploadKind;
-  const selectedVideoPath =
-    activeKind === "video"
-      ? String(
-          selectedOutput?.filePath ||
-            (selectedOutput as unknown as Record<string, unknown> | null)?.path ||
-            uploaded?.filePath ||
-            uploaded?.path ||
-            "",
-        )
-      : "";
   const {
     url: previewUrl,
     retryBuffered: retryBufferedPreview,
@@ -349,6 +364,7 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({ node, selected, acti
         </div>
       </div>
       {selected && (
+        <ScreenSpaceComposer nodeId={node.id}>
         <div className="work-composer nodrag nopan nowheel" onClick={(e) => e.stopPropagation()}>
           <div className="work-composer-row">
             <span className="work-type-chip">{metaLabel}</span>
@@ -394,16 +410,13 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({ node, selected, acti
                 )}
               </div>
             )}
-            {node.type === "videoGeneration" && (
+            {["image", "video", "audio"].includes(activeKind) && (
               <button
                 className="video-export-trigger"
-                onClick={() => {
-                  if (selectedVideoPath) {
-                    actions.openVideoEditor(node.id);
-                  } else showToast("当前节点还没有可剪辑的本地视频文件");
-                }}
+                onClick={() => void actions.addToVideoEditor(node.id)}
               >
-                导出剪辑
+                <IconSymbol name="film" />
+                加入剪辑
               </button>
             )}
           </div>
@@ -649,6 +662,7 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({ node, selected, acti
             />
           )}
         </div>
+        </ScreenSpaceComposer>
       )}
     </div>
   );
