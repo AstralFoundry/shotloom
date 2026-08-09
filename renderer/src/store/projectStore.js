@@ -14,13 +14,18 @@ import {
   hasFullProjectSessionSnapshot,
   PROJECT_SESSION_KEY,
 } from '@/utils/projectSession.mjs';
+import { LatestSaveQueue } from '@/services/latestSaveQueue.mjs';
+import { recordPerformanceMetric } from '@/services/performanceMetrics';
+import { expandCopilotArchivesForPersistence } from '@/services/copilotSessionLifecycle.mjs';
 
 const MAX_CANVAS_HISTORY = 8;
+const PROJECT_SCHEMA_VERSION = 2;
 
 function createProject(name = '未命名项目') {
   const project = {
     id: uid(),
     schema: 'shotloom-project',
+    schemaVersion: PROJECT_SCHEMA_VERSION,
     name,
     assets: [],
     materials: [],
@@ -52,7 +57,19 @@ function createProject(name = '未命名项目') {
   return project;
 }
 
+function assertCurrentProjectSchema(project) {
+  if (!project || typeof project !== 'object' || project.schema !== 'shotloom-project') {
+    throw new Error('项目格式无效：不是 Shotloom 项目');
+  }
+  const version = Number(project.schemaVersion);
+  if (version !== PROJECT_SCHEMA_VERSION) {
+    throw new Error(`项目版本不受支持：需要 v${PROJECT_SCHEMA_VERSION}，实际为 v${version}`);
+  }
+  return project;
+}
+
 function normalizeProject(project) {
+  project = assertCurrentProjectSchema(project);
   const base = createProject(project?.name || '未命名项目');
   const nodes = Array.isArray(project?.nodes) ? project.nodes : [];
   const nodeIds = new Set(nodes.map((node) => node.id));
@@ -156,10 +173,7 @@ function normalizeProject(project) {
     canvasViewport: normalizeCanvasViewport(project?.canvasViewport),
     agentBatches: Array.isArray(project?.agentBatches) ? project.agentBatches : [],
     agentSteps: Array.isArray(project?.agentSteps) ? project.agentSteps : [],
-    agentRuns: (Array.isArray(project?.agentRuns) ? project.agentRuns : []).map((run) => {
-      const { pendingContinuation: _removedLegacyCheckpoint, ...current } = run || {};
-      return current;
-    }),
+    agentRuns: Array.isArray(project?.agentRuns) ? project.agentRuns : [],
     agentRuntimeEvents: Array.isArray(project?.agentRuntimeEvents)
       ? project.agentRuntimeEvents
       : [],
@@ -228,11 +242,19 @@ const restored = restoreSession();
 const AUTO_SAVE_DELAY_MS = 1_000;
 const AUTO_SAVE_MAX_DELAY_MS = 30_000;
 let autoSaveTimer = null;
-let autoSaveInFlight = null;
-let autoSaveQueued = false;
 let autoSaveQueuedAt = 0;
-let lastSavedProjectHash = '';
 let sessionPersistTimer = null;
+const projectSaveQueue = new LatestSaveQueue(
+  ({ directory, snapshot }) => desktopApi.project.save(directory, snapshot),
+  {
+    maxRetryAttempts: 1,
+    onMetric: (detail) => recordPerformanceMetric(
+      'project.save.queue',
+      performance.now() - Number(detail.queueMs || 0),
+      detail,
+    ),
+  },
+);
 // ── Shared state ────────────────────────────────────────────────────────────
 
 let cleanCloseSnapshot = '';
@@ -285,7 +307,7 @@ function clearActiveProjectSession() {
     window.clearTimeout(autoSaveTimer);
     autoSaveTimer = null;
   }
-  autoSaveQueued = false;
+  projectSaveQueue.discardPending();
   store.projectDir = null;
   store.filePath = null;
   store.project = createProject();
@@ -308,7 +330,7 @@ function projectPersistenceSnapshot() {
         : [],
     }));
   }
-  return snapshot;
+  return expandCopilotArchivesForPersistence(snapshot);
 }
 
 export function persistSession() {
@@ -394,14 +416,14 @@ function scheduleAutoSave(delay = AUTO_SAVE_DELAY_MS) {
 async function writeProjectFile({ updateRecent = false } = {}) {
   const snapshot = projectPersistenceSnapshot();
   const hash = JSON.stringify({ ...snapshot, updatedAt: '' });
-  if (!updateRecent && hash === lastSavedProjectHash) {
-    persistSession();
-    markProjectCleanForClose();
-    return { filePath: store.filePath, skipped: true };
-  }
-  const result = await desktopApi.project.save(store.projectDir, snapshot);
-  lastSavedProjectHash = hash;
-  store.filePath = result.filePath;
+  const directory = store.projectDir;
+  const projectId = String(snapshot.id || '');
+  const result = await projectSaveQueue.enqueue(
+    { directory, snapshot },
+    { key: `${directory}:${hash}`, scope: String(directory || '') },
+  );
+  if (store.projectDir !== directory || String(store.project?.id || '') !== projectId) return result;
+  if (result.filePath) store.filePath = result.filePath;
   if (updateRecent) {
     await desktopApi.recent.add({
       name: store.project.name,
@@ -422,28 +444,14 @@ export async function flushAutoSave() {
     autoSaveTimer = null;
   }
   if (!canAutoSaveProject()) return false;
-  if (autoSaveInFlight) {
-    autoSaveQueued = true;
-    await autoSaveInFlight;
-    return flushAutoSave();
+  try {
+    await writeProjectFile({ updateRecent: false });
+    autoSaveQueuedAt = 0;
+    return true;
+  } catch (error) {
+    showToast(error?.message || '自动保存失败');
+    return false;
   }
-
-  autoSaveInFlight = writeProjectFile({ updateRecent: false })
-    .then(() => true)
-    .catch((error) => {
-      showToast(error?.message || '自动保存失败');
-      return false;
-    })
-    .finally(() => {
-      autoSaveInFlight = null;
-      autoSaveQueuedAt = 0;
-      if (autoSaveQueued) {
-        autoSaveQueued = false;
-        scheduleAutoSave(0);
-      }
-    });
-
-  return autoSaveInFlight;
 }
 
 export function initProjectCloneProgressListener() {
@@ -712,8 +720,8 @@ export async function trashRecentProject(project) {
       window.clearTimeout(autoSaveTimer);
       autoSaveTimer = null;
     }
-    autoSaveQueued = false;
-    if (autoSaveInFlight) await autoSaveInFlight;
+    projectSaveQueue.discardPending();
+    await projectSaveQueue.waitForIdle();
     for (const task of store.project.tasks || []) {
       if (['running', 'queued'].includes(task.status)) cancelTask(task.id);
     }
@@ -721,7 +729,7 @@ export async function trashRecentProject(project) {
       window.clearTimeout(autoSaveTimer);
       autoSaveTimer = null;
     }
-    autoSaveQueued = false;
+    projectSaveQueue.discardPending();
     // 先解除项目绑定，确保移入废纸篓期间不会被延迟自动保存重新创建。
     store.projectDir = null;
     store.filePath = null;

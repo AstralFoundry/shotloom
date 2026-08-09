@@ -10,12 +10,17 @@ const styles = readFileSync(
   new URL('../renderer/styles/react-migration.css', import.meta.url),
   'utf8',
 );
+const cacheHook = readFileSync(
+  new URL('../renderer/src/app/canvas/useMediaPreviewCache.ts', import.meta.url),
+  'utf8',
+);
 
 test('素材图片接近可视区域后才读取缓存缩略图', () => {
   assert.match(grid, /sharedPreviewObserver = new IntersectionObserver/);
   assert.match(grid, /rootMargin: "360px 0px"/);
-  assert.match(grid, /schedulePreviewLoad/);
-  assert.match(grid, /readImagePreview\(path, 640\)/);
+  assert.match(grid, /useMediaPreviewCache/);
+  assert.match(grid, /maxSize: 640/);
+  assert.match(cacheHook, /schedulePreviewLoad/);
   assert.match(grid, /loading="lazy"/);
   assert.match(grid, /decoding="async"/);
   assert.doesNotMatch(grid, /for \(const file of materials\)/);
@@ -23,9 +28,9 @@ test('素材图片接近可视区域后才读取缓存缩略图', () => {
 });
 
 test('素材视频优先流式展示，失败时使用正确 MIME 缓冲回退', () => {
-  assert.match(grid, /convertFileSrc\(path\)/);
-  assert.match(grid, /bufferedPath === path/);
-  assert.match(grid, /mp4: "video\/mp4"/);
+  assert.match(cacheHook, /convertFileSrc\(path\)/);
+  assert.match(cacheHook, /bufferedPath === path/);
+  assert.match(grid, /retryBuffered\(\)/);
   assert.match(grid, /preload="metadata"/);
   assert.match(grid, /video\.currentTime = Math\.min\(1 \/ 30/);
 });

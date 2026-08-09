@@ -9,6 +9,25 @@ use std::{
 };
 use tauri::AppHandle;
 
+const PROJECT_SCHEMA: &str = "shotloom-project";
+const PROJECT_SCHEMA_VERSION: u64 = 2;
+
+fn validate_current_project(project: &Value) -> Result<(), String> {
+    if project.get("schema").and_then(Value::as_str) != Some(PROJECT_SCHEMA) {
+        return Err("项目格式无效：不是 Shotloom 项目".into());
+    }
+    let version = project
+        .get("schemaVersion")
+        .and_then(Value::as_u64)
+        .ok_or_else(|| "项目数据缺少有效的 schemaVersion".to_string())?;
+    if version != PROJECT_SCHEMA_VERSION {
+        return Err(format!(
+            "项目版本不受支持：需要 v{PROJECT_SCHEMA_VERSION}，实际为 v{version}"
+        ));
+    }
+    Ok(())
+}
+
 fn list_project_tree(root: &Path) -> Result<Vec<Value>, String> {
     let mut result = Vec::new();
     if !root.exists() {
@@ -111,6 +130,7 @@ pub fn project_list_root(root: String) -> Result<Value, String> {
 
 #[tauri::command]
 pub fn project_save(directory: String, project: Value) -> Result<Value, String> {
+    validate_current_project(&project)?;
     let directory = PathBuf::from(directory);
     fs::create_dir_all(directory.join("assets")).map_err(|error| error.to_string())?;
     let path = directory.join(PROJECT_FILE);
@@ -122,7 +142,9 @@ pub fn project_save(directory: String, project: Value) -> Result<Value, String> 
 
 #[tauri::command]
 pub fn project_read_file(path: String) -> Result<Value, String> {
-    read_json(Path::new(&path), Value::Null)
+    let project = read_json(Path::new(&path), Value::Null)?;
+    validate_current_project(&project)?;
+    Ok(project)
 }
 
 #[tauri::command]
@@ -133,6 +155,7 @@ pub fn project_open_folder(directory: String) -> Result<Value, String> {
     if project.is_null() {
         return Err("所选目录不是 Shotloom 画布".into());
     }
+    validate_current_project(&project)?;
     Ok(
         json!({"ok":true,"filePath":path.to_string_lossy(),"projectDir":directory.to_string_lossy(),"project":project}),
     )
@@ -201,6 +224,7 @@ pub fn project_export_package(source: String, target: String) -> Result<Value, S
         fs::create_dir_all(parent).map_err(|error| error.to_string())?;
     }
     let project = read_json(&source.join(PROJECT_FILE), json!({}))?;
+    validate_current_project(&project)?;
     let temp_name = format!(
         ".{}.{}.partial",
         target
@@ -391,11 +415,8 @@ pub fn project_import_package(source: String, target_root: String) -> Result<Val
         }
         let project_path = temp.join(PROJECT_FILE);
         let mut project = read_json(&project_path, Value::Null)?;
-        if project.is_null()
-            || project.get("schema").and_then(Value::as_str) != Some("shotloom-project")
-        {
-            return Err("项目包中的 project.shotloom.json 无效".into());
-        }
+        validate_current_project(&project)
+            .map_err(|error| format!("项目包中的 project.shotloom.json 无效：{error}"))?;
         rewrite_imported_project_paths(
             &mut project,
             manifest
@@ -458,7 +479,7 @@ mod tests {
         fs::create_dir_all(source.join("assets")).unwrap();
         fs::write(
             source.join(PROJECT_FILE),
-            r#"{"schema":"shotloom-project","name":"Export Test"}"#,
+            r#"{"schema":"shotloom-project","schemaVersion":2,"name":"Export Test"}"#,
         )
         .unwrap();
         fs::write(source.join("assets").join("image.bin"), b"asset-bytes").unwrap();
@@ -497,5 +518,23 @@ mod tests {
         );
 
         fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn project_validator_rejects_legacy_schema_versions() {
+        assert!(validate_current_project(&json!({
+            "schema": "shotloom-project",
+            "schemaVersion": PROJECT_SCHEMA_VERSION
+        }))
+        .is_ok());
+        assert!(validate_current_project(&json!({
+            "schema": "shotloom-project",
+            "schemaVersion": PROJECT_SCHEMA_VERSION - 1
+        }))
+        .is_err());
+        assert!(validate_current_project(&json!({
+            "schema": "shotloom-project"
+        }))
+        .is_err());
     }
 }

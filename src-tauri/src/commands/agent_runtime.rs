@@ -10,7 +10,12 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 #[cfg(target_os = "macos")]
 use std::process::Command as StdCommand;
-use std::{collections::HashMap, net::TcpListener as StdTcpListener, sync::Arc, time::Duration};
+use std::{
+    collections::{HashMap, VecDeque},
+    net::TcpListener as StdTcpListener,
+    sync::Arc,
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_shell::{
     process::{CommandChild, CommandEvent},
@@ -41,6 +46,39 @@ struct ProcessState {
     runtime_url: Option<String>,
     runtime_token: Option<String>,
     generation: u64,
+    desired_running: bool,
+    failure_times_ms: VecDeque<u128>,
+    circuit_open_until_ms: u128,
+    consecutive_health_failures: u32,
+    last_health_at_ms: u128,
+    last_progress_at_ms: u128,
+    active_run_id: Option<String>,
+    active_project_key: Option<String>,
+    last_stall_notice_at_ms: u128,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RuntimeProtectionConfiguration {
+    pub health_interval_ms: Option<u64>,
+    pub failure_threshold: Option<usize>,
+    pub failure_window_ms: Option<u64>,
+    pub circuit_cooldown_ms: Option<u64>,
+    pub stall_warning_ms: Option<u64>,
+    pub hard_cap_ms: Option<u64>,
+}
+
+impl Default for RuntimeProtectionConfiguration {
+    fn default() -> Self {
+        Self {
+            health_interval_ms: Some(10_000),
+            failure_threshold: Some(3),
+            failure_window_ms: Some(300_000),
+            circuit_cooldown_ms: Some(120_000),
+            stall_warning_ms: Some(180_000),
+            hard_cap_ms: Some(1_800_000),
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -78,6 +116,8 @@ pub struct RuntimeConfiguration {
     pub provider: Value,
     pub agent: Value,
     pub workspace_directory: String,
+    #[serde(default)]
+    pub runtime_protection: Option<RuntimeProtectionConfiguration>,
 }
 
 #[derive(Clone)]
@@ -95,6 +135,7 @@ pub struct AgentRuntimeState {
     tools: Arc<RwLock<Vec<RuntimeTool>>>,
     pending: Arc<Mutex<HashMap<String, oneshot::Sender<Result<Value, String>>>>>,
     subscriptions: Mutex<HashMap<String, oneshot::Sender<()>>>,
+    health_cancel: Mutex<Option<oneshot::Sender<()>>>,
 }
 
 impl AgentRuntimeState {
@@ -111,15 +152,28 @@ impl AgentRuntimeState {
                 runtime_url: None,
                 runtime_token: None,
                 generation: 0,
+                desired_running: false,
+                failure_times_ms: VecDeque::new(),
+                circuit_open_until_ms: 0,
+                consecutive_health_failures: 0,
+                last_health_at_ms: 0,
+                last_progress_at_ms: 0,
+                active_run_id: None,
+                active_project_key: None,
+                last_stall_notice_at_ms: 0,
             }),
             bridge_cancel: Mutex::new(None),
             tools: Arc::new(RwLock::new(Vec::new())),
             pending: Arc::new(Mutex::new(HashMap::new())),
             subscriptions: Mutex::new(HashMap::new()),
+            health_cancel: Mutex::new(None),
         }
     }
 
     pub async fn shutdown(&self) -> Result<(), String> {
+        if let Some(cancel) = self.health_cancel.lock().await.take() {
+            let _ = cancel.send(());
+        }
         for (_, cancel) in self.subscriptions.lock().await.drain() {
             let _ = cancel.send(());
         }
@@ -140,8 +194,40 @@ impl AgentRuntimeState {
         process.configuration_key = None;
         process.runtime_url = None;
         process.runtime_token = None;
+        process.desired_running = false;
+        process.active_run_id = None;
+        process.active_project_key = None;
         process.generation += 1;
         Ok(())
+    }
+}
+
+fn unix_ms() -> u128 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis()
+}
+
+fn protection(configuration: &RuntimeConfiguration) -> RuntimeProtectionConfiguration {
+    configuration.runtime_protection.clone().unwrap_or_default()
+}
+
+fn prune_failures(process: &mut ProcessState, window_ms: u64) {
+    let cutoff = unix_ms().saturating_sub(window_ms as u128);
+    while process.failure_times_ms.front().is_some_and(|value| *value < cutoff) {
+        process.failure_times_ms.pop_front();
+    }
+}
+
+fn record_failure(process: &mut ProcessState, config: &RuntimeProtectionConfiguration) {
+    let window_ms = config.failure_window_ms.unwrap_or(300_000).max(10_000);
+    prune_failures(process, window_ms);
+    process.failure_times_ms.push_back(unix_ms());
+    let threshold = config.failure_threshold.unwrap_or(3).clamp(1, 20);
+    if process.failure_times_ms.len() >= threshold {
+        process.circuit_open_until_ms = unix_ms()
+            .saturating_add(config.circuit_cooldown_ms.unwrap_or(120_000).max(10_000) as u128);
     }
 }
 
@@ -428,6 +514,7 @@ pub async fn agent_runtime_start(
     configuration: RuntimeConfiguration,
 ) -> Result<RuntimeStatus, String> {
     let _start_guard = state.start_lock.lock().await;
+    let protection_config = protection(&configuration);
     let workspace = std::path::PathBuf::from(&configuration.workspace_directory);
     let metadata = std::fs::metadata(&workspace)
         .map_err(|e| format!("OpenCode workspace is unavailable: {e}"))?;
@@ -439,6 +526,17 @@ pub async fn agent_runtime_start(
     let configuration_key = serde_json::to_string(&configuration).map_err(|e| e.to_string())?;
     {
         let mut process = state.process.lock().await;
+        prune_failures(
+            &mut process,
+            protection_config.failure_window_ms.unwrap_or(300_000),
+        );
+        if process.circuit_open_until_ms > unix_ms() {
+            let remaining_ms = process.circuit_open_until_ms.saturating_sub(unix_ms());
+            return Err(format!(
+                "OpenCode Runtime protection circuit is open; retry in {} seconds",
+                remaining_ms.div_ceil(1000)
+            ));
+        }
         if matches!(process.status.state.as_str(), "starting" | "ready")
             && process.configuration_key.as_deref() == Some(configuration_key.as_str())
         {
@@ -448,6 +546,11 @@ pub async fn agent_runtime_start(
             child.kill().map_err(|e| e.to_string())?;
         }
         process.generation += 1;
+        process.desired_running = true;
+        process.consecutive_health_failures = 0;
+    }
+    if let Some(cancel) = state.health_cancel.lock().await.take() {
+        let _ = cancel.send(());
     }
     let mcp_token = uuid_like();
     let runtime_token = uuid_like();
@@ -461,6 +564,7 @@ pub async fn agent_runtime_start(
         process.configuration_key = Some(configuration_key);
         process.runtime_url = None;
         process.runtime_token = None;
+        process.desired_running = true;
     }
     let port = available_port()?;
     let runtime_root = app
@@ -535,6 +639,7 @@ pub async fn agent_runtime_start(
         let _ = ready_tx.send(ready);
     });
     let monitor_app = app.clone();
+    let termination_protection = protection_config.clone();
     tauri::async_runtime::spawn(async move {
         let mut output = String::new();
         while let Some(event) = events.recv().await {
@@ -551,9 +656,17 @@ pub async fn agent_runtime_start(
                     let runtime = monitor_app.state::<AgentRuntimeState>();
                     let mut process = runtime.process.lock().await;
                     if process.generation == generation && process.status.state != "stopped" {
+                        record_failure(&mut process, &termination_protection);
                         process.status.state = "failed".into();
-                        process.status.error = Some(error);
+                        process.status.error = Some(error.clone());
                         process.child = None;
+                        let _ = monitor_app.emit("agent-runtime-supervisor", json!({
+                            "type": "runtime_failed",
+                            "generation": generation,
+                            "error": error,
+                            "failureCount": process.failure_times_ms.len(),
+                            "circuitOpenUntilMs": process.circuit_open_until_ms,
+                        }));
                     }
                     break;
                 }
@@ -575,7 +688,17 @@ pub async fn agent_runtime_start(
             };
             process.runtime_url = Some(url);
             process.runtime_token = Some(runtime_token);
-            Ok(process.status.clone())
+            process.last_health_at_ms = unix_ms();
+            process.last_progress_at_ms = unix_ms();
+            let ready_status = process.status.clone();
+            drop(process);
+            start_runtime_health_monitor(
+                app.clone(),
+                &state,
+                generation,
+                protection_config,
+            ).await;
+            Ok(ready_status)
         }
         Err(error) => {
             if let Some(child) = process.child.take() {
@@ -585,9 +708,151 @@ pub async fn agent_runtime_start(
             process.status.error = Some(error.clone());
             process.runtime_url = None;
             process.runtime_token = None;
+            record_failure(&mut process, &protection_config);
             Err(error)
         }
     }
+}
+
+async fn start_runtime_health_monitor(
+    app: AppHandle,
+    state: &AgentRuntimeState,
+    generation: u64,
+    config: RuntimeProtectionConfiguration,
+) {
+    let (cancel_tx, mut cancel_rx) = oneshot::channel();
+    if let Some(previous) = state.health_cancel.lock().await.replace(cancel_tx) {
+        let _ = previous.send(());
+    }
+    let interval_ms = config.health_interval_ms.unwrap_or(10_000).clamp(2_000, 60_000);
+    tauri::async_runtime::spawn(async move {
+        let mut interval = tokio::time::interval(Duration::from_millis(interval_ms));
+        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+        let client = match reqwest::Client::builder()
+            .connect_timeout(Duration::from_secs(2))
+            .timeout(Duration::from_secs(3))
+            .no_proxy()
+            .build()
+        {
+            Ok(client) => client,
+            Err(error) => {
+                eprintln!("[runtime-supervisor] health client failed: {error}");
+                return;
+            }
+        };
+        loop {
+            tokio::select! {
+                _ = &mut cancel_rx => break,
+                _ = interval.tick() => {}
+            }
+            let runtime = app.state::<AgentRuntimeState>();
+            let (url, token, active_run_id, last_progress_at_ms) = {
+                let process = runtime.process.lock().await;
+                if process.generation != generation || !process.desired_running || process.status.state != "ready" {
+                    break;
+                }
+                (
+                    process.runtime_url.clone(),
+                    process.runtime_token.clone(),
+                    process.active_run_id.clone(),
+                    process.last_progress_at_ms,
+                )
+            };
+            let healthy = match (url, token) {
+                (Some(url), Some(token)) => client
+                    .get(format!("{url}/global/health"))
+                    .basic_auth("opencode", Some(token))
+                    .send()
+                    .await
+                    .is_ok_and(|response| response.status().is_success()),
+                _ => false,
+            };
+            let mut process = runtime.process.lock().await;
+            if process.generation != generation || process.status.state != "ready" {
+                break;
+            }
+            process.last_health_at_ms = unix_ms();
+            if healthy {
+                process.consecutive_health_failures = 0;
+            } else {
+                process.consecutive_health_failures += 1;
+                if process.consecutive_health_failures >= 3 {
+                    let error = "OpenCode Runtime failed three consecutive health probes".to_string();
+                    record_failure(&mut process, &config);
+                    if let Some(child) = process.child.take() {
+                        let _ = child.kill();
+                    }
+                    process.status = RuntimeStatus { state: "failed".into(), error: Some(error.clone()) };
+                    process.runtime_url = None;
+                    process.runtime_token = None;
+                    let _ = app.emit("agent-runtime-supervisor", json!({
+                        "type": "runtime_failed",
+                        "generation": generation,
+                        "error": error,
+                        "failureCount": process.failure_times_ms.len(),
+                        "circuitOpenUntilMs": process.circuit_open_until_ms,
+                    }));
+                    break;
+                }
+            }
+            if let Some(run_id) = active_run_id {
+                let silent_ms = unix_ms().saturating_sub(last_progress_at_ms);
+                let warning_ms = config.stall_warning_ms.unwrap_or(180_000) as u128;
+                let hard_cap_ms = config.hard_cap_ms.unwrap_or(1_800_000) as u128;
+                if silent_ms >= warning_ms {
+                    let notice_cooldown_ms = if silent_ms >= hard_cap_ms { 300_000 } else { 120_000 };
+                    if unix_ms().saturating_sub(process.last_stall_notice_at_ms) >= notice_cooldown_ms {
+                        process.last_stall_notice_at_ms = unix_ms();
+                        let _ = app.emit("agent-runtime-supervisor", json!({
+                            "type": "session_stalled",
+                            "runId": run_id,
+                            "silentMs": silent_ms,
+                            "hardCap": silent_ms >= hard_cap_ms,
+                        }));
+                    }
+                }
+            }
+        }
+    });
+}
+
+#[tauri::command]
+pub async fn agent_runtime_note_activity(
+    state: tauri::State<'_, AgentRuntimeState>,
+    run_id: Option<String>,
+    project_key: Option<String>,
+    finished: bool,
+) -> Result<(), String> {
+    let mut process = state.process.lock().await;
+    process.last_progress_at_ms = unix_ms();
+    process.last_stall_notice_at_ms = 0;
+    if finished {
+        process.active_run_id = None;
+        process.active_project_key = None;
+    } else {
+        if let Some(value) = run_id { process.active_run_id = Some(value); }
+        if let Some(value) = project_key { process.active_project_key = Some(value); }
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn agent_runtime_diagnostics(
+    state: tauri::State<'_, AgentRuntimeState>,
+) -> Result<Value, String> {
+    let process = state.process.lock().await;
+    Ok(json!({
+        "status": process.status,
+        "generation": process.generation,
+        "desiredRunning": process.desired_running,
+        "failureCount": process.failure_times_ms.len(),
+        "circuitOpenUntilMs": process.circuit_open_until_ms,
+        "consecutiveHealthFailures": process.consecutive_health_failures,
+        "lastHealthAtMs": process.last_health_at_ms,
+        "lastProgressAtMs": process.last_progress_at_ms,
+        "activeRunId": process.active_run_id,
+        "activeProjectKey": process.active_project_key,
+    }))
 }
 
 #[tauri::command]
@@ -879,6 +1144,42 @@ mod tests {
 
     async fn body(response: Response) -> Value {
         serde_json::from_slice(&to_bytes(response.into_body(), 1_000_000).await.unwrap()).unwrap()
+    }
+
+    fn process_state_for_supervisor() -> ProcessState {
+        ProcessState {
+            status: RuntimeStatus { state: "ready".into(), error: None },
+            child: None,
+            configuration_key: None,
+            runtime_url: None,
+            runtime_token: None,
+            generation: 1,
+            desired_running: true,
+            failure_times_ms: VecDeque::new(),
+            circuit_open_until_ms: 0,
+            consecutive_health_failures: 0,
+            last_health_at_ms: 0,
+            last_progress_at_ms: unix_ms(),
+            active_run_id: None,
+            active_project_key: None,
+            last_stall_notice_at_ms: 0,
+        }
+    }
+
+    #[test]
+    fn runtime_failures_open_the_circuit_at_the_configured_threshold() {
+        let mut process = process_state_for_supervisor();
+        let config = RuntimeProtectionConfiguration {
+            failure_threshold: Some(3),
+            failure_window_ms: Some(60_000),
+            circuit_cooldown_ms: Some(30_000),
+            ..RuntimeProtectionConfiguration::default()
+        };
+        record_failure(&mut process, &config);
+        record_failure(&mut process, &config);
+        assert_eq!(process.circuit_open_until_ms, 0);
+        record_failure(&mut process, &config);
+        assert!(process.circuit_open_until_ms > unix_ms());
     }
 
     #[tokio::test]

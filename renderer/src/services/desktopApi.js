@@ -168,7 +168,7 @@ function createBrowserFallback() {
     },
     settings: {
       get: async () => JSON.parse(localStorage.getItem('shotloom-settings') || 'null') || {
-        storageVersion: 6,
+        storageVersion: 7,
         providerConfigs: {},
         balance: 0,
         rawQuota: 0,
@@ -184,7 +184,11 @@ function createBrowserFallback() {
         agentCanRunNodes: false,
         agentPreferredTextModel: 'gpt-5.4',
         agentPreferredImageModel: 'gpt-image-2',
-        agentPreferredVideoModel: 'grok-imagine-video',
+          agentPreferredVideoModel: 'grok-imagine-video',
+          runtimeProtection: {
+            healthIntervalMs: 10000, failureThreshold: 3, failureWindowMs: 300000,
+            circuitCooldownMs: 120000, stallWarningMs: 180000, hardCapMs: 1800000,
+          },
         canvasActionShortcuts: {
           fitView: { type: 'mouse', button: 'middle', gesture: 'singleClick' },
           autoLayout: { type: 'mouse', button: 'middle', gesture: 'doubleClick' },
@@ -200,7 +204,7 @@ function createBrowserFallback() {
       refreshBalance: async () => {
         const current = JSON.parse(localStorage.getItem('shotloom-settings') || 'null') || {};
         const next = {
-          storageVersion: 6,
+          storageVersion: 7,
           providerConfigs: current.providerConfigs || {},
           balance: current.balance || 0,
           rawQuota: current.rawQuota || 0,
@@ -217,6 +221,10 @@ function createBrowserFallback() {
           agentPreferredTextModel: current.agentPreferredTextModel || 'gpt-5.4',
           agentPreferredImageModel: current.agentPreferredImageModel || 'gpt-image-2',
           agentPreferredVideoModel: current.agentPreferredVideoModel || 'grok-imagine-video',
+          runtimeProtection: current.runtimeProtection || {
+            healthIntervalMs: 10000, failureThreshold: 3, failureWindowMs: 300000,
+            circuitCooldownMs: 120000, stallWarningMs: 180000, hardCapMs: 1800000,
+          },
           updatedAt: new Date().toISOString(),
         };
         localStorage.setItem('shotloom-settings', JSON.stringify(next));
@@ -249,6 +257,8 @@ function createBrowserFallback() {
     update: {
       check: async () => ({ hasUpdate: false, downloaded: false, info: null }),
       download: async () => ({ ok: false, error: '浏览器预览不支持下载安装包。' }),
+      cancelDownload: async () => ({ ok: true }),
+      checkFreshness: async () => ({ superseded: false }),
       executeRestart: async () => ({ ok: false, error: '浏览器预览不支持安装更新。' }),
     },
     notifyTask: async () => ({ shown: false, reason: 'browser' }),

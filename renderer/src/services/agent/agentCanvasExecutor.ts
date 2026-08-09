@@ -38,7 +38,7 @@ import {
   AgentProjectChangedError,
   createAgentProjectQueue,
 } from '@/services/agentProjectQueue';
-import { assertAgentProject, getAgentProjectKey } from '@/services/agentProjectIdentity';
+import { assertAgentProject, getAgentProjectIdentity, getAgentProjectKey } from '@/services/agentProjectIdentity';
 import { dispatchAction } from '@/services/agent/actionRegistry';
 import type {
   AgentAction,
@@ -405,7 +405,10 @@ async function executeAgentActionsNow(
   const actionResults: AgentActionResult[] = [];
 
   const projectKey = queueMeta.projectKey || getAgentProjectKey();
-  if (body.projectKey && body.projectKey !== projectKey) {
+  const projectIdentity = getAgentProjectIdentity();
+  if ((body.projectKey && body.projectKey !== projectKey)
+    || (body.projectInstanceId && body.projectInstanceId !== projectIdentity.instanceId)
+    || (body.projectGeneration != null && body.projectGeneration !== projectIdentity.generation)) {
     return {
       success: false,
       complete: false,
@@ -427,7 +430,7 @@ async function executeAgentActionsNow(
   let skippedCount = 0;
   // Action 逐条提交，不做整批回滚。失败项会返回给模型局部修复，成功项保留。
   for (const [index, action] of actions.entries()) {
-    if (getAgentProjectKey() !== projectKey) throw new AgentProjectChangedError(projectKey);
+    assertAgentProject(body.projectKey || projectKey, body.projectInstanceId, body.projectGeneration);
     try {
       const shape = validateAgentActionShape(action);
       if (!shape.valid) {
@@ -544,7 +547,7 @@ async function executeAgentActionsNow(
  */
 export function executeAgentActions(body: AgentActionRequest): Promise<AgentBatchResult> {
   try {
-    assertAgentProject(body.projectKey);
+    assertAgentProject(body.projectKey, body.projectInstanceId, body.projectGeneration);
   } catch (error) {
     return Promise.resolve({
       success: false,

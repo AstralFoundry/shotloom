@@ -27,6 +27,11 @@ test('画布助手用可展开的纵向轨迹呈现 Agent 运行过程', () => {
   assert.match(panel, /<strong>Skills<\/strong>/);
   assert.match(panel, /tool\.effect === "media_generation"/);
   assert.match(panel, /"等待批准"/);
+  assert.match(panel, /copilot-tool-status-icon/);
+  assert.match(panel, /copilot-tool-spinner/);
+  assert.match(panel, /copilot-tool-shimmer/);
+  assert.match(panel, /tool\.summary \|\| tool\.name \|\| "正在处理"/);
+  assert.match(panel, /generation \? "生成" : planning \? "规划" : canvas \? "画布" : "工具"/);
   assert.doesNotMatch(styles, /copilot-run-spin/);
   assert.match(panel, /className="copilot-run-stop"/);
   assert.match(panel, /aria-label="停止 Agent"/);
@@ -36,6 +41,9 @@ test('画布助手用可展开的纵向轨迹呈现 Agent 运行过程', () => {
     /\.copilot-run-activity > \.copilot-tool-stream \{[^}]*background:\s*transparent/,
   );
   assert.match(styles, /copilot-activity-chevron/);
+  assert.match(styles, /@keyframes copilot-tool-spin/);
+  assert.match(styles, /@keyframes copilot-tool-shimmer/);
+  assert.match(styles, /prefers-reduced-motion:[^}]+reduce[\s\S]*?\.copilot-tool-spinner/);
   assert.match(styles, /--activity-line/);
   assert.doesNotMatch(panel, /copilot-run-status|copilot-stop-button/);
 });
@@ -109,4 +117,11 @@ test('@ 节点菜单在长别名下保持两行布局且不覆盖类型', () => 
   assert.match(styles, /grid-template-areas:\s*"alias type" "title type"/);
   assert.match(styles, /text-overflow:\s*ellipsis/);
   assert.doesNotMatch(styles, /grid-template-columns:\s*48px 1fr auto/);
+});
+
+test('画布图片节点加入对话时自动携带当前图片产物', () => {
+  assert.match(panel, /resolveNodeChatImageAttachment\(node\)/);
+  assert.match(panel, /attachNodeImage\(found\)/);
+  assert.match(panel, /attachNodeImage\(node\)/);
+  assert.match(panel, /imageAttachment: _imageAttachment/);
 });

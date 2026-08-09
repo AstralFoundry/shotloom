@@ -1,7 +1,5 @@
-import { memo, useContext, useEffect, useMemo, useState } from "react";
+import { memo, useContext, useMemo, useState } from "react";
 import { Handle, Position } from "@xyflow/react";
-import { convertFileSrc } from "@tauri-apps/api/core";
-import { desktopApi } from "../../services/desktopApi.js";
 import { getModelInfo, getModelSchema, getTypeMeta } from "../../domain/catalog/ModelCatalog";
 import { MentionContext } from "./WorkflowCanvas";
 import {
@@ -24,7 +22,7 @@ import { CameraControlPanel } from "./CameraControlPanel";
 import { DEFAULT_CAMERA_CONFIG, normalizeCameraConfig } from "../../utils/cameraConfig.js";
 import { openMediaViewer, showToast } from "../store/overlayStore";
 import type { WorkflowNodeData, WorkflowNodeRenderer } from "./WorkflowCanvas";
-import { schedulePreviewLoad } from "./previewLoadQueue";
+import { useMediaPreviewCache } from "./useMediaPreviewCache";
 import { isImeKeyEvent, useImeCommit } from "./imeComposition";
 import { imageCanvasNodeDimensions } from "../../domain/graph/CanvasNodeDimensions";
 
@@ -68,76 +66,16 @@ function kindOf(item: Record<string, unknown>): "image" | "video" | "audio" | "t
   );
 }
 function useLocalPreview(item: Record<string, unknown> | null, kind: string) {
-  const [url, setUrl] = useState("");
   const path = String(item?.filePath || item?.path || "");
-  const [bufferedPath, setBufferedPath] = useState("");
-  const useBufferedMedia = Boolean(path && bufferedPath === path);
-  useEffect(() => {
-    let cancelled = false;
-    let created = "";
-    let cancelLoad = () => {};
-    if (
-      path &&
-      (kind === "video" || kind === "audio") &&
-      desktopApi.platform !== "browser" &&
-      !useBufferedMedia
-    ) {
-      setUrl(convertFileSrc(path));
-      return () => setUrl("");
-    }
-    if (path && ["image", "video", "audio"].includes(kind)) {
-      cancelLoad = schedulePreviewLoad(async () => {
-        if (cancelled) return;
-        try {
-          let buffer: ArrayBuffer | undefined;
-          const extension = path.split(/[?#]/)[0].split(".").pop()?.toLowerCase();
-          const inferredMime =
-            extension === "mp4" || extension === "m4v"
-              ? "video/mp4"
-              : extension === "mov"
-                ? "video/quicktime"
-                : extension === "webm"
-                  ? "video/webm"
-                  : extension === "mp3"
-                    ? "audio/mpeg"
-                    : extension === "m4a"
-                      ? "audio/mp4"
-                      : `${kind}/*`;
-          let mime = String(item?.mimeType || item?.type || inferredMime);
-          if (kind === "image" && desktopApi.file.readImagePreview) {
-            try {
-              buffer = await desktopApi.file.readImagePreview(path, 960);
-              mime = "image/jpeg";
-            } catch {
-              buffer = await desktopApi.file.readArrayBuffer?.(path);
-            }
-          } else buffer = await desktopApi.file.readArrayBuffer?.(path);
-          if (!cancelled && buffer?.byteLength) {
-            created = URL.createObjectURL(new Blob([buffer], { type: mime }));
-            setUrl(created);
-          }
-        } catch {}
-      });
-    }
-    return () => {
-      cancelled = true;
-      cancelLoad();
-      if (created) URL.revokeObjectURL(created);
-      setUrl("");
-    };
-  }, [path, kind, item?.mimeType, useBufferedMedia]);
-  const retryBuffered = () => {
-    if (path && desktopApi.platform !== "browser" && !useBufferedMedia) {
-      setBufferedPath(path);
-    }
-  };
-  if (url) return { url, retryBuffered, buffered: useBufferedMedia };
   const raw = String(item?.previewUrl || item?.url || item?.content || "");
-  return {
-    url: /^(https?:|blob:|data:)/i.test(raw) ? raw : "",
-    retryBuffered,
-    buffered: useBufferedMedia,
-  };
+  return useMediaPreviewCache({
+    path,
+    kind,
+    mimeType: String(item?.mimeType || item?.type || ""),
+    maxSize: 960,
+    revision: String(item?.updatedAt || item?.createdAt || item?.id || ""),
+    fallbackUrl: raw,
+  });
 }
 
 export const GenerationNode: WorkflowNodeRenderer = memo(({ node, selected, actions }) => {
@@ -261,7 +199,9 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({ node, selected, acti
           {mentionInCopilot && (
             <button
               className="node-mention-btn"
-              title={`引用节点：${node.title || node.type}`}
+              title={activeKind === "image"
+                ? `添加图片和节点到对话：${node.title || node.type}`
+                : `引用节点：${node.title || node.type}`}
               onClick={(e) => {
                 e.stopPropagation();
                 mentionInCopilot(node.id);

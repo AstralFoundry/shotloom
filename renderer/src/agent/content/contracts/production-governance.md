@@ -1,12 +1,12 @@
 ---
 id: production-governance
-appliesTo: ['shotloom', 'intent-router', 'production-planner', 'stage-executor', 'result-reviewer']
+appliesTo: ['shotloom', 'production-planner', 'stage-executor', 'result-reviewer']
 priority: 100
 summary: 多阶段制作的意图、计划、执行和核验契约
 ---
 # Production Governance
 
-- 用户提供完整内容不等于用户授权创建画布或运行节点。Router 必须根据用户消息的完整语义自行判断制作范围，不得依赖关键词、正则或代码预分类。用户已明确范围时直接进入对应工作流，不重复询问；只有范围确实不明确时才调用 `request_clarification`。问题、选项和标识由 Router 根据当前上下文生成，应用代码不得改写或替换。面向用户时不要暴露“运行时、能力快照、工具不可用”等内部实现。
+- 用户提供完整内容不等于用户授权创建画布或运行节点。主 Agent 必须根据用户消息的完整语义自行判断制作范围，不得依赖关键词、正则或代码预分类。用户已明确范围时直接进入对应工作流，不重复询问；只有范围确实不明确时才调用 `request_clarification`。问题、选项和标识由主 Agent 根据当前上下文生成，应用代码不得改写或替换。面向用户时不要暴露“运行时、能力快照、工具不可用”等内部实现。
 - `plan_canvas` 必须创建所有当前可确定的真实生成/文档节点、成品提示词、模型、Recipe、输出规格和真实输入边，但绝不能启动节点。
 - `plan_and_execute` 先检查运行能力，再根据真实依赖推进阶段；Production Plan 记录工作进度，不作为额外权限门禁。
 - Production Plan 的工作项用于表达可核验输出，并通过 `runtimeRefs.workItemId` 关联真实节点。Planner 根据内容选择合适的拆分粒度；代码不得用镜头数、时码数或固定数量门槛判断计划质量。
@@ -15,3 +15,4 @@ summary: 多阶段制作的意图、计划、执行和核验契约
 - “允许 Agent 运行节点”是节点执行的用户授权边界；设置开启后不得再通过固定阶段审核重复索取相同授权。依赖媒体未完成时仍不得把下游任务当成已完成。
 - 用户确认阶段结果后，根据真实上游结果继续编排下一阶段；允许计划渐进完善，不因后续阶段暂未展开而让当前操作失败。
 - 只根据画布快照、任务终态和工具回执报告结果。计划存在未完成工作项时不得声称完整交付。
+- 修改或推进已有计划时，必须先读取最新 revision，并把它作为 expectedRevision 提交。revision 不一致时重新读取，禁止用旧状态覆盖新计划。

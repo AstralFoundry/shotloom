@@ -5,6 +5,7 @@ import {
   canRequestAgentClarification,
   clearAgentToolsForTests,
   listAgentTools,
+  prepareAgentToolCall,
   registerAgentTool,
 } from '../renderer/src/agent/core/toolRegistry.ts';
 
@@ -12,7 +13,7 @@ test('唯一 Agent 可在关键信息缺失时询问', () => {
   assert.equal(canRequestAgentClarification(), true);
 });
 
-test('命名空间工具只对实际加载的 Skill 可见', () => {
+test('命名空间工具预先暴露，但执行前必须加载对应 Skill', () => {
   clearAgentToolsForTests();
   registerAgentTool({
     id: 'skill_short_drama__inspect_structure',
@@ -28,8 +29,13 @@ test('命名空间工具只对实际加载的 Skill 可见', () => {
     loadedSkillIds: new Set(['video-production']), attachments: [],
     capabilities: { nodeExecution: false }, state: new Map(), emit: () => {},
   };
-  assert.equal(listAgentTools(context).length, 0);
-  context.loadedSkillIds = new Set(['short-drama']);
   assert.deepEqual(listAgentTools(context).map((tool) => tool.id), ['skill_short_drama__inspect_structure']);
+  assert.throws(
+    () => prepareAgentToolCall('skill_short_drama__inspect_structure', '{}', context),
+    /requires its Skill to be loaded first/,
+  );
+  context.loadedSkillIds = new Set(['short-drama']);
+  assert.equal(prepareAgentToolCall('skill_short_drama__inspect_structure', '{}', context).definition.id,
+    'skill_short_drama__inspect_structure');
   clearAgentToolsForTests();
 });

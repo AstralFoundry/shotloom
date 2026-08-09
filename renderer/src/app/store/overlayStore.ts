@@ -10,6 +10,7 @@ interface MediaPayload {
 }
 interface OverlayState {
   toast: string;
+  toastTone: "default" | "success";
   media: {
     open: boolean;
     src: string;
@@ -19,13 +20,14 @@ interface OverlayState {
     onSave: ((text: string) => void) | null;
   };
   toastTimer: number | null;
-  showToast: (message: string) => void;
+  showToast: (message: string, tone?: "default" | "success") => void;
   openMedia: (payload: MediaPayload) => boolean;
   closeMedia: () => void;
 }
 
 export const useOverlayStore = create<OverlayState>((set, get) => ({
   toast: "",
+  toastTone: "default",
   toastTimer: null,
   media: {
     open: false,
@@ -35,13 +37,13 @@ export const useOverlayStore = create<OverlayState>((set, get) => ({
     filePath: "",
     onSave: null,
   },
-  showToast: (message) => {
+  showToast: (message, tone = "default") => {
     if (get().toastTimer) window.clearTimeout(get().toastTimer!);
     const toastTimer = window.setTimeout(
-      () => set({ toast: "", toastTimer: null }),
-      2400,
+      () => set({ toast: "", toastTone: "default", toastTimer: null }),
+      tone === "success" ? 3600 : 2400,
     );
-    set({ toast: String(message || ""), toastTimer });
+    set({ toast: String(message || ""), toastTone: tone, toastTimer });
   },
   openMedia: (payload) => {
     const src = String(payload.src || "").trim();
@@ -68,5 +70,7 @@ export const useOverlayStore = create<OverlayState>((set, get) => ({
 
 export const showToast = (message: string) =>
   useOverlayStore.getState().showToast(message);
+export const showSuccessToast = (message: string) =>
+  useOverlayStore.getState().showToast(message, "success");
 export const openMediaViewer = (payload: MediaPayload) =>
   useOverlayStore.getState().openMedia(payload);

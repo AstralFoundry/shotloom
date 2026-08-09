@@ -405,6 +405,7 @@ export function createTauriApi(browserFallback) {
   const currentWindow = getCurrentWindow();
   let pendingUpdate = null;
   let pendingUpdateDownloaded = false;
+  let updateOperationGeneration = 0;
   const unsupported = (feature) => async () => { throw new Error(`${feature} 尚未迁移到 Tauri 原生层`); };
   const projectDialog = async (directoryOnly = false) => {
     const selected = await openDialog({
@@ -674,10 +675,13 @@ export function createTauriApi(browserFallback) {
       },
       download: async (onProgress) => {
         if (!pendingUpdate) return { ok: false, error: '请先检查更新。' };
+        const operationGeneration = ++updateOperationGeneration;
+        const update = pendingUpdate;
         let received = 0;
         let total = 0;
         try {
-          await pendingUpdate.download((event) => {
+          await update.download((event) => {
+            if (operationGeneration !== updateOperationGeneration || update !== pendingUpdate) return;
             if (event.event === 'Started') {
               received = 0;
               total = Number(event.data.contentLength || 0);
@@ -692,6 +696,9 @@ export function createTauriApi(browserFallback) {
               percent: total > 0 ? Math.min(100, Math.round((received / total) * 100)) : 0,
             });
           });
+          if (operationGeneration !== updateOperationGeneration || update !== pendingUpdate) {
+            return { ok: false, cancelled: true, error: '下载已取消' };
+          }
           pendingUpdateDownloaded = true;
           return {
             ok: true,
@@ -702,7 +709,49 @@ export function createTauriApi(browserFallback) {
             },
           };
         } catch (error) {
+          if (operationGeneration !== updateOperationGeneration) {
+            return { ok: false, cancelled: true, error: '下载已取消' };
+          }
           return { ok: false, error: error?.message || String(error) };
+        }
+      },
+      cancelDownload: async () => {
+        updateOperationGeneration += 1;
+        const update = pendingUpdate;
+        pendingUpdate = null;
+        pendingUpdateDownloaded = false;
+        if (update) await update.close().catch(() => {});
+        return { ok: true };
+      },
+      checkFreshness: async () => {
+        if (!pendingUpdate || !pendingUpdateDownloaded) return { superseded: false };
+        const downloadedVersion = String(pendingUpdate.version || '0');
+        try {
+          const candidate = await checkUpdate();
+          if (!candidate) return { superseded: false };
+          const parts = (value) => String(value).split(/[.-]/).map((part) => Number(part) || 0);
+          const left = parts(candidate.version);
+          const right = parts(downloadedVersion);
+          const newer = Array.from({ length: Math.max(left.length, right.length) })
+            .some((_, index) => left[index] !== right[index]
+              && left[index] > right[index]
+              && left.slice(0, index).every((value, prefix) => value === right[prefix]));
+          if (!newer) {
+            await candidate.close().catch(() => {});
+            return { superseded: false };
+          }
+          await pendingUpdate.close().catch(() => {});
+          pendingUpdate = candidate;
+          pendingUpdateDownloaded = false;
+          updateOperationGeneration += 1;
+          return {
+            superseded: true,
+            info: { version: candidate.version, releaseNotes: candidate.body || '' },
+          };
+        } catch (error) {
+          // Freshness probing is fail-open: an intermittent network error must not
+          // make an already verified package impossible to install.
+          return { superseded: false, warning: error?.message || String(error) };
         }
       },
       executeRestart: async () => {

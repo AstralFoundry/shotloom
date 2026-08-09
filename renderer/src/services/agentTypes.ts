@@ -73,6 +73,8 @@ export interface AgentAction extends JsonObject {
 export interface AgentActionRequest extends JsonObject {
   actions: AgentAction[];
   projectKey?: string;
+  projectInstanceId?: string;
+  projectGeneration?: number;
   conversationId?: string;
   runId?: string;
   title?: string;

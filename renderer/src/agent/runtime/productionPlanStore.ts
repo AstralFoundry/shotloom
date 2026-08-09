@@ -60,6 +60,27 @@ function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
+export class StaleProductionPlanRevisionError extends Error {
+  readonly expectedRevision: number;
+  readonly currentRevision: number;
+
+  constructor(expectedRevision: number, currentRevision: number) {
+    super(`制作计划已经更新：提交基于 revision ${expectedRevision}，当前为 ${currentRevision}；请重新读取计划后再修改`);
+    this.name = 'StaleProductionPlanRevisionError';
+    this.expectedRevision = expectedRevision;
+    this.currentRevision = currentRevision;
+  }
+}
+
+function assertExpectedRevision(plan: ProductionPlan, expectedRevision: number): void {
+  if (!Number.isInteger(expectedRevision) || expectedRevision < 1) {
+    throw new Error('expectedRevision 必须是最近一次读取到的正整数 revision');
+  }
+  if (plan.revision !== expectedRevision) {
+    throw new StaleProductionPlanRevisionError(expectedRevision, plan.revision);
+  }
+}
+
 function generatedId(prefix: string, index?: number) {
   const order = index === undefined ? '' : `${index + 1}-`;
   return `${prefix}-${order}${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
@@ -211,9 +232,15 @@ export function writeProductionPlan(input: {
   return clone(next);
 }
 
-export function patchProductionPlanStage(planId: string, stageId: string, patch: JsonObject): ProductionPlan {
+export function patchProductionPlanStage(
+  planId: string,
+  stageId: string,
+  expectedRevision: number,
+  patch: JsonObject,
+): ProductionPlan {
   const plan = plans().find((item) => item.schemaVersion === 2 && item.id === planId);
   if (!plan) throw new Error('制作计划不存在');
+  assertExpectedRevision(plan, expectedRevision);
   const stage = plan.stages.find((item) => item.id === stageId);
   if (!stage) throw new Error('制作阶段不存在');
 
@@ -235,6 +262,7 @@ export function patchProductionPlanStage(planId: string, stageId: string, patch:
 export function updateProductionPlanStage(input: {
   planId: string;
   stageId: string;
+  expectedRevision: number;
   status: ProductionPlanStageStatus;
   runtimeRefs?: ProductionPlanRuntimeRef[];
   summary?: string;
@@ -242,6 +270,7 @@ export function updateProductionPlanStage(input: {
 }): ProductionPlan {
   const plan = plans().find((item) => item.schemaVersion === 2 && item.id === input.planId);
   if (!plan) throw new Error('制作计划不存在');
+  assertExpectedRevision(plan, input.expectedRevision);
   const index = plan.stages.findIndex((item) => item.id === input.stageId);
   if (index < 0) throw new Error('制作阶段不存在');
   const stage = plan.stages[index];

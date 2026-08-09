@@ -42,7 +42,7 @@ import {
 import { runNode } from "../../store/taskStore.js";
 import { getAvailableModelIdsByType } from "../../store/settingsStore.js";
 import { uid } from "../../utils/format.js";
-import { showToast } from "../store/overlayStore";
+import { showSuccessToast, showToast } from "../store/overlayStore";
 import type {
   WorkflowCanvasController,
   WorkflowNodeActions,
@@ -653,7 +653,7 @@ export const nodeActions: WorkflowNodeActions = {
     if (!result.ok) showToast(result.error || "彩铅处理失败");
     else if (result.node) {
       setSelectedNodeIds([result.node.id]);
-      showToast("已创建彩铅图片节点");
+      showSuccessToast(`创建成功：${result.node.title || "彩铅图片节点"}`);
     }
   },
 };

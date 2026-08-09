@@ -8,7 +8,6 @@
 import { desktopApi } from '@/services/desktopApi';
 import { getModelCredentialStatus } from '@/store/settingsStore';
 import { getProviderTransport, normalizeRemoteTask } from '@/domain/provider/TransportRegistry';
-import { preprocessVideoModelInputs } from '@/services/videoInputPreprocessor';
 
 export { normalizeRemoteTask } from '@/domain/provider/TransportRegistry';
 
@@ -28,7 +27,6 @@ function requireModelContract(payload = {}) {
  * 提交远程生成任务。编译 → 提交 → 归一化 管道。
  */
 export async function submitRemoteGenerationTask({ task, payload, signal }) {
-  await preprocessVideoModelInputs(payload);
   const contract = requireModelContract(payload);
   const credentialStatus = getModelCredentialStatus(contract.modelId);
   if (!credentialStatus.available) {

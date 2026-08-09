@@ -19,6 +19,14 @@ const previewQueue = readFileSync(
   new URL('../renderer/src/app/canvas/previewLoadQueue.ts', import.meta.url),
   'utf8',
 );
+const mediaCacheHook = readFileSync(
+  new URL('../renderer/src/app/canvas/useMediaPreviewCache.ts', import.meta.url),
+  'utf8',
+);
+const mediaCache = readFileSync(
+  new URL('../renderer/src/services/mediaPreviewCache.ts', import.meta.url),
+  'utf8',
+);
 const director = readFileSync(
   new URL('../renderer/src/app/canvas/ThreeDDirectorNode.tsx', import.meta.url),
   'utf8',
@@ -120,15 +128,17 @@ test('React Flow 只渲染可见节点并在拖动结束后合并持久化', () 
 });
 test('大型画布保留完整数据并对可见媒体预览限流加载', () => {
   assert.doesNotMatch(canvas, /lodMode|data\.lod|canvas-lod-node/);
-  assert.match(node, /schedulePreviewLoad/);
+  assert.match(node, /useMediaPreviewCache/);
+  assert.match(mediaCacheHook, /schedulePreviewLoad/);
   assert.match(previewQueue, /MAX_CONCURRENT_PREVIEWS = 2/);
   assert.match(previewQueue, /requestIdleCallback/);
   assert.match(
     project,
     /const project = persisted \? store\.project : projectPersistenceSnapshot\(\)/,
   );
-  assert.match(node, /convertFileSrc\(path\)/);
-  assert.match(node, /kind === "video" \|\| kind === "audio"/);
+  assert.match(mediaCacheHook, /convertFileSrc\(path\)/);
+  assert.match(mediaCache, /kindBudgets: \{ image: 128 \* MIB, video: 192 \* MIB, audio: 64 \* MIB \}/);
+  assert.match(mediaCache, /installMediaPreviewCacheMemoryPressureListener/);
 });
 test('节点内媒体控件不会被画布拖拽和缩放手势接管', () => {
   assert.match(node, /<video[\s\S]*?className="nodrag nopan nowheel"[\s\S]*?playsInline/);
@@ -136,9 +146,9 @@ test('节点内媒体控件不会被画布拖拽和缩放手势接管', () => {
   assert.equal(node.match(/onPointerDown=\{\(event\) => event\.stopPropagation\(\)\}/g)?.length, 2);
 });
 test('本地媒体流地址加载失败时回退到带正确 MIME 的缓冲地址', () => {
-  assert.match(node, /bufferedPath === path/);
-  assert.match(node, /!useBufferedMedia[\s\S]*?convertFileSrc\(path\)/);
-  assert.match(node, /extension === "mp4" \|\| extension === "m4v"[\s\S]*?"video\/mp4"/);
+  assert.match(mediaCacheHook, /bufferedPath === path/);
+  assert.match(mediaCacheHook, /!buffered[\s\S]*?convertFileSrc\(path\)/);
+  assert.match(mediaCache, /mp4: "video\/mp4"[\s\S]*?mov: "video\/quicktime"/);
   assert.equal(node.match(/if \(!bufferedPreview\) retryBufferedPreview\(\)/g)?.length, 2);
 });
 test('视频节点加载后主动解码首帧作为默认封面', () => {
@@ -281,7 +291,8 @@ test('并发任务轮询只在状态变化时触发合并持久化', () => {
   assert.match(project, /if \(sessionPersistTimer && coalesce\) return/);
 });
 test('图片节点读取缓存缩略图且整个节点可选择', () => {
-  assert.match(node, /readImagePreview\(path, 960\)/);
+  assert.match(node, /useMediaPreviewCache\([\s\S]*?maxSize: 960/);
+  assert.match(mediaCache, /readImagePreview\(input\.path, input\.maxSize \|\| 960\)/);
   assert.match(api, /activeImagePreviewReads < 4/);
   assert.match(node, /className="work-node-wrapper"[\s\S]*?actions\.select\(node\.id\)/);
 });

@@ -11,7 +11,7 @@ import {
 } from '@/domain/provider/ModelAvailability';
 
 export const settingsStore = reactive({
-  storageVersion: 6,
+  storageVersion: 7,
   providerConfigs: /** @type {Record<string, import('@/domain/provider/ProviderRegistry').ProviderConfig>} */ ({}),
   balance: 0, rawQuota: 0, usedQuota: 0,
   tokenGroups: [], activeTokenGroupId: '',
@@ -24,6 +24,10 @@ export const settingsStore = reactive({
   agentPreferredVideoModel: 'grok-imagine-video',
   canvasActionShortcuts: normalizeCanvasActionShortcuts(),
   layoutAlgorithm: 'grid-aligned', updatedAt: '',
+  runtimeProtection: {
+    healthIntervalMs: 10000, failureThreshold: 3, failureWindowMs: 300000,
+    circuitCooldownMs: 120000, stallWarningMs: 180000, hardCapMs: 1800000,
+  },
   loading: false, syncing: false,
 });
 
@@ -104,6 +108,7 @@ function toPlainSettings(patch = {}) {
     agentPreferredVideoModel: rawStore.agentPreferredVideoModel,
     canvasActionShortcuts: normalizeCanvasActionShortcuts(rawStore.canvasActionShortcuts),
     layoutAlgorithm: rawStore.layoutAlgorithm === 'elk-layered' ? 'elk-layered' : 'grid-aligned',
+    runtimeProtection: { ...rawStore.runtimeProtection },
     ...rawPatch,
   };
   next.tokenGroups = normalizeTokenGroups(next.tokenGroups);
@@ -111,7 +116,7 @@ function toPlainSettings(patch = {}) {
 }
 
 function applySettings(settings) {
-  settingsStore.storageVersion = settings.storageVersion || 1;
+  settingsStore.storageVersion = settings.storageVersion;
   settingsStore.providerConfigs = settings.providerConfigs || {};
   setExternalCatalogModels(buildCustomCatalogModels(settingsStore.providerConfigs));
   settingsStore.balance = Number.isFinite(settings.balance) ? settings.balance : 0;
@@ -131,6 +136,10 @@ function applySettings(settings) {
   settingsStore.agentPreferredVideoModel = normalizePreferredVideoModel(settings.agentPreferredVideoModel);
   settingsStore.canvasActionShortcuts = normalizeCanvasActionShortcuts(settings.canvasActionShortcuts);
   settingsStore.layoutAlgorithm = settings.layoutAlgorithm === 'elk-layered' ? 'elk-layered' : 'grid-aligned';
+  settingsStore.runtimeProtection = {
+    ...settingsStore.runtimeProtection,
+    ...(settings.runtimeProtection || {}),
+  };
   settingsStore.updatedAt = settings.updatedAt || '';
 }
 

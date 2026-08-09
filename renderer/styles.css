@@ -3990,6 +3990,29 @@ tr:last-child td {
   font-weight: 700;
 }
 
+.toast.toast-success {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border-color: rgba(32, 139, 83, .28);
+  color: #155f38;
+  background: #f1fbf5;
+  box-shadow: 0 12px 34px rgba(21, 95, 56, .16);
+}
+
+.toast-success-mark {
+  display: grid;
+  flex: 0 0 22px;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border-radius: 50%;
+  color: #fff;
+  background: #208b53;
+  font-size: 13px;
+  font-weight: 800;
+}
+
 .hidden {
   display: none !important;
 }

@@ -6,6 +6,11 @@ import {
   type WheelEvent,
 } from "react";
 import { desktopApi } from "../../services/desktopApi.js";
+import { convertFileSrc } from "@tauri-apps/api/core";
+import {
+  acquireMediaPreview,
+  type CachedMediaLease,
+} from "../../services/mediaPreviewCache";
 import { IconSymbol } from "./IconSymbol";
 import { showToast, useOverlayStore } from "../store/overlayStore";
 
@@ -39,20 +44,26 @@ export function MediaViewer() {
     if (media.kind === "text") setTextDraft(media.src);
     backdrop.current?.focus({ preventScroll: true });
     let cancelled = false;
-    let url = "";
+    let lease: CachedMediaLease | null = null;
     if (media.kind === "image" && media.filePath) {
-      void desktopApi.file.readArrayBuffer?.(media.filePath).then(
-        (buffer: ArrayBuffer) => {
-          if (!cancelled && buffer?.byteLength) {
-            url = URL.createObjectURL(new Blob([buffer], { type: "image/*" }));
-            setFullSrc(url);
-          }
-        },
-      ).catch(() => {});
+      void acquireMediaPreview({
+        path: media.filePath,
+        kind: "image",
+        buffered: true,
+        revision: media.src,
+      }).then((acquired) => {
+        if (cancelled) acquired.release();
+        else {
+          lease = acquired;
+          setFullSrc(acquired.url);
+        }
+      }).catch(() => {});
+    } else if (media.kind === "video" && media.filePath && desktopApi.platform !== "browser") {
+      setFullSrc(convertFileSrc(media.filePath));
     }
     return () => {
       cancelled = true;
-      if (url) URL.revokeObjectURL(url);
+      lease?.release();
       setFullSrc("");
     };
   }, [media.open, media.src, media.filePath, media.kind]);
@@ -219,7 +230,7 @@ export function MediaViewer() {
           : media.kind === "video"
           ? (
             <video
-              src={media.src}
+              src={fullSrc || media.src}
               controls
               autoPlay
               preload="metadata"

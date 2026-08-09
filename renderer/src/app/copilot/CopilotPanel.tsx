@@ -1,6 +1,10 @@
 import { forwardRef, type KeyboardEvent, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { desktopApi } from "../../services/desktopApi.js";
 import { agentNodeAliasMaps } from "../../services/agentCanvasSnapshot.js";
+import {
+  nodeChatAttachmentKey,
+  resolveNodeChatImageAttachment,
+} from "../../services/nodeChatAttachment.mjs";
 import { renderMarkdown } from "../../utils/copilotMarkdown.js";
 import { IconSymbol } from "../components/IconSymbol";
 import type { WorkflowNodeData } from "../canvas/WorkflowCanvas";
@@ -25,6 +29,13 @@ export interface CopilotMessage {
   typing?: boolean;
   error?: string;
   retryable?: boolean;
+  deliveryStage?: "queued" | "sent" | "started" | "completed" | "failed" | "cancelled";
+  deliveryError?: string;
+  diagnosis?: {
+    code?: string;
+    primaryAction?: string;
+    suggestions?: string[];
+  };
   meta?: string[];
   toolCalls?: CopilotToolCall[];
   productionPlan?: ProductionPlanView;
@@ -88,7 +99,7 @@ export interface CopilotController {
     model: string;
     attachments: unknown[];
     nodeMentions: unknown[];
-  }) => void;
+  }) => boolean;
   clear: () => void;
   close: () => void;
   cancel: () => void;
@@ -170,7 +181,7 @@ function ToolActivity({
         const generation = tool.effect === "media_generation";
         const planning = tool.name?.startsWith("plan_");
         const canvas = /canvas|node|edge|layout/.test(tool.name || "");
-        const label = generation ? "Generation" : planning ? "Planning" : canvas ? "Canvas" : "Action";
+        const label = generation ? "生成" : planning ? "规划" : canvas ? "画布" : "工具";
         const icon = generation ? "film" : planning ? "list" : canvas ? "workflow" : "task";
         const state = tool.pending
           ? "等待批准"
@@ -186,13 +197,21 @@ function ToolActivity({
             open={tool.pending || (index === actions.length - 1 && tool.status === "running")}
           >
             <summary>
-              <span className="copilot-activity-icon"><IconSymbol name={icon} /></span>
-              <strong>{label}</strong>
-              <em>{state}</em>
+              <span className={`copilot-activity-icon copilot-tool-status-icon is-${tool.status || "idle"}`}>
+                {tool.status === "running" ? (
+                  <span className="copilot-tool-spinner" aria-hidden="true" />
+                ) : (
+                  <IconSymbol name={tool.status === "success" ? "check" : tool.status === "error" ? "x" : icon} />
+                )}
+              </span>
+              <strong className={tool.status === "running" ? "copilot-tool-shimmer" : undefined}>
+                {tool.summary || tool.name || "正在处理"}
+              </strong>
+              <em><span>{label}</span><span>{state}</span></em>
               <IconSymbol className="copilot-activity-chevron" name="chevron-down" />
             </summary>
             <div className="copilot-tool-detail">
-              <p>{tool.summary || tool.name || "正在处理"}</p>
+              <p className="copilot-tool-name">{tool.name || label}</p>
               {tool.pending && tool.interactionId && (
                 <span className="copilot-tool-confirm-actions">
                   <button
@@ -396,7 +415,13 @@ export const CopilotPanel = forwardRef<CopilotPanelHandle, CopilotPanelProps>(fu
   const [message, setMessage] = useState("");
   const [attachments, setAttachments] = useState<Record<string, unknown>[]>([]);
   const [mentions, setMentions] = useState<
-    Array<{ id: string; alias: string; title: string; typeLabel: string }>
+    Array<{
+      id: string;
+      alias: string;
+      title: string;
+      typeLabel: string;
+      imageAttachment?: Record<string, unknown> | null;
+    }>
   >([]);
   const [mentionOpen, setMentionOpen] = useState(false);
   const [mentionQuery, setMentionQuery] = useState("");
@@ -420,16 +445,28 @@ export const CopilotPanel = forwardRef<CopilotPanelHandle, CopilotPanelProps>(fu
           alias: aliasMaps.aliasById[node.id] || "",
           title: String(node.title || node.prompt || node.type || "未命名节点"),
           typeLabel: typeLabels[node.type] || node.type,
+          imageAttachment: resolveNodeChatImageAttachment(node),
         })),
     [nodes, aliasMaps],
   );
   const mentionableRef = useRef(mentionable);
   mentionableRef.current = mentionable;
+  const attachNodeImage = useCallback((node: (typeof mentionable)[number]) => {
+    const attachment = node.imageAttachment;
+    if (!attachment) return;
+    const key = nodeChatAttachmentKey(attachment);
+    setAttachments((items) => (
+      key && items.some((item) => nodeChatAttachmentKey(item) === key)
+        ? items
+        : [...items, { ...attachment }]
+    ));
+  }, []);
   const addNodeMentionById = useCallback(
     (nodeId: string) => {
       const found = mentionableRef.current.find((node) => node.id === nodeId);
       if (!found) return;
       setMentions((items) => (items.some((item) => item.id === found.id) ? items : [...items, found]));
+      attachNodeImage(found);
       setMessage((value) => {
         const token = `@${found.alias}`;
         if (value.includes(token)) return value;
@@ -438,7 +475,7 @@ export const CopilotPanel = forwardRef<CopilotPanelHandle, CopilotPanelProps>(fu
       });
       requestAnimationFrame(() => textarea.current?.focus());
     },
-    [],
+    [attachNodeImage],
   );
   useImperativeHandle(ref, () => ({ addNodeMentionById }), [addNodeMentionById]);
   const options = mentionable
@@ -509,6 +546,7 @@ export const CopilotPanel = forwardRef<CopilotPanelHandle, CopilotPanelProps>(fu
     const token = `@${node.alias}`;
     setMessage(`${before}${token} ${message.slice(caret).replace(/^[^\s@]*/, "")}`);
     setMentions((items) => (items.some((item) => item.id === node.id) ? items : [...items, node]));
+    attachNodeImage(node);
     setMentionOpen(false);
     requestAnimationFrame(() => textarea.current?.focus());
   }
@@ -523,7 +561,7 @@ export const CopilotPanel = forwardRef<CopilotPanelHandle, CopilotPanelProps>(fu
     );
   }
   function send() {
-    if (busy || !textModels.length) return;
+    if (!textModels.length) return;
     const aliases = new Set(
       (message.match(/@N-[A-Z0-9]+(?:-\d+)?\b/gi) || []).map((item) => item.slice(1).toUpperCase()),
     );
@@ -531,12 +569,13 @@ export const CopilotPanel = forwardRef<CopilotPanelHandle, CopilotPanelProps>(fu
     if (!message.trim() && !attachments.length && !activeMentions.length) {
       return;
     }
-    controller.send({
+    const accepted = controller.send({
       text: message.trim(),
       model: textModel,
       attachments: attachments.map((item) => ({ ...item })),
-      nodeMentions: activeMentions.map((item) => ({ ...item })),
+      nodeMentions: activeMentions.map(({ imageAttachment: _imageAttachment, ...item }) => ({ ...item })),
     });
+    if (!accepted) return;
     setMessage("");
     setAttachments([]);
     setMentions([]);
@@ -633,6 +672,14 @@ export const CopilotPanel = forwardRef<CopilotPanelHandle, CopilotPanelProps>(fu
                     ))}
                   </div>
                 ) : null}
+                {item.role === "user" && ["queued", "sent"].includes(item.deliveryStage || "") && (
+                  <small className="copilot-message-delivery" role="status">
+                    {item.deliveryStage === "queued" ? "排队中" : "已发送，等待 Agent 接收"}
+                  </small>
+                )}
+                {item.role === "user" && item.deliveryStage === "failed" && item.deliveryError && (
+                  <small className="copilot-message-delivery is-error">投递失败：{item.deliveryError}</small>
+                )}
                 {item.error && (
                   <div className="copilot-message-error-row">
                     <p className="copilot-message-error">{item.error}</p>
@@ -646,6 +693,15 @@ export const CopilotPanel = forwardRef<CopilotPanelHandle, CopilotPanelProps>(fu
                         {busy ? "重试中…" : "重试"}
                       </button>
                     )}
+                  </div>
+                )}
+                {item.diagnosis && (
+                  <div className="copilot-message-diagnosis">
+                    <strong>{item.diagnosis.primaryAction || "请检查 Runtime 后重试"}</strong>
+                    {item.diagnosis.suggestions?.length ? (
+                      <ul>{item.diagnosis.suggestions.map((suggestion) => <li key={suggestion}>{suggestion}</li>)}</ul>
+                    ) : null}
+                    {item.diagnosis.code && <small>诊断码：{item.diagnosis.code}</small>}
                   </div>
                 )}
                 <ProductionPlanCard plan={item.productionPlan} controller={controller} />
@@ -874,6 +930,17 @@ export const CopilotPanel = forwardRef<CopilotPanelHandle, CopilotPanelProps>(fu
                 </option>
               ))}
             </select>
+            {busy && (message.trim() || attachments.length || mentions.length) ? (
+              <button
+                className="copilot-action-btn"
+                disabled={!textModels.length}
+                title="加入消息队列"
+                aria-label="加入消息队列"
+                onClick={send}
+              >
+                <IconSymbol name="send" />
+              </button>
+            ) : null}
             <button
               className={`copilot-send-button${busy ? " is-stop" : ""}`}
               disabled={!busy && !textModels.length}

@@ -68,9 +68,9 @@ test('OpenCode Runtime 使用持久 Session、子 Agent、Contract 与本地域�
   assert.match(runtime, /contractsForAgentType/);
   assert.match(runtime, /activateOpenCodeToolBridge/);
   assert.match(runtime, /ensureMcpConnected/);
-  assert.match(runtime, /mcp\.disconnect/);
-  assert.match(runtime, /routeSkill/);
-  assert.match(runtime, /agent: 'intent-router'/);
+  assert.doesNotMatch(runtime, /mcp\.disconnect/);
+  assert.doesNotMatch(runtime, /routeSkill/);
+  assert.doesNotMatch(runtime, /agent: 'intent-router'/);
   assert.match(runtime, /report_outcome/);
   assert.match(runtime, /@ai-sdk\/openai/);
   assert.doesNotMatch(runtime, /Runtime requirement: call report_outcome/);

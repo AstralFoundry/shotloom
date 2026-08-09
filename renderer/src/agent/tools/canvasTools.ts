@@ -12,6 +12,7 @@ import actionContract from '@/config/agent-action-contract.json';
 import { validateAgentActionShape } from '@/composables/agentActionValidator';
 import { buildAgentActionSchema, normalizeAgentActions } from './agentProtocol';
 import { MODEL_AGENT_CANVAS_ACTION_TYPES } from '@/utils/agentCanvasActionTypes.mjs';
+import { canvasMutationFingerprint } from '@/utils/canvasMutationFingerprint.mjs';
 
 const generationActions = new Set(['start_generation']);
 // 模型只看到这份白名单中的 Action。完整存储契约可以包含内部动作，
@@ -22,6 +23,25 @@ const canvasActionSchema = buildAgentActionSchema(actionContract, {
 const canvasActionSchemaWithoutGeneration = buildAgentActionSchema(actionContract, {
   allowedTypes: MODEL_AGENT_CANVAS_ACTION_TYPES.filter((type) => !generationActions.has(type)),
 });
+
+function assertContextProject(context: AgentToolContext) {
+  return assertAgentProject(context.projectKey, context.projectInstanceId, context.projectGeneration);
+}
+
+function assertCanvasWriteFence(context: AgentToolContext) {
+  assertContextProject(context);
+  const expected = String(context.state.get('expectedCanvasFingerprint') || '');
+  const current = canvasMutationFingerprint(projectStore.project);
+  if (expected && expected !== current) {
+    const error = new Error('画布在 Agent 读取后已被其他操作修改；请重新调用 get_canvas 后再写入');
+    error.name = 'AgentCanvasRevisionConflictError';
+    throw error;
+  }
+}
+
+function advanceCanvasWriteFence(context: AgentToolContext) {
+  context.state.set('expectedCanvasFingerprint', canvasMutationFingerprint(projectStore.project));
+}
 
 function actionToolSchema(actionSchema = canvasActionSchema) {
   return {
@@ -62,10 +82,13 @@ async function executeActions(input: CanvasActionToolInput, context: AgentToolCo
     requireConfirmation: false,
     source: `typescript-agent:${context.requestId}`,
     projectKey: context.projectKey,
+    projectInstanceId: context.projectInstanceId,
+    projectGeneration: context.projectGeneration,
     conversationId: context.conversationId,
     runId: context.requestId,
   };
   const result = await executeAgentActions(request);
+  if (result.success) advanceCanvasWriteFence(context);
   if (result.pending) return { ...result, preflightSkippedCount: skipped.length, preflightActionResults: skipped };
   const actionResults = [
     ...skipped,
@@ -101,8 +124,10 @@ export function registerCanvasTools(): void {
     },
     summarizeInput: (input) => String(input.view || 'summary'),
     execute: (input, context) => {
-      assertAgentProject(context.projectKey);
-      return getAgentCanvasSnapshot(input);
+      assertContextProject(context);
+      const snapshot = getAgentCanvasSnapshot(input);
+      advanceCanvasWriteFence(context);
+      return snapshot;
     },
   });
 
@@ -121,7 +146,7 @@ export function registerCanvasTools(): void {
     },
     summarizeInput: (input) => `${(input.nodeIds as string[] | undefined)?.length || 0} node(s)`,
     execute: (input, context) => {
-      assertAgentProject(context.projectKey);
+      assertContextProject(context);
       const aliasMap = agentNodeAliasMaps(projectStore.project.nodes || []).aliasMap;
       const existing = new Set((projectStore.project.nodes || []).map((node: any) => String(node.id)));
       const resolved = ((input.nodeIds as string[] | undefined) || []).flatMap((value) => {
@@ -146,8 +171,9 @@ export function registerCanvasTools(): void {
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
     summarizeInput: () => 'undo',
     execute: (_input, context) => {
-      assertAgentProject(context.projectKey);
+      assertCanvasWriteFence(context);
       const applied = undoCanvas();
+      if (applied) advanceCanvasWriteFence(context);
       return { success: applied, applied, error: applied ? '' : '没有可撤销的画布操作' };
     },
   });
@@ -160,8 +186,9 @@ export function registerCanvasTools(): void {
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
     summarizeInput: () => 'redo',
     execute: (_input, context) => {
-      assertAgentProject(context.projectKey);
+      assertCanvasWriteFence(context);
       const applied = redoCanvas();
+      if (applied) advanceCanvasWriteFence(context);
       return { success: applied, applied, error: applied ? '' : '没有可重做的画布操作' };
     },
   });
@@ -178,7 +205,10 @@ export function registerCanvasTools(): void {
         : canvasActionSchemaWithoutGeneration,
     ),
     summarizeInput: ({ actions }) => `${actions?.length || 0} canvas action(s)`,
-    execute: (input, context) => executeActions(input, context),
+    execute: (input, context) => {
+      assertCanvasWriteFence(context);
+      return executeActions(input, context);
+    },
   });
 
   registerAgentTool({
@@ -192,7 +222,7 @@ export function registerCanvasTools(): void {
       additionalProperties: false,
     },
     execute: (input, context) => {
-      assertAgentProject(context.projectKey);
+      assertContextProject(context);
       const snapshot = getAgentCanvasSnapshot({ view: 'summary' }) as JsonObject;
       const ids = new Set((input.taskIds as string[] | undefined) || []);
       const tasks = ((snapshot.tasks as JsonObject[] | undefined) || []).filter((task) => !ids.size || ids.has(String(task.id)));

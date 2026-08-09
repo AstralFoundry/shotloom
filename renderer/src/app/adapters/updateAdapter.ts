@@ -2,6 +2,7 @@ import {
   checkForUpdate,
   downloadUpdate,
   executeUpdateRestart,
+  cancelUpdateDownload,
   updateStore,
 } from "../../store/updateStore.js";
 import type {
@@ -42,5 +43,8 @@ export const updateDialogController: UpdateDialogController = {
   },
   async installAndRestart() {
     await executeUpdateRestart();
+  },
+  async cancelDownload() {
+    await cancelUpdateDownload();
   },
 };

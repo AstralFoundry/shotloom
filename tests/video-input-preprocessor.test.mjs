@@ -2,31 +2,23 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-const preprocessor = readFileSync(
-  new URL('../renderer/src/services/videoInputPreprocessor.js', import.meta.url),
-  'utf8',
-);
 const taskService = readFileSync(
   new URL('../renderer/src/services/modelTaskService.js', import.meta.url),
   'utf8',
 );
 
-test('视频任务在请求编译前自动彩铅化全部图片输入', () => {
-  assert.match(taskService, /await preprocessVideoModelInputs\(payload\)/);
+test('视频任务直接提交用户连接或上传的原始图片输入', () => {
+  assert.doesNotMatch(taskService, /preprocessVideoModelInputs|videoInputPreprocessing/);
+  assert.doesNotMatch(taskService, /applyColoredPencil|colored.?pencil|彩铅/i);
+  assert.match(taskService, /modelInputs: payload\.modelInputs/);
   assert.ok(
-    taskService.indexOf('await preprocessVideoModelInputs(payload)')
-      < taskService.indexOf('const contract = requireModelContract(payload)'),
+    taskService.indexOf('const contract = requireModelContract(payload)')
+      < taskService.indexOf('const req = transport.compileRequest(context)'),
   );
-  assert.match(preprocessor, /payload\.nodeType !== 'videoGeneration'/);
-  assert.match(preprocessor, /Promise\.all\(images\.map\(preprocessImageRef\)\)/);
-  assert.match(preprocessor, /Promise\.all\(referenceImages\.map\(preprocessImageRef\)\)/);
-  assert.match(preprocessor, /desktopApi\.file\.applyColoredPencil/);
 });
 
-test('视频内部彩铅不创建画布节点并强制提交处理后的本地 PNG', () => {
-  assert.doesNotMatch(preprocessor, /project\.nodes|addCanvasEdge|selectedOutputNodeId/);
-  assert.match(preprocessor, /mimeType: 'image\/png'/);
-  assert.match(preprocessor, /remoteUrl: ''/);
-  assert.match(preprocessor, /processedImageCache/);
-  assert.match(preprocessor, /automatic: true/);
+test('自动视频输入预处理模块已移除，手动彩铅不进入生成任务入口', () => {
+  assert.doesNotMatch(taskService, /videoInputPreprocessor/);
+  assert.doesNotMatch(taskService, /mimeType:\s*['"]image\/png['"]/);
+  assert.doesNotMatch(taskService, /remoteUrl:\s*['"]{2}/);
 });
