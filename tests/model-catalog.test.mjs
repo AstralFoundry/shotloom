@@ -208,6 +208,14 @@ test('Seedance 2.0 Fast/Mini 按官方规格限制为 480p/720p', () => {
     assert.equal(model.provider, 'bytedance');
     const mode = model.modes.find((item) => item.id === 'text-or-reference-image-to-video');
     assert.deepEqual(mode.inputConstraints.images, { min: 0, max: 9, roles: ['referenceImage'] });
+    assert.deepEqual(mode.inputConstraints.videos, {
+      min: 0, max: 3, roles: ['inputVideo'], formats: ['mp4', 'mov'],
+    });
+    assert.deepEqual(mode.inputConstraints.audios, {
+      min: 0, max: 3, roles: ['referenceAudio'], formats: ['wav', 'mp3'],
+      minDuration: 2, maxDuration: 15, maxTotalDuration: 15, maxBytes: 15728640,
+      requiresAnyOf: ['images', 'videos'],
+    });
     assert.deepEqual(mode.outputConstraints.durations, [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]);
     assert.deepEqual(mode.params.find((param) => param.key === 'resolution').options, ['480p', '720p']);
     assert.equal(mode.requestFields.imageContentRole, 'reference_image');
@@ -218,7 +226,7 @@ test('Seedance 2.0 Fast/Mini 按官方规格限制为 480p/720p', () => {
 test('Seedance 2.0 使用方舟官方视频任务协议', () => {
   const model = catalog.models.find((item) => item.id === 'doubao-seedance-2-0-260128');
   assert.equal(model.provider, 'bytedance');
-  assert.deepEqual(model.modes.map((mode) => mode.id), ['text-to-video', 'reference-image-to-video']);
+  assert.deepEqual(model.modes.map((mode) => mode.id), ['text-to-video', 'omni-reference-to-video']);
   for (const mode of model.modes) {
     assert.deepEqual(mode.endpoint, { method: 'POST', path: '/contents/generations/tasks', scope: 'root' });
     assert.deepEqual(mode.taskEndpoint, { method: 'GET', path: '/contents/generations/tasks/{taskId}', scope: 'root' });
@@ -227,9 +235,19 @@ test('Seedance 2.0 使用方舟官方视频任务协议', () => {
     assert.equal(mode.statusPath, 'status');
     assert.equal(mode.resultUrlPath, 'content.video_url');
   }
-  const referenceMode = model.modes.find((mode) => mode.id === 'reference-image-to-video');
-  assert.deepEqual(referenceMode.inputConstraints.images, { min: 1, max: 9, roles: ['referenceImage'] });
+  const referenceMode = model.modes.find((mode) => mode.id === 'omni-reference-to-video');
+  assert.deepEqual(referenceMode.inputConstraints.images, { min: 0, max: 9, roles: ['referenceImage'] });
+  assert.deepEqual(referenceMode.inputConstraints.videos, {
+    min: 0, max: 3, roles: ['inputVideo'], formats: ['mp4', 'mov'],
+  });
+  assert.deepEqual(referenceMode.inputConstraints.audios, {
+    min: 0, max: 3, roles: ['referenceAudio'], formats: ['wav', 'mp3'],
+    minDuration: 2, maxDuration: 15, maxTotalDuration: 15, maxBytes: 15728640,
+    requiresAnyOf: ['images', 'videos'],
+  });
   assert.equal(referenceMode.requestFields.imageContentRole, 'reference_image');
+  assert.equal(referenceMode.requestFields.videoContentRole, 'reference_video');
+  assert.equal(referenceMode.requestFields.audioContentRole, 'reference_audio');
 });
 
 test('Grok Imagine Video 和全部 Veo 3.1 模型实际编译单图生视频', () => {

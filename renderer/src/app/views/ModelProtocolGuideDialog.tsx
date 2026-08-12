@@ -53,14 +53,15 @@ export const AI_MODEL_PROTOCOL_PROMPT = `你正在为 Shotloom 编写一个 Cata
 5. 每个 mode 必须包含 id、label、endpoint、inputConstraints、outputConstraints、params。
 6. endpoint 包含 method、path、scope。path 只写 Base URL 后面的路径；scope 通常用 root，只有 Base URL 未包含且接口明确位于 /v1 下时才用 v1。
 7. auth 按官方文档填写：Bearer 用 {"type":"bearer"}；自定义请求头用 {"type":"header","name":"请求头名","prefix":"前缀"}；无需鉴权用 {"type":"none"}。
-8. requestTemplate 必须严格对应官方请求体。可使用 {{model}}、{{prompt}}、{{messages}}、{{tools}}、{{toolChoice}}、{{imageUrl}}、{{imageUrls}}、{{imageObject}}、{{content}}、{{params.参数key}} 等运行时变量。不要创造应用不认识的变量。
+8. requestTemplate 必须严格对应官方请求体。可使用 {{model}}、{{prompt}}、{{messages}}、{{tools}}、{{toolChoice}}、{{imageUrl}}、{{imageUrls}}、{{imageObject}}、{{videoUrl}}、{{videoUrls}}、{{videoObject}}、{{audioUrl}}、{{audioUrls}}、{{audioObject}}、{{content}}、{{params.参数key}} 等运行时变量。不要创造应用不认识的变量。
 9. params 描述界面允许用户调整的参数。每项写 key、label、type；需要时写 required、default、numeric、options。requestTemplate 中通过 {{params.key}} 使用。
-10. 根据输入要求填写 inputConstraints。图片输入需写 images.min、images.max，必要时写 roles；没有图片输入时写 min:0,max:0 或省略 images。
-11. 根据输出能力填写 outputConstraints，例如 maxCount、durations、defaultDuration、formats、supportsStreaming、supportsToolCalls、maxTokens。
-12. 同步接口填写正确的 resultTextPath、resultUrlPath 或 resultBase64Path。路径用点号访问嵌套字段，数组多结果可用 *。
-13. 异步接口必须填写 taskEndpoint、isAsync:true、taskIdPath、statusPath、pollStatusMap、errorPath 和最终结果路径。taskEndpoint.path 使用 {taskId} 占位。
-14. pollStatusMap 的值只能是 running、completed 或 failed，必须覆盖官方可能返回的状态。
-15. 不要根据经验猜测接口、字段、枚举或结果路径；官方文档没有说明的内容不要虚构。
+10. 根据输入要求填写 inputConstraints。媒体分别使用 images、videos、audios，必须填写 min、max，可用 roles 声明 referenceImage、inputVideo、referenceAudio。格式限制写 formats；音频还可写 minDuration、maxDuration、maxTotalDuration、maxBytes。若参考音频必须搭配视觉素材，写 audios.requiresAnyOf:["images","videos"]。
+11. 如果 requestTemplate 使用 {{content}}，通过 requestFields 把稳定输入映射为厂商协议：imageContentType/imageContentRole、videoContentType/videoContentRole、audioContentType/audioContentRole。若厂商使用独立字段，直接在模板中引用对应 URL 变量。
+12. 根据输出能力填写 outputConstraints，例如 maxCount、durations、defaultDuration、formats、supportsStreaming、supportsToolCalls、maxTokens。
+13. 同步接口填写正确的 resultTextPath、resultUrlPath 或 resultBase64Path。路径用点号访问嵌套字段，数组多结果可用 *。
+14. 异步接口必须填写 taskEndpoint、isAsync:true、taskIdPath、statusPath、pollStatusMap、errorPath 和最终结果路径。taskEndpoint.path 使用 {taskId} 占位。
+15. pollStatusMap 的值只能是 running、completed 或 failed，必须覆盖官方可能返回的状态。
+16. 不要根据经验猜测接口、字段、枚举或结果路径；官方文档没有说明的内容不要虚构。
 
 我要接入的信息：
 - 厂商 ID：<填写>

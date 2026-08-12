@@ -2,9 +2,29 @@ function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
 
+function overlapArea(left, right) {
+  const width = Math.max(0, Math.min(left.right, right.right) - Math.max(left.left, right.left));
+  const height = Math.max(0, Math.min(left.bottom, right.bottom) - Math.max(left.top, right.top));
+  return width * height;
+}
+
+function positionedRect(left, top, width, height) {
+  return { left, top, right: left + width, bottom: top + height, width, height };
+}
+
 /**
  * Position a screen-space overlay next to a transformed canvas node.
  * Integer coordinates keep text on device-aligned CSS pixels.
+ * @param {{
+ *   anchorRect: {left:number,right:number,top:number,bottom:number,width:number,height?:number},
+ *   overlayRect: {width:number,height:number},
+ *   viewportWidth: number,
+ *   viewportHeight: number,
+ *   boundaryRect?: {left:number,right:number,top:number,bottom:number,width?:number,height?:number} | null,
+ *   obstacleRects?: Array<{left:number,right:number,top:number,bottom:number,width?:number,height?:number}>,
+ *   margin?: number,
+ *   gap?: number
+ * }} options
  */
 export function resolveFloatingOverlayPosition({
   anchorRect,
@@ -12,6 +32,7 @@ export function resolveFloatingOverlayPosition({
   viewportWidth,
   viewportHeight,
   boundaryRect = null,
+  obstacleRects = [],
   margin = 12,
   gap = 8,
 }) {
@@ -29,16 +50,32 @@ export function resolveFloatingOverlayPosition({
   const height = Math.max(0, overlayRect.height || 0);
   const minLeft = boundaryLeft + margin;
   const maxLeft = Math.max(minLeft, boundaryRight - width - margin);
-  const centeredLeft = anchorRect.left + anchorRect.width / 2 - width / 2;
-  const left = Math.round(clamp(centeredLeft, minLeft, maxLeft));
-  const below = anchorRect.bottom + gap;
-  const above = anchorRect.top - height - gap;
   const minTop = boundaryTop + margin;
   const maxTop = Math.max(minTop, boundaryBottom - height - margin);
-  const preferredTop = below + height <= boundaryBottom - margin
-    ? below
-    : above >= minTop ? above : minTop;
-  return { left, top: Math.round(clamp(preferredTop, minTop, maxTop)), visible: true };
+  const centeredLeft = anchorRect.left + anchorRect.width / 2 - width / 2;
+  const centeredTop = anchorRect.top + anchorRect.height / 2 - height / 2;
+  const candidates = [
+    { left: centeredLeft, top: anchorRect.bottom + gap },
+    { left: centeredLeft, top: anchorRect.top - height - gap },
+    { left: anchorRect.right + gap, top: centeredTop },
+    { left: anchorRect.left - width - gap, top: centeredTop },
+  ].map((candidate, preference) => {
+    const left = clamp(candidate.left, minLeft, maxLeft);
+    const top = clamp(candidate.top, minTop, maxTop);
+    const rect = positionedRect(left, top, width, height);
+    const obstacleOverlap = (Array.isArray(obstacleRects) ? obstacleRects : [])
+      .reduce((total, obstacle) => total + overlapArea(rect, obstacle), 0);
+    const anchorOverlap = overlapArea(rect, anchorRect);
+    const clampDistance = Math.abs(left - candidate.left) + Math.abs(top - candidate.top);
+    return {
+      left: Math.round(left),
+      top: Math.round(top),
+      preference,
+      score: anchorOverlap * 10000 + obstacleOverlap * 100 + clampDistance * 10 + preference,
+    };
+  });
+  const best = candidates.sort((left, right) => left.score - right.score)[0];
+  return { left: best.left, top: best.top, visible: true };
 }
 
 /** Snap a visually-100% viewport to an exact 1x scale and integer translation. */

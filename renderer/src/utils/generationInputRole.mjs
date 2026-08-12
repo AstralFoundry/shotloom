@@ -3,6 +3,7 @@ const CANONICAL_INPUT_ROLES = new Set([
   'textContext',
   'referenceImage',
   'inputVideo',
+  'referenceAudio',
 ]);
 
 export function normalizeInputRole(value = 'auto') {

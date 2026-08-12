@@ -3,7 +3,8 @@
   "inputRoles": {
     "textContext": "文本或便签为目标生成节点提供语义上下文",
     "referenceImage": "图片作为参考图，目标模型必须支持参考图输入",
-    "inputVideo": "视频作为视频生成输入，目标模型必须支持视频输入"
+    "inputVideo": "视频作为视频生成输入，目标模型必须支持视频输入",
+    "referenceAudio": "音频作为参考声音或音色，目标模型必须支持参考音频输入"
   },
   "commonProperties": {
     "type": {

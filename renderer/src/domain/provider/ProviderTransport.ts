@@ -32,8 +32,8 @@ export interface CompileContext {
 
 export interface ModelInputs {
   images?: ResourceRef[];
-  referenceImages?: ResourceRef[];
   videos?: ResourceRef[];
+  audios?: ResourceRef[];
 }
 
 export interface ResourceRef {
@@ -109,6 +109,8 @@ export interface CompiledProviderRequest {
   protocolTemplate?: unknown;
   protocolVariables?: Record<string, unknown>;
   protocolImageRefs?: ResourceRef[];
+  protocolVideoRefs?: ResourceRef[];
+  protocolAudioRefs?: ResourceRef[];
 }
 
 // ── Interface ────────────────────────────────────────────────────────────────

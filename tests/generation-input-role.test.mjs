@@ -7,6 +7,7 @@ test('生成请求保留当前输入角色', () => {
   assert.equal(normalizeInputRole('textContext'), 'textContext');
   assert.equal(normalizeInputRole('referenceImage'), 'referenceImage');
   assert.equal(normalizeInputRole('inputVideo'), 'inputVideo');
+  assert.equal(normalizeInputRole('referenceAudio'), 'referenceAudio');
   assert.equal(normalizeInputRole('auto'), 'auto');
 });
 

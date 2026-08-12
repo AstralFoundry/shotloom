@@ -39,6 +39,30 @@ test('画布浮层限制在画布区域内，不覆盖左侧栏或右侧面板',
   }), { left: 228, top: 398, visible: true });
 });
 
+test('画布浮层避开其他可见节点并选择遮挡面积最小的方向', () => {
+  assert.deepEqual(resolveFloatingOverlayPosition({
+    anchorRect: { left: 500, right: 800, top: 300, bottom: 540, width: 300, height: 240 },
+    overlayRect: { width: 620, height: 205 },
+    viewportWidth: 1400,
+    viewportHeight: 900,
+    obstacleRects: [
+      { left: 330, right: 970, top: 548, bottom: 810, width: 640, height: 262 },
+    ],
+  }), { left: 340, top: 87, visible: true });
+});
+
+test('画布浮层把展开侧栏形成的可用边界作为硬约束', () => {
+  const result = resolveFloatingOverlayPosition({
+    anchorRect: { left: 300, right: 600, top: 160, bottom: 400, width: 300, height: 240 },
+    overlayRect: { width: 620, height: 205 },
+    viewportWidth: 1200,
+    viewportHeight: 800,
+    boundaryRect: { left: 280, right: 1200, top: 0, bottom: 800 },
+  });
+  assert.ok(result.left >= 292);
+  assert.equal(result.visible, true);
+});
+
 test('画布显示接近 100% 时吸附到精确 1x 和整数位移', () => {
   assert.deepEqual(resolveCrispCanvasViewport({
     viewport: { x: 20.25, y: -15.5, zoom: 0.997 },

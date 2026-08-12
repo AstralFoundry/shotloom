@@ -39,6 +39,19 @@ test('声明式协议把文本、图片和参数变量编译进请求体', () =>
   });
 });
 
+test('其他供应商可把视频和音频输入映射到独立请求字段', () => {
+  assert.deepEqual(renderProtocolTemplate({
+    reference_video: '{{videoUrl}}',
+    voice_samples: '{{audioUrls}}',
+  }, {
+    videoUrl: 'https://example.com/reference.mp4',
+    audioUrls: ['https://example.com/a.wav', 'https://example.com/b.mp3'],
+  }), {
+    reference_video: 'https://example.com/reference.mp4',
+    voice_samples: ['https://example.com/a.wav', 'https://example.com/b.mp3'],
+  });
+});
+
 test('Google Veo 内联图片拆分 MIME 和 Base64 请求字段', () => {
   assert.deepEqual(protocolInlineImage('data:image/PNG;base64,aGVsbG8='), {
     bytesBase64Encoded: 'aGVsbG8=',
@@ -59,6 +72,23 @@ test('方舟参考图内容按声明角色编译且保留纯文生视频', () =>
     { type: 'text', text: '保持角色一致' },
     { type: 'image_url', image_url: { url: 'https://example.com/a.png' }, role: 'reference_image' },
     { type: 'image_url', image_url: { url: 'https://example.com/b.png' }, role: 'reference_image' },
+  ]);
+});
+
+test('声明式多模态内容映射视频和参考音频的厂商角色', () => {
+  assert.deepEqual(protocolMediaContent({
+    prompt: '沿用参考音色与节奏',
+    imageUrls: ['https://example.com/person.png'],
+    imageRole: 'reference_image',
+    videoUrls: ['https://example.com/motion.mp4'],
+    videoRole: 'reference_video',
+    audioUrls: ['data:audio/wav;base64,aGVsbG8='],
+    audioRole: 'reference_audio',
+  }), [
+    { type: 'text', text: '沿用参考音色与节奏' },
+    { type: 'image_url', image_url: { url: 'https://example.com/person.png' }, role: 'reference_image' },
+    { type: 'video_url', video_url: { url: 'https://example.com/motion.mp4' }, role: 'reference_video' },
+    { type: 'audio_url', audio_url: { url: 'data:audio/wav;base64,aGVsbG8=' }, role: 'reference_audio' },
   ]);
 });
 

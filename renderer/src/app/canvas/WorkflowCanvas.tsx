@@ -324,6 +324,7 @@ const roleLabel = (role?: string) =>
     textContext: "文本上下文",
     referenceImage: "参考图",
     inputVideo: "输入视频",
+    referenceAudio: "参考音频",
   })[role || ""] || "";
 
 type CanvasMenuState = {

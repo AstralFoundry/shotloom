@@ -31,8 +31,18 @@ export interface CatalogParam {
 
 export interface CatalogInputConstraints {
   images?: { min: number; max: number; roles?: string[]; formats?: string[]; maskRequired?: boolean; valueFormat?: string };
-  videos?: { min: number; max: number; roles?: string[] };
-  audio?: { min: number; max: number };
+  videos?: { min: number; max: number; roles?: string[]; formats?: string[]; maxBytes?: number };
+  audios?: {
+    min: number;
+    max: number;
+    roles?: string[];
+    formats?: string[];
+    minDuration?: number;
+    maxDuration?: number;
+    maxTotalDuration?: number;
+    maxBytes?: number;
+    requiresAnyOf?: Array<'images' | 'videos' | 'audios'>;
+  };
   text?: { maxTokens: number };
 }
 
@@ -119,6 +129,10 @@ export interface ModelRuntimeContract {
   minInputVideos: number;
   maxInputVideos: number;
   inputVideoRoles: string[];
+  supportsInputAudio: boolean;
+  minInputAudios: number;
+  maxInputAudios: number;
+  inputAudioRoles: string[];
   allowedDurations: number[];
   defaultDuration: number | null;
   supportedTextSubtasks: string[];
@@ -161,11 +175,13 @@ export interface TypeMeta {
 // ── Singleton Catalog ────────────────────────────────────────────────────────
 
 const defaultCap = {
+  inputConstraints: {} as CatalogInputConstraints,
   supportsInputImages: false, minInputImages: 0, maxInputImages: 0, inputImageRoles: [], imageRole: 'none',
   supportsReferenceImages: false,
   referenceImageFormat: 'string', imageValueFormat: 'data-url-or-url',
   supportsMaskEditing: false, supportsImageStreaming: false, maskFormat: 'alpha',
   supportsInputVideo: false, minInputVideos: 0, maxInputVideos: 0, inputVideoRoles: [],
+  supportsInputAudio: false, minInputAudios: 0, maxInputAudios: 0, inputAudioRoles: [],
   endpointPath: '', endpointScope: 'v1', taskEndpointPath: '', taskEndpointScope: 'v1',
   allowedDurations: [], defaultDuration: null,
   supportedTextSubtasks: ['text-generation'],
@@ -296,10 +312,13 @@ class ModelCatalog {
       ['image', 'referenceImage'].includes(r),
     );
     const videoRoles = roles.filter((r) => r === 'inputVideo');
+    const audioRoles = roles.filter((r) => r === 'referenceAudio');
     const img = (mode.inputConstraints?.images || {}) as { min?: number; max?: number; roles?: string[] };
     const vid = (mode.inputConstraints?.videos || {}) as { min?: number; max?: number; roles?: string[] };
+    const aud = (mode.inputConstraints?.audios || {}) as { min?: number; max?: number; roles?: string[] };
     const allowedImg = new Set(img.roles || []);
     const allowedVid = new Set(vid.roles || []);
+    const allowedAud = new Set(aud.roles || []);
     const supportsImageRole = (role: string) => role === 'image'
       ? (img.max || 0) > 0
       : allowedImg.has(role);
@@ -312,7 +331,10 @@ class ModelCatalog {
     const videoKindSupported = videoRoles.length
       ? (vid.max || 0) > 0 && videoRoles.every((r) => !allowedVid.size || allowedVid.has(r))
       : (vid.min || 0) === 0;
-    return imageKindSupported && videoKindSupported;
+    const audioKindSupported = audioRoles.length
+      ? (aud.max || 0) > 0 && audioRoles.every((r) => !allowedAud.size || allowedAud.has(r))
+      : (aud.min || 0) === 0;
+    return imageKindSupported && videoKindSupported && audioKindSupported;
   }
 
   // ── Runtime Contract ───────────────────────────────────────────────────────
@@ -339,7 +361,6 @@ class ModelCatalog {
       isAsync: mode.isAsync === true,
       inputFormat: mode.inputFormat || 'fields',
       requestFields: { ...mode.requestFields },
-      inputConstraints: structuredClone(mode.inputConstraints || {}),
       outputConstraints: structuredClone(mode.outputConstraints || {}),
       ...cap,
     };
@@ -351,6 +372,7 @@ class ModelCatalog {
     const output = mode.outputConstraints || {};
     return {
       ...defaultCap,
+      inputConstraints: structuredClone(input),
       supportsInputImages: (input.images?.max || 0) > 0,
       minInputImages: input.images?.min || 0,
       maxInputImages: input.images?.max || 0,
@@ -361,6 +383,10 @@ class ModelCatalog {
       minInputVideos: input.videos?.min || 0,
       maxInputVideos: input.videos?.max || 0,
       inputVideoRoles: [...(input.videos?.roles || [])],
+      supportsInputAudio: (input.audios?.max || 0) > 0,
+      minInputAudios: input.audios?.min || 0,
+      maxInputAudios: input.audios?.max || 0,
+      inputAudioRoles: [...(input.audios?.roles || [])],
       supportsMaskEditing: input.images?.maskRequired || false,
       allowedDurations: output.durations || [],
       defaultDuration: output.defaultDuration || null,

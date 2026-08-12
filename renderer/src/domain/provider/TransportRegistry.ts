@@ -24,7 +24,7 @@ class DeclarativeProviderTransport implements ProviderTransport {
   compileRequest(context: CompileContext): CompiledProviderRequest {
     const contract = context.modelContract;
     const inputs = context.modelInputs || {};
-    const refs = [...(inputs.referenceImages || []), ...(inputs.images || [])];
+    const refs = inputs.images || [];
     const multipartImageField = multipartArrayFieldName(
       contract.requestFields.multipartImage || contract.requestFields.images || 'image',
       refs.length,
@@ -52,6 +52,8 @@ class DeclarativeProviderTransport implements ProviderTransport {
         fps: context.params?.fps,
       },
       protocolImageRefs: refs,
+      protocolVideoRefs: inputs.videos || [],
+      protocolAudioRefs: inputs.audios || [],
       inputImages: contract.inputFormat === 'multipart'
         ? refs.map(ref => ({ filePath: ref.filePath || '', fileName: ref.fileName || 'input.png', fieldName: multipartImageField, mimeType: ref.mimeType }))
         : undefined,
@@ -70,9 +72,12 @@ class DeclarativeProviderTransport implements ProviderTransport {
 
   async submit(request: CompiledProviderRequest): Promise<ProviderTask> {
     const imageContentFormat = request.contract?.requestFields?.imageContentFormat || '';
-    const imageUrls = await collectProtocolImageValues(request.protocolImageRefs || [], {
+    const imageUrls = await collectProtocolResourceValues(request.protocolImageRefs || [], {
       preferDataUrl: imageContentFormat === 'google-inline',
+      fallbackMimeType: 'image/png',
     });
+    const videoUrls = await collectProtocolResourceValues(request.protocolVideoRefs || [], { fallbackMimeType: 'video/mp4' });
+    const audioUrls = await collectProtocolResourceValues(request.protocolAudioRefs || [], { fallbackMimeType: 'audio/wav' });
     const inlineImage = imageContentFormat === 'google-inline'
       ? protocolInlineImage(imageUrls[0])
       : undefined;
@@ -82,7 +87,14 @@ class DeclarativeProviderTransport implements ProviderTransport {
     const content = protocolMediaContent({
       prompt: request.protocolVariables?.prompt,
       imageUrls,
+      imageType: request.contract?.requestFields?.imageContentType,
       imageRole: request.contract?.requestFields?.imageContentRole,
+      videoUrls,
+      videoType: request.contract?.requestFields?.videoContentType,
+      videoRole: request.contract?.requestFields?.videoContentRole,
+      audioUrls,
+      audioType: request.contract?.requestFields?.audioContentType,
+      audioRole: request.contract?.requestFields?.audioContentRole,
     });
     const klingContents = imageContentFormat.startsWith('kling-')
       ? protocolKlingContents({
@@ -100,6 +112,12 @@ class DeclarativeProviderTransport implements ProviderTransport {
       imageUrls: imageUrls.length ? imageUrls : undefined,
       imageUrl: imageUrls[0],
       imageObject: imageUrls[0] ? { url: imageUrls[0] } : undefined,
+      videoUrls: videoUrls.length ? videoUrls : undefined,
+      videoUrl: videoUrls[0],
+      videoObject: videoUrls[0] ? { url: videoUrls[0] } : undefined,
+      audioUrls: audioUrls.length ? audioUrls : undefined,
+      audioUrl: audioUrls[0],
+      audioObject: audioUrls[0] ? { url: audioUrls[0] } : undefined,
       inlineImage,
       klingContents,
       content,
@@ -185,10 +203,14 @@ class DeclarativeProviderTransport implements ProviderTransport {
   }
 }
 
-async function collectProtocolImageValues(refs: ResourceRef[], { preferDataUrl = false } = {}): Promise<string[]> {
+async function collectProtocolResourceValues(
+  refs: ResourceRef[],
+  { preferDataUrl = false, fallbackMimeType = 'application/octet-stream' } = {},
+): Promise<string[]> {
   const values = await Promise.all(refs.map(async (ref) => {
     const direct = pickStr(ref.remoteUrl || ref.url || ref.previewUrl);
-    if (direct && !preferDataUrl) return direct;
+    const remotelyUsable = /^(https?:|data:)/i.test(direct);
+    if (direct && !preferDataUrl && (remotelyUsable || !ref.filePath)) return direct;
     if (ref.filePath) {
       try {
         const buffer = await desktopApi.file.readArrayBuffer?.(ref.filePath);
@@ -196,7 +218,7 @@ async function collectProtocolImageValues(refs: ResourceRef[], { preferDataUrl =
           const bytes = new Uint8Array(buffer);
           let binary = '';
           for (let offset = 0; offset < bytes.length; offset += 0x8000) binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
-          return `data:${ref.mimeType || 'image/png'};base64,${btoa(binary)}`;
+          return `data:${ref.mimeType || fallbackMimeType};base64,${btoa(binary)}`;
         }
       } catch { /* fall through to a remote value when available */ }
     }

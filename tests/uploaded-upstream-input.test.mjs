@@ -68,7 +68,7 @@ test('上传图片也支持显式参考图角色', () => {
   }, 'referenceImage');
 
   assert.deepEqual(generationUpstreamReadiness(target, project).issues, []);
-  const [reference] = buildGenerationPayload(target, project).modelInputs.referenceImages;
+  const [reference] = buildGenerationPayload(target, project).modelInputs.images;
   assert.equal(reference.filePath, '/project/assets/reference.png');
   assert.equal(reference.inputRole, 'referenceImage');
 });

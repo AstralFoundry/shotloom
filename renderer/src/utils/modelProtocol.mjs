@@ -57,20 +57,38 @@ export function protocolMessageVariables(messages = []) {
 }
 
 /**
- * @param {{ prompt?: unknown, imageUrls?: string[], imageRole?: unknown }} options
+ * Compile a provider-neutral multimodal content array. Provider-specific type
+ * and role names are supplied by the model catalog.
+ * @param {{
+ *   prompt?: unknown,
+ *   imageUrls?: string[], imageType?: unknown, imageRole?: unknown,
+ *   videoUrls?: string[], videoType?: unknown, videoRole?: unknown,
+ *   audioUrls?: string[], audioType?: unknown, audioRole?: unknown
+ * }} options
  */
-export function protocolMediaContent({ prompt = '', imageUrls = [], imageRole = '' } = {}) {
+export function protocolMediaContent({
+  prompt = '',
+  imageUrls = [], imageType = 'image_url', imageRole = '',
+  videoUrls = [], videoType = 'video_url', videoRole = '',
+  audioUrls = [], audioType = 'audio_url', audioRole = '',
+} = {}) {
   const text = typeof prompt === 'string' ? prompt.trim() : '';
-  const role = typeof imageRole === 'string' ? imageRole.trim() : '';
-  return [
-    ...(text ? [{ type: 'text', text }] : []),
-    ...(Array.isArray(imageUrls) ? imageUrls : [])
+  const mediaItems = (urls, type, role, field) => {
+    const normalizedType = typeof type === 'string' && type.trim() ? type.trim() : field;
+    const normalizedRole = typeof role === 'string' ? role.trim() : '';
+    return (Array.isArray(urls) ? urls : [])
       .filter(url => typeof url === 'string' && url.trim())
       .map(url => ({
-        type: 'image_url',
-        image_url: { url: url.trim() },
-        ...(role ? { role } : {}),
-      })),
+        type: normalizedType,
+        [field]: { url: url.trim() },
+        ...(normalizedRole ? { role: normalizedRole } : {}),
+      }));
+  };
+  return [
+    ...(text ? [{ type: 'text', text }] : []),
+    ...mediaItems(imageUrls, imageType, imageRole, 'image_url'),
+    ...mediaItems(videoUrls, videoType, videoRole, 'video_url'),
+    ...mediaItems(audioUrls, audioType, audioRole, 'audio_url'),
   ];
 }
 

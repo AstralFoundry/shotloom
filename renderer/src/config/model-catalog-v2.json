@@ -2634,8 +2634,8 @@
           "resultUrlPath": "content.video_url"
         },
         {
-          "id": "reference-image-to-video",
-          "label": "参考图生视频",
+          "id": "omni-reference-to-video",
+          "label": "全模态参考生视频",
           "endpoint": {
             "method": "POST",
             "path": "/contents/generations/tasks",
@@ -2649,9 +2649,26 @@
           "isAsync": true,
           "inputConstraints": {
             "images": {
-              "min": 1,
+              "min": 0,
               "max": 9,
               "roles": ["referenceImage"]
+            },
+            "videos": {
+              "min": 0,
+              "max": 3,
+              "roles": ["inputVideo"],
+              "formats": ["mp4", "mov"]
+            },
+            "audios": {
+              "min": 0,
+              "max": 3,
+              "roles": ["referenceAudio"],
+              "formats": ["wav", "mp3"],
+              "minDuration": 2,
+              "maxDuration": 15,
+              "maxTotalDuration": 15,
+              "maxBytes": 15728640,
+              "requiresAnyOf": ["images", "videos"]
             }
           },
           "outputConstraints": {
@@ -2660,7 +2677,11 @@
             "formats": ["mp4"]
           },
           "requestFields": {
-            "imageContentRole": "reference_image"
+            "imageContentRole": "reference_image",
+            "videoContentType": "video_url",
+            "videoContentRole": "reference_video",
+            "audioContentType": "audio_url",
+            "audioContentRole": "reference_audio"
           },
           "params": [
             {
@@ -2758,6 +2779,23 @@
               "min": 0,
               "max": 9,
               "roles": ["referenceImage"]
+            },
+            "videos": {
+              "min": 0,
+              "max": 3,
+              "roles": ["inputVideo"],
+              "formats": ["mp4", "mov"]
+            },
+            "audios": {
+              "min": 0,
+              "max": 3,
+              "roles": ["referenceAudio"],
+              "formats": ["wav", "mp3"],
+              "minDuration": 2,
+              "maxDuration": 15,
+              "maxTotalDuration": 15,
+              "maxBytes": 15728640,
+              "requiresAnyOf": ["images", "videos"]
             }
           },
           "outputConstraints": {
@@ -2766,7 +2804,11 @@
             "formats": ["mp4"]
           },
           "requestFields": {
-            "imageContentRole": "reference_image"
+            "imageContentRole": "reference_image",
+            "videoContentType": "video_url",
+            "videoContentRole": "reference_video",
+            "audioContentType": "audio_url",
+            "audioContentRole": "reference_audio"
           },
           "params": [
             {
@@ -2864,6 +2906,23 @@
               "min": 0,
               "max": 9,
               "roles": ["referenceImage"]
+            },
+            "videos": {
+              "min": 0,
+              "max": 3,
+              "roles": ["inputVideo"],
+              "formats": ["mp4", "mov"]
+            },
+            "audios": {
+              "min": 0,
+              "max": 3,
+              "roles": ["referenceAudio"],
+              "formats": ["wav", "mp3"],
+              "minDuration": 2,
+              "maxDuration": 15,
+              "maxTotalDuration": 15,
+              "maxBytes": 15728640,
+              "requiresAnyOf": ["images", "videos"]
             }
           },
           "outputConstraints": {
@@ -2872,7 +2931,11 @@
             "formats": ["mp4"]
           },
           "requestFields": {
-            "imageContentRole": "reference_image"
+            "imageContentRole": "reference_image",
+            "videoContentType": "video_url",
+            "videoContentRole": "reference_video",
+            "audioContentType": "audio_url",
+            "audioContentRole": "reference_audio"
           },
           "params": [
             {

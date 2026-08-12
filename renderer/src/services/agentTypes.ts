@@ -18,7 +18,8 @@ export type AgentNodeType =
 export type AgentInputRole =
   | 'textContext'
   | 'referenceImage'
-  | 'inputVideo';
+  | 'inputVideo'
+  | 'referenceAudio';
 
 export interface AgentAttachment extends JsonObject {
   name?: string;

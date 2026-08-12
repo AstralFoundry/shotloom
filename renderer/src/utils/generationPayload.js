@@ -168,6 +168,9 @@ function collectUpstreamInputs(node, project) {
           remoteUrl: source.remoteUrl || '',
           objectKey: source.objectKey || '',
           materialId: source.materialId || '',
+          mimeType: source.mimeType || '',
+          size: source.size || 0,
+          duration: source.duration || 0,
         };
       }
       if (source.type === 'note' || source.type === 'board' || source.type === 'threeDDirector') {
@@ -256,6 +259,7 @@ export function generationUpstreamReadiness(node, project) {
   }
   const imageInputs = requiredInputs.filter((input) => ['image', 'referenceImage'].includes(effectiveInputRole(input)));
   const videoInputs = requiredInputs.filter((input) => effectiveInputRole(input) === 'inputVideo');
+  const audioInputs = requiredInputs.filter((input) => effectiveInputRole(input) === 'referenceAudio');
   if (imageInputs.length < (capability.minInputImages || 0)) {
     issues.push(`${node.title} 至少需要 ${capability.minInputImages} 个图片输入`);
   }
@@ -268,9 +272,32 @@ export function generationUpstreamReadiness(node, project) {
   if (capability.maxInputVideos >= 0 && videoInputs.length > capability.maxInputVideos) {
     issues.push(`${node.title} 视频输入共 ${videoInputs.length} 个，超过当前模型上限 ${capability.maxInputVideos}`);
   }
+  if (audioInputs.length < (capability.minInputAudios || 0)) {
+    issues.push(`${node.title} 至少需要 ${capability.minInputAudios} 个音频输入`);
+  }
+  if (capability.maxInputAudios >= 0 && audioInputs.length > capability.maxInputAudios) {
+    issues.push(`${node.title} 音频输入共 ${audioInputs.length} 个，超过当前模型上限 ${capability.maxInputAudios}`);
+  }
+  const maxTotalAudioDuration = Number(capability.inputConstraints?.audios?.maxTotalDuration || 0);
+  const totalAudioDuration = audioInputs.reduce((total, input) => (
+    total + Number(resolvedInputResource(input).duration || 0)
+  ), 0);
+  if (maxTotalAudioDuration > 0 && totalAudioDuration > maxTotalAudioDuration) {
+    issues.push(`${node.title} 的参考音频总时长不能超过 ${maxTotalAudioDuration} 秒`);
+  }
+  const audioRequirements = capability.inputConstraints?.audios?.requiresAnyOf || [];
+  if (audioInputs.length && audioRequirements.length) {
+    const satisfied = audioRequirements.some((kind) => (
+      (kind === 'images' && imageInputs.length > 0)
+      || (kind === 'videos' && videoInputs.length > 0)
+      || (kind === 'audios' && audioInputs.length > 0)
+    ));
+    if (!satisfied) issues.push(`${node.title} 的参考音频必须同时搭配${mediaKindsLabel(audioRequirements)}`);
+  }
   for (const input of inputs) {
     if (input.required === false) continue;
-    const role = input.inputRole || 'auto';
+    const declaredRole = input.inputRole || 'auto';
+    const role = effectiveInputRole(input);
     const uploadedResource = uploadedInputResource(input);
     if (['imageGeneration', 'videoGeneration', 'audioGeneration', 'textGeneration'].includes(input.nodeType)
       && input.status !== 'completed' && !uploadedResource) {
@@ -293,7 +320,28 @@ export function generationUpstreamReadiness(node, project) {
       if (!isVideoResource(resolvedInputResource(input))) issues.push(`${input.title} 没有可用的视频输出`);
       if (!capability.supportsInputVideo) issues.push(`${node.title} 当前模型不支持 inputVideo`);
     }
-    if (role === 'auto' && ['imageGeneration', 'videoGeneration'].includes(input.nodeType)
+    if (role === 'referenceAudio') {
+      const selectedAudio = resolvedInputResource(input);
+      if (!isAudioResource(selectedAudio)) issues.push(`${input.title} 没有可用的音频输出`);
+      if (!capability.supportsInputAudio) issues.push(`${node.title} 当前模型不支持 referenceAudio`);
+      const audioConstraint = capability.inputConstraints?.audios || {};
+      const format = resourceExtension(selectedAudio);
+      if (format && audioConstraint.formats?.length && !audioConstraint.formats.includes(format)) {
+        issues.push(`${input.title} 的 ${format} 格式不受当前模型支持`);
+      }
+      const size = Number(selectedAudio.size || 0);
+      if (size > 0 && audioConstraint.maxBytes > 0 && size > audioConstraint.maxBytes) {
+        issues.push(`${input.title} 超过当前模型单个音频大小限制`);
+      }
+      const duration = Number(selectedAudio.duration || 0);
+      if (duration > 0 && audioConstraint.minDuration > 0 && duration < audioConstraint.minDuration) {
+        issues.push(`${input.title} 时长不能少于 ${audioConstraint.minDuration} 秒`);
+      }
+      if (duration > 0 && audioConstraint.maxDuration > 0 && duration > audioConstraint.maxDuration) {
+        issues.push(`${input.title} 时长不能超过 ${audioConstraint.maxDuration} 秒`);
+      }
+    }
+    if (declaredRole === 'auto' && ['imageGeneration', 'videoGeneration'].includes(input.nodeType)
       && !input.selectedOutput && !uploadedResource) {
       issues.push(`${input.title} 已连线但没有可用的生成输出`);
     }
@@ -316,6 +364,8 @@ function materialSummary(material) {
     remoteUrl: material.remoteUrl || '',
     objectKey: material.objectKey || '',
     mimeType: material.mimeType || '',
+    size: material.size || 0,
+    duration: material.duration || 0,
   };
 }
 
@@ -333,6 +383,9 @@ function resourceSummary(source) {
     remoteUrl: source.remoteUrl || '',
     objectKey: source.objectKey || '',
     materialId: source.materialId || '',
+    mimeType: source.mimeType || '',
+    size: source.size || 0,
+    duration: source.duration || 0,
   };
 }
 
@@ -348,6 +401,22 @@ function isVideoResource(resource = {}) {
   return type.includes('video') || ['mp4', 'mov', 'webm', 'm4v'].includes(ext);
 }
 
+function isAudioResource(resource = {}) {
+  const type = String(resource.resourceType || resource.mimeType || '').toLowerCase();
+  const ext = resourceExtension(resource);
+  return type.includes('audio') || ['wav', 'mp3', 'm4a', 'aac', 'ogg', 'flac'].includes(ext);
+}
+
+function resourceExtension(resource = {}) {
+  return String(resource.fileName || resource.filePath || resource.url || resource.previewUrl || '')
+    .split(/[?#]/)[0].split('.').pop()?.toLowerCase() || '';
+}
+
+function mediaKindsLabel(kinds = []) {
+  const labels = { images: '至少一张图片', videos: '至少一个视频', audios: '至少一个音频' };
+  return kinds.map((kind) => labels[kind] || kind).join('或');
+}
+
 function inputResourcePayload(resource = {}, source = {}) {
   return {
     nodeId: source.nodeId || resource.nodeId || '',
@@ -361,6 +430,8 @@ function inputResourcePayload(resource = {}, source = {}) {
     objectKey: resource.objectKey || '',
     materialId: resource.materialId || '',
     mimeType: resource.mimeType || '',
+    size: resource.size || 0,
+    duration: resource.duration || 0,
     inputRole: normalizeInputRole(source.inputRole || resource.inputRole || 'auto'),
     required: source.required !== false && resource.required !== false,
   };
@@ -377,6 +448,8 @@ function uploadedInputResource(input = {}) {
     url: uploaded.url,
     materialId: uploaded.materialId,
     mimeType: uploaded.type,
+    size: uploaded.size || 0,
+    duration: uploaded.duration || 0,
   }, input);
 }
 
@@ -390,6 +463,7 @@ function effectiveInputRole(input = {}) {
   const resource = resolvedInputResource(input);
   if (isImageResource(resource)) return 'image';
   if (isVideoResource(resource)) return 'inputVideo';
+  if (isAudioResource(resource)) return 'referenceAudio';
   return role;
 }
 
@@ -404,6 +478,8 @@ function collectCandidateResources(inputs = [], uploadedFile = null) {
       url: uploadedFile.url,
       materialId: uploadedFile.materialId,
       mimeType: uploadedFile.type,
+      size: uploadedFile.size || 0,
+      duration: uploadedFile.duration || 0,
     }));
   }
   for (const input of inputs || []) {
@@ -415,6 +491,8 @@ function collectCandidateResources(inputs = [], uploadedFile = null) {
         filePath: input.uploadedFile.path,
         materialId: input.uploadedFile.materialId,
         mimeType: input.uploadedFile.type,
+        size: input.uploadedFile.size || 0,
+        duration: input.uploadedFile.duration || 0,
       }, input));
     }
     if (input.selectedOutput) {
@@ -445,34 +523,39 @@ function collectModelInputs({ node, inputs, uploadedFile, capability, inputStrat
   };
   const explicitReferenceCandidates = imageCandidates.filter((item) => item.inputRole === 'referenceImage');
   const autoCandidates = imageCandidates.filter((item) => item.inputRole === 'auto');
-  const referenceImages = [];
+  const images = [];
   if (capability.supportsReferenceImages) {
     explicitReferenceCandidates.forEach((item) => {
       const claimed = claimImage(item);
-      if (claimed) referenceImages.push(claimed);
+      if (claimed) images.push(claimed);
     });
   }
   if (capability.supportsReferenceImages && inputStrategy === 'referenceImages') {
     autoCandidates.forEach((item) => {
       const claimed = claimImage(item);
-      if (claimed) referenceImages.push(claimed);
+      if (claimed) images.push(claimed);
     });
   }
-  const generalImages = [];
   if (capability.supportsInputImages) {
     autoCandidates.forEach((item) => {
       const claimed = claimImage(item);
-      if (claimed) generalImages.push(claimed);
+      if (claimed) images.push(claimed);
     });
   }
   const videos = candidates
     .filter(isVideoResource)
+    .map((item) => item.inputRole === 'auto' ? { ...item, inputRole: 'inputVideo' } : item)
     .sort((a, b) => Number(b.inputRole === 'inputVideo') - Number(a.inputRole === 'inputVideo'))
     .slice(0, capability.maxInputVideos || 0);
+  const audios = candidates
+    .filter(isAudioResource)
+    .map((item) => item.inputRole === 'auto' ? { ...item, inputRole: 'referenceAudio' } : item)
+    .sort((a, b) => Number(b.inputRole === 'referenceAudio') - Number(a.inputRole === 'referenceAudio'))
+    .slice(0, capability.maxInputAudios || 0);
   return {
-    images: generalImages,
+    images,
     videos: capability.supportsInputVideo ? videos : [],
-    referenceImages,
+    audios: capability.supportsInputAudio ? audios : [],
   };
 }
 
@@ -493,6 +576,8 @@ export function summarizeGenerationPayload(payload) {
     objectKey: resource.objectKey || '',
     materialId: resource.materialId || '',
     mimeType: resource.mimeType || '',
+    size: resource.size || 0,
+    duration: resource.duration || 0,
     inputRole: resource.inputRole || 'auto',
     required: resource.required !== false,
   });
@@ -511,8 +596,8 @@ export function summarizeGenerationPayload(payload) {
   if (payload?.modelInputs) {
     summarized.modelInputs = {
       images: (payload.modelInputs.images || []).map(compactResource),
-      referenceImages: (payload.modelInputs.referenceImages || []).map(compactResource),
       videos: (payload.modelInputs.videos || []).map(compactResource),
+      audios: (payload.modelInputs.audios || []).map(compactResource),
     };
   }
   return summarized;
