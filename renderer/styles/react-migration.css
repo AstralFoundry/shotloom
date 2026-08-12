@@ -341,10 +341,8 @@
 .work-composer {
   position: relative;
   z-index: 10;
-  width: 100%;
-  min-height: 205px;
-  max-height: calc(100vh - 24px);
-  overflow-y: auto;
+  width: 620px;
+  height: 205px;
   max-width: none;
   box-sizing: border-box;
   border: 1px solid #dfe3e8;
@@ -360,6 +358,7 @@
 .work-composer-anchor {
   position: absolute;
   z-index: 10000;
+  transform: translateX(-50%);
   pointer-events: auto;
 }
 .work-composer-row,

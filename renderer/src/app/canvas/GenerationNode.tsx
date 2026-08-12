@@ -1,7 +1,8 @@
-import { memo, useContext, useMemo, useState } from "react";
-import { Handle, Position } from "@xyflow/react";
+import { memo, type ReactNode, useCallback, useContext, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
+import { Handle, Position, type ReactFlowState, useStore } from "@xyflow/react";
 import { getModelInfo, getModelSchema, getTypeMeta } from "../../domain/catalog/ModelCatalog";
-import { MentionContext } from "./WorkflowCanvas";
+import { CanvasOverlayRootContext, MentionContext } from "./WorkflowCanvas";
 import {
   aspectRatioStyle,
   isAspectRatioParam,
@@ -25,7 +26,6 @@ import type { WorkflowNodeData, WorkflowNodeRenderer } from "./WorkflowCanvas";
 import { useMediaPreviewCache } from "./useMediaPreviewCache";
 import { isImeKeyEvent, useImeCommit } from "./imeComposition";
 import { imageCanvasNodeDimensions } from "../../domain/graph/CanvasNodeDimensions";
-import { ScreenSpaceNodeOverlay } from "./ScreenSpaceNodeOverlay";
 
 interface OutputData {
   id: string;
@@ -77,6 +77,30 @@ function useLocalPreview(item: Record<string, unknown> | null, kind: string) {
     revision: String(item?.updatedAt || item?.createdAt || item?.id || ""),
     fallbackUrl: raw,
   });
+}
+
+function ScreenSpaceComposer({ nodeId, children }: { nodeId: string; children: ReactNode }) {
+  const root = useContext(CanvasOverlayRootContext);
+  const selectPlacement = useCallback((state: ReactFlowState) => {
+    const internal = state.nodeLookup.get(nodeId);
+    const [viewportX, viewportY, zoom] = state.transform;
+    const position = internal?.internals.positionAbsolute;
+    const width = Number(internal?.measured.width || internal?.width || 0);
+    const height = Number(internal?.measured.height || internal?.height || 0);
+    return {
+      left: viewportX + (Number(position?.x || 0) + width / 2) * zoom,
+      top: viewportY + (Number(position?.y || 0) + height) * zoom + 10,
+    };
+  }, [nodeId]);
+  const placement = useStore(
+    selectPlacement,
+    (left, right) => left.left === right.left && left.top === right.top,
+  );
+  if (!root) return null;
+  return createPortal(
+    <div className="work-composer-anchor" style={placement}>{children}</div>,
+    root,
+  );
 }
 
 export const GenerationNode: WorkflowNodeRenderer = memo(({ node, selected, actions }) => {
@@ -340,7 +364,7 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({ node, selected, acti
         </div>
       </div>
       {selected && (
-        <ScreenSpaceNodeOverlay nodeId={node.id}>
+        <ScreenSpaceComposer nodeId={node.id}>
         <div className="work-composer nodrag nopan nowheel" onClick={(e) => e.stopPropagation()}>
           <div className="work-composer-row">
             <span className="work-type-chip">{metaLabel}</span>
@@ -638,7 +662,7 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({ node, selected, acti
             />
           )}
         </div>
-        </ScreenSpaceNodeOverlay>
+        </ScreenSpaceComposer>
       )}
     </div>
   );
