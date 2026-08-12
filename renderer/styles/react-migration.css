@@ -5,6 +5,7 @@
 
 .react-workflow-canvas {
   position: relative;
+  isolation: isolate;
   width: 100%;
   height: 100%;
   outline: 0;
@@ -357,7 +358,7 @@
 }
 .work-composer-anchor {
   position: absolute;
-  z-index: 10000;
+  z-index: 120;
   transform: translateX(-50%);
   pointer-events: auto;
 }
