@@ -20,6 +20,7 @@ import { expandCopilotArchivesForPersistence } from '@/services/copilotSessionLi
 
 const MAX_CANVAS_HISTORY = 8;
 const PROJECT_SCHEMA_VERSION = 2;
+const CANVAS_NODE_SIZE_SCALE = 0.75;
 
 function createProject(name = '未命名项目') {
   const project = {
@@ -35,6 +36,7 @@ function createProject(name = '未命名项目') {
     copilotConversations: [],
     activeCopilotConversationId: '',
     canvasViewport: { x: 0, y: 0, zoom: 1 },
+    canvasNodeSizeScale: CANVAS_NODE_SIZE_SCALE,
     agentBatches: [],
     agentSteps: [],
     agentEvaluations: [],
@@ -71,7 +73,15 @@ function assertCurrentProjectSchema(project) {
 function normalizeProject(project) {
   project = assertCurrentProjectSchema(project);
   const base = createProject(project?.name || '未命名项目');
-  const nodes = Array.isArray(project?.nodes) ? project.nodes : [];
+  const storedNodeSizeScale = Number(project?.canvasNodeSizeScale) || 1;
+  const nodeSizeRatio = CANVAS_NODE_SIZE_SCALE / storedNodeSizeScale;
+  const nodes = (Array.isArray(project?.nodes) ? project.nodes : []).map((node) => {
+    if (nodeSizeRatio === 1) return node;
+    const next = { ...node };
+    if (Number(next.canvasWidth) > 0) next.canvasWidth = Math.round(next.canvasWidth * nodeSizeRatio);
+    if (Number(next.canvasHeight) > 0) next.canvasHeight = Math.round(next.canvasHeight * nodeSizeRatio);
+    return next;
+  });
   const nodeIds = new Set(nodes.map((node) => node.id));
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
   const tasks = (Array.isArray(project?.tasks) ? project.tasks : []).map((task) => {
@@ -171,6 +181,7 @@ function normalizeProject(project) {
       : [],
     activeCopilotConversationId: String(project?.activeCopilotConversationId || ''),
     canvasViewport: normalizeCanvasViewport(project?.canvasViewport),
+    canvasNodeSizeScale: CANVAS_NODE_SIZE_SCALE,
     agentBatches: Array.isArray(project?.agentBatches) ? project.agentBatches : [],
     agentSteps: Array.isArray(project?.agentSteps) ? project.agentSteps : [],
     agentRuns: Array.isArray(project?.agentRuns) ? project.agentRuns : [],

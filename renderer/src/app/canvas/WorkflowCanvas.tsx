@@ -1,4 +1,5 @@
 import {
+  type CSSProperties,
   type ComponentType,
   createContext,
   forwardRef,
@@ -29,11 +30,10 @@ import {
   type OnMoveStart,
   ReactFlow,
   type ReactFlowInstance,
-  useStoreApi,
   type Viewport,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { canvasNodeDimensions } from "../../services/agentLayoutService";
+import { canvasNodeDimensions, defaultCanvasNodeDimensions } from "../../services/agentLayoutService";
 import { IconSymbol } from "../components/IconSymbol";
 import { CanvasContextMenu } from "./CanvasContextMenu";
 
@@ -51,7 +51,15 @@ export interface WorkflowNodeData extends Record<string, unknown> {
 }
 export interface WorkflowEdgeData extends Record<string, unknown> {
   inputRole?: string;
+  inputSlot?: string;
   required?: boolean;
+}
+export interface WorkflowIncomingInput extends Record<string, unknown> {
+  edgeId: string;
+  nodeId: string;
+  name: string;
+  inputRole?: string;
+  inputSlot?: string;
 }
 export type WorkflowEdge = {
   id: string;
@@ -64,6 +72,9 @@ export interface WorkflowNodeActions {
   select: (id: string) => void;
   delete: (id: string) => void;
   upload: (id: string) => void | Promise<void>;
+  addReference: (id: string, slot?: string) => void | Promise<void>;
+  setInputMode: (id: string, mode: string) => void;
+  removeIncomingEdge: (id: string, edgeId: string) => void;
   run: (id: string) => void;
   useResource: (id: string) => void;
   replaceResource: (id: string) => void;
@@ -91,6 +102,7 @@ export type WorkflowNodeRenderer = ComponentType<{
   selected: boolean;
   resizing?: boolean;
   inputRevision?: string;
+  incomingInputs?: WorkflowIncomingInput[];
   actions: WorkflowNodeActions;
 }>;
 export interface WorkflowCanvasController {
@@ -116,8 +128,10 @@ const RendererContext = createContext<Record<string, WorkflowNodeRenderer>>({});
 const ActionContext = createContext<WorkflowNodeActions | null>(null);
 export const MentionContext = createContext<((nodeId: string) => void) | null>(null);
 export const CanvasOverlayRootContext = createContext<HTMLElement | null>(null);
-const VIEWPORT_LAYER_NODE_LIMIT = 24;
+export const CanvasNodeLabelRootContext = createContext<HTMLElement | null>(null);
 const NODE_VIRTUALIZATION_THRESHOLD = 50;
+const MIN_CANVAS_ZOOM = 0.1;
+const MAX_CANVAS_ZOOM = 3;
 const MEDIA_NODE_TYPES = new Set([
   "imageGeneration",
   "videoGeneration",
@@ -125,11 +139,24 @@ const MEDIA_NODE_TYPES = new Set([
   "board",
   "threeDDirector",
 ]);
-type FlowNode = Node<{ node: WorkflowNodeData; inputRevision: string }>;
+type FlowNode = Node<{
+  node: WorkflowNodeData;
+  inputRevision: string;
+  incomingInputs: WorkflowIncomingInput[];
+  semanticZoom: number;
+}>;
+function screenPixel(value: number) {
+  const dpr = typeof window === "undefined" ? 1 : Math.max(1, window.devicePixelRatio || 1);
+  return Math.round(value * dpr) / dpr;
+}
 function nodeDimensions(node: WorkflowNodeData) {
   return canvasNodeDimensions(node);
 }
-function toFlowNodes(nodes: WorkflowNodeData[], edges: WorkflowEdge[] = []): FlowNode[] {
+function toFlowNodes(
+  nodes: WorkflowNodeData[],
+  edges: WorkflowEdge[] = [],
+  semanticZoom = 1,
+): FlowNode[] {
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
   const incomingByTarget = new Map<string, WorkflowEdge[]>();
   edges.forEach((edge) => {
@@ -152,6 +179,38 @@ function toFlowNodes(nodes: WorkflowNodeData[], edges: WorkflowEdge[] = []): Flo
           ].join(":");
         })
         .join("|");
+      const incomingInputs = (incomingByTarget.get(node.id) || []).flatMap((edge) => {
+        const source = nodeById.get(edge.source);
+        if (!source) return [];
+        const outputs = Array.isArray(source.generatedOutputs) ? source.generatedOutputs : [];
+        const selectedOutput =
+          outputs.find((item) => item && typeof item === "object" && item.selected) || outputs[0];
+        const uploaded =
+          source.uploadedFile && typeof source.uploadedFile === "object"
+            ? source.uploadedFile
+            : null;
+        const candidate =
+          selectedOutput && typeof selectedOutput === "object"
+            ? selectedOutput
+            : uploaded || source;
+        return [
+          {
+            ...candidate,
+            edgeId: edge.id,
+            nodeId: source.id,
+            name: String(
+              candidate.title ||
+                candidate.name ||
+                candidate.fileName ||
+                source.title ||
+                "参考素材",
+            ),
+            resourceType: candidate.resourceType || source.resourceType || "",
+            inputRole: edge.data?.inputRole || "auto",
+            inputSlot: edge.data?.inputSlot || "",
+          },
+        ];
+      });
       return {
         id: node.id,
         type: "panel",
@@ -162,12 +221,15 @@ function toFlowNodes(nodes: WorkflowNodeData[], edges: WorkflowEdge[] = []): Flo
           .filter(Boolean)
           .join(" "),
         position: {
-          x: Math.round(Number(node.x) || 0),
-          y: Math.round(Number(node.y) || 0),
+          x: screenPixel((Number(node.x) || 0) * semanticZoom),
+          y: screenPixel((Number(node.y) || 0) * semanticZoom),
         },
-        data: { node, inputRevision },
+        data: { node, inputRevision, incomingInputs, semanticZoom },
         selected: Boolean(node.selected),
-        style: dimensions,
+        style: {
+          width: dimensions.width * semanticZoom,
+          height: dimensions.height * semanticZoom,
+        },
       };
     });
 }
@@ -197,93 +259,24 @@ function FallbackNodeInner({ node, selected }: { node: WorkflowNodeData; selecte
 }
 const FallbackNode = memo(FallbackNodeInner);
 
-/**
- * WKWebView repaints a full-size CSS radial gradient while the React Flow
- * viewport is transforming. Keep the grid in its own small, frame-coalesced
- * bitmap so zooming does not invalidate the workbench background or React.
- */
-function CanvasGrid() {
-  const storeApi = useStoreApi();
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    const host = canvas?.closest<HTMLElement>(".react-flow");
-    if (!canvas || !host) return;
-    let frame = 0;
-    let lastTransform = storeApi.getState().transform;
-    let lastWidth = 0;
-    let lastHeight = 0;
-    let lastDpr = 0;
-    const paint = () => {
-      frame = 0;
-      const context = canvas.getContext("2d");
-      if (!context) return;
-      const bounds = host.getBoundingClientRect();
-      const width = Math.max(1, Math.round(bounds.width));
-      const height = Math.max(1, Math.round(bounds.height));
-      const dpr = Math.min(2, Math.max(1, window.devicePixelRatio || 1));
-      if (width !== lastWidth || height !== lastHeight || dpr !== lastDpr) {
-        canvas.width = Math.round(width * dpr);
-        canvas.height = Math.round(height * dpr);
-        canvas.style.width = `${width}px`;
-        canvas.style.height = `${height}px`;
-        lastWidth = width;
-        lastHeight = height;
-        lastDpr = dpr;
-      }
-      context.setTransform(dpr, 0, 0, dpr, 0, 0);
-      context.clearRect(0, 0, width, height);
-      const [x, y, zoom] = storeApi.getState().transform;
-      if (zoom <= 0.42) return;
-      const gap = 20 * zoom;
-      const startX = ((x % gap) + gap) % gap;
-      const startY = ((y % gap) + gap) % gap;
-      const radius = Math.max(0.55, Math.min(1, 0.7 * zoom));
-      context.fillStyle = "rgba(0, 0, 0, .12)";
-      context.beginPath();
-      for (let dotX = startX; dotX <= width; dotX += gap) {
-        for (let dotY = startY; dotY <= height; dotY += gap) {
-          context.moveTo(dotX + radius, dotY);
-          context.arc(dotX, dotY, radius, 0, Math.PI * 2);
-        }
-      }
-      context.fill();
-    };
-    const schedule = () => {
-      if (!frame) frame = requestAnimationFrame(paint);
-    };
-    const unsubscribe = storeApi.subscribe(() => {
-      const transform = storeApi.getState().transform;
-      if (transform === lastTransform) return;
-      lastTransform = transform;
-      schedule();
-    });
-    const observer = new ResizeObserver(schedule);
-    observer.observe(host);
-    schedule();
-    return () => {
-      if (frame) cancelAnimationFrame(frame);
-      unsubscribe();
-      observer.disconnect();
-    };
-  }, [storeApi]);
-  return <canvas ref={canvasRef} className="canvas-grid-layer" aria-hidden />;
-}
-
 function CanvasNode({ data, selected }: NodeProps<FlowNode>) {
   const registry = useContext(RendererContext);
   const actions = useContext(ActionContext)!;
   const item = data.node;
   const [resizing, setResizing] = useState(false);
+  const [labelRoot, setLabelRoot] = useState<HTMLElement | null>(null);
   const Renderer = registry[item.type] || FallbackNode;
   const resizable =
     item.type === "textGeneration" || item.type === "note" || item.type === "threeDDirector";
+  const defaultSize = defaultCanvasNodeDimensions(item.type);
   const minimum =
     item.type === "threeDDirector"
-      ? { width: 540, height: 330 }
+      ? defaultSize
       : item.type === "note"
-        ? { width: 180, height: 110 }
-        : { width: 260, height: 180 };
+        ? { width: 135, height: 83 }
+        : { width: 195, height: 135 };
+  const dimensions = nodeDimensions(item);
+  const semanticZoom = data.semanticZoom;
   return (
     <>
       {selected && resizable && (
@@ -293,40 +286,54 @@ function CanvasNode({ data, selected }: NodeProps<FlowNode>) {
           isVisible
           lineClassName="canvas-node-resize-line"
           keepAspectRatio={item.type === "threeDDirector"}
-          minHeight={minimum.height}
-          minWidth={minimum.width}
+          minHeight={minimum.height * semanticZoom}
+          minWidth={minimum.width * semanticZoom}
           onResizeStart={() => setResizing(true)}
           onResizeEnd={(_event, size) => {
             setResizing(false);
             actions.update(item.id, {
-              x: Math.round(size.x),
-              y: Math.round(size.y),
-              canvasWidth: Math.round(size.width),
-              canvasHeight: Math.round(size.height),
+              x: Math.round(size.x / semanticZoom),
+              y: Math.round(size.y / semanticZoom),
+              canvasWidth: Math.round(size.width / semanticZoom),
+              canvasHeight: Math.round(size.height / semanticZoom),
               updatedAt: new Date().toISOString(),
             });
           }}
         />
       )}
-      <Renderer
-        node={item}
-        selected={selected}
-        resizing={resizing}
-        inputRevision={data.inputRevision}
-        actions={actions}
+      <div
+        ref={setLabelRoot}
+        className="canvas-node-label-anchor"
+        style={{
+          top: -20 * semanticZoom,
+          width: dimensions.width * semanticZoom,
+          height: 20 * semanticZoom,
+          "--node-label-zoom": semanticZoom,
+        } as CSSProperties}
       />
+      <CanvasNodeLabelRootContext.Provider value={labelRoot}>
+      <div
+        className="canvas-node-semantic-content"
+        style={{
+          width: dimensions.width,
+          height: dimensions.height,
+          zoom: semanticZoom,
+        }}
+      >
+        <Renderer
+          node={item}
+          selected={selected}
+          resizing={resizing}
+          inputRevision={data.inputRevision}
+          incomingInputs={data.incomingInputs}
+          actions={actions}
+        />
+      </div>
+      </CanvasNodeLabelRootContext.Provider>
     </>
   );
 }
 const nodeTypes = { panel: CanvasNode };
-const roleLabel = (role?: string) =>
-  ({
-    textContext: "文本上下文",
-    referenceImage: "参考图",
-    inputVideo: "输入视频",
-    referenceAudio: "参考音频",
-  })[role || ""] || "";
-
 type CanvasMenuState = {
   x: number;
   y: number;
@@ -416,14 +423,22 @@ export function WorkflowCanvas({
   overlay?: ReactNode;
   mentionInCopilot?: (nodeId: string) => void;
 }) {
-  const [flowNodes, setFlowNodes] = useState<FlowNode[]>(() => toFlowNodes(nodes, edges));
+  const initialZoom = Math.min(
+    MAX_CANVAS_ZOOM,
+    Math.max(MIN_CANVAS_ZOOM, Number(viewport.zoom) || 1),
+  );
+  const [semanticZoom, setSemanticZoom] = useState(initialZoom);
+  const semanticZoomRef = useRef(initialZoom);
+  const [flowNodes, setFlowNodes] = useState<FlowNode[]>(() =>
+    toFlowNodes(nodes, edges, initialZoom),
+  );
   const [instance, setInstance] = useState<ReactFlowInstance<
     FlowNode,
     Edge<WorkflowEdgeData>
   > | null>(null);
   const [edgesVisible, setEdgesVisible] = useState(true);
   const [minimapVisible, setMinimapVisible] = useState(false);
-  const [liveViewport, setLiveViewport] = useState(viewport);
+  const [liveViewport, setLiveViewport] = useState({ ...viewport, zoom: initialZoom });
   const draggingIds = useRef(new Set<string>());
   const pendingNodeChanges = useRef<NodeChange<FlowNode>[]>([]);
   const nodeChangeFrame = useRef(0);
@@ -432,7 +447,10 @@ export function WorkflowCanvas({
   const [canvasOverlayRoot, setCanvasOverlayRoot] = useState<HTMLElement | null>(null);
   const menuLayer = useRef<CanvasMenuLayerHandle>(null);
   const visible = useMemo(() => nodes.filter((node) => !node.archived), [nodes]);
-  const canonicalNodes = useMemo(() => toFlowNodes(visible, edges), [edges, visible]);
+  const canonicalNodes = useMemo(
+    () => toFlowNodes(visible, edges, semanticZoom),
+    [edges, semanticZoom, visible],
+  );
   useEffect(() => {
     setFlowNodes((current) => {
       const previous = new Map(current.map((node) => [node.id, node]));
@@ -449,6 +467,7 @@ export function WorkflowCanvas({
     });
   }, [canonicalNodes]);
   const renderedNodes = flowNodes;
+  const renderedSemanticZoom = renderedNodes[0]?.data.semanticZoom ?? semanticZoom;
   const ids = useMemo(() => new Set(visible.map((node) => node.id)), [visible]);
   const visibleById = useMemo(() => new Map(visible.map((node) => [node.id, node])), [visible]);
   const flowEdges = useMemo<Array<Edge<WorkflowEdgeData>>>(
@@ -466,14 +485,20 @@ export function WorkflowCanvas({
             sourceHandle: targetIsRight ? "port-right" : "port-left",
             targetHandle: targetIsRight ? "port-left" : "port-right",
             type: "default",
-            label: roleLabel(edge.data?.inputRole),
-            markerEnd: { type: MarkerType.ArrowClosed },
-            style: { stroke: "#9aa39d", strokeWidth: 1.6 },
-            labelStyle: { fill: "#526158", fontSize: 9, fontWeight: 700 },
-            labelBgStyle: { fill: "#f7f8f6", fillOpacity: 0.94 },
+            markerEnd: {
+              type: MarkerType.ArrowClosed,
+              width: 10,
+              height: 10,
+              color: "#aab1ad",
+            },
+            style: {
+              stroke: "#aab1ad",
+              strokeWidth: Math.min(1.35, Math.max(0.5, semanticZoom)),
+              opacity: semanticZoom < 0.55 ? 0.48 : 0.72,
+            },
           };
         }),
-    [edges, ids, visibleById],
+    [edges, ids, semanticZoom, visibleById],
   );
 
   const applyNodeChangesOnFrame = useCallback(
@@ -511,8 +536,8 @@ export function WorkflowCanvas({
           ? [
               {
                 id: change.id,
-                x: Math.round(change.position.x),
-                y: Math.round(change.position.y),
+                x: Math.round(change.position.x / semanticZoomRef.current),
+                y: Math.round(change.position.y / semanticZoomRef.current),
               },
             ]
           : [],
@@ -543,14 +568,14 @@ export function WorkflowCanvas({
     (_event, next) => {
       if (movementEndTimer.current) clearTimeout(movementEndTimer.current);
       movementEndTimer.current = setTimeout(() => {
-        canvasRoot.current?.classList.remove("viewport-moving");
         movementEndTimer.current = null;
       }, 120);
-      setLiveViewport(next);
+      const publicViewport = { x: next.x, y: next.y, zoom: semanticZoomRef.current };
+      setLiveViewport(publicViewport);
       controller.saveViewport({
         x: Math.round(next.x),
         y: Math.round(next.y),
-        zoom: Math.abs(next.zoom - 1) < 0.015 ? 1 : next.zoom,
+        zoom: semanticZoomRef.current,
       });
     },
     [controller],
@@ -560,7 +585,6 @@ export function WorkflowCanvas({
       clearTimeout(movementEndTimer.current);
       movementEndTimer.current = null;
     }
-    canvasRoot.current?.classList.add("viewport-moving");
   }, []);
   useEffect(
     () => () => {
@@ -568,20 +592,83 @@ export function WorkflowCanvas({
     },
     [],
   );
+  const setCanvasZoomAt = useCallback(
+    (requestedZoom: number, clientPoint?: { x: number; y: number }) => {
+      if (!instance) return;
+      const zoom = Math.min(MAX_CANVAS_ZOOM, Math.max(MIN_CANVAS_ZOOM, requestedZoom));
+      const currentZoom = semanticZoomRef.current;
+      if (Math.abs(zoom - currentZoom) < 0.0005) return;
+      const bounds = canvasRoot.current?.getBoundingClientRect();
+      if (!bounds) return;
+      const current = instance.getViewport();
+      const center = clientPoint
+        ? { x: clientPoint.x - bounds.left, y: clientPoint.y - bounds.top }
+        : { x: bounds.width / 2, y: bounds.height / 2 };
+      const ratio = zoom / currentZoom;
+      const next = {
+        x: screenPixel(center.x - (center.x - current.x) * ratio),
+        y: screenPixel(center.y - (center.y - current.y) * ratio),
+        zoom: 1,
+      };
+      semanticZoomRef.current = zoom;
+      setSemanticZoom(zoom);
+      setLiveViewport({ x: next.x, y: next.y, zoom });
+      void instance.setViewport(next);
+      controller.saveViewport({ x: Math.round(next.x), y: Math.round(next.y), zoom });
+    },
+    [controller, instance],
+  );
   const changeZoom = useCallback(
     (delta: number) => {
-      const current = instance?.getViewport() || liveViewport;
-      const zoom = Math.min(3, Math.max(0.1, Math.round((current.zoom + delta) * 10) / 10));
-      void instance?.zoomTo(zoom, { duration: 140 });
+      const zoom = Math.round((semanticZoomRef.current + delta) * 10) / 10;
+      setCanvasZoomAt(zoom);
     },
-    [instance, liveViewport],
+    [setCanvasZoomAt],
   );
-  useEffect(() => {
-    controller.registerFitView?.(
-      instance ? () => void instance.fitView({ padding: 0.16, duration: 240 }) : null,
+  const fitCanvasView = useCallback(() => {
+    if (!instance || !canvasRoot.current) return;
+    const bounds = canvasRoot.current.getBoundingClientRect();
+    if (!visible.length) {
+      semanticZoomRef.current = 1;
+      setSemanticZoom(1);
+      setLiveViewport({ x: 0, y: 0, zoom: 1 });
+      void instance.setViewport({ x: 0, y: 0, zoom: 1 }, { duration: 240 });
+      return;
+    }
+    const nodeBounds = visible.reduce(
+      (result, node) => {
+        const dimensions = nodeDimensions(node);
+        const x = Number(node.x) || 0;
+        const y = Number(node.y) || 0;
+        result.minX = Math.min(result.minX, x);
+        result.minY = Math.min(result.minY, y);
+        result.maxX = Math.max(result.maxX, x + dimensions.width);
+        result.maxY = Math.max(result.maxY, y + dimensions.height);
+        return result;
+      },
+      { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity },
     );
+    const contentWidth = Math.max(1, nodeBounds.maxX - nodeBounds.minX);
+    const contentHeight = Math.max(1, nodeBounds.maxY - nodeBounds.minY);
+    const zoom = Math.min(
+      MAX_CANVAS_ZOOM,
+      Math.max(
+        MIN_CANVAS_ZOOM,
+        Math.min((bounds.width * 0.68) / contentWidth, (bounds.height * 0.68) / contentHeight),
+      ),
+    );
+    const x = screenPixel(bounds.width / 2 - ((nodeBounds.minX + nodeBounds.maxX) / 2) * zoom);
+    const y = screenPixel(bounds.height / 2 - ((nodeBounds.minY + nodeBounds.maxY) / 2) * zoom);
+    semanticZoomRef.current = zoom;
+    setSemanticZoom(zoom);
+    setLiveViewport({ x, y, zoom });
+    void instance.setViewport({ x, y, zoom: 1 }, { duration: 240 });
+    controller.saveViewport({ x: Math.round(x), y: Math.round(y), zoom });
+  }, [controller, instance, visible]);
+  useEffect(() => {
+    controller.registerFitView?.(instance ? fitCanvasView : null);
     return () => controller.registerFitView?.(null);
-  }, [controller, instance]);
+  }, [controller, fitCanvasView, instance]);
   function openMenu(event: globalThis.MouseEvent | ReactMouseEvent<Element>) {
     event.preventDefault();
     const bounds = canvasRoot.current?.getBoundingClientRect();
@@ -594,8 +681,8 @@ export function WorkflowCanvas({
     menuLayer.current?.open({
       x: menuPosition.x,
       y: menuPosition.y,
-      flowX: point.x,
-      flowY: point.y,
+      flowX: point.x / semanticZoomRef.current,
+      flowY: point.y / semanticZoomRef.current,
     });
   }
   const bindCanvasRoot = useCallback((element: HTMLElement | null) => {
@@ -610,14 +697,26 @@ export function WorkflowCanvas({
         <CanvasOverlayRootContext.Provider value={canvasOverlayRoot}>
         <section
           ref={bindCanvasRoot}
-          className="react-workflow-canvas"
-          data-viewport-layer={visible.length <= VIEWPORT_LAYER_NODE_LIMIT ? "promote" : "standard"}
+          className={`react-workflow-canvas${renderedSemanticZoom < 0.8 ? " canvas-zoom-compact" : ""}${renderedSemanticZoom < 0.35 ? " canvas-zoom-distant" : ""}${Math.round(renderedSemanticZoom * 100) <= 20 ? " canvas-zoom-overview" : ""}`}
           tabIndex={0}
           onPointerDownCapture={(event) => {
             const target = event.target as Element;
             if (!target.closest("input,textarea,select,button,iframe,[contenteditable=true]")) {
               event.currentTarget.focus({ preventScroll: true });
             }
+          }}
+          onWheelCapture={(event) => {
+            const target = event.target as Element;
+            if (
+              target.closest(
+                ".nowheel,input,textarea,select,button,video,audio,[contenteditable=true]",
+              )
+            ) {
+              return;
+            }
+            event.preventDefault();
+            const nextZoom = semanticZoomRef.current * Math.exp(-event.deltaY * 0.002);
+            setCanvasZoomAt(nextZoom, { x: event.clientX, y: event.clientY });
           }}
           onKeyDown={(event) => {
             const editable = (event.target as Element).matches(
@@ -678,14 +777,22 @@ export function WorkflowCanvas({
                 .filter((node) => node.selected)
                 .map((node) => ({
                   id: node.id,
-                  x: node.position.x + dx,
-                  y: node.position.y + dy,
+                  x: node.position.x / semanticZoomRef.current + dx,
+                  y: node.position.y / semanticZoomRef.current + dy,
                 }));
               if (moved.length) {
                 setFlowNodes((current) =>
                   current.map((node) => {
                     const next = moved.find((item) => item.id === node.id);
-                    return next ? { ...node, position: { x: next.x, y: next.y } } : node;
+                    return next
+                      ? {
+                          ...node,
+                          position: {
+                            x: next.x * semanticZoomRef.current,
+                            y: next.y * semanticZoomRef.current,
+                          },
+                        }
+                      : node;
                   }),
                 );
                 controller.moveNodes(moved);
@@ -701,9 +808,9 @@ export function WorkflowCanvas({
             edges={edgesVisible ? flowEdges : []}
             nodeTypes={nodeTypes}
             onlyRenderVisibleElements={renderedNodes.length > NODE_VIRTUALIZATION_THRESHOLD}
-            defaultViewport={viewport}
-            minZoom={0.1}
-            maxZoom={3}
+            defaultViewport={{ x: viewport.x, y: viewport.y, zoom: 1 }}
+            minZoom={1}
+            maxZoom={1}
             nodesDraggable
             autoPanOnNodeDrag={false}
             nodesConnectable
@@ -712,8 +819,8 @@ export function WorkflowCanvas({
             connectionRadius={64}
             selectionOnDrag
             panOnDrag
-            zoomOnScroll
-            zoomOnPinch
+            zoomOnScroll={false}
+            zoomOnPinch={false}
             multiSelectionKeyCode={["Meta", "Control", "Shift"]}
             deleteKeyCode={null}
             onInit={setInstance}
@@ -728,14 +835,12 @@ export function WorkflowCanvas({
             onMoveStart={onMoveStart}
             onMoveEnd={onMoveEnd}
             onPaneContextMenu={openMenu}
-            fitViewOptions={{ padding: 0.16, duration: 240 }}
           >
-            <CanvasGrid />
             {minimapVisible && (
               <MiniMap
                 className="canvas-minimap"
                 pannable
-                zoomable
+                zoomable={false}
                 nodeColor="#7f8d85"
                 maskColor="rgba(250,250,248,.72)"
               />
@@ -760,7 +865,7 @@ export function WorkflowCanvas({
                 className="canvas-zoom-value"
                 type="button"
                 title="自适应视窗"
-                onClick={() => void instance?.fitView({ padding: 0.16, duration: 240 })}
+                onClick={fitCanvasView}
               >
                 {Math.round(liveViewport.zoom * 100)}%
               </button>
@@ -771,7 +876,7 @@ export function WorkflowCanvas({
               <button
                 type="button"
                 title="自适应视窗"
-                onClick={() => void instance?.fitView({ padding: 0.16, duration: 240 })}
+                onClick={fitCanvasView}
               >
                 <IconSymbol name="maximize" />
               </button>

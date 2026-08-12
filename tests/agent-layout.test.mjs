@@ -18,14 +18,14 @@ function project(nodes, edges = []) {
 
 test('布局和画布渲染共用唯一的节点尺寸契约', () => {
   assert.deepEqual(canvasNodeDimensions(node('text', 'textGeneration')), {
-    width: 370,
-    height: 270,
+    width: 278,
+    height: 203,
   });
-  assert.deepEqual(canvasNodeDimensions(node('resource', 'resource')), { width: 240, height: 150 });
-  assert.deepEqual(canvasNodeDimensions(node('board', 'board')), { width: 340, height: 360 });
+  assert.deepEqual(canvasNodeDimensions(node('resource', 'resource')), { width: 180, height: 113 });
+  assert.deepEqual(canvasNodeDimensions(node('board', 'board')), { width: 255, height: 270 });
   assert.deepEqual(canvasNodeDimensions(node('director', 'threeDDirector')), {
-    width: 540,
-    height: 330,
+    width: 405,
+    height: 248,
   });
   assert.deepEqual(
     canvasNodeDimensions(
@@ -36,11 +36,11 @@ test('布局和画布渲染共用唯一的节点尺寸契约', () => {
 });
 
 test('图片节点按原图比例显示，并限制极端长宽比', () => {
-  assert.deepEqual(imageCanvasNodeDimensions(1080, 1920), { width: 281, height: 520 });
-  assert.deepEqual(imageCanvasNodeDimensions(1200, 1600), { width: 370, height: 513 });
-  assert.deepEqual(imageCanvasNodeDimensions(1920, 1080), { width: 370, height: 230 });
-  assert.deepEqual(imageCanvasNodeDimensions(4000, 500), { width: 370, height: 230 });
-  assert.deepEqual(imageCanvasNodeDimensions(0, 0), { width: 370, height: 270 });
+  assert.deepEqual(imageCanvasNodeDimensions(1080, 1920), { width: 211, height: 375 });
+  assert.deepEqual(imageCanvasNodeDimensions(1200, 1600), { width: 278, height: 371 });
+  assert.deepEqual(imageCanvasNodeDimensions(1920, 1080), { width: 278, height: 158 });
+  assert.deepEqual(imageCanvasNodeDimensions(4000, 500), { width: 278, height: 158 });
+  assert.deepEqual(imageCanvasNodeDimensions(0, 0), { width: 278, height: 203 });
 });
 
 test('依赖列按节点宽度和水平间距排布且不会重叠', () => {

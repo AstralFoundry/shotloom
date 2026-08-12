@@ -42,7 +42,8 @@
     },
     "title": {
       "type": "string",
-      "description": "简短中文标题"
+      "minLength": 1,
+      "description": "简短、可辨识的语义标题，应描述该节点的具体内容；不得只写‘图片生成’、‘视频生成’等节点类型"
     },
     "content": {
       "type": "string",
@@ -58,6 +59,16 @@
       "type": "string",
       "minLength": 1,
       "description": "inspect_model_catalog 返回的可用模型 ID；节点顶层唯一真值"
+    },
+    "inputMode": {
+      "type": "string",
+      "enum": ["reference", "firstFrame", "firstLastFrame", "videoExtension"],
+      "description": "素材输入的业务模式；必须来自 inspect_model_catalog 对当前模型返回的 inputModes"
+    },
+    "slot": {
+      "type": "string",
+      "enum": ["reference", "firstFrame", "lastFrame", "inputVideo", "referenceAudio"],
+      "description": "输入边的明确槽位；首尾帧必须分别指定 firstFrame/lastFrame，普通参考图使用 reference"
     },
     "recipeId": {
       "type": "string",
@@ -87,7 +98,7 @@
     },
     "inputLinks": {
       "type": "array",
-      "description": "创建节点时同时建立真实输入边；输入类型由上游节点自动推断",
+      "description": "创建节点时同时建立真实输入边；媒体类型由上游节点自动推断，首帧/尾帧等业务位置通过 slot 明确指定",
       "items": {
         "type": "object",
         "properties": {
@@ -96,6 +107,9 @@
           },
           "required": {
             "type": "boolean"
+          },
+          "slot": {
+            "$ref": "#/commonProperties/slot"
           }
         },
         "required": ["nodeId"],
@@ -173,6 +187,7 @@
         "title",
         "prompt",
         "model",
+        "inputMode",
         "recipeId",
         "outputSpec",
         "config",
@@ -184,6 +199,7 @@
       ],
       "required": [
         "nodeType",
+        "title",
         "prompt",
         "model",
         "recipeId"
@@ -234,6 +250,7 @@
         "title",
         "prompt",
         "model",
+        "inputMode",
         "recipeId",
         "outputSpec",
         "config"
@@ -261,6 +278,7 @@
       "fields": [
         "source",
         "target",
+        "slot",
         "required"
       ],
       "required": [

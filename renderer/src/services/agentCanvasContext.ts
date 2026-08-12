@@ -51,6 +51,7 @@ interface CompactAgentNode extends JsonObject {
   type: string;
   title: string;
   model: string;
+  inputMode: string;
   status: string;
   segmentIds: string[];
   artifactRole: string;
@@ -119,6 +120,7 @@ export function compactAgentNode(node: AgentNode): CompactAgentNode {
     type: node.type,
     title: node.title || node.name || '',
     model: String(node.model || ''),
+    inputMode: String(node.inputMode || ''),
     status: node.status || 'idle',
     segmentIds: [...(node.segmentIds || node.agentPlan?.segmentIds || [])],
     artifactRole: node.artifactRole || node.agentPlan?.artifactRole || '',

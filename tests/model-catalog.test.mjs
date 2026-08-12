@@ -236,6 +236,7 @@ test('Seedance 2.0 使用方舟官方视频任务协议', () => {
     assert.equal(mode.resultUrlPath, 'content.video_url');
   }
   const referenceMode = model.modes.find((mode) => mode.id === 'omni-reference-to-video');
+  assert.deepEqual(referenceMode.inputVariants.map((variant) => variant.inputMode), ['firstLastFrame']);
   assert.deepEqual(referenceMode.inputConstraints.images, { min: 0, max: 9, roles: ['referenceImage'] });
   assert.deepEqual(referenceMode.inputConstraints.videos, {
     min: 0, max: 3, roles: ['inputVideo'], formats: ['mp4', 'mov'],
@@ -300,12 +301,27 @@ test('内置模型只使用唯一声明式执行协议', () => {
   }
 });
 
-test('新模型目录与 Agent 不再公开首尾帧角色', () => {
+test('媒体角色与首尾帧业务槽位保持分离', () => {
   const serializedCatalog = JSON.stringify(catalog);
   const serializedContract = JSON.stringify(agentContract);
-  for (const legacyRole of ['firstFrame', 'lastFrame', 'referenceCandidate']) {
-    assert.equal(serializedCatalog.includes(legacyRole), false, `模型目录仍包含 ${legacyRole}`);
-    assert.equal(serializedContract.includes(legacyRole), false, `Agent 契约仍包含 ${legacyRole}`);
+  assert.equal(Object.hasOwn(agentContract.inputRoles, 'firstFrame'), false);
+  assert.equal(Object.hasOwn(agentContract.inputRoles, 'lastFrame'), false);
+  assert.ok(agentContract.commonProperties.inputMode.enum.includes('firstLastFrame'));
+  assert.ok(agentContract.commonProperties.slot.enum.includes('firstFrame'));
+  assert.ok(agentContract.commonProperties.slot.enum.includes('lastFrame'));
+  assert.equal(serializedCatalog.includes('referenceCandidate'), false);
+  assert.equal(serializedContract.includes('referenceCandidate'), false);
+});
+
+test('每个可接收素材的视频供应商 mode 显式声明画布输入语义', () => {
+  for (const model of catalog.models.filter((item) => item.type === 'videoGeneration')) {
+    for (const mode of model.modes) {
+      const input = mode.inputConstraints || {};
+      const hasMedia = (input.images?.max || 0) > 0 || (input.videos?.max || 0) > 0 || (input.audios?.max || 0) > 0;
+      if (!hasMedia) continue;
+      assert.ok(mode.inputMode, `${model.id}/${mode.id} 缺少 inputMode`);
+      assert.ok(Array.isArray(mode.inputSlots) && mode.inputSlots.length, `${model.id}/${mode.id} 缺少 inputSlots`);
+    }
   }
 });
 

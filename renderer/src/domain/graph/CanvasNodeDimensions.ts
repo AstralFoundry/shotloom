@@ -4,18 +4,21 @@ export interface CanvasSizedNode {
   canvasHeight?: unknown;
 }
 
+export const CANVAS_NODE_SIZE_SCALE = 0.75;
+
+const scaled = (value: number) => Math.round(value * CANVAS_NODE_SIZE_SCALE);
+
 export function defaultCanvasNodeDimensions(type: string) {
-  if (type === "resource" || type === "note") return { width: 240, height: 150 };
-  if (type === "board") return { width: 340, height: 360 };
-  if (type === "threeDDirector") return { width: 540, height: 330 };
-  return { width: 370, height: 270 };
+  if (type === "resource" || type === "note") return { width: scaled(240), height: scaled(150) };
+  if (type === "board") return { width: scaled(340), height: scaled(360) };
+  if (type === "threeDDirector") return { width: scaled(540), height: scaled(330) };
+  return { width: scaled(370), height: scaled(270) };
 }
 
-const IMAGE_PREVIEW_MAX_WIDTH = 370;
-const IMAGE_PREVIEW_MAX_HEIGHT = 500;
-const IMAGE_PREVIEW_MIN_WIDTH = 260;
-const IMAGE_PREVIEW_MIN_HEIGHT = 210;
-const GENERATION_NODE_KICKER_HEIGHT = 20;
+const IMAGE_PREVIEW_MAX_WIDTH = scaled(370);
+const IMAGE_PREVIEW_MAX_HEIGHT = scaled(500);
+const IMAGE_PREVIEW_MIN_WIDTH = scaled(260);
+const IMAGE_PREVIEW_MIN_HEIGHT = scaled(210);
 
 /**
  * Preserve the source aspect ratio while keeping portrait images practical on
@@ -38,7 +41,7 @@ export function imageCanvasNodeDimensions(naturalWidth: number, naturalHeight: n
       : IMAGE_PREVIEW_MAX_HEIGHT;
   return {
     width: previewWidth,
-    height: previewHeight + GENERATION_NODE_KICKER_HEIGHT,
+    height: previewHeight,
   };
 }
 

@@ -11,6 +11,9 @@ import {
 } from "../../store/assetStore.js";
 import { useLocalAssetInProject } from "../../store/localAssetLibraryStore.js";
 import { addCanvasEdge } from "../../store/canvasGraphStore.js";
+import { getGenerationInputModes } from "../../domain/catalog/ModelCatalog";
+import { defaultInputSlot, type GenerationInputMode, type GenerationInputSlot } from "../../domain/graph/GenerationInputContract";
+import { validateAgentInputRole } from "../../services/agentInputRole";
 import { pasteStagedWorkflow, stageSelectedWorkflow } from "../../store/clipboardStore.js";
 import {
   canRedoCanvas,
@@ -213,10 +216,35 @@ export const canvasController: WorkflowCanvasController = {
   connect(connection: Connection) {
     if (!connection.source || !connection.target) return false;
     recordCanvasHistory("连接节点");
+    const source = store.project.nodes.find((node: any) => node.id === connection.source);
+    const target = store.project.nodes.find((node: any) => node.id === connection.target);
+    const validation = validateAgentInputRole(store.project, source, target, "auto");
+    if (!validation.valid) {
+      showToast(validation.error || "连接失败");
+      return false;
+    }
+    const availableModes = getGenerationInputModes(String(target?.model || ""));
+    const supportsRole = (item: any) => validation.role === "referenceImage"
+      ? item.maxImages > 0
+      : validation.role === "inputVideo" ? item.maxVideos > 0 : validation.role === "referenceAudio" ? item.maxAudios > 0 : true;
+    const activeMode = availableModes.find((item) => item.value === target?.inputMode && supportsRole(item))
+      || availableModes.find(supportsRole);
+    if (activeMode && validation.role !== "textContext") target.inputMode = activeMode.value;
+    const occupied = (store.project.edges || [])
+      .filter((edge: any) => edge.target === target?.id)
+      .map((edge: any) => edge.data?.inputSlot)
+      .filter(Boolean) as GenerationInputSlot[];
+    const inputSlot = validation.role === "textContext" ? undefined : defaultInputSlot(
+      (activeMode?.value || "reference") as GenerationInputMode,
+      validation.role,
+      occupied,
+    );
     const result = addCanvasEdge(store.project, connection.source, connection.target, {
       edge: {
         sourceHandle: connection.sourceHandle,
         targetHandle: connection.targetHandle,
+        kind: "typed-input",
+        data: { inputRole: validation.role, ...(inputSlot ? { inputSlot } : {}), required: true },
       },
     });
     if (!result.ok) showToast(result.error || "连接失败");
@@ -377,6 +405,85 @@ export const nodeActions: WorkflowNodeActions = {
     });
     touchProject();
     showToast("文件已上传到节点");
+  },
+  async addReference(id, requestedSlot) {
+    const target = store.project.nodes.find((item: WorkflowNodeData) => item.id === id);
+    if (!target || !/Generation$/.test(target.type)) return;
+    const modes = getGenerationInputModes(String(target.model || ""));
+    const mode = modes.find((item) => item.value === target.inputMode) || modes[0];
+    if (!mode) return showToast("当前模型不支持素材输入");
+    const slot = String(requestedSlot || mode.slots[0] || "reference") as GenerationInputSlot;
+    const expectedKind = ["firstFrame", "lastFrame", "reference"].includes(slot) && mode.maxVideos === 0 && mode.maxAudios === 0
+      ? "image" : undefined;
+    const picked = await desktopApi.file.pickResource(expectedKind);
+    if (!picked) return;
+    const pickedType = inferFileResourceType(picked);
+    const maxForKind = pickedType === "image" ? mode.maxImages : pickedType === "video" ? mode.maxVideos : pickedType === "audio" ? mode.maxAudios : 0;
+    if (!maxForKind) return showToast(`当前“${mode.label}”模式不支持${pickedType === "image" ? "图片" : pickedType === "video" ? "视频" : pickedType === "audio" ? "音频" : "该文件"}输入`);
+    const incomingCount = (store.project.edges || []).filter(
+      (edge: any) => edge.target === id && edge.data?.skipTaskInput !== true,
+    ).length;
+    recordCanvasHistory("添加参考素材");
+    const source: any = await createUploadedNode(picked, {
+      x: Number(target.x || 0) - 340,
+      y: Number(target.y || 0) + incomingCount * 36,
+    });
+    if (!source?.id) return;
+    const validation = validateAgentInputRole(store.project, source, target, "auto");
+    if (!validation.valid) return showToast(validation.error || "添加参考素材失败");
+    target.inputMode = mode.value;
+    const occupied = (store.project.edges || []).filter((edge: any) => edge.target === id)
+      .map((edge: any) => edge.data?.inputSlot).filter(Boolean);
+    const resolvedSlot = requestedSlot || defaultInputSlot(mode.value, validation.role, occupied);
+    const result = addCanvasEdge(store.project, source.id, id, {
+      touch: false,
+      edge: { kind: "typed-input", data: { inputRole: validation.role, inputSlot: resolvedSlot, required: true } },
+    });
+    if (!result.ok) {
+      showToast(result.error || "添加参考素材失败");
+      return;
+    }
+    setSelectedNodeIds([id]);
+    touchProject();
+  },
+  setInputMode(id, value) {
+    const target: any = store.project.nodes.find((item: WorkflowNodeData) => item.id === id);
+    const mode = getGenerationInputModes(String(target?.model || "")).find((item) => item.value === value);
+    if (!target || !mode) return;
+    recordCanvasHistory("切换输入模式");
+    target.inputMode = mode.value;
+    const incoming = (store.project.edges || []).filter((edge: any) => edge.target === id);
+    let imageIndex = 0;
+    const keep = new Set<string>();
+    for (const edge of incoming) {
+      const role = String(edge.data?.inputRole || "");
+      if (role === "textContext") { keep.add(edge.id); continue; }
+      if (role === "referenceImage" && imageIndex < mode.maxImages) {
+        const inputSlot = mode.value === "firstLastFrame" ? (imageIndex ? "lastFrame" : "firstFrame")
+          : mode.value === "firstFrame" ? "firstFrame" : "reference";
+        edge.data = { ...(edge.data || {}), inputRole: role, inputSlot };
+        imageIndex += 1;
+        keep.add(edge.id);
+      } else if (role === "inputVideo" && mode.maxVideos > 0) {
+        edge.data = { ...(edge.data || {}), inputRole: role, inputSlot: "inputVideo" };
+        keep.add(edge.id);
+      } else if (role === "referenceAudio" && mode.maxAudios > 0) {
+        edge.data = { ...(edge.data || {}), inputRole: role, inputSlot: "referenceAudio" };
+        keep.add(edge.id);
+      }
+    }
+    store.project.edges = (store.project.edges || []).filter((edge: any) => edge.target !== id || keep.has(edge.id));
+    touchProject();
+  },
+  removeIncomingEdge(id, edgeId) {
+    const edge = (store.project.edges || []).find(
+      (item: any) => item.id === edgeId && item.target === id,
+    );
+    if (!edge) return;
+    recordCanvasHistory("移除参考素材连线");
+    store.project.edges = store.project.edges.filter((item: any) => item.id !== edgeId);
+    store.selectedEdgeId = null;
+    touchProject();
   },
   run(id) {
     const node = store.project.nodes.find((item: WorkflowNodeData) => item.id === id);

@@ -61,14 +61,14 @@ export function protocolMessageVariables(messages = []) {
  * and role names are supplied by the model catalog.
  * @param {{
  *   prompt?: unknown,
- *   imageUrls?: string[], imageType?: unknown, imageRole?: unknown,
+ *   imageUrls?: string[], imageItems?: Array<{url:string, role?:string}>, imageType?: unknown, imageRole?: unknown,
  *   videoUrls?: string[], videoType?: unknown, videoRole?: unknown,
  *   audioUrls?: string[], audioType?: unknown, audioRole?: unknown
  * }} options
  */
 export function protocolMediaContent({
   prompt = '',
-  imageUrls = [], imageType = 'image_url', imageRole = '',
+  imageUrls = [], imageItems = [], imageType = 'image_url', imageRole = '',
   videoUrls = [], videoType = 'video_url', videoRole = '',
   audioUrls = [], audioType = 'audio_url', audioRole = '',
 } = {}) {
@@ -84,9 +84,17 @@ export function protocolMediaContent({
         ...(normalizedRole ? { role: normalizedRole } : {}),
       }));
   };
+  const normalizedImageType = typeof imageType === 'string' && imageType.trim() ? imageType.trim() : 'image_url';
+  const compiledImageItems = Array.isArray(imageItems) && imageItems.length
+    ? imageItems.filter(item => item?.url).map(item => ({
+      type: normalizedImageType,
+      image_url: { url: item.url.trim() },
+      ...(item.role ? { role: String(item.role).trim() } : {}),
+    }))
+    : mediaItems(imageUrls, imageType, imageRole, 'image_url');
   return [
     ...(text ? [{ type: 'text', text }] : []),
-    ...mediaItems(imageUrls, imageType, imageRole, 'image_url'),
+    ...compiledImageItems,
     ...mediaItems(videoUrls, videoType, videoRole, 'video_url'),
     ...mediaItems(audioUrls, audioType, audioRole, 'audio_url'),
   ];

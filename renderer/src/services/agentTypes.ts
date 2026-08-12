@@ -20,6 +20,8 @@ export type AgentInputRole =
   | 'referenceImage'
   | 'inputVideo'
   | 'referenceAudio';
+export type AgentInputMode = 'reference' | 'firstFrame' | 'firstLastFrame' | 'videoExtension';
+export type AgentInputSlot = 'reference' | 'firstFrame' | 'lastFrame' | 'inputVideo' | 'referenceAudio';
 
 export interface AgentAttachment extends JsonObject {
   name?: string;
@@ -37,6 +39,7 @@ export interface AgentAttachment extends JsonObject {
 export interface AgentInputLink extends JsonObject {
   nodeId: string;
   role?: AgentInputRole;
+  slot?: AgentInputSlot;
   required?: boolean;
 }
 
@@ -58,6 +61,8 @@ export interface AgentAction extends JsonObject {
   target?: string;
   id?: string;
   role?: AgentInputRole;
+  inputMode?: AgentInputMode;
+  slot?: AgentInputSlot;
   required?: boolean;
   force?: boolean;
   config?: JsonObject;
@@ -123,6 +128,7 @@ export interface AgentNode extends JsonObject {
   name?: string;
   status?: string;
   model?: string;
+  inputMode?: AgentInputMode;
   prompt?: string;
   recipeId?: string;
   config?: JsonObject;

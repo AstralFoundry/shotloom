@@ -1,7 +1,7 @@
 import type { AgentNode, AgentProject } from './agentTypes';
-import { canvasNodeDimensions } from '../domain/graph/CanvasNodeDimensions.ts';
+import { canvasNodeDimensions, defaultCanvasNodeDimensions } from '../domain/graph/CanvasNodeDimensions.ts';
 
-export { canvasNodeDimensions } from '../domain/graph/CanvasNodeDimensions.ts';
+export { canvasNodeDimensions, defaultCanvasNodeDimensions } from '../domain/graph/CanvasNodeDimensions.ts';
 
 export type AgentLayoutScope = 'selection' | 'workflow' | 'all';
 export type AgentLayoutMode = 'workflow' | 'horizontal' | 'vertical' | 'grid';
@@ -380,7 +380,10 @@ function layoutGroup(
   }
 
   const maxDepth = Math.max(...orderedColumns.map(([depth]) => depth));
-  const widths = Array.from({ length: maxDepth + 1 }, () => 370);
+  const widths = Array.from(
+    { length: maxDepth + 1 },
+    () => defaultCanvasNodeDimensions('imageGeneration').width,
+  );
   for (const [depth, columnItems] of orderedColumns) {
     widths[depth] = Math.max(...columnItems.map((item) => canvasNodeDimensions(item.node).width));
   }

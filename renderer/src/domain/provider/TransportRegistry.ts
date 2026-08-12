@@ -72,10 +72,11 @@ class DeclarativeProviderTransport implements ProviderTransport {
 
   async submit(request: CompiledProviderRequest): Promise<ProviderTask> {
     const imageContentFormat = request.contract?.requestFields?.imageContentFormat || '';
-    const imageUrls = await collectProtocolResourceValues(request.protocolImageRefs || [], {
+    const imageEntries = await collectProtocolResourceEntries(request.protocolImageRefs || [], {
       preferDataUrl: imageContentFormat === 'google-inline',
       fallbackMimeType: 'image/png',
     });
+    const imageUrls = [...new Set(imageEntries.map((entry) => entry.value))];
     const videoUrls = await collectProtocolResourceValues(request.protocolVideoRefs || [], { fallbackMimeType: 'video/mp4' });
     const audioUrls = await collectProtocolResourceValues(request.protocolAudioRefs || [], { fallbackMimeType: 'audio/wav' });
     const inlineImage = imageContentFormat === 'google-inline'
@@ -84,9 +85,19 @@ class DeclarativeProviderTransport implements ProviderTransport {
     if (imageContentFormat === 'google-inline' && imageUrls.length && !inlineImage) {
       throw new Error(`${request.contract?.modelId || 'Google Veo'} 图生视频需要可读取的本地图片或 Base64 图片`);
     }
+    const imageRoleForSlot = (slot = '') => {
+      const fields = request.contract?.requestFields || {};
+      if (slot === 'firstFrame') return fields.firstFrameImageContentRole || fields.imageContentRole;
+      if (slot === 'lastFrame') return fields.lastFrameImageContentRole || fields.imageContentRole;
+      return fields.referenceImageContentRole || fields.imageContentRole;
+    };
     const content = protocolMediaContent({
       prompt: request.protocolVariables?.prompt,
       imageUrls,
+      imageItems: imageEntries.map(({ ref, value }) => ({
+        url: value,
+        role: imageRoleForSlot(ref.inputSlot),
+      })),
       imageType: request.contract?.requestFields?.imageContentType,
       imageRole: request.contract?.requestFields?.imageContentRole,
       videoUrls,
@@ -112,6 +123,9 @@ class DeclarativeProviderTransport implements ProviderTransport {
       imageUrls: imageUrls.length ? imageUrls : undefined,
       imageUrl: imageUrls[0],
       imageObject: imageUrls[0] ? { url: imageUrls[0] } : undefined,
+      referenceImageUrls: imageEntries.filter(({ ref }) => !ref.inputSlot || ref.inputSlot === 'reference').map(({ value }) => value),
+      firstFrameImageUrl: imageEntries.find(({ ref }) => ref.inputSlot === 'firstFrame')?.value,
+      lastFrameImageUrl: imageEntries.find(({ ref }) => ref.inputSlot === 'lastFrame')?.value,
       videoUrls: videoUrls.length ? videoUrls : undefined,
       videoUrl: videoUrls[0],
       videoObject: videoUrls[0] ? { url: videoUrls[0] } : undefined,
@@ -225,6 +239,17 @@ async function collectProtocolResourceValues(
     return direct;
   }));
   return [...new Set(values.filter(Boolean))];
+}
+
+async function collectProtocolResourceEntries(
+  refs: ResourceRef[],
+  options: { preferDataUrl?: boolean; fallbackMimeType?: string } = {},
+): Promise<Array<{ ref: ResourceRef; value: string }>> {
+  const entries = await Promise.all(refs.map(async (ref) => ({
+    ref,
+    value: (await collectProtocolResourceValues([ref], options))[0] || '',
+  })));
+  return entries.filter((entry) => Boolean(entry.value));
 }
 
 // ── Registry ─────────────────────────────────────────────────────────────────

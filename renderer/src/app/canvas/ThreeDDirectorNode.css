@@ -112,8 +112,8 @@
 }
 
 .director-node.selected .director-node-workspace {
-  border-color: #111;
-  box-shadow: 0 0 0 1.5px #111;
+  border-color: rgba(38, 43, 51, 0.38);
+  box-shadow: 0 0 0 1px rgba(38, 43, 51, 0.08);
 }
 
 .director-port {

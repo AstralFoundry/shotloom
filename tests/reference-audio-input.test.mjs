@@ -6,6 +6,7 @@ let server;
 let generationUpstreamReadiness;
 let buildGenerationPayload;
 let resolveAgentInputRole;
+let getGenerationInputModes;
 
 before(async () => {
   server = await createServer({ server: { middlewareMode: true, hmr: false }, appType: 'custom' });
@@ -13,6 +14,7 @@ before(async () => {
     '/src/utils/generationPayload.js',
   ));
   ({ resolveAgentInputRole } = await server.ssrLoadModule('/src/services/agentInputRole.ts'));
+  ({ getGenerationInputModes } = await server.ssrLoadModule('/src/domain/catalog/ModelCatalog.ts'));
 });
 
 test('音频节点和音频资源连线自动使用 referenceAudio', () => {
@@ -44,15 +46,15 @@ function seedanceProject({ includeImage = true, audio = {} } = {}) {
   };
   const target = {
     id: 'target', type: 'videoGeneration', title: 'Seedance 镜头',
-    model: 'doubao-seedance-2-0-260128', prompt: '人物按参考音色说出台词', config: {},
+    model: 'doubao-seedance-2-0-260128', inputMode: 'reference', prompt: '人物按参考音色说出台词', config: {},
   };
   return {
     target,
     project: {
       nodes: [...(includeImage ? [image] : []), voice, target],
       edges: [
-        ...(includeImage ? [{ id: 'image-edge', source: image.id, target: target.id, data: { inputRole: 'referenceImage' } }] : []),
-        { id: 'audio-edge', source: voice.id, target: target.id, data: {} },
+        ...(includeImage ? [{ id: 'image-edge', source: image.id, target: target.id, data: { inputRole: 'referenceImage', inputSlot: 'reference' } }] : []),
+        { id: 'audio-edge', source: voice.id, target: target.id, data: { inputRole: 'referenceAudio', inputSlot: 'referenceAudio' } },
       ],
       tasks: [], materials: [],
     },
@@ -63,13 +65,13 @@ test('Seedance 2.0 收集图片与参考音频并选择全模态模式', () => {
   const { target, project } = seedanceProject();
   const readiness = generationUpstreamReadiness(target, project);
   assert.deepEqual(readiness.issues, []);
-  assert.equal(target.config.mode, 'omni-reference-to-video');
 
   const payload = buildGenerationPayload(target, project);
   assert.equal(payload.modelContract.modeId, 'omni-reference-to-video');
   assert.equal(payload.modelInputs.images[0].url, 'https://example.com/person.png');
   assert.equal(payload.modelInputs.audios[0].url, 'https://example.com/voice.wav');
   assert.equal(payload.modelInputs.audios[0].inputRole, 'referenceAudio');
+  assert.equal(payload.modelInputs.audios[0].inputSlot, 'referenceAudio');
 });
 
 test('Seedance 2.0 拒绝没有图片或视频搭配的单独参考音频', () => {
@@ -87,4 +89,54 @@ test('Seedance 2.0 按目录约束校验参考音频格式与时长', () => {
   assert.equal(readiness.ready, false);
   assert.match(readiness.issues.join('；'), /flac 格式不受当前模型支持/);
   assert.match(readiness.issues.join('；'), /时长不能超过 15 秒/);
+});
+
+test('首帧模式通过显式槽位选择供应商 mode 并保留输入顺序', () => {
+  const image = {
+    id: 'frame', type: 'resource', title: '首帧', status: 'completed',
+    resourceType: 'image', mimeType: 'image/png', fileName: 'first.png',
+    url: 'https://example.com/first.png',
+  };
+  const target = {
+    id: 'video', type: 'videoGeneration', title: 'H3 镜头', model: 'MiniMax-H3',
+    inputMode: 'firstFrame', prompt: '镜头向前推进', config: {},
+  };
+  const project = {
+    nodes: [image, target],
+    edges: [{
+      id: 'first-frame-edge', source: image.id, target: target.id,
+      data: { inputRole: 'referenceImage', inputSlot: 'firstFrame' },
+    }],
+    tasks: [], materials: [],
+  };
+  assert.deepEqual(generationUpstreamReadiness(target, project).issues, []);
+  const payload = buildGenerationPayload(target, project);
+  assert.equal(payload.modelContract.modeId, 'first-frame-to-video');
+  assert.equal(payload.modelInputs.images[0].inputSlot, 'firstFrame');
+
+  project.edges[0].data.inputSlot = 'reference';
+  assert.match(generationUpstreamReadiness(target, project).issues.join('\n'), /槽位 reference 不属于\s*首帧\s*模式/);
+});
+
+test('Seedance 向画布和 Agent 同时公开参考素材与首尾帧模式', () => {
+  const modes = getGenerationInputModes('doubao-seedance-2-0-260128');
+  assert.deepEqual(modes.map((mode) => mode.value), ['reference', 'firstLastFrame']);
+
+  const first = { id: 'first', type: 'resource', title: '首帧', status: 'completed', resourceType: 'image', url: 'https://example.com/first.png' };
+  const last = { id: 'last', type: 'resource', title: '尾帧', status: 'completed', resourceType: 'image', url: 'https://example.com/last.png' };
+  const target = { id: 'target', type: 'videoGeneration', title: '首尾帧视频', model: 'doubao-seedance-2-0-260128', inputMode: 'firstLastFrame', prompt: '昼夜过渡', config: {} };
+  const project = {
+    nodes: [first, last, target],
+    edges: [
+      { id: 'first-edge', source: first.id, target: target.id, data: { inputRole: 'referenceImage', inputSlot: 'firstFrame' } },
+      { id: 'last-edge', source: last.id, target: target.id, data: { inputRole: 'referenceImage', inputSlot: 'lastFrame' } },
+    ],
+    tasks: [], materials: [],
+  };
+  assert.deepEqual(generationUpstreamReadiness(target, project).issues, []);
+  const payload = buildGenerationPayload(target, project);
+  assert.equal(payload.modelContract.inputMode, 'firstLastFrame');
+  assert.equal(payload.modelContract.requestFields.firstFrameImageContentRole, 'first_frame');
+  assert.equal(payload.modelContract.requestFields.lastFrameImageContentRole, 'last_frame');
+  assert.deepEqual(payload.modelInputs.images.map((image) => image.inputSlot), ['firstFrame', 'lastFrame']);
 });

@@ -1,18 +1,18 @@
 import type { AgentAction, AgentProject } from './agentTypes';
+import { defaultCanvasNodeDimensions } from '../domain/graph/CanvasNodeDimensions.ts';
 
 type FactoryAction = AgentAction & Record<string, any>;
 
-const DEFAULT_WIDTH = 370;
-const DEFAULT_HEIGHT = 270;
 const COLUMN_GAP = 72;
 const ROW_GAP = 32;
 
 function nodeRect(node: Record<string, any>) {
+  const defaults = defaultCanvasNodeDimensions(node.type);
   return {
     x: Number(node.x) || 0,
     y: Number(node.y) || 0,
-    width: Number(node.width) || (node.type === 'note' || node.type === 'resource' ? 240 : DEFAULT_WIDTH),
-    height: Number(node.height) || (node.type === 'note' || node.type === 'resource' ? 150 : DEFAULT_HEIGHT),
+    width: Number(node.width) || defaults.width,
+    height: Number(node.height) || defaults.height,
   };
 }
 
@@ -48,8 +48,10 @@ export function defaultAgentNodePosition(project: AgentProject, action: FactoryA
   const obstacles = nodes.map(nodeRect);
   const anchorIds = new Set((action.anchorNodeIds || []).map(String));
   const anchors = nodes.filter((node) => anchorIds.has(String(node.id)));
-  const width = sizeFromAgentAction(action, 'width', action.type === 'create_note_node' ? 240 : DEFAULT_WIDTH);
-  const height = sizeFromAgentAction(action, 'height', action.type === 'create_note_node' ? 150 : DEFAULT_HEIGHT);
+  const defaultType = action.type === 'create_note_node' ? 'note' : String(action.nodeType || 'imageGeneration');
+  const defaultSize = defaultCanvasNodeDimensions(defaultType);
+  const width = sizeFromAgentAction(action, 'width', defaultSize.width);
+  const height = sizeFromAgentAction(action, 'height', defaultSize.height);
 
   const right = obstacles.length
     ? Math.max(...obstacles.map((rect) => rect.x + rect.width)) + COLUMN_GAP

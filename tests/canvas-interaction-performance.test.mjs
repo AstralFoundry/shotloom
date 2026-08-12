@@ -109,15 +109,10 @@ test('React Flow 只渲染可见节点并在拖动结束后合并持久化', () 
   assert.doesNotMatch(canvas, /useInternalNode/);
   assert.match(canvas, /selected && resizable && \([\s\S]*?<NodeResizer/);
   assert.match(canvas, /onResizeStart=\{\(\) => setResizing\(true\)\}/);
-  assert.match(canvas, /function CanvasGrid\(\)/);
-  assert.match(canvas, /requestAnimationFrame\(paint\)/);
+  assert.doesNotMatch(canvas, /CanvasGrid|canvas-grid-layer/);
   assert.match(canvas, /onMoveStart=\{onMoveStart\}/);
-  assert.match(canvas, /data-viewport-layer=/);
   assert.match(canvas, /MEDIA_NODE_TYPES\.has\(node\.type\) \? "canvas-media-node"/);
-  assert.match(
-    migrationStyles,
-    /viewport-moving\[data-viewport-layer="standard"\][\s\S]*?canvas-media-node/,
-  );
+  assert.doesNotMatch(migrationStyles, /viewport-moving[^\{]*react-flow__viewport/);
   assert.match(canvas, /pendingNodeChanges\.current\.push/);
   assert.match(canvas, /requestAnimationFrame\(\(\) => \{[\s\S]*?applyNodeChanges\(pending/);
   assert.match(adapter, /saveViewport\(viewport\) \{\s*persistCanvasViewport\(viewport\)/);
@@ -143,7 +138,7 @@ test('大型画布保留完整数据并对可见媒体预览限流加载', () =>
 test('节点内媒体控件不会被画布拖拽和缩放手势接管', () => {
   assert.match(node, /<video[\s\S]*?className="nodrag nopan nowheel"[\s\S]*?playsInline/);
   assert.match(node, /<audio[\s\S]*?className="nodrag nopan nowheel"/);
-  assert.equal(node.match(/onPointerDown=\{\(event\) => event\.stopPropagation\(\)\}/g)?.length, 2);
+  assert.ok((node.match(/onPointerDown=\{\(event\) => event\.stopPropagation\(\)\}/g)?.length || 0) >= 2);
 });
 test('本地媒体流地址加载失败时回退到带正确 MIME 的缓冲地址', () => {
   assert.match(mediaCacheHook, /bufferedPath === path/);
@@ -157,6 +152,13 @@ test('视频节点加载后主动解码首帧作为默认封面', () => {
     node,
     /onLoadedData=\{\(event\) => \{[\s\S]*?video\.currentTime = Math\.min\([\s\S]*?1 \/ 30/,
   );
+});
+test('视频节点移除原生控件并使用静音悬停预览', () => {
+  assert.doesNotMatch(node, /<video[^>]*\bcontrols\b/);
+  assert.match(node, /<video[\s\S]*?muted[\s\S]*?loop[\s\S]*?onPointerEnter/);
+  assert.match(node, /onPointerEnter=\{\(event\) => \{[\s\S]*?currentTarget\.play\(\)/);
+  assert.match(node, /onPointerLeave=\{\(event\) => \{[\s\S]*?video\.pause\(\)/);
+  assert.match(migrationStyles, /\.work-preview > video \{ object-fit: cover; \}/);
 });
 test('工作台只计算当前路由数据且素材选择器按需加载', () => {
   assert.match(workbench, /appRoute === "creation" \? canvasViewData\(\) : null/);
@@ -189,9 +191,40 @@ test('节点与连线使用线性索引和稳定集合', () => {
   assert.match(canvas, /const ids = useMemo\(\(\) => new Set/);
   assert.match(canvas, /\.filter\(\(edge\) => ids\.has\(edge\.source\)/);
 });
-test('画布坐标和 100% 视图保持清晰', () => {
-  assert.match(canvas, /Math\.round\(Number\(node\.x\)/);
-  assert.match(canvas, /Math\.abs\(next\.zoom - 1\) < 0\.015 \? 1/);
+test('画布缩放使用最终布局尺寸并保持 React Flow 视口为 1x', () => {
+  assert.match(canvas, /x: screenPixel\(\(Number\(node\.x\) \|\| 0\) \* semanticZoom\)/);
+  assert.match(canvas, /width: dimensions\.width \* semanticZoom/);
+  assert.match(canvas, /zoom: semanticZoom/);
+  assert.match(canvas, /defaultViewport=\{\{ x: viewport\.x, y: viewport\.y, zoom: 1 \}\}/);
+  assert.match(canvas, /minZoom=\{1\}[\s\S]*?maxZoom=\{1\}/);
+  assert.match(canvas, /zoomOnScroll=\{false\}[\s\S]*?zoomOnPinch=\{false\}/);
+});
+test('低倍率画布降低连线与节点操作的信息密度', () => {
+  assert.doesNotMatch(canvas, /label:.*roleLabel/);
+  assert.doesNotMatch(canvas, /const roleLabel/);
+  assert.match(canvas, /strokeWidth: Math\.min\(1\.35, Math\.max\(0\.5, semanticZoom\)\)/);
+  assert.match(canvas, /opacity: semanticZoom < 0\.55 \? 0\.48 : 0\.72/);
+  assert.match(canvas, /canvas-zoom-compact[\s\S]*?canvas-zoom-distant[\s\S]*?canvas-zoom-overview/);
+  assert.match(canvas, /const renderedSemanticZoom = renderedNodes\[0\]\?\.data\.semanticZoom \?\? semanticZoom/);
+  assert.match(canvas, /className="canvas-node-label-anchor"[\s\S]*?top: -20 \* semanticZoom,[\s\S]*?width: dimensions\.width \* semanticZoom/);
+  assert.match(canvas, /CanvasNodeLabelRootContext\.Provider value=\{labelRoot\}/);
+  assert.match(canvas, /Math\.round\(renderedSemanticZoom \* 100\) <= 20 \? " canvas-zoom-overview"/);
+  assert.doesNotMatch(canvas, /--canvas-label-scale/);
+  assert.doesNotMatch(migrationStyles, /--canvas-label-scale/);
+  assert.match(migrationStyles, /canvas-zoom-overview \.work-node-kicker \{[\s\S]*?display: none/);
+  assert.match(migrationStyles, /canvas-zoom-compact \.work-node-kicker \{[\s\S]*?opacity: \.68;[\s\S]*?pointer-events: none/);
+  assert.doesNotMatch(migrationStyles, /canvas-zoom-compact \.work-node-kicker \{[^}]*?inset:/);
+  assert.doesNotMatch(migrationStyles, /canvas-zoom-compact \.work-node-kicker > span/);
+  assert.match(migrationStyles, /canvas-zoom-distant \.work-node-kicker \{ opacity: \.42; \}/);
+  assert.match(migrationStyles, /canvas-zoom-overview :is\([\s\S]*?\.director-node-head,[\s\S]*?\.resource-meta,[\s\S]*?display: none !important/);
+  assert.match(migrationStyles, /canvas-zoom-overview :is\(\.node-port,[\s\S]*?pointer-events: none/);
+});
+test('节点设计尺寸统一缩小到原来的四分之三且旧画布只换算一次', () => {
+  assert.match(project, /const CANVAS_NODE_SIZE_SCALE = 0\.75/);
+  assert.match(project, /canvasNodeSizeScale: CANVAS_NODE_SIZE_SCALE/);
+  assert.match(project, /CANVAS_NODE_SIZE_SCALE \/ storedNodeSizeScale/);
+  assert.match(project, /next\.canvasWidth = Math\.round\(next\.canvasWidth \* nodeSizeRatio\)/);
+  assert.match(project, /next\.canvasHeight = Math\.round\(next\.canvasHeight \* nodeSizeRatio\)/);
 });
 test('画布右键菜单把屏幕坐标换算为画布局部坐标并限制在视口内', () => {
   assert.match(canvas, /getBoundingClientRect\(\)/);

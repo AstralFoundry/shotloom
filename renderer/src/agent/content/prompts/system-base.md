@@ -70,11 +70,12 @@
 
 - 写操作前读取必要的画布事实。现有节点使用工具返回的稳定别名或真实 ID；新节点使用唯一 `tempId`，不得伪造 UUID。
 - 所有自然语言说明通过回复表达；所有画布变化和生成启动通过真实工具执行。严禁用文字声称“已创建、已连接、已开始生成”来替代工具调用。
-- 普通连线只表示真实输入：文本为 `textContext`，图片为 `referenceImage`，视频为 `inputVideo`，音频为 `referenceAudio`。不要为了阅读顺序或时间顺序制造虚假连线。
+- 普通连线只表示真实输入：`role` 表示媒体类型（文本 `textContext`、图片 `referenceImage`、视频 `inputVideo`、音频 `referenceAudio`），`slot` 表示业务位置（`reference`、`firstFrame`、`lastFrame`、`inputVideo`、`referenceAudio`）。不要用数组顺序猜首尾帧，也不要为了阅读顺序制造虚假连线。
 - 生成节点的顶层 `prompt` 是直接交给生成模型的成品提示词，顶层 `model` 是真实模型 ID。`outputSpec` 保存跨模型的画幅、时长、分辨率、数量和质量意图；`config` 只包含当前 model/mode schema 明确支持的参数，禁止重复放入 prompt、model 或未知字段。
+- 每个生成节点的 `title` 必须是可扫读的具体内容名，例如“红色跑车雨夜追逐”；不得把“图片生成”、“视频生成”或模型名当作标题。
 - 模型、模式和参数枚举只能来自本轮 `inspect_model_catalog` 结果。模型能力冲突时优先选择兼容模型或参数，不得静默删除用户要求的关键参考、改变交付类型或用文本冒充媒体。
 - Recipe 只增强单个生成节点的 prompt，不会创造新的模型能力、输入角色或节点类型。涉及“参考、继承、提取”时必须存在真实输入和兼容模型。
-- 当前契约没有尾帧输入角色，不得承诺不存在的首尾帧强约束。
+- 创建或更新生成节点前，从模型目录读取 `inputMode`；只可选择当前模型公开的模式。首尾帧模式必须把两条图片边分别写入 `firstFrame` 和 `lastFrame` 槽位，模型未公开该模式时不得承诺首尾帧强约束。
 
 # Execution Integrity
 

@@ -6,6 +6,12 @@
  */
 
 import modelCatalogV2 from '../../config/model-catalog-v2.json';
+import {
+  GENERATION_INPUT_MODE_LABELS,
+  slotsForInputMode,
+  type GenerationInputMode,
+  type GenerationInputModeDescriptor,
+} from '../graph/GenerationInputContract';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -84,6 +90,18 @@ export interface CatalogMode {
   resultDownloadAuth?: boolean;
   capabilities?: string[];
   params: CatalogParam[];
+  /** 画布输入的业务语义；与供应商 mode id 分离。 */
+  inputMode?: GenerationInputMode;
+  /** 特殊供应商可覆盖默认槽位；通常由 inputMode 推导。 */
+  inputSlots?: Array<'reference' | 'firstFrame' | 'lastFrame' | 'inputVideo' | 'referenceAudio'>;
+  /** 复用同一供应商协议但具有不同画布输入语义的变体。 */
+  inputVariants?: Array<{
+    inputMode: GenerationInputMode;
+    label?: string;
+    inputSlots: Array<'reference' | 'firstFrame' | 'lastFrame' | 'inputVideo' | 'referenceAudio'>;
+    inputConstraints: CatalogInputConstraints;
+    requestFields?: Record<string, string>;
+  }>;
 }
 
 export interface CatalogModel {
@@ -105,6 +123,8 @@ export interface ModelRuntimeContract {
   nodeType: string;
   modelId: string;
   modeId: string;
+  inputMode: GenerationInputMode | null;
+  inputSlots: string[];
   provider: string;
   endpoint: CatalogEndpoint;
   taskEndpoint: CatalogEndpoint | null;
@@ -213,6 +233,14 @@ class ModelCatalog {
         if (mode.isAsync === true && !mode.taskEndpoint?.path) {
           throw new Error(`${model.id}/${mode.id}: async mode requires taskEndpoint`);
         }
+        if (mode.inputMode && !Object.hasOwn(GENERATION_INPUT_MODE_LABELS, mode.inputMode)) {
+          throw new Error(`${model.id}/${mode.id}: unknown inputMode ${mode.inputMode}`);
+        }
+        for (const variant of mode.inputVariants || []) {
+          if (!Object.hasOwn(GENERATION_INPUT_MODE_LABELS, variant.inputMode) || !variant.inputSlots?.length) {
+            throw new Error(`${model.id}/${mode.id}: invalid input variant ${variant.inputMode || '<missing>'}`);
+          }
+        }
       }
     }
 
@@ -231,6 +259,7 @@ class ModelCatalog {
       const validModes = model.modes.filter((mode) => (
         Boolean(mode?.id && mode.endpoint?.path && mode.endpoint?.method && mode.requestTemplate !== undefined)
         && (mode.isAsync !== true || Boolean(mode.taskEndpoint?.path))
+        && (!mode.inputMode || Object.hasOwn(GENERATION_INPUT_MODE_LABELS, mode.inputMode))
       ));
       if (!validModes.length) continue;
       occupied.add(model.id);
@@ -265,12 +294,69 @@ class ModelCatalog {
     const model = this.modelMap.get(modelId);
     if (!model) return null;
     const resolved = modeId || model.defaultMode;
-    return model.modes.find((m) => m.id === resolved) || null;
+    return this.expandedModes(model).find((m) => m.id === resolved) || null;
   }
 
   getModelModes(modelId: string): CatalogMode[] {
     const model = this.modelMap.get(modelId);
     return model ? model.modes : [];
+  }
+
+  getGenerationInputModes(modelId: string): GenerationInputModeDescriptor[] {
+    const model = this.modelMap.get(modelId);
+    if (!model) return [];
+    const byMode = new Map<GenerationInputMode, GenerationInputModeDescriptor>();
+    for (const mode of this.expandedModes(model)) {
+      const semanticMode = this.semanticInputMode(mode, model.type);
+      if (!semanticMode) continue;
+      const input = mode.inputConstraints || {};
+      byMode.set(semanticMode, {
+        value: semanticMode,
+        label: GENERATION_INPUT_MODE_LABELS[semanticMode],
+        modeId: mode.id,
+        slots: [...(mode.inputSlots || slotsForInputMode(semanticMode))],
+        maxImages: input.images?.max || 0,
+        maxVideos: input.videos?.max || 0,
+        maxAudios: input.audios?.max || 0,
+      });
+    }
+    return [...byMode.values()];
+  }
+
+  resolveModeIdForInputMode(modelId: string, inputMode?: string): string {
+    if (!inputMode) return '';
+    const model = this.modelMap.get(modelId);
+    return model ? this.expandedModes(model).find((mode) => this.semanticInputMode(mode, model.type) === inputMode)?.id || '' : '';
+  }
+
+  private expandedModes(model: CatalogModel): CatalogMode[] {
+    return model.modes.flatMap((mode) => [
+      mode,
+      ...(mode.inputVariants || []).map((variant) => ({
+        ...mode,
+        id: `${mode.id}::${variant.inputMode}`,
+        label: variant.label || GENERATION_INPUT_MODE_LABELS[variant.inputMode],
+        inputMode: variant.inputMode,
+        inputSlots: [...variant.inputSlots],
+        inputConstraints: structuredClone(variant.inputConstraints),
+        requestFields: { ...(mode.requestFields || {}), ...(variant.requestFields || {}) },
+        inputVariants: [],
+      })),
+    ]);
+  }
+
+  private semanticInputMode(mode: CatalogMode, modelType = 'videoGeneration'): GenerationInputMode | null {
+    if (mode.inputMode) return mode.inputMode;
+    const images = mode.inputConstraints?.images?.max || 0;
+    const videos = mode.inputConstraints?.videos?.max || 0;
+    const audios = mode.inputConstraints?.audios?.max || 0;
+    // Compatibility inference is deliberately local to the catalog. New/custom
+    // providers should declare inputMode explicitly instead of leaking protocol
+    // guesses into the canvas, Agent, or payload compiler.
+    if (modelType !== 'videoGeneration' && (images > 0 || videos > 0 || audios > 0)) return 'reference';
+    if (videos > 0 || audios > 0 || images > 1) return 'reference';
+    if (images === 1) return 'firstFrame';
+    return null;
   }
 
   getModelIdsByType(nodeType: string): string[] {
@@ -300,10 +386,10 @@ class ModelCatalog {
     const model = this.modelMap.get(modelId);
     if (!model) return null;
     const requested = requestedMode
-      ? model.modes.find((mode) => mode.id === requestedMode)
+      ? this.expandedModes(model).find((mode) => mode.id === requestedMode)
       : null;
-    if (requested && this.modeSupportsRoles(requested, inputRoles)) return requested;
-    return model.modes.find((mode) => this.modeSupportsRoles(mode, inputRoles)) || null;
+    if (requestedMode) return requested && this.modeSupportsRoles(requested, inputRoles) ? requested : null;
+    return this.expandedModes(model).find((mode) => this.modeSupportsRoles(mode, inputRoles)) || null;
   }
 
   private modeSupportsRoles(mode: CatalogMode, inputRoles: string[] = []): boolean {
@@ -355,6 +441,8 @@ class ModelCatalog {
       nodeType: type,
       modelId: model.id,
       modeId: mode.id,
+      inputMode: this.semanticInputMode(mode, model.type),
+      inputSlots: [...(mode.inputSlots || (this.semanticInputMode(mode, model.type) ? slotsForInputMode(this.semanticInputMode(mode, model.type)!) : []))],
       provider: model.provider,
       endpoint: { ...mode.endpoint },
       taskEndpoint: mode.taskEndpoint ? { ...mode.taskEndpoint } : null,
@@ -471,6 +559,7 @@ class ModelCatalog {
           name: m.name,
           provider: m.provider,
           defaultMode: m.defaultMode,
+          inputModes: this.getGenerationInputModes(m.id),
           modes: structuredClone(m.modes),
         })),
       };
@@ -508,6 +597,9 @@ export const setExternalCatalogModels = (models: CatalogModel[]) => modelCatalog
 // Re-export query functions for drop-in compatibility
 export const getModelModeConfig = (modelId: string, modeId?: string) => modelCatalog.getModeConfig(modelId, modeId);
 export const getModelModes = (modelId: string) => modelCatalog.getModelModes(modelId);
+export const getGenerationInputModes = (modelId: string) => modelCatalog.getGenerationInputModes(modelId);
+export const resolveModeIdForInputMode = (modelId: string, inputMode?: string) =>
+  modelCatalog.resolveModeIdForInputMode(modelId, inputMode);
 export const getModelIdsByType = (nodeType: string) => modelCatalog.getModelIdsByType(nodeType);
 export const getModelInfo = (modelId: string) => modelCatalog.getModelInfo(modelId);
 export const isModelForType = (nodeType: string, modelId: string) => modelCatalog.isModelForType(nodeType, modelId);

@@ -28,6 +28,8 @@ import { validateAgentActionShape } from '@/composables/agentActionValidator';
 import { agentNodeAliasMaps, buildAgentCanvasSnapshot } from '@/services/agentCanvasSnapshot';
 import { registerDefaultAgentActions } from '@/services/agent/registerDefaultActions';
 import { validateAgentInputRole } from '@/services/agentInputRole';
+import { getGenerationInputModes } from '@/domain/catalog/ModelCatalog';
+import { defaultInputSlot, type GenerationInputMode, type GenerationInputSlot } from '@/domain/graph/GenerationInputContract';
 import {
   defaultAgentNodePosition,
   numberFromAgentAction as numberFromAction,
@@ -156,6 +158,23 @@ function connectInputLinks(
     }
     const role = roleValidation.role;
     const required = link?.required !== false;
+    const modes = getGenerationInputModes(String(target?.model || ''));
+    const activeMode = modes.find((item) => item.value === target?.inputMode) || modes[0];
+    const roleSupported = role === 'textContext' || (role === 'referenceImage' && (activeMode?.maxImages || 0) > 0)
+      || (role === 'inputVideo' && (activeMode?.maxVideos || 0) > 0)
+      || (role === 'referenceAudio' && (activeMode?.maxAudios || 0) > 0);
+    if (!roleSupported) {
+      results.push({ sourceId, targetId, applied: false, error: `输入模式 ${activeMode?.label || target?.inputMode || '未设置'} 不支持 ${role}` });
+      continue;
+    }
+    const occupied = (store.project.edges || []).filter((edge: any) => edge.target === targetId)
+      .map((edge: any) => edge.data?.inputSlot).filter(Boolean) as GenerationInputSlot[];
+    const slot = role === 'textContext' ? undefined : String(link?.slot || defaultInputSlot(
+      (activeMode?.value || 'reference') as GenerationInputMode,
+      role,
+      occupied,
+    ));
+    if (activeMode && role !== 'textContext') target.inputMode = activeMode.value;
     results.push({
       sourceId,
       targetId,
@@ -168,6 +187,7 @@ function connectInputLinks(
           kind: 'typed-input',
           data: {
             inputRole: role,
+            ...(slot ? { inputSlot: slot } : {}),
             required,
           },
         },

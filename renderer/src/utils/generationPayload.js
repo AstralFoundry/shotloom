@@ -1,9 +1,10 @@
-import { coerceParamValue, getModelInputCapabilityForRoles, getModelSchema, isModelForType, resolveModelRuntimeContract } from '@/domain/catalog/ModelCatalog';
+import { coerceParamValue, getGenerationInputModes, getModelInputCapabilityForRoles, getModelSchema, isModelForType, resolveModeIdForInputMode, resolveModelRuntimeContract } from '@/domain/catalog/ModelCatalog';
 import { applyCameraConfigToPrompt, normalizeCameraConfig } from '@/utils/cameraConfig';
 import { extractGeneratedFiles } from '@/utils/generatedOutputParsing.mjs';
 import { applyImageStylePreset } from '@/utils/imageStylePresets.mjs';
 import { normalizeInputRole } from '@/utils/generationInputRole.mjs';
 import { compileGenerationNodeConfig } from '@/domain/graph/GenerationNodeContract';
+import { inputSlotOrder, isSlotValidForMode } from '@/domain/graph/GenerationInputContract';
 
 function pickString(value, fallback = '') {
   return typeof value === 'string' && value.trim() ? value.trim() : fallback;
@@ -30,13 +31,14 @@ function basePayload(node, config, project) {
     ...inputs.map(effectiveInputRole),
     ...(node.imageEdit?.sourceFile ? ['image'] : []),
   ];
+  const hasMediaInputs = inputRoles.some((role) => !['', 'auto', 'textContext'].includes(role));
   // Explicit mode is honored only when it supports the actual typed inputs.
   // Otherwise choose the compatible model mode deterministically.
   const modelContract = resolveModelRuntimeContract(
     node.type,
     model,
     inputRoles,
-    config.mode || node.mode || '',
+    hasMediaInputs ? resolveModeIdForInputMode(model, node.inputMode) : '',
   );
   const inputCapability = modelContract || {};
   const upstreamContext = inputs
@@ -149,6 +151,7 @@ function collectUpstreamInputs(node, project) {
       const inputMeta = {
         edgeId: edge.id || '',
         inputRole: normalizeInputRole(edge.data?.inputRole || 'auto'),
+        inputSlot: String(edge.data?.inputSlot || ''),
         required: edge.data?.required !== false,
       };
       const latestTask = latestTaskForNode(project, source.id);
@@ -199,7 +202,8 @@ function collectUpstreamInputs(node, project) {
         selectedOutputNodeId: source.selectedOutputNodeId || '',
         selectedOutput: selectedOutputSummary(project, source),
       };
-    });
+    })
+    .sort((a, b) => inputSlotOrder(a.inputSlot) - inputSlotOrder(b.inputSlot));
 }
 
 function latestTaskForNode(project, nodeId) {
@@ -245,17 +249,36 @@ export function generationUpstreamReadiness(node, project) {
     issues.push(`${node.title}：模型 ${selectedModel || '未设置'} 不是统一模型目录中启用的 ${node.type} 模型，请重新选择`);
   }
   const requiredInputs = inputs.filter((input) => input.required !== false);
+  const hasRequiredMedia = requiredInputs.some((input) => effectiveInputRole(input) !== 'textContext');
   const modeResolution = getModelInputCapabilityForRoles(
     node.type,
     selectedModel,
     requiredInputs.map(effectiveInputRole),
-    node.config?.mode || node.mode || '',
+    hasRequiredMedia ? resolveModeIdForInputMode(selectedModel, node.inputMode) : '',
   );
   const capability = modeResolution.capability;
   if (!modeResolution.supported) {
     issues.push(`${node.title}：模型 ${selectedModel} 没有能同时满足当前全部输入角色的单一 mode`);
-  } else if (modeResolution.modeId && node.config?.mode !== modeResolution.modeId) {
-    node.config = { ...(node.config || {}), mode: modeResolution.modeId };
+  }
+  const activeInputMode = getGenerationInputModes(selectedModel)
+    .find((item) => item.value === node.inputMode);
+  if (node.inputMode && !activeInputMode) {
+    issues.push(`${node.title}：模型 ${selectedModel} 不支持输入模式 ${node.inputMode}`);
+  }
+  const occupiedSlots = new Set();
+  for (const input of requiredInputs.filter((item) => effectiveInputRole(item) !== 'textContext')) {
+    const slot = String(input.inputSlot || '');
+    if (activeInputMode && !slot) {
+      issues.push(`${input.title} 缺少明确的输入槽位`);
+      continue;
+    }
+    if (activeInputMode && !isSlotValidForMode(activeInputMode.value, slot, effectiveInputRole(input))) {
+      issues.push(`${input.title} 的槽位 ${slot} 不属于 ${activeInputMode.label} 模式`);
+    }
+    if (['firstFrame', 'lastFrame'].includes(slot) && occupiedSlots.has(slot)) {
+      issues.push(`${node.title} 的 ${slot === 'firstFrame' ? '首帧' : '尾帧'}槽位只能连接一个输入`);
+    }
+    occupiedSlots.add(slot);
   }
   const imageInputs = requiredInputs.filter((input) => ['image', 'referenceImage'].includes(effectiveInputRole(input)));
   const videoInputs = requiredInputs.filter((input) => effectiveInputRole(input) === 'inputVideo');
@@ -433,6 +456,7 @@ function inputResourcePayload(resource = {}, source = {}) {
     size: resource.size || 0,
     duration: resource.duration || 0,
     inputRole: normalizeInputRole(source.inputRole || resource.inputRole || 'auto'),
+    inputSlot: source.inputSlot || resource.inputSlot || '',
     required: source.required !== false && resource.required !== false,
   };
 }
@@ -577,13 +601,15 @@ export function summarizeGenerationPayload(payload) {
     materialId: resource.materialId || '',
     mimeType: resource.mimeType || '',
     size: resource.size || 0,
-    duration: resource.duration || 0,
     inputRole: resource.inputRole || 'auto',
+    inputSlot: resource.inputSlot || '',
+    duration: resource.duration || 0,
     required: resource.required !== false,
   });
   summarized.inputs = (payload?.inputs || []).map((input) => ({
     edgeId: input.edgeId || '',
     inputRole: input.inputRole || 'auto',
+    inputSlot: input.inputSlot || '',
     required: input.required !== false,
     nodeId: input.nodeId || '',
     nodeType: input.nodeType || '',

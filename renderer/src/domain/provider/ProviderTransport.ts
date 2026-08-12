@@ -49,6 +49,7 @@ export interface ResourceRef {
   materialId?: string;
   mimeType?: string;
   inputRole?: string;
+  inputSlot?: string;
   required?: boolean;
 }
 

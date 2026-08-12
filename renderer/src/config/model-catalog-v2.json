@@ -2459,6 +2459,8 @@
         {
           "id": "first-frame-to-video",
           "label": "首帧图生视频",
+          "inputMode": "firstFrame",
+          "inputSlots": ["firstFrame"],
           "endpoint": {
             "method": "POST",
             "path": "/v2/video_generation",
@@ -2636,6 +2638,22 @@
         {
           "id": "omni-reference-to-video",
           "label": "全模态参考生视频",
+          "inputMode": "reference",
+          "inputSlots": ["reference", "inputVideo", "referenceAudio"],
+          "inputVariants": [
+            {
+              "inputMode": "firstLastFrame",
+              "label": "首尾帧",
+              "inputSlots": ["firstFrame", "lastFrame"],
+              "inputConstraints": {
+                "images": { "min": 1, "max": 2, "roles": ["referenceImage"] }
+              },
+              "requestFields": {
+                "firstFrameImageContentRole": "first_frame",
+                "lastFrameImageContentRole": "last_frame"
+              }
+            }
+          ],
           "endpoint": {
             "method": "POST",
             "path": "/contents/generations/tasks",
@@ -2763,6 +2781,22 @@
         {
           "id": "text-or-reference-image-to-video",
           "label": "文生/参考图生视频",
+          "inputMode": "reference",
+          "inputSlots": ["reference", "inputVideo", "referenceAudio"],
+          "inputVariants": [
+            {
+              "inputMode": "firstLastFrame",
+              "label": "首尾帧",
+              "inputSlots": ["firstFrame", "lastFrame"],
+              "inputConstraints": {
+                "images": { "min": 1, "max": 2, "roles": ["referenceImage"] }
+              },
+              "requestFields": {
+                "firstFrameImageContentRole": "first_frame",
+                "lastFrameImageContentRole": "last_frame"
+              }
+            }
+          ],
           "endpoint": {
             "method": "POST",
             "path": "/contents/generations/tasks",
@@ -2890,6 +2924,22 @@
         {
           "id": "text-or-reference-image-to-video",
           "label": "文生/参考图生视频",
+          "inputMode": "reference",
+          "inputSlots": ["reference", "inputVideo", "referenceAudio"],
+          "inputVariants": [
+            {
+              "inputMode": "firstLastFrame",
+              "label": "首尾帧",
+              "inputSlots": ["firstFrame", "lastFrame"],
+              "inputConstraints": {
+                "images": { "min": 1, "max": 2, "roles": ["referenceImage"] }
+              },
+              "requestFields": {
+                "firstFrameImageContentRole": "first_frame",
+                "lastFrameImageContentRole": "last_frame"
+              }
+            }
+          ],
           "endpoint": {
             "method": "POST",
             "path": "/contents/generations/tasks",
@@ -3017,6 +3067,8 @@
         {
           "id": "text-or-image-to-video",
           "label": "文生/图生视频",
+          "inputMode": "firstFrame",
+          "inputSlots": ["firstFrame"],
           "endpoint": {
             "method": "POST",
             "path": "/videos/generations",
@@ -3125,8 +3177,10 @@
       "defaultMode": "image-to-video",
       "modes": [
         {
-          "id": "image-to-video",
-          "label": "图生视频",
+         "id": "image-to-video",
+         "label": "图生视频",
+          "inputMode": "firstFrame",
+          "inputSlots": ["firstFrame"],
           "endpoint": {
             "method": "POST",
             "path": "/videos/generations",
@@ -3230,6 +3284,8 @@
         {
           "id": "text-or-image-to-video",
           "label": "文生/图生视频",
+          "inputMode": "firstFrame",
+          "inputSlots": ["firstFrame"],
           "endpoint": {
             "method": "POST",
             "path": "/models/veo-3.1-generate-preview:predictLongRunning",
@@ -3334,6 +3390,8 @@
         {
           "id": "text-or-image-to-video",
           "label": "文生/图生视频",
+          "inputMode": "firstFrame",
+          "inputSlots": ["firstFrame"],
           "endpoint": {
             "method": "POST",
             "path": "/models/veo-3.1-fast-generate-preview:predictLongRunning",
@@ -3438,6 +3496,8 @@
         {
           "id": "text-or-image-to-video",
           "label": "文生/图生视频",
+          "inputMode": "firstFrame",
+          "inputSlots": ["firstFrame"],
           "endpoint": {
             "method": "POST",
             "path": "/models/veo-3.1-lite-generate-preview:predictLongRunning",
@@ -3622,6 +3682,8 @@
         {
           "id": "image-to-video",
           "label": "图生视频",
+          "inputMode": "firstFrame",
+          "inputSlots": ["firstFrame"],
           "endpoint": {
             "method": "POST",
             "path": "/image-to-video/kling-3.0-turbo",
@@ -3809,6 +3871,8 @@
         {
           "id": "image-to-video",
           "label": "图生视频",
+          "inputMode": "firstFrame",
+          "inputSlots": ["firstFrame"],
           "endpoint": {
             "method": "POST",
             "path": "/image-to-video/kling-3.0",
@@ -3916,6 +3980,8 @@
         {
           "id": "text-or-reference-image-to-video",
           "label": "文生/参考图生视频",
+          "inputMode": "reference",
+          "inputSlots": ["reference"],
           "endpoint": {
             "method": "POST",
             "path": "/omni-video/kling-3.0-omni",
@@ -4031,6 +4097,8 @@
         {
           "id": "text-or-image-to-video",
           "label": "文生/图生视频",
+          "inputMode": "firstFrame",
+          "inputSlots": ["firstFrame"],
           "endpoint": {
             "method": "POST",
             "path": "/paas/v4/videos/generations",

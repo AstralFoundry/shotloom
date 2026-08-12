@@ -107,6 +107,20 @@ test('MiniMax H3 首帧图编译为 V2 content 数组', () => {
   ]);
 });
 
+test('首尾帧内容使用每个槽位自己的供应商角色', () => {
+  assert.deepEqual(protocolMediaContent({
+    prompt: '从白天过渡到夜晚',
+    imageItems: [
+      { url: 'https://example.com/first.png', role: 'first_frame' },
+      { url: 'https://example.com/last.png', role: 'last_frame' },
+    ],
+  }), [
+    { type: 'text', text: '从白天过渡到夜晚' },
+    { type: 'image_url', image_url: { url: 'https://example.com/first.png' }, role: 'first_frame' },
+    { type: 'image_url', image_url: { url: 'https://example.com/last.png' }, role: 'last_frame' },
+  ]);
+});
+
 test('Kling API 2.0 协议生成首帧和多参考图 contents', () => {
   assert.deepEqual(protocolKlingContents({
     prompt: '镜头缓慢推进',
