@@ -1,4 +1,4 @@
-import { memo, type ReactNode, useCallback, useContext, useMemo, useState } from "react";
+import { memo, type ReactNode, useCallback, useContext, useLayoutEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { type ReactFlowState, useStore } from "@xyflow/react";
 import { getGenerationInputModes, getModelInfo, getModelSchema, getTypeMeta, resolveModeIdForInputMode } from "../../domain/catalog/ModelCatalog";
@@ -104,8 +104,38 @@ function generationNodeDisplayTitle(
   return "";
 }
 
-function ScreenSpaceComposer({ nodeId, children }: { nodeId: string; children: ReactNode }) {
+function ScreenSpaceComposer({
+  nodeId,
+  children,
+}: {
+  nodeId: string;
+  children: ReactNode;
+}) {
   const root = useContext(CanvasOverlayRootContext);
+  const dragging = useStore((state: ReactFlowState) =>
+    Boolean(state.nodeLookup.get(nodeId)?.dragging),
+  );
+  const [dragReleaseSettling, setDragReleaseSettling] = useState(false);
+  const hidden = dragging || dragReleaseSettling;
+  useLayoutEffect(() => {
+    if (dragging) {
+      setDragReleaseSettling(true);
+      return;
+    }
+    if (!dragReleaseSettling) return;
+    let revealFrame = 0;
+    let revealTimer = 0;
+    const settleFrame = requestAnimationFrame(() => {
+      revealFrame = requestAnimationFrame(() => {
+        revealTimer = window.setTimeout(() => setDragReleaseSettling(false), 64);
+      });
+    });
+    return () => {
+      cancelAnimationFrame(settleFrame);
+      if (revealFrame) cancelAnimationFrame(revealFrame);
+      if (revealTimer) window.clearTimeout(revealTimer);
+    };
+  }, [dragReleaseSettling, dragging]);
   const selectPlacement = useCallback((state: ReactFlowState) => {
     const internal = state.nodeLookup.get(nodeId);
     const [viewportX, viewportY, zoom] = state.transform;
@@ -127,7 +157,13 @@ function ScreenSpaceComposer({ nodeId, children }: { nodeId: string; children: R
   );
   if (!root) return null;
   return createPortal(
-    <div className="work-composer-anchor" style={placement}>{children}</div>,
+    <div
+      className={`work-composer-anchor${hidden ? " work-composer-anchor--hidden" : ""}`}
+      style={placement}
+      aria-hidden={hidden}
+    >
+      {children}
+    </div>,
     root,
   );
 }
@@ -360,22 +396,20 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({
               />
             ) : activeKind === "video" && previewUrl ? (
               <video
-                className="nodrag nopan nowheel"
+                className="nowheel"
                 src={previewUrl}
+                draggable={false}
                 muted
                 loop
                 playsInline
                 preload="auto"
-                onPointerDown={(event) => event.stopPropagation()}
                 onPointerEnter={(event) => {
                   void event.currentTarget.play().catch(() => undefined);
                 }}
                 onPointerLeave={(event) => {
+                  if (event.buttons) return;
                   const video = event.currentTarget;
                   video.pause();
-                  if (video.duration > 0) {
-                    video.currentTime = Math.min(1 / 30, Math.max(0, video.duration - 0.04));
-                  }
                 }}
                 onLoadedData={(event) => {
                   const video = event.currentTarget;

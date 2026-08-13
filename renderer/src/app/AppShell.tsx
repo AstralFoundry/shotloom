@@ -6,7 +6,6 @@ import { type AppRoute, useAppStore } from "./store/appStore";
 interface AppShellProps {
   platform: string;
   view: ReactNode;
-  onAddNode: (type: string) => void;
   onVideoEdit: () => void;
   onNotify: () => void;
   onSettings: () => void;
@@ -17,7 +16,6 @@ interface AppShellProps {
 export function AppShell({
   platform,
   view,
-  onAddNode,
   onVideoEdit,
   onNotify,
   onSettings,
@@ -109,7 +107,6 @@ export function AppShell({
       <TopBar platform={platform} />
       <main className="workspace sidebar-collapsed">
         <SideBar
-          onAddNode={onAddNode}
           onVideoEdit={onVideoEdit}
           onNotify={onNotify}
           onSettings={onSettings}

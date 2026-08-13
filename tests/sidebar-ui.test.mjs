@@ -23,14 +23,11 @@ test('项目侧栏提供返回项目库入口', () => {
 test('悬停抽屉只改变宽度和文字，不改变工具图标几何尺寸', () => {
   assert.match(styles, /width 220ms cubic-bezier\(\.22, 1, \.36, 1\)/);
   assert.match(styles, /\.side-item svg \{[\s\S]*?flex:\s*0 0 17px/);
-  assert.match(styles, /\.sidebar-shell\.collapsed \.side-title \{ visibility: hidden; opacity: 0; \}/);
-  assert.match(styles, /\.side-title \{[\s\S]*?white-space:\s*nowrap/);
+  assert.doesNotMatch(sidebar, /className="side-title"/);
   assert.match(styles, /\.sidebar-shell\.collapsed \.sidebar \{[\s\S]*?padding:\s*46px 7px 8px/);
   assert.match(styles, /\.sidebar-shell\.collapsed \.sidebar-footer button \{ width: 40px; height: 36px/);
   assert.match(styles, /\.sidebar-brand \{[^}]*min-height:\s*54px[^}]*margin:\s*0 2\.5px 12px[^}]*padding:\s*3px 0 11px/);
   assert.match(styles, /\.sidebar-shell\.collapsed \.sidebar-brand \{[^}]*min-height:\s*54px[^}]*margin:\s*0 0 12px 3\.5px[^}]*padding:\s*3px 0 11px/);
-  assert.match(styles, /\.sidebar-shell\.collapsed \.side-list \+ \.side-title \+ \.side-list \{\s*border-color:\s*transparent;\s*\}/);
-  assert.doesNotMatch(styles, /\.sidebar-shell\.collapsed \.side-list \+ \.side-title \+ \.side-list \{[^}]*(?:margin-top|padding-top):/);
 });
 
 test('侧栏关闭时保留详情直到抽屉和淡出动画完成', () => {
@@ -109,6 +106,11 @@ test('侧栏底部入口与上方导航使用一致的字号和图标尺寸', ()
   assert.match(styles, /\.sidebar-footer button \{[^}]*height:\s*36px[^}]*font-size:\s*13px[^}]*font-weight:\s*500/);
   assert.match(styles, /\.sidebar-footer svg \{ width:\s*17px; height:\s*17px; flex:\s*0 0 17px/);
   assert.doesNotMatch(styles, /sidebar-settings-icon/);
+});
+
+test('侧栏开合不因分组标题改变按钮纵向位置', () => {
+  assert.doesNotMatch(sidebar, /className="side-title"/);
+  assert.doesNotMatch(styles, /\.sidebar-shell\.collapsed \.side-title/);
 });
 
 test('所有页面都不再为顶部栏保留独立布局高度', () => {

@@ -388,7 +388,6 @@ export function ReactWorkbench() {
       <AppShell
         platform={desktopApi.platform}
         view={activeView}
-        onAddNode={(type) => canvasController.createNodeAt(type, { x: 120, y: 90 })}
         onVideoEdit={() => canvasCommands.openBlankVideoEditor()}
         onNotify={() =>
           void desktopApi

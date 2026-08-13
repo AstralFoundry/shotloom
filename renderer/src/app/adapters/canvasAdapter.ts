@@ -63,6 +63,7 @@ import type {
 const store: any = rawStore;
 let fitViewHandler: (() => void) | null = null;
 let videoEditorOpener: ((id: string) => void) | null = null;
+const canvasViewNodeCache = new Map<string, { signature: string; node: WorkflowNodeData }>();
 export function registerVideoEditorOpener(handler: ((id: string) => void) | null) {
   videoEditorOpener = handler;
 }
@@ -141,8 +142,7 @@ export function canvasViewData() {
     legacyBySource.set(sourceId, items);
   }
   const availableModelsByType = new Map<string, string[]>();
-  return {
-    nodes: (store.project.nodes || [])
+  const nodes = (store.project.nodes || [])
       .filter((node: WorkflowNodeData) => node.type !== "resource")
       .map((node: any) => {
         const direct = Array.isArray(node.generatedOutputs) ? node.generatedOutputs : [];
@@ -168,7 +168,7 @@ export function canvasViewData() {
               ? String(item.id) === String(node.selectedOutputNodeId)
               : index === items.length - 1,
           }));
-        return {
+        const viewNode = {
           ...node,
           generatedOutputs,
           availableModels: /Generation$/.test(node.type)
@@ -181,7 +181,18 @@ export function canvasViewData() {
             : [],
           selected: selected.has(node.id),
         };
-      }),
+        const signature = JSON.stringify(viewNode);
+        const cached = canvasViewNodeCache.get(node.id);
+        if (cached?.signature === signature) return cached.node;
+        canvasViewNodeCache.set(node.id, { signature, node: viewNode });
+        return viewNode;
+      });
+  const liveNodeIds = new Set(nodes.map((node: WorkflowNodeData) => node.id));
+  for (const id of canvasViewNodeCache.keys()) {
+    if (!liveNodeIds.has(id)) canvasViewNodeCache.delete(id);
+  }
+  return {
+    nodes,
     edges: store.project.edges || [],
     viewport: store.project.canvasViewport || { x: 0, y: 0, zoom: 1 },
     history: {
@@ -540,13 +551,15 @@ export const nodeActions: WorkflowNodeActions = {
     const result = connectResourceToNode(store.project, id, target.id);
     showToast(result.ok ? "已连接为生成输入" : result.error || "连接失败");
   },
-  async saveToAssets(id, scope) {
+  async saveToAssets(id, scope, category) {
     const node = (store.project.nodes || []).find((item: any) => item.id === id && !item.archived);
     const { path, material, asset } = selectedNodeLocalMedia(node);
     if (!node || !path || !material) return showToast("当前节点没有可存入的本地资源");
+    if (!category) return showToast("请先选择资产类型");
     try {
       const assetDetails = {
         ...asset,
+        category,
         name: asset.name || material.name || node.title,
         resourceType: asset.resourceType || material.resourceType || node.resourceType,
         nodeType: asset.nodeType || material.nodeType || node.type,
@@ -568,7 +581,7 @@ export const nodeActions: WorkflowNodeActions = {
         );
         if (existing) return showToast("当前资源已在项目资产中");
         addMaterialToAssetLibrary(projectMaterial, {
-          category: asset.category,
+          category,
           notify: false,
         });
         showToast("已存入当前项目资产");

@@ -13,7 +13,7 @@ const api = readFileSync(new URL('../renderer/src/services/tauriApi.js', import.
 const rust = readFileSync(new URL('../src-tauri/src/commands/file.rs', import.meta.url), 'utf8');
 
 test('加入对话只在节点选中工具栏中显示', () => {
-  assert.match(canvas, /<NodeToolbar[\s\S]*?isVisible=\{selected\}[\s\S]*?offset=\{useSubtleUploadToolbar \? 18 : 30\}[\s\S]*?>[\s\S]*?加入对话[\s\S]*?<\/NodeToolbar>/);
+  assert.match(canvas, /<NodeToolbar[\s\S]*?canvas-node-selection-toolbar--hidden[\s\S]*?isVisible=\{selected\}[\s\S]*?offset=\{useSubtleUploadToolbar \? 18 : 30\}[\s\S]*?>[\s\S]*?加入对话[\s\S]*?<\/NodeToolbar>/);
   assert.match(canvas, /mentionInCopilot\(item\.id\)/);
   assert.match(styles, /\.canvas-node-selection-toolbar \{[\s\S]*?z-index: 110/);
   for (const source of [generation, basicNodes, board, director]) {
@@ -33,10 +33,16 @@ test('文本节点工具栏提供复制、加入对话与完整文本编辑', ()
 test('媒体节点工具栏提供真实入库与音频分离', () => {
   assert.match(canvas, /canExtractAudio[\s\S]*?actions\.extractAudio\(item\.id\)[\s\S]*?音频分离/);
   assert.match(canvas, /canSaveToAssets[\s\S]*?存为资产[\s\S]*?assetScopeMenuOpen/);
-  assert.match(canvas, /actions\.saveToAssets\(item\.id, "project"\)[\s\S]*?<strong>当前项目<\/strong>/);
-  assert.match(canvas, /actions\.saveToAssets\(item\.id, "global"\)[\s\S]*?<strong>全局资产<\/strong>/);
-  assert.match(adapter, /async saveToAssets\(id, scope\)[\s\S]*?scope === "project"[\s\S]*?addMaterialToAssetLibrary[\s\S]*?promoteMaterialToLocalLibrary/);
-  assert.match(styles, /\.canvas-node-asset-scope-menu \{[\s\S]*?width:\s*190px/);
+  assert.match(canvas, /assetCategories\.map[\s\S]*?setAssetCategory\(category\.id\)/);
+  assert.match(canvas, /createPortal\([\s\S]*?canvas-node-asset-scope-menu--portal[\s\S]*?canvasOverlayRoot/);
+  assert.match(canvas, /assetPlacementRevision = useStore[\s\S]*?positionAbsolute[\s\S]*?state\.transform/);
+  assert.match(canvas, /actions\.saveToAssets\(item\.id, "project", assetCategory\)[\s\S]*?<strong>存到项目<\/strong>/);
+  assert.match(canvas, /actions\.saveToAssets\(item\.id, "global", assetCategory\)[\s\S]*?<strong>存到全局<\/strong>/);
+  assert.match(adapter, /async saveToAssets\(id, scope, category\)[\s\S]*?scope === "project"[\s\S]*?addMaterialToAssetLibrary[\s\S]*?promoteMaterialToLocalLibrary/);
+  assert.match(adapter, /assetDetails = \{[\s\S]*?category,[\s\S]*?promoteMaterialToLocalLibrary/);
+  assert.match(styles, /\.canvas-node-asset-scope-menu \{[\s\S]*?width:\s*220px/);
+  assert.match(styles, /\.canvas-node-asset-scope-menu--portal \{[\s\S]*?z-index:\s*121/);
+  assert.match(styles, /\.react-workflow-canvas \{[\s\S]*?isolation:\s*isolate/);
   assert.match(adapter, /async extractAudio\(id\)[\s\S]*?extractAudioToProject[\s\S]*?addNode\("audioGeneration"\)/);
   assert.match(api, /extractAudioToProject:[\s\S]*?file:extract-audio/);
   assert.match(rust, /pub fn file_extract_audio[\s\S]*?source_has_audio[\s\S]*?"-map", "0:a:0"[\s\S]*?"-c:a", "aac"/);

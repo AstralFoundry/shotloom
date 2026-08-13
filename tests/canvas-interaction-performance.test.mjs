@@ -9,6 +9,10 @@ const node = readFileSync(
   new URL('../renderer/src/app/canvas/GenerationNode.tsx', import.meta.url),
   'utf8',
 );
+const styles = readFileSync(
+  new URL('../renderer/styles/react-migration.css', import.meta.url),
+  'utf8',
+);
 const task = readFileSync(new URL('../renderer/src/store/taskStore.js', import.meta.url), 'utf8');
 const project = readFileSync(
   new URL('../renderer/src/store/projectStore.js', import.meta.url),
@@ -96,13 +100,26 @@ const migrationStyles = readFileSync(
   new URL('../renderer/styles/react-migration.css', import.meta.url),
   'utf8',
 );
-test('React Flow 只渲染可见节点并在拖动结束后合并持久化', () => {
-  assert.match(
-    canvas,
-    /onlyRenderVisibleElements=\{renderedNodes\.length > NODE_VIRTUALIZATION_THRESHOLD\}/,
-  );
-  assert.match(canvas, /draggingIds\.current/);
-  assert.match(canvas, /change\.dragging === false[\s\S]*?controller\.moveNodes\(moved\)/);
+test('React Flow 保持节点挂载并在拖动结束后合并持久化', () => {
+  assert.match(canvas, /onlyRenderVisibleElements=\{false\}/);
+  assert.doesNotMatch(canvas, /NODE_VIRTUALIZATION_THRESHOLD/);
+  assert.doesNotMatch(canvas, /draggingIds|pendingPositionCommits|dragEnded/);
+  assert.match(canvas, /useNodesState<FlowNode>/);
+  assert.match(canvas, /if \(existing\.dragging \|\| existing === node\) return existing/);
+  assert.match(canvas, /flowNodeCache/);
+  assert.match(canvas, /cached\.input === node[\s\S]*?return cached\.output/);
+  assert.match(canvas, /const interactiveChanges = changes\.filter\(\(change\) => change\.type !== "remove"\)/);
+  assert.match(canvas, /applyFlowNodeChanges\(interactiveChanges\)/);
+  assert.match(canvas, /flowEdgeCache/);
+  assert.match(canvas, /cached\?\.signature === signature[\s\S]*?return cached\.output/);
+  assert.match(canvas, /__shotloomCanvasDebug/);
+  assert.match(canvas, /traceCanvasEvent\("nodes-change"/);
+  assert.match(canvas, /traceCanvasEvent\("dom-frame"/);
+  assert.match(canvas, /traceCanvasEvent\("drag-stop"/);
+  assert.match(adapter, /canvasViewNodeCache/);
+  assert.match(adapter, /cached\?\.signature === signature[\s\S]*?return cached\.node/);
+  assert.match(canvas, /const onNodeDragStop: OnNodeDrag<FlowNode>[\s\S]*?draggedNodes\.map[\s\S]*?controller\.moveNodes\(moved\)/);
+  assert.match(canvas, /onNodeDragStop=\{onNodeDragStop\}/);
   assert.doesNotMatch(canvas, /controller\.moveNodes\(moved, \{ recordHistory \}\)/);
   assert.match(canvas, /autoPanOnNodeDrag=\{false\}/);
   assert.doesNotMatch(canvas, /onMove=\{\(_event, next\) => setLiveViewport\(next\)\}/);
@@ -113,8 +130,7 @@ test('React Flow 只渲染可见节点并在拖动结束后合并持久化', () 
   assert.match(canvas, /onMoveStart=\{onMoveStart\}/);
   assert.match(canvas, /MEDIA_NODE_TYPES\.has\(node\.type\) \? "canvas-media-node"/);
   assert.doesNotMatch(migrationStyles, /viewport-moving[^\{]*react-flow__viewport/);
-  assert.match(canvas, /pendingNodeChanges\.current\.push/);
-  assert.match(canvas, /requestAnimationFrame\(\(\) => \{[\s\S]*?applyNodeChanges\(pending/);
+  assert.doesNotMatch(canvas, /pendingNodeChanges|nodeChangeFrame/);
   assert.match(adapter, /saveViewport\(viewport\) \{\s*persistCanvasViewport\(viewport\)/);
   assert.match(project, /persistCanvasViewport[\s\S]*?toRaw\(store\.project\)/);
   assert.match(adapter, /recordCanvasPositionHistory\(positions\.map/);
@@ -135,10 +151,39 @@ test('大型画布保留完整数据并对可见媒体预览限流加载', () =>
   assert.match(mediaCache, /kindBudgets: \{ image: 128 \* MIB, video: 192 \* MIB, audio: 64 \* MIB \}/);
   assert.match(mediaCache, /installMediaPreviewCacheMemoryPressureListener/);
 });
-test('节点内媒体控件不会被画布拖拽和缩放手势接管', () => {
-  assert.match(node, /<video[\s\S]*?className="nodrag nopan nowheel"[\s\S]*?playsInline/);
+test('视频画面可拖动节点且拖动期间保持播放', () => {
+  assert.match(node, /<video[\s\S]*?className="nowheel"[\s\S]*?draggable=\{false\}[\s\S]*?playsInline/);
+  assert.doesNotMatch(node, /preload="auto"\s*onPointerDown=\{\(event\) => event\.stopPropagation\(\)\}/);
+  assert.doesNotMatch(node, /preload="auto"\s*onPointerDown=\{\(event\) => event\.currentTarget\.pause\(\)\}/);
+  assert.match(node, /onPointerEnter=\{\(event\) => \{[\s\S]*?event\.currentTarget\.play\(\)/);
+  assert.match(node, /onPointerLeave=\{\(event\) => \{[\s\S]*?if \(event\.buttons\) return;[\s\S]*?video\.pause\(\)/);
+  assert.doesNotMatch(node, /video\.pause\(\);\s*if \(video\.duration/);
   assert.match(node, /<audio[\s\S]*?className="nodrag nopan nowheel"/);
-  assert.ok((node.match(/onPointerDown=\{\(event\) => event\.stopPropagation\(\)\}/g)?.length || 0) >= 2);
+  assert.ok((node.match(/onPointerDown=\{\(event\) => event\.stopPropagation\(\)\}/g)?.length || 0) >= 1);
+  assert.doesNotMatch(styles, /\.react-workflow-canvas \.react-flow__node\.dragging\s*\{[\s\S]*?will-change:\s*transform/);
+});
+
+test('拖动节点时隐藏上下浮层并在松手后由 React Flow 状态恢复', () => {
+  assert.match(canvas, /function CanvasNode\(\{ data, selected, dragging \}/);
+  assert.match(canvas, /nodeChromeHidden \? " canvas-node-selection-toolbar--hidden"/);
+  assert.match(canvas, /isVisible=\{selected\}/);
+  assert.doesNotMatch(canvas, /className="canvas-node-label-anchor"[\s\S]*?visibility: nodeChromeHidden/);
+  assert.doesNotMatch(canvas, /<Renderer[\s\S]*?dragging=\{dragging\}/);
+  assert.match(node, /labelRoot && createPortal\(nodeLabel/);
+  assert.match(node, /<ScreenSpaceComposer nodeId=\{node\.id\}>/);
+  assert.match(node, /state\.nodeLookup\.get\(nodeId\)\?\.dragging/);
+  assert.match(styles, /\.work-composer-anchor--hidden \{[\s\S]*?opacity:\s*0;[\s\S]*?translate:\s*0 -10px;[\s\S]*?transition:\s*none;[\s\S]*?pointer-events:\s*none;/);
+  assert.match(styles, /\.canvas-node-selection-toolbar--hidden \{[\s\S]*?opacity:\s*0;[\s\S]*?translate:\s*0 8px;[\s\S]*?transition:\s*none;[\s\S]*?pointer-events:\s*none;/);
+});
+
+test('松手后等待坐标提交完成再恢复浮层', () => {
+  assert.match(canvas, /dragReleaseSettling/);
+  assert.match(canvas, /const nodeChromeHidden = Boolean\(dragging \|\| dragReleaseSettling\)/);
+  assert.match(canvas, /const settleFrame = requestAnimationFrame[\s\S]*?revealFrame = requestAnimationFrame[\s\S]*?setTimeout\(\(\) => setDragReleaseSettling\(false\), 64\)/);
+  assert.match(node, /const hidden = dragging \|\| dragReleaseSettling/);
+  assert.doesNotMatch(canvas, /pendingPositionCommits|committedIds/);
+  assert.match(styles, /\.canvas-node-asset-scope-menu--hidden \{[\s\S]*?opacity:\s*0;[\s\S]*?translate:\s*0 -7px;[\s\S]*?transition:\s*none;[\s\S]*?pointer-events:\s*none;/);
+  assert.match(styles, /\.work-composer-anchor \{[\s\S]*?opacity 150ms ease-out,[\s\S]*?translate 220ms cubic-bezier\(\.22, 1, \.36, 1\)/);
 });
 test('本地媒体流地址加载失败时回退到带正确 MIME 的缓冲地址', () => {
   assert.match(mediaCacheHook, /bufferedPath === path/);
@@ -241,8 +286,8 @@ test('连线使用 Loose 模式、点击连接和恒定屏幕吸附范围', () =
 });
 test('连线按节点相对位置选择最近端口且不会折返回头', () => {
   assert.match(canvas, /const targetIsRight = targetCenter >= sourceCenter/);
-  assert.match(canvas, /sourceHandle: targetIsRight \? "port-right" : "port-left"/);
-  assert.match(canvas, /targetHandle: targetIsRight \? "port-left" : "port-right"/);
+  assert.match(canvas, /const sourceHandle = targetIsRight \? "port-right" : "port-left"/);
+  assert.match(canvas, /const targetHandle = targetIsRight \? "port-left" : "port-right"/);
   assert.equal(canvas.match(/<Handle/g)?.length, 2);
   assert.match(canvas, /className="canvas-flow-port canvas-flow-port-in"[\s\S]*?className="canvas-flow-port canvas-flow-port-out"/);
 });

@@ -25,6 +25,9 @@ test('画布左侧视频剪辑入口直接打开空白工程并在编辑器内�
   ]);
   assert.match(sidebar, /onVideoEdit/);
   assert.match(sidebar, /<span>视频剪辑<\/span>/);
+  assert.match(sidebar, /projectWorkspaceItems\.map[\s\S]*?route === "creation"[\s\S]*?<span>视频剪辑<\/span>[\s\S]*?<\/div>/);
+  assert.doesNotMatch(sidebar, /<div className="side-title">剪辑<\/div>/);
+  assert.doesNotMatch(sidebar, /nodeTypes\.map|onAddNode/);
   assert.match(shell, /onVideoEdit=\{onVideoEdit\}/);
   assert.match(workbench, /onVideoEdit=\{\(\) => canvasCommands\.openBlankVideoEditor\(\)\}/);
   assert.match(workbench, /editorNode\s*\?\s*\{/);

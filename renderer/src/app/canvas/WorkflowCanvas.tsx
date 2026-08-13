@@ -10,11 +10,12 @@ import {
   useContext,
   useEffect,
   useImperativeHandle,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
-import { flushSync } from "react-dom";
+import { createPortal, flushSync } from "react-dom";
 import {
   applyNodeChanges,
   type Connection,
@@ -25,19 +26,24 @@ import {
   MiniMap,
   type Node,
   type NodeChange,
+  type OnNodeDrag,
   NodeResizer,
   NodeToolbar,
   type NodeProps,
   type OnMoveEnd,
   type OnMoveStart,
   ReactFlow,
+  type ReactFlowState,
   type ReactFlowInstance,
   Position,
+  useNodesState,
+  useStore,
   type Viewport,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { canvasNodeDimensions, defaultCanvasNodeDimensions } from "../../services/agentLayoutService";
 import { IconSymbol } from "../components/IconSymbol";
+import { assetCategories } from "../constants/navigation";
 import { openMediaViewer } from "../store/overlayStore";
 import { selectedTextOutput, textNodeContent } from "../../utils/textNodeContent.mjs";
 import { CanvasContextMenu } from "./CanvasContextMenu";
@@ -82,7 +88,11 @@ export interface WorkflowNodeActions {
   removeIncomingEdge: (id: string, edgeId: string) => void;
   run: (id: string) => void;
   useResource: (id: string) => void;
-  saveToAssets: (id: string, scope: "project" | "global") => void | Promise<void>;
+  saveToAssets: (
+    id: string,
+    scope: "project" | "global",
+    category: string,
+  ) => void | Promise<void>;
   extractAudio: (id: string) => void | Promise<void>;
   replaceResource: (id: string) => void;
   archiveResource: (id: string) => void;
@@ -136,7 +146,6 @@ const ActionContext = createContext<WorkflowNodeActions | null>(null);
 export const MentionContext = createContext<((nodeId: string) => void) | null>(null);
 export const CanvasOverlayRootContext = createContext<HTMLElement | null>(null);
 export const CanvasNodeLabelRootContext = createContext<HTMLElement | null>(null);
-const NODE_VIRTUALIZATION_THRESHOLD = 50;
 const MIN_CANVAS_ZOOM = 0.1;
 const MAX_CANVAS_ZOOM = 3;
 const MEDIA_NODE_TYPES = new Set([
@@ -152,6 +161,32 @@ type FlowNode = Node<{
   incomingInputs: WorkflowIncomingInput[];
   semanticZoom: number;
 }>;
+type FlowNodeCacheEntry = {
+  input: WorkflowNodeData;
+  selected: boolean;
+  semanticZoom: number;
+  inputRevision: string;
+  output: FlowNode;
+};
+type FlowEdgeCacheEntry = {
+  signature: string;
+  output: Edge<WorkflowEdgeData>;
+};
+type CanvasDebugEvent = {
+  time: number;
+  type: string;
+  detail: unknown;
+};
+function traceCanvasEvent(type: string, detail: unknown) {
+  if (!import.meta.env.DEV) return;
+  const target = globalThis as typeof globalThis & {
+    __shotloomCanvasDebug?: CanvasDebugEvent[];
+  };
+  const events = target.__shotloomCanvasDebug || [];
+  events.push({ time: performance.now(), type, detail });
+  if (events.length > 600) events.splice(0, events.length - 600);
+  target.__shotloomCanvasDebug = events;
+}
 function screenPixel(value: number) {
   const dpr = typeof window === "undefined" ? 1 : Math.max(1, window.devicePixelRatio || 1);
   return Math.round(value * dpr) / dpr;
@@ -173,6 +208,7 @@ function toFlowNodes(
   nodes: WorkflowNodeData[],
   edges: WorkflowEdge[] = [],
   semanticZoom = 1,
+  cache?: Map<string, FlowNodeCacheEntry>,
 ): FlowNode[] {
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
   const incomingByTarget = new Map<string, WorkflowEdge[]>();
@@ -181,7 +217,7 @@ function toFlowNodes(
     incoming.push(edge);
     incomingByTarget.set(edge.target, incoming);
   });
-  return nodes
+  const result = nodes
     .filter((node) => !node.archived)
     .map((node) => {
       const dimensions = nodeDimensions(node);
@@ -191,6 +227,8 @@ function toFlowNodes(
           return [
             edge.id,
             edge.source,
+            edge.data?.inputRole || "",
+            edge.data?.inputSlot || "",
             source?.updatedAt || "",
             source?.selectedOutputNodeId || "",
           ].join(":");
@@ -228,7 +266,18 @@ function toFlowNodes(
           },
         ];
       });
-      return {
+      const selected = Boolean(node.selected);
+      const cached = cache?.get(node.id);
+      if (
+        cached &&
+        cached.input === node &&
+        cached.selected === selected &&
+        cached.semanticZoom === semanticZoom &&
+        cached.inputRevision === inputRevision
+      ) {
+        return cached.output;
+      }
+      const output: FlowNode = {
         id: node.id,
         type: "panel",
         className: [
@@ -242,13 +291,22 @@ function toFlowNodes(
           y: screenPixel((Number(node.y) || 0) * semanticZoom),
         },
         data: { node, inputRevision, incomingInputs, semanticZoom },
-        selected: Boolean(node.selected),
+        selected,
         style: {
           width: dimensions.width * semanticZoom,
           height: dimensions.height * semanticZoom,
         },
       };
+      cache?.set(node.id, { input: node, selected, semanticZoom, inputRevision, output });
+      return output;
     });
+  if (cache && cache.size > result.length) {
+    const liveIds = new Set(result.map((node) => node.id));
+    for (const id of cache.keys()) {
+      if (!liveIds.has(id)) cache.delete(id);
+    }
+  }
+  return result;
 }
 function FallbackNodeInner({ node, selected }: { node: WorkflowNodeData; selected: boolean }) {
   return (
@@ -263,13 +321,33 @@ function FallbackNodeInner({ node, selected }: { node: WorkflowNodeData; selecte
 }
 const FallbackNode = memo(FallbackNodeInner);
 
-function CanvasNode({ data, selected }: NodeProps<FlowNode>) {
+function CanvasNode({ data, selected, dragging }: NodeProps<FlowNode>) {
   const registry = useContext(RendererContext);
   const actions = useContext(ActionContext)!;
   const mentionInCopilot = useContext(MentionContext);
   const item = data.node;
   const [resizing, setResizing] = useState(false);
   const [assetScopeMenuOpen, setAssetScopeMenuOpen] = useState(false);
+  const [assetCategory, setAssetCategory] = useState("");
+  const [dragReleaseSettling, setDragReleaseSettling] = useState(false);
+  const [assetMenuPlacement, setAssetMenuPlacement] = useState<CSSProperties>({
+    visibility: "hidden",
+  });
+  const assetTriggerRef = useRef<HTMLButtonElement>(null);
+  const assetMenuRef = useRef<HTMLDivElement>(null);
+  const canvasOverlayRoot = useContext(CanvasOverlayRootContext);
+  const nodeChromeHidden = Boolean(dragging || dragReleaseSettling);
+  const assetPlacementRevision = useStore((state: ReactFlowState) => {
+    const internal = state.nodeLookup.get(item.id);
+    const position = internal?.internals.positionAbsolute;
+    return [
+      ...state.transform,
+      Number(position?.x || 0),
+      Number(position?.y || 0),
+      Number(internal?.measured.width || internal?.width || 0),
+      Number(internal?.measured.height || internal?.height || 0),
+    ].join(":");
+  });
   const [labelRoot, setLabelRoot] = useState<HTMLElement | null>(null);
   const Renderer = registry[item.type] || FallbackNode;
   const resizable =
@@ -313,8 +391,63 @@ function CanvasNode({ data, selected }: NodeProps<FlowNode>) {
   const currentTextOutput = selectedTextOutput(item) as Record<string, unknown> | null;
   const textContent = textNodeContent(item);
   useEffect(() => {
-    if (!selected) setAssetScopeMenuOpen(false);
+    if (!selected) {
+      setAssetScopeMenuOpen(false);
+      setAssetCategory("");
+    }
   }, [selected]);
+  useLayoutEffect(() => {
+    if (dragging) {
+      setDragReleaseSettling(true);
+      return;
+    }
+    if (!dragReleaseSettling) return;
+    let revealFrame = 0;
+    let revealTimer = 0;
+    const settleFrame = requestAnimationFrame(() => {
+      revealFrame = requestAnimationFrame(() => {
+        revealTimer = window.setTimeout(() => setDragReleaseSettling(false), 64);
+      });
+    });
+    return () => {
+      cancelAnimationFrame(settleFrame);
+      if (revealFrame) cancelAnimationFrame(revealFrame);
+      if (revealTimer) window.clearTimeout(revealTimer);
+    };
+  }, [dragReleaseSettling, dragging]);
+  useLayoutEffect(() => {
+    if (!assetScopeMenuOpen || !canvasOverlayRoot) return;
+    const sync = () => {
+      const trigger = assetTriggerRef.current?.getBoundingClientRect();
+      const menu = assetMenuRef.current;
+      const rootBounds = canvasOverlayRoot.getBoundingClientRect();
+      if (!trigger || !menu) return;
+      const margin = 12;
+      const gap = 7;
+      const width = menu.offsetWidth;
+      const height = menu.offsetHeight;
+      const left = Math.max(
+        margin,
+        Math.min(rootBounds.width - width - margin, trigger.right - rootBounds.left - width),
+      );
+      const below = trigger.bottom - rootBounds.top + gap;
+      const above = trigger.top - rootBounds.top - height - gap;
+      let top = below;
+      if (below + height > rootBounds.height - margin && above >= margin) top = above;
+      top = Math.max(margin, Math.min(rootBounds.height - height - margin, top));
+      setAssetMenuPlacement({ left, top, visibility: "visible" });
+    };
+    const frame = requestAnimationFrame(sync);
+    const observer = new ResizeObserver(sync);
+    observer.observe(canvasOverlayRoot);
+    if (assetTriggerRef.current) observer.observe(assetTriggerRef.current);
+    window.addEventListener("resize", sync);
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+      window.removeEventListener("resize", sync);
+    };
+  }, [assetScopeMenuOpen, assetPlacementRevision, canvasOverlayRoot]);
   function openTextDetail() {
     openMediaViewer({
       src: textContent,
@@ -338,7 +471,7 @@ function CanvasNode({ data, selected }: NodeProps<FlowNode>) {
     <>
       {(isTextNode || canUpload || mentionInCopilot || canSaveToAssets || canExtractAudio) && (
         <NodeToolbar
-          className={`canvas-node-selection-toolbar${useSubtleUploadToolbar ? " canvas-node-selection-toolbar--subtle" : ""} nodrag nopan`}
+          className={`canvas-node-selection-toolbar${useSubtleUploadToolbar ? " canvas-node-selection-toolbar--subtle" : ""}${nodeChromeHidden ? " canvas-node-selection-toolbar--hidden" : ""} nodrag nopan`}
           isVisible={selected}
           position={Position.Top}
           offset={useSubtleUploadToolbar ? 18 : 30}
@@ -396,6 +529,7 @@ function CanvasNode({ data, selected }: NodeProps<FlowNode>) {
           {canSaveToAssets && (
             <div className="canvas-node-asset-action">
               <button
+                ref={assetTriggerRef}
                 type="button"
                 title="选择资产保存范围"
                 aria-haspopup="menu"
@@ -403,44 +537,78 @@ function CanvasNode({ data, selected }: NodeProps<FlowNode>) {
                 onPointerDown={(event) => event.stopPropagation()}
                 onClick={(event) => {
                   event.stopPropagation();
-                  setAssetScopeMenuOpen((open) => !open);
+                  setAssetScopeMenuOpen((open) => {
+                    if (open) setAssetCategory("");
+                    else setAssetMenuPlacement({ visibility: "hidden" });
+                    return !open;
+                  });
                 }}
               >
                 <IconSymbol name="archive" />
                 <span>存为资产</span>
                 <IconSymbol className="canvas-node-asset-chevron" name="chevron-down" />
               </button>
-              {assetScopeMenuOpen && (
+              {assetScopeMenuOpen && canvasOverlayRoot && createPortal(
                 <div
-                  className="canvas-node-asset-scope-menu"
+                  ref={assetMenuRef}
+                  className={`canvas-node-asset-scope-menu canvas-node-asset-scope-menu--portal${nodeChromeHidden ? " canvas-node-asset-scope-menu--hidden" : ""} nodrag nopan nowheel`}
                   role="menu"
+                  style={assetMenuPlacement}
                   onPointerDown={(event) => event.stopPropagation()}
                 >
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      setAssetScopeMenuOpen(false);
-                      void actions.saveToAssets(item.id, "project");
-                    }}
-                  >
-                    <IconSymbol name="folder" />
-                    <span><strong>当前项目</strong><small>仅收录到这个项目</small></span>
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      setAssetScopeMenuOpen(false);
-                      void actions.saveToAssets(item.id, "global");
-                    }}
-                  >
+                  <header className="canvas-node-asset-menu-head">
                     <IconSymbol name="archive" />
-                    <span><strong>全局资产</strong><small>所有项目都可以复用</small></span>
-                  </button>
-                </div>
+                    <span><strong>存为资产</strong><small>选择类型与保存位置</small></span>
+                  </header>
+                  <div className="canvas-node-asset-category-grid">
+                    {assetCategories.map((category) => (
+                      <button
+                        className={assetCategory === category.id ? "active" : ""}
+                        key={category.id}
+                        type="button"
+                        aria-pressed={assetCategory === category.id}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setAssetCategory(category.id);
+                        }}
+                      >
+                        <IconSymbol name={category.icon} />
+                        <span>{category.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="canvas-node-asset-destinations">
+                    <button
+                      type="button"
+                      role="menuitem"
+                      disabled={!assetCategory}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setAssetScopeMenuOpen(false);
+                        void actions.saveToAssets(item.id, "project", assetCategory);
+                        setAssetCategory("");
+                      }}
+                    >
+                      <IconSymbol name="folder" />
+                      <strong>存到项目</strong>
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      disabled={!assetCategory}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setAssetScopeMenuOpen(false);
+                        void actions.saveToAssets(item.id, "global", assetCategory);
+                        setAssetCategory("");
+                      }}
+                    >
+                      <IconSymbol name="archive" />
+                      <strong>存到全局</strong>
+                    </button>
+                  </div>
+                </div>,
+                canvasOverlayRoot,
               )}
             </div>
           )}
@@ -639,8 +807,10 @@ export function WorkflowCanvas({
   );
   const [semanticZoom, setSemanticZoom] = useState(initialZoom);
   const semanticZoomRef = useRef(initialZoom);
-  const [flowNodes, setFlowNodes] = useState<FlowNode[]>(() =>
-    toFlowNodes(nodes, edges, initialZoom),
+  const flowNodeCache = useRef(new Map<string, FlowNodeCacheEntry>());
+  const flowEdgeCache = useRef(new Map<string, FlowEdgeCacheEntry>());
+  const [flowNodes, setFlowNodes, applyFlowNodeChanges] = useNodesState<FlowNode>(
+    toFlowNodes(nodes, edges, initialZoom, flowNodeCache.current),
   );
   const [instance, setInstance] = useState<ReactFlowInstance<
     FlowNode,
@@ -649,30 +819,27 @@ export function WorkflowCanvas({
   const [edgesVisible, setEdgesVisible] = useState(true);
   const [minimapVisible, setMinimapVisible] = useState(false);
   const [liveViewport, setLiveViewport] = useState({ ...viewport, zoom: initialZoom });
-  const draggingIds = useRef(new Set<string>());
-  const pendingNodeChanges = useRef<NodeChange<FlowNode>[]>([]);
-  const nodeChangeFrame = useRef(0);
   const movementEndTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const canvasRoot = useRef<HTMLElement>(null);
   const [canvasOverlayRoot, setCanvasOverlayRoot] = useState<HTMLElement | null>(null);
   const menuLayer = useRef<CanvasMenuLayerHandle>(null);
   const visible = useMemo(() => nodes.filter((node) => !node.archived), [nodes]);
   const canonicalNodes = useMemo(
-    () => toFlowNodes(visible, edges, semanticZoom),
+    () => toFlowNodes(visible, edges, semanticZoom, flowNodeCache.current),
     [edges, semanticZoom, visible],
   );
   useEffect(() => {
+    traceCanvasEvent("external-sync", {
+      canonicalIds: canonicalNodes.map((node) => node.id),
+      positions: canonicalNodes.map((node) => [node.id, node.position.x, node.position.y]),
+    });
     setFlowNodes((current) => {
       const previous = new Map(current.map((node) => [node.id, node]));
       return canonicalNodes.map((node) => {
         const existing = previous.get(node.id);
         if (!existing) return node;
-        return {
-          ...node,
-          position: draggingIds.current.has(node.id) ? existing.position : node.position,
-          selected:
-            typeof node.data.node.selected === "boolean" ? node.selected : existing.selected,
-        };
+        if (existing.dragging || existing === node) return existing;
+        return node;
       });
     });
   }, [canonicalNodes]);
@@ -681,8 +848,8 @@ export function WorkflowCanvas({
   const ids = useMemo(() => new Set(visible.map((node) => node.id)), [visible]);
   const visibleById = useMemo(() => new Map(visible.map((node) => [node.id, node])), [visible]);
   const flowEdges = useMemo<Array<Edge<WorkflowEdgeData>>>(
-    () =>
-      edges
+    () => {
+      const result = edges
         .filter((edge) => ids.has(edge.source) && ids.has(edge.target))
         .map((edge) => {
           const source = visibleById.get(edge.source);
@@ -690,10 +857,20 @@ export function WorkflowCanvas({
           const sourceCenter = Number(source?.x || 0) + nodeDimensions(source!).width / 2;
           const targetCenter = Number(target?.x || 0) + nodeDimensions(target!).width / 2;
           const targetIsRight = targetCenter >= sourceCenter;
-          return {
+          const sourceHandle = targetIsRight ? "port-right" : "port-left";
+          const targetHandle = targetIsRight ? "port-left" : "port-right";
+          const signature = JSON.stringify([
+            edge,
+            sourceHandle,
+            targetHandle,
+            semanticZoom,
+          ]);
+          const cached = flowEdgeCache.current.get(edge.id);
+          if (cached?.signature === signature) return cached.output;
+          const output: Edge<WorkflowEdgeData> = {
             ...edge,
-            sourceHandle: targetIsRight ? "port-right" : "port-left",
-            targetHandle: targetIsRight ? "port-left" : "port-right",
+            sourceHandle,
+            targetHandle,
             type: "default",
             markerEnd: {
               type: MarkerType.ArrowClosed,
@@ -707,72 +884,66 @@ export function WorkflowCanvas({
               opacity: semanticZoom < 0.55 ? 0.48 : 0.72,
             },
           };
-        }),
+          flowEdgeCache.current.set(edge.id, { signature, output });
+          return output;
+        });
+      const liveEdgeIds = new Set(result.map((edge) => edge.id));
+      for (const id of flowEdgeCache.current.keys()) {
+        if (!liveEdgeIds.has(id)) flowEdgeCache.current.delete(id);
+      }
+      return result;
+    },
     [edges, ids, semanticZoom, visibleById],
-  );
-
-  const applyNodeChangesOnFrame = useCallback(
-    (changes: NodeChange<FlowNode>[]) => {
-      pendingNodeChanges.current.push(...changes);
-      if (nodeChangeFrame.current) return;
-      nodeChangeFrame.current = requestAnimationFrame(() => {
-        nodeChangeFrame.current = 0;
-        const pending = pendingNodeChanges.current;
-        pendingNodeChanges.current = [];
-        setFlowNodes((current) =>
-          applyNodeChanges(pending, current.length ? current : canonicalNodes),
-        );
-      });
-    },
-    [canonicalNodes],
-  );
-  useEffect(
-    () => () => {
-      if (nodeChangeFrame.current) cancelAnimationFrame(nodeChangeFrame.current);
-    },
-    [],
   );
 
   const onNodesChange = useCallback(
     (changes: NodeChange<FlowNode>[]) => {
-      applyNodeChangesOnFrame(changes);
-      changes.forEach((change) => {
-        if (change.type === "position" && change.dragging) {
-          draggingIds.current.add(change.id);
-        }
+      // Node lifetime is owned by the project graph. React Flow remove changes
+      // are not allowed to transiently delete a controlled node during a drag.
+      const interactiveChanges = changes.filter((change) => change.type !== "remove");
+      traceCanvasEvent("nodes-change", {
+        changes: changes.map((change) => ({
+          id: "id" in change ? change.id : change.item.id,
+          type: change.type,
+          dragging: change.type === "position" ? change.dragging : undefined,
+          position: change.type === "position" ? change.position : undefined,
+        })),
+        nodeIds: renderedNodes.map((node) => node.id),
+        edgeIds: flowEdges.map((edge) => edge.id),
       });
-      const moved = changes.flatMap((change) =>
-        change.type === "position" && change.position && change.dragging === false
-          ? [
-              {
-                id: change.id,
-                x: Math.round(change.position.x / semanticZoomRef.current),
-                y: Math.round(change.position.y / semanticZoomRef.current),
-              },
-            ]
-          : [],
-      );
-      if (moved.length) {
-        // React Flow owns the live gesture. Persisting only its final positions
-        // avoids rebuilding the whole workbench on every pointer-move frame.
-        controller.moveNodes(moved);
-        changes.forEach((change) => {
-          if (change.type === "position" && change.dragging === false) {
-            draggingIds.current.delete(change.id);
-          }
+      if (interactiveChanges.length) applyFlowNodeChanges(interactiveChanges);
+      requestAnimationFrame(() => {
+        const root = canvasRoot.current;
+        traceCanvasEvent("dom-frame", {
+          nodeCount: root?.querySelectorAll(".react-flow__node").length || 0,
+          edgeCount: root?.querySelectorAll(".react-flow__edge").length || 0,
+          nodeIds: Array.from(root?.querySelectorAll<HTMLElement>(".react-flow__node") || [])
+            .map((element) => element.dataset.id || ""),
         });
-      }
-      const selection = changes.filter((change) => change.type === "select");
+      });
+      const selection = interactiveChanges.filter((change) => change.type === "select");
       if (selection.length) {
         const selected = new Set(
-          applyNodeChanges(changes, renderedNodes)
+          applyNodeChanges(interactiveChanges, renderedNodes)
             .filter((node) => node.selected)
             .map((node) => node.id),
         );
         controller.selectNodes([...selected]);
       }
     },
-    [applyNodeChangesOnFrame, controller, renderedNodes],
+    [applyFlowNodeChanges, controller, flowEdges, renderedNodes],
+  );
+  const onNodeDragStop: OnNodeDrag<FlowNode> = useCallback(
+    (_event, _node, draggedNodes) => {
+      const moved = draggedNodes.map((node) => ({
+        id: node.id,
+        x: Math.round(node.position.x / semanticZoomRef.current),
+        y: Math.round(node.position.y / semanticZoomRef.current),
+      }));
+      traceCanvasEvent("drag-stop", { moved });
+      if (moved.length) controller.moveNodes(moved);
+    },
+    [controller],
   );
   const onMoveEnd: OnMoveEnd = useCallback(
     (_event, next) => {
@@ -1017,7 +1188,7 @@ export function WorkflowCanvas({
             nodes={renderedNodes}
             edges={edgesVisible ? flowEdges : []}
             nodeTypes={nodeTypes}
-            onlyRenderVisibleElements={renderedNodes.length > NODE_VIRTUALIZATION_THRESHOLD}
+            onlyRenderVisibleElements={false}
             defaultViewport={{ x: viewport.x, y: viewport.y, zoom: 1 }}
             minZoom={1}
             maxZoom={1}
@@ -1035,6 +1206,7 @@ export function WorkflowCanvas({
             deleteKeyCode={null}
             onInit={setInstance}
             onNodesChange={onNodesChange}
+            onNodeDragStop={onNodeDragStop}
             onConnect={(connection) => void controller.connect(connection)}
             onEdgeClick={(_event, edge) => controller.selectEdge(edge.id)}
             onPaneClick={() => {

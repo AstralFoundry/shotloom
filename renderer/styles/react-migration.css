@@ -17,10 +17,6 @@
   background-image: none;
 }
 
-.react-workflow-canvas .react-flow__node.dragging {
-  will-change: transform;
-}
-
 .react-flow__node-panel {
   min-width: 0;
   font-size: 12px;
@@ -90,6 +86,16 @@
   box-shadow: 0 6px 20px rgba(15, 23, 42, .1);
   display: flex;
   align-items: center;
+  translate: 0 0;
+  transition:
+    opacity 150ms ease-out,
+    translate 220ms cubic-bezier(.22, 1, .36, 1);
+}
+.canvas-node-selection-toolbar--hidden {
+  opacity: 0;
+  translate: 0 8px;
+  transition: none;
+  pointer-events: none;
 }
 .canvas-node-selection-toolbar button {
   height: 30px;
@@ -119,42 +125,106 @@
 }
 .canvas-node-asset-scope-menu {
   position: absolute;
-  top: calc(100% + 7px);
-  right: 0;
-  width: 190px;
-  padding: 5px;
+  width: 220px;
+  padding: 8px;
   border: 1px solid rgba(31, 41, 55, .1);
-  border-radius: 11px;
-  background: rgba(255, 255, 255, .98);
-  box-shadow: 0 12px 30px rgba(15, 23, 42, .13);
+  border-radius: 12px;
+  color: #39404a;
+  background: rgba(255, 255, 255, .985);
+  box-shadow: 0 14px 34px rgba(15, 23, 42, .14), 0 2px 7px rgba(15, 23, 42, .06);
+  translate: 0 0;
+  transition:
+    opacity 150ms ease-out,
+    translate 220ms cubic-bezier(.22, 1, .36, 1);
 }
-.canvas-node-selection-toolbar .canvas-node-asset-scope-menu > button {
-  width: 100%;
-  height: auto;
-  min-height: 46px;
-  padding: 7px 9px;
-  justify-content: flex-start;
-  gap: 9px;
-  text-align: left;
+.canvas-node-asset-scope-menu--portal {
+  z-index: 121;
 }
-.canvas-node-asset-scope-menu > button > svg {
+.canvas-node-asset-scope-menu--hidden {
+  opacity: 0;
+  translate: 0 -7px;
+  transition: none;
+  pointer-events: none;
+}
+.canvas-node-asset-menu-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 3px 8px;
+}
+.canvas-node-asset-menu-head > svg {
   width: 15px;
   height: 15px;
-  flex: 0 0 auto;
-  color: #66707d;
+  color: #68717d;
 }
-.canvas-node-asset-scope-menu > button > span { display: grid; gap: 2px; }
-.canvas-node-asset-scope-menu strong {
-  color: #303640;
+.canvas-node-asset-menu-head > span { display: grid; gap: 1px; }
+.canvas-node-asset-menu-head strong {
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 650;
   line-height: 15px;
 }
-.canvas-node-asset-scope-menu small {
-  color: #9298a2;
+.canvas-node-asset-menu-head small {
+  color: #9a9fa7;
+  font-size: 9px;
+  line-height: 12px;
+}
+.canvas-node-asset-category-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 3px;
+}
+.canvas-node-asset-category-grid > button,
+.canvas-node-asset-destinations > button {
+  border: 0;
+  border-radius: 7px;
+  display: flex;
+  align-items: center;
+  background: transparent;
+  cursor: pointer;
+}
+.canvas-node-asset-category-grid > button {
+  width: 100%;
+  height: 30px;
+  padding: 0 8px;
+  justify-content: flex-start;
+  gap: 6px;
+  color: #59616d;
+  font-size: 11px;
+  font-weight: 500;
+}
+.canvas-node-asset-category-grid > button:hover { background: rgba(31, 41, 55, .055); }
+.canvas-node-asset-category-grid > button.active {
+  color: #303640;
+  background: #eef0f2;
+  box-shadow: inset 0 0 0 1px rgba(31, 41, 55, .05);
+}
+.canvas-node-asset-category-grid svg {
+  width: 13px;
+  height: 13px;
+}
+.canvas-node-asset-destinations {
+  margin-top: 7px;
+  border-top: 1px solid rgba(31, 41, 55, .08);
+  padding-top: 7px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+}
+.canvas-node-asset-destinations > button {
+  height: 32px;
+  padding: 0 7px;
+  justify-content: center;
+  gap: 5px;
+  color: #454c55;
+  background: #f4f5f6;
   font-size: 10px;
-  font-weight: 450;
-  line-height: 13px;
+}
+.canvas-node-asset-destinations > button:hover:not(:disabled) { background: #e9ebed; }
+.canvas-node-asset-destinations > button:disabled { cursor: default; opacity: .34; }
+.canvas-node-asset-destinations svg { width: 12px; height: 12px; }
+.canvas-node-asset-destinations strong { font-weight: 600; }
+.canvas-node-asset-category-grid > button:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
 }
 .canvas-node-selection-toolbar--subtle {
   gap: 1px;
@@ -539,6 +609,23 @@
   z-index: 120;
   transform: translateX(-50%);
   pointer-events: auto;
+  translate: 0 0;
+  transition:
+    opacity 150ms ease-out,
+    translate 220ms cubic-bezier(.22, 1, .36, 1);
+}
+.work-composer-anchor--hidden {
+  opacity: 0;
+  translate: 0 -10px;
+  transition: none;
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .canvas-node-selection-toolbar,
+  .canvas-node-asset-scope-menu,
+  .work-composer-anchor {
+    transition: none;
+  }
 }
 .work-composer-row,
 .work-inputs,
