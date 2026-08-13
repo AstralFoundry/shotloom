@@ -9,7 +9,7 @@ import {
   inferFileResourceType,
   registerImportedMaterial,
 } from "../../store/assetStore.js";
-import { useLocalAssetInProject } from "../../store/localAssetLibraryStore.js";
+import { promoteMaterialToLocalLibrary, useLocalAssetInProject } from "../../store/localAssetLibraryStore.js";
 import { addCanvasEdge } from "../../store/canvasGraphStore.js";
 import { getGenerationInputModes } from "../../domain/catalog/ModelCatalog";
 import { defaultInputSlot, type GenerationInputMode, type GenerationInputSlot } from "../../domain/graph/GenerationInputContract";
@@ -188,6 +188,44 @@ export function canvasViewData() {
       canRedo: Boolean(canRedoCanvas.value),
     },
   };
+}
+
+function selectedNodeLocalMedia(node: any) {
+  const outputs = Array.isArray(node?.generatedOutputs) ? node.generatedOutputs : [];
+  const selectedId = String(node?.selectedOutputNodeId || "").replace(/^material:/, "");
+  const selectedOutput = outputs.find((item: any) => String(item?.id || "") === selectedId)
+    || outputs.find((item: any) => item?.selected)
+    || outputs[outputs.length - 1];
+  const nodeMaterials = (store.project.materials || []).filter((item: any) =>
+    item.nodeId === node?.id || item.id === node?.materialId || item.id === selectedId
+  );
+  let material = nodeMaterials.find((item: any) => item.id === selectedId)
+    || nodeMaterials.find((item: any) =>
+      String(item.path || item.filePath || "") === String(selectedOutput?.path || selectedOutput?.filePath || "")
+    )
+    || nodeMaterials[nodeMaterials.length - 1]
+    || null;
+  const uploaded = node?.uploadedFile && typeof node.uploadedFile === "object" ? node.uploadedFile : null;
+  const path = String(
+    selectedOutput?.filePath || selectedOutput?.path || material?.filePath || material?.path
+      || uploaded?.filePath || uploaded?.path || node?.filePath || "",
+  );
+  if (!material && path) {
+    material = {
+      id: String(selectedOutput?.id || uploaded?.materialId || node?.materialId || ""),
+      path,
+      filePath: path,
+      name: String(selectedOutput?.fileName || selectedOutput?.title || uploaded?.name || node?.title || path.split(/[\\/]/).pop() || "未命名素材"),
+      size: Number(selectedOutput?.size || uploaded?.size || 0),
+      mimeType: String(selectedOutput?.mimeType || uploaded?.type || ""),
+      resourceType: String(selectedOutput?.resourceType || uploaded?.resourceType || node?.resourceType || ""),
+      nodeType: String(node?.type || ""),
+    };
+  }
+  const asset = material
+    ? (store.project.assets || []).find((item: any) => item.materialId === material.id) || {}
+    : {};
+  return { path, material, asset };
 }
 
 export const canvasController: WorkflowCanvasController = {
@@ -500,6 +538,74 @@ export const nodeActions: WorkflowNodeActions = {
     recordCanvasHistory("连接资源输入");
     const result = connectResourceToNode(store.project, id, target.id);
     showToast(result.ok ? "已连接为生成输入" : result.error || "连接失败");
+  },
+  async saveToAssets(id) {
+    const node = (store.project.nodes || []).find((item: any) => item.id === id && !item.archived);
+    const { path, material, asset } = selectedNodeLocalMedia(node);
+    if (!node || !path || !material) return showToast("当前节点没有可存入的本地资源");
+    try {
+      await promoteMaterialToLocalLibrary(material, {
+        ...asset,
+        name: asset.name || material.name || node.title,
+        resourceType: asset.resourceType || material.resourceType || node.resourceType,
+        nodeType: asset.nodeType || material.nodeType || node.type,
+      });
+      showToast("已存入通用素材库");
+    } catch (cause) {
+      showToast(cause instanceof Error ? cause.message : "存为资产失败");
+    }
+  },
+  async extractAudio(id) {
+    const source = (store.project.nodes || []).find((item: any) => item.id === id && !item.archived);
+    const { path } = selectedNodeLocalMedia(source);
+    if (!source || source.type !== "videoGeneration" || !path) {
+      return showToast("当前节点没有可分离的本地视频");
+    }
+    const stem = String(source.title || path.split(/[\\/]/).pop() || "视频")
+      .replace(/\.[a-z0-9]{1,10}$/i, "")
+      .replace(/[\\/:*?"<>|]/g, "-");
+    try {
+      const file: any = await desktopApi.file.extractAudioToProject(path, `${stem}-音频.m4a`);
+      if (!file?.filePath && !file?.path) return;
+      const registered = registerImportedMaterial(
+        { ...file, type: "audio/mp4", mimeType: "audio/mp4" },
+        {
+          resourceType: "audio",
+          source: "audio-extraction",
+          sourceType: "audio-extraction",
+          nodeType: "audioGeneration",
+          assetTag: "音频分离",
+        },
+      );
+      if (!registered.material) throw new Error("分离音频未能登记为项目素材");
+      recordCanvasHistory("分离视频音轨");
+      const audio: any = addNode("audioGeneration");
+      audio.title = `${stem}-音频`;
+      audio.prompt = "";
+      audio.x = Math.round((Number(source.x) || 0) + (Number(source.canvasWidth) || 278) + 80);
+      audio.y = Math.round(Number(source.y) || 0);
+      audio.materialId = registered.material.id;
+      audio.assetId = registered.asset?.id || "";
+      audio.resourceType = "audio";
+      audio.sourceType = "audio-extraction";
+      audio.generatedFrom = { nodeId: source.id, type: "audio-extraction" };
+      audio.uploadedFile = {
+        name: file.name || `${stem}-音频.m4a`,
+        path: file.filePath || file.path,
+        type: "audio/mp4",
+        size: file.size || 0,
+        materialId: audio.materialId,
+        assetId: audio.assetId,
+        resourceType: "audio",
+        source: "audio-extraction",
+      };
+      registered.material.nodeId = audio.id;
+      setSelectedNodeIds([audio.id]);
+      touchProject();
+      showToast("已分离音轨并创建音频节点");
+    } catch (cause) {
+      showToast(cause instanceof Error ? cause.message : "音频分离失败");
+    }
   },
   async replaceResource(id) {
     const picked = await desktopApi.file.pickResource();
@@ -941,19 +1047,24 @@ export const canvasCommands = {
     }
     if (!paths.size) return showToast("所选节点没有可下载的本地资源");
     try {
-      const result = await desktopApi.file.exportFilesPackage(
-        [...paths],
-        `${store.project.name || "project"}-selected-assets`,
-      );
+      const sources = [...paths];
+      const result = sources.length === 1
+        ? await desktopApi.file.exportFile(sources[0])
+        : await desktopApi.file.exportFilesPackage(
+            sources,
+            `${store.project.name || "project"}-selected-assets`,
+          );
       if (result?.ok) {
         showToast(
-          result.direct
-            ? `已打包 ${result.count} 个资源并保存到 ${result.filePath}`
-            : `已打包下载 ${result.count} 个资源`,
+          sources.length === 1
+            ? `已下载资源到 ${result.filePath || result.path || "指定位置"}`
+            : result.direct
+              ? `已打包 ${result.count} 个资源并保存到 ${result.filePath}`
+              : `已打包下载 ${result.count} 个资源`,
         );
       }
     } catch (cause) {
-      showToast(cause instanceof Error ? cause.message : "打包下载失败");
+      showToast(cause instanceof Error ? cause.message : "资源下载失败");
     }
   },
   async mergeSelectedVideos() {

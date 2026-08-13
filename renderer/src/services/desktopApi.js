@@ -92,6 +92,7 @@ function createBrowserFallback() {
       },
       exportResourcePackage: async () => ({ ok: false }),
       importResourcePackage: async () => null,
+      exportFile: async () => ({ ok: false }),
       exportFilesPackage: async () => ({ ok: false }),
       trimVideo: async () => null,
       exportVideoProject: async () => {
@@ -103,6 +104,9 @@ function createBrowserFallback() {
       readImagePreview: async () => new ArrayBuffer(0),
       applyColoredPencil: async () => {
         throw new Error('浏览器预览不支持本地彩铅处理，请在桌面应用中使用。');
+      },
+      extractAudioToProject: async () => {
+        throw new Error('浏览器预览不支持音频分离，请在桌面应用中使用。');
       },
       checksum: async () => ({ checksum: '', checksumAlgorithm: 'sha256', size: 0 }),
       getGlobalAssetRoot: async () => 'browser/local-asset-library/blobs',

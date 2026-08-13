@@ -25,11 +25,13 @@ import {
   type Node,
   type NodeChange,
   NodeResizer,
+  NodeToolbar,
   type NodeProps,
   type OnMoveEnd,
   type OnMoveStart,
   ReactFlow,
   type ReactFlowInstance,
+  Position,
   type Viewport,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
@@ -77,6 +79,8 @@ export interface WorkflowNodeActions {
   removeIncomingEdge: (id: string, edgeId: string) => void;
   run: (id: string) => void;
   useResource: (id: string) => void;
+  saveToAssets: (id: string) => void | Promise<void>;
+  extractAudio: (id: string) => void | Promise<void>;
   replaceResource: (id: string) => void;
   archiveResource: (id: string) => void;
   selectOutput: (nodeId: string, outputId: string) => void;
@@ -151,6 +155,16 @@ function screenPixel(value: number) {
 }
 function nodeDimensions(node: WorkflowNodeData) {
   return canvasNodeDimensions(node);
+}
+function selectedLocalMediaPath(node: WorkflowNodeData) {
+  const outputs = Array.isArray(node.generatedOutputs)
+    ? node.generatedOutputs.filter((item) => item && typeof item === "object") as Array<Record<string, unknown>>
+    : [];
+  const selected = outputs.find((item) => item.selected) || outputs[outputs.length - 1];
+  const uploaded = node.uploadedFile && typeof node.uploadedFile === "object"
+    ? node.uploadedFile as Record<string, unknown>
+    : null;
+  return String(selected?.filePath || selected?.path || uploaded?.filePath || uploaded?.path || node.filePath || "");
 }
 function toFlowNodes(
   nodes: WorkflowNodeData[],
@@ -234,22 +248,9 @@ function toFlowNodes(
     });
 }
 function FallbackNodeInner({ node, selected }: { node: WorkflowNodeData; selected: boolean }) {
-  const mentionInCopilot = useContext(MentionContext);
   return (
     <article className={`react-workflow-node${selected ? " selected" : ""}`}>
       <header>
-        {mentionInCopilot && (
-          <button
-            className="node-mention-btn"
-            title={`引用节点：${node.title || node.type}`}
-            onClick={(e) => {
-              e.stopPropagation();
-              mentionInCopilot(node.id);
-            }}
-          >
-            @
-          </button>
-        )}
         <span>{node.type}</span>
         <i className={`status-${node.status || "idle"}`} />
       </header>
@@ -262,6 +263,7 @@ const FallbackNode = memo(FallbackNodeInner);
 function CanvasNode({ data, selected }: NodeProps<FlowNode>) {
   const registry = useContext(RendererContext);
   const actions = useContext(ActionContext)!;
+  const mentionInCopilot = useContext(MentionContext);
   const item = data.node;
   const [resizing, setResizing] = useState(false);
   const [labelRoot, setLabelRoot] = useState<HTMLElement | null>(null);
@@ -277,8 +279,61 @@ function CanvasNode({ data, selected }: NodeProps<FlowNode>) {
         : { width: 195, height: 135 };
   const dimensions = nodeDimensions(item);
   const semanticZoom = data.semanticZoom;
+  const localMediaPath = selectedLocalMediaPath(item);
+  const canSaveToAssets = Boolean(localMediaPath);
+  const canExtractAudio = item.type === "videoGeneration" && Boolean(localMediaPath);
   return (
     <>
+      {mentionInCopilot && (
+        <NodeToolbar
+          className="canvas-node-selection-toolbar nodrag nopan"
+          isVisible={selected}
+          position={Position.Top}
+          offset={30}
+        >
+          {canExtractAudio && (
+            <button
+              type="button"
+              title="分离视频中的音轨"
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={(event) => {
+                event.stopPropagation();
+                void actions.extractAudio(item.id);
+              }}
+            >
+              <IconSymbol name="waveform" />
+              <span>音频分离</span>
+            </button>
+          )}
+          {canSaveToAssets && (
+            <button
+              type="button"
+              title="存入通用素材库"
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={(event) => {
+                event.stopPropagation();
+                void actions.saveToAssets(item.id);
+              }}
+            >
+              <IconSymbol name="archive" />
+              <span>存为资产</span>
+            </button>
+          )}
+          {(canExtractAudio || canSaveToAssets) && <span className="canvas-node-toolbar-divider" />}
+          <button
+            className="canvas-node-toolbar-icon"
+            type="button"
+            title={`加入对话：${item.title || item.type}`}
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => {
+              event.stopPropagation();
+              mentionInCopilot(item.id);
+            }}
+          >
+            <IconSymbol name="chat" />
+          </button>
+        </NodeToolbar>
+      )}
       {selected && resizable && (
         <NodeResizer
           color="#171717"

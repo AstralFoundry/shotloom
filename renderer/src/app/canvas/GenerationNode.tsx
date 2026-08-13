@@ -2,7 +2,7 @@ import { memo, type ReactNode, useCallback, useContext, useMemo, useState } from
 import { createPortal } from "react-dom";
 import { Handle, Position, type ReactFlowState, useStore } from "@xyflow/react";
 import { getGenerationInputModes, getModelInfo, getModelSchema, getTypeMeta, resolveModeIdForInputMode } from "../../domain/catalog/ModelCatalog";
-import { CanvasNodeLabelRootContext, CanvasOverlayRootContext, MentionContext } from "./WorkflowCanvas";
+import { CanvasNodeLabelRootContext, CanvasOverlayRootContext } from "./WorkflowCanvas";
 import {
   aspectRatioStyle,
   isAspectRatioParam,
@@ -166,7 +166,6 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({
   actions,
 }) => {
   const [openMenu, setOpenMenu] = useState("");
-  const mentionInCopilot = useContext(MentionContext);
   const labelRoot = useContext(CanvasNodeLabelRootContext);
   const promptCommit = useImeCommit<HTMLTextAreaElement>(String(node.prompt || ""), (value) =>
     actions.update(node.id, { prompt: value }),
@@ -281,34 +280,18 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({
   const nodeLabel = (
     <div className={`work-node-kicker${displayTitle ? "" : " unlabeled"}`}>
       {displayTitle && <span title={displayTitle}>{displayTitle}</span>}
-      {(mentionInCopilot || (selected && node.type === "imageGeneration" && activeKind === "image")) && (
+      {selected && node.type === "imageGeneration" && activeKind === "image" && (
         <div className="work-node-kicker-actions">
-          {mentionInCopilot && (
-            <button
-              className="node-mention-btn"
-              title={activeKind === "image"
-                ? `添加图片和节点到对话：${node.title || node.type}`
-                : `引用节点：${node.title || node.type}`}
-              onClick={(event) => {
-                event.stopPropagation();
-                mentionInCopilot(node.id);
-              }}
-            >
-              @
-            </button>
-          )}
-          {selected && node.type === "imageGeneration" && activeKind === "image" && (
-            <button
-              title="创建彩铅图片节点"
-              disabled={busy}
-              onClick={(event) => {
-                event.stopPropagation();
-                void actions.applyColoredPencil(node.id);
-              }}
-            >
-              <IconSymbol name="pencil" />
-            </button>
-          )}
+          <button
+            title="创建彩铅图片节点"
+            disabled={busy}
+            onClick={(event) => {
+              event.stopPropagation();
+              void actions.applyColoredPencil(node.id);
+            }}
+          >
+            <IconSymbol name="pencil" />
+          </button>
         </div>
       )}
     </div>

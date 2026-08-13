@@ -52,6 +52,7 @@ const command = (channel, ...args) => {
     case 'file:read-array-buffer': return invoke('file_read_array_buffer', { path: args[0] });
     case 'file:read-image-preview': return invoke('file_read_image_preview', { path: args[0], maxSize: args[1] });
     case 'file:apply-colored-pencil': return invoke('file_apply_colored_pencil', { source: args[0], target: args[1] });
+    case 'file:extract-audio': return invoke('file_extract_audio', { source: args[0], target: args[1] });
     case 'file:write': return invoke('file_write', { path: args[0], data: args[1], append: Boolean(args[2]) });
     case 'file:copy': return invoke('file_copy', { source: args[0], target: args[1] });
     case 'file:export-video-project': return invoke('file_export_video_project', {
@@ -509,6 +510,11 @@ export function createTauriApi(browserFallback) {
         source,
         await uniqueProjectAssetPath(preferredName),
       ),
+      extractAudioToProject: async (source, preferredName = 'extracted-audio.m4a') => command(
+        'file:extract-audio',
+        source,
+        await uniqueProjectAssetPath(preferredName),
+      ),
       checksum: (path) => command('file:checksum', path),
       getGlobalAssetRoot: () => command('file:global-asset-root'),
       trash: (path) => command('file:trash', path),
@@ -612,6 +618,16 @@ export function createTauriApi(browserFallback) {
         return command('file:export-resource-package', target, {
           schema: 'shotloom-resource-files', version: 1, createdAt: new Date().toISOString(),
         }, files);
+      },
+      exportFile: async (source, preferredName = '') => {
+        const fileName = basename(preferredName || source) || 'resource.bin';
+        const downloadDir = localStorage.getItem('shotloom-download-dir') || '';
+        const target = downloadDir
+          ? await command('file:resolve-unique-path', downloadDir, fileName)
+          : await saveDialog({ defaultPath: fileName });
+        if (!target) return null;
+        const result = await command('file:copy', source, target);
+        return { ...result, ok: true, count: 1, direct: true };
       },
     },
     localAssets: {

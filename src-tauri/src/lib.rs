@@ -152,6 +152,7 @@ pub fn run() {
             commands::file_read_array_buffer,
             commands::file_read_image_preview,
             commands::file_apply_colored_pencil,
+            commands::file_extract_audio,
             commands::file_global_asset_root,
             commands::file_trash,
             commands::file_show_item_in_folder,

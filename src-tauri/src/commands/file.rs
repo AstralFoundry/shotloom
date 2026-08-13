@@ -926,6 +926,35 @@ fn source_has_audio(ffmpeg: &Path, source: &Path) -> bool {
         .unwrap_or(false)
 }
 
+#[tauri::command]
+pub fn file_extract_audio(source: String, target: String) -> Result<Value, String> {
+    let source = PathBuf::from(source);
+    if !source.is_file() {
+        return Err("视频文件不存在".into());
+    }
+    let ffmpeg = media_tool("ffmpeg")?;
+    if !source_has_audio(&ffmpeg, &source) {
+        return Err("当前视频不包含可分离的音轨".into());
+    }
+    let target = PathBuf::from(target);
+    if let Some(parent) = target.parent() {
+        fs::create_dir_all(parent).map_err(|error| format!("无法创建音频目录：{error}"))?;
+    }
+    let output = Command::new(&ffmpeg)
+        .args(["-hide_banner", "-loglevel", "error", "-y", "-i"])
+        .arg(&source)
+        .args(["-map", "0:a:0", "-vn", "-c:a", "aac", "-b:a", "192k"])
+        .arg(&target)
+        .output()
+        .map_err(|error| format!("无法启动音频分离：{error}"))?;
+    if !output.status.success() {
+        let _ = fs::remove_file(&target);
+        let detail = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        return Err(if detail.is_empty() { "音频分离失败".into() } else { detail });
+    }
+    file_result(&target)
+}
+
 fn export_video_editor_project(
     target: String,
     project: VideoEditorProject,

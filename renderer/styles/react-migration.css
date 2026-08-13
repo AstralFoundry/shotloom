@@ -81,6 +81,33 @@
   width: calc(11px * var(--node-label-zoom, 1));
   height: calc(11px * var(--node-label-zoom, 1));
 }
+.canvas-node-selection-toolbar {
+  z-index: 110;
+  border: 1px solid rgba(31, 41, 55, .1);
+  border-radius: 10px;
+  padding: 4px;
+  background: rgba(255, 255, 255, .96);
+  box-shadow: 0 6px 20px rgba(15, 23, 42, .1);
+  display: flex;
+  align-items: center;
+}
+.canvas-node-selection-toolbar button {
+  height: 30px;
+  border: 0;
+  border-radius: 7px;
+  padding: 0 9px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #3f4650;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 550;
+}
+.canvas-node-selection-toolbar button:hover { background: rgba(31, 41, 55, .07); }
+.canvas-node-selection-toolbar svg { width: 14px; height: 14px; }
+.canvas-node-selection-toolbar .canvas-node-toolbar-icon { width: 30px; padding: 0; justify-content: center; }
+.canvas-node-toolbar-divider { width: 1px; height: 18px; margin: 0 3px; background: rgba(31, 41, 55, .12); }
 .react-workflow-canvas .react-flow__edge-path,
 .react-workflow-canvas .react-flow__connection-path { stroke-linecap: round; }
 .react-workflow-canvas .react-flow__connection-path { stroke-width: 2; }
