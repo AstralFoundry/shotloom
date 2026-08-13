@@ -369,7 +369,9 @@ export function ReactWorkbench() {
             await canvasCommands.applyMaterial(item);
           },
           previewMaterial: assetsController.preview,
+          showMaterialInFolder: assetsController.showFile,
           loadMaterials: resourceLibraryData,
+          importMaterials: materialsController.importFiles,
           undo: canvasCommands.undo,
           redo: canvasCommands.redo,
           fitView: canvasCommands.fitView,

@@ -40,7 +40,7 @@ test('Tauri 随应用分发 OpenCode、FFmpeg sidecar 和 MCP bridge', () => {
 
 test('所有桌面构建入口都在 Cargo 或 Tauri 构建前准备平台 sidecar', () => {
   const pkg = JSON.parse(read('package.json'));
-  assert.equal(pkg.scripts.predev, 'npm run prepare:opencode');
+  assert.equal(pkg.scripts.predev, 'npm run prepare:sidecars');
   assert.equal(pkg.scripts['prebuild:desktop'], 'npm run prepare:sidecars');
   assert.equal(pkg.scripts.pretauri, 'npm run prepare:sidecars');
 

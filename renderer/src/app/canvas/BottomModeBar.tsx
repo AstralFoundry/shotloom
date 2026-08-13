@@ -61,8 +61,13 @@ export function BottomModeBar(
         <button title="适应视窗" onClick={onFitView}>
           <IconSymbol name="maximize" />
         </button>
-        <button title="选择素材" onClick={onMaterialPicker}>
-          <IconSymbol name="image" />
+        <button
+          className="bottom-material-trigger"
+          title="打开资产中心"
+          aria-label="打开资产中心"
+          onClick={onMaterialPicker}
+        >
+          <IconSymbol name="folder" />
         </button>
         <button
           title="整理节点"

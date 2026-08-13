@@ -13,6 +13,7 @@ import {
 } from "../../services/mediaPreviewCache";
 import { IconSymbol } from "./IconSymbol";
 import { showToast, useOverlayStore } from "../store/overlayStore";
+import { markdownToRichHtml, richHtmlToMarkdown } from "../../utils/richTextMarkdown.mjs";
 
 const MIN_ZOOM = .5, MAX_ZOOM = 5, STEP = .25;
 export function MediaViewer() {
@@ -24,8 +25,11 @@ export function MediaViewer() {
   const [panning, setPanning] = useState(false);
   const [fullSrc, setFullSrc] = useState("");
   const [textDraft, setTextDraft] = useState("");
+  const [textSearchOpen, setTextSearchOpen] = useState(false);
+  const [textSearch, setTextSearch] = useState("");
   const panOrigin = useRef<{ x: number; y: number; id: number } | null>(null);
   const backdrop = useRef<HTMLDivElement>(null);
+  const textEditor = useRef<HTMLDivElement>(null);
   const reset = () => {
     setZoom(1);
     setRotation(0);
@@ -41,7 +45,14 @@ export function MediaViewer() {
   useEffect(() => {
     if (!media.open) return;
     reset();
-    if (media.kind === "text") setTextDraft(media.src);
+    if (media.kind === "text") {
+      setTextDraft(media.src);
+      setTextSearchOpen(false);
+      setTextSearch("");
+      requestAnimationFrame(() => {
+        if (textEditor.current) textEditor.current.innerHTML = markdownToRichHtml(media.src);
+      });
+    }
     backdrop.current?.focus({ preventScroll: true });
     let cancelled = false;
     let lease: CachedMediaLease | null = null;
@@ -70,7 +81,7 @@ export function MediaViewer() {
   useEffect(() => {
     function key(event: KeyboardEvent) {
       if (!media.open) return;
-      if (event.key === "Escape") close();
+      if (event.key === "Escape") closeViewer();
       else if (media.kind === "image" && ["+", "="].includes(event.key)) {
         adjust(STEP);
       } else if (media.kind === "image" && event.key === "-") adjust(-STEP);
@@ -115,12 +126,63 @@ export function MediaViewer() {
     }
   }
   async function copyText() {
-    await navigator.clipboard?.writeText(textDraft);
+    await navigator.clipboard?.writeText(currentMarkdown());
     showToast("已复制全文");
   }
   function saveText() {
-    media.onSave?.(textDraft);
+    const markdown = currentMarkdown();
+    setTextDraft(markdown);
+    media.onSave?.(markdown);
     showToast("文本已保存");
+  }
+  function closeViewer() {
+    const markdown = currentMarkdown();
+    if (media.kind === "text" && media.onSave && markdown !== media.src) {
+      media.onSave(markdown);
+    }
+    close();
+  }
+  function currentMarkdown() {
+    return media.kind === "text" && textEditor.current
+      ? richHtmlToMarkdown(textEditor.current.innerHTML)
+      : textDraft;
+  }
+  function syncRichText() {
+    setTextDraft(currentMarkdown());
+  }
+  function editCommand(command: string, value?: string) {
+    textEditor.current?.focus();
+    document.execCommand(command, false, value);
+    syncRichText();
+  }
+  function insertTable() {
+    editCommand(
+      "insertHTML",
+      '<table><thead><tr><th>标题</th><th>标题</th></tr></thead><tbody><tr><td>内容</td><td>内容</td></tr></tbody></table><p><br></p>',
+    );
+  }
+  function findText() {
+    const editor = textEditor.current;
+    const query = textSearch.trim();
+    if (!editor || !query) return;
+    const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT);
+    const selection = window.getSelection();
+    const current = selection?.rangeCount ? selection.getRangeAt(0).endContainer : null;
+    const nodes = [];
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      if (node) nodes.push(node);
+    }
+    const start = current ? Math.max(0, nodes.indexOf(current) + 1) : 0;
+    const ordered = [...nodes.slice(start), ...nodes.slice(0, start)];
+    const match = ordered.find((node) => String(node.nodeValue).toLocaleLowerCase().includes(query.toLocaleLowerCase()));
+    if (!match) return showToast("未找到匹配内容");
+    const index = String(match.nodeValue).toLocaleLowerCase().indexOf(query.toLocaleLowerCase());
+    const range = document.createRange();
+    range.setStart(match, index);
+    range.setEnd(match, index + query.length);
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    editor.focus();
   }
   return (
     <div
@@ -132,10 +194,51 @@ export function MediaViewer() {
       aria-modal="true"
       tabIndex={-1}
       aria-label={media.title}
-      onPointerDown={(e) => e.target === e.currentTarget && close()}
+      onPointerDown={(e) => e.target === e.currentTarget && closeViewer()}
     >
       <header className="media-viewer-toolbar">
-        <div className="media-viewer-title">
+        {media.kind === "text" ? (
+          <>
+            <div className="text-editor-leading">
+              <button title="复制全文" onClick={() => void copyText()}>
+                <IconSymbol name="copy" />
+              </button>
+            </div>
+            <div className="text-editor-formatting" role="toolbar" aria-label="文本格式">
+              <button title="一级标题" onMouseDown={(event) => { event.preventDefault(); editCommand("formatBlock", "h1"); }}>H<sub>1</sub></button>
+              <button title="二级标题" onMouseDown={(event) => { event.preventDefault(); editCommand("formatBlock", "h2"); }}>H<sub>2</sub></button>
+              <button title="三级标题" onMouseDown={(event) => { event.preventDefault(); editCommand("formatBlock", "h3"); }}>H<sub>3</sub></button>
+              <button title="正文" onMouseDown={(event) => { event.preventDefault(); editCommand("formatBlock", "p"); }}>¶</button>
+              <span />
+              <button title="粗体" onMouseDown={(event) => { event.preventDefault(); editCommand("bold"); }}><b>B</b></button>
+              <button title="斜体" onMouseDown={(event) => { event.preventDefault(); editCommand("italic"); }}><i>I</i></button>
+              <span />
+              <button title="无序列表" onMouseDown={(event) => { event.preventDefault(); editCommand("insertUnorderedList"); }} className="text-format-list">•<i>≡</i></button>
+              <button title="有序列表" onMouseDown={(event) => { event.preventDefault(); editCommand("insertOrderedList"); }} className="text-format-list"><small>1</small><i>≡</i></button>
+              <button title="分隔线" onMouseDown={(event) => { event.preventDefault(); editCommand("insertHorizontalRule"); }}>—</button>
+              <span />
+              <button title="插入表格" className="text-format-table" onMouseDown={(event) => { event.preventDefault(); insertTable(); }}>▦</button>
+            </div>
+            <div className="text-editor-actions">
+              {textSearchOpen && (
+                <input
+                  autoFocus
+                  value={textSearch}
+                  placeholder="查找"
+                  aria-label="查找文本"
+                  onChange={(event) => setTextSearch(event.target.value)}
+                  onKeyDown={(event) => event.key === "Enter" && findText()}
+                />
+              )}
+              <button title="查找" onClick={() => textSearchOpen ? findText() : setTextSearchOpen(true)}>
+                <IconSymbol name="search" />
+              </button>
+              <button title="关闭" onClick={closeViewer}>
+                <IconSymbol name="x" />
+              </button>
+            </div>
+          </>
+        ) : <><div className="media-viewer-title">
           <span>
             {{ image: "IMAGE", video: "VIDEO", text: "TEXT" }[media.kind]}
           </span>
@@ -165,22 +268,6 @@ export function MediaViewer() {
           </div>
         )}
         <div className="media-viewer-actions">
-          {media.kind === "text" && (
-            <>
-              <button title="复制全文" onClick={() => void copyText()}>
-                <IconSymbol name="copy" />
-              </button>
-              {media.onSave && (
-                <button
-                  className="media-viewer-save"
-                  title="保存修改"
-                  onClick={saveText}
-                >
-                  保存
-                </button>
-              )}
-            </>
-          )}
           {media.filePath && (
             <button
               title="在文件夹中显示"
@@ -189,10 +276,11 @@ export function MediaViewer() {
               <IconSymbol name="folder" />
             </button>
           )}
-          <button title="关闭" onClick={close}>
+          <button title="关闭" onClick={closeViewer}>
             <IconSymbol name="x" />
           </button>
         </div>
+        </>}
       </header>
       <main
         className={`media-viewer-stage${
@@ -239,12 +327,15 @@ export function MediaViewer() {
           )
           : media.onSave
           ? (
-            <textarea
+            <div
+              ref={textEditor}
               className="media-viewer-text"
-              value={textDraft}
+              contentEditable
+              data-placeholder="输入内容..."
               aria-label="编辑文本详情"
               spellCheck={false}
-              onChange={(event) => setTextDraft(event.target.value)}
+              suppressContentEditableWarning
+              onInput={syncRichText}
               onKeyDown={(event) => {
                 if ((event.metaKey || event.ctrlKey) && event.key === "s") {
                   event.preventDefault();

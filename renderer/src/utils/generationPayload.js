@@ -5,6 +5,7 @@ import { applyImageStylePreset } from '@/utils/imageStylePresets.mjs';
 import { normalizeInputRole } from '@/utils/generationInputRole.mjs';
 import { compileGenerationNodeConfig } from '@/domain/graph/GenerationNodeContract';
 import { inputSlotOrder, isSlotValidForMode } from '@/domain/graph/GenerationInputContract';
+import { textNodeContent } from '@/utils/textNodeContent.mjs';
 
 function pickString(value, fallback = '') {
   return typeof value === 'string' && value.trim() ? value.trim() : fallback;
@@ -193,7 +194,7 @@ function collectUpstreamInputs(node, project) {
         nodeId: source.id,
         nodeType: source.type,
         title: pickString(source.title, source.type),
-        prompt: pickString(source.type === 'textGeneration' ? source.textContent || source.prompt : source.prompt),
+        prompt: pickString(source.type === 'textGeneration' ? textNodeContent(source) : source.prompt),
         model: pickString(source.model),
         status: source.status || 'idle',
         uploadedFile: uploadedFilePayload(source.uploadedFile),
@@ -322,8 +323,10 @@ export function generationUpstreamReadiness(node, project) {
     const declaredRole = input.inputRole || 'auto';
     const role = effectiveInputRole(input);
     const uploadedResource = uploadedInputResource(input);
+    const hasManualTextContent = input.nodeType === 'textGeneration'
+      && Boolean(String(input.prompt || '').trim());
     if (['imageGeneration', 'videoGeneration', 'audioGeneration', 'textGeneration'].includes(input.nodeType)
-      && input.status !== 'completed' && !uploadedResource) {
+      && input.status !== 'completed' && !uploadedResource && !hasManualTextContent) {
       issues.push(`${input.title} 尚未完成，不能作为 ${role} 输入`);
       continue;
     }

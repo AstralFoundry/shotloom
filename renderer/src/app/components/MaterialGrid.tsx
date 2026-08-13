@@ -199,6 +199,12 @@ const MaterialPreview = memo(function MaterialPreview({
   }
 
   const canPreview = (kind === "image" || kind === "video") && Boolean(source) && !failed;
+  const extension = String(file.ext || file.name?.split(".").pop() || "").replace(/^\./, "");
+  const placeholderLabel = failed
+    ? "无法预览"
+    : extension
+      ? `.${extension.toUpperCase()}`
+      : typeOf(file);
   const poster =
     kind === "video" && String(file.previewUrl || "") !== source
       ? String(file.previewUrl || "")
@@ -253,10 +259,8 @@ const MaterialPreview = memo(function MaterialPreview({
         />
       ) : (
         <div className="material-node-placeholder">
-          <IconSymbol name={kind === "text" ? "chat" : iconOf(file)} />
-          <span>
-            {kind === "text" ? "文本素材" : failed ? "无法预览" : file.ext || typeOf(file)}
-          </span>
+          <IconSymbol name={kind === "text" ? "file" : iconOf(file)} />
+          <span>{placeholderLabel}</span>
         </div>
       )}
     </div>
@@ -347,7 +351,13 @@ export function MaterialGrid({
                   </button>
                 )}
                 {showFileAction && file.path && (
-                  <button title="所在位置" onClick={() => action("show-file")}>
+                  <button
+                    title="在文件夹中显示"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      action("show-file");
+                    }}
+                  >
                     <IconSymbol name="folder" />
                   </button>
                 )}

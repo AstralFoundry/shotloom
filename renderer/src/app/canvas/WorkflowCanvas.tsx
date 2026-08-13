@@ -37,6 +37,8 @@ import {
 import "@xyflow/react/dist/style.css";
 import { canvasNodeDimensions, defaultCanvasNodeDimensions } from "../../services/agentLayoutService";
 import { IconSymbol } from "../components/IconSymbol";
+import { openMediaViewer } from "../store/overlayStore";
+import { selectedTextOutput, textNodeContent } from "../../utils/textNodeContent.mjs";
 import { CanvasContextMenu } from "./CanvasContextMenu";
 
 export interface WorkflowNodeData extends Record<string, unknown> {
@@ -79,7 +81,7 @@ export interface WorkflowNodeActions {
   removeIncomingEdge: (id: string, edgeId: string) => void;
   run: (id: string) => void;
   useResource: (id: string) => void;
-  saveToAssets: (id: string) => void | Promise<void>;
+  saveToAssets: (id: string, scope: "project" | "global") => void | Promise<void>;
   extractAudio: (id: string) => void | Promise<void>;
   replaceResource: (id: string) => void;
   archiveResource: (id: string) => void;
@@ -266,6 +268,7 @@ function CanvasNode({ data, selected }: NodeProps<FlowNode>) {
   const mentionInCopilot = useContext(MentionContext);
   const item = data.node;
   const [resizing, setResizing] = useState(false);
+  const [assetScopeMenuOpen, setAssetScopeMenuOpen] = useState(false);
   const [labelRoot, setLabelRoot] = useState<HTMLElement | null>(null);
   const Renderer = registry[item.type] || FallbackNode;
   const resizable =
@@ -282,15 +285,99 @@ function CanvasNode({ data, selected }: NodeProps<FlowNode>) {
   const localMediaPath = selectedLocalMediaPath(item);
   const canSaveToAssets = Boolean(localMediaPath);
   const canExtractAudio = item.type === "videoGeneration" && Boolean(localMediaPath);
+  const uploadLabels: Record<string, string> = {
+    imageGeneration: "图片",
+    videoGeneration: "视频",
+    audioGeneration: "音频",
+  };
+  const mediaOutputs = Array.isArray(item.generatedOutputs)
+    ? (item.generatedOutputs as Array<Record<string, unknown>>)
+    : [];
+  const hasMediaContent = Boolean(
+    item.uploadedFile ||
+    item.filePath ||
+    item.previewUrl ||
+    item.url ||
+    mediaOutputs.some((output) =>
+      output.filePath || output.path || output.previewUrl || output.url || output.remoteUrl,
+    ),
+  );
+  const uploadLabel = uploadLabels[item.type] || "";
+  const canUpload = Boolean(uploadLabel && !hasMediaContent);
+  const isTextNode = item.type === "textGeneration";
+  const useSubtleUploadToolbar = canUpload && !isTextNode;
+  const textOutputs = Array.isArray(item.generatedOutputs)
+    ? (item.generatedOutputs as Array<Record<string, unknown>>)
+    : [];
+  const currentTextOutput = selectedTextOutput(item) as Record<string, unknown> | null;
+  const textContent = textNodeContent(item);
+  useEffect(() => {
+    if (!selected) setAssetScopeMenuOpen(false);
+  }, [selected]);
+  function openTextDetail() {
+    openMediaViewer({
+      src: textContent,
+      kind: "text",
+      title: String(item.title || "文本详情"),
+      filePath: String(currentTextOutput?.filePath || ""),
+      onSave: (content) => {
+        actions.update(item.id, {
+          textContent: content,
+          generatedOutputs: currentTextOutput
+            ? textOutputs.map((output) =>
+                output.id === currentTextOutput.id ? { ...output, content } : output,
+              )
+            : textOutputs,
+          updatedAt: new Date().toISOString(),
+        });
+      },
+    });
+  }
   return (
     <>
-      {(mentionInCopilot || canSaveToAssets || canExtractAudio) && (
+      {(isTextNode || canUpload || mentionInCopilot || canSaveToAssets || canExtractAudio) && (
         <NodeToolbar
-          className="canvas-node-selection-toolbar nodrag nopan"
+          className={`canvas-node-selection-toolbar${useSubtleUploadToolbar ? " canvas-node-selection-toolbar--subtle" : ""} nodrag nopan`}
           isVisible={selected}
           position={Position.Top}
-          offset={30}
+          offset={useSubtleUploadToolbar ? 18 : 30}
         >
+          {isTextNode && (
+            <>
+              <span className="canvas-node-toolbar-label">文本节点</span>
+              <button
+                className="canvas-node-toolbar-icon"
+                type="button"
+                title="复制全文"
+                disabled={!textContent}
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  void navigator.clipboard.writeText(textContent).then(
+                    () => actions.notify("文本已复制"),
+                    () => actions.notify("文本复制失败"),
+                  );
+                }}
+              >
+                <IconSymbol name="copy" />
+              </button>
+            </>
+          )}
+          {canUpload && (
+            <button
+              className="canvas-node-upload-action"
+              type="button"
+              title={`上传${uploadLabel}`}
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={(event) => {
+                event.stopPropagation();
+                void actions.upload(item.id);
+              }}
+            >
+              <IconSymbol name="upload" />
+              <span>上传{uploadLabel}</span>
+            </button>
+          )}
           {canExtractAudio && (
             <button
               type="button"
@@ -306,20 +393,57 @@ function CanvasNode({ data, selected }: NodeProps<FlowNode>) {
             </button>
           )}
           {canSaveToAssets && (
-            <button
-              type="button"
-              title="存入通用素材库"
-              onPointerDown={(event) => event.stopPropagation()}
-              onClick={(event) => {
-                event.stopPropagation();
-                void actions.saveToAssets(item.id);
-              }}
-            >
-              <IconSymbol name="archive" />
-              <span>存为资产</span>
-            </button>
+            <div className="canvas-node-asset-action">
+              <button
+                type="button"
+                title="选择资产保存范围"
+                aria-haspopup="menu"
+                aria-expanded={assetScopeMenuOpen}
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setAssetScopeMenuOpen((open) => !open);
+                }}
+              >
+                <IconSymbol name="archive" />
+                <span>存为资产</span>
+                <IconSymbol className="canvas-node-asset-chevron" name="chevron-down" />
+              </button>
+              {assetScopeMenuOpen && (
+                <div
+                  className="canvas-node-asset-scope-menu"
+                  role="menu"
+                  onPointerDown={(event) => event.stopPropagation()}
+                >
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setAssetScopeMenuOpen(false);
+                      void actions.saveToAssets(item.id, "project");
+                    }}
+                  >
+                    <IconSymbol name="folder" />
+                    <span><strong>当前项目</strong><small>仅收录到这个项目</small></span>
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setAssetScopeMenuOpen(false);
+                      void actions.saveToAssets(item.id, "global");
+                    }}
+                  >
+                    <IconSymbol name="archive" />
+                    <span><strong>全局资产</strong><small>所有项目都可以复用</small></span>
+                  </button>
+                </div>
+              )}
+            </div>
           )}
-          {mentionInCopilot && (canExtractAudio || canSaveToAssets) && (
+          {mentionInCopilot && (canUpload || canExtractAudio || canSaveToAssets) && (
             <span className="canvas-node-toolbar-divider" />
           )}
           {mentionInCopilot && (
@@ -334,6 +458,20 @@ function CanvasNode({ data, selected }: NodeProps<FlowNode>) {
               }}
             >
               <IconSymbol name="chat" />
+            </button>
+          )}
+          {isTextNode && (
+            <button
+              className="canvas-node-toolbar-icon"
+              type="button"
+              title="打开完整文本"
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={(event) => {
+                event.stopPropagation();
+                openTextDetail();
+              }}
+            >
+              <IconSymbol name="maximize" />
             </button>
           )}
         </NodeToolbar>

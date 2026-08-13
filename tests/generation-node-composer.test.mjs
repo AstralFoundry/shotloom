@@ -11,6 +11,12 @@ test('发送按钮仅在节点运行时禁用并提供反馈', () => {
 test('点击发送与输入框回车复用运行入口', () => {
   assert.match(source, /onKeyDown=[\s\S]*?actions\.run\(node\.id\)/); assert.match(source, /onClick=\{\(\) => actions\.run\(node\.id\)\}/);
 });
+test('文本节点提示词与节点正文使用独立数据', () => {
+  assert.match(source, /textNodeContent\(\{ \.\.\.node, generatedOutputs: outputs \}\)/);
+  assert.doesNotMatch(source, /node\.textContent \|\| node\.prompt/);
+  assert.match(source, /placeholder=\{kind === "text" \? "输入给大模型的文本生成提示词"/);
+  assert.match(source, /className="text-result-manual nodrag nopan"[\s\S]*?自己编写内容/);
+});
 test('非文本节点使用模型目录类型与节点内配置面板', () => {
   assert.match(source, /getTypeMeta\(node\.type\)/); assert.match(source, /work-composer nodrag nopan nowheel/);
 });
@@ -34,6 +40,13 @@ test('节点输入面板固定在屏幕空间，不跟随画布倍率缩放', ()
   assert.match(styles, /\.work-composer \{[\s\S]*?position:\s*relative/);
   assert.match(styles, /\.work-composer-anchor \{[\s\S]*?z-index:\s*120/);
   assert.doesNotMatch(styles, /\.work-composer \{[\s\S]*?top:\s*calc\(100% \+ 10px\)/);
+});
+
+test('节点输入面板使用四分之三紧凑尺寸', () => {
+  assert.match(source, /Math\.min\(570, Math\.max\(320, rootWidth - 24\)\)/);
+  assert.match(styles, /\.work-composer \{[\s\S]*?height:\s*186px/);
+  assert.match(styles, /\.work-composer-add \{[\s\S]*?width:\s*36px;[\s\S]*?height:\s*36px/);
+  assert.match(styles, /\.work-composer-input \{[\s\S]*?width:\s*36px;[\s\S]*?height:\s*36px/);
 });
 
 test('节点输入面板层级被限制在画布内且不会盖住剪辑工作区', () => {

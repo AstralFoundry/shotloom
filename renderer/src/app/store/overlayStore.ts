@@ -46,15 +46,14 @@ export const useOverlayStore = create<OverlayState>((set, get) => ({
     set({ toast: String(message || ""), toastTone: tone, toastTimer });
   },
   openMedia: (payload) => {
-    const src = String(payload.src || "").trim();
-    if (!src) return false;
+    const kind = payload.kind === "video" || payload.kind === "text" ? payload.kind : "image";
+    const src = String(payload.src || "");
+    if (kind !== "text" && !src.trim()) return false;
     set({
       media: {
         open: true,
         src,
-        kind: payload.kind === "video" || payload.kind === "text"
-          ? payload.kind
-          : "image",
+        kind,
         title: String(payload.title || "媒体预览"),
         filePath: String(payload.filePath || ""),
         onSave: payload.onSave || null,

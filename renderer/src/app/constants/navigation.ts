@@ -21,18 +21,6 @@ export const projectWorkspaceItems: NavigationItem[] = [
     icon: "task",
     description: "当前项目内的执行记录",
   },
-  {
-    id: "assets",
-    label: "素材库",
-    icon: "box",
-    description: "角色、场景、风格与分镜参考",
-  },
-  {
-    id: "materials",
-    label: "素材文件",
-    icon: "image",
-    description: "导入文件与生成结果",
-  },
 ];
 
 export const assetCategories: Array<

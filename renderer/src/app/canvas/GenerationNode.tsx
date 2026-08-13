@@ -30,6 +30,7 @@ import type {
 import { useMediaPreviewCache } from "./useMediaPreviewCache";
 import { isImeKeyEvent, useImeCommit } from "./imeComposition";
 import { imageCanvasNodeDimensions } from "../../domain/graph/CanvasNodeDimensions";
+import { textNodeContent } from "../../utils/textNodeContent.mjs";
 
 interface OutputData {
   id: string;
@@ -111,8 +112,8 @@ function ScreenSpaceComposer({ nodeId, children }: { nodeId: string; children: R
     const position = internal?.internals.positionAbsolute;
     const width = Number(internal?.measured.width || internal?.width || 0);
     const height = Number(internal?.measured.height || internal?.height || 0);
-    const rootWidth = Number(root?.clientWidth || 760);
-    const composerWidth = Math.min(760, Math.max(320, rootWidth - 24));
+    const rootWidth = Number(root?.clientWidth || 570);
+    const composerWidth = Math.min(570, Math.max(320, rootWidth - 24));
     const desiredLeft = viewportX + (Number(position?.x || 0) + width / 2) * zoom;
     return {
       left: Math.max(composerWidth / 2 + 12, Math.min(rootWidth - composerWidth / 2 - 12, desiredLeft)),
@@ -233,7 +234,7 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({
     config.cameraConfig || DEFAULT_CAMERA_CONFIG,
   ) as Record<string, string>;
   const cameraControlEnabled = Boolean(config.cameraControl && config.cameraConfig);
-  const textContent = String(selectedOutput?.content || node.textContent || node.prompt || "");
+  const textContent = textNodeContent({ ...node, generatedOutputs: outputs });
   const textPreview =
     textContent.length > MAX_TEXT_PREVIEW_CHARS
       ? `${textContent.slice(0, MAX_TEXT_PREVIEW_CHARS)}\n…双击查看完整内容`
@@ -256,7 +257,7 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({
           filePath: String(selectedOutput?.filePath || uploaded?.path || ""),
         });
       }
-    } else if (kind === "text" && textContent) {
+    } else if (kind === "text") {
       openMediaViewer({
         src: textContent,
         kind: "text",
@@ -323,7 +324,7 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({
             className={`work-preview ${
               node.type === "videoGeneration" ? "wide" : "square"
             } ${kind}`}
-            title={previewUrl || textContent ? "双击查看详情" : ""}
+            title={kind === "text" ? "双击编辑节点内容" : previewUrl ? "双击查看详情" : ""}
             onDoubleClick={openDetail}
           >
             {kind === "text" ? (
@@ -334,7 +335,18 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({
               ) : (
                 <div className="text-result-empty">
                   <IconSymbol name="chat" />
-                  <span>运行后在节点内显示文本</span>
+                  <span>模型返回或手动编写的内容显示在这里</span>
+                  <button
+                    type="button"
+                    className="text-result-manual nodrag nopan"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      openDetail();
+                    }}
+                  >
+                    <IconSymbol name="pencil" />
+                    自己编写内容
+                  </button>
                 </div>
               )
             ) : activeKind === "image" && previewUrl ? (
@@ -401,17 +413,6 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({
             ) : (
               <div className="work-empty-state">
                 <IconSymbol className="work-empty-type-icon" name={metaIcon} />
-                <button
-                  type="button"
-                  className="work-empty-upload nodrag nopan"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    void actions.upload(node.id);
-                  }}
-                >
-                  <IconSymbol name="upload" />
-                  <span>上传{metaLabel.replace("生成", "")}</span>
-                </button>
               </div>
             )}
             {outputs.length > 1 && (
@@ -542,7 +543,7 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({
               )}
             </div>
             <textarea
-              placeholder="描述你想生成的画面、视频、音频或文本"
+              placeholder={kind === "text" ? "输入给大模型的文本生成提示词" : "描述你想生成的画面、视频或音频"}
               rows={2}
               {...promptCommit}
               onKeyDown={(e) => {

@@ -8,7 +8,7 @@
     "prepare:opencode": "node scripts/prepare-opencode-sidecar.mjs",
     "prepare:media": "node scripts/prepare-media-sidecar.mjs",
     "prepare:sidecars": "npm run prepare:opencode && npm run prepare:media",
-    "predev": "npm run prepare:opencode",
+    "predev": "npm run prepare:sidecars",
     "predev:web": "npm run prepare:opencode",
     "prebuild": "npm run prepare:opencode",
     "prebuild:desktop": "npm run prepare:sidecars",

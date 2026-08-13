@@ -4,6 +4,7 @@ import { createColoredPencilImageNode } from "../../services/coloredPencilNodeSe
 // Canonical edge persistence: addCanvasEdge(store.project, connection.source, connection.target).
 import { desktopApi } from "../../services/desktopApi.js";
 import {
+  addMaterialToAssetLibrary,
   applyMaterialToCanvas,
   copyFileIntoProjectAssets,
   inferFileResourceType,
@@ -539,18 +540,44 @@ export const nodeActions: WorkflowNodeActions = {
     const result = connectResourceToNode(store.project, id, target.id);
     showToast(result.ok ? "已连接为生成输入" : result.error || "连接失败");
   },
-  async saveToAssets(id) {
+  async saveToAssets(id, scope) {
     const node = (store.project.nodes || []).find((item: any) => item.id === id && !item.archived);
     const { path, material, asset } = selectedNodeLocalMedia(node);
     if (!node || !path || !material) return showToast("当前节点没有可存入的本地资源");
     try {
-      await promoteMaterialToLocalLibrary(material, {
+      const assetDetails = {
         ...asset,
         name: asset.name || material.name || node.title,
         resourceType: asset.resourceType || material.resourceType || node.resourceType,
         nodeType: asset.nodeType || material.nodeType || node.type,
+      };
+      if (scope === "project") {
+        let projectMaterial = (store.project.materials || []).find((item: any) =>
+          item.id === material.id || String(item.path || item.filePath || "") === path
+        );
+        if (!projectMaterial) {
+          const registered = registerImportedMaterial(material, {
+            resourceType: assetDetails.resourceType,
+            sourceType: material.sourceType || material.source || "canvas-asset-save",
+            nodeType: assetDetails.nodeType,
+          });
+          projectMaterial = registered.material;
+        }
+        const existing = (store.project.assets || []).some(
+          (item: any) => item.materialId === projectMaterial.id,
+        );
+        if (existing) return showToast("当前资源已在项目资产中");
+        addMaterialToAssetLibrary(projectMaterial, {
+          category: asset.category,
+          notify: false,
+        });
+        showToast("已存入当前项目资产");
+        return;
+      }
+      await promoteMaterialToLocalLibrary(material, {
+        ...assetDetails,
       });
-      showToast("已存入通用素材库");
+      showToast("已存入全局资产，其他项目可以复用");
     } catch (cause) {
       showToast(cause instanceof Error ? cause.message : "存为资产失败");
     }

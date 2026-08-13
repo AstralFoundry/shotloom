@@ -1,7 +1,6 @@
 import { IconSymbol } from "../components/IconSymbol";
 import { InteractiveLogo } from "../components/InteractiveLogo";
 import {
-  assetCategories,
   nodeTypes,
   projectWorkspaceItems,
 } from "../constants/navigation";
@@ -37,9 +36,7 @@ export function SideBar(
   const route = useAppStore((state) => state.route);
   const project = useAppStore((state) => state.currentProject);
   const collapsed = useAppStore((state) => state.sidebarCollapsed);
-  const category = useAppStore((state) => state.assetCategory);
   const setRoute = useAppStore((state) => state.setRoute);
-  const setCategory = useAppStore((state) => state.setAssetCategory);
   const iconRail = collapsed && !previewOpen;
   const pinnedOpen = !collapsed;
 
@@ -146,29 +143,6 @@ export function SideBar(
                         className="side-item"
                         title={iconRail ? item.label : undefined}
                         onClick={() => onAddNode(item.id)}
-                      >
-                        <IconSymbol name={item.icon} />
-                        <span>{item.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
-              {route === "assets" && (
-                <>
-                  <div className="side-title">素材分类</div>
-                  <div className="side-list">
-                    {assetCategories.map((item) => (
-                      <button
-                        key={item.id}
-                        className={`side-item nested${
-                          category === item.id ||
-                            item.aliases.includes(category)
-                            ? " active"
-                            : ""
-                        }`}
-                        title={iconRail ? item.label : undefined}
-                        onClick={() => setCategory(item.id)}
                       >
                         <IconSymbol name={item.icon} />
                         <span>{item.label}</span>
