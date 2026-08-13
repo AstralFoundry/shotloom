@@ -20,6 +20,7 @@ import {
   type Connection,
   ConnectionMode,
   type Edge,
+  Handle,
   MarkerType,
   MiniMap,
   type Node,
@@ -507,6 +508,18 @@ function CanvasNode({ data, selected }: NodeProps<FlowNode>) {
           height: 20 * semanticZoom,
           "--node-label-zoom": semanticZoom,
         } as CSSProperties}
+      />
+      <Handle
+        id="port-left"
+        className="canvas-flow-port canvas-flow-port-in"
+        type="source"
+        position={Position.Left}
+      />
+      <Handle
+        id="port-right"
+        className="canvas-flow-port canvas-flow-port-out"
+        type="source"
+        position={Position.Right}
       />
       <CanvasNodeLabelRootContext.Provider value={labelRoot}>
       <div

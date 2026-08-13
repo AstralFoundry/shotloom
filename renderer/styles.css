@@ -3487,12 +3487,6 @@ tr:last-child td {
   max-width: 100%;
   box-sizing: border-box;
 }
-.node-port {
-  width: 12px;
-  height: 12px;
-  border: 2px solid #fff;
-  background: #718096;
-}
 .work-node-kicker,
 .work-composer-row {
   display: flex;

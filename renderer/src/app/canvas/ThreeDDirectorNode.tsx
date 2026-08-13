@@ -1,5 +1,4 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Handle, Position } from "@xyflow/react";
 import { IconSymbol } from "../components/IconSymbol";
 import type { WorkflowNodeData, WorkflowNodeRenderer } from "./WorkflowCanvas";
 import "./ThreeDDirectorNode.css";
@@ -171,18 +170,6 @@ export const ThreeDDirectorNode: WorkflowNodeRenderer = memo(
           actions.select(node.id);
         }}
       >
-        <Handle
-          id="port-left"
-          className="director-port director-port-in"
-          type="source"
-          position={Position.Left}
-        />
-        <Handle
-          id="port-right"
-          className="director-port director-port-out"
-          type="source"
-          position={Position.Right}
-        />
         <header className="director-node-head">
           <span className="director-node-drag-handle" title="拖动 3D 导演台" aria-hidden="true" />
           <label className="director-node-kind">

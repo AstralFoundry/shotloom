@@ -1,6 +1,6 @@
 import { memo, type ReactNode, useCallback, useContext, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { Handle, Position, type ReactFlowState, useStore } from "@xyflow/react";
+import { type ReactFlowState, useStore } from "@xyflow/react";
 import { getGenerationInputModes, getModelInfo, getModelSchema, getTypeMeta, resolveModeIdForInputMode } from "../../domain/catalog/ModelCatalog";
 import { CanvasNodeLabelRootContext, CanvasOverlayRootContext } from "./WorkflowCanvas";
 import {
@@ -308,18 +308,6 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({
       {labelRoot && createPortal(nodeLabel, labelRoot)}
       <div className="work-visual-block">
         <div className={`work-node work-node-${kind}${selected ? " selected" : ""}`}>
-          <Handle
-            id="port-left"
-            className="node-port node-port-in"
-            type="source"
-            position={Position.Left}
-          />
-          <Handle
-            id="port-right"
-            className="node-port node-port-out"
-            type="source"
-            position={Position.Right}
-          />
           <div
             className={`work-preview ${
               node.type === "videoGeneration" ? "wide" : "square"

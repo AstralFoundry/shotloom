@@ -387,7 +387,7 @@
 ) {
   visibility: hidden;
 }
-.react-workflow-canvas.canvas-zoom-overview :is(.node-port, .note-port, .utility-port, .board-port, .director-port) {
+.react-workflow-canvas.canvas-zoom-overview .canvas-flow-port {
   opacity: 0 !important;
   pointer-events: none !important;
 }
@@ -474,7 +474,7 @@
 .text-result-scroll { width: 100%; height: 100%; overflow: auto; }
 .text-result-scroll p { margin: 0; padding: 14px; color: #334155; font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; }
 
-.node-port {
+.canvas-flow-port {
   position: absolute;
   top: 50%;
   z-index: 3;
@@ -486,11 +486,15 @@
   transform: translateY(-50%) scale(.72);
   transition: opacity .15s ease, transform .3s cubic-bezier(.34, 1.56, .64, 1);
 }
-.work-visual-block:hover .node-port,
-.work-node.selected .node-port { opacity: 1; pointer-events: auto; transform: translateY(-50%) scale(1); }
-.node-port-in { left: -7px; width: 12px; height: 12px; border-radius: 999px; }
-.node-port-out { right: -10px; width: 20px; height: 20px; border-radius: 999px; }
-.node-port-out::after {
+.react-flow__node-panel:hover > .canvas-flow-port,
+.react-flow__node-panel.selected > .canvas-flow-port {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(-50%) scale(1);
+}
+.canvas-flow-port-in { left: -7px; width: 12px; height: 12px; border-radius: 999px; }
+.canvas-flow-port-out { right: -10px; width: 20px; height: 20px; border-radius: 999px; }
+.canvas-flow-port-out::after {
   content: "+";
   position: absolute;
   inset: 0;
@@ -804,14 +808,6 @@
 .utility-head input { color: #737985; }
 .utility-delete { color: #b73535; }
 .utility-body { min-height: 0; overflow: auto; color: #6b7280; font-size: 12px; line-height: 1.45; word-break: break-word; }
-
-.note-port,
-.utility-port,
-.board-port { position: absolute; top: 50%; z-index: 3; transform: translateY(-50%); border: 1px solid #8b929c; background: #fff; opacity: 0; pointer-events: none; }
-:is(.note-node, .utility-node, .board-node):hover :is(.note-port, .utility-port, .board-port),
-:is(.note-node, .utility-node, .board-node).selected :is(.note-port, .utility-port, .board-port) { opacity: 1; pointer-events: auto; }
-:is(.note-port-in, .utility-port-in, .board-port-in) { left: -7px; width: 12px; height: 12px; border-radius: 999px; }
-:is(.note-port-out, .utility-port-out, .board-port-out) { right: -10px; width: 20px; height: 20px; border-radius: 999px; }
 
 .resource-preview { min-width: 0; display: grid; gap: 8px; }
 .resource-media { width: 100%; aspect-ratio: 4 / 3; min-height: 0; border: 1px solid #e5e7eb; border-radius: 6px; display: grid; place-items: center; overflow: hidden; background: radial-gradient(circle at 50% 50%, rgba(15, 23, 42, .04), transparent 58%), #f8fafc; }

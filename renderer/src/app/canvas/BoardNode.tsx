@@ -1,5 +1,4 @@
 import { memo, type PointerEvent, useEffect, useRef, useState } from "react";
-import { Handle, Position } from "@xyflow/react";
 import {
   boardToDataUrl,
   cropFromPoints,
@@ -110,18 +109,6 @@ export const BoardNode: WorkflowNodeRenderer = memo(({ node, selected, actions }
         actions.select(node.id);
       }}
     >
-      <Handle
-        id="port-left"
-        className="board-port board-port-in"
-        type="source"
-        position={Position.Left}
-      />
-      <Handle
-        id="port-right"
-        className="board-port board-port-out"
-        type="source"
-        position={Position.Right}
-      />
       <div className="board-head">
         <IconSymbol name="grid" />
         <input

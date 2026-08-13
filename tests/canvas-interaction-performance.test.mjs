@@ -184,7 +184,8 @@ test('画布视图用索引关联素材且每个节点只保留两个 Loose 端�
   assert.match(adapter, /const materialsByNode = new Map/);
   assert.match(adapter, /const legacyBySource = new Map/);
   assert.match(adapter, /materialsByNode\.get\(node\.id\)/);
-  assert.equal(node.match(/<Handle/g)?.length, 2);
+  assert.equal(canvas.match(/<Handle/g)?.length, 2);
+  assert.equal(node.match(/<Handle/g)?.length || 0, 0);
 });
 test('节点与连线使用线性索引和稳定集合', () => {
   assert.match(canvas, /new Map\(current\.map/);
@@ -217,7 +218,7 @@ test('低倍率画布降低连线与节点操作的信息密度', () => {
   assert.doesNotMatch(migrationStyles, /canvas-zoom-compact \.work-node-kicker > span/);
   assert.match(migrationStyles, /canvas-zoom-distant \.work-node-kicker \{ opacity: \.42; \}/);
   assert.match(migrationStyles, /canvas-zoom-overview :is\([\s\S]*?\.director-node-head,[\s\S]*?\.resource-meta,[\s\S]*?display: none !important/);
-  assert.match(migrationStyles, /canvas-zoom-overview :is\(\.node-port,[\s\S]*?pointer-events: none/);
+  assert.match(migrationStyles, /canvas-zoom-overview \.canvas-flow-port[\s\S]*?pointer-events: none/);
 });
 test('节点设计尺寸统一缩小到原来的四分之三且旧画布只换算一次', () => {
   assert.match(project, /const CANVAS_NODE_SIZE_SCALE = 0\.75/);
@@ -242,7 +243,8 @@ test('连线按节点相对位置选择最近端口且不会折返回头', () =>
   assert.match(canvas, /const targetIsRight = targetCenter >= sourceCenter/);
   assert.match(canvas, /sourceHandle: targetIsRight \? "port-right" : "port-left"/);
   assert.match(canvas, /targetHandle: targetIsRight \? "port-left" : "port-right"/);
-  assert.equal(node.match(/<Handle/g)?.length, 2);
+  assert.equal(canvas.match(/<Handle/g)?.length, 2);
+  assert.match(canvas, /className="canvas-flow-port canvas-flow-port-in"[\s\S]*?className="canvas-flow-port canvas-flow-port-out"/);
 });
 test('3D 导演台随节点比例铺满，画布删除键删除当前节点选择', () => {
   assert.match(director, /const PREVIEW_WIDTH = 1440/);

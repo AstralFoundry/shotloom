@@ -116,44 +116,6 @@
   box-shadow: 0 0 0 1px rgba(38, 43, 51, 0.08);
 }
 
-.director-port {
-  position: absolute !important;
-  top: 50% !important;
-  z-index: 3;
-  transform: translateY(-50%);
-  border: 1px solid #777 !important;
-  background: #fff !important;
-  opacity: 0;
-  transition: opacity 150ms ease;
-}
-
-.director-node:hover .director-port,
-.director-node.selected .director-port {
-  opacity: 1;
-}
-
-.director-port-in {
-  left: -7px !important;
-  width: 12px !important;
-  height: 12px !important;
-}
-
-.director-port-out {
-  right: -10px !important;
-  width: 18px !important;
-  height: 18px !important;
-  display: grid !important;
-  place-items: center;
-}
-
-.director-port-out::after {
-  content: "+";
-  display: block;
-  font-size: 13px;
-  line-height: 1;
-  transform: translateY(-.5px);
-}
-
 .director-node-preview {
   position: relative;
   width: 100%;

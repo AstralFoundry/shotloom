@@ -1,28 +1,8 @@
 import { type ChangeEvent, memo } from "react";
-import { Handle, Position } from "@xyflow/react";
 import { IconSymbol } from "../components/IconSymbol";
 import { ResourcePreview } from "./ResourcePreview";
 import type { WorkflowNodeActions, WorkflowNodeData, WorkflowNodeRenderer } from "./WorkflowCanvas";
 import { useImeCommit } from "./imeComposition";
-
-function Ports({ className }: { className: string }) {
-  return (
-    <>
-      <Handle
-        id="port-left"
-        className={`${className} ${className}-in`}
-        type="source"
-        position={Position.Left}
-      />
-      <Handle
-        id="port-right"
-        className={`${className} ${className}-out`}
-        type="source"
-        position={Position.Right}
-      />
-    </>
-  );
-}
 
 export const NoteNode: WorkflowNodeRenderer = memo(({ node, selected, actions }) => {
   const update = (patch: Record<string, unknown>) =>
@@ -44,7 +24,6 @@ export const NoteNode: WorkflowNodeRenderer = memo(({ node, selected, actions })
         actions.select(node.id);
       }}
     >
-      <Ports className="note-port" />
       <div className="note-head">
         <IconSymbol name="chat" />
         <input
@@ -85,7 +64,6 @@ export const UtilityNode: WorkflowNodeRenderer = memo(({ node, selected, actions
       className={`utility-node utility-node-${node.type}${selected ? " selected" : ""}`}
       onClick={() => actions.select(node.id)}
     >
-      <Ports className="utility-port" />
       <div className="utility-head">
         <IconSymbol name="image" />
         <input
