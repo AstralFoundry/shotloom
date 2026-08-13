@@ -284,7 +284,7 @@ function CanvasNode({ data, selected }: NodeProps<FlowNode>) {
   const canExtractAudio = item.type === "videoGeneration" && Boolean(localMediaPath);
   return (
     <>
-      {mentionInCopilot && (
+      {(mentionInCopilot || canSaveToAssets || canExtractAudio) && (
         <NodeToolbar
           className="canvas-node-selection-toolbar nodrag nopan"
           isVisible={selected}
@@ -319,19 +319,23 @@ function CanvasNode({ data, selected }: NodeProps<FlowNode>) {
               <span>存为资产</span>
             </button>
           )}
-          {(canExtractAudio || canSaveToAssets) && <span className="canvas-node-toolbar-divider" />}
-          <button
-            className="canvas-node-toolbar-icon"
-            type="button"
-            title={`加入对话：${item.title || item.type}`}
-            onPointerDown={(event) => event.stopPropagation()}
-            onClick={(event) => {
-              event.stopPropagation();
-              mentionInCopilot(item.id);
-            }}
-          >
-            <IconSymbol name="chat" />
-          </button>
+          {mentionInCopilot && (canExtractAudio || canSaveToAssets) && (
+            <span className="canvas-node-toolbar-divider" />
+          )}
+          {mentionInCopilot && (
+            <button
+              className="canvas-node-toolbar-icon"
+              type="button"
+              title={`加入对话：${item.title || item.type}`}
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={(event) => {
+                event.stopPropagation();
+                mentionInCopilot(item.id);
+              }}
+            >
+              <IconSymbol name="chat" />
+            </button>
+          )}
         </NodeToolbar>
       )}
       {selected && resizable && (

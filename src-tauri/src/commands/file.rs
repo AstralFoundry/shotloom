@@ -950,7 +950,11 @@ pub fn file_extract_audio(source: String, target: String) -> Result<Value, Strin
     if !output.status.success() {
         let _ = fs::remove_file(&target);
         let detail = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        return Err(if detail.is_empty() { "音频分离失败".into() } else { detail });
+        return Err(if detail.is_empty() {
+            "音频分离失败".into()
+        } else {
+            detail
+        });
     }
     file_result(&target)
 }
