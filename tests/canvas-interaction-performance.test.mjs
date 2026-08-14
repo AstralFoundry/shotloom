@@ -93,6 +93,7 @@ const canvasDragSource = readFileSync(
   new URL('../renderer/src/utils/canvasNodeDrag.mjs', import.meta.url),
   'utf8',
 );
+const nodeChrome = await import('../renderer/src/utils/canvasNodeChrome.mjs');
 const copilotAdapter = readFileSync(
   new URL('../renderer/src/app/adapters/copilotAdapter.ts', import.meta.url),
   'utf8',
@@ -310,6 +311,22 @@ test('画布缩放使用最终布局尺寸并保持 React Flow 视口为 1x', ()
   assert.match(canvas, /defaultViewport=\{\{ x: viewport\.x, y: viewport\.y, zoom: 1 \}\}/);
   assert.match(canvas, /minZoom=\{1\}[\s\S]*?maxZoom=\{1\}/);
   assert.match(canvas, /zoomOnScroll=\{false\}[\s\S]*?zoomOnPinch=\{false\}/);
+});
+test('语义缩放时端口与节点边缘使用同一屏幕坐标', () => {
+  for (const zoom of [0.55, 1, 1.8]) {
+    const width = 240 * zoom;
+    const height = 160 * zoom;
+    const [left, right] = nodeChrome.canvasNodePortBounds(width, height);
+    assert.equal(left.x, 0);
+    assert.equal(right.x + right.width, width);
+    assert.equal(left.y + left.height / 2, height / 2);
+    assert.equal(right.y + right.height / 2, height / 2);
+  }
+  assert.match(canvas, /handles: canvasNodePortBounds\(screenWidth, screenHeight\)/);
+  assert.match(canvas, /width: screenWidth,[\s\S]*?height: screenHeight/);
+  assert.match(styles, /\.canvas-flow-port-in \{ left: 0;/);
+  assert.match(styles, /\.canvas-flow-port-out \{ right: 0;/);
+  assert.match(styles, /\.canvas-flow-port-out::before \{ left: 100%;/);
 });
 test('低倍率画布降低连线与节点操作的信息密度', () => {
   assert.doesNotMatch(canvas, /label:.*roleLabel/);

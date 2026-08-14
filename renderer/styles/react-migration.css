@@ -550,32 +550,51 @@
   position: absolute;
   top: 50%;
   z-index: 3;
-  border: 1px solid #141414;
-  background: #fff;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, .12);
+  border: 0;
+  background: transparent;
+  box-shadow: none;
   opacity: 0;
   pointer-events: none;
-  transform: translateY(-50%) scale(.72);
-  transition: opacity .15s ease, transform .3s cubic-bezier(.34, 1.56, .64, 1);
+  transform: translateY(-50%);
+  transition: opacity .15s ease;
+}
+.canvas-flow-port::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  border: 1px solid #141414;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, .12);
+  transform: translate(-50%, -50%) scale(.72);
+  transition: transform .3s cubic-bezier(.34, 1.56, .64, 1);
 }
 .react-flow__node-panel:hover > .canvas-flow-port,
 .react-flow__node-panel.selected > .canvas-flow-port {
   opacity: 1;
   pointer-events: auto;
-  transform: translateY(-50%) scale(1);
 }
-.canvas-flow-port-in { left: -7px; width: 12px; height: 12px; border-radius: 999px; }
-.canvas-flow-port-out { right: -10px; width: 20px; height: 20px; border-radius: 999px; }
+.react-flow__node-panel:hover > .canvas-flow-port::before,
+.react-flow__node-panel.selected > .canvas-flow-port::before {
+  transform: translate(-50%, -50%) scale(1);
+}
+.canvas-flow-port-in { left: 0; width: 12px; height: 12px; }
+.canvas-flow-port-in::before { left: 0; width: 12px; height: 12px; }
+.canvas-flow-port-out { right: 0; width: 20px; height: 20px; }
+.canvas-flow-port-out::before { left: 100%; width: 20px; height: 20px; }
 .canvas-flow-port-out::after {
   content: "+";
   position: absolute;
-  inset: 0;
+  top: 50%;
+  left: 100%;
+  width: 20px;
+  height: 20px;
   display: grid;
   place-items: center;
   font-size: 13px;
   font-weight: 600;
   line-height: 1;
-  transform: translateY(-.5px);
+  transform: translate(-50%, calc(-50% - .5px));
 }
 
 /* Measured by React Flow for direction-aware edge routing, but never exposed as

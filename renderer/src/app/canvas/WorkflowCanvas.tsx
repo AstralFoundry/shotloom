@@ -52,6 +52,7 @@ import {
 } from "../../utils/canvasNodeDrag.mjs";
 import {
   CANVAS_NODE_LABEL_HEIGHT,
+  canvasNodePortBounds,
   canvasNodeToolbarOffset,
 } from "../../utils/canvasNodeChrome.mjs";
 import { CanvasContextMenu } from "./CanvasContextMenu";
@@ -229,6 +230,8 @@ function toFlowNodes(
     .filter((node) => !node.archived)
     .map((node) => {
       const dimensions = nodeDimensions(node);
+      const screenWidth = dimensions.width * semanticZoom;
+      const screenHeight = dimensions.height * semanticZoom;
       const inputRevision = (incomingByTarget.get(node.id) || [])
         .map((edge) => {
           const source = nodeById.get(edge.source);
@@ -302,9 +305,17 @@ function toFlowNodes(
         },
         data: { node, inputRevision, incomingInputs, semanticZoom },
         selected,
+        // React Flow otherwise keeps the previous DOM measurement for handle
+        // bounds while semantic zoom is changing. Supplying the screen-space
+        // bounds makes the edge and node geometry enter the store together.
+        handles: canvasNodePortBounds(screenWidth, screenHeight).map((handle) => ({
+          ...handle,
+          type: "source" as const,
+          position: handle.id === "port-left" ? Position.Left : Position.Right,
+        })),
         style: {
-          width: dimensions.width * semanticZoom,
-          height: dimensions.height * semanticZoom,
+          width: screenWidth,
+          height: screenHeight,
         },
       };
       cache?.set(node.id, { input: node, selected, semanticZoom, inputRevision, output });
