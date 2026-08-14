@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const canvas = readFileSync(new URL('../renderer/src/app/canvas/WorkflowCanvas.tsx', import.meta.url), 'utf8');
+const cropDialog = readFileSync(new URL('../renderer/src/app/components/ImageCropDialog.tsx', import.meta.url), 'utf8');
 const generation = readFileSync(new URL('../renderer/src/app/canvas/GenerationNode.tsx', import.meta.url), 'utf8');
 const basicNodes = readFileSync(new URL('../renderer/src/app/canvas/CanvasNodes.tsx', import.meta.url), 'utf8');
 const board = readFileSync(new URL('../renderer/src/app/canvas/BoardNode.tsx', import.meta.url), 'utf8');
@@ -54,6 +55,20 @@ test('媒体节点工具栏提供真实入库与音频分离', () => {
   assert.match(rust, /pub async fn file_has_audio[\s\S]*?spawn_blocking[\s\S]*?fn probe_audio[\s\S]*?source_has_audio/);
   assert.match(rust, /pub async fn file_separate_audio[\s\S]*?spawn_blocking/);
   assert.match(rust, /fn separate_audio[\s\S]*?source_has_audio[\s\S]*?"-map", "0:a:0"[\s\S]*?"-c:a", "aac"[\s\S]*?"-map", "0:v:0"[\s\S]*?"-an"[\s\S]*?"copy"/);
+});
+
+test('本地图片节点提供原图裁剪并创建保留来源连线的新节点', () => {
+  assert.match(canvas, /isLocalImage[^]*?title="裁剪图片"[^]*?setCropOpen\(true\)/);
+  assert.match(canvas, /createPortal\([^]*?<ImageCropDialog[^]*?actions\.cropImage\(item\.id, rect\)[^]*?document\.body/);
+  assert.match(cropDialog, /readImagePreview\(source, 2048\)/);
+  assert.match(cropDialog, /cropRatios[\s\S]*?"1:1"[\s\S]*?"16:9"[\s\S]*?"9:16"/);
+  assert.match(adapter, /async cropImage\(id, crop\)[\s\S]*?cropImageToProject[\s\S]*?addNode\("imageGeneration"\)/);
+  assert.match(adapter, /addCanvasEdge\(store\.project, source\.id, output\.id[\s\S]*?derivation: "image-crop"/);
+  assert.match(api, /case 'file:crop-image':[\s\S]*?file_crop_image/);
+  assert.match(api, /cropImageToProject:[\s\S]*?file:crop-image/);
+  assert.match(rust, /pub async fn file_crop_image[\s\S]*?spawn_blocking/);
+  assert.match(rust, /fn crop_image[\s\S]*?apply_orientation[\s\S]*?crop_imm[\s\S]*?ImageFormat::Png/);
+  assert.match(styles, /\.image-crop-backdrop \{[\s\S]*?z-index:\s*240/);
 });
 
 test('空媒体节点从顶部工具栏上传且节点内部只保留占位图标', () => {
