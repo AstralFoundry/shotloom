@@ -286,6 +286,7 @@
 .provider-model-item .provider-model-meta span { flex: 0 0 auto; }
 .provider-model-item code { overflow: hidden; color: #686868; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .provider-model-origin { color: #aaa !important; }
+.provider-model-origin.override { color: #a66a20 !important; }
 .provider-model-item-actions {
   display: grid;
   grid-auto-flow: column;

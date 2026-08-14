@@ -11,9 +11,10 @@ const styles = readFileSync(new URL('../renderer/styles/react-migration.css', im
 const adapter = readFileSync(new URL('../renderer/src/app/adapters/canvasAdapter.ts', import.meta.url), 'utf8');
 const api = readFileSync(new URL('../renderer/src/services/tauriApi.js', import.meta.url), 'utf8');
 const rust = readFileSync(new URL('../src-tauri/src/commands/file.rs', import.meta.url), 'utf8');
+const nodeChrome = await import('../renderer/src/utils/canvasNodeChrome.mjs');
 
 test('加入对话只在节点选中工具栏中显示', () => {
-  assert.match(canvas, /<NodeToolbar[\s\S]*?canvas-node-selection-toolbar--hidden[\s\S]*?isVisible=\{selected\}[\s\S]*?offset=\{useSubtleUploadToolbar \? 18 : 30\}[\s\S]*?>[\s\S]*?加入对话[\s\S]*?<\/NodeToolbar>/);
+  assert.match(canvas, /<NodeToolbar[\s\S]*?canvas-node-selection-toolbar--hidden[\s\S]*?isVisible=\{selected\}[\s\S]*?offset=\{toolbarOffset\}[\s\S]*?>[\s\S]*?加入对话[\s\S]*?<\/NodeToolbar>/);
   assert.match(canvas, /mentionInCopilot\(item\.id\)/);
   assert.match(styles, /\.canvas-node-selection-toolbar \{[\s\S]*?z-index: 110/);
   for (const source of [generation, basicNodes, board, director]) {
@@ -50,11 +51,25 @@ test('媒体节点工具栏提供真实入库与音频分离', () => {
 
 test('空媒体节点从顶部工具栏上传且节点内部只保留占位图标', () => {
   assert.match(canvas, /const canUpload = Boolean\(uploadLabel && !hasMediaContent\)/);
-  assert.match(canvas, /useSubtleUploadToolbar[\s\S]*?canvas-node-selection-toolbar--subtle[\s\S]*?offset=\{useSubtleUploadToolbar \? 18 : 30\}/);
+  assert.match(canvas, /toolbarOffset = canvasNodeToolbarOffset\(semanticZoom, useSubtleUploadToolbar\)/);
+  assert.match(canvas, /useSubtleUploadToolbar[\s\S]*?canvas-node-selection-toolbar--subtle[\s\S]*?offset=\{toolbarOffset\}/);
   assert.match(canvas, /\{canUpload && \([\s\S]*?title=\{`上传\$\{uploadLabel\}`\}[\s\S]*?actions\.upload\(item\.id\)/);
   assert.doesNotMatch(generation, /className="work-empty-upload/);
   assert.doesNotMatch(generation, /上传\{metaLabel\.replace/);
   assert.match(styles, /\.work-preview \.work-empty-type-icon \{[\s\S]*?width:\s*34px;[\s\S]*?height:\s*34px/);
   assert.match(styles, /\.canvas-node-selection-toolbar--subtle \{[\s\S]*?background:\s*transparent;[\s\S]*?box-shadow:\s*none/);
   assert.match(styles, /\.canvas-node-selection-toolbar--subtle button \{[\s\S]*?height:\s*26px;[\s\S]*?font-size:\s*11px/);
+});
+
+test('节点顶部工具栏保持屏幕字号并随名称高度避让', () => {
+  assert.equal(nodeChrome.canvasNodeToolbarOffset(0.55, true), 18);
+  assert.equal(nodeChrome.canvasNodeToolbarOffset(1, true), 26);
+  assert.equal(nodeChrome.canvasNodeToolbarOffset(1.8, true), 42);
+  assert.equal(nodeChrome.canvasNodeToolbarOffset(0.55, false), 30);
+  assert.equal(nodeChrome.canvasNodeToolbarOffset(1, false), 30);
+  assert.equal(nodeChrome.canvasNodeToolbarOffset(1.8, false), 46);
+  assert.match(canvas, /top: -CANVAS_NODE_LABEL_HEIGHT \* semanticZoom/);
+  assert.match(canvas, /height: CANVAS_NODE_LABEL_HEIGHT \* semanticZoom/);
+  assert.match(styles, /\.canvas-node-selection-toolbar--subtle button \{[^}]*font-size:\s*11px/);
+  assert.doesNotMatch(styles, /canvas-node-selection-toolbar[^}]*transform:\s*scale/);
 });

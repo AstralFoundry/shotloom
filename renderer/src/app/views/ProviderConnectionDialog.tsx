@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   type CatalogModel,
-  modelCatalog,
+  getBuiltInCatalogModels,
 } from "../../domain/catalog/ModelCatalog";
 import {
   getProviderDefinitions,
@@ -108,7 +108,7 @@ function ProviderIconSelect({
 }
 
 function builtInProviderModels(providerId: string): CatalogModel[] {
-  return modelCatalog.models.filter((model) => model.provider === providerId);
+  return getBuiltInCatalogModels(providerId);
 }
 
 function effectiveProviderModels(
@@ -232,6 +232,10 @@ export function ProviderConnectionDialog({
   const builtInModelIds = useMemo(
     () => new Set(builtInProviderModels(providerId).map((model) => model.id)),
     [providerId],
+  );
+  const globalBuiltInModels = useMemo(
+    () => new Map(getBuiltInCatalogModels().map((model) => [model.id, model])),
+    [],
   );
   const availableDefinitions = definitions.filter((item) =>
     item.id === editingId || !connectedIds.includes(item.id)
@@ -405,15 +409,15 @@ export function ProviderConnectionDialog({
     let modelsToSave: CatalogModel[];
     try {
       const parsed = commitModelDraft();
-      const builtIns = new Map(
+      const providerBuiltIns = new Map(
         builtInProviderModels(providerId).map((model) => [model.id, model]),
       );
       modelsToSave = parsed.map((model) => ({ ...model, provider: providerId }))
         .filter((model) => {
-          const builtIn = builtIns.get(model.id);
+          const builtIn = providerBuiltIns.get(model.id);
           return !builtIn || !sameModelDefinition(model, builtIn);
         })
-        .map((model) => builtIns.has(model.id)
+        .map((model) => globalBuiltInModels.has(model.id)
           ? { ...model, overridesBuiltIn: true }
           : model);
       for (const model of modelsToSave) {
@@ -571,7 +575,15 @@ export function ProviderConnectionDialog({
               <div className="provider-model-list">
                 {models.map((model) => {
                   const builtIn = builtInModelIds.has(model.id);
+                  const replacedBuiltIn = builtIn
+                    ? null
+                    : globalBuiltInModels.get(model.id);
                   const disabled = builtIn && disabledIds.has(model.id);
+                  let originLabel = "自定义";
+                  if (builtIn) originLabel = "内置";
+                  else if (replacedBuiltIn) {
+                    originLabel = `覆盖内置 ${replacedBuiltIn.provider}`;
+                  }
                   return (
                     <div
                       key={model.id}
@@ -589,8 +601,10 @@ export function ProviderConnectionDialog({
                         <span className="provider-model-meta">
                           <span>{modelTypeLabel(model.type)}</span>
                           <span aria-hidden="true">·</span>
-                          <span className="provider-model-origin">
-                            {builtIn ? "内置" : "自定义"}
+                          <span className={`provider-model-origin${
+                            replacedBuiltIn ? " override" : ""
+                          }`}>
+                            {originLabel}
                           </span>
                         </span>
                       </button>

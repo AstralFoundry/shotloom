@@ -46,6 +46,14 @@ import { IconSymbol } from "../components/IconSymbol";
 import { assetCategories } from "../constants/navigation";
 import { openMediaViewer } from "../store/overlayStore";
 import { selectedTextOutput, textNodeContent } from "../../utils/textNodeContent.mjs";
+import {
+  draggedCanvasPositions,
+  reconcileCanvasNodes,
+} from "../../utils/canvasNodeDrag.mjs";
+import {
+  CANVAS_NODE_LABEL_HEIGHT,
+  canvasNodeToolbarOffset,
+} from "../../utils/canvasNodeChrome.mjs";
 import { CanvasContextMenu } from "./CanvasContextMenu";
 
 export interface WorkflowNodeData extends Record<string, unknown> {
@@ -229,6 +237,7 @@ function toFlowNodes(
             edge.source,
             edge.data?.inputRole || "",
             edge.data?.inputSlot || "",
+            edge.data?.skipTaskInput === true ? "inactive" : "active",
             source?.updatedAt || "",
             source?.selectedOutputNodeId || "",
           ].join(":");
@@ -263,6 +272,7 @@ function toFlowNodes(
             resourceType: candidate.resourceType || source.resourceType || "",
             inputRole: edge.data?.inputRole || "auto",
             inputSlot: edge.data?.inputSlot || "",
+            skipTaskInput: edge.data?.skipTaskInput === true,
           },
         ];
       });
@@ -385,6 +395,7 @@ function CanvasNode({ data, selected, dragging }: NodeProps<FlowNode>) {
   const canUpload = Boolean(uploadLabel && !hasMediaContent);
   const isTextNode = item.type === "textGeneration";
   const useSubtleUploadToolbar = canUpload && !isTextNode;
+  const toolbarOffset = canvasNodeToolbarOffset(semanticZoom, useSubtleUploadToolbar);
   const textOutputs = Array.isArray(item.generatedOutputs)
     ? (item.generatedOutputs as Array<Record<string, unknown>>)
     : [];
@@ -474,7 +485,7 @@ function CanvasNode({ data, selected, dragging }: NodeProps<FlowNode>) {
           className={`canvas-node-selection-toolbar${useSubtleUploadToolbar ? " canvas-node-selection-toolbar--subtle" : ""}${nodeChromeHidden ? " canvas-node-selection-toolbar--hidden" : ""} nodrag nopan`}
           isVisible={selected}
           position={Position.Top}
-          offset={useSubtleUploadToolbar ? 18 : 30}
+          offset={toolbarOffset}
         >
           {isTextNode && (
             <>
@@ -671,9 +682,9 @@ function CanvasNode({ data, selected, dragging }: NodeProps<FlowNode>) {
         ref={setLabelRoot}
         className="canvas-node-label-anchor"
         style={{
-          top: -20 * semanticZoom,
+          top: -CANVAS_NODE_LABEL_HEIGHT * semanticZoom,
           width: dimensions.width * semanticZoom,
-          height: 20 * semanticZoom,
+          height: CANVAS_NODE_LABEL_HEIGHT * semanticZoom,
           "--node-label-zoom": semanticZoom,
         } as CSSProperties}
       />
@@ -695,7 +706,7 @@ function CanvasNode({ data, selected, dragging }: NodeProps<FlowNode>) {
         style={{
           width: dimensions.width,
           height: dimensions.height,
-          zoom: semanticZoom,
+          transform: `scale(${semanticZoom})`,
         }}
       >
         <Renderer
@@ -819,6 +830,7 @@ export function WorkflowCanvas({
   const [edgesVisible, setEdgesVisible] = useState(true);
   const [minimapVisible, setMinimapVisible] = useState(false);
   const [liveViewport, setLiveViewport] = useState({ ...viewport, zoom: initialZoom });
+  const draggingNodeIds = useRef(new Set<string>());
   const movementEndTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const canvasRoot = useRef<HTMLElement>(null);
   const [canvasOverlayRoot, setCanvasOverlayRoot] = useState<HTMLElement | null>(null);
@@ -834,13 +846,7 @@ export function WorkflowCanvas({
       positions: canonicalNodes.map((node) => [node.id, node.position.x, node.position.y]),
     });
     setFlowNodes((current) => {
-      const previous = new Map(current.map((node) => [node.id, node]));
-      return canonicalNodes.map((node) => {
-        const existing = previous.get(node.id);
-        if (!existing) return node;
-        if (existing.dragging || existing === node) return existing;
-        return node;
-      });
+      return reconcileCanvasNodes(current, canonicalNodes, draggingNodeIds.current);
     });
   }, [canonicalNodes]);
   const renderedNodes = flowNodes;
@@ -912,15 +918,6 @@ export function WorkflowCanvas({
         edgeIds: flowEdges.map((edge) => edge.id),
       });
       if (interactiveChanges.length) applyFlowNodeChanges(interactiveChanges);
-      requestAnimationFrame(() => {
-        const root = canvasRoot.current;
-        traceCanvasEvent("dom-frame", {
-          nodeCount: root?.querySelectorAll(".react-flow__node").length || 0,
-          edgeCount: root?.querySelectorAll(".react-flow__edge").length || 0,
-          nodeIds: Array.from(root?.querySelectorAll<HTMLElement>(".react-flow__node") || [])
-            .map((element) => element.dataset.id || ""),
-        });
-      });
       const selection = interactiveChanges.filter((change) => change.type === "select");
       if (selection.length) {
         const selected = new Set(
@@ -933,17 +930,35 @@ export function WorkflowCanvas({
     },
     [applyFlowNodeChanges, controller, flowEdges, renderedNodes],
   );
+  const onNodeDragStart: OnNodeDrag<FlowNode> = useCallback(
+    (_event, node, draggedNodes) => {
+      const activeNodes = draggedNodes.length ? draggedNodes : [node];
+      activeNodes.forEach((item) => draggingNodeIds.current.add(item.id));
+    },
+    [],
+  );
   const onNodeDragStop: OnNodeDrag<FlowNode> = useCallback(
-    (_event, _node, draggedNodes) => {
-      const moved = draggedNodes.map((node) => ({
-        id: node.id,
-        x: Math.round(node.position.x / semanticZoomRef.current),
-        y: Math.round(node.position.y / semanticZoomRef.current),
+    (_event, node, draggedNodes) => {
+      const stoppedNodes = draggedNodes.length ? draggedNodes : [node];
+      stoppedNodes.forEach((item) => draggingNodeIds.current.delete(item.id));
+      const moved = draggedCanvasPositions(node, draggedNodes, semanticZoomRef.current);
+      const movedById = new Map(moved.map((item) => [item.id, item]));
+      setFlowNodes((current) => current.map((item) => {
+        const position = movedById.get(item.id);
+        if (!position) return item;
+        return {
+          ...item,
+          dragging: false,
+          position: {
+            x: screenPixel(position.x * semanticZoomRef.current),
+            y: screenPixel(position.y * semanticZoomRef.current),
+          },
+        };
       }));
       traceCanvasEvent("drag-stop", { moved });
       if (moved.length) controller.moveNodes(moved);
     },
-    [controller],
+    [controller, setFlowNodes],
   );
   const onMoveEnd: OnMoveEnd = useCallback(
     (_event, next) => {
@@ -1206,6 +1221,7 @@ export function WorkflowCanvas({
             deleteKeyCode={null}
             onInit={setInstance}
             onNodesChange={onNodesChange}
+            onNodeDragStart={onNodeDragStart}
             onNodeDragStop={onNodeDragStop}
             onConnect={(connection) => void controller.connect(connection)}
             onEdgeClick={(_event, edge) => controller.selectEdge(edge.id)}

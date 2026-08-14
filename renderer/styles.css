@@ -93,6 +93,15 @@ label.button {
   -webkit-app-region: drag;
 }
 
+.window-drag-strip {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 0;
+  height: 5px;
+  pointer-events: auto;
+  -webkit-app-region: drag;
+}
+
 .user-tools,
 button,
 input,
@@ -103,6 +112,8 @@ label.button {
 }
 
 .user-tools {
+  position: relative;
+  z-index: 1;
   pointer-events: auto;
   display: flex;
   justify-content: flex-end;
@@ -188,19 +199,16 @@ label.button {
 }
 .workspace.sidebar-collapsed { grid-template-columns: var(--workspace-sidebar-rail-width) minmax(0, 1fr); }
 
-/* The creation canvas owns the full workbench viewport. Framing belongs to
-   document-style pages; retaining it here leaves unusable strips around the
-   infinite canvas and makes viewport calculations smaller than the window. */
+/* A narrow inset keeps the frameless workbench easy to grab and resize without
+   bringing back a conventional title bar or materially shrinking the canvas. */
 .app-shell.route-creation .workspace {
-  padding-top: 0;
-  padding-right: 0;
-  padding-bottom: 0;
+  padding-top: 5px;
+  padding-right: 5px;
+  padding-bottom: 5px;
 }
 .app-shell.route-creation .content {
-  border-top: 0;
-  border-right: 0;
-  border-bottom: 0;
-  border-radius: 0;
+  border: .5px solid rgba(0, 0, 0, .08);
+  border-radius: var(--workbench-radius);
   padding: 0;
 }
 

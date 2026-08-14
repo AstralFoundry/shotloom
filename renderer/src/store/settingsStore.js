@@ -1,6 +1,7 @@
 import { reactive, toRaw } from '@/store/domainReactivity';
 import { desktopApi } from '@/services/desktopApi';
 import { normalizeCanvasActionShortcuts } from '@/utils/canvasActionShortcuts';
+import { clonePlainData } from '@/utils/plainDataClone.mjs';
 import { getModelIdsByType, setExternalCatalogModels } from '@/domain/catalog/ModelCatalog';
 import { getConfiguredProviders, getProviderDefinition } from '@/domain/provider/ProviderRegistry';
 import { buildCustomCatalogModels } from '@/domain/provider/CustomModelCatalog';
@@ -112,13 +113,14 @@ function toPlainSettings(patch = {}) {
     ...rawPatch,
   };
   next.tokenGroups = normalizeTokenGroups(next.tokenGroups);
-  return next;
+  return clonePlainData(next);
 }
 
 function applySettings(settings) {
+  const providerConfigs = clonePlainData(settings.providerConfigs || {});
   settingsStore.storageVersion = settings.storageVersion;
-  settingsStore.providerConfigs = settings.providerConfigs || {};
-  setExternalCatalogModels(buildCustomCatalogModels(settingsStore.providerConfigs));
+  settingsStore.providerConfigs = providerConfigs;
+  setExternalCatalogModels(buildCustomCatalogModels(providerConfigs));
   settingsStore.balance = Number.isFinite(settings.balance) ? settings.balance : 0;
   settingsStore.rawQuota = Number.isFinite(settings.rawQuota) ? settings.rawQuota : 0;
   settingsStore.usedQuota = Number.isFinite(settings.usedQuota) ? settings.usedQuota : 0;

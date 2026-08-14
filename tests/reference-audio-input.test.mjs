@@ -7,6 +7,7 @@ let generationUpstreamReadiness;
 let buildGenerationPayload;
 let resolveAgentInputRole;
 let getGenerationInputModes;
+let reconcileGenerationInputEdges;
 
 before(async () => {
   server = await createServer({ server: { middlewareMode: true, hmr: false }, appType: 'custom' });
@@ -15,6 +16,9 @@ before(async () => {
   ));
   ({ resolveAgentInputRole } = await server.ssrLoadModule('/src/services/agentInputRole.ts'));
   ({ getGenerationInputModes } = await server.ssrLoadModule('/src/domain/catalog/ModelCatalog.ts'));
+  ({ reconcileGenerationInputEdges } = await server.ssrLoadModule(
+    '/src/domain/graph/GenerationInputContract.ts',
+  ));
 });
 
 test('音频节点和音频资源连线自动使用 referenceAudio', () => {
@@ -26,6 +30,58 @@ test('音频节点和音频资源连线自动使用 referenceAudio', () => {
   assert.equal(resolveAgentInputRole(project, {
     id: 'audio-resource', type: 'resource', resourceType: 'audio',
   }, target), 'referenceAudio');
+});
+
+test('输入模式往返切换保留两个上游节点并恢复参考素材', () => {
+  const first = { id: 'first-edge', data: { inputRole: 'referenceImage', inputSlot: 'firstFrame' } };
+  const last = { id: 'last-edge', data: { inputRole: 'referenceImage', inputSlot: 'lastFrame' } };
+  // Deliberately reverse persistence order: business slots, not array order,
+  // determine which source is the first frame.
+  const reversed = [last, first];
+  const referenceMode = {
+    value: 'reference', label: '参考素材', modeId: 'reference', slots: ['reference'],
+    maxImages: 9, maxVideos: 0, maxAudios: 0,
+  };
+  const firstLastMode = {
+    value: 'firstLastFrame', label: '首尾帧', modeId: 'first-last',
+    slots: ['firstFrame', 'lastFrame'], maxImages: 2, maxVideos: 0, maxAudios: 0,
+  };
+
+  const references = reconcileGenerationInputEdges(reversed, referenceMode);
+  assert.deepEqual(references.map((edge) => edge.id), ['first-edge', 'last-edge']);
+  assert.deepEqual(references.map((edge) => edge.data.inputSlot), ['reference', 'reference']);
+
+  const restored = reconcileGenerationInputEdges(references, firstLastMode);
+  assert.deepEqual(restored.map((edge) => [edge.id, edge.data.inputSlot]), [
+    ['first-edge', 'firstFrame'],
+    ['last-edge', 'lastFrame'],
+  ]);
+});
+
+test('切换到单首帧模式优先使用显式首帧并暂存第二个上游节点', () => {
+  const edges = [
+    { id: 'last-edge', data: { inputRole: 'referenceImage', inputSlot: 'lastFrame' } },
+    { id: 'first-edge', data: { inputRole: 'referenceImage', inputSlot: 'firstFrame' } },
+  ];
+  const mode = {
+    value: 'firstFrame', label: '首帧', modeId: 'first', slots: ['firstFrame'],
+    maxImages: 1, maxVideos: 0, maxAudios: 0,
+  };
+  const reconciled = reconcileGenerationInputEdges(edges, mode);
+  assert.deepEqual(reconciled.map((edge) => [edge.id, edge.data.inputSlot, edge.data.skipTaskInput === true]), [
+    ['first-edge', 'firstFrame', false],
+    ['last-edge', 'lastFrame', true],
+  ]);
+
+  const referenceMode = {
+    value: 'reference', label: '参考素材', modeId: 'reference', slots: ['reference'],
+    maxImages: 9, maxVideos: 0, maxAudios: 0,
+  };
+  const restored = reconcileGenerationInputEdges(reconciled, referenceMode);
+  assert.deepEqual(restored.map((edge) => [edge.id, edge.data.inputSlot, edge.data.skipTaskInput === true]), [
+    ['first-edge', 'reference', false],
+    ['last-edge', 'reference', false],
+  ]);
 });
 
 after(async () => {

@@ -88,6 +88,11 @@ const canvasHistory = readFileSync(
   new URL('../renderer/src/store/canvasHistoryStore.js', import.meta.url),
   'utf8',
 );
+const canvasDrag = await import('../renderer/src/utils/canvasNodeDrag.mjs');
+const canvasDragSource = readFileSync(
+  new URL('../renderer/src/utils/canvasNodeDrag.mjs', import.meta.url),
+  'utf8',
+);
 const copilotAdapter = readFileSync(
   new URL('../renderer/src/app/adapters/copilotAdapter.ts', import.meta.url),
   'utf8',
@@ -105,7 +110,7 @@ test('React Flow 保持节点挂载并在拖动结束后合并持久化', () => 
   assert.doesNotMatch(canvas, /NODE_VIRTUALIZATION_THRESHOLD/);
   assert.doesNotMatch(canvas, /draggingIds|pendingPositionCommits|dragEnded/);
   assert.match(canvas, /useNodesState<FlowNode>/);
-  assert.match(canvas, /if \(existing\.dragging \|\| existing === node\) return existing/);
+  assert.match(canvas, /reconcileCanvasNodes\(current, canonicalNodes, draggingNodeIds\.current\)/);
   assert.match(canvas, /flowNodeCache/);
   assert.match(canvas, /cached\.input === node[\s\S]*?return cached\.output/);
   assert.match(canvas, /const interactiveChanges = changes\.filter\(\(change\) => change\.type !== "remove"\)/);
@@ -114,11 +119,12 @@ test('React Flow 保持节点挂载并在拖动结束后合并持久化', () => 
   assert.match(canvas, /cached\?\.signature === signature[\s\S]*?return cached\.output/);
   assert.match(canvas, /__shotloomCanvasDebug/);
   assert.match(canvas, /traceCanvasEvent\("nodes-change"/);
-  assert.match(canvas, /traceCanvasEvent\("dom-frame"/);
+  assert.doesNotMatch(canvas, /traceCanvasEvent\("dom-frame"/);
   assert.match(canvas, /traceCanvasEvent\("drag-stop"/);
   assert.match(adapter, /canvasViewNodeCache/);
   assert.match(adapter, /cached\?\.signature === signature[\s\S]*?return cached\.node/);
-  assert.match(canvas, /const onNodeDragStop: OnNodeDrag<FlowNode>[\s\S]*?draggedNodes\.map[\s\S]*?controller\.moveNodes\(moved\)/);
+  assert.match(canvas, /const onNodeDragStart: OnNodeDrag<FlowNode>[\s\S]*?draggingNodeIds\.current\.add/);
+  assert.match(canvas, /const onNodeDragStop: OnNodeDrag<FlowNode>[\s\S]*?draggedCanvasPositions[\s\S]*?controller\.moveNodes\(moved\)/);
   assert.match(canvas, /onNodeDragStop=\{onNodeDragStop\}/);
   assert.doesNotMatch(canvas, /controller\.moveNodes\(moved, \{ recordHistory \}\)/);
   assert.match(canvas, /autoPanOnNodeDrag=\{false\}/);
@@ -136,6 +142,43 @@ test('React Flow 保持节点挂载并在拖动结束后合并持久化', () => 
   assert.match(adapter, /recordCanvasPositionHistory\(positions\.map/);
   assert.match(canvasHistory, /kind: 'node-positions'/);
   assert.match(canvasHistory, /previous\.kind === 'node-positions'[\s\S]*?nodePositionSnapshot/);
+});
+test('连续拖动回流时节点与连线端点不会从受控节点集合丢失', () => {
+  let current = [
+    { id: 'source', position: { x: 80, y: 60 }, data: { revision: 0 } },
+    { id: 'target', position: { x: 360, y: 60 }, data: { revision: 0 } },
+  ];
+  const dragging = new Set(['source']);
+  for (let revision = 1; revision <= 200; revision += 1) {
+    current = current.map((node) => node.id === 'source'
+      ? { ...node, dragging: true, position: { x: 80 + revision, y: 60 + revision } }
+      : node);
+    const canonical = [
+      { id: 'source', position: { x: 80, y: 60 }, data: { revision } },
+      { id: 'target', position: { x: 360, y: 60 }, data: { revision } },
+    ];
+    current = canvasDrag.reconcileCanvasNodes(current, canonical, dragging);
+    assert.deepEqual(current.map((node) => node.id), ['source', 'target']);
+    assert.deepEqual(current[0].position, { x: 80 + revision, y: 60 + revision });
+    assert.equal(current[0].data.revision, revision);
+  }
+  assert.deepEqual(
+    canvasDrag.draggedCanvasPositions(current[0], [], 0.5),
+    [{ id: 'source', x: 560, y: 520 }],
+  );
+});
+test('外部画布快照短暂缺项时保留正在拖动的节点', () => {
+  const current = [
+    { id: 'dragging', dragging: true, position: { x: 180, y: 120 }, data: {} },
+    { id: 'stable', position: { x: 420, y: 120 }, data: {} },
+  ];
+  const canonical = [
+    { id: 'stable', position: { x: 420, y: 120 }, data: { revision: 1 } },
+  ];
+  const reconciled = canvasDrag.reconcileCanvasNodes(current, canonical, new Set(['dragging']));
+  assert.deepEqual(reconciled.map((node) => node.id), ['stable', 'dragging']);
+  assert.deepEqual(reconciled[1].position, { x: 180, y: 120 });
+  assert.equal(reconciled[1].dragging, true);
 });
 test('大型画布保留完整数据并对可见媒体预览限流加载', () => {
   assert.doesNotMatch(canvas, /lodMode|data\.lod|canvas-lod-node/);
@@ -233,14 +276,16 @@ test('画布视图用索引关联素材且每个节点只保留两个 Loose 端�
   assert.equal(node.match(/<Handle/g)?.length || 0, 0);
 });
 test('节点与连线使用线性索引和稳定集合', () => {
-  assert.match(canvas, /new Map\(current\.map/);
+  assert.match(canvasDragSource, /new Map\(currentNodes\.map/);
   assert.match(canvas, /const ids = useMemo\(\(\) => new Set/);
   assert.match(canvas, /\.filter\(\(edge\) => ids\.has\(edge\.source\)/);
 });
 test('画布缩放使用最终布局尺寸并保持 React Flow 视口为 1x', () => {
   assert.match(canvas, /x: screenPixel\(\(Number\(node\.x\) \|\| 0\) \* semanticZoom\)/);
   assert.match(canvas, /width: dimensions\.width \* semanticZoom/);
-  assert.match(canvas, /zoom: semanticZoom/);
+  assert.match(canvas, /className="canvas-node-semantic-content"[\s\S]*?transform: `scale\(\$\{semanticZoom\}\)`/);
+  assert.doesNotMatch(canvas, /className="canvas-node-semantic-content"[\s\S]{0,220}?zoom: semanticZoom/);
+  assert.match(styles, /\.canvas-node-semantic-content \{[^}]*-webkit-text-size-adjust:\s*none;[^}]*text-size-adjust:\s*none/);
   assert.match(canvas, /defaultViewport=\{\{ x: viewport\.x, y: viewport\.y, zoom: 1 \}\}/);
   assert.match(canvas, /minZoom=\{1\}[\s\S]*?maxZoom=\{1\}/);
   assert.match(canvas, /zoomOnScroll=\{false\}[\s\S]*?zoomOnPinch=\{false\}/);
@@ -252,7 +297,7 @@ test('低倍率画布降低连线与节点操作的信息密度', () => {
   assert.match(canvas, /opacity: semanticZoom < 0\.55 \? 0\.48 : 0\.72/);
   assert.match(canvas, /canvas-zoom-compact[\s\S]*?canvas-zoom-distant[\s\S]*?canvas-zoom-overview/);
   assert.match(canvas, /const renderedSemanticZoom = renderedNodes\[0\]\?\.data\.semanticZoom \?\? semanticZoom/);
-  assert.match(canvas, /className="canvas-node-label-anchor"[\s\S]*?top: -20 \* semanticZoom,[\s\S]*?width: dimensions\.width \* semanticZoom/);
+  assert.match(canvas, /className="canvas-node-label-anchor"[\s\S]*?top: -CANVAS_NODE_LABEL_HEIGHT \* semanticZoom,[\s\S]*?width: dimensions\.width \* semanticZoom/);
   assert.match(canvas, /CanvasNodeLabelRootContext\.Provider value=\{labelRoot\}/);
   assert.match(canvas, /Math\.round\(renderedSemanticZoom \* 100\) <= 20 \? " canvas-zoom-overview"/);
   assert.doesNotMatch(canvas, /--canvas-label-scale/);

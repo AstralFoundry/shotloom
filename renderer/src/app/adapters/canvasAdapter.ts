@@ -13,7 +13,12 @@ import {
 import { promoteMaterialToLocalLibrary, useLocalAssetInProject } from "../../store/localAssetLibraryStore.js";
 import { addCanvasEdge } from "../../store/canvasGraphStore.js";
 import { getGenerationInputModes } from "../../domain/catalog/ModelCatalog";
-import { defaultInputSlot, type GenerationInputMode, type GenerationInputSlot } from "../../domain/graph/GenerationInputContract";
+import {
+  defaultInputSlot,
+  reconcileGenerationInputEdges,
+  type GenerationInputMode,
+  type GenerationInputSlot,
+} from "../../domain/graph/GenerationInputContract";
 import { validateAgentInputRole } from "../../services/agentInputRole";
 import { pasteStagedWorkflow, stageSelectedWorkflow } from "../../store/clipboardStore.js";
 import {
@@ -503,26 +508,11 @@ export const nodeActions: WorkflowNodeActions = {
     recordCanvasHistory("切换输入模式");
     target.inputMode = mode.value;
     const incoming = (store.project.edges || []).filter((edge: any) => edge.target === id);
-    let imageIndex = 0;
-    const keep = new Set<string>();
-    for (const edge of incoming) {
-      const role = String(edge.data?.inputRole || "");
-      if (role === "textContext") { keep.add(edge.id); continue; }
-      if (role === "referenceImage" && imageIndex < mode.maxImages) {
-        const inputSlot = mode.value === "firstLastFrame" ? (imageIndex ? "lastFrame" : "firstFrame")
-          : mode.value === "firstFrame" ? "firstFrame" : "reference";
-        edge.data = { ...(edge.data || {}), inputRole: role, inputSlot };
-        imageIndex += 1;
-        keep.add(edge.id);
-      } else if (role === "inputVideo" && mode.maxVideos > 0) {
-        edge.data = { ...(edge.data || {}), inputRole: role, inputSlot: "inputVideo" };
-        keep.add(edge.id);
-      } else if (role === "referenceAudio" && mode.maxAudios > 0) {
-        edge.data = { ...(edge.data || {}), inputRole: role, inputSlot: "referenceAudio" };
-        keep.add(edge.id);
-      }
-    }
-    store.project.edges = (store.project.edges || []).filter((edge: any) => edge.target !== id || keep.has(edge.id));
+    const reconciled = reconcileGenerationInputEdges(incoming, mode);
+    store.project.edges = [
+      ...(store.project.edges || []).filter((edge: any) => edge.target !== id),
+      ...reconciled,
+    ];
     touchProject();
   },
   removeIncomingEdge(id, edgeId) {

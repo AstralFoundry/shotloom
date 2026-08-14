@@ -45,6 +45,8 @@
 .canvas-node-semantic-content {
   position: relative;
   transform-origin: 0 0;
+  -webkit-text-size-adjust: none;
+  text-size-adjust: none;
 }
 .canvas-node-label-anchor {
   position: absolute;

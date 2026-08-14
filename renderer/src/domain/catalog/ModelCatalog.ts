@@ -249,7 +249,7 @@ class ModelCatalog {
 
   /** 替换设置中声明的外部模型；只有显式标记的条目可以覆盖同 ID 内置模型。 */
   setExternalModels(models: CatalogModel[] = []): void {
-    const builtInIds = new Set(this.builtInModels.map((model) => model.id));
+    const builtInById = new Map(this.builtInModels.map((model) => [model.id, model]));
     const overrides = new Map<string, CatalogModel>();
     const external: CatalogModel[] = [];
     const occupied = new Set<string>();
@@ -271,8 +271,13 @@ class ModelCatalog {
           : validModes[0].id,
         modes: validModes,
       };
-      if (builtInIds.has(model.id)) {
-        if (model.overridesBuiltIn === true) overrides.set(model.id, normalized);
+      const builtIn = builtInById.get(model.id);
+      if (builtIn) {
+        // A cross-provider duplicate is necessarily a routing override: keeping
+        // the built-in provider would make the saved external model unreachable.
+        if (model.overridesBuiltIn === true || model.provider !== builtIn.provider) {
+          overrides.set(model.id, normalized);
+        }
         continue;
       }
       external.push(normalized);
@@ -282,6 +287,10 @@ class ModelCatalog {
       ...external,
     ];
     this.modelMap = new Map(this.models.map((model) => [model.id, model]));
+  }
+
+  getBuiltInModels(providerId = ''): CatalogModel[] {
+    return this.builtInModels.filter((model) => !providerId || model.provider === providerId);
   }
 
   // ── Queries ────────────────────────────────────────────────────────────────
@@ -593,6 +602,7 @@ class ModelCatalog {
 
 export const modelCatalog = new ModelCatalog();
 export const setExternalCatalogModels = (models: CatalogModel[]) => modelCatalog.setExternalModels(models);
+export const getBuiltInCatalogModels = (providerId = '') => modelCatalog.getBuiltInModels(providerId);
 
 // Re-export query functions for drop-in compatibility
 export const getModelModeConfig = (modelId: string, modeId?: string) => modelCatalog.getModeConfig(modelId, modeId);

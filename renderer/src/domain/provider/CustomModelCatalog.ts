@@ -2,12 +2,13 @@ import type { CatalogModel } from '../catalog/ModelCatalog';
 import type {
   ProviderConfig,
 } from './ProviderRegistry';
+import { clonePlainData } from '../../utils/plainDataClone.mjs';
 
 function toCatalogModel(provider: string, model: CatalogModel, index: number): CatalogModel | null {
   const id = String(model.id || '').trim();
   if (!id || !Array.isArray(model.modes) || !model.modes.length) return null;
   return {
-    ...structuredClone(model),
+    ...clonePlainData(model),
     id,
     name: String(model.name || id).trim() || id,
     provider,

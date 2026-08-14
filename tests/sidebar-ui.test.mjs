@@ -113,18 +113,20 @@ test('侧栏开合不因分组标题改变按钮纵向位置', () => {
   assert.doesNotMatch(styles, /\.sidebar-shell\.collapsed \.side-title/);
 });
 
-test('所有页面都不再为顶部栏保留独立布局高度', () => {
+test('顶部栏不占布局高度并提供窄窗口拖拽区域', () => {
   assert.match(styles, /\.app-shell \{[\s\S]*?display:\s*block/);
   assert.match(styles, /\.topbar \{[\s\S]*?position:\s*absolute/);
+  assert.match(topbar, /className="window-drag-strip" data-tauri-drag-region/);
+  assert.match(styles, /\.window-drag-strip \{[^}]*height:\s*5px;[^}]*pointer-events:\s*auto;[^}]*-webkit-app-region:\s*drag/);
   assert.match(styles, /\.workspace \{[\s\S]*?height:\s*100%/);
   assert.match(styles, /padding:\s*4px 4px 4px 0/);
   assert.doesNotMatch(appShell, /projects-shell/);
 });
 
-test('创作画布使用完整工作区高度且不保留上下装饰留白', () => {
+test('创作画布保留窄窗口操作边界且不恢复厚标题栏', () => {
   assert.match(appShell, /className=\{`app-shell route-\$\{route\}/);
-  assert.match(styles, /\.app-shell\.route-creation \.workspace \{[^}]*padding-top:\s*0[^}]*padding-right:\s*0[^}]*padding-bottom:\s*0/);
-  assert.match(styles, /\.app-shell\.route-creation \.content \{[^}]*border-top:\s*0[^}]*border-bottom:\s*0[^}]*border-radius:\s*0[^}]*padding:\s*0/);
+  assert.match(styles, /\.app-shell\.route-creation \.workspace \{[^}]*padding-top:\s*5px[^}]*padding-right:\s*5px[^}]*padding-bottom:\s*5px/);
+  assert.match(styles, /\.app-shell\.route-creation \.content \{[^}]*border:\s*\.5px solid[^}]*border-radius:\s*var\(--workbench-radius\)[^}]*padding:\s*0/);
   assert.doesNotMatch(styles, /\.creation-shell \.content/);
 });
 
@@ -160,6 +162,13 @@ test('新增 API 模型使用空白协议', () => {
   assert.doesNotMatch(providerDialog, /model: "\{\{model\}\}"/);
   assert.match(providerDialog, /selectedModelId && !newModel/);
   assert.match(providerDialog, /创建并编辑协议/);
+});
+
+test('自定义厂商复用内置模型 ID 时明确保存并展示覆盖关系', () => {
+  assert.match(providerDialog, /globalBuiltInModels\.has\(model\.id\)/);
+  assert.match(providerDialog, /overridesBuiltIn: true/);
+  assert.match(providerDialog, /覆盖内置 \$\{replacedBuiltIn\.provider\}/);
+  assert.match(settingsStyles, /\.provider-model-origin\.override/);
 });
 
 test('模型配置提供独立指南和可复制给 AI 的完整任务说明', () => {
