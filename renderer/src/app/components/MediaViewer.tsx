@@ -6,7 +6,6 @@ import {
   type WheelEvent,
 } from "react";
 import { desktopApi } from "../../services/desktopApi.js";
-import { convertFileSrc } from "@tauri-apps/api/core";
 import {
   acquireMediaPreview,
   type CachedMediaLease,
@@ -16,6 +15,11 @@ import { showToast, useOverlayStore } from "../store/overlayStore";
 import { markdownToRichHtml, richHtmlToMarkdown } from "../../utils/richTextMarkdown.mjs";
 
 const MIN_ZOOM = .5, MAX_ZOOM = 5, STEP = .25;
+function formatMediaTime(value: number) {
+  if (!Number.isFinite(value) || value < 0) return "0:00";
+  const seconds = Math.floor(value);
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+}
 export function MediaViewer() {
   const media = useOverlayStore((state) => state.media);
   const close = useOverlayStore((state) => state.closeMedia);
@@ -27,6 +31,9 @@ export function MediaViewer() {
   const [textDraft, setTextDraft] = useState("");
   const [textSearchOpen, setTextSearchOpen] = useState(false);
   const [textSearch, setTextSearch] = useState("");
+  const [videoTime, setVideoTime] = useState(0);
+  const [videoDuration, setVideoDuration] = useState(0);
+  const [videoMuted, setVideoMuted] = useState(false);
   const panOrigin = useRef<{ x: number; y: number; id: number } | null>(null);
   const backdrop = useRef<HTMLDivElement>(null);
   const textEditor = useRef<HTMLDivElement>(null);
@@ -45,6 +52,9 @@ export function MediaViewer() {
   useEffect(() => {
     if (!media.open) return;
     reset();
+    setVideoTime(0);
+    setVideoDuration(0);
+    setVideoMuted(false);
     if (media.kind === "text") {
       setTextDraft(media.src);
       setTextSearchOpen(false);
@@ -69,8 +79,6 @@ export function MediaViewer() {
           setFullSrc(acquired.url);
         }
       }).catch(() => {});
-    } else if (media.kind === "video" && media.filePath && desktopApi.platform !== "browser") {
-      setFullSrc(convertFileSrc(media.filePath));
     }
     return () => {
       cancelled = true;
@@ -123,6 +131,16 @@ export function MediaViewer() {
       );
     } catch (error) {
       showToast(error instanceof Error ? error.message : "无法定位文件");
+    }
+  }
+  async function saveMedia() {
+    if (!media.filePath) return showToast("当前媒体没有可导出的本地原始文件");
+    try {
+      const buffer = await desktopApi.file.readArrayBuffer(media.filePath);
+      const result = await desktopApi.file.saveArrayBuffer(media.title || "media", buffer);
+      if (result) showToast("媒体已另存");
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "媒体另存失败");
     }
   }
   async function copyText() {
@@ -238,12 +256,7 @@ export function MediaViewer() {
               </button>
             </div>
           </>
-        ) : <><div className="media-viewer-title">
-          <span>
-            {{ image: "IMAGE", video: "VIDEO", text: "TEXT" }[media.kind]}
-          </span>
-          <strong title={media.title}>{media.title}</strong>
-        </div>
+        ) : <><div aria-hidden />
         {media.kind === "image" && (
           <div className="media-viewer-controls">
             <button disabled={zoom <= MIN_ZOOM} onClick={() => adjust(-STEP)}>
@@ -253,29 +266,22 @@ export function MediaViewer() {
             <button disabled={zoom >= MAX_ZOOM} onClick={() => adjust(STEP)}>
               ＋
             </button>
-            <button title="适应窗口" onClick={reset}>
-              <IconSymbol name="maximize" />
-            </button>
+          </div>
+        )}
+        {media.kind === "video" && (
+          <div className="media-viewer-controls media-viewer-video-controls">
+            <output>{formatMediaTime(videoTime)} / {formatMediaTime(videoDuration)}</output>
             <button
-              title="顺时针旋转"
-              onClick={() => {
-                setRotation((value) => (value + 90) % 360);
-                setPan({ x: 0, y: 0 });
-              }}
+              type="button"
+              title={videoMuted ? "开启声音" : "关闭声音"}
+              aria-pressed={!videoMuted}
+              onClick={() => setVideoMuted((value) => !value)}
             >
-              <IconSymbol name="refresh" />
+              <IconSymbol name={videoMuted ? "volume-x" : "volume"} />
             </button>
           </div>
         )}
         <div className="media-viewer-actions">
-          {media.filePath && (
-            <button
-              title="在文件夹中显示"
-              onClick={() => void showFile()}
-            >
-              <IconSymbol name="folder" />
-            </button>
-          )}
           <button title="关闭" onClick={closeViewer}>
             <IconSymbol name="x" />
           </button>
@@ -321,7 +327,15 @@ export function MediaViewer() {
               src={fullSrc || media.src}
               controls
               autoPlay
-              preload="metadata"
+              muted={videoMuted}
+              playsInline
+              preload="auto"
+              onLoadedMetadata={(event) => setVideoDuration(Number(event.currentTarget.duration) || 0)}
+              onDurationChange={(event) => setVideoDuration(Number(event.currentTarget.duration) || 0)}
+              onTimeUpdate={(event) => setVideoTime(event.currentTarget.currentTime)}
+              onCanPlay={(event) => {
+                void event.currentTarget.play().catch(() => undefined);
+              }}
               onDoubleClick={(e) => e.stopPropagation()}
             />
           )
@@ -347,16 +361,25 @@ export function MediaViewer() {
           : <pre className="media-viewer-text">{media.src}</pre>}
       </main>
       <footer className="media-viewer-hint">
-        <span>
-          {media.kind === "image"
-            ? "双击切换放大 · 滚轮缩放 · 放大后拖拽"
-            : media.kind === "video"
-            ? "双击素材即可进入此播放器"
-            : media.onSave
-            ? "可直接编辑 · ⌘/Ctrl + S 保存"
-            : "可选中文本 · 右上角复制全文"}
-        </span>
-        <kbd>ESC</kbd>
+        {media.kind !== "text" ? (
+          <div className="media-viewer-primary-actions">
+            {media.filePath && (
+              <>
+                <button type="button" onClick={() => void saveMedia()}>
+                  <IconSymbol name="download" />
+                  下载
+                </button>
+                <button type="button" onClick={() => void showFile()}>
+                  <IconSymbol name="folder" />
+                  {desktopApi.platform === "darwin" ? "在 Finder 中打开" : "在文件夹中显示"}
+                </button>
+              </>
+            )}
+          </div>
+        ) : <span>{media.onSave
+          ? "可直接编辑 · ⌘/Ctrl + S 保存"
+          : "可选中文本 · 右上角复制全文"}</span>}
+        {media.kind === "text" && <kbd>ESC</kbd>}
       </footer>
     </div>
   );

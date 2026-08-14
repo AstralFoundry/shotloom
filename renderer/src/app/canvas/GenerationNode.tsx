@@ -1,4 +1,4 @@
-import { memo, type ReactNode, useCallback, useContext, useLayoutEffect, useMemo, useState } from "react";
+import { memo, type ReactNode, useCallback, useContext, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { type ReactFlowState, useStore } from "@xyflow/react";
 import { getGenerationInputModes, getModelInfo, getModelSchema, getTypeMeta, resolveModeIdForInputMode } from "../../domain/catalog/ModelCatalog";
@@ -29,8 +29,9 @@ import type {
 } from "./WorkflowCanvas";
 import { useMediaPreviewCache } from "./useMediaPreviewCache";
 import { isImeKeyEvent, useImeCommit } from "./imeComposition";
-import { imageCanvasNodeDimensions } from "../../domain/graph/CanvasNodeDimensions";
+import { reconcileMediaNodeDimensions } from "../../domain/graph/CanvasNodeDimensions";
 import { textNodeContent } from "../../utils/textNodeContent.mjs";
+import { desktopApi } from "../../services/desktopApi.js";
 
 interface OutputData {
   id: string;
@@ -71,17 +72,123 @@ function kindOf(item: Record<string, unknown>): "image" | "video" | "audio" | "t
     ) || (item.content ? "text" : "")
   );
 }
-function useLocalPreview(item: Record<string, unknown> | null, kind: string) {
+function canvasPreviewMaxSize(semanticZoom: number) {
+  const dpr = Number(globalThis.devicePixelRatio) || 1;
+  const needed = 350 * Math.max(1, semanticZoom) * dpr;
+  if (needed > 1536) return 2048;
+  if (needed > 960) return 1536;
+  return 960;
+}
+function useLocalPreview(item: Record<string, unknown> | null, kind: string, semanticZoom: number) {
   const path = String(item?.filePath || item?.path || "");
   const raw = String(item?.previewUrl || item?.url || item?.content || "");
   return useMediaPreviewCache({
     path,
     kind,
     mimeType: String(item?.mimeType || item?.type || ""),
-    maxSize: 960,
+    maxSize: canvasPreviewMaxSize(semanticZoom),
     revision: String(item?.updatedAt || item?.createdAt || item?.id || ""),
     fallbackUrl: raw,
   });
+}
+
+const AUDIO_WAVEFORM_BARS = [
+  20, 38, 64, 42, 76, 48, 30, 58, 82, 46, 68, 34, 72, 52, 88, 40,
+  62, 28, 54, 78, 44, 70, 36, 84, 50, 66, 32, 74, 46, 90, 56, 38,
+  68, 42, 80, 34, 60, 48, 86, 54, 30, 72, 44, 64, 38, 78, 52, 28,
+  70, 46, 82, 36, 58, 74, 42, 66, 32, 76, 48, 62, 40, 84, 54, 30,
+];
+
+function formatAudioTime(value: number) {
+  if (!Number.isFinite(value) || value < 0) return "0:00";
+  const seconds = Math.floor(value);
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+}
+
+function AudioWaveformPlayer({
+  src,
+  filePath,
+  fileName,
+  onError,
+}: {
+  src: string;
+  filePath: string;
+  fileName: string;
+  onError: () => void;
+}) {
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const [playing, setPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const progress = duration > 0 ? currentTime / duration : 0;
+
+  async function togglePlayback() {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (audio.paused) {
+      await audio.play().catch(() => undefined);
+    } else {
+      audio.pause();
+    }
+  }
+
+  async function saveAudio() {
+    if (!filePath) return showToast("当前音频没有可导出的本地文件");
+    try {
+      const buffer = await desktopApi.file.readArrayBuffer(filePath);
+      const result = await desktopApi.file.saveArrayBuffer(fileName || "audio.m4a", buffer);
+      if (result) showToast("音频已另存");
+    } catch (cause) {
+      showToast(cause instanceof Error ? cause.message : "音频另存失败");
+    }
+  }
+
+  return (
+    <div className="audio-waveform-player nowheel">
+      <button
+        type="button"
+        className="audio-waveform"
+        aria-label="调整音频播放位置"
+        onClick={(event) => {
+          const audio = audioRef.current;
+          if (!audio || !(duration > 0)) return;
+          const bounds = event.currentTarget.getBoundingClientRect();
+          audio.currentTime = Math.max(0, Math.min(duration, (event.clientX - bounds.left) / bounds.width * duration));
+          setCurrentTime(audio.currentTime);
+        }}
+      >
+        {AUDIO_WAVEFORM_BARS.map((height, index) => (
+          <span
+            key={index}
+            className={index / AUDIO_WAVEFORM_BARS.length <= progress ? "played" : ""}
+            style={{ height: `${height}%` }}
+          />
+        ))}
+      </button>
+      <div className="audio-waveform-controls">
+        <span>{formatAudioTime(currentTime)} / {formatAudioTime(duration)}</span>
+        <button type="button" className="audio-waveform-play nodrag nopan" title={playing ? "暂停" : "播放"} onClick={() => void togglePlayback()}>
+          {playing ? <IconSymbol name="pause" /> : <i className="audio-play-glyph" aria-hidden />}
+        </button>
+        <button type="button" className="audio-waveform-download nodrag nopan" title="另存音频" onClick={() => void saveAudio()}>
+          <IconSymbol name="download" />
+        </button>
+      </div>
+      <audio
+        ref={audioRef}
+        className="nodrag nopan nowheel audio-waveform-native"
+        src={src}
+        preload="metadata"
+        onLoadedMetadata={(event) => setDuration(Number(event.currentTarget.duration) || 0)}
+        onDurationChange={(event) => setDuration(Number(event.currentTarget.duration) || 0)}
+        onTimeUpdate={(event) => setCurrentTime(event.currentTarget.currentTime)}
+        onPlay={() => setPlaying(true)}
+        onPause={() => setPlaying(false)}
+        onEnded={() => setPlaying(false)}
+        onError={onError}
+      />
+    </div>
+  );
 }
 
 function generationNodeDisplayTitle(
@@ -178,7 +285,7 @@ function ComposerInputThumbnail({
   label?: string;
 }) {
   const kind = kindOf(input);
-  const { url } = useLocalPreview(input, kind);
+  const { url } = useLocalPreview(input, kind, 1);
   return (
     <div className="work-composer-input" title={input.name}>
       {kind === "image" && url ? (
@@ -199,10 +306,15 @@ function ComposerInputThumbnail({
 export const GenerationNode: WorkflowNodeRenderer = memo(({
   node,
   selected,
+  semanticZoom = 1,
   incomingInputs = [],
   actions,
 }) => {
   const [openMenu, setOpenMenu] = useState("");
+  const videoPreviewRef = useRef<HTMLVideoElement>(null);
+  const [videoTime, setVideoTime] = useState(0);
+  const [videoDuration, setVideoDuration] = useState(0);
+  const [videoMuted, setVideoMuted] = useState(false);
   const labelRoot = useContext(CanvasNodeLabelRootContext);
   const promptCommit = useImeCommit<HTMLTextAreaElement>(String(node.prompt || ""), (value) =>
     actions.update(node.id, { prompt: value }),
@@ -221,11 +333,16 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({
   const uploadKind = uploaded ? kindOf(uploaded) : "";
   const active = (selectedOutput || uploaded) as unknown as Record<string, unknown> | null;
   const activeKind = selectedOutput ? outputKind : uploadKind;
+  const activeFilePath = String(selectedOutput?.filePath || uploaded?.filePath || uploaded?.path || "");
+  const activeFileName = String(
+    selectedOutput?.fileName || uploaded?.name || node.title ||
+      (activeKind === "video" ? "video.mp4" : "image.png"),
+  );
   const {
     url: previewUrl,
     retryBuffered: retryBufferedPreview,
     buffered: bufferedPreview,
-  } = useLocalPreview(active, activeKind);
+  } = useLocalPreview(active, activeKind, semanticZoom);
   const kind = node.type.replace("Generation", "");
   const meta = getTypeMeta(node.type);
   const busy = ["running", "queued"].includes(String(node.status));
@@ -290,7 +407,7 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({
           src: previewUrl,
           kind: activeKind,
           title: selectedOutput?.title || String(node.title || metaLabel),
-          filePath: String(selectedOutput?.filePath || uploaded?.path || ""),
+          filePath: String(selectedOutput?.filePath || uploaded?.filePath || uploaded?.path || ""),
         });
       }
     } else if (kind === "text") {
@@ -311,6 +428,16 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({
           });
         },
       });
+    }
+  }
+  async function saveActiveMedia() {
+    if (!activeFilePath) return showToast("当前媒体没有可导出的本地原始文件");
+    try {
+      const buffer = await desktopApi.file.readArrayBuffer(activeFilePath);
+      const result = await desktopApi.file.saveArrayBuffer(activeFileName, buffer);
+      if (result) showToast("媒体已另存");
+    } catch (cause) {
+      showToast(cause instanceof Error ? cause.message : "媒体另存失败");
     }
   }
   // Keep the media branch explicit: activeKind === 'image' && previewUrl ? <img /> : activeKind === 'video'.
@@ -379,14 +506,12 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({
                 alt={String(node.title || metaLabel)}
                 onLoad={(event) => {
                   const image = event.currentTarget;
-                  const dimensions = imageCanvasNodeDimensions(
+                  const dimensions = reconcileMediaNodeDimensions(
+                    node,
                     image.naturalWidth,
                     image.naturalHeight,
                   );
-                  if (
-                    Number(node.canvasWidth) !== dimensions.width ||
-                    Number(node.canvasHeight) !== dimensions.height
-                  ) {
+                  if (dimensions) {
                     actions.update(node.id, {
                       canvasWidth: dimensions.width,
                       canvasHeight: dimensions.height,
@@ -396,15 +521,34 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({
               />
             ) : activeKind === "video" && previewUrl ? (
               <video
+                ref={videoPreviewRef}
                 className="nowheel"
                 src={previewUrl}
                 draggable={false}
-                muted
+                muted={videoMuted}
                 loop
                 playsInline
                 preload="auto"
+                onLoadedMetadata={(event) => {
+                  const video = event.currentTarget;
+                  setVideoDuration(Number(video.duration) || 0);
+                  const dimensions = reconcileMediaNodeDimensions(
+                    node,
+                    video.videoWidth,
+                    video.videoHeight,
+                  );
+                  if (dimensions) {
+                    actions.update(node.id, {
+                      canvasWidth: dimensions.width,
+                      canvasHeight: dimensions.height,
+                    });
+                  }
+                }}
                 onPointerEnter={(event) => {
-                  void event.currentTarget.play().catch(() => undefined);
+                  const video = event.currentTarget;
+                  video.muted = videoMuted;
+                  video.volume = 1;
+                  void video.play().catch(() => undefined);
                 }}
                 onPointerLeave={(event) => {
                   if (event.buttons) return;
@@ -417,17 +561,17 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({
                     video.currentTime = Math.min(1 / 30, Math.max(0, video.duration - 0.04));
                   }
                 }}
+                onDurationChange={(event) => setVideoDuration(Number(event.currentTarget.duration) || 0)}
+                onTimeUpdate={(event) => setVideoTime(event.currentTarget.currentTime)}
                 onError={() => {
                   if (!bufferedPreview) retryBufferedPreview();
                 }}
               />
             ) : activeKind === "audio" && previewUrl ? (
-              <audio
-                className="nodrag nopan nowheel"
+              <AudioWaveformPlayer
                 src={previewUrl}
-                controls
-                preload="metadata"
-                onPointerDown={(event) => event.stopPropagation()}
+                filePath={String(selectedOutput?.filePath || uploaded?.filePath || uploaded?.path || "")}
+                fileName={String(selectedOutput?.fileName || uploaded?.name || node.title || "audio.m4a")}
                 onError={() => {
                   if (!bufferedPreview) retryBufferedPreview();
                 }}
@@ -436,6 +580,40 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({
               <div className="work-empty-state">
                 <IconSymbol className="work-empty-type-icon" name={metaIcon} />
               </div>
+            )}
+            {activeKind === "video" && previewUrl && (
+              <div className="work-video-status">
+                <span>{formatAudioTime(videoTime)} / {formatAudioTime(videoDuration)}</span>
+                <button
+                  type="button"
+                  className="work-video-sound nodrag nopan"
+                  title={videoMuted ? "开启声音" : "关闭声音"}
+                  aria-pressed={!videoMuted}
+                  onPointerDown={(event) => event.stopPropagation()}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    const nextMuted = !videoMuted;
+                    setVideoMuted(nextMuted);
+                    if (videoPreviewRef.current) videoPreviewRef.current.muted = nextMuted;
+                  }}
+                >
+                  <IconSymbol name={videoMuted ? "volume-x" : "volume"} />
+                </button>
+              </div>
+            )}
+            {(activeKind === "image" || activeKind === "video") && previewUrl && (
+              <button
+                type="button"
+                className="work-preview-download nodrag nopan"
+                title="另存原始文件"
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  void saveActiveMedia();
+                }}
+              >
+                <IconSymbol name="download" />
+              </button>
             )}
             {outputs.length > 1 && (
               <div className="generation-output-dots">

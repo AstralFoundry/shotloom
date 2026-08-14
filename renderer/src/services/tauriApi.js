@@ -52,7 +52,11 @@ const command = (channel, ...args) => {
     case 'file:read-array-buffer': return invoke('file_read_array_buffer', { path: args[0] });
     case 'file:read-image-preview': return invoke('file_read_image_preview', { path: args[0], maxSize: args[1] });
     case 'file:apply-colored-pencil': return invoke('file_apply_colored_pencil', { source: args[0], target: args[1] });
-    case 'file:extract-audio': return invoke('file_extract_audio', { source: args[0], target: args[1] });
+    case 'file:crop-image': return invoke('file_crop_image', { source: args[0], target: args[1], crop: args[2] });
+    case 'file:has-audio': return invoke('file_has_audio', { source: args[0] });
+    case 'file:separate-audio': return invoke('file_separate_audio', {
+      source: args[0], audioTarget: args[1], silentVideoTarget: args[2],
+    });
     case 'file:write': return invoke('file_write', { path: args[0], data: args[1], append: Boolean(args[2]) });
     case 'file:copy': return invoke('file_copy', { source: args[0], target: args[1] });
     case 'file:export-video-project': return invoke('file_export_video_project', {
@@ -510,10 +514,18 @@ export function createTauriApi(browserFallback) {
         source,
         await uniqueProjectAssetPath(preferredName),
       ),
-      extractAudioToProject: async (source, preferredName = 'extracted-audio.m4a') => command(
-        'file:extract-audio',
+      cropImageToProject: async (source, preferredName = 'cropped-image.png', crop) => command(
+        'file:crop-image',
         source,
         await uniqueProjectAssetPath(preferredName),
+        crop,
+      ),
+      hasAudio: (source) => command('file:has-audio', source),
+      separateAudioToProject: async (source, audioName = 'extracted-audio.m4a', videoName = 'silent-video.mp4') => command(
+        'file:separate-audio',
+        source,
+        await uniqueProjectAssetPath(audioName),
+        await uniqueProjectAssetPath(videoName),
       ),
       checksum: (path) => command('file:checksum', path),
       getGlobalAssetRoot: () => command('file:global-asset-root'),

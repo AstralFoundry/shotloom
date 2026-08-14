@@ -42,7 +42,9 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { canvasNodeDimensions, defaultCanvasNodeDimensions } from "../../services/agentLayoutService";
+import { desktopApi } from "../../services/desktopApi.js";
 import { IconSymbol } from "../components/IconSymbol";
+import { ImageCropDialog, type ImageCropRect } from "../components/ImageCropDialog";
 import { assetCategories } from "../constants/navigation";
 import { openMediaViewer } from "../store/overlayStore";
 import { selectedTextOutput, textNodeContent } from "../../utils/textNodeContent.mjs";
@@ -103,6 +105,7 @@ export interface WorkflowNodeActions {
     category: string,
   ) => void | Promise<void>;
   extractAudio: (id: string) => void | Promise<void>;
+  cropImage: (id: string, rect: ImageCropRect) => void | Promise<void>;
   replaceResource: (id: string) => void;
   archiveResource: (id: string) => void;
   selectOutput: (nodeId: string, outputId: string) => void;
@@ -126,6 +129,7 @@ export interface WorkflowNodeActions {
 export type WorkflowNodeRenderer = ComponentType<{
   node: WorkflowNodeData;
   selected: boolean;
+  semanticZoom?: number;
   resizing?: boolean;
   inputRevision?: string;
   incomingInputs?: WorkflowIncomingInput[];
@@ -350,6 +354,9 @@ function CanvasNode({ data, selected, dragging }: NodeProps<FlowNode>) {
   const [resizing, setResizing] = useState(false);
   const [assetScopeMenuOpen, setAssetScopeMenuOpen] = useState(false);
   const [assetCategory, setAssetCategory] = useState("");
+  const [audioTrackState, setAudioTrackState] = useState<"idle" | "checking" | "present" | "absent">("idle");
+  const [audioSplitRunning, setAudioSplitRunning] = useState(false);
+  const [cropOpen, setCropOpen] = useState(false);
   const [dragReleaseSettling, setDragReleaseSettling] = useState(false);
   const [assetMenuPlacement, setAssetMenuPlacement] = useState<CSSProperties>({
     visibility: "hidden",
@@ -384,7 +391,9 @@ function CanvasNode({ data, selected, dragging }: NodeProps<FlowNode>) {
   const semanticZoom = data.semanticZoom;
   const localMediaPath = selectedLocalMediaPath(item);
   const canSaveToAssets = Boolean(localMediaPath);
-  const canExtractAudio = item.type === "videoGeneration" && Boolean(localMediaPath);
+  const isLocalVideo = item.type === "videoGeneration" && Boolean(localMediaPath);
+  const isLocalImage = item.type === "imageGeneration" && Boolean(localMediaPath);
+  const canExtractAudio = isLocalVideo && audioTrackState === "present";
   const uploadLabels: Record<string, string> = {
     imageGeneration: "图片",
     videoGeneration: "视频",
@@ -418,6 +427,25 @@ function CanvasNode({ data, selected, dragging }: NodeProps<FlowNode>) {
       setAssetCategory("");
     }
   }, [selected]);
+  useEffect(() => {
+    if (!selected || !isLocalVideo) {
+      setAudioTrackState("idle");
+      return;
+    }
+    let active = true;
+    setAudioTrackState("checking");
+    void desktopApi.file.hasAudio(localMediaPath).then(
+      (hasAudio: boolean) => {
+        if (active) setAudioTrackState(hasAudio ? "present" : "absent");
+      },
+      () => {
+        if (active) setAudioTrackState("absent");
+      },
+    );
+    return () => {
+      active = false;
+    };
+  }, [isLocalVideo, localMediaPath, selected]);
   useLayoutEffect(() => {
     if (dragging) {
       setDragReleaseSettling(true);
@@ -491,7 +519,7 @@ function CanvasNode({ data, selected, dragging }: NodeProps<FlowNode>) {
   }
   return (
     <>
-      {(isTextNode || canUpload || mentionInCopilot || canSaveToAssets || canExtractAudio) && (
+      {(isTextNode || canUpload || mentionInCopilot || canSaveToAssets || isLocalVideo) && (
         <NodeToolbar
           className={`canvas-node-selection-toolbar${useSubtleUploadToolbar ? " canvas-node-selection-toolbar--subtle" : ""}${nodeChromeHidden ? " canvas-node-selection-toolbar--hidden" : ""} nodrag nopan`}
           isVisible={selected}
@@ -534,18 +562,34 @@ function CanvasNode({ data, selected, dragging }: NodeProps<FlowNode>) {
               <span>上传{uploadLabel}</span>
             </button>
           )}
-          {canExtractAudio && (
+          {isLocalVideo && (
             <button
               type="button"
-              title="分离视频中的音轨"
+              title={audioSplitRunning ? "正在后台拆分音视频" : canExtractAudio ? "拆分为无声视频和音乐" : audioTrackState === "checking" ? "正在检测音轨" : "当前视频不包含音轨"}
+              disabled={!canExtractAudio || audioSplitRunning}
               onPointerDown={(event) => event.stopPropagation()}
               onClick={(event) => {
                 event.stopPropagation();
-                void actions.extractAudio(item.id);
+                setAudioSplitRunning(true);
+                void Promise.resolve(actions.extractAudio(item.id)).finally(() => setAudioSplitRunning(false));
               }}
             >
               <IconSymbol name="waveform" />
-              <span>音频分离</span>
+              <span>{audioSplitRunning ? "拆分中…" : canExtractAudio ? "音频分离" : audioTrackState === "checking" ? "检测音轨…" : "无音轨"}</span>
+            </button>
+          )}
+          {isLocalImage && (
+            <button
+              type="button"
+              title="裁剪图片"
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={(event) => {
+                event.stopPropagation();
+                setCropOpen(true);
+              }}
+            >
+              <IconSymbol name="crop" />
+              <span>裁剪</span>
             </button>
           )}
           {canSaveToAssets && (
@@ -667,6 +711,15 @@ function CanvasNode({ data, selected, dragging }: NodeProps<FlowNode>) {
           )}
         </NodeToolbar>
       )}
+      {cropOpen && isLocalImage && createPortal(
+        <ImageCropDialog
+          source={localMediaPath}
+          title={String(item.title || "图片")}
+          onCancel={() => setCropOpen(false)}
+          onConfirm={(rect) => actions.cropImage(item.id, rect)}
+        />,
+        document.body,
+      )}
       {selected && resizable && (
         <NodeResizer
           color="#171717"
@@ -717,12 +770,13 @@ function CanvasNode({ data, selected, dragging }: NodeProps<FlowNode>) {
         style={{
           width: dimensions.width,
           height: dimensions.height,
-          transform: `scale(${semanticZoom})`,
+          zoom: semanticZoom,
         }}
       >
         <Renderer
           node={item}
           selected={selected}
+          semanticZoom={semanticZoom}
           resizing={resizing}
           inputRevision={data.inputRevision}
           incomingInputs={data.incomingInputs}

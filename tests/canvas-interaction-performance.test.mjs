@@ -31,6 +31,10 @@ const mediaCache = readFileSync(
   new URL('../renderer/src/services/mediaPreviewCache.ts', import.meta.url),
   'utf8',
 );
+const fileCommands = readFileSync(
+  new URL('../src-tauri/src/commands/file.rs', import.meta.url),
+  'utf8',
+);
 const director = readFileSync(
   new URL('../renderer/src/app/canvas/ThreeDDirectorNode.tsx', import.meta.url),
   'utf8',
@@ -220,10 +224,23 @@ test('视频画面可拖动节点且拖动期间保持播放', () => {
   assert.match(node, /<video[\s\S]*?className="nowheel"[\s\S]*?draggable=\{false\}[\s\S]*?playsInline/);
   assert.doesNotMatch(node, /preload="auto"\s*onPointerDown=\{\(event\) => event\.stopPropagation\(\)\}/);
   assert.doesNotMatch(node, /preload="auto"\s*onPointerDown=\{\(event\) => event\.currentTarget\.pause\(\)\}/);
-  assert.match(node, /onPointerEnter=\{\(event\) => \{[\s\S]*?event\.currentTarget\.play\(\)/);
+  assert.match(node, /onPointerEnter=\{\(event\) => \{[\s\S]*?const video = event\.currentTarget;[\s\S]*?video\.play\(\)/);
   assert.match(node, /onPointerLeave=\{\(event\) => \{[\s\S]*?if \(event\.buttons\) return;[\s\S]*?video\.pause\(\)/);
   assert.doesNotMatch(node, /video\.pause\(\);\s*if \(video\.duration/);
-  assert.match(node, /<audio[\s\S]*?className="nodrag nopan nowheel"/);
+  assert.match(node, /<audio[\s\S]*?className="nodrag nopan nowheel[^"]*"/);
+  assert.match(node, /className="audio-waveform"[\s\S]*?audio\.currentTime =/);
+  assert.match(node, /className="audio-waveform-player nowheel"/);
+  assert.doesNotMatch(node, /className="audio-waveform-player nodrag/);
+  assert.match(node, /audio-waveform-play nodrag nopan/);
+  assert.match(node, /audio-waveform-download nodrag nopan/);
+  assert.match(node, /formatAudioTime\(currentTime\)[\s\S]*?formatAudioTime\(duration\)/);
+  assert.match(node, /audio-waveform-play[\s\S]*?playing \? <IconSymbol name="pause" \/> : <i className="audio-play-glyph"/);
+  assert.match(node, /saveArrayBuffer\(fileName \|\| "audio\.m4a", buffer\)/);
+  assert.match(node, /\(activeKind === "image" \|\| activeKind === "video"\) && previewUrl/);
+  assert.match(node, /className="work-preview-download nodrag nopan"[\s\S]*?saveActiveMedia/);
+  assert.match(node, /saveArrayBuffer\(activeFileName, buffer\)/);
+  assert.match(migrationStyles, /\.work-preview-download \{[\s\S]*?opacity: 0;[\s\S]*?pointer-events: none/);
+  assert.match(migrationStyles, /\.work-node:hover \.work-preview-download,[\s\S]*?\.work-preview-download:focus-visible[\s\S]*?opacity: \.88;[\s\S]*?pointer-events: auto/);
   assert.ok((node.match(/onPointerDown=\{\(event\) => event\.stopPropagation\(\)\}/g)?.length || 0) >= 1);
   assert.doesNotMatch(styles, /\.react-workflow-canvas \.react-flow__node\.dragging\s*\{[\s\S]*?will-change:\s*transform/);
 });
@@ -263,12 +280,22 @@ test('视频节点加载后主动解码首帧作为默认封面', () => {
     /onLoadedData=\{\(event\) => \{[\s\S]*?video\.currentTime = Math\.min\([\s\S]*?1 \/ 30/,
   );
 });
-test('视频节点移除原生控件并使用静音悬停预览', () => {
+test('视频节点移除原生控件并在悬停预览时播放原始声音', () => {
   assert.doesNotMatch(node, /<video[^>]*\bcontrols\b/);
-  assert.match(node, /<video[\s\S]*?muted[\s\S]*?loop[\s\S]*?onPointerEnter/);
-  assert.match(node, /onPointerEnter=\{\(event\) => \{[\s\S]*?currentTarget\.play\(\)/);
+  assert.match(node, /useState\(false\)[\s\S]*?className="nowheel"[\s\S]*?muted=\{videoMuted\}[\s\S]*?loop[\s\S]*?onPointerEnter/);
+  assert.match(node, /onPointerEnter=\{\(event\) => \{[\s\S]*?video\.muted = videoMuted;[\s\S]*?video\.volume = 1;[\s\S]*?video\.play\(\)/);
   assert.match(node, /onPointerLeave=\{\(event\) => \{[\s\S]*?video\.pause\(\)/);
   assert.match(migrationStyles, /\.work-preview > video \{ object-fit: cover; \}/);
+});
+test('视频节点显示时长并提供悬停声音开关', () => {
+  assert.match(node, /muted=\{videoMuted\}/);
+  assert.match(node, /onDurationChange=[\s\S]*?setVideoDuration[\s\S]*?onTimeUpdate=[\s\S]*?setVideoTime/);
+  assert.match(node, /className="work-video-status"[\s\S]*?formatAudioTime\(videoTime\)[\s\S]*?formatAudioTime\(videoDuration\)/);
+  assert.match(node, /className="work-video-sound nodrag nopan"[\s\S]*?nextMuted = !videoMuted[\s\S]*?volume-x[\s\S]*?volume/);
+  assert.match(migrationStyles, /\.work-video-status \{[\s\S]*?backdrop-filter: blur\(9px\)/);
+  assert.match(migrationStyles, /\.work-node:hover \.work-video-sound,[\s\S]*?opacity: 1/);
+  assert.match(migrationStyles, /\.audio-play-glyph \{[\s\S]*?border-left: 6px solid #fff/);
+  assert.match(migrationStyles, /\.work-preview \.audio-waveform-download svg \{ width: 14px; height: 14px; \}/);
 });
 test('工作台只计算当前路由数据且素材选择器按需加载', () => {
   assert.match(workbench, /appRoute === "creation" \? canvasViewData\(\) : null/);
@@ -305,8 +332,8 @@ test('节点与连线使用线性索引和稳定集合', () => {
 test('画布缩放使用最终布局尺寸并保持 React Flow 视口为 1x', () => {
   assert.match(canvas, /x: screenPixel\(\(Number\(node\.x\) \|\| 0\) \* semanticZoom\)/);
   assert.match(canvas, /width: dimensions\.width \* semanticZoom/);
-  assert.match(canvas, /className="canvas-node-semantic-content"[\s\S]*?transform: `scale\(\$\{semanticZoom\}\)`/);
-  assert.doesNotMatch(canvas, /className="canvas-node-semantic-content"[\s\S]{0,220}?zoom: semanticZoom/);
+  assert.match(canvas, /className="canvas-node-semantic-content"[\s\S]*?zoom: semanticZoom/);
+  assert.doesNotMatch(canvas, /className="canvas-node-semantic-content"[\s\S]{0,220}?transform: `scale/);
   assert.match(styles, /\.canvas-node-semantic-content \{[^}]*-webkit-text-size-adjust:\s*none;[^}]*text-size-adjust:\s*none/);
   assert.match(canvas, /defaultViewport=\{\{ x: viewport\.x, y: viewport\.y, zoom: 1 \}\}/);
   assert.match(canvas, /minZoom=\{1\}[\s\S]*?maxZoom=\{1\}/);
@@ -348,10 +375,14 @@ test('低倍率画布降低连线与节点操作的信息密度', () => {
   assert.match(migrationStyles, /canvas-zoom-overview :is\([\s\S]*?\.director-node-head,[\s\S]*?\.resource-meta,[\s\S]*?display: none !important/);
   assert.match(migrationStyles, /canvas-zoom-overview \.canvas-flow-port[\s\S]*?pointer-events: none/);
 });
-test('节点设计尺寸统一缩小到原来的四分之三且旧画布只换算一次', () => {
-  assert.match(project, /const CANVAS_NODE_SIZE_SCALE = 0\.75/);
+test('节点使用完整设计尺寸且旧画布只换算一次', () => {
+  assert.match(project, /import \{[\s\S]*?CANVAS_NODE_SIZE_SCALE,[\s\S]*?\} from '@\/domain\/graph\/CanvasNodeDimensions'/);
   assert.match(project, /canvasNodeSizeScale: CANVAS_NODE_SIZE_SCALE/);
+  assert.match(project, /canvasNodeSizingVersion: CANVAS_NODE_SIZING_VERSION/);
+  assert.match(project, /storedNodeSizingVersion < CANVAS_NODE_SIZING_VERSION[\s\S]*?delete next\.canvasWidth;[\s\S]*?delete next\.canvasHeight/);
+  assert.match(project, /storedNodeSizingVersion < CANVAS_NODE_SIZING_VERSION[\s\S]*?next\.type === 'audioGeneration'[\s\S]*?delete next\.canvasWidth;[\s\S]*?delete next\.canvasHeight/);
   assert.match(project, /CANVAS_NODE_SIZE_SCALE \/ storedNodeSizeScale/);
+  assert.match(project, /usedOldGenericDefault[\s\S]*?delete next\.canvasWidth;[\s\S]*?delete next\.canvasHeight/);
   assert.match(project, /next\.canvasWidth = Math\.round\(next\.canvasWidth \* nodeSizeRatio\)/);
   assert.match(project, /next\.canvasHeight = Math\.round\(next\.canvasHeight \* nodeSizeRatio\)/);
 });
@@ -453,9 +484,12 @@ test('并发任务轮询只在状态变化时触发合并持久化', () => {
   assert.match(update, /touchProject\(\{ sessionDelay: 500, coalesceSession: true \}\)/);
   assert.match(project, /if \(sessionPersistTimer && coalesce\) return/);
 });
-test('图片节点读取缓存缩略图且整个节点可选择', () => {
-  assert.match(node, /useMediaPreviewCache\([\s\S]*?maxSize: 960/);
+test('图片节点按最终屏幕尺寸读取缓存预览且整个节点可选择', () => {
+  assert.match(node, /canvasPreviewMaxSize\(semanticZoom\)/);
+  assert.match(node, /350 \* Math\.max\(1, semanticZoom\) \* dpr[\s\S]*?return 2048[\s\S]*?return 1536[\s\S]*?return 960/);
   assert.match(mediaCache, /readImagePreview\(input\.path, input\.maxSize \|\| 960\)/);
+  assert.match(fileCommands, /jpeg-preview-v3/);
+  assert.match(fileCommands, /JpegEncoder::new_with_quality\(&mut encoded, 92\)/);
   assert.match(api, /activeImagePreviewReads < 4/);
   assert.match(node, /className="work-node-wrapper"[\s\S]*?actions\.select\(node\.id\)/);
 });

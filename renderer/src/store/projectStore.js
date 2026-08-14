@@ -17,10 +17,13 @@ import {
 import { LatestSaveQueue } from '@/services/latestSaveQueue.mjs';
 import { recordPerformanceMetric } from '@/services/performanceMetrics';
 import { expandCopilotArchivesForPersistence } from '@/services/copilotSessionLifecycle.mjs';
+import {
+  CANVAS_NODE_SIZE_SCALE,
+  CANVAS_NODE_SIZING_VERSION,
+} from '@/domain/graph/CanvasNodeDimensions';
 
 const MAX_CANVAS_HISTORY = 8;
 const PROJECT_SCHEMA_VERSION = 2;
-const CANVAS_NODE_SIZE_SCALE = 0.75;
 
 function createProject(name = '未命名项目') {
   const project = {
@@ -37,6 +40,7 @@ function createProject(name = '未命名项目') {
     activeCopilotConversationId: '',
     canvasViewport: { x: 0, y: 0, zoom: 1 },
     canvasNodeSizeScale: CANVAS_NODE_SIZE_SCALE,
+    canvasNodeSizingVersion: CANVAS_NODE_SIZING_VERSION,
     agentBatches: [],
     agentSteps: [],
     agentEvaluations: [],
@@ -75,9 +79,38 @@ function normalizeProject(project) {
   const base = createProject(project?.name || '未命名项目');
   const storedNodeSizeScale = Number(project?.canvasNodeSizeScale) || 1;
   const nodeSizeRatio = CANVAS_NODE_SIZE_SCALE / storedNodeSizeScale;
+  const storedNodeSizingVersion = Number(project?.canvasNodeSizingVersion) || 1;
   const nodes = (Array.isArray(project?.nodes) ? project.nodes : []).map((node) => {
-    if (nodeSizeRatio === 1) return node;
     const next = { ...node };
+    if (
+      storedNodeSizingVersion < CANVAS_NODE_SIZING_VERSION &&
+      (next.type === 'imageGeneration' || next.type === 'videoGeneration')
+    ) {
+      // Media nodes were not user-resizable in the previous contract. Release
+      // their persisted generic bounds so metadata can apply the real ratio.
+      delete next.canvasWidth;
+      delete next.canvasHeight;
+      return next;
+    }
+    if (
+      storedNodeSizingVersion < CANVAS_NODE_SIZING_VERSION &&
+      next.type === 'audioGeneration'
+    ) {
+      // Audio nodes were never user-resizable, so any stored bounds came from
+      // an older generic/default contract and can be safely recalculated.
+      delete next.canvasWidth;
+      delete next.canvasHeight;
+      return next;
+    }
+    if (nodeSizeRatio === 1) return node;
+    const usedOldGenericDefault =
+      Math.abs(Number(next.canvasWidth) - Math.round(370 * storedNodeSizeScale)) <= 1 &&
+      Math.abs(Number(next.canvasHeight) - Math.round(270 * storedNodeSizeScale)) <= 1;
+    if (usedOldGenericDefault) {
+      delete next.canvasWidth;
+      delete next.canvasHeight;
+      return next;
+    }
     if (Number(next.canvasWidth) > 0) next.canvasWidth = Math.round(next.canvasWidth * nodeSizeRatio);
     if (Number(next.canvasHeight) > 0) next.canvasHeight = Math.round(next.canvasHeight * nodeSizeRatio);
     return next;
@@ -182,6 +215,7 @@ function normalizeProject(project) {
     activeCopilotConversationId: String(project?.activeCopilotConversationId || ''),
     canvasViewport: normalizeCanvasViewport(project?.canvasViewport),
     canvasNodeSizeScale: CANVAS_NODE_SIZE_SCALE,
+    canvasNodeSizingVersion: CANVAS_NODE_SIZING_VERSION,
     agentBatches: Array.isArray(project?.agentBatches) ? project.agentBatches : [],
     agentSteps: Array.isArray(project?.agentSteps) ? project.agentSteps : [],
     agentRuns: Array.isArray(project?.agentRuns) ? project.agentRuns : [],

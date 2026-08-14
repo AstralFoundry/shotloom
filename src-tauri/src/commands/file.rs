@@ -292,7 +292,7 @@ pub fn file_read_image_preview(
         .unwrap_or_default()
         .as_nanos();
     let mut digest = Sha256::new();
-    digest.update(b"jpeg-preview-v2");
+    digest.update(b"jpeg-preview-v3");
     digest.update(source.to_string_lossy().as_bytes());
     digest.update(metadata.len().to_le_bytes());
     digest.update(modified.to_le_bytes());
@@ -323,7 +323,7 @@ pub fn file_read_image_preview(
         image::imageops::overlay(&mut background, &preview, 0, 0);
         let preview = DynamicImage::ImageRgba8(background).to_rgb8();
         let mut encoded = Vec::new();
-        JpegEncoder::new_with_quality(&mut encoded, 82)
+        JpegEncoder::new_with_quality(&mut encoded, 92)
             .encode(
                 &preview,
                 preview.width(),
@@ -338,6 +338,76 @@ pub fn file_read_image_preview(
     Ok(json!(
         base64::engine::general_purpose::STANDARD.encode(bytes)
     ))
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImageCropRect {
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+}
+
+fn crop_image(source: String, target: String, crop: ImageCropRect) -> Result<Value, String> {
+    if !crop.x.is_finite()
+        || !crop.y.is_finite()
+        || !crop.width.is_finite()
+        || !crop.height.is_finite()
+        || crop.width <= 0.0
+        || crop.height <= 0.0
+    {
+        return Err("裁剪区域无效".into());
+    }
+    let source = PathBuf::from(source);
+    if !source.is_file() {
+        return Err("要裁剪的图片不存在".into());
+    }
+    let mut decoder = ImageReader::open(&source)
+        .map_err(|error| format!("无法读取图片：{error}"))?
+        .with_guessed_format()
+        .map_err(|error| format!("无法识别图片格式：{error}"))?
+        .into_decoder()
+        .map_err(|error| format!("无法解码图片：{error}"))?;
+    let orientation = decoder.orientation().unwrap_or(Orientation::NoTransforms);
+    let mut decoded = DynamicImage::from_decoder(decoder)
+        .map_err(|error| format!("无法解码图片：{error}"))?;
+    decoded.apply_orientation(orientation);
+    let image_width = decoded.width();
+    let image_height = decoded.height();
+    if image_width == 0 || image_height == 0 {
+        return Err("图片尺寸无效".into());
+    }
+    let x = ((crop.x.clamp(0.0, 1.0) * image_width as f64).floor() as u32)
+        .min(image_width - 1);
+    let y = ((crop.y.clamp(0.0, 1.0) * image_height as f64).floor() as u32)
+        .min(image_height - 1);
+    let width = ((crop.width.clamp(0.0, 1.0) * image_width as f64).round() as u32)
+        .max(1)
+        .min(image_width - x);
+    let height = ((crop.height.clamp(0.0, 1.0) * image_height as f64).round() as u32)
+        .max(1)
+        .min(image_height - y);
+    let target = PathBuf::from(target);
+    if let Some(parent) = target.parent() {
+        fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+    }
+    decoded
+        .crop_imm(x, y, width, height)
+        .save_with_format(&target, ImageFormat::Png)
+        .map_err(|error| format!("无法保存裁剪图片：{error}"))?;
+    file_result(&target)
+}
+
+#[tauri::command]
+pub async fn file_crop_image(
+    source: String,
+    target: String,
+    crop: ImageCropRect,
+) -> Result<Value, String> {
+    tauri::async_runtime::spawn_blocking(move || crop_image(source, target, crop))
+        .await
+        .map_err(|error| format!("图片裁剪任务异常：{error}"))?
 }
 
 fn colored_pencil_filter(source: &RgbaImage) -> RgbaImage {
@@ -927,7 +997,26 @@ fn source_has_audio(ffmpeg: &Path, source: &Path) -> bool {
 }
 
 #[tauri::command]
-pub fn file_extract_audio(source: String, target: String) -> Result<Value, String> {
+pub async fn file_has_audio(source: String) -> Result<bool, String> {
+    tauri::async_runtime::spawn_blocking(move || probe_audio(source))
+        .await
+        .map_err(|error| format!("音轨检测任务异常：{error}"))?
+}
+
+fn probe_audio(source: String) -> Result<bool, String> {
+    let source = PathBuf::from(source);
+    if !source.is_file() {
+        return Err("视频文件不存在".into());
+    }
+    let ffmpeg = media_tool("ffmpeg")?;
+    Ok(source_has_audio(&ffmpeg, &source))
+}
+
+fn separate_audio(
+    source: String,
+    audio_target: String,
+    silent_video_target: String,
+) -> Result<Value, String> {
     let source = PathBuf::from(source);
     if !source.is_file() {
         return Err("视频文件不存在".into());
@@ -936,19 +1025,25 @@ pub fn file_extract_audio(source: String, target: String) -> Result<Value, Strin
     if !source_has_audio(&ffmpeg, &source) {
         return Err("当前视频不包含可分离的音轨".into());
     }
-    let target = PathBuf::from(target);
-    if let Some(parent) = target.parent() {
-        fs::create_dir_all(parent).map_err(|error| format!("无法创建音频目录：{error}"))?;
+    let audio_target = PathBuf::from(audio_target);
+    let silent_video_target = PathBuf::from(silent_video_target);
+    for target in [&audio_target, &silent_video_target] {
+        if let Some(parent) = target.parent() {
+            fs::create_dir_all(parent).map_err(|error| format!("无法创建拆分目录：{error}"))?;
+        }
     }
     let output = Command::new(&ffmpeg)
         .args(["-hide_banner", "-loglevel", "error", "-y", "-i"])
         .arg(&source)
         .args(["-map", "0:a:0", "-vn", "-c:a", "aac", "-b:a", "192k"])
-        .arg(&target)
+        .arg(&audio_target)
+        .args(["-map", "0:v:0", "-an", "-c:v", "copy", "-movflags", "+faststart"])
+        .arg(&silent_video_target)
         .output()
         .map_err(|error| format!("无法启动音频分离：{error}"))?;
     if !output.status.success() {
-        let _ = fs::remove_file(&target);
+        let _ = fs::remove_file(&audio_target);
+        let _ = fs::remove_file(&silent_video_target);
         let detail = String::from_utf8_lossy(&output.stderr).trim().to_string();
         return Err(if detail.is_empty() {
             "音频分离失败".into()
@@ -956,7 +1051,23 @@ pub fn file_extract_audio(source: String, target: String) -> Result<Value, Strin
             detail
         });
     }
-    file_result(&target)
+    Ok(json!({
+        "audio": file_result(&audio_target)?,
+        "video": file_result(&silent_video_target)?,
+    }))
+}
+
+#[tauri::command]
+pub async fn file_separate_audio(
+    source: String,
+    audio_target: String,
+    silent_video_target: String,
+) -> Result<Value, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        separate_audio(source, audio_target, silent_video_target)
+    })
+    .await
+    .map_err(|error| format!("音视频拆分任务异常：{error}"))?
 }
 
 fn export_video_editor_project(

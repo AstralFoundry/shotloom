@@ -33,6 +33,8 @@ test('文本节点工具栏提供复制、加入对话与完整文本编辑', ()
 
 test('媒体节点工具栏提供真实入库与音频分离', () => {
   assert.match(canvas, /canExtractAudio[\s\S]*?actions\.extractAudio\(item\.id\)[\s\S]*?音频分离/);
+  assert.match(canvas, /desktopApi\.file\.hasAudio\(localMediaPath\)[\s\S]*?"present"\s*:\s*"absent"/);
+  assert.match(canvas, /disabled=\{!canExtractAudio \|\| audioSplitRunning\}[\s\S]*?"拆分中…"[\s\S]*?"无音轨"/);
   assert.match(canvas, /canSaveToAssets[\s\S]*?存为资产[\s\S]*?assetScopeMenuOpen/);
   assert.match(canvas, /assetCategories\.map[\s\S]*?setAssetCategory\(category\.id\)/);
   assert.match(canvas, /createPortal\([\s\S]*?canvas-node-asset-scope-menu--portal[\s\S]*?canvasOverlayRoot/);
@@ -44,9 +46,14 @@ test('媒体节点工具栏提供真实入库与音频分离', () => {
   assert.match(styles, /\.canvas-node-asset-scope-menu \{[\s\S]*?width:\s*220px/);
   assert.match(styles, /\.canvas-node-asset-scope-menu--portal \{[\s\S]*?z-index:\s*121/);
   assert.match(styles, /\.react-workflow-canvas \{[\s\S]*?isolation:\s*isolate/);
-  assert.match(adapter, /async extractAudio\(id\)[\s\S]*?extractAudioToProject[\s\S]*?addNode\("audioGeneration"\)/);
-  assert.match(api, /extractAudioToProject:[\s\S]*?file:extract-audio/);
-  assert.match(rust, /pub fn file_extract_audio[\s\S]*?source_has_audio[\s\S]*?"-map", "0:a:0"[\s\S]*?"-c:a", "aac"/);
+  assert.match(adapter, /async extractAudio\(id\)[\s\S]*?separateAudioToProject[\s\S]*?addNode\("videoGeneration"\)[\s\S]*?addNode\("audioGeneration"\)/);
+  assert.match(adapter, /sourceDimensions = canvasNodeDimensions\(source\)[\s\S]*?silentVideo\.y \+ canvasNodeDimensions\(silentVideo\)\.height \+ 48/);
+  assert.match(adapter, /addCanvasEdge\(store\.project, source\.id, silentVideo\.id[\s\S]*?addCanvasEdge\(store\.project, source\.id, audio\.id/);
+  assert.match(api, /separateAudioToProject:[\s\S]*?file:separate-audio/);
+  assert.match(api, /hasAudio:[\s\S]*?file:has-audio/);
+  assert.match(rust, /pub async fn file_has_audio[\s\S]*?spawn_blocking[\s\S]*?fn probe_audio[\s\S]*?source_has_audio/);
+  assert.match(rust, /pub async fn file_separate_audio[\s\S]*?spawn_blocking/);
+  assert.match(rust, /fn separate_audio[\s\S]*?source_has_audio[\s\S]*?"-map", "0:a:0"[\s\S]*?"-c:a", "aac"[\s\S]*?"-map", "0:v:0"[\s\S]*?"-an"[\s\S]*?"copy"/);
 });
 
 test('空媒体节点从顶部工具栏上传且节点内部只保留占位图标', () => {

@@ -105,7 +105,11 @@ function createBrowserFallback() {
       applyColoredPencil: async () => {
         throw new Error('浏览器预览不支持本地彩铅处理，请在桌面应用中使用。');
       },
-      extractAudioToProject: async () => {
+      cropImageToProject: async () => {
+        throw new Error('浏览器预览不支持图片裁剪，请在桌面应用中使用。');
+      },
+      hasAudio: async () => false,
+      separateAudioToProject: async () => {
         throw new Error('浏览器预览不支持音频分离，请在桌面应用中使用。');
       },
       checksum: async () => ({ checksum: '', checksumAlgorithm: 'sha256', size: 0 }),

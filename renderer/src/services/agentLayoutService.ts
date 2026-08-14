@@ -392,15 +392,35 @@ function layoutGroup(
     columnX[depth] = columnX[depth - 1] + widths[depth - 1] + columnGap;
   }
 
+  // Columns share row tracks, but each node keeps its own dimensions. This
+  // centers corresponding workflow items without forcing image, video, audio,
+  // and text cards into one generic size.
+  const rowCount = Math.max(...orderedColumns.map(([, columnItems]) => columnItems.length));
+  const rowHeights = Array.from({ length: rowCount }, (_, rowIndex) =>
+    Math.max(...orderedColumns.map(([, columnItems]) => {
+      const item = columnItems[rowIndex];
+      return item ? canvasNodeDimensions(item.node).height : 0;
+    })),
+  );
+  const rowTops: number[] = [];
+  let rowCursor = 0;
+  for (let rowIndex = 0; rowIndex < rowCount; rowIndex += 1) {
+    rowTops[rowIndex] = rowCursor;
+    rowCursor += rowHeights[rowIndex] + rowGap;
+  }
   const relativeY = new Map<string, number>();
   const columnHeights = new Map<number, number>();
   for (const [depth, columnItems] of orderedColumns) {
-    let cursorY = 0;
-    for (const item of columnItems) {
-      relativeY.set(item.node.id, cursorY);
-      cursorY += canvasNodeDimensions(item.node).height + rowGap;
+    for (let rowIndex = 0; rowIndex < columnItems.length; rowIndex += 1) {
+      const item = columnItems[rowIndex];
+      const height = canvasNodeDimensions(item.node).height;
+      relativeY.set(item.node.id, rowTops[rowIndex] + (rowHeights[rowIndex] - height) / 2);
     }
-    columnHeights.set(depth, Math.max(1, cursorY - rowGap));
+    const lastRowIndex = columnItems.length - 1;
+    columnHeights.set(
+      depth,
+      lastRowIndex < 0 ? 1 : rowTops[lastRowIndex] + rowHeights[lastRowIndex],
+    );
   }
   const anchorDepth = orderedColumns.reduce((best, [depth]) =>
     (columnHeights.get(depth) || 0) > (columnHeights.get(best) || 0) ? depth : best,
@@ -469,8 +489,8 @@ export function layoutAgentNodes(
   const startY = Number.isFinite(Number(options.y))
     ? Number(options.y)
     : scope === 'all' ? 90 : previousBounds.y;
-  const columnGap = Number.isFinite(Number(options.gapX)) ? Math.max(32, Number(options.gapX)) : 260;
-  const rowGap = Number.isFinite(Number(options.gapY)) ? Math.max(20, Number(options.gapY)) : 24;
+  const columnGap = Number.isFinite(Number(options.gapX)) ? Math.max(32, Number(options.gapX)) : 160;
+  const rowGap = Number.isFinite(Number(options.gapY)) ? Math.max(20, Number(options.gapY)) : 120;
   const items = nodes.map((node, index) => ({ node, index }));
   const mode = options.mode || 'workflow';
   const plan = mode === 'workflow'
