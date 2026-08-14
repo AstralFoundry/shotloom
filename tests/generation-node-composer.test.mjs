@@ -49,6 +49,13 @@ test('节点输入面板使用四分之三紧凑尺寸', () => {
   assert.match(styles, /\.work-composer-input \{[\s\S]*?width:\s*36px;[\s\S]*?height:\s*36px/);
 });
 
+test('长提示词滚动时不会进入参考素材区域', () => {
+  assert.match(styles, /\.work-prompt-shell \{[^}]*?display:\s*flex;[^}]*?flex-direction:\s*column/);
+  assert.match(styles, /\.work-composer-inputs \{[\s\S]*?position:\s*relative;[\s\S]*?flex:\s*0 0 38px/);
+  assert.match(styles, /\.work-prompt-shell textarea \{[^}]*?flex:\s*1 1 auto/);
+  assert.doesNotMatch(styles, /\.work-prompt-shell textarea \{[^}]*?padding:\s*47px/);
+});
+
 test('节点输入面板层级被限制在画布内且不会盖住剪辑工作区', () => {
   assert.match(styles, /\.react-workflow-canvas \{[\s\S]*?isolation:\s*isolate/);
   assert.doesNotMatch(styles, /\.work-composer-anchor \{[\s\S]*?z-index:\s*10000/);
