@@ -157,10 +157,12 @@ test('连续拖动回流时节点与连线端点不会从受控节点集合丢�
       { id: 'source', position: { x: 80, y: 60 }, data: { revision } },
       { id: 'target', position: { x: 360, y: 60 }, data: { revision } },
     ];
+    const activeDragNode = current[0];
     current = canvasDrag.reconcileCanvasNodes(current, canonical, dragging);
     assert.deepEqual(current.map((node) => node.id), ['source', 'target']);
+    assert.equal(current[0], activeDragNode);
     assert.deepEqual(current[0].position, { x: 80 + revision, y: 60 + revision });
-    assert.equal(current[0].data.revision, revision);
+    assert.equal(current[0].data.revision, 0);
   }
   assert.deepEqual(
     canvasDrag.draggedCanvasPositions(current[0], [], 0.5),
@@ -177,8 +179,27 @@ test('外部画布快照短暂缺项时保留正在拖动的节点', () => {
   ];
   const reconciled = canvasDrag.reconcileCanvasNodes(current, canonical, new Set(['dragging']));
   assert.deepEqual(reconciled.map((node) => node.id), ['stable', 'dragging']);
+  assert.equal(reconciled[1], current[0]);
   assert.deepEqual(reconciled[1].position, { x: 180, y: 120 });
   assert.equal(reconciled[1].dragging, true);
+});
+test('拖动结束后才接收期间积累的外部节点更新', () => {
+  const current = [
+    { id: 'source', dragging: true, position: { x: 240, y: 180 }, data: { revision: 1 } },
+  ];
+  const canonical = [
+    { id: 'source', position: { x: 80, y: 60 }, data: { revision: 2 } },
+  ];
+  const whileDragging = canvasDrag.reconcileCanvasNodes(
+    current,
+    canonical,
+    new Set(['source']),
+  );
+  assert.equal(whileDragging[0], current[0]);
+
+  const afterDrag = canvasDrag.reconcileCanvasNodes(whileDragging, canonical, new Set());
+  assert.equal(afterDrag[0], canonical[0]);
+  assert.equal(afterDrag[0].data.revision, 2);
 });
 test('大型画布保留完整数据并对可见媒体预览限流加载', () => {
   assert.doesNotMatch(canvas, /lodMode|data\.lod|canvas-lod-node/);
