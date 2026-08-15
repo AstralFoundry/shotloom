@@ -106,6 +106,9 @@ export interface CompiledProviderRequest {
   timeoutMs?: number;
   headers?: Record<string, string>;
   auth?: ModelRuntimeContract['auth'];
+  /** 试跑请求可显式携带未保存的凭据，绕过按 providerId 读取本地设置。 */
+  baseUrl?: string;
+  apiKey?: string;
   responseEncoding?: 'json' | 'binary';
   contract?: ModelRuntimeContract;
   protocolTemplate?: unknown;

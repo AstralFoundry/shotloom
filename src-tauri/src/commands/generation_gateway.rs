@@ -55,6 +55,9 @@ pub struct GenerationRequest {
     pub resources: Vec<GenerationResource>,
     pub response_encoding: Option<String>,
     pub timeout_ms: u64,
+    /// 试跑请求可显式携带未保存的凭据，绕过按 providerId 读取本地设置。
+    pub base_url: Option<String>,
+    pub api_key: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -260,7 +263,21 @@ async fn build_request(
     app: &AppHandle,
     input: &GenerationRequest,
 ) -> Result<reqwest::RequestBuilder, String> {
-    let (base_url, api_key) = provider_credentials(app, &input.provider_id)?;
+    let (base_url, api_key) = if input.base_url.is_some() || input.api_key.is_some() {
+        let base_url = input
+            .base_url
+            .as_deref()
+            .unwrap_or_default()
+            .trim_end_matches('/')
+            .to_string();
+        if base_url.is_empty() {
+            return Err("试跑请求缺少接口地址".into());
+        }
+        let api_key = input.api_key.as_deref().unwrap_or_default().trim().to_string();
+        (base_url, api_key)
+    } else {
+        provider_credentials(app, &input.provider_id)?
+    };
     let url = request_url(&base_url, &input.path, &input.scope)?;
     let client = gateway_client(input.timeout_ms)?;
     let method = Method::from_bytes(input.method.as_bytes())

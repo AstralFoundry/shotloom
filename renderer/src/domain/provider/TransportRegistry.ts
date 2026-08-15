@@ -11,7 +11,7 @@ import type {
   CompiledProviderRequest, CompileContext, ResourceRef,
 } from './ProviderTransport';
 import type { ModelRuntimeContract } from '../catalog/ModelCatalog';
-import { firstProtocolValue, normalizeProtocolResponse, protocolInlineImage, protocolKlingContents, protocolMediaContent, protocolMessageVariables, protocolResultEndpointFile, renderProtocolTemplate } from '@/utils/modelProtocol.mjs';
+import { firstProtocolValue, normalizeProtocolResponse, protocolInlineImage, protocolMessageVariables, protocolResultEndpointFile, renderProtocolContentTemplate, renderProtocolTemplate } from '@/utils/modelProtocol.mjs';
 import { multipartArrayFieldName } from '@/utils/modelRequestBody.mjs';
 import { providerRequestTimeoutMs } from '@/utils/providerRequestTimeout.mjs';
 
@@ -92,29 +92,16 @@ class DeclarativeProviderTransport implements ProviderTransport {
       if (slot === 'lastFrame') return fields.lastFrameImageContentRole || fields.imageContentRole;
       return fields.referenceImageContentRole || fields.imageContentRole;
     };
-    const content = protocolMediaContent({
-      prompt: request.protocolVariables?.prompt,
-      imageUrls,
-      imageItems: imageEntries.map(({ ref, value }) => ({
+    const content = renderProtocolContentTemplate(request.contract?.contentTemplate, {
+      text: request.protocolVariables?.prompt,
+      images: imageEntries.map(({ ref, value }) => ({
         url: value,
         role: imageRoleForSlot(ref.inputSlot),
+        slot: ref.inputSlot || '',
       })),
-      imageType: request.contract?.requestFields?.imageContentType,
-      imageRole: request.contract?.requestFields?.imageContentRole,
-      videoUrls,
-      videoType: request.contract?.requestFields?.videoContentType,
-      videoRole: request.contract?.requestFields?.videoContentRole,
-      audioUrls,
-      audioType: request.contract?.requestFields?.audioContentType,
-      audioRole: request.contract?.requestFields?.audioContentRole,
+      videos: videoUrls.map((url) => ({ url, role: request.contract?.requestFields?.videoContentRole })),
+      audios: audioUrls.map((url) => ({ url, role: request.contract?.requestFields?.audioContentRole })),
     });
-    const klingContents = imageContentFormat.startsWith('kling-')
-      ? protocolKlingContents({
-        prompt: request.protocolVariables?.prompt,
-        imageUrls,
-        imageType: imageContentFormat === 'kling-references' ? 'refer_image' : 'first_frame',
-      })
-      : undefined;
     const messageVariables = protocolMessageVariables(
       Array.isArray(request.protocolVariables?.messages) ? request.protocolVariables.messages : [],
     );
@@ -134,7 +121,6 @@ class DeclarativeProviderTransport implements ProviderTransport {
       audioUrl: audioUrls[0],
       audioObject: audioUrls[0] ? { url: audioUrls[0] } : undefined,
       inlineImage,
-      klingContents,
       content,
     });
     const controls = {
@@ -143,6 +129,7 @@ class DeclarativeProviderTransport implements ProviderTransport {
       __endpointMethod: request.endpointMethod, __endpointPath: request.endpointPath,
       __endpointScope: request.endpointScope, __headers: request.headers, __auth: request.auth,
       __responseEncoding: request.responseEncoding,
+      __baseUrl: request.baseUrl, __apiKey: request.apiKey,
     };
     // Route by endpoint path pattern
     if (request.endpointPath.includes('/images/')) {

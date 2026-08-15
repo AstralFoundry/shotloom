@@ -2444,6 +2444,33 @@
             "duration": "{{params.duration}}",
             "ratio": "{{params.aspectRatio}}"
           },
+          "contentTemplate": {
+            "text": {
+              "type": "text",
+              "text": "{{text}}"
+            },
+            "image": {
+              "type": "image_url",
+              "image_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            },
+            "video": {
+              "type": "video_url",
+              "video_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            },
+            "audio": {
+              "type": "audio_url",
+              "audio_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            }
+          },
           "taskIdPath": "task_id",
           "statusPath": "task.status",
           "errorPath": "task.error.message",
@@ -2520,6 +2547,33 @@
             "resolution": "{{params.resolution}}",
             "duration": "{{params.duration}}",
             "ratio": "adaptive"
+          },
+          "contentTemplate": {
+            "text": {
+              "type": "text",
+              "text": "{{text}}"
+            },
+            "image": {
+              "type": "image_url",
+              "image_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            },
+            "video": {
+              "type": "video_url",
+              "video_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            },
+            "audio": {
+              "type": "audio_url",
+              "audio_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            }
           },
           "taskIdPath": "task_id",
           "statusPath": "task.status",
@@ -2623,6 +2677,33 @@
             "generate_audio": "{{params.generateAudio}}",
             "watermark": "{{params.watermark}}"
           },
+          "contentTemplate": {
+            "text": {
+              "type": "text",
+              "text": "{{text}}"
+            },
+            "image": {
+              "type": "image_url",
+              "image_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            },
+            "video": {
+              "type": "video_url",
+              "video_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            },
+            "audio": {
+              "type": "audio_url",
+              "audio_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            }
+          },
           "taskIdPath": "id",
           "statusPath": "status",
           "errorPath": "error.message",
@@ -2696,9 +2777,7 @@
           },
           "requestFields": {
             "imageContentRole": "reference_image",
-            "videoContentType": "video_url",
             "videoContentRole": "reference_video",
-            "audioContentType": "audio_url",
             "audioContentRole": "reference_audio"
           },
           "params": [
@@ -2754,6 +2833,33 @@
             "resolution": "{{params.resolution}}",
             "generate_audio": "{{params.generateAudio}}",
             "watermark": "{{params.watermark}}"
+          },
+          "contentTemplate": {
+            "text": {
+              "type": "text",
+              "text": "{{text}}"
+            },
+            "image": {
+              "type": "image_url",
+              "image_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            },
+            "video": {
+              "type": "video_url",
+              "video_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            },
+            "audio": {
+              "type": "audio_url",
+              "audio_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            }
           },
           "taskIdPath": "id",
           "statusPath": "status",
@@ -2839,9 +2945,7 @@
           },
           "requestFields": {
             "imageContentRole": "reference_image",
-            "videoContentType": "video_url",
             "videoContentRole": "reference_video",
-            "audioContentType": "audio_url",
             "audioContentRole": "reference_audio"
           },
           "params": [
@@ -2897,6 +3001,33 @@
             "resolution": "{{params.resolution}}",
             "generate_audio": "{{params.generateAudio}}",
             "watermark": "{{params.watermark}}"
+          },
+          "contentTemplate": {
+            "text": {
+              "type": "text",
+              "text": "{{text}}"
+            },
+            "image": {
+              "type": "image_url",
+              "image_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            },
+            "video": {
+              "type": "video_url",
+              "video_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            },
+            "audio": {
+              "type": "audio_url",
+              "audio_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            }
           },
           "taskIdPath": "id",
           "statusPath": "status",
@@ -2982,9 +3113,7 @@
           },
           "requestFields": {
             "imageContentRole": "reference_image",
-            "videoContentType": "video_url",
             "videoContentRole": "reference_video",
-            "audioContentType": "audio_url",
             "audioContentRole": "reference_audio"
           },
           "params": [
@@ -3040,6 +3169,33 @@
             "resolution": "{{params.resolution}}",
             "generate_audio": "{{params.generateAudio}}",
             "watermark": "{{params.watermark}}"
+          },
+          "contentTemplate": {
+            "text": {
+              "type": "text",
+              "text": "{{text}}"
+            },
+            "image": {
+              "type": "image_url",
+              "image_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            },
+            "video": {
+              "type": "video_url",
+              "video_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            },
+            "audio": {
+              "type": "audio_url",
+              "audio_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            }
           },
           "taskIdPath": "id",
           "statusPath": "status",
@@ -3739,15 +3895,24 @@
             }
           ],
           "auth": { "type": "bearer" },
-          "requestFields": { "imageContentFormat": "kling-first-frame" },
           "requestTemplate": {
-            "contents": "{{klingContents}}",
+            "contents": "{{content}}",
             "settings": {
               "resolution": "{{resolution}}",
               "duration": "{{duration}}"
             },
             "options": {
               "watermark_info": { "enabled": "{{params.watermark}}" }
+            }
+          },
+          "contentTemplate": {
+            "text": {
+              "type": "prompt",
+              "text": "{{text}}"
+            },
+            "image": {
+              "type": "first_frame",
+              "url": "{{url}}"
             }
           },
           "taskIdPath": "data.id",
@@ -3942,9 +4107,8 @@
             }
           ],
           "auth": { "type": "bearer" },
-          "requestFields": { "imageContentFormat": "kling-first-frame" },
           "requestTemplate": {
-            "contents": "{{klingContents}}",
+            "contents": "{{content}}",
             "settings": {
               "resolution": "{{resolution}}",
               "duration": "{{duration}}",
@@ -3953,6 +4117,16 @@
             },
             "options": {
               "watermark_info": { "enabled": "{{params.watermark}}" }
+            }
+          },
+          "contentTemplate": {
+            "text": {
+              "type": "prompt",
+              "text": "{{text}}"
+            },
+            "image": {
+              "type": "first_frame",
+              "url": "{{url}}"
             }
           },
           "taskIdPath": "data.id",
@@ -4058,9 +4232,8 @@
             }
           ],
           "auth": { "type": "bearer" },
-          "requestFields": { "imageContentFormat": "kling-references" },
           "requestTemplate": {
-            "contents": "{{klingContents}}",
+            "contents": "{{content}}",
             "settings": {
               "resolution": "{{resolution}}",
               "aspect_ratio": "{{aspectRatio}}",
@@ -4070,6 +4243,17 @@
             },
             "options": {
               "watermark_info": { "enabled": "{{params.watermark}}" }
+            }
+          },
+          "contentTemplate": {
+            "text": {
+              "type": "prompt",
+              "text": "{{text}}"
+            },
+            "image": {
+              "type": "refer_image",
+              "url": "{{url}}",
+              "id": "image_{{index}}"
             }
           },
           "taskIdPath": "data.id",

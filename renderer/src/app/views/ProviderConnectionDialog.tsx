@@ -7,6 +7,15 @@ import {
   getProviderDefinitions,
   type ProviderConfig,
 } from "../../domain/provider/ProviderRegistry";
+import {
+  getProtocolPreset,
+  presetsForType,
+  type ProtocolPreset,
+} from "../../domain/provider/ProtocolPresets";
+import {
+  testProviderRequest,
+  type ProviderTestResult,
+} from "../../services/providerTestService";
 import { modelTypeLabel } from "../../utils/modelPresentation.js";
 import {
   getProviderIcon,
@@ -162,6 +171,38 @@ function starterProtocolModel(type: NewModelDraft["type"]): CatalogModel {
   };
 }
 
+function presetProtocolModel(preset: ProtocolPreset): CatalogModel {
+  const mode = preset.buildMode();
+  return {
+    id: "",
+    name: "",
+    provider: "",
+    type: preset.type,
+    sortOrder: 900,
+    enabled: true,
+    defaultMode: mode.id,
+    modes: [mode],
+  };
+}
+
+function testPromptForType(type: string): string {
+  if (type === "imageGeneration") return "一只坐在窗边的猫，卡通风格";
+  if (type === "videoGeneration") return "一只猫从窗边走过";
+  return "你好，请回复「测试成功」。";
+}
+
+function testStatusLabel(status: string): string {
+  return ({
+    completed: "已完成",
+    queued: "任务已提交",
+    running: "运行中",
+    failed: "失败",
+    error: "错误",
+    timeout: "超时",
+    cancelled: "已取消",
+  } as Record<string, string>)[status] || status;
+}
+
 export interface ProviderConnectionResult {
   providerId: string;
   config: ProviderConfig;
@@ -171,6 +212,7 @@ type NewModelDraft = {
   id: string;
   name: string;
   type: "textGeneration" | "imageGeneration" | "videoGeneration";
+  presetId: string;
 };
 
 export function ProviderConnectionDialog({
@@ -224,6 +266,9 @@ export function ProviderConnectionDialog({
   );
   const [newModel, setNewModel] = useState<NewModelDraft | null>(null);
   const [error, setError] = useState("");
+  const [testRunning, setTestRunning] = useState(false);
+  const [testResult, setTestResult] = useState<ProviderTestResult | null>(null);
+  const [testError, setTestError] = useState("");
   const providerId = selectedId === CUSTOM_PROVIDER_ID
     ? customId.trim().toLowerCase()
     : selectedId;
@@ -323,7 +368,7 @@ export function ProviderConnectionDialog({
     let id = baseId;
     let suffix = 2;
     while (modelIds.has(id)) id = `${baseId}-${suffix++}`;
-    setNewModel({ id, name: "", type: "textGeneration" });
+    setNewModel({ id, name: "", type: "textGeneration", presetId: "" });
     setError("");
   }
 
@@ -334,7 +379,8 @@ export function ProviderConnectionDialog({
     if (models.some((model) => model?.id === id)) {
       return setError(`模型 ID “${id}” 已存在`);
     }
-    const added = starterProtocolModel(newModel.type);
+    const preset = newModel.presetId ? getProtocolPreset(newModel.presetId) : undefined;
+    const added = preset ? presetProtocolModel(preset) : starterProtocolModel(newModel.type);
     added.id = id;
     added.name = newModel.name.trim();
     added.provider = providerId;
@@ -446,6 +492,37 @@ export function ProviderConnectionDialog({
         disabledModelIds: [...disabledIds],
       },
     });
+  }
+
+  async function runTest() {
+    if (!selectedModelId) return setTestError("请先选择要试跑的模型");
+    if (!baseUrl.trim()) return setTestError("请填写 API Base URL");
+    let parsed: CatalogModel;
+    try {
+      parsed = JSON.parse(modelJson || "{}") as CatalogModel;
+    } catch {
+      return setTestError("当前模型协议不是有效的 JSON");
+    }
+    if (!parsed || !parsed.id || !Array.isArray(parsed.modes) || !parsed.modes.length) {
+      return setTestError("当前模型缺少 id、type 或 modes");
+    }
+    const model: CatalogModel = { ...parsed, provider: providerId };
+    setTestRunning(true);
+    setTestResult(null);
+    setTestError("");
+    try {
+      const result = await testProviderRequest({
+        model,
+        baseUrl: baseUrl.trim(),
+        apiKey: apiKey.trim(),
+        prompt: testPromptForType(model.type),
+      });
+      setTestResult(result);
+    } catch (cause) {
+      setTestError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setTestRunning(false);
+    }
   }
 
   return (
@@ -651,6 +728,7 @@ export function ProviderConnectionDialog({
                       setNewModel({
                         ...newModel,
                         type: event.target.value as NewModelDraft["type"],
+                        presetId: "",
                       })}
                   >
                     <option value="textGeneration">文本生成</option>
@@ -658,9 +736,23 @@ export function ProviderConnectionDialog({
                     <option value="videoGeneration">视频生成</option>
                   </select>
                 </label>
+                <label className="recipe-field">
+                  <span>协议预设</span>
+                  <select
+                    value={newModel.presetId}
+                    onChange={(event) =>
+                      setNewModel({ ...newModel, presetId: event.target.value })
+                    }
+                  >
+                    <option value="">空白协议</option>
+                    {presetsForType(newModel.type).map((preset) => (
+                      <option key={preset.id} value={preset.id}>{preset.label}</option>
+                    ))}
+                  </select>
+                </label>
               </div>
               <div className="provider-model-create-actions">
-                <span>填写基本信息后创建空白协议，不会复制当前选中的模型。</span>
+                <span>选择预设可自动填好 endpoint、请求模板和结果路径，也可从空白协议开始。</span>
                 <div>
                   <button
                     className="button ghost"
@@ -707,6 +799,41 @@ export function ProviderConnectionDialog({
                 每次仅编辑一个 CatalogModel 对象。可配置 endpoint、异步任务查询、参数、认证、请求模板和结果路径。
               </small>
             </label>
+          )}
+          {selectedModelId && !newModel && (
+            <div className="provider-model-heading">
+              <div>
+                <strong>试跑</strong>
+                <span className="provider-model-count">
+                  用当前协议发送一次真实请求，验证地址、Key 和结果路径
+                </span>
+              </div>
+              <button
+                className="provider-inline-action"
+                type="button"
+                disabled={testRunning || submitting}
+                onClick={() => void runTest()}
+              >
+                {testRunning ? "请求中…" : "发送测试请求"}
+              </button>
+            </div>
+          )}
+          {testError && (
+            <p className="recipe-dialog-error">{testError}</p>
+          )}
+          {testResult && (
+            <div className="provider-test-result">
+              <p className="provider-test-status">
+                状态：{testStatusLabel(testResult.status)}
+                {testResult.remoteTaskId ? ` · 任务 ID：${testResult.remoteTaskId}` : ""}
+              </p>
+              <pre
+                className="provider-test-raw"
+                style={{ whiteSpace: "pre-wrap", wordBreak: "break-all", maxHeight: 240, overflow: "auto" }}
+              >
+                {JSON.stringify(testResult, null, 2)}
+              </pre>
+            </div>
           )}
           {(error || submitError) && (
             <p className="recipe-dialog-error">{error || submitError}</p>

@@ -308,6 +308,7 @@ function generationGatewayRequest(path, body, {
     requestId: generationRequestId(), providerId, path, scope, method,
     headers, auth: auth || { type: 'bearer' }, body: requestBody,
     formFields, resources, responseEncoding, timeoutMs: Math.max(1000, Number(timeoutMs) || 120000),
+    baseUrl: body?.__baseUrl || undefined, apiKey: body?.__apiKey || undefined,
   };
 }
 

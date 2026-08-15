@@ -99,6 +99,7 @@ export interface CatalogMode {
   auth?: { type: 'bearer' | 'header' | 'none'; name?: string; prefix?: string };
   headers?: Record<string, string>;
   requestTemplate?: unknown;
+  contentTemplate?: unknown;
   taskIdPath?: string;
   statusPath?: string;
   progressPath?: string;
@@ -184,6 +185,7 @@ export interface ModelRuntimeContract {
   auth?: CatalogMode['auth'];
   headers?: Record<string, string>;
   requestTemplate?: unknown;
+  contentTemplate?: unknown;
   taskIdPath?: string;
   statusPath?: string;
   progressPath?: string;
@@ -472,11 +474,22 @@ class ModelCatalog {
     const model = this.modelMap.get(String(modelId || ''));
     if (!model || model.type !== type) return null;
     const mode = this.resolveModeConfig(model.id, inputRoles, requestedMode);
-    if (!mode) return null;
+    return mode ? this.contractFor(model, mode) : null;
+  }
+
+  /** 从未保存的外部模型直接编译运行时契约，供试跑等场景使用。 */
+  buildRuntimeContract(model: CatalogModel, modeId?: string): ModelRuntimeContract | null {
+    if (!model || !model.type || !model.provider || !Array.isArray(model.modes) || !model.modes.length) return null;
+    const expanded = this.expandedModes(model);
+    const mode = expanded.find((item) => item.id === (modeId || model.defaultMode)) || expanded[0];
+    return mode ? this.contractFor(model, mode) : null;
+  }
+
+  private contractFor(model: CatalogModel, mode: CatalogMode): ModelRuntimeContract {
     const cap = this.capabilityFromMode(mode);
     return {
       catalogVersion: 2,
-      nodeType: type,
+      nodeType: model.type,
       modelId: model.id,
       modeId: mode.id,
       inputMode: this.semanticInputMode(mode, model.type),
@@ -487,6 +500,7 @@ class ModelCatalog {
       isAsync: mode.isAsync === true,
       inputFormat: mode.inputFormat || 'fields',
       requestFields: { ...mode.requestFields },
+      contentTemplate: mode.contentTemplate === undefined ? undefined : structuredClone(mode.contentTemplate),
       outputConstraints: structuredClone(mode.outputConstraints || {}),
       ...cap,
     };
@@ -652,6 +666,8 @@ export const resolveModelModeConfig = (modelId: string, inputRoles?: string[], r
   modelCatalog.resolveModeConfig(modelId, inputRoles, requestedMode);
 export const resolveModelRuntimeContract = (type: string, modelId: string, inputRoles?: string[], requestedMode?: string) =>
   modelCatalog.resolveRuntimeContract(type, modelId, inputRoles, requestedMode);
+export const buildRuntimeContractForModel = (model: CatalogModel, modeId?: string) =>
+  modelCatalog.buildRuntimeContract(model, modeId);
 export const getModelInputCapability = (type: string, modelId: string, modeId?: string) =>
   modelCatalog.getModelInputCapability(modelId, modeId);
 export const getModelInputCapabilityForRoles = (type: string, modelId: string, inputRoles?: string[], requestedMode?: string) =>

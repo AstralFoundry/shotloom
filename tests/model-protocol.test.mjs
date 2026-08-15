@@ -4,15 +4,21 @@ import {
   firstProtocolValue,
   normalizeProtocolResponse,
   protocolInlineImage,
-  protocolKlingContents,
-  protocolMediaContent,
   protocolMessageVariables,
   protocolHexToBase64,
   protocolResultEndpointFile,
   readProtocolPath,
+  renderProtocolContentTemplate,
   renderProtocolTemplate,
 } from '../renderer/src/utils/modelProtocol.mjs';
 import { modelApiUrl, modelJsonRequestBody, multipartArrayFieldName } from '../renderer/src/utils/modelRequestBody.mjs';
+
+const openaiContentTemplate = {
+  text: { type: 'text', text: '{{text}}' },
+  image: { type: 'image_url', image_url: { url: '{{url}}' }, role: '{{role}}' },
+  video: { type: 'video_url', video_url: { url: '{{url}}' }, role: '{{role}}' },
+  audio: { type: 'audio_url', audio_url: { url: '{{url}}' }, role: '{{role}}' },
+};
 
 test('multipart 图片字段按输入数量切换单值和数组语法', () => {
   assert.equal(multipartArrayFieldName('image', 1), 'image');
@@ -105,13 +111,15 @@ test('Google Veo 内联图片拆分 MIME 和 Base64 请求字段', () => {
 });
 
 test('方舟参考图内容按声明角色编译且保留纯文生视频', () => {
-  assert.deepEqual(protocolMediaContent({ prompt: '电影感运镜' }), [
+  assert.deepEqual(renderProtocolContentTemplate(openaiContentTemplate, { text: '电影感运镜' }), [
     { type: 'text', text: '电影感运镜' },
   ]);
-  assert.deepEqual(protocolMediaContent({
-    prompt: '保持角色一致',
-    imageUrls: ['https://example.com/a.png', 'https://example.com/b.png'],
-    imageRole: 'reference_image',
+  assert.deepEqual(renderProtocolContentTemplate(openaiContentTemplate, {
+    text: '保持角色一致',
+    images: [
+      { url: 'https://example.com/a.png', role: 'reference_image' },
+      { url: 'https://example.com/b.png', role: 'reference_image' },
+    ],
   }), [
     { type: 'text', text: '保持角色一致' },
     { type: 'image_url', image_url: { url: 'https://example.com/a.png' }, role: 'reference_image' },
@@ -120,14 +128,11 @@ test('方舟参考图内容按声明角色编译且保留纯文生视频', () =>
 });
 
 test('声明式多模态内容映射视频和参考音频的厂商角色', () => {
-  assert.deepEqual(protocolMediaContent({
-    prompt: '沿用参考音色与节奏',
-    imageUrls: ['https://example.com/person.png'],
-    imageRole: 'reference_image',
-    videoUrls: ['https://example.com/motion.mp4'],
-    videoRole: 'reference_video',
-    audioUrls: ['data:audio/wav;base64,aGVsbG8='],
-    audioRole: 'reference_audio',
+  assert.deepEqual(renderProtocolContentTemplate(openaiContentTemplate, {
+    text: '沿用参考音色与节奏',
+    images: [{ url: 'https://example.com/person.png', role: 'reference_image' }],
+    videos: [{ url: 'https://example.com/motion.mp4', role: 'reference_video' }],
+    audios: [{ url: 'data:audio/wav;base64,aGVsbG8=', role: 'reference_audio' }],
   }), [
     { type: 'text', text: '沿用参考音色与节奏' },
     { type: 'image_url', image_url: { url: 'https://example.com/person.png' }, role: 'reference_image' },
@@ -137,26 +142,21 @@ test('声明式多模态内容映射视频和参考音频的厂商角色', () =>
 });
 
 test('MiniMax H3 首帧图编译为 V2 content 数组', () => {
-  assert.deepEqual(protocolMediaContent({
-    prompt: '镜头缓慢推近',
-    imageUrls: ['data:image/png;base64,aGVsbG8='],
-    imageRole: 'first_frame',
+  assert.deepEqual(renderProtocolContentTemplate(openaiContentTemplate, {
+    text: '镜头缓慢推近',
+    images: [{ url: 'data:image/png;base64,aGVsbG8=', role: 'first_frame', slot: 'firstFrame' }],
   }), [
     { type: 'text', text: '镜头缓慢推近' },
-    {
-      type: 'image_url',
-      image_url: { url: 'data:image/png;base64,aGVsbG8=' },
-      role: 'first_frame',
-    },
+    { type: 'image_url', image_url: { url: 'data:image/png;base64,aGVsbG8=' }, role: 'first_frame' },
   ]);
 });
 
 test('首尾帧内容使用每个槽位自己的供应商角色', () => {
-  assert.deepEqual(protocolMediaContent({
-    prompt: '从白天过渡到夜晚',
-    imageItems: [
-      { url: 'https://example.com/first.png', role: 'first_frame' },
-      { url: 'https://example.com/last.png', role: 'last_frame' },
+  assert.deepEqual(renderProtocolContentTemplate(openaiContentTemplate, {
+    text: '从白天过渡到夜晚',
+    images: [
+      { url: 'https://example.com/first.png', role: 'first_frame', slot: 'firstFrame' },
+      { url: 'https://example.com/last.png', role: 'last_frame', slot: 'lastFrame' },
     ],
   }), [
     { type: 'text', text: '从白天过渡到夜晚' },
@@ -166,22 +166,46 @@ test('首尾帧内容使用每个槽位自己的供应商角色', () => {
 });
 
 test('Kling API 2.0 协议生成首帧和多参考图 contents', () => {
-  assert.deepEqual(protocolKlingContents({
-    prompt: '镜头缓慢推进',
-    imageUrls: ['https://example.com/start.png'],
+  assert.deepEqual(renderProtocolContentTemplate({
+    text: { type: 'prompt', text: '{{text}}' },
+    image: { type: 'first_frame', url: '{{url}}' },
+  }, {
+    text: '镜头缓慢推进',
+    images: [{ url: 'https://example.com/start.png' }],
   }), [
     { type: 'prompt', text: '镜头缓慢推进' },
     { type: 'first_frame', url: 'https://example.com/start.png' },
   ]);
-  assert.deepEqual(protocolKlingContents({
-    prompt: '参考角色与场景',
-    imageUrls: ['https://example.com/a.png', 'https://example.com/b.png'],
-    imageType: 'refer_image',
+  assert.deepEqual(renderProtocolContentTemplate({
+    text: { type: 'prompt', text: '{{text}}' },
+    image: { type: 'refer_image', url: '{{url}}', id: 'image_{{index}}' },
+  }, {
+    text: '参考角色与场景',
+    images: [
+      { url: 'https://example.com/a.png' },
+      { url: 'https://example.com/b.png' },
+    ],
   }), [
     { type: 'prompt', text: '参考角色与场景' },
     { type: 'refer_image', url: 'https://example.com/a.png', id: 'image_1' },
     { type: 'refer_image', url: 'https://example.com/b.png', id: 'image_2' },
   ]);
+});
+
+test('声明式协议支持部分插值并在变量缺失时丢弃字段', () => {
+  assert.deepEqual(renderProtocolTemplate({
+    filename: 'image_{{index}}.png',
+    size: '{{params.width}}x{{params.height}}',
+    literal: 'no placeholders',
+    dropped: 'prefix-{{missing}}-suffix',
+  }, {
+    index: 2,
+    params: { width: 1024, height: 768 },
+  }), {
+    filename: 'image_2.png',
+    size: '1024x768',
+    literal: 'no placeholders',
+  });
 });
 
 test('原生 Claude 协议把 system 与消息数组分开', () => {

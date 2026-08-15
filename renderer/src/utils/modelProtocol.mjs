@@ -1,4 +1,5 @@
 const TEMPLATE_RE = /^{{\s*([a-zA-Z][a-zA-Z0-9_]*(?:\.[a-zA-Z0-9_-]+)*)\s*}}$/;
+const PLACEHOLDER_RE = /{{\s*([a-zA-Z][a-zA-Z0-9_]*(?:\.[a-zA-Z0-9_-]+)*)\s*}}/g;
 const BLOCKED_SEGMENTS = new Set(['__proto__', 'prototype', 'constructor']);
 
 function isRecord(value) {
@@ -27,10 +28,19 @@ export function firstProtocolValue(value, path = '') {
 
 export function renderProtocolTemplate(value, variables = {}) {
   if (typeof value === 'string') {
-    const match = TEMPLATE_RE.exec(value);
-    if (!match) return value;
-    const resolved = firstProtocolValue(variables, match[1]);
-    return resolved === undefined ? undefined : structuredClone(resolved);
+    const whole = TEMPLATE_RE.exec(value);
+    if (whole) {
+      const resolved = firstProtocolValue(variables, whole[1]);
+      return resolved === undefined ? undefined : structuredClone(resolved);
+    }
+    if (!value.includes('{{')) return value;
+    let missing = false;
+    const rendered = value.replace(PLACEHOLDER_RE, (_placeholder, path) => {
+      const resolved = firstProtocolValue(variables, path);
+      if (resolved === undefined) { missing = true; return ''; }
+      return String(resolved);
+    });
+    return missing ? undefined : rendered;
   }
   if (Array.isArray(value)) {
     return value.map(item => renderProtocolTemplate(item, variables)).filter(item => item !== undefined);
@@ -57,47 +67,51 @@ export function protocolMessageVariables(messages = []) {
 }
 
 /**
- * Compile a provider-neutral multimodal content array. Provider-specific type
- * and role names are supplied by the model catalog.
+ * Compile a provider's media content array from its declarative item templates
+ * (mode.contentTemplate). Each media ref renders one item; the text item renders
+ * once when a prompt is present. Per-slot roles are resolved upstream, so item
+ * templates only reference {{url}} / {{role}} / {{slot}} / {{index}}.
+ * @param {unknown} contentTemplate
  * @param {{
- *   prompt?: unknown,
- *   imageUrls?: string[], imageItems?: Array<{url:string, role?:string}>, imageType?: unknown, imageRole?: unknown,
- *   videoUrls?: string[], videoType?: unknown, videoRole?: unknown,
- *   audioUrls?: string[], audioType?: unknown, audioRole?: unknown
+ *   text?: unknown,
+ *   images?: Array<{url: string, role?: string, slot?: string}>,
+ *   videos?: Array<{url: string, role?: string}>,
+ *   audios?: Array<{url: string, role?: string}>
  * }} options
  */
-export function protocolMediaContent({
-  prompt = '',
-  imageUrls = [], imageItems = [], imageType = 'image_url', imageRole = '',
-  videoUrls = [], videoType = 'video_url', videoRole = '',
-  audioUrls = [], audioType = 'audio_url', audioRole = '',
-} = {}) {
-  const text = typeof prompt === 'string' ? prompt.trim() : '';
-  const mediaItems = (urls, type, role, field) => {
-    const normalizedType = typeof type === 'string' && type.trim() ? type.trim() : field;
-    const normalizedRole = typeof role === 'string' ? role.trim() : '';
-    return (Array.isArray(urls) ? urls : [])
-      .filter(url => typeof url === 'string' && url.trim())
-      .map(url => ({
-        type: normalizedType,
-        [field]: { url: url.trim() },
-        ...(normalizedRole ? { role: normalizedRole } : {}),
-      }));
-  };
-  const normalizedImageType = typeof imageType === 'string' && imageType.trim() ? imageType.trim() : 'image_url';
-  const compiledImageItems = Array.isArray(imageItems) && imageItems.length
-    ? imageItems.filter(item => item?.url).map(item => ({
-      type: normalizedImageType,
-      image_url: { url: item.url.trim() },
-      ...(item.role ? { role: String(item.role).trim() } : {}),
-    }))
-    : mediaItems(imageUrls, imageType, imageRole, 'image_url');
-  return [
-    ...(text ? [{ type: 'text', text }] : []),
-    ...compiledImageItems,
-    ...mediaItems(videoUrls, videoType, videoRole, 'video_url'),
-    ...mediaItems(audioUrls, audioType, audioRole, 'audio_url'),
-  ];
+export function renderProtocolContentTemplate(
+  contentTemplate,
+  { text = '', images = [], videos = [], audios = [] } = {},
+) {
+  if (!contentTemplate) return undefined;
+  const items = [];
+  const prompt = typeof text === 'string' ? text.trim() : '';
+  if (contentTemplate.text !== undefined && prompt) {
+    const rendered = renderProtocolTemplate(contentTemplate.text, { text: prompt });
+    if (rendered !== undefined) items.push(rendered);
+  }
+  for (const [index, ref] of images.entries()) {
+    if (!ref?.url) continue;
+    const rendered = renderProtocolTemplate(contentTemplate.image, {
+      url: ref.url, role: ref.role || undefined, slot: ref.slot || undefined, index: index + 1,
+    });
+    if (rendered !== undefined) items.push(rendered);
+  }
+  for (const [index, ref] of videos.entries()) {
+    if (!ref?.url) continue;
+    const rendered = renderProtocolTemplate(contentTemplate.video, {
+      url: ref.url, role: ref.role || undefined, index: index + 1,
+    });
+    if (rendered !== undefined) items.push(rendered);
+  }
+  for (const [index, ref] of audios.entries()) {
+    if (!ref?.url) continue;
+    const rendered = renderProtocolTemplate(contentTemplate.audio, {
+      url: ref.url, role: ref.role || undefined, index: index + 1,
+    });
+    if (rendered !== undefined) items.push(rendered);
+  }
+  return items.length ? items : undefined;
 }
 
 export function protocolInlineImage(value) {
@@ -108,28 +122,6 @@ export function protocolInlineImage(value) {
     bytesBase64Encoded: match[2].replace(/\s+/g, ''),
     mimeType: match[1].toLowerCase(),
   };
-}
-
-/**
- * Compile Kling API 2.0's typed `contents` array.
- * `first_frame` is used by the regular image-to-video endpoints, while
- * `refer_image` is used by Kling Omni's multi-reference endpoint.
- * @param {{ prompt?: unknown, imageUrls?: string[], imageType?: string }} options
- */
-export function protocolKlingContents({ prompt = '', imageUrls = [], imageType = 'first_frame' } = {}) {
-  const text = typeof prompt === 'string' ? prompt.trim() : '';
-  const urls = Array.isArray(imageUrls)
-    ? imageUrls.filter(url => typeof url === 'string' && url.trim()).map(url => url.trim())
-    : [];
-  const referenceImages = imageType === 'refer_image';
-  return [
-    ...(text ? [{ type: 'prompt', text }] : []),
-    ...urls.map((url, index) => ({
-      type: referenceImages ? 'refer_image' : 'first_frame',
-      url,
-      ...(referenceImages ? { id: `image_${index + 1}` } : {}),
-    })),
-  ];
 }
 
 export function normalizeProtocolResponse(data, protocol = {}) {

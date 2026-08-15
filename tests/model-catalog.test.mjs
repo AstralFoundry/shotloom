@@ -174,9 +174,14 @@ test('Kling 3.0 系列使用官方 API 2.0 视频任务协议', () => {
   assert.deepEqual(turboImage.inputConstraints.images, {
     min: 1, max: 1, roles: ['referenceImage'], formats: ['jpg', 'jpeg', 'png'],
   });
-  assert.equal(turboImage.requestFields.imageContentFormat, 'kling-first-frame');
+  assert.deepEqual(turboImage.contentTemplate, {
+    text: { type: 'prompt', text: '{{text}}' },
+    image: { type: 'first_frame', url: '{{url}}' },
+  });
+  assert.equal(turboImage.requestTemplate.contents, '{{content}}');
+  assert.equal(Object.hasOwn(turboImage, 'requestFields'), false);
   assert.deepEqual(renderProtocolTemplate(turboImage.requestTemplate, {
-    klingContents: [
+    content: [
       { type: 'prompt', text: '让人物转头' },
       { type: 'first_frame', url: 'https://example.com/first.png' },
     ],
@@ -190,9 +195,13 @@ test('Kling 3.0 系列使用官方 API 2.0 视频任务协议', () => {
   assert.deepEqual(omniMode.inputConstraints.images, {
     min: 0, max: 7, roles: ['referenceImage'], formats: ['jpg', 'jpeg', 'png'],
   });
-  assert.equal(omniMode.requestFields.imageContentFormat, 'kling-references');
+  assert.deepEqual(omniMode.contentTemplate, {
+    text: { type: 'prompt', text: '{{text}}' },
+    image: { type: 'refer_image', url: '{{url}}', id: 'image_{{index}}' },
+  });
+  assert.equal(omniMode.requestTemplate.contents, '{{content}}');
   assert.deepEqual(renderProtocolTemplate(omniMode.requestTemplate, {
-    klingContents: [
+    content: [
       { type: 'prompt', text: '让 image_1 和 image_2 同框' },
       { type: 'refer_image', url: 'https://example.com/a.png', id: 'image_1' },
       { type: 'refer_image', url: 'https://example.com/b.png', id: 'image_2' },
