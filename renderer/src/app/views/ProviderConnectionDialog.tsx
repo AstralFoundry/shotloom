@@ -1,27 +1,23 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import {
-  getBuiltInAdapterTemplates,
+  type CatalogModel,
   getBuiltInCatalogModels,
-  getBuiltInProviderPackage,
 } from "../../domain/catalog/ModelCatalog";
-import {
-  compileProviderModels,
-  type ProviderModelBinding,
-  type ProviderProtocolAdapter,
-} from "../../domain/provider/ProviderAdapterContract";
 import {
   getProviderDefinitions,
   type ProviderConfig,
 } from "../../domain/provider/ProviderRegistry";
+import { modelTypeLabel } from "../../utils/modelPresentation.js";
 import {
   getProviderIcon,
   PROVIDER_ICON_OPTIONS,
 } from "../../domain/provider/ProviderBrandIcons.js";
-import { modelTypeLabel } from "../../utils/modelPresentation.js";
 import { IconSymbol } from "../components/IconSymbol";
 import { ProviderBrandIcon } from "../components/ProviderBrandIcon";
 
 const CUSTOM_PROVIDER_ID = "__custom__";
+// Provider configs may come from the reactive settings proxy. Catalog models
+// are JSON data, so a JSON copy safely unwraps them before editing/saving.
 const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 
 function ProviderIconSelect({
@@ -69,6 +65,12 @@ function ProviderIconSelect({
         aria-haspopup="listbox"
         disabled={disabled}
         onClick={() => setOpen((current) => !current)}
+        onKeyDown={(event) => {
+          if (event.key === "ArrowDown") {
+            event.preventDefault();
+            setOpen(true);
+          }
+        }}
       >
         <ProviderBrandIcon icon={selectedIcon?.id || "openai"} />
         <span>{selectedIcon?.label || "OpenAI"}</span>
@@ -104,16 +106,77 @@ function ProviderIconSelect({
   );
 }
 
+function builtInProviderModels(providerId: string): CatalogModel[] {
+  return getBuiltInCatalogModels(providerId);
+}
+
+function effectiveProviderModels(
+  providerId: string,
+  storedModels: CatalogModel[] = [],
+): CatalogModel[] {
+  const builtIns = builtInProviderModels(providerId);
+  const overrides = new Map(storedModels.map((model) => [model.id, model]));
+  const builtInIds = new Set(builtIns.map((model) => model.id));
+  return [
+    ...builtIns.map((model) => clone(overrides.get(model.id) || model)),
+    ...storedModels.filter((model) => !builtInIds.has(model.id)).map(clone),
+  ];
+}
+
+function sameModelDefinition(left: CatalogModel, right: CatalogModel): boolean {
+  const normalize = (model: CatalogModel) => {
+    const value = clone(model) as CatalogModel & { overridesBuiltIn?: boolean };
+    delete value.overridesBuiltIn;
+    return value;
+  };
+  return JSON.stringify(normalize(left)) === JSON.stringify(normalize(right));
+}
+
+function starterProtocolModel(type: NewModelDraft["type"]): CatalogModel {
+  const mode = type === "textGeneration"
+    ? { id: "text-generation", label: "文本生成", resultKey: "resultTextPath" }
+    : type === "imageGeneration"
+    ? { id: "text-to-image", label: "文生图", resultKey: "resultUrlPath" }
+    : { id: "video-generation", label: "视频生成", resultKey: "resultUrlPath" };
+  const base = {
+    id: "",
+    name: "",
+    provider: "",
+    type,
+    sortOrder: 900,
+    enabled: true,
+  };
+  return {
+    ...base,
+    defaultMode: mode.id,
+    modes: [{
+      id: mode.id,
+      label: mode.label,
+      endpoint: { method: "POST", path: "", scope: "root" },
+      inputConstraints: {},
+      outputConstraints: {},
+      params: [],
+      requestTemplate: {},
+      [mode.resultKey]: "",
+    }],
+  };
+}
+
 export interface ProviderConnectionResult {
   providerId: string;
   config: ProviderConfig;
 }
 
+type NewModelDraft = {
+  id: string;
+  name: string;
+  type: "textGeneration" | "imageGeneration" | "videoGeneration";
+};
+
 export function ProviderConnectionDialog({
   editingId = "",
   initialConfig = null,
   connectedIds = [],
-  protocolAdapters = [],
   submitting = false,
   submitError = "",
   onClose,
@@ -122,7 +185,6 @@ export function ProviderConnectionDialog({
   editingId?: string;
   initialConfig?: ProviderConfig | null;
   connectedIds?: string[];
-  protocolAdapters?: ProviderProtocolAdapter[];
   submitting?: boolean;
   submitError?: string;
   onClose: () => void;
@@ -146,139 +208,168 @@ export function ProviderConnectionDialog({
   const [iconId, setIconId] = useState(
     initialConfig?.iconId || editingDefinition?.iconId || "openai",
   );
-  const [disabledIds, setDisabledIds] = useState<Set<string>>(
-    () => new Set(initialConfig?.disabledModelIds || []),
+  const [disabledIds, setDisabledIds] = useState<Set<string>>(() =>
+    new Set(initialConfig?.disabledModelIds || [])
   );
-  const [bindings, setBindings] = useState<ProviderModelBinding[]>(() =>
-    clone(initialConfig?.modelBindings || []),
+  const initialModels = effectiveProviderModels(
+    editingId,
+    initialConfig?.models || [],
   );
-  const [quickAdapterId, setQuickAdapterId] = useState(
-    initialConfig?.modelBindings?.[0]?.adapterId || "",
+  const [models, setModels] = useState<CatalogModel[]>(initialModels);
+  const [selectedModelId, setSelectedModelId] = useState(
+    initialModels[0]?.id || "",
   );
-  const [batchModels, setBatchModels] = useState("");
+  const [modelJson, setModelJson] = useState(() =>
+    initialModels[0] ? JSON.stringify(initialModels[0], null, 2) : ""
+  );
+  const [newModel, setNewModel] = useState<NewModelDraft | null>(null);
   const [error, setError] = useState("");
-
-  const providerId =
-    selectedId === CUSTOM_PROVIDER_ID
-      ? customId.trim().toLowerCase()
-      : selectedId;
-  const builtInModels = useMemo(
-    () => getBuiltInCatalogModels(providerId),
+  const providerId = selectedId === CUSTOM_PROVIDER_ID
+    ? customId.trim().toLowerCase()
+    : selectedId;
+  const builtInModelIds = useMemo(
+    () => new Set(builtInProviderModels(providerId).map((model) => model.id)),
     [providerId],
   );
-  const builtInPackage = useMemo(
-    () => getBuiltInProviderPackage(providerId),
-    [providerId],
+  const globalBuiltInModels = useMemo(
+    () => new Map(getBuiltInCatalogModels().map((model) => [model.id, model])),
+    [],
   );
-  const adapterOptions = useMemo(() => {
-    const byId = new Map<
-      string,
-      { adapter: ProviderProtocolAdapter; providerId: string; custom: boolean }
-    >();
-    getBuiltInAdapterTemplates().forEach((item) => {
-      byId.set(item.adapter.id, {
-        adapter: item.adapter,
-        providerId: item.providerId,
-        custom: false,
-      });
-    });
-    protocolAdapters.forEach((adapter) => {
-      byId.set(adapter.id, { adapter, providerId: "custom", custom: true });
-    });
-    return [...byId.values()].sort((left, right) => {
-      const providerDifference =
-        Number(right.providerId === providerId) -
-        Number(left.providerId === providerId);
-      if (providerDifference) return providerDifference;
-      return left.adapter.name.localeCompare(right.adapter.name, "zh-CN");
-    });
-  }, [protocolAdapters, providerId]);
-  const allAdapters = useMemo(
-    () => adapterOptions.map((item) => item.adapter),
-    [adapterOptions],
+  const availableDefinitions = definitions.filter((item) =>
+    item.id === editingId || !connectedIds.includes(item.id)
   );
-  const availableDefinitions = definitions.filter(
-    (item) => item.id === editingId || !connectedIds.includes(item.id),
-  );
-
-  useEffect(() => {
-    if (adapterOptions.some((item) => item.adapter.id === quickAdapterId)) {
-      return;
-    }
-    const preferred = adapterOptions.find(
-      (item) => item.providerId === providerId,
-    );
-    setQuickAdapterId(preferred?.adapter.id || "");
-  }, [adapterOptions, providerId, quickAdapterId]);
 
   function selectProvider(id: string) {
     setSelectedId(id);
-    setBindings([]);
-    setBatchModels("");
-    setQuickAdapterId("");
     setError("");
-    if (editingId) return;
+    setNewModel(null);
     const definition = definitions.find((item) => item.id === id);
-    if (definition) {
+    if (definition && !editingId) {
+      const nextModels = effectiveProviderModels(id);
       setDisplayName(definition.name);
       setBaseUrl(definition.defaultBaseUrl);
       setIconId(definition.iconId);
       setApiKey("");
       setDisabledIds(new Set());
-    } else if (id === CUSTOM_PROVIDER_ID) {
+      setModels(nextModels);
+      setSelectedModelId(nextModels[0]?.id || "");
+      setModelJson(nextModels[0] ? JSON.stringify(nextModels[0], null, 2) : "");
+    }
+    if (id === CUSTOM_PROVIDER_ID && !editingId) {
       setDisplayName("");
       setBaseUrl("");
       setIconId("openai");
+      setModels([]);
+      setSelectedModelId("");
+      setModelJson("");
     }
   }
 
-  function addBatchBindings() {
-    const adapter = allAdapters.find((item) => item.id === quickAdapterId);
-    if (!adapter) return setError("请先选择一个协议模板");
-    const rows = batchModels
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .map((line) => {
-        const separator = line.indexOf("|");
-        const id = (separator >= 0 ? line.slice(0, separator) : line).trim();
-        const name =
-          (separator >= 0 ? line.slice(separator + 1) : line).trim() || id;
-        return { id, name };
-      });
-    if (!rows.length) return setError("请至少填写一个模型 ID");
-    const ids = new Set<string>();
-    for (const row of rows) {
-      if (!row.id) return setError("模型 ID 不能为空");
-      if (ids.has(row.id)) {
-        return setError(`批量清单中的模型 ID “${row.id}” 重复`);
-      }
-      if (bindings.some((binding) => binding.id === row.id)) {
-        return setError(`模型 ${row.id} 已经存在`);
-      }
-      if (builtInPackage.bindings.some((binding) => binding.id === row.id)) {
-        return setError(`模型 ${row.id} 已是当前厂商的内置模型，无需重复添加`);
-      }
-      ids.add(row.id);
+  function commitModelDraft(): CatalogModel[] {
+    if (!selectedModelId) return models;
+    let parsed: CatalogModel;
+    try {
+      parsed = JSON.parse(modelJson || "{}") as CatalogModel;
+    } catch {
+      throw new Error("当前模型协议不是有效的 JSON");
     }
-    const added = rows.map<ProviderModelBinding>((row, index) => ({
-      kind: "model",
-      id: row.id,
-      name: row.name,
-      type: adapter.type,
-      adapterId: adapter.id,
-      sortOrder: 900 + bindings.length + index,
-      enabled: true,
-    }));
-    const next = [...bindings, ...added];
-    compileProviderModels(providerId || "__draft__", allAdapters, next);
-    setBindings(next);
-    setBatchModels("");
+    if (!parsed || Array.isArray(parsed) || typeof parsed !== "object") {
+      throw new Error("单个模型协议必须是 JSON 对象，不能是数组");
+    }
+    if (
+      !parsed.id || !parsed.name || !parsed.type ||
+      !Array.isArray(parsed.modes) || !parsed.modes.length
+    ) {
+      throw new Error("当前模型缺少 id、name、type 或 modes");
+    }
+    if (
+      models.some((model) =>
+        model.id === parsed.id && model.id !== selectedModelId
+      )
+    ) {
+      throw new Error(`模型 ID “${parsed.id}” 已存在`);
+    }
+    const next = models.map((model) =>
+      model.id === selectedModelId ? { ...parsed, provider: providerId } : model
+    );
+    setModels(next);
+    setSelectedModelId(parsed.id);
+    return next;
+  }
+
+  function selectModel(id: string) {
+    try {
+      const next = commitModelDraft();
+      const selected = next.find((model) => model.id === id);
+      if (!selected) return;
+      setSelectedModelId(id);
+      setModelJson(JSON.stringify(selected, null, 2));
+      setError("");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "当前模型协议格式错误");
+    }
+  }
+
+  function beginAddModel() {
+    const baseId = `${providerId || "custom"}-model`;
+    let currentModels = models;
+    try {
+      currentModels = commitModelDraft();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "当前模型协议格式错误");
+      return;
+    }
+    const modelIds = new Set(currentModels.map((model) => model.id));
+    let id = baseId;
+    let suffix = 2;
+    while (modelIds.has(id)) id = `${baseId}-${suffix++}`;
+    setNewModel({ id, name: "", type: "textGeneration" });
     setError("");
   }
 
-  function deleteBinding(id: string) {
-    setBindings((current) => current.filter((binding) => binding.id !== id));
+  function appendModel() {
+    if (!newModel?.id.trim()) return setError("请填写模型 ID");
+    if (!newModel.name.trim()) return setError("请填写模型名称");
+    const id = newModel.id.trim();
+    if (models.some((model) => model?.id === id)) {
+      return setError(`模型 ID “${id}” 已存在`);
+    }
+    const added = starterProtocolModel(newModel.type);
+    added.id = id;
+    added.name = newModel.name.trim();
+    added.provider = providerId;
+    added.type = newModel.type;
+    added.sortOrder = Math.max(
+      900,
+      ...models.map((model) => Number(model?.sortOrder) || 0),
+    ) + 1;
+    added.enabled = true;
+    delete added.overridesBuiltIn;
+    setModels((current) => [...current, added]);
+    setSelectedModelId(added.id);
+    setModelJson(JSON.stringify(added, null, 2));
+    setNewModel(null);
+    setError("");
+  }
+
+  function deleteModel(id: string) {
+    if (builtInModelIds.has(id)) return;
+    const next = models.filter((model) => model.id !== id);
+    setModels(next);
+    if (selectedModelId === id) {
+      const selected = next[0];
+      setSelectedModelId(selected?.id || "");
+      setModelJson(selected ? JSON.stringify(selected, null, 2) : "");
+    }
+    setError("");
+  }
+
+  function toggleBuiltIn(id: string) {
+    setDisabledIds((current) => {
+      const next = new Set(current);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
   }
 
   async function submit() {
@@ -296,13 +387,11 @@ export function ProviderConnectionDialog({
     }
     if (!displayName.trim()) return setError("请填写厂商显示名称");
     if (!apiKey.trim()) return setError("请填写 API Key");
-    if (
-      (selectedId === CUSTOM_PROVIDER_ID ||
-        selectedDefinition?.credentials.some(
-          (field) => field.key === "baseUrl" && field.required,
-        )) &&
-      !baseUrl.trim()
-    ) {
+    const requiresBaseUrl = selectedId === CUSTOM_PROVIDER_ID ||
+      selectedDefinition?.credentials.some((field) =>
+        field.key === "baseUrl" && field.required
+      );
+    if (requiresBaseUrl && !baseUrl.trim()) {
       return setError("请填写 API Base URL");
     }
     if (baseUrl.trim()) {
@@ -315,11 +404,33 @@ export function ProviderConnectionDialog({
         );
       }
     }
+    let modelsToSave: CatalogModel[];
     try {
-      compileProviderModels(providerId, allAdapters, bindings);
+      const parsed = commitModelDraft();
+      const providerBuiltIns = new Map(
+        builtInProviderModels(providerId).map((model) => [model.id, model]),
+      );
+      modelsToSave = parsed.map((model) => ({ ...model, provider: providerId }))
+        .filter((model) => {
+          const builtIn = providerBuiltIns.get(model.id);
+          return !builtIn || !sameModelDefinition(model, builtIn);
+        })
+        .map((model) => globalBuiltInModels.has(model.id)
+          ? { ...model, overridesBuiltIn: true }
+          : model);
+      for (const model of modelsToSave) {
+        if (
+          !model?.id || !model?.name || !model?.type ||
+          !Array.isArray(model?.modes) || !model.modes.length
+        ) {
+          throw new Error(
+            `模型 ${model?.id || "未知"} 缺少 id、name、type 或 modes`,
+          );
+        }
+      }
     } catch (cause) {
       return setError(
-        cause instanceof Error ? cause.message : "模型 Binding 配置错误",
+        cause instanceof Error ? cause.message : "自定义模型 JSON 格式错误",
       );
     }
     setError("");
@@ -331,7 +442,7 @@ export function ProviderConnectionDialog({
         apiKey: apiKey.trim(),
         baseUrl: baseUrl.trim() || selectedDefinition?.defaultBaseUrl || "",
         iconId,
-        modelBindings: clone(bindings),
+        models: clone(modelsToSave),
         disabledModelIds: [...disabledIds],
       },
     });
@@ -341,8 +452,7 @@ export function ProviderConnectionDialog({
     <div
       className="recipe-dialog-backdrop"
       onMouseDown={(event) =>
-        event.target === event.currentTarget && !submitting && onClose()
-      }
+        event.target === event.currentTarget && !submitting && onClose()}
     >
       <section
         className="recipe-dialog provider-connection-dialog"
@@ -354,7 +464,7 @@ export function ProviderConnectionDialog({
           <div>
             <h3>{editingId ? "编辑 API 厂商" : "添加 API 厂商"}</h3>
             <p className="recipe-dialog-change-summary">
-              这里只管理凭据和模型路由；请求协议在“协议设置”中统一维护。
+              凭据仅保存在本机；模型协议随项目运行时统一路由。
             </p>
           </div>
           <button
@@ -377,9 +487,7 @@ export function ProviderConnectionDialog({
               >
                 <option value="">选择厂商</option>
                 {availableDefinitions.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.name}
-                  </option>
+                  <option key={item.id} value={item.id}>{item.name}</option>
                 ))}
                 <option value={CUSTOM_PROVIDER_ID}>自定义厂商</option>
               </select>
@@ -427,157 +535,179 @@ export function ProviderConnectionDialog({
             <input
               value={baseUrl}
               spellCheck={false}
-              placeholder={
-                selectedDefinition?.defaultBaseUrl ||
-                "https://api.example.com/v1"
-              }
+              placeholder={selectedDefinition?.defaultBaseUrl ||
+                "https://api.example.com/v1"}
               onChange={(event) => setBaseUrl(event.target.value)}
             />
           </label>
-
-          {builtInModels.length > 0 && (
-            <section className="provider-model-section">
-              <div className="provider-model-heading">
-                <div>
-                  <strong>内置模型</strong>
-                  <span className="provider-model-count">
-                    选择当前厂商在画布中可用的模型。
-                  </span>
-                </div>
+          <section className="provider-model-section">
+            <div className="provider-model-heading">
+              <div>
+                <strong>模型</strong>
+                <span className="provider-model-count">
+                  {models.length} 个模型，选择后编辑单个协议
+                </span>
               </div>
+              <button
+                className="provider-inline-action"
+                type="button"
+                disabled={!providerId || submitting || Boolean(newModel)}
+                onClick={beginAddModel}
+              >
+                + 添加模型
+              </button>
+            </div>
+            {models.length > 0 ? (
               <div className="provider-model-list">
-                {builtInModels.map((model) => {
-                  const disabled = disabledIds.has(model.id);
+                {models.map((model) => {
+                  const builtIn = builtInModelIds.has(model.id);
+                  const replacedBuiltIn = builtIn
+                    ? null
+                    : globalBuiltInModels.get(model.id);
+                  const disabled = builtIn && disabledIds.has(model.id);
+                  let originLabel = "自定义";
+                  if (builtIn) originLabel = "内置";
+                  else if (replacedBuiltIn) {
+                    originLabel = `覆盖内置 ${replacedBuiltIn.provider}`;
+                  }
                   return (
                     <div
                       key={model.id}
                       className={`provider-model-item${
                         disabled ? " disabled" : ""
-                      }`}
+                      }${selectedModelId === model.id ? " active" : ""}`}
                     >
-                      <div className="provider-model-select">
+                      <button
+                        className="provider-model-select"
+                        type="button"
+                        onClick={() => selectModel(model.id)}
+                      >
                         <strong>{model.name}</strong>
                         <code>{model.id}</code>
                         <span className="provider-model-meta">
-                          {modelTypeLabel(model.type)}
+                          <span>{modelTypeLabel(model.type)}</span>
+                          <span aria-hidden="true">·</span>
+                          <span className={`provider-model-origin${
+                            replacedBuiltIn ? " override" : ""
+                          }`}>
+                            {originLabel}
+                          </span>
                         </span>
-                      </div>
+                      </button>
                       <div className="provider-model-item-actions">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setDisabledIds((current) => {
-                              const next = new Set(current);
-                              next.has(model.id)
-                                ? next.delete(model.id)
-                                : next.add(model.id);
-                              return next;
-                            })
-                          }
-                        >
-                          {disabled ? "启用" : "停用"}
-                        </button>
+                        {builtIn ? (
+                          <button
+                            type="button"
+                            onClick={() => toggleBuiltIn(model.id)}
+                          >
+                            {disabled ? "启用" : "停用"}
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => deleteModel(model.id)}
+                          >
+                            删除
+                          </button>
+                        )}
                       </div>
                     </div>
                   );
                 })}
               </div>
+            ) : (
+              <div className="provider-model-empty">
+                还没有模型，点击“添加模型”创建第一个。
+              </div>
+            )}
+          </section>
+          {newModel && (
+            <section className="provider-model-create" aria-label="添加模型">
+              <div className="provider-model-create-grid">
+                <label className="recipe-field">
+                  <span>模型 ID</span>
+                  <input
+                    value={newModel.id}
+                    autoFocus
+                    placeholder="model-id"
+                    onChange={(event) =>
+                      setNewModel({ ...newModel, id: event.target.value })}
+                  />
+                </label>
+                <label className="recipe-field">
+                  <span>模型名称</span>
+                  <input
+                    value={newModel.name}
+                    placeholder="模型显示名称"
+                    onChange={(event) =>
+                      setNewModel({ ...newModel, name: event.target.value })}
+                  />
+                </label>
+                <label className="recipe-field">
+                  <span>生成类型</span>
+                  <select
+                    value={newModel.type}
+                    onChange={(event) =>
+                      setNewModel({
+                        ...newModel,
+                        type: event.target.value as NewModelDraft["type"],
+                      })}
+                  >
+                    <option value="textGeneration">文本生成</option>
+                    <option value="imageGeneration">图片生成</option>
+                    <option value="videoGeneration">视频生成</option>
+                  </select>
+                </label>
+              </div>
+              <div className="provider-model-create-actions">
+                <span>填写基本信息后创建空白协议，不会复制当前选中的模型。</span>
+                <div>
+                  <button
+                    className="button ghost"
+                    type="button"
+                    onClick={() => setNewModel(null)}
+                  >
+                    取消
+                  </button>
+                  <button
+                    className="button primary"
+                    type="button"
+                    onClick={appendModel}
+                  >
+                    创建并编辑协议
+                  </button>
+                </div>
+              </div>
             </section>
           )}
-
-          <section className="provider-quick-connect">
-            <div className="provider-model-heading">
+          {selectedModelId && !newModel && (
+            <div className="provider-model-protocol-heading">
               <div>
-                <strong>添加模型</strong>
-                <span className="provider-model-count">
-                  从全局协议库选择协议，一次添加全部模型。
+                <strong>单模型协议</strong>
+                <span>
+                  当前只编辑 {selectedModelId}，保存厂商时自动汇总模型目录。
                 </span>
               </div>
             </div>
-            <div className="provider-quick-connect-grid">
-              <label className="recipe-field">
-                <span>使用协议</span>
-                <select
-                  value={quickAdapterId}
-                  onChange={(event) => {
-                    setQuickAdapterId(event.target.value);
-                    setError("");
-                  }}
-                >
-                  <option value="">选择厂商兼容的 API 协议</option>
-                  {adapterOptions.map((item) => (
-                    <option key={item.adapter.id} value={item.adapter.id}>
-                      {item.adapter.name} · {modelTypeLabel(item.adapter.type)}{" "}
-                      ·{item.custom ? "自定义" : item.providerId}
-                    </option>
-                  ))}
-                </select>
-                <small>没有合适协议时，请先前往“协议设置”创建。</small>
-              </label>
-              <label className="recipe-field recipe-prompt-field">
-                <span>模型清单</span>
-                <textarea
-                  value={batchModels}
-                  rows={6}
-                  spellCheck={false}
-                  placeholder={
-                    "每行一个模型：\nmodel-id | 显示名称\nmodel-id-2 | 显示名称 2"
-                  }
-                  onChange={(event) => {
-                    setBatchModels(event.target.value);
-                    setError("");
-                  }}
-                />
-                <small>只写模型 ID 也可以，显示名称会默认使用 ID。</small>
-              </label>
-            </div>
-            <div className="provider-quick-connect-actions">
-              <span>无需为每个模型重复编写协议 JSON</span>
-              <button
-                className="button primary"
-                type="button"
-                disabled={!providerId || !quickAdapterId || !batchModels.trim()}
-                onClick={addBatchBindings}
-              >
-                批量添加模型
-              </button>
-            </div>
-          </section>
-
-          {bindings.length > 0 && (
-            <section className="provider-model-section">
-              <div className="provider-model-heading">
-                <div>
-                  <strong>自定义模型</strong>
-                  <span className="provider-model-count">
-                    {bindings.length} 个模型已绑定到全局协议。
-                  </span>
-                </div>
-              </div>
-              <div className="provider-model-list">
-                {bindings.map((binding) => (
-                  <div key={binding.id} className="provider-model-item">
-                    <div className="provider-model-select">
-                      <strong>{binding.name}</strong>
-                      <code>{binding.id}</code>
-                      <span className="provider-model-meta">
-                        {modelTypeLabel(binding.type)} · {binding.adapterId}
-                      </span>
-                    </div>
-                    <div className="provider-model-item-actions">
-                      <button
-                        type="button"
-                        onClick={() => deleteBinding(binding.id)}
-                      >
-                        删除
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
           )}
-
+          {selectedModelId && !newModel && (
+            <label className="recipe-field recipe-prompt-field">
+              <span>模型 JSON</span>
+              <textarea
+                value={modelJson}
+                rows={12}
+                spellCheck={false}
+                placeholder="{}"
+                onChange={(event) => {
+                  setModelJson(event.target.value);
+                  setError("");
+                }}
+              />
+              <small>
+                每次仅编辑一个 CatalogModel 对象。可配置 endpoint、异步任务查询、参数、认证、请求模板和结果路径。
+              </small>
+            </label>
+          )}
           {(error || submitError) && (
             <p className="recipe-dialog-error">{error || submitError}</p>
           )}

@@ -11,6 +11,7 @@ interface BottomModeBarProps {
   onFitView: () => void;
   onMaterialPicker: () => void;
   onAutoLayout: (options?: { mode?: AgentLayoutMode; includeConnected?: boolean }) => boolean;
+  onExport: () => void;
   onMergeVideos: () => void;
 }
 export function BottomModeBar(
@@ -23,6 +24,7 @@ export function BottomModeBar(
     onFitView,
     onMaterialPicker,
     onAutoLayout,
+    onExport,
     onMergeVideos,
   }: BottomModeBarProps,
 ) {
@@ -80,6 +82,9 @@ export function BottomModeBar(
       </div>
       <div className="bottom-mode-divider" />
       <div className="bottom-mode-group">
+        <button title="下载选中节点资源" onClick={onExport}>
+          <IconSymbol name="download" />
+        </button>
         <button title="拼接选中的视频节点" onClick={onMergeVideos}>
           <IconSymbol name="link" />
         </button>

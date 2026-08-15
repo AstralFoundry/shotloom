@@ -322,6 +322,7 @@ export function CreationView({
               onFitView={controller.fitView}
               onMaterialPicker={openPicker}
               onAutoLayout={controller.autoLayout}
+              onExport={controller.exportSelected}
               onMergeVideos={controller.mergeVideos}
             />
           }

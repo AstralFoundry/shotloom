@@ -52,7 +52,7 @@ export function validateAgentActionShape(value: unknown): AgentActionValidation 
     }
     const model = String(action.model || '');
     if (model && !isModelForType(String(action.nodeType || ''), model)) {
-      return { valid: false, error: `create_gen_node model ${model} is not an enabled ${action.nodeType} model in the provider catalog` };
+      return { valid: false, error: `create_gen_node model ${model} is not an enabled ${action.nodeType} model in model-catalog-v2.json` };
     }
     if (action.inputMode && !getGenerationInputModes(model).some((item) => item.value === action.inputMode)) {
       return { valid: false, error: `create_gen_node inputMode ${action.inputMode} is not supported by ${model}` };

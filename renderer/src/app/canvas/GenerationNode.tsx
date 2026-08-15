@@ -9,7 +9,6 @@ import {
   modelDescription,
   optionLabel,
   optionValue,
-  paramPresentation,
   paramOptionHint,
   paramVisualClass,
   paramVisualText,
@@ -80,14 +79,14 @@ function canvasPreviewMaxSize(semanticZoom: number) {
   if (needed > 960) return 1536;
   return 960;
 }
-function useLocalPreview(item: Record<string, unknown> | null, kind: string, previewZoom: number) {
+function useLocalPreview(item: Record<string, unknown> | null, kind: string, semanticZoom: number) {
   const path = String(item?.filePath || item?.path || "");
   const raw = String(item?.previewUrl || item?.url || item?.content || "");
   return useMediaPreviewCache({
     path,
     kind,
     mimeType: String(item?.mimeType || item?.type || ""),
-    maxSize: kind === "image" ? canvasPreviewMaxSize(previewZoom) : undefined,
+    maxSize: canvasPreviewMaxSize(semanticZoom),
     revision: String(item?.updatedAt || item?.createdAt || item?.id || ""),
     fallbackUrl: raw,
   });
@@ -209,7 +208,7 @@ function generationNodeDisplayTitle(
     const stem = title.replace(/\.[a-z0-9]{1,10}$/i, "").trim().toLowerCase();
     if (!genericNames.has(stem)) return title;
   }
-  return typeLabel.replace(/生成$/, "") || "节点";
+  return "";
 }
 
 function ScreenSpaceComposer({
@@ -308,7 +307,6 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({
   node,
   selected,
   semanticZoom = 1,
-  previewZoom = semanticZoom,
   incomingInputs = [],
   actions,
 }) => {
@@ -344,7 +342,7 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({
     url: previewUrl,
     retryBuffered: retryBufferedPreview,
     buffered: bufferedPreview,
-  } = useLocalPreview(active, activeKind, previewZoom);
+  } = useLocalPreview(active, activeKind, semanticZoom);
   const kind = node.type.replace("Generation", "");
   const meta = getTypeMeta(node.type);
   const busy = ["running", "queued"].includes(String(node.status));
@@ -363,15 +361,9 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({
     (param: { key: string; visibleWhen?: Record<string, unknown> }) =>
       param.key !== "prompt" &&
       param.key !== "model" &&
-      paramPresentation(param).control !== "hidden" &&
       (!param.visibleWhen ||
         Object.entries(param.visibleWhen).every(([key, value]) => config[key] === value)),
   );
-  const explicitSummaryParams = params.filter((param: { presentation?: unknown }) => paramPresentation(param).summary === true);
-  const hasExplicitPresentation = params.some((param: { presentation?: unknown }) => (
-    Boolean(param.presentation) && typeof param.presentation === "object"
-  ));
-  const summaryParams = hasExplicitPresentation ? explicitSummaryParams : params.slice(0, 4);
   function modelIcon(modelId: string) {
     const providerId = String(getModelInfo(modelId)?.provider || "");
     const configuredIcon =
@@ -451,9 +443,6 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({
   // Keep the media branch explicit: activeKind === 'image' && previewUrl ? <img /> : activeKind === 'video'.
   const nodeLabel = (
     <div className={`work-node-kicker${displayTitle ? "" : " unlabeled"}`}>
-      {displayTitle && (
-        <IconSymbol className="work-node-type-icon" name={metaIcon} aria-hidden="true" />
-      )}
       {displayTitle && <span title={displayTitle}>{displayTitle}</span>}
       {selected && node.type === "imageGeneration" && activeKind === "image" && (
         <div className="work-node-kicker-actions">
@@ -593,10 +582,7 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({
               </div>
             )}
             {activeKind === "video" && previewUrl && (
-              <div
-                className="work-video-status"
-                style={{ fontSize: `${10 * Math.min(1, semanticZoom)}px` }}
-              >
+              <div className="work-video-status">
                 <span>{formatAudioTime(videoTime)} / {formatAudioTime(videoDuration)}</span>
                 <button
                   type="button"
@@ -824,7 +810,7 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({
                 onClick={() => setOpenMenu(openMenu === "generationSettings" ? "" : "generationSettings")}
               >
                 {activeInputMode && <span>{activeInputMode.label}</span>}
-                {summaryParams.slice(0, 4).map((param) => (
+                {params.slice(0, 4).map((param) => (
                   <span key={param.key}>
                     {param.type === "boolean"
                       ? booleanParamSummary(param.key, param.label, config[param.key] ?? param.default)
@@ -856,124 +842,42 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({
                       </div>
                     </section>
                   )}
-                  {params.map((param, paramIndex) => {
+                  {params.map((param) => {
                     const current = config[param.key] ?? param.default;
-                    const presentation = paramPresentation(param);
-                    const control = presentation.control || (param.type === "boolean" ? "toggle" : (param.options || []).length ? "segmented" : param.type === "number" ? "number" : "text");
-                    const previousGroup = paramIndex > 0 ? String(paramPresentation(params[paramIndex - 1]).group || "") : "";
-                    const group = String(presentation.group || "");
-                    const groupHeading = group && group !== previousGroup
-                      ? <h5 className="generation-settings-group-title">{group}</h5>
-                      : null;
-                    if (control === "toggle") {
+                    if (param.type === "boolean") {
                       return (
-                        <div className="generation-settings-param" key={param.key}>
-                          {groupHeading}
-                          <section>
-                            <p>{param.label}</p>
-                            <div className="generation-settings-chips">
-                              <button type="button" className={Boolean(current) ? "active" : ""} onClick={() => setConfig(param.key, true)}>开启</button>
-                              <button type="button" className={!Boolean(current) ? "active" : ""} onClick={() => setConfig(param.key, false)}>关闭</button>
-                            </div>
-                          </section>
-                        </div>
-                      );
-                    }
-                    if (control === "slider") {
-                      const min = Number(presentation.min);
-                      const max = Number(presentation.max);
-                      const step = Number(presentation.step) || 1;
-                      const value = Number(current ?? min);
-                      return (
-                        <div className="generation-settings-param" key={param.key}>
-                          {groupHeading}
-                          <section>
-                            <p>{param.label}</p>
-                            <div className="generation-settings-slider">
-                              <input
-                                className="nodrag nopan"
-                                type="range"
-                                min={min}
-                                max={max}
-                                step={step}
-                                value={value}
-                                onChange={(event) => setConfig(param.key, Number(event.target.value))}
-                              />
-                              <output>{value}{presentation.unit || ""}</output>
-                            </div>
-                          </section>
-                        </div>
-                      );
-                    }
-                    if (control === "select") {
-                      return (
-                        <div className="generation-settings-param" key={param.key}>
-                          {groupHeading}
-                          <section>
-                            <p>{param.label}</p>
-                            <select
-                              className="generation-settings-input nodrag nopan"
-                              value={String(current ?? "")}
-                              onChange={(event) => {
-                                const matched = (param.options || []).find((option) => String(optionValue(option)) === event.target.value);
-                                setConfig(param.key, matched === undefined ? event.target.value : optionValue(matched));
-                              }}
-                            >
-                              {(param.options || []).map((option) => {
-                                const value = optionValue(option);
-                                return <option key={String(value)} value={String(value)}>{optionLabel(param, value)}</option>;
-                              })}
-                            </select>
-                          </section>
-                        </div>
-                      );
-                    }
-                    if (!(param.options || []).length) {
-                      const numeric = control === "number";
-                      return (
-                        <div className="generation-settings-param" key={param.key}>
-                          {groupHeading}
-                          <section>
-                            <p>{param.label}</p>
-                            <input
-                              className="generation-settings-input nodrag nopan"
-                              type={numeric ? "number" : "text"}
-                              value={String(current ?? "")}
-                              onChange={(event) => {
-                                const value = event.target.value;
-                                setConfig(param.key, numeric && value !== "" ? Number(value) : value);
-                              }}
-                            />
-                          </section>
-                        </div>
+                        <section key={param.key}>
+                          <p>{param.label}</p>
+                          <div className="generation-settings-chips">
+                            <button type="button" className={Boolean(current) ? "active" : ""} onClick={() => setConfig(param.key, true)}>开启</button>
+                            <button type="button" className={!Boolean(current) ? "active" : ""} onClick={() => setConfig(param.key, false)}>关闭</button>
+                          </div>
+                        </section>
                       );
                     }
                     return (
-                      <div className="generation-settings-param" key={param.key}>
-                        {groupHeading}
-                        <section>
-                          <p>{param.label}</p>
-                          <div className={`generation-settings-options${control === "ratio" || isAspectRatioParam(param) ? " ratios" : ""}`}>
-                            {(param.options || []).map((option) => {
-                              const value = optionValue(option);
-                              const active = value === current;
-                              return (
-                                <button
-                                  key={String(value)}
-                                  type="button"
-                                  className={active ? "active" : ""}
-                                  onClick={() => setConfig(param.key, value)}
-                                >
-                                  {(control === "ratio" || isAspectRatioParam(param)) && (
-                                    <span className="generation-settings-ratio"><span style={aspectRatioStyle(value)} /></span>
-                                  )}
-                                  <span>{optionLabel(param, value)}</span>
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </section>
-                      </div>
+                      <section key={param.key}>
+                        <p>{param.label}</p>
+                        <div className={`generation-settings-options${isAspectRatioParam(param) ? " ratios" : ""}`}>
+                          {(param.options || []).map((option) => {
+                            const value = optionValue(option);
+                            const active = value === current;
+                            return (
+                              <button
+                                key={String(value)}
+                                type="button"
+                                className={active ? "active" : ""}
+                                onClick={() => setConfig(param.key, value)}
+                              >
+                                {isAspectRatioParam(param) && (
+                                  <span className="generation-settings-ratio"><span style={aspectRatioStyle(value)} /></span>
+                                )}
+                                <span>{optionLabel(param, value)}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </section>
                     );
                   })}
                 </div>

@@ -1,15 +1,6 @@
-import type {
-  AgentToolEffect,
-  AgentToolReceipt,
-  JsonObject,
-} from "../core/types";
+import type { AgentToolEffect, AgentToolReceipt, JsonObject } from '../core/types';
 
-const persistentEffects = new Set<AgentToolEffect>([
-  "settings_write",
-  "project_write",
-  "canvas_write",
-  "media_generation",
-]);
+const persistentEffects = new Set<AgentToolEffect>(['project_write', 'canvas_write', 'media_generation']);
 
 function stringIds(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
@@ -22,8 +13,7 @@ export function buildToolReceipt(
   effect: AgentToolEffect,
   result: unknown,
 ): AgentToolReceipt {
-  const value =
-    result && typeof result === "object" ? (result as JsonObject) : {};
+  const value = result && typeof result === 'object' ? result as JsonObject : {};
   const skippedCount = Number(value.skippedCount || 0);
   const appliedCount = Number(value.appliedCount || 0);
   const success = value.success !== false;
@@ -36,17 +26,9 @@ export function buildToolReceipt(
     ...stringIds(value.startedTaskIds),
     ...stringIds(value.taskIds),
   ]);
-  let applied =
-    appliedCount > 0 ||
-    value.applied === true ||
-    nodeIds.length > 0 ||
-    taskIds.length > 0;
-  if ((effect === "settings_write" || effect === "project_write") && success)
-    applied = true;
-  const partial =
-    value.partial === true ||
-    skippedCount > 0 ||
-    (applied && value.complete === false);
+  let applied = appliedCount > 0 || value.applied === true || nodeIds.length > 0 || taskIds.length > 0;
+  if (effect === 'project_write' && success) applied = true;
+  const partial = value.partial === true || skippedCount > 0 || (applied && value.complete === false);
   return {
     callId,
     toolName,
@@ -57,7 +39,7 @@ export function buildToolReceipt(
     skippedCount,
     nodeIds,
     taskIds,
-    error: success ? "" : String(value.error || "工具执行失败"),
+    error: success ? '' : String(value.error || '工具执行失败'),
   };
 }
 

@@ -1,19 +1,13 @@
-import type {
-  AgentAction,
-  AgentBatchResult,
-  JsonObject,
-  JsonValue,
-} from "@/services/agentTypes";
+import type { AgentAction, AgentBatchResult, JsonObject, JsonValue } from '@/services/agentTypes';
 
 export type { JsonObject, JsonValue };
 
 export type AgentToolEffect =
-  | "read"
-  | "agent_state_write"
-  | "settings_write"
-  | "project_write"
-  | "canvas_write"
-  | "media_generation";
+  | 'read'
+  | 'agent_state_write'
+  | 'project_write'
+  | 'canvas_write'
+  | 'media_generation';
 
 export interface AgentToolReceipt extends JsonObject {
   callId: string;
@@ -29,14 +23,7 @@ export interface AgentToolReceipt extends JsonObject {
 }
 
 export interface JsonSchema {
-  type?:
-    | "object"
-    | "array"
-    | "string"
-    | "number"
-    | "integer"
-    | "boolean"
-    | "null";
+  type?: 'object' | 'array' | 'string' | 'number' | 'integer' | 'boolean' | 'null';
   description?: string;
   enum?: JsonValue[];
   properties?: Record<string, JsonSchema>;
@@ -74,10 +61,7 @@ export interface AgentToolContext {
   emit: (event: JsonObject & { type: string }) => void;
 }
 
-export interface AgentToolDefinition<
-  TInput extends JsonObject = JsonObject,
-  TResult = unknown,
-> {
+export interface AgentToolDefinition<TInput extends JsonObject = JsonObject, TResult = unknown> {
   id: string;
   title: string;
   description: string;
@@ -87,10 +71,7 @@ export interface AgentToolDefinition<
   resolveEffect?: (input: TInput, context: AgentToolContext) => AgentToolEffect;
   isAvailable?: (context: AgentToolContext) => boolean;
   summarizeInput?: (input: TInput) => string;
-  execute: (
-    input: TInput,
-    context: AgentToolContext,
-  ) => Promise<TResult> | TResult;
+  execute: (input: TInput, context: AgentToolContext) => Promise<TResult> | TResult;
 }
 
 export interface PreparedAgentToolCall {

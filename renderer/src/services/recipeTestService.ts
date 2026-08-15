@@ -50,7 +50,7 @@ export async function testRecipe(recipe: Record<string, any>, intent: string) {
   const controller = new AbortController();
   const requiredElements = Array.isArray(recipe.requiredElements) ? recipe.requiredElements.map(String) : [];
   const response = await desktopApi.model.chatCompletion({
-    model: contract.requestModelId,
+    model,
     messages: [
       {
         role: 'system',

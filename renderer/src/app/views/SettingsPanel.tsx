@@ -32,14 +32,6 @@ export interface CatalogItem {
   tags?: string[];
   type?: string;
 }
-export interface ProtocolItem {
-  id: string;
-  name: string;
-  typeLabel: string;
-  modeCount: number;
-  builtIn: boolean;
-  providerLabel: string;
-}
 export interface SettingsData {
   projectRootDir: string;
   downloadDir: string;
@@ -49,7 +41,6 @@ export interface SettingsData {
   availableModels: Record<string, SettingsModel[]>;
   agentToggles: Record<string, boolean>;
   providers: ProviderItem[];
-  protocols: ProtocolItem[];
   skills: CatalogItem[];
   recipes: CatalogItem[];
   shortcutLabels: Record<string, string>;
@@ -67,12 +58,6 @@ export interface SettingsController {
   addProvider: () => void;
   editProvider: (id: string) => void;
   deleteProvider: (id: string) => void | Promise<void>;
-  createProtocol: () => void;
-  editProtocol: (id: string) => void;
-  copyProtocol: (id: string) => void | Promise<void>;
-  deleteProtocol: (id: string) => void | Promise<void>;
-  importProtocols: (files: File[]) => void | Promise<void>;
-  openProtocolGuide: () => void;
   createSkill: () => void;
   editSkill: (id: string) => void;
   deleteSkill: (id: string) => void | Promise<void>;
@@ -91,74 +76,56 @@ export interface SettingsController {
   ) => void | Promise<void>;
 }
 
-type Tab =
-  | "general"
-  | "canvas"
-  | "providers"
-  | "protocols"
-  | "agent"
-  | "skills"
-  | "recipes";
-const groups: Array<{
-  label: string;
-  items: Array<{ id: Tab; label: string; icon: IconName; description: string }>;
-}> = [
+type Tab = "general" | "canvas" | "providers" | "agent" | "skills" | "recipes";
+const groups: Array<
+  {
+    label: string;
+    items: Array<
+      { id: Tab; label: string; icon: IconName; description: string }
+    >;
+  }
+> = [
   {
     label: "工作区",
-    items: [
-      {
-        id: "general",
-        label: "通用",
-        icon: "sliders",
-        description: "项目目录、默认模型与文件行为",
-      },
-      {
-        id: "canvas",
-        label: "画布",
-        icon: "grid",
-        description: "画布布局方式与操作快捷键",
-      },
-    ],
+    items: [{
+      id: "general",
+      label: "通用",
+      icon: "sliders",
+      description: "项目目录、默认模型与文件行为",
+    }, {
+      id: "canvas",
+      label: "画布",
+      icon: "grid",
+      description: "画布布局方式与操作快捷键",
+    }],
   },
   {
     label: "智能服务",
-    items: [
-      {
-        id: "providers",
-        label: "API 厂商",
-        icon: "link",
-        description: "模型服务凭据、接口地址和模型路由",
-      },
-      {
-        id: "protocols",
-        label: "协议设置",
-        icon: "workflow",
-        description: "全局请求协议、参数控件和响应解析",
-      },
-      {
-        id: "agent",
-        label: "Copilot",
-        icon: "spark",
-        description: "Copilot 默认模型与执行策略",
-      },
-    ],
+    items: [{
+      id: "providers",
+      label: "API 厂商",
+      icon: "link",
+      description: "模型服务配置、凭据和模型目录",
+    }, {
+      id: "agent",
+      label: "Copilot",
+      icon: "spark",
+      description: "Copilot 默认模型与执行策略",
+    }],
   },
   {
     label: "内容编排",
-    items: [
-      {
-        id: "skills",
-        label: "技能",
-        icon: "box",
-        description: "定义 Agent 在创作任务中的规划与执行方式",
-      },
-      {
-        id: "recipes",
-        label: "策略",
-        icon: "file",
-        description: "定义生成节点如何组织提示词",
-      },
-    ],
+    items: [{
+      id: "skills",
+      label: "技能",
+      icon: "box",
+      description: "定义 Agent 在创作任务中的规划与执行方式",
+    }, {
+      id: "recipes",
+      label: "策略",
+      icon: "file",
+      description: "定义生成节点如何组织提示词",
+    }],
   },
 ];
 const modelRows = [
@@ -214,15 +181,13 @@ const toggleRows = [
   ],
 ] as const;
 
-function ModelSelect({
-  value,
-  models,
-  onChange,
-}: {
-  value: string;
-  models: SettingsModel[];
-  onChange: (value: string) => void;
-}) {
+function ModelSelect(
+  { value, models, onChange }: {
+    value: string;
+    models: SettingsModel[];
+    onChange: (value: string) => void;
+  },
+) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const selected = models.find((model) => model.id === value);
@@ -242,12 +207,7 @@ function ModelSelect({
         aria-expanded={open}
         onClick={() => setOpen(!open)}
       >
-        {selected && (
-          <ProviderBrandIcon
-            className="settings-model-icon"
-            icon={selected.iconId}
-          />
-        )}
+        {selected && <ProviderBrandIcon className="settings-model-icon" icon={selected.iconId} />}
         <span>{selected?.label || "请先配置对应的 API 厂商"}</span>
         <IconSymbol name="chevron-down" />
       </button>
@@ -258,18 +218,10 @@ function ModelSelect({
               key={model.id}
               type="button"
               className={model.id === value ? "active" : ""}
-              onClick={() => {
-                onChange(model.id);
-                setOpen(false);
-              }}
+              onClick={() => { onChange(model.id); setOpen(false); }}
             >
-              <ProviderBrandIcon
-                className="settings-model-icon"
-                icon={model.iconId}
-              />
-              <span>
-                <strong>{model.label}</strong>
-              </span>
+              <ProviderBrandIcon className="settings-model-icon" icon={model.iconId} />
+              <span><strong>{model.label}</strong></span>
               {model.id === value && <IconSymbol name="check" />}
             </button>
           ))}
@@ -279,40 +231,32 @@ function ModelSelect({
   );
 }
 
-export function SettingsPanel({
-  data,
-  controller,
-  overlays,
-}: {
-  data: SettingsData;
-  controller: SettingsController;
-  overlays?: ReactNode;
-}) {
+export function SettingsPanel(
+  { data, controller, overlays }: {
+    data: SettingsData;
+    controller: SettingsController;
+    overlays?: ReactNode;
+  },
+) {
   const [tab, setTab] = useState<Tab>("general");
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const importInput = useRef<HTMLInputElement>(null);
-  const protocolInput = useRef<HTMLInputElement>(null);
-  const meta = groups
-    .flatMap((group) => group.items)
-    .find((item) => item.id === tab)!;
-  const catalog =
-    tab === "skills" ? data.skills : tab === "recipes" ? data.recipes : [];
+  const meta = groups.flatMap((group) => group.items).find((item) =>
+    item.id === tab
+  )!;
+  const catalog = tab === "skills" ? data.skills : data.recipes;
   const filtered = useMemo(
     () =>
-      catalog.filter(
-        (item) =>
-          !query.trim() ||
-          [
-            item.id,
-            item.name,
-            item.description,
-            item.category,
-            ...(item.tags || []),
-          ]
-            .join(" ")
-            .toLowerCase()
-            .includes(query.trim().toLowerCase()),
+      catalog.filter((item) =>
+        !query.trim() ||
+        [
+          item.id,
+          item.name,
+          item.description,
+          item.category,
+          ...(item.tags || []),
+        ].join(" ").toLowerCase().includes(query.trim().toLowerCase())
       ),
     [catalog, query],
   );
@@ -345,17 +289,14 @@ export function SettingsPanel({
         <label className="settings-select-all">
           <input
             type="checkbox"
-            checked={
-              filtered.length > 0 &&
-              filtered.every((item) => selected.has(item.id))
-            }
+            checked={filtered.length > 0 &&
+              filtered.every((item) => selected.has(item.id))}
             onChange={() =>
               setSelected(
                 filtered.every((item) => selected.has(item.id))
                   ? new Set()
                   : new Set(filtered.map((item) => item.id)),
-              )
-            }
+              )}
           />
           <span>全选</span>
         </label>
@@ -394,8 +335,7 @@ export function SettingsPanel({
             onChange={() =>
               void (kind === "skills"
                 ? controller.toggleSkill(item.id)
-                : controller.toggleRecipe(item.id))
-            }
+                : controller.toggleRecipe(item.id))}
           />
           <button
             className="icon-action"
@@ -403,8 +343,7 @@ export function SettingsPanel({
             onClick={() =>
               kind === "skills"
                 ? controller.editSkill(item.id)
-                : controller.editRecipe(item.id)
-            }
+                : controller.editRecipe(item.id)}
           >
             <IconSymbol name="pencil" />
           </button>
@@ -415,8 +354,7 @@ export function SettingsPanel({
               onClick={() =>
                 void (kind === "skills"
                   ? controller.deleteSkill(item.id)
-                  : controller.deleteRecipe(item.id))
-              }
+                  : controller.deleteRecipe(item.id))}
             >
               <IconSymbol name="trash" />
             </button>
@@ -447,7 +385,6 @@ export function SettingsPanel({
                 <IconSymbol name={item.icon} />
                 <span>{item.label}</span>
                 {item.id === "providers" && <em>{data.providers.length}</em>}
-                {item.id === "protocols" && <em>{data.protocols.length}</em>}
                 {item.id === "skills" && <em>{data.skills.length}</em>}
                 {item.id === "recipes" && <em>{data.recipes.length}</em>}
               </button>
@@ -481,68 +418,27 @@ export function SettingsPanel({
               + 添加厂商
             </button>
           )}
-          {tab === "protocols" && (
-            <div className="settings-head-actions">
-              <button
-                className="button ghost compact"
-                onClick={controller.openProtocolGuide}
-              >
-                <IconSymbol name="help" />
-                AI 生成指南
-              </button>
-              <button
-                className="button ghost compact"
-                onClick={() => protocolInput.current?.click()}
-              >
-                <IconSymbol name="upload" />
-                导入协议
-              </button>
-              <button
-                className="button primary compact"
-                onClick={controller.createProtocol}
-              >
-                + 新建协议
-              </button>
-              <input
-                ref={protocolInput}
-                className="settings-hidden-input"
-                type="file"
-                accept=".json,application/json"
-                multiple
-                onChange={(event) => {
-                  const files = [...(event.target.files || [])];
-                  event.target.value = "";
-                  if (files.length) void controller.importProtocols(files);
-                }}
-              />
-            </div>
-          )}
           {(tab === "skills" || tab === "recipes") && (
             <div className="settings-head-actions">
               <button
                 className="button ghost compact"
                 onClick={() => importInput.current?.click()}
               >
-                <IconSymbol name="upload" />
-                导入
+                <IconSymbol name="upload" />导入
               </button>
               <button
                 className="button ghost compact"
                 disabled={!selected.size}
                 onClick={() =>
-                  void controller.exportCatalog(tab, [...selected])
-                }
+                  void controller.exportCatalog(tab, [...selected])}
               >
-                <IconSymbol name="download" />
-                导出 ({selected.size})
+                <IconSymbol name="download" />导出 ({selected.size})
               </button>
               <button
                 className="button primary compact"
-                onClick={
-                  tab === "skills"
-                    ? controller.createSkill
-                    : controller.createRecipe
-                }
+                onClick={tab === "skills"
+                  ? controller.createSkill
+                  : controller.createRecipe}
               >
                 + 新建{tab === "skills" ? "技能" : "策略"}
               </button>
@@ -621,8 +517,7 @@ export function SettingsPanel({
                       value={data.projectModels[key] || ""}
                       models={data.availableModels[type] || []}
                       onChange={(value) =>
-                        controller.setProjectModel(key, value)
-                      }
+                        controller.setProjectModel(key, value)}
                     />
                   </div>
                 ))}
@@ -643,8 +538,7 @@ export function SettingsPanel({
                       onChange={(e) =>
                         void controller.setPollInterval(
                           Math.max(500, Number(e.target.value) || 1500),
-                        )
-                      }
+                        )}
                     />
                     <span>毫秒</span>
                   </div>
@@ -662,14 +556,11 @@ export function SettingsPanel({
                 <span className="settings-status-pill">全局分层</span>
               </div>
               <div className="canvas-shortcut-settings">
-                {[
-                  ["fitView", "适应视窗", "让全部节点回到可见区域"],
-                  [
-                    "autoLayout",
-                    "自动整理",
-                    "优先整理当前选区，否则整理全部节点",
-                  ],
-                ].map(([key, label, description]) => (
+                {[["fitView", "适应视窗", "让全部节点回到可见区域"], [
+                  "autoLayout",
+                  "自动整理",
+                  "优先整理当前选区，否则整理全部节点",
+                ]].map(([key, label, description]) => (
                   <div key={key} className="canvas-shortcut-setting">
                     <div>
                       <strong>{label}</strong>
@@ -677,7 +568,8 @@ export function SettingsPanel({
                     </div>
                     <button
                       className="shortcut-recorder"
-                      onClick={() => controller.recordShortcut(key)}
+                      onClick={() =>
+                        controller.recordShortcut(key)}
                     >
                       {data.shortcutLabels[key] || "录制快捷键"}
                     </button>
@@ -688,17 +580,6 @@ export function SettingsPanel({
           )}
           {tab === "providers" && (
             <section className="settings-section settings-list-section">
-              <div className="settings-provider-agent-tip">
-                <IconSymbol name="spark" />
-                <div>
-                  <strong>不知道该选哪个协议？</strong>
-                  <span>
-                    直接在 Agent
-                    对话中发送厂商官方文档，并说“帮我接入这个厂商和这些模型”。Agent
-                    会匹配或创建协议并完成校验。
-                  </span>
-                </div>
-              </div>
               {!data.providers.length && (
                 <div className="settings-empty">
                   尚未配置 API 厂商，添加后模型会自动按厂商路由。
@@ -715,79 +596,23 @@ export function SettingsPanel({
                       {item.summaryUrl} · {item.modelCount} 个模型
                     </small>
                   </div>
-                  <span
-                    className="provider-configured"
-                    title="配置已保存在本机，实际连通性会在调用模型时验证"
-                  >
-                    <i />
-                    已配置
+                  <span className="provider-configured" title="配置已保存在本机，实际连通性会在调用模型时验证">
+                    <i />已配置
                   </span>
                   <button
                     className="icon-action"
-                    onClick={() => controller.editProvider(item.id)}
+                    onClick={() =>
+                      controller.editProvider(item.id)}
                   >
                     <IconSymbol name="pencil" />
                   </button>
                   <button
                     className="icon-action danger"
-                    onClick={() => void controller.deleteProvider(item.id)}
+                    onClick={() =>
+                      void controller.deleteProvider(item.id)}
                   >
                     <IconSymbol name="trash" />
                   </button>
-                </div>
-              ))}
-            </section>
-          )}
-          {tab === "protocols" && (
-            <section className="settings-section settings-list-section">
-              <div className="settings-list-summary">
-                <span>
-                  {data.protocols.length} 个协议 ·{" "}
-                  {data.protocols.filter((item) => item.builtIn).length} 个内置
-                </span>
-                <span>API 厂商和模型只引用协议，不再复制请求 JSON</span>
-              </div>
-              {data.protocols.map((item) => (
-                <div
-                  key={`${item.providerLabel}:${item.id}`}
-                  className="settings-protocol-row"
-                >
-                  <div>
-                    <div className="settings-skill-name">
-                      <strong>{item.name}</strong>
-                      {item.builtIn && <span>内置</span>}
-                      <span>{item.typeLabel}</span>
-                    </div>
-                    <p>{item.id}</p>
-                    <small>
-                      {item.providerLabel} · {item.modeCount} 个 mode
-                    </small>
-                  </div>
-                  {item.builtIn ? (
-                    <button
-                      className="button ghost compact"
-                      onClick={() => void controller.copyProtocol(item.id)}
-                    >
-                      复制为自定义
-                    </button>
-                  ) : (
-                    <>
-                      <button
-                        className="icon-action"
-                        title="编辑"
-                        onClick={() => controller.editProtocol(item.id)}
-                      >
-                        <IconSymbol name="pencil" />
-                      </button>
-                      <button
-                        className="icon-action danger"
-                        title="删除"
-                        onClick={() => void controller.deleteProtocol(item.id)}
-                      >
-                        <IconSymbol name="trash" />
-                      </button>
-                    </>
-                  )}
                 </div>
               ))}
             </section>
@@ -806,8 +631,7 @@ export function SettingsPanel({
                       value={data.agentModels[key] || ""}
                       models={data.availableModels[type] || []}
                       onChange={(value) =>
-                        void controller.setAgentModel(key, value)
-                      }
+                        void controller.setAgentModel(key, value)}
                     />
                   </div>
                 ))}
@@ -824,8 +648,7 @@ export function SettingsPanel({
                       type="checkbox"
                       checked={Boolean(data.agentToggles[key])}
                       onChange={(e) =>
-                        void controller.setAgentToggle(key, e.target.checked)
-                      }
+                        void controller.setAgentToggle(key, e.target.checked)}
                     />
                   </label>
                 ))}

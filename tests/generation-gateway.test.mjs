@@ -23,16 +23,8 @@ test('Generation Gateway 在原生层持有凭据、代理、multipart 和取消
   assert.match(rust, /resolved_system_proxy_url/);
   assert.match(rust, /multipart::Form/);
   assert.match(rust, /generation_cancel/);
-  assert.match(rust, /request\s*\.path/);
-  assert.match(rust, /request_url\(&base_url, path/);
   assert.match(rust, /BLOCKED_HEADERS/);
   assert.match(rust, /模型请求必须使用相对 endpoint path/);
-  assert.match(rust, /response_encoding/);
-  assert.match(rust, /body_base64/);
-  assert.match(rust, /BASE64\.encode\(&bytes\)/);
-  const api = read('renderer/src/services/tauriApi.js');
-  assert.match(api, /responseEncoding === 'binary'/);
-  assert.match(api, /__responseBodyBase64/);
 });
 
 test('项目不再分发 WebView HTTP 插件与网络权限', () => {

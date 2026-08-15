@@ -1,7 +1,7 @@
 /**
  * ProviderTransport — 声明式模型协议执行接口。
  *
- * 所有 Provider 共用同一个实现，请求字段全部来自统一 Provider Adapter 声明。
+ * 所有 Provider 共用同一个实现，请求字段全部来自 model-catalog-v2.json 的模式声明。
  * Rust 只提供通用安全 HTTP Transport，不解析业务字段。
  */
 
@@ -85,9 +85,7 @@ export interface GenerationResult {
 }
 
 export interface GeneratedFile {
-  url?: string;
-  b64Json?: string;
-  name?: string;
+  url: string;
   mimeType?: string;
   width?: number;
   height?: number;
@@ -101,20 +99,13 @@ export interface CompiledProviderRequest {
   providerId: string;
   body?: unknown;
   multipart?: boolean;
-  inputResources?: Array<{
-    filePath?: string;
-    url?: string;
-    fileName: string;
-    fieldName: string;
-    mimeType?: string;
-  }>;
+  inputImages?: Array<{ filePath: string; fileName: string; fieldName: string; mimeType?: string }>;
   maskResource?: { filePath: string; fileName: string; mimeType?: string } | null;
   maskField?: string;
   signal?: AbortSignal;
   timeoutMs?: number;
   headers?: Record<string, string>;
   auth?: ModelRuntimeContract['auth'];
-  responseEncoding?: 'json' | 'binary';
   contract?: ModelRuntimeContract;
   protocolTemplate?: unknown;
   protocolVariables?: Record<string, unknown>;

@@ -133,12 +133,6 @@ export function protocolKlingContents({ prompt = '', imageUrls = [], imageType =
 }
 
 export function normalizeProtocolResponse(data, protocol = {}) {
-  const configuredMimeType = String(protocol.resultMimeType || '').trim();
-  const configuredExtension = String(protocol.resultFileExtension || '').trim().replace(/^\./, '');
-  const fileMetadata = {
-    ...(configuredMimeType ? { mimeType: configuredMimeType } : {}),
-    ...(configuredExtension ? { name: `result.${configuredExtension}` } : {}),
-  };
   const urls = protocol.resultUrlPath
     ? readProtocolPath(data, protocol.resultUrlPath).filter(value => typeof value === 'string' && /^https?:\/\//i.test(value))
     : [];
@@ -146,22 +140,6 @@ export function normalizeProtocolResponse(data, protocol = {}) {
   const base64Values = protocol.resultBase64Path
     ? readProtocolPath(data, protocol.resultBase64Path).filter(value => typeof value === 'string' && value.trim())
     : [];
-  const hexValues = protocol.resultHexPath
-    ? readProtocolPath(data, protocol.resultHexPath)
-      .filter(value => typeof value === 'string' && value.trim())
-      .map(protocolHexToBase64)
-    : [];
-  const responseBodyBase64 = protocol.resultBody?.encoding === 'binary'
-    && typeof data?.__responseBodyBase64 === 'string'
-    && data.__responseBodyBase64.trim()
-    ? data.__responseBodyBase64.trim()
-    : '';
-  const responseMimeType = String(data?.__responseContentType || '').split(';')[0].trim();
-  const responseBodyFile = responseBodyBase64 ? {
-    b64Json: responseBodyBase64,
-    mimeType: protocol.resultBody.mimeType || responseMimeType || 'application/octet-stream',
-    name: `result.${String(protocol.resultBody.fileExtension || 'bin').replace(/^\./, '')}`,
-  } : null;
   const downloadMetadata = protocol.resultDownloadAuth ? {
     downloadAuth: {
       providerId: protocol.provider,
@@ -169,81 +147,15 @@ export function normalizeProtocolResponse(data, protocol = {}) {
       auth: protocol.auth,
     },
   } : undefined;
-  const inlineResultPaths = [protocol.resultBase64Path, protocol.resultHexPath].filter(Boolean);
-  if (responseBodyBase64) inlineResultPaths.push('__responseBodyBase64');
   return {
-    ...(urls.length || base64Values.length || hexValues.length || responseBodyFile ? {
+    ...(urls.length || base64Values.length ? {
       files: [
-        ...urls.map(url => ({ url, ...fileMetadata, ...(downloadMetadata ? { metadata: downloadMetadata } : {}) })),
-        ...base64Values.map(b64Json => ({ b64Json, ...fileMetadata })),
-        ...hexValues.map(b64Json => ({ b64Json, ...fileMetadata })),
-        ...(responseBodyFile ? [responseBodyFile] : []),
+        ...urls.map(url => ({ url, ...(downloadMetadata ? { metadata: downloadMetadata } : {}) })),
+        ...base64Values.map(b64Json => ({ b64Json })),
       ],
       ...(urls[0] ? { url: urls[0] } : {}),
     } : {}),
     ...(typeof textValue === 'string' && textValue.trim() ? { text: textValue.trim() } : {}),
-    raw: redactProtocolResultValues(data, inlineResultPaths),
-  };
-}
-
-function redactProtocolResultValues(data, paths) {
-  let result = data;
-  for (const path of paths) {
-    result = redactProtocolPath(result, String(path).split('.'), 0);
-  }
-  return result;
-}
-
-function redactProtocolPath(value, segments, index) {
-  if (index >= segments.length) return '[媒体数据已提取]';
-  if (value === null || value === undefined) return value;
-  const segment = segments[index];
-  if (Array.isArray(value)) {
-    if (segment === '*') return value.map(item => redactProtocolPath(item, segments, index + 1));
-    const position = Number(segment);
-    if (!Number.isInteger(position) || position < 0 || position >= value.length) return value;
-    const copy = [...value];
-    copy[position] = redactProtocolPath(copy[position], segments, index + 1);
-    return copy;
-  }
-  if (typeof value !== 'object' || !Object.hasOwn(value, segment)) return value;
-  return {
-    ...value,
-    [segment]: redactProtocolPath(value[segment], segments, index + 1),
-  };
-}
-
-export function protocolHexToBase64(value) {
-  const hex = String(value || '').replace(/\s+/g, '');
-  if (!hex || hex.length % 2 !== 0 || !/^[0-9a-f]+$/i.test(hex)) {
-    throw new Error('模型结果中的 Hex 媒体数据格式无效');
-  }
-  let binary = '';
-  for (let offset = 0; offset < hex.length; offset += 2) {
-    binary += String.fromCharCode(Number.parseInt(hex.slice(offset, offset + 2), 16));
-  }
-  return btoa(binary);
-}
-
-export function protocolResultEndpointFile(protocol = {}, remoteTaskId = '', raw = {}) {
-  const endpoint = protocol.resultEndpoint;
-  if (!endpoint?.path) return null;
-  const encodedTaskId = String(remoteTaskId).split('/').map(encodeURIComponent).join('/');
-  return {
-    files: [{
-      name: `result.${endpoint.fileExtension || 'bin'}`,
-      mimeType: endpoint.mimeType || 'application/octet-stream',
-      metadata: {
-        downloadAuth: {
-          providerId: protocol.provider,
-          endpointPath: endpoint.path.replace('{taskId}', encodedTaskId),
-          endpointScope: endpoint.scope || 'root',
-          endpointMethod: endpoint.method || 'GET',
-          headers: protocol.headers,
-          auth: protocol.auth,
-        },
-      },
-    }],
-    raw,
+    raw: data,
   };
 }

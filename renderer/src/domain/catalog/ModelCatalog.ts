@@ -1,16 +1,11 @@
 /**
- * ModelCatalog — Provider Adapter / Model Binding 目录编译与查询。
+ * ModelCatalog — 模型目录 v2 解析与查询。
  *
- * 框架无关的纯 TypeScript 模块。provider-catalog.json 是唯一模型能力来源。
+ * 框架无关的纯 TypeScript 模块。model-catalog-v2.json 是唯一模型能力来源。
  * 不依赖 Vue、Vue Flow 或任何 Store。
  */
 
-import providerCatalog from '../../config/provider-catalog.json';
-import {
-  compileProviderModels,
-  type ProviderModelBinding,
-  type ProviderProtocolAdapter,
-} from '../provider/ProviderAdapterContract';
+import modelCatalogV2 from '../../config/model-catalog-v2.json';
 import {
   GENERATION_INPUT_MODE_LABELS,
   slotsForInputMode,
@@ -26,17 +21,6 @@ export interface CatalogEndpoint {
   scope: string;
 }
 
-export interface CatalogResultEndpoint extends CatalogEndpoint {
-  mimeType?: string;
-  fileExtension?: string;
-}
-
-export interface CatalogResultBody {
-  encoding: 'binary';
-  mimeType: string;
-  fileExtension: string;
-}
-
 export interface CatalogParam {
   key: string;
   label: string;
@@ -47,15 +31,7 @@ export interface CatalogParam {
   options?: unknown[];
   conflictsWith?: string[];
   visibleWhen?: Record<string, unknown>;
-  presentation?: string | {
-    control: 'segmented' | 'select' | 'ratio' | 'resolution' | 'slider' | 'number' | 'toggle' | 'text' | 'hidden';
-    group?: string;
-    summary?: boolean;
-    unit?: string;
-    min?: number;
-    max?: number;
-    step?: number;
-  };
+  presentation?: string;
   optionLabels?: Record<string, string>;
 }
 
@@ -94,7 +70,7 @@ export interface CatalogMode {
   endpoint: CatalogEndpoint;
   taskEndpoint?: CatalogEndpoint;
   isAsync?: boolean;
-  inputFormat?: 'json' | 'multipart';
+  inputFormat?: string;
   inputConstraints: CatalogInputConstraints;
   outputConstraints: CatalogOutputConstraints;
   requestFields?: Record<string, string>;
@@ -111,11 +87,6 @@ export interface CatalogMode {
   resultTextPath?: string;
   resultUrlPath?: string;
   resultBase64Path?: string;
-  resultHexPath?: string;
-  resultMimeType?: string;
-  resultFileExtension?: string;
-  resultBody?: CatalogResultBody;
-  resultEndpoint?: CatalogResultEndpoint;
   resultDownloadAuth?: boolean;
   capabilities?: string[];
   params: CatalogParam[];
@@ -135,8 +106,6 @@ export interface CatalogMode {
 
 export interface CatalogModel {
   id: string;
-  /** 发送给供应商 API 的真实模型 ID；省略时与目录 ID 相同。 */
-  requestModelId?: string;
   name: string;
   provider: string;
   type: string;
@@ -149,21 +118,10 @@ export interface CatalogModel {
   overridesBuiltIn?: boolean;
 }
 
-export interface BuiltInProviderPackage {
-  adapters: ProviderProtocolAdapter[];
-  bindings: ProviderModelBinding[];
-}
-
-export interface BuiltInAdapterTemplate {
-  providerId: string;
-  adapter: ProviderProtocolAdapter;
-}
-
 export interface ModelRuntimeContract {
   catalogVersion: number;
   nodeType: string;
   modelId: string;
-  requestModelId: string;
   modeId: string;
   inputMode: GenerationInputMode | null;
   inputSlots: string[];
@@ -171,7 +129,7 @@ export interface ModelRuntimeContract {
   endpoint: CatalogEndpoint;
   taskEndpoint: CatalogEndpoint | null;
   isAsync: boolean;
-  inputFormat: 'json' | 'multipart';
+  inputFormat: string;
   requestFields: Record<string, string>;
   inputConstraints: CatalogInputConstraints;
   outputConstraints: CatalogOutputConstraints;
@@ -209,11 +167,6 @@ export interface ModelRuntimeContract {
   resultTextPath?: string;
   resultUrlPath?: string;
   resultBase64Path?: string;
-  resultHexPath?: string;
-  resultMimeType?: string;
-  resultFileExtension?: string;
-  resultBody?: CatalogResultBody;
-  resultEndpoint?: CatalogResultEndpoint;
   resultDownloadAuth?: boolean;
 }
 
@@ -227,7 +180,7 @@ export interface ModelSchema {
     default: unknown;
     options: unknown[];
     visibleWhen?: Record<string, unknown>;
-    presentation?: CatalogParam['presentation'];
+    presentation?: string;
     optionLabels?: Record<string, string>;
   }>;
 }
@@ -257,40 +210,12 @@ const defaultCap = {
 class ModelCatalog {
   models: CatalogModel[];
   private readonly builtInModels: CatalogModel[];
-  private readonly builtInProviderPackages: Map<string, BuiltInProviderPackage>;
   private modelMap: Map<string, CatalogModel>;
 
   constructor() {
-    const raw = providerCatalog as unknown as {
-      schema: string;
-      version: number;
-      entries: Array<(ProviderProtocolAdapter | ProviderModelBinding) & { provider: string }>;
-    };
-    if (raw.schema !== 'shotloom.provider-catalog' || raw.version !== 1 || !Array.isArray(raw.entries)) {
-      throw new Error('provider-catalog.json must use Shotloom Provider Adapter schema v1');
-    }
-    const providers = [...new Set(raw.entries.map((entry) => entry.provider).filter(Boolean))];
-    this.builtInProviderPackages = new Map(providers.map((provider) => {
-      const entries = raw.entries.filter((entry) => entry.provider === provider);
-      const adapters = entries.filter((entry) => entry.kind === 'adapter').map((entry) => {
-        const { provider: _provider, ...adapter } = entry;
-        return adapter as ProviderProtocolAdapter;
-      });
-      const bindings = entries.filter((entry) => entry.kind === 'model').map((entry) => {
-        const { provider: _provider, ...binding } = entry;
-        return binding as ProviderModelBinding;
-      });
-      return [provider, { adapters, bindings }];
-    }));
-    this.builtInModels = providers.flatMap((provider) => {
-      const providerPackage = this.builtInProviderPackages.get(provider)!;
-      return compileProviderModels(
-        provider,
-        providerPackage.adapters,
-        providerPackage.bindings,
-        { namespaceModelIds: false },
-      );
-    }).filter((model) => model.enabled !== false);
+    const raw = modelCatalogV2 as { version: number; models: CatalogModel[] };
+    if (raw.version !== 2) throw new Error('model-catalog-v2.json version must be 2');
+    this.builtInModels = (raw.models || []).filter((m) => m.enabled !== false);
     this.models = [...this.builtInModels];
 
     // Validate
@@ -307,9 +232,6 @@ class ModelCatalog {
         }
         if (mode.isAsync === true && !mode.taskEndpoint?.path) {
           throw new Error(`${model.id}/${mode.id}: async mode requires taskEndpoint`);
-        }
-        if (mode.inputFormat && mode.inputFormat !== 'json' && mode.inputFormat !== 'multipart') {
-          throw new Error(`${model.id}/${mode.id}: inputFormat must be json or multipart`);
         }
         if (mode.inputMode && !Object.hasOwn(GENERATION_INPUT_MODE_LABELS, mode.inputMode)) {
           throw new Error(`${model.id}/${mode.id}: unknown inputMode ${mode.inputMode}`);
@@ -351,7 +273,11 @@ class ModelCatalog {
       };
       const builtIn = builtInById.get(model.id);
       if (builtIn) {
-        if (model.overridesBuiltIn === true) overrides.set(model.id, normalized);
+        // A cross-provider duplicate is necessarily a routing override: keeping
+        // the built-in provider would make the saved external model unreachable.
+        if (model.overridesBuiltIn === true || model.provider !== builtIn.provider) {
+          overrides.set(model.id, normalized);
+        }
         continue;
       }
       external.push(normalized);
@@ -365,17 +291,6 @@ class ModelCatalog {
 
   getBuiltInModels(providerId = ''): CatalogModel[] {
     return this.builtInModels.filter((model) => !providerId || model.provider === providerId);
-  }
-
-  getBuiltInProviderPackage(providerId: string): BuiltInProviderPackage {
-    const providerPackage = this.builtInProviderPackages.get(providerId);
-    return providerPackage ? structuredClone(providerPackage) : { adapters: [], bindings: [] };
-  }
-
-  getBuiltInAdapterTemplates(): BuiltInAdapterTemplate[] {
-    return [...this.builtInProviderPackages.entries()].flatMap(([providerId, providerPackage]) => (
-      providerPackage.adapters.map((adapter) => ({ providerId, adapter: structuredClone(adapter) }))
-    ));
   }
 
   // ── Queries ────────────────────────────────────────────────────────────────
@@ -501,7 +416,7 @@ class ModelCatalog {
     const allowedAud = new Set(aud.roles || []);
     const supportsImageRole = (role: string) => role === 'image'
       ? (img.max || 0) > 0
-      : (img.max || 0) > 0 && (!allowedImg.size || allowedImg.has(role));
+      : allowedImg.has(role);
     // Mode selection answers "which protocol can consume this input kind?".
     // Cardinality is checked later by generationUpstreamReadiness so an excess
     // input produces a useful limit error instead of the misleading "no mode".
@@ -534,7 +449,6 @@ class ModelCatalog {
       catalogVersion: 2,
       nodeType: type,
       modelId: model.id,
-      requestModelId: model.requestModelId || model.id,
       modeId: mode.id,
       inputMode: this.semanticInputMode(mode, model.type),
       inputSlots: [...(mode.inputSlots || (this.semanticInputMode(mode, model.type) ? slotsForInputMode(this.semanticInputMode(mode, model.type)!) : []))],
@@ -542,7 +456,7 @@ class ModelCatalog {
       endpoint: { ...mode.endpoint },
       taskEndpoint: mode.taskEndpoint ? { ...mode.taskEndpoint } : null,
       isAsync: mode.isAsync === true,
-      inputFormat: mode.inputFormat || 'json',
+      inputFormat: mode.inputFormat || 'fields',
       requestFields: { ...mode.requestFields },
       outputConstraints: structuredClone(mode.outputConstraints || {}),
       ...cap,
@@ -561,10 +475,7 @@ class ModelCatalog {
       maxInputImages: input.images?.max || 0,
       inputImageRoles: [...(input.images?.roles || [])],
       imageRole: (input.images?.roles || []).join(',') || 'none',
-      supportsReferenceImages: (input.images?.max || 0) > 0 && (
-        !(input.images?.roles || []).length
-        || (input.images?.roles || []).some((r: string) => r === 'referenceImage')
-      ),
+      supportsReferenceImages: (input.images?.roles || []).some((r: string) => r === 'referenceImage'),
       supportsInputVideo: (input.videos?.max || 0) > 0,
       minInputVideos: input.videos?.min || 0,
       maxInputVideos: input.videos?.max || 0,
@@ -592,11 +503,6 @@ class ModelCatalog {
       resultTextPath: mode.resultTextPath,
       resultUrlPath: mode.resultUrlPath,
       resultBase64Path: mode.resultBase64Path,
-      resultHexPath: mode.resultHexPath,
-      resultMimeType: mode.resultMimeType,
-      resultFileExtension: mode.resultFileExtension,
-      resultBody: mode.resultBody ? { ...mode.resultBody } : undefined,
-      resultEndpoint: mode.resultEndpoint ? { ...mode.resultEndpoint } : undefined,
       resultDownloadAuth: mode.resultDownloadAuth,
     };
   }
@@ -697,8 +603,6 @@ class ModelCatalog {
 export const modelCatalog = new ModelCatalog();
 export const setExternalCatalogModels = (models: CatalogModel[]) => modelCatalog.setExternalModels(models);
 export const getBuiltInCatalogModels = (providerId = '') => modelCatalog.getBuiltInModels(providerId);
-export const getBuiltInProviderPackage = (providerId: string) => modelCatalog.getBuiltInProviderPackage(providerId);
-export const getBuiltInAdapterTemplates = () => modelCatalog.getBuiltInAdapterTemplates();
 
 // Re-export query functions for drop-in compatibility
 export const getModelModeConfig = (modelId: string, modeId?: string) => modelCatalog.getModeConfig(modelId, modeId);

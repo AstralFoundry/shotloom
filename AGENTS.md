@@ -86,7 +86,7 @@ Shotloom 的 Agent 以模型为决策主体。不要在应用代码中用关键�
 - 节点顶层 `inputMode` 保存用户/Agent 选择的业务模式：`reference`、`firstFrame`、`firstLastFrame` 或 `videoExtension`。
 - 边的 `data.inputRole` 只保存媒体类型：`textContext`、`referenceImage`、`inputVideo`、`referenceAudio`。
 - 边的 `data.inputSlot` 保存业务位置：`reference`、`firstFrame`、`lastFrame`、`inputVideo`、`referenceAudio`。首帧和尾帧是槽位，不得新增为媒体角色。
-- `provider-catalog.json` 是内置模型输入能力的唯一来源，并与自定义厂商统一使用 Provider Adapter / Model Binding 契约。每个有特殊输入语义的供应商 mode 应显式声明 `inputMode` 和可选 `inputSlots`；同一供应商协议支持多种画布语义时使用 `inputVariants` 复用协议，并为每个变体覆盖槽位、输入约束和请求角色。UI、Agent 和请求编译器只能消费编译后的目录结果，不能各自维护供应商判断。
+- `model-catalog-v2.json` 是模型输入能力的唯一来源。每个有特殊输入语义的供应商 mode 应显式声明 `inputMode` 和可选 `inputSlots`；同一供应商协议支持多种画布语义时使用 `inputVariants` 复用协议，并为每个变体覆盖槽位、输入约束和请求角色。UI、Agent 和请求编译器只能消费目录结果，不能各自维护供应商判断。
 - 节点模式选择器只展示当前模型真实支持的模式。切换模型或模式时必须同步校正输入边；保留文本上下文，重排仍合法的媒体槽位，移除超出新模式能力的媒体边。
 - 首尾帧必须分别写入 `firstFrame` 与 `lastFrame`，不得使用数组第一个/第二个作为隐式协议。普通参考图统一写 `reference`，视频与参考音频分别写 `inputVideo`、`referenceAudio`。
 - Agent 的模型目录、画布快照、`create_gen_node`、`update_gen_config`、`inputLinks` 和 `connect_nodes` 必须能读写同一套 `inputMode`/`slot` 契约；用户操作和 Agent 操作不得生成不同的数据结构。
