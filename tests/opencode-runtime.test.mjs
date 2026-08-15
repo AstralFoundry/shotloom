@@ -38,6 +38,16 @@ test('Tauri 随应用分发 OpenCode、FFmpeg sidecar 和 MCP bridge', () => {
   assert.match(read('src-tauri/src/lib.rs'), /RunEvent::Exit[\s\S]*state\.shutdown/);
 });
 
+test('Runtime 不会把历史 assistant 回复冒充为本轮结果', () => {
+  const runtime = read('renderer/src/agent/runtime/OpenCodeRuntime.ts');
+  assert.match(runtime, /response\?\.info\?\.role === 'assistant'/);
+  assert.match(runtime, /createdAt >= startedAt/);
+  assert.match(runtime, /返回了历史回复，已切换到干净 Session 重试/);
+  assert.match(runtime, /没有生成与本轮用户消息对应的新回复/);
+  assert.match(runtime, /response\?\.info\?\.finish === 'length'/);
+  assert.match(runtime, /达到本轮输出上限，尚未完成工具调用/);
+});
+
 test('所有桌面构建入口都在 Cargo 或 Tauri 构建前准备平台 sidecar', () => {
   const pkg = JSON.parse(read('package.json'));
   assert.equal(pkg.scripts.predev, 'npm run prepare:sidecars');

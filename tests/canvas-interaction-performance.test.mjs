@@ -111,6 +111,7 @@ const migrationStyles = readFileSync(
   'utf8',
 );
 test('React Flow 保持节点挂载并在拖动结束后合并持久化', () => {
+  assert.match(canvas, /proOptions=\{\{ hideAttribution: true \}\}/);
   assert.match(canvas, /onlyRenderVisibleElements=\{false\}/);
   assert.doesNotMatch(canvas, /NODE_VIRTUALIZATION_THRESHOLD/);
   assert.doesNotMatch(canvas, /draggingIds|pendingPositionCommits|dragEnded/);
@@ -484,8 +485,11 @@ test('并发任务轮询只在状态变化时触发合并持久化', () => {
   assert.match(update, /touchProject\(\{ sessionDelay: 500, coalesceSession: true \}\)/);
   assert.match(project, /if \(sessionPersistTimer && coalesce\) return/);
 });
-test('图片节点按最终屏幕尺寸读取缓存预览且整个节点可选择', () => {
-  assert.match(node, /canvasPreviewMaxSize\(semanticZoom\)/);
+test('图片预览在缩放稳定后升级清晰度且视频不订阅预览尺寸', () => {
+  assert.match(canvas, /MEDIA_PREVIEW_ZOOM_SETTLE_MS = 220/);
+  assert.match(canvas, /setTimeout\(\(\) => \{[\s\S]*?setPreviewZoom\(semanticZoom\)[\s\S]*?MEDIA_PREVIEW_ZOOM_SETTLE_MS/);
+  assert.match(canvas, /toFlowNodes\(visible, edges, semanticZoom, previewZoom, flowNodeCache\.current\)/);
+  assert.match(node, /kind === "image" \? canvasPreviewMaxSize\(previewZoom\) : undefined/);
   assert.match(node, /350 \* Math\.max\(1, semanticZoom\) \* dpr[\s\S]*?return 2048[\s\S]*?return 1536[\s\S]*?return 960/);
   assert.match(mediaCache, /readImagePreview\(input\.path, input\.maxSize \|\| 960\)/);
   assert.match(fileCommands, /jpeg-preview-v3/);

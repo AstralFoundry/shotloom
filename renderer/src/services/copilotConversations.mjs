@@ -93,6 +93,7 @@ export function clearActiveCopilotConversation(project) {
   const active = getActiveCopilotConversation(project);
   active.messages = [];
   delete active.agentMessages;
+  delete active.openCodeSessionId;
   active.contextUsage = null;
   active.updatedAt = new Date().toISOString();
   return active;

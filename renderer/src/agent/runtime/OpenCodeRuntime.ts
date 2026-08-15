@@ -585,16 +585,50 @@ export async function runOpenCodeAgent(
       planSummary ? `Existing Production Plan candidate; continue it only if the newest request is genuinely related: ${JSON.stringify(planSummary)}` : '',
     ].filter(Boolean).join('\n');
     const text = [message, contextSuffix].filter(Boolean).join('\n\n');
-    const response = responseData<any>(await client.session.prompt({
-      path: { id: sessionId }, query: { directory },
-      body: {
-        agent: 'shotloom',
-        model: { providerID: 'shotloom', modelID: model },
-        system: systemPrompt(),
-        parts: await promptParts(text, payload.attachments || []),
-      },
-      signal: controller.signal,
-    }));
+    const parts = await promptParts(text, payload.attachments || []);
+    const promptSession = async () => {
+      const startedAt = Date.now();
+      const response = responseData<any>(await client.session.prompt({
+        path: { id: sessionId }, query: { directory },
+        body: {
+          agent: 'shotloom',
+          model: { providerID: 'shotloom', modelID: model },
+          system: systemPrompt(),
+          parts,
+        },
+        signal: controller.signal,
+      }));
+      const createdAt = Number(response?.info?.time?.created || 0);
+      const isCurrentResponse = response?.info?.role === 'assistant' && createdAt >= startedAt;
+      return { response, isCurrentResponse };
+    };
+    let prompted = await promptSession();
+    if (!prompted.isCurrentResponse) {
+      const staleSessionId = sessionId;
+      const replacement = responseData<any>(await client.session.create({
+        body: { title: message.slice(0, 80) || 'Shotloom Agent' },
+        query: { directory },
+      }));
+      if (!replacement?.id) throw new Error('OpenCode 返回了历史回复，且无法创建恢复 Session');
+      sessionId = replacement.id;
+      const conversation = conversationRecord(conversationId);
+      if (conversation) conversation.openCodeSessionId = sessionId;
+      activeRuns.set(requestId, { controller, client, sessionId });
+      assistantMessageIds.clear();
+      streamedLengths.clear();
+      parentSessionError = '';
+      emit({
+        type: 'runtime_warning',
+        error: `Runtime Session ${staleSessionId} 返回了历史回复，已切换到干净 Session 重试`,
+        createdAt: new Date().toISOString(),
+      });
+      prompted = await promptSession();
+    }
+    if (!prompted.isCurrentResponse) throw new Error('OpenCode 没有生成与本轮用户消息对应的新回复');
+    const response = prompted.response;
+    if (response?.info?.finish === 'length') {
+      throw new Error('Agent 达到本轮输出上限，尚未完成工具调用');
+    }
     const responseError = runtimeErrorText(response?.info?.error || response?.error);
     if (responseError || parentSessionError) throw new Error(responseError || parentSessionError);
     let outcome = state.get('verifiedOutcome') as JsonObject | undefined;

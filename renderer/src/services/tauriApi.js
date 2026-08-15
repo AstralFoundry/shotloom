@@ -278,7 +278,7 @@ function generationResource(resource = {}, fieldName = 'image', fallbackName = '
 
 function generationGatewayRequest(path, body, {
   method = 'POST', scope = 'v1', multipart = false, timeoutMs = 120000,
-  providerId: requestedProviderId = '', headers: requestedHeaders = {}, auth,
+  providerId: requestedProviderId = '', headers: requestedHeaders = {}, auth, responseEncoding = 'json',
 } = {}) {
   const providerId = requestedProviderId || body?.__providerId || '';
   const headers = Object.entries(requestedHeaders || {})
@@ -307,7 +307,7 @@ function generationGatewayRequest(path, body, {
   return {
     requestId: generationRequestId(), providerId, path, scope, method,
     headers, auth: auth || { type: 'bearer' }, body: requestBody,
-    formFields, resources, timeoutMs: Math.max(1000, Number(timeoutMs) || 120000),
+    formFields, resources, responseEncoding, timeoutMs: Math.max(1000, Number(timeoutMs) || 120000),
   };
 }
 
@@ -336,15 +336,24 @@ async function invokeGeneration(commandName, request, signal) {
 
 async function modelRequest(path, body, {
   method = 'POST', scope = 'v1', multipart = false, signal, timeoutMs = 120000, providerId: requestedProviderId = '',
-  headers: requestedHeaders = {}, auth: requestedAuth,
+  headers: requestedHeaders = {}, auth: requestedAuth, responseEncoding = 'json',
 } = {}) {
   const request = generationGatewayRequest(path, body, {
     method, scope, multipart, timeoutMs, providerId: requestedProviderId,
-    headers: { accept: 'application/json', ...requestedHeaders }, auth: requestedAuth,
+    headers: { accept: responseEncoding === 'binary' ? '*/*' : 'application/json', ...requestedHeaders },
+    auth: requestedAuth, responseEncoding,
   });
   const response = await invokeGeneration('generation_request', request, signal);
-  const data = parseModelResponseText(response.body);
-  if (response.status < 200 || response.status >= 300) throw new Error(modelResponseError(data, response.status));
+  if (response.status < 200 || response.status >= 300) {
+    throw new Error(modelResponseError(parseModelResponseText(response.body), response.status));
+  }
+  const data = responseEncoding === 'binary'
+    ? {
+      __responseBodyBase64: response.bodyBase64 || '',
+      __responseContentType: response.contentType || '',
+    }
+    : parseModelResponseText(response.body);
+  if (responseEncoding === 'binary' && !data.__responseBodyBase64) throw new Error('模型服务返回了空的二进制响应');
   if (!data) throw new Error('模型服务返回了无法识别的响应');
   return data;
 }
@@ -544,10 +553,15 @@ export function createTauriApi(browserFallback) {
         return command('file:write', await uniqueProjectAssetPath(preferredName), payload, false);
       },
       downloadUrlToProject: async (url, preferredName, downloadAuth = null) => {
-        const target = await uniqueProjectAssetPath(preferredName || basename(new URL(url).pathname) || 'download.bin');
+        const remoteName = url ? basename(new URL(url).pathname) : '';
+        const target = await uniqueProjectAssetPath(preferredName || remoteName || 'download.bin');
         return invokeGeneration('generation_download', {
           requestId: generationRequestId(), providerId: downloadAuth?.providerId || '',
-          url, target, headers: Object.entries(downloadAuth?.headers || {}),
+          url: url || undefined,
+          path: downloadAuth?.endpointPath || undefined,
+          scope: downloadAuth?.endpointScope || 'root',
+          method: downloadAuth?.endpointMethod || 'GET',
+          target, headers: Object.entries(downloadAuth?.headers || {}),
           auth: downloadAuth?.auth || { type: 'none' }, timeoutMs: 900000,
         });
       },
@@ -671,10 +685,10 @@ export function createTauriApi(browserFallback) {
       setTokenGroup: (id) => command('settings:set-token-group', id),
     },
     model: {
-      chatCompletion: (body) => modelRequest(body.__endpointPath || '/chat/completions', body, { method: body.__endpointMethod || 'POST', scope: body.__endpointScope || 'v1', signal: body.__signal, timeoutMs: body.__timeoutMs, headers: body.__headers, auth: body.__auth }),
+      chatCompletion: (body) => modelRequest(body.__endpointPath || '/chat/completions', body, { method: body.__endpointMethod || 'POST', scope: body.__endpointScope || 'v1', signal: body.__signal, timeoutMs: body.__timeoutMs, headers: body.__headers, auth: body.__auth, responseEncoding: body.__responseEncoding || 'json' }),
       chatCompletionStream: (body, onTextDelta) => modelStreamRequest(body.__endpointPath || '/chat/completions', body, onTextDelta, { method: body.__endpointMethod || 'POST', scope: body.__endpointScope || 'v1', signal: body.__signal, timeoutMs: body.__timeoutMs, headers: body.__headers, auth: body.__auth }),
-      imageGeneration: (body) => modelRequest(body.__endpointPath || '/images/generations', body, { method: body.__endpointMethod || 'POST', scope: body.__endpointScope || 'v1', multipart: Boolean(body.__multipart), signal: body.__signal, timeoutMs: body.__timeoutMs, headers: body.__headers, auth: body.__auth }),
-      videoGeneration: (body) => modelRequest(body.__endpointPath || '/contents/generations/tasks', body, { method: body.__endpointMethod || 'POST', scope: body.__endpointScope || 'root', signal: body.__signal, timeoutMs: body.__timeoutMs, headers: body.__headers, auth: body.__auth }),
+      imageGeneration: (body) => modelRequest(body.__endpointPath || '/images/generations', body, { method: body.__endpointMethod || 'POST', scope: body.__endpointScope || 'v1', multipart: Boolean(body.__multipart), signal: body.__signal, timeoutMs: body.__timeoutMs, headers: body.__headers, auth: body.__auth, responseEncoding: body.__responseEncoding || 'json' }),
+      videoGeneration: (body) => modelRequest(body.__endpointPath || '/contents/generations/tasks', body, { method: body.__endpointMethod || 'POST', scope: body.__endpointScope || 'root', signal: body.__signal, timeoutMs: body.__timeoutMs, headers: body.__headers, auth: body.__auth, responseEncoding: body.__responseEncoding || 'json' }),
       videoTask: (request) => {
         const value = typeof request === 'object' ? request : { taskId: request };
         return modelRequest(String(value.endpointPath || '/contents/generations/tasks/{taskId}').replace('{taskId}', encodeURIComponent(value.taskId)), null, { method: value.endpointMethod || 'GET', scope: value.endpointScope || 'root', signal: value.signal, timeoutMs: value.timeoutMs || 60000, providerId: value.providerId || '', headers: value.headers, auth: value.auth });

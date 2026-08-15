@@ -106,6 +106,7 @@ export interface CompiledProviderRequest {
   timeoutMs?: number;
   headers?: Record<string, string>;
   auth?: ModelRuntimeContract['auth'];
+  responseEncoding?: 'json' | 'binary';
   contract?: ModelRuntimeContract;
   protocolTemplate?: unknown;
   protocolVariables?: Record<string, unknown>;

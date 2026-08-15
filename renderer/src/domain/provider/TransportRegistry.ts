@@ -11,7 +11,7 @@ import type {
   CompiledProviderRequest, CompileContext, ResourceRef,
 } from './ProviderTransport';
 import type { ModelRuntimeContract } from '../catalog/ModelCatalog';
-import { firstProtocolValue, normalizeProtocolResponse, protocolInlineImage, protocolKlingContents, protocolMediaContent, protocolMessageVariables, renderProtocolTemplate } from '@/utils/modelProtocol.mjs';
+import { firstProtocolValue, normalizeProtocolResponse, protocolInlineImage, protocolKlingContents, protocolMediaContent, protocolMessageVariables, protocolResultEndpointFile, renderProtocolTemplate } from '@/utils/modelProtocol.mjs';
 import { multipartArrayFieldName } from '@/utils/modelRequestBody.mjs';
 import { providerRequestTimeoutMs } from '@/utils/providerRequestTimeout.mjs';
 
@@ -64,6 +64,7 @@ class DeclarativeProviderTransport implements ProviderTransport {
       maskField: contract.requestFields.mask || 'mask',
       headers: contract.headers,
       auth: contract.auth,
+      responseEncoding: contract.resultBody?.encoding === 'binary' ? 'binary' : 'json',
       contract,
       signal: context.signal,
       timeoutMs: providerRequestTimeoutMs(context.taskType, context.timeoutMs),
@@ -141,6 +142,7 @@ class DeclarativeProviderTransport implements ProviderTransport {
       __providerId: request.providerId,
       __endpointMethod: request.endpointMethod, __endpointPath: request.endpointPath,
       __endpointScope: request.endpointScope, __headers: request.headers, __auth: request.auth,
+      __responseEncoding: request.responseEncoding,
     };
     // Route by endpoint path pattern
     if (request.endpointPath.includes('/images/')) {
@@ -190,7 +192,9 @@ class DeclarativeProviderTransport implements ProviderTransport {
     return {
       status,
       progress: status === 'completed' ? 100 : Number(progressValue) || 0,
-      result: this.protocolResult(data, contract),
+      result: status === 'completed'
+        ? this.completedProtocolResult(data, contract, task.remoteTaskId)
+        : { raw: data },
       error: pickStr(errorValue),
     };
   }
@@ -200,7 +204,7 @@ class DeclarativeProviderTransport implements ProviderTransport {
     if (!contract) throw new Error('声明式请求缺少运行时模型契约');
     const tid = contract.isAsync ? pickStr(firstProtocolValue(data, contract.taskIdPath || '')) : '';
     if (contract.isAsync && !tid) throw new Error(`${contract.modelId}/${contract.modeId} 的提交响应缺少任务 ID 路径 ${contract.taskIdPath}`);
-    const result = this.protocolResult(data, contract);
+    const result = contract.isAsync ? { raw: data } : this.protocolResult(data, contract);
     return {
       remoteTaskId: tid,
       status: tid ? 'queued' : 'completed',
@@ -212,8 +216,19 @@ class DeclarativeProviderTransport implements ProviderTransport {
   }
 
   private protocolResult(data: Record<string, any>, contract: ModelRuntimeContract): Record<string, unknown> {
-    if (!contract.resultUrlPath && !contract.resultTextPath && !contract.resultBase64Path) throw new Error(`${contract.modelId}/${contract.modeId} 缺少结果路径`);
+    if (!contract.resultUrlPath && !contract.resultTextPath && !contract.resultBase64Path && !contract.resultHexPath && !contract.resultBody) {
+      throw new Error(`${contract.modelId}/${contract.modeId} 缺少结果来源`);
+    }
     return normalizeProtocolResponse(data, contract);
+  }
+
+  private completedProtocolResult(
+    data: Record<string, any>,
+    contract: ModelRuntimeContract,
+    remoteTaskId: string,
+  ): Record<string, unknown> {
+    if (!contract.resultEndpoint?.path) return this.protocolResult(data, contract);
+    return protocolResultEndpointFile(contract, remoteTaskId, data)!;
   }
 }
 

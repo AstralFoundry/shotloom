@@ -80,7 +80,16 @@ test('生成参数收纳到分组面板且发送按钮保持在底栏', () => {
   assert.match(source, /className="generation-settings-panel nodrag nopan nowheel"/);
   assert.match(source, /<p>生成方式<\/p>/);
   assert.match(source, /generation-settings-options/);
+  assert.match(source, /paramPresentation\(param\)\.control !== "hidden"/);
+  assert.match(source, /hasExplicitPresentation \? explicitSummaryParams : params\.slice\(0, 4\)/);
+  assert.match(source, /control === "slider"/);
+  assert.match(source, /control === "select"/);
+  assert.match(source, /className="generation-settings-group-title"/);
+  assert.match(source, /className="generation-settings-input nodrag nopan"/);
   assert.match(styles, /\.generation-settings-panel \{[\s\S]*?width:\s*380px/);
+  assert.match(styles, /\.generation-settings-input \{/);
+  assert.match(styles, /\.generation-settings-slider \{/);
+  assert.match(styles, /\.generation-settings-group-title \{/);
   assert.match(styles, /\.work-run-btn \{[^}]*?flex:\s*0 0 32px/);
   assert.match(styles, /\.work-composer \{[\s\S]*?width:\s*100%/);
   assert.match(source, /className="work-composer nodrag nopan nowheel"[\s\S]*?onPointerDown=\{\(event\) => event\.stopPropagation\(\)\}/);

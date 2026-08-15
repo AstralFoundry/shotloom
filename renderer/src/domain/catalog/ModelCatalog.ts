@@ -21,6 +21,17 @@ export interface CatalogEndpoint {
   scope: string;
 }
 
+export interface CatalogResultEndpoint extends CatalogEndpoint {
+  mimeType?: string;
+  fileExtension?: string;
+}
+
+export interface CatalogResultBody {
+  encoding: 'binary';
+  mimeType: string;
+  fileExtension: string;
+}
+
 export interface CatalogParam {
   key: string;
   label: string;
@@ -31,7 +42,15 @@ export interface CatalogParam {
   options?: unknown[];
   conflictsWith?: string[];
   visibleWhen?: Record<string, unknown>;
-  presentation?: string;
+  presentation?: string | {
+    control: 'segmented' | 'select' | 'ratio' | 'resolution' | 'slider' | 'number' | 'toggle' | 'text' | 'hidden';
+    group?: string;
+    summary?: boolean;
+    unit?: string;
+    min?: number;
+    max?: number;
+    step?: number;
+  };
   optionLabels?: Record<string, string>;
 }
 
@@ -87,6 +106,11 @@ export interface CatalogMode {
   resultTextPath?: string;
   resultUrlPath?: string;
   resultBase64Path?: string;
+  resultHexPath?: string;
+  resultMimeType?: string;
+  resultFileExtension?: string;
+  resultBody?: CatalogResultBody;
+  resultEndpoint?: CatalogResultEndpoint;
   resultDownloadAuth?: boolean;
   capabilities?: string[];
   params: CatalogParam[];
@@ -167,6 +191,11 @@ export interface ModelRuntimeContract {
   resultTextPath?: string;
   resultUrlPath?: string;
   resultBase64Path?: string;
+  resultHexPath?: string;
+  resultMimeType?: string;
+  resultFileExtension?: string;
+  resultBody?: CatalogResultBody;
+  resultEndpoint?: CatalogResultEndpoint;
   resultDownloadAuth?: boolean;
 }
 
@@ -180,7 +209,7 @@ export interface ModelSchema {
     default: unknown;
     options: unknown[];
     visibleWhen?: Record<string, unknown>;
-    presentation?: string;
+    presentation?: CatalogParam['presentation'];
     optionLabels?: Record<string, string>;
   }>;
 }
@@ -503,6 +532,11 @@ class ModelCatalog {
       resultTextPath: mode.resultTextPath,
       resultUrlPath: mode.resultUrlPath,
       resultBase64Path: mode.resultBase64Path,
+      resultHexPath: mode.resultHexPath,
+      resultMimeType: mode.resultMimeType,
+      resultFileExtension: mode.resultFileExtension,
+      resultBody: mode.resultBody ? { ...mode.resultBody } : undefined,
+      resultEndpoint: mode.resultEndpoint ? { ...mode.resultEndpoint } : undefined,
       resultDownloadAuth: mode.resultDownloadAuth,
     };
   }

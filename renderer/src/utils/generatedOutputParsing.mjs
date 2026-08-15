@@ -23,12 +23,13 @@ function normalizeFileLike(value) {
   const base64Value = value.b64Json ?? value.b64_json;
   const b64Json = typeof base64Value === 'string' && base64Value.trim() ? base64Value.trim() : '';
   const dataUrl = typeof value.dataUrl === 'string' && value.dataUrl.startsWith('data:') ? value.dataUrl : '';
-  if (!isHttpUrl(url) && !isHttpUrl(previewUrl) && !objectKey && !b64Json && !dataUrl) return null;
+  const downloadEndpoint = value.metadata?.downloadAuth?.endpointPath || '';
+  if (!isHttpUrl(url) && !isHttpUrl(previewUrl) && !objectKey && !b64Json && !dataUrl && !downloadEndpoint) return null;
   return {
     url: isHttpUrl(url) ? url : '', previewUrl: isHttpUrl(previewUrl) ? previewUrl : '', objectKey, b64Json, dataUrl,
     name: value.name || value.fileName || value.filename || value.title || '',
     mimeType: value.mimeType || value.contentType || '', resourceType: value.resourceType || value.type || '',
-    metadata: value.metadata || null, cloudCache: value.cloudCache || null, raw: value,
+    metadata: value.metadata || null, downloadEndpoint, cloudCache: value.cloudCache || null, raw: value,
   };
 }
 
@@ -53,7 +54,7 @@ function collectFiles(value, files = []) {
 export function extractGeneratedFiles(output) {
   const seen = new Set();
   return collectFiles(output).filter((file) => {
-    const key = file.url || file.objectKey || file.previewUrl || file.dataUrl || file.b64Json;
+    const key = file.url || file.objectKey || file.previewUrl || file.dataUrl || file.b64Json || file.downloadEndpoint;
     if (!key || seen.has(key)) return false;
     seen.add(key);
     return true;

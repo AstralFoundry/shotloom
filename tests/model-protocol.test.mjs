@@ -7,6 +7,8 @@ import {
   protocolKlingContents,
   protocolMediaContent,
   protocolMessageVariables,
+  protocolHexToBase64,
+  protocolResultEndpointFile,
   readProtocolPath,
   renderProtocolTemplate,
 } from '../renderer/src/utils/modelProtocol.mjs';
@@ -16,6 +18,48 @@ test('multipart 图片字段按输入数量切换单值和数组语法', () => {
   assert.equal(multipartArrayFieldName('image', 1), 'image');
   assert.equal(multipartArrayFieldName('image', 2), 'image[]');
   assert.equal(multipartArrayFieldName('image[]', 3), 'image[]');
+});
+
+test('异步二进制结果端点编译为延迟鉴权下载文件', () => {
+  assert.deepEqual(protocolResultEndpointFile({
+    provider: 'startrouter',
+    auth: { type: 'bearer' },
+    resultEndpoint: {
+      method: 'GET', path: '/v1/videos/{taskId}/content', scope: 'root',
+      mimeType: 'video/mp4', fileExtension: 'mp4',
+    },
+  }, 'task/a', { status: 'completed' }), {
+    files: [{
+      name: 'result.mp4',
+      mimeType: 'video/mp4',
+      metadata: { downloadAuth: {
+        providerId: 'startrouter', endpointPath: '/v1/videos/task/a/content',
+        endpointScope: 'root', endpointMethod: 'GET', headers: undefined,
+        auth: { type: 'bearer' },
+      } },
+    }],
+    raw: { status: 'completed' },
+  });
+});
+
+test('JSON Hex 与同步二进制响应可转换为归档文件', () => {
+  assert.equal(protocolHexToBase64('49 44 33'), 'SUQz');
+  const hexResult = normalizeProtocolResponse(
+    { data: { audio: '494433' } },
+    { resultHexPath: 'data.audio', resultMimeType: 'audio/mpeg', resultFileExtension: 'mp3' },
+  );
+  assert.deepEqual(hexResult.files, [{ b64Json: 'SUQz', mimeType: 'audio/mpeg', name: 'result.mp3' }]);
+  assert.equal(hexResult.raw.data.audio, '[媒体数据已提取]');
+
+  const binaryResult = normalizeProtocolResponse({
+    __responseBodyBase64: 'UklGRg==',
+    __responseContentType: 'audio/wav; charset=binary',
+  }, {
+    resultBody: { encoding: 'binary', mimeType: 'audio/wav', fileExtension: 'wav' },
+  });
+  assert.deepEqual(binaryResult.files, [{ b64Json: 'UklGRg==', mimeType: 'audio/wav', name: 'result.wav' }]);
+  assert.equal(binaryResult.raw.__responseBodyBase64, '[媒体数据已提取]');
+  assert.throws(() => protocolHexToBase64('not-hex'), /Hex 媒体数据格式无效/);
 });
 
 test('声明式协议把文本、图片和参数变量编译进请求体', () => {
@@ -186,6 +230,7 @@ test('协议控制字段不会泄漏进厂商请求 JSON', () => {
   assert.deepEqual(modelJsonRequestBody({
     model: 'test', prompt: 'hello', __providerId: 'custom',
     __headers: { 'anthropic-version': '2023-06-01' }, __auth: { type: 'header', name: 'x-api-key' },
+    __responseEncoding: 'binary',
   }), { model: 'test', prompt: 'hello' });
 });
 
