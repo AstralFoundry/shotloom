@@ -288,13 +288,13 @@ test('视频节点移除原生控件并在悬停预览时播放原始声音', ()
   assert.match(node, /onPointerLeave=\{\(event\) => \{[\s\S]*?video\.pause\(\)/);
   assert.match(migrationStyles, /\.work-preview > video \{ object-fit: cover; \}/);
 });
-test('视频节点显示时长并提供悬停声音开关', () => {
+test('视频节点悬停时显示时长并提供声音开关', () => {
   assert.match(node, /muted=\{videoMuted\}/);
   assert.match(node, /onDurationChange=[\s\S]*?setVideoDuration[\s\S]*?onTimeUpdate=[\s\S]*?setVideoTime/);
-  assert.match(node, /className="work-video-status"[\s\S]*?formatAudioTime\(videoTime\)[\s\S]*?formatAudioTime\(videoDuration\)/);
+  assert.match(node, /className="work-video-status"[\s\S]*?10 \* Math\.min\(1, semanticZoom\)[\s\S]*?formatAudioTime\(videoTime\)[\s\S]*?formatAudioTime\(videoDuration\)/);
   assert.match(node, /className="work-video-sound nodrag nopan"[\s\S]*?nextMuted = !videoMuted[\s\S]*?volume-x[\s\S]*?volume/);
-  assert.match(migrationStyles, /\.work-video-status \{[\s\S]*?backdrop-filter: blur\(9px\)/);
-  assert.match(migrationStyles, /\.work-node:hover \.work-video-sound,[\s\S]*?opacity: 1/);
+  assert.match(migrationStyles, /\.work-video-status \{[\s\S]*?backdrop-filter: blur\(9px\)[\s\S]*?opacity: 0/);
+  assert.match(migrationStyles, /\.work-node:hover \.work-video-status,[\s\S]*?opacity: 1/);
   assert.match(migrationStyles, /\.audio-play-glyph \{[\s\S]*?border-left: 6px solid #fff/);
   assert.match(migrationStyles, /\.work-preview \.audio-waveform-download svg \{ width: 14px; height: 14px; \}/);
 });

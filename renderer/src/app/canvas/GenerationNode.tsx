@@ -209,7 +209,7 @@ function generationNodeDisplayTitle(
     const stem = title.replace(/\.[a-z0-9]{1,10}$/i, "").trim().toLowerCase();
     if (!genericNames.has(stem)) return title;
   }
-  return "";
+  return typeLabel.replace(/生成$/, "") || "节点";
 }
 
 function ScreenSpaceComposer({
@@ -451,6 +451,9 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({
   // Keep the media branch explicit: activeKind === 'image' && previewUrl ? <img /> : activeKind === 'video'.
   const nodeLabel = (
     <div className={`work-node-kicker${displayTitle ? "" : " unlabeled"}`}>
+      {displayTitle && (
+        <IconSymbol className="work-node-type-icon" name={metaIcon} aria-hidden="true" />
+      )}
       {displayTitle && <span title={displayTitle}>{displayTitle}</span>}
       {selected && node.type === "imageGeneration" && activeKind === "image" && (
         <div className="work-node-kicker-actions">
@@ -590,7 +593,10 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({
               </div>
             )}
             {activeKind === "video" && previewUrl && (
-              <div className="work-video-status">
+              <div
+                className="work-video-status"
+                style={{ fontSize: `${10 * Math.min(1, semanticZoom)}px` }}
+              >
                 <span>{formatAudioTime(videoTime)} / {formatAudioTime(videoDuration)}</span>
                 <button
                   type="button"

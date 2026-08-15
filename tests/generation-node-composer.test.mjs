@@ -20,17 +20,20 @@ test('文本节点提示词与节点正文使用独立数据', () => {
 test('非文本节点使用模型目录类型与节点内配置面板', () => {
   assert.match(source, /getTypeMeta\(node\.type\)/); assert.match(source, /work-composer nodrag nopan nowheel/);
 });
-test('画布节点只显示可辨识名称，不重复铺生成类型', () => {
+test('画布节点优先显示可辨识名称且空节点回退到简短类型名', () => {
   assert.match(source, /function generationNodeDisplayTitle/);
   assert.match(source, /output\?\.fileName, output\?\.title, uploaded\?\.name, node\.title/);
   assert.match(source, /genericNames\.has\(stem\)/);
+  assert.match(source, /return typeLabel\.replace\(\/生成\$\/, ""\) \|\| "节点"/);
   assert.match(source, /<div className="work-visual-block">/);
   assert.match(styles, /\.work-node-kicker \{[\s\S]*?inset: -20px 0 auto/);
   assert.doesNotMatch(styles, /\.work-visual-block\.has-kicker-label/);
   assert.match(source, /CanvasNodeLabelRootContext/);
   assert.match(source, /labelRoot && createPortal\(nodeLabel, labelRoot\)/);
-  assert.match(source, /<span title=\{displayTitle\}>\{displayTitle\}<\/span>[\s\S]*?className="work-node-kicker-actions"/);
+  assert.match(source, /className="work-node-type-icon" name=\{metaIcon\}[\s\S]*?<span title=\{displayTitle\}>\{displayTitle\}<\/span>[\s\S]*?className="work-node-kicker-actions"/);
   assert.match(styles, /\.canvas-node-label-anchor \.work-node-kicker \{[\s\S]*?inset: 0;[\s\S]*?height: 100%/);
+  assert.match(styles, /\.canvas-node-label-anchor \.work-node-kicker > svg \{[\s\S]*?var\(--node-label-zoom, 1\)/);
+  assert.match(styles, /\.work-node-kicker > \.work-node-type-icon \{[\s\S]*?background: #6f7680/);
 });
 test('节点输入面板固定在屏幕空间，不跟随画布倍率缩放', () => {
   assert.match(source, /ScreenSpaceComposer/);
