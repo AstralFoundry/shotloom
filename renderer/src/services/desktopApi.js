@@ -178,6 +178,7 @@ function createBrowserFallback() {
       get: async () => JSON.parse(localStorage.getItem('shotloom-settings') || 'null') || {
         storageVersion: 7,
         providerConfigs: {},
+        protocolAdapters: [],
         balance: 0,
         rawQuota: 0,
         usedQuota: 0,
@@ -214,6 +215,7 @@ function createBrowserFallback() {
         const next = {
           storageVersion: 7,
           providerConfigs: current.providerConfigs || {},
+          protocolAdapters: current.protocolAdapters || [],
           balance: current.balance || 0,
           rawQuota: current.rawQuota || 0,
           usedQuota: current.usedQuota || 0,

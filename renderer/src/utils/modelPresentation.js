@@ -19,9 +19,18 @@ export function optionLabel(param, value) {
 }
 
 export function isAspectRatioParam(param) {
-  return param.presentation === 'aspectRatio'
+  const control = param.presentation && typeof param.presentation === 'object'
+    ? param.presentation.control
+    : param.presentation;
+  return control === 'ratio' || control === 'aspectRatio'
     || param.key === 'aspectRatio'
     || String(param.label || '').includes('比例');
+}
+
+export function paramPresentation(param) {
+  return param?.presentation && typeof param.presentation === 'object'
+    ? param.presentation
+    : {};
 }
 
 export function isSizeParam(param) {

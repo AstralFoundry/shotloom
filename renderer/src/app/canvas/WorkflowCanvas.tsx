@@ -130,6 +130,7 @@ export type WorkflowNodeRenderer = ComponentType<{
   node: WorkflowNodeData;
   selected: boolean;
   semanticZoom?: number;
+  previewZoom?: number;
   resizing?: boolean;
   inputRevision?: string;
   incomingInputs?: WorkflowIncomingInput[];
@@ -161,6 +162,7 @@ export const CanvasOverlayRootContext = createContext<HTMLElement | null>(null);
 export const CanvasNodeLabelRootContext = createContext<HTMLElement | null>(null);
 const MIN_CANVAS_ZOOM = 0.1;
 const MAX_CANVAS_ZOOM = 3;
+const MEDIA_PREVIEW_ZOOM_SETTLE_MS = 220;
 const MEDIA_NODE_TYPES = new Set([
   "imageGeneration",
   "videoGeneration",
@@ -173,11 +175,13 @@ type FlowNode = Node<{
   inputRevision: string;
   incomingInputs: WorkflowIncomingInput[];
   semanticZoom: number;
+  previewZoom: number;
 }>;
 type FlowNodeCacheEntry = {
   input: WorkflowNodeData;
   selected: boolean;
   semanticZoom: number;
+  previewZoom: number;
   inputRevision: string;
   output: FlowNode;
 };
@@ -221,6 +225,7 @@ function toFlowNodes(
   nodes: WorkflowNodeData[],
   edges: WorkflowEdge[] = [],
   semanticZoom = 1,
+  previewZoom = semanticZoom,
   cache?: Map<string, FlowNodeCacheEntry>,
 ): FlowNode[] {
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
@@ -290,6 +295,7 @@ function toFlowNodes(
         cached.input === node &&
         cached.selected === selected &&
         cached.semanticZoom === semanticZoom &&
+        cached.previewZoom === previewZoom &&
         cached.inputRevision === inputRevision
       ) {
         return cached.output;
@@ -307,7 +313,7 @@ function toFlowNodes(
           x: screenPixel((Number(node.x) || 0) * semanticZoom),
           y: screenPixel((Number(node.y) || 0) * semanticZoom),
         },
-        data: { node, inputRevision, incomingInputs, semanticZoom },
+        data: { node, inputRevision, incomingInputs, semanticZoom, previewZoom },
         selected,
         // React Flow otherwise keeps the previous DOM measurement for handle
         // bounds while semantic zoom is changing. Supplying the screen-space
@@ -322,7 +328,7 @@ function toFlowNodes(
           height: screenHeight,
         },
       };
-      cache?.set(node.id, { input: node, selected, semanticZoom, inputRevision, output });
+      cache?.set(node.id, { input: node, selected, semanticZoom, previewZoom, inputRevision, output });
       return output;
     });
   if (cache && cache.size > result.length) {
@@ -777,6 +783,7 @@ function CanvasNode({ data, selected, dragging }: NodeProps<FlowNode>) {
           node={item}
           selected={selected}
           semanticZoom={semanticZoom}
+          previewZoom={data.previewZoom}
           resizing={resizing}
           inputRevision={data.inputRevision}
           incomingInputs={data.incomingInputs}
@@ -882,11 +889,12 @@ export function WorkflowCanvas({
     Math.max(MIN_CANVAS_ZOOM, Number(viewport.zoom) || 1),
   );
   const [semanticZoom, setSemanticZoom] = useState(initialZoom);
+  const [previewZoom, setPreviewZoom] = useState(initialZoom);
   const semanticZoomRef = useRef(initialZoom);
   const flowNodeCache = useRef(new Map<string, FlowNodeCacheEntry>());
   const flowEdgeCache = useRef(new Map<string, FlowEdgeCacheEntry>());
   const [flowNodes, setFlowNodes, applyFlowNodeChanges] = useNodesState<FlowNode>(
-    toFlowNodes(nodes, edges, initialZoom, flowNodeCache.current),
+    toFlowNodes(nodes, edges, initialZoom, initialZoom, flowNodeCache.current),
   );
   const [instance, setInstance] = useState<ReactFlowInstance<
     FlowNode,
@@ -902,9 +910,15 @@ export function WorkflowCanvas({
   const menuLayer = useRef<CanvasMenuLayerHandle>(null);
   const visible = useMemo(() => nodes.filter((node) => !node.archived), [nodes]);
   const canonicalNodes = useMemo(
-    () => toFlowNodes(visible, edges, semanticZoom, flowNodeCache.current),
-    [edges, semanticZoom, visible],
+    () => toFlowNodes(visible, edges, semanticZoom, previewZoom, flowNodeCache.current),
+    [edges, previewZoom, semanticZoom, visible],
   );
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setPreviewZoom(semanticZoom);
+    }, MEDIA_PREVIEW_ZOOM_SETTLE_MS);
+    return () => window.clearTimeout(timer);
+  }, [semanticZoom]);
   useEffect(() => {
     traceCanvasEvent("external-sync", {
       canonicalIds: canonicalNodes.map((node) => node.id),
@@ -1268,6 +1282,7 @@ export function WorkflowCanvas({
             nodes={renderedNodes}
             edges={edgesVisible ? flowEdges : []}
             nodeTypes={nodeTypes}
+            proOptions={{ hideAttribution: true }}
             onlyRenderVisibleElements={false}
             defaultViewport={{ x: viewport.x, y: viewport.y, zoom: 1 }}
             minZoom={1}

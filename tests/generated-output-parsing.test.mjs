@@ -25,3 +25,13 @@ test('成功归档后会压缩所有支持的 Base64 字段', () => {
     },
   });
 });
+
+test('没有公开 URL 的鉴权结果端点仍会被识别为生成文件', () => {
+  const [file] = extractGeneratedFiles({ files: [{
+    name: 'result.mp4',
+    mimeType: 'video/mp4',
+    metadata: { downloadAuth: { endpointPath: '/v1/videos/task-1/content' } },
+  }] });
+  assert.equal(file.downloadEndpoint, '/v1/videos/task-1/content');
+  assert.equal(file.name, 'result.mp4');
+});

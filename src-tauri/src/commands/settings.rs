@@ -8,6 +8,7 @@ fn current_settings_defaults() -> Value {
     json!({
         "storageVersion": SETTINGS_STORAGE_VERSION,
         "providerConfigs": {},
+        "protocolAdapters": [],
         "tokenGroups": [],
         "agentAutoEval": true,
         "agentAutoLayout": true,

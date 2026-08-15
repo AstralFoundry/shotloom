@@ -1,16 +1,20 @@
 const CONTROL_FIELDS = new Set([
   '__endpointPath', '__endpointScope', '__endpointMethod',
-  '__multipart', '__inputImages', '__imageField', '__maskResource', '__maskField',
+  '__multipart', '__inputResources', '__maskResource', '__maskField',
   '__signal', '__timeoutMs', '__providerId',
   '__headers', '__auth',
 ]);
 
 const MULTIPART_RESOURCE_FIELDS = new Set(['images', 'input_images', 'reference_images']);
 
-export function multipartArrayFieldName(fieldName = 'image', itemCount = 1) {
-  const normalized = String(fieldName || 'image');
-  if (itemCount <= 1 || normalized.endsWith('[]')) return normalized;
-  return `${normalized}[]`;
+export function multipartResourceFieldName(fieldTemplate, resource = {}, index = 0) {
+  const template = String(fieldTemplate || '').trim();
+  if (!template) return '';
+  return template
+    .replaceAll('{{index}}', String(index))
+    .replaceAll('{{number}}', String(index + 1))
+    .replaceAll('{{slot}}', String(resource.inputSlot || ''))
+    .replaceAll('{{role}}', String(resource.inputRole || ''));
 }
 
 export function modelRequestEntries(body = {}, { multipart = false } = {}) {

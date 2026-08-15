@@ -7,15 +7,18 @@ import {
   protocolKlingContents,
   protocolMediaContent,
   protocolMessageVariables,
+  protocolHexToBase64,
+  protocolResultEndpointFile,
   readProtocolPath,
   renderProtocolTemplate,
 } from '../renderer/src/utils/modelProtocol.mjs';
-import { modelApiUrl, modelJsonRequestBody, multipartArrayFieldName } from '../renderer/src/utils/modelRequestBody.mjs';
+import { modelApiUrl, modelJsonRequestBody, multipartResourceFieldName } from '../renderer/src/utils/modelRequestBody.mjs';
 
-test('multipart 图片字段按输入数量切换单值和数组语法', () => {
-  assert.equal(multipartArrayFieldName('image', 1), 'image');
-  assert.equal(multipartArrayFieldName('image', 2), 'image[]');
-  assert.equal(multipartArrayFieldName('image[]', 3), 'image[]');
+test('multipart 资源字段完全按协议配置生成，不猜测数组语法', () => {
+  assert.equal(multipartResourceFieldName('image', {}, 2), 'image');
+  assert.equal(multipartResourceFieldName('image[]', {}, 2), 'image[]');
+  assert.equal(multipartResourceFieldName('frames[{{index}}]', {}, 2), 'frames[2]');
+  assert.equal(multipartResourceFieldName('{{slot}}_{{number}}', { inputSlot: 'reference' }, 1), 'reference_2');
 });
 
 test('声明式协议把文本、图片和参数变量编译进请求体', () => {
@@ -180,6 +183,54 @@ test('声明式路径支持 Claude 文本、图片数组和异步视频结果', 
       metadata: { downloadAuth: { providerId: 'google', headers: undefined, auth: { type: 'header', name: 'x-goog-api-key' } } },
     }],
   );
+});
+
+test('异步二进制结果端点编译为延迟鉴权下载文件', () => {
+  assert.deepEqual(protocolResultEndpointFile({
+    provider: 'startrouter',
+    auth: { type: 'bearer' },
+    resultEndpoint: {
+      method: 'GET', path: '/v1/videos/{taskId}/content', scope: 'root',
+      mimeType: 'video/mp4', fileExtension: 'mp4',
+    },
+  }, 'task/a', { status: 'completed' }), {
+    files: [{
+      name: 'result.mp4',
+      mimeType: 'video/mp4',
+      metadata: { downloadAuth: {
+        providerId: 'startrouter', endpointPath: '/v1/videos/task/a/content',
+        endpointScope: 'root', endpointMethod: 'GET', headers: undefined,
+        auth: { type: 'bearer' },
+      } },
+    }],
+    raw: { status: 'completed' },
+  });
+});
+
+test('JSON Hex 音频结果按声明的 MIME 与扩展名转换为可归档 Base64', () => {
+  assert.equal(protocolHexToBase64('49 44 33'), 'SUQz');
+  const result = normalizeProtocolResponse(
+    { data: { audio: '494433' } },
+    {
+      resultHexPath: 'data.audio',
+      resultMimeType: 'audio/mpeg',
+      resultFileExtension: 'mp3',
+    },
+  );
+  assert.deepEqual(result.files, [{ b64Json: 'SUQz', mimeType: 'audio/mpeg', name: 'result.mp3' }]);
+  assert.equal(result.raw.data.audio, '[媒体数据已提取]');
+  assert.throws(() => protocolHexToBase64('not-hex'), /Hex 媒体数据格式无效/);
+});
+
+test('同步二进制响应体按协议转换为可归档文件', () => {
+  const result = normalizeProtocolResponse({
+    __responseBodyBase64: 'UklGRg==',
+    __responseContentType: 'audio/wav; charset=binary',
+  }, {
+    resultBody: { encoding: 'binary', mimeType: 'audio/wav', fileExtension: 'wav' },
+  });
+  assert.deepEqual(result.files, [{ b64Json: 'UklGRg==', mimeType: 'audio/wav', name: 'result.wav' }]);
+  assert.equal(result.raw.__responseBodyBase64, '[媒体数据已提取]');
 });
 
 test('协议控制字段不会泄漏进厂商请求 JSON', () => {

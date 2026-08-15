@@ -73,6 +73,26 @@ test('上传图片也支持显式参考图角色', () => {
   assert.equal(reference.inputRole, 'referenceImage');
 });
 
+test('目录容量恢复后暂存参考边自动重新进入参考模式任务', () => {
+  const { target, project } = fixture({
+    name: 'reference.png',
+    path: '/project/assets/reference.png',
+    type: 'image/png',
+    resourceType: 'image',
+  }, 'referenceImage');
+  target.inputMode = 'reference';
+  project.edges[0].data.inputSlot = 'reference';
+  project.edges[0].data.skipTaskInput = true;
+
+  const readiness = generationUpstreamReadiness(target, project);
+  const payload = buildGenerationPayload(target, project);
+
+  assert.equal(readiness.ready, true);
+  assert.equal(payload.modelContract.modeId, 'image-to-image');
+  assert.equal(payload.modelContract.inputFormat, 'multipart');
+  assert.equal(payload.modelInputs.images[0].filePath, '/project/assets/reference.png');
+});
+
 test('没有上传文件也没有生成结果的普通节点仍会被拦截', () => {
   const { target, project } = fixture(null);
   const result = generationUpstreamReadiness(target, project);

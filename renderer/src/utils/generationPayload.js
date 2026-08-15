@@ -4,11 +4,39 @@ import { extractGeneratedFiles } from '@/utils/generatedOutputParsing.mjs';
 import { applyImageStylePreset } from '@/utils/imageStylePresets.mjs';
 import { normalizeInputRole } from '@/utils/generationInputRole.mjs';
 import { compileGenerationNodeConfig } from '@/domain/graph/GenerationNodeContract';
-import { inputSlotOrder, isSlotValidForMode } from '@/domain/graph/GenerationInputContract';
+import { inputSlotOrder, isSlotValidForMode, reconcileGenerationInputEdges } from '@/domain/graph/GenerationInputContract';
 import { textNodeContent } from '@/utils/textNodeContent.mjs';
 
 function pickString(value, fallback = '') {
   return typeof value === 'string' && value.trim() ? value.trim() : fallback;
+}
+
+function hasDeclaredMediaInputEdges(node, project) {
+  return Boolean(project?.edges?.some((edge) => (
+    edge.target === node.id
+    && !['', 'auto', 'textContext'].includes(String(edge.data?.inputRole || ''))
+  )));
+}
+
+function currentTaskInputEdges(node, project) {
+  const incoming = (project?.edges || []).filter((edge) => edge.target === node.id);
+  const mode = getGenerationInputModes(String(node.model || ''))
+    .find((item) => item.value === node.inputMode);
+  if (!mode) return incoming.filter((edge) => edge.data?.skipTaskInput !== true);
+  const typedRoles = new Set(['textContext', 'referenceImage', 'inputVideo', 'referenceAudio']);
+  const typed = incoming
+    .filter((edge) => typedRoles.has(String(edge.data?.inputRole || '')))
+    .map((edge) => ({ ...edge, data: { ...(edge.data || {}) } }));
+  const untyped = incoming.filter((edge) => !typedRoles.has(String(edge.data?.inputRole || '')));
+  const activeTypedIds = new Set(
+    reconcileGenerationInputEdges(typed, mode)
+      .filter((edge) => edge.data?.skipTaskInput !== true)
+      .map((edge) => edge.id),
+  );
+  return [
+    ...incoming.filter((edge) => activeTypedIds.has(edge.id)),
+    ...untyped.filter((edge) => edge.data?.skipTaskInput !== true),
+  ];
 }
 
 function schemaParamsPayload(type, config = {}, model = '', modeId = '') {
@@ -33,13 +61,14 @@ function basePayload(node, config, project) {
     ...(node.imageEdit?.sourceFile ? ['image'] : []),
   ];
   const hasMediaInputs = inputRoles.some((role) => !['', 'auto', 'textContext'].includes(role));
-  // Explicit mode is honored only when it supports the actual typed inputs.
-  // Otherwise choose the compatible model mode deterministically.
+  const hasDeclaredMediaInputs = hasMediaInputs || hasDeclaredMediaInputEdges(node, project);
+  // Parked edges still express the user's selected input semantics. Falling
+  // back to text-to-image here would silently submit a different task.
   const modelContract = resolveModelRuntimeContract(
     node.type,
     model,
     inputRoles,
-    hasMediaInputs ? resolveModeIdForInputMode(model, node.inputMode) : '',
+    hasDeclaredMediaInputs ? resolveModeIdForInputMode(model, node.inputMode) : '',
   );
   const inputCapability = modelContract || {};
   const upstreamContext = inputs
@@ -141,9 +170,7 @@ export function buildGenerationPayload(node, project) {
 
 function collectUpstreamInputs(node, project) {
   if (!project || !Array.isArray(project.edges) || !Array.isArray(project.nodes)) return [];
-  return project.edges
-    .filter((edge) => edge.target === node.id)
-    .filter((edge) => edge.data?.skipTaskInput !== true)
+  return currentTaskInputEdges(node, project)
     .map((edge) => ({ edge, source: project.nodes.find((item) => item.id === edge.source) }))
     .filter(({ source }) => Boolean(source))
     .filter(({ source }) => !source.archived)
@@ -251,11 +278,12 @@ export function generationUpstreamReadiness(node, project) {
   }
   const requiredInputs = inputs.filter((input) => input.required !== false);
   const hasRequiredMedia = requiredInputs.some((input) => effectiveInputRole(input) !== 'textContext');
+  const hasDeclaredMedia = hasRequiredMedia || hasDeclaredMediaInputEdges(node, project);
   const modeResolution = getModelInputCapabilityForRoles(
     node.type,
     selectedModel,
     requiredInputs.map(effectiveInputRole),
-    hasRequiredMedia ? resolveModeIdForInputMode(selectedModel, node.inputMode) : '',
+    hasDeclaredMedia ? resolveModeIdForInputMode(selectedModel, node.inputMode) : '',
   );
   const capability = modeResolution.capability;
   if (!modeResolution.supported) {

@@ -1,5 +1,13 @@
 import { useEffect, useMemo, useReducer, useState } from "react";
-import { getModelInfo } from "../../domain/catalog/ModelCatalog";
+import {
+  getBuiltInAdapterTemplates,
+  getModelInfo,
+} from "../../domain/catalog/ModelCatalog";
+import {
+  parseProtocolAdapterPackage,
+  type ProviderProtocolAdapter,
+} from "../../domain/provider/ProviderAdapterContract";
+import { buildCustomCatalogModels } from "../../domain/provider/CustomModelCatalog";
 import {
   getConfiguredProviders,
   getProviderDefinitions,
@@ -53,6 +61,7 @@ import {
   normalizeCanvasActionShortcuts,
 } from "../../utils/canvasActionShortcuts";
 import { showToast } from "../store/overlayStore";
+import { modelTypeLabel } from "../../utils/modelPresentation.js";
 import {
   type RecipeDraft,
   RecipeEditorDialog,
@@ -63,6 +72,8 @@ import {
   ProviderConnectionDialog,
   type ProviderConnectionResult,
 } from "./ProviderConnectionDialog";
+import { ModelProtocolGuideDialog } from "./ModelProtocolGuideDialog";
+import { ProtocolAdapterDialog } from "./ProtocolAdapterDialog";
 import {
   type SettingsController,
   type SettingsData,
@@ -70,6 +81,10 @@ import {
 } from "./SettingsPanel";
 
 type EditorState<T> = { value: T; isNew: boolean } | null;
+type ProtocolEditorState = {
+  value: ProviderProtocolAdapter | null;
+  originalId: string;
+} | null;
 /**
  * Domain stores expose nested values through lightweight proxies. Native
  * structuredClone rejects Proxy objects, so unwrap each level before copying.
@@ -128,17 +143,21 @@ export function SettingsFeature() {
   const [providerEditor, setProviderEditor] = useState<string | null>(null);
   const [providerSaving, setProviderSaving] = useState(false);
   const [providerError, setProviderError] = useState("");
+  const [protocolEditor, setProtocolEditor] =
+    useState<ProtocolEditorState>(null);
+  const [protocolGuideOpen, setProtocolGuideOpen] = useState(false);
   const [skillEditor, setSkillEditor] = useState<EditorState<SkillDraft>>(null);
-  const [recipeEditor, setRecipeEditor] = useState<EditorState<RecipeDraft>>(
-    null,
-  );
+  const [recipeEditor, setRecipeEditor] =
+    useState<EditorState<RecipeDraft>>(null);
 
   useEffect(() => {
     void Promise.all([
       loadDownloadDir(),
       loadGlobalSkills(),
       loadGlobalRecipes(),
-    ]).then(refresh).catch((cause) => showToast(message(cause)));
+    ])
+      .then(refresh)
+      .catch((cause) => showToast(message(cause)));
   }, []);
 
   const data = useMemo<SettingsData>(() => {
@@ -148,14 +167,14 @@ export function SettingsFeature() {
         "imageGeneration",
         "videoGeneration",
         "audioGeneration",
-      ].map((
-        type,
-      ) => [
+      ].map((type) => [
         type,
         getAvailableModelIdsByType(type).map((id: string) => {
           const providerId = String(getModelInfo(id)?.provider || "");
-          const configuredIcon = settingsStore.providerConfigs?.[providerId]
-            ?.iconId || getProviderDefinition(providerId)?.iconId || "";
+          const configuredIcon =
+            settingsStore.providerConfigs?.[providerId]?.iconId ||
+            getProviderDefinition(providerId)?.iconId ||
+            "";
           return {
             id,
             label: getModelInfo(id)?.name || id,
@@ -169,16 +188,37 @@ export function SettingsFeature() {
         id,
         iconId: config.iconId || definition.iconId,
         displayName: config.displayName || definition.name,
-        summaryUrl: (config.baseUrl || definition.defaultBaseUrl || "").replace(
-          /^https?:\/\//,
-          "",
-        ).replace(/\/+$/, ""),
-        modelCount: getAvailableModelIdsByType("textGeneration").concat(
-          getAvailableModelIdsByType("imageGeneration"),
-          getAvailableModelIdsByType("videoGeneration"),
-          getAvailableModelIdsByType("audioGeneration"),
-        ).filter((modelId: string) => getModelInfo(modelId)?.provider === id)
+        summaryUrl: (config.baseUrl || definition.defaultBaseUrl || "")
+          .replace(/^https?:\/\//, "")
+          .replace(/\/+$/, ""),
+        modelCount: getAvailableModelIdsByType("textGeneration")
+          .concat(
+            getAvailableModelIdsByType("imageGeneration"),
+            getAvailableModelIdsByType("videoGeneration"),
+            getAvailableModelIdsByType("audioGeneration"),
+          )
+          .filter((modelId: string) => getModelInfo(modelId)?.provider === id)
           .length,
+      }),
+    );
+    const builtInProtocols = getBuiltInAdapterTemplates().map(
+      ({ providerId, adapter }) => ({
+        id: adapter.id,
+        name: adapter.name,
+        typeLabel: modelTypeLabel(adapter.type),
+        modeCount: adapter.modes.length,
+        builtIn: true,
+        providerLabel: getProviderDefinition(providerId)?.name || providerId,
+      }),
+    );
+    const customProtocols = settingsStore.protocolAdapters.map(
+      (adapter: ProviderProtocolAdapter) => ({
+        id: adapter.id,
+        name: adapter.name,
+        typeLabel: modelTypeLabel(adapter.type),
+        modeCount: adapter.modes.length,
+        builtIn: false,
+        providerLabel: "自定义协议",
       }),
     );
     return {
@@ -198,6 +238,7 @@ export function SettingsFeature() {
         agentAutoLayout: settingsStore.agentAutoLayout,
       },
       providers,
+      protocols: [...customProtocols, ...builtInProtocols],
       skills: clone(skillsStore.skills),
       recipes: clone(recipesStore.recipes),
       shortcutLabels: {
@@ -262,13 +303,11 @@ export function SettingsFeature() {
       try {
         const payload = JSON.parse(await file.text());
         if (kind === "skills") {
-          for (
-            const recipe of transferItems(
-              (payload as Record<string, unknown>)?.recipes || [],
-              "recipes",
-              "recipe",
-            )
-          ) {
+          for (const recipe of transferItems(
+            (payload as Record<string, unknown>)?.recipes || [],
+            "recipes",
+            "recipe",
+          )) {
             try {
               await upsertRecipe({
                 ...recipe,
@@ -280,20 +319,20 @@ export function SettingsFeature() {
             }
           }
         }
-        for (
-          const item of transferItems(
-            payload,
-            kind,
-            kind === "skills" ? "skill" : "recipe",
-          )
-        ) {
+        for (const item of transferItems(
+          payload,
+          kind,
+          kind === "skills" ? "skill" : "recipe",
+        )) {
           try {
             if (kind === "skills") {
               await upsertSkill({ ...item, enabled: item.enabled !== false });
-            } else {await upsertRecipe({
+            } else {
+              await upsertRecipe({
                 ...item,
                 enabled: item.enabled !== false,
-              });}
+              });
+            }
             imported += 1;
           } catch (cause) {
             errors.push(`${file.name}：${message(cause)}`);
@@ -307,24 +346,24 @@ export function SettingsFeature() {
     showToast(
       imported
         ? `已导入 ${imported} 个${kind === "skills" ? "技能" : "策略"}${
-          dependencies ? `，同时导入 ${dependencies} 个关联策略` : ""
-        }${errors.length ? `；${errors.length} 项未导入` : ""}`
+            dependencies ? `，同时导入 ${dependencies} 个关联策略` : ""
+          }${errors.length ? `；${errors.length} 项未导入` : ""}`
         : errors[0] || "没有可导入的内容",
     );
   }
   async function exportCatalog(kind: "skills" | "recipes", ids: string[]) {
     if (kind === "skills") {
-      const skills = skillsStore.skills.filter((item: { id: string }) =>
-        ids.includes(item.id)
-      ).map(transferCopy);
+      const skills = skillsStore.skills
+        .filter((item: { id: string }) => ids.includes(item.id))
+        .map(transferCopy);
       const recipeIds = new Set(
-        skills.flatMap((item: { recipeIds?: string[] }) =>
-          item.recipeIds || []
+        skills.flatMap(
+          (item: { recipeIds?: string[] }) => item.recipeIds || [],
         ),
       );
-      const recipes = recipesStore.recipes.filter((item: { id: string }) =>
-        recipeIds.has(item.id)
-      ).map(transferCopy);
+      const recipes = recipesStore.recipes
+        .filter((item: { id: string }) => recipeIds.has(item.id))
+        .map(transferCopy);
       if (
         await desktopApi.file.saveJson("shotloom-skills.json", {
           format: "shotloom.skill-catalog",
@@ -339,9 +378,9 @@ export function SettingsFeature() {
         );
       }
     } else {
-      const recipes = recipesStore.recipes.filter((item: { id: string }) =>
-        ids.includes(item.id)
-      ).map(transferCopy);
+      const recipes = recipesStore.recipes
+        .filter((item: { id: string }) => ids.includes(item.id))
+        .map(transferCopy);
       if (
         await desktopApi.file.saveJson("shotloom-recipes.json", {
           format: "shotloom.recipe-catalog",
@@ -349,7 +388,8 @@ export function SettingsFeature() {
           exportedAt: new Date().toISOString(),
           recipes,
         })
-      ) showToast(`已导出 ${recipes.length} 个策略`);
+      )
+        showToast(`已导出 ${recipes.length} 个策略`);
     }
   }
 
@@ -370,6 +410,68 @@ export function SettingsFeature() {
     } finally {
       setProviderSaving(false);
     }
+  }
+
+  async function saveProtocol(adapter: ProviderProtocolAdapter) {
+    const originalId = protocolEditor?.originalId || "";
+    const builtInIds = new Set(
+      getBuiltInAdapterTemplates().map((item) => item.adapter.id),
+    );
+    if (builtInIds.has(adapter.id)) {
+      throw new Error(
+        `协议 ID “${adapter.id}” 属于内置协议，请使用新的自定义 ID`,
+      );
+    }
+    const current = clone(
+      settingsStore.protocolAdapters,
+    ) as ProviderProtocolAdapter[];
+    const next = originalId
+      ? current.map((item) => (item.id === originalId ? adapter : item))
+      : [...current, adapter];
+    const providerConfigs = clone(settingsStore.providerConfigs) as Record<
+      string,
+      ProviderConfig
+    >;
+    if (originalId && originalId !== adapter.id) {
+      Object.values(providerConfigs).forEach((config: ProviderConfig) => {
+        config.modelBindings = (config.modelBindings || []).map((binding) =>
+          binding.adapterId === originalId
+            ? { ...binding, adapterId: adapter.id }
+            : binding,
+        );
+      });
+    }
+    buildCustomCatalogModels(providerConfigs, next);
+    await saveAppSettings({ protocolAdapters: next, providerConfigs });
+    setProtocolEditor(null);
+    refresh();
+    showToast("协议已保存");
+  }
+
+  async function importProtocols(files: File[]) {
+    const builtInIds = new Set(
+      getBuiltInAdapterTemplates().map((item) => item.adapter.id),
+    );
+    const current = clone(
+      settingsStore.protocolAdapters,
+    ) as ProviderProtocolAdapter[];
+    const knownIds = new Set(current.map((adapter) => adapter.id));
+    const imported: ProviderProtocolAdapter[] = [];
+    for (const file of files) {
+      const adapters = parseProtocolAdapterPackage(
+        JSON.parse(await file.text()),
+      );
+      for (const adapter of adapters) {
+        if (builtInIds.has(adapter.id) || knownIds.has(adapter.id)) {
+          throw new Error(`${file.name}：协议 ID “${adapter.id}” 已存在`);
+        }
+        knownIds.add(adapter.id);
+        imported.push(adapter);
+      }
+    }
+    await saveAppSettings({ protocolAdapters: [...current, ...imported] });
+    refresh();
+    showToast(`已导入 ${imported.length} 个协议`);
   }
 
   const controller: SettingsController = {
@@ -432,11 +534,70 @@ export function SettingsFeature() {
         delete next[id];
         await saveAppSettings({ providerConfigs: next });
       }, "API 厂商已删除"),
+    createProtocol: () => {
+      setProtocolEditor({ value: null, originalId: "" });
+    },
+    editProtocol: (id) => {
+      const adapter = settingsStore.protocolAdapters.find(
+        (item: ProviderProtocolAdapter) => item.id === id,
+      );
+      if (adapter) {
+        setProtocolEditor({ value: clone(adapter), originalId: adapter.id });
+      }
+    },
+    copyProtocol: (id) => {
+      const source = getBuiltInAdapterTemplates().find(
+        (item) => item.adapter.id === id,
+      )?.adapter;
+      if (!source) return;
+      const occupied = new Set([
+        ...getBuiltInAdapterTemplates().map((item) => item.adapter.id),
+        ...settingsStore.protocolAdapters.map(
+          (item: ProviderProtocolAdapter) => item.id,
+        ),
+      ]);
+      const baseId = `${id}-custom`;
+      let copyId = baseId;
+      let suffix = 2;
+      while (occupied.has(copyId)) copyId = `${baseId}-${suffix++}`;
+      setProtocolEditor({
+        value: {
+          ...clone(source),
+          id: copyId,
+          name: `${source.name}（自定义）`,
+        },
+        originalId: "",
+      });
+    },
+    deleteProtocol: (id) =>
+      run(async () => {
+        const providerConfigs = settingsStore.providerConfigs as Record<
+          string,
+          ProviderConfig
+        >;
+        const users = Object.entries(providerConfigs).flatMap(
+          ([providerId, config]) =>
+            (config.modelBindings || [])
+              .filter((binding) => binding.adapterId === id)
+              .map((binding) => `${providerId}/${binding.id}`),
+        );
+        if (users.length) {
+          throw new Error(`协议仍被模型使用：${users.join("、")}`);
+        }
+        if (!window.confirm("确定删除这个全局协议吗？")) return;
+        await saveAppSettings({
+          protocolAdapters: settingsStore.protocolAdapters.filter(
+            (adapter: ProviderProtocolAdapter) => adapter.id !== id,
+          ),
+        });
+      }, "协议已删除"),
+    importProtocols: (files) => run(() => importProtocols(files)),
+    openProtocolGuide: () => setProtocolGuideOpen(true),
     createSkill: () =>
       setSkillEditor({ value: createSkillDraft() as SkillDraft, isNew: true }),
     editSkill: (id) => {
-      const item = skillsStore.skills.find((skill: { id: string }) =>
-        skill.id === id
+      const item = skillsStore.skills.find(
+        (skill: { id: string }) => skill.id === id,
       );
       if (item) setSkillEditor({ value: clone(item), isNew: false });
     },
@@ -454,8 +615,8 @@ export function SettingsFeature() {
         isNew: true,
       }),
     editRecipe: (id) => {
-      const item = recipesStore.recipes.find((recipe: { id: string }) =>
-        recipe.id === id
+      const item = recipesStore.recipes.find(
+        (recipe: { id: string }) => recipe.id === id,
       );
       if (item) setRecipeEditor({ value: clone(item), isNew: false });
     },
@@ -472,7 +633,7 @@ export function SettingsFeature() {
   };
 
   const providerConfig = providerEditor
-    ? settingsStore.providerConfigs[providerEditor] as ProviderConfig
+    ? (settingsStore.providerConfigs[providerEditor] as ProviderConfig)
     : null;
   const overlays = (
     <>
@@ -480,13 +641,31 @@ export function SettingsFeature() {
         <ProviderConnectionDialog
           editingId={providerEditor}
           initialConfig={providerConfig}
-          connectedIds={getConfiguredProviders(settingsStore.providerConfigs)
-            .map(({ id }) => id)}
+          connectedIds={getConfiguredProviders(
+            settingsStore.providerConfigs,
+          ).map(({ id }) => id)}
+          protocolAdapters={clone(settingsStore.protocolAdapters)}
           submitting={providerSaving}
           submitError={providerError}
           onClose={() => !providerSaving && setProviderEditor(null)}
           onSave={saveProvider}
         />
+      )}
+      {protocolEditor && (
+        <ProtocolAdapterDialog
+          adapter={protocolEditor.value}
+          existingIds={[
+            ...getBuiltInAdapterTemplates().map((item) => item.adapter.id),
+            ...settingsStore.protocolAdapters.map(
+              (item: ProviderProtocolAdapter) => item.id,
+            ),
+          ]}
+          onClose={() => setProtocolEditor(null)}
+          onSave={saveProtocol}
+        />
+      )}
+      {protocolGuideOpen && (
+        <ModelProtocolGuideDialog onClose={() => setProtocolGuideOpen(false)} />
       )}
       {skillEditor && (
         <SkillEditorDialog
@@ -499,26 +678,30 @@ export function SettingsFeature() {
             void run(async () => {
               if (
                 skillEditor.isNew &&
-                skillsStore.skills.some((item: { id: string }) =>
-                  item.id === value.id
+                skillsStore.skills.some(
+                  (item: { id: string }) => item.id === value.id,
                 )
-              ) throw new Error(`技能 ID 已存在：${value.id}`);
+              )
+                throw new Error(`技能 ID 已存在：${value.id}`);
               await upsertSkill(value);
               setSkillEditor(null);
-            }, "技能已保存")}
+            }, "技能已保存")
+          }
           onReset={() =>
             void run(async () => {
               if (
                 !window.confirm(
                   `恢复“${skillEditor.value.name}”的内置默认内容？`,
                 )
-              ) return;
+              )
+                return;
               await resetSkillToBuiltIn(skillEditor.value.id);
-              const value = skillsStore.skills.find((item: { id: string }) =>
-                item.id === skillEditor.value.id
+              const value = skillsStore.skills.find(
+                (item: { id: string }) => item.id === skillEditor.value.id,
               );
               if (value) setSkillEditor({ value: clone(value), isNew: false });
-            }, "技能已恢复默认")}
+            }, "技能已恢复默认")
+          }
         />
       )}
       {recipeEditor && (
@@ -531,26 +714,30 @@ export function SettingsFeature() {
             void run(async () => {
               if (
                 recipeEditor.isNew &&
-                recipesStore.recipes.some((item: { id: string }) =>
-                  item.id === value.id
+                recipesStore.recipes.some(
+                  (item: { id: string }) => item.id === value.id,
                 )
-              ) throw new Error(`策略 ID 已存在：${value.id}`);
+              )
+                throw new Error(`策略 ID 已存在：${value.id}`);
               await upsertRecipe(value);
               setRecipeEditor(null);
-            }, "策略已保存")}
+            }, "策略已保存")
+          }
           onReset={() =>
             void run(async () => {
               if (
                 !window.confirm(
                   `恢复“${recipeEditor.value.name}”的内置默认内容？`,
                 )
-              ) return;
+              )
+                return;
               await resetRecipeToBuiltIn(recipeEditor.value.id);
-              const value = recipesStore.recipes.find((item: { id: string }) =>
-                item.id === recipeEditor.value.id
+              const value = recipesStore.recipes.find(
+                (item: { id: string }) => item.id === recipeEditor.value.id,
               );
               if (value) setRecipeEditor({ value: clone(value), isNew: false });
-            }, "策略已恢复默认")}
+            }, "策略已恢复默认")
+          }
         />
       )}
     </>

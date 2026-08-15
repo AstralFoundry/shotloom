@@ -20,17 +20,20 @@ test('文本节点提示词与节点正文使用独立数据', () => {
 test('非文本节点使用模型目录类型与节点内配置面板', () => {
   assert.match(source, /getTypeMeta\(node\.type\)/); assert.match(source, /work-composer nodrag nopan nowheel/);
 });
-test('画布节点只显示可辨识名称，不重复铺生成类型', () => {
+test('画布节点优先显示可辨识名称且空节点回退到简短类型名', () => {
   assert.match(source, /function generationNodeDisplayTitle/);
   assert.match(source, /output\?\.fileName, output\?\.title, uploaded\?\.name, node\.title/);
   assert.match(source, /genericNames\.has\(stem\)/);
+  assert.match(source, /return typeLabel\.replace\(\/生成\$\/, ""\) \|\| "节点"/);
   assert.match(source, /<div className="work-visual-block">/);
   assert.match(styles, /\.work-node-kicker \{[\s\S]*?inset: -20px 0 auto/);
   assert.doesNotMatch(styles, /\.work-visual-block\.has-kicker-label/);
   assert.match(source, /CanvasNodeLabelRootContext/);
   assert.match(source, /labelRoot && createPortal\(nodeLabel, labelRoot\)/);
-  assert.match(source, /<span title=\{displayTitle\}>\{displayTitle\}<\/span>[\s\S]*?className="work-node-kicker-actions"/);
+  assert.match(source, /className="work-node-type-icon" name=\{metaIcon\}[\s\S]*?<span title=\{displayTitle\}>\{displayTitle\}<\/span>[\s\S]*?className="work-node-kicker-actions"/);
   assert.match(styles, /\.canvas-node-label-anchor \.work-node-kicker \{[\s\S]*?inset: 0;[\s\S]*?height: 100%/);
+  assert.match(styles, /\.canvas-node-label-anchor \.work-node-kicker > svg \{[\s\S]*?var\(--node-label-zoom, 1\)/);
+  assert.match(styles, /\.work-node-kicker > \.work-node-type-icon \{[\s\S]*?background: #6f7680/);
 });
 test('节点输入面板固定在屏幕空间，不跟随画布倍率缩放', () => {
   assert.match(source, /ScreenSpaceComposer/);
@@ -80,7 +83,16 @@ test('生成参数收纳到分组面板且发送按钮保持在底栏', () => {
   assert.match(source, /className="generation-settings-panel nodrag nopan nowheel"/);
   assert.match(source, /<p>生成方式<\/p>/);
   assert.match(source, /generation-settings-options/);
+  assert.match(source, /paramPresentation\(param\)\.control !== "hidden"/);
+  assert.match(source, /hasExplicitPresentation \? explicitSummaryParams : params\.slice\(0, 4\)/);
+  assert.match(source, /control === "slider"/);
+  assert.match(source, /control === "select"/);
+  assert.match(source, /className="generation-settings-group-title"/);
+  assert.match(source, /if \(!\(param\.options \|\| \[\]\)\.length\)[\s\S]*?className="generation-settings-input nodrag nopan"[\s\S]*?type=\{numeric \? "number" : "text"\}/);
   assert.match(styles, /\.generation-settings-panel \{[\s\S]*?width:\s*380px/);
+  assert.match(styles, /\.generation-settings-input \{/);
+  assert.match(styles, /\.generation-settings-slider \{/);
+  assert.match(styles, /\.generation-settings-group-title \{/);
   assert.match(styles, /\.work-run-btn \{[^}]*?flex:\s*0 0 32px/);
   assert.match(styles, /\.work-composer \{[\s\S]*?width:\s*100%/);
   assert.match(source, /className="work-composer nodrag nopan nowheel"[\s\S]*?onPointerDown=\{\(event\) => event\.stopPropagation\(\)\}/);

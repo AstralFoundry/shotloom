@@ -1,26 +1,28 @@
-import type { CatalogModel } from '../catalog/ModelCatalog';
-import type {
-  ProviderConfig,
-} from './ProviderRegistry';
-import { clonePlainData } from '../../utils/plainDataClone.mjs';
+import {
+  getBuiltInAdapterTemplates,
+  type CatalogModel,
+} from "../catalog/ModelCatalog";
+import type { ProviderConfig } from "./ProviderRegistry";
+import type { ProviderProtocolAdapter } from "./ProviderAdapterContract";
+import { clonePlainData } from "../../utils/plainDataClone.mjs";
+import { compileProviderModels } from "./ProviderAdapterContract";
 
-function toCatalogModel(provider: string, model: CatalogModel, index: number): CatalogModel | null {
-  const id = String(model.id || '').trim();
-  if (!id || !Array.isArray(model.modes) || !model.modes.length) return null;
-  return {
-    ...clonePlainData(model),
-    id,
-    name: String(model.name || id).trim() || id,
-    provider,
-    sortOrder: Number(model.sortOrder) || 900 + index,
-    enabled: model.enabled !== false,
-  };
-}
-
-export function buildCustomCatalogModels(configs: Record<string, ProviderConfig> = {}): CatalogModel[] {
-  return Object.entries(configs).flatMap(([provider, config]) => (
-    (Array.isArray(config?.models) ? config.models : [])
-      .map((model, index) => toCatalogModel(provider, model, index))
-      .filter((model): model is CatalogModel => Boolean(model?.enabled))
-  ));
+export function buildCustomCatalogModels(
+  configs: Record<string, ProviderConfig> = {},
+  protocolAdapters: ProviderProtocolAdapter[] = [],
+): CatalogModel[] {
+  const adapterMap = new Map(
+    getBuiltInAdapterTemplates().map(({ adapter }) => [adapter.id, adapter]),
+  );
+  clonePlainData(protocolAdapters).forEach((adapter: ProviderProtocolAdapter) =>
+    adapterMap.set(adapter.id, adapter),
+  );
+  const adapters = [...adapterMap.values()];
+  return Object.entries(configs).flatMap(([provider, config]) =>
+    compileProviderModels(
+      provider,
+      adapters,
+      clonePlainData(config?.modelBindings || []),
+    ).filter((model) => model.enabled),
+  );
 }

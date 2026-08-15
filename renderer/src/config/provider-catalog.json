@@ -1,16 +1,15 @@
 {
-  "schema": "shotloom.model-catalog",
-  "modelDefinitionVersion": 2,
-  "version": 2,
-  "description": "Shotloom 唯一声明式模型协议。内置模型均按厂商官方文档配置 endpoint、鉴权、请求模板、结果路径与异步轮询。",
-  "models": [
+  "schema": "shotloom.provider-catalog",
+  "providerDefinitionVersion": 1,
+  "version": 1,
+  "description": "Shotloom 内置供应商接入包。Adapter 定义可复用协议，Model Binding 只保存官方模型身份和协议引用。",
+  "entries": [
     {
-      "id": "gpt-5.6",
-      "name": "GPT 5.6",
+      "kind": "adapter",
       "provider": "openai",
+      "id": "openai-gpt-5-6-protocol",
+      "name": "GPT 5.6 协议",
       "type": "textGeneration",
-      "sortOrder": 1,
-      "enabled": true,
       "defaultMode": "text-generation",
       "modes": [
         {
@@ -32,9 +31,7 @@
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
-          "capabilities": [
-            "reasoning"
-          ],
+          "capabilities": ["reasoning"],
           "params": [
             {
               "key": "maxTokens",
@@ -42,11 +39,12 @@
               "type": "select",
               "default": 8192,
               "numeric": true,
-              "options": [
-                4096,
-                8192,
-                16384
-              ]
+              "options": [4096, 8192, 16384],
+              "presentation": {
+                "control": "segmented",
+                "group": "输出",
+                "summary": true
+              }
             }
           ],
           "auth": {
@@ -81,9 +79,7 @@
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
-          "capabilities": [
-            "structured-output"
-          ],
+          "capabilities": ["structured-output"],
           "params": [
             {
               "key": "maxTokens",
@@ -91,11 +87,12 @@
               "type": "select",
               "default": 8192,
               "numeric": true,
-              "options": [
-                4096,
-                8192,
-                16384
-              ]
+              "options": [4096, 8192, 16384],
+              "presentation": {
+                "control": "segmented",
+                "group": "输出",
+                "summary": true
+              }
             }
           ],
           "auth": {
@@ -130,9 +127,7 @@
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
-          "capabilities": [
-            "structured-output"
-          ],
+          "capabilities": ["structured-output"],
           "params": [
             {
               "key": "maxTokens",
@@ -140,11 +135,12 @@
               "type": "select",
               "default": 8192,
               "numeric": true,
-              "options": [
-                4096,
-                8192,
-                16384
-              ]
+              "options": [4096, 8192, 16384],
+              "presentation": {
+                "control": "segmented",
+                "group": "输出",
+                "summary": true
+              }
             }
           ],
           "auth": {
@@ -163,12 +159,11 @@
       ]
     },
     {
-      "id": "gpt-5.4",
-      "name": "GPT 5.4",
+      "kind": "adapter",
       "provider": "openai",
+      "id": "openai-gpt-5-4-protocol",
+      "name": "GPT 5.4 协议",
       "type": "textGeneration",
-      "sortOrder": 2,
-      "enabled": true,
       "defaultMode": "text-generation",
       "modes": [
         {
@@ -190,9 +185,7 @@
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
-          "capabilities": [
-            "reasoning"
-          ],
+          "capabilities": ["reasoning"],
           "params": [
             {
               "key": "maxTokens",
@@ -200,11 +193,12 @@
               "type": "select",
               "default": 8192,
               "numeric": true,
-              "options": [
-                4096,
-                8192,
-                16384
-              ]
+              "options": [4096, 8192, 16384],
+              "presentation": {
+                "control": "segmented",
+                "group": "输出",
+                "summary": true
+              }
             }
           ],
           "auth": {
@@ -238,9 +232,7 @@
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
-          "capabilities": [
-            "structured-output"
-          ],
+          "capabilities": ["structured-output"],
           "params": [
             {
               "key": "maxTokens",
@@ -248,11 +240,12 @@
               "type": "select",
               "default": 8192,
               "numeric": true,
-              "options": [
-                4096,
-                8192,
-                16384
-              ]
+              "options": [4096, 8192, 16384],
+              "presentation": {
+                "control": "segmented",
+                "group": "输出",
+                "summary": true
+              }
             }
           ],
           "auth": {
@@ -286,9 +279,7 @@
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
-          "capabilities": [
-            "structured-output"
-          ],
+          "capabilities": ["structured-output"],
           "params": [
             {
               "key": "maxTokens",
@@ -296,11 +287,12 @@
               "type": "select",
               "default": 8192,
               "numeric": true,
-              "options": [
-                4096,
-                8192,
-                16384
-              ]
+              "options": [4096, 8192, 16384],
+              "presentation": {
+                "control": "segmented",
+                "group": "输出",
+                "summary": true
+              }
             }
           ],
           "auth": {
@@ -318,12 +310,11 @@
       ]
     },
     {
-      "id": "gemini-3.6-flash",
-      "name": "Gemini 3.6 Flash",
+      "kind": "adapter",
       "provider": "google",
+      "id": "google-gemini-3-6-flash-protocol",
+      "name": "Gemini 3.6 Flash 协议",
       "type": "textGeneration",
-      "sortOrder": 3,
-      "enabled": true,
       "defaultMode": "text-generation",
       "modes": [
         {
@@ -345,9 +336,7 @@
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
-          "capabilities": [
-            "reasoning"
-          ],
+          "capabilities": ["reasoning"],
           "params": [
             {
               "key": "maxTokens",
@@ -355,11 +344,12 @@
               "type": "select",
               "default": 8192,
               "numeric": true,
-              "options": [
-                4096,
-                8192,
-                16384
-              ]
+              "options": [4096, 8192, 16384],
+              "presentation": {
+                "control": "segmented",
+                "group": "输出",
+                "summary": true
+              }
             }
           ],
           "auth": {
@@ -393,9 +383,7 @@
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
-          "capabilities": [
-            "structured-output"
-          ],
+          "capabilities": ["structured-output"],
           "params": [
             {
               "key": "maxTokens",
@@ -403,11 +391,12 @@
               "type": "select",
               "default": 8192,
               "numeric": true,
-              "options": [
-                4096,
-                8192,
-                16384
-              ]
+              "options": [4096, 8192, 16384],
+              "presentation": {
+                "control": "segmented",
+                "group": "输出",
+                "summary": true
+              }
             }
           ],
           "auth": {
@@ -441,9 +430,7 @@
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
-          "capabilities": [
-            "structured-output"
-          ],
+          "capabilities": ["structured-output"],
           "params": [
             {
               "key": "maxTokens",
@@ -451,11 +438,12 @@
               "type": "select",
               "default": 8192,
               "numeric": true,
-              "options": [
-                4096,
-                8192,
-                16384
-              ]
+              "options": [4096, 8192, 16384],
+              "presentation": {
+                "control": "segmented",
+                "group": "输出",
+                "summary": true
+              }
             }
           ],
           "auth": {
@@ -473,167 +461,11 @@
       ]
     },
     {
-      "id": "gemini-3.1-pro-preview",
-      "name": "Gemini 3.1 Pro",
-      "provider": "google",
-      "type": "textGeneration",
-      "sortOrder": 4,
-      "enabled": true,
-      "defaultMode": "text-generation",
-      "modes": [
-        {
-          "id": "text-generation",
-          "label": "文本生成",
-          "endpoint": {
-            "method": "POST",
-            "path": "/openai/chat/completions",
-            "scope": "root"
-          },
-          "inputConstraints": {
-            "text": {
-              "maxTokens": 1000000
-            }
-          },
-          "outputConstraints": {
-            "supportsStreaming": true,
-            "supportsToolCalls": true,
-            "supportsStructuredOutput": true,
-            "maxTokens": 16384
-          },
-          "capabilities": [
-            "reasoning"
-          ],
-          "params": [
-            {
-              "key": "maxTokens",
-              "label": "最大长度",
-              "type": "select",
-              "default": 8192,
-              "numeric": true,
-              "options": [
-                4096,
-                8192,
-                16384
-              ]
-            }
-          ],
-          "auth": {
-            "type": "bearer"
-          },
-          "requestTemplate": {
-            "model": "{{model}}",
-            "messages": "{{messages}}",
-            "max_tokens": "{{params.maxTokens}}",
-            "tools": "{{tools}}",
-            "tool_choice": "{{toolChoice}}"
-          },
-          "resultTextPath": "choices.0.message.content"
-        },
-        {
-          "id": "semantic-split",
-          "label": "语义拆分",
-          "endpoint": {
-            "method": "POST",
-            "path": "/openai/chat/completions",
-            "scope": "root"
-          },
-          "inputConstraints": {
-            "text": {
-              "maxTokens": 1000000
-            }
-          },
-          "outputConstraints": {
-            "supportsStreaming": true,
-            "supportsToolCalls": true,
-            "supportsStructuredOutput": true,
-            "maxTokens": 16384
-          },
-          "capabilities": [
-            "structured-output"
-          ],
-          "params": [
-            {
-              "key": "maxTokens",
-              "label": "最大长度",
-              "type": "select",
-              "default": 8192,
-              "numeric": true,
-              "options": [
-                4096,
-                8192,
-                16384
-              ]
-            }
-          ],
-          "auth": {
-            "type": "bearer"
-          },
-          "requestTemplate": {
-            "model": "{{model}}",
-            "messages": "{{messages}}",
-            "max_tokens": "{{params.maxTokens}}",
-            "tools": "{{tools}}",
-            "tool_choice": "{{toolChoice}}"
-          },
-          "resultTextPath": "choices.0.message.content"
-        },
-        {
-          "id": "storyboard-generation",
-          "label": "分镜生成",
-          "endpoint": {
-            "method": "POST",
-            "path": "/openai/chat/completions",
-            "scope": "root"
-          },
-          "inputConstraints": {
-            "text": {
-              "maxTokens": 1000000
-            }
-          },
-          "outputConstraints": {
-            "supportsStreaming": true,
-            "supportsToolCalls": true,
-            "supportsStructuredOutput": true,
-            "maxTokens": 16384
-          },
-          "capabilities": [
-            "structured-output"
-          ],
-          "params": [
-            {
-              "key": "maxTokens",
-              "label": "最大长度",
-              "type": "select",
-              "default": 8192,
-              "numeric": true,
-              "options": [
-                4096,
-                8192,
-                16384
-              ]
-            }
-          ],
-          "auth": {
-            "type": "bearer"
-          },
-          "requestTemplate": {
-            "model": "{{model}}",
-            "messages": "{{messages}}",
-            "max_tokens": "{{params.maxTokens}}",
-            "tools": "{{tools}}",
-            "tool_choice": "{{toolChoice}}"
-          },
-          "resultTextPath": "choices.0.message.content"
-        }
-      ]
-    },
-    {
-      "id": "grok-4.5",
-      "name": "Grok 4.5",
+      "kind": "adapter",
       "provider": "xai",
+      "id": "xai-grok-4-5-protocol",
+      "name": "Grok 4.5 协议",
       "type": "textGeneration",
-      "sortOrder": 5,
-      "enabled": true,
       "defaultMode": "text-generation",
       "modes": [
         {
@@ -655,9 +487,7 @@
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
-          "capabilities": [
-            "reasoning"
-          ],
+          "capabilities": ["reasoning"],
           "params": [
             {
               "key": "maxTokens",
@@ -665,11 +495,12 @@
               "type": "select",
               "default": 8192,
               "numeric": true,
-              "options": [
-                4096,
-                8192,
-                16384
-              ]
+              "options": [4096, 8192, 16384],
+              "presentation": {
+                "control": "segmented",
+                "group": "输出",
+                "summary": true
+              }
             }
           ],
           "auth": {
@@ -703,9 +534,7 @@
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
-          "capabilities": [
-            "structured-output"
-          ],
+          "capabilities": ["structured-output"],
           "params": [
             {
               "key": "maxTokens",
@@ -713,11 +542,12 @@
               "type": "select",
               "default": 8192,
               "numeric": true,
-              "options": [
-                4096,
-                8192,
-                16384
-              ]
+              "options": [4096, 8192, 16384],
+              "presentation": {
+                "control": "segmented",
+                "group": "输出",
+                "summary": true
+              }
             }
           ],
           "auth": {
@@ -751,9 +581,7 @@
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
-          "capabilities": [
-            "structured-output"
-          ],
+          "capabilities": ["structured-output"],
           "params": [
             {
               "key": "maxTokens",
@@ -761,11 +589,12 @@
               "type": "select",
               "default": 8192,
               "numeric": true,
-              "options": [
-                4096,
-                8192,
-                16384
-              ]
+              "options": [4096, 8192, 16384],
+              "presentation": {
+                "control": "segmented",
+                "group": "输出",
+                "summary": true
+              }
             }
           ],
           "auth": {
@@ -783,12 +612,11 @@
       ]
     },
     {
-      "id": "claude-sonnet-5",
-      "name": "Claude Sonnet 5",
+      "kind": "adapter",
       "provider": "anthropic",
+      "id": "anthropic-claude-sonnet-5-protocol",
+      "name": "Claude Sonnet 5 协议",
       "type": "textGeneration",
-      "sortOrder": 6,
-      "enabled": true,
       "defaultMode": "text-generation",
       "modes": [
         {
@@ -810,9 +638,7 @@
             "supportsStructuredOutput": true,
             "maxTokens": 128000
           },
-          "capabilities": [
-            "reasoning"
-          ],
+          "capabilities": ["reasoning"],
           "params": [
             {
               "key": "maxTokens",
@@ -820,11 +646,12 @@
               "type": "select",
               "default": 8192,
               "numeric": true,
-              "options": [
-                4096,
-                8192,
-                16384
-              ]
+              "options": [4096, 8192, 16384],
+              "presentation": {
+                "control": "segmented",
+                "group": "输出",
+                "summary": true
+              }
             }
           ],
           "auth": {
@@ -861,9 +688,7 @@
             "supportsStructuredOutput": true,
             "maxTokens": 128000
           },
-          "capabilities": [
-            "structured-output"
-          ],
+          "capabilities": ["structured-output"],
           "params": [
             {
               "key": "maxTokens",
@@ -871,11 +696,12 @@
               "type": "select",
               "default": 8192,
               "numeric": true,
-              "options": [
-                4096,
-                8192,
-                16384
-              ]
+              "options": [4096, 8192, 16384],
+              "presentation": {
+                "control": "segmented",
+                "group": "输出",
+                "summary": true
+              }
             }
           ],
           "auth": {
@@ -912,9 +738,7 @@
             "supportsStructuredOutput": true,
             "maxTokens": 128000
           },
-          "capabilities": [
-            "structured-output"
-          ],
+          "capabilities": ["structured-output"],
           "params": [
             {
               "key": "maxTokens",
@@ -922,11 +746,12 @@
               "type": "select",
               "default": 8192,
               "numeric": true,
-              "options": [
-                4096,
-                8192,
-                16384
-              ]
+              "options": [4096, 8192, 16384],
+              "presentation": {
+                "control": "segmented",
+                "group": "输出",
+                "summary": true
+              }
             }
           ],
           "auth": {
@@ -947,176 +772,11 @@
       ]
     },
     {
-      "id": "claude-opus-4-8",
-      "name": "Claude Opus 4.8",
-      "provider": "anthropic",
-      "type": "textGeneration",
-      "sortOrder": 7,
-      "enabled": true,
-      "defaultMode": "text-generation",
-      "modes": [
-        {
-          "id": "text-generation",
-          "label": "文本生成",
-          "endpoint": {
-            "method": "POST",
-            "path": "/v1/messages",
-            "scope": "root"
-          },
-          "inputConstraints": {
-            "text": {
-              "maxTokens": 1000000
-            }
-          },
-          "outputConstraints": {
-            "supportsStreaming": true,
-            "supportsToolCalls": false,
-            "supportsStructuredOutput": true,
-            "maxTokens": 128000
-          },
-          "capabilities": [
-            "reasoning"
-          ],
-          "params": [
-            {
-              "key": "maxTokens",
-              "label": "最大长度",
-              "type": "select",
-              "default": 8192,
-              "numeric": true,
-              "options": [
-                4096,
-                8192,
-                16384
-              ]
-            }
-          ],
-          "auth": {
-            "type": "header",
-            "name": "x-api-key"
-          },
-          "headers": {
-            "anthropic-version": "2023-06-01"
-          },
-          "requestTemplate": {
-            "model": "{{model}}",
-            "system": "{{system}}",
-            "messages": "{{nonSystemMessages}}",
-            "max_tokens": "{{params.maxTokens}}"
-          },
-          "resultTextPath": "content.0.text"
-        },
-        {
-          "id": "semantic-split",
-          "label": "语义拆分",
-          "endpoint": {
-            "method": "POST",
-            "path": "/v1/messages",
-            "scope": "root"
-          },
-          "inputConstraints": {
-            "text": {
-              "maxTokens": 1000000
-            }
-          },
-          "outputConstraints": {
-            "supportsStreaming": true,
-            "supportsToolCalls": false,
-            "supportsStructuredOutput": true,
-            "maxTokens": 128000
-          },
-          "capabilities": [
-            "structured-output"
-          ],
-          "params": [
-            {
-              "key": "maxTokens",
-              "label": "最大长度",
-              "type": "select",
-              "default": 8192,
-              "numeric": true,
-              "options": [
-                4096,
-                8192,
-                16384
-              ]
-            }
-          ],
-          "auth": {
-            "type": "header",
-            "name": "x-api-key"
-          },
-          "headers": {
-            "anthropic-version": "2023-06-01"
-          },
-          "requestTemplate": {
-            "model": "{{model}}",
-            "system": "{{system}}",
-            "messages": "{{nonSystemMessages}}",
-            "max_tokens": "{{params.maxTokens}}"
-          },
-          "resultTextPath": "content.0.text"
-        },
-        {
-          "id": "storyboard-generation",
-          "label": "分镜生成",
-          "endpoint": {
-            "method": "POST",
-            "path": "/v1/messages",
-            "scope": "root"
-          },
-          "inputConstraints": {
-            "text": {
-              "maxTokens": 1000000
-            }
-          },
-          "outputConstraints": {
-            "supportsStreaming": true,
-            "supportsToolCalls": false,
-            "supportsStructuredOutput": true,
-            "maxTokens": 128000
-          },
-          "capabilities": [
-            "structured-output"
-          ],
-          "params": [
-            {
-              "key": "maxTokens",
-              "label": "最大长度",
-              "type": "select",
-              "default": 8192,
-              "numeric": true,
-              "options": [
-                4096,
-                8192,
-                16384
-              ]
-            }
-          ],
-          "auth": {
-            "type": "header",
-            "name": "x-api-key"
-          },
-          "headers": {
-            "anthropic-version": "2023-06-01"
-          },
-          "requestTemplate": {
-            "model": "{{model}}",
-            "system": "{{system}}",
-            "messages": "{{nonSystemMessages}}",
-            "max_tokens": "{{params.maxTokens}}"
-          },
-          "resultTextPath": "content.0.text"
-        }
-      ]
-    },
-    {
-      "id": "deepseek-v4-pro",
-      "name": "DeepSeek V4 Pro",
+      "kind": "adapter",
       "provider": "deepseek",
+      "id": "deepseek-deepseek-v4-pro-protocol",
+      "name": "DeepSeek V4 Pro 协议",
       "type": "textGeneration",
-      "sortOrder": 8,
-      "enabled": true,
       "defaultMode": "text-generation",
       "modes": [
         {
@@ -1136,11 +796,9 @@
             "supportsStreaming": true,
             "supportsToolCalls": true,
             "supportsStructuredOutput": true,
-            "maxTokens": 16384
+            "maxTokens": 32768
           },
-          "capabilities": [
-            "reasoning"
-          ],
+          "capabilities": ["reasoning"],
           "params": [
             {
               "key": "maxTokens",
@@ -1148,11 +806,12 @@
               "type": "select",
               "default": 8192,
               "numeric": true,
-              "options": [
-                4096,
-                8192,
-                16384
-              ]
+              "options": [4096, 8192, 16384, 32768],
+              "presentation": {
+                "control": "segmented",
+                "group": "输出",
+                "summary": true
+              }
             }
           ],
           "auth": {
@@ -1184,11 +843,9 @@
             "supportsStreaming": true,
             "supportsToolCalls": true,
             "supportsStructuredOutput": true,
-            "maxTokens": 16384
+            "maxTokens": 32768
           },
-          "capabilities": [
-            "structured-output"
-          ],
+          "capabilities": ["structured-output"],
           "params": [
             {
               "key": "maxTokens",
@@ -1196,11 +853,12 @@
               "type": "select",
               "default": 8192,
               "numeric": true,
-              "options": [
-                4096,
-                8192,
-                16384
-              ]
+              "options": [4096, 8192, 16384, 32768],
+              "presentation": {
+                "control": "segmented",
+                "group": "输出",
+                "summary": true
+              }
             }
           ],
           "auth": {
@@ -1232,11 +890,9 @@
             "supportsStreaming": true,
             "supportsToolCalls": true,
             "supportsStructuredOutput": true,
-            "maxTokens": 16384
+            "maxTokens": 32768
           },
-          "capabilities": [
-            "structured-output"
-          ],
+          "capabilities": ["structured-output"],
           "params": [
             {
               "key": "maxTokens",
@@ -1244,11 +900,12 @@
               "type": "select",
               "default": 8192,
               "numeric": true,
-              "options": [
-                4096,
-                8192,
-                16384
-              ]
+              "options": [4096, 8192, 16384, 32768],
+              "presentation": {
+                "control": "segmented",
+                "group": "输出",
+                "summary": true
+              }
             }
           ],
           "auth": {
@@ -1266,167 +923,11 @@
       ]
     },
     {
-      "id": "deepseek-v4-flash",
-      "name": "DeepSeek V4 Flash",
-      "provider": "deepseek",
-      "type": "textGeneration",
-      "sortOrder": 9,
-      "enabled": true,
-      "defaultMode": "text-generation",
-      "modes": [
-        {
-          "id": "text-generation",
-          "label": "文本生成",
-          "endpoint": {
-            "method": "POST",
-            "path": "/chat/completions",
-            "scope": "root"
-          },
-          "inputConstraints": {
-            "text": {
-              "maxTokens": 1000000
-            }
-          },
-          "outputConstraints": {
-            "supportsStreaming": true,
-            "supportsToolCalls": true,
-            "supportsStructuredOutput": true,
-            "maxTokens": 16384
-          },
-          "capabilities": [
-            "reasoning"
-          ],
-          "params": [
-            {
-              "key": "maxTokens",
-              "label": "最大长度",
-              "type": "select",
-              "default": 8192,
-              "numeric": true,
-              "options": [
-                4096,
-                8192,
-                16384
-              ]
-            }
-          ],
-          "auth": {
-            "type": "bearer"
-          },
-          "requestTemplate": {
-            "model": "{{model}}",
-            "messages": "{{messages}}",
-            "max_tokens": "{{params.maxTokens}}",
-            "tools": "{{tools}}",
-            "tool_choice": "{{toolChoice}}"
-          },
-          "resultTextPath": "choices.0.message.content"
-        },
-        {
-          "id": "semantic-split",
-          "label": "语义拆分",
-          "endpoint": {
-            "method": "POST",
-            "path": "/chat/completions",
-            "scope": "root"
-          },
-          "inputConstraints": {
-            "text": {
-              "maxTokens": 1000000
-            }
-          },
-          "outputConstraints": {
-            "supportsStreaming": true,
-            "supportsToolCalls": true,
-            "supportsStructuredOutput": true,
-            "maxTokens": 16384
-          },
-          "capabilities": [
-            "structured-output"
-          ],
-          "params": [
-            {
-              "key": "maxTokens",
-              "label": "最大长度",
-              "type": "select",
-              "default": 8192,
-              "numeric": true,
-              "options": [
-                4096,
-                8192,
-                16384
-              ]
-            }
-          ],
-          "auth": {
-            "type": "bearer"
-          },
-          "requestTemplate": {
-            "model": "{{model}}",
-            "messages": "{{messages}}",
-            "max_tokens": "{{params.maxTokens}}",
-            "tools": "{{tools}}",
-            "tool_choice": "{{toolChoice}}"
-          },
-          "resultTextPath": "choices.0.message.content"
-        },
-        {
-          "id": "storyboard-generation",
-          "label": "分镜生成",
-          "endpoint": {
-            "method": "POST",
-            "path": "/chat/completions",
-            "scope": "root"
-          },
-          "inputConstraints": {
-            "text": {
-              "maxTokens": 1000000
-            }
-          },
-          "outputConstraints": {
-            "supportsStreaming": true,
-            "supportsToolCalls": true,
-            "supportsStructuredOutput": true,
-            "maxTokens": 16384
-          },
-          "capabilities": [
-            "structured-output"
-          ],
-          "params": [
-            {
-              "key": "maxTokens",
-              "label": "最大长度",
-              "type": "select",
-              "default": 8192,
-              "numeric": true,
-              "options": [
-                4096,
-                8192,
-                16384
-              ]
-            }
-          ],
-          "auth": {
-            "type": "bearer"
-          },
-          "requestTemplate": {
-            "model": "{{model}}",
-            "messages": "{{messages}}",
-            "max_tokens": "{{params.maxTokens}}",
-            "tools": "{{tools}}",
-            "tool_choice": "{{toolChoice}}"
-          },
-          "resultTextPath": "choices.0.message.content"
-        }
-      ]
-    },
-    {
-      "id": "qwen3.7-plus",
-      "name": "Qwen 3.7 Plus",
+      "kind": "adapter",
       "provider": "qwen",
+      "id": "qwen-qwen3-7-plus-protocol",
+      "name": "Qwen 3.7 Plus 协议",
       "type": "textGeneration",
-      "sortOrder": 10,
-      "enabled": true,
       "defaultMode": "text-generation",
       "modes": [
         {
@@ -1448,9 +949,7 @@
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
-          "capabilities": [
-            "reasoning"
-          ],
+          "capabilities": ["reasoning"],
           "params": [
             {
               "key": "maxTokens",
@@ -1458,11 +957,12 @@
               "type": "select",
               "default": 8192,
               "numeric": true,
-              "options": [
-                4096,
-                8192,
-                16384
-              ]
+              "options": [4096, 8192, 16384],
+              "presentation": {
+                "control": "segmented",
+                "group": "输出",
+                "summary": true
+              }
             }
           ],
           "auth": {
@@ -1496,9 +996,7 @@
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
-          "capabilities": [
-            "structured-output"
-          ],
+          "capabilities": ["structured-output"],
           "params": [
             {
               "key": "maxTokens",
@@ -1506,11 +1004,12 @@
               "type": "select",
               "default": 8192,
               "numeric": true,
-              "options": [
-                4096,
-                8192,
-                16384
-              ]
+              "options": [4096, 8192, 16384],
+              "presentation": {
+                "control": "segmented",
+                "group": "输出",
+                "summary": true
+              }
             }
           ],
           "auth": {
@@ -1544,9 +1043,7 @@
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
-          "capabilities": [
-            "structured-output"
-          ],
+          "capabilities": ["structured-output"],
           "params": [
             {
               "key": "maxTokens",
@@ -1554,11 +1051,12 @@
               "type": "select",
               "default": 8192,
               "numeric": true,
-              "options": [
-                4096,
-                8192,
-                16384
-              ]
+              "options": [4096, 8192, 16384],
+              "presentation": {
+                "control": "segmented",
+                "group": "输出",
+                "summary": true
+              }
             }
           ],
           "auth": {
@@ -1576,12 +1074,11 @@
       ]
     },
     {
-      "id": "kimi-k3",
-      "name": "Kimi K3",
+      "kind": "adapter",
       "provider": "moonshot",
+      "id": "moonshot-kimi-k3-protocol",
+      "name": "Kimi K3 协议",
       "type": "textGeneration",
-      "sortOrder": 11,
-      "enabled": true,
       "defaultMode": "text-generation",
       "modes": [
         {
@@ -1603,9 +1100,7 @@
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
-          "capabilities": [
-            "reasoning"
-          ],
+          "capabilities": ["reasoning"],
           "params": [
             {
               "key": "maxTokens",
@@ -1613,11 +1108,12 @@
               "type": "select",
               "default": 8192,
               "numeric": true,
-              "options": [
-                4096,
-                8192,
-                16384
-              ]
+              "options": [4096, 8192, 16384],
+              "presentation": {
+                "control": "segmented",
+                "group": "输出",
+                "summary": true
+              }
             }
           ],
           "auth": {
@@ -1651,9 +1147,7 @@
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
-          "capabilities": [
-            "structured-output"
-          ],
+          "capabilities": ["structured-output"],
           "params": [
             {
               "key": "maxTokens",
@@ -1661,11 +1155,12 @@
               "type": "select",
               "default": 8192,
               "numeric": true,
-              "options": [
-                4096,
-                8192,
-                16384
-              ]
+              "options": [4096, 8192, 16384],
+              "presentation": {
+                "control": "segmented",
+                "group": "输出",
+                "summary": true
+              }
             }
           ],
           "auth": {
@@ -1699,9 +1194,7 @@
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
-          "capabilities": [
-            "structured-output"
-          ],
+          "capabilities": ["structured-output"],
           "params": [
             {
               "key": "maxTokens",
@@ -1709,11 +1202,12 @@
               "type": "select",
               "default": 8192,
               "numeric": true,
-              "options": [
-                4096,
-                8192,
-                16384
-              ]
+              "options": [4096, 8192, 16384],
+              "presentation": {
+                "control": "segmented",
+                "group": "输出",
+                "summary": true
+              }
             }
           ],
           "auth": {
@@ -1731,12 +1225,11 @@
       ]
     },
     {
-      "id": "glm-5.2",
-      "name": "GLM 5.2",
+      "kind": "adapter",
       "provider": "zhipu",
+      "id": "zhipu-glm-5-2-protocol",
+      "name": "GLM 5.2 协议",
       "type": "textGeneration",
-      "sortOrder": 12,
-      "enabled": true,
       "defaultMode": "text-generation",
       "modes": [
         {
@@ -1758,9 +1251,7 @@
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
-          "capabilities": [
-            "reasoning"
-          ],
+          "capabilities": ["reasoning"],
           "params": [
             {
               "key": "maxTokens",
@@ -1768,11 +1259,12 @@
               "type": "select",
               "default": 8192,
               "numeric": true,
-              "options": [
-                4096,
-                8192,
-                16384
-              ]
+              "options": [4096, 8192, 16384],
+              "presentation": {
+                "control": "segmented",
+                "group": "输出",
+                "summary": true
+              }
             }
           ],
           "auth": {
@@ -1806,9 +1298,7 @@
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
-          "capabilities": [
-            "structured-output"
-          ],
+          "capabilities": ["structured-output"],
           "params": [
             {
               "key": "maxTokens",
@@ -1816,11 +1306,12 @@
               "type": "select",
               "default": 8192,
               "numeric": true,
-              "options": [
-                4096,
-                8192,
-                16384
-              ]
+              "options": [4096, 8192, 16384],
+              "presentation": {
+                "control": "segmented",
+                "group": "输出",
+                "summary": true
+              }
             }
           ],
           "auth": {
@@ -1854,9 +1345,7 @@
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
-          "capabilities": [
-            "structured-output"
-          ],
+          "capabilities": ["structured-output"],
           "params": [
             {
               "key": "maxTokens",
@@ -1864,11 +1353,12 @@
               "type": "select",
               "default": 8192,
               "numeric": true,
-              "options": [
-                4096,
-                8192,
-                16384
-              ]
+              "options": [4096, 8192, 16384],
+              "presentation": {
+                "control": "segmented",
+                "group": "输出",
+                "summary": true
+              }
             }
           ],
           "auth": {
@@ -1886,12 +1376,11 @@
       ]
     },
     {
-      "id": "gpt-image-2",
-      "name": "GPT Image 2",
+      "kind": "adapter",
       "provider": "openai",
+      "id": "openai-gpt-image-2-protocol",
+      "name": "GPT Image 2 协议",
       "type": "imageGeneration",
-      "sortOrder": 1,
-      "enabled": true,
       "defaultMode": "text-to-image",
       "modes": [
         {
@@ -1910,23 +1399,19 @@
           },
           "outputConstraints": {
             "maxCount": 4,
-            "formats": [
-              "png"
-            ]
+            "formats": ["png"]
           },
           "params": [
-            {
-              "key": "prompt",
-              "label": "提示词",
-              "type": "text",
-              "required": true
-            },
             {
               "key": "size",
               "label": "比例",
               "type": "select",
               "default": "1024x1024",
-              "presentation": "aspectRatio",
+              "presentation": {
+                "control": "ratio",
+                "group": "画面",
+                "summary": true
+              },
               "options": [
                 "1024x1024",
                 "1536x864",
@@ -1954,11 +1439,12 @@
               "type": "select",
               "default": 1,
               "numeric": true,
-              "options": [
-                1,
-                2,
-                4
-              ]
+              "options": [1, 2, 4],
+              "presentation": {
+                "control": "segmented",
+                "group": "输出",
+                "summary": true
+              }
             }
           ],
           "auth": {
@@ -1976,6 +1462,8 @@
         {
           "id": "image-to-image",
           "label": "图片编辑",
+          "inputMode": "reference",
+          "inputSlots": ["reference"],
           "endpoint": {
             "method": "POST",
             "path": "/images/edits",
@@ -1983,36 +1471,30 @@
           },
           "inputFormat": "multipart",
           "requestFields": {
-            "multipartImage": "image"
+            "multipartImage": "image[]"
           },
           "inputConstraints": {
             "images": {
               "min": 1,
               "max": 16,
-              "roles": [
-                "referenceImage"
-              ]
+              "roles": ["referenceImage"]
             }
           },
           "outputConstraints": {
             "maxCount": 4,
-            "formats": [
-              "png"
-            ]
+            "formats": ["png"]
           },
           "params": [
-            {
-              "key": "prompt",
-              "label": "提示词",
-              "type": "text",
-              "required": true
-            },
             {
               "key": "size",
               "label": "比例",
               "type": "select",
               "default": "1024x1024",
-              "presentation": "aspectRatio",
+              "presentation": {
+                "control": "ratio",
+                "group": "画面",
+                "summary": true
+              },
               "options": [
                 "1024x1024",
                 "1536x864",
@@ -2040,11 +1522,12 @@
               "type": "select",
               "default": 1,
               "numeric": true,
-              "options": [
-                1,
-                2,
-                4
-              ]
+              "options": [1, 2, 4],
+              "presentation": {
+                "control": "segmented",
+                "group": "输出",
+                "summary": true
+              }
             }
           ],
           "auth": {
@@ -2062,12 +1545,11 @@
       ]
     },
     {
-      "id": "gemini-3.1-flash-image",
-      "name": "Gemini 3.1 Flash Image",
+      "kind": "adapter",
       "provider": "google",
+      "id": "google-gemini-3-1-flash-image-protocol",
+      "name": "Gemini 3.1 Flash Image 协议",
       "type": "imageGeneration",
-      "sortOrder": 2,
-      "enabled": true,
       "defaultMode": "text-to-image",
       "modes": [
         {
@@ -2075,7 +1557,7 @@
           "label": "文生图",
           "endpoint": {
             "method": "POST",
-            "path": "/models/gemini-3.1-flash-image:generateContent",
+            "path": "/models/{{model}}:generateContent",
             "scope": "root"
           },
           "inputConstraints": {
@@ -2086,29 +1568,20 @@
           },
           "outputConstraints": {
             "maxCount": 1,
-            "formats": [
-              "png"
-            ]
+            "formats": ["png"]
           },
           "params": [
-            {
-              "key": "prompt",
-              "label": "提示词",
-              "type": "text",
-              "required": true
-            },
             {
               "key": "aspectRatio",
               "label": "比例",
               "type": "select",
               "default": "1:1",
-              "options": [
-                "1:1",
-                "16:9",
-                "9:16",
-                "4:3",
-                "3:4"
-              ]
+              "options": ["1:1", "16:9", "9:16", "4:3", "3:4"],
+              "presentation": {
+                "control": "ratio",
+                "group": "画面",
+                "summary": true
+              }
             }
           ],
           "auth": {
@@ -2126,10 +1599,7 @@
               }
             ],
             "generationConfig": {
-              "responseModalities": [
-                "TEXT",
-                "IMAGE"
-              ],
+              "responseModalities": ["TEXT", "IMAGE"],
               "imageConfig": {
                 "aspectRatio": "{{params.aspectRatio}}"
               }
@@ -2140,12 +1610,11 @@
       ]
     },
     {
-      "id": "grok-imagine-image-quality",
-      "name": "Grok Imagine Image Quality",
+      "kind": "adapter",
       "provider": "xai",
+      "id": "xai-grok-imagine-image-quality-protocol",
+      "name": "Grok Imagine Image Quality 协议",
       "type": "imageGeneration",
-      "sortOrder": 3,
-      "enabled": true,
       "defaultMode": "text-to-image",
       "modes": [
         {
@@ -2164,30 +1633,20 @@
           },
           "outputConstraints": {
             "maxCount": 4,
-            "formats": [
-              "png",
-              "jpg"
-            ]
+            "formats": ["png", "jpg"]
           },
           "params": [
-            {
-              "key": "prompt",
-              "label": "提示词",
-              "type": "text",
-              "required": true
-            },
             {
               "key": "aspectRatio",
               "label": "比例",
               "type": "select",
               "default": "1:1",
-              "options": [
-                "1:1",
-                "16:9",
-                "9:16",
-                "4:3",
-                "3:4"
-              ]
+              "options": ["1:1", "16:9", "9:16", "4:3", "3:4"],
+              "presentation": {
+                "control": "ratio",
+                "group": "画面",
+                "summary": true
+              }
             },
             {
               "key": "generationCount",
@@ -2195,11 +1654,12 @@
               "type": "select",
               "default": 1,
               "numeric": true,
-              "options": [
-                1,
-                2,
-                4
-              ]
+              "options": [1, 2, 4],
+              "presentation": {
+                "control": "segmented",
+                "group": "输出",
+                "summary": true
+              }
             }
           ],
           "auth": {
@@ -2217,12 +1677,11 @@
       ]
     },
     {
-      "id": "qwen-image-2.0-pro",
-      "name": "Qwen Image 2.0 Pro",
+      "kind": "adapter",
       "provider": "qwen",
+      "id": "qwen-qwen-image-2-0-pro-protocol",
+      "name": "Qwen Image 2.0 Pro 协议",
       "type": "imageGeneration",
-      "sortOrder": 4,
-      "enabled": true,
       "defaultMode": "text-to-image",
       "modes": [
         {
@@ -2241,28 +1700,20 @@
           },
           "outputConstraints": {
             "maxCount": 6,
-            "formats": [
-              "png",
-              "jpg"
-            ]
+            "formats": ["png", "jpg"]
           },
           "params": [
-            {
-              "key": "prompt",
-              "label": "提示词",
-              "type": "text",
-              "required": true
-            },
             {
               "key": "size",
               "label": "尺寸",
               "type": "select",
               "default": "2048*2048",
-              "options": [
-                "2048*2048",
-                "2304*1728",
-                "1728*2304"
-              ]
+              "options": ["2048*2048", "2304*1728", "1728*2304"],
+              "presentation": {
+                "control": "resolution",
+                "group": "画面",
+                "summary": true
+              }
             },
             {
               "key": "generationCount",
@@ -2270,12 +1721,12 @@
               "type": "select",
               "default": 1,
               "numeric": true,
-              "options": [
-                1,
-                2,
-                4,
-                6
-              ]
+              "options": [1, 2, 4, 6],
+              "presentation": {
+                "control": "segmented",
+                "group": "输出",
+                "summary": true
+              }
             }
           ],
           "auth": {
@@ -2307,12 +1758,11 @@
       ]
     },
     {
-      "id": "glm-image",
-      "name": "GLM Image",
+      "kind": "adapter",
       "provider": "zhipu",
+      "id": "zhipu-glm-image-protocol",
+      "name": "GLM Image 协议",
       "type": "imageGeneration",
-      "sortOrder": 5,
-      "enabled": true,
       "defaultMode": "text-to-image",
       "modes": [
         {
@@ -2331,18 +1781,9 @@
           },
           "outputConstraints": {
             "maxCount": 1,
-            "formats": [
-              "png",
-              "jpg"
-            ]
+            "formats": ["png", "jpg"]
           },
           "params": [
-            {
-              "key": "prompt",
-              "label": "提示词",
-              "type": "text",
-              "required": true
-            },
             {
               "key": "size",
               "label": "尺寸",
@@ -2354,7 +1795,12 @@
                 "1056x1568",
                 "1728x960",
                 "960x1728"
-              ]
+              ],
+              "presentation": {
+                "control": "resolution",
+                "group": "画面",
+                "summary": true
+              }
             }
           ],
           "auth": {
@@ -2371,12 +1817,11 @@
       ]
     },
     {
-      "id": "MiniMax-H3",
-      "name": "MiniMax Hailuo 03",
+      "kind": "adapter",
       "provider": "minimax",
+      "id": "minimax-MiniMax-H3-protocol",
+      "name": "MiniMax Hailuo 03 协议",
       "type": "videoGeneration",
-      "sortOrder": 4,
-      "enabled": true,
       "defaultMode": "text-to-video",
       "modes": [
         {
@@ -2406,32 +1851,42 @@
           },
           "params": [
             {
-              "key": "prompt",
-              "label": "提示词",
-              "type": "text",
-              "required": true
-            },
-            {
               "key": "duration",
               "label": "时长",
               "type": "select",
               "default": 5,
               "numeric": true,
-              "options": [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+              "options": [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+              "presentation": {
+                "control": "select",
+                "group": "画面",
+                "summary": true,
+                "unit": "秒"
+              }
             },
             {
               "key": "aspectRatio",
               "label": "比例",
               "type": "select",
               "default": "16:9",
-              "options": ["21:9", "16:9", "4:3", "1:1", "3:4", "9:16"]
+              "options": ["21:9", "16:9", "4:3", "1:1", "3:4", "9:16"],
+              "presentation": {
+                "control": "ratio",
+                "group": "画面",
+                "summary": true
+              }
             },
             {
               "key": "resolution",
               "label": "分辨率",
               "type": "select",
               "default": "768P",
-              "options": ["768P", "2K"]
+              "options": ["768P", "2K"],
+              "presentation": {
+                "control": "resolution",
+                "group": "画面",
+                "summary": true
+              }
             }
           ],
           "auth": {
@@ -2452,7 +1907,7 @@
             "running": "running",
             "succeeded": "completed",
             "failed": "failed",
-            "cancelled": "cancelled"
+            "cancelled": "failed"
           },
           "resultUrlPath": "task.content.url"
         },
@@ -2490,25 +1945,30 @@
           },
           "params": [
             {
-              "key": "prompt",
-              "label": "提示词",
-              "type": "text",
-              "required": true
-            },
-            {
               "key": "duration",
               "label": "时长",
               "type": "select",
               "default": 5,
               "numeric": true,
-              "options": [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+              "options": [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+              "presentation": {
+                "control": "select",
+                "group": "画面",
+                "summary": true,
+                "unit": "秒"
+              }
             },
             {
               "key": "resolution",
               "label": "分辨率",
               "type": "select",
               "default": "768P",
-              "options": ["768P", "2K"]
+              "options": ["768P", "2K"],
+              "presentation": {
+                "control": "resolution",
+                "group": "画面",
+                "summary": true
+              }
             }
           ],
           "auth": {
@@ -2529,19 +1989,18 @@
             "running": "running",
             "succeeded": "completed",
             "failed": "failed",
-            "cancelled": "cancelled"
+            "cancelled": "failed"
           },
           "resultUrlPath": "task.content.url"
         }
       ]
     },
     {
-      "id": "doubao-seedance-2-0-260128",
-      "name": "Doubao Seedance 2.0",
+      "kind": "adapter",
       "provider": "bytedance",
+      "id": "bytedance-doubao-seedance-2-0-260128-protocol",
+      "name": "Doubao Seedance 2.0 协议",
       "type": "videoGeneration",
-      "sortOrder": 1,
-      "enabled": true,
       "defaultMode": "text-to-video",
       "modes": [
         {
@@ -2571,44 +2030,72 @@
           },
           "params": [
             {
-              "key": "prompt",
-              "label": "提示词",
-              "type": "text",
-              "required": true
-            },
-            {
               "key": "duration",
               "label": "时长",
               "type": "select",
               "default": 5,
               "numeric": true,
-              "options": [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+              "options": [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+              "presentation": {
+                "control": "select",
+                "group": "画面",
+                "summary": true,
+                "unit": "秒"
+              }
             },
             {
               "key": "ratio",
               "label": "比例",
               "type": "select",
               "default": "adaptive",
-              "options": ["adaptive", "16:9", "4:3", "1:1", "3:4", "9:16", "21:9"]
+              "options": [
+                "adaptive",
+                "16:9",
+                "4:3",
+                "1:1",
+                "3:4",
+                "9:16",
+                "21:9"
+              ],
+              "presentation": {
+                "control": "ratio",
+                "group": "画面",
+                "summary": true
+              }
             },
             {
               "key": "resolution",
               "label": "分辨率",
               "type": "select",
               "default": "720p",
-              "options": ["480p", "720p", "1080p", "4k"]
+              "options": ["480p", "720p", "1080p", "4k"],
+              "presentation": {
+                "control": "resolution",
+                "group": "画面",
+                "summary": true
+              }
             },
             {
               "key": "generateAudio",
               "label": "生成同步声音",
               "type": "boolean",
-              "default": true
+              "default": true,
+              "presentation": {
+                "control": "toggle",
+                "group": "声音",
+                "summary": true
+              }
             },
             {
               "key": "watermark",
               "label": "AI 水印",
               "type": "boolean",
-              "default": false
+              "default": false,
+              "presentation": {
+                "control": "toggle",
+                "group": "输出",
+                "summary": true
+              }
             }
           ],
           "auth": {
@@ -2646,7 +2133,11 @@
               "label": "首尾帧",
               "inputSlots": ["firstFrame", "lastFrame"],
               "inputConstraints": {
-                "images": { "min": 1, "max": 2, "roles": ["referenceImage"] }
+                "images": {
+                  "min": 1,
+                  "max": 2,
+                  "roles": ["referenceImage"]
+                }
               },
               "requestFields": {
                 "firstFrameImageContentRole": "first_frame",
@@ -2703,44 +2194,72 @@
           },
           "params": [
             {
-              "key": "prompt",
-              "label": "提示词",
-              "type": "text",
-              "required": false
-            },
-            {
               "key": "duration",
               "label": "时长",
               "type": "select",
               "default": 5,
               "numeric": true,
-              "options": [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+              "options": [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+              "presentation": {
+                "control": "select",
+                "group": "画面",
+                "summary": true,
+                "unit": "秒"
+              }
             },
             {
               "key": "ratio",
               "label": "比例",
               "type": "select",
               "default": "adaptive",
-              "options": ["adaptive", "16:9", "4:3", "1:1", "3:4", "9:16", "21:9"]
+              "options": [
+                "adaptive",
+                "16:9",
+                "4:3",
+                "1:1",
+                "3:4",
+                "9:16",
+                "21:9"
+              ],
+              "presentation": {
+                "control": "ratio",
+                "group": "画面",
+                "summary": true
+              }
             },
             {
               "key": "resolution",
               "label": "分辨率",
               "type": "select",
               "default": "720p",
-              "options": ["480p", "720p", "1080p", "4k"]
+              "options": ["480p", "720p", "1080p", "4k"],
+              "presentation": {
+                "control": "resolution",
+                "group": "画面",
+                "summary": true
+              }
             },
             {
               "key": "generateAudio",
               "label": "生成同步声音",
               "type": "boolean",
-              "default": true
+              "default": true,
+              "presentation": {
+                "control": "toggle",
+                "group": "声音",
+                "summary": true
+              }
             },
             {
               "key": "watermark",
               "label": "AI 水印",
               "type": "boolean",
-              "default": false
+              "default": false,
+              "presentation": {
+                "control": "toggle",
+                "group": "输出",
+                "summary": true
+              }
             }
           ],
           "auth": {
@@ -2770,12 +2289,11 @@
       ]
     },
     {
-      "id": "doubao-seedance-2-0-fast-260128",
-      "name": "Doubao Seedance 2.0 Fast",
+      "kind": "adapter",
       "provider": "bytedance",
+      "id": "bytedance-doubao-seedance-2-0-fast-260128-protocol",
+      "name": "Doubao Seedance 2.0 Fast 协议",
       "type": "videoGeneration",
-      "sortOrder": 2,
-      "enabled": true,
       "defaultMode": "text-or-reference-image-to-video",
       "modes": [
         {
@@ -2789,7 +2307,11 @@
               "label": "首尾帧",
               "inputSlots": ["firstFrame", "lastFrame"],
               "inputConstraints": {
-                "images": { "min": 1, "max": 2, "roles": ["referenceImage"] }
+                "images": {
+                  "min": 1,
+                  "max": 2,
+                  "roles": ["referenceImage"]
+                }
               },
               "requestFields": {
                 "firstFrameImageContentRole": "first_frame",
@@ -2846,189 +2368,74 @@
           },
           "params": [
             {
-              "key": "prompt",
-              "label": "提示词",
-              "type": "text",
-              "required": true
-            },
-            {
               "key": "duration",
               "label": "时长",
               "type": "select",
               "default": 5,
               "numeric": true,
-              "options": [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+              "options": [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+              "presentation": {
+                "control": "select",
+                "group": "画面",
+                "summary": true,
+                "unit": "秒"
+              }
             },
             {
               "key": "ratio",
               "label": "比例",
               "type": "select",
               "default": "adaptive",
-              "options": ["adaptive", "16:9", "4:3", "1:1", "3:4", "9:16", "21:9"]
+              "options": [
+                "adaptive",
+                "16:9",
+                "4:3",
+                "1:1",
+                "3:4",
+                "9:16",
+                "21:9"
+              ],
+              "presentation": {
+                "control": "ratio",
+                "group": "画面",
+                "summary": true
+              }
             },
             {
               "key": "resolution",
               "label": "分辨率",
               "type": "select",
               "default": "720p",
-              "options": ["480p", "720p"]
+              "options": ["480p", "720p"],
+              "presentation": {
+                "control": "resolution",
+                "group": "画面",
+                "summary": true
+              }
             },
             {
               "key": "generateAudio",
               "label": "生成同步声音",
               "type": "boolean",
-              "default": true
+              "default": true,
+              "presentation": {
+                "control": "toggle",
+                "group": "声音",
+                "summary": true
+              }
             },
             {
               "key": "watermark",
               "label": "AI 水印",
               "type": "boolean",
-              "default": false
-            }
-          ],
-          "auth": {
-            "type": "bearer"
-          },
-          "requestTemplate": {
-            "model": "{{model}}",
-            "content": "{{content}}",
-            "duration": "{{params.duration}}",
-            "ratio": "{{params.ratio}}",
-            "resolution": "{{params.resolution}}",
-            "generate_audio": "{{params.generateAudio}}",
-            "watermark": "{{params.watermark}}"
-          },
-          "taskIdPath": "id",
-          "statusPath": "status",
-          "errorPath": "error.message",
-          "pollStatusMap": {
-            "queued": "running",
-            "running": "running",
-            "succeeded": "completed",
-            "failed": "failed",
-            "expired": "failed"
-          },
-          "resultUrlPath": "content.video_url"
-        }
-      ]
-    },
-    {
-      "id": "doubao-seedance-2-0-mini-260615",
-      "name": "Doubao Seedance 2.0 Mini",
-      "provider": "bytedance",
-      "type": "videoGeneration",
-      "sortOrder": 3,
-      "enabled": true,
-      "defaultMode": "text-or-reference-image-to-video",
-      "modes": [
-        {
-          "id": "text-or-reference-image-to-video",
-          "label": "文生/参考图生视频",
-          "inputMode": "reference",
-          "inputSlots": ["reference", "inputVideo", "referenceAudio"],
-          "inputVariants": [
-            {
-              "inputMode": "firstLastFrame",
-              "label": "首尾帧",
-              "inputSlots": ["firstFrame", "lastFrame"],
-              "inputConstraints": {
-                "images": { "min": 1, "max": 2, "roles": ["referenceImage"] }
-              },
-              "requestFields": {
-                "firstFrameImageContentRole": "first_frame",
-                "lastFrameImageContentRole": "last_frame"
+              "default": false,
+              "presentation": {
+                "control": "toggle",
+                "group": "输出",
+                "summary": true
               }
             }
           ],
-          "endpoint": {
-            "method": "POST",
-            "path": "/contents/generations/tasks",
-            "scope": "root"
-          },
-          "taskEndpoint": {
-            "method": "GET",
-            "path": "/contents/generations/tasks/{taskId}",
-            "scope": "root"
-          },
-          "isAsync": true,
-          "inputConstraints": {
-            "images": {
-              "min": 0,
-              "max": 9,
-              "roles": ["referenceImage"]
-            },
-            "videos": {
-              "min": 0,
-              "max": 3,
-              "roles": ["inputVideo"],
-              "formats": ["mp4", "mov"]
-            },
-            "audios": {
-              "min": 0,
-              "max": 3,
-              "roles": ["referenceAudio"],
-              "formats": ["wav", "mp3"],
-              "minDuration": 2,
-              "maxDuration": 15,
-              "maxTotalDuration": 15,
-              "maxBytes": 15728640,
-              "requiresAnyOf": ["images", "videos"]
-            }
-          },
-          "outputConstraints": {
-            "durations": [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
-            "defaultDuration": 5,
-            "formats": ["mp4"]
-          },
-          "requestFields": {
-            "imageContentRole": "reference_image",
-            "videoContentType": "video_url",
-            "videoContentRole": "reference_video",
-            "audioContentType": "audio_url",
-            "audioContentRole": "reference_audio"
-          },
-          "params": [
-            {
-              "key": "prompt",
-              "label": "提示词",
-              "type": "text",
-              "required": true
-            },
-            {
-              "key": "duration",
-              "label": "时长",
-              "type": "select",
-              "default": 5,
-              "numeric": true,
-              "options": [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
-            },
-            {
-              "key": "ratio",
-              "label": "比例",
-              "type": "select",
-              "default": "adaptive",
-              "options": ["adaptive", "16:9", "4:3", "1:1", "3:4", "9:16", "21:9"]
-            },
-            {
-              "key": "resolution",
-              "label": "分辨率",
-              "type": "select",
-              "default": "720p",
-              "options": ["480p", "720p"]
-            },
-            {
-              "key": "generateAudio",
-              "label": "生成同步声音",
-              "type": "boolean",
-              "default": true
-            },
-            {
-              "key": "watermark",
-              "label": "AI 水印",
-              "type": "boolean",
-              "default": false
-            }
-          ],
           "auth": {
             "type": "bearer"
           },
@@ -3056,12 +2463,11 @@
       ]
     },
     {
-      "id": "grok-imagine-video",
-      "name": "Grok Imagine Video",
+      "kind": "adapter",
       "provider": "xai",
+      "id": "xai-grok-imagine-video-protocol",
+      "name": "Grok Imagine Video 协议",
       "type": "videoGeneration",
-      "sortOrder": 1,
-      "enabled": true,
       "defaultMode": "text-or-image-to-video",
       "modes": [
         {
@@ -3084,63 +2490,52 @@
             "images": {
               "min": 0,
               "max": 1,
-              "roles": [
-                "referenceImage"
-              ]
+              "roles": ["referenceImage"]
             }
           },
           "outputConstraints": {
-            "durations": [
-              5,
-              8,
-              10,
-              15
-            ],
+            "durations": [5, 8, 10, 15],
             "defaultDuration": 8,
-            "formats": [
-              "mp4"
-            ]
+            "formats": ["mp4"]
           },
           "params": [
-            {
-              "key": "prompt",
-              "label": "提示词",
-              "type": "text",
-              "required": true
-            },
             {
               "key": "duration",
               "label": "时长",
               "type": "select",
               "default": 8,
               "numeric": true,
-              "options": [
-                5,
-                8,
-                10,
-                15
-              ]
+              "options": [5, 8, 10, 15],
+              "presentation": {
+                "control": "segmented",
+                "group": "画面",
+                "summary": true,
+                "unit": "秒"
+              }
             },
             {
               "key": "aspectRatio",
               "label": "比例",
               "type": "select",
               "default": "16:9",
-              "options": [
-                "16:9",
-                "9:16",
-                "1:1"
-              ]
+              "options": ["16:9", "9:16", "1:1"],
+              "presentation": {
+                "control": "ratio",
+                "group": "画面",
+                "summary": true
+              }
             },
             {
               "key": "resolution",
               "label": "分辨率",
               "type": "select",
               "default": "720p",
-              "options": [
-                "480p",
-                "720p"
-              ]
+              "options": ["480p", "720p"],
+              "presentation": {
+                "control": "resolution",
+                "group": "画面",
+                "summary": true
+              }
             }
           ],
           "auth": {
@@ -3150,9 +2545,9 @@
             "model": "{{model}}",
             "prompt": "{{prompt}}",
             "image": "{{imageObject}}",
-            "duration": "{{duration}}",
-            "aspect_ratio": "{{aspectRatio}}",
-            "resolution": "{{resolution}}"
+            "duration": "{{params.duration}}",
+            "aspect_ratio": "{{params.aspectRatio}}",
+            "resolution": "{{params.resolution}}"
           },
           "taskIdPath": "request_id",
           "statusPath": "status",
@@ -3168,17 +2563,16 @@
       ]
     },
     {
-      "id": "grok-imagine-video-1.5",
-      "name": "Grok Imagine Video 1.5",
+      "kind": "adapter",
       "provider": "xai",
+      "id": "xai-grok-imagine-video-1-5-protocol",
+      "name": "Grok Imagine Video 1.5 协议",
       "type": "videoGeneration",
-      "sortOrder": 2,
-      "enabled": true,
       "defaultMode": "image-to-video",
       "modes": [
         {
-         "id": "image-to-video",
-         "label": "图生视频",
+          "id": "image-to-video",
+          "label": "图生视频",
           "inputMode": "firstFrame",
           "inputSlots": ["firstFrame"],
           "endpoint": {
@@ -3196,55 +2590,40 @@
             "images": {
               "min": 1,
               "max": 1,
-              "roles": [
-                "referenceImage"
-              ]
+              "roles": ["referenceImage"]
             }
           },
           "outputConstraints": {
-            "durations": [
-              5,
-              8,
-              10,
-              12,
-              15
-            ],
+            "durations": [5, 8, 10, 12, 15],
             "defaultDuration": 8,
-            "formats": [
-              "mp4"
-            ]
+            "formats": ["mp4"]
           },
           "params": [
-            {
-              "key": "prompt",
-              "label": "提示词",
-              "type": "text",
-              "required": true
-            },
             {
               "key": "duration",
               "label": "时长",
               "type": "select",
               "default": 8,
               "numeric": true,
-              "options": [
-                5,
-                8,
-                10,
-                12,
-                15
-              ]
+              "options": [5, 8, 10, 12, 15],
+              "presentation": {
+                "control": "segmented",
+                "group": "画面",
+                "summary": true,
+                "unit": "秒"
+              }
             },
             {
               "key": "resolution",
               "label": "分辨率",
               "type": "select",
               "default": "720p",
-              "options": [
-                "480p",
-                "720p",
-                "1080p"
-              ]
+              "options": ["480p", "720p", "1080p"],
+              "presentation": {
+                "control": "resolution",
+                "group": "画面",
+                "summary": true
+              }
             }
           ],
           "auth": {
@@ -3256,8 +2635,8 @@
             "image": {
               "url": "{{imageUrl}}"
             },
-            "duration": "{{duration}}",
-            "resolution": "{{resolution}}"
+            "duration": "{{params.duration}}",
+            "resolution": "{{params.resolution}}"
           },
           "taskIdPath": "request_id",
           "statusPath": "status",
@@ -3273,12 +2652,11 @@
       ]
     },
     {
-      "id": "veo-3.1-generate-preview",
-      "name": "Veo 3.1 Preview",
+      "kind": "adapter",
       "provider": "google",
+      "id": "google-veo-3-1-generate-preview-protocol",
+      "name": "Veo 3.1 Preview 协议",
       "type": "videoGeneration",
-      "sortOrder": 2,
-      "enabled": true,
       "defaultMode": "text-or-image-to-video",
       "modes": [
         {
@@ -3288,7 +2666,7 @@
           "inputSlots": ["firstFrame"],
           "endpoint": {
             "method": "POST",
-            "path": "/models/veo-3.1-generate-preview:predictLongRunning",
+            "path": "/models/{{model}}:predictLongRunning",
             "scope": "root"
           },
           "taskEndpoint": {
@@ -3301,50 +2679,40 @@
             "images": {
               "min": 0,
               "max": 1,
-              "roles": [
-                "referenceImage"
-              ]
+              "roles": ["referenceImage"]
             }
           },
           "outputConstraints": {
-            "durations": [
-              4,
-              6,
-              8
-            ],
+            "durations": [4, 6, 8],
             "defaultDuration": 8,
-            "formats": [
-              "mp4"
-            ]
+            "formats": ["mp4"]
           },
           "params": [
-            {
-              "key": "prompt",
-              "label": "提示词",
-              "type": "text",
-              "required": true
-            },
             {
               "key": "duration",
               "label": "时长",
               "type": "select",
               "default": 8,
               "numeric": true,
-              "options": [
-                4,
-                6,
-                8
-              ]
+              "options": [4, 6, 8],
+              "presentation": {
+                "control": "segmented",
+                "group": "画面",
+                "summary": true,
+                "unit": "秒"
+              }
             },
             {
               "key": "aspectRatio",
               "label": "比例",
               "type": "select",
               "default": "16:9",
-              "options": [
-                "16:9",
-                "9:16"
-              ]
+              "options": ["16:9", "9:16"],
+              "presentation": {
+                "control": "ratio",
+                "group": "画面",
+                "summary": true
+              }
             }
           ],
           "auth": {
@@ -3362,8 +2730,8 @@
               }
             ],
             "parameters": {
-              "durationSeconds": "{{duration}}",
-              "aspectRatio": "{{aspectRatio}}"
+              "durationSeconds": "{{params.duration}}",
+              "aspectRatio": "{{params.aspectRatio}}"
             }
           },
           "taskIdPath": "name",
@@ -3379,224 +2747,11 @@
       ]
     },
     {
-      "id": "veo-3.1-fast-generate-preview",
-      "name": "Veo 3.1 Fast Preview",
-      "provider": "google",
-      "type": "videoGeneration",
-      "sortOrder": 3,
-      "enabled": true,
-      "defaultMode": "text-or-image-to-video",
-      "modes": [
-        {
-          "id": "text-or-image-to-video",
-          "label": "文生/图生视频",
-          "inputMode": "firstFrame",
-          "inputSlots": ["firstFrame"],
-          "endpoint": {
-            "method": "POST",
-            "path": "/models/veo-3.1-fast-generate-preview:predictLongRunning",
-            "scope": "root"
-          },
-          "taskEndpoint": {
-            "method": "GET",
-            "path": "/{taskId}",
-            "scope": "root"
-          },
-          "isAsync": true,
-          "inputConstraints": {
-            "images": {
-              "min": 0,
-              "max": 1,
-              "roles": [
-                "referenceImage"
-              ]
-            }
-          },
-          "outputConstraints": {
-            "durations": [
-              4,
-              6,
-              8
-            ],
-            "defaultDuration": 8,
-            "formats": [
-              "mp4"
-            ]
-          },
-          "params": [
-            {
-              "key": "prompt",
-              "label": "提示词",
-              "type": "text",
-              "required": true
-            },
-            {
-              "key": "duration",
-              "label": "时长",
-              "type": "select",
-              "default": 8,
-              "numeric": true,
-              "options": [
-                4,
-                6,
-                8
-              ]
-            },
-            {
-              "key": "aspectRatio",
-              "label": "比例",
-              "type": "select",
-              "default": "16:9",
-              "options": [
-                "16:9",
-                "9:16"
-              ]
-            }
-          ],
-          "auth": {
-            "type": "header",
-            "name": "x-goog-api-key"
-          },
-          "requestFields": {
-            "imageContentFormat": "google-inline"
-          },
-          "requestTemplate": {
-            "instances": [
-              {
-                "prompt": "{{prompt}}",
-                "image": "{{inlineImage}}"
-              }
-            ],
-            "parameters": {
-              "durationSeconds": "{{duration}}",
-              "aspectRatio": "{{aspectRatio}}"
-            }
-          },
-          "taskIdPath": "name",
-          "statusPath": "done",
-          "errorPath": "error.message",
-          "pollStatusMap": {
-            "false": "running",
-            "true": "completed"
-          },
-          "resultUrlPath": "response.generateVideoResponse.generatedSamples.0.video.uri",
-          "resultDownloadAuth": true
-        }
-      ]
-    },
-    {
-      "id": "veo-3.1-lite-generate-preview",
-      "name": "Veo 3.1 Lite Preview",
-      "provider": "google",
-      "type": "videoGeneration",
-      "sortOrder": 4,
-      "enabled": true,
-      "defaultMode": "text-or-image-to-video",
-      "modes": [
-        {
-          "id": "text-or-image-to-video",
-          "label": "文生/图生视频",
-          "inputMode": "firstFrame",
-          "inputSlots": ["firstFrame"],
-          "endpoint": {
-            "method": "POST",
-            "path": "/models/veo-3.1-lite-generate-preview:predictLongRunning",
-            "scope": "root"
-          },
-          "taskEndpoint": {
-            "method": "GET",
-            "path": "/{taskId}",
-            "scope": "root"
-          },
-          "isAsync": true,
-          "inputConstraints": {
-            "images": {
-              "min": 0,
-              "max": 1,
-              "roles": [
-                "referenceImage"
-              ]
-            }
-          },
-          "outputConstraints": {
-            "durations": [
-              4,
-              6,
-              8
-            ],
-            "defaultDuration": 8,
-            "formats": [
-              "mp4"
-            ]
-          },
-          "params": [
-            {
-              "key": "prompt",
-              "label": "提示词",
-              "type": "text",
-              "required": true
-            },
-            {
-              "key": "duration",
-              "label": "时长",
-              "type": "select",
-              "default": 8,
-              "numeric": true,
-              "options": [
-                4,
-                6,
-                8
-              ]
-            },
-            {
-              "key": "aspectRatio",
-              "label": "比例",
-              "type": "select",
-              "default": "16:9",
-              "options": [
-                "16:9",
-                "9:16"
-              ]
-            }
-          ],
-          "auth": {
-            "type": "header",
-            "name": "x-goog-api-key"
-          },
-          "requestFields": {
-            "imageContentFormat": "google-inline"
-          },
-          "requestTemplate": {
-            "instances": [
-              {
-                "prompt": "{{prompt}}",
-                "image": "{{inlineImage}}"
-              }
-            ],
-            "parameters": {
-              "durationSeconds": "{{duration}}",
-              "aspectRatio": "{{aspectRatio}}"
-            }
-          },
-          "taskIdPath": "name",
-          "statusPath": "done",
-          "errorPath": "error.message",
-          "pollStatusMap": {
-            "false": "running",
-            "true": "completed"
-          },
-          "resultUrlPath": "response.generateVideoResponse.generatedSamples.0.video.uri",
-          "resultDownloadAuth": true
-        }
-      ]
-    },
-    {
-      "id": "kling-3.0-turbo",
-      "name": "Kling 3.0 Turbo",
+      "kind": "adapter",
       "provider": "kling",
+      "id": "kling-kling-3-0-turbo-protocol",
+      "name": "Kling 3.0 Turbo 协议",
       "type": "videoGeneration",
-      "sortOrder": 5,
-      "enabled": true,
       "defaultMode": "text-to-video",
       "modes": [
         {
@@ -3604,7 +2759,7 @@
           "label": "文生视频",
           "endpoint": {
             "method": "POST",
-            "path": "/text-to-video/kling-3.0-turbo",
+            "path": "/text-to-video/{{model}}",
             "scope": "root"
           },
           "taskEndpoint": {
@@ -3621,51 +2776,70 @@
           },
           "params": [
             {
-              "key": "prompt",
-              "label": "提示词",
-              "type": "text",
-              "required": true
-            },
-            {
               "key": "duration",
               "label": "时长",
               "type": "select",
               "default": 5,
               "numeric": true,
-              "options": [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+              "options": [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+              "presentation": {
+                "control": "select",
+                "group": "画面",
+                "summary": true,
+                "unit": "秒"
+              }
             },
             {
               "key": "aspectRatio",
               "label": "比例",
               "type": "select",
               "default": "16:9",
-              "options": ["16:9", "9:16", "1:1"]
+              "options": ["16:9", "9:16", "1:1"],
+              "presentation": {
+                "control": "ratio",
+                "group": "画面",
+                "summary": true
+              }
             },
             {
               "key": "resolution",
               "label": "分辨率",
               "type": "select",
               "default": "720p",
-              "options": ["720p", "1080p"]
+              "options": ["720p", "1080p"],
+              "presentation": {
+                "control": "resolution",
+                "group": "画面",
+                "summary": true
+              }
             },
             {
               "key": "watermark",
               "label": "生成水印版",
               "type": "select",
               "default": false,
-              "options": [false, true]
+              "options": [false, true],
+              "presentation": {
+                "control": "segmented",
+                "group": "输出",
+                "summary": true
+              }
             }
           ],
-          "auth": { "type": "bearer" },
+          "auth": {
+            "type": "bearer"
+          },
           "requestTemplate": {
             "prompt": "{{prompt}}",
             "settings": {
-              "resolution": "{{resolution}}",
-              "aspect_ratio": "{{aspectRatio}}",
-              "duration": "{{duration}}"
+              "resolution": "{{params.resolution}}",
+              "aspect_ratio": "{{params.aspectRatio}}",
+              "duration": "{{params.duration}}"
             },
             "options": {
-              "watermark_info": { "enabled": "{{params.watermark}}" }
+              "watermark_info": {
+                "enabled": "{{params.watermark}}"
+              }
             }
           },
           "taskIdPath": "data.id",
@@ -3686,7 +2860,7 @@
           "inputSlots": ["firstFrame"],
           "endpoint": {
             "method": "POST",
-            "path": "/image-to-video/kling-3.0-turbo",
+            "path": "/image-to-video/{{model}}",
             "scope": "root"
           },
           "taskEndpoint": {
@@ -3710,44 +2884,60 @@
           },
           "params": [
             {
-              "key": "prompt",
-              "label": "提示词",
-              "type": "text",
-              "required": true
-            },
-            {
               "key": "duration",
               "label": "时长",
               "type": "select",
               "default": 5,
               "numeric": true,
-              "options": [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+              "options": [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+              "presentation": {
+                "control": "select",
+                "group": "画面",
+                "summary": true,
+                "unit": "秒"
+              }
             },
             {
               "key": "resolution",
               "label": "分辨率",
               "type": "select",
               "default": "720p",
-              "options": ["720p", "1080p"]
+              "options": ["720p", "1080p"],
+              "presentation": {
+                "control": "resolution",
+                "group": "画面",
+                "summary": true
+              }
             },
             {
               "key": "watermark",
               "label": "生成水印版",
               "type": "select",
               "default": false,
-              "options": [false, true]
+              "options": [false, true],
+              "presentation": {
+                "control": "segmented",
+                "group": "输出",
+                "summary": true
+              }
             }
           ],
-          "auth": { "type": "bearer" },
-          "requestFields": { "imageContentFormat": "kling-first-frame" },
+          "auth": {
+            "type": "bearer"
+          },
+          "requestFields": {
+            "imageContentFormat": "kling-first-frame"
+          },
           "requestTemplate": {
             "contents": "{{klingContents}}",
             "settings": {
-              "resolution": "{{resolution}}",
-              "duration": "{{duration}}"
+              "resolution": "{{params.resolution}}",
+              "duration": "{{params.duration}}"
             },
             "options": {
-              "watermark_info": { "enabled": "{{params.watermark}}" }
+              "watermark_info": {
+                "enabled": "{{params.watermark}}"
+              }
             }
           },
           "taskIdPath": "data.id",
@@ -3764,12 +2954,11 @@
       ]
     },
     {
-      "id": "kling-3.0",
-      "name": "Kling 3.0",
+      "kind": "adapter",
       "provider": "kling",
+      "id": "kling-kling-3-0-protocol",
+      "name": "Kling 3.0 协议",
       "type": "videoGeneration",
-      "sortOrder": 6,
-      "enabled": true,
       "defaultMode": "text-to-video",
       "modes": [
         {
@@ -3777,7 +2966,7 @@
           "label": "文生视频",
           "endpoint": {
             "method": "POST",
-            "path": "/text-to-video/kling-3.0",
+            "path": "/text-to-video/{{model}}",
             "scope": "root"
           },
           "taskEndpoint": {
@@ -3794,67 +2983,96 @@
           },
           "params": [
             {
-              "key": "prompt",
-              "label": "提示词",
-              "type": "text",
-              "required": true
-            },
-            {
               "key": "duration",
               "label": "时长",
               "type": "select",
               "default": 5,
               "numeric": true,
-              "options": [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+              "options": [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+              "presentation": {
+                "control": "select",
+                "group": "画面",
+                "summary": true,
+                "unit": "秒"
+              }
             },
             {
               "key": "aspectRatio",
               "label": "比例",
               "type": "select",
               "default": "16:9",
-              "options": ["16:9", "9:16", "1:1"]
+              "options": ["16:9", "9:16", "1:1"],
+              "presentation": {
+                "control": "ratio",
+                "group": "画面",
+                "summary": true
+              }
             },
             {
               "key": "resolution",
               "label": "分辨率",
               "type": "select",
               "default": "720p",
-              "options": ["720p", "1080p", "4k"]
+              "options": ["720p", "1080p", "4k"],
+              "presentation": {
+                "control": "resolution",
+                "group": "画面",
+                "summary": true
+              }
             },
             {
               "key": "audio",
               "label": "声音",
               "type": "select",
               "default": "off",
-              "options": ["off", "native"]
+              "options": ["off", "native"],
+              "presentation": {
+                "control": "segmented",
+                "group": "声音",
+                "summary": true
+              }
             },
             {
               "key": "multiShot",
               "label": "多镜头",
               "type": "select",
               "default": true,
-              "options": [true, false]
+              "options": [true, false],
+              "presentation": {
+                "control": "segmented",
+                "group": "画面",
+                "summary": false
+              }
             },
             {
               "key": "watermark",
               "label": "生成水印版",
               "type": "select",
               "default": false,
-              "options": [false, true]
+              "options": [false, true],
+              "presentation": {
+                "control": "segmented",
+                "group": "输出",
+                "summary": true
+              }
             }
           ],
-          "auth": { "type": "bearer" },
+          "auth": {
+            "type": "bearer"
+          },
           "requestTemplate": {
             "prompt": "{{prompt}}",
             "settings": {
-              "resolution": "{{resolution}}",
-              "aspect_ratio": "{{aspectRatio}}",
-              "duration": "{{duration}}",
+              "resolution": "{{params.resolution}}",
+              "aspect_ratio": "{{params.aspectRatio}}",
+              "duration": "{{params.duration}}",
               "audio": "{{params.audio}}",
               "multi_shot": "{{params.multiShot}}"
             },
             "options": {
-              "watermark_info": { "enabled": "{{params.watermark}}" }
+              "watermark_info": {
+                "enabled": "{{params.watermark}}"
+              }
             }
           },
           "taskIdPath": "data.id",
@@ -3875,7 +3093,7 @@
           "inputSlots": ["firstFrame"],
           "endpoint": {
             "method": "POST",
-            "path": "/image-to-video/kling-3.0",
+            "path": "/image-to-video/{{model}}",
             "scope": "root"
           },
           "taskEndpoint": {
@@ -3899,60 +3117,86 @@
           },
           "params": [
             {
-              "key": "prompt",
-              "label": "提示词",
-              "type": "text",
-              "required": true
-            },
-            {
               "key": "duration",
               "label": "时长",
               "type": "select",
               "default": 5,
               "numeric": true,
-              "options": [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+              "options": [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+              "presentation": {
+                "control": "select",
+                "group": "画面",
+                "summary": true,
+                "unit": "秒"
+              }
             },
             {
               "key": "resolution",
               "label": "分辨率",
               "type": "select",
               "default": "720p",
-              "options": ["720p", "1080p", "4k"]
+              "options": ["720p", "1080p", "4k"],
+              "presentation": {
+                "control": "resolution",
+                "group": "画面",
+                "summary": true
+              }
             },
             {
               "key": "audio",
               "label": "声音",
               "type": "select",
               "default": "off",
-              "options": ["off", "native"]
+              "options": ["off", "native"],
+              "presentation": {
+                "control": "segmented",
+                "group": "声音",
+                "summary": true
+              }
             },
             {
               "key": "multiShot",
               "label": "多镜头",
               "type": "select",
               "default": true,
-              "options": [true, false]
+              "options": [true, false],
+              "presentation": {
+                "control": "segmented",
+                "group": "画面",
+                "summary": false
+              }
             },
             {
               "key": "watermark",
               "label": "生成水印版",
               "type": "select",
               "default": false,
-              "options": [false, true]
+              "options": [false, true],
+              "presentation": {
+                "control": "segmented",
+                "group": "输出",
+                "summary": true
+              }
             }
           ],
-          "auth": { "type": "bearer" },
-          "requestFields": { "imageContentFormat": "kling-first-frame" },
+          "auth": {
+            "type": "bearer"
+          },
+          "requestFields": {
+            "imageContentFormat": "kling-first-frame"
+          },
           "requestTemplate": {
             "contents": "{{klingContents}}",
             "settings": {
-              "resolution": "{{resolution}}",
-              "duration": "{{duration}}",
+              "resolution": "{{params.resolution}}",
+              "duration": "{{params.duration}}",
               "audio": "{{params.audio}}",
               "multi_shot": "{{params.multiShot}}"
             },
             "options": {
-              "watermark_info": { "enabled": "{{params.watermark}}" }
+              "watermark_info": {
+                "enabled": "{{params.watermark}}"
+              }
             }
           },
           "taskIdPath": "data.id",
@@ -3969,12 +3213,11 @@
       ]
     },
     {
-      "id": "kling-3.0-omni",
-      "name": "Kling 3.0 Omni",
+      "kind": "adapter",
       "provider": "kling",
+      "id": "kling-kling-3-0-omni-protocol",
+      "name": "Kling 3.0 Omni 协议",
       "type": "videoGeneration",
-      "sortOrder": 7,
-      "enabled": true,
       "defaultMode": "text-or-reference-image-to-video",
       "modes": [
         {
@@ -3984,7 +3227,7 @@
           "inputSlots": ["reference"],
           "endpoint": {
             "method": "POST",
-            "path": "/omni-video/kling-3.0-omni",
+            "path": "/omni-video/{{model}}",
             "scope": "root"
           },
           "taskEndpoint": {
@@ -4008,68 +3251,99 @@
           },
           "params": [
             {
-              "key": "prompt",
-              "label": "提示词",
-              "type": "text",
-              "required": true
-            },
-            {
               "key": "duration",
               "label": "时长",
               "type": "select",
               "default": 5,
               "numeric": true,
-              "options": [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+              "options": [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+              "presentation": {
+                "control": "select",
+                "group": "画面",
+                "summary": true,
+                "unit": "秒"
+              }
             },
             {
               "key": "aspectRatio",
               "label": "比例",
               "type": "select",
               "default": "16:9",
-              "options": ["16:9", "9:16", "1:1"]
+              "options": ["16:9", "9:16", "1:1"],
+              "presentation": {
+                "control": "ratio",
+                "group": "画面",
+                "summary": true
+              }
             },
             {
               "key": "resolution",
               "label": "分辨率",
               "type": "select",
               "default": "720p",
-              "options": ["720p", "1080p", "4k"]
+              "options": ["720p", "1080p", "4k"],
+              "presentation": {
+                "control": "resolution",
+                "group": "画面",
+                "summary": true
+              }
             },
             {
               "key": "audio",
               "label": "声音",
               "type": "select",
               "default": "off",
-              "options": ["off", "native"]
+              "options": ["off", "native"],
+              "presentation": {
+                "control": "segmented",
+                "group": "声音",
+                "summary": true
+              }
             },
             {
               "key": "multiShot",
               "label": "多镜头",
               "type": "select",
               "default": true,
-              "options": [true, false]
+              "options": [true, false],
+              "presentation": {
+                "control": "segmented",
+                "group": "画面",
+                "summary": false
+              }
             },
             {
               "key": "watermark",
               "label": "生成水印版",
               "type": "select",
               "default": false,
-              "options": [false, true]
+              "options": [false, true],
+              "presentation": {
+                "control": "segmented",
+                "group": "输出",
+                "summary": true
+              }
             }
           ],
-          "auth": { "type": "bearer" },
-          "requestFields": { "imageContentFormat": "kling-references" },
+          "auth": {
+            "type": "bearer"
+          },
+          "requestFields": {
+            "imageContentFormat": "kling-references"
+          },
           "requestTemplate": {
             "contents": "{{klingContents}}",
             "settings": {
-              "resolution": "{{resolution}}",
-              "aspect_ratio": "{{aspectRatio}}",
-              "duration": "{{duration}}",
+              "resolution": "{{params.resolution}}",
+              "aspect_ratio": "{{params.aspectRatio}}",
+              "duration": "{{params.duration}}",
               "audio": "{{params.audio}}",
               "multi_shot": "{{params.multiShot}}"
             },
             "options": {
-              "watermark_info": { "enabled": "{{params.watermark}}" }
+              "watermark_info": {
+                "enabled": "{{params.watermark}}"
+              }
             }
           },
           "taskIdPath": "data.id",
@@ -4086,12 +3360,11 @@
       ]
     },
     {
-      "id": "cogvideox-3",
-      "name": "CogVideoX 3",
+      "kind": "adapter",
       "provider": "zhipu",
+      "id": "zhipu-cogvideox-3-protocol",
+      "name": "CogVideoX 3 协议",
       "type": "videoGeneration",
-      "sortOrder": 3,
-      "enabled": true,
       "defaultMode": "text-or-image-to-video",
       "modes": [
         {
@@ -4114,32 +3387,24 @@
             "images": {
               "min": 0,
               "max": 1,
-              "roles": [
-                "referenceImage"
-              ]
+              "roles": ["referenceImage"]
             }
           },
           "outputConstraints": {
-            "formats": [
-              "mp4"
-            ]
+            "formats": ["mp4"]
           },
           "params": [
-            {
-              "key": "prompt",
-              "label": "提示词",
-              "type": "text",
-              "required": true
-            },
             {
               "key": "quality",
               "label": "输出模式",
               "type": "select",
               "default": "quality",
-              "options": [
-                "quality",
-                "speed"
-              ]
+              "options": ["quality", "speed"],
+              "presentation": {
+                "control": "segmented",
+                "group": "输出",
+                "summary": true
+              }
             }
           ],
           "auth": {
@@ -4162,6 +3427,306 @@
           "resultUrlPath": "video_result.*.url"
         }
       ]
+    },
+    {
+      "kind": "model",
+      "provider": "openai",
+      "id": "gpt-5.6",
+      "name": "GPT 5.6",
+      "type": "textGeneration",
+      "adapterId": "openai-gpt-5-6-protocol",
+      "sortOrder": 1,
+      "enabled": true
+    },
+    {
+      "kind": "model",
+      "provider": "openai",
+      "id": "gpt-5.4",
+      "name": "GPT 5.4",
+      "type": "textGeneration",
+      "adapterId": "openai-gpt-5-4-protocol",
+      "sortOrder": 2,
+      "enabled": true
+    },
+    {
+      "kind": "model",
+      "provider": "google",
+      "id": "gemini-3.6-flash",
+      "name": "Gemini 3.6 Flash",
+      "type": "textGeneration",
+      "adapterId": "google-gemini-3-6-flash-protocol",
+      "sortOrder": 3,
+      "enabled": true
+    },
+    {
+      "kind": "model",
+      "provider": "google",
+      "id": "gemini-3.1-pro-preview",
+      "name": "Gemini 3.1 Pro",
+      "type": "textGeneration",
+      "adapterId": "google-gemini-3-6-flash-protocol",
+      "sortOrder": 4,
+      "enabled": true
+    },
+    {
+      "kind": "model",
+      "provider": "xai",
+      "id": "grok-4.5",
+      "name": "Grok 4.5",
+      "type": "textGeneration",
+      "adapterId": "xai-grok-4-5-protocol",
+      "sortOrder": 5,
+      "enabled": true
+    },
+    {
+      "kind": "model",
+      "provider": "anthropic",
+      "id": "claude-sonnet-5",
+      "name": "Claude Sonnet 5",
+      "type": "textGeneration",
+      "adapterId": "anthropic-claude-sonnet-5-protocol",
+      "sortOrder": 6,
+      "enabled": true
+    },
+    {
+      "kind": "model",
+      "provider": "anthropic",
+      "id": "claude-opus-4-8",
+      "name": "Claude Opus 4.8",
+      "type": "textGeneration",
+      "adapterId": "anthropic-claude-sonnet-5-protocol",
+      "sortOrder": 7,
+      "enabled": true
+    },
+    {
+      "kind": "model",
+      "provider": "deepseek",
+      "id": "deepseek-v4-pro",
+      "name": "DeepSeek V4 Pro",
+      "type": "textGeneration",
+      "adapterId": "deepseek-deepseek-v4-pro-protocol",
+      "sortOrder": 8,
+      "enabled": true
+    },
+    {
+      "kind": "model",
+      "provider": "deepseek",
+      "id": "deepseek-v4-flash",
+      "name": "DeepSeek V4 Flash",
+      "type": "textGeneration",
+      "adapterId": "deepseek-deepseek-v4-pro-protocol",
+      "sortOrder": 9,
+      "enabled": true
+    },
+    {
+      "kind": "model",
+      "provider": "qwen",
+      "id": "qwen3.7-plus",
+      "name": "Qwen 3.7 Plus",
+      "type": "textGeneration",
+      "adapterId": "qwen-qwen3-7-plus-protocol",
+      "sortOrder": 10,
+      "enabled": true
+    },
+    {
+      "kind": "model",
+      "provider": "moonshot",
+      "id": "kimi-k3",
+      "name": "Kimi K3",
+      "type": "textGeneration",
+      "adapterId": "moonshot-kimi-k3-protocol",
+      "sortOrder": 11,
+      "enabled": true
+    },
+    {
+      "kind": "model",
+      "provider": "zhipu",
+      "id": "glm-5.2",
+      "name": "GLM 5.2",
+      "type": "textGeneration",
+      "adapterId": "zhipu-glm-5-2-protocol",
+      "sortOrder": 12,
+      "enabled": true
+    },
+    {
+      "kind": "model",
+      "provider": "openai",
+      "id": "gpt-image-2",
+      "name": "GPT Image 2",
+      "type": "imageGeneration",
+      "adapterId": "openai-gpt-image-2-protocol",
+      "sortOrder": 1,
+      "enabled": true
+    },
+    {
+      "kind": "model",
+      "provider": "google",
+      "id": "gemini-3.1-flash-image",
+      "name": "Gemini 3.1 Flash Image",
+      "type": "imageGeneration",
+      "adapterId": "google-gemini-3-1-flash-image-protocol",
+      "sortOrder": 2,
+      "enabled": true
+    },
+    {
+      "kind": "model",
+      "provider": "xai",
+      "id": "grok-imagine-image-quality",
+      "name": "Grok Imagine Image Quality",
+      "type": "imageGeneration",
+      "adapterId": "xai-grok-imagine-image-quality-protocol",
+      "sortOrder": 3,
+      "enabled": true
+    },
+    {
+      "kind": "model",
+      "provider": "qwen",
+      "id": "qwen-image-2.0-pro",
+      "name": "Qwen Image 2.0 Pro",
+      "type": "imageGeneration",
+      "adapterId": "qwen-qwen-image-2-0-pro-protocol",
+      "sortOrder": 4,
+      "enabled": true
+    },
+    {
+      "kind": "model",
+      "provider": "zhipu",
+      "id": "glm-image",
+      "name": "GLM Image",
+      "type": "imageGeneration",
+      "adapterId": "zhipu-glm-image-protocol",
+      "sortOrder": 5,
+      "enabled": true
+    },
+    {
+      "kind": "model",
+      "provider": "minimax",
+      "id": "MiniMax-H3",
+      "name": "MiniMax Hailuo 03",
+      "type": "videoGeneration",
+      "adapterId": "minimax-MiniMax-H3-protocol",
+      "sortOrder": 4,
+      "enabled": true
+    },
+    {
+      "kind": "model",
+      "provider": "bytedance",
+      "id": "doubao-seedance-2-0-260128",
+      "name": "Doubao Seedance 2.0",
+      "type": "videoGeneration",
+      "adapterId": "bytedance-doubao-seedance-2-0-260128-protocol",
+      "sortOrder": 1,
+      "enabled": true
+    },
+    {
+      "kind": "model",
+      "provider": "bytedance",
+      "id": "doubao-seedance-2-0-fast-260128",
+      "name": "Doubao Seedance 2.0 Fast",
+      "type": "videoGeneration",
+      "adapterId": "bytedance-doubao-seedance-2-0-fast-260128-protocol",
+      "sortOrder": 2,
+      "enabled": true
+    },
+    {
+      "kind": "model",
+      "provider": "bytedance",
+      "id": "doubao-seedance-2-0-mini-260615",
+      "name": "Doubao Seedance 2.0 Mini",
+      "type": "videoGeneration",
+      "adapterId": "bytedance-doubao-seedance-2-0-fast-260128-protocol",
+      "sortOrder": 3,
+      "enabled": true
+    },
+    {
+      "kind": "model",
+      "provider": "xai",
+      "id": "grok-imagine-video",
+      "name": "Grok Imagine Video",
+      "type": "videoGeneration",
+      "adapterId": "xai-grok-imagine-video-protocol",
+      "sortOrder": 1,
+      "enabled": true
+    },
+    {
+      "kind": "model",
+      "provider": "xai",
+      "id": "grok-imagine-video-1.5",
+      "name": "Grok Imagine Video 1.5",
+      "type": "videoGeneration",
+      "adapterId": "xai-grok-imagine-video-1-5-protocol",
+      "sortOrder": 2,
+      "enabled": true
+    },
+    {
+      "kind": "model",
+      "provider": "google",
+      "id": "veo-3.1-generate-preview",
+      "name": "Veo 3.1 Preview",
+      "type": "videoGeneration",
+      "adapterId": "google-veo-3-1-generate-preview-protocol",
+      "sortOrder": 2,
+      "enabled": true
+    },
+    {
+      "kind": "model",
+      "provider": "google",
+      "id": "veo-3.1-fast-generate-preview",
+      "name": "Veo 3.1 Fast Preview",
+      "type": "videoGeneration",
+      "adapterId": "google-veo-3-1-generate-preview-protocol",
+      "sortOrder": 3,
+      "enabled": true
+    },
+    {
+      "kind": "model",
+      "provider": "google",
+      "id": "veo-3.1-lite-generate-preview",
+      "name": "Veo 3.1 Lite Preview",
+      "type": "videoGeneration",
+      "adapterId": "google-veo-3-1-generate-preview-protocol",
+      "sortOrder": 4,
+      "enabled": true
+    },
+    {
+      "kind": "model",
+      "provider": "kling",
+      "id": "kling-3.0-turbo",
+      "name": "Kling 3.0 Turbo",
+      "type": "videoGeneration",
+      "adapterId": "kling-kling-3-0-turbo-protocol",
+      "sortOrder": 5,
+      "enabled": true
+    },
+    {
+      "kind": "model",
+      "provider": "kling",
+      "id": "kling-3.0",
+      "name": "Kling 3.0",
+      "type": "videoGeneration",
+      "adapterId": "kling-kling-3-0-protocol",
+      "sortOrder": 6,
+      "enabled": true
+    },
+    {
+      "kind": "model",
+      "provider": "kling",
+      "id": "kling-3.0-omni",
+      "name": "Kling 3.0 Omni",
+      "type": "videoGeneration",
+      "adapterId": "kling-kling-3-0-omni-protocol",
+      "sortOrder": 7,
+      "enabled": true
+    },
+    {
+      "kind": "model",
+      "provider": "zhipu",
+      "id": "cogvideox-3",
+      "name": "CogVideoX 3",
+      "type": "videoGeneration",
+      "adapterId": "zhipu-cogvideox-3-protocol",
+      "sortOrder": 3,
+      "enabled": true
     }
   ]
 }
