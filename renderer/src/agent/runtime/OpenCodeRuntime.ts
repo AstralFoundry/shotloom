@@ -241,7 +241,7 @@ function configureModel(model: string, workspaceDirectory: string) {
       },
     },
   } as OpenCodeConfiguration;
-  return { configuration, contextLimit, outputLimit };
+  return { configuration, contextLimit, outputLimit, agentReasoningEffort: agentReasoningEffort || '' };
 }
 
 function recoverAgentReasoningFailure(model: string, cause: unknown): unknown {
@@ -445,7 +445,7 @@ export async function runOpenCodeAgent(
   };
   let client: OpenCodeClient;
   let sessionId: string;
-  let modelLimits = { contextLimit: 64_000, outputLimit: 8_192 };
+  let modelLimits = { contextLimit: 64_000, outputLimit: 8_192, agentReasoningEffort: '' };
   try {
     const configured = configureModel(model, directory);
     modelLimits = configured;
@@ -593,6 +593,7 @@ export async function runOpenCodeAgent(
         body: {
           agent: 'shotloom',
           model: { providerID: 'shotloom', modelID: model },
+          ...(modelLimits.agentReasoningEffort ? { variant: modelLimits.agentReasoningEffort } : {}),
           system: systemPrompt(),
           parts,
         },

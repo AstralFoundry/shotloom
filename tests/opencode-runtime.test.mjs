@@ -49,6 +49,7 @@ test('Runtime 不会把历史 assistant 回复冒充为本轮结果', () => {
   assert.match(runtime, /模型返回了 0 token 空响应/);
   assert.match(runtime, /recoveredReasoningEfforts/);
   assert.match(runtime, /已为下次重试自动切换 Agent reasoning_effort/);
+  assert.match(runtime, /variant: modelLimits\.agentReasoningEffort/);
 });
 
 test('所有桌面构建入口都在 Cargo 或 Tauri 构建前准备平台 sidecar', () => {
