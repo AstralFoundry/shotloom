@@ -80,6 +80,7 @@ export interface CatalogOutputConstraints {
   supportsStreaming?: boolean;
   supportsToolCalls?: boolean;
   supportsStructuredOutput?: boolean;
+  agentReasoningEffort?: 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max';
   maxTokens?: number;
 }
 

@@ -214,6 +214,11 @@ function supportsAgentTools(model: CatalogModel): boolean {
     model.modes.some((mode) => mode.outputConstraints?.supportsToolCalls === true);
 }
 
+function agentReasoningEffort(model: CatalogModel): string {
+  const mode = model.modes.find((item) => item.id === model.defaultMode) || model.modes[0];
+  return mode?.outputConstraints?.agentReasoningEffort || "";
+}
+
 export interface ProviderConnectionResult {
   providerId: string;
   config: ProviderConfig;
@@ -454,6 +459,24 @@ export function ProviderConnectionDialog({
         supportsToolCalls: enabled,
       },
     }));
+    setModelJson(JSON.stringify(next, null, 2));
+    setError("");
+  }
+
+  function setAgentReasoningEffort(value: string) {
+    if (!editedTextModel || !Array.isArray(editedTextModel.modes)) return;
+    const next = clone(editedTextModel);
+    next.modes = next.modes.map((mode) => {
+      const outputConstraints = { ...(mode.outputConstraints || {}) };
+      if (value) {
+        outputConstraints.agentReasoningEffort = value as NonNullable<
+          CatalogModel["modes"][number]["outputConstraints"]["agentReasoningEffort"]
+        >;
+      } else {
+        delete outputConstraints.agentReasoningEffort;
+      }
+      return { ...mode, outputConstraints };
+    });
     setModelJson(JSON.stringify(next, null, 2));
     setError("");
   }
@@ -982,6 +1005,23 @@ export function ProviderConnectionDialog({
                 <small>
                   仅在该模型的 OpenAI-compatible 接口支持 tools/function calling 时启用；未启用的文本模型仍可保存，但不会出现在 Agent 模型列表。
                 </small>
+                {supportsAgentTools(editedTextModel) && (
+                  <select
+                    aria-label="Agent 推理强度"
+                    value={agentReasoningEffort(editedTextModel)}
+                    onChange={(event) => setAgentReasoningEffort(event.target.value)}
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    <option value="">推理强度：自动</option>
+                    <option value="none">推理强度：关闭（none）</option>
+                    <option value="minimal">推理强度：minimal</option>
+                    <option value="low">推理强度：low</option>
+                    <option value="medium">推理强度：medium</option>
+                    <option value="high">推理强度：high</option>
+                    <option value="xhigh">推理强度：xhigh</option>
+                    <option value="max">推理强度：max</option>
+                  </select>
+                )}
               </span>
             </label>
           )}

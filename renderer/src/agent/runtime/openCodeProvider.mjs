@@ -33,3 +33,10 @@ export function resolveOpenCodeProvider(providerId, baseUrl, endpoint) {
     baseURL: openAiCompatibleBaseUrl(baseUrl, endpoint),
   };
 }
+
+export function agentReasoningFallback(error) {
+  const message = error instanceof Error ? error.message : String(error || '');
+  const toolConflict = message.includes('Function tools with reasoning_effort are not supported');
+  const explicitFallback = message.includes("set reasoning_effort to 'none'");
+  return toolConflict && explicitFallback ? 'none' : '';
+}

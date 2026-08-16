@@ -271,6 +271,7 @@
 文本模型还有一个影响 Agent 可见性的能力字段：
 
 - `supportsToolCalls: true`：仅当厂商文档明确说明该模型及当前 OpenAI-compatible 接口支持 `tools` / function calling 时填写。Shotloom Agent 会由运行时 SDK 注入工具定义，不使用这里的 `requestTemplate` 发送 Agent 请求。
+- `agentReasoningEffort`：可选的 Agent 推理强度，支持 `none`、`minimal`、`low`、`medium`、`high`、`xhigh`、`max`。仅按接口文档填写；如果 Chat Completions 明确要求工具调用时关闭 reasoning，填写 `"none"`。
 - 未填写或设为 `false`：模型仍可用于普通文本生成，但不会出现在 Agent 模型列表。
 - 不得根据模型名称、上下文长度或 `requestTemplate` 的形状猜测工具调用能力。若用户要求“用于 Agent”但资料不能确认，请在生成 JSON 前向用户索取接口文档；不要虚构 `true`。
 
@@ -278,7 +279,8 @@
 
 ```json
 {
-  "supportsToolCalls": true
+  "supportsToolCalls": true,
+  "agentReasoningEffort": "none"
 }
 ```
 
