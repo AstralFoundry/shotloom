@@ -149,6 +149,8 @@ export interface CatalogModel {
   modes: CatalogMode[];
   /** 用户在设置中基于同 ID 内置模型保存的本机覆盖。 */
   overridesBuiltIn?: boolean;
+  /** 运行时目录来源；只用于区分预设展示契约与用户提供的协议。 */
+  catalogSource?: 'built-in' | 'external';
 }
 
 export function normalizeCatalogModel(model: CatalogModel): {
@@ -466,7 +468,9 @@ class ModelCatalog {
   constructor() {
     const raw = modelCatalogV2 as { version: number; models: CatalogModel[] };
     if (raw.version !== 2) throw new Error('model-catalog-v2.json version must be 2');
-    this.builtInModels = (raw.models || []).filter((m) => m.enabled !== false);
+    this.builtInModels = (raw.models || [])
+      .filter((m) => m.enabled !== false)
+      .map((model) => ({ ...model, catalogSource: 'built-in' as const }));
     this.models = [...this.builtInModels];
 
     // 内置目录与外部目录消费同一份客观执行契约。
@@ -500,6 +504,7 @@ class ModelCatalog {
       const normalized = {
         ...model,
         enabled: true,
+        catalogSource: 'external' as const,
         modes: model.modes,
       };
       const builtIn = builtInById.get(model.id);
@@ -606,9 +611,14 @@ class ModelCatalog {
       .map((m) => m.id);
   }
 
-  getModelInfo(modelId: string): { name: string; provider: string; type: string } | null {
+  getModelInfo(modelId: string): { name: string; provider: string; type: string; catalogSource: 'built-in' | 'external' } | null {
     const model = this.modelMap.get(modelId);
-    return model ? { name: model.name, provider: model.provider, type: model.type } : null;
+    return model ? {
+      name: model.name,
+      provider: model.provider,
+      type: model.type,
+      catalogSource: model.catalogSource || 'built-in',
+    } : null;
   }
 
   isModelForType(nodeType: string, modelId: string): boolean {

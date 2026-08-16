@@ -45,5 +45,9 @@ test('协议提示词覆盖运行时必需边界和局部模板变量作用域',
   assert.match(prompt, /requestOptions/);
   assert.match(prompt, /不会出现在 Agent 模型列表/);
   assert.match(prompt, /不得由模型名称猜测/);
+  assert.match(prompt, /不了解 API 的普通创作者/);
+  assert.match(prompt, /1–5 个参数/);
+  assert.match(prompt, /不能把厂商 API 参数表原样铺到画布/);
+  assert.match(prompt, /"control": "hidden"/);
   assert.match(prompt, /最终自检/);
 });

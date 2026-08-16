@@ -104,6 +104,7 @@ test('跨厂商复用内置模型 ID 时使用自定义厂商路由', () => {
 
   setExternalCatalogModels(buildCustomCatalogModels(configs));
   assert.equal(getModelInfo('deepseek-v4-pro').provider, 'startrouter');
+  assert.equal(getModelInfo('deepseek-v4-pro').catalogSource, 'external');
 });
 
 test('跨自定义厂商的模型 ID 冲突会被保存边界识别', () => {

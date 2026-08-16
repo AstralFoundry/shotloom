@@ -304,7 +304,7 @@
 - `default`：默认值。
 - `options`：可选值数组。
 - `numeric`：厂商需要数字而不是字符串时设为 `true`。
-- `presentation`：界面约束。没有 `options` 的自由数值参数必须按文档声明 `min`、`max`，并尽量声明 `step`。
+- `presentation`：界面展示契约，必须是对象。可包含 `control`、`group`、`summary`、`unit`、`min`、`max`、`step`。
 - `visibleWhen`：按其他参数值控制显示，例如 `{ "mode": "advanced" }`。
 - `optionLabels`：选项值到显示文案的映射。
 
@@ -313,6 +313,9 @@
 - `select` 有 `options` 时，`default` 必须属于 `options`。
 - 可选参数没有值时会从请求中省略，不能用 `0` 代替空值；由提示词、模型或输入素材在运行时提供的必填值无需写死 `default`。
 - 自由数值参数的 `default` 必须位于 `presentation.min/max` 内。
+- 把使用者当成不了解 API 的普通创作者。只为日常确实需要调整的 1–5 个参数提供可见控件，并为它们填写中文 `group`；其中最多 4 个常用摘要设 `summary: true`。
+- 仅供接口兼容、缓存、追踪、调试或极少使用的参数仍可保留在 `params`，但必须写 `"presentation": { "control": "hidden" }`，不能把厂商 API 参数表原样铺到画布。
+- 可见参数的 `control` 使用 `segmented`、`select`、`ratio`、`resolution`、`slider`、`number`、`toggle` 或 `text`；自由数值参数必须按文档声明 `min`、`max`，并尽量声明 `step`。
 - 请求字段名写在 `requestTemplate` 左侧，参数键写在占位符中。例如：`"size": "{{params.size}}"`。
 - `prompt` 和 `model` 是运行时控制字段，不要重复定义成 `params`。
 
@@ -385,7 +388,21 @@
       "inputConstraints": {},
       "outputConstraints": {},
       "params": [
-        { "key": "maxTokens", "label": "最大长度", "type": "number", "default": 8192, "numeric": true }
+        {
+          "key": "maxTokens",
+          "label": "最大输出长度",
+          "type": "number",
+          "default": 8192,
+          "numeric": true,
+          "presentation": {
+            "control": "number",
+            "group": "常用设置",
+            "summary": true,
+            "min": 1,
+            "max": 100000,
+            "step": 1
+          }
+        }
       ],
       "resultTextPath": "choices.0.message.content"
     }
