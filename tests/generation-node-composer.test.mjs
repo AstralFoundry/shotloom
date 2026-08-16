@@ -105,9 +105,3 @@ test('切换模型时按新协议重编译配置且空数字不写成零', () =>
   assert.match(source, /min=\{numeric && Number\.isFinite\(Number\(presentation\.min\)\)/);
   assert.match(source, /max=\{numeric && Number\.isFinite\(Number\(presentation\.max\)\)/);
 });
-
-test('自定义模型只渲染协议显式声明的普通用户控件', () => {
-  assert.match(source, /selectedModelInfo\?\.catalogSource !== "external"/);
-  assert.match(source, /Boolean\(param\.presentation\) && typeof param\.presentation === "object"/);
-  assert.match(source, /\{\(params\.length > 0 \|\| inputModes\.length > 1\) && <div className="generation-settings-picker">/);
-});

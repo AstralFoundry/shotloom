@@ -19,6 +19,19 @@ test('协议生成提示词中的所有 JSON 示例都可直接解析', () => {
   for (const example of examples) assert.doesNotThrow(() => JSON.parse(example));
 });
 
+test('协议示例中的每个画布参数都明确声明展示方式', () => {
+  for (const match of prompt.matchAll(/```json\s*([\s\S]*?)```/g)) {
+    const example = JSON.parse(match[1]);
+    visit(example, (value) => {
+      if (!Array.isArray(value.params)) return;
+      for (const param of value.params) {
+        assert.equal(typeof param.presentation, 'object', `${param.key} 缺少 presentation`);
+        assert.notEqual(param.presentation, null, `${param.key} 的 presentation 为空`);
+      }
+    });
+  }
+});
+
 test('协议提示词明确分离媒体角色、业务槽位和厂商字段', () => {
   assert.match(prompt, /`referenceImage` 不是 `inputSlot`/);
   assert.match(prompt, /`inputConstraints\.\*\.roles` 表示媒体角色/);

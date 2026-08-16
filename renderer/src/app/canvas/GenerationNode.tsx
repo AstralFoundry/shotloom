@@ -360,14 +360,10 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({
   const models = (
     Array.isArray(node.availableModels) ? node.availableModels : schema.models || []
   ) as string[];
-  const selectedModelInfo = getModelInfo(String(node.model || ""));
   const params = (schema.params || []).filter(
-    (param: { key: string; visibleWhen?: Record<string, unknown>; presentation?: unknown }) =>
+    (param: { key: string; visibleWhen?: Record<string, unknown> }) =>
       param.key !== "prompt" &&
       param.key !== "model" &&
-      (selectedModelInfo?.catalogSource !== "external" || (
-        Boolean(param.presentation) && typeof param.presentation === "object"
-      )) &&
       paramPresentation(param).control !== "hidden" &&
       (!param.visibleWhen ||
         Object.entries(param.visibleWhen).every(([key, value]) => config[key] === value)),
@@ -826,7 +822,7 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({
                 </div>
               )}
             </div>
-            {(params.length > 0 || inputModes.length > 1) && <div className="generation-settings-picker">
+            <div className="generation-settings-picker">
               <button
                 type="button"
                 className={`generation-settings-trigger${openMenu === "generationSettings" ? " active" : ""}`}
@@ -991,7 +987,7 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({
                   })}
                 </div>
               )}
-            </div>}
+            </div>
             {false && params.map(
               (param: {
                 key: string;

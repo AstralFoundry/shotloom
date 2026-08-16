@@ -304,7 +304,7 @@
 - `default`：默认值。
 - `options`：可选值数组。
 - `numeric`：厂商需要数字而不是字符串时设为 `true`。
-- `presentation`：界面展示契约，必须是对象。可包含 `control`、`group`、`summary`、`unit`、`min`、`max`、`step`。
+- `presentation`：必填的界面展示契约，必须是对象。可包含 `control`、`group`、`summary`、`unit`、`min`、`max`、`step`。`params` 中每一项都必须填写。
 - `visibleWhen`：按其他参数值控制显示，例如 `{ "mode": "advanced" }`。
 - `optionLabels`：选项值到显示文案的映射。
 
@@ -488,7 +488,20 @@
       },
       "outputConstraints": { "durations": [5, 10], "defaultDuration": 5, "formats": ["mp4"] },
       "params": [
-        { "key": "duration", "label": "时长", "type": "select", "default": 5, "numeric": true, "options": [5, 10] }
+        {
+          "key": "duration",
+          "label": "视频时长",
+          "type": "select",
+          "default": 5,
+          "numeric": true,
+          "options": [5, 10],
+          "optionLabels": { "5": "5 秒", "10": "10 秒" },
+          "presentation": {
+            "control": "segmented",
+            "group": "视频设置",
+            "summary": true
+          }
+        }
       ],
       "taskIdPath": "data.task_id",
       "statusPath": "data.status",
@@ -521,6 +534,7 @@
 8. 每个 mode 至少有一种结果来源。
 9. 异步 mode 有 taskEndpoint、taskIdPath、statusPath、pollStatusMap 和完成结果。
 10. requestTemplate 引用的每个 `params.xxx` 都在 params 中定义；没有定义 `prompt` 或 `model` 参数。
-11. JSON 中没有凭据、注释、尾逗号或本文未定义的字段。
+11. 每个 param 都有对象类型 `presentation`；普通创作者需要的少量参数使用合适控件，其余参数明确设为 `control: "hidden"`。
+12. JSON 中没有凭据、注释、尾逗号或本文未定义的字段。
 
 现在根据用户提供的 API 材料输出协议 JSON。只输出 JSON。
