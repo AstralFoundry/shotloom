@@ -8,10 +8,15 @@ const generation = readFileSync(new URL('../renderer/src/app/canvas/GenerationNo
 const basicNodes = readFileSync(new URL('../renderer/src/app/canvas/CanvasNodes.tsx', import.meta.url), 'utf8');
 const board = readFileSync(new URL('../renderer/src/app/canvas/BoardNode.tsx', import.meta.url), 'utf8');
 const director = readFileSync(new URL('../renderer/src/app/canvas/ThreeDDirectorNode.tsx', import.meta.url), 'utf8');
-const styles = readFileSync(new URL('../renderer/styles/react-migration.css', import.meta.url), 'utf8');
-const adapter = readFileSync(new URL('../renderer/src/app/adapters/canvasAdapter.ts', import.meta.url), 'utf8');
+const styles = ['canvas-copilot.css', 'media-overlays.css']
+  .map((name) => readFileSync(new URL(`../renderer/styles/${name}`, import.meta.url), 'utf8'))
+  .join('\n');
+const adapter = readFileSync(new URL('../renderer/src/app/adapters/canvasAdapter.ts', import.meta.url), 'utf8')
+  + readFileSync(new URL('../renderer/src/app/adapters/canvas/canvasMediaActions.ts', import.meta.url), 'utf8');
 const api = readFileSync(new URL('../renderer/src/services/tauriApi.js', import.meta.url), 'utf8');
-const rust = readFileSync(new URL('../src-tauri/src/commands/file.rs', import.meta.url), 'utf8');
+const audioRust = readFileSync(new URL('../src-tauri/src/commands/audio.rs', import.meta.url), 'utf8');
+const fileRust = readFileSync(new URL('../src-tauri/src/commands/file.rs', import.meta.url), 'utf8');
+const imageRust = readFileSync(new URL('../src-tauri/src/commands/image.rs', import.meta.url), 'utf8');
 const nodeChrome = await import('../renderer/src/utils/canvasNodeChrome.mjs');
 
 test('加入对话只在节点选中工具栏中显示', () => {
@@ -42,19 +47,20 @@ test('媒体节点工具栏提供真实入库与音频分离', () => {
   assert.match(canvas, /assetPlacementRevision = useStore[\s\S]*?positionAbsolute[\s\S]*?state\.transform/);
   assert.match(canvas, /actions\.saveToAssets\(item\.id, "project", assetCategory\)[\s\S]*?<strong>存到项目<\/strong>/);
   assert.match(canvas, /actions\.saveToAssets\(item\.id, "global", assetCategory\)[\s\S]*?<strong>存到全局<\/strong>/);
-  assert.match(adapter, /async saveToAssets\(id, scope, category\)[\s\S]*?scope === "project"[\s\S]*?addMaterialToAssetLibrary[\s\S]*?promoteMaterialToLocalLibrary/);
+  assert.match(adapter, /async function saveToAssets\([\s\S]*?scope === "project"[\s\S]*?addMaterialToAssetLibrary[\s\S]*?promoteMaterialToLocalLibrary/);
   assert.match(adapter, /assetDetails = \{[\s\S]*?category,[\s\S]*?promoteMaterialToLocalLibrary/);
   assert.match(styles, /\.canvas-node-asset-scope-menu \{[\s\S]*?width:\s*220px/);
   assert.match(styles, /\.canvas-node-asset-scope-menu--portal \{[\s\S]*?z-index:\s*121/);
   assert.match(styles, /\.react-workflow-canvas \{[\s\S]*?isolation:\s*isolate/);
-  assert.match(adapter, /async extractAudio\(id\)[\s\S]*?separateAudioToProject[\s\S]*?addNode\("videoGeneration"\)[\s\S]*?addNode\("audioGeneration"\)/);
+  assert.match(adapter, /async function extractAudio\(id: string\)[\s\S]*?separateAudioToProject[\s\S]*?addNode\("videoGeneration"\)[\s\S]*?addNode\("audioGeneration"\)/);
   assert.match(adapter, /sourceDimensions = canvasNodeDimensions\(source\)[\s\S]*?silentVideo\.y \+ canvasNodeDimensions\(silentVideo\)\.height \+ 48/);
   assert.match(adapter, /addCanvasEdge\(store\.project, source\.id, silentVideo\.id[\s\S]*?addCanvasEdge\(store\.project, source\.id, audio\.id/);
   assert.match(api, /separateAudioToProject:[\s\S]*?file:separate-audio/);
   assert.match(api, /hasAudio:[\s\S]*?file:has-audio/);
-  assert.match(rust, /pub async fn file_has_audio[\s\S]*?spawn_blocking[\s\S]*?fn probe_audio[\s\S]*?source_has_audio/);
-  assert.match(rust, /pub async fn file_separate_audio[\s\S]*?spawn_blocking/);
-  assert.match(rust, /fn separate_audio[\s\S]*?source_has_audio[\s\S]*?"-map", "0:a:0"[\s\S]*?"-c:a", "aac"[\s\S]*?"-map", "0:v:0"[\s\S]*?"-an"[\s\S]*?"copy"/);
+  assert.match(audioRust, /fn probe_audio[\s\S]*?source_has_audio/);
+  assert.match(audioRust, /pub async fn file_has_audio[\s\S]*?spawn_blocking/);
+  assert.match(audioRust, /pub async fn file_separate_audio[\s\S]*?spawn_blocking/);
+  assert.match(audioRust, /fn separate_audio[\s\S]*?source_has_audio[\s\S]*?"-map", "0:a:0"[\s\S]*?"-c:a", "aac"[\s\S]*?"-map", "0:v:0"[\s\S]*?"-an"[\s\S]*?"copy"/);
 });
 
 test('本地图片节点提供原图裁剪并创建保留来源连线的新节点', () => {
@@ -62,12 +68,12 @@ test('本地图片节点提供原图裁剪并创建保留来源连线的新节�
   assert.match(canvas, /createPortal\([^]*?<ImageCropDialog[^]*?actions\.cropImage\(item\.id, rect\)[^]*?document\.body/);
   assert.match(cropDialog, /readImagePreview\(source, 2048\)/);
   assert.match(cropDialog, /cropRatios[\s\S]*?"1:1"[\s\S]*?"16:9"[\s\S]*?"9:16"/);
-  assert.match(adapter, /async cropImage\(id, crop\)[\s\S]*?cropImageToProject[\s\S]*?addNode\("imageGeneration"\)/);
+  assert.match(adapter, /async function cropImage\(id: string, crop: ImageCropRect\)[\s\S]*?cropImageToProject[\s\S]*?addNode\("imageGeneration"\)/);
   assert.match(adapter, /addCanvasEdge\(store\.project, source\.id, output\.id[\s\S]*?derivation: "image-crop"/);
   assert.match(api, /case 'file:crop-image':[\s\S]*?file_crop_image/);
   assert.match(api, /cropImageToProject:[\s\S]*?file:crop-image/);
-  assert.match(rust, /pub async fn file_crop_image[\s\S]*?spawn_blocking/);
-  assert.match(rust, /fn crop_image[\s\S]*?apply_orientation[\s\S]*?crop_imm[\s\S]*?ImageFormat::Png/);
+  assert.match(imageRust, /pub async fn file_crop_image[\s\S]*?spawn_blocking/);
+  assert.match(imageRust, /fn crop_image[\s\S]*?apply_orientation[\s\S]*?crop_imm[\s\S]*?ImageFormat::Png/);
   assert.match(styles, /\.image-crop-backdrop \{[\s\S]*?z-index:\s*240/);
 });
 

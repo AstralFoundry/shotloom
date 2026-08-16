@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 const view = readFileSync(new URL('../renderer/src/app/views/TasksView.tsx', import.meta.url), 'utf8');
 const styles = readFileSync(new URL('../renderer/styles.css', import.meta.url), 'utf8');
-const migrationStyles = readFileSync(new URL('../renderer/styles/react-migration.css', import.meta.url), 'utf8');
+const migrationStyles = readFileSync(new URL('../renderer/styles/project-materials.css', import.meta.url), 'utf8');
 test('项目任务使用平面信息行且不混入助手运行中心', () => {
   assert.doesNotMatch(view, /task-list-head/);
   assert.match(view, /task-record-meta/);

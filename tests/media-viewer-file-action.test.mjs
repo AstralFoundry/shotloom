@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 const viewer = readFileSync(new URL('../renderer/src/app/components/MediaViewer.tsx', import.meta.url), 'utf8');
-const styles = readFileSync(new URL('../renderer/styles/react-migration.css', import.meta.url), 'utf8');
+const styles = readFileSync(new URL('../renderer/styles/media-overlays.css', import.meta.url), 'utf8');
 const api = readFileSync(new URL('../renderer/src/services/tauriApi.js', import.meta.url), 'utf8');
 const overlay = readFileSync(new URL('../renderer/src/app/store/overlayStore.ts', import.meta.url), 'utf8');
 test('放大预览的文件夹按钮在系统文件夹中定位原图', () => {

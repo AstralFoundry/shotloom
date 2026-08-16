@@ -1,0 +1,468 @@
+/* Migrated from renderer/src/views/CreationView.vue */
+.canvas-asset-popover-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 115;
+  pointer-events: none;
+  transition: left 220ms cubic-bezier(.22, 1, .36, 1);
+}
+
+.app-shell.sidebar-overlay-shell:is(.sidebar-is-pinned, .sidebar-preview-open)
+  .canvas-asset-popover-layer {
+  left: calc(
+    var(--workspace-sidebar-width) - var(--workspace-sidebar-rail-width)
+  );
+}
+
+.canvas-material-picker {
+  position: absolute;
+  inset: auto 0 0;
+  width: 100%;
+  min-height: 70%;
+  max-height: calc(100% - 72px);
+  border: 0;
+  border-top: 1px solid rgba(0, 0, 0, .09);
+  border-radius: var(--workbench-radius) var(--workbench-radius) 0 0;
+  display: grid;
+  grid-template-rows: 11px auto auto auto minmax(0, 1fr);
+  background: #fff;
+  box-shadow: 0 -10px 28px rgba(0, 0, 0, .045);
+  overflow: hidden;
+  pointer-events: auto;
+  animation: canvas-asset-popover-in 140ms cubic-bezier(.2, .8, .2, 1);
+}
+
+@keyframes canvas-asset-popover-in {
+  from { opacity: 0; transform: translateY(12px); }
+}
+
+.canvas-asset-drawer-resizer {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  cursor: ns-resize;
+  touch-action: none;
+}
+.canvas-asset-drawer-resizer::before {
+  position: absolute;
+  inset: -4px 0;
+  content: "";
+}
+.canvas-asset-drawer-resizer span {
+  width: 38px;
+  height: 3px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, .15);
+  transition: width 120ms ease, background 120ms ease;
+}
+.canvas-asset-drawer-resizer:hover span,
+.canvas-asset-drawer-resizer:focus-visible span {
+  width: 54px;
+  background: rgba(0, 0, 0, .3);
+}
+.canvas-asset-drawer-resizer:focus-visible {
+  outline: 2px solid rgba(0, 0, 0, .16);
+  outline-offset: -2px;
+}
+
+.canvas-material-picker header {
+  min-height: 48px;
+  padding: 7px 8px 7px 12px;
+  border-bottom: 1px solid rgba(0, 0, 0, .07);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.canvas-asset-heading {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: rgba(0, 0, 0, .82);
+}
+.canvas-asset-heading svg { width: 14px; height: 14px; }
+.canvas-asset-heading strong { font-size: 13px; font-weight: 600; letter-spacing: -.01em; }
+
+.canvas-material-picker-actions {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.canvas-asset-view-switch {
+  height: 30px;
+  padding: 2px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  background: #f4f4f4;
+}
+.canvas-material-picker header .canvas-asset-view-switch button {
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 6px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  color: rgba(0, 0, 0, .38);
+  background: transparent;
+}
+.canvas-material-picker header .canvas-asset-view-switch button.active {
+  color: rgba(0, 0, 0, .72);
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .1);
+}
+.canvas-asset-view-switch svg { width: 13px; height: 13px; }
+
+.canvas-material-picker header .canvas-material-import {
+  height: 30px;
+  border-color: transparent;
+  border-radius: 7px;
+  padding: 0 8px;
+  color: rgba(0, 0, 0, .58);
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.canvas-material-picker header .canvas-material-import svg { width: 13px; height: 13px; }
+.canvas-material-picker header .canvas-material-close {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 8px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  background: transparent;
+}
+.canvas-material-picker header .canvas-material-close:hover { background: #eef0f3; }
+.canvas-material-picker header .canvas-material-close svg { width: 14px; height: 14px; }
+
+.canvas-material-picker header button,
+.canvas-material-tabs button {
+  border: 1px solid #e5e8ee;
+  border-radius: 999px;
+  padding: 7px 12px;
+  color: #4b5563;
+  background: #fff;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.canvas-material-browser-bar {
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(0, 0, 0, .055);
+  display: grid;
+  grid-template-columns: auto minmax(220px, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+
+.canvas-material-tabs {
+  width: auto;
+  display: flex;
+  gap: 1px;
+  margin: 0;
+  padding: 2px;
+  border-radius: 8px;
+  background: #f3f3f3;
+}
+
+.canvas-material-tabs button {
+  min-width: 0;
+  flex: 0 0 auto;
+  height: 30px;
+  border: 0;
+  border-radius: 7px;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  color: rgba(0, 0, 0, .46);
+  background: transparent;
+  font-size: 11px;
+}
+
+.canvas-material-tabs button > svg {
+  width: 12px;
+  height: 12px;
+}
+
+.canvas-material-tabs button span {
+  margin-left: 4px;
+  color: #a0a6af;
+  font-size: 10px;
+}
+
+.canvas-material-tabs button.active {
+  color: rgba(0, 0, 0, .82);
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .08);
+}
+
+.canvas-material-tabs button.active span { color: #737b86; }
+
+.canvas-material-search {
+  width: 100%;
+  height: 34px;
+  border: 1px solid rgba(0, 0, 0, .035);
+  border-radius: 10px;
+  padding: 0 11px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: rgba(0, 0, 0, .36);
+  background: #f5f5f5;
+}
+
+.canvas-material-search:focus-within {
+  border-color: rgba(0, 0, 0, .14);
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, .035);
+}
+
+.canvas-material-search svg { width: 13px; height: 13px; flex: 0 0 auto; }
+.canvas-material-search input {
+  min-width: 0;
+  width: 100%;
+  border: 0;
+  outline: 0;
+  color: #343b45;
+  background: transparent;
+  font-size: 12px;
+}
+
+.canvas-material-search input::placeholder { color: #a5abb4; }
+
+.canvas-asset-filters {
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(0, 0, 0, .055);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.canvas-asset-filters label {
+  min-width: 132px;
+  height: 30px;
+  border: 1px solid rgba(0, 0, 0, .09);
+  border-radius: 8px;
+  padding: 0 7px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: rgba(0, 0, 0, .48);
+  background: #fff;
+}
+
+.canvas-asset-filters select {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  color: rgba(0, 0, 0, .64);
+  background: transparent;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.canvas-asset-filters .canvas-asset-sort {
+  margin-left: auto;
+}
+.canvas-asset-filters output {
+  min-width: 38px;
+  color: #969da7;
+  font-size: 10px;
+  text-align: right;
+}
+
+.canvas-asset-filter-reset {
+  height: 28px;
+  border: 0;
+  border-radius: 6px;
+  padding: 0 7px;
+  color: #747c87;
+  background: transparent;
+  font-size: 10px;
+}
+.canvas-asset-filter-reset:hover { color: #30363e; background: #eef0f3; }
+
+@media (max-width: 760px) {
+  .canvas-material-browser-bar { grid-template-columns: 1fr; }
+  .canvas-material-tabs { overflow-x: auto; }
+  .canvas-material-search { width: 100%; }
+  .canvas-asset-filters { overflow-x: auto; }
+  .canvas-asset-filters .canvas-asset-sort { margin-left: 0; }
+}
+
+.canvas-material-picker-body {
+  min-height: 260px;
+  padding: 10px;
+  overflow: auto;
+  background: #fff;
+}
+
+.canvas-material-picker-body .material-node-grid {
+  grid-template-columns: repeat(auto-fill, minmax(184px, 1fr));
+  gap: 14px 12px;
+}
+
+.canvas-material-picker-body .material-node-wrap { max-width: none; }
+.canvas-material-picker-body .material-node {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
+}
+.canvas-material-picker-body .material-node-wrap.selectable:hover .material-node {
+  border-color: transparent;
+  box-shadow: none;
+  transform: none;
+}
+
+.canvas-material-picker-body.asset-view-grid .material-node-preview,
+.canvas-material-picker-body.asset-view-grid .material-node-preview.layout-portrait,
+.canvas-material-picker-body.asset-view-grid .material-node-preview.layout-tall {
+  width: 100%;
+  aspect-ratio: 1;
+  border: 1px solid rgba(0, 0, 0, .045);
+  border-radius: 8px;
+  background: #f6f6f6;
+  transition: border-color 140ms ease, box-shadow 140ms ease;
+}
+.canvas-material-picker-body.asset-view-grid .material-node-preview img,
+.canvas-material-picker-body.asset-view-grid .material-node-preview video {
+  object-fit: cover;
+  border-radius: inherit;
+  background: #f6f6f6;
+}
+.canvas-material-picker-body.asset-view-grid .material-node-wrap.selectable:hover .material-node-preview {
+  border-color: rgba(0, 0, 0, .16);
+  box-shadow: 0 5px 16px rgba(0, 0, 0, .07);
+}
+.canvas-material-picker-body.asset-view-grid .material-node-kicker {
+  display: none;
+}
+.canvas-material-picker-body.asset-view-grid .material-node-kicker svg,
+.canvas-material-picker-body.asset-view-grid .material-node-kicker em,
+.canvas-material-picker-body.asset-view-grid .material-node-kicker i,
+.canvas-material-picker-body.asset-view-grid .material-scope {
+  display: none;
+}
+.canvas-material-picker-body.asset-view-list .material-node-grid {
+  grid-template-columns: 1fr;
+  gap: 1px;
+}
+.canvas-material-picker-body.asset-view-list .material-node {
+  min-height: 30px;
+  grid-template-columns: 22px minmax(0, 1fr);
+  grid-template-rows: 30px;
+  align-items: center;
+  border-radius: 5px;
+  padding: 0 6px;
+}
+.canvas-material-picker-body.asset-view-list .material-node-wrap.selectable:hover .material-node {
+  background: #f3f3f3;
+}
+.canvas-material-picker-body.asset-view-list .material-node-preview,
+.canvas-material-picker-body.asset-view-list .material-node-preview.layout-portrait,
+.canvas-material-picker-body.asset-view-list .material-node-preview.layout-tall {
+  width: 20px;
+  height: 20px;
+  aspect-ratio: auto;
+  border-radius: 2px;
+  background: #f1f1f1;
+}
+.canvas-material-picker-body.asset-view-list .material-node-preview img,
+.canvas-material-picker-body.asset-view-list .material-node-preview video {
+  object-fit: cover;
+  background: #f1f1f1;
+}
+.canvas-material-picker-body.asset-view-list .material-node-preview video::-webkit-media-controls {
+  display: none;
+}
+.canvas-material-picker-body.asset-view-list .material-node-placeholder {
+  gap: 0;
+}
+.canvas-material-picker-body.asset-view-list .material-node-placeholder svg {
+  width: 13px;
+  height: 13px;
+  color: #929292;
+}
+.canvas-material-picker-body.asset-view-list .material-node-placeholder span {
+  display: none;
+}
+.canvas-material-picker-body.asset-view-list .material-node-kicker {
+  min-height: 30px;
+  border: 0;
+  padding: 0 8px;
+  display: flex;
+  align-items: center;
+  background: transparent;
+}
+.canvas-material-picker-body.asset-view-list .material-node-kicker svg,
+.canvas-material-picker-body.asset-view-list .material-node-kicker em,
+.canvas-material-picker-body.asset-view-list .material-node-kicker i,
+.canvas-material-picker-body.asset-view-list .material-scope {
+  display: none;
+}
+.canvas-material-picker-body.asset-view-list .material-node-kicker strong {
+  display: block;
+  color: rgba(0, 0, 0, .72);
+  font-size: 12px;
+  font-weight: 450;
+  line-height: 30px;
+}
+
+.canvas-material-empty {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #959ba4;
+  text-align: center;
+}
+.canvas-material-empty-icon {
+  width: 42px;
+  height: 42px;
+  border: 1px solid #e1e4e8;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  color: #a8adb5;
+  background: #f7f8f9;
+}
+.canvas-material-empty-icon svg { width: 19px; height: 19px; }
+.canvas-material-empty strong {
+  margin-top: 12px;
+  color: #5d646e;
+  font-size: 12px;
+  font-weight: 600;
+}
+.canvas-material-empty p { margin: 4px 0 0; color: #a0a5ad; font-size: 10px; font-weight: 450; }
+.canvas-material-empty > button {
+  height: 30px;
+  margin-top: 13px;
+  border: 1px solid #dce0e5;
+  border-radius: 7px;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #535b66;
+  background: #fff;
+  font-size: 10px;
+  font-weight: 600;
+}
+.canvas-material-empty > button:hover { border-color: #bec5cd; background: #f8f9fa; }
+.canvas-material-empty > button svg { width: 12px; height: 12px; }

@@ -1,0 +1,391 @@
+/* The editor shares the application design tokens. This keeps the full-screen
+   workspace visually continuous with the project shell instead of becoming a
+   separately themed embedded product. */
+.ov-editor {
+  --ov-text: var(--type-primary);
+  --ov-text-soft: var(--type-secondary);
+  --ov-muted: var(--type-tertiary);
+  --ov-line: var(--line);
+  --ov-line-strong: rgba(0, 0, 0, .12);
+  --ov-panel: var(--surface);
+  --ov-workspace: var(--window-shell);
+  --ov-control: var(--surface-2);
+  --ov-accent: var(--accent);
+  --ov-accent-soft: var(--brand-soft);
+  color: var(--ov-text);
+  background: var(--ov-workspace);
+  font-family: inherit;
+  letter-spacing: 0;
+}
+.ov-editor button { border-radius: 6px; }
+.ov-topbar { color: var(--ov-text); background: var(--ov-panel); border-color: var(--ov-line); }
+.ov-brand strong,
+.ov-library-heading strong,
+.ov-panel-heading strong,
+.ov-inspector-empty strong { color: var(--ov-text); }
+.ov-actions button,
+.ov-library-heading button {
+  border-color: var(--ov-line-strong);
+  border-radius: 6px;
+  color: #42484f;
+  background: #fff;
+  box-shadow: none;
+}
+.ov-actions .primary {
+  border-color: #59616a;
+  color: #fff;
+  background: #59616a;
+}
+.ov-actions .primary:hover:not(:disabled) { border-color: #4d555d; background: #4d555d; }
+.ov-stage { background: var(--ov-workspace); }
+.ov-toolrail,
+.ov-library,
+.ov-program,
+.ov-inspector,
+.ov-timeline {
+  border-color: var(--ov-line);
+  border-radius: 5px;
+  background: var(--ov-panel);
+  box-shadow: none;
+}
+.ov-toolrail button { border-radius: 4px; color: #777e86; }
+.ov-toolrail button:hover { color: #353a40; background: #f1f3f5; }
+.ov-toolrail button.active {
+  color: var(--ov-accent);
+  background: var(--ov-accent-soft);
+  box-shadow: inset 0 0 0 1px var(--ov-line);
+}
+.ov-library-heading,
+.ov-panel-heading,
+.ov-timeline-toolbar { border-color: var(--ov-line); background: var(--ov-panel); }
+.ov-library-heading > span,
+.ov-panel-heading > span,
+.ov-inspector-empty,
+.ov-inspector-empty span { color: var(--ov-muted); }
+.ov-import {
+  border-color: var(--ov-line-strong);
+  border-radius: 6px;
+  color: var(--ov-text-soft);
+  background: #f5f6f7;
+}
+.ov-import strong { color: #50565d; }
+.ov-import span { color: var(--ov-muted); }
+.ov-asset-card {
+  border-color: transparent;
+  border-radius: 5px;
+  color: var(--ov-text);
+  background: transparent;
+  box-shadow: none;
+}
+.ov-asset-card:hover { border-color: var(--ov-line); background: #f7f8f9; box-shadow: none; }
+.ov-asset-card > span { border-radius: 4px; background: #eef1f3; }
+.ov-asset-card strong { color: #454b52; }
+.ov-asset-card small { color: var(--ov-muted); }
+.ov-preset-card,
+.ov-sticker-grid button,
+.ov-preset-list button {
+  border-color: var(--ov-line);
+  border-radius: 6px;
+  color: var(--ov-text-soft);
+  background: var(--ov-control);
+}
+.ov-preset-card:hover,
+.ov-sticker-grid button:hover,
+.ov-preset-list button:hover { border-color: #cbd1d6; background: #f0f2f4; }
+.ov-preset-list strong { color: #444a51; }
+.ov-preset-list small,
+.ov-panel-note { color: var(--ov-muted); }
+.ov-program { background: var(--bg); }
+.ov-monitor { border-radius: 0; background: #000; }
+.ov-transport button,
+.ov-transport .play,
+.ov-transport .ov-fit {
+  border-color: var(--ov-line-strong);
+  border-radius: 6px;
+  color: #50575e;
+  background: #fff;
+}
+.ov-transport .play { border-color: transparent; background: transparent; }
+.ov-transport .ov-fit { background: var(--ov-control); }
+.ov-transport > span { color: #858b92; }
+.ov-selected {
+  border-color: var(--ov-line);
+  border-radius: 6px;
+  background: #f7f8f8;
+}
+.ov-selected > i {
+  border-radius: 5px;
+  color: #fff;
+  background: #58636b;
+}
+.ov-selected strong { color: #34393f; }
+.ov-selected small { color: var(--ov-muted); }
+.ov-inspector-section { border-color: #eceef0; }
+.ov-inspector-section h4 { color: #7d848b; }
+.ov-inspector-section label { color: var(--ov-text-soft); }
+.ov-inspector-section input,
+.ov-inspector-section select,
+.ov-inspector-section textarea,
+.ov-transform-presets button,
+.ov-inspector-actions button {
+  border-color: var(--ov-line-strong);
+  border-radius: 6px;
+  color: #41474d;
+  background: #fafbfb;
+}
+.ov-inspector-section :is(input, select, textarea):focus {
+  border-color: #c7d5e2;
+  box-shadow: 0 0 0 3px rgba(47, 111, 147, .08);
+}
+.ov-transform-presets button:hover,
+.ov-inspector-actions button:hover { border-color: #c8ced4; background: #f2f4f5; }
+.ov-inspector-actions .danger { color: #c45454; background: #fff; }
+.ov-project-facts { border-color: #eceef0; }
+.ov-project-facts span,
+.ov-project-facts small { color: var(--ov-muted); }
+.ov-timeline { border-radius: 5px 5px 0 0; background: var(--ov-panel); }
+.ov-sequence-title {
+  border-color: var(--ov-line-strong);
+  border-radius: 999px;
+  color: #4d535a;
+  background: #f4f5f6;
+}
+.ov-sequence-title strong { color: #454b51; }
+.ov-edit-buttons button { color: #666d74; background: transparent; }
+.ov-edit-buttons button:hover { color: #30353a; background: #f0f2f4; }
+.ov-ruler { border-color: var(--ov-line); color: var(--ov-muted); background: var(--ov-panel); }
+.ov-ruler span { color: #969ca2; }
+.ov-ruler i { background: #c6cbd0; }
+.ov-track { border-color: #edf0f2; }
+.ov-track-head { border-color: var(--ov-line); background: var(--ov-panel); }
+.ov-track-head > b,
+.ov-track.type-audio .ov-track-head > b,
+.ov-track.type-text .ov-track-head > b,
+.ov-track.type-overlay .ov-track-head > b,
+.ov-track.type-effect .ov-track-head > b {
+  border-radius: 4px;
+  color: #848b92;
+  background: #f0f2f4;
+}
+.ov-track-head button { color: #a0a6ac; }
+.ov-track-head button.active { color: #4c5359; background: #eef0f2; }
+.ov-track-lane { background: repeating-linear-gradient(90deg, #fff 0 63px, #f2f4f6 64px); }
+.ov-clip { border-radius: 3px; }
+.ov-clip.selected { border-color: var(--ov-accent); box-shadow: inset 0 0 0 1px var(--ov-accent); }
+.ov-playhead,
+.ov-playhead i { background: var(--ov-accent); }
+.ov-text-notice {
+  border-color: var(--ov-line);
+  color: var(--ov-text-soft);
+  background: var(--ov-control);
+}
+.ov-text-presets .text-preset {
+  border-color: var(--ov-line);
+  color: var(--ov-text);
+  background: var(--ov-panel);
+}
+.ov-text-presets .text-preset:hover {
+  border-color: var(--ov-line-strong);
+  background: var(--ov-control);
+}
+.ov-inspector {
+  min-width: 0;
+  padding: 14px 12px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+.ov-selected {
+  margin: 2px 0 4px;
+  padding: 9px 0 11px;
+  border: 0;
+  border-bottom: 1px solid var(--ov-line);
+  border-radius: 0;
+  background: transparent;
+}
+.ov-selected > i {
+  color: var(--ov-text-soft);
+  background: var(--ov-control);
+}
+.ov-inspector-section,
+.ov-inspector-section label {
+  width: 100%;
+  min-width: 0;
+}
+.ov-inspector-section label {
+  grid-template-columns: minmax(0, 1fr) minmax(88px, 42%);
+  gap: 10px;
+}
+.ov-inspector-section input,
+.ov-inspector-section select,
+.ov-inspector-section textarea {
+  width: 100%;
+  max-width: 100%;
+}
+.ov-inspector-section textarea { grid-column: 1 / -1; }
+.ov-inspector-section input[type="color"] {
+  width: 44px;
+  justify-self: end;
+}
+.ov-edit-buttons button {
+  width: 28px;
+  min-width: 28px;
+  padding: 0;
+  overflow: hidden;
+  justify-content: center;
+  gap: 0;
+  white-space: nowrap;
+  font-size: 0;
+}
+.ov-edit-buttons button:nth-child(2) { font-size: 0; }
+.ov-edit-buttons svg { width: 13px; height: 13px; flex: 0 0 13px; }
+.ov-history {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+.ov-history button {
+  width: 30px;
+  height: 30px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--ov-text-soft);
+  background: transparent;
+}
+.ov-history button:hover:not(:disabled) { color: var(--ov-text); background: var(--ov-control); }
+.ov-history button:disabled { opacity: .28; }
+.ov-asset-card {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+}
+.ov-asset-preview {
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  text-align: left;
+}
+.ov-asset-thumbnail {
+  width: 100%;
+  height: 64px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 4px;
+  background: var(--ov-control);
+}
+.ov-asset-thumbnail :is(img, video) {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+.ov-asset-preview strong,
+.ov-asset-preview small {
+  display: block;
+  padding-inline: 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ov-asset-preview strong { padding-top: 6px; }
+.ov-asset-preview small { padding-top: 1px; padding-bottom: 5px; }
+.ov-asset-delete {
+  width: 24px;
+  height: 24px;
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(0, 0, 0, .1);
+  border-radius: 6px;
+  color: #555d65;
+  background: rgba(255, 255, 255, .92);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .08);
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.ov-asset-card:hover .ov-asset-delete,
+.ov-asset-delete:focus-visible { opacity: 1; }
+.ov-asset-delete:hover { color: var(--bad); background: #fff; }
+.ov-asset-delete svg { width: 12px; height: 12px; }
+
+/* Match the 13px navigation rhythm used by the main canvas sidebar. */
+.ov-editor { --ov-ui-font-size: 13px; font-size: var(--ov-ui-font-size); }
+.ov-brand strong,
+.ov-library-heading strong,
+.ov-panel-heading strong,
+.ov-selected strong,
+.ov-inspector-section label,
+.ov-actions button,
+.ov-library-heading button,
+.ov-transform-presets button,
+.ov-inspector-actions button,
+.ov-sequence-title strong,
+.ov-asset-preview strong {
+  font-size: var(--ov-ui-font-size);
+  line-height: 18px;
+}
+.ov-inspector-section input,
+.ov-inspector-section select,
+.ov-inspector-section textarea {
+  font-size: 12px;
+  line-height: 17px;
+}
+.ov-inspector-section input,
+.ov-inspector-section select { min-height: 32px; }
+.ov-inspector-section textarea { min-height: 62px; }
+.ov-panel-heading > span,
+.ov-library-heading > span,
+.ov-text-presets .text-preset span,
+.ov-panel-note,
+.ov-import span,
+.ov-text-notice,
+.ov-inspector-empty span,
+.ov-transport .ov-fit,
+.ov-timeline-toolbar label,
+.ov-timeline-toolbar output,
+.ov-transport > span,
+.ov-clip i {
+  font-size: 12px;
+  line-height: 17px;
+}
+.ov-inspector-section h4,
+.ov-selected small,
+.ov-project-facts span,
+.ov-project-facts small,
+.ov-asset-preview small,
+.ov-sequence-title em,
+.ov-clip small,
+.ov-ruler span {
+  font-size: 11px;
+  line-height: 15px;
+}
+.ov-inspector-empty strong { font-size: 14px; line-height: 20px; }
+.ov-track-head button { font-size: 11px; }
+.ov-transform-section { gap: 7px; }
+.ov-transform-section label { font-size: 12px; line-height: 16px; }
+.ov-transform-section input {
+  min-height: 28px;
+  padding-block: 3px;
+  font-size: 11px;
+  line-height: 15px;
+}
+.ov-transform-presets button,
+.ov-inspector-actions button {
+  height: 28px;
+  font-size: 12px;
+  line-height: 16px;
+}
+.ov-inspector-section .ov-check input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  min-height: 0;
+  padding: 0;
+  justify-self: end;
+  accent-color: var(--accent);
+}

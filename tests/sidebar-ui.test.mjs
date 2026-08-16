@@ -8,10 +8,13 @@ const appShell = readFileSync(new URL('../renderer/src/app/AppShell.tsx', import
 const topbar = readFileSync(new URL('../renderer/src/app/layout/TopBar.tsx', import.meta.url), 'utf8');
 const projectLibrary = readFileSync(new URL('../renderer/src/app/adapters/projectLibraryAdapter.ts', import.meta.url), 'utf8');
 const taskStore = readFileSync(new URL('../renderer/src/store/taskStore.js', import.meta.url), 'utf8');
-const providerDialog = readFileSync(new URL('../renderer/src/app/views/ProviderConnectionDialog.tsx', import.meta.url), 'utf8');
+const providerDialog = readFileSync(new URL('../renderer/src/app/views/ProviderConnectionDialog.tsx', import.meta.url), 'utf8')
+  + readFileSync(new URL('../renderer/src/app/views/providerConnectionModel.ts', import.meta.url), 'utf8');
 const styles = readFileSync(new URL('../renderer/styles.css', import.meta.url), 'utf8');
 const settingsStyles = readFileSync(new URL('../renderer/styles/settings.css', import.meta.url), 'utf8');
-const reactMigrationStyles = readFileSync(new URL('../renderer/styles/react-migration.css', import.meta.url), 'utf8');
+const reactMigrationStyles = ['canvas-copilot.css', 'project-materials.css', 'media-overlays.css', 'creation-view.css']
+  .map((name) => readFileSync(new URL(`../renderer/styles/${name}`, import.meta.url), 'utf8'))
+  .join('\n');
 
 test('项目侧栏提供返回项目库入口', () => {
   assert.match(sidebar, /className="side-item sidebar-back-item"/);

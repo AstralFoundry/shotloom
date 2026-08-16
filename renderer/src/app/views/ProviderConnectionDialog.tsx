@@ -3,7 +3,6 @@ import {
   catalogModelValidationErrors,
   type CatalogAgentProtocol,
   type CatalogModel,
-  getBuiltInCatalogModels,
   normalizeCatalogModel,
 } from "../../domain/catalog/ModelCatalog";
 import {
@@ -13,7 +12,6 @@ import {
 import {
   getProtocolPreset,
   presetsForType,
-  type ProtocolPreset,
 } from "../../domain/provider/ProtocolPresets";
 import {
   testProviderRequest,
@@ -27,6 +25,18 @@ import {
 } from "../../domain/provider/ProviderBrandIcons.js";
 import { IconSymbol } from "../components/IconSymbol";
 import { ProviderBrandIcon } from "../components/ProviderBrandIcon";
+import {
+  builtInProviderModels,
+  defaultAgentProtocol,
+  effectiveProviderModels,
+  type NewModelDraft,
+  presetProtocolModel,
+  sameModelDefinition,
+  starterProtocolModel,
+  supportsAgentTools,
+  testPromptForType,
+  testStatusLabel,
+} from "./providerConnectionModel";
 
 const CUSTOM_PROVIDER_ID = "__custom__";
 // Provider configs may come from the reactive settings proxy. Catalog models
@@ -119,117 +129,10 @@ function ProviderIconSelect({
   );
 }
 
-function builtInProviderModels(providerId: string): CatalogModel[] {
-  return getBuiltInCatalogModels(providerId);
-}
-
-function effectiveProviderModels(
-  providerId: string,
-  storedModels: CatalogModel[] = [],
-): CatalogModel[] {
-  const builtIns = builtInProviderModels(providerId);
-  const overrides = new Map(storedModels.map((model) => [model.id, model]));
-  const builtInIds = new Set(builtIns.map((model) => model.id));
-  return [
-    ...builtIns.map((model) => clone(overrides.get(model.id) || model)),
-    ...storedModels.filter((model) => !builtInIds.has(model.id)).map(clone),
-  ];
-}
-
-function sameModelDefinition(left: CatalogModel, right: CatalogModel): boolean {
-  const normalize = (model: CatalogModel) => {
-    const value = clone(model) as CatalogModel & { overridesBuiltIn?: boolean };
-    delete value.overridesBuiltIn;
-    return value;
-  };
-  return JSON.stringify(normalize(left)) === JSON.stringify(normalize(right));
-}
-
-function starterProtocolModel(type: NewModelDraft["type"]): CatalogModel {
-  const mode = type === "textGeneration"
-    ? { id: "text-generation", label: "文本生成", resultKey: "resultTextPath" }
-    : type === "imageGeneration"
-    ? { id: "text-to-image", label: "文生图", resultKey: "resultUrlPath" }
-    : type === "videoGeneration"
-    ? { id: "video-generation", label: "视频生成", resultKey: "resultUrlPath" }
-    : { id: "audio-generation", label: "音频生成", resultKey: "resultUrlPath" };
-  const base = {
-    id: "",
-    name: "",
-    provider: "",
-    type,
-    sortOrder: 900,
-    enabled: true,
-  };
-  return {
-    ...base,
-    defaultMode: mode.id,
-    modes: [{
-      id: mode.id,
-      label: mode.label,
-      endpoint: { method: "POST", path: "", scope: "root" },
-      inputConstraints: {},
-      outputConstraints: {},
-      params: [],
-      requestTemplate: {},
-      [mode.resultKey]: "",
-    }],
-  };
-}
-
-function presetProtocolModel(preset: ProtocolPreset): CatalogModel {
-  const mode = preset.buildMode();
-  return {
-    id: "",
-    name: "",
-    provider: "",
-    type: preset.type,
-    sortOrder: 900,
-    enabled: true,
-    defaultMode: mode.id,
-    modes: [mode],
-  };
-}
-
-function testPromptForType(type: string): string {
-  if (type === "imageGeneration") return "一只坐在窗边的猫，卡通风格";
-  if (type === "videoGeneration") return "一只猫从窗边走过";
-  if (type === "audioGeneration") return "轻快、温暖的纯音乐";
-  return "你好，请回复「测试成功」。";
-}
-
-function testStatusLabel(status: string): string {
-  return ({
-    completed: "已完成",
-    queued: "任务已提交",
-    running: "运行中",
-    failed: "失败",
-    error: "错误",
-    timeout: "超时",
-    cancelled: "已取消",
-  } as Record<string, string>)[status] || status;
-}
-
-function supportsAgentTools(model: CatalogModel): boolean {
-  return model.type === "textGeneration" && defaultAgentProtocol(model)?.supportsTools === true;
-}
-
-function defaultAgentProtocol(model: CatalogModel) {
-  const mode = model.modes.find((item) => item.id === model.defaultMode) || model.modes[0];
-  return mode?.agent;
-}
-
 export interface ProviderConnectionResult {
   providerId: string;
   config: ProviderConfig;
 }
-
-type NewModelDraft = {
-  id: string;
-  name: string;
-  type: "textGeneration" | "imageGeneration" | "videoGeneration" | "audioGeneration";
-  presetId: string;
-};
 
 export function ProviderConnectionDialog({
   editingId = "",
@@ -299,7 +202,7 @@ export function ProviderConnectionDialog({
     [providerId],
   );
   const globalBuiltInModels = useMemo(
-    () => new Map(getBuiltInCatalogModels().map((model) => [model.id, model])),
+    () => new Map(builtInProviderModels().map((model) => [model.id, model])),
     [],
   );
   const availableDefinitions = definitions.filter((item) =>

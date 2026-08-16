@@ -1,0 +1,32 @@
+:root {
+  color-scheme: light;
+  --bg: #fafafa;
+  --surface: #ffffff;
+  --surface-2: #f5f5f5;
+  --line: rgba(0, 0, 0, .08);
+  --line-soft: rgba(0, 0, 0, .05);
+  --text: #000000;
+  --muted: rgba(0, 0, 0, .5);
+  --faint: rgba(0, 0, 0, .32);
+  --brand: #000000;
+  --brand-soft: #f5f5f5;
+  --dark: #101827;
+  --accent: #202020;
+  --good: #0f9f6e;
+  --warn: #c98713;
+  --bad: #d74848;
+  --shadow: 0 10px 24px -20px rgba(17, 17, 19, .16), 0 1px 4px -3px rgba(17, 17, 19, .08);
+  --type-primary: rgba(0, 0, 0, .82);
+  --type-secondary: rgba(0, 0, 0, .58);
+  --type-tertiary: rgba(0, 0, 0, .38);
+  --workspace-sidebar-width: 264px;
+  --workspace-sidebar-rail-width: 64px;
+  --window-shell: #efeff2;
+  --workbench-radius: 12px;
+  --control-height-compact: 28px;
+  --control-height: 32px;
+  --radius-control: 7px;
+  --radius-panel: 10px;
+  --layer-canvas-control: 80;
+  --layer-canvas-composer: 120;
+}

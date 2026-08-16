@@ -1,5 +1,5 @@
 use super::{
-    agent_runtime::resolved_system_proxy_url,
+    agent_runtime_proxy::resolved_system_proxy_url,
     common::{file_result, read_json, user_file},
 };
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};

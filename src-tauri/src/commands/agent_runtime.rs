@@ -8,8 +8,6 @@ use axum::{
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-#[cfg(target_os = "macos")]
-use std::process::Command as StdCommand;
 use std::{
     collections::{HashMap, VecDeque},
     net::TcpListener as StdTcpListener,
@@ -22,6 +20,10 @@ use tauri_plugin_shell::{
     ShellExt,
 };
 use tokio::sync::{oneshot, Mutex, RwLock};
+use super::agent_runtime_proxy::child_proxy_environment;
+#[cfg(test)]
+use super::agent_runtime_proxy::parse_macos_system_proxy;
+use super::agent_runtime_sse::{parse_sse_data, take_sse_frame};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -237,101 +239,6 @@ fn available_port() -> Result<u16, String> {
         .local_addr()
         .map(|addr| addr.port())
         .map_err(|e| e.to_string())
-}
-
-fn parse_macos_system_proxy(output: &str) -> Option<String> {
-    let values = output
-        .lines()
-        .filter_map(|line| line.trim().split_once(':'))
-        .map(|(key, value)| (key.trim(), value.trim()))
-        .collect::<HashMap<_, _>>();
-    for prefix in ["HTTPS", "HTTP"] {
-        let enable_key = format!("{prefix}Enable");
-        let proxy_key = format!("{prefix}Proxy");
-        let port_key = format!("{prefix}Port");
-        if values.get(enable_key.as_str()) != Some(&"1") {
-            continue;
-        }
-        let host = values.get(proxy_key.as_str())?;
-        let port = values.get(port_key.as_str())?;
-        let proxy = format!("http://{host}:{port}");
-        if reqwest::Url::parse(&proxy).is_ok() {
-            return Some(proxy);
-        }
-    }
-    None
-}
-
-pub(crate) fn resolved_system_proxy_url() -> Option<String> {
-    for key in [
-        "HTTPS_PROXY",
-        "HTTP_PROXY",
-        "ALL_PROXY",
-        "https_proxy",
-        "http_proxy",
-        "all_proxy",
-    ] {
-        if let Ok(value) = std::env::var(key) {
-            if reqwest::Url::parse(value.trim()).is_ok() {
-                return Some(value.trim().to_string());
-            }
-        }
-    }
-    #[cfg(target_os = "macos")]
-    {
-        return StdCommand::new("/usr/sbin/scutil")
-            .arg("--proxy")
-            .output()
-            .ok()
-            .filter(|output| output.status.success())
-            .and_then(|output| String::from_utf8(output.stdout).ok())
-            .and_then(|output| parse_macos_system_proxy(&output));
-    }
-    #[cfg(not(target_os = "macos"))]
-    None
-}
-
-fn child_proxy_environment() -> Vec<(String, String)> {
-    let loopback = "127.0.0.1,localhost,::1";
-    let existing_no_proxy = std::env::var("NO_PROXY")
-        .or_else(|_| std::env::var("no_proxy"))
-        .unwrap_or_default();
-    let no_proxy = if existing_no_proxy.is_empty() {
-        loopback.to_string()
-    } else {
-        format!("{existing_no_proxy},{loopback}")
-    };
-    let mut environment = vec![
-        ("NO_PROXY".into(), no_proxy.clone()),
-        ("no_proxy".into(), no_proxy),
-    ];
-    let inherited_proxy = [
-        "HTTP_PROXY",
-        "HTTPS_PROXY",
-        "ALL_PROXY",
-        "http_proxy",
-        "https_proxy",
-        "all_proxy",
-    ]
-    .iter()
-    .any(|key| std::env::var(key).is_ok_and(|value| !value.trim().is_empty()));
-    if inherited_proxy {
-        return environment;
-    }
-    let system_proxy = resolved_system_proxy_url();
-    if let Some(proxy) = system_proxy {
-        for key in [
-            "HTTP_PROXY",
-            "HTTPS_PROXY",
-            "ALL_PROXY",
-            "http_proxy",
-            "https_proxy",
-            "all_proxy",
-        ] {
-            environment.push((key.into(), proxy.clone()));
-        }
-    }
-    environment
 }
 
 async fn mcp_health() -> impl IntoResponse {
@@ -961,35 +868,6 @@ pub async fn agent_runtime_request(
         headers,
         body,
     })
-}
-
-fn take_sse_frame(buffer: &mut Vec<u8>) -> Option<Vec<u8>> {
-    let delimiter = buffer
-        .windows(2)
-        .position(|window| window == b"\n\n")
-        .map(|index| (index, 2))
-        .or_else(|| {
-            buffer
-                .windows(4)
-                .position(|window| window == b"\r\n\r\n")
-                .map(|index| (index, 4))
-        })?;
-    let frame = buffer[..delimiter.0].to_vec();
-    buffer.drain(..delimiter.0 + delimiter.1);
-    Some(frame)
-}
-
-fn parse_sse_data(frame: &[u8]) -> Option<Value> {
-    let text = std::str::from_utf8(frame).ok()?;
-    let data = text
-        .lines()
-        .filter_map(|line| line.strip_prefix("data:").map(str::trim_start))
-        .collect::<Vec<_>>()
-        .join("\n");
-    if data.is_empty() {
-        return None;
-    }
-    serde_json::from_str(&data).ok()
 }
 
 #[tauri::command]

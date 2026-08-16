@@ -15,7 +15,7 @@ const adapter = readFileSync(
   'utf8',
 );
 const styles = readFileSync(
-  new URL('../renderer/styles/react-migration.css', import.meta.url),
+  new URL('../renderer/styles/canvas-copilot.css', import.meta.url),
   'utf8',
 );
 const baseStyles = readFileSync(new URL('../renderer/styles.css', import.meta.url), 'utf8');

@@ -5,21 +5,15 @@ import {
   nodeChatAttachmentKey,
   resolveNodeChatImageAttachment,
 } from "../../services/nodeChatAttachment.mjs";
-import { renderMarkdown } from "../../utils/copilotMarkdown.js";
 import { IconSymbol } from "../components/IconSymbol";
 import type { WorkflowNodeData } from "../canvas/WorkflowCanvas";
 import { isImeKeyEvent } from "../canvas/imeComposition";
-
-const markdownByMessage = new WeakMap<CopilotMessage, { content: string; html: string }>();
-
-function messageMarkdown(message: CopilotMessage) {
-  const content = message.content || "";
-  const cached = markdownByMessage.get(message);
-  if (cached?.content === content) return cached.html;
-  const html = renderMarkdown(content);
-  markdownByMessage.set(message, { content, html });
-  return html;
-}
+import {
+  compactRepeatedFailures,
+  messageMarkdown,
+  type PresentedCopilotMessage,
+  repeatsFollowingFailure,
+} from "./copilotMessagePresentation";
 
 export interface CopilotMessage {
   id: string;
@@ -55,38 +49,6 @@ export interface CopilotMessage {
     answered?: boolean;
     expired?: boolean;
   }>;
-}
-type PresentedCopilotMessage = CopilotMessage & { repeatedFailureCount?: number };
-
-function failureIdentity(message: CopilotMessage): string {
-  if (!message.error) return "";
-  return [message.diagnosis?.code || "", message.error.trim().toLowerCase()].join(":");
-}
-
-function compactRepeatedFailures(messages: CopilotMessage[]): PresentedCopilotMessage[] {
-  const result: PresentedCopilotMessage[] = [];
-  for (const message of messages) {
-    const identity = failureIdentity(message);
-    const previous = result.at(-1);
-    if (identity && previous && failureIdentity(previous) === identity) {
-      result[result.length - 1] = {
-        ...message,
-        repeatedFailureCount: Number(previous.repeatedFailureCount || 1) + 1,
-      };
-      continue;
-    }
-    result.push(message);
-  }
-  return result;
-}
-
-function repeatsFollowingFailure(
-  message: PresentedCopilotMessage,
-  next?: PresentedCopilotMessage,
-): boolean {
-  const delivery = String(message.deliveryError || "").trim().toLowerCase();
-  const failure = String(next?.error || "").trim().toLowerCase();
-  return Boolean(delivery && failure && (failure.includes(delivery) || delivery.includes(failure)));
 }
 interface ProductionPlanView {
   schemaVersion?: number;

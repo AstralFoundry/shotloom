@@ -7,7 +7,7 @@ const grid = readFileSync(
   'utf8',
 );
 const styles = readFileSync(
-  new URL('../renderer/styles/react-migration.css', import.meta.url),
+  new URL('../renderer/styles/project-materials.css', import.meta.url),
   'utf8',
 );
 const cacheHook = readFileSync(

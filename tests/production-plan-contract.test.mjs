@@ -5,7 +5,8 @@ import { readFileSync } from 'node:fs';
 const tools = readFileSync(new URL('../renderer/src/agent/tools/productionPlanTools.ts', import.meta.url), 'utf8');
 const runtime = readFileSync(new URL('../renderer/src/agent/runtime/OpenCodeRuntime.ts', import.meta.url), 'utf8');
 const canvas = readFileSync(new URL('../renderer/src/agent/tools/canvasTools.ts', import.meta.url), 'utf8');
-const store = readFileSync(new URL('../renderer/src/store/projectStore.js', import.meta.url), 'utf8');
+const store = readFileSync(new URL('../renderer/src/store/projectStore.js', import.meta.url), 'utf8')
+  + readFileSync(new URL('../renderer/src/store/projectNormalization.js', import.meta.url), 'utf8');
 const planStore = readFileSync(new URL('../renderer/src/agent/runtime/productionPlanStore.ts', import.meta.url), 'utf8');
 const lifecycle = readFileSync(new URL('../renderer/src/agent/tools/lifecycleTools.ts', import.meta.url), 'utf8');
 const catalog = readFileSync(new URL('../renderer/src/agent/tools/catalogTools.ts', import.meta.url), 'utf8');

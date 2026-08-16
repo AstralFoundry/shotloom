@@ -48,7 +48,8 @@ test('crash recovery persists heartbeats and relieves sustained memory pressure'
 test('durable JSON storage isolates corruption and rejects legacy schemas', () => {
   const common = read('src-tauri/src/commands/common.rs');
   const settings = read('src-tauri/src/commands/settings.rs');
-  const projects = read('renderer/src/store/projectStore.js');
+  const projects = read('renderer/src/store/projectStore.js')
+    + read('renderer/src/store/projectNormalization.js');
   assert.match(common, /\.corrupt-\{stamp\}/);
   assert.match(common, /tmp-\{\}/);
   assert.match(settings, /SETTINGS_STORAGE_VERSION: u64 = 7/);

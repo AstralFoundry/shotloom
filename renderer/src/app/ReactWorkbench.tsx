@@ -29,8 +29,8 @@ import {
   canvasController,
   canvasViewData,
   nodeActions,
-  registerVideoEditorOpener,
 } from "./adapters/canvasAdapter";
+import { registerVideoEditorOpener } from "./adapters/canvas/videoEditorActions";
 import {
   copilotController,
   copilotData,

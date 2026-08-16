@@ -8,16 +8,24 @@ const canvas = readFileSync(
 const node = readFileSync(
   new URL('../renderer/src/app/canvas/GenerationNode.tsx', import.meta.url),
   'utf8',
+) + readFileSync(new URL('../renderer/src/app/canvas/generationNodeMedia.ts', import.meta.url), 'utf8');
+const audioPreview = readFileSync(
+  new URL('../renderer/src/app/canvas/GenerationAudioPreview.tsx', import.meta.url),
+  'utf8',
+);
+const canvasGeometry = readFileSync(
+  new URL('../renderer/src/app/canvas/canvasScreenGeometry.ts', import.meta.url),
+  'utf8',
 );
 const styles = readFileSync(
-  new URL('../renderer/styles/react-migration.css', import.meta.url),
+  new URL('../renderer/styles/canvas-copilot.css', import.meta.url),
   'utf8',
 );
 const task = readFileSync(new URL('../renderer/src/store/taskStore.js', import.meta.url), 'utf8');
 const project = readFileSync(
   new URL('../renderer/src/store/projectStore.js', import.meta.url),
   'utf8',
-);
+) + readFileSync(new URL('../renderer/src/store/projectNormalization.js', import.meta.url), 'utf8');
 const api = readFileSync(new URL('../renderer/src/services/tauriApi.js', import.meta.url), 'utf8');
 const previewQueue = readFileSync(
   new URL('../renderer/src/app/canvas/previewLoadQueue.ts', import.meta.url),
@@ -34,7 +42,7 @@ const mediaCache = readFileSync(
 const fileCommands = readFileSync(
   new URL('../src-tauri/src/commands/file.rs', import.meta.url),
   'utf8',
-);
+) + readFileSync(new URL('../src-tauri/src/commands/image.rs', import.meta.url), 'utf8');
 const director = readFileSync(
   new URL('../renderer/src/app/canvas/ThreeDDirectorNode.tsx', import.meta.url),
   'utf8',
@@ -87,6 +95,9 @@ const shell = readFileSync(new URL('../renderer/src/app/AppShell.tsx', import.me
 const adapter = readFileSync(
   new URL('../renderer/src/app/adapters/canvasAdapter.ts', import.meta.url),
   'utf8',
+) + readFileSync(
+  new URL('../renderer/src/app/adapters/canvas/canvasViewData.ts', import.meta.url),
+  'utf8',
 );
 const canvasHistory = readFileSync(
   new URL('../renderer/src/store/canvasHistoryStore.js', import.meta.url),
@@ -106,8 +117,12 @@ const copilotPanel = readFileSync(
   new URL('../renderer/src/app/copilot/CopilotPanel.tsx', import.meta.url),
   'utf8',
 );
+const copilotMessagePresentation = readFileSync(
+  new URL('../renderer/src/app/copilot/copilotMessagePresentation.ts', import.meta.url),
+  'utf8',
+);
 const migrationStyles = readFileSync(
-  new URL('../renderer/styles/react-migration.css', import.meta.url),
+  new URL('../renderer/styles/canvas-copilot.css', import.meta.url),
   'utf8',
 );
 test('React Flow 保持节点挂载并在拖动结束后合并持久化', () => {
@@ -228,15 +243,15 @@ test('视频画面可拖动节点且拖动期间保持播放', () => {
   assert.match(node, /onPointerEnter=\{\(event\) => \{[\s\S]*?const video = event\.currentTarget;[\s\S]*?video\.play\(\)/);
   assert.match(node, /onPointerLeave=\{\(event\) => \{[\s\S]*?if \(event\.buttons\) return;[\s\S]*?video\.pause\(\)/);
   assert.doesNotMatch(node, /video\.pause\(\);\s*if \(video\.duration/);
-  assert.match(node, /<audio[\s\S]*?className="nodrag nopan nowheel[^"]*"/);
-  assert.match(node, /className="audio-waveform"[\s\S]*?audio\.currentTime =/);
-  assert.match(node, /className="audio-waveform-player nowheel"/);
-  assert.doesNotMatch(node, /className="audio-waveform-player nodrag/);
-  assert.match(node, /audio-waveform-play nodrag nopan/);
-  assert.match(node, /audio-waveform-download nodrag nopan/);
-  assert.match(node, /formatAudioTime\(currentTime\)[\s\S]*?formatAudioTime\(duration\)/);
-  assert.match(node, /audio-waveform-play[\s\S]*?playing \? <IconSymbol name="pause" \/> : <i className="audio-play-glyph"/);
-  assert.match(node, /saveArrayBuffer\(fileName \|\| "audio\.m4a", buffer\)/);
+  assert.match(audioPreview, /<audio[\s\S]*?className="nodrag nopan nowheel[^"]*"/);
+  assert.match(audioPreview, /className="audio-waveform"[\s\S]*?audio\.currentTime =/);
+  assert.match(audioPreview, /className="audio-waveform-player nowheel"/);
+  assert.doesNotMatch(audioPreview, /className="audio-waveform-player nodrag/);
+  assert.match(audioPreview, /audio-waveform-play nodrag nopan/);
+  assert.match(audioPreview, /audio-waveform-download nodrag nopan/);
+  assert.match(audioPreview, /formatMediaTime\(currentTime\)[\s\S]*?formatMediaTime\(duration\)/);
+  assert.match(audioPreview, /audio-waveform-play[\s\S]*?playing \? <IconSymbol name="pause" \/> : <i className="audio-play-glyph"/);
+  assert.match(audioPreview, /saveArrayBuffer\(fileName \|\| "audio\.m4a", buffer\)/);
   assert.match(node, /\(activeKind === "image" \|\| activeKind === "video"\) && previewUrl/);
   assert.match(node, /className="work-preview-download nodrag nopan"[\s\S]*?saveActiveMedia/);
   assert.match(node, /saveArrayBuffer\(activeFileName, buffer\)/);
@@ -291,7 +306,7 @@ test('视频节点移除原生控件并在悬停预览时播放原始声音', ()
 test('视频节点悬停时显示时长并提供声音开关', () => {
   assert.match(node, /muted=\{videoMuted\}/);
   assert.match(node, /onDurationChange=[\s\S]*?setVideoDuration[\s\S]*?onTimeUpdate=[\s\S]*?setVideoTime/);
-  assert.match(node, /className="work-video-status"[\s\S]*?10 \* Math\.min\(1, semanticZoom\)[\s\S]*?formatAudioTime\(videoTime\)[\s\S]*?formatAudioTime\(videoDuration\)/);
+  assert.match(node, /className="work-video-status"[\s\S]*?10 \* Math\.min\(1, semanticZoom\)[\s\S]*?formatMediaTime\(videoTime\)[\s\S]*?formatMediaTime\(videoDuration\)/);
   assert.match(node, /className="work-video-sound nodrag nopan"[\s\S]*?nextMuted = !videoMuted[\s\S]*?volume-x[\s\S]*?volume/);
   assert.match(migrationStyles, /\.work-video-status \{[\s\S]*?backdrop-filter: blur\(9px\)[\s\S]*?opacity: 0/);
   assert.match(migrationStyles, /\.work-node:hover \.work-video-status,[\s\S]*?opacity: 1/);
@@ -314,7 +329,7 @@ test('工作台只计算当前路由数据且素材选择器按需加载', () =>
   assert.doesNotMatch(migrationStyles, /copilot-busy-shimmer/);
   assert.match(migrationStyles, /copilot-busy-pulse/);
   assert.doesNotMatch(copilotPanel, /}, 80\);/);
-  assert.match(copilotPanel, /markdownByMessage = new WeakMap/);
+  assert.match(copilotMessagePresentation, /markdownByMessage = new WeakMap/);
   assert.match(copilotPanel, /__html: messageMarkdown\(item\)/);
   assert.match(migrationStyles, /\.forge-copilot \.copilot-message \{ content-visibility: auto/);
 });
@@ -389,10 +404,10 @@ test('节点使用完整设计尺寸且旧画布只换算一次', () => {
 });
 test('画布右键菜单把屏幕坐标换算为画布局部坐标并限制在视口内', () => {
   assert.match(canvas, /getBoundingClientRect\(\)/);
-  assert.match(canvas, /clientX - bounds\.left/);
-  assert.match(canvas, /clientY - bounds\.top/);
-  assert.match(canvas, /bounds\.width - CANVAS_MENU_WIDTH/);
-  assert.match(canvas, /bounds\.height - CANVAS_MENU_HEIGHT/);
+  assert.match(canvasGeometry, /clientX - bounds\.left/);
+  assert.match(canvasGeometry, /clientY - bounds\.top/);
+  assert.match(canvasGeometry, /bounds\.width - CANVAS_MENU_WIDTH/);
+  assert.match(canvasGeometry, /bounds\.height - CANVAS_MENU_HEIGHT/);
 });
 test('连线使用 Loose 模式、点击连接和恒定屏幕吸附范围', () => {
   assert.match(canvas, /connectOnClick/);

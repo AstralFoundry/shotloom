@@ -9,7 +9,9 @@ const creation = readFileSync(new URL('../renderer/src/app/views/CreationView.ts
 const workbench = readFileSync(new URL('../renderer/src/app/ReactWorkbench.tsx', import.meta.url), 'utf8');
 const libraryAdapter = readFileSync(new URL('../renderer/src/app/adapters/resourceLibraryAdapter.ts', import.meta.url), 'utf8');
 const materialGrid = readFileSync(new URL('../renderer/src/app/components/MaterialGrid.tsx', import.meta.url), 'utf8');
-const styles = readFileSync(new URL('../renderer/styles/react-migration.css', import.meta.url), 'utf8');
+const styles = ['project-materials.css', 'creation-view.css']
+  .map((name) => readFileSync(new URL(`../renderer/styles/${name}`, import.meta.url), 'utf8'))
+  .join('\n');
 
 test('素材入口从左侧导航收敛到画布底部', () => {
   assert.doesNotMatch(navigation, /label: "素材库"/);

@@ -58,6 +58,12 @@ import {
   canvasNodeToolbarOffset,
 } from "../../utils/canvasNodeChrome.mjs";
 import { CanvasContextMenu } from "./CanvasContextMenu";
+import {
+  canvasMenuPosition,
+  screenPixel,
+  selectedLocalMediaPath,
+  workflowNodeDimensions as nodeDimensions,
+} from "./canvasScreenGeometry";
 
 export interface WorkflowNodeData extends Record<string, unknown> {
   id: string;
@@ -203,23 +209,6 @@ function traceCanvasEvent(type: string, detail: unknown) {
   events.push({ time: performance.now(), type, detail });
   if (events.length > 600) events.splice(0, events.length - 600);
   target.__shotloomCanvasDebug = events;
-}
-function screenPixel(value: number) {
-  const dpr = typeof window === "undefined" ? 1 : Math.max(1, window.devicePixelRatio || 1);
-  return Math.round(value * dpr) / dpr;
-}
-function nodeDimensions(node: WorkflowNodeData) {
-  return canvasNodeDimensions(node);
-}
-function selectedLocalMediaPath(node: WorkflowNodeData) {
-  const outputs = Array.isArray(node.generatedOutputs)
-    ? node.generatedOutputs.filter((item) => item && typeof item === "object") as Array<Record<string, unknown>>
-    : [];
-  const selected = outputs.find((item) => item.selected) || outputs[outputs.length - 1];
-  const uploaded = node.uploadedFile && typeof node.uploadedFile === "object"
-    ? node.uploadedFile as Record<string, unknown>
-    : null;
-  return String(selected?.filePath || selected?.path || uploaded?.filePath || uploaded?.path || node.filePath || "");
 }
 function toFlowNodes(
   nodes: WorkflowNodeData[],
@@ -801,32 +790,6 @@ type CanvasMenuState = {
   flowX: number;
   flowY: number;
 };
-const CANVAS_MENU_WIDTH = 168;
-const CANVAS_MENU_HEIGHT = 334;
-const CANVAS_MENU_MARGIN = 8;
-const CANVAS_MENU_POINTER_OFFSET = 4;
-
-function canvasMenuPosition(
-  clientX: number,
-  clientY: number,
-  bounds: Pick<DOMRect, "left" | "top" | "width" | "height">,
-) {
-  const maxX = Math.max(CANVAS_MENU_MARGIN, bounds.width - CANVAS_MENU_WIDTH - CANVAS_MENU_MARGIN);
-  const maxY = Math.max(
-    CANVAS_MENU_MARGIN,
-    bounds.height - CANVAS_MENU_HEIGHT - CANVAS_MENU_MARGIN,
-  );
-  return {
-    x: Math.min(
-      maxX,
-      Math.max(CANVAS_MENU_MARGIN, clientX - bounds.left + CANVAS_MENU_POINTER_OFFSET),
-    ),
-    y: Math.min(
-      maxY,
-      Math.max(CANVAS_MENU_MARGIN, clientY - bounds.top + CANVAS_MENU_POINTER_OFFSET),
-    ),
-  };
-}
 type CanvasMenuLayerHandle = {
   open: (menu: CanvasMenuState) => void;
   close: () => void;

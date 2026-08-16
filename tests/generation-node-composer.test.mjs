@@ -2,9 +2,13 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 const source = readFileSync(new URL('../renderer/src/app/canvas/GenerationNode.tsx', import.meta.url), 'utf8');
-const styles = readFileSync(new URL('../renderer/styles/react-migration.css', import.meta.url), 'utf8');
+const styles = readFileSync(new URL('../renderer/styles/canvas-copilot.css', import.meta.url), 'utf8');
 const adapter = readFileSync(new URL('../renderer/src/app/adapters/canvasAdapter.ts', import.meta.url), 'utf8');
-const editorStyles = readFileSync(new URL('../renderer/src/app/editor/VideoEditorWorkspace.css', import.meta.url), 'utf8');
+const editorStyles = [
+  'VideoEditorWorkspace.foundation.css',
+  'VideoEditorWorkspace.layout.css',
+  'VideoEditorWorkspace.theme.css',
+].map((name) => readFileSync(new URL(`../renderer/src/app/editor/${name}`, import.meta.url), 'utf8')).join('\n');
 test('发送按钮仅在节点运行时禁用并提供反馈', () => {
   assert.match(source, /disabled=\{busy\}/); assert.doesNotMatch(source, /modelStatus\.available/); assert.match(source, /actions\.run\(node\.id\)/);
 });

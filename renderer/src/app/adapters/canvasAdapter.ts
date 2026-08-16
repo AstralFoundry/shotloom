@@ -4,13 +4,12 @@ import { createColoredPencilImageNode } from "../../services/coloredPencilNodeSe
 // Canonical edge persistence: addCanvasEdge(store.project, connection.source, connection.target).
 import { desktopApi } from "../../services/desktopApi.js";
 import {
-  addMaterialToAssetLibrary,
   applyMaterialToCanvas,
   copyFileIntoProjectAssets,
   inferFileResourceType,
   registerImportedMaterial,
 } from "../../store/assetStore.js";
-import { promoteMaterialToLocalLibrary, useLocalAssetInProject } from "../../store/localAssetLibraryStore.js";
+import { useLocalAssetInProject } from "../../store/localAssetLibraryStore.js";
 import { addCanvasEdge } from "../../store/canvasGraphStore.js";
 import { getGenerationInputModes } from "../../domain/catalog/ModelCatalog";
 import {
@@ -22,8 +21,6 @@ import {
 import { validateAgentInputRole } from "../../services/agentInputRole";
 import { pasteStagedWorkflow, stageSelectedWorkflow } from "../../store/clipboardStore.js";
 import {
-  canRedoCanvas,
-  canUndoCanvas,
   recordCanvasHistory,
   recordCanvasHistoryState,
   recordCanvasPositionHistory,
@@ -50,199 +47,30 @@ import {
   selectGeneratedOutput,
 } from "../../store/resourceNodeStore.js";
 import { runNode } from "../../store/taskStore.js";
-import { getAvailableModelIdsByType } from "../../store/settingsStore.js";
 import { uid } from "../../utils/format.js";
-import {
-  appendEditorMediaAsset,
-  normalizeVideoEditorProject,
-} from "../../utils/videoEditorProject.mjs";
-import { inferEditorMediaType, probeEditorMedia } from "../../utils/editorMediaImport.mjs";
-import { convertFileSrc } from "@tauri-apps/api/core";
 import { showSuccessToast, showToast } from "../store/overlayStore";
 import type {
   WorkflowCanvasController,
   WorkflowNodeActions,
   WorkflowNodeData,
 } from "../canvas/WorkflowCanvas";
+import {
+  cropImage,
+  extractAudio,
+  saveToAssets,
+} from "./canvas/canvasMediaActions";
+import { buildCanvasViewData } from "./canvas/canvasViewData";
+import { createUploadedNode } from "./canvas/canvasUploadActions";
+import {
+  addToVideoEditor,
+  openVideoEditor,
+} from "./canvas/videoEditorActions";
 
 const store: any = rawStore;
 let fitViewHandler: (() => void) | null = null;
-let videoEditorOpener: ((id: string) => void) | null = null;
-const canvasViewNodeCache = new Map<string, { signature: string; node: WorkflowNodeData }>();
-export function registerVideoEditorOpener(handler: ((id: string) => void) | null) {
-  videoEditorOpener = handler;
-}
-
-async function createUploadedNode(rawFile: any, position = { x: 120, y: 90 }) {
-  const file: any = await copyFileIntoProjectAssets(rawFile);
-  const path = file.path || file.filePath || "";
-  if (!path) return showToast("文件未写入项目资源目录，已跳过");
-  const resourceType = inferFileResourceType(file);
-  const nodeType =
-    resourceType === "video"
-      ? "videoGeneration"
-      : resourceType === "audio"
-        ? "audioGeneration"
-        : resourceType === "text"
-          ? "textGeneration"
-          : "imageGeneration";
-  const registered = file.reusedMaterialId
-    ? {
-        material: store.project.materials.find((item: any) => item.id === file.reusedMaterialId),
-        asset: null,
-      }
-    : registerImportedMaterial(file, {
-        resourceType,
-        source: "canvas-upload",
-        sourceType: "canvas-upload",
-        nodeType,
-        assetTag: "画布上传",
-      });
-  if (!registered.material) return;
-  const node: any = addNode(nodeType);
-  node.title = file.name || file.fileName || "未命名文件";
-  node.prompt = "";
-  node.x = Math.round(position.x);
-  node.y = Math.round(position.y);
-  node.materialId = registered.material.id;
-  node.assetId = registered.asset?.id || "";
-  node.resourceType = resourceType;
-  node.sourceType = "canvas-upload";
-  node.uploadedFile = {
-    name: node.title,
-    path,
-    type: file.type || file.mimeType || "",
-    size: file.size || 0,
-    materialId: node.materialId,
-    assetId: node.assetId,
-    resourceType,
-    source: "canvas-upload",
-  };
-  touchProject();
-  return node;
-}
 
 export function canvasViewData() {
-  const selected = new Set(
-    store.selectedNodeIds?.length
-      ? store.selectedNodeIds
-      : store.selectedNodeId
-        ? [store.selectedNodeId]
-        : [],
-  );
-  const materialsByNode = new Map<string, any[]>();
-  for (const material of store.project.materials || []) {
-    const nodeId = String(material.nodeId || "");
-    if (!nodeId) continue;
-    const items = materialsByNode.get(nodeId) || [];
-    items.push(material);
-    materialsByNode.set(nodeId, items);
-  }
-  const legacyBySource = new Map<string, any[]>();
-  for (const item of store.project.nodes || []) {
-    if (item.type !== "resource" || item.archived || !item.generatedFrom?.nodeId) continue;
-    const sourceId = String(item.generatedFrom.nodeId);
-    const items = legacyBySource.get(sourceId) || [];
-    items.push(item);
-    legacyBySource.set(sourceId, items);
-  }
-  const availableModelsByType = new Map<string, string[]>();
-  const nodes = (store.project.nodes || [])
-      .filter((node: WorkflowNodeData) => node.type !== "resource")
-      .map((node: any) => {
-        const direct = Array.isArray(node.generatedOutputs) ? node.generatedOutputs : [];
-        const materials = (materialsByNode.get(node.id) || []).map((item: any) => ({
-          ...item,
-          id: `material:${item.id}`,
-          title: item.name,
-          fileName: item.name,
-          filePath: item.filePath || item.path,
-        }));
-        const legacy = legacyBySource.get(node.id) || [];
-        const seen = new Set<string>();
-        const generatedOutputs = [...direct, ...materials, ...legacy]
-          .filter((item: any) => {
-            const key = String(item.id || item.filePath || item.path || "");
-            if (!key || seen.has(key)) return false;
-            seen.add(key);
-            return true;
-          })
-          .map((item: any, index: number, items: any[]) => ({
-            ...item,
-            selected: node.selectedOutputNodeId
-              ? String(item.id) === String(node.selectedOutputNodeId)
-              : index === items.length - 1,
-          }));
-        const viewNode = {
-          ...node,
-          generatedOutputs,
-          availableModels: /Generation$/.test(node.type)
-            ? availableModelsByType.get(node.type) ||
-              (() => {
-                const models = getAvailableModelIdsByType(node.type);
-                availableModelsByType.set(node.type, models);
-                return models;
-              })()
-            : [],
-          selected: selected.has(node.id),
-        };
-        const signature = JSON.stringify(viewNode);
-        const cached = canvasViewNodeCache.get(node.id);
-        if (cached?.signature === signature) return cached.node;
-        canvasViewNodeCache.set(node.id, { signature, node: viewNode });
-        return viewNode;
-      });
-  const liveNodeIds = new Set(nodes.map((node: WorkflowNodeData) => node.id));
-  for (const id of canvasViewNodeCache.keys()) {
-    if (!liveNodeIds.has(id)) canvasViewNodeCache.delete(id);
-  }
-  return {
-    nodes,
-    edges: store.project.edges || [],
-    viewport: store.project.canvasViewport || { x: 0, y: 0, zoom: 1 },
-    history: {
-      canUndo: Boolean(canUndoCanvas.value),
-      canRedo: Boolean(canRedoCanvas.value),
-    },
-  };
-}
-
-function selectedNodeLocalMedia(node: any) {
-  const outputs = Array.isArray(node?.generatedOutputs) ? node.generatedOutputs : [];
-  const selectedId = String(node?.selectedOutputNodeId || "").replace(/^material:/, "");
-  const selectedOutput = outputs.find((item: any) => String(item?.id || "") === selectedId)
-    || outputs.find((item: any) => item?.selected)
-    || outputs[outputs.length - 1];
-  const nodeMaterials = (store.project.materials || []).filter((item: any) =>
-    item.nodeId === node?.id || item.id === node?.materialId || item.id === selectedId
-  );
-  let material = nodeMaterials.find((item: any) => item.id === selectedId)
-    || nodeMaterials.find((item: any) =>
-      String(item.path || item.filePath || "") === String(selectedOutput?.path || selectedOutput?.filePath || "")
-    )
-    || nodeMaterials[nodeMaterials.length - 1]
-    || null;
-  const uploaded = node?.uploadedFile && typeof node.uploadedFile === "object" ? node.uploadedFile : null;
-  const path = String(
-    selectedOutput?.filePath || selectedOutput?.path || material?.filePath || material?.path
-      || uploaded?.filePath || uploaded?.path || node?.filePath || "",
-  );
-  if (!material && path) {
-    material = {
-      id: String(selectedOutput?.id || uploaded?.materialId || node?.materialId || ""),
-      path,
-      filePath: path,
-      name: String(selectedOutput?.fileName || selectedOutput?.title || uploaded?.name || node?.title || path.split(/[\\/]/).pop() || "未命名素材"),
-      size: Number(selectedOutput?.size || uploaded?.size || 0),
-      mimeType: String(selectedOutput?.mimeType || uploaded?.type || ""),
-      resourceType: String(selectedOutput?.resourceType || uploaded?.resourceType || node?.resourceType || ""),
-      nodeType: String(node?.type || ""),
-    };
-  }
-  const asset = material
-    ? (store.project.assets || []).find((item: any) => item.materialId === material.id) || {}
-    : {};
-  return { path, material, asset };
+  return buildCanvasViewData(store);
 }
 
 export const canvasController: WorkflowCanvasController = {
@@ -541,224 +369,9 @@ export const nodeActions: WorkflowNodeActions = {
     const result = connectResourceToNode(store.project, id, target.id);
     showToast(result.ok ? "已连接为生成输入" : result.error || "连接失败");
   },
-  async saveToAssets(id, scope, category) {
-    const node = (store.project.nodes || []).find((item: any) => item.id === id && !item.archived);
-    const { path, material, asset } = selectedNodeLocalMedia(node);
-    if (!node || !path || !material) return showToast("当前节点没有可存入的本地资源");
-    if (!category) return showToast("请先选择资产类型");
-    try {
-      const assetDetails = {
-        ...asset,
-        category,
-        name: asset.name || material.name || node.title,
-        resourceType: asset.resourceType || material.resourceType || node.resourceType,
-        nodeType: asset.nodeType || material.nodeType || node.type,
-      };
-      if (scope === "project") {
-        let projectMaterial = (store.project.materials || []).find((item: any) =>
-          item.id === material.id || String(item.path || item.filePath || "") === path
-        );
-        if (!projectMaterial) {
-          const registered = registerImportedMaterial(material, {
-            resourceType: assetDetails.resourceType,
-            sourceType: material.sourceType || material.source || "canvas-asset-save",
-            nodeType: assetDetails.nodeType,
-          });
-          projectMaterial = registered.material;
-        }
-        const existing = (store.project.assets || []).some(
-          (item: any) => item.materialId === projectMaterial.id,
-        );
-        if (existing) return showToast("当前资源已在项目资产中");
-        addMaterialToAssetLibrary(projectMaterial, {
-          category,
-          notify: false,
-        });
-        showToast("已存入当前项目资产");
-        return;
-      }
-      await promoteMaterialToLocalLibrary(material, {
-        ...assetDetails,
-      });
-      showToast("已存入全局资产，其他项目可以复用");
-    } catch (cause) {
-      showToast(cause instanceof Error ? cause.message : "存为资产失败");
-    }
-  },
-  async cropImage(id, crop) {
-    const source: any = (store.project.nodes || []).find(
-      (item: any) => item.id === id && item.type === "imageGeneration" && !item.archived,
-    );
-    const { path } = selectedNodeLocalMedia(source);
-    if (!source || !path) throw new Error("当前节点没有可裁剪的本地图片");
-    const stem = String(source.title || path.split(/[\\/]/).pop() || "图片")
-      .replace(/\.[a-z0-9]{1,10}$/i, "")
-      .replace(/[\\/:*?"<>|]/g, "-");
-    try {
-      const file: any = await desktopApi.file.cropImageToProject(
-        path,
-        `${stem}-裁剪.png`,
-        crop,
-      );
-      const filePath = String(file?.filePath || file?.path || "");
-      if (!filePath) throw new Error("裁剪结果未能写入项目素材目录");
-      const registered: any = registerImportedMaterial(
-        { ...file, name: file?.name || `${stem}-裁剪.png`, type: "image/png", mimeType: "image/png" },
-        {
-          resourceType: "image",
-          source: "image-crop",
-          sourceType: "image-crop",
-          nodeType: "imageGeneration",
-          assetTag: "图片裁剪",
-        },
-      );
-      if (!registered.material) throw new Error("裁剪图片未能登记为项目素材");
-      recordCanvasHistory("裁剪图片");
-      const output: any = addNode("imageGeneration");
-      const sourceDimensions = canvasNodeDimensions(source);
-      output.title = `${stem}-裁剪`;
-      output.prompt = "";
-      output.x = Math.round((Number(source.x) || 0) + sourceDimensions.width + 80);
-      output.y = Math.round(Number(source.y) || 0);
-      output.materialId = registered.material.id;
-      output.assetId = registered.asset?.id || "";
-      output.resourceType = "image";
-      output.sourceType = "image-crop";
-      output.generatedFrom = { nodeId: source.id, type: "image-crop" };
-      output.filePath = filePath;
-      output.uploadedFile = {
-        name: file?.name || `${stem}-裁剪.png`,
-        path: filePath,
-        filePath,
-        type: "image/png",
-        mimeType: "image/png",
-        size: file?.size || 0,
-        materialId: output.materialId,
-        assetId: output.assetId,
-        resourceType: "image",
-        source: "image-crop",
-      };
-      registered.material.nodeId = output.id;
-      addCanvasEdge(store.project, source.id, output.id, {
-        touch: false,
-        kind: "derived-output",
-        edge: { data: { skipTaskInput: true, derivation: "image-crop" } },
-      });
-      setSelectedNodeIds([output.id]);
-      touchProject();
-      showSuccessToast("已创建裁剪图片节点");
-    } catch (cause) {
-      showToast(cause instanceof Error ? cause.message : "图片裁剪失败");
-      throw cause;
-    }
-  },
-  async extractAudio(id) {
-    const source = (store.project.nodes || []).find((item: any) => item.id === id && !item.archived);
-    const { path } = selectedNodeLocalMedia(source);
-    if (!source || source.type !== "videoGeneration" || !path) {
-      return showToast("当前节点没有可分离的本地视频");
-    }
-    const stem = String(source.title || path.split(/[\\/]/).pop() || "视频")
-      .replace(/\.[a-z0-9]{1,10}$/i, "")
-      .replace(/[\\/:*?"<>|]/g, "-");
-    try {
-      const separated: any = await desktopApi.file.separateAudioToProject(
-        path,
-        `${stem}-音乐.m4a`,
-        `${stem}-无声.mp4`,
-      );
-      const audioFile = separated?.audio;
-      const videoFile = separated?.video;
-      if ((!audioFile?.filePath && !audioFile?.path) || (!videoFile?.filePath && !videoFile?.path)) {
-        throw new Error("音视频拆分没有返回完整文件");
-      }
-      const registeredAudio = registerImportedMaterial(
-        { ...audioFile, type: "audio/mp4", mimeType: "audio/mp4" },
-        {
-          resourceType: "audio",
-          source: "audio-separation",
-          sourceType: "audio-separation",
-          nodeType: "audioGeneration",
-          assetTag: "音视频拆分",
-        },
-      );
-      const registeredVideo = registerImportedMaterial(
-        { ...videoFile, type: "video/mp4", mimeType: "video/mp4" },
-        {
-          resourceType: "video",
-          source: "audio-separation",
-          sourceType: "audio-separation",
-          nodeType: "videoGeneration",
-          assetTag: "音视频拆分",
-        },
-      );
-      if (!registeredAudio.material || !registeredVideo.material) {
-        throw new Error("拆分文件未能登记为项目素材");
-      }
-      recordCanvasHistory("拆分视频与音乐");
-      const sourceDimensions = canvasNodeDimensions(source);
-      const derivedX = Math.round((Number(source.x) || 0) + sourceDimensions.width + 80);
-      const silentVideo: any = addNode("videoGeneration");
-      silentVideo.title = `${stem}-无声`;
-      silentVideo.prompt = "";
-      silentVideo.x = derivedX;
-      silentVideo.y = Math.round(Number(source.y) || 0);
-      silentVideo.materialId = registeredVideo.material.id;
-      silentVideo.assetId = registeredVideo.asset?.id || "";
-      silentVideo.resourceType = "video";
-      silentVideo.sourceType = "audio-separation";
-      silentVideo.generatedFrom = { nodeId: source.id, type: "audio-separation" };
-      silentVideo.uploadedFile = {
-        name: videoFile.name || `${stem}-无声.mp4`,
-        path: videoFile.filePath || videoFile.path,
-        filePath: videoFile.filePath || videoFile.path,
-        type: "video/mp4",
-        size: videoFile.size || 0,
-        materialId: silentVideo.materialId,
-        assetId: silentVideo.assetId,
-        resourceType: "video",
-        source: "audio-separation",
-      };
-      registeredVideo.material.nodeId = silentVideo.id;
-      const audio: any = addNode("audioGeneration");
-      audio.title = `${stem}-音乐`;
-      audio.prompt = "";
-      audio.x = derivedX;
-      audio.y = Math.round(silentVideo.y + canvasNodeDimensions(silentVideo).height + 48);
-      audio.materialId = registeredAudio.material.id;
-      audio.assetId = registeredAudio.asset?.id || "";
-      audio.resourceType = "audio";
-      audio.sourceType = "audio-separation";
-      audio.generatedFrom = { nodeId: source.id, type: "audio-separation" };
-      audio.uploadedFile = {
-        name: audioFile.name || `${stem}-音乐.m4a`,
-        path: audioFile.filePath || audioFile.path,
-        filePath: audioFile.filePath || audioFile.path,
-        type: "audio/mp4",
-        size: audioFile.size || 0,
-        materialId: audio.materialId,
-        assetId: audio.assetId,
-        resourceType: "audio",
-        source: "audio-separation",
-      };
-      registeredAudio.material.nodeId = audio.id;
-      addCanvasEdge(store.project, source.id, silentVideo.id, {
-        touch: false,
-        kind: "derived-output",
-        edge: { data: { skipTaskInput: true, derivation: "audio-separation" } },
-      });
-      addCanvasEdge(store.project, source.id, audio.id, {
-        touch: false,
-        kind: "derived-output",
-        edge: { data: { skipTaskInput: true, derivation: "audio-separation" } },
-      });
-      setSelectedNodeIds([silentVideo.id, audio.id]);
-      touchProject();
-      showToast("已创建无声视频和音乐节点");
-    } catch (cause) {
-      showToast(cause instanceof Error ? cause.message : "音频分离失败");
-    }
-  },
+  saveToAssets,
+  cropImage,
+  extractAudio,
   async replaceResource(id) {
     const picked = await desktopApi.file.pickResource();
     if (!picked) return;
@@ -798,100 +411,8 @@ export const nodeActions: WorkflowNodeActions = {
     const result = selectGeneratedOutput(store.project, nodeId, outputId);
     if (!result.ok) showToast(result.error || "选择输出失败");
   },
-  openVideoEditor(id) {
-    store.project.activeVideoEditorNodeId = id;
-    touchProject({ sessionDelay: 300, coalesceSession: true });
-    if (videoEditorOpener) videoEditorOpener(id);
-    else showToast("视频编辑器尚未就绪，请稍后重试");
-  },
-  async addToVideoEditor(id) {
-    const node: any = (store.project.nodes || []).find((item: any) => item.id === id);
-    if (!node) return;
-    const outputs = [
-      ...(Array.isArray(node.generatedOutputs) ? node.generatedOutputs : []),
-      ...(store.project.materials || [])
-        .filter((item: any) => item.nodeId === node.id)
-        .map((item: any) => ({ ...item, id: `material:${item.id}` })),
-      ...(store.project.nodes || []).filter(
-        (item: any) => item.type === "resource" && !item.archived && item.generatedFrom?.nodeId === id,
-      ),
-    ];
-    const selectedId = String(node.selectedOutputNodeId || "");
-    const candidate: any = outputs.find((item: any) => String(item.id) === selectedId) ||
-      outputs.find((item: any) => item.selected) || outputs.at(-1) || node.uploadedFile;
-    const sourceFile = String(candidate?.filePath || candidate?.path || "");
-    const remoteUrl = String(candidate?.url || candidate?.remoteUrl || candidate?.previewUrl || "");
-    if (!sourceFile && !remoteUrl) return showToast("当前节点还没有可加入剪辑的媒体产物");
-
-    const hintedType = String(candidate?.resourceType || candidate?.mimeType || node.resourceType || "")
-      .toLowerCase();
-    const type = hintedType.includes("image")
-      ? "image"
-      : hintedType.includes("audio")
-      ? "audio"
-      : hintedType.includes("video")
-      ? "video"
-      : inferEditorMediaType(sourceFile || remoteUrl);
-    if (!["image", "video", "audio"].includes(type)) {
-      return showToast("当前产物不是可剪辑的图片、视频或音频");
-    }
-    const sourceUrl = sourceFile ? convertFileSrc(sourceFile) : remoteUrl;
-    let facts: any = {
-      duration: Number(candidate?.duration || candidate?.metadata?.duration || 0),
-      width: Number(candidate?.width || candidate?.metadata?.width || 0),
-      height: Number(candidate?.height || candidate?.metadata?.height || 0),
-    };
-    try {
-      facts = await probeEditorMedia({
-        type,
-        sourceFile,
-        sourceUrl,
-        readArrayBuffer: desktopApi.file.readArrayBuffer,
-        probeNative: desktopApi.file.probeMedia,
-      });
-    } catch {
-      if (type !== "image" && !facts.duration) {
-        return showToast("媒体读取失败，无法加入剪辑");
-      }
-    }
-    let editorNode: any = (store.project.nodes || []).find(
-      (item: any) => item.id === store.project.activeVideoEditorNodeId && !item.archived,
-    );
-    if (!editorNode && node.videoEditProject) editorNode = node;
-    const assetId = `canvas:${id}:${String(candidate?.id || sourceFile || remoteUrl)}`;
-    const current = normalizeVideoEditorProject(editorNode?.videoEditProject);
-    const result = appendEditorMediaAsset(current, {
-      id: assetId,
-      type,
-      name: String(candidate?.title || candidate?.name || candidate?.fileName || node.title || "画布素材"),
-      sourceFile,
-      sourceUrl,
-      sourceNodeId: id,
-      sourceOutputId: String(candidate?.id || ""),
-      ...facts,
-    });
-    if (!result.clipId) return showToast("媒体读取失败，无法加入剪辑");
-    if (result.added) {
-      recordCanvasHistory("加入剪辑");
-      if (!editorNode) {
-        editorNode = type === "video" ? node : addNode("videoGeneration");
-        if (editorNode !== node) {
-          editorNode.title = "视频剪辑";
-          editorNode.prompt = "";
-          editorNode.x = Math.round(Number(node.x || 120) + 360);
-          editorNode.y = Math.round(Number(node.y || 90));
-        }
-      }
-      store.project.activeVideoEditorNodeId = editorNode.id;
-      editorNode.videoEditProject = result.project;
-      editorNode.videoEdit = { ...(editorNode.videoEdit || {}), dirty: true };
-      touchProject();
-      showSuccessToast(`已加入剪辑：${candidate?.title || candidate?.name || node.title || "画布素材"}`);
-    } else {
-      showToast("该产物已经在剪辑时间线上");
-    }
-    if (editorNode && videoEditorOpener) videoEditorOpener(editorNode.id);
-  },
+  openVideoEditor,
+  addToVideoEditor,
   async exportBoard(id, dataUrl) {
     recordCanvasHistory("导出画板");
     const index =
@@ -1165,9 +686,7 @@ export const canvasCommands = {
     const node: any = addNode("videoGeneration");
     node.title = "视频剪辑";
     node.videoEdit = { dirty: false };
-    store.project.activeVideoEditorNodeId = node.id;
-    touchProject();
-    if (videoEditorOpener) videoEditorOpener(node.id);
+    openVideoEditor(node.id);
     return node;
   },
   async exportSelectedAssets() {

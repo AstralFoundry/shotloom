@@ -18,7 +18,7 @@ test('Tauri 随应用分发 OpenCode、FFmpeg sidecar 和 MCP bridge', () => {
   assert.ok(config.bundle.resources.includes('resources/opencode-LICENSE.txt'));
   assert.ok(config.bundle.resources.includes('resources/FFmpeg-GPL-3.0.txt'));
   assert.ok(config.bundle.resources.includes('resources/FFmpeg-SOURCE.txt'));
-  const rust = read('src-tauri/src/commands/agent_runtime.rs');
+  const rust = read('src-tauri/src/commands/agent_runtime.rs') + read('src-tauri/src/commands/agent_runtime_proxy.rs');
   assert.match(rust, /OPENCODE_SERVER_PASSWORD/);
   assert.match(rust, /"--pure"/);
   assert.match(rust, /"enabled": false/);
