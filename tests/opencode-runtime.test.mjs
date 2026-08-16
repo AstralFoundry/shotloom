@@ -46,6 +46,7 @@ test('Runtime 不会把历史 assistant 回复冒充为本轮结果', () => {
   assert.match(runtime, /没有生成与本轮用户消息对应的新回复/);
   assert.match(runtime, /response\?\.info\?\.finish === 'length'/);
   assert.match(runtime, /达到本轮输出上限，尚未完成工具调用/);
+  assert.match(runtime, /模型返回了 0 token 空响应/);
 });
 
 test('所有桌面构建入口都在 Cargo 或 Tauri 构建前准备平台 sidecar', () => {
@@ -71,6 +72,7 @@ test('所有桌面构建入口都在 Cargo 或 Tauri 构建前准备平台 sidec
 
 test('OpenCode Runtime 使用持久 Session、子 Agent、Contract 与本地域工具桥', () => {
   const runtime = read('renderer/src/agent/runtime/OpenCodeRuntime.ts');
+  const provider = read('renderer/src/agent/runtime/openCodeProvider.mjs');
   assert.match(runtime, /openCodeSessionId/);
   assert.match(runtime, /session\.created/);
   assert.match(runtime, /parentID/);
@@ -82,7 +84,8 @@ test('OpenCode Runtime 使用持久 Session、子 Agent、Contract 与本地域�
   assert.doesNotMatch(runtime, /routeSkill/);
   assert.doesNotMatch(runtime, /agent: 'intent-router'/);
   assert.match(runtime, /report_outcome/);
-  assert.match(runtime, /@ai-sdk\/openai/);
+  assert.match(provider, /@ai-sdk\/openai/);
+  assert.match(runtime, /resolveOpenCodeProvider/);
   assert.doesNotMatch(runtime, /Runtime requirement: call report_outcome/);
   assert.match(runtime, /hasAppliedActions/);
   assert.doesNotMatch(runtime, /没有提交可核验的终态结果|Agent 没有返回文字内容/);

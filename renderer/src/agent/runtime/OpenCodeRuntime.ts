@@ -13,6 +13,7 @@ import { appendAgentRuntimeEvent } from './runStore';
 import { activateOpenCodeToolBridge, deactivateOpenCodeToolBridge } from './OpenCodeToolBridge';
 import { activeProductionPlan } from './productionPlanStore';
 import { diagnoseRuntimeFailure, RuntimeDiagnosticError } from './runtimeDiagnostics';
+import { resolveOpenCodeProvider } from './openCodeProvider.mjs';
 import type { AgentPromptPayload, AgentRunResult, AgentRuntimeEvent, AgentToolContext, AgentToolReceipt, JsonObject } from '../core/types';
 import { canvasMutationFingerprint } from '@/utils/canvasMutationFingerprint.mjs';
 
@@ -85,26 +86,6 @@ async function providerLkgFallback(current: OpenCodeConfiguration): Promise<Open
 
 function uid(prefix: string) {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
-}
-
-function openCodeProvider(providerId: string, baseUrl: string) {
-  if (providerId === 'anthropic') {
-    return { npm: '@ai-sdk/anthropic', baseURL: baseUrl };
-  }
-  if (providerId === 'openai') {
-    return { npm: '@ai-sdk/openai', baseURL: baseUrl };
-  }
-  const suffixes: Record<string, string> = {
-    google: '/openai',
-    qwen: '/compatible-mode/v1',
-    zhipu: '/paas/v4',
-  };
-  const suffix = suffixes[providerId] || '';
-  const normalized = baseUrl.replace(/\/+$/, '');
-  return {
-    npm: '@ai-sdk/openai-compatible',
-    baseURL: suffix && !normalized.endsWith(suffix) ? `${normalized}${suffix}` : normalized,
-  };
 }
 
 interface RuntimeHttpResponse {
@@ -224,8 +205,8 @@ function configureModel(model: string, workspaceDirectory: string) {
   const credential = getModelCredentialStatus(model);
   if (!credential.available) throw new Error(`${credential.message}，Agent 无法启动`);
   const { baseUrl, apiKey } = getProviderCredentials(info.provider);
-  const provider = openCodeProvider(info.provider, baseUrl);
   const contract = resolveModelRuntimeContract('textGeneration', model, []);
+  const provider = resolveOpenCodeProvider(info.provider, baseUrl, contract?.endpoint);
   const contextLimit = Number(contract?.inputConstraints?.text?.maxTokens || 64_000);
   const outputLimit = Number(contract?.outputConstraints?.maxTokens || 8_192);
   const configuration: OpenCodeConfiguration = {
@@ -645,7 +626,9 @@ export async function runOpenCodeAgent(
         remaining: ['需要根据当前画布和任务状态补充最终核验'],
       };
     }
-    if (!reply) reply = 'Agent 已完成本轮处理，但没有返回文字说明。';
+    if (!reply) {
+      throw new Error('模型返回了 0 token 空响应；请检查文本模型 endpoint 与 OpenAI-compatible 流式响应格式');
+    }
     const outcomeStatus = String(outcome?.status || 'completed');
     const runStatus = outcomeStatus === 'partial' || outcomeStatus === 'blocked' ? outcomeStatus : 'completed';
     emit({ type: 'run_status', status: runStatus, outcome, createdAt: new Date().toISOString() });
