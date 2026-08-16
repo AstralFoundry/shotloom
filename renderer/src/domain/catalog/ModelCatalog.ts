@@ -291,6 +291,26 @@ export function catalogModelValidationErrors(
       }
     }
     if (mode?.inputMode && !CATALOG_INPUT_MODES.has(mode.inputMode)) errors.push(`${location} 的 inputMode 无效`);
+    if (Array.isArray(mode?.params)) {
+      for (const param of mode.params) {
+        const paramLocation = `${location}/${String(param?.key || '未知参数')}`;
+        if (!param?.key || typeof param.key !== 'string') errors.push(`${paramLocation} 缺少字符串 key`);
+        if ((param?.numeric === true || param?.type === 'number') && !(param.options || []).length && param.presentation) {
+          const presentation = typeof param.presentation === 'object' ? param.presentation : null;
+          const min = Number(presentation?.min);
+          const max = Number(presentation?.max);
+          if (!Number.isFinite(min) || !Number.isFinite(max) || min > max) {
+            errors.push(`${paramLocation} 是自由数值参数，必须声明有效的 presentation.min/max`);
+          }
+          if (param.default !== undefined) {
+            const defaultValue = Number(param.default);
+            if (!Number.isFinite(defaultValue) || (Number.isFinite(min) && defaultValue < min) || (Number.isFinite(max) && defaultValue > max)) {
+              errors.push(`${paramLocation} 的 default 必须位于 presentation.min/max 范围内`);
+            }
+          }
+        }
+      }
+    }
     if (mode?.inputSlots !== undefined && !Array.isArray(mode.inputSlots)) {
       errors.push(`${location} 的 inputSlots 必须是数组`);
     } else {
@@ -820,10 +840,18 @@ class ModelCatalog {
   }
 
   static coerceParamValue(param: CatalogParam, value: unknown): unknown {
+    if (value === '' || value === null || value === undefined) return param.default;
     if (param.type === 'boolean') return Boolean(value);
     if (param.numeric) {
       const n = Number(value);
-      return Number.isFinite(n) ? n : param.default;
+      if (!Number.isFinite(n)) return param.default;
+      const presentation = typeof param.presentation === 'object' ? param.presentation : null;
+      const min = Number(presentation?.min);
+      const max = Number(presentation?.max);
+      let normalized = n;
+      if (Number.isFinite(min)) normalized = Math.max(min, normalized);
+      if (Number.isFinite(max)) normalized = Math.min(max, normalized);
+      return normalized;
     }
     return value;
   }

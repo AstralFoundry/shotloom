@@ -33,6 +33,7 @@ import { isImeKeyEvent, useImeCommit } from "./imeComposition";
 import { reconcileMediaNodeDimensions } from "../../domain/graph/CanvasNodeDimensions";
 import { textNodeContent } from "../../utils/textNodeContent.mjs";
 import { desktopApi } from "../../services/desktopApi.js";
+import { compileGenerationNodeConfig } from "../../domain/graph/GenerationNodeContract";
 
 interface OutputData {
   id: string;
@@ -793,6 +794,11 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({
                         onClick={() => {
                           actions.update(node.id, {
                             model,
+                            config: compileGenerationNodeConfig(
+                              config,
+                              getModelSchema(node.type, model).params,
+                              node.outputSpec,
+                            ),
                             status: "idle",
                             progress: 0,
                             error: "",
@@ -938,10 +944,13 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({
                             <input
                               className="generation-settings-input nodrag nopan"
                               type={numeric ? "number" : "text"}
+                              min={numeric && Number.isFinite(Number(presentation.min)) ? Number(presentation.min) : undefined}
+                              max={numeric && Number.isFinite(Number(presentation.max)) ? Number(presentation.max) : undefined}
+                              step={numeric && Number.isFinite(Number(presentation.step)) ? Number(presentation.step) : undefined}
                               value={String(current ?? "")}
                               onChange={(event) => {
                                 const value = event.target.value;
-                                setConfig(param.key, numeric && value !== "" ? Number(value) : value);
+                                setConfig(param.key, numeric && value !== "" ? Number(value) : undefined);
                               }}
                             />
                           </section>

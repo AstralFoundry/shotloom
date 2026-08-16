@@ -13,6 +13,7 @@ export interface GenerationConfigParam {
   numeric?: boolean;
   default?: unknown;
   options?: unknown[];
+  presentation?: string | { min?: number; max?: number; step?: number };
 }
 
 /** 本地编排控制，不会原样发送给模型供应商。 */
@@ -51,10 +52,17 @@ function optionValue(value: unknown): unknown {
 
 function coerceParam(param: GenerationConfigParam, value: unknown): unknown {
   let next = value === undefined ? param.default : value;
+  if (next === '' || next === null) next = param.default;
   if (param.type === 'boolean') next = Boolean(next);
   if (param.numeric) {
     const number = Number(next);
     next = Number.isFinite(number) ? number : param.default;
+    if (typeof next === 'number' && param.presentation && typeof param.presentation === 'object') {
+      let normalized = next;
+      if (Number.isFinite(param.presentation.min)) normalized = Math.max(normalized, Number(param.presentation.min));
+      if (Number.isFinite(param.presentation.max)) normalized = Math.min(normalized, Number(param.presentation.max));
+      next = normalized;
+    }
   }
   const allowed = (param.options || []).map(optionValue);
   return allowed.length && !allowed.includes(next) ? param.default : next;
@@ -109,7 +117,8 @@ export function compileGenerationNodeConfig(
     if (next === undefined && key === 'aspectRatio') next = outputSpec.aspectRatio;
     if (next === undefined && key === 'generationCount') next = outputSpec.generationCount;
     if (next === undefined && key === 'generateAudio') next = outputSpec.generateAudio;
-    compiled[key] = coerceParam(param, next);
+    const coerced = coerceParam(param, next);
+    if (coerced !== undefined) compiled[key] = coerced;
   }
   return compiled;
 }

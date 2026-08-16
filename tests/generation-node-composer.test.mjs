@@ -98,3 +98,10 @@ test('生成参数收纳到分组面板且发送按钮保持在底栏', () => {
   assert.match(source, /className="work-composer nodrag nopan nowheel"[\s\S]*?onPointerDown=\{\(event\) => event\.stopPropagation\(\)\}/);
   assert.match(source, /className="generation-settings-panel nodrag nopan nowheel"/);
 });
+
+test('切换模型时按新协议重编译配置且空数字不写成零', () => {
+  assert.match(source, /model,[\s\S]*?config: compileGenerationNodeConfig\([\s\S]*?getModelSchema\(node\.type, model\)\.params/);
+  assert.match(source, /setConfig\(param\.key, numeric && value !== "" \? Number\(value\) : undefined\)/);
+  assert.match(source, /min=\{numeric && Number\.isFinite\(Number\(presentation\.min\)\)/);
+  assert.match(source, /max=\{numeric && Number\.isFinite\(Number\(presentation\.max\)\)/);
+});

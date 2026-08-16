@@ -201,6 +201,16 @@ test('生成配置只保留当前模型 schema 参数并补其默认值', () => 
   }, params), { temperature: 0.7 });
 });
 
+test('生成配置省略空的可选数字并按模型协议限制数值范围', () => {
+  const params = [
+    { key: 'optionalSeed', numeric: true },
+    { key: 'maxCompletionTokens', numeric: true, presentation: { min: 1, max: 32768, step: 1 } },
+  ];
+  assert.deepEqual(compileGenerationNodeConfig({
+    optionalSeed: '', maxCompletionTokens: 0, staleModelParam: 8192,
+  }, params), { maxCompletionTokens: 1 });
+});
+
 test('图片输出意图同步编译为 GPT Image 的真实 size 参数', () => {
   const params = [
     { key: 'size', type: 'select', default: '1024x1024', options: ['1024x1024', '1536x864', '1536x1024', '1024x1536'] },
