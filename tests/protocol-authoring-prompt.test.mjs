@@ -41,9 +41,9 @@ test('协议提示词覆盖运行时必需边界和局部模板变量作用域',
   assert.match(prompt, /每个 mode 至少有一种结果来源/);
   assert.match(prompt, /只在 `contentTemplate` 的单项模板中存在/);
   assert.match(prompt, /taskEndpoint.*taskIdPath.*statusPath.*pollStatusMap/s);
-  assert.match(prompt, /supportsToolCalls: true/);
-  assert.match(prompt, /agentReasoningEffort/);
+  assert.match(prompt, /openai-chat-completions/);
+  assert.match(prompt, /requestOptions/);
   assert.match(prompt, /不会出现在 Agent 模型列表/);
-  assert.match(prompt, /不得根据模型名称.*猜测工具调用能力/);
+  assert.match(prompt, /不得由模型名称猜测/);
   assert.match(prompt, /最终自检/);
 });

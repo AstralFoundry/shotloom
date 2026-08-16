@@ -78,10 +78,14 @@ export interface CatalogOutputConstraints {
   fps?: number;
   formats?: string[];
   supportsStreaming?: boolean;
-  supportsToolCalls?: boolean;
   supportsStructuredOutput?: boolean;
-  agentReasoningEffort?: 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max';
   maxTokens?: number;
+}
+
+export interface CatalogAgentProtocol {
+  transport: 'provider-default' | 'openai-chat-completions' | 'openai-responses';
+  supportsTools: boolean;
+  requestOptions?: Record<string, unknown>;
 }
 
 export interface CatalogMode {
@@ -93,6 +97,8 @@ export interface CatalogMode {
   inputFormat?: string;
   inputConstraints: CatalogInputConstraints;
   outputConstraints: CatalogOutputConstraints;
+  /** Agent SDK transport is independent from canvas request compilation. */
+  agent?: CatalogAgentProtocol;
   requestFields?: Record<string, string>;
   imageValueFormat?: string;
   referenceImageFormat?: string;
@@ -204,6 +210,15 @@ const CATALOG_INPUT_SLOTS = new Set([
 const GENERATION_ENDPOINT_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 const ENDPOINT_SCOPES = new Set(['root', 'v1']);
 const TASK_ENDPOINT_METHODS = new Set(['GET', 'POST']);
+const AGENT_TRANSPORTS = new Set(['provider-default', 'openai-chat-completions', 'openai-responses']);
+
+function isJsonValue(value: unknown): boolean {
+  if (value === null || typeof value === 'string' || typeof value === 'boolean') return true;
+  if (typeof value === 'number') return Number.isFinite(value);
+  if (Array.isArray(value)) return value.every(isJsonValue);
+  return Boolean(value) && typeof value === 'object' &&
+    Object.values(value as Record<string, unknown>).every(isJsonValue);
+}
 
 /**
  * 校验声明式协议能否被当前运行时完整执行。这里仅检查持久化和执行所需的
@@ -244,6 +259,29 @@ export function catalogModelValidationErrors(
     if (!ENDPOINT_SCOPES.has(String(scope || ''))) errors.push(`${location} 的 endpoint scope 必须是 root 或 v1`);
     if (mode?.requestTemplate === undefined || !mode.requestTemplate || typeof mode.requestTemplate !== 'object' || Array.isArray(mode.requestTemplate)) {
       errors.push(`${location} 缺少对象类型的 requestTemplate`);
+    }
+    if (mode?.agent !== undefined) {
+      if (!mode.agent || typeof mode.agent !== 'object' || Array.isArray(mode.agent)) {
+        errors.push(`${location} 的 agent 必须是对象`);
+      } else {
+        if (!AGENT_TRANSPORTS.has(String(mode.agent.transport || ''))) {
+          errors.push(`${location} 的 agent.transport 无效`);
+        }
+        if (mode.agent.supportsTools !== true) {
+          errors.push(`${location} 的 agent.supportsTools 必须明确为 true`);
+        }
+        if (mode.agent.transport === 'openai-chat-completions' && !path.endsWith('/chat/completions')) {
+          errors.push(`${location} 的 Agent Chat Completions 协议与 endpoint path 不匹配`);
+        }
+        if (mode.agent.transport === 'openai-responses' && !path.endsWith('/responses')) {
+          errors.push(`${location} 的 Agent Responses 协议与 endpoint path 不匹配`);
+        }
+        const requestOptions = mode.agent.requestOptions;
+        if (requestOptions !== undefined && (!requestOptions || typeof requestOptions !== 'object' || Array.isArray(requestOptions) ||
+          !isJsonValue(requestOptions))) {
+          errors.push(`${location} 的 agent.requestOptions 必须是可持久化的 JSON 对象`);
+        }
+      }
     }
     if (mode?.inputMode && !CATALOG_INPUT_MODES.has(mode.inputMode)) errors.push(`${location} 的 inputMode 无效`);
     if (mode?.inputSlots !== undefined && !Array.isArray(mode.inputSlots)) {
@@ -312,6 +350,7 @@ export interface ModelRuntimeContract {
   requestFields: Record<string, string>;
   inputConstraints: CatalogInputConstraints;
   outputConstraints: CatalogOutputConstraints;
+  agent?: CatalogAgentProtocol;
   // Capability flags
   supportsInputImages: boolean;
   minInputImages: number;
@@ -636,6 +675,7 @@ class ModelCatalog {
       requestFields: { ...mode.requestFields },
       contentTemplate: mode.contentTemplate === undefined ? undefined : structuredClone(mode.contentTemplate),
       outputConstraints: structuredClone(mode.outputConstraints || {}),
+      agent: mode.agent ? structuredClone(mode.agent) : undefined,
       ...cap,
     };
   }
@@ -741,7 +781,7 @@ class ModelCatalog {
     return types.map((type) => {
       const typeModels = this.models
         .filter((m) => m.type === type)
-        .filter((m) => type !== 'textGeneration' || m.modes.some((mode) => mode.outputConstraints?.supportsToolCalls === true))
+        .filter((m) => type !== 'textGeneration' || this.getModeConfig(m.id, m.defaultMode)?.agent?.supportsTools === true)
         .sort((a, b) => (a.sortOrder || 99) - (b.sortOrder || 99));
       return {
         type,

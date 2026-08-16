@@ -22,7 +22,8 @@ test('内置模型使用统一模型定义结构', () => {
       assert.ok(mode.requestTemplate && typeof mode.requestTemplate === 'object');
       assert.ok(mode.auth?.type);
       if (model.type === 'textGeneration') {
-        if (mode.outputConstraints.supportsToolCalls) {
+        if (mode.agent?.supportsTools) {
+          assert.equal(mode.agent.transport, 'provider-default');
           assert.equal(mode.requestTemplate.messages, '{{messages}}');
           assert.equal(mode.requestTemplate.tools, '{{tools}}');
           assert.equal(mode.requestTemplate.tool_choice, '{{toolChoice}}');

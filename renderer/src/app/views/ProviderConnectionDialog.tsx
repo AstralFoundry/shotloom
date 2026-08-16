@@ -210,13 +210,12 @@ function testStatusLabel(status: string): string {
 }
 
 function supportsAgentTools(model: CatalogModel): boolean {
-  return model.type === "textGeneration" &&
-    model.modes.some((mode) => mode.outputConstraints?.supportsToolCalls === true);
+  return model.type === "textGeneration" && defaultAgentProtocol(model)?.supportsTools === true;
 }
 
-function agentReasoningEffort(model: CatalogModel): string {
+function defaultAgentProtocol(model: CatalogModel) {
   const mode = model.modes.find((item) => item.id === model.defaultMode) || model.modes[0];
-  return mode?.outputConstraints?.agentReasoningEffort || "";
+  return mode?.agent;
 }
 
 export interface ProviderConnectionResult {
@@ -452,33 +451,56 @@ export function ProviderConnectionDialog({
   function setAgentToolSupport(enabled: boolean) {
     if (!editedTextModel || !Array.isArray(editedTextModel.modes)) return;
     const next = clone(editedTextModel);
-    next.modes = next.modes.map((mode) => ({
-      ...mode,
-      outputConstraints: {
-        ...(mode.outputConstraints || {}),
-        supportsToolCalls: enabled,
-      },
-    }));
+    next.modes = next.modes.map((mode) => {
+      if (mode.id !== next.defaultMode) return mode;
+      if (!enabled) {
+        const { agent: _agent, ...withoutAgent } = mode;
+        return withoutAgent;
+      }
+      return {
+        ...mode,
+        agent: {
+          transport: mode.agent?.transport || "openai-chat-completions",
+          supportsTools: true,
+          ...(mode.agent?.requestOptions ? { requestOptions: mode.agent.requestOptions } : {}),
+        },
+      };
+    });
     setModelJson(JSON.stringify(next, null, 2));
     setError("");
   }
 
-  function setAgentReasoningEffort(value: string) {
+  function setAgentTransport(value: "openai-chat-completions" | "openai-responses") {
     if (!editedTextModel || !Array.isArray(editedTextModel.modes)) return;
     const next = clone(editedTextModel);
-    next.modes = next.modes.map((mode) => {
-      const outputConstraints = { ...(mode.outputConstraints || {}) };
-      if (value) {
-        outputConstraints.agentReasoningEffort = value as NonNullable<
-          CatalogModel["modes"][number]["outputConstraints"]["agentReasoningEffort"]
-        >;
-      } else {
-        delete outputConstraints.agentReasoningEffort;
-      }
-      return { ...mode, outputConstraints };
-    });
+    next.modes = next.modes.map((mode) => mode.id === next.defaultMode ? ({
+      ...mode,
+      agent: { ...(mode.agent || { supportsTools: true }), transport: value, supportsTools: true },
+    }) : mode);
     setModelJson(JSON.stringify(next, null, 2));
     setError("");
+  }
+
+  function setAgentRequestOptions(raw: string) {
+    if (!editedTextModel || !Array.isArray(editedTextModel.modes)) return;
+    try {
+      const parsed = raw.trim() ? JSON.parse(raw) : {};
+      if (!parsed || Array.isArray(parsed) || typeof parsed !== "object") {
+        throw new Error("请求选项必须是 JSON 对象");
+      }
+      const next = clone(editedTextModel);
+      next.modes = next.modes.map((mode) => mode.id === next.defaultMode ? ({
+        ...mode,
+        agent: {
+          ...(mode.agent || { transport: "openai-chat-completions", supportsTools: true }),
+          ...(Object.keys(parsed).length ? { requestOptions: parsed } : { requestOptions: undefined }),
+        },
+      }) : mode);
+      setModelJson(JSON.stringify(next, null, 2));
+      setError("");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Agent 请求选项 JSON 无效");
+    }
   }
 
   async function submit() {
@@ -1003,24 +1025,27 @@ export function ProviderConnectionDialog({
               <span>
                 <strong>可用于 Agent</strong>
                 <small>
-                  仅在该模型的 OpenAI-compatible 接口支持 tools/function calling 时启用；未启用的文本模型仍可保存，但不会出现在 Agent 模型列表。
+                  仅在接口支持 tools/function calling 时启用。Agent 协议和请求选项独立于画布文本生成协议。
                 </small>
                 {supportsAgentTools(editedTextModel) && (
-                  <select
-                    aria-label="Agent 推理强度"
-                    value={agentReasoningEffort(editedTextModel)}
-                    onChange={(event) => setAgentReasoningEffort(event.target.value)}
-                    onClick={(event) => event.stopPropagation()}
-                  >
-                    <option value="">推理强度：自动</option>
-                    <option value="none">推理强度：关闭（none）</option>
-                    <option value="minimal">推理强度：minimal</option>
-                    <option value="low">推理强度：low</option>
-                    <option value="medium">推理强度：medium</option>
-                    <option value="high">推理强度：high</option>
-                    <option value="xhigh">推理强度：xhigh</option>
-                    <option value="max">推理强度：max</option>
-                  </select>
+                  <>
+                    <select
+                      aria-label="Agent 传输协议"
+                      value={defaultAgentProtocol(editedTextModel)?.transport || "openai-chat-completions"}
+                      onChange={(event) => setAgentTransport(event.target.value as "openai-chat-completions" | "openai-responses")}
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      <option value="openai-chat-completions">OpenAI Chat Completions</option>
+                      <option value="openai-responses">OpenAI Responses</option>
+                    </select>
+                    <input
+                      aria-label="Agent 请求选项 JSON"
+                      defaultValue={JSON.stringify(defaultAgentProtocol(editedTextModel)?.requestOptions || {})}
+                      onBlur={(event) => setAgentRequestOptions(event.target.value)}
+                      onClick={(event) => event.stopPropagation()}
+                      placeholder='例如 {"reasoningEffort":"none"}'
+                    />
+                  </>
                 )}
               </span>
             </label>

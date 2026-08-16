@@ -186,7 +186,7 @@ test('自定义模型保存和试跑复用运行时协议校验', () => {
 test('自定义文本模型明确展示并可编辑 Agent 工具调用能力', () => {
   assert.match(providerDialog, /supportsAgentTools/);
   assert.match(providerDialog, /可用于 Agent/);
-  assert.match(providerDialog, /不会出现在 Agent 模型列表/);
-  assert.match(providerDialog, /Agent 推理强度/);
+  assert.match(providerDialog, /Agent 传输协议/);
+  assert.match(providerDialog, /Agent 请求选项 JSON/);
   assert.match(settingsStyles, /\.provider-model-agent-status\.unavailable/);
 });

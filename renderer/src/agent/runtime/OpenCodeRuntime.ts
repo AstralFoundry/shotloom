@@ -13,7 +13,7 @@ import { appendAgentRuntimeEvent } from './runStore';
 import { activateOpenCodeToolBridge, deactivateOpenCodeToolBridge } from './OpenCodeToolBridge';
 import { activeProductionPlan } from './productionPlanStore';
 import { diagnoseRuntimeFailure, RuntimeDiagnosticError } from './runtimeDiagnostics';
-import { agentReasoningFallback, resolveOpenCodeProvider } from './openCodeProvider.mjs';
+import { resolveOpenCodeProvider } from './openCodeProvider.mjs';
 import type { AgentPromptPayload, AgentRunResult, AgentRuntimeEvent, AgentToolContext, AgentToolReceipt, JsonObject } from '../core/types';
 import { canvasMutationFingerprint } from '@/utils/canvasMutationFingerprint.mjs';
 
@@ -34,7 +34,6 @@ interface OpenCodeConfiguration {
   };
 }
 const activeRuns = new Map<string, { controller: AbortController; client: OpenCodeClient; sessionId: string }>();
-const recoveredReasoningEfforts = new Map<string, string>();
 let clientPromise: Promise<{ client: OpenCodeClient }> | null = null;
 let clientConfigurationKey = '';
 const PROVIDER_LKG_FILE = 'agent-provider-lkg.json';
@@ -207,10 +206,8 @@ function configureModel(model: string, workspaceDirectory: string) {
   if (!credential.available) throw new Error(`${credential.message}，Agent 无法启动`);
   const { baseUrl, apiKey } = getProviderCredentials(info.provider);
   const contract = resolveModelRuntimeContract('textGeneration', model, []);
-  const provider = resolveOpenCodeProvider(info.provider, baseUrl, contract?.endpoint);
-  const reasoningKey = `${info.provider}:${model}`;
-  const agentReasoningEffort = recoveredReasoningEfforts.get(reasoningKey)
-    || contract?.outputConstraints?.agentReasoningEffort;
+  const agentProtocol = contract?.agent;
+  const provider = resolveOpenCodeProvider(info.provider, baseUrl, contract?.endpoint, agentProtocol?.transport);
   const contextLimit = Number(contract?.inputConstraints?.text?.maxTokens || 64_000);
   const outputLimit = Number(contract?.outputConstraints?.maxTokens || 8_192);
   const configuration: OpenCodeConfiguration = {
@@ -228,29 +225,17 @@ function configureModel(model: string, workspaceDirectory: string) {
           [model]: {
             id: model,
             name: info.name,
-            reasoning: /reason|thinking|o[134](?:-|$)/i.test(model),
+            reasoning: false,
             tool_call: true,
             limit: { context: contextLimit, output: outputLimit },
             modalities: { input: ['text', 'image'], output: ['text'] },
-            ...(agentReasoningEffort ? {
-              options: { reasoningEffort: agentReasoningEffort },
-              variants: { [agentReasoningEffort]: { reasoningEffort: agentReasoningEffort } },
-            } : {}),
+            ...(agentProtocol?.requestOptions ? { options: structuredClone(agentProtocol.requestOptions) } : {}),
           },
         },
       },
     },
   } as OpenCodeConfiguration;
-  return { configuration, contextLimit, outputLimit, agentReasoningEffort: agentReasoningEffort || '' };
-}
-
-function recoverAgentReasoningFailure(model: string, cause: unknown): unknown {
-  const fallback = agentReasoningFallback(cause);
-  if (!fallback) return cause;
-  const providerId = getModelInfo(model)?.provider || '';
-  recoveredReasoningEfforts.set(`${providerId}:${model}`, fallback);
-  const detail = cause instanceof Error ? cause.message : String(cause);
-  return new Error(`${detail} 已为下次重试自动切换 Agent reasoning_effort=${fallback}。`);
+  return { configuration, contextLimit, outputLimit };
 }
 
 function systemPrompt() {
@@ -445,7 +430,7 @@ export async function runOpenCodeAgent(
   };
   let client: OpenCodeClient;
   let sessionId: string;
-  let modelLimits = { contextLimit: 64_000, outputLimit: 8_192, agentReasoningEffort: '' };
+  let modelLimits = { contextLimit: 64_000, outputLimit: 8_192 };
   try {
     const configured = configureModel(model, directory);
     modelLimits = configured;
@@ -464,8 +449,7 @@ export async function runOpenCodeAgent(
     controller.abort();
     activeRuns.delete(requestId);
     deactivateOpenCodeToolBridge(requestId);
-    const failure = recoverAgentReasoningFailure(model, cause);
-    const diagnosis = await diagnoseRuntimeFailure(failure);
+    const diagnosis = await diagnoseRuntimeFailure(cause);
     emit({ type: 'run_status', status: 'failed', error: diagnosis.message, diagnosis, createdAt: new Date().toISOString() });
     throw new RuntimeDiagnosticError(diagnosis);
   }
@@ -564,8 +548,7 @@ export async function runOpenCodeAgent(
     controller.abort();
     activeRuns.delete(requestId);
     deactivateOpenCodeToolBridge(requestId);
-    const failure = recoverAgentReasoningFailure(model, cause);
-    const diagnosis = await diagnoseRuntimeFailure(failure);
+    const diagnosis = await diagnoseRuntimeFailure(cause);
     emit({ type: 'run_status', status: 'failed', error: diagnosis.message, diagnosis, createdAt: new Date().toISOString() });
     throw new RuntimeDiagnosticError(diagnosis);
   }
@@ -593,7 +576,6 @@ export async function runOpenCodeAgent(
         body: {
           agent: 'shotloom',
           model: { providerID: 'shotloom', modelID: model },
-          ...(modelLimits.agentReasoningEffort ? { variant: modelLimits.agentReasoningEffort } : {}),
           system: systemPrompt(),
           parts,
         },

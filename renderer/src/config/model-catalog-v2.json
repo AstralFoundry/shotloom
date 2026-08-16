@@ -26,9 +26,12 @@
               "maxTokens": 1000000
             }
           },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": true,
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
@@ -75,9 +78,12 @@
               "maxTokens": 1000000
             }
           },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": true,
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
@@ -124,9 +130,12 @@
               "maxTokens": 1000000
             }
           },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": true,
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
@@ -184,9 +193,12 @@
               "maxTokens": 1000000
             }
           },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": true,
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
@@ -232,9 +244,12 @@
               "maxTokens": 1000000
             }
           },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": true,
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
@@ -280,9 +295,12 @@
               "maxTokens": 1000000
             }
           },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": true,
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
@@ -339,9 +357,12 @@
               "maxTokens": 1000000
             }
           },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": true,
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
@@ -387,9 +408,12 @@
               "maxTokens": 1000000
             }
           },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": true,
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
@@ -435,9 +459,12 @@
               "maxTokens": 1000000
             }
           },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": true,
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
@@ -494,9 +521,12 @@
               "maxTokens": 1000000
             }
           },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": true,
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
@@ -542,9 +572,12 @@
               "maxTokens": 1000000
             }
           },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": true,
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
@@ -590,9 +623,12 @@
               "maxTokens": 1000000
             }
           },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": true,
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
@@ -649,9 +685,12 @@
               "maxTokens": 256000
             }
           },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": true,
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
@@ -697,9 +736,12 @@
               "maxTokens": 256000
             }
           },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": true,
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
@@ -745,9 +787,12 @@
               "maxTokens": 256000
             }
           },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": true,
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
@@ -806,7 +851,6 @@
           },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": false,
             "supportsStructuredOutput": true,
             "maxTokens": 128000
           },
@@ -857,7 +901,6 @@
           },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": false,
             "supportsStructuredOutput": true,
             "maxTokens": 128000
           },
@@ -908,7 +951,6 @@
           },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": false,
             "supportsStructuredOutput": true,
             "maxTokens": 128000
           },
@@ -970,7 +1012,6 @@
           },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": false,
             "supportsStructuredOutput": true,
             "maxTokens": 128000
           },
@@ -1021,7 +1062,6 @@
           },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": false,
             "supportsStructuredOutput": true,
             "maxTokens": 128000
           },
@@ -1072,7 +1112,6 @@
           },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": false,
             "supportsStructuredOutput": true,
             "maxTokens": 128000
           },
@@ -1132,9 +1171,12 @@
               "maxTokens": 1000000
             }
           },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": true,
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
@@ -1180,9 +1222,12 @@
               "maxTokens": 1000000
             }
           },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": true,
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
@@ -1228,9 +1273,12 @@
               "maxTokens": 1000000
             }
           },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": true,
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
@@ -1287,9 +1335,12 @@
               "maxTokens": 1000000
             }
           },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": true,
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
@@ -1335,9 +1386,12 @@
               "maxTokens": 1000000
             }
           },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": true,
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
@@ -1383,9 +1437,12 @@
               "maxTokens": 1000000
             }
           },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": true,
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
@@ -1442,9 +1499,12 @@
               "maxTokens": 1000000
             }
           },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": true,
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
@@ -1490,9 +1550,12 @@
               "maxTokens": 1000000
             }
           },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": true,
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
@@ -1538,9 +1601,12 @@
               "maxTokens": 1000000
             }
           },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": true,
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
@@ -1597,9 +1663,12 @@
               "maxTokens": 1000000
             }
           },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": true,
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
@@ -1645,9 +1714,12 @@
               "maxTokens": 1000000
             }
           },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": true,
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
@@ -1693,9 +1765,12 @@
               "maxTokens": 1000000
             }
           },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": true,
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
@@ -1752,9 +1827,12 @@
               "maxTokens": 1000000
             }
           },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": true,
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
@@ -1800,9 +1878,12 @@
               "maxTokens": 1000000
             }
           },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": true,
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
@@ -1848,9 +1929,12 @@
               "maxTokens": 1000000
             }
           },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": true,
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },

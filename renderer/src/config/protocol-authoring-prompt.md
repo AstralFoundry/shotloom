@@ -268,23 +268,29 @@
 }
 ```
 
-文本模型还有一个影响 Agent 可见性的能力字段：
+文本模型用于 Agent 时，在 mode 上单独声明 `agent`。它与画布的 `endpoint` / `requestTemplate` 分层：
 
-- `supportsToolCalls: true`：仅当厂商文档明确说明该模型及当前 OpenAI-compatible 接口支持 `tools` / function calling 时填写。Shotloom Agent 会由运行时 SDK 注入工具定义，不使用这里的 `requestTemplate` 发送 Agent 请求。
-- `agentReasoningEffort`：可选的 Agent 推理强度，支持 `none`、`minimal`、`low`、`medium`、`high`、`xhigh`、`max`。仅按接口文档填写；如果 Chat Completions 明确要求工具调用时关闭 reasoning，填写 `"none"`。
-- 未填写或设为 `false`：模型仍可用于普通文本生成，但不会出现在 Agent 模型列表。
-- 不得根据模型名称、上下文长度或 `requestTemplate` 的形状猜测工具调用能力。若用户要求“用于 Agent”但资料不能确认，请在生成 JSON 前向用户索取接口文档；不要虚构 `true`。
+- `transport`：`provider-default`、`openai-chat-completions` 或 `openai-responses`。自定义厂商必须按真实接口选择后两者之一。
+- `supportsTools: true`：仅当当前 Agent 传输接口明确支持 `tools` / function calling 时填写。
+- `requestOptions`：可选的 SDK 请求选项 JSON 对象。按接口文档原样声明，例如 `reasoningEffort`、`parallelToolCalls` 或供应商的嵌套 reasoning 配置；不得由模型名称猜测。
+- 未声明 `agent`：文本模型仍可用于画布文本生成，但不会出现在 Agent 模型列表。
+- Shotloom Agent 由运行时 SDK 注入工具定义，不使用画布 `requestTemplate` 发送 Agent 请求。
 
-文档确认文本模型支持工具调用时，写成：
+文档确认 Chat Completions 支持工具调用、且要求关闭 reasoning 时，写成：
 
 ```json
 {
-  "supportsToolCalls": true,
-  "agentReasoningEffort": "none"
+  "agent": {
+    "transport": "openai-chat-completions",
+    "supportsTools": true,
+    "requestOptions": {
+      "reasoningEffort": "none"
+    }
+  }
 }
 ```
 
-没有可确认信息时写 `{}`。
+没有可确认信息时不要写 `agent`。
 
 `params` 是设置面板 schema。每项可使用：
 
@@ -485,7 +491,7 @@
 1. 顶层是单个 JSON 对象，`defaultMode` 指向真实基础 mode。
 2. 每个 endpoint 都有合法 method、相对 path 和明确 scope。
 3. 每个 mode 都有对象类型 `requestTemplate`、`inputConstraints`、`outputConstraints` 和数组 `params`。
-4. 要用于 Agent 的文本模型已由文档确认工具调用能力，并在 mode 的 `outputConstraints.supportsToolCalls` 中明确写为 `true`。
+4. 要用于 Agent 的文本模型已由文档确认传输协议与工具调用能力，并在 mode 的 `agent` 中明确声明；请求选项没有根据模型名猜测。
 5. `inputSlots` 中没有 `referenceImage` 或任何厂商字段名。
 6. 每个媒体约束都同时包含 `min` 和 `max`，roles 与媒体类型一致。
 7. 只有 contentTemplate 使用 `url`、`role`、`slot`、`index` 局部变量。

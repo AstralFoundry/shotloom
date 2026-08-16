@@ -63,7 +63,7 @@ test('自定义厂商目录可直接接收响应式模型配置', () => {
       endpoint: { path: '/chat/completions', method: 'POST', scope: 'root' },
       requestTemplate: { model: '{{model}}', messages: '{{messages}}' },
       resultTextPath: 'choices.0.message.content',
-      outputConstraints: { supportsToolCalls: false },
+      outputConstraints: {},
       params: [],
     }, {})],
   }, {});
@@ -94,7 +94,8 @@ test('跨厂商复用内置模型 ID 时使用自定义厂商路由', () => {
           endpoint: { path: '/chat/completions', method: 'POST', scope: 'root' },
           requestTemplate: { model: '{{model}}', messages: '{{messages}}' },
           resultTextPath: 'choices.0.message.content',
-          outputConstraints: { supportsToolCalls: true },
+          outputConstraints: {},
+          agent: { transport: 'openai-chat-completions', supportsTools: true },
           params: [],
         }],
       }],
@@ -132,6 +133,26 @@ test('外部 inputVariants 缺少槽位时在保存前返回具体错误', () =>
     }],
   }, { requireProvider: true });
   assert.ok(errors.some((error) => error.includes('缺少 inputSlots')));
+});
+
+test('Agent 传输、endpoint 和通用请求选项在保存边界保持一致', () => {
+  const model = {
+    id: 'agent-chat', name: 'Agent Chat', provider: 'custom', type: 'textGeneration',
+    defaultMode: 'chat',
+    modes: [{
+      id: 'chat', endpoint: { path: '/v1/chat/completions', method: 'POST', scope: 'root' },
+      requestTemplate: { model: '{{model}}', messages: '{{messages}}' },
+      resultTextPath: 'choices.0.message.content', inputConstraints: {}, outputConstraints: {}, params: [],
+      agent: {
+        transport: 'openai-chat-completions', supportsTools: true,
+        requestOptions: { reasoningEffort: 'none', reasoning: { summary: 'auto' } },
+      },
+    }],
+  };
+  assert.deepEqual(catalogModelValidationErrors(model, { requireProvider: true }), []);
+  model.modes[0].agent.transport = 'openai-responses';
+  assert.ok(catalogModelValidationErrors(model, { requireProvider: true })
+    .some((error) => error.includes('Responses 协议与 endpoint path 不匹配')));
 });
 
 test('自定义图片值格式会进入运行时能力契约', () => {
