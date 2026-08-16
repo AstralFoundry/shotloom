@@ -316,9 +316,10 @@
 .provider-agent-capability > span { display: grid; gap: 3px; }
 .provider-agent-capability strong { color: #333; font-size: 11px; }
 .provider-agent-capability small { color: #858585; font-size: 10px; line-height: 1.5; }
-.provider-agent-capability select,
-.provider-agent-capability input[aria-label="Agent 请求选项 JSON"] { width: fit-content; max-width: 100%; height: 28px; margin-top: 4px; border: 1px solid #ddd; border-radius: 6px; padding: 0 8px; color: #555; background: #fff; font-size: 10px; }
-.provider-agent-capability input[aria-label="Agent 请求选项 JSON"] { width: min(360px, 100%); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.provider-agent-capability select { width: fit-content; max-width: 100%; height: 28px; margin-top: 4px; border: 1px solid #ddd; border-radius: 6px; padding: 0 24px 0 8px; color: #555; background: #fff; font-size: 10px; }
+.provider-advanced-protocol { border: 1px solid #ececec; border-radius: 8px; padding: 9px 10px; background: #fafafa; }
+.provider-advanced-protocol > summary { cursor: pointer; color: #777; font-size: 11px; user-select: none; }
+.provider-advanced-protocol[open] > summary { margin-bottom: 10px; }
 .provider-model-empty {
   margin-top: 10px;
   padding: 14px 2px;

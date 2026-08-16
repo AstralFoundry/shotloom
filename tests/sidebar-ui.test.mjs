@@ -186,7 +186,10 @@ test('自定义模型保存和试跑复用运行时协议校验', () => {
 test('自定义文本模型明确展示并可编辑 Agent 工具调用能力', () => {
   assert.match(providerDialog, /supportsAgentTools/);
   assert.match(providerDialog, /可用于 Agent/);
-  assert.match(providerDialog, /Agent 传输协议/);
-  assert.match(providerDialog, /Agent 请求选项 JSON/);
+  assert.match(providerDialog, /Agent 接口模式/);
+  assert.match(providerDialog, /推荐：使用独立 Agent 接口/);
+  assert.doesNotMatch(providerDialog, /Agent 请求选项 JSON/);
+  assert.match(providerDialog, /高级协议设置（一般无需修改）/);
+  assert.match(providerDialog, /无需阅读或修改代码/);
   assert.match(settingsStyles, /\.provider-model-agent-status\.unavailable/);
 });

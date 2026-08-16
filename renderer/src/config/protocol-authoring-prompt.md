@@ -272,19 +272,22 @@
 
 - `transport`：`provider-default`、`openai-chat-completions` 或 `openai-responses`。自定义厂商必须按真实接口选择后两者之一。
 - `supportsTools: true`：仅当当前 Agent 传输接口明确支持 `tools` / function calling 时填写。
+- `endpoint`：Agent 使用与画布文本生成不同的接口时单独声明。厂商同时提供 Chat Completions 与 Responses 时，普通文本 mode 可继续使用 Chat Completions，Agent 优先使用文档确认支持工具调用的 Responses endpoint。
 - `requestOptions`：可选的 SDK 请求选项 JSON 对象。按接口文档原样声明，例如 `reasoningEffort`、`parallelToolCalls` 或供应商的嵌套 reasoning 配置；不得由模型名称猜测。
 - 未声明 `agent`：文本模型仍可用于画布文本生成，但不会出现在 Agent 模型列表。
 - Shotloom Agent 由运行时 SDK 注入工具定义，不使用画布 `requestTemplate` 发送 Agent 请求。
 
-文档确认 Chat Completions 支持工具调用、且要求关闭 reasoning 时，写成：
+文档确认 Agent 可以使用独立 Responses 接口时，写成：
 
 ```json
 {
   "agent": {
-    "transport": "openai-chat-completions",
+    "transport": "openai-responses",
     "supportsTools": true,
-    "requestOptions": {
-      "reasoningEffort": "none"
+    "endpoint": {
+      "method": "POST",
+      "path": "/v1/responses",
+      "scope": "root"
     }
   }
 }

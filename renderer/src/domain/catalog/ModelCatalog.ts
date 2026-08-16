@@ -85,6 +85,7 @@ export interface CatalogOutputConstraints {
 export interface CatalogAgentProtocol {
   transport: 'provider-default' | 'openai-chat-completions' | 'openai-responses';
   supportsTools: boolean;
+  endpoint?: CatalogEndpoint;
   requestOptions?: Record<string, unknown>;
 }
 
@@ -270,10 +271,16 @@ export function catalogModelValidationErrors(
         if (mode.agent.supportsTools !== true) {
           errors.push(`${location} 的 agent.supportsTools 必须明确为 true`);
         }
-        if (mode.agent.transport === 'openai-chat-completions' && !path.endsWith('/chat/completions')) {
+        const agentPath = String(mode.agent.endpoint?.path || path);
+        const agentMethod = String(mode.agent.endpoint?.method || method).toUpperCase();
+        const agentScope = String(mode.agent.endpoint?.scope || scope || '');
+        if (agentMethod !== 'POST' || !agentPath.startsWith('/') || agentPath.startsWith('//') || !ENDPOINT_SCOPES.has(agentScope)) {
+          errors.push(`${location} 的 agent.endpoint 必须是合法的 POST 相对 endpoint`);
+        }
+        if (mode.agent.transport === 'openai-chat-completions' && !agentPath.endsWith('/chat/completions')) {
           errors.push(`${location} 的 Agent Chat Completions 协议与 endpoint path 不匹配`);
         }
-        if (mode.agent.transport === 'openai-responses' && !path.endsWith('/responses')) {
+        if (mode.agent.transport === 'openai-responses' && !agentPath.endsWith('/responses')) {
           errors.push(`${location} 的 Agent Responses 协议与 endpoint path 不匹配`);
         }
         const requestOptions = mode.agent.requestOptions;

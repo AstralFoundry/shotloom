@@ -207,7 +207,12 @@ function configureModel(model: string, workspaceDirectory: string) {
   const { baseUrl, apiKey } = getProviderCredentials(info.provider);
   const contract = resolveModelRuntimeContract('textGeneration', model, []);
   const agentProtocol = contract?.agent;
-  const provider = resolveOpenCodeProvider(info.provider, baseUrl, contract?.endpoint, agentProtocol?.transport);
+  const provider = resolveOpenCodeProvider(
+    info.provider,
+    baseUrl,
+    agentProtocol?.endpoint || contract?.endpoint,
+    agentProtocol?.transport,
+  );
   const contextLimit = Number(contract?.inputConstraints?.text?.maxTokens || 64_000);
   const outputLimit = Number(contract?.outputConstraints?.maxTokens || 8_192);
   const configuration: OpenCodeConfiguration = {

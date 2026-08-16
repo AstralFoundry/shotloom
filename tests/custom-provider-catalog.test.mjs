@@ -151,6 +151,9 @@ test('Agent 传输、endpoint 和通用请求选项在保存边界保持一致',
   };
   assert.deepEqual(catalogModelValidationErrors(model, { requireProvider: true }), []);
   model.modes[0].agent.transport = 'openai-responses';
+  model.modes[0].agent.endpoint = { path: '/v1/responses', method: 'POST', scope: 'root' };
+  assert.deepEqual(catalogModelValidationErrors(model, { requireProvider: true }), []);
+  delete model.modes[0].agent.endpoint;
   assert.ok(catalogModelValidationErrors(model, { requireProvider: true })
     .some((error) => error.includes('Responses 协议与 endpoint path 不匹配')));
 });

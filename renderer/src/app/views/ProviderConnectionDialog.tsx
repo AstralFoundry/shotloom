@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   catalogModelValidationErrors,
+  type CatalogAgentProtocol,
   type CatalogModel,
   getBuiltInCatalogModels,
   normalizeCatalogModel,
@@ -473,34 +474,26 @@ export function ProviderConnectionDialog({
   function setAgentTransport(value: "openai-chat-completions" | "openai-responses") {
     if (!editedTextModel || !Array.isArray(editedTextModel.modes)) return;
     const next = clone(editedTextModel);
-    next.modes = next.modes.map((mode) => mode.id === next.defaultMode ? ({
-      ...mode,
-      agent: { ...(mode.agent || { supportsTools: true }), transport: value, supportsTools: true },
-    }) : mode);
+    next.modes = next.modes.map((mode) => {
+      if (mode.id !== next.defaultMode) return mode;
+      const agent: CatalogAgentProtocol = {
+        ...(mode.agent || {}), transport: value, supportsTools: true,
+      };
+      if (value === "openai-responses") {
+        agent.endpoint = {
+          method: "POST",
+          path: mode.endpoint.path.endsWith("/chat/completions")
+            ? mode.endpoint.path.slice(0, -"/chat/completions".length) + "/responses"
+            : "/v1/responses",
+          scope: mode.endpoint.scope,
+        };
+      } else {
+        delete agent.endpoint;
+      }
+      return { ...mode, agent };
+    });
     setModelJson(JSON.stringify(next, null, 2));
     setError("");
-  }
-
-  function setAgentRequestOptions(raw: string) {
-    if (!editedTextModel || !Array.isArray(editedTextModel.modes)) return;
-    try {
-      const parsed = raw.trim() ? JSON.parse(raw) : {};
-      if (!parsed || Array.isArray(parsed) || typeof parsed !== "object") {
-        throw new Error("请求选项必须是 JSON 对象");
-      }
-      const next = clone(editedTextModel);
-      next.modes = next.modes.map((mode) => mode.id === next.defaultMode ? ({
-        ...mode,
-        agent: {
-          ...(mode.agent || { transport: "openai-chat-completions", supportsTools: true }),
-          ...(Object.keys(parsed).length ? { requestOptions: parsed } : { requestOptions: undefined }),
-        },
-      }) : mode);
-      setModelJson(JSON.stringify(next, null, 2));
-      setError("");
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Agent 请求选项 JSON 无效");
-    }
   }
 
   async function submit() {
@@ -757,9 +750,9 @@ export function ProviderConnectionDialog({
           <section className="provider-model-section">
             <div className="provider-model-heading">
               <div>
-                <strong>用 AI 生成协议</strong>
+                <strong>让 AI 自动配置模型</strong>
                 <span className="provider-model-count">
-                  不写 JSON：复制提示词 → 贴给任意 AI（附上你的 API 文档/样例）→ 粘回结果
+                  复制说明并连同厂商文档发给 AI，再把回复原样粘回来；无需阅读或修改代码。
                 </span>
               </div>
               <div style={{ display: "flex", gap: 8 }}>
@@ -791,12 +784,12 @@ export function ProviderConnectionDialog({
               </pre>
             )}
             <label className="recipe-field recipe-prompt-field">
-              <span>粘贴 AI 返回的 JSON</span>
+              <span>把 AI 的完整回复粘贴到这里</span>
               <textarea
                 value={aiPasteJson}
                 rows={6}
                 spellCheck={false}
-                placeholder="把 AI 返回的模型 JSON 粘贴到这里…"
+                placeholder="直接粘贴即可，不需要看懂内容…"
                 onChange={(event) => {
                   setAiPasteJson(event.target.value);
                   setAiPasteError("");
@@ -804,7 +797,7 @@ export function ProviderConnectionDialog({
               />
             </label>
             <div className="provider-model-create-actions">
-              <span>AI 返回的是单个模型 JSON 对象，导入后成为当前厂商的一个模型。</span>
+              <span>Shotloom 会自动检查接口、模型能力和 Agent 配置，有问题会说明怎么处理。</span>
               <div>
                 <button
                   className="button primary"
@@ -812,7 +805,7 @@ export function ProviderConnectionDialog({
                   disabled={submitting}
                   onClick={importAiJson}
                 >
-                  导入为模型
+                  检查并添加模型
                 </button>
               </div>
             </div>
@@ -998,22 +991,23 @@ export function ProviderConnectionDialog({
             </div>
           )}
           {selectedModelId && !newModel && (
-            <label className="recipe-field recipe-prompt-field">
-              <span>模型 JSON</span>
-              <textarea
-                value={modelJson}
-                rows={12}
-                spellCheck={false}
-                placeholder="{}"
-                onChange={(event) => {
-                  setModelJson(event.target.value);
-                  setError("");
-                }}
-              />
-              <small>
-                每次仅编辑一个 CatalogModel 对象。可配置 endpoint、异步任务查询、参数、认证、请求模板和结果路径。
-              </small>
-            </label>
+            <details className="provider-advanced-protocol">
+              <summary>高级协议设置（一般无需修改）</summary>
+              <label className="recipe-field recipe-prompt-field">
+                <span>协议原始数据</span>
+                <textarea
+                  value={modelJson}
+                  rows={12}
+                  spellCheck={false}
+                  placeholder="{}"
+                  onChange={(event) => {
+                    setModelJson(event.target.value);
+                    setError("");
+                  }}
+                />
+                <small>仅供熟悉接口协议的用户排查或微调。</small>
+              </label>
+            </details>
           )}
           {selectedModelId && !newModel && editedTextModel && (
             <label className="provider-agent-capability">
@@ -1025,26 +1019,24 @@ export function ProviderConnectionDialog({
               <span>
                 <strong>可用于 Agent</strong>
                 <small>
-                  仅在接口支持 tools/function calling 时启用。Agent 协议和请求选项独立于画布文本生成协议。
+                  协议生成后会自动配置，通常无需修改。关闭后模型仍可普通聊天，只是不再提供给 Agent。
                 </small>
                 {supportsAgentTools(editedTextModel) && (
                   <>
                     <select
-                      aria-label="Agent 传输协议"
+                      aria-label="Agent 接口模式"
                       value={defaultAgentProtocol(editedTextModel)?.transport || "openai-chat-completions"}
                       onChange={(event) => setAgentTransport(event.target.value as "openai-chat-completions" | "openai-responses")}
                       onClick={(event) => event.stopPropagation()}
                     >
-                      <option value="openai-chat-completions">OpenAI Chat Completions</option>
-                      <option value="openai-responses">OpenAI Responses</option>
+                      <option value="openai-responses">推荐：使用独立 Agent 接口</option>
+                      <option value="openai-chat-completions">兼容：与普通聊天共用接口</option>
                     </select>
-                    <input
-                      aria-label="Agent 请求选项 JSON"
-                      defaultValue={JSON.stringify(defaultAgentProtocol(editedTextModel)?.requestOptions || {})}
-                      onBlur={(event) => setAgentRequestOptions(event.target.value)}
-                      onClick={(event) => event.stopPropagation()}
-                      placeholder='例如 {"reasoningEffort":"none"}'
-                    />
+                    <small>
+                      {defaultAgentProtocol(editedTextModel)?.transport === "openai-responses"
+                        ? "Agent 使用独立接口，普通聊天不受影响。"
+                        : "仅当服务商没有独立 Agent 接口时使用；部分模型可能无法调用工具。"}
+                    </small>
                   </>
                 )}
               </span>
