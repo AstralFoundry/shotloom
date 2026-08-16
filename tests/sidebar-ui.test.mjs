@@ -169,3 +169,16 @@ test('自定义厂商复用内置模型 ID 时明确保存并展示覆盖关系'
   assert.match(providerDialog, /覆盖内置 \$\{replacedBuiltIn\.provider\}/);
   assert.match(settingsStyles, /\.provider-model-origin\.override/);
 });
+
+test('自定义厂商隔离内置 ID 和切换前的敏感状态', () => {
+  assert.match(providerDialog, /initialConfig\?\.custom === true \|\| !editingDefinition/);
+  assert.match(providerDialog, /definitions\.some\(\(definition\) => definition\.id === providerId\)/);
+  assert.match(providerDialog, /厂商 ID .*已被内置厂商保留/);
+  assert.match(providerDialog, /if \(id === CUSTOM_PROVIDER_ID[\s\S]*?setApiKey\(""\);[\s\S]*?setDisabledIds\(new Set\(\)\)/);
+});
+
+test('自定义模型保存和试跑复用运行时协议校验', () => {
+  assert.match(providerDialog, /catalogModelValidationErrors\(model, \{ requireProvider: true \}\)/);
+  assert.match(providerDialog, /catalogModelValidationErrors\(added, \{ requireProvider: true \}\)/);
+  assert.match(providerDialog, /<option value="audioGeneration">音频生成<\/option>/);
+});

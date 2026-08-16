@@ -143,6 +143,159 @@ export interface CatalogModel {
   overridesBuiltIn?: boolean;
 }
 
+export function normalizeCatalogModel(model: CatalogModel): {
+  model: CatalogModel;
+  warnings: string[];
+} {
+  const normalized = structuredClone(model);
+  const warnings: string[] = [];
+  const normalizeInputDeclaration = (
+    owner: { inputSlots?: string[]; inputConstraints?: CatalogInputConstraints },
+    location: string,
+  ) => {
+    if (Array.isArray(owner.inputSlots)) {
+      owner.inputSlots = owner.inputSlots.map((slot) => {
+        if (slot !== 'referenceImage') return slot;
+        warnings.push(`${location} 将媒体角色 referenceImage 规范化为业务槽位 reference`);
+        return 'reference';
+      });
+    }
+    const constraints = owner.inputConstraints;
+    if (!constraints || typeof constraints !== 'object') return;
+    for (const media of ['images', 'videos', 'audios'] as const) {
+      const declaration = constraints[media];
+      if (!declaration || typeof declaration !== 'object') continue;
+      const min = Number(declaration.min);
+      const max = Number(declaration.max);
+      if (Number.isFinite(min) && !Number.isFinite(max)) {
+        declaration.max = min;
+        warnings.push(`${location} 根据 ${media}.min 补齐缺失的 max`);
+      } else if (!Number.isFinite(min) && Number.isFinite(max)) {
+        declaration.min = 0;
+        warnings.push(`${location} 为 ${media} 补齐缺失的 min=0`);
+      }
+    }
+  };
+  for (const mode of normalized.modes || []) {
+    const location = `${normalized.id}/${mode.id}`;
+    normalizeInputDeclaration(mode, location);
+    for (const variant of mode.inputVariants || []) {
+      normalizeInputDeclaration(variant, `${location}/${variant.inputMode}`);
+    }
+  }
+  return { model: normalized, warnings };
+}
+
+const CATALOG_MODEL_TYPES = new Set([
+  'textGeneration',
+  'imageGeneration',
+  'videoGeneration',
+  'audioGeneration',
+]);
+const CATALOG_INPUT_MODES = new Set(Object.keys(GENERATION_INPUT_MODE_LABELS));
+const CATALOG_INPUT_SLOTS = new Set([
+  'reference',
+  'firstFrame',
+  'lastFrame',
+  'inputVideo',
+  'referenceAudio',
+]);
+const GENERATION_ENDPOINT_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+const ENDPOINT_SCOPES = new Set(['root', 'v1']);
+const TASK_ENDPOINT_METHODS = new Set(['GET', 'POST']);
+
+/**
+ * 校验声明式协议能否被当前运行时完整执行。这里仅检查持久化和执行所需的
+ * 客观契约，不判断模型质量、制作范围或应当采用哪一种输入语义。
+ */
+export function catalogModelValidationErrors(
+  model: unknown,
+  { requireProvider = false }: { requireProvider?: boolean } = {},
+): string[] {
+  if (!model || typeof model !== 'object' || Array.isArray(model)) return ['模型协议必须是 JSON 对象'];
+  const value = model as Partial<CatalogModel>;
+  const modelId = String(value.id || '').trim() || '未知模型';
+  const errors: string[] = [];
+  if (typeof value.id !== 'string' || !value.id.trim()) errors.push('模型缺少字符串 id');
+  if (typeof value.name !== 'string' || !value.name.trim()) errors.push(`模型 ${modelId} 缺少字符串 name`);
+  if (requireProvider && (typeof value.provider !== 'string' || !value.provider.trim())) errors.push(`模型 ${modelId} 缺少字符串 provider`);
+  if (!CATALOG_MODEL_TYPES.has(String(value.type || ''))) errors.push(`模型 ${modelId} 的 type 不受支持`);
+  if (!Array.isArray(value.modes) || !value.modes.length) {
+    errors.push(`模型 ${modelId} 缺少 modes`);
+    return errors;
+  }
+
+  const modeIds = new Set<string>();
+  for (const mode of value.modes) {
+    const modeId = typeof mode?.id === 'string' ? mode.id.trim() : '';
+    const location = `${modelId}/${modeId || '未知 mode'}`;
+    if (!modeId) errors.push(`${location} 缺少 id`);
+    else if (modeIds.has(modeId)) errors.push(`${modelId} 存在重复 mode ID：${modeId}`);
+    else modeIds.add(modeId);
+
+    const method = typeof mode?.endpoint?.method === 'string' ? mode.endpoint.method.toUpperCase() : '';
+    const path = typeof mode?.endpoint?.path === 'string' ? mode.endpoint.path : '';
+    const scope = mode?.endpoint?.scope;
+    if (!GENERATION_ENDPOINT_METHODS.has(method)) {
+      errors.push(`${location} 的生成 endpoint method 必须是 POST、PUT、PATCH 或 DELETE`);
+    }
+    if (!path.startsWith('/') || path.startsWith('//')) errors.push(`${location} 的 endpoint path 必须是单斜杠开头的相对路径`);
+    if (!ENDPOINT_SCOPES.has(String(scope || ''))) errors.push(`${location} 的 endpoint scope 必须是 root 或 v1`);
+    if (mode?.requestTemplate === undefined || !mode.requestTemplate || typeof mode.requestTemplate !== 'object' || Array.isArray(mode.requestTemplate)) {
+      errors.push(`${location} 缺少对象类型的 requestTemplate`);
+    }
+    if (mode?.inputMode && !CATALOG_INPUT_MODES.has(mode.inputMode)) errors.push(`${location} 的 inputMode 无效`);
+    if (mode?.inputSlots !== undefined && !Array.isArray(mode.inputSlots)) {
+      errors.push(`${location} 的 inputSlots 必须是数组`);
+    } else {
+      for (const slot of mode?.inputSlots || []) {
+        if (!CATALOG_INPUT_SLOTS.has(slot)) errors.push(`${location} 包含无效 inputSlot：${slot}`);
+      }
+    }
+
+    const variantModes = new Set<string>();
+    if (mode?.inputVariants !== undefined && !Array.isArray(mode.inputVariants)) {
+      errors.push(`${location} 的 inputVariants 必须是数组`);
+    }
+    for (const variant of Array.isArray(mode?.inputVariants) ? mode.inputVariants : []) {
+      const inputMode = String(variant?.inputMode || '');
+      if (!CATALOG_INPUT_MODES.has(inputMode)) errors.push(`${location} 包含无效 inputVariant：${inputMode || '未命名'}`);
+      else if (variantModes.has(inputMode)) errors.push(`${location} 包含重复 inputVariant：${inputMode}`);
+      else variantModes.add(inputMode);
+      if (!Array.isArray(variant?.inputSlots) || !variant.inputSlots.length) {
+        errors.push(`${location}/${inputMode || 'inputVariant'} 缺少 inputSlots`);
+      } else {
+        for (const slot of variant.inputSlots) {
+          if (!CATALOG_INPUT_SLOTS.has(slot)) errors.push(`${location}/${inputMode} 包含无效 inputSlot：${slot}`);
+        }
+      }
+      if (!variant?.inputConstraints || typeof variant.inputConstraints !== 'object' || Array.isArray(variant.inputConstraints)) {
+        errors.push(`${location}/${inputMode || 'inputVariant'} 缺少 inputConstraints`);
+      }
+    }
+
+    if (mode?.isAsync === true) {
+      const taskPath = String(mode.taskEndpoint?.path || '');
+      const taskMethod = String(mode.taskEndpoint?.method || '').toUpperCase();
+      const taskScope = String(mode.taskEndpoint?.scope || '');
+      if (!taskPath.startsWith('/') || taskPath.startsWith('//') || !taskPath.includes('{taskId}')) {
+        errors.push(`${location} 的异步 taskEndpoint 必须包含相对路径和 {taskId}`);
+      }
+      if (!TASK_ENDPOINT_METHODS.has(taskMethod)) errors.push(`${location} 的 taskEndpoint method 必须是 GET 或 POST`);
+      if (!ENDPOINT_SCOPES.has(taskScope)) errors.push(`${location} 的 taskEndpoint scope 必须是 root 或 v1`);
+      if (!String(mode.taskIdPath || '').trim()) errors.push(`${location} 缺少 taskIdPath`);
+      if (!String(mode.statusPath || '').trim()) errors.push(`${location} 缺少 statusPath`);
+    }
+    if (!mode?.resultTextPath && !mode?.resultUrlPath && !mode?.resultBase64Path && !mode?.resultHexPath && !mode?.resultBody && !mode?.resultEndpoint) {
+      errors.push(`${location} 缺少结果来源`);
+    }
+  }
+  if (typeof value.defaultMode !== 'string' || !value.defaultMode.trim() || !modeIds.has(value.defaultMode)) {
+    errors.push(`${modelId} 的 defaultMode 未指向现有 mode`);
+  }
+  return errors;
+}
+
 export interface ModelRuntimeContract {
   catalogVersion: number;
   nodeType: string;
@@ -249,30 +402,10 @@ class ModelCatalog {
     this.builtInModels = (raw.models || []).filter((m) => m.enabled !== false);
     this.models = [...this.builtInModels];
 
-    // Validate
+    // 内置目录与外部目录消费同一份客观执行契约。
     for (const model of this.models) {
-      if (!model.id || !model.type || !Array.isArray(model.modes) || !model.modes.length) {
-        throw new Error(`Invalid v2 model entry: ${model.id || '<missing id>'}`);
-      }
-      if (!model.modes.some((mode) => mode.id === model.defaultMode)) {
-        throw new Error(`${model.id}: defaultMode ${model.defaultMode} does not exist`);
-      }
-      for (const mode of model.modes) {
-        if (!mode.id || !mode.endpoint?.path || !mode.endpoint?.method || mode.requestTemplate === undefined) {
-          throw new Error(`${model.id}/${mode.id || '<missing mode>'}: declarative endpoint and requestTemplate are required`);
-        }
-        if (mode.isAsync === true && !mode.taskEndpoint?.path) {
-          throw new Error(`${model.id}/${mode.id}: async mode requires taskEndpoint`);
-        }
-        if (mode.inputMode && !Object.hasOwn(GENERATION_INPUT_MODE_LABELS, mode.inputMode)) {
-          throw new Error(`${model.id}/${mode.id}: unknown inputMode ${mode.inputMode}`);
-        }
-        for (const variant of mode.inputVariants || []) {
-          if (!Object.hasOwn(GENERATION_INPUT_MODE_LABELS, variant.inputMode) || !variant.inputSlots?.length) {
-            throw new Error(`${model.id}/${mode.id}: invalid input variant ${variant.inputMode || '<missing>'}`);
-          }
-        }
-      }
+      const errors = catalogModelValidationErrors(model, { requireProvider: true });
+      if (errors.length) throw new Error(errors.join('\n'));
     }
 
     this.modelMap = new Map(this.models.map((m) => [m.id, m]));
@@ -284,23 +417,23 @@ class ModelCatalog {
     const overrides = new Map<string, CatalogModel>();
     const external: CatalogModel[] = [];
     const occupied = new Set<string>();
-    for (const model of models) {
-      if (!model?.id || occupied.has(model.id)) continue;
-      if (!model.type || !model.provider || !model.modes?.length) continue;
-      const validModes = model.modes.filter((mode) => (
-        Boolean(mode?.id && mode.endpoint?.path && mode.endpoint?.method && mode.requestTemplate !== undefined)
-        && (mode.isAsync !== true || Boolean(mode.taskEndpoint?.path))
-        && (!mode.inputMode || Object.hasOwn(GENERATION_INPUT_MODE_LABELS, mode.inputMode))
-      ));
-      if (!validModes.length) continue;
+    for (const sourceModel of models) {
+      const { model, warnings } = normalizeCatalogModel(sourceModel);
+      if (warnings.length) console.warn(`已规范化外部模型协议：\n${warnings.join('\n')}`);
+      const errors = catalogModelValidationErrors(model, { requireProvider: true });
+      if (errors.length) {
+        console.warn(`已忽略无效的外部模型协议：\n${errors.join('\n')}`);
+        continue;
+      }
+      if (occupied.has(model.id)) {
+        console.warn(`已忽略重复的外部模型 ID：${model.id}`);
+        continue;
+      }
       occupied.add(model.id);
       const normalized = {
         ...model,
         enabled: true,
-        defaultMode: validModes.some((mode) => mode.id === model.defaultMode)
-          ? model.defaultMode
-          : validModes[0].id,
-        modes: validModes,
+        modes: model.modes,
       };
       const builtIn = builtInById.get(model.id);
       if (builtIn) {
@@ -519,6 +652,8 @@ class ModelCatalog {
       inputImageRoles: [...(input.images?.roles || [])],
       imageRole: (input.images?.roles || []).join(',') || 'none',
       supportsReferenceImages: (input.images?.roles || []).some((r: string) => r === 'referenceImage'),
+      referenceImageFormat: mode.referenceImageFormat || defaultCap.referenceImageFormat,
+      imageValueFormat: mode.imageValueFormat || defaultCap.imageValueFormat,
       supportsInputVideo: (input.videos?.max || 0) > 0,
       minInputVideos: input.videos?.min || 0,
       maxInputVideos: input.videos?.max || 0,
@@ -605,7 +740,7 @@ class ModelCatalog {
     return types.map((type) => {
       const typeModels = this.models
         .filter((m) => m.type === type)
-        .filter((m) => type !== 'textGeneration' || m.modes.some((mode) => mode.outputConstraints.supportsToolCalls === true))
+        .filter((m) => type !== 'textGeneration' || m.modes.some((mode) => mode.outputConstraints?.supportsToolCalls === true))
         .sort((a, b) => (a.sortOrder || 99) - (b.sortOrder || 99));
       return {
         type,

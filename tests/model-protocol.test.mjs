@@ -141,6 +141,19 @@ test('声明式多模态内容映射视频和参考音频的厂商角色', () =>
   ]);
 });
 
+test('视频和音频内容模板可以读取稳定输入槽位', () => {
+  assert.deepEqual(renderProtocolContentTemplate({
+    video: { type: 'video', slot: '{{slot}}' },
+    audio: { type: 'audio', slot: '{{slot}}' },
+  }, {
+    videos: [{ url: 'https://example.com/input.mp4', slot: 'inputVideo' }],
+    audios: [{ url: 'https://example.com/reference.wav', slot: 'referenceAudio' }],
+  }), [
+    { type: 'video', slot: 'inputVideo' },
+    { type: 'audio', slot: 'referenceAudio' },
+  ]);
+});
+
 test('MiniMax H3 首帧图编译为 V2 content 数组', () => {
   assert.deepEqual(renderProtocolContentTemplate(openaiContentTemplate, {
     text: '镜头缓慢推近',

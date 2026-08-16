@@ -28,6 +28,7 @@ import together from '@lobehub/icons-static-svg/icons/together-color.svg';
 import volcengine from '@lobehub/icons-static-svg/icons/volcengine-color.svg';
 import xai from '@lobehub/icons-static-svg/icons/xai.svg';
 import zhipu from '@lobehub/icons-static-svg/icons/zhipu-color.svg';
+import custom from '../../assets/provider-icons/custom.svg';
 
 /**
  * 可供 API 厂商复用的品牌图标目录。图标来自 @lobehub/icons-static-svg，
@@ -64,6 +65,7 @@ export const PROVIDER_ICON_OPTIONS = Object.freeze([
   { id: 'adobefirefly', label: 'Adobe Firefly', src: adobeFirefly },
   { id: 'ollama', label: 'Ollama', src: ollama },
   { id: 'happyhorse', label: 'HappyHorse', src: happyhorse },
+  { id: 'custom', label: '自定义', src: custom },
 ]);
 
 const ICONS_BY_ID = new Map(PROVIDER_ICON_OPTIONS.map((icon) => [icon.id, icon]));
@@ -78,12 +80,12 @@ const MODEL_ICON_RULES = [
 ];
 
 export function getProviderIcon(iconId) {
-  return ICONS_BY_ID.get(iconId) || ICONS_BY_ID.get('openai');
+  return ICONS_BY_ID.get(iconId) || ICONS_BY_ID.get('custom');
 }
 
 export function resolveProviderIconId(providerId = '', modelId = '', configuredIconId = '') {
   if (ICONS_BY_ID.has(configuredIconId)) return configuredIconId;
   if (ICONS_BY_ID.has(providerId)) return providerId;
   const value = String(modelId).toLowerCase();
-  return MODEL_ICON_RULES.find(([keyword]) => value.includes(keyword))?.[1] || 'openai';
+  return MODEL_ICON_RULES.find(([keyword]) => value.includes(keyword))?.[1] || 'custom';
 }

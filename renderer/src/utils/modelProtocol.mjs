@@ -75,8 +75,8 @@ export function protocolMessageVariables(messages = []) {
  * @param {{
  *   text?: unknown,
  *   images?: Array<{url: string, role?: string, slot?: string}>,
- *   videos?: Array<{url: string, role?: string}>,
- *   audios?: Array<{url: string, role?: string}>
+ *   videos?: Array<{url: string, role?: string, slot?: string}>,
+ *   audios?: Array<{url: string, role?: string, slot?: string}>
  * }} options
  */
 export function renderProtocolContentTemplate(
@@ -100,14 +100,14 @@ export function renderProtocolContentTemplate(
   for (const [index, ref] of videos.entries()) {
     if (!ref?.url) continue;
     const rendered = renderProtocolTemplate(contentTemplate.video, {
-      url: ref.url, role: ref.role || undefined, index: index + 1,
+      url: ref.url, role: ref.role || undefined, slot: ref.slot || undefined, index: index + 1,
     });
     if (rendered !== undefined) items.push(rendered);
   }
   for (const [index, ref] of audios.entries()) {
     if (!ref?.url) continue;
     const rendered = renderProtocolTemplate(contentTemplate.audio, {
-      url: ref.url, role: ref.role || undefined, index: index + 1,
+      url: ref.url, role: ref.role || undefined, slot: ref.slot || undefined, index: index + 1,
     });
     if (rendered !== undefined) items.push(rendered);
   }

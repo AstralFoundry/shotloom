@@ -78,8 +78,10 @@ class DeclarativeProviderTransport implements ProviderTransport {
       fallbackMimeType: 'image/png',
     });
     const imageUrls = [...new Set(imageEntries.map((entry) => entry.value))];
-    const videoUrls = await collectProtocolResourceValues(request.protocolVideoRefs || [], { fallbackMimeType: 'video/mp4' });
-    const audioUrls = await collectProtocolResourceValues(request.protocolAudioRefs || [], { fallbackMimeType: 'audio/wav' });
+    const videoEntries = await collectProtocolResourceEntries(request.protocolVideoRefs || [], { fallbackMimeType: 'video/mp4' });
+    const audioEntries = await collectProtocolResourceEntries(request.protocolAudioRefs || [], { fallbackMimeType: 'audio/wav' });
+    const videoUrls = [...new Set(videoEntries.map((entry) => entry.value))];
+    const audioUrls = [...new Set(audioEntries.map((entry) => entry.value))];
     const inlineImage = imageContentFormat === 'google-inline'
       ? protocolInlineImage(imageUrls[0])
       : undefined;
@@ -99,8 +101,16 @@ class DeclarativeProviderTransport implements ProviderTransport {
         role: imageRoleForSlot(ref.inputSlot),
         slot: ref.inputSlot || '',
       })),
-      videos: videoUrls.map((url) => ({ url, role: request.contract?.requestFields?.videoContentRole })),
-      audios: audioUrls.map((url) => ({ url, role: request.contract?.requestFields?.audioContentRole })),
+      videos: videoEntries.map(({ ref, value }) => ({
+        url: value,
+        role: request.contract?.requestFields?.videoContentRole,
+        slot: ref.inputSlot || '',
+      })),
+      audios: audioEntries.map(({ ref, value }) => ({
+        url: value,
+        role: request.contract?.requestFields?.audioContentRole,
+        slot: ref.inputSlot || '',
+      })),
     });
     const messageVariables = protocolMessageVariables(
       Array.isArray(request.protocolVariables?.messages) ? request.protocolVariables.messages : [],
@@ -131,8 +141,7 @@ class DeclarativeProviderTransport implements ProviderTransport {
       __responseEncoding: request.responseEncoding,
       __baseUrl: request.baseUrl, __apiKey: request.apiKey,
     };
-    // Route by endpoint path pattern
-    if (request.endpointPath.includes('/images/')) {
+    if (request.taskType === 'imageGeneration' || request.multipart) {
       const data = await desktopApi.model.imageGeneration({
         ...controls,
         __multipart: request.multipart || false,
@@ -144,7 +153,7 @@ class DeclarativeProviderTransport implements ProviderTransport {
       });
       return this.submittedTask(data, request);
     }
-    if (request.taskType === 'videoGeneration' || request.endpointPath.includes('/contents/generations/')) {
+    if (request.taskType === 'videoGeneration') {
       const data = await desktopApi.model.videoGeneration({
         ...controls,
         ...((body as Record<string, unknown>) || {}),
@@ -159,7 +168,7 @@ class DeclarativeProviderTransport implements ProviderTransport {
     return this.submittedTask(data, request);
   }
 
-  async poll(task: ProviderTask, contract: ModelRuntimeContract): Promise<ProviderTaskState> {
+  async poll(task: ProviderTask, contract: ModelRuntimeContract, signal?: AbortSignal): Promise<ProviderTaskState> {
     const encodedTaskId = task.remoteTaskId.split('/').map(encodeURIComponent).join('/');
     const ep = (contract.taskEndpoint?.path || '').replace('{taskId}', encodedTaskId);
     const data = await desktopApi.model.videoTask({
@@ -169,7 +178,7 @@ class DeclarativeProviderTransport implements ProviderTransport {
       providerId: contract.provider || this.provider,
       headers: contract.headers,
       auth: contract.auth,
-      signal: undefined, timeoutMs: 60000,
+      signal, timeoutMs: 60000,
     });
     const rawStatus = pickScalar(firstProtocolValue(data, contract.statusPath || ''));
     if (!rawStatus) throw new Error(`${contract.modelId}/${contract.modeId} 的轮询响应缺少状态路径 ${contract.statusPath}`);

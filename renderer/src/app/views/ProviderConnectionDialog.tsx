@@ -1,7 +1,9 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import {
+  catalogModelValidationErrors,
   type CatalogModel,
   getBuiltInCatalogModels,
+  normalizeCatalogModel,
 } from "../../domain/catalog/ModelCatalog";
 import {
   getProviderDefinitions,
@@ -16,6 +18,7 @@ import {
   testProviderRequest,
   type ProviderTestResult,
 } from "../../services/providerTestService";
+import protocolAuthoringPrompt from "../../config/protocol-authoring-prompt.md?raw";
 import { modelTypeLabel } from "../../utils/modelPresentation.js";
 import {
   getProviderIcon,
@@ -81,7 +84,7 @@ function ProviderIconSelect({
           }
         }}
       >
-        <ProviderBrandIcon icon={selectedIcon?.id || "openai"} />
+        <ProviderBrandIcon icon={selectedIcon?.id || "custom"} />
         <span>{selectedIcon?.label || "OpenAI"}</span>
         <IconSymbol name="chevron-down" />
       </button>
@@ -146,7 +149,9 @@ function starterProtocolModel(type: NewModelDraft["type"]): CatalogModel {
     ? { id: "text-generation", label: "文本生成", resultKey: "resultTextPath" }
     : type === "imageGeneration"
     ? { id: "text-to-image", label: "文生图", resultKey: "resultUrlPath" }
-    : { id: "video-generation", label: "视频生成", resultKey: "resultUrlPath" };
+    : type === "videoGeneration"
+    ? { id: "video-generation", label: "视频生成", resultKey: "resultUrlPath" }
+    : { id: "audio-generation", label: "音频生成", resultKey: "resultUrlPath" };
   const base = {
     id: "",
     name: "",
@@ -188,6 +193,7 @@ function presetProtocolModel(preset: ProtocolPreset): CatalogModel {
 function testPromptForType(type: string): string {
   if (type === "imageGeneration") return "一只坐在窗边的猫，卡通风格";
   if (type === "videoGeneration") return "一只猫从窗边走过";
+  if (type === "audioGeneration") return "轻快、温暖的纯音乐";
   return "你好，请回复「测试成功」。";
 }
 
@@ -211,7 +217,7 @@ export interface ProviderConnectionResult {
 type NewModelDraft = {
   id: string;
   name: string;
-  type: "textGeneration" | "imageGeneration" | "videoGeneration";
+  type: "textGeneration" | "imageGeneration" | "videoGeneration" | "audioGeneration";
   presetId: string;
 };
 
@@ -234,7 +240,9 @@ export function ProviderConnectionDialog({
 }) {
   const definitions = getProviderDefinitions();
   const editingDefinition = definitions.find((item) => item.id === editingId);
-  const editingCustom = Boolean(editingId && !editingDefinition);
+  const editingCustom = Boolean(
+    editingId && (initialConfig?.custom === true || !editingDefinition),
+  );
   const [selectedId, setSelectedId] = useState(
     editingCustom ? CUSTOM_PROVIDER_ID : editingId,
   );
@@ -248,7 +256,7 @@ export function ProviderConnectionDialog({
     initialConfig?.baseUrl || editingDefinition?.defaultBaseUrl || "",
   );
   const [iconId, setIconId] = useState(
-    initialConfig?.iconId || editingDefinition?.iconId || "openai",
+    initialConfig?.iconId || editingDefinition?.iconId || "custom",
   );
   const [disabledIds, setDisabledIds] = useState<Set<string>>(() =>
     new Set(initialConfig?.disabledModelIds || [])
@@ -269,6 +277,10 @@ export function ProviderConnectionDialog({
   const [testRunning, setTestRunning] = useState(false);
   const [testResult, setTestResult] = useState<ProviderTestResult | null>(null);
   const [testError, setTestError] = useState("");
+  const [showProtocolHelp, setShowProtocolHelp] = useState(false);
+  const [promptCopied, setPromptCopied] = useState(false);
+  const [aiPasteJson, setAiPasteJson] = useState("");
+  const [aiPasteError, setAiPasteError] = useState("");
   const providerId = selectedId === CUSTOM_PROVIDER_ID
     ? customId.trim().toLowerCase()
     : selectedId;
@@ -303,7 +315,9 @@ export function ProviderConnectionDialog({
     if (id === CUSTOM_PROVIDER_ID && !editingId) {
       setDisplayName("");
       setBaseUrl("");
-      setIconId("openai");
+      setIconId("custom");
+      setApiKey("");
+      setDisabledIds(new Set());
       setModels([]);
       setSelectedModelId("");
       setModelJson("");
@@ -321,12 +335,11 @@ export function ProviderConnectionDialog({
     if (!parsed || Array.isArray(parsed) || typeof parsed !== "object") {
       throw new Error("单个模型协议必须是 JSON 对象，不能是数组");
     }
-    if (
-      !parsed.id || !parsed.name || !parsed.type ||
-      !Array.isArray(parsed.modes) || !parsed.modes.length
-    ) {
-      throw new Error("当前模型缺少 id、name、type 或 modes");
-    }
+    const { model: committed } = normalizeCatalogModel({ ...parsed, provider: providerId });
+    const validationErrors = catalogModelValidationErrors(committed, {
+      requireProvider: Boolean(providerId),
+    });
+    if (validationErrors.length) throw new Error(validationErrors.join("；"));
     if (
       models.some((model) =>
         model.id === parsed.id && model.id !== selectedModelId
@@ -335,7 +348,7 @@ export function ProviderConnectionDialog({
       throw new Error(`模型 ID “${parsed.id}” 已存在`);
     }
     const next = models.map((model) =>
-      model.id === selectedModelId ? { ...parsed, provider: providerId } : model
+      model.id === selectedModelId ? committed : model
     );
     setModels(next);
     setSelectedModelId(parsed.id);
@@ -428,6 +441,12 @@ export function ProviderConnectionDialog({
         "厂商 ID 需为 2–64 位小写字母、数字、冒号、短横线或下划线",
       );
     }
+    if (
+      selectedId === CUSTOM_PROVIDER_ID &&
+      definitions.some((definition) => definition.id === providerId)
+    ) {
+      return setError(`厂商 ID “${providerId}” 已被内置厂商保留`);
+    }
     if (!editingId && connectedIds.includes(providerId)) {
       return setError(`厂商 ID “${providerId}” 已存在`);
     }
@@ -456,7 +475,9 @@ export function ProviderConnectionDialog({
       const providerBuiltIns = new Map(
         builtInProviderModels(providerId).map((model) => [model.id, model]),
       );
-      modelsToSave = parsed.map((model) => ({ ...model, provider: providerId }))
+      modelsToSave = parsed.map((model) => (
+        normalizeCatalogModel({ ...model, provider: providerId }).model
+      ))
         .filter((model) => {
           const builtIn = providerBuiltIns.get(model.id);
           return !builtIn || !sameModelDefinition(model, builtIn);
@@ -465,14 +486,8 @@ export function ProviderConnectionDialog({
           ? { ...model, overridesBuiltIn: true }
           : model);
       for (const model of modelsToSave) {
-        if (
-          !model?.id || !model?.name || !model?.type ||
-          !Array.isArray(model?.modes) || !model.modes.length
-        ) {
-          throw new Error(
-            `模型 ${model?.id || "未知"} 缺少 id、name、type 或 modes`,
-          );
-        }
+        const validationErrors = catalogModelValidationErrors(model, { requireProvider: true });
+        if (validationErrors.length) throw new Error(validationErrors.join("；"));
       }
     } catch (cause) {
       return setError(
@@ -506,7 +521,9 @@ export function ProviderConnectionDialog({
     if (!parsed || !parsed.id || !Array.isArray(parsed.modes) || !parsed.modes.length) {
       return setTestError("当前模型缺少 id、type 或 modes");
     }
-    const model: CatalogModel = { ...parsed, provider: providerId };
+    const { model } = normalizeCatalogModel({ ...parsed, provider: providerId });
+    const validationErrors = catalogModelValidationErrors(model, { requireProvider: true });
+    if (validationErrors.length) return setTestError(validationErrors.join("；"));
     setTestRunning(true);
     setTestResult(null);
     setTestError("");
@@ -523,6 +540,54 @@ export function ProviderConnectionDialog({
     } finally {
       setTestRunning(false);
     }
+  }
+
+  async function copyPrompt() {
+    try {
+      await navigator.clipboard.writeText(protocolAuthoringPrompt);
+      setPromptCopied(true);
+      window.setTimeout(() => setPromptCopied(false), 2000);
+    } catch {
+      setError("复制失败，请手动选中文本复制");
+    }
+  }
+
+  function importAiJson() {
+    if (!aiPasteJson.trim()) return setAiPasteError("请先粘贴 AI 返回的 JSON");
+    let parsed: CatalogModel;
+    try {
+      parsed = JSON.parse(aiPasteJson) as CatalogModel;
+    } catch {
+      return setAiPasteError("粘贴的内容不是有效的 JSON");
+    }
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return setAiPasteError("顶层必须是单个模型 JSON 对象");
+    }
+    const id = String(parsed.id || "").trim();
+    if (models.some((model) => model?.id === id)) {
+      return setAiPasteError(`模型 ID "${id}" 已存在`);
+    }
+    const imported: CatalogModel = {
+      ...clone(parsed),
+      id,
+      name: String(parsed.name || "").trim() || id,
+      provider: providerId,
+      sortOrder: Math.max(900, ...models.map((model) => Number(model?.sortOrder) || 0)) + 1,
+      enabled: true,
+      defaultMode: Array.isArray(parsed.modes) && parsed.modes.some((mode) => mode.id === parsed.defaultMode)
+        ? parsed.defaultMode
+        : parsed.modes?.[0]?.id || "",
+    };
+    const { model: added } = normalizeCatalogModel(imported);
+    const validationErrors = catalogModelValidationErrors(added, { requireProvider: true });
+    if (validationErrors.length) return setAiPasteError(validationErrors.join("；"));
+    delete added.overridesBuiltIn;
+    setModels((current) => [...current, added]);
+    setSelectedModelId(added.id);
+    setModelJson(JSON.stringify(added, null, 2));
+    setAiPasteJson("");
+    setAiPasteError("");
+    setError("");
   }
 
   return (
@@ -617,6 +682,72 @@ export function ProviderConnectionDialog({
               onChange={(event) => setBaseUrl(event.target.value)}
             />
           </label>
+          <section className="provider-model-section">
+            <div className="provider-model-heading">
+              <div>
+                <strong>用 AI 生成协议</strong>
+                <span className="provider-model-count">
+                  不写 JSON：复制提示词 → 贴给任意 AI（附上你的 API 文档/样例）→ 粘回结果
+                </span>
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button
+                  className="provider-inline-action"
+                  type="button"
+                  onClick={() => void copyPrompt()}
+                >
+                  {promptCopied ? "已复制 ✓" : "复制提示词"}
+                </button>
+                <button
+                  className="provider-inline-action"
+                  type="button"
+                  onClick={() => setShowProtocolHelp((value) => !value)}
+                >
+                  {showProtocolHelp ? "收起字段说明" : "字段说明"}
+                </button>
+              </div>
+            </div>
+            {showProtocolHelp && (
+              <pre
+                style={{
+                  whiteSpace: "pre-wrap", wordBreak: "break-word", maxHeight: 320,
+                  overflow: "auto", padding: 12, borderRadius: 6, fontSize: 12,
+                  lineHeight: 1.5, background: "rgba(0,0,0,0.04)",
+                }}
+              >
+                {protocolAuthoringPrompt}
+              </pre>
+            )}
+            <label className="recipe-field recipe-prompt-field">
+              <span>粘贴 AI 返回的 JSON</span>
+              <textarea
+                value={aiPasteJson}
+                rows={6}
+                spellCheck={false}
+                placeholder="把 AI 返回的模型 JSON 粘贴到这里…"
+                onChange={(event) => {
+                  setAiPasteJson(event.target.value);
+                  setAiPasteError("");
+                }}
+              />
+            </label>
+            <div className="provider-model-create-actions">
+              <span>AI 返回的是单个模型 JSON 对象，导入后成为当前厂商的一个模型。</span>
+              <div>
+                <button
+                  className="button primary"
+                  type="button"
+                  disabled={submitting}
+                  onClick={importAiJson}
+                >
+                  导入为模型
+                </button>
+              </div>
+            </div>
+            {aiPasteError && (
+              <p className="recipe-dialog-error">{aiPasteError}</p>
+            )}
+          </section>
           <section className="provider-model-section">
             <div className="provider-model-heading">
               <div>
@@ -734,6 +865,7 @@ export function ProviderConnectionDialog({
                     <option value="textGeneration">文本生成</option>
                     <option value="imageGeneration">图片生成</option>
                     <option value="videoGeneration">视频生成</option>
+                    <option value="audioGeneration">音频生成</option>
                   </select>
                 </label>
                 <label className="recipe-field">

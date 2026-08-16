@@ -96,7 +96,7 @@ export async function pollRemoteGenerationTask({ remoteTaskId, modelContract, si
     });
     return normalizeRemoteTask(data, { remoteTaskId, status: 'running' });
   }
-  return transport.poll({ remoteTaskId, status: 'running', progress: 0 }, modelContract);
+  return transport.poll({ remoteTaskId, status: 'running', progress: 0 }, modelContract, signal);
 }
 
 export async function cancelRemoteGenerationTask({ remoteTaskId }) {

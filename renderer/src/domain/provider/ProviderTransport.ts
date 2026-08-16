@@ -124,6 +124,6 @@ export interface ProviderTransport {
   readonly provider: string;
   compileRequest(context: CompileContext): CompiledProviderRequest;
   submit(request: CompiledProviderRequest): Promise<ProviderTask>;
-  poll?(task: ProviderTask, contract: ModelRuntimeContract): Promise<ProviderTaskState>;
+  poll?(task: ProviderTask, contract: ModelRuntimeContract, signal?: AbortSignal): Promise<ProviderTaskState>;
   cancel?(task: ProviderTask): Promise<void>;
 }
