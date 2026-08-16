@@ -182,3 +182,10 @@ test('自定义模型保存和试跑复用运行时协议校验', () => {
   assert.match(providerDialog, /catalogModelValidationErrors\(added, \{ requireProvider: true \}\)/);
   assert.match(providerDialog, /<option value="audioGeneration">音频生成<\/option>/);
 });
+
+test('自定义文本模型明确展示并可编辑 Agent 工具调用能力', () => {
+  assert.match(providerDialog, /supportsAgentTools/);
+  assert.match(providerDialog, /可用于 Agent/);
+  assert.match(providerDialog, /不会出现在 Agent 模型列表/);
+  assert.match(settingsStyles, /\.provider-model-agent-status\.unavailable/);
+});

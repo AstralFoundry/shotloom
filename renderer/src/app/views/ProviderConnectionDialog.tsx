@@ -209,6 +209,11 @@ function testStatusLabel(status: string): string {
   } as Record<string, string>)[status] || status;
 }
 
+function supportsAgentTools(model: CatalogModel): boolean {
+  return model.type === "textGeneration" &&
+    model.modes.some((mode) => mode.outputConstraints?.supportsToolCalls === true);
+}
+
 export interface ProviderConnectionResult {
   providerId: string;
   config: ProviderConfig;
@@ -295,6 +300,14 @@ export function ProviderConnectionDialog({
   const availableDefinitions = definitions.filter((item) =>
     item.id === editingId || !connectedIds.includes(item.id)
   );
+  const editedTextModel = useMemo(() => {
+    try {
+      const parsed = JSON.parse(modelJson || "{}") as CatalogModel;
+      return parsed?.type === "textGeneration" ? parsed : null;
+    } catch {
+      return null;
+    }
+  }, [modelJson]);
 
   function selectProvider(id: string) {
     setSelectedId(id);
@@ -429,6 +442,20 @@ export function ProviderConnectionDialog({
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
+  }
+
+  function setAgentToolSupport(enabled: boolean) {
+    if (!editedTextModel || !Array.isArray(editedTextModel.modes)) return;
+    const next = clone(editedTextModel);
+    next.modes = next.modes.map((mode) => ({
+      ...mode,
+      outputConstraints: {
+        ...(mode.outputConstraints || {}),
+        supportsToolCalls: enabled,
+      },
+    }));
+    setModelJson(JSON.stringify(next, null, 2));
+    setError("");
   }
 
   async function submit() {
@@ -773,6 +800,7 @@ export function ProviderConnectionDialog({
                     ? null
                     : globalBuiltInModels.get(model.id);
                   const disabled = builtIn && disabledIds.has(model.id);
+                  const agentReady = supportsAgentTools(model);
                   let originLabel = "自定义";
                   if (builtIn) originLabel = "内置";
                   else if (replacedBuiltIn) {
@@ -800,6 +828,16 @@ export function ProviderConnectionDialog({
                           }`}>
                             {originLabel}
                           </span>
+                          {model.type === "textGeneration" && (
+                            <>
+                              <span aria-hidden="true">·</span>
+                              <span className={`provider-model-agent-status${
+                                agentReady ? " ready" : " unavailable"
+                              }`}>
+                                {agentReady ? "Agent 可用" : "未启用 Agent"}
+                              </span>
+                            </>
+                          )}
                         </span>
                       </button>
                       <div className="provider-model-item-actions">
@@ -930,6 +968,21 @@ export function ProviderConnectionDialog({
               <small>
                 每次仅编辑一个 CatalogModel 对象。可配置 endpoint、异步任务查询、参数、认证、请求模板和结果路径。
               </small>
+            </label>
+          )}
+          {selectedModelId && !newModel && editedTextModel && (
+            <label className="provider-agent-capability">
+              <input
+                type="checkbox"
+                checked={supportsAgentTools(editedTextModel)}
+                onChange={(event) => setAgentToolSupport(event.target.checked)}
+              />
+              <span>
+                <strong>可用于 Agent</strong>
+                <small>
+                  仅在该模型的 OpenAI-compatible 接口支持 tools/function calling 时启用；未启用的文本模型仍可保存，但不会出现在 Agent 模型列表。
+                </small>
+              </span>
             </label>
           )}
           {selectedModelId && !newModel && (

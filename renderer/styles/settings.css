@@ -287,6 +287,8 @@
 .provider-model-item code { overflow: hidden; color: #686868; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .provider-model-origin { color: #aaa !important; }
 .provider-model-origin.override { color: #a66a20 !important; }
+.provider-model-agent-status.ready { color: #397350 !important; }
+.provider-model-agent-status.unavailable { color: #a66a20 !important; }
 .provider-model-item-actions {
   display: grid;
   grid-auto-flow: column;
@@ -299,6 +301,21 @@
 .provider-model-item-actions button { height: 27px; border: 1px solid #e3e3e3; border-radius: 6px; padding: 0 8px; color: #737373; background: #fff; font-size: 10px; cursor: pointer; }
 .provider-model-item-actions button:hover { border-color: #cacaca; color: #222; background: #f7f7f7; }
 .provider-model-item-actions button:disabled { color: #bbb; cursor: not-allowed; }
+.provider-agent-capability {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin-top: 8px;
+  padding: 10px 12px;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  background: #fafafa;
+  cursor: pointer;
+}
+.provider-agent-capability input { margin-top: 2px; }
+.provider-agent-capability > span { display: grid; gap: 3px; }
+.provider-agent-capability strong { color: #333; font-size: 11px; }
+.provider-agent-capability small { color: #858585; font-size: 10px; line-height: 1.5; }
 .provider-model-empty {
   margin-top: 10px;
   padding: 14px 2px;

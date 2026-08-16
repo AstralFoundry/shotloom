@@ -268,6 +268,20 @@
 }
 ```
 
+文本模型还有一个影响 Agent 可见性的能力字段：
+
+- `supportsToolCalls: true`：仅当厂商文档明确说明该模型及当前 OpenAI-compatible 接口支持 `tools` / function calling 时填写。Shotloom Agent 会由运行时 SDK 注入工具定义，不使用这里的 `requestTemplate` 发送 Agent 请求。
+- 未填写或设为 `false`：模型仍可用于普通文本生成，但不会出现在 Agent 模型列表。
+- 不得根据模型名称、上下文长度或 `requestTemplate` 的形状猜测工具调用能力。若用户要求“用于 Agent”但资料不能确认，请在生成 JSON 前向用户索取接口文档；不要虚构 `true`。
+
+文档确认文本模型支持工具调用时，写成：
+
+```json
+{
+  "supportsToolCalls": true
+}
+```
+
 没有可确认信息时写 `{}`。
 
 `params` 是设置面板 schema。每项可使用：
@@ -469,12 +483,13 @@
 1. 顶层是单个 JSON 对象，`defaultMode` 指向真实基础 mode。
 2. 每个 endpoint 都有合法 method、相对 path 和明确 scope。
 3. 每个 mode 都有对象类型 `requestTemplate`、`inputConstraints`、`outputConstraints` 和数组 `params`。
-4. `inputSlots` 中没有 `referenceImage` 或任何厂商字段名。
-5. 每个媒体约束都同时包含 `min` 和 `max`，roles 与媒体类型一致。
-6. 只有 contentTemplate 使用 `url`、`role`、`slot`、`index` 局部变量。
-7. 每个 mode 至少有一种结果来源。
-8. 异步 mode 有 taskEndpoint、taskIdPath、statusPath、pollStatusMap 和完成结果。
-9. requestTemplate 引用的每个 `params.xxx` 都在 params 中定义；没有定义 `prompt` 或 `model` 参数。
-10. JSON 中没有凭据、注释、尾逗号或本文未定义的字段。
+4. 要用于 Agent 的文本模型已由文档确认工具调用能力，并在 mode 的 `outputConstraints.supportsToolCalls` 中明确写为 `true`。
+5. `inputSlots` 中没有 `referenceImage` 或任何厂商字段名。
+6. 每个媒体约束都同时包含 `min` 和 `max`，roles 与媒体类型一致。
+7. 只有 contentTemplate 使用 `url`、`role`、`slot`、`index` 局部变量。
+8. 每个 mode 至少有一种结果来源。
+9. 异步 mode 有 taskEndpoint、taskIdPath、statusPath、pollStatusMap 和完成结果。
+10. requestTemplate 引用的每个 `params.xxx` 都在 params 中定义；没有定义 `prompt` 或 `model` 参数。
+11. JSON 中没有凭据、注释、尾逗号或本文未定义的字段。
 
 现在根据用户提供的 API 材料输出协议 JSON。只输出 JSON。
