@@ -4,7 +4,6 @@ import {
   deleteAssetFromLibrary,
   deleteMaterialFile,
   exportResourcePackage,
-  filteredAssets,
   importAssetFiles,
   importResourcePackage,
   migrateProjectMaterialsIntoAssets,
@@ -30,7 +29,7 @@ const materialMap = () =>
   );
 export function resourceLibraryData() {
   const materials = materialMap();
-  const visibleAssets = filteredAssets.value || [];
+  const visibleAssets = (store.project.assets || []) as MaterialItem[];
   const projectAssetByLocalId = new Map<string, MaterialItem>(
     (store.project.assets || [])
       .filter((asset: MaterialItem) => asset.localLibraryAssetId)
@@ -52,7 +51,10 @@ export function resourceLibraryData() {
       sourceType: asset.sourceType || material.sourceType || material.source || "asset-library",
       nodeType: asset.nodeType || material.nodeType || "",
       note: asset.note || material.note || "",
+      category: asset.category || "",
+      tags: Array.isArray(asset.tags) ? asset.tags : [],
       content: material.content || asset.note || "",
+      createdAt: asset.createdAt || material.importedAt || "",
       importedAt: asset.createdAt || material.importedAt,
       localLibraryAssetId: asset.localLibraryAssetId || "",
       scopeLabel: asset.localLibraryAssetId ? "已加入通用" : "项目",

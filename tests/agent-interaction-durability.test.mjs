@@ -3,7 +3,8 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const runStore = readFileSync(new URL('../renderer/src/agent/runtime/runStore.ts', import.meta.url), 'utf8');
-const projectStore = readFileSync(new URL('../renderer/src/store/projectStore.js', import.meta.url), 'utf8');
+const projectStore = readFileSync(new URL('../renderer/src/store/projectStore.js', import.meta.url), 'utf8')
+  + readFileSync(new URL('../renderer/src/store/projectNormalization.js', import.meta.url), 'utf8');
 const closeGuard = readFileSync(new URL('../renderer/src/composables/useWindowClose.js', import.meta.url), 'utf8');
 const lifecycle = readFileSync(new URL('../renderer/src/agent/tools/lifecycleTools.ts', import.meta.url), 'utf8');
 

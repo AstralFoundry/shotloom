@@ -22,7 +22,8 @@ test('内置模型使用统一模型定义结构', () => {
       assert.ok(mode.requestTemplate && typeof mode.requestTemplate === 'object');
       assert.ok(mode.auth?.type);
       if (model.type === 'textGeneration') {
-        if (mode.outputConstraints.supportsToolCalls) {
+        if (mode.agent?.supportsTools) {
+          assert.equal(mode.agent.transport, 'provider-default');
           assert.equal(mode.requestTemplate.messages, '{{messages}}');
           assert.equal(mode.requestTemplate.tools, '{{tools}}');
           assert.equal(mode.requestTemplate.tool_choice, '{{toolChoice}}');
@@ -174,9 +175,14 @@ test('Kling 3.0 系列使用官方 API 2.0 视频任务协议', () => {
   assert.deepEqual(turboImage.inputConstraints.images, {
     min: 1, max: 1, roles: ['referenceImage'], formats: ['jpg', 'jpeg', 'png'],
   });
-  assert.equal(turboImage.requestFields.imageContentFormat, 'kling-first-frame');
+  assert.deepEqual(turboImage.contentTemplate, {
+    text: { type: 'prompt', text: '{{text}}' },
+    image: { type: 'first_frame', url: '{{url}}' },
+  });
+  assert.equal(turboImage.requestTemplate.contents, '{{content}}');
+  assert.equal(Object.hasOwn(turboImage, 'requestFields'), false);
   assert.deepEqual(renderProtocolTemplate(turboImage.requestTemplate, {
-    klingContents: [
+    content: [
       { type: 'prompt', text: '让人物转头' },
       { type: 'first_frame', url: 'https://example.com/first.png' },
     ],
@@ -190,9 +196,13 @@ test('Kling 3.0 系列使用官方 API 2.0 视频任务协议', () => {
   assert.deepEqual(omniMode.inputConstraints.images, {
     min: 0, max: 7, roles: ['referenceImage'], formats: ['jpg', 'jpeg', 'png'],
   });
-  assert.equal(omniMode.requestFields.imageContentFormat, 'kling-references');
+  assert.deepEqual(omniMode.contentTemplate, {
+    text: { type: 'prompt', text: '{{text}}' },
+    image: { type: 'refer_image', url: '{{url}}', id: 'image_{{index}}' },
+  });
+  assert.equal(omniMode.requestTemplate.contents, '{{content}}');
   assert.deepEqual(renderProtocolTemplate(omniMode.requestTemplate, {
-    klingContents: [
+    content: [
       { type: 'prompt', text: '让 image_1 和 image_2 同框' },
       { type: 'refer_image', url: 'https://example.com/a.png', id: 'image_1' },
       { type: 'refer_image', url: 'https://example.com/b.png', id: 'image_2' },
@@ -208,6 +218,14 @@ test('Seedance 2.0 Fast/Mini 按官方规格限制为 480p/720p', () => {
     assert.equal(model.provider, 'bytedance');
     const mode = model.modes.find((item) => item.id === 'text-or-reference-image-to-video');
     assert.deepEqual(mode.inputConstraints.images, { min: 0, max: 9, roles: ['referenceImage'] });
+    assert.deepEqual(mode.inputConstraints.videos, {
+      min: 0, max: 3, roles: ['inputVideo'], formats: ['mp4', 'mov'],
+    });
+    assert.deepEqual(mode.inputConstraints.audios, {
+      min: 0, max: 3, roles: ['referenceAudio'], formats: ['wav', 'mp3'],
+      minDuration: 2, maxDuration: 15, maxTotalDuration: 15, maxBytes: 15728640,
+      requiresAnyOf: ['images', 'videos'],
+    });
     assert.deepEqual(mode.outputConstraints.durations, [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]);
     assert.deepEqual(mode.params.find((param) => param.key === 'resolution').options, ['480p', '720p']);
     assert.equal(mode.requestFields.imageContentRole, 'reference_image');
@@ -218,7 +236,7 @@ test('Seedance 2.0 Fast/Mini 按官方规格限制为 480p/720p', () => {
 test('Seedance 2.0 使用方舟官方视频任务协议', () => {
   const model = catalog.models.find((item) => item.id === 'doubao-seedance-2-0-260128');
   assert.equal(model.provider, 'bytedance');
-  assert.deepEqual(model.modes.map((mode) => mode.id), ['text-to-video', 'reference-image-to-video']);
+  assert.deepEqual(model.modes.map((mode) => mode.id), ['text-to-video', 'omni-reference-to-video']);
   for (const mode of model.modes) {
     assert.deepEqual(mode.endpoint, { method: 'POST', path: '/contents/generations/tasks', scope: 'root' });
     assert.deepEqual(mode.taskEndpoint, { method: 'GET', path: '/contents/generations/tasks/{taskId}', scope: 'root' });
@@ -227,9 +245,20 @@ test('Seedance 2.0 使用方舟官方视频任务协议', () => {
     assert.equal(mode.statusPath, 'status');
     assert.equal(mode.resultUrlPath, 'content.video_url');
   }
-  const referenceMode = model.modes.find((mode) => mode.id === 'reference-image-to-video');
-  assert.deepEqual(referenceMode.inputConstraints.images, { min: 1, max: 9, roles: ['referenceImage'] });
+  const referenceMode = model.modes.find((mode) => mode.id === 'omni-reference-to-video');
+  assert.deepEqual(referenceMode.inputVariants.map((variant) => variant.inputMode), ['firstLastFrame']);
+  assert.deepEqual(referenceMode.inputConstraints.images, { min: 0, max: 9, roles: ['referenceImage'] });
+  assert.deepEqual(referenceMode.inputConstraints.videos, {
+    min: 0, max: 3, roles: ['inputVideo'], formats: ['mp4', 'mov'],
+  });
+  assert.deepEqual(referenceMode.inputConstraints.audios, {
+    min: 0, max: 3, roles: ['referenceAudio'], formats: ['wav', 'mp3'],
+    minDuration: 2, maxDuration: 15, maxTotalDuration: 15, maxBytes: 15728640,
+    requiresAnyOf: ['images', 'videos'],
+  });
   assert.equal(referenceMode.requestFields.imageContentRole, 'reference_image');
+  assert.equal(referenceMode.requestFields.videoContentRole, 'reference_video');
+  assert.equal(referenceMode.requestFields.audioContentRole, 'reference_audio');
 });
 
 test('Grok Imagine Video 和全部 Veo 3.1 模型实际编译单图生视频', () => {
@@ -282,12 +311,27 @@ test('内置模型只使用唯一声明式执行协议', () => {
   }
 });
 
-test('新模型目录与 Agent 不再公开首尾帧角色', () => {
+test('媒体角色与首尾帧业务槽位保持分离', () => {
   const serializedCatalog = JSON.stringify(catalog);
   const serializedContract = JSON.stringify(agentContract);
-  for (const legacyRole of ['firstFrame', 'lastFrame', 'referenceCandidate']) {
-    assert.equal(serializedCatalog.includes(legacyRole), false, `模型目录仍包含 ${legacyRole}`);
-    assert.equal(serializedContract.includes(legacyRole), false, `Agent 契约仍包含 ${legacyRole}`);
+  assert.equal(Object.hasOwn(agentContract.inputRoles, 'firstFrame'), false);
+  assert.equal(Object.hasOwn(agentContract.inputRoles, 'lastFrame'), false);
+  assert.ok(agentContract.commonProperties.inputMode.enum.includes('firstLastFrame'));
+  assert.ok(agentContract.commonProperties.slot.enum.includes('firstFrame'));
+  assert.ok(agentContract.commonProperties.slot.enum.includes('lastFrame'));
+  assert.equal(serializedCatalog.includes('referenceCandidate'), false);
+  assert.equal(serializedContract.includes('referenceCandidate'), false);
+});
+
+test('每个可接收素材的视频供应商 mode 显式声明画布输入语义', () => {
+  for (const model of catalog.models.filter((item) => item.type === 'videoGeneration')) {
+    for (const mode of model.modes) {
+      const input = mode.inputConstraints || {};
+      const hasMedia = (input.images?.max || 0) > 0 || (input.videos?.max || 0) > 0 || (input.audios?.max || 0) > 0;
+      if (!hasMedia) continue;
+      assert.ok(mode.inputMode, `${model.id}/${mode.id} 缺少 inputMode`);
+      assert.ok(Array.isArray(mode.inputSlots) && mode.inputSlots.length, `${model.id}/${mode.id} 缺少 inputSlots`);
+    }
   }
 });
 

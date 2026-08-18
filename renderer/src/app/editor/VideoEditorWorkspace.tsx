@@ -27,24 +27,34 @@ import {
 } from "../../utils/videoEditorProject.mjs";
 import { editorMediaMimeType } from "../../utils/editorMediaImport.mjs";
 import { desktopApi } from "../../services/desktopApi.js";
-import { type IconName, IconSymbol } from "../components/IconSymbol";
-import stickerActionUrl from "../../assets/stickers/action.svg?no-inline";
-import stickerHeartUrl from "../../assets/stickers/heart.svg?no-inline";
-import stickerStarUrl from "../../assets/stickers/star.svg?no-inline";
+import { IconSymbol } from "../components/IconSymbol";
 import "./VideoEditorWorkspace.css";
+import { constrainTransformToCanvas, hydrateSourceProject } from "./videoEditorModel";
+import type {
+  VideoEditorAsset,
+  VideoEditorClip,
+  VideoEditorProject,
+  VideoEditorTransform,
+} from "./videoEditorTypes";
+import {
+  PanelHeading,
+  Ruler,
+  VideoEditorInspector,
+  VideoFilmstripThumbnail,
+} from "./VideoEditorWorkspaceParts";
+import {
+  applyBuiltInStickerSources,
+  builtInStickers,
+  effects,
+  textPresets,
+  tools,
+  trackMeta,
+  transitions,
+} from "./videoEditorCatalog";
 
-type EditorProject = any;
-type EditorClip = any;
-export interface VideoEditorAsset {
-  id: string;
-  type: "video" | "audio" | "image";
-  name: string;
-  sourceFile?: string;
-  sourceUrl: string;
-  duration?: number;
-  width?: number;
-  height?: number;
-}
+type EditorProject = VideoEditorProject;
+type EditorClip = VideoEditorClip;
+export type { VideoEditorAsset } from "./videoEditorTypes";
 export interface VideoEditorController {
   persist: (project: EditorProject) => void;
   export: (project: EditorProject) => Promise<unknown>;
@@ -55,7 +65,7 @@ export interface VideoEditorController {
 }
 export interface VideoEditorWorkspaceProps {
   title?: string;
-  project?: EditorProject;
+  project?: Record<string, unknown>;
   sourceFile: string;
   sourceUrl: string;
   sourceName?: string;
@@ -70,98 +80,6 @@ export interface VideoEditorWorkspaceProps {
   controller: VideoEditorController;
 }
 
-const tools: Array<{ id: string; label: string; icon: IconName }> = [
-  { id: "media", label: "素材", icon: "film" },
-  { id: "text", label: "文字", icon: "text" },
-  { id: "stickers", label: "贴图", icon: "spark" },
-  { id: "transitions", label: "转场", icon: "layers" },
-  { id: "effects", label: "特效", icon: "sliders" },
-];
-const trackMeta: Record<string, { code: string; icon: IconName }> = {
-  video: { code: "V", icon: "film" },
-  audio: { code: "A", icon: "sliders" },
-  text: { code: "T", icon: "text" },
-  overlay: { code: "O", icon: "image" },
-  effect: { code: "FX", icon: "spark" },
-  transition: { code: "TR", icon: "layers" },
-};
-const transitions = [
-  { key: "fade", name: "溶解" },
-  { key: "Directional", name: "方向推移" },
-  { key: "directionalwarp", name: "方向扭曲" },
-  { key: "circleopen", name: "圆形展开" },
-  { key: "pixelize", name: "像素化" },
-  { key: "CrossZoom", name: "交叉缩放" },
-];
-const effects = [
-  { key: "vignette", name: "暗角" },
-  { key: "glitch", name: "故障" },
-  { key: "pixelate", name: "像素" },
-  { key: "chromatic", name: "色散" },
-  { key: "filmStripPro", name: "胶片" },
-];
-const textPresets = [{
-  id: "subtitle",
-  name: "清晰字幕",
-  sample: "对白字幕",
-  fontFamily: "PingFang SC",
-  fontSize: 52,
-  fontWeight: 600,
-  y: .78,
-}, {
-  id: "cinema",
-  name: "银幕标题",
-  sample: "银幕标题",
-  fontFamily: "Songti SC",
-  fontSize: 76,
-  fontWeight: 600,
-  y: .42,
-}, {
-  id: "chapter",
-  name: "章节标题",
-  sample: "第一幕",
-  fontFamily: "PingFang SC",
-  fontSize: 60,
-  fontWeight: 700,
-  y: .18,
-}];
-const builtInStickers: VideoEditorAsset[] = [{
-  id: "sticker-star",
-  type: "image",
-  name: "明星",
-  sourceUrl: stickerStarUrl,
-  width: 512,
-  height: 512,
-}, {
-  id: "sticker-action",
-  type: "image",
-  name: "动作",
-  sourceUrl: stickerActionUrl,
-  width: 512,
-  height: 512,
-}, {
-  id: "sticker-love",
-  type: "image",
-  name: "心情",
-  sourceUrl: stickerHeartUrl,
-  width: 512,
-  height: 512,
-}];
-const builtInStickerById = new Map(builtInStickers.map((asset) => [asset.id, asset]));
-
-function applyBuiltInStickerSources(project: EditorProject) {
-  for (const asset of project.assets || []) {
-    const builtIn = builtInStickerById.get(asset.id);
-    if (builtIn) asset.sourceUrl = builtIn.sourceUrl;
-  }
-  for (const track of project.tracks || []) {
-    for (const clip of track.clips || []) {
-      const builtIn = builtInStickerById.get(clip.assetId);
-      if (builtIn && clip.type === "image") clip.src = builtIn.sourceUrl;
-    }
-  }
-  return project;
-}
 const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value));
 const createId = (prefix = "item") =>
   `${prefix}-${Date.now().toString(36)}-${
@@ -182,102 +100,6 @@ const formatTimecode = (seconds: number) => {
     Math.floor((value % 1) * 30),
   ].map((part) => String(part).padStart(2, "0")).join(":");
 };
-
-interface CanvasTransform extends Record<string, unknown> {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  opacity?: number;
-  angle?: number;
-}
-
-function constrainTransformToCanvas(
-  transform: Record<string, any> = {},
-  canvasWidth: number,
-  canvasHeight: number,
-): CanvasTransform {
-  const width = Math.min(canvasWidth, Math.max(1, Number(transform.width) || canvasWidth * .76));
-  const height = Math.min(canvasHeight, Math.max(1, Number(transform.height) || canvasHeight * .14));
-  return {
-    ...transform,
-    x: Math.min(Math.max(0, Number(transform.x) || 0), Math.max(0, canvasWidth - width)),
-    y: Math.min(Math.max(0, Number(transform.y) || 0), Math.max(0, canvasHeight - height)),
-    width,
-    height,
-  };
-}
-
-function hydrateSourceProject(
-  project: EditorProject,
-  source: {
-    sourceFile: string;
-    sourceUrl: string;
-    sourceName: string;
-    duration: number;
-    width: number;
-    height: number;
-  },
-) {
-  const next = clone(project);
-  let asset = next.assets.find((item: any) =>
-    item.type === "video" && item.sourceFile === source.sourceFile
-  ) || next.assets.find((item: any) => item.type === "video");
-  if (!asset) {
-    asset = { id: createId("asset"), type: "video" };
-    next.assets.unshift(asset);
-  }
-  Object.assign(asset, {
-    name: source.sourceName,
-    sourceFile: source.sourceFile,
-    sourceUrl: source.sourceUrl,
-    duration: source.duration,
-    width: source.width,
-    height: source.height,
-  });
-  let track = next.tracks.find((item: any) => item.type === "video");
-  if (!track) {
-    track = {
-      id: createId("track-video"),
-      type: "video",
-      name: "主画面",
-      locked: false,
-      hidden: false,
-      muted: false,
-      clips: [],
-    };
-    next.tracks.unshift(track);
-  }
-  const hasVideoClip = next.tracks.some((item: any) =>
-    item.clips.some((clip: any) => clip.type === "video")
-  );
-  if (!hasVideoClip && source.duration > 0) {
-    track.clips.push({
-      id: createId("clip"),
-      type: "video",
-      assetId: asset.id,
-      timelineStart: 0,
-      trimStart: 0,
-      trimEnd: source.duration,
-      speed: 1,
-      muted: false,
-    });
-  }
-  next.settings.width = source.width || next.settings.width;
-  next.settings.height = source.height || next.settings.height;
-  for (const item of next.tracks) {
-    for (const clip of item.clips) {
-      if (clip.type === "text") {
-        clip.transform = constrainTransformToCanvas(
-          clip.transform,
-          next.settings.width,
-          next.settings.height,
-        );
-      }
-    }
-  }
-  return normalizeVideoEditorProject(next, source);
-}
 
 export function VideoEditorWorkspace(
   {
@@ -300,7 +122,7 @@ export function VideoEditorWorkspace(
       width: metadata?.videoWidth || metadata?.width || 1920,
       height: metadata?.videoHeight || metadata?.height || 1080,
       createId,
-    })), []);
+    }) as EditorProject), []);
   const [project, setProject] = useState<EditorProject>(initial);
   const projectRef = useRef(project);
   projectRef.current = project;
@@ -356,7 +178,7 @@ export function VideoEditorWorkspace(
     mode: "move" | "resize" | "rotate";
     startX: number;
     startY: number;
-    transform: CanvasTransform;
+    transform: VideoEditorTransform;
     snapshot: EditorProject;
     monitor: DOMRect;
     startPointerAngle: number;
@@ -617,8 +439,13 @@ export function VideoEditorWorkspace(
       next = addEditorTrack(next, trackType, trackName, createId);
       track = next.tracks.at(-1);
     } else if (track.locked || track.hidden) {
-      next = updateEditorTrack(next, track.id, { locked: false, hidden: false });
-      track = next.tracks.find((item: any) => item.id === track.id);
+      const trackId = track.id;
+      next = updateEditorTrack(next, trackId, { locked: false, hidden: false });
+      track = next.tracks.find((item: any) => item.id === trackId);
+    }
+    if (!track) {
+      setToolNotice("无法创建素材轨道，请重试。");
+      return;
     }
     const trimEnd = mediaDuration || 0;
     const clipId = createId("clip");
@@ -1312,7 +1139,7 @@ export function VideoEditorWorkspace(
       const canvasHeight = projectRef.current.settings.height;
       const dx = (event.clientX - gesture.startX) / gesture.monitor.width * canvasWidth;
       const dy = (event.clientY - gesture.startY) / gesture.monitor.height * canvasHeight;
-      let transform: CanvasTransform = { ...gesture.transform };
+      let transform: VideoEditorTransform = { ...gesture.transform };
       if (gesture.mode === "move") {
         transform.x = gesture.transform.x + dx;
         transform.y = gesture.transform.y + dy;
@@ -2068,7 +1895,7 @@ export function VideoEditorWorkspace(
             </button>
           </div>
         </section>
-        <Inspector
+        <VideoEditorInspector
           selected={selected}
           project={project}
           onUpdate={updateSelected}
@@ -2219,7 +2046,7 @@ export function VideoEditorWorkspace(
                           {clip.type === "image" && <img src={mediaUrl} />}
                           {clip.type === "video" && (
                             <VideoFilmstripThumbnail
-                              src={runtimeMediaUrls[clipAsset?.id] ||
+                              src={(clipAsset?.id ? runtimeMediaUrls[clipAsset.id] : "") ||
                                 (clipAsset?.id === primaryVideoAssetId
                                   ? playbackUrl
                                   : mediaUrl)}
@@ -2265,381 +2092,5 @@ export function VideoEditorWorkspace(
       </footer>
     </section>,
     document.body,
-  );
-}
-
-function PanelHeading({ title, count }: { title: string; count: number }) {
-  return (
-    <header className="ov-panel-heading">
-      <div>
-        <small>编辑面板</small>
-        <strong>{title}</strong>
-      </div>
-      <span>{count}</span>
-    </header>
-  );
-}
-function Ruler({ duration, zoom }: { duration: number; zoom: number }) {
-  const step = zoom >= 100 ? 1 : zoom >= 48 ? 5 : 10;
-  const ticks = [];
-  for (let value = 0; value <= duration; value += step) {
-    ticks.push(value);
-  }
-  return (
-    <div className="ov-ruler">
-      {ticks.map((value) => (
-        <span key={value} style={{ left: 112 + value * zoom }}>
-          <i />
-          {formatTime(value)}
-        </span>
-      ))}
-    </div>
-  );
-}
-
-function VideoFilmstripThumbnail({
-  src,
-  start,
-  end,
-  displayWidth,
-  clipLeft,
-  viewportLeft,
-  viewportWidth,
-  zoom,
-  fps,
-  speed,
-  fallback,
-}: {
-  src?: string;
-  start: number;
-  end: number;
-  displayWidth: number;
-  clipLeft: number;
-  viewportLeft: number;
-  viewportWidth: number;
-  zoom: number;
-  fps: number;
-  speed: number;
-  fallback?: string;
-}) {
-  const [thumbnail, setThumbnail] = useState("");
-  const tileWidth = 88;
-  const visibleStart = Math.max(0, viewportLeft - clipLeft);
-  const visibleEnd = Math.min(
-    displayWidth,
-    viewportLeft + viewportWidth - clipLeft,
-  );
-  const firstSlot = Math.max(0, Math.floor(visibleStart / tileWidth));
-  const lastSlot = Math.max(firstSlot, Math.ceil(visibleEnd / tileWidth));
-  const sampleCount = visibleEnd > visibleStart ? lastSlot - firstSlot : 0;
-  useEffect(() => {
-    if (!src || !sampleCount) {
-      setThumbnail("");
-      return;
-    }
-    setThumbnail("");
-    let cancelled = false;
-    const video = document.createElement("video");
-    const sampleWidth = 160;
-    const sampleHeight = 90;
-    const canvas = document.createElement("canvas");
-    canvas.width = sampleWidth * sampleCount;
-    canvas.height = sampleHeight;
-    const context = canvas.getContext("2d");
-    let sampleIndex = 0;
-    video.muted = true;
-    video.playsInline = true;
-    video.preload = "auto";
-    const cleanup = () => {
-      window.clearTimeout(timer);
-      video.removeEventListener("loadeddata", loaded);
-      video.removeEventListener("seeked", captureSample);
-      video.removeEventListener("error", failed);
-      video.removeAttribute("src");
-      video.load();
-    };
-    const finish = (value: string) => {
-      if (!cancelled) setThumbnail(value);
-      cleanup();
-    };
-    const captureSample = () => {
-      if (!context || !video.videoWidth || !video.videoHeight) return finish("");
-      try {
-        context.drawImage(
-          video,
-          sampleIndex * sampleWidth,
-          0,
-          sampleWidth,
-          sampleHeight,
-        );
-        sampleIndex += 1;
-        if (sampleIndex >= sampleCount) {
-          finish(canvas.toDataURL("image/jpeg", .76));
-          return;
-        }
-        seekNextSample();
-      } catch {
-        finish("");
-      }
-    };
-    const seekNextSample = () => {
-      const sourceEnd = Math.min(
-        Math.max(start, end || video.duration),
-        Math.max(0, video.duration - .001),
-      );
-      const timelineOffset = (firstSlot + sampleIndex) * tileWidth / zoom;
-      const unalignedTarget = start + timelineOffset * speed;
-      const target = Math.min(
-        Math.max(0, video.duration - .001),
-        Math.min(sourceEnd, Math.round(unalignedTarget * fps) / fps),
-      );
-      if (Math.abs(video.currentTime - target) <= .001) captureSample();
-      else video.currentTime = target;
-    };
-    const loaded = () => {
-      seekNextSample();
-    };
-    const failed = () => finish("");
-    const timer = window.setTimeout(failed, 15_000);
-    video.addEventListener("loadeddata", loaded, { once: true });
-    video.addEventListener("seeked", captureSample);
-    video.addEventListener("error", failed, { once: true });
-    video.src = src;
-    video.load();
-    return () => {
-      cancelled = true;
-      cleanup();
-    };
-  }, [end, firstSlot, fps, sampleCount, speed, src, start, zoom]);
-  if (!sampleCount) return null;
-  const image = thumbnail || fallback;
-  return (
-    <span
-      className="ov-clip-filmstrip-window"
-      style={{ left: firstSlot * tileWidth, width: sampleCount * tileWidth }}
-    >
-      {image
-        ? <img className="ov-clip-filmstrip" src={image} alt="" draggable={false} />
-        : <span className="ov-clip-frame-loading" />}
-    </span>
-  );
-}
-function Inspector({
-  selected,
-  project,
-  onUpdate,
-  onDelete,
-  onDuplicate,
-  onCanvasAction,
-}: {
-  selected: any;
-  project: EditorProject;
-  onUpdate: (updates: Record<string, unknown>) => void;
-  onDelete: () => void;
-  onDuplicate: () => void;
-  onCanvasAction: (action: "centerClip" | "fitClip" | "coverClip") => void;
-}) {
-  if (!selected) {
-    return (
-      <aside className="ov-inspector">
-        <div className="ov-inspector-empty">
-          <IconSymbol name="cursor" />
-          <strong>选择一个片段</strong>
-          <span>在时间线或画布中选择内容后编辑参数</span>
-        </div>
-      </aside>
-    );
-  }
-  const clip = selected.clip;
-  const transform = clip.transform || {};
-  const isVisual = ["video", "image", "text"].includes(clip.type);
-  return (
-    <aside className="ov-inspector">
-      <PanelHeading title="检查器" count={1} />
-      <div className="ov-selected">
-        <i>{trackMeta[selected.track.type]?.code}</i>
-        <div>
-          <strong>{clip.type === "text" ? clip.text : clip.type}</strong>
-          <small>{clip.id}</small>
-        </div>
-      </div>
-      <div className="ov-inspector-section">
-        <h4>时间</h4>
-        <label>
-          <span>开始</span>
-          <input
-            type="number"
-            min="0"
-            step=".1"
-            value={clip.timelineStart}
-            onChange={(event) =>
-              onUpdate({ timelineStart: Number(event.target.value) })}
-          />
-        </label>
-        {!["video", "audio"].includes(clip.type) && (
-          <label>
-            <span>时长</span>
-            <input
-              type="number"
-              min=".08"
-              step=".1"
-              value={clip.duration}
-              onChange={(event) =>
-                onUpdate({ duration: Number(event.target.value) })}
-            />
-          </label>
-        )}
-        {["video", "audio"].includes(clip.type) && (
-          <>
-            <label>
-              <span>速度</span>
-              <select
-                value={clip.speed || 1}
-                onChange={(event) =>
-                  onUpdate({ speed: Number(event.target.value) })}
-              >
-                {[.5, .75, 1, 1.25, 1.5, 2].map((rate) => (
-                  <option key={rate} value={rate}>{rate}×</option>
-                ))}
-              </select>
-            </label>
-            <label className="ov-check">
-              <span>保留声音</span>
-              <input
-                type="checkbox"
-                checked={!clip.muted}
-                onChange={(event) => onUpdate({ muted: !event.target.checked })}
-              />
-            </label>
-          </>
-        )}
-      </div>
-      {clip.type === "text" && (
-        <div className="ov-inspector-section">
-          <h4>文字</h4>
-          <textarea
-            value={clip.text}
-            rows={3}
-            onChange={(event) => onUpdate({ text: event.target.value })}
-          />
-          <label>
-            <span>字体</span>
-            <select
-              value={clip.style?.fontFamily || "PingFang SC"}
-              onChange={(event) =>
-                onUpdate({
-                  style: { ...clip.style, fontFamily: event.target.value },
-                })}
-            >
-              <option value="PingFang SC">苹方黑体</option>
-              <option value="Songti SC">宋体标题</option>
-              <option value="Kaiti SC">楷体</option>
-              <option value="Hiragino Sans GB">冬青黑体</option>
-            </select>
-          </label>
-          <label>
-            <span>字号</span>
-            <input
-              type="number"
-              value={clip.style?.fontSize || 72}
-              onChange={(event) =>
-                onUpdate({
-                  style: {
-                    ...clip.style,
-                    fontSize: Number(event.target.value),
-                  },
-                })}
-            />
-          </label>
-          <label>
-            <span>字重</span>
-            <select
-              value={clip.style?.fontWeight || 600}
-              onChange={(event) =>
-                onUpdate({
-                  style: { ...clip.style, fontWeight: Number(event.target.value) },
-                })}
-            >
-              <option value="400">常规</option>
-              <option value="500">中等</option>
-              <option value="600">半粗</option>
-              <option value="700">粗体</option>
-            </select>
-          </label>
-          <label>
-            <span>对齐</span>
-            <select
-              value={clip.style?.align || "center"}
-              onChange={(event) =>
-                onUpdate({ style: { ...clip.style, align: event.target.value } })}
-            >
-              <option value="left">左对齐</option>
-              <option value="center">居中</option>
-              <option value="right">右对齐</option>
-            </select>
-          </label>
-          <label>
-            <span>颜色</span>
-            <input
-              type="color"
-              value={clip.style?.color || "#ffffff"}
-              onChange={(event) =>
-                onUpdate({
-                  style: { ...clip.style, color: event.target.value },
-                })}
-            />
-          </label>
-        </div>
-      )}
-      {isVisual && (
-        <div className="ov-inspector-section ov-transform-section">
-          <h4>画布变换</h4>
-          <div className="ov-transform-presets">
-            <button onClick={() => onCanvasAction("centerClip")}>居中</button>
-            <button onClick={() => onCanvasAction("fitClip")}>适应</button>
-            <button onClick={() => onCanvasAction("coverClip")}>填充</button>
-          </div>
-          {(["x", "y", "width", "height", "angle", "opacity"] as const).map((
-            key,
-          ) => (
-            <label key={key}>
-              <span>
-                {({
-                  x: "X",
-                  y: "Y",
-                  width: "宽度",
-                  height: "高度",
-                  angle: "旋转",
-                  opacity: "不透明度",
-                })[key]}
-              </span>
-              <input
-                type="number"
-                step={key === "opacity" ? .05 : 1}
-                value={Number(transform[key] ?? (key === "opacity" ? 1 : 0))}
-                onChange={(event) =>
-                  onUpdate({
-                    transform: {
-                      ...transform,
-                      [key]: Number(event.target.value),
-                    },
-                  })}
-              />
-            </label>
-          ))}
-        </div>
-      )}
-      <div className="ov-inspector-actions">
-        <button onClick={onDuplicate}>复制片段</button>
-        <button className="danger" onClick={onDelete}>
-          <IconSymbol name="trash" />删除
-        </button>
-      </div>
-      <div className="ov-project-facts">
-        <span>工程画布</span>
-        <strong>{project.settings.width} × {project.settings.height}</strong>
-        <small>{project.settings.fps} FPS · JSON v{project.version}</small>
-      </div>
-    </aside>
   );
 }

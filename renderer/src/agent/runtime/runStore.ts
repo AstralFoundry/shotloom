@@ -185,10 +185,24 @@ function projectAgentRun(
       run.status = String(event.status || run.status);
       run.toolCallCount = Number(event.toolCallCount || run.toolCallCount || 0);
       run.error = String(event.error || '');
+      if (event.diagnosis) run.diagnosis = event.diagnosis;
       if (event.outcome) run.outcome = event.outcome;
       if (['completed', 'failed', 'cancelled', 'blocked'].includes(run.status)) {
         run.pendingReasons = [];
         run.completedAt = now;
+      }
+      break;
+    case 'session_stalled':
+      if (event.stalled === false) {
+        if (run.status === 'stalled') run.status = 'running';
+        delete run.stall;
+      } else {
+        run.status = 'stalled';
+        run.stall = {
+          silentMs: Number(event.silentMs || 0),
+          watchdog: String(event.watchdog || 'no_progress'),
+          detectedAt: now,
+        };
       }
       break;
   }
@@ -324,6 +338,44 @@ export function getAgentRuntimeHealth() {
     activeTaskCount: activeTasks.length,
     blockingReasons,
   };
+}
+
+export function recoverInterruptedAgentRuns(previousRunId = ''): number {
+  const recoverableStatuses = new Set(['running', 'waiting_tool']);
+  const now = new Date().toISOString();
+  let recovered = 0;
+  for (const run of projectRuns()) {
+    if (!recoverableStatuses.has(run.status)) continue;
+    if (previousRunId && run.id !== previousRunId) continue;
+    run.status = 'failed';
+    run.error = 'Shotloom 上次未正常退出，本次运行未被自动重放，以避免重复写入或重复生成';
+    run.completedAt = now;
+    run.updatedAt = now;
+    run.pendingReasons = [];
+    recovered += 1;
+  }
+  if (recovered) touchProject({ sessionDelay: 0, coalesceSession: false });
+  return recovered;
+}
+
+export function relieveAgentHistoryMemoryPressure(level: 'low' | 'critical'): JsonObject {
+  const eventLimit = level === 'critical' ? 250 : 750;
+  const runLimit = level === 'critical' ? 25 : 50;
+  const events = projectEvents();
+  const runs = projectRuns();
+  const removedEvents = Math.max(0, events.length - eventLimit);
+  const removedRuns = Math.max(0, runs.length - runLimit);
+  if (removedEvents) events.splice(eventLimit);
+  if (removedRuns) runs.splice(runLimit);
+  const canvasHistory = Array.isArray(store.project.canvasHistory) ? store.project.canvasHistory : [];
+  const redoHistory = Array.isArray(store.project.canvasRedoStack) ? store.project.canvasRedoStack : [];
+  const historyLimit = level === 'critical' ? 1 : 3;
+  const removedHistory = Math.max(0, canvasHistory.length - historyLimit)
+    + Math.max(0, redoHistory.length - historyLimit);
+  if (canvasHistory.length > historyLimit) canvasHistory.splice(0, canvasHistory.length - historyLimit);
+  if (redoHistory.length > historyLimit) redoHistory.splice(0, redoHistory.length - historyLimit);
+  if (removedEvents || removedRuns || removedHistory) touchProject({ sessionDelay: 0, coalesceSession: false });
+  return { level, removedEvents, removedRuns, removedHistory };
 }
 
 export function appendAgentRuntimeEvent(

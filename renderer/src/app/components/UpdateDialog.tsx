@@ -17,6 +17,7 @@ export interface UpdateDialogController {
   check: () => void | Promise<void>;
   download: () => void | Promise<void>;
   installAndRestart: () => void | Promise<void>;
+  cancelDownload: () => void | Promise<void>;
 }
 function formatBytes(bytes = 0) {
   if (!Number.isFinite(bytes) || bytes <= 0) return "未知大小";
@@ -147,6 +148,13 @@ export function UpdateDialog(
           )}
           {data.error && <p className="update-error">{data.error}</p>}
         </div>
+        {data.phase === "downloading" && (
+          <div className="modal-foot update-modal-foot">
+            <button className="button ghost" type="button" onClick={() => void controller.cancelDownload()}>
+              取消下载
+            </button>
+          </div>
+        )}
         {!data.checking && data.phase !== "downloading" && (
         <div className="modal-foot update-modal-foot">
           {!force && !data.checking && data.phase !== "downloading" && (
@@ -158,7 +166,7 @@ export function UpdateDialog(
               以后
             </button>
           )}
-          {data.phase === "available"
+          {data.phase === "available" || data.phase === "recovering"
             ? (
               <button
                 className="button primary"

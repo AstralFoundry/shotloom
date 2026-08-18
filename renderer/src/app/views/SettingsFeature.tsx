@@ -7,6 +7,7 @@ import {
   type ProviderConfig,
 } from "../../domain/provider/ProviderRegistry";
 import { resolveProviderIconId } from "../../domain/provider/ProviderBrandIcons.js";
+import { findDuplicateCustomModelIds } from "../../domain/provider/CustomModelCatalog";
 import { builtInRecipeChanges } from "../../services/builtInRecipes";
 import { builtInSkillChanges } from "../../services/builtInSkills";
 import { desktopApi } from "../../services/desktopApi";
@@ -358,8 +359,18 @@ export function SettingsFeature() {
     setProviderSaving(true);
     setProviderError("");
     try {
+      const nextProviderConfigs = {
+        ...previous,
+        [result.providerId]: result.config,
+      };
+      const duplicate = findDuplicateCustomModelIds(nextProviderConfigs)[0];
+      if (duplicate) {
+        throw new Error(
+          `模型 ID “${duplicate.modelId}” 已被多个厂商使用：${duplicate.providers.join("、")}。模型 ID 必须全局唯一`,
+        );
+      }
       await saveAppSettings({
-        providerConfigs: { ...previous, [result.providerId]: result.config },
+        providerConfigs: nextProviderConfigs,
       });
       setProviderEditor(null);
       refresh();

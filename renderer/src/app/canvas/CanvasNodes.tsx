@@ -1,32 +1,10 @@
-import { type ChangeEvent, memo, useContext } from "react";
-import { Handle, Position } from "@xyflow/react";
+import { type ChangeEvent, memo } from "react";
 import { IconSymbol } from "../components/IconSymbol";
 import { ResourcePreview } from "./ResourcePreview";
 import type { WorkflowNodeActions, WorkflowNodeData, WorkflowNodeRenderer } from "./WorkflowCanvas";
-import { MentionContext } from "./WorkflowCanvas";
 import { useImeCommit } from "./imeComposition";
 
-function Ports({ className }: { className: string }) {
-  return (
-    <>
-      <Handle
-        id="port-left"
-        className={`${className} ${className}-in`}
-        type="source"
-        position={Position.Left}
-      />
-      <Handle
-        id="port-right"
-        className={`${className} ${className}-out`}
-        type="source"
-        position={Position.Right}
-      />
-    </>
-  );
-}
-
 export const NoteNode: WorkflowNodeRenderer = memo(({ node, selected, actions }) => {
-  const mentionInCopilot = useContext(MentionContext);
   const update = (patch: Record<string, unknown>) =>
     actions.update(node.id, {
       ...patch,
@@ -46,20 +24,7 @@ export const NoteNode: WorkflowNodeRenderer = memo(({ node, selected, actions })
         actions.select(node.id);
       }}
     >
-      <Ports className="note-port" />
       <div className="note-head">
-        {mentionInCopilot && (
-          <button
-            className="node-mention-btn"
-            title={`引用节点：${node.title || "便签"}`}
-            onClick={(e) => {
-              e.stopPropagation();
-              mentionInCopilot(node.id);
-            }}
-          >
-            @
-          </button>
-        )}
         <IconSymbol name="chat" />
         <input
           className="nodrag"
@@ -93,27 +58,13 @@ export const NoteNode: WorkflowNodeRenderer = memo(({ node, selected, actions })
 });
 
 export const UtilityNode: WorkflowNodeRenderer = memo(({ node, selected, actions }) => {
-  const mentionInCopilot = useContext(MentionContext);
   return (
   <div className="utility-node-wrapper" onClick={(e) => e.stopPropagation()}>
     <div
       className={`utility-node utility-node-${node.type}${selected ? " selected" : ""}`}
       onClick={() => actions.select(node.id)}
     >
-      <Ports className="utility-port" />
       <div className="utility-head">
-        {mentionInCopilot && (
-          <button
-            className="node-mention-btn"
-            title={`引用节点：${node.title || node.type}`}
-            onClick={(e) => {
-              e.stopPropagation();
-              mentionInCopilot(node.id);
-            }}
-          >
-            @
-          </button>
-        )}
         <IconSymbol name="image" />
         <input
           className="nodrag"

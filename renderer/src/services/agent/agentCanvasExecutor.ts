@@ -28,17 +28,19 @@ import { validateAgentActionShape } from '@/composables/agentActionValidator';
 import { agentNodeAliasMaps, buildAgentCanvasSnapshot } from '@/services/agentCanvasSnapshot';
 import { registerDefaultAgentActions } from '@/services/agent/registerDefaultActions';
 import { validateAgentInputRole } from '@/services/agentInputRole';
+import { getGenerationInputModes } from '@/domain/catalog/ModelCatalog';
+import { defaultInputSlot, type GenerationInputMode, type GenerationInputSlot } from '@/domain/graph/GenerationInputContract';
 import {
   defaultAgentNodePosition,
   numberFromAgentAction as numberFromAction,
   sizeFromAgentAction as sizeFromAction,
 } from '@/services/agentNodeFactory';
-import { layoutAgentNodes } from '@/services/agentLayoutService';
+import { layoutAgentNodes, placeAgentNodesIncrementally } from '@/services/agentLayoutService';
 import {
   AgentProjectChangedError,
   createAgentProjectQueue,
 } from '@/services/agentProjectQueue';
-import { assertAgentProject, getAgentProjectKey } from '@/services/agentProjectIdentity';
+import { assertAgentProject, getAgentProjectIdentity, getAgentProjectKey } from '@/services/agentProjectIdentity';
 import { dispatchAction } from '@/services/agent/actionRegistry';
 import type {
   AgentAction,
@@ -156,6 +158,23 @@ function connectInputLinks(
     }
     const role = roleValidation.role;
     const required = link?.required !== false;
+    const modes = getGenerationInputModes(String(target?.model || ''));
+    const activeMode = modes.find((item) => item.value === target?.inputMode) || modes[0];
+    const roleSupported = role === 'textContext' || (role === 'referenceImage' && (activeMode?.maxImages || 0) > 0)
+      || (role === 'inputVideo' && (activeMode?.maxVideos || 0) > 0)
+      || (role === 'referenceAudio' && (activeMode?.maxAudios || 0) > 0);
+    if (!roleSupported) {
+      results.push({ sourceId, targetId, applied: false, error: `输入模式 ${activeMode?.label || target?.inputMode || '未设置'} 不支持 ${role}` });
+      continue;
+    }
+    const occupied = (store.project.edges || []).filter((edge: any) => edge.target === targetId)
+      .map((edge: any) => edge.data?.inputSlot).filter(Boolean) as GenerationInputSlot[];
+    const slot = role === 'textContext' ? undefined : String(link?.slot || defaultInputSlot(
+      (activeMode?.value || 'reference') as GenerationInputMode,
+      role,
+      occupied,
+    ));
+    if (activeMode && role !== 'textContext') target.inputMode = activeMode.value;
     results.push({
       sourceId,
       targetId,
@@ -168,6 +187,7 @@ function connectInputLinks(
           kind: 'typed-input',
           data: {
             inputRole: role,
+            ...(slot ? { inputSlot: slot } : {}),
             required,
           },
         },
@@ -405,7 +425,10 @@ async function executeAgentActionsNow(
   const actionResults: AgentActionResult[] = [];
 
   const projectKey = queueMeta.projectKey || getAgentProjectKey();
-  if (body.projectKey && body.projectKey !== projectKey) {
+  const projectIdentity = getAgentProjectIdentity();
+  if ((body.projectKey && body.projectKey !== projectKey)
+    || (body.projectInstanceId && body.projectInstanceId !== projectIdentity.instanceId)
+    || (body.projectGeneration != null && body.projectGeneration !== projectIdentity.generation)) {
     return {
       success: false,
       complete: false,
@@ -427,7 +450,7 @@ async function executeAgentActionsNow(
   let skippedCount = 0;
   // Action 逐条提交，不做整批回滚。失败项会返回给模型局部修复，成功项保留。
   for (const [index, action] of actions.entries()) {
-    if (getAgentProjectKey() !== projectKey) throw new AgentProjectChangedError(projectKey);
+    assertAgentProject(body.projectKey || projectKey, body.projectInstanceId, body.projectGeneration);
     try {
       const shape = validateAgentActionShape(action);
       if (!shape.valid) {
@@ -469,11 +492,13 @@ async function executeAgentActionsNow(
   const shouldAutoLayout = body.autoLayout === true
     || (body.autoLayout == null && settingsStore.agentAutoLayout !== false)
     || (body.autoLayout !== false && createdNodeIds.length > 1 && settingsStore.agentAutoLayout !== false);
-  if (shouldAutoLayout && createdNodeIds.length > 1) {
-    layoutResult = layoutNodeIds(createdNodeIds, {
-      ...((body.layout || {}) as LooseRecord),
-      scope: 'workflow',
-    });
+  if (shouldAutoLayout && createdNodeIds.length > 0) {
+    layoutResult = createdNodeIds.length === 1
+      ? placeAgentNodesIncrementally(store.project, createdNodeIds)
+      : layoutNodeIds(createdNodeIds, {
+          ...((body.layout || {}) as LooseRecord),
+          scope: 'workflow',
+        });
   }
   if (body.selectCreated !== false && createdNodeIds.length) {
     store.selectedNodeIds = [...createdNodeIds];
@@ -544,7 +569,7 @@ async function executeAgentActionsNow(
  */
 export function executeAgentActions(body: AgentActionRequest): Promise<AgentBatchResult> {
   try {
-    assertAgentProject(body.projectKey);
+    assertAgentProject(body.projectKey, body.projectInstanceId, body.projectGeneration);
   } catch (error) {
     return Promise.resolve({
       success: false,

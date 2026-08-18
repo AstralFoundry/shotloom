@@ -1,14 +1,9 @@
 import { IconSymbol } from "../components/IconSymbol";
 import { InteractiveLogo } from "../components/InteractiveLogo";
-import {
-  assetCategories,
-  nodeTypes,
-  projectWorkspaceItems,
-} from "../constants/navigation";
+import { projectWorkspaceItems } from "../constants/navigation";
 import { type AppRoute, useAppStore } from "../store/appStore";
 
 interface SideBarProps {
-  onAddNode: (type: string) => void;
   onVideoEdit: () => void;
   onNotify: () => void;
   onSettings: () => void;
@@ -22,7 +17,6 @@ interface SideBarProps {
 
 export function SideBar(
   {
-    onAddNode,
     onVideoEdit,
     onNotify,
     onSettings,
@@ -37,9 +31,7 @@ export function SideBar(
   const route = useAppStore((state) => state.route);
   const project = useAppStore((state) => state.currentProject);
   const collapsed = useAppStore((state) => state.sidebarCollapsed);
-  const category = useAppStore((state) => state.assetCategory);
   const setRoute = useAppStore((state) => state.setRoute);
-  const setCategory = useAppStore((state) => state.setAssetCategory);
   const iconRail = collapsed && !previewOpen;
   const pinnedOpen = !collapsed;
 
@@ -48,9 +40,7 @@ export function SideBar(
   }
 
   const workspaceNavigation = (
-    <>
-      <div className="side-title">项目工作台</div>
-      <div className="side-list">
+    <div className="side-list">
         {projectWorkspaceItems.map((item) => (
           <button
             key={item.id}
@@ -62,8 +52,17 @@ export function SideBar(
             <span>{item.label}</span>
           </button>
         ))}
-      </div>
-    </>
+        {route === "creation" && (
+          <button
+            className="side-item"
+            title={iconRail ? "视频剪辑" : undefined}
+            onClick={onVideoEdit}
+          >
+            <IconSymbol name="scissors" />
+            <span>视频剪辑</span>
+          </button>
+        )}
+    </div>
   );
 
   return (
@@ -92,7 +91,6 @@ export function SideBar(
           {route === "projects"
             ? (
               <>
-              <div className="side-title">项目库</div>
               <div className="side-list">
                 <button
                   className="side-item active"
@@ -128,55 +126,6 @@ export function SideBar(
                 </button>
               </div>
               {workspaceNavigation}
-              {route === "creation" && (
-                <>
-                  <div className="side-title">节点</div>
-                  <div className="side-list">
-                    <button
-                      className="side-item"
-                      title={iconRail ? "视频剪辑" : undefined}
-                      onClick={onVideoEdit}
-                    >
-                      <IconSymbol name="scissors" />
-                      <span>视频剪辑</span>
-                    </button>
-                    {nodeTypes.map((item) => (
-                      <button
-                        key={item.id}
-                        className="side-item"
-                        title={iconRail ? item.label : undefined}
-                        onClick={() => onAddNode(item.id)}
-                      >
-                        <IconSymbol name={item.icon} />
-                        <span>{item.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
-              {route === "assets" && (
-                <>
-                  <div className="side-title">素材分类</div>
-                  <div className="side-list">
-                    {assetCategories.map((item) => (
-                      <button
-                        key={item.id}
-                        className={`side-item nested${
-                          category === item.id ||
-                            item.aliases.includes(category)
-                            ? " active"
-                            : ""
-                        }`}
-                        title={iconRail ? item.label : undefined}
-                        onClick={() => setCategory(item.id)}
-                      >
-                        <IconSymbol name={item.icon} />
-                        <span>{item.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
               </>
             )}
         </div>

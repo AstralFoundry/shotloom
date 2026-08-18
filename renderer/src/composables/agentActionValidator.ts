@@ -3,7 +3,7 @@ import {
   validateAgentActionContract,
 } from '@/services/agentActionContract';
 import type { AgentAction, JsonObject } from '@/services/agentTypes';
-import { isModelForType } from '@/domain/catalog/ModelCatalog';
+import { getGenerationInputModes, isModelForType } from '@/domain/catalog/ModelCatalog';
 
 export interface AgentActionValidation {
   valid: boolean;
@@ -53,6 +53,9 @@ export function validateAgentActionShape(value: unknown): AgentActionValidation 
     const model = String(action.model || '');
     if (model && !isModelForType(String(action.nodeType || ''), model)) {
       return { valid: false, error: `create_gen_node model ${model} is not an enabled ${action.nodeType} model in model-catalog-v2.json` };
+    }
+    if (action.inputMode && !getGenerationInputModes(model).some((item) => item.value === action.inputMode)) {
+      return { valid: false, error: `create_gen_node inputMode ${action.inputMode} is not supported by ${model}` };
     }
   }
 

@@ -1,14 +1,14 @@
 {
   "name": "shotloom",
   "productName": "Shotloom",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "private": true,
   "description": "Tauri-powered workflow panel for AI comic production with a light asset-management UI.",
   "scripts": {
     "prepare:opencode": "node scripts/prepare-opencode-sidecar.mjs",
     "prepare:media": "node scripts/prepare-media-sidecar.mjs",
     "prepare:sidecars": "npm run prepare:opencode && npm run prepare:media",
-    "predev": "npm run prepare:opencode",
+    "predev": "npm run prepare:sidecars",
     "predev:web": "npm run prepare:opencode",
     "prebuild": "npm run prepare:opencode",
     "prebuild:desktop": "npm run prepare:sidecars",

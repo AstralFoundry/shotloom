@@ -1,5 +1,5 @@
 import type { Connection } from "@xyflow/react";
-import { layoutAgentNodes } from "../../services/agentLayoutService";
+import { canvasNodeDimensions, layoutAgentNodes } from "../../services/agentLayoutService";
 import { createColoredPencilImageNode } from "../../services/coloredPencilNodeService";
 // Canonical edge persistence: addCanvasEdge(store.project, connection.source, connection.target).
 import { desktopApi } from "../../services/desktopApi.js";
@@ -11,11 +11,18 @@ import {
 } from "../../store/assetStore.js";
 import { useLocalAssetInProject } from "../../store/localAssetLibraryStore.js";
 import { addCanvasEdge } from "../../store/canvasGraphStore.js";
+import { getGenerationInputModes } from "../../domain/catalog/ModelCatalog";
+import {
+  defaultInputSlot,
+  reconcileGenerationInputEdges,
+  type GenerationInputMode,
+  type GenerationInputSlot,
+} from "../../domain/graph/GenerationInputContract";
+import { validateAgentInputRole } from "../../services/agentInputRole";
 import { pasteStagedWorkflow, stageSelectedWorkflow } from "../../store/clipboardStore.js";
 import {
-  canRedoCanvas,
-  canUndoCanvas,
   recordCanvasHistory,
+  recordCanvasHistoryState,
   recordCanvasPositionHistory,
   redoCanvas,
   undoCanvas,
@@ -40,144 +47,30 @@ import {
   selectGeneratedOutput,
 } from "../../store/resourceNodeStore.js";
 import { runNode } from "../../store/taskStore.js";
-import { getAvailableModelIdsByType } from "../../store/settingsStore.js";
 import { uid } from "../../utils/format.js";
-import { showToast } from "../store/overlayStore";
+import { showSuccessToast, showToast } from "../store/overlayStore";
 import type {
   WorkflowCanvasController,
   WorkflowNodeActions,
   WorkflowNodeData,
 } from "../canvas/WorkflowCanvas";
+import {
+  cropImage,
+  extractAudio,
+  saveToAssets,
+} from "./canvas/canvasMediaActions";
+import { buildCanvasViewData } from "./canvas/canvasViewData";
+import { createUploadedNode } from "./canvas/canvasUploadActions";
+import {
+  addToVideoEditor,
+  openVideoEditor,
+} from "./canvas/videoEditorActions";
 
 const store: any = rawStore;
 let fitViewHandler: (() => void) | null = null;
-let videoEditorOpener: ((id: string) => void) | null = null;
-export function registerVideoEditorOpener(handler: ((id: string) => void) | null) {
-  videoEditorOpener = handler;
-}
-
-async function createUploadedNode(rawFile: any, position = { x: 120, y: 90 }) {
-  const file: any = await copyFileIntoProjectAssets(rawFile);
-  const path = file.path || file.filePath || "";
-  if (!path) return showToast("文件未写入项目资源目录，已跳过");
-  const resourceType = inferFileResourceType(file);
-  const nodeType =
-    resourceType === "video"
-      ? "videoGeneration"
-      : resourceType === "audio"
-        ? "audioGeneration"
-        : resourceType === "text"
-          ? "textGeneration"
-          : "imageGeneration";
-  const registered = file.reusedMaterialId
-    ? {
-        material: store.project.materials.find((item: any) => item.id === file.reusedMaterialId),
-        asset: null,
-      }
-    : registerImportedMaterial(file, {
-        resourceType,
-        source: "canvas-upload",
-        sourceType: "canvas-upload",
-        nodeType,
-        assetTag: "画布上传",
-      });
-  if (!registered.material) return;
-  const node: any = addNode(nodeType);
-  node.title = file.name || file.fileName || "未命名文件";
-  node.prompt = "";
-  node.x = Math.round(position.x);
-  node.y = Math.round(position.y);
-  node.materialId = registered.material.id;
-  node.assetId = registered.asset?.id || "";
-  node.resourceType = resourceType;
-  node.sourceType = "canvas-upload";
-  node.uploadedFile = {
-    name: node.title,
-    path,
-    type: file.type || file.mimeType || "",
-    size: file.size || 0,
-    materialId: node.materialId,
-    assetId: node.assetId,
-    resourceType,
-    source: "canvas-upload",
-  };
-  touchProject();
-  return node;
-}
 
 export function canvasViewData() {
-  const selected = new Set(
-    store.selectedNodeIds?.length
-      ? store.selectedNodeIds
-      : store.selectedNodeId
-        ? [store.selectedNodeId]
-        : [],
-  );
-  const materialsByNode = new Map<string, any[]>();
-  for (const material of store.project.materials || []) {
-    const nodeId = String(material.nodeId || "");
-    if (!nodeId) continue;
-    const items = materialsByNode.get(nodeId) || [];
-    items.push(material);
-    materialsByNode.set(nodeId, items);
-  }
-  const legacyBySource = new Map<string, any[]>();
-  for (const item of store.project.nodes || []) {
-    if (item.type !== "resource" || item.archived || !item.generatedFrom?.nodeId) continue;
-    const sourceId = String(item.generatedFrom.nodeId);
-    const items = legacyBySource.get(sourceId) || [];
-    items.push(item);
-    legacyBySource.set(sourceId, items);
-  }
-  const availableModelsByType = new Map<string, string[]>();
-  return {
-    nodes: (store.project.nodes || [])
-      .filter((node: WorkflowNodeData) => node.type !== "resource")
-      .map((node: any) => {
-        const direct = Array.isArray(node.generatedOutputs) ? node.generatedOutputs : [];
-        const materials = (materialsByNode.get(node.id) || []).map((item: any) => ({
-          ...item,
-          id: `material:${item.id}`,
-          title: item.name,
-          fileName: item.name,
-          filePath: item.filePath || item.path,
-        }));
-        const legacy = legacyBySource.get(node.id) || [];
-        const seen = new Set<string>();
-        const generatedOutputs = [...direct, ...materials, ...legacy]
-          .filter((item: any) => {
-            const key = String(item.id || item.filePath || item.path || "");
-            if (!key || seen.has(key)) return false;
-            seen.add(key);
-            return true;
-          })
-          .map((item: any, index: number, items: any[]) => ({
-            ...item,
-            selected: node.selectedOutputNodeId
-              ? String(item.id) === String(node.selectedOutputNodeId)
-              : index === items.length - 1,
-          }));
-        return {
-          ...node,
-          generatedOutputs,
-          availableModels: /Generation$/.test(node.type)
-            ? availableModelsByType.get(node.type) ||
-              (() => {
-                const models = getAvailableModelIdsByType(node.type);
-                availableModelsByType.set(node.type, models);
-                return models;
-              })()
-            : [],
-          selected: selected.has(node.id),
-        };
-      }),
-    edges: store.project.edges || [],
-    viewport: store.project.canvasViewport || { x: 0, y: 0, zoom: 1 },
-    history: {
-      canUndo: Boolean(canUndoCanvas.value),
-      canRedo: Boolean(canRedoCanvas.value),
-    },
-  };
+  return buildCanvasViewData(store);
 }
 
 export const canvasController: WorkflowCanvasController = {
@@ -206,10 +99,35 @@ export const canvasController: WorkflowCanvasController = {
   connect(connection: Connection) {
     if (!connection.source || !connection.target) return false;
     recordCanvasHistory("连接节点");
+    const source = store.project.nodes.find((node: any) => node.id === connection.source);
+    const target = store.project.nodes.find((node: any) => node.id === connection.target);
+    const validation = validateAgentInputRole(store.project, source, target, "auto");
+    if (!validation.valid) {
+      showToast(validation.error || "连接失败");
+      return false;
+    }
+    const availableModes = getGenerationInputModes(String(target?.model || ""));
+    const supportsRole = (item: any) => validation.role === "referenceImage"
+      ? item.maxImages > 0
+      : validation.role === "inputVideo" ? item.maxVideos > 0 : validation.role === "referenceAudio" ? item.maxAudios > 0 : true;
+    const activeMode = availableModes.find((item) => item.value === target?.inputMode && supportsRole(item))
+      || availableModes.find(supportsRole);
+    if (activeMode && validation.role !== "textContext") target.inputMode = activeMode.value;
+    const occupied = (store.project.edges || [])
+      .filter((edge: any) => edge.target === target?.id)
+      .map((edge: any) => edge.data?.inputSlot)
+      .filter(Boolean) as GenerationInputSlot[];
+    const inputSlot = validation.role === "textContext" ? undefined : defaultInputSlot(
+      (activeMode?.value || "reference") as GenerationInputMode,
+      validation.role,
+      occupied,
+    );
     const result = addCanvasEdge(store.project, connection.source, connection.target, {
       edge: {
         sourceHandle: connection.sourceHandle,
         targetHandle: connection.targetHandle,
+        kind: "typed-input",
+        data: { inputRole: validation.role, ...(inputSlot ? { inputSlot } : {}), required: true },
       },
     });
     if (!result.ok) showToast(result.error || "连接失败");
@@ -371,6 +289,70 @@ export const nodeActions: WorkflowNodeActions = {
     touchProject();
     showToast("文件已上传到节点");
   },
+  async addReference(id, requestedSlot) {
+    const target = store.project.nodes.find((item: WorkflowNodeData) => item.id === id);
+    if (!target || !/Generation$/.test(target.type)) return;
+    const modes = getGenerationInputModes(String(target.model || ""));
+    const mode = modes.find((item) => item.value === target.inputMode) || modes[0];
+    if (!mode) return showToast("当前模型不支持素材输入");
+    const slot = String(requestedSlot || mode.slots[0] || "reference") as GenerationInputSlot;
+    const expectedKind = ["firstFrame", "lastFrame", "reference"].includes(slot) && mode.maxVideos === 0 && mode.maxAudios === 0
+      ? "image" : undefined;
+    const picked = await desktopApi.file.pickResource(expectedKind);
+    if (!picked) return;
+    const pickedType = inferFileResourceType(picked);
+    const maxForKind = pickedType === "image" ? mode.maxImages : pickedType === "video" ? mode.maxVideos : pickedType === "audio" ? mode.maxAudios : 0;
+    if (!maxForKind) return showToast(`当前“${mode.label}”模式不支持${pickedType === "image" ? "图片" : pickedType === "video" ? "视频" : pickedType === "audio" ? "音频" : "该文件"}输入`);
+    const incomingCount = (store.project.edges || []).filter(
+      (edge: any) => edge.target === id && edge.data?.skipTaskInput !== true,
+    ).length;
+    recordCanvasHistory("添加参考素材");
+    const source: any = await createUploadedNode(picked, {
+      x: Number(target.x || 0) - 340,
+      y: Number(target.y || 0) + incomingCount * 36,
+    });
+    if (!source?.id) return;
+    const validation = validateAgentInputRole(store.project, source, target, "auto");
+    if (!validation.valid) return showToast(validation.error || "添加参考素材失败");
+    target.inputMode = mode.value;
+    const occupied = (store.project.edges || []).filter((edge: any) => edge.target === id)
+      .map((edge: any) => edge.data?.inputSlot).filter(Boolean);
+    const resolvedSlot = requestedSlot || defaultInputSlot(mode.value, validation.role, occupied);
+    const result = addCanvasEdge(store.project, source.id, id, {
+      touch: false,
+      edge: { kind: "typed-input", data: { inputRole: validation.role, inputSlot: resolvedSlot, required: true } },
+    });
+    if (!result.ok) {
+      showToast(result.error || "添加参考素材失败");
+      return;
+    }
+    setSelectedNodeIds([id]);
+    touchProject();
+  },
+  setInputMode(id, value) {
+    const target: any = store.project.nodes.find((item: WorkflowNodeData) => item.id === id);
+    const mode = getGenerationInputModes(String(target?.model || "")).find((item) => item.value === value);
+    if (!target || !mode) return;
+    recordCanvasHistory("切换输入模式");
+    target.inputMode = mode.value;
+    const incoming = (store.project.edges || []).filter((edge: any) => edge.target === id);
+    const reconciled = reconcileGenerationInputEdges(incoming, mode);
+    store.project.edges = [
+      ...(store.project.edges || []).filter((edge: any) => edge.target !== id),
+      ...reconciled,
+    ];
+    touchProject();
+  },
+  removeIncomingEdge(id, edgeId) {
+    const edge = (store.project.edges || []).find(
+      (item: any) => item.id === edgeId && item.target === id,
+    );
+    if (!edge) return;
+    recordCanvasHistory("移除参考素材连线");
+    store.project.edges = store.project.edges.filter((item: any) => item.id !== edgeId);
+    store.selectedEdgeId = null;
+    touchProject();
+  },
   run(id) {
     const node = store.project.nodes.find((item: WorkflowNodeData) => item.id === id);
     if (node) runNode(node);
@@ -387,6 +369,9 @@ export const nodeActions: WorkflowNodeActions = {
     const result = connectResourceToNode(store.project, id, target.id);
     showToast(result.ok ? "已连接为生成输入" : result.error || "连接失败");
   },
+  saveToAssets,
+  cropImage,
+  extractAudio,
   async replaceResource(id) {
     const picked = await desktopApi.file.pickResource();
     if (!picked) return;
@@ -426,10 +411,8 @@ export const nodeActions: WorkflowNodeActions = {
     const result = selectGeneratedOutput(store.project, nodeId, outputId);
     if (!result.ok) showToast(result.error || "选择输出失败");
   },
-  openVideoEditor(id) {
-    if (videoEditorOpener) videoEditorOpener(id);
-    else showToast("视频编辑器尚未就绪，请稍后重试");
-  },
+  openVideoEditor,
+  addToVideoEditor,
   async exportBoard(id, dataUrl) {
     recordCanvasHistory("导出画板");
     const index =
@@ -653,7 +636,7 @@ export const nodeActions: WorkflowNodeActions = {
     if (!result.ok) showToast(result.error || "彩铅处理失败");
     else if (result.node) {
       setSelectedNodeIds([result.node.id]);
-      showToast("已创建彩铅图片节点");
+      showSuccessToast(`创建成功：${result.node.title || "彩铅图片节点"}`);
     }
   },
 };
@@ -664,14 +647,31 @@ export const canvasCommands = {
   fitView() {
     fitViewHandler?.();
   },
-  autoLayout() {
-    const ids = store.selectedNodeIds || [];
-    recordCanvasHistory("自动整理");
+  autoLayout(options: { mode?: "workflow" | "horizontal" | "vertical" | "grid"; includeConnected?: boolean } = {}) {
+    const ids = store.selectedNodeIds?.length
+      ? [...store.selectedNodeIds]
+      : store.selectedNodeId ? [store.selectedNodeId] : [];
+    const before = {
+      nodes: JSON.parse(JSON.stringify(store.project.nodes || [])),
+      edges: JSON.parse(JSON.stringify(store.project.edges || [])),
+      materials: JSON.parse(JSON.stringify(store.project.materials || [])),
+      selectedNodeId: store.selectedNodeId,
+      selectedNodeIds: [...(store.selectedNodeIds || [])],
+    };
     const result = layoutAgentNodes(store.project, ids, {
       scope: ids.length ? "selection" : "all",
+      mode: options.mode || "workflow",
+      includeConnected: ids.length ? options.includeConnected === true : false,
     });
-    if (result.movedCount) touchProject();
+    if (result.movedCount) {
+      recordCanvasHistoryState("自动整理", before);
+      if (options.includeConnected && ids.length) setSelectedNodeIds(result.nodeIds);
+      touchProject();
+      showSuccessToast(`已整理 ${result.movedCount} 个节点`);
+      return true;
+    }
     else showToast("当前没有需要整理的节点");
+    return false;
   },
   async applyMaterial(item: any) {
     let material = item;
@@ -686,8 +686,7 @@ export const canvasCommands = {
     const node: any = addNode("videoGeneration");
     node.title = "视频剪辑";
     node.videoEdit = { dirty: false };
-    touchProject();
-    if (videoEditorOpener) videoEditorOpener(node.id);
+    openVideoEditor(node.id);
     return node;
   },
   async exportSelectedAssets() {
@@ -719,19 +718,24 @@ export const canvasCommands = {
     }
     if (!paths.size) return showToast("所选节点没有可下载的本地资源");
     try {
-      const result = await desktopApi.file.exportFilesPackage(
-        [...paths],
-        `${store.project.name || "project"}-selected-assets`,
-      );
+      const sources = [...paths];
+      const result = sources.length === 1
+        ? await desktopApi.file.exportFile(sources[0])
+        : await desktopApi.file.exportFilesPackage(
+            sources,
+            `${store.project.name || "project"}-selected-assets`,
+          );
       if (result?.ok) {
         showToast(
-          result.direct
-            ? `已打包 ${result.count} 个资源并保存到 ${result.filePath}`
-            : `已打包下载 ${result.count} 个资源`,
+          sources.length === 1
+            ? `已下载资源到 ${result.filePath || result.path || "指定位置"}`
+            : result.direct
+              ? `已打包 ${result.count} 个资源并保存到 ${result.filePath}`
+              : `已打包下载 ${result.count} 个资源`,
         );
       }
     } catch (cause) {
-      showToast(cause instanceof Error ? cause.message : "打包下载失败");
+      showToast(cause instanceof Error ? cause.message : "资源下载失败");
     }
   },
   async mergeSelectedVideos() {

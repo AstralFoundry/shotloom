@@ -340,7 +340,7 @@ export function addMaterialToAssetLibrary(material = {}, options = {}) {
   if (!material.id) return null;
   const exists = store.project.assets.some((asset) => asset.materialId === material.id);
   if (exists) {
-    showToast('这个文件已经在素材库里');
+    if (options.notify !== false) showToast('这个文件已经在素材库里');
     return null;
   }
 
@@ -369,7 +369,7 @@ export function addMaterialToAssetLibrary(material = {}, options = {}) {
   store.project.assets.unshift(asset);
   store.assetCategory = category;
   touchProject();
-  showToast('已加入素材库');
+  if (options.notify !== false) showToast('已加入素材库');
   return asset;
 }
 

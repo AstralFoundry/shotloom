@@ -1,4 +1,5 @@
 import { useState } from "react";
+import type { AgentLayoutMode } from "../../services/agentLayoutService";
 import { IconSymbol } from "../components/IconSymbol";
 
 interface BottomModeBarProps {
@@ -9,8 +10,7 @@ interface BottomModeBarProps {
   onRedo: () => void;
   onFitView: () => void;
   onMaterialPicker: () => void;
-  onAutoLayout: () => void;
-  onExport: () => void;
+  onAutoLayout: (options?: { mode?: AgentLayoutMode; includeConnected?: boolean }) => boolean;
   onMergeVideos: () => void;
 }
 export function BottomModeBar(
@@ -23,11 +23,13 @@ export function BottomModeBar(
     onFitView,
     onMaterialPicker,
     onAutoLayout,
-    onExport,
     onMergeVideos,
   }: BottomModeBarProps,
 ) {
   const [help, setHelp] = useState(false);
+  const [layoutOpen, setLayoutOpen] = useState(false);
+  const [includeConnected, setIncludeConnected] = useState(true);
+  const [layoutConfirmation, setLayoutConfirmation] = useState(false);
   const shortcuts = [
     { label: "适应视窗", keys: shortcutLabels.fitView },
     { label: "自动整理", keys: shortcutLabels.autoLayout },
@@ -57,18 +59,27 @@ export function BottomModeBar(
         <button title="适应视窗" onClick={onFitView}>
           <IconSymbol name="maximize" />
         </button>
-        <button title="选择素材" onClick={onMaterialPicker}>
-          <IconSymbol name="image" />
+        <button
+          className="bottom-material-trigger"
+          title="打开资产中心"
+          aria-label="打开资产中心"
+          onClick={onMaterialPicker}
+        >
+          <IconSymbol name="folder" />
         </button>
-        <button title="自动整理节点" onClick={onAutoLayout}>
+        <button
+          title="整理节点"
+          className={layoutOpen ? "active" : ""}
+          onClick={() => {
+            setHelp(false);
+            setLayoutOpen((value) => !value);
+          }}
+        >
           <IconSymbol name="columns" />
         </button>
       </div>
       <div className="bottom-mode-divider" />
       <div className="bottom-mode-group">
-        <button title="打包下载选中节点资源" onClick={onExport}>
-          <IconSymbol name="download" />
-        </button>
         <button title="拼接选中的视频节点" onClick={onMergeVideos}>
           <IconSymbol name="link" />
         </button>
@@ -80,6 +91,54 @@ export function BottomModeBar(
           <IconSymbol name="help" />
         </button>
       </div>
+      {layoutOpen && (
+        <div className="canvas-layout-menu" onClick={(event) => event.stopPropagation()}>
+          <strong>整理画布</strong>
+          <span>有选区时只整理选中节点</span>
+          <div className="canvas-layout-options">
+            {([
+              ["workflow", "按连接", "workflow"],
+              ["horizontal", "横向", "columns"],
+              ["vertical", "纵向", "list"],
+              ["grid", "网格", "grid"],
+            ] as const).map(([mode, label, icon]) => (
+              <button
+                key={mode}
+                onClick={() => {
+                  const changed = onAutoLayout({ mode, includeConnected });
+                  setLayoutOpen(false);
+                  setLayoutConfirmation(changed);
+                }}
+              >
+                <IconSymbol name={icon} />
+                {label}
+              </button>
+            ))}
+          </div>
+          <label>
+            <input
+              type="checkbox"
+              checked={includeConnected}
+              onChange={(event) => setIncludeConnected(event.target.checked)}
+            />
+            整理相连的上下游
+          </label>
+        </div>
+      )}
+      {layoutConfirmation && (
+        <div className="canvas-layout-confirm" onClick={(event) => event.stopPropagation()}>
+          <span>保留整理结果？</span>
+          <button onClick={() => setLayoutConfirmation(false)}>保留</button>
+          <button
+            onClick={() => {
+              onUndo();
+              setLayoutConfirmation(false);
+            }}
+          >
+            撤销
+          </button>
+        </div>
+      )}
       {help && (
         <div
           className="canvas-shortcut-help"

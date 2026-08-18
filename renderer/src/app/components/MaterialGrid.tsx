@@ -1,8 +1,6 @@
-import { convertFileSrc } from "@tauri-apps/api/core";
 import { memo, useEffect, useRef, useState } from "react";
-import { desktopApi } from "../../services/desktopApi.js";
 import { formatSize } from "../../utils/format.js";
-import { schedulePreviewLoad } from "../canvas/previewLoadQueue";
+import { useMediaPreviewCache } from "../canvas/useMediaPreviewCache";
 import { type IconName, IconSymbol } from "./IconSymbol";
 
 export interface MaterialItem {
@@ -60,27 +58,6 @@ const extensions: Record<Exclude<Kind, "file">, string[]> = {
   audio: ["mp3", "wav", "m4a", "aac", "ogg", "flac"],
   text: ["txt", "md", "json", "csv", "log"],
 };
-const mimeTypes: Record<string, string> = {
-  png: "image/png",
-  jpg: "image/jpeg",
-  jpeg: "image/jpeg",
-  webp: "image/webp",
-  gif: "image/gif",
-  avif: "image/avif",
-  bmp: "image/bmp",
-  svg: "image/svg+xml",
-  mp4: "video/mp4",
-  m4v: "video/mp4",
-  mov: "video/quicktime",
-  webm: "video/webm",
-  mp3: "audio/mpeg",
-  m4a: "audio/mp4",
-  aac: "audio/aac",
-  ogg: "audio/ogg",
-  wav: "audio/wav",
-  flac: "audio/flac",
-};
-
 function keyOf(file: MaterialItem) {
   return String(file.id || file.path || file.name || "");
 }
@@ -177,18 +154,23 @@ const MaterialPreview = memo(function MaterialPreview({
 }) {
   const host = useRef<HTMLDivElement>(null);
   const [activated, setActivated] = useState(false);
-  const [source, setSource] = useState("");
   const [failed, setFailed] = useState(false);
-  const [bufferedPath, setBufferedPath] = useState("");
   const [layout, setLayout] = useState<"landscape" | "portrait" | "tall">("landscape");
   const path = String(file.path || "");
-  const extension =
-    String(file.ext || file.name || "")
-      .split(".")
-      .pop()
-      ?.toLowerCase() || "";
   const fallbackSource = remoteUrl(file, kind);
-  const useBufferedMedia = Boolean(path && bufferedPath === path);
+  const {
+    url: source,
+    buffered: useBufferedMedia,
+    retryBuffered,
+  } = useMediaPreviewCache({
+    path,
+    kind,
+    mimeType: String(file.mimeType || ""),
+    maxSize: 640,
+    revision: String(file.updatedAt || file.importedAt || file.id || ""),
+    fallbackUrl: fallbackSource,
+    enabled: activated,
+  });
 
   useEffect(() => {
     const element = host.current;
@@ -196,70 +178,15 @@ const MaterialPreview = memo(function MaterialPreview({
     return observeNearViewport(element, () => setActivated(true));
   }, [activated]);
 
-  useEffect(() => {
-    if (!activated) return;
-    let cancelled = false;
-    let created = "";
-    let cancelLoad = () => {};
-    setFailed(false);
-
-    if (!path) {
-      setSource(fallbackSource);
-      return;
-    }
-    if (
-      (kind === "video" || kind === "audio") &&
-      desktopApi.platform !== "browser" &&
-      !useBufferedMedia
-    ) {
-      setSource(convertFileSrc(path));
-      return;
-    }
-    if (kind === "image" || kind === "video" || kind === "audio") {
-      setSource("");
-      cancelLoad = schedulePreviewLoad(async () => {
-        try {
-          let buffer: ArrayBuffer | undefined;
-          let mime = String(file.mimeType || mimeTypes[extension] || `${kind}/*`);
-          if (kind === "image" && desktopApi.file.readImagePreview) {
-            try {
-              buffer = await desktopApi.file.readImagePreview(path, 640);
-              mime = "image/jpeg";
-            } catch {
-              buffer = await desktopApi.file.readArrayBuffer?.(path);
-            }
-          } else {
-            buffer = await desktopApi.file.readArrayBuffer?.(path);
-          }
-          if (cancelled) return;
-          if (!buffer?.byteLength) throw new Error("empty preview");
-          created = URL.createObjectURL(new Blob([buffer], { type: mime }));
-          setSource(created);
-        } catch {
-          if (!cancelled) {
-            setSource(fallbackSource);
-            setFailed(!fallbackSource);
-          }
-        }
-      });
-    } else {
-      setSource(fallbackSource);
-    }
-    return () => {
-      cancelled = true;
-      cancelLoad();
-      if (created) URL.revokeObjectURL(created);
-    };
-  }, [activated, extension, fallbackSource, file.mimeType, kind, path, useBufferedMedia]);
+  useEffect(() => setFailed(false), [activated, fallbackSource, kind, path]);
 
   function mediaError() {
     if (
       path &&
       (kind === "video" || kind === "audio") &&
-      desktopApi.platform !== "browser" &&
       !useBufferedMedia
     ) {
-      setBufferedPath(path);
+      retryBuffered();
     } else {
       setFailed(true);
     }
@@ -272,6 +199,12 @@ const MaterialPreview = memo(function MaterialPreview({
   }
 
   const canPreview = (kind === "image" || kind === "video") && Boolean(source) && !failed;
+  const extension = String(file.ext || file.name?.split(".").pop() || "").replace(/^\./, "");
+  const placeholderLabel = failed
+    ? "无法预览"
+    : extension
+      ? `.${extension.toUpperCase()}`
+      : typeOf(file);
   const poster =
     kind === "video" && String(file.previewUrl || "") !== source
       ? String(file.previewUrl || "")
@@ -326,10 +259,8 @@ const MaterialPreview = memo(function MaterialPreview({
         />
       ) : (
         <div className="material-node-placeholder">
-          <IconSymbol name={kind === "text" ? "chat" : iconOf(file)} />
-          <span>
-            {kind === "text" ? "文本素材" : failed ? "无法预览" : file.ext || typeOf(file)}
-          </span>
+          <IconSymbol name={kind === "text" ? "file" : iconOf(file)} />
+          <span>{placeholderLabel}</span>
         </div>
       )}
     </div>
@@ -364,22 +295,22 @@ export function MaterialGrid({
             className={`material-node-wrap${clickToApply ? " selectable" : ""}`}
             onClick={() => clickToApply && action("apply-to-canvas")}
           >
-            <div className="material-node-kicker">
-              <IconSymbol name={iconOf(file)} />
-              <strong title={file.name}>{file.name || "未命名文件"}</strong>
-              <em>
-                {typeOf(file)} · {formatSize(file.size)}
-              </em>
-              {file.scopeLabel && (
-                <span className={`material-scope scope-${file.storageScope || "project"}`}>
-                  {file.scopeLabel}
-                  {file.usageCount ? ` · ${file.usageCount}` : ""}
-                </span>
-              )}
-              {inLibrary && <i title="已收录到素材库" />}
-            </div>
             <div className="material-node">
               <MaterialPreview file={file} kind={kind} onPreview={onPreview} />
+              <div className="material-node-kicker">
+                <IconSymbol name={iconOf(file)} />
+                <strong title={file.name}>{file.name || "未命名文件"}</strong>
+                <em>
+                  {typeOf(file)} · {formatSize(file.size)}
+                </em>
+                {file.scopeLabel && (
+                  <span className={`material-scope scope-${file.storageScope || "project"}`}>
+                    {file.scopeLabel}
+                    {file.usageCount ? ` · ${file.usageCount}` : ""}
+                  </span>
+                )}
+                {inLibrary && <i title="已收录到素材库" />}
+              </div>
               <div className="material-node-actions">
                 {showApplyAction && (
                   <button
@@ -420,7 +351,13 @@ export function MaterialGrid({
                   </button>
                 )}
                 {showFileAction && file.path && (
-                  <button title="所在位置" onClick={() => action("show-file")}>
+                  <button
+                    title="在文件夹中显示"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      action("show-file");
+                    }}
+                  >
                     <IconSymbol name="folder" />
                   </button>
                 )}

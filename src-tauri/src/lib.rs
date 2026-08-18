@@ -85,6 +85,7 @@ pub fn run() {
     let builder = tauri::Builder::default()
         .manage(commands::AgentRuntimeState::new())
         .manage(commands::GenerationGatewayState::new())
+        .manage(commands::RecoveryState::new())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -94,6 +95,11 @@ pub fn run() {
 
     let app = builder
         .setup(|_app| {
+            commands::initialize(_app.handle())
+                .map_err(|error| {
+                    let boxed: Box<dyn std::error::Error> = Box::new(std::io::Error::other(error));
+                    tauri::Error::Setup(boxed.into())
+                })?;
             #[cfg(target_os = "windows")]
             {
                 use tauri::Manager;
@@ -106,12 +112,16 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::agent_runtime_start,
             commands::agent_runtime_status,
+            commands::agent_runtime_diagnostics,
+            commands::agent_runtime_note_activity,
             commands::agent_runtime_request,
             commands::agent_runtime_subscribe,
             commands::agent_runtime_unsubscribe,
             commands::agent_runtime_register_tools,
             commands::agent_tool_reply,
             commands::agent_runtime_stop,
+            commands::recovery_status,
+            commands::recovery_update_activity,
             commands::generation_request,
             commands::generation_stream,
             commands::generation_download,
@@ -142,6 +152,9 @@ pub fn run() {
             commands::file_read_array_buffer,
             commands::file_read_image_preview,
             commands::file_apply_colored_pencil,
+            commands::file_crop_image,
+            commands::file_has_audio,
+            commands::file_separate_audio,
             commands::file_global_asset_root,
             commands::file_trash,
             commands::file_show_item_in_folder,
@@ -161,6 +174,7 @@ pub fn run() {
             use tauri::Manager;
             let state = app_handle.state::<commands::AgentRuntimeState>();
             let _ = tauri::async_runtime::block_on(state.shutdown());
+            let _ = commands::mark_clean_exit(app_handle);
         }
     });
 }

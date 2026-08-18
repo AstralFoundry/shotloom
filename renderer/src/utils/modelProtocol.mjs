@@ -1,4 +1,5 @@
 const TEMPLATE_RE = /^{{\s*([a-zA-Z][a-zA-Z0-9_]*(?:\.[a-zA-Z0-9_-]+)*)\s*}}$/;
+const PLACEHOLDER_RE = /{{\s*([a-zA-Z][a-zA-Z0-9_]*(?:\.[a-zA-Z0-9_-]+)*)\s*}}/g;
 const BLOCKED_SEGMENTS = new Set(['__proto__', 'prototype', 'constructor']);
 
 function isRecord(value) {
@@ -27,10 +28,19 @@ export function firstProtocolValue(value, path = '') {
 
 export function renderProtocolTemplate(value, variables = {}) {
   if (typeof value === 'string') {
-    const match = TEMPLATE_RE.exec(value);
-    if (!match) return value;
-    const resolved = firstProtocolValue(variables, match[1]);
-    return resolved === undefined ? undefined : structuredClone(resolved);
+    const whole = TEMPLATE_RE.exec(value);
+    if (whole) {
+      const resolved = firstProtocolValue(variables, whole[1]);
+      return resolved === undefined ? undefined : structuredClone(resolved);
+    }
+    if (!value.includes('{{')) return value;
+    let missing = false;
+    const rendered = value.replace(PLACEHOLDER_RE, (_placeholder, path) => {
+      const resolved = firstProtocolValue(variables, path);
+      if (resolved === undefined) { missing = true; return ''; }
+      return String(resolved);
+    });
+    return missing ? undefined : rendered;
   }
   if (Array.isArray(value)) {
     return value.map(item => renderProtocolTemplate(item, variables)).filter(item => item !== undefined);
@@ -57,21 +67,51 @@ export function protocolMessageVariables(messages = []) {
 }
 
 /**
- * @param {{ prompt?: unknown, imageUrls?: string[], imageRole?: unknown }} options
+ * Compile a provider's media content array from its declarative item templates
+ * (mode.contentTemplate). Each media ref renders one item; the text item renders
+ * once when a prompt is present. Per-slot roles are resolved upstream, so item
+ * templates only reference {{url}} / {{role}} / {{slot}} / {{index}}.
+ * @param {unknown} contentTemplate
+ * @param {{
+ *   text?: unknown,
+ *   images?: Array<{url: string, role?: string, slot?: string}>,
+ *   videos?: Array<{url: string, role?: string, slot?: string}>,
+ *   audios?: Array<{url: string, role?: string, slot?: string}>
+ * }} options
  */
-export function protocolMediaContent({ prompt = '', imageUrls = [], imageRole = '' } = {}) {
-  const text = typeof prompt === 'string' ? prompt.trim() : '';
-  const role = typeof imageRole === 'string' ? imageRole.trim() : '';
-  return [
-    ...(text ? [{ type: 'text', text }] : []),
-    ...(Array.isArray(imageUrls) ? imageUrls : [])
-      .filter(url => typeof url === 'string' && url.trim())
-      .map(url => ({
-        type: 'image_url',
-        image_url: { url: url.trim() },
-        ...(role ? { role } : {}),
-      })),
-  ];
+export function renderProtocolContentTemplate(
+  contentTemplate,
+  { text = '', images = [], videos = [], audios = [] } = {},
+) {
+  if (!contentTemplate) return undefined;
+  const items = [];
+  const prompt = typeof text === 'string' ? text.trim() : '';
+  if (contentTemplate.text !== undefined && prompt) {
+    const rendered = renderProtocolTemplate(contentTemplate.text, { text: prompt });
+    if (rendered !== undefined) items.push(rendered);
+  }
+  for (const [index, ref] of images.entries()) {
+    if (!ref?.url) continue;
+    const rendered = renderProtocolTemplate(contentTemplate.image, {
+      url: ref.url, role: ref.role || undefined, slot: ref.slot || undefined, index: index + 1,
+    });
+    if (rendered !== undefined) items.push(rendered);
+  }
+  for (const [index, ref] of videos.entries()) {
+    if (!ref?.url) continue;
+    const rendered = renderProtocolTemplate(contentTemplate.video, {
+      url: ref.url, role: ref.role || undefined, slot: ref.slot || undefined, index: index + 1,
+    });
+    if (rendered !== undefined) items.push(rendered);
+  }
+  for (const [index, ref] of audios.entries()) {
+    if (!ref?.url) continue;
+    const rendered = renderProtocolTemplate(contentTemplate.audio, {
+      url: ref.url, role: ref.role || undefined, slot: ref.slot || undefined, index: index + 1,
+    });
+    if (rendered !== undefined) items.push(rendered);
+  }
+  return items.length ? items : undefined;
 }
 
 export function protocolInlineImage(value) {
@@ -84,29 +124,13 @@ export function protocolInlineImage(value) {
   };
 }
 
-/**
- * Compile Kling API 2.0's typed `contents` array.
- * `first_frame` is used by the regular image-to-video endpoints, while
- * `refer_image` is used by Kling Omni's multi-reference endpoint.
- * @param {{ prompt?: unknown, imageUrls?: string[], imageType?: string }} options
- */
-export function protocolKlingContents({ prompt = '', imageUrls = [], imageType = 'first_frame' } = {}) {
-  const text = typeof prompt === 'string' ? prompt.trim() : '';
-  const urls = Array.isArray(imageUrls)
-    ? imageUrls.filter(url => typeof url === 'string' && url.trim()).map(url => url.trim())
-    : [];
-  const referenceImages = imageType === 'refer_image';
-  return [
-    ...(text ? [{ type: 'prompt', text }] : []),
-    ...urls.map((url, index) => ({
-      type: referenceImages ? 'refer_image' : 'first_frame',
-      url,
-      ...(referenceImages ? { id: `image_${index + 1}` } : {}),
-    })),
-  ];
-}
-
 export function normalizeProtocolResponse(data, protocol = {}) {
+  const configuredMimeType = String(protocol.resultMimeType || '').trim();
+  const configuredExtension = String(protocol.resultFileExtension || '').trim().replace(/^\./, '');
+  const fileMetadata = {
+    ...(configuredMimeType ? { mimeType: configuredMimeType } : {}),
+    ...(configuredExtension ? { name: `result.${configuredExtension}` } : {}),
+  };
   const urls = protocol.resultUrlPath
     ? readProtocolPath(data, protocol.resultUrlPath).filter(value => typeof value === 'string' && /^https?:\/\//i.test(value))
     : [];
@@ -114,6 +138,22 @@ export function normalizeProtocolResponse(data, protocol = {}) {
   const base64Values = protocol.resultBase64Path
     ? readProtocolPath(data, protocol.resultBase64Path).filter(value => typeof value === 'string' && value.trim())
     : [];
+  const hexValues = protocol.resultHexPath
+    ? readProtocolPath(data, protocol.resultHexPath)
+      .filter(value => typeof value === 'string' && value.trim())
+      .map(protocolHexToBase64)
+    : [];
+  const responseBodyBase64 = protocol.resultBody?.encoding === 'binary'
+    && typeof data?.__responseBodyBase64 === 'string'
+    && data.__responseBodyBase64.trim()
+    ? data.__responseBodyBase64.trim()
+    : '';
+  const responseMimeType = String(data?.__responseContentType || '').split(';')[0].trim();
+  const responseBodyFile = responseBodyBase64 ? {
+    b64Json: responseBodyBase64,
+    mimeType: protocol.resultBody.mimeType || responseMimeType || 'application/octet-stream',
+    name: `result.${String(protocol.resultBody.fileExtension || 'bin').replace(/^\./, '')}`,
+  } : null;
   const downloadMetadata = protocol.resultDownloadAuth ? {
     downloadAuth: {
       providerId: protocol.provider,
@@ -121,15 +161,81 @@ export function normalizeProtocolResponse(data, protocol = {}) {
       auth: protocol.auth,
     },
   } : undefined;
+  const inlineResultPaths = [protocol.resultBase64Path, protocol.resultHexPath].filter(Boolean);
+  if (responseBodyBase64) inlineResultPaths.push('__responseBodyBase64');
   return {
-    ...(urls.length || base64Values.length ? {
+    ...(urls.length || base64Values.length || hexValues.length || responseBodyFile ? {
       files: [
-        ...urls.map(url => ({ url, ...(downloadMetadata ? { metadata: downloadMetadata } : {}) })),
-        ...base64Values.map(b64Json => ({ b64Json })),
+        ...urls.map(url => ({ url, ...fileMetadata, ...(downloadMetadata ? { metadata: downloadMetadata } : {}) })),
+        ...base64Values.map(b64Json => ({ b64Json, ...fileMetadata })),
+        ...hexValues.map(b64Json => ({ b64Json, ...fileMetadata })),
+        ...(responseBodyFile ? [responseBodyFile] : []),
       ],
       ...(urls[0] ? { url: urls[0] } : {}),
     } : {}),
     ...(typeof textValue === 'string' && textValue.trim() ? { text: textValue.trim() } : {}),
-    raw: data,
+    raw: redactProtocolResultValues(data, inlineResultPaths),
+  };
+}
+
+function redactProtocolResultValues(data, paths) {
+  let result = data;
+  for (const path of paths) {
+    result = redactProtocolPath(result, String(path).split('.'), 0);
+  }
+  return result;
+}
+
+function redactProtocolPath(value, segments, index) {
+  if (index >= segments.length) return '[媒体数据已提取]';
+  if (value === null || value === undefined) return value;
+  const segment = segments[index];
+  if (Array.isArray(value)) {
+    if (segment === '*') return value.map(item => redactProtocolPath(item, segments, index + 1));
+    const position = Number(segment);
+    if (!Number.isInteger(position) || position < 0 || position >= value.length) return value;
+    const copy = [...value];
+    copy[position] = redactProtocolPath(copy[position], segments, index + 1);
+    return copy;
+  }
+  if (typeof value !== 'object' || !Object.hasOwn(value, segment)) return value;
+  return {
+    ...value,
+    [segment]: redactProtocolPath(value[segment], segments, index + 1),
+  };
+}
+
+export function protocolHexToBase64(value) {
+  const hex = String(value || '').replace(/\s+/g, '');
+  if (!hex || hex.length % 2 !== 0 || !/^[0-9a-f]+$/i.test(hex)) {
+    throw new Error('模型结果中的 Hex 媒体数据格式无效');
+  }
+  let binary = '';
+  for (let offset = 0; offset < hex.length; offset += 2) {
+    binary += String.fromCharCode(Number.parseInt(hex.slice(offset, offset + 2), 16));
+  }
+  return btoa(binary);
+}
+
+export function protocolResultEndpointFile(protocol = {}, remoteTaskId = '', raw = {}) {
+  const endpoint = protocol.resultEndpoint;
+  if (!endpoint?.path) return null;
+  const encodedTaskId = String(remoteTaskId).split('/').map(encodeURIComponent).join('/');
+  return {
+    files: [{
+      name: `result.${endpoint.fileExtension || 'bin'}`,
+      mimeType: endpoint.mimeType || 'application/octet-stream',
+      metadata: {
+        downloadAuth: {
+          providerId: protocol.provider,
+          endpointPath: endpoint.path.replace('{taskId}', encodedTaskId),
+          endpointScope: endpoint.scope || 'root',
+          endpointMethod: endpoint.method || 'GET',
+          headers: protocol.headers,
+          auth: protocol.auth,
+        },
+      },
+    }],
+    raw,
   };
 }

@@ -4,6 +4,7 @@ import {
   addEditorClip,
   addEditorTrack,
   activeEditorClip,
+  appendEditorMediaAsset,
   createVideoEditorProject,
   editorProjectToOpenVideo,
   normalizeVideoEditorProject,
@@ -11,6 +12,54 @@ import {
   updateEditorClip,
   videoEditorDuration,
 } from '../renderer/src/utils/videoEditorProject.mjs';
+
+test('画布媒体按类型加入对应轨道且不会重复添加', () => {
+  let id = 0;
+  const localIds = (prefix) => `${prefix}-canvas-${++id}`;
+  let project = createVideoEditorProject({ createId: localIds });
+  const video = appendEditorMediaAsset(project, {
+    id: 'canvas:video:one',
+    type: 'video',
+    name: '镜头一',
+    sourceFile: '/tmp/one.mp4',
+    sourceUrl: 'asset://one.mp4',
+    duration: 3,
+    width: 1920,
+    height: 1080,
+    sourceNodeId: 'video-node',
+  }, { createId: localIds });
+  assert.equal(video.added, true);
+  assert.equal(video.project.tracks.find((track) => track.type === 'video').clips.length, 1);
+  assert.equal(video.project.assets[0].sourceNodeId, 'video-node');
+
+  const duplicate = appendEditorMediaAsset(video.project, {
+    id: 'canvas:video:one',
+    type: 'video',
+    duration: 3,
+  }, { createId: localIds });
+  assert.equal(duplicate.added, false);
+  assert.equal(duplicate.clipId, video.clipId);
+
+  const image = appendEditorMediaAsset(duplicate.project, {
+    id: 'canvas:image:one',
+    type: 'image',
+    name: '定帧',
+    sourceUrl: 'asset://still.png',
+    width: 1080,
+    height: 1920,
+  }, { createId: localIds });
+  assert.equal(image.added, true);
+  assert.equal(image.project.tracks.find((track) => track.type === 'overlay').clips[0].duration, 4);
+
+  project = appendEditorMediaAsset(image.project, {
+    id: 'canvas:audio:one',
+    type: 'audio',
+    name: '旁白',
+    sourceUrl: 'asset://voice.wav',
+    duration: 2.5,
+  }, { createId: localIds }).project;
+  assert.equal(project.tracks.find((track) => track.type === 'audio').clips[0].trimEnd, 2.5);
+});
 
 test('空白剪辑工程无需源视频即可初始化', () => {
   const project = normalizeVideoEditorProject(undefined, {

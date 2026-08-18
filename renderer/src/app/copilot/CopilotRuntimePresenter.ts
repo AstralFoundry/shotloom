@@ -51,13 +51,26 @@ export class CopilotRuntimePresenter {
   readonly tools: RuntimeValue[] = [];
   readonly clarifications: RuntimeValue[] = [];
   plan: RuntimeValue | null = null;
+  private structuralRevision = 0;
+  private cachedStructuralRevision = -1;
+  private cachedStructuralSnapshot: RuntimeValue = {};
+
+  private changed(): void {
+    this.structuralRevision += 1;
+  }
 
   snapshot(patch: RuntimeValue = {}): RuntimeValue {
+    if (this.cachedStructuralRevision !== this.structuralRevision) {
+      this.cachedStructuralSnapshot = {
+        toolCalls: cloneList(this.tools),
+        clarifications: cloneList(this.clarifications),
+        agentTurnCount: this.turns,
+        ...(this.plan ? { productionPlan: JSON.parse(JSON.stringify(this.plan)) } : {}),
+      };
+      this.cachedStructuralRevision = this.structuralRevision;
+    }
     return {
-      toolCalls: cloneList(this.tools),
-      clarifications: cloneList(this.clarifications),
-      agentTurnCount: this.turns,
-      ...(this.plan ? { productionPlan: JSON.parse(JSON.stringify(this.plan)) } : {}),
+      ...this.cachedStructuralSnapshot,
       typing: true,
       ...patch,
     };
@@ -83,16 +96,18 @@ export class CopilotRuntimePresenter {
       ...(Array.isArray(event.answers) ? { answers: event.answers, answered: true } : {}),
       ...(event.skipped ? { skipped: true, answered: true } : {}),
     });
+    this.changed();
   }
 
   consume(event: RuntimeValue): RuntimePresentationEffect {
     if (event.type === 'production_plan_updated' && event.plan) {
       this.plan = event.plan;
+      this.changed();
       return { messagePatch: this.snapshot({ title: '正在按制作计划推进' }), persist: true };
     }
     if (event.type === 'text_delta') {
       this.streamed += event.delta || '';
-      return { textChanged: true, messagePatch: this.snapshot({ title: '正在组织回答' }) };
+      return { textChanged: true, messagePatch: { title: '正在组织回答', typing: true } };
     }
     if (event.type === 'context_usage') {
       return { contextUsage: {
@@ -106,6 +121,7 @@ export class CopilotRuntimePresenter {
     }
     if (event.type === 'turn_start') {
       this.turns = Math.max(this.turns + 1, Number(event.turn) || 0);
+      this.changed();
       return { messagePatch: this.snapshot({
         title: '正在分析任务',
         meta: [],
@@ -123,6 +139,7 @@ export class CopilotRuntimePresenter {
         runId: event.requestId,
         startedAt: event.startedAt,
       });
+      this.changed();
       if (event.clarification) this.clarification(event);
       return { messagePatch: this.snapshot({
         title: toolActivity(name),
@@ -136,6 +153,20 @@ export class CopilotRuntimePresenter {
         title: event.type === 'subagent_completed' ? '正在汇总分析结果' : '正在调整处理方案',
       }) };
     }
+    if (event.type === 'session_stalled') {
+      return { messagePatch: this.snapshot({
+        title: event.stalled === false
+          ? 'Agent 已恢复响应'
+          : event.watchdog === 'hard_cap'
+          ? 'Agent 已运行较长时间，可停止后重试'
+          : 'Agent 暂时没有新进展，可继续等待或停止',
+        stalled: event.stalled !== false,
+        stall: event.stalled === false ? undefined : {
+          silentMs: Number(event.silentMs || 0),
+          watchdog: String(event.watchdog || 'no_progress'),
+        },
+      }), persist: true };
+    }
     if (event.type === 'interaction_requested' && event.kind === 'tool_confirmation') {
       const tool = this.tools.find((item) => item.id === event.toolCallId);
       if (tool) Object.assign(tool, {
@@ -146,11 +177,13 @@ export class CopilotRuntimePresenter {
         interactionId: event.interactionId,
         summary: `${event.title || '画布操作'} · ${event.actionCount || 0} 项，等待确认`,
       });
+      if (tool) this.changed();
       return { messagePatch: this.snapshot({ title: '等待你确认画布操作', transient: false }), persist: true };
     }
     if (event.type === 'interaction_resolved' && event.kind === 'tool_confirmation') {
       const tool = this.tools.find((item) => item.id === event.toolCallId);
       if (tool) Object.assign(tool, { pending: false, status: event.approved ? 'running' : 'error' });
+      if (tool) this.changed();
       return { messagePatch: this.snapshot({ title: event.approved ? '正在执行已确认的操作' : '正在调整处理方案' }) };
     }
     if (event.type === 'tool_end') {
@@ -166,6 +199,7 @@ export class CopilotRuntimePresenter {
           pending: event.pending === true,
           summary,
         });
+        this.changed();
       }
       return { messagePatch: this.snapshot({
         title: event.pending ? '等待你确认画布操作'
@@ -190,6 +224,7 @@ export class CopilotRuntimePresenter {
         status: 'success',
         summary: String(event.name || event.skillId || 'Skill'),
       });
+      this.changed();
       return { messagePatch: this.snapshot({ title: '正在准备处理方法' }) };
     }
     if (event.type === 'recipe_used') {
@@ -201,6 +236,7 @@ export class CopilotRuntimePresenter {
         status: 'success',
         summary: String(event.name || event.recipeId || 'Recipe'),
       });
+      this.changed();
       return { messagePatch: this.snapshot({ title: '正在准备处理方法' }) };
     }
     return { messagePatch: this.snapshot({

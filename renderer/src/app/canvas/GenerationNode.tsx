@@ -1,15 +1,15 @@
-import { memo, useContext, useEffect, useMemo, useState } from "react";
-import { Handle, Position } from "@xyflow/react";
-import { convertFileSrc } from "@tauri-apps/api/core";
-import { desktopApi } from "../../services/desktopApi.js";
-import { getModelInfo, getModelSchema, getTypeMeta } from "../../domain/catalog/ModelCatalog";
-import { MentionContext } from "./WorkflowCanvas";
+import { memo, type ReactNode, useCallback, useContext, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { type ReactFlowState, useStore } from "@xyflow/react";
+import { getGenerationInputModes, getModelInfo, getModelSchema, getTypeMeta, resolveModeIdForInputMode } from "../../domain/catalog/ModelCatalog";
+import { CanvasNodeLabelRootContext, CanvasOverlayRootContext } from "./WorkflowCanvas";
 import {
   aspectRatioStyle,
   isAspectRatioParam,
   modelDescription,
   optionLabel,
   optionValue,
+  paramPresentation,
   paramOptionHint,
   paramVisualClass,
   paramVisualText,
@@ -23,10 +23,21 @@ import { ProviderBrandIcon } from "../components/ProviderBrandIcon";
 import { CameraControlPanel } from "./CameraControlPanel";
 import { DEFAULT_CAMERA_CONFIG, normalizeCameraConfig } from "../../utils/cameraConfig.js";
 import { openMediaViewer, showToast } from "../store/overlayStore";
-import type { WorkflowNodeData, WorkflowNodeRenderer } from "./WorkflowCanvas";
-import { schedulePreviewLoad } from "./previewLoadQueue";
+import type {
+  WorkflowIncomingInput,
+  WorkflowNodeData,
+  WorkflowNodeRenderer,
+} from "./WorkflowCanvas";
 import { isImeKeyEvent, useImeCommit } from "./imeComposition";
-import { imageCanvasNodeDimensions } from "../../domain/graph/CanvasNodeDimensions";
+import { reconcileMediaNodeDimensions } from "../../domain/graph/CanvasNodeDimensions";
+import { textNodeContent } from "../../utils/textNodeContent.mjs";
+import { desktopApi } from "../../services/desktopApi.js";
+import { compileGenerationNodeConfig } from "../../domain/graph/GenerationNodeContract";
+import { formatMediaTime, GenerationAudioPreview } from "./GenerationAudioPreview";
+import {
+  generationMediaKind,
+  useGenerationLocalPreview,
+} from "./generationNodeMedia";
 
 interface OutputData {
   id: string;
@@ -47,102 +58,133 @@ const generationTypes = new Set([
   "textGeneration",
 ]);
 const MAX_TEXT_PREVIEW_CHARS = 6000;
-const extKinds = {
-  image: ["png", "jpg", "jpeg", "webp", "gif", "avif", "bmp", "svg"],
-  video: ["mp4", "mov", "webm", "m4v"],
-  audio: ["mp3", "wav", "m4a", "aac", "ogg", "flac"],
-  text: ["txt", "md", "json", "csv", "log"],
-} as const;
-function kindOf(item: Record<string, unknown>): "image" | "video" | "audio" | "text" | "" {
-  const type = String(item.resourceType || item.mimeType || "").toLowerCase();
-  const ext =
-    String(item.fileName || item.filePath || item.url || item.previewUrl || "")
-      .split(/[?#]/)[0]
-      .split(".")
-      .pop()
-      ?.toLowerCase() || "";
-  return (
-    (Object.keys(extKinds) as Array<keyof typeof extKinds>).find(
-      (kind) => type.includes(kind) || extKinds[kind].includes(ext as never),
-    ) || (item.content ? "text" : "")
-  );
-}
-function useLocalPreview(item: Record<string, unknown> | null, kind: string) {
-  const [url, setUrl] = useState("");
-  const path = String(item?.filePath || item?.path || "");
-  const [bufferedPath, setBufferedPath] = useState("");
-  const useBufferedMedia = Boolean(path && bufferedPath === path);
-  useEffect(() => {
-    let cancelled = false;
-    let created = "";
-    let cancelLoad = () => {};
-    if (
-      path &&
-      (kind === "video" || kind === "audio") &&
-      desktopApi.platform !== "browser" &&
-      !useBufferedMedia
-    ) {
-      setUrl(convertFileSrc(path));
-      return () => setUrl("");
-    }
-    if (path && ["image", "video", "audio"].includes(kind)) {
-      cancelLoad = schedulePreviewLoad(async () => {
-        if (cancelled) return;
-        try {
-          let buffer: ArrayBuffer | undefined;
-          const extension = path.split(/[?#]/)[0].split(".").pop()?.toLowerCase();
-          const inferredMime =
-            extension === "mp4" || extension === "m4v"
-              ? "video/mp4"
-              : extension === "mov"
-                ? "video/quicktime"
-                : extension === "webm"
-                  ? "video/webm"
-                  : extension === "mp3"
-                    ? "audio/mpeg"
-                    : extension === "m4a"
-                      ? "audio/mp4"
-                      : `${kind}/*`;
-          let mime = String(item?.mimeType || item?.type || inferredMime);
-          if (kind === "image" && desktopApi.file.readImagePreview) {
-            try {
-              buffer = await desktopApi.file.readImagePreview(path, 960);
-              mime = "image/jpeg";
-            } catch {
-              buffer = await desktopApi.file.readArrayBuffer?.(path);
-            }
-          } else buffer = await desktopApi.file.readArrayBuffer?.(path);
-          if (!cancelled && buffer?.byteLength) {
-            created = URL.createObjectURL(new Blob([buffer], { type: mime }));
-            setUrl(created);
-          }
-        } catch {}
-      });
-    }
-    return () => {
-      cancelled = true;
-      cancelLoad();
-      if (created) URL.revokeObjectURL(created);
-      setUrl("");
-    };
-  }, [path, kind, item?.mimeType, useBufferedMedia]);
-  const retryBuffered = () => {
-    if (path && desktopApi.platform !== "browser" && !useBufferedMedia) {
-      setBufferedPath(path);
-    }
-  };
-  if (url) return { url, retryBuffered, buffered: useBufferedMedia };
-  const raw = String(item?.previewUrl || item?.url || item?.content || "");
-  return {
-    url: /^(https?:|blob:|data:)/i.test(raw) ? raw : "",
-    retryBuffered,
-    buffered: useBufferedMedia,
-  };
+
+function generationNodeDisplayTitle(
+  node: WorkflowNodeData,
+  output: OutputData | null,
+  uploaded: Record<string, unknown> | null,
+  typeLabel: string,
+) {
+  const genericNames = new Set([
+    typeLabel.toLowerCase(),
+    String(node.type || "").toLowerCase(),
+  ]);
+  const candidates = [output?.fileName, output?.title, uploaded?.name, node.title];
+  for (const candidate of candidates) {
+    const title = String(candidate || "").trim();
+    if (!title) continue;
+    const stem = title.replace(/\.[a-z0-9]{1,10}$/i, "").trim().toLowerCase();
+    if (!genericNames.has(stem)) return title;
+  }
+  return typeLabel.replace(/生成$/, "") || "节点";
 }
 
-export const GenerationNode: WorkflowNodeRenderer = memo(({ node, selected, actions }) => {
+function ScreenSpaceComposer({
+  nodeId,
+  children,
+}: {
+  nodeId: string;
+  children: ReactNode;
+}) {
+  const root = useContext(CanvasOverlayRootContext);
+  const dragging = useStore((state: ReactFlowState) =>
+    Boolean(state.nodeLookup.get(nodeId)?.dragging),
+  );
+  const [dragReleaseSettling, setDragReleaseSettling] = useState(false);
+  const hidden = dragging || dragReleaseSettling;
+  useLayoutEffect(() => {
+    if (dragging) {
+      setDragReleaseSettling(true);
+      return;
+    }
+    if (!dragReleaseSettling) return;
+    let revealFrame = 0;
+    let revealTimer = 0;
+    const settleFrame = requestAnimationFrame(() => {
+      revealFrame = requestAnimationFrame(() => {
+        revealTimer = window.setTimeout(() => setDragReleaseSettling(false), 64);
+      });
+    });
+    return () => {
+      cancelAnimationFrame(settleFrame);
+      if (revealFrame) cancelAnimationFrame(revealFrame);
+      if (revealTimer) window.clearTimeout(revealTimer);
+    };
+  }, [dragReleaseSettling, dragging]);
+  const selectPlacement = useCallback((state: ReactFlowState) => {
+    const internal = state.nodeLookup.get(nodeId);
+    const [viewportX, viewportY, zoom] = state.transform;
+    const position = internal?.internals.positionAbsolute;
+    const width = Number(internal?.measured.width || internal?.width || 0);
+    const height = Number(internal?.measured.height || internal?.height || 0);
+    const rootWidth = Number(root?.clientWidth || 570);
+    const composerWidth = Math.min(570, Math.max(320, rootWidth - 24));
+    const desiredLeft = viewportX + (Number(position?.x || 0) + width / 2) * zoom;
+    return {
+      left: Math.max(composerWidth / 2 + 12, Math.min(rootWidth - composerWidth / 2 - 12, desiredLeft)),
+      top: viewportY + (Number(position?.y || 0) + height) * zoom + 10,
+      width: composerWidth,
+    };
+  }, [nodeId, root]);
+  const placement = useStore(
+    selectPlacement,
+    (left, right) => left.left === right.left && left.top === right.top && left.width === right.width,
+  );
+  if (!root) return null;
+  return createPortal(
+    <div
+      className={`work-composer-anchor${hidden ? " work-composer-anchor--hidden" : ""}`}
+      style={placement}
+      aria-hidden={hidden}
+    >
+      {children}
+    </div>,
+    root,
+  );
+}
+
+function ComposerInputThumbnail({
+  input,
+  onRemove,
+  label,
+}: {
+  input: WorkflowIncomingInput;
+  onRemove: () => void;
+  label?: string;
+}) {
+  const kind = generationMediaKind(input);
+  const { url } = useGenerationLocalPreview(input, kind, 1);
+  return (
+    <div className="work-composer-input" title={input.name}>
+      {kind === "image" && url ? (
+        <img src={url} alt={input.name} />
+      ) : kind === "video" && url ? (
+        <video src={url} muted playsInline preload="metadata" />
+      ) : (
+        <IconSymbol name={kind === "audio" ? "waveform" : kind === "text" ? "text" : "file"} />
+      )}
+      {label && <span className="work-composer-input-label">{label}</span>}
+      <button type="button" title="移除参考素材" onClick={onRemove}>
+        <IconSymbol name="x" />
+      </button>
+    </div>
+  );
+}
+
+export const GenerationNode: WorkflowNodeRenderer = memo(({
+  node,
+  selected,
+  semanticZoom = 1,
+  previewZoom = semanticZoom,
+  incomingInputs = [],
+  actions,
+}) => {
   const [openMenu, setOpenMenu] = useState("");
-  const mentionInCopilot = useContext(MentionContext);
+  const videoPreviewRef = useRef<HTMLVideoElement>(null);
+  const [videoTime, setVideoTime] = useState(0);
+  const [videoDuration, setVideoDuration] = useState(0);
+  const [videoMuted, setVideoMuted] = useState(false);
+  const labelRoot = useContext(CanvasNodeLabelRootContext);
   const promptCommit = useImeCommit<HTMLTextAreaElement>(String(node.prompt || ""), (value) =>
     actions.update(node.id, { prompt: value }),
   );
@@ -155,33 +197,29 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({ node, selected, acti
       ? (node.uploadedFile as Record<string, unknown>)
       : null;
   const outputKind = selectedOutput
-    ? kindOf(selectedOutput as unknown as Record<string, unknown>)
+    ? generationMediaKind(selectedOutput as unknown as Record<string, unknown>)
     : "";
-  const uploadKind = uploaded ? kindOf(uploaded) : "";
+  const uploadKind = uploaded ? generationMediaKind(uploaded) : "";
   const active = (selectedOutput || uploaded) as unknown as Record<string, unknown> | null;
   const activeKind = selectedOutput ? outputKind : uploadKind;
-  const selectedVideoPath =
-    activeKind === "video"
-      ? String(
-          selectedOutput?.filePath ||
-            (selectedOutput as unknown as Record<string, unknown> | null)?.path ||
-            uploaded?.filePath ||
-            uploaded?.path ||
-            "",
-        )
-      : "";
+  const activeFilePath = String(selectedOutput?.filePath || uploaded?.filePath || uploaded?.path || "");
+  const activeFileName = String(
+    selectedOutput?.fileName || uploaded?.name || node.title ||
+      (activeKind === "video" ? "video.mp4" : "image.png"),
+  );
   const {
     url: previewUrl,
     retryBuffered: retryBufferedPreview,
     buffered: bufferedPreview,
-  } = useLocalPreview(active, activeKind);
+  } = useGenerationLocalPreview(active, activeKind, previewZoom);
   const kind = node.type.replace("Generation", "");
   const meta = getTypeMeta(node.type);
   const busy = ["running", "queued"].includes(String(node.status));
   const metaLabel = String(meta.label || node.type);
   const metaIcon = String(meta.icon || "spark");
+  const displayTitle = generationNodeDisplayTitle(node, selectedOutput, uploaded, metaLabel);
   const schema = selected
-    ? getModelSchema(node.type, String(node.model || ""))
+    ? getModelSchema(node.type, String(node.model || ""), resolveModeIdForInputMode(String(node.model || ""), String(node.inputMode || "")))
     : { models: [], params: [] };
   const config =
     node.config && typeof node.config === "object" ? (node.config as Record<string, unknown>) : {};
@@ -192,9 +230,15 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({ node, selected, acti
     (param: { key: string; visibleWhen?: Record<string, unknown> }) =>
       param.key !== "prompt" &&
       param.key !== "model" &&
+      paramPresentation(param).control !== "hidden" &&
       (!param.visibleWhen ||
         Object.entries(param.visibleWhen).every(([key, value]) => config[key] === value)),
   );
+  const explicitSummaryParams = params.filter((param: { presentation?: unknown }) => paramPresentation(param).summary === true);
+  const hasExplicitPresentation = params.some((param: { presentation?: unknown }) => (
+    Boolean(param.presentation) && typeof param.presentation === "object"
+  ));
+  const summaryParams = hasExplicitPresentation ? explicitSummaryParams : params.slice(0, 4);
   function modelIcon(modelId: string) {
     const providerId = String(getModelInfo(modelId)?.provider || "");
     const configuredIcon =
@@ -204,18 +248,32 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({ node, selected, acti
     return resolveProviderIconId(providerId, modelId, configuredIcon);
   }
   const selectedModel = String(node.model || models[0] || "");
+  const inputModes = getGenerationInputModes(selectedModel);
+  const activeInputMode = inputModes.find((item) => item.value === node.inputMode) || inputModes[0] || null;
+  const mediaInputs = incomingInputs.filter((input) => input.inputRole !== "textContext");
+  const fixedImageSlots = activeInputMode?.value === "firstLastFrame"
+    ? ["firstFrame", "lastFrame"]
+    : activeInputMode?.value === "firstFrame" ? ["firstFrame"] : [];
+  const inputLabel = (input: WorkflowIncomingInput) => input.inputSlot === "firstFrame"
+    ? "首帧" : input.inputSlot === "lastFrame" ? "尾帧"
+      : input.inputSlot === "inputVideo" ? "参考视频" : input.inputSlot === "referenceAudio" ? "参考音频" : "参考";
   const selectedPreset = getImageStylePreset(config.stylePresetId);
   const activeCameraConfig = normalizeCameraConfig(
     config.cameraConfig || DEFAULT_CAMERA_CONFIG,
   ) as Record<string, string>;
   const cameraControlEnabled = Boolean(config.cameraControl && config.cameraConfig);
-  const textContent = String(selectedOutput?.content || node.textContent || node.prompt || "");
+  const textContent = textNodeContent({ ...node, generatedOutputs: outputs });
   const textPreview =
     textContent.length > MAX_TEXT_PREVIEW_CHARS
       ? `${textContent.slice(0, MAX_TEXT_PREVIEW_CHARS)}\n…双击查看完整内容`
       : textContent;
   function setConfig(key: string, value: unknown) {
     actions.update(node.id, { config: { ...config, [key]: value } });
+  }
+  function booleanParamSummary(key: string, label: string, value: unknown) {
+    if (/audio/i.test(key) || label.includes("声音") || label.includes("有声")) return value ? "有声" : "无声";
+    if (/watermark/i.test(key) || label.includes("水印")) return value ? "水印" : "无水印";
+    return value ? label : "关闭";
   }
   function openDetail() {
     if (activeKind === "image" || activeKind === "video") {
@@ -224,10 +282,10 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({ node, selected, acti
           src: previewUrl,
           kind: activeKind,
           title: selectedOutput?.title || String(node.title || metaLabel),
-          filePath: String(selectedOutput?.filePath || uploaded?.path || ""),
+          filePath: String(selectedOutput?.filePath || uploaded?.filePath || uploaded?.path || ""),
         });
       }
-    } else if (kind === "text" && textContent) {
+    } else if (kind === "text") {
       openMediaViewer({
         src: textContent,
         kind: "text",
@@ -247,7 +305,39 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({ node, selected, acti
       });
     }
   }
+  async function saveActiveMedia() {
+    if (!activeFilePath) return showToast("当前媒体没有可导出的本地原始文件");
+    try {
+      const buffer = await desktopApi.file.readArrayBuffer(activeFilePath);
+      const result = await desktopApi.file.saveArrayBuffer(activeFileName, buffer);
+      if (result) showToast("媒体已另存");
+    } catch (cause) {
+      showToast(cause instanceof Error ? cause.message : "媒体另存失败");
+    }
+  }
   // Keep the media branch explicit: activeKind === 'image' && previewUrl ? <img /> : activeKind === 'video'.
+  const nodeLabel = (
+    <div className={`work-node-kicker${displayTitle ? "" : " unlabeled"}`}>
+      {displayTitle && (
+        <IconSymbol className="work-node-type-icon" name={metaIcon} aria-hidden="true" />
+      )}
+      {displayTitle && <span title={displayTitle}>{displayTitle}</span>}
+      {selected && node.type === "imageGeneration" && activeKind === "image" && (
+        <div className="work-node-kicker-actions">
+          <button
+            title="创建彩铅图片节点"
+            disabled={busy}
+            onClick={(event) => {
+              event.stopPropagation();
+              void actions.applyColoredPencil(node.id);
+            }}
+          >
+            <IconSymbol name="pencil" />
+          </button>
+        </div>
+      )}
+    </div>
+  );
   return (
     <div
       className="work-node-wrapper"
@@ -256,55 +346,14 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({ node, selected, acti
         actions.select(node.id);
       }}
     >
+      {labelRoot && createPortal(nodeLabel, labelRoot)}
       <div className="work-visual-block">
-        <div className="work-node-kicker">
-          {mentionInCopilot && (
-            <button
-              className="node-mention-btn"
-              title={`引用节点：${node.title || node.type}`}
-              onClick={(e) => {
-                e.stopPropagation();
-                mentionInCopilot(node.id);
-              }}
-            >
-              @
-            </button>
-          )}
-          <IconSymbol name={metaIcon} />
-          <span>{metaLabel}</span>
-          {selected && node.type === "imageGeneration" && activeKind === "image" && (
-            <div className="work-node-kicker-actions">
-              <button
-                title="创建彩铅图片节点"
-                disabled={busy}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  void actions.applyColoredPencil(node.id);
-                }}
-              >
-                <IconSymbol name="pencil" />
-              </button>
-            </div>
-          )}
-        </div>
         <div className={`work-node work-node-${kind}${selected ? " selected" : ""}`}>
-          <Handle
-            id="port-left"
-            className="node-port node-port-in"
-            type="source"
-            position={Position.Left}
-          />
-          <Handle
-            id="port-right"
-            className="node-port node-port-out"
-            type="source"
-            position={Position.Right}
-          />
           <div
             className={`work-preview ${
               node.type === "videoGeneration" ? "wide" : "square"
             } ${kind}`}
-            title={previewUrl || textContent ? "双击查看详情" : ""}
+            title={kind === "text" ? "双击编辑节点内容" : previewUrl ? "双击查看详情" : ""}
             onDoubleClick={openDetail}
           >
             {kind === "text" ? (
@@ -315,7 +364,18 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({ node, selected, acti
               ) : (
                 <div className="text-result-empty">
                   <IconSymbol name="chat" />
-                  <span>运行后在节点内显示文本</span>
+                  <span>模型返回或手动编写的内容显示在这里</span>
+                  <button
+                    type="button"
+                    className="text-result-manual nodrag nopan"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      openDetail();
+                    }}
+                  >
+                    <IconSymbol name="pencil" />
+                    自己编写内容
+                  </button>
                 </div>
               )
             ) : activeKind === "image" && previewUrl ? (
@@ -324,14 +384,12 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({ node, selected, acti
                 alt={String(node.title || metaLabel)}
                 onLoad={(event) => {
                   const image = event.currentTarget;
-                  const dimensions = imageCanvasNodeDimensions(
+                  const dimensions = reconcileMediaNodeDimensions(
+                    node,
                     image.naturalWidth,
                     image.naturalHeight,
                   );
-                  if (
-                    Number(node.canvasWidth) !== dimensions.width ||
-                    Number(node.canvasHeight) !== dimensions.height
-                  ) {
+                  if (dimensions) {
                     actions.update(node.id, {
                       canvasWidth: dimensions.width,
                       canvasHeight: dimensions.height,
@@ -341,29 +399,57 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({ node, selected, acti
               />
             ) : activeKind === "video" && previewUrl ? (
               <video
-                className="nodrag nopan nowheel"
+                ref={videoPreviewRef}
+                className="nowheel"
                 src={previewUrl}
-                controls
+                draggable={false}
+                muted={videoMuted}
+                loop
                 playsInline
                 preload="auto"
-                onPointerDown={(event) => event.stopPropagation()}
+                onLoadedMetadata={(event) => {
+                  const video = event.currentTarget;
+                  setVideoDuration(Number(video.duration) || 0);
+                  const dimensions = reconcileMediaNodeDimensions(
+                    node,
+                    video.videoWidth,
+                    video.videoHeight,
+                  );
+                  if (dimensions) {
+                    actions.update(node.id, {
+                      canvasWidth: dimensions.width,
+                      canvasHeight: dimensions.height,
+                    });
+                  }
+                }}
+                onPointerEnter={(event) => {
+                  const video = event.currentTarget;
+                  video.muted = videoMuted;
+                  video.volume = 1;
+                  void video.play().catch(() => undefined);
+                }}
+                onPointerLeave={(event) => {
+                  if (event.buttons) return;
+                  const video = event.currentTarget;
+                  video.pause();
+                }}
                 onLoadedData={(event) => {
                   const video = event.currentTarget;
                   if (video.paused && video.currentTime === 0 && video.duration > 0) {
                     video.currentTime = Math.min(1 / 30, Math.max(0, video.duration - 0.04));
                   }
                 }}
+                onDurationChange={(event) => setVideoDuration(Number(event.currentTarget.duration) || 0)}
+                onTimeUpdate={(event) => setVideoTime(event.currentTarget.currentTime)}
                 onError={() => {
                   if (!bufferedPreview) retryBufferedPreview();
                 }}
               />
             ) : activeKind === "audio" && previewUrl ? (
-              <audio
-                className="nodrag nopan nowheel"
+              <GenerationAudioPreview
                 src={previewUrl}
-                controls
-                preload="metadata"
-                onPointerDown={(event) => event.stopPropagation()}
+                filePath={String(selectedOutput?.filePath || uploaded?.filePath || uploaded?.path || "")}
+                fileName={String(selectedOutput?.fileName || uploaded?.name || node.title || "audio.m4a")}
                 onError={() => {
                   if (!bufferedPreview) retryBufferedPreview();
                 }}
@@ -371,18 +457,44 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({ node, selected, acti
             ) : (
               <div className="work-empty-state">
                 <IconSymbol className="work-empty-type-icon" name={metaIcon} />
+              </div>
+            )}
+            {activeKind === "video" && previewUrl && (
+              <div
+                className="work-video-status"
+                style={{ fontSize: `${10 * Math.min(1, semanticZoom)}px` }}
+              >
+                <span>{formatMediaTime(videoTime)} / {formatMediaTime(videoDuration)}</span>
                 <button
                   type="button"
-                  className="work-empty-upload nodrag nopan"
+                  className="work-video-sound nodrag nopan"
+                  title={videoMuted ? "开启声音" : "关闭声音"}
+                  aria-pressed={!videoMuted}
+                  onPointerDown={(event) => event.stopPropagation()}
                   onClick={(event) => {
                     event.stopPropagation();
-                    void actions.upload(node.id);
+                    const nextMuted = !videoMuted;
+                    setVideoMuted(nextMuted);
+                    if (videoPreviewRef.current) videoPreviewRef.current.muted = nextMuted;
                   }}
                 >
-                  <IconSymbol name="upload" />
-                  <span>上传{metaLabel.replace("生成", "")}</span>
+                  <IconSymbol name={videoMuted ? "volume-x" : "volume"} />
                 </button>
               </div>
+            )}
+            {(activeKind === "image" || activeKind === "video") && previewUrl && (
+              <button
+                type="button"
+                className="work-preview-download nodrag nopan"
+                title="另存原始文件"
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  void saveActiveMedia();
+                }}
+              >
+                <IconSymbol name="download" />
+              </button>
             )}
             {outputs.length > 1 && (
               <div className="generation-output-dots">
@@ -409,7 +521,12 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({ node, selected, acti
         </div>
       </div>
       {selected && (
-        <div className="work-composer nodrag nopan nowheel" onClick={(e) => e.stopPropagation()}>
+        <ScreenSpaceComposer nodeId={node.id}>
+        <div
+          className="work-composer nodrag nopan nowheel"
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={(event) => event.stopPropagation()}
+        >
           <div className="work-composer-row">
             <span className="work-type-chip">{metaLabel}</span>
             {node.type === "imageGeneration" && (
@@ -454,37 +571,60 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({ node, selected, acti
                 )}
               </div>
             )}
-            {node.type === "videoGeneration" && (
+            {["image", "video", "audio"].includes(activeKind) && (
               <button
                 className="video-export-trigger"
-                onClick={() => {
-                  if (selectedVideoPath) {
-                    actions.openVideoEditor(node.id);
-                  } else showToast("当前节点还没有可剪辑的本地视频文件");
-                }}
+                onClick={() => void actions.addToVideoEditor(node.id)}
               >
-                导出剪辑
+                <IconSymbol name="film" />
+                加入剪辑
               </button>
             )}
           </div>
-          {outputs.length > 0 && (
-            <div className="work-inputs work-outputs">
-              <span>Outputs</span>
-              {outputs.map((output) => (
-                <button
-                  key={output.id}
-                  className={output === selectedOutput ? "active" : ""}
-                  onClick={() => actions.selectOutput(node.id, output.id)}
-                >
-                  {output.title}
-                  <em>{output.resourceType}</em>
-                </button>
-              ))}
-            </div>
-          )}
           <div className="work-prompt-shell">
+            <div className="work-composer-inputs">
+              {fixedImageSlots.length ? fixedImageSlots.map((slot) => {
+                const input = mediaInputs.find((item) => item.inputSlot === slot);
+                return input ? (
+                  <ComposerInputThumbnail
+                    key={slot}
+                    input={input}
+                    label={slot === "firstFrame" ? "首帧" : "尾帧"}
+                    onRemove={() => actions.removeIncomingEdge(node.id, input.edgeId)}
+                  />
+                ) : (
+                  <button
+                    key={slot}
+                    type="button"
+                    className="work-composer-add work-composer-slot nodrag nopan"
+                    title={`添加${slot === "firstFrame" ? "首帧" : "尾帧"}`}
+                    onClick={() => void actions.addReference(node.id, slot)}
+                  >
+                    <IconSymbol name="plus" />
+                    <span>{slot === "firstFrame" ? "首帧" : "尾帧"}</span>
+                  </button>
+                );
+              }) : mediaInputs.map((input) => (
+                <ComposerInputThumbnail
+                  key={input.edgeId}
+                  input={input}
+                  label={inputLabel(input)}
+                  onRemove={() => actions.removeIncomingEdge(node.id, input.edgeId)}
+                />
+              ))}
+              {!fixedImageSlots.length && activeInputMode && mediaInputs.length < (activeInputMode.maxImages + activeInputMode.maxVideos + activeInputMode.maxAudios) && (
+                <button
+                  type="button"
+                  className="work-composer-add nodrag nopan"
+                  title="添加参考素材"
+                  onClick={() => void actions.addReference(node.id)}
+                >
+                  <IconSymbol name="plus" />
+                </button>
+              )}
+            </div>
             <textarea
-              placeholder="描述你想生成的画面、视频、音频或文本"
+              placeholder={kind === "text" ? "输入给大模型的文本生成提示词" : "描述你想生成的画面、视频或音频"}
               rows={2}
               {...promptCommit}
               onKeyDown={(e) => {
@@ -494,15 +634,9 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({ node, selected, acti
                 }
               }}
             />
-            <button
-              className={`work-run-btn${busy ? " running" : ""}`}
-              disabled={busy}
-              onClick={() => actions.run(node.id)}
-            >
-              <IconSymbol name={busy ? "refresh" : "send"} />
-            </button>
           </div>
           <div className="work-param-row">
+            <div className="work-param-controls">
             <div className="work-model-picker">
               <button
                 className="work-model-trigger"
@@ -526,10 +660,17 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({ node, selected, acti
                         onClick={() => {
                           actions.update(node.id, {
                             model,
+                            config: compileGenerationNodeConfig(
+                              config,
+                              getModelSchema(node.type, model).params,
+                              node.outputSpec,
+                            ),
                             status: "idle",
                             progress: 0,
                             error: "",
                           });
+                          const nextMode = getGenerationInputModes(model)[0];
+                          if (nextMode) actions.setInputMode(node.id, nextMode.value);
                           setOpenMenu("");
                         }}
                       >
@@ -547,7 +688,173 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({ node, selected, acti
                 </div>
               )}
             </div>
-            {params.map(
+            <div className="generation-settings-picker">
+              <button
+                type="button"
+                className={`generation-settings-trigger${openMenu === "generationSettings" ? " active" : ""}`}
+                title="生成参数"
+                onClick={() => setOpenMenu(openMenu === "generationSettings" ? "" : "generationSettings")}
+              >
+                {activeInputMode && <span>{activeInputMode.label}</span>}
+                {summaryParams.slice(0, 4).map((param) => (
+                  <span key={param.key}>
+                    {param.type === "boolean"
+                      ? booleanParamSummary(param.key, param.label, config[param.key] ?? param.default)
+                      : optionLabel(param, config[param.key] ?? param.default)}
+                  </span>
+                ))}
+                <IconSymbol name="chevron-down" />
+              </button>
+              {openMenu === "generationSettings" && (
+                <div
+                  className="generation-settings-panel nodrag nopan nowheel"
+                  onPointerDown={(event) => event.stopPropagation()}
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  {inputModes.length > 1 && (
+                    <section>
+                      <p>生成方式</p>
+                      <div className="generation-settings-segments">
+                        {inputModes.map((mode) => (
+                          <button
+                            key={mode.value}
+                            type="button"
+                            className={mode.value === activeInputMode?.value ? "active" : ""}
+                            onClick={() => actions.setInputMode(node.id, mode.value)}
+                          >
+                            {mode.label}
+                          </button>
+                        ))}
+                      </div>
+                    </section>
+                  )}
+                  {params.map((param, paramIndex) => {
+                    const current = config[param.key] ?? param.default;
+                    const presentation = paramPresentation(param);
+                    const control = presentation.control || (param.type === "boolean" ? "toggle" : (param.options || []).length ? "segmented" : param.type === "number" ? "number" : "text");
+                    const previousGroup = paramIndex > 0 ? String(paramPresentation(params[paramIndex - 1]).group || "") : "";
+                    const group = String(presentation.group || "");
+                    const groupHeading = group && group !== previousGroup
+                      ? <h5 className="generation-settings-group-title">{group}</h5>
+                      : null;
+                    if (control === "toggle") {
+                      return (
+                        <div className="generation-settings-param" key={param.key}>
+                          {groupHeading}
+                          <section>
+                            <p>{param.label}</p>
+                            <div className="generation-settings-chips">
+                              <button type="button" className={Boolean(current) ? "active" : ""} onClick={() => setConfig(param.key, true)}>开启</button>
+                              <button type="button" className={!Boolean(current) ? "active" : ""} onClick={() => setConfig(param.key, false)}>关闭</button>
+                            </div>
+                          </section>
+                        </div>
+                      );
+                    }
+                    if (control === "slider") {
+                      const min = Number(presentation.min);
+                      const max = Number(presentation.max);
+                      const step = Number(presentation.step) || 1;
+                      const value = Number(current ?? min);
+                      return (
+                        <div className="generation-settings-param" key={param.key}>
+                          {groupHeading}
+                          <section>
+                            <p>{param.label}</p>
+                            <div className="generation-settings-slider">
+                              <input
+                                className="nodrag nopan"
+                                type="range"
+                                min={min}
+                                max={max}
+                                step={step}
+                                value={value}
+                                onChange={(event) => setConfig(param.key, Number(event.target.value))}
+                              />
+                              <output>{value}{presentation.unit || ""}</output>
+                            </div>
+                          </section>
+                        </div>
+                      );
+                    }
+                    if (control === "select") {
+                      return (
+                        <div className="generation-settings-param" key={param.key}>
+                          {groupHeading}
+                          <section>
+                            <p>{param.label}</p>
+                            <select
+                              className="generation-settings-input nodrag nopan"
+                              value={String(current ?? "")}
+                              onChange={(event) => {
+                                const matched = (param.options || []).find((option) => String(optionValue(option)) === event.target.value);
+                                setConfig(param.key, matched === undefined ? event.target.value : optionValue(matched));
+                              }}
+                            >
+                              {(param.options || []).map((option) => {
+                                const value = optionValue(option);
+                                return <option key={String(value)} value={String(value)}>{optionLabel(param, value)}</option>;
+                              })}
+                            </select>
+                          </section>
+                        </div>
+                      );
+                    }
+                    if (!(param.options || []).length) {
+                      const numeric = control === "number";
+                      return (
+                        <div className="generation-settings-param" key={param.key}>
+                          {groupHeading}
+                          <section>
+                            <p>{param.label}</p>
+                            <input
+                              className="generation-settings-input nodrag nopan"
+                              type={numeric ? "number" : "text"}
+                              min={numeric && Number.isFinite(Number(presentation.min)) ? Number(presentation.min) : undefined}
+                              max={numeric && Number.isFinite(Number(presentation.max)) ? Number(presentation.max) : undefined}
+                              step={numeric && Number.isFinite(Number(presentation.step)) ? Number(presentation.step) : undefined}
+                              value={String(current ?? "")}
+                              onChange={(event) => {
+                                const value = event.target.value;
+                                setConfig(param.key, numeric && value !== "" ? Number(value) : undefined);
+                              }}
+                            />
+                          </section>
+                        </div>
+                      );
+                    }
+                    return (
+                      <div className="generation-settings-param" key={param.key}>
+                        {groupHeading}
+                        <section>
+                          <p>{param.label}</p>
+                          <div className={`generation-settings-options${control === "ratio" || isAspectRatioParam(param) ? " ratios" : ""}`}>
+                            {(param.options || []).map((option) => {
+                              const value = optionValue(option);
+                              const active = value === current;
+                              return (
+                                <button
+                                  key={String(value)}
+                                  type="button"
+                                  className={active ? "active" : ""}
+                                  onClick={() => setConfig(param.key, value)}
+                                >
+                                  {(control === "ratio" || isAspectRatioParam(param)) && (
+                                    <span className="generation-settings-ratio"><span style={aspectRatioStyle(value)} /></span>
+                                  )}
+                                  <span>{optionLabel(param, value)}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </section>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+            {false && params.map(
               (param: {
                 key: string;
                 label: string;
@@ -686,6 +993,15 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({ node, selected, acti
                 <span>{cameraControlEnabled ? activeCameraConfig.focalLength : "镜头"}</span>
               </button>
             )}
+            </div>
+            <button
+              className={`work-run-btn${busy ? " running" : ""}`}
+              disabled={busy}
+              title={busy ? "正在生成" : "开始生成"}
+              onClick={() => actions.run(node.id)}
+            >
+              <IconSymbol name={busy ? "refresh" : "send"} />
+            </button>
           </div>
           {node.type === "imageGeneration" && openMenu === "camera" && (
             <CameraControlPanel
@@ -709,6 +1025,7 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({ node, selected, acti
             />
           )}
         </div>
+        </ScreenSpaceComposer>
       )}
     </div>
   );

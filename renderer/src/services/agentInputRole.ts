@@ -30,11 +30,14 @@ export function resolveAgentInputRole(
     || (source.type === 'resource' && resourceKind.includes('image'));
   const isVideo = source.type === 'videoGeneration'
     || (source.type === 'resource' && resourceKind.includes('video'));
+  const isAudio = source.type === 'audioGeneration'
+    || (source.type === 'resource' && resourceKind.includes('audio'));
 
   // A normal canvas edge is always a real input. Its role comes from the
   // upstream output type; target-model capability is checked before running.
   if (isImage) return 'referenceImage';
   if (isVideo) return 'inputVideo';
+  if (isAudio) return 'referenceAudio';
   return 'textContext';
 }
 
@@ -62,8 +65,10 @@ export function validateAgentInputRole(
     || (source.type === 'resource' && resourceKind.includes('image'));
   const isVideo = source.type === 'videoGeneration'
     || (source.type === 'resource' && resourceKind.includes('video'));
-  if (!isText && !isImage && !isVideo) {
-    return { valid: false, role, error: '当前上游节点没有可传递给下游的文本、图片或视频输出' };
+  const isAudio = source.type === 'audioGeneration'
+    || (source.type === 'resource' && resourceKind.includes('audio'));
+  if (!isText && !isImage && !isVideo && !isAudio) {
+    return { valid: false, role, error: '当前上游节点没有可传递给下游的文本、图片、视频或音频输出' };
   }
 
   if (role === 'textContext') {
@@ -78,6 +83,10 @@ export function validateAgentInputRole(
 
   if (role === 'inputVideo') {
     if (!isVideo) return { valid: false, role, error: '视频输入必须来自视频节点或视频资源' };
+  }
+
+  if (role === 'referenceAudio') {
+    if (!isAudio) return { valid: false, role, error: '参考音频必须来自音频节点或音频资源' };
   }
 
   return { valid: true, role };

@@ -1,9 +1,10 @@
 import type { AgentNode, AgentProject } from './agentTypes';
-import { canvasNodeDimensions } from '../domain/graph/CanvasNodeDimensions.ts';
+import { canvasNodeDimensions, defaultCanvasNodeDimensions } from '../domain/graph/CanvasNodeDimensions.ts';
 
-export { canvasNodeDimensions } from '../domain/graph/CanvasNodeDimensions.ts';
+export { canvasNodeDimensions, defaultCanvasNodeDimensions } from '../domain/graph/CanvasNodeDimensions.ts';
 
 export type AgentLayoutScope = 'selection' | 'workflow' | 'all';
+export type AgentLayoutMode = 'workflow' | 'horizontal' | 'vertical' | 'grid';
 
 export interface AgentLayoutOptions {
   x?: number;
@@ -11,6 +12,9 @@ export interface AgentLayoutOptions {
   gapX?: number;
   gapY?: number;
   scope?: AgentLayoutScope;
+  mode?: AgentLayoutMode;
+  includeConnected?: boolean;
+  avoidCollisions?: boolean;
 }
 
 export interface AgentLayoutResult {
@@ -147,6 +151,140 @@ function selectLayoutNodes(project: AgentProject, requestedIds: Set<string>, sco
   return supported.filter((node) => selectedIds.has(node.id));
 }
 
+function connectedNodeIds(project: AgentProject, seedIds: Set<string>): Set<string> {
+  const visibleIds = new Set((project.nodes || [])
+    .filter((node) => SUPPORTED_NODE_TYPES.has(node.type) && !node.archived)
+    .map((node) => node.id));
+  const adjacency = new Map<string, string[]>();
+  for (const edge of project.edges || []) {
+    if (!visibleIds.has(edge.source) || !visibleIds.has(edge.target)) continue;
+    if (!adjacency.has(edge.source)) adjacency.set(edge.source, []);
+    if (!adjacency.has(edge.target)) adjacency.set(edge.target, []);
+    adjacency.get(edge.source)?.push(edge.target);
+    adjacency.get(edge.target)?.push(edge.source);
+  }
+  const result = new Set([...seedIds].filter((id) => visibleIds.has(id)));
+  const queue = [...result];
+  while (queue.length) {
+    const id = queue.shift() as string;
+    for (const neighbor of adjacency.get(id) || []) {
+      if (result.has(neighbor)) continue;
+      result.add(neighbor);
+      queue.push(neighbor);
+    }
+  }
+  return result;
+}
+
+function layoutFlat(
+  items: LayoutItem[],
+  startX: number,
+  startY: number,
+  columnGap: number,
+  rowGap: number,
+  mode: Exclude<AgentLayoutMode, 'workflow'>,
+) {
+  const ordered = [...items].sort(semanticItemSort);
+  if (mode === 'horizontal') {
+    let x = startX;
+    let height = 0;
+    for (const item of ordered) {
+      const size = canvasNodeDimensions(item.node);
+      item.node.x = Math.round(x);
+      item.node.y = Math.round(startY);
+      x += size.width + columnGap;
+      height = Math.max(height, size.height);
+    }
+    return { width: Math.max(0, x - startX - columnGap), height };
+  }
+  if (mode === 'vertical') {
+    let y = startY;
+    let width = 0;
+    for (const item of ordered) {
+      const size = canvasNodeDimensions(item.node);
+      item.node.x = Math.round(startX);
+      item.node.y = Math.round(y);
+      y += size.height + rowGap;
+      width = Math.max(width, size.width);
+    }
+    return { width, height: Math.max(0, y - startY - rowGap) };
+  }
+  const columns = Math.max(1, Math.ceil(Math.sqrt(ordered.length)));
+  const columnWidths = Array.from({ length: columns }, () => 0);
+  const rows = Math.ceil(ordered.length / columns);
+  const rowHeights = Array.from({ length: rows }, () => 0);
+  ordered.forEach((item, index) => {
+    const size = canvasNodeDimensions(item.node);
+    columnWidths[index % columns] = Math.max(columnWidths[index % columns], size.width);
+    rowHeights[Math.floor(index / columns)] = Math.max(
+      rowHeights[Math.floor(index / columns)],
+      size.height,
+    );
+  });
+  const columnX = [startX];
+  const rowY = [startY];
+  for (let index = 1; index < columns; index += 1) {
+    columnX[index] = columnX[index - 1] + columnWidths[index - 1] + columnGap;
+  }
+  for (let index = 1; index < rows; index += 1) {
+    rowY[index] = rowY[index - 1] + rowHeights[index - 1] + rowGap;
+  }
+  ordered.forEach((item, index) => {
+    item.node.x = Math.round(columnX[index % columns]);
+    item.node.y = Math.round(rowY[Math.floor(index / columns)]);
+  });
+  return {
+    width: columnWidths.reduce((sum, width) => sum + width, 0) + columnGap * (columns - 1),
+    height: rowHeights.reduce((sum, height) => sum + height, 0) + rowGap * (rows - 1),
+  };
+}
+
+type LayoutRect = { x: number; y: number; width: number; height: number };
+function nodeRect(node: AgentNode): LayoutRect {
+  const size = canvasNodeDimensions(node);
+  return { x: Number(node.x) || 0, y: Number(node.y) || 0, ...size };
+}
+function rectsOverlap(left: LayoutRect, right: LayoutRect, margin = 24): boolean {
+  return left.x < right.x + right.width + margin &&
+    right.x < left.x + left.width + margin &&
+    left.y < right.y + right.height + margin &&
+    right.y < left.y + left.height + margin;
+}
+function layoutBounds(nodes: AgentNode[]): LayoutRect {
+  const rects = nodes.map(nodeRect);
+  const minX = Math.min(...rects.map((rect) => rect.x));
+  const minY = Math.min(...rects.map((rect) => rect.y));
+  const maxX = Math.max(...rects.map((rect) => rect.x + rect.width));
+  const maxY = Math.max(...rects.map((rect) => rect.y + rect.height));
+  return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+}
+function shiftAwayFromObstacles(nodes: AgentNode[], obstacles: AgentNode[], margin = 24) {
+  if (!nodes.length || !obstacles.length) return { dx: 0, dy: 0 };
+  const baseBounds = layoutBounds(nodes);
+  const obstacleRects = obstacles.map(nodeRect);
+  const collides = (dx: number, dy: number) => nodes.some((node) => {
+    const rect = nodeRect(node);
+    const shifted = { ...rect, x: rect.x + dx, y: rect.y + dy };
+    return obstacleRects.some((obstacle) => rectsOverlap(shifted, obstacle, margin));
+  });
+  if (!collides(0, 0)) return { dx: 0, dy: 0 };
+  const candidates = obstacleRects.flatMap((obstacle) => [
+    { dx: obstacle.x + obstacle.width + margin - baseBounds.x, dy: 0 },
+    { dx: obstacle.x - margin - baseBounds.width - baseBounds.x, dy: 0 },
+    { dx: 0, dy: obstacle.y + obstacle.height + margin - baseBounds.y },
+    { dx: 0, dy: obstacle.y - margin - baseBounds.height - baseBounds.y },
+  ]).sort((left, right) =>
+    Math.abs(left.dx) + Math.abs(left.dy) - Math.abs(right.dx) - Math.abs(right.dy)
+  );
+  const free = candidates.find((candidate) => !collides(candidate.dx, candidate.dy));
+  if (!free) return { dx: 0, dy: 0 };
+  for (const node of nodes) {
+    node.x = Math.round((Number(node.x) || 0) + free.dx);
+    node.y = Math.round((Number(node.y) || 0) + free.dy);
+  }
+  return free;
+}
+
 function layoutGroup(
   items: LayoutItem[],
   edges: AgentProject['edges'],
@@ -242,7 +380,10 @@ function layoutGroup(
   }
 
   const maxDepth = Math.max(...orderedColumns.map(([depth]) => depth));
-  const widths = Array.from({ length: maxDepth + 1 }, () => 370);
+  const widths = Array.from(
+    { length: maxDepth + 1 },
+    () => defaultCanvasNodeDimensions('imageGeneration').width,
+  );
   for (const [depth, columnItems] of orderedColumns) {
     widths[depth] = Math.max(...columnItems.map((item) => canvasNodeDimensions(item.node).width));
   }
@@ -251,15 +392,35 @@ function layoutGroup(
     columnX[depth] = columnX[depth - 1] + widths[depth - 1] + columnGap;
   }
 
+  // Columns share row tracks, but each node keeps its own dimensions. This
+  // centers corresponding workflow items without forcing image, video, audio,
+  // and text cards into one generic size.
+  const rowCount = Math.max(...orderedColumns.map(([, columnItems]) => columnItems.length));
+  const rowHeights = Array.from({ length: rowCount }, (_, rowIndex) =>
+    Math.max(...orderedColumns.map(([, columnItems]) => {
+      const item = columnItems[rowIndex];
+      return item ? canvasNodeDimensions(item.node).height : 0;
+    })),
+  );
+  const rowTops: number[] = [];
+  let rowCursor = 0;
+  for (let rowIndex = 0; rowIndex < rowCount; rowIndex += 1) {
+    rowTops[rowIndex] = rowCursor;
+    rowCursor += rowHeights[rowIndex] + rowGap;
+  }
   const relativeY = new Map<string, number>();
   const columnHeights = new Map<number, number>();
   for (const [depth, columnItems] of orderedColumns) {
-    let cursorY = 0;
-    for (const item of columnItems) {
-      relativeY.set(item.node.id, cursorY);
-      cursorY += canvasNodeDimensions(item.node).height + rowGap;
+    for (let rowIndex = 0; rowIndex < columnItems.length; rowIndex += 1) {
+      const item = columnItems[rowIndex];
+      const height = canvasNodeDimensions(item.node).height;
+      relativeY.set(item.node.id, rowTops[rowIndex] + (rowHeights[rowIndex] - height) / 2);
     }
-    columnHeights.set(depth, Math.max(1, cursorY - rowGap));
+    const lastRowIndex = columnItems.length - 1;
+    columnHeights.set(
+      depth,
+      lastRowIndex < 0 ? 1 : rowTops[lastRowIndex] + rowHeights[lastRowIndex],
+    );
   }
   const anchorDepth = orderedColumns.reduce((best, [depth]) =>
     (columnHeights.get(depth) || 0) > (columnHeights.get(best) || 0) ? depth : best,
@@ -314,22 +475,36 @@ export function layoutAgentNodes(
     return { movedCount: 0, nodeIds: [], laneCount: 0, bounds: null };
   }
   const scope = options.scope || 'selection';
-  const nodes = selectLayoutNodes(project, requestedIds, scope);
+  const resolvedIds = scope === 'selection' && options.includeConnected
+    ? connectedNodeIds(project, requestedIds)
+    : requestedIds;
+  const nodes = selectLayoutNodes(project, resolvedIds, scope);
   if (!nodes.length) return { movedCount: 0, nodeIds: [], laneCount: 0, bounds: null };
 
   const oldPositions = new Map(nodes.map((node) => [node.id, { x: node.x, y: node.y }]));
-  const startX = Number.isFinite(Number(options.x)) ? Number(options.x) : 120;
-  const startY = Number.isFinite(Number(options.y)) ? Number(options.y) : 90;
-  const columnGap = Number.isFinite(Number(options.gapX)) ? Math.max(32, Number(options.gapX)) : 260;
-  const rowGap = Number.isFinite(Number(options.gapY)) ? Math.max(20, Number(options.gapY)) : 24;
-  const plan = layoutGroup(
-    nodes.map((node, index) => ({ node, index })),
-    project.edges,
-    startX,
-    startY,
-    columnGap,
-    rowGap,
-  );
+  const previousBounds = layoutBounds(nodes);
+  const startX = Number.isFinite(Number(options.x))
+    ? Number(options.x)
+    : scope === 'all' ? 120 : previousBounds.x;
+  const startY = Number.isFinite(Number(options.y))
+    ? Number(options.y)
+    : scope === 'all' ? 90 : previousBounds.y;
+  const columnGap = Number.isFinite(Number(options.gapX)) ? Math.max(32, Number(options.gapX)) : 160;
+  const rowGap = Number.isFinite(Number(options.gapY)) ? Math.max(20, Number(options.gapY)) : 120;
+  const items = nodes.map((node, index) => ({ node, index }));
+  const mode = options.mode || 'workflow';
+  const plan = mode === 'workflow'
+    ? layoutGroup(items, project.edges, startX, startY, columnGap, rowGap)
+    : layoutFlat(items, startX, startY, columnGap, rowGap, mode);
+  const nodeIdSet = new Set(nodes.map((node) => node.id));
+  if (options.avoidCollisions !== false && scope !== 'all') {
+    shiftAwayFromObstacles(
+      nodes,
+      (project.nodes || []).filter((node) =>
+        SUPPORTED_NODE_TYPES.has(node.type) && !node.archived && !nodeIdSet.has(node.id)
+      ),
+    );
+  }
   const segmentIds = new Set(nodes.flatMap((node) => nodeSegmentIds(node)));
 
   const movedCount = nodes.filter((node) => {
@@ -340,11 +515,54 @@ export function layoutAgentNodes(
     movedCount,
     nodeIds: nodes.map((node) => node.id),
     laneCount: Math.max(1, segmentIds.size),
-    bounds: {
-      x: startX,
-      y: startY,
-      width: Math.round(plan.width),
-      height: Math.max(0, Math.round(plan.height)),
-    },
+    bounds: { ...layoutBounds(nodes), width: Math.round(plan.width), height: Math.round(plan.height) },
+  };
+}
+
+export function placeAgentNodesIncrementally(
+  project: AgentProject,
+  nodeIds: string[],
+  options: Pick<AgentLayoutOptions, 'gapX' | 'gapY'> = {},
+): AgentLayoutResult {
+  const wanted = new Set(nodeIds);
+  const nodes = (project.nodes || []).filter((node) =>
+    wanted.has(node.id) && SUPPORTED_NODE_TYPES.has(node.type) && !node.archived
+  );
+  if (!nodes.length) return { movedCount: 0, nodeIds: [], laneCount: 0, bounds: null };
+  const oldPositions = new Map(nodes.map((node) => [node.id, { x: node.x, y: node.y }]));
+  const byId = new Map((project.nodes || []).map((node) => [node.id, node]));
+  const gapX = Math.max(32, Number(options.gapX) || 120);
+  const gapY = Math.max(20, Number(options.gapY) || 24);
+  const placedIds = new Set((project.nodes || []).filter((node) => !wanted.has(node.id)).map((node) => node.id));
+  const occupied = (project.nodes || []).filter((node) =>
+    placedIds.has(node.id) && SUPPORTED_NODE_TYPES.has(node.type) && !node.archived
+  );
+  for (const node of nodes) {
+    const parents = (project.edges || [])
+      .filter((edge) => edge.target === node.id)
+      .map((edge) => byId.get(edge.source))
+      .filter((parent): parent is AgentNode => Boolean(parent));
+    if (parents.length) {
+      const rightmost = parents.reduce((best, parent) =>
+        (Number(parent.x) || 0) + canvasNodeDimensions(parent).width >
+          (Number(best.x) || 0) + canvasNodeDimensions(best).width ? parent : best
+      );
+      node.x = Math.round((Number(rightmost.x) || 0) + canvasNodeDimensions(rightmost).width + gapX);
+      const center = parents.reduce((sum, parent) =>
+        sum + (Number(parent.y) || 0) + canvasNodeDimensions(parent).height / 2, 0) / parents.length;
+      node.y = Math.round(center - canvasNodeDimensions(node).height / 2);
+    }
+    shiftAwayFromObstacles([node], occupied, gapY);
+    occupied.push(node);
+  }
+  const movedCount = nodes.filter((node) => {
+    const previous = oldPositions.get(node.id);
+    return previous?.x !== node.x || previous?.y !== node.y;
+  }).length;
+  return {
+    movedCount,
+    nodeIds: nodes.map((node) => node.id),
+    laneCount: 1,
+    bounds: layoutBounds(nodes),
   };
 }

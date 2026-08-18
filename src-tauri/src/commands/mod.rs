@@ -1,14 +1,25 @@
 mod agent_runtime;
+mod agent_runtime_proxy;
+mod agent_runtime_sse;
+mod audio;
 mod common;
 mod file;
+mod image;
+mod media_tool;
 mod generation_gateway;
 mod project;
 mod recent;
+mod recovery;
 mod settings;
+mod video_export;
 
 pub use agent_runtime::*;
+pub use audio::*;
 pub use file::*;
+pub use image::*;
 pub use generation_gateway::*;
 pub use project::*;
 pub use recent::*;
+pub use recovery::*;
 pub use settings::*;
+pub use video_export::*;

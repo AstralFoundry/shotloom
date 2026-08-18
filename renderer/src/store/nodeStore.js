@@ -5,7 +5,9 @@ import { uid } from '@/utils/format';
 import { addCanvasEdge, deleteCanvasNodeData } from '@/store/canvasGraphStore';
 import { cancelNode } from '@/store/taskStore';
 import { compileGenerationNodeConfig, generationNodeConfig } from '@/domain/graph/GenerationNodeContract';
-import { getModelSchema } from '@/domain/catalog/ModelCatalog';
+import { getGenerationInputModes, getModelSchema } from '@/domain/catalog/ModelCatalog';
+import { defaultInputSlot } from '@/domain/graph/GenerationInputContract';
+import { validateAgentInputRole } from '@/services/agentInputRole';
 import { resolveProjectDefaultModel } from '@/utils/projectModelDefaults.mjs';
 import { defaultCanvasNodeDimensions } from '@/domain/graph/CanvasNodeDimensions.ts';
 
@@ -105,6 +107,8 @@ export function addNode(type = 'imageGeneration') {
   if (isGenerationNode) {
     node.prompt = '';
     node.model = resolveProjectDefaultModel(store.project.settings, type);
+    const defaultInputMode = getGenerationInputModes(node.model)[0]?.value;
+    if (defaultInputMode) node.inputMode = defaultInputMode;
     node.config = defaultGenerationConfig(type, node.model);
   }
   if (isBoard) {
@@ -145,7 +149,19 @@ export function selectNode(nodeId, options = {}) {
       store.selectedNodeIds = [nodeId];
       return;
     }
-    const result = addCanvasEdge(store.project, store.connectFromId, nodeId, { touch: false });
+    const validation = validateAgentInputRole(store.project, source, target, 'auto');
+    const modes = getGenerationInputModes(target.model);
+    const activeMode = modes.find((item) => item.value === target.inputMode) || modes[0];
+    if (activeMode && validation.role !== 'textContext') target.inputMode = activeMode.value;
+    const occupied = store.project.edges.filter((edge) => edge.target === nodeId)
+      .map((edge) => edge.data?.inputSlot).filter(Boolean);
+    const inputSlot = validation.role === 'textContext' ? '' : defaultInputSlot(
+      activeMode?.value || 'reference', validation.role, occupied,
+    );
+    const result = validation.valid ? addCanvasEdge(store.project, store.connectFromId, nodeId, {
+      touch: false,
+      edge: { kind: 'typed-input', data: { inputRole: validation.role, ...(inputSlot ? { inputSlot } : {}), required: true } },
+    }) : { ok: false, error: validation.error };
     if (!result.ok) showToast(result.error || '连线失败');
     store.connectFromId = null;
     touchProject();

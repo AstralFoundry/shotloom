@@ -1,12 +1,23 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import {
+  catalogModelValidationErrors,
+  type CatalogAgentProtocol,
   type CatalogModel,
-  modelCatalog,
+  normalizeCatalogModel,
 } from "../../domain/catalog/ModelCatalog";
 import {
   getProviderDefinitions,
   type ProviderConfig,
 } from "../../domain/provider/ProviderRegistry";
+import {
+  getProtocolPreset,
+  presetsForType,
+} from "../../domain/provider/ProtocolPresets";
+import {
+  testProviderRequest,
+  type ProviderTestResult,
+} from "../../services/providerTestService";
+import protocolAuthoringPrompt from "../../config/protocol-authoring-prompt.md?raw";
 import { modelTypeLabel } from "../../utils/modelPresentation.js";
 import {
   getProviderIcon,
@@ -14,7 +25,18 @@ import {
 } from "../../domain/provider/ProviderBrandIcons.js";
 import { IconSymbol } from "../components/IconSymbol";
 import { ProviderBrandIcon } from "../components/ProviderBrandIcon";
-import { ModelProtocolGuideDialog } from "./ModelProtocolGuideDialog";
+import {
+  builtInProviderModels,
+  defaultAgentProtocol,
+  effectiveProviderModels,
+  type NewModelDraft,
+  presetProtocolModel,
+  sameModelDefinition,
+  starterProtocolModel,
+  supportsAgentTools,
+  testPromptForType,
+  testStatusLabel,
+} from "./providerConnectionModel";
 
 const CUSTOM_PROVIDER_ID = "__custom__";
 // Provider configs may come from the reactive settings proxy. Catalog models
@@ -73,7 +95,7 @@ function ProviderIconSelect({
           }
         }}
       >
-        <ProviderBrandIcon icon={selectedIcon?.id || "openai"} />
+        <ProviderBrandIcon icon={selectedIcon?.id || "custom"} />
         <span>{selectedIcon?.label || "OpenAI"}</span>
         <IconSymbol name="chevron-down" />
       </button>
@@ -107,72 +129,10 @@ function ProviderIconSelect({
   );
 }
 
-function builtInProviderModels(providerId: string): CatalogModel[] {
-  return modelCatalog.models.filter((model) => model.provider === providerId);
-}
-
-function effectiveProviderModels(
-  providerId: string,
-  storedModels: CatalogModel[] = [],
-): CatalogModel[] {
-  const builtIns = builtInProviderModels(providerId);
-  const overrides = new Map(storedModels.map((model) => [model.id, model]));
-  const builtInIds = new Set(builtIns.map((model) => model.id));
-  return [
-    ...builtIns.map((model) => clone(overrides.get(model.id) || model)),
-    ...storedModels.filter((model) => !builtInIds.has(model.id)).map(clone),
-  ];
-}
-
-function sameModelDefinition(left: CatalogModel, right: CatalogModel): boolean {
-  const normalize = (model: CatalogModel) => {
-    const value = clone(model) as CatalogModel & { overridesBuiltIn?: boolean };
-    delete value.overridesBuiltIn;
-    return value;
-  };
-  return JSON.stringify(normalize(left)) === JSON.stringify(normalize(right));
-}
-
-function starterProtocolModel(type: NewModelDraft["type"]): CatalogModel {
-  const mode = type === "textGeneration"
-    ? { id: "text-generation", label: "文本生成", resultKey: "resultTextPath" }
-    : type === "imageGeneration"
-    ? { id: "text-to-image", label: "文生图", resultKey: "resultUrlPath" }
-    : { id: "video-generation", label: "视频生成", resultKey: "resultUrlPath" };
-  const base = {
-    id: "",
-    name: "",
-    provider: "",
-    type,
-    sortOrder: 900,
-    enabled: true,
-  };
-  return {
-    ...base,
-    defaultMode: mode.id,
-    modes: [{
-      id: mode.id,
-      label: mode.label,
-      endpoint: { method: "POST", path: "", scope: "root" },
-      inputConstraints: {},
-      outputConstraints: {},
-      params: [],
-      requestTemplate: {},
-      [mode.resultKey]: "",
-    }],
-  };
-}
-
 export interface ProviderConnectionResult {
   providerId: string;
   config: ProviderConfig;
 }
-
-type NewModelDraft = {
-  id: string;
-  name: string;
-  type: "textGeneration" | "imageGeneration" | "videoGeneration";
-};
 
 export function ProviderConnectionDialog({
   editingId = "",
@@ -193,7 +153,9 @@ export function ProviderConnectionDialog({
 }) {
   const definitions = getProviderDefinitions();
   const editingDefinition = definitions.find((item) => item.id === editingId);
-  const editingCustom = Boolean(editingId && !editingDefinition);
+  const editingCustom = Boolean(
+    editingId && (initialConfig?.custom === true || !editingDefinition),
+  );
   const [selectedId, setSelectedId] = useState(
     editingCustom ? CUSTOM_PROVIDER_ID : editingId,
   );
@@ -207,7 +169,7 @@ export function ProviderConnectionDialog({
     initialConfig?.baseUrl || editingDefinition?.defaultBaseUrl || "",
   );
   const [iconId, setIconId] = useState(
-    initialConfig?.iconId || editingDefinition?.iconId || "openai",
+    initialConfig?.iconId || editingDefinition?.iconId || "custom",
   );
   const [disabledIds, setDisabledIds] = useState<Set<string>>(() =>
     new Set(initialConfig?.disabledModelIds || [])
@@ -224,8 +186,14 @@ export function ProviderConnectionDialog({
     initialModels[0] ? JSON.stringify(initialModels[0], null, 2) : ""
   );
   const [newModel, setNewModel] = useState<NewModelDraft | null>(null);
-  const [guideOpen, setGuideOpen] = useState(false);
   const [error, setError] = useState("");
+  const [testRunning, setTestRunning] = useState(false);
+  const [testResult, setTestResult] = useState<ProviderTestResult | null>(null);
+  const [testError, setTestError] = useState("");
+  const [showProtocolHelp, setShowProtocolHelp] = useState(false);
+  const [promptCopied, setPromptCopied] = useState(false);
+  const [aiPasteJson, setAiPasteJson] = useState("");
+  const [aiPasteError, setAiPasteError] = useState("");
   const providerId = selectedId === CUSTOM_PROVIDER_ID
     ? customId.trim().toLowerCase()
     : selectedId;
@@ -233,9 +201,21 @@ export function ProviderConnectionDialog({
     () => new Set(builtInProviderModels(providerId).map((model) => model.id)),
     [providerId],
   );
+  const globalBuiltInModels = useMemo(
+    () => new Map(builtInProviderModels().map((model) => [model.id, model])),
+    [],
+  );
   const availableDefinitions = definitions.filter((item) =>
     item.id === editingId || !connectedIds.includes(item.id)
   );
+  const editedTextModel = useMemo(() => {
+    try {
+      const parsed = JSON.parse(modelJson || "{}") as CatalogModel;
+      return parsed?.type === "textGeneration" ? parsed : null;
+    } catch {
+      return null;
+    }
+  }, [modelJson]);
 
   function selectProvider(id: string) {
     setSelectedId(id);
@@ -256,7 +236,9 @@ export function ProviderConnectionDialog({
     if (id === CUSTOM_PROVIDER_ID && !editingId) {
       setDisplayName("");
       setBaseUrl("");
-      setIconId("openai");
+      setIconId("custom");
+      setApiKey("");
+      setDisabledIds(new Set());
       setModels([]);
       setSelectedModelId("");
       setModelJson("");
@@ -274,12 +256,11 @@ export function ProviderConnectionDialog({
     if (!parsed || Array.isArray(parsed) || typeof parsed !== "object") {
       throw new Error("单个模型协议必须是 JSON 对象，不能是数组");
     }
-    if (
-      !parsed.id || !parsed.name || !parsed.type ||
-      !Array.isArray(parsed.modes) || !parsed.modes.length
-    ) {
-      throw new Error("当前模型缺少 id、name、type 或 modes");
-    }
+    const { model: committed } = normalizeCatalogModel({ ...parsed, provider: providerId });
+    const validationErrors = catalogModelValidationErrors(committed, {
+      requireProvider: Boolean(providerId),
+    });
+    if (validationErrors.length) throw new Error(validationErrors.join("；"));
     if (
       models.some((model) =>
         model.id === parsed.id && model.id !== selectedModelId
@@ -288,7 +269,7 @@ export function ProviderConnectionDialog({
       throw new Error(`模型 ID “${parsed.id}” 已存在`);
     }
     const next = models.map((model) =>
-      model.id === selectedModelId ? { ...parsed, provider: providerId } : model
+      model.id === selectedModelId ? committed : model
     );
     setModels(next);
     setSelectedModelId(parsed.id);
@@ -321,7 +302,7 @@ export function ProviderConnectionDialog({
     let id = baseId;
     let suffix = 2;
     while (modelIds.has(id)) id = `${baseId}-${suffix++}`;
-    setNewModel({ id, name: "", type: "textGeneration" });
+    setNewModel({ id, name: "", type: "textGeneration", presetId: "" });
     setError("");
   }
 
@@ -332,7 +313,8 @@ export function ProviderConnectionDialog({
     if (models.some((model) => model?.id === id)) {
       return setError(`模型 ID “${id}” 已存在`);
     }
-    const added = starterProtocolModel(newModel.type);
+    const preset = newModel.presetId ? getProtocolPreset(newModel.presetId) : undefined;
+    const added = preset ? presetProtocolModel(preset) : starterProtocolModel(newModel.type);
     added.id = id;
     added.name = newModel.name.trim();
     added.provider = providerId;
@@ -370,6 +352,53 @@ export function ProviderConnectionDialog({
     });
   }
 
+  function setAgentToolSupport(enabled: boolean) {
+    if (!editedTextModel || !Array.isArray(editedTextModel.modes)) return;
+    const next = clone(editedTextModel);
+    next.modes = next.modes.map((mode) => {
+      if (mode.id !== next.defaultMode) return mode;
+      if (!enabled) {
+        const { agent: _agent, ...withoutAgent } = mode;
+        return withoutAgent;
+      }
+      return {
+        ...mode,
+        agent: {
+          transport: mode.agent?.transport || "openai-chat-completions",
+          supportsTools: true,
+          ...(mode.agent?.requestOptions ? { requestOptions: mode.agent.requestOptions } : {}),
+        },
+      };
+    });
+    setModelJson(JSON.stringify(next, null, 2));
+    setError("");
+  }
+
+  function setAgentTransport(value: "openai-chat-completions" | "openai-responses") {
+    if (!editedTextModel || !Array.isArray(editedTextModel.modes)) return;
+    const next = clone(editedTextModel);
+    next.modes = next.modes.map((mode) => {
+      if (mode.id !== next.defaultMode) return mode;
+      const agent: CatalogAgentProtocol = {
+        ...(mode.agent || {}), transport: value, supportsTools: true,
+      };
+      if (value === "openai-responses") {
+        agent.endpoint = {
+          method: "POST",
+          path: mode.endpoint.path.endsWith("/chat/completions")
+            ? mode.endpoint.path.slice(0, -"/chat/completions".length) + "/responses"
+            : "/v1/responses",
+          scope: mode.endpoint.scope,
+        };
+      } else {
+        delete agent.endpoint;
+      }
+      return { ...mode, agent };
+    });
+    setModelJson(JSON.stringify(next, null, 2));
+    setError("");
+  }
+
   async function submit() {
     if (
       !providerId ||
@@ -379,6 +408,12 @@ export function ProviderConnectionDialog({
       return setError(
         "厂商 ID 需为 2–64 位小写字母、数字、冒号、短横线或下划线",
       );
+    }
+    if (
+      selectedId === CUSTOM_PROVIDER_ID &&
+      definitions.some((definition) => definition.id === providerId)
+    ) {
+      return setError(`厂商 ID “${providerId}” 已被内置厂商保留`);
     }
     if (!editingId && connectedIds.includes(providerId)) {
       return setError(`厂商 ID “${providerId}” 已存在`);
@@ -405,26 +440,22 @@ export function ProviderConnectionDialog({
     let modelsToSave: CatalogModel[];
     try {
       const parsed = commitModelDraft();
-      const builtIns = new Map(
+      const providerBuiltIns = new Map(
         builtInProviderModels(providerId).map((model) => [model.id, model]),
       );
-      modelsToSave = parsed.map((model) => ({ ...model, provider: providerId }))
+      modelsToSave = parsed.map((model) => (
+        normalizeCatalogModel({ ...model, provider: providerId }).model
+      ))
         .filter((model) => {
-          const builtIn = builtIns.get(model.id);
+          const builtIn = providerBuiltIns.get(model.id);
           return !builtIn || !sameModelDefinition(model, builtIn);
         })
-        .map((model) => builtIns.has(model.id)
+        .map((model) => globalBuiltInModels.has(model.id)
           ? { ...model, overridesBuiltIn: true }
           : model);
       for (const model of modelsToSave) {
-        if (
-          !model?.id || !model?.name || !model?.type ||
-          !Array.isArray(model?.modes) || !model.modes.length
-        ) {
-          throw new Error(
-            `模型 ${model?.id || "未知"} 缺少 id、name、type 或 modes`,
-          );
-        }
+        const validationErrors = catalogModelValidationErrors(model, { requireProvider: true });
+        if (validationErrors.length) throw new Error(validationErrors.join("；"));
       }
     } catch (cause) {
       return setError(
@@ -444,6 +475,87 @@ export function ProviderConnectionDialog({
         disabledModelIds: [...disabledIds],
       },
     });
+  }
+
+  async function runTest() {
+    if (!selectedModelId) return setTestError("请先选择要试跑的模型");
+    if (!baseUrl.trim()) return setTestError("请填写 API Base URL");
+    let parsed: CatalogModel;
+    try {
+      parsed = JSON.parse(modelJson || "{}") as CatalogModel;
+    } catch {
+      return setTestError("当前模型协议不是有效的 JSON");
+    }
+    if (!parsed || !parsed.id || !Array.isArray(parsed.modes) || !parsed.modes.length) {
+      return setTestError("当前模型缺少 id、type 或 modes");
+    }
+    const { model } = normalizeCatalogModel({ ...parsed, provider: providerId });
+    const validationErrors = catalogModelValidationErrors(model, { requireProvider: true });
+    if (validationErrors.length) return setTestError(validationErrors.join("；"));
+    setTestRunning(true);
+    setTestResult(null);
+    setTestError("");
+    try {
+      const result = await testProviderRequest({
+        model,
+        baseUrl: baseUrl.trim(),
+        apiKey: apiKey.trim(),
+        prompt: testPromptForType(model.type),
+      });
+      setTestResult(result);
+    } catch (cause) {
+      setTestError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setTestRunning(false);
+    }
+  }
+
+  async function copyPrompt() {
+    try {
+      await navigator.clipboard.writeText(protocolAuthoringPrompt);
+      setPromptCopied(true);
+      window.setTimeout(() => setPromptCopied(false), 2000);
+    } catch {
+      setError("复制失败，请手动选中文本复制");
+    }
+  }
+
+  function importAiJson() {
+    if (!aiPasteJson.trim()) return setAiPasteError("请先粘贴 AI 返回的 JSON");
+    let parsed: CatalogModel;
+    try {
+      parsed = JSON.parse(aiPasteJson) as CatalogModel;
+    } catch {
+      return setAiPasteError("粘贴的内容不是有效的 JSON");
+    }
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return setAiPasteError("顶层必须是单个模型 JSON 对象");
+    }
+    const id = String(parsed.id || "").trim();
+    if (models.some((model) => model?.id === id)) {
+      return setAiPasteError(`模型 ID "${id}" 已存在`);
+    }
+    const imported: CatalogModel = {
+      ...clone(parsed),
+      id,
+      name: String(parsed.name || "").trim() || id,
+      provider: providerId,
+      sortOrder: Math.max(900, ...models.map((model) => Number(model?.sortOrder) || 0)) + 1,
+      enabled: true,
+      defaultMode: Array.isArray(parsed.modes) && parsed.modes.some((mode) => mode.id === parsed.defaultMode)
+        ? parsed.defaultMode
+        : parsed.modes?.[0]?.id || "",
+    };
+    const { model: added } = normalizeCatalogModel(imported);
+    const validationErrors = catalogModelValidationErrors(added, { requireProvider: true });
+    if (validationErrors.length) return setAiPasteError(validationErrors.join("；"));
+    delete added.overridesBuiltIn;
+    setModels((current) => [...current, added]);
+    setSelectedModelId(added.id);
+    setModelJson(JSON.stringify(added, null, 2));
+    setAiPasteJson("");
+    setAiPasteError("");
+    setError("");
   }
 
   return (
@@ -541,6 +653,72 @@ export function ProviderConnectionDialog({
           <section className="provider-model-section">
             <div className="provider-model-heading">
               <div>
+                <strong>让 AI 自动配置模型</strong>
+                <span className="provider-model-count">
+                  复制说明并连同厂商文档发给 AI，再把回复原样粘回来；无需阅读或修改代码。
+                </span>
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button
+                  className="provider-inline-action"
+                  type="button"
+                  onClick={() => void copyPrompt()}
+                >
+                  {promptCopied ? "已复制 ✓" : "复制提示词"}
+                </button>
+                <button
+                  className="provider-inline-action"
+                  type="button"
+                  onClick={() => setShowProtocolHelp((value) => !value)}
+                >
+                  {showProtocolHelp ? "收起字段说明" : "字段说明"}
+                </button>
+              </div>
+            </div>
+            {showProtocolHelp && (
+              <pre
+                style={{
+                  whiteSpace: "pre-wrap", wordBreak: "break-word", maxHeight: 320,
+                  overflow: "auto", padding: 12, borderRadius: 6, fontSize: 12,
+                  lineHeight: 1.5, background: "rgba(0,0,0,0.04)",
+                }}
+              >
+                {protocolAuthoringPrompt}
+              </pre>
+            )}
+            <label className="recipe-field recipe-prompt-field">
+              <span>把 AI 的完整回复粘贴到这里</span>
+              <textarea
+                value={aiPasteJson}
+                rows={6}
+                spellCheck={false}
+                placeholder="直接粘贴即可，不需要看懂内容…"
+                onChange={(event) => {
+                  setAiPasteJson(event.target.value);
+                  setAiPasteError("");
+                }}
+              />
+            </label>
+            <div className="provider-model-create-actions">
+              <span>Shotloom 会自动检查接口、模型能力和 Agent 配置，有问题会说明怎么处理。</span>
+              <div>
+                <button
+                  className="button primary"
+                  type="button"
+                  disabled={submitting}
+                  onClick={importAiJson}
+                >
+                  检查并添加模型
+                </button>
+              </div>
+            </div>
+            {aiPasteError && (
+              <p className="recipe-dialog-error">{aiPasteError}</p>
+            )}
+          </section>
+          <section className="provider-model-section">
+            <div className="provider-model-heading">
+              <div>
                 <strong>模型</strong>
                 <span className="provider-model-count">
                   {models.length} 个模型，选择后编辑单个协议
@@ -555,23 +733,20 @@ export function ProviderConnectionDialog({
                 + 添加模型
               </button>
             </div>
-            <button
-              className="provider-model-guide-link"
-              type="button"
-              onClick={() => setGuideOpen(true)}
-            >
-              <IconSymbol name="help" />
-              <span>
-                <strong>不知道模型 JSON 怎么写？</strong>
-                打开完整接入指南，也可以复制一份任务说明直接交给 AI。
-              </span>
-              <span aria-hidden="true">查看指南</span>
-            </button>
             {models.length > 0 ? (
               <div className="provider-model-list">
                 {models.map((model) => {
                   const builtIn = builtInModelIds.has(model.id);
+                  const replacedBuiltIn = builtIn
+                    ? null
+                    : globalBuiltInModels.get(model.id);
                   const disabled = builtIn && disabledIds.has(model.id);
+                  const agentReady = supportsAgentTools(model);
+                  let originLabel = "自定义";
+                  if (builtIn) originLabel = "内置";
+                  else if (replacedBuiltIn) {
+                    originLabel = `覆盖内置 ${replacedBuiltIn.provider}`;
+                  }
                   return (
                     <div
                       key={model.id}
@@ -589,9 +764,21 @@ export function ProviderConnectionDialog({
                         <span className="provider-model-meta">
                           <span>{modelTypeLabel(model.type)}</span>
                           <span aria-hidden="true">·</span>
-                          <span className="provider-model-origin">
-                            {builtIn ? "内置" : "自定义"}
+                          <span className={`provider-model-origin${
+                            replacedBuiltIn ? " override" : ""
+                          }`}>
+                            {originLabel}
                           </span>
+                          {model.type === "textGeneration" && (
+                            <>
+                              <span aria-hidden="true">·</span>
+                              <span className={`provider-model-agent-status${
+                                agentReady ? " ready" : " unavailable"
+                              }`}>
+                                {agentReady ? "Agent 可用" : "未启用 Agent"}
+                              </span>
+                            </>
+                          )}
                         </span>
                       </button>
                       <div className="provider-model-item-actions">
@@ -651,16 +838,32 @@ export function ProviderConnectionDialog({
                       setNewModel({
                         ...newModel,
                         type: event.target.value as NewModelDraft["type"],
+                        presetId: "",
                       })}
                   >
                     <option value="textGeneration">文本生成</option>
                     <option value="imageGeneration">图片生成</option>
                     <option value="videoGeneration">视频生成</option>
+                    <option value="audioGeneration">音频生成</option>
+                  </select>
+                </label>
+                <label className="recipe-field">
+                  <span>协议预设</span>
+                  <select
+                    value={newModel.presetId}
+                    onChange={(event) =>
+                      setNewModel({ ...newModel, presetId: event.target.value })
+                    }
+                  >
+                    <option value="">空白协议</option>
+                    {presetsForType(newModel.type).map((preset) => (
+                      <option key={preset.id} value={preset.id}>{preset.label}</option>
+                    ))}
                   </select>
                 </label>
               </div>
               <div className="provider-model-create-actions">
-                <span>填写基本信息后创建空白协议，不会复制当前选中的模型。</span>
+                <span>选择预设可自动填好 endpoint、请求模板和结果路径，也可从空白协议开始。</span>
                 <div>
                   <button
                     className="button ghost"
@@ -691,22 +894,91 @@ export function ProviderConnectionDialog({
             </div>
           )}
           {selectedModelId && !newModel && (
-            <label className="recipe-field recipe-prompt-field">
-              <span>模型 JSON</span>
-              <textarea
-                value={modelJson}
-                rows={12}
-                spellCheck={false}
-                placeholder="{}"
-                onChange={(event) => {
-                  setModelJson(event.target.value);
-                  setError("");
-                }}
+            <details className="provider-advanced-protocol">
+              <summary>高级协议设置（一般无需修改）</summary>
+              <label className="recipe-field recipe-prompt-field">
+                <span>协议原始数据</span>
+                <textarea
+                  value={modelJson}
+                  rows={12}
+                  spellCheck={false}
+                  placeholder="{}"
+                  onChange={(event) => {
+                    setModelJson(event.target.value);
+                    setError("");
+                  }}
+                />
+                <small>仅供熟悉接口协议的用户排查或微调。</small>
+              </label>
+            </details>
+          )}
+          {selectedModelId && !newModel && editedTextModel && (
+            <label className="provider-agent-capability">
+              <input
+                type="checkbox"
+                checked={supportsAgentTools(editedTextModel)}
+                onChange={(event) => setAgentToolSupport(event.target.checked)}
               />
-              <small>
-                每次仅编辑一个 CatalogModel 对象。可配置 endpoint、异步任务查询、参数、认证、请求模板和结果路径。
-              </small>
+              <span>
+                <strong>可用于 Agent</strong>
+                <small>
+                  协议生成后会自动配置，通常无需修改。关闭后模型仍可普通聊天，只是不再提供给 Agent。
+                </small>
+                {supportsAgentTools(editedTextModel) && (
+                  <>
+                    <select
+                      aria-label="Agent 接口模式"
+                      value={defaultAgentProtocol(editedTextModel)?.transport || "openai-chat-completions"}
+                      onChange={(event) => setAgentTransport(event.target.value as "openai-chat-completions" | "openai-responses")}
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      <option value="openai-responses">推荐：使用独立 Agent 接口</option>
+                      <option value="openai-chat-completions">兼容：与普通聊天共用接口</option>
+                    </select>
+                    <small>
+                      {defaultAgentProtocol(editedTextModel)?.transport === "openai-responses"
+                        ? "Agent 使用独立接口，普通聊天不受影响。"
+                        : "仅当服务商没有独立 Agent 接口时使用；部分模型可能无法调用工具。"}
+                    </small>
+                  </>
+                )}
+              </span>
             </label>
+          )}
+          {selectedModelId && !newModel && (
+            <div className="provider-model-heading">
+              <div>
+                <strong>试跑</strong>
+                <span className="provider-model-count">
+                  用当前协议发送一次真实请求，验证地址、Key 和结果路径
+                </span>
+              </div>
+              <button
+                className="provider-inline-action"
+                type="button"
+                disabled={testRunning || submitting}
+                onClick={() => void runTest()}
+              >
+                {testRunning ? "请求中…" : "发送测试请求"}
+              </button>
+            </div>
+          )}
+          {testError && (
+            <p className="recipe-dialog-error">{testError}</p>
+          )}
+          {testResult && (
+            <div className="provider-test-result">
+              <p className="provider-test-status">
+                状态：{testStatusLabel(testResult.status)}
+                {testResult.remoteTaskId ? ` · 任务 ID：${testResult.remoteTaskId}` : ""}
+              </p>
+              <pre
+                className="provider-test-raw"
+                style={{ whiteSpace: "pre-wrap", wordBreak: "break-all", maxHeight: 240, overflow: "auto" }}
+              >
+                {JSON.stringify(testResult, null, 2)}
+              </pre>
+            </div>
           )}
           {(error || submitError) && (
             <p className="recipe-dialog-error">{error || submitError}</p>
@@ -731,9 +1003,6 @@ export function ProviderConnectionDialog({
           </button>
         </footer>
       </section>
-      {guideOpen && (
-        <ModelProtocolGuideDialog onClose={() => setGuideOpen(false)} />
-      )}
     </div>
   );
 }

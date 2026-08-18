@@ -15,13 +15,17 @@ test('desktop updater keeps the checked update for download and installation', (
   );
 
   assert.match(api, /pendingUpdate = update/);
-  assert.match(api, /await pendingUpdate\.download\(/);
+  assert.match(api, /await update\.download\(/);
+  assert.match(api, /cancelDownload: async \(\) =>/);
+  assert.match(api, /checkFreshness: async \(\) =>/);
   assert.match(api, /await pendingUpdate\.install\(\)/);
   assert.match(api, /await relaunch\(\)/);
   assert.doesNotMatch(api, /尚未配置 Tauri updater/);
   assert.match(store, /desktopApi\.update\.download\(\(progress\) =>/);
+  assert.match(store, /function transition\(event\)/);
+  assert.match(store, /scheduleRetry\(downloadUpdate/);
   assert.match(store, /applyAvailable\(result\.info \|\| updateStore\.info, 'ready'\)/);
-  assert.match(store, /result\.error \? '检查更新失败，请稍后重试'/);
+  assert.match(store, /scheduleRetry\(checkForUpdate, '检查更新失败，请稍后重试'/);
   assert.doesNotMatch(checkFlow, /updateStore\.error = result\.error \|\|/);
   assert.match(dialog, /data\.checking[\s\S]*正在连接更新服务器/);
   assert.match(dialog, /button-spinner/);

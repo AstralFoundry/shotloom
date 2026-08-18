@@ -2,6 +2,8 @@ import { addCanvasEdge, deleteCanvasNodeData } from '@/store/canvasGraphStore';
 import { toggleCanvasEdge } from '@/store/canvasEdgeStore';
 import { cancelNode } from '@/store/taskStore';
 import { validateAgentInputRole } from '@/services/agentInputRole';
+import { getGenerationInputModes } from '@/domain/catalog/ModelCatalog';
+import { defaultInputSlot, isSlotValidForMode, type GenerationInputMode, type GenerationInputSlot } from '@/domain/graph/GenerationInputContract';
 import { canvasNodeDimensions } from '@/services/agentLayoutService';
 import { uid } from '@/utils/format';
 import type { AgentAction, AgentActionResult, AgentInputRole } from './agentTypes';
@@ -63,6 +65,23 @@ export function handleAgentCanvasAction(
     const validation = validateAgentInputRole(project, source, target, requestedRole);
     if (!validation.valid) return { applied: false, error: validation.error };
     const role = validation.role;
+    const modes = getGenerationInputModes(String(target?.model || ''));
+    const activeMode = modes.find((item) => item.value === target?.inputMode) || modes[0];
+    const roleSupported = role === 'textContext' || (role === 'referenceImage' && (activeMode?.maxImages || 0) > 0)
+      || (role === 'inputVideo' && (activeMode?.maxVideos || 0) > 0)
+      || (role === 'referenceAudio' && (activeMode?.maxAudios || 0) > 0);
+    if (!roleSupported) return { applied: false, error: `输入模式 ${activeMode?.label || target?.inputMode || '未设置'} 不支持 ${role}` };
+    const occupied = (project.edges || []).filter((edge: any) => edge.target === targetId)
+      .map((edge: any) => edge.data?.inputSlot).filter(Boolean) as GenerationInputSlot[];
+    const slot = role === 'textContext' ? undefined : String(action.slot || defaultInputSlot(
+      (activeMode?.value || 'reference') as GenerationInputMode,
+      role,
+      occupied,
+    )) as GenerationInputSlot;
+    if (activeMode && slot && !isSlotValidForMode(activeMode.value, slot, role)) {
+      return { applied: false, error: `槽位 ${slot} 不属于输入模式 ${activeMode.value}` };
+    }
+    if (activeMode && role !== 'textContext') target.inputMode = activeMode.value;
     const result = addCanvasEdge(project, sourceId, targetId, {
       touch: false,
       updateExisting: true,
@@ -70,6 +89,7 @@ export function handleAgentCanvasAction(
         kind: 'typed-input',
         data: {
           inputRole: role,
+          ...(slot ? { inputSlot: slot } : {}),
           required: action.required !== false,
         },
       },

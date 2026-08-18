@@ -1,14 +1,21 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
-test('视频节点只保留可点击的导出剪辑入口', async () => {
-  const source = await readFile(
-    new URL('../renderer/src/app/canvas/GenerationNode.tsx', import.meta.url),
-    'utf8',
-  );
+const readCanvasAdapter = async () =>
+  await readFile(new URL('../renderer/src/app/adapters/canvasAdapter.ts', import.meta.url), 'utf8')
+  + await readFile(new URL('../renderer/src/app/adapters/canvas/videoEditorActions.ts', import.meta.url), 'utf8');
+test('图片、视频和音频节点共用直接加入剪辑入口', async () => {
+  const [source, adapter] = await Promise.all([
+    readFile(new URL('../renderer/src/app/canvas/GenerationNode.tsx', import.meta.url), 'utf8'),
+    readCanvasAdapter(),
+  ]);
   assert.match(source, /className="video-export-trigger"/);
-  assert.match(source, />\s*导出剪辑\s*<\/button>/);
-  assert.match(source, /actions\.openVideoEditor/);
+  assert.match(source, /\["image", "video", "audio"\]\.includes\(activeKind\)/);
+  assert.match(source, /加入剪辑/);
+  assert.match(source, /actions\.addToVideoEditor/);
+  assert.match(adapter, /activeVideoEditorNodeId/);
+  assert.match(adapter, /appendEditorMediaAsset/);
+  assert.match(adapter, /sourceNodeId: id/);
   assert.doesNotMatch(source, /亮度|对比度|饱和度|trimStart|trimEnd/);
 });
 test('画布左侧视频剪辑入口直接打开空白工程并在编辑器内选择素材来源', async () => {
@@ -17,16 +24,19 @@ test('画布左侧视频剪辑入口直接打开空白工程并在编辑器内�
     readFile(new URL('../renderer/src/app/AppShell.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../renderer/src/app/ReactWorkbench.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../renderer/src/app/editor/VideoEditorWorkspace.tsx', import.meta.url), 'utf8'),
-    readFile(new URL('../renderer/src/app/adapters/canvasAdapter.ts', import.meta.url), 'utf8'),
+    readCanvasAdapter(),
   ]);
   assert.match(sidebar, /onVideoEdit/);
   assert.match(sidebar, /<span>视频剪辑<\/span>/);
+  assert.match(sidebar, /projectWorkspaceItems\.map[\s\S]*?route === "creation"[\s\S]*?<span>视频剪辑<\/span>[\s\S]*?<\/div>/);
+  assert.doesNotMatch(sidebar, /<div className="side-title">剪辑<\/div>/);
+  assert.doesNotMatch(sidebar, /nodeTypes\.map|onAddNode/);
   assert.match(shell, /onVideoEdit=\{onVideoEdit\}/);
   assert.match(workbench, /onVideoEdit=\{\(\) => canvasCommands\.openBlankVideoEditor\(\)\}/);
   assert.match(workbench, /editorNode\s*\?\s*\{/);
   assert.match(adapter, /openBlankVideoEditor\(\)/);
   assert.match(adapter, /addNode\("videoGeneration"\)/);
-  assert.match(adapter, /videoEditorOpener\(node\.id\)/);
+  assert.match(adapter, /openVideoEditor\(node\.id\)/);
   assert.match(workspace, /选择素材来源/);
   assert.match(workspace, /项目素材/);
   assert.match(workspace, /通用素材库/);
@@ -56,6 +66,12 @@ test('桌面发布包携带对应平台的 FFmpeg sidecar', async () => {
 test('独立剪辑工作区接入真实桌面导出', async () => {
   const workspace = await readFile(
     new URL('../renderer/src/app/editor/VideoEditorWorkspace.tsx', import.meta.url),
+    'utf8',
+  ) + await readFile(
+    new URL('../renderer/src/app/editor/VideoEditorWorkspaceParts.tsx', import.meta.url),
+    'utf8',
+  ) + await readFile(
+    new URL('../renderer/src/app/editor/videoEditorCatalog.ts', import.meta.url),
     'utf8',
   );
   const root = await readFile(
@@ -124,10 +140,11 @@ test('剪辑工作区用真实媒体元数据补齐主轨并提供本地文件�
     new URL('../renderer/src/app/editor/VideoEditorWorkspace.tsx', import.meta.url),
     'utf8',
   );
-  const styles = await readFile(
-    new URL('../renderer/src/app/editor/VideoEditorWorkspace.css', import.meta.url),
-    'utf8',
-  );
+  const styles = (await Promise.all([
+    'VideoEditorWorkspace.foundation.css',
+    'VideoEditorWorkspace.layout.css',
+    'VideoEditorWorkspace.theme.css',
+  ].map((name) => readFile(new URL(`../renderer/src/app/editor/${name}`, import.meta.url), 'utf8')))).join('\n');
   assert.match(workspace, /hydrateSourceProject/);
   assert.match(workspace, /onLoadedMetadata/);
   assert.match(workspace, /desktopApi\.file\.readArrayBuffer\(activeSourceFile\)/);
@@ -171,11 +188,18 @@ test('剪辑工作区主动解码首帧并提供可编辑的中文文字预设',
   const workspace = await readFile(
     new URL('../renderer/src/app/editor/VideoEditorWorkspace.tsx', import.meta.url),
     'utf8',
-  );
-  const styles = await readFile(
-    new URL('../renderer/src/app/editor/VideoEditorWorkspace.css', import.meta.url),
+  ) + await readFile(
+    new URL('../renderer/src/app/editor/VideoEditorWorkspaceParts.tsx', import.meta.url),
+    'utf8',
+  ) + await readFile(
+    new URL('../renderer/src/app/editor/videoEditorCatalog.ts', import.meta.url),
     'utf8',
   );
+  const styles = (await Promise.all([
+    'VideoEditorWorkspace.foundation.css',
+    'VideoEditorWorkspace.layout.css',
+    'VideoEditorWorkspace.theme.css',
+  ].map((name) => readFile(new URL(`../renderer/src/app/editor/${name}`, import.meta.url), 'utf8')))).join('\n');
   assert.match(workspace, /preload="auto"/);
   assert.match(workspace, /function primeSourcePreview/);
   assert.match(workspace, /video\.currentTime = frameTime/);
@@ -185,7 +209,7 @@ test('剪辑工作区主动解码首帧并提供可编辑的中文文字预设',
     workspace,
     /start=\{Math\.max\(0, Number\(clip\.trimStart\) \|\| 0\)\}/,
   );
-  assert.match(workspace, /function VideoFilmstripThumbnail/);
+  assert.match(workspace, /export function VideoFilmstripThumbnail/);
   assert.match(workspace, /const sampleCount = visibleEnd > visibleStart \? lastSlot - firstSlot : 0/);
   assert.match(workspace, /sampleIndex \* sampleWidth/);
   assert.match(styles, /\.ov-clip-frame-loading/);
@@ -270,7 +294,7 @@ test('剪辑工作区主动解码首帧并提供可编辑的中文文字预设',
   assert.match(workspace, /onClick=\{\(\) => activateAsset\(asset\)\}/);
   assert.doesNotMatch(workspace, /onDoubleClick=\{\(\) => addAsset\(asset\)\}/);
   assert.match(workspace, /已定位到“\$\{asset\.name\}”在时间线中的片段/);
-  assert.match(workspace, /runtimeMediaUrls\[clipAsset\?\.id\]/);
+  assert.match(workspace, /clipAsset\?\.id \? runtimeMediaUrls\[clipAsset\.id\]/);
   assert.match(workspace, /x: \(canvasWidth - imageWidth\) \/ 2/);
   assert.match(workspace, /已添加到画面中央/);
   assert.match(workspace, /导入图片/);

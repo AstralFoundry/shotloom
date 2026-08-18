@@ -7,7 +7,7 @@ interface ProviderBrandIconProps {
 }
 
 export function ProviderBrandIcon({
-  icon = "openai",
+  icon = "custom",
   className = "",
   decorative = true,
 }: ProviderBrandIconProps) {

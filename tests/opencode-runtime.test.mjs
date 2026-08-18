@@ -18,7 +18,7 @@ test('Tauri 随应用分发 OpenCode、FFmpeg sidecar 和 MCP bridge', () => {
   assert.ok(config.bundle.resources.includes('resources/opencode-LICENSE.txt'));
   assert.ok(config.bundle.resources.includes('resources/FFmpeg-GPL-3.0.txt'));
   assert.ok(config.bundle.resources.includes('resources/FFmpeg-SOURCE.txt'));
-  const rust = read('src-tauri/src/commands/agent_runtime.rs');
+  const rust = read('src-tauri/src/commands/agent_runtime.rs') + read('src-tauri/src/commands/agent_runtime_proxy.rs');
   assert.match(rust, /OPENCODE_SERVER_PASSWORD/);
   assert.match(rust, /"--pure"/);
   assert.match(rust, /"enabled": false/);
@@ -38,9 +38,23 @@ test('Tauri 随应用分发 OpenCode、FFmpeg sidecar 和 MCP bridge', () => {
   assert.match(read('src-tauri/src/lib.rs'), /RunEvent::Exit[\s\S]*state\.shutdown/);
 });
 
+test('Runtime 不会把历史 assistant 回复冒充为本轮结果', () => {
+  const runtime = read('renderer/src/agent/runtime/OpenCodeRuntime.ts');
+  assert.match(runtime, /response\?\.info\?\.role === 'assistant'/);
+  assert.match(runtime, /createdAt >= startedAt/);
+  assert.match(runtime, /返回了历史回复，已切换到干净 Session 重试/);
+  assert.match(runtime, /没有生成与本轮用户消息对应的新回复/);
+  assert.match(runtime, /response\?\.info\?\.finish === 'length'/);
+  assert.match(runtime, /达到本轮输出上限，尚未完成工具调用/);
+  assert.match(runtime, /模型返回了 0 token 空响应/);
+  assert.match(runtime, /agentProtocol\?\.requestOptions/);
+  assert.match(runtime, /agentProtocol\?\.transport/);
+  assert.doesNotMatch(runtime, /reason\|thinking/);
+});
+
 test('所有桌面构建入口都在 Cargo 或 Tauri 构建前准备平台 sidecar', () => {
   const pkg = JSON.parse(read('package.json'));
-  assert.equal(pkg.scripts.predev, 'npm run prepare:opencode');
+  assert.equal(pkg.scripts.predev, 'npm run prepare:sidecars');
   assert.equal(pkg.scripts['prebuild:desktop'], 'npm run prepare:sidecars');
   assert.equal(pkg.scripts.pretauri, 'npm run prepare:sidecars');
 
@@ -61,6 +75,7 @@ test('所有桌面构建入口都在 Cargo 或 Tauri 构建前准备平台 sidec
 
 test('OpenCode Runtime 使用持久 Session、子 Agent、Contract 与本地域工具桥', () => {
   const runtime = read('renderer/src/agent/runtime/OpenCodeRuntime.ts');
+  const provider = read('renderer/src/agent/runtime/openCodeProvider.mjs');
   assert.match(runtime, /openCodeSessionId/);
   assert.match(runtime, /session\.created/);
   assert.match(runtime, /parentID/);
@@ -68,11 +83,12 @@ test('OpenCode Runtime 使用持久 Session、子 Agent、Contract 与本地域�
   assert.match(runtime, /contractsForAgentType/);
   assert.match(runtime, /activateOpenCodeToolBridge/);
   assert.match(runtime, /ensureMcpConnected/);
-  assert.match(runtime, /mcp\.disconnect/);
-  assert.match(runtime, /routeSkill/);
-  assert.match(runtime, /agent: 'intent-router'/);
+  assert.doesNotMatch(runtime, /mcp\.disconnect/);
+  assert.doesNotMatch(runtime, /routeSkill/);
+  assert.doesNotMatch(runtime, /agent: 'intent-router'/);
   assert.match(runtime, /report_outcome/);
-  assert.match(runtime, /@ai-sdk\/openai/);
+  assert.match(provider, /@ai-sdk\/openai/);
+  assert.match(runtime, /resolveOpenCodeProvider/);
   assert.doesNotMatch(runtime, /Runtime requirement: call report_outcome/);
   assert.match(runtime, /hasAppliedActions/);
   assert.doesNotMatch(runtime, /没有提交可核验的终态结果|Agent 没有返回文字内容/);

@@ -2,11 +2,24 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   createCopilotConversation,
+  clearActiveCopilotConversation,
   deleteCopilotConversation,
   ensureCopilotConversations,
   getActiveCopilotConversation,
   switchCopilotConversation,
 } from '../renderer/src/services/copilotConversations.mjs';
+
+test('clearing a conversation also starts a fresh Runtime session', () => {
+  const project = {};
+  const active = getActiveCopilotConversation(project);
+  active.messages.push({ id: 'old-message' });
+  active.openCodeSessionId = 'ses_old';
+
+  clearActiveCopilotConversation(project);
+
+  assert.deepEqual(active.messages, []);
+  assert.equal(active.openCodeSessionId, undefined);
+});
 
 test('empty project gets one canonical conversation', () => {
   const project = {};

@@ -1,29 +1,3 @@
-:root {
-  --bg: #fafafa;
-  --surface: #ffffff;
-  --surface-2: #f5f5f5;
-  --line: rgba(0, 0, 0, .08);
-  --line-soft: rgba(0, 0, 0, .05);
-  --text: #000000;
-  --muted: rgba(0, 0, 0, .5);
-  --faint: rgba(0, 0, 0, .32);
-  --brand: #000000;
-  --brand-soft: #f5f5f5;
-  --dark: #101827;
-  --accent: #202020;
-  --good: #0f9f6e;
-  --warn: #c98713;
-  --bad: #d74848;
-  --shadow: 0 10px 24px -20px rgba(17, 17, 19, .16), 0 1px 4px -3px rgba(17, 17, 19, .08);
-  --type-primary: rgba(0, 0, 0, .82);
-  --type-secondary: rgba(0, 0, 0, .58);
-  --type-tertiary: rgba(0, 0, 0, .38);
-  --workspace-sidebar-width: 264px;
-  --workspace-sidebar-rail-width: 64px;
-  --window-shell: #efeff2;
-  --workbench-radius: 12px;
-}
-
 /* Task actions stay quiet until the row is inspected, preserving the compact
    information-line layout while keeping keyboard users fully discoverable. */
 .task-record-actions { opacity: 0; transition: opacity 120ms ease; }
@@ -93,6 +67,15 @@ label.button {
   -webkit-app-region: drag;
 }
 
+.window-drag-strip {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 0;
+  height: 5px;
+  pointer-events: auto;
+  -webkit-app-region: drag;
+}
+
 .user-tools,
 button,
 input,
@@ -103,6 +86,8 @@ label.button {
 }
 
 .user-tools {
+  position: relative;
+  z-index: 1;
   pointer-events: auto;
   display: flex;
   justify-content: flex-end;
@@ -188,19 +173,16 @@ label.button {
 }
 .workspace.sidebar-collapsed { grid-template-columns: var(--workspace-sidebar-rail-width) minmax(0, 1fr); }
 
-/* The creation canvas owns the full workbench viewport. Framing belongs to
-   document-style pages; retaining it here leaves unusable strips around the
-   infinite canvas and makes viewport calculations smaller than the window. */
+/* A narrow inset keeps the frameless workbench easy to grab and resize without
+   bringing back a conventional title bar or materially shrinking the canvas. */
 .app-shell.route-creation .workspace {
-  padding-top: 0;
-  padding-right: 0;
-  padding-bottom: 0;
+  padding-top: 5px;
+  padding-right: 5px;
+  padding-bottom: 5px;
 }
 .app-shell.route-creation .content {
-  border-top: 0;
-  border-right: 0;
-  border-bottom: 0;
-  border-radius: 0;
+  border: .5px solid rgba(0, 0, 0, .08);
+  border-radius: var(--workbench-radius);
   padding: 0;
 }
 
@@ -243,7 +225,6 @@ label.button {
 
 .sidebar-shell.preview-open :is(
   .sidebar-brand-copy,
-  .side-title,
   .side-item span,
   .sidebar-footer span
 ) {
@@ -257,7 +238,6 @@ label.button {
 
 .sidebar-shell.preview-closing :is(
   .sidebar-brand-copy,
-  .side-title,
   .side-item span,
   .sidebar-footer span
 ) {
@@ -274,13 +254,11 @@ label.button {
   .topbar { transition: none; }
   .sidebar-shell.preview-open :is(
     .sidebar-brand-copy,
-    .side-title,
     .side-item span,
     .sidebar-footer span
   ),
   .sidebar-shell.preview-closing :is(
     .sidebar-brand-copy,
-    .side-title,
     .side-item span,
     .sidebar-footer span
   ) { animation: none; }
@@ -454,11 +432,7 @@ label.button {
   transform: translateX(-50%);
 }
 .sidebar-shell.collapsed .sidebar-visibility-fill { opacity: .12; }
-.sidebar-shell.collapsed .side-title { visibility: hidden; opacity: 0; }
 .sidebar-shell.collapsed .side-list { gap: 2px; }
-.sidebar-shell.collapsed .side-list + .side-title + .side-list {
-  border-color: transparent;
-}
 .sidebar-shell.collapsed .side-item,
 .sidebar-shell.collapsed .side-item.nested {
   width: 40px;
@@ -500,18 +474,6 @@ label.button {
   margin-bottom: 8px;
   padding-bottom: 8px;
 }
-
-.side-title {
-  margin: 12px 9px 7px;
-  overflow: hidden;
-  color: rgba(0, 0, 0, .3);
-  font-size: 10px;
-  font-weight: 600;
-  line-height: 14px;
-  letter-spacing: .02em;
-  white-space: nowrap;
-}
-.side-list + .side-title { margin-top: 17px; padding-top: 14px; border-top: 1px solid #e9e9e9; }
 
 .side-item {
   width: 100%;
@@ -1904,6 +1866,43 @@ tr:last-child td {
 .canvas-shortcut-help dl { margin: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 7px 14px; }
 .canvas-shortcut-help dt { color: #64748b; font-size: 11px; }
 .canvas-shortcut-help dd { margin: 0; color: #334155; font-size: 11px; font-weight: 700; }
+
+.canvas-layout-menu,
+.canvas-layout-confirm {
+  position: absolute;
+  left: 50%;
+  bottom: 48px;
+  transform: translateX(-50%);
+  border: 1px solid #d8dee7;
+  border-radius: 10px;
+  color: #334155;
+  background: rgba(255, 255, 255, .98);
+  box-shadow: 0 14px 38px rgba(15, 23, 42, .14);
+  pointer-events: auto;
+}
+.canvas-layout-menu { width: 260px; padding: 11px; }
+.canvas-layout-menu > strong { display: block; font-size: 12px; }
+.canvas-layout-menu > span { display: block; margin-top: 2px; color: #89919d; font-size: 10px; }
+.canvas-layout-options { margin-top: 9px; display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+.bottom-mode-switch .canvas-layout-options button {
+  width: auto;
+  height: 34px;
+  border: 1px solid #e4e7eb;
+  border-radius: 7px;
+  padding: 0 9px;
+  display: flex;
+  justify-content: flex-start;
+  gap: 7px;
+  color: #46505c;
+  background: #fff;
+  font-size: 11px;
+}
+.canvas-layout-options button svg { width: 13px; height: 13px; }
+.canvas-layout-menu > label { margin-top: 9px; display: flex; align-items: center; gap: 7px; color: #66707c; font-size: 10px; }
+.canvas-layout-menu > label input { width: 13px; height: 13px; margin: 0; accent-color: #556f61; }
+.canvas-layout-confirm { padding: 8px 9px; display: flex; align-items: center; gap: 5px; white-space: nowrap; }
+.canvas-layout-confirm span { margin-right: 3px; color: #5f6873; font-size: 11px; }
+.bottom-mode-switch .canvas-layout-confirm button { width: auto; height: 27px; border-radius: 6px; padding: 0 8px; font-size: 10px; }
 
 .forge-copilot {
   position: relative;
@@ -3450,12 +3449,6 @@ tr:last-child td {
   max-width: 100%;
   box-sizing: border-box;
 }
-.node-port {
-  width: 12px;
-  height: 12px;
-  border: 2px solid #fff;
-  background: #718096;
-}
 .work-node-kicker,
 .work-composer-row {
   display: flex;
@@ -3990,6 +3983,29 @@ tr:last-child td {
   font-weight: 700;
 }
 
+.toast.toast-success {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border-color: rgba(32, 139, 83, .28);
+  color: #155f38;
+  background: #f1fbf5;
+  box-shadow: 0 12px 34px rgba(21, 95, 56, .16);
+}
+
+.toast-success-mark {
+  display: grid;
+  flex: 0 0 22px;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border-radius: 50%;
+  color: #fff;
+  background: #208b53;
+  font-size: 13px;
+  font-weight: 800;
+}
+
 .hidden {
   display: none !important;
 }
@@ -4016,10 +4032,6 @@ tr:last-child td {
   .side-list {
     display: flex;
     overflow-x: auto;
-  }
-
-  .side-title {
-    display: none;
   }
 
   .side-item {

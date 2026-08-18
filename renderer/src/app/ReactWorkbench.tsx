@@ -1,5 +1,6 @@
 import { useEffect, useReducer, useState, useSyncExternalStore } from "react";
-import { convertFileSrc } from "@tauri-apps/api/core";
+import { convertFileSrc, invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { useWindowClose } from "../composables/useWindowClose";
 import { desktopApi } from "../services/desktopApi.js";
 import { copyFileIntoProjectAssets, inferFileResourceType } from "../store/assetStore.js";
@@ -28,12 +29,13 @@ import {
   canvasController,
   canvasViewData,
   nodeActions,
-  registerVideoEditorOpener,
 } from "./adapters/canvasAdapter";
+import { registerVideoEditorOpener } from "./adapters/canvas/videoEditorActions";
 import {
   copilotController,
   copilotData,
   getCopilotRevision,
+  maintainCopilotSessionMemory,
   subscribeCopilot,
 } from "./adapters/copilotAdapter";
 import { projectLibraryController, projectLibraryData } from "./adapters/projectLibraryAdapter";
@@ -55,7 +57,9 @@ import { ProjectsView } from "./views/ProjectsView";
 import { SettingsFeature } from "./views/SettingsFeature";
 import { TasksView } from "./views/TasksView";
 import { showToast } from "./store/overlayStore";
+import { recoverInterruptedAgentRuns, relieveAgentHistoryMemoryPressure } from "../agent/runtime/runStore";
 import { type AppRoute, useAppStore } from "./store/appStore";
+import { installMediaPreviewCacheMemoryPressureListener } from "../services/mediaPreviewCache";
 
 /**
  * React 主工作台根；领域状态通过框架无关订阅同步到视图。
@@ -73,7 +77,10 @@ export function ReactWorkbench() {
 
   useEffect(() => {
     let taskTimer = 0;
+    let sessionMemoryTimer = 0;
     let disposeClose: undefined | (() => void);
+    let disposeMemoryPressure: undefined | (() => void);
+    let disposeMediaCachePressure: undefined | (() => void);
     let cancelled = false;
     void (async () => {
       await loadAppSettings();
@@ -85,10 +92,32 @@ export function ReactWorkbench() {
       ]);
       await loadBoundWindowProject();
       if (cancelled) return;
+      if (desktopApi.platform !== 'browser') {
+        const recovery = await invoke<any>('recovery_status').catch(() => null);
+        const previous = recovery?.previousUnclean;
+        if (previous) {
+          const recoveredRuns = recoverInterruptedAgentRuns(String(previous.activeRunId || ''));
+          const memoryHint = Number(previous.availableMemoryKb || 0) > 0
+            ? `，退出前系统可用内存约 ${Math.round(Number(previous.availableMemoryKb) / 1024)} MB`
+            : '';
+          showToast(`检测到上次未正常退出，已恢复项目状态${recoveredRuns ? `并终止 ${recoveredRuns} 个未完成 Agent 运行` : ''}${memoryHint}`);
+        }
+      }
       resumeRemoteTasks();
       taskTimer = window.setInterval(() => resumeRemoteTasks(), 5000);
+      maintainCopilotSessionMemory();
+      sessionMemoryTimer = window.setInterval(() => maintainCopilotSessionMemory(), 60_000);
+      disposeMediaCachePressure = installMediaPreviewCacheMemoryPressureListener();
       initProjectCloneProgressListener?.();
       disposeClose = useWindowClose();
+      if (desktopApi.platform !== 'browser') {
+        disposeMemoryPressure = await listen<any>('system-memory-pressure', ({ payload }) => {
+          const level = payload?.level === 'critical' ? 'critical' : 'low';
+          const released = relieveAgentHistoryMemoryPressure(level);
+          window.dispatchEvent(new CustomEvent('shotloom-memory-pressure', { detail: payload }));
+          showToast(`系统内存不足，已释放非活动缓存和 ${Number(released.removedEvents || 0)} 条旧运行事件`);
+        });
+      }
       refresh();
     })().catch((cause) => showToast(cause instanceof Error ? cause.message : "应用初始化失败"));
     registerVideoEditorOpener(setEditorNodeId);
@@ -96,7 +125,10 @@ export function ReactWorkbench() {
       cancelled = true;
       registerVideoEditorOpener(null);
       if (taskTimer) window.clearInterval(taskTimer);
+      if (sessionMemoryTimer) window.clearInterval(sessionMemoryTimer);
       disposeClose?.();
+      disposeMemoryPressure?.();
+      disposeMediaCachePressure?.();
     };
   }, []);
 
@@ -337,7 +369,9 @@ export function ReactWorkbench() {
             await canvasCommands.applyMaterial(item);
           },
           previewMaterial: assetsController.preview,
+          showMaterialInFolder: assetsController.showFile,
           loadMaterials: resourceLibraryData,
+          importMaterials: materialsController.importFiles,
           undo: canvasCommands.undo,
           redo: canvasCommands.redo,
           fitView: canvasCommands.fitView,
@@ -354,7 +388,6 @@ export function ReactWorkbench() {
       <AppShell
         platform={desktopApi.platform}
         view={activeView}
-        onAddNode={(type) => canvasController.createNodeAt(type, { x: 120, y: 90 })}
         onVideoEdit={() => canvasCommands.openBlankVideoEditor()}
         onNotify={() =>
           void desktopApi

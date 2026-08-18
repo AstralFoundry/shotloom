@@ -26,9 +26,12 @@
               "maxTokens": 1000000
             }
           },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": true,
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
@@ -75,9 +78,12 @@
               "maxTokens": 1000000
             }
           },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": true,
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
@@ -124,9 +130,12 @@
               "maxTokens": 1000000
             }
           },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": true,
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
@@ -184,9 +193,12 @@
               "maxTokens": 1000000
             }
           },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": true,
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
@@ -232,9 +244,12 @@
               "maxTokens": 1000000
             }
           },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": true,
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
@@ -280,9 +295,12 @@
               "maxTokens": 1000000
             }
           },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": true,
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
@@ -339,9 +357,12 @@
               "maxTokens": 1000000
             }
           },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": true,
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
@@ -387,9 +408,12 @@
               "maxTokens": 1000000
             }
           },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": true,
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
@@ -435,9 +459,12 @@
               "maxTokens": 1000000
             }
           },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": true,
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
@@ -494,9 +521,12 @@
               "maxTokens": 1000000
             }
           },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": true,
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
@@ -542,9 +572,12 @@
               "maxTokens": 1000000
             }
           },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": true,
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
@@ -590,9 +623,12 @@
               "maxTokens": 1000000
             }
           },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": true,
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
@@ -649,9 +685,12 @@
               "maxTokens": 256000
             }
           },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": true,
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
@@ -697,9 +736,12 @@
               "maxTokens": 256000
             }
           },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": true,
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
@@ -745,9 +787,12 @@
               "maxTokens": 256000
             }
           },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": true,
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
@@ -806,7 +851,6 @@
           },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": false,
             "supportsStructuredOutput": true,
             "maxTokens": 128000
           },
@@ -857,7 +901,6 @@
           },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": false,
             "supportsStructuredOutput": true,
             "maxTokens": 128000
           },
@@ -908,7 +951,6 @@
           },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": false,
             "supportsStructuredOutput": true,
             "maxTokens": 128000
           },
@@ -970,7 +1012,6 @@
           },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": false,
             "supportsStructuredOutput": true,
             "maxTokens": 128000
           },
@@ -1021,7 +1062,6 @@
           },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": false,
             "supportsStructuredOutput": true,
             "maxTokens": 128000
           },
@@ -1072,7 +1112,6 @@
           },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": false,
             "supportsStructuredOutput": true,
             "maxTokens": 128000
           },
@@ -1132,9 +1171,12 @@
               "maxTokens": 1000000
             }
           },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": true,
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
@@ -1180,9 +1222,12 @@
               "maxTokens": 1000000
             }
           },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": true,
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
@@ -1228,9 +1273,12 @@
               "maxTokens": 1000000
             }
           },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": true,
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
@@ -1287,9 +1335,12 @@
               "maxTokens": 1000000
             }
           },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": true,
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
@@ -1335,9 +1386,12 @@
               "maxTokens": 1000000
             }
           },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": true,
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
@@ -1383,9 +1437,12 @@
               "maxTokens": 1000000
             }
           },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": true,
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
@@ -1442,9 +1499,12 @@
               "maxTokens": 1000000
             }
           },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": true,
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
@@ -1490,9 +1550,12 @@
               "maxTokens": 1000000
             }
           },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": true,
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
@@ -1538,9 +1601,12 @@
               "maxTokens": 1000000
             }
           },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": true,
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
@@ -1597,9 +1663,12 @@
               "maxTokens": 1000000
             }
           },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": true,
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
@@ -1645,9 +1714,12 @@
               "maxTokens": 1000000
             }
           },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": true,
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
@@ -1693,9 +1765,12 @@
               "maxTokens": 1000000
             }
           },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": true,
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
@@ -1752,9 +1827,12 @@
               "maxTokens": 1000000
             }
           },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": true,
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
@@ -1800,9 +1878,12 @@
               "maxTokens": 1000000
             }
           },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": true,
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
@@ -1848,9 +1929,12 @@
               "maxTokens": 1000000
             }
           },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
           "outputConstraints": {
             "supportsStreaming": true,
-            "supportsToolCalls": true,
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
@@ -2444,6 +2528,33 @@
             "duration": "{{params.duration}}",
             "ratio": "{{params.aspectRatio}}"
           },
+          "contentTemplate": {
+            "text": {
+              "type": "text",
+              "text": "{{text}}"
+            },
+            "image": {
+              "type": "image_url",
+              "image_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            },
+            "video": {
+              "type": "video_url",
+              "video_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            },
+            "audio": {
+              "type": "audio_url",
+              "audio_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            }
+          },
           "taskIdPath": "task_id",
           "statusPath": "task.status",
           "errorPath": "task.error.message",
@@ -2459,6 +2570,8 @@
         {
           "id": "first-frame-to-video",
           "label": "首帧图生视频",
+          "inputMode": "firstFrame",
+          "inputSlots": ["firstFrame"],
           "endpoint": {
             "method": "POST",
             "path": "/v2/video_generation",
@@ -2518,6 +2631,33 @@
             "resolution": "{{params.resolution}}",
             "duration": "{{params.duration}}",
             "ratio": "adaptive"
+          },
+          "contentTemplate": {
+            "text": {
+              "type": "text",
+              "text": "{{text}}"
+            },
+            "image": {
+              "type": "image_url",
+              "image_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            },
+            "video": {
+              "type": "video_url",
+              "video_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            },
+            "audio": {
+              "type": "audio_url",
+              "audio_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            }
           },
           "taskIdPath": "task_id",
           "statusPath": "task.status",
@@ -2621,6 +2761,33 @@
             "generate_audio": "{{params.generateAudio}}",
             "watermark": "{{params.watermark}}"
           },
+          "contentTemplate": {
+            "text": {
+              "type": "text",
+              "text": "{{text}}"
+            },
+            "image": {
+              "type": "image_url",
+              "image_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            },
+            "video": {
+              "type": "video_url",
+              "video_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            },
+            "audio": {
+              "type": "audio_url",
+              "audio_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            }
+          },
           "taskIdPath": "id",
           "statusPath": "status",
           "errorPath": "error.message",
@@ -2634,8 +2801,24 @@
           "resultUrlPath": "content.video_url"
         },
         {
-          "id": "reference-image-to-video",
-          "label": "参考图生视频",
+          "id": "omni-reference-to-video",
+          "label": "全模态参考生视频",
+          "inputMode": "reference",
+          "inputSlots": ["reference", "inputVideo", "referenceAudio"],
+          "inputVariants": [
+            {
+              "inputMode": "firstLastFrame",
+              "label": "首尾帧",
+              "inputSlots": ["firstFrame", "lastFrame"],
+              "inputConstraints": {
+                "images": { "min": 1, "max": 2, "roles": ["referenceImage"] }
+              },
+              "requestFields": {
+                "firstFrameImageContentRole": "first_frame",
+                "lastFrameImageContentRole": "last_frame"
+              }
+            }
+          ],
           "endpoint": {
             "method": "POST",
             "path": "/contents/generations/tasks",
@@ -2649,9 +2832,26 @@
           "isAsync": true,
           "inputConstraints": {
             "images": {
-              "min": 1,
+              "min": 0,
               "max": 9,
               "roles": ["referenceImage"]
+            },
+            "videos": {
+              "min": 0,
+              "max": 3,
+              "roles": ["inputVideo"],
+              "formats": ["mp4", "mov"]
+            },
+            "audios": {
+              "min": 0,
+              "max": 3,
+              "roles": ["referenceAudio"],
+              "formats": ["wav", "mp3"],
+              "minDuration": 2,
+              "maxDuration": 15,
+              "maxTotalDuration": 15,
+              "maxBytes": 15728640,
+              "requiresAnyOf": ["images", "videos"]
             }
           },
           "outputConstraints": {
@@ -2660,7 +2860,9 @@
             "formats": ["mp4"]
           },
           "requestFields": {
-            "imageContentRole": "reference_image"
+            "imageContentRole": "reference_image",
+            "videoContentRole": "reference_video",
+            "audioContentRole": "reference_audio"
           },
           "params": [
             {
@@ -2716,6 +2918,33 @@
             "generate_audio": "{{params.generateAudio}}",
             "watermark": "{{params.watermark}}"
           },
+          "contentTemplate": {
+            "text": {
+              "type": "text",
+              "text": "{{text}}"
+            },
+            "image": {
+              "type": "image_url",
+              "image_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            },
+            "video": {
+              "type": "video_url",
+              "video_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            },
+            "audio": {
+              "type": "audio_url",
+              "audio_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            }
+          },
           "taskIdPath": "id",
           "statusPath": "status",
           "errorPath": "error.message",
@@ -2742,6 +2971,22 @@
         {
           "id": "text-or-reference-image-to-video",
           "label": "文生/参考图生视频",
+          "inputMode": "reference",
+          "inputSlots": ["reference", "inputVideo", "referenceAudio"],
+          "inputVariants": [
+            {
+              "inputMode": "firstLastFrame",
+              "label": "首尾帧",
+              "inputSlots": ["firstFrame", "lastFrame"],
+              "inputConstraints": {
+                "images": { "min": 1, "max": 2, "roles": ["referenceImage"] }
+              },
+              "requestFields": {
+                "firstFrameImageContentRole": "first_frame",
+                "lastFrameImageContentRole": "last_frame"
+              }
+            }
+          ],
           "endpoint": {
             "method": "POST",
             "path": "/contents/generations/tasks",
@@ -2758,6 +3003,23 @@
               "min": 0,
               "max": 9,
               "roles": ["referenceImage"]
+            },
+            "videos": {
+              "min": 0,
+              "max": 3,
+              "roles": ["inputVideo"],
+              "formats": ["mp4", "mov"]
+            },
+            "audios": {
+              "min": 0,
+              "max": 3,
+              "roles": ["referenceAudio"],
+              "formats": ["wav", "mp3"],
+              "minDuration": 2,
+              "maxDuration": 15,
+              "maxTotalDuration": 15,
+              "maxBytes": 15728640,
+              "requiresAnyOf": ["images", "videos"]
             }
           },
           "outputConstraints": {
@@ -2766,7 +3028,9 @@
             "formats": ["mp4"]
           },
           "requestFields": {
-            "imageContentRole": "reference_image"
+            "imageContentRole": "reference_image",
+            "videoContentRole": "reference_video",
+            "audioContentRole": "reference_audio"
           },
           "params": [
             {
@@ -2821,6 +3085,33 @@
             "resolution": "{{params.resolution}}",
             "generate_audio": "{{params.generateAudio}}",
             "watermark": "{{params.watermark}}"
+          },
+          "contentTemplate": {
+            "text": {
+              "type": "text",
+              "text": "{{text}}"
+            },
+            "image": {
+              "type": "image_url",
+              "image_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            },
+            "video": {
+              "type": "video_url",
+              "video_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            },
+            "audio": {
+              "type": "audio_url",
+              "audio_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            }
           },
           "taskIdPath": "id",
           "statusPath": "status",
@@ -2848,6 +3139,22 @@
         {
           "id": "text-or-reference-image-to-video",
           "label": "文生/参考图生视频",
+          "inputMode": "reference",
+          "inputSlots": ["reference", "inputVideo", "referenceAudio"],
+          "inputVariants": [
+            {
+              "inputMode": "firstLastFrame",
+              "label": "首尾帧",
+              "inputSlots": ["firstFrame", "lastFrame"],
+              "inputConstraints": {
+                "images": { "min": 1, "max": 2, "roles": ["referenceImage"] }
+              },
+              "requestFields": {
+                "firstFrameImageContentRole": "first_frame",
+                "lastFrameImageContentRole": "last_frame"
+              }
+            }
+          ],
           "endpoint": {
             "method": "POST",
             "path": "/contents/generations/tasks",
@@ -2864,6 +3171,23 @@
               "min": 0,
               "max": 9,
               "roles": ["referenceImage"]
+            },
+            "videos": {
+              "min": 0,
+              "max": 3,
+              "roles": ["inputVideo"],
+              "formats": ["mp4", "mov"]
+            },
+            "audios": {
+              "min": 0,
+              "max": 3,
+              "roles": ["referenceAudio"],
+              "formats": ["wav", "mp3"],
+              "minDuration": 2,
+              "maxDuration": 15,
+              "maxTotalDuration": 15,
+              "maxBytes": 15728640,
+              "requiresAnyOf": ["images", "videos"]
             }
           },
           "outputConstraints": {
@@ -2872,7 +3196,9 @@
             "formats": ["mp4"]
           },
           "requestFields": {
-            "imageContentRole": "reference_image"
+            "imageContentRole": "reference_image",
+            "videoContentRole": "reference_video",
+            "audioContentRole": "reference_audio"
           },
           "params": [
             {
@@ -2928,6 +3254,33 @@
             "generate_audio": "{{params.generateAudio}}",
             "watermark": "{{params.watermark}}"
           },
+          "contentTemplate": {
+            "text": {
+              "type": "text",
+              "text": "{{text}}"
+            },
+            "image": {
+              "type": "image_url",
+              "image_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            },
+            "video": {
+              "type": "video_url",
+              "video_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            },
+            "audio": {
+              "type": "audio_url",
+              "audio_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            }
+          },
           "taskIdPath": "id",
           "statusPath": "status",
           "errorPath": "error.message",
@@ -2954,6 +3307,8 @@
         {
           "id": "text-or-image-to-video",
           "label": "文生/图生视频",
+          "inputMode": "firstFrame",
+          "inputSlots": ["firstFrame"],
           "endpoint": {
             "method": "POST",
             "path": "/videos/generations",
@@ -3062,8 +3417,10 @@
       "defaultMode": "image-to-video",
       "modes": [
         {
-          "id": "image-to-video",
-          "label": "图生视频",
+         "id": "image-to-video",
+         "label": "图生视频",
+          "inputMode": "firstFrame",
+          "inputSlots": ["firstFrame"],
           "endpoint": {
             "method": "POST",
             "path": "/videos/generations",
@@ -3167,6 +3524,8 @@
         {
           "id": "text-or-image-to-video",
           "label": "文生/图生视频",
+          "inputMode": "firstFrame",
+          "inputSlots": ["firstFrame"],
           "endpoint": {
             "method": "POST",
             "path": "/models/veo-3.1-generate-preview:predictLongRunning",
@@ -3271,6 +3630,8 @@
         {
           "id": "text-or-image-to-video",
           "label": "文生/图生视频",
+          "inputMode": "firstFrame",
+          "inputSlots": ["firstFrame"],
           "endpoint": {
             "method": "POST",
             "path": "/models/veo-3.1-fast-generate-preview:predictLongRunning",
@@ -3375,6 +3736,8 @@
         {
           "id": "text-or-image-to-video",
           "label": "文生/图生视频",
+          "inputMode": "firstFrame",
+          "inputSlots": ["firstFrame"],
           "endpoint": {
             "method": "POST",
             "path": "/models/veo-3.1-lite-generate-preview:predictLongRunning",
@@ -3559,6 +3922,8 @@
         {
           "id": "image-to-video",
           "label": "图生视频",
+          "inputMode": "firstFrame",
+          "inputSlots": ["firstFrame"],
           "endpoint": {
             "method": "POST",
             "path": "/image-to-video/kling-3.0-turbo",
@@ -3614,15 +3979,24 @@
             }
           ],
           "auth": { "type": "bearer" },
-          "requestFields": { "imageContentFormat": "kling-first-frame" },
           "requestTemplate": {
-            "contents": "{{klingContents}}",
+            "contents": "{{content}}",
             "settings": {
               "resolution": "{{resolution}}",
               "duration": "{{duration}}"
             },
             "options": {
               "watermark_info": { "enabled": "{{params.watermark}}" }
+            }
+          },
+          "contentTemplate": {
+            "text": {
+              "type": "prompt",
+              "text": "{{text}}"
+            },
+            "image": {
+              "type": "first_frame",
+              "url": "{{url}}"
             }
           },
           "taskIdPath": "data.id",
@@ -3746,6 +4120,8 @@
         {
           "id": "image-to-video",
           "label": "图生视频",
+          "inputMode": "firstFrame",
+          "inputSlots": ["firstFrame"],
           "endpoint": {
             "method": "POST",
             "path": "/image-to-video/kling-3.0",
@@ -3815,9 +4191,8 @@
             }
           ],
           "auth": { "type": "bearer" },
-          "requestFields": { "imageContentFormat": "kling-first-frame" },
           "requestTemplate": {
-            "contents": "{{klingContents}}",
+            "contents": "{{content}}",
             "settings": {
               "resolution": "{{resolution}}",
               "duration": "{{duration}}",
@@ -3826,6 +4201,16 @@
             },
             "options": {
               "watermark_info": { "enabled": "{{params.watermark}}" }
+            }
+          },
+          "contentTemplate": {
+            "text": {
+              "type": "prompt",
+              "text": "{{text}}"
+            },
+            "image": {
+              "type": "first_frame",
+              "url": "{{url}}"
             }
           },
           "taskIdPath": "data.id",
@@ -3853,6 +4238,8 @@
         {
           "id": "text-or-reference-image-to-video",
           "label": "文生/参考图生视频",
+          "inputMode": "reference",
+          "inputSlots": ["reference"],
           "endpoint": {
             "method": "POST",
             "path": "/omni-video/kling-3.0-omni",
@@ -3929,9 +4316,8 @@
             }
           ],
           "auth": { "type": "bearer" },
-          "requestFields": { "imageContentFormat": "kling-references" },
           "requestTemplate": {
-            "contents": "{{klingContents}}",
+            "contents": "{{content}}",
             "settings": {
               "resolution": "{{resolution}}",
               "aspect_ratio": "{{aspectRatio}}",
@@ -3941,6 +4327,17 @@
             },
             "options": {
               "watermark_info": { "enabled": "{{params.watermark}}" }
+            }
+          },
+          "contentTemplate": {
+            "text": {
+              "type": "prompt",
+              "text": "{{text}}"
+            },
+            "image": {
+              "type": "refer_image",
+              "url": "{{url}}",
+              "id": "image_{{index}}"
             }
           },
           "taskIdPath": "data.id",
@@ -3968,6 +4365,8 @@
         {
           "id": "text-or-image-to-video",
           "label": "文生/图生视频",
+          "inputMode": "firstFrame",
+          "inputSlots": ["firstFrame"],
           "endpoint": {
             "method": "POST",
             "path": "/paas/v4/videos/generations",

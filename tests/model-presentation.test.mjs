@@ -25,4 +25,8 @@ test('供应商 size 参数可以按统一比例控件展示', () => {
   assert.equal(isAspectRatioParam(param), true);
   assert.equal(optionLabel(param, '1536x864'), '16:9');
   assert.deepEqual(aspectRatioStyle(optionLabel(param, '1536x864')), { width: '18px', height: '10px' });
+  assert.deepEqual(aspectRatioStyle('1536x864'), { width: '18px', height: '10px' });
+  assert.deepEqual(aspectRatioStyle('9:16'), { width: '10px', height: '18px' });
+  assert.deepEqual(aspectRatioStyle('4 / 3'), { width: '18px', height: '14px' });
+  assert.deepEqual(aspectRatioStyle('3×2'), { width: '18px', height: '12px' });
 });

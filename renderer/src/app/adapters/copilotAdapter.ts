@@ -26,6 +26,12 @@ import { CopilotRuntimePresenter } from "../copilot/CopilotRuntimePresenter";
 import { showToast } from "../store/overlayStore";
 import { setSelectedNodeIds } from "../../store/nodeStore";
 import { toRaw } from "../../store/domainReactivity.js";
+import { recordPerformanceMetric } from "../../services/performanceMetrics";
+import {
+  compactInactiveCopilotSessions,
+  dropCopilotSessionArchive,
+  restoreCopilotSession,
+} from "../../services/copilotSessionLifecycle.mjs";
 
 type Loose = Record<string, any>;
 type CopilotSendPayload = {
@@ -41,9 +47,22 @@ type AgentResume = {
   };
 };
 const listeners = new Set<() => void>();
+const MAX_QUEUED_DELIVERIES = 3;
 let busy = false;
 let activeRequestId = "";
 let revision = 0;
+let deliveryProcessing = false;
+type Delivery = {
+  clientMessageId: string;
+  payload: CopilotSendPayload;
+  resume?: AgentResume;
+  skipUserMessage: boolean;
+  conversationId: string;
+  project: Loose;
+  projectKey: string;
+  userMessageId?: string;
+};
+const deliveryQueue: Delivery[] = [];
 let textModelConfigSource: object | null = null;
 let cachedTextModels: Array<{ id: string; label: string }> = [];
 const notify = () => {
@@ -55,6 +74,15 @@ export const subscribeCopilot = (listener: () => void) => {
   return () => listeners.delete(listener);
 };
 export const getCopilotRevision = () => revision;
+export function maintainCopilotSessionMemory() {
+  const startedAt = performance.now();
+  const result = compactInactiveCopilotSessions(toRaw(store.project));
+  if (result.compacted) {
+    recordPerformanceMetric("copilot.sessions.compact", startedAt, result);
+    notify();
+  }
+  return result;
+}
 function active() {
   return getActiveCopilotConversation(store.project) as Loose;
 }
@@ -73,9 +101,12 @@ function availableTextModels() {
 }
 function pushMessage(message: Loose) {
   const conversation = active();
-  conversation.messages = conversation.messages.filter((item: Loose) => !item.transient);
+  if (!busy) {
+    conversation.messages = conversation.messages.filter((item: Loose) => !item.transient);
+  }
+  const id = String(message.id || uid());
   conversation.messages.push({
-    id: uid(),
+    id,
     createdAt: new Date().toISOString(),
     ...message,
   });
@@ -83,11 +114,9 @@ function pushMessage(message: Loose) {
     titleConversationFromMessage(conversation, message.content);
   }
   conversation.updatedAt = new Date().toISOString();
-  if (conversation.messages.length > 200) {
-    conversation.messages.splice(0, conversation.messages.length - 200);
-  }
   touchProject();
   notify();
+  return id;
 }
 function pushTyping() {
   const id = uid();
@@ -122,6 +151,17 @@ function finalizeMessage(id: string, patch: Loose) {
   });
   conversation.updatedAt = new Date().toISOString();
   touchProject();
+  notify();
+}
+
+function patchConversationMessage(conversationId: string, id: string, patch: Loose) {
+  const conversation = (store.project.copilotConversations || [])
+    .find((item: Loose) => String(item.id || "") === conversationId);
+  const message = conversation?.messages?.find((item: Loose) => item.id === id);
+  if (!message) return;
+  Object.assign(message, patch);
+  conversation.updatedAt = new Date().toISOString();
+  touchProject({ sessionDelay: 100, coalesceSession: true });
   notify();
 }
 
@@ -168,6 +208,7 @@ export function copilotData() {
     }),
     activeConversationId: String(store.project.activeCopilotConversationId || ""),
     busy,
+    queuedMessageCount: deliveryQueue.length,
     textModel: textModels.some((item: Loose) => item.id === configured)
       ? configured
       : textModels[0]?.id || "",
@@ -178,18 +219,15 @@ export function copilotData() {
 async function send(
   payload: CopilotSendPayload,
   resume?: AgentResume,
-  options: { skipUserMessage?: boolean } = {},
+  options: { skipUserMessage?: boolean; delivery?: Delivery } = {},
 ) {
-  if (busy) return;
-  const project = store.project;
-  const projectKey = getAgentProjectKey();
+  const project = options.delivery?.project || store.project;
+  const projectKey = options.delivery?.projectKey || getAgentProjectKey();
   const conversation = active();
   if (resume && String(conversation.id || "") !== resume.conversationId) {
     showToast("待续跑的 Agent 属于另一个对话，请先切换回原对话");
     return;
   }
-  busy = true;
-  notify();
   const messageText = payload.text.trim() || "请结合我选择的节点和附件继续处理。";
   if (!resume && !options.skipUserMessage) {
     pushMessage({
@@ -209,19 +247,46 @@ async function send(
   const typingId = pushTyping();
   const presentation = new CopilotRuntimePresenter();
   let timer = 0;
+  let pendingPatch: Loose = {};
+  let pendingContextUsage: Loose | null = null;
+  let pendingEventCount = 0;
+  let batchStartedAt = 0;
   const flush = () => {
     if (timer) window.clearTimeout(timer);
     timer = 0;
-    patchMessage(typingId, { content: presentation.streamed, typing: true });
+    if (!pendingEventCount && !Object.keys(pendingPatch).length && !pendingContextUsage) return;
+    const startedAt = batchStartedAt || performance.now();
+    if (pendingContextUsage) (toRaw(conversation) as Loose).contextUsage = pendingContextUsage;
+    patchMessage(typingId, {
+      content: presentation.streamed,
+      typing: true,
+      ...pendingPatch,
+    });
+    recordPerformanceMetric("copilot.stream.flush", startedAt, {
+      eventCount: pendingEventCount,
+      contentLength: presentation.streamed.length,
+      toolCount: presentation.tools.length,
+    });
+    pendingPatch = {};
+    pendingContextUsage = null;
+    pendingEventCount = 0;
+    batchStartedAt = 0;
   };
   const schedule = () => {
-    if (!timer) timer = window.setTimeout(flush, 48);
+    if (!batchStartedAt) batchStartedAt = performance.now();
+    pendingEventCount += 1;
+    if (!timer) timer = window.setTimeout(flush, 32);
   };
   const stopTimer = () => {
     if (timer) window.clearTimeout(timer);
     timer = 0;
   };
   try {
+    if (options.delivery?.userMessageId) {
+      patchConversationMessage(options.delivery.conversationId, options.delivery.userMessageId, {
+        deliveryStage: "sent",
+      });
+    }
     const result = await runAgent(
       {
         message: messageText,
@@ -233,16 +298,31 @@ async function send(
         conversationId: conversation.id,
       } as any,
       (event: Loose) => {
-        if (event.type === "run_started") activeRequestId = String(event.requestId || "");
+        if (event.type === "run_started") {
+          activeRequestId = String(event.requestId || "");
+          if (options.delivery?.userMessageId) {
+            patchConversationMessage(options.delivery.conversationId, options.delivery.userMessageId, {
+              deliveryStage: "started",
+              requestId: activeRequestId,
+            });
+          }
+        }
         if (store.project !== project || getAgentProjectKey() !== projectKey) return;
         const effect = presentation.consume(event);
-        if (effect.textChanged) schedule();
+        let shouldSchedule = effect.textChanged === true;
         if (effect.contextUsage) {
-          (toRaw(conversation) as Loose).contextUsage = effect.contextUsage;
-          notify();
+          pendingContextUsage = effect.contextUsage;
+          shouldSchedule = true;
         }
-        if (effect.messagePatch) patchMessage(typingId, effect.messagePatch);
-        if (effect.persist) touchProject();
+        if (effect.messagePatch) {
+          pendingPatch = { ...pendingPatch, ...effect.messagePatch };
+          shouldSchedule = true;
+        }
+        if (shouldSchedule) schedule();
+        if (effect.persist) {
+          flush();
+          touchProject();
+        }
       },
     );
     if (store.project !== project || getAgentProjectKey() !== projectKey) {
@@ -250,6 +330,11 @@ async function send(
     }
     conversation.contextUsage = result?.contextUsage || conversation.contextUsage || null;
     conversation.updatedAt = new Date().toISOString();
+    if (options.delivery?.userMessageId) {
+      patchConversationMessage(options.delivery.conversationId, options.delivery.userMessageId, {
+        deliveryStage: "completed",
+      });
+    }
     flush();
     finalizeMessage(typingId, {
       role: "assistant",
@@ -263,6 +348,13 @@ async function send(
       flush();
       const error = String(cause?.message || cause || "未知错误");
       const cancelled = /abort|cancel/i.test(error);
+      const diagnosis = cause?.diagnosis as Loose | undefined;
+      if (options.delivery?.userMessageId) {
+        patchConversationMessage(options.delivery.conversationId, options.delivery.userMessageId, {
+          deliveryStage: cancelled ? "cancelled" : "failed",
+          deliveryError: cancelled ? "" : error,
+        });
+      }
       finalizeMessage(typingId, {
         role: "assistant",
         title: cancelled ? "已停止" : "运行失败",
@@ -270,8 +362,10 @@ async function send(
         ...(cancelled
           ? {}
           : {
-              error: `Agent 运行失败：${error}`,
+              error: diagnosis?.title ? `${diagnosis.title}：${diagnosis.message}` : `Agent 运行失败：${error}`,
+              diagnosis,
               retryable: true,
+              ...(diagnosis?.retryable === false ? { retryable: false } : {}),
               retryPayload: {
                 text: payload.text,
                 model: payload.model,
@@ -284,6 +378,96 @@ async function send(
     }
   } finally {
     stopTimer();
+    activeRequestId = "";
+  }
+}
+
+function enqueueDelivery(
+  payload: CopilotSendPayload,
+  resume?: AgentResume,
+  options: { skipUserMessage?: boolean; priority?: boolean } = {},
+): boolean {
+  if (deliveryQueue.length >= MAX_QUEUED_DELIVERIES) {
+    showToast(`消息队列已满（最多 ${MAX_QUEUED_DELIVERIES} 条），请等待当前任务结束`);
+    return false;
+  }
+  const project = store.project as Loose;
+  const projectKey = getAgentProjectKey();
+  const conversation = active();
+  const clientMessageId = uid();
+  const messageText = payload.text.trim() || "请结合我选择的节点和附件继续处理。";
+  const userMessageId = !resume && !options.skipUserMessage
+    ? pushMessage({
+        role: "user",
+        title: "你的消息",
+        content: messageText,
+        clientMessageId,
+        deliveryStage: "queued",
+        meta: [
+          ...(payload.nodeMentions as Loose[]).map(
+            (node) => `@${node.alias || node.id} ${node.title || "未命名节点"}`,
+          ),
+          ...(payload.attachments as Loose[]).map(
+            (file) => `附件 ${file.name || file.fileName || "未命名文件"}`,
+          ),
+        ],
+      })
+    : undefined;
+  const delivery: Delivery = {
+    clientMessageId,
+    payload: {
+      ...payload,
+      attachments: [...payload.attachments],
+      nodeMentions: [...payload.nodeMentions],
+    },
+    resume,
+    skipUserMessage: true,
+    conversationId: String(conversation.id || ""),
+    project,
+    projectKey,
+    userMessageId,
+  };
+  if (options.priority) deliveryQueue.unshift(delivery);
+  else deliveryQueue.push(delivery);
+  notify();
+  void drainDeliveries();
+  return true;
+}
+
+async function drainDeliveries() {
+  if (deliveryProcessing) return;
+  deliveryProcessing = true;
+  busy = true;
+  notify();
+  try {
+    while (deliveryQueue.length) {
+      const delivery = deliveryQueue.shift()!;
+      notify();
+      if (store.project !== delivery.project || getAgentProjectKey() !== delivery.projectKey) {
+        if (delivery.userMessageId) {
+          patchConversationMessage(delivery.conversationId, delivery.userMessageId, {
+            deliveryStage: "failed",
+            deliveryError: "消息所属项目已经切换",
+          });
+        }
+        continue;
+      }
+      if (String(active().id || "") !== delivery.conversationId) {
+        if (delivery.userMessageId) {
+          patchConversationMessage(delivery.conversationId, delivery.userMessageId, {
+            deliveryStage: "failed",
+            deliveryError: "消息所属对话已经切换",
+          });
+        }
+        continue;
+      }
+      await send(delivery.payload, delivery.resume, {
+        skipUserMessage: delivery.skipUserMessage,
+        delivery,
+      });
+    }
+  } finally {
+    deliveryProcessing = false;
     busy = false;
     activeRequestId = "";
     notify();
@@ -292,7 +476,7 @@ async function send(
 
 export const copilotController: CopilotController = {
   send: (payload) => {
-    void send(payload);
+    return enqueueDelivery(payload);
   },
   close: () => {},
   cancel: () => {
@@ -311,7 +495,7 @@ export const copilotController: CopilotController = {
     message.retryable = false;
     touchProject();
     notify();
-    void send(
+    enqueueDelivery(
       {
         text: String(message.retryPayload.text || ""),
         model: String(message.retryPayload.model || ""),
@@ -344,9 +528,11 @@ export const copilotController: CopilotController = {
     showToast("已新建项目对话");
   },
   selectConversation: (id) => {
+    if (!busy) restoreCopilotSession(toRaw(store.project), id);
     if (!busy && switchCopilotConversation(store.project, id)) {
       touchProject();
       notify();
+      maintainCopilotSessionMemory();
     }
   },
   deleteConversation: (id) => {
@@ -355,6 +541,7 @@ export const copilotController: CopilotController = {
       return;
     }
     if (!busy && deleteCopilotConversation(store.project, id)) {
+      dropCopilotSessionArchive(String(store.project.id || ''), id);
       touchProject();
       notify();
       showToast("会话已删除");
@@ -372,7 +559,7 @@ export const copilotController: CopilotController = {
         value?.skipped === true,
         !busy,
       );
-      if (resolution.resume) void send(resolution.resume.payload, resolution.resume);
+      if (resolution.resume) enqueueDelivery(resolution.resume.payload, resolution.resume, { skipUserMessage: true, priority: true });
       notify();
     } catch (cause) {
       showToast(cause instanceof Error ? cause.message : String(cause));
@@ -384,7 +571,7 @@ export const copilotController: CopilotController = {
     if (!interactionId) return;
     void resolveToolConfirmation(interactionId, true, !busy)
       .then((resolution) => {
-        if (resolution.resume) void send(resolution.resume.payload, resolution.resume);
+        if (resolution.resume) enqueueDelivery(resolution.resume.payload, resolution.resume, { skipUserMessage: true, priority: true });
         notify();
       })
       .catch((cause) => showToast(cause instanceof Error ? cause.message : String(cause)));
@@ -395,7 +582,7 @@ export const copilotController: CopilotController = {
     if (!interactionId) return;
     void resolveToolConfirmation(interactionId, false, !busy)
       .then((resolution) => {
-        if (resolution.resume) void send(resolution.resume.payload, resolution.resume);
+        if (resolution.resume) enqueueDelivery(resolution.resume.payload, resolution.resume, { skipUserMessage: true, priority: true });
         notify();
       })
       .catch((cause) => showToast(cause instanceof Error ? cause.message : String(cause)));

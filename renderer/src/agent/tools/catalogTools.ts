@@ -51,6 +51,61 @@ function availableRecipes(): StoredRecipe[] {
 
 export function registerCatalogTools(): void {
   registerAgentTool({
+    id: 'inspect_skill_catalog',
+    title: '查看 Skill 目录',
+    description: '仅在请求需要领域制作规则时读取可用 Skill 元数据。普通聊天、解释和简单画布操作不需要加载 Skill。',
+    effect: 'read',
+    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+    summarizeInput: () => '可用 Skill',
+    execute: () => ({
+      skills: availableAgentSkills().map((skill) => ({
+        id: skill.id,
+        name: skill.name || skill.id,
+        description: skill.description || '',
+        category: skill.category || '',
+      })),
+    }),
+  });
+
+  registerAgentTool({
+    id: 'load_skill',
+    title: '加载领域 Skill',
+    description: '按完整用户意图选择并加载唯一领域 Skill。不要按孤立关键词选择；普通聊天、解释和简单操作不要调用。',
+    effect: 'agent_state_write',
+    inputSchema: {
+      type: 'object',
+      required: ['skillId'],
+      properties: { skillId: { type: 'string' }, reason: { type: 'string' } },
+      additionalProperties: false,
+    },
+    summarizeInput: (input) => String(input.skillId || 'Skill'),
+    execute: (input, context) => {
+      const skill = availableAgentSkills().find((item) => item.id === String(input.skillId || ''));
+      if (!skill) throw new Error(`Skill not found or disabled: ${String(input.skillId || '')}`);
+      const loaded = [...context.loadedSkillIds];
+      if (loaded.length > 0 && !context.loadedSkillIds.has(skill.id)) {
+        throw new Error(`本轮已经加载唯一 Skill：${loaded[0]}`);
+      }
+      const firstLoad = !context.loadedSkillIds.has(skill.id);
+      context.loadedSkillIds.add(skill.id);
+      context.state.set('activeSkillId', skill.id);
+      if (firstLoad) context.emit({
+        type: 'skill_used', skillId: String(skill.id), name: String(skill.name || skill.id),
+        source: skill.builtIn ? 'built-in' : 'user', createdAt: new Date().toISOString(),
+      });
+      return {
+        id: skill.id,
+        name: skill.name || skill.id,
+        description: skill.description || '',
+        instructions: skill.instructions || '',
+        workflow: skill.workflow || '',
+        recipeIds: skill.recipeIds || [],
+        reason: String(input.reason || ''),
+      };
+    },
+  });
+
+  registerAgentTool({
     id: 'inspect_runtime_capabilities',
     title: '查看 Agent 运行能力',
     description: '读取本轮画布编排和节点执行能力。需要时可以重复读取；能力与用户意图冲突时不得静默降级。',
@@ -97,7 +152,6 @@ export function registerCatalogTools(): void {
     title: '列出提示词 Recipe',
     description: '列出当前可用的生成提示词策略；可按生成类型或操作类型筛选。Recipe 只增强单个生成节点的 prompt。',
     effect: 'read',
-    isAvailable: ({ loadedSkillIds }) => loadedSkillIds.size > 0,
     inputSchema: {
       type: 'object',
       properties: {
@@ -107,6 +161,7 @@ export function registerCatalogTools(): void {
       additionalProperties: false,
     },
     execute: (input, context) => {
+      if (!context.loadedSkillIds.size) throw new Error('请先调用 load_skill 加载唯一领域 Skill');
       const allowedRecipeIds = allowedRecipeIdsForContext(context);
       return {
         recipes: availableRecipes()
@@ -129,7 +184,6 @@ export function registerCatalogTools(): void {
     title: '加载提示词 Recipe',
     description: '加载一个已启用 Recipe，用它生成单个节点可直接运行的 prompt；可用 usageNote 记录对应节点和用途。',
     effect: 'agent_state_write',
-    isAvailable: ({ loadedSkillIds }) => loadedSkillIds.size > 0,
     inputSchema: {
       type: 'object',
       required: ['recipeId'],

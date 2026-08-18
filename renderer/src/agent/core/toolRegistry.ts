@@ -118,6 +118,10 @@ export function registerAgentTool<TInput extends JsonObject>(definition: AgentTo
   tools.set(definition.id, definition as AgentToolDefinition);
 }
 
+export function hasAgentTool(toolId: string): boolean {
+  return tools.has(toolId);
+}
+
 export function registerSkillTool<TInput extends JsonObject>(
   skillId: string,
   definition: AgentToolDefinition<TInput>,
@@ -137,15 +141,14 @@ export function unregisterAgentTool(toolId: string): boolean {
 export function listAgentTools(context: AgentToolContext): AgentToolDefinition[] {
   // isAvailable 按本轮状态动态裁剪工具；例如读取过模型目录后，
   // 不再重复暴露 inspect_model_catalog。
-  // Skill 命名空间工具仅在所属 Skill 被预加载时可见。
+  // Skill 命名空间工具需预先进入 MCP 目录；执行边界会校验所属 Skill。
   return [...tools.values()].filter((tool) => {
     if (tool.isAvailable?.(context) === false) return false;
-    // 检查命名空间可见性
+    // MCP 在一轮开始时只读取一次工具目录。Skill 现在由主 Agent 在同一轮
+    // 动态加载，因此必须先暴露命名空间工具；真正执行时仍会校验 Skill。
     const ns = toolNamespacePrefix(tool.id);
     if (!ns) return true; // 非命名空间工具始终可见
-    if (ns === 'skill' || ns.startsWith('skill_')) {
-      return skillNamespaceIsLoaded(ns, context.loadedSkillIds);
-    }
+    if (ns === 'skill' || ns.startsWith('skill_')) return true;
     return true;
   });
 }
@@ -167,6 +170,11 @@ export function prepareAgentToolCall(name: string, rawArguments: string, context
   // 校验通过后 AgentRuntime 才会调用 definition.execute。
   const definition = tools.get(name);
   if (!definition || definition.isAvailable?.(context) === false) throw new Error(`Unknown or unavailable Agent tool: ${name}`);
+  const namespace = toolNamespacePrefix(name);
+  if (namespace && (namespace === 'skill' || namespace.startsWith('skill_'))
+    && !skillNamespaceIsLoaded(namespace, context.loadedSkillIds)) {
+    throw new Error(`Tool ${name} requires its Skill to be loaded first`);
+  }
   let input: JsonObject;
   try {
     input = JSON.parse(rawArguments || '{}') as JsonObject;

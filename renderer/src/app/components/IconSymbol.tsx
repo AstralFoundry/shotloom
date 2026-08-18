@@ -79,6 +79,10 @@ const paths = {
   undo: '<path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-2"/>',
   upload:
     '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/>',
+  volume:
+    '<path d="M11 5 6 9H2v6h4l5 4Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18 6a8.5 8.5 0 0 1 0 12"/>',
+  "volume-x":
+    '<path d="M11 5 6 9H2v6h4l5 4Z"/><path d="m16 9 5 5"/><path d="m21 9-5 5"/>',
   waveform:
     '<path d="M3 10v4"/><path d="M7 7v10"/><path d="M11 3v18"/><path d="M15 6v12"/><path d="M19 9v6"/><path d="M22 11v2"/>',
   warning:

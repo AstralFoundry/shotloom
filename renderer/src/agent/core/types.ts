@@ -32,6 +32,8 @@ export interface JsonSchema {
   items?: JsonSchema;
   minItems?: number;
   maxItems?: number;
+  minimum?: number;
+  maximum?: number;
   anyOf?: JsonSchema[];
   oneOf?: JsonSchema[];
 }
@@ -46,6 +48,8 @@ export interface AgentToolContext {
   requestId: string;
   turnId: string;
   projectKey: string;
+  projectInstanceId: string;
+  projectGeneration: number;
   conversationId: string;
   signal: AbortSignal;
   loadedSkillIds: Set<string>;

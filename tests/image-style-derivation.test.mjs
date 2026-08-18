@@ -40,5 +40,6 @@ test('彩铅输出归属新图片节点并立即成为其选中输出', () => {
 test('手动彩铅按钮复用统一的图片节点派生服务', () => {
   assert.match(adapterSource, /import \{ createColoredPencilImageNode \}/);
   assert.match(adapterSource, /createColoredPencilImageNode\(store\.project, node\)/);
+  assert.match(adapterSource, /showSuccessToast\(`创建成功：\$\{result\.node\.title/);
   assert.doesNotMatch(adapterSource, /desktopApi\.file\.applyColoredPencil/);
 });

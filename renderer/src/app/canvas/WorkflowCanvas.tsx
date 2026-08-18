@@ -1,4 +1,5 @@
 import {
+  type CSSProperties,
   type ComponentType,
   createContext,
   forwardRef,
@@ -9,33 +10,60 @@ import {
   useContext,
   useEffect,
   useImperativeHandle,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
-import { flushSync } from "react-dom";
+import { createPortal, flushSync } from "react-dom";
 import {
   applyNodeChanges,
   type Connection,
   ConnectionMode,
   type Edge,
+  Handle,
   MarkerType,
   MiniMap,
   type Node,
   type NodeChange,
+  type OnNodeDrag,
   NodeResizer,
+  NodeToolbar,
   type NodeProps,
   type OnMoveEnd,
   type OnMoveStart,
   ReactFlow,
+  type ReactFlowState,
   type ReactFlowInstance,
-  useStoreApi,
+  Position,
+  useNodesState,
+  useStore,
   type Viewport,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { canvasNodeDimensions } from "../../services/agentLayoutService";
+import { canvasNodeDimensions, defaultCanvasNodeDimensions } from "../../services/agentLayoutService";
+import { desktopApi } from "../../services/desktopApi.js";
 import { IconSymbol } from "../components/IconSymbol";
+import { ImageCropDialog, type ImageCropRect } from "../components/ImageCropDialog";
+import { assetCategories } from "../constants/navigation";
+import { openMediaViewer } from "../store/overlayStore";
+import { selectedTextOutput, textNodeContent } from "../../utils/textNodeContent.mjs";
+import {
+  draggedCanvasPositions,
+  reconcileCanvasNodes,
+} from "../../utils/canvasNodeDrag.mjs";
+import {
+  CANVAS_NODE_LABEL_HEIGHT,
+  canvasNodePortBounds,
+  canvasNodeToolbarOffset,
+} from "../../utils/canvasNodeChrome.mjs";
 import { CanvasContextMenu } from "./CanvasContextMenu";
+import {
+  canvasMenuPosition,
+  screenPixel,
+  selectedLocalMediaPath,
+  workflowNodeDimensions as nodeDimensions,
+} from "./canvasScreenGeometry";
 
 export interface WorkflowNodeData extends Record<string, unknown> {
   id: string;
@@ -51,7 +79,15 @@ export interface WorkflowNodeData extends Record<string, unknown> {
 }
 export interface WorkflowEdgeData extends Record<string, unknown> {
   inputRole?: string;
+  inputSlot?: string;
   required?: boolean;
+}
+export interface WorkflowIncomingInput extends Record<string, unknown> {
+  edgeId: string;
+  nodeId: string;
+  name: string;
+  inputRole?: string;
+  inputSlot?: string;
 }
 export type WorkflowEdge = {
   id: string;
@@ -64,12 +100,23 @@ export interface WorkflowNodeActions {
   select: (id: string) => void;
   delete: (id: string) => void;
   upload: (id: string) => void | Promise<void>;
+  addReference: (id: string, slot?: string) => void | Promise<void>;
+  setInputMode: (id: string, mode: string) => void;
+  removeIncomingEdge: (id: string, edgeId: string) => void;
   run: (id: string) => void;
   useResource: (id: string) => void;
+  saveToAssets: (
+    id: string,
+    scope: "project" | "global",
+    category: string,
+  ) => void | Promise<void>;
+  extractAudio: (id: string) => void | Promise<void>;
+  cropImage: (id: string, rect: ImageCropRect) => void | Promise<void>;
   replaceResource: (id: string) => void;
   archiveResource: (id: string) => void;
   selectOutput: (nodeId: string, outputId: string) => void;
   openVideoEditor: (id: string) => void;
+  addToVideoEditor: (id: string) => void | Promise<void>;
   exportBoard: (id: string, dataUrl: string) => void;
   getDirectorIncomingImages: (
     id: string,
@@ -88,8 +135,11 @@ export interface WorkflowNodeActions {
 export type WorkflowNodeRenderer = ComponentType<{
   node: WorkflowNodeData;
   selected: boolean;
+  semanticZoom?: number;
+  previewZoom?: number;
   resizing?: boolean;
   inputRevision?: string;
+  incomingInputs?: WorkflowIncomingInput[];
   actions: WorkflowNodeActions;
 }>;
 export interface WorkflowCanvasController {
@@ -114,8 +164,11 @@ export interface WorkflowCanvasController {
 const RendererContext = createContext<Record<string, WorkflowNodeRenderer>>({});
 const ActionContext = createContext<WorkflowNodeActions | null>(null);
 export const MentionContext = createContext<((nodeId: string) => void) | null>(null);
-const VIEWPORT_LAYER_NODE_LIMIT = 24;
-const NODE_VIRTUALIZATION_THRESHOLD = 50;
+export const CanvasOverlayRootContext = createContext<HTMLElement | null>(null);
+export const CanvasNodeLabelRootContext = createContext<HTMLElement | null>(null);
+const MIN_CANVAS_ZOOM = 0.1;
+const MAX_CANVAS_ZOOM = 3;
+const MEDIA_PREVIEW_ZOOM_SETTLE_MS = 220;
 const MEDIA_NODE_TYPES = new Set([
   "imageGeneration",
   "videoGeneration",
@@ -123,11 +176,47 @@ const MEDIA_NODE_TYPES = new Set([
   "board",
   "threeDDirector",
 ]);
-type FlowNode = Node<{ node: WorkflowNodeData; inputRevision: string }>;
-function nodeDimensions(node: WorkflowNodeData) {
-  return canvasNodeDimensions(node);
+type FlowNode = Node<{
+  node: WorkflowNodeData;
+  inputRevision: string;
+  incomingInputs: WorkflowIncomingInput[];
+  semanticZoom: number;
+  previewZoom: number;
+}>;
+type FlowNodeCacheEntry = {
+  input: WorkflowNodeData;
+  selected: boolean;
+  semanticZoom: number;
+  previewZoom: number;
+  inputRevision: string;
+  output: FlowNode;
+};
+type FlowEdgeCacheEntry = {
+  signature: string;
+  output: Edge<WorkflowEdgeData>;
+};
+type CanvasDebugEvent = {
+  time: number;
+  type: string;
+  detail: unknown;
+};
+function traceCanvasEvent(type: string, detail: unknown) {
+  if (!import.meta.env.DEV) return;
+  const target = globalThis as typeof globalThis & {
+    __shotloomCanvasDebug?: CanvasDebugEvent[];
+  };
+  const events = target.__shotloomCanvasDebug || [];
+  events.push({ time: performance.now(), type, detail });
+  if (events.length > 600) events.splice(0, events.length - 600);
+  target.__shotloomCanvasDebug = events;
 }
-function toFlowNodes(nodes: WorkflowNodeData[], edges: WorkflowEdge[] = []): FlowNode[] {
+function toFlowNodes(
+  nodes: WorkflowNodeData[],
+  edges: WorkflowEdge[] = [],
+  semanticZoom = 1,
+  previewZoom = semanticZoom,
+  cache?: Map<string, FlowNodeCacheEntry>,
+): FlowNode[] {
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
   const incomingByTarget = new Map<string, WorkflowEdge[]>();
   edges.forEach((edge) => {
@@ -135,22 +224,72 @@ function toFlowNodes(nodes: WorkflowNodeData[], edges: WorkflowEdge[] = []): Flo
     incoming.push(edge);
     incomingByTarget.set(edge.target, incoming);
   });
-  return nodes
+  const result = nodes
     .filter((node) => !node.archived)
     .map((node) => {
       const dimensions = nodeDimensions(node);
+      const screenWidth = dimensions.width * semanticZoom;
+      const screenHeight = dimensions.height * semanticZoom;
       const inputRevision = (incomingByTarget.get(node.id) || [])
         .map((edge) => {
           const source = nodeById.get(edge.source);
           return [
             edge.id,
             edge.source,
+            edge.data?.inputRole || "",
+            edge.data?.inputSlot || "",
+            edge.data?.skipTaskInput === true ? "inactive" : "active",
             source?.updatedAt || "",
             source?.selectedOutputNodeId || "",
           ].join(":");
         })
         .join("|");
-      return {
+      const incomingInputs = (incomingByTarget.get(node.id) || []).flatMap((edge) => {
+        const source = nodeById.get(edge.source);
+        if (!source) return [];
+        const outputs = Array.isArray(source.generatedOutputs) ? source.generatedOutputs : [];
+        const selectedOutput =
+          outputs.find((item) => item && typeof item === "object" && item.selected) || outputs[0];
+        const uploaded =
+          source.uploadedFile && typeof source.uploadedFile === "object"
+            ? source.uploadedFile
+            : null;
+        const candidate =
+          selectedOutput && typeof selectedOutput === "object"
+            ? selectedOutput
+            : uploaded || source;
+        return [
+          {
+            ...candidate,
+            edgeId: edge.id,
+            nodeId: source.id,
+            name: String(
+              candidate.title ||
+                candidate.name ||
+                candidate.fileName ||
+                source.title ||
+                "参考素材",
+            ),
+            resourceType: candidate.resourceType || source.resourceType || "",
+            inputRole: edge.data?.inputRole || "auto",
+            inputSlot: edge.data?.inputSlot || "",
+            skipTaskInput: edge.data?.skipTaskInput === true,
+          },
+        ];
+      });
+      const selected = Boolean(node.selected);
+      const cached = cache?.get(node.id);
+      if (
+        cached &&
+        cached.input === node &&
+        cached.selected === selected &&
+        cached.semanticZoom === semanticZoom &&
+        cached.previewZoom === previewZoom &&
+        cached.inputRevision === inputRevision
+      ) {
+        return cached.output;
+      }
+      const output: FlowNode = {
         id: node.id,
         type: "panel",
         className: [
@@ -160,32 +299,39 @@ function toFlowNodes(nodes: WorkflowNodeData[], edges: WorkflowEdge[] = []): Flo
           .filter(Boolean)
           .join(" "),
         position: {
-          x: Math.round(Number(node.x) || 0),
-          y: Math.round(Number(node.y) || 0),
+          x: screenPixel((Number(node.x) || 0) * semanticZoom),
+          y: screenPixel((Number(node.y) || 0) * semanticZoom),
         },
-        data: { node, inputRevision },
-        selected: Boolean(node.selected),
-        style: dimensions,
+        data: { node, inputRevision, incomingInputs, semanticZoom, previewZoom },
+        selected,
+        // React Flow otherwise keeps the previous DOM measurement for handle
+        // bounds while semantic zoom is changing. Supplying the screen-space
+        // bounds makes the edge and node geometry enter the store together.
+        handles: canvasNodePortBounds(screenWidth, screenHeight).map((handle) => ({
+          ...handle,
+          type: "source" as const,
+          position: handle.id === "port-left" ? Position.Left : Position.Right,
+        })),
+        style: {
+          width: screenWidth,
+          height: screenHeight,
+        },
       };
+      cache?.set(node.id, { input: node, selected, semanticZoom, previewZoom, inputRevision, output });
+      return output;
     });
+  if (cache && cache.size > result.length) {
+    const liveIds = new Set(result.map((node) => node.id));
+    for (const id of cache.keys()) {
+      if (!liveIds.has(id)) cache.delete(id);
+    }
+  }
+  return result;
 }
 function FallbackNodeInner({ node, selected }: { node: WorkflowNodeData; selected: boolean }) {
-  const mentionInCopilot = useContext(MentionContext);
   return (
     <article className={`react-workflow-node${selected ? " selected" : ""}`}>
       <header>
-        {mentionInCopilot && (
-          <button
-            className="node-mention-btn"
-            title={`引用节点：${node.title || node.type}`}
-            onClick={(e) => {
-              e.stopPropagation();
-              mentionInCopilot(node.id);
-            }}
-          >
-            @
-          </button>
-        )}
         <span>{node.type}</span>
         <i className={`status-${node.status || "idle"}`} />
       </header>
@@ -195,95 +341,380 @@ function FallbackNodeInner({ node, selected }: { node: WorkflowNodeData; selecte
 }
 const FallbackNode = memo(FallbackNodeInner);
 
-/**
- * WKWebView repaints a full-size CSS radial gradient while the React Flow
- * viewport is transforming. Keep the grid in its own small, frame-coalesced
- * bitmap so zooming does not invalidate the workbench background or React.
- */
-function CanvasGrid() {
-  const storeApi = useStoreApi();
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    const host = canvas?.closest<HTMLElement>(".react-flow");
-    if (!canvas || !host) return;
-    let frame = 0;
-    let lastTransform = storeApi.getState().transform;
-    let lastWidth = 0;
-    let lastHeight = 0;
-    let lastDpr = 0;
-    const paint = () => {
-      frame = 0;
-      const context = canvas.getContext("2d");
-      if (!context) return;
-      const bounds = host.getBoundingClientRect();
-      const width = Math.max(1, Math.round(bounds.width));
-      const height = Math.max(1, Math.round(bounds.height));
-      const dpr = Math.min(2, Math.max(1, window.devicePixelRatio || 1));
-      if (width !== lastWidth || height !== lastHeight || dpr !== lastDpr) {
-        canvas.width = Math.round(width * dpr);
-        canvas.height = Math.round(height * dpr);
-        canvas.style.width = `${width}px`;
-        canvas.style.height = `${height}px`;
-        lastWidth = width;
-        lastHeight = height;
-        lastDpr = dpr;
-      }
-      context.setTransform(dpr, 0, 0, dpr, 0, 0);
-      context.clearRect(0, 0, width, height);
-      const [x, y, zoom] = storeApi.getState().transform;
-      if (zoom <= 0.42) return;
-      const gap = 20 * zoom;
-      const startX = ((x % gap) + gap) % gap;
-      const startY = ((y % gap) + gap) % gap;
-      const radius = Math.max(0.55, Math.min(1, 0.7 * zoom));
-      context.fillStyle = "rgba(0, 0, 0, .12)";
-      context.beginPath();
-      for (let dotX = startX; dotX <= width; dotX += gap) {
-        for (let dotY = startY; dotY <= height; dotY += gap) {
-          context.moveTo(dotX + radius, dotY);
-          context.arc(dotX, dotY, radius, 0, Math.PI * 2);
-        }
-      }
-      context.fill();
-    };
-    const schedule = () => {
-      if (!frame) frame = requestAnimationFrame(paint);
-    };
-    const unsubscribe = storeApi.subscribe(() => {
-      const transform = storeApi.getState().transform;
-      if (transform === lastTransform) return;
-      lastTransform = transform;
-      schedule();
-    });
-    const observer = new ResizeObserver(schedule);
-    observer.observe(host);
-    schedule();
-    return () => {
-      if (frame) cancelAnimationFrame(frame);
-      unsubscribe();
-      observer.disconnect();
-    };
-  }, [storeApi]);
-  return <canvas ref={canvasRef} className="canvas-grid-layer" aria-hidden />;
-}
-
-function CanvasNode({ data, selected }: NodeProps<FlowNode>) {
+function CanvasNode({ data, selected, dragging }: NodeProps<FlowNode>) {
   const registry = useContext(RendererContext);
   const actions = useContext(ActionContext)!;
+  const mentionInCopilot = useContext(MentionContext);
   const item = data.node;
   const [resizing, setResizing] = useState(false);
+  const [assetScopeMenuOpen, setAssetScopeMenuOpen] = useState(false);
+  const [assetCategory, setAssetCategory] = useState("");
+  const [audioTrackState, setAudioTrackState] = useState<"idle" | "checking" | "present" | "absent">("idle");
+  const [audioSplitRunning, setAudioSplitRunning] = useState(false);
+  const [cropOpen, setCropOpen] = useState(false);
+  const [dragReleaseSettling, setDragReleaseSettling] = useState(false);
+  const [assetMenuPlacement, setAssetMenuPlacement] = useState<CSSProperties>({
+    visibility: "hidden",
+  });
+  const assetTriggerRef = useRef<HTMLButtonElement>(null);
+  const assetMenuRef = useRef<HTMLDivElement>(null);
+  const canvasOverlayRoot = useContext(CanvasOverlayRootContext);
+  const nodeChromeHidden = Boolean(dragging || dragReleaseSettling);
+  const assetPlacementRevision = useStore((state: ReactFlowState) => {
+    const internal = state.nodeLookup.get(item.id);
+    const position = internal?.internals.positionAbsolute;
+    return [
+      ...state.transform,
+      Number(position?.x || 0),
+      Number(position?.y || 0),
+      Number(internal?.measured.width || internal?.width || 0),
+      Number(internal?.measured.height || internal?.height || 0),
+    ].join(":");
+  });
+  const [labelRoot, setLabelRoot] = useState<HTMLElement | null>(null);
   const Renderer = registry[item.type] || FallbackNode;
   const resizable =
     item.type === "textGeneration" || item.type === "note" || item.type === "threeDDirector";
+  const defaultSize = defaultCanvasNodeDimensions(item.type);
   const minimum =
     item.type === "threeDDirector"
-      ? { width: 540, height: 330 }
+      ? defaultSize
       : item.type === "note"
-        ? { width: 180, height: 110 }
-        : { width: 260, height: 180 };
+        ? { width: 135, height: 83 }
+        : { width: 195, height: 135 };
+  const dimensions = nodeDimensions(item);
+  const semanticZoom = data.semanticZoom;
+  const localMediaPath = selectedLocalMediaPath(item);
+  const canSaveToAssets = Boolean(localMediaPath);
+  const isLocalVideo = item.type === "videoGeneration" && Boolean(localMediaPath);
+  const isLocalImage = item.type === "imageGeneration" && Boolean(localMediaPath);
+  const canExtractAudio = isLocalVideo && audioTrackState === "present";
+  const uploadLabels: Record<string, string> = {
+    imageGeneration: "图片",
+    videoGeneration: "视频",
+    audioGeneration: "音频",
+  };
+  const mediaOutputs = Array.isArray(item.generatedOutputs)
+    ? (item.generatedOutputs as Array<Record<string, unknown>>)
+    : [];
+  const hasMediaContent = Boolean(
+    item.uploadedFile ||
+    item.filePath ||
+    item.previewUrl ||
+    item.url ||
+    mediaOutputs.some((output) =>
+      output.filePath || output.path || output.previewUrl || output.url || output.remoteUrl,
+    ),
+  );
+  const uploadLabel = uploadLabels[item.type] || "";
+  const canUpload = Boolean(uploadLabel && !hasMediaContent);
+  const isTextNode = item.type === "textGeneration";
+  const useSubtleUploadToolbar = canUpload && !isTextNode;
+  const toolbarOffset = canvasNodeToolbarOffset(semanticZoom, useSubtleUploadToolbar);
+  const textOutputs = Array.isArray(item.generatedOutputs)
+    ? (item.generatedOutputs as Array<Record<string, unknown>>)
+    : [];
+  const currentTextOutput = selectedTextOutput(item) as Record<string, unknown> | null;
+  const textContent = textNodeContent(item);
+  useEffect(() => {
+    if (!selected) {
+      setAssetScopeMenuOpen(false);
+      setAssetCategory("");
+    }
+  }, [selected]);
+  useEffect(() => {
+    if (!selected || !isLocalVideo) {
+      setAudioTrackState("idle");
+      return;
+    }
+    let active = true;
+    setAudioTrackState("checking");
+    void desktopApi.file.hasAudio(localMediaPath).then(
+      (hasAudio: boolean) => {
+        if (active) setAudioTrackState(hasAudio ? "present" : "absent");
+      },
+      () => {
+        if (active) setAudioTrackState("absent");
+      },
+    );
+    return () => {
+      active = false;
+    };
+  }, [isLocalVideo, localMediaPath, selected]);
+  useLayoutEffect(() => {
+    if (dragging) {
+      setDragReleaseSettling(true);
+      return;
+    }
+    if (!dragReleaseSettling) return;
+    let revealFrame = 0;
+    let revealTimer = 0;
+    const settleFrame = requestAnimationFrame(() => {
+      revealFrame = requestAnimationFrame(() => {
+        revealTimer = window.setTimeout(() => setDragReleaseSettling(false), 64);
+      });
+    });
+    return () => {
+      cancelAnimationFrame(settleFrame);
+      if (revealFrame) cancelAnimationFrame(revealFrame);
+      if (revealTimer) window.clearTimeout(revealTimer);
+    };
+  }, [dragReleaseSettling, dragging]);
+  useLayoutEffect(() => {
+    if (!assetScopeMenuOpen || !canvasOverlayRoot) return;
+    const sync = () => {
+      const trigger = assetTriggerRef.current?.getBoundingClientRect();
+      const menu = assetMenuRef.current;
+      const rootBounds = canvasOverlayRoot.getBoundingClientRect();
+      if (!trigger || !menu) return;
+      const margin = 12;
+      const gap = 7;
+      const width = menu.offsetWidth;
+      const height = menu.offsetHeight;
+      const left = Math.max(
+        margin,
+        Math.min(rootBounds.width - width - margin, trigger.right - rootBounds.left - width),
+      );
+      const below = trigger.bottom - rootBounds.top + gap;
+      const above = trigger.top - rootBounds.top - height - gap;
+      let top = below;
+      if (below + height > rootBounds.height - margin && above >= margin) top = above;
+      top = Math.max(margin, Math.min(rootBounds.height - height - margin, top));
+      setAssetMenuPlacement({ left, top, visibility: "visible" });
+    };
+    const frame = requestAnimationFrame(sync);
+    const observer = new ResizeObserver(sync);
+    observer.observe(canvasOverlayRoot);
+    if (assetTriggerRef.current) observer.observe(assetTriggerRef.current);
+    window.addEventListener("resize", sync);
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+      window.removeEventListener("resize", sync);
+    };
+  }, [assetScopeMenuOpen, assetPlacementRevision, canvasOverlayRoot]);
+  function openTextDetail() {
+    openMediaViewer({
+      src: textContent,
+      kind: "text",
+      title: String(item.title || "文本详情"),
+      filePath: String(currentTextOutput?.filePath || ""),
+      onSave: (content) => {
+        actions.update(item.id, {
+          textContent: content,
+          generatedOutputs: currentTextOutput
+            ? textOutputs.map((output) =>
+                output.id === currentTextOutput.id ? { ...output, content } : output,
+              )
+            : textOutputs,
+          updatedAt: new Date().toISOString(),
+        });
+      },
+    });
+  }
   return (
     <>
+      {(isTextNode || canUpload || mentionInCopilot || canSaveToAssets || isLocalVideo) && (
+        <NodeToolbar
+          className={`canvas-node-selection-toolbar${useSubtleUploadToolbar ? " canvas-node-selection-toolbar--subtle" : ""}${nodeChromeHidden ? " canvas-node-selection-toolbar--hidden" : ""} nodrag nopan`}
+          isVisible={selected}
+          position={Position.Top}
+          offset={toolbarOffset}
+        >
+          {isTextNode && (
+            <>
+              <span className="canvas-node-toolbar-label">文本节点</span>
+              <button
+                className="canvas-node-toolbar-icon"
+                type="button"
+                title="复制全文"
+                disabled={!textContent}
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  void navigator.clipboard.writeText(textContent).then(
+                    () => actions.notify("文本已复制"),
+                    () => actions.notify("文本复制失败"),
+                  );
+                }}
+              >
+                <IconSymbol name="copy" />
+              </button>
+            </>
+          )}
+          {canUpload && (
+            <button
+              className="canvas-node-upload-action"
+              type="button"
+              title={`上传${uploadLabel}`}
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={(event) => {
+                event.stopPropagation();
+                void actions.upload(item.id);
+              }}
+            >
+              <IconSymbol name="upload" />
+              <span>上传{uploadLabel}</span>
+            </button>
+          )}
+          {isLocalVideo && (
+            <button
+              type="button"
+              title={audioSplitRunning ? "正在后台拆分音视频" : canExtractAudio ? "拆分为无声视频和音乐" : audioTrackState === "checking" ? "正在检测音轨" : "当前视频不包含音轨"}
+              disabled={!canExtractAudio || audioSplitRunning}
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={(event) => {
+                event.stopPropagation();
+                setAudioSplitRunning(true);
+                void Promise.resolve(actions.extractAudio(item.id)).finally(() => setAudioSplitRunning(false));
+              }}
+            >
+              <IconSymbol name="waveform" />
+              <span>{audioSplitRunning ? "拆分中…" : canExtractAudio ? "音频分离" : audioTrackState === "checking" ? "检测音轨…" : "无音轨"}</span>
+            </button>
+          )}
+          {isLocalImage && (
+            <button
+              type="button"
+              title="裁剪图片"
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={(event) => {
+                event.stopPropagation();
+                setCropOpen(true);
+              }}
+            >
+              <IconSymbol name="crop" />
+              <span>裁剪</span>
+            </button>
+          )}
+          {canSaveToAssets && (
+            <div className="canvas-node-asset-action">
+              <button
+                ref={assetTriggerRef}
+                type="button"
+                title="选择资产保存范围"
+                aria-haspopup="menu"
+                aria-expanded={assetScopeMenuOpen}
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setAssetScopeMenuOpen((open) => {
+                    if (open) setAssetCategory("");
+                    else setAssetMenuPlacement({ visibility: "hidden" });
+                    return !open;
+                  });
+                }}
+              >
+                <IconSymbol name="archive" />
+                <span>存为资产</span>
+                <IconSymbol className="canvas-node-asset-chevron" name="chevron-down" />
+              </button>
+              {assetScopeMenuOpen && canvasOverlayRoot && createPortal(
+                <div
+                  ref={assetMenuRef}
+                  className={`canvas-node-asset-scope-menu canvas-node-asset-scope-menu--portal${nodeChromeHidden ? " canvas-node-asset-scope-menu--hidden" : ""} nodrag nopan nowheel`}
+                  role="menu"
+                  style={assetMenuPlacement}
+                  onPointerDown={(event) => event.stopPropagation()}
+                >
+                  <header className="canvas-node-asset-menu-head">
+                    <IconSymbol name="archive" />
+                    <span><strong>存为资产</strong><small>选择类型与保存位置</small></span>
+                  </header>
+                  <div className="canvas-node-asset-category-grid">
+                    {assetCategories.map((category) => (
+                      <button
+                        className={assetCategory === category.id ? "active" : ""}
+                        key={category.id}
+                        type="button"
+                        aria-pressed={assetCategory === category.id}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setAssetCategory(category.id);
+                        }}
+                      >
+                        <IconSymbol name={category.icon} />
+                        <span>{category.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="canvas-node-asset-destinations">
+                    <button
+                      type="button"
+                      role="menuitem"
+                      disabled={!assetCategory}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setAssetScopeMenuOpen(false);
+                        void actions.saveToAssets(item.id, "project", assetCategory);
+                        setAssetCategory("");
+                      }}
+                    >
+                      <IconSymbol name="folder" />
+                      <strong>存到项目</strong>
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      disabled={!assetCategory}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setAssetScopeMenuOpen(false);
+                        void actions.saveToAssets(item.id, "global", assetCategory);
+                        setAssetCategory("");
+                      }}
+                    >
+                      <IconSymbol name="archive" />
+                      <strong>存到全局</strong>
+                    </button>
+                  </div>
+                </div>,
+                canvasOverlayRoot,
+              )}
+            </div>
+          )}
+          {mentionInCopilot && (canUpload || canExtractAudio || canSaveToAssets) && (
+            <span className="canvas-node-toolbar-divider" />
+          )}
+          {mentionInCopilot && (
+            <button
+              className="canvas-node-toolbar-icon"
+              type="button"
+              title={`加入对话：${item.title || item.type}`}
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={(event) => {
+                event.stopPropagation();
+                mentionInCopilot(item.id);
+              }}
+            >
+              <IconSymbol name="chat" />
+            </button>
+          )}
+          {isTextNode && (
+            <button
+              className="canvas-node-toolbar-icon"
+              type="button"
+              title="打开完整文本"
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={(event) => {
+                event.stopPropagation();
+                openTextDetail();
+              }}
+            >
+              <IconSymbol name="maximize" />
+            </button>
+          )}
+        </NodeToolbar>
+      )}
+      {cropOpen && isLocalImage && createPortal(
+        <ImageCropDialog
+          source={localMediaPath}
+          title={String(item.title || "图片")}
+          onCancel={() => setCropOpen(false)}
+          onConfirm={(rect) => actions.cropImage(item.id, rect)}
+        />,
+        document.body,
+      )}
       {selected && resizable && (
         <NodeResizer
           color="#171717"
@@ -291,71 +722,74 @@ function CanvasNode({ data, selected }: NodeProps<FlowNode>) {
           isVisible
           lineClassName="canvas-node-resize-line"
           keepAspectRatio={item.type === "threeDDirector"}
-          minHeight={minimum.height}
-          minWidth={minimum.width}
+          minHeight={minimum.height * semanticZoom}
+          minWidth={minimum.width * semanticZoom}
           onResizeStart={() => setResizing(true)}
           onResizeEnd={(_event, size) => {
             setResizing(false);
             actions.update(item.id, {
-              x: Math.round(size.x),
-              y: Math.round(size.y),
-              canvasWidth: Math.round(size.width),
-              canvasHeight: Math.round(size.height),
+              x: Math.round(size.x / semanticZoom),
+              y: Math.round(size.y / semanticZoom),
+              canvasWidth: Math.round(size.width / semanticZoom),
+              canvasHeight: Math.round(size.height / semanticZoom),
               updatedAt: new Date().toISOString(),
             });
           }}
         />
       )}
-      <Renderer
-        node={item}
-        selected={selected}
-        resizing={resizing}
-        inputRevision={data.inputRevision}
-        actions={actions}
+      <div
+        ref={setLabelRoot}
+        className="canvas-node-label-anchor"
+        style={{
+          top: -CANVAS_NODE_LABEL_HEIGHT * semanticZoom,
+          width: dimensions.width * semanticZoom,
+          height: CANVAS_NODE_LABEL_HEIGHT * semanticZoom,
+          "--node-label-zoom": semanticZoom,
+        } as CSSProperties}
       />
+      <Handle
+        id="port-left"
+        className="canvas-flow-port canvas-flow-port-in"
+        type="source"
+        position={Position.Left}
+      />
+      <Handle
+        id="port-right"
+        className="canvas-flow-port canvas-flow-port-out"
+        type="source"
+        position={Position.Right}
+      />
+      <CanvasNodeLabelRootContext.Provider value={labelRoot}>
+      <div
+        className="canvas-node-semantic-content"
+        style={{
+          width: dimensions.width,
+          height: dimensions.height,
+          zoom: semanticZoom,
+        }}
+      >
+        <Renderer
+          node={item}
+          selected={selected}
+          semanticZoom={semanticZoom}
+          previewZoom={data.previewZoom}
+          resizing={resizing}
+          inputRevision={data.inputRevision}
+          incomingInputs={data.incomingInputs}
+          actions={actions}
+        />
+      </div>
+      </CanvasNodeLabelRootContext.Provider>
     </>
   );
 }
 const nodeTypes = { panel: CanvasNode };
-const roleLabel = (role?: string) =>
-  ({
-    textContext: "文本上下文",
-    referenceImage: "参考图",
-    inputVideo: "输入视频",
-  })[role || ""] || "";
-
 type CanvasMenuState = {
   x: number;
   y: number;
   flowX: number;
   flowY: number;
 };
-const CANVAS_MENU_WIDTH = 168;
-const CANVAS_MENU_HEIGHT = 334;
-const CANVAS_MENU_MARGIN = 8;
-const CANVAS_MENU_POINTER_OFFSET = 4;
-
-function canvasMenuPosition(
-  clientX: number,
-  clientY: number,
-  bounds: Pick<DOMRect, "left" | "top" | "width" | "height">,
-) {
-  const maxX = Math.max(CANVAS_MENU_MARGIN, bounds.width - CANVAS_MENU_WIDTH - CANVAS_MENU_MARGIN);
-  const maxY = Math.max(
-    CANVAS_MENU_MARGIN,
-    bounds.height - CANVAS_MENU_HEIGHT - CANVAS_MENU_MARGIN,
-  );
-  return {
-    x: Math.min(
-      maxX,
-      Math.max(CANVAS_MENU_MARGIN, clientX - bounds.left + CANVAS_MENU_POINTER_OFFSET),
-    ),
-    y: Math.min(
-      maxY,
-      Math.max(CANVAS_MENU_MARGIN, clientY - bounds.top + CANVAS_MENU_POINTER_OFFSET),
-    ),
-  };
-}
 type CanvasMenuLayerHandle = {
   open: (menu: CanvasMenuState) => void;
   close: () => void;
@@ -413,43 +847,57 @@ export function WorkflowCanvas({
   overlay?: ReactNode;
   mentionInCopilot?: (nodeId: string) => void;
 }) {
-  const [flowNodes, setFlowNodes] = useState<FlowNode[]>(() => toFlowNodes(nodes, edges));
+  const initialZoom = Math.min(
+    MAX_CANVAS_ZOOM,
+    Math.max(MIN_CANVAS_ZOOM, Number(viewport.zoom) || 1),
+  );
+  const [semanticZoom, setSemanticZoom] = useState(initialZoom);
+  const [previewZoom, setPreviewZoom] = useState(initialZoom);
+  const semanticZoomRef = useRef(initialZoom);
+  const flowNodeCache = useRef(new Map<string, FlowNodeCacheEntry>());
+  const flowEdgeCache = useRef(new Map<string, FlowEdgeCacheEntry>());
+  const [flowNodes, setFlowNodes, applyFlowNodeChanges] = useNodesState<FlowNode>(
+    toFlowNodes(nodes, edges, initialZoom, initialZoom, flowNodeCache.current),
+  );
   const [instance, setInstance] = useState<ReactFlowInstance<
     FlowNode,
     Edge<WorkflowEdgeData>
   > | null>(null);
   const [edgesVisible, setEdgesVisible] = useState(true);
   const [minimapVisible, setMinimapVisible] = useState(false);
-  const [liveViewport, setLiveViewport] = useState(viewport);
-  const draggingIds = useRef(new Set<string>());
-  const pendingNodeChanges = useRef<NodeChange<FlowNode>[]>([]);
-  const nodeChangeFrame = useRef(0);
+  const [liveViewport, setLiveViewport] = useState({ ...viewport, zoom: initialZoom });
+  const draggingNodeIds = useRef(new Set<string>());
   const movementEndTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const canvasRoot = useRef<HTMLElement>(null);
+  const [canvasOverlayRoot, setCanvasOverlayRoot] = useState<HTMLElement | null>(null);
   const menuLayer = useRef<CanvasMenuLayerHandle>(null);
   const visible = useMemo(() => nodes.filter((node) => !node.archived), [nodes]);
-  const canonicalNodes = useMemo(() => toFlowNodes(visible, edges), [edges, visible]);
+  const canonicalNodes = useMemo(
+    () => toFlowNodes(visible, edges, semanticZoom, previewZoom, flowNodeCache.current),
+    [edges, previewZoom, semanticZoom, visible],
+  );
   useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setPreviewZoom(semanticZoom);
+    }, MEDIA_PREVIEW_ZOOM_SETTLE_MS);
+    return () => window.clearTimeout(timer);
+  }, [semanticZoom]);
+  useEffect(() => {
+    traceCanvasEvent("external-sync", {
+      canonicalIds: canonicalNodes.map((node) => node.id),
+      positions: canonicalNodes.map((node) => [node.id, node.position.x, node.position.y]),
+    });
     setFlowNodes((current) => {
-      const previous = new Map(current.map((node) => [node.id, node]));
-      return canonicalNodes.map((node) => {
-        const existing = previous.get(node.id);
-        if (!existing) return node;
-        return {
-          ...node,
-          position: draggingIds.current.has(node.id) ? existing.position : node.position,
-          selected:
-            typeof node.data.node.selected === "boolean" ? node.selected : existing.selected,
-        };
-      });
+      return reconcileCanvasNodes(current, canonicalNodes, draggingNodeIds.current);
     });
   }, [canonicalNodes]);
   const renderedNodes = flowNodes;
+  const renderedSemanticZoom = renderedNodes[0]?.data.semanticZoom ?? semanticZoom;
   const ids = useMemo(() => new Set(visible.map((node) => node.id)), [visible]);
   const visibleById = useMemo(() => new Map(visible.map((node) => [node.id, node])), [visible]);
   const flowEdges = useMemo<Array<Edge<WorkflowEdgeData>>>(
-    () =>
-      edges
+    () => {
+      const result = edges
         .filter((edge) => ids.has(edge.source) && ids.has(edge.target))
         .map((edge) => {
           const source = visibleById.get(edge.source);
@@ -457,96 +905,115 @@ export function WorkflowCanvas({
           const sourceCenter = Number(source?.x || 0) + nodeDimensions(source!).width / 2;
           const targetCenter = Number(target?.x || 0) + nodeDimensions(target!).width / 2;
           const targetIsRight = targetCenter >= sourceCenter;
-          return {
+          const sourceHandle = targetIsRight ? "port-right" : "port-left";
+          const targetHandle = targetIsRight ? "port-left" : "port-right";
+          const signature = JSON.stringify([
+            edge,
+            sourceHandle,
+            targetHandle,
+            semanticZoom,
+          ]);
+          const cached = flowEdgeCache.current.get(edge.id);
+          if (cached?.signature === signature) return cached.output;
+          const output: Edge<WorkflowEdgeData> = {
             ...edge,
-            sourceHandle: targetIsRight ? "port-right" : "port-left",
-            targetHandle: targetIsRight ? "port-left" : "port-right",
+            sourceHandle,
+            targetHandle,
             type: "default",
-            label: roleLabel(edge.data?.inputRole),
-            markerEnd: { type: MarkerType.ArrowClosed },
-            style: { stroke: "#9aa39d", strokeWidth: 1.6 },
-            labelStyle: { fill: "#526158", fontSize: 9, fontWeight: 700 },
-            labelBgStyle: { fill: "#f7f8f6", fillOpacity: 0.94 },
+            markerEnd: {
+              type: MarkerType.ArrowClosed,
+              width: 10,
+              height: 10,
+              color: "#aab1ad",
+            },
+            style: {
+              stroke: "#aab1ad",
+              strokeWidth: Math.min(1.35, Math.max(0.5, semanticZoom)),
+              opacity: semanticZoom < 0.55 ? 0.48 : 0.72,
+            },
           };
-        }),
-    [edges, ids, visibleById],
-  );
-
-  const applyNodeChangesOnFrame = useCallback(
-    (changes: NodeChange<FlowNode>[]) => {
-      pendingNodeChanges.current.push(...changes);
-      if (nodeChangeFrame.current) return;
-      nodeChangeFrame.current = requestAnimationFrame(() => {
-        nodeChangeFrame.current = 0;
-        const pending = pendingNodeChanges.current;
-        pendingNodeChanges.current = [];
-        setFlowNodes((current) =>
-          applyNodeChanges(pending, current.length ? current : canonicalNodes),
-        );
-      });
+          flowEdgeCache.current.set(edge.id, { signature, output });
+          return output;
+        });
+      const liveEdgeIds = new Set(result.map((edge) => edge.id));
+      for (const id of flowEdgeCache.current.keys()) {
+        if (!liveEdgeIds.has(id)) flowEdgeCache.current.delete(id);
+      }
+      return result;
     },
-    [canonicalNodes],
-  );
-  useEffect(
-    () => () => {
-      if (nodeChangeFrame.current) cancelAnimationFrame(nodeChangeFrame.current);
-    },
-    [],
+    [edges, ids, semanticZoom, visibleById],
   );
 
   const onNodesChange = useCallback(
     (changes: NodeChange<FlowNode>[]) => {
-      applyNodeChangesOnFrame(changes);
-      changes.forEach((change) => {
-        if (change.type === "position" && change.dragging) {
-          draggingIds.current.add(change.id);
-        }
+      // Node lifetime is owned by the project graph. React Flow remove changes
+      // are not allowed to transiently delete a controlled node during a drag.
+      const interactiveChanges = changes.filter((change) => change.type !== "remove");
+      traceCanvasEvent("nodes-change", {
+        changes: changes.map((change) => ({
+          id: "id" in change ? change.id : change.item.id,
+          type: change.type,
+          dragging: change.type === "position" ? change.dragging : undefined,
+          position: change.type === "position" ? change.position : undefined,
+        })),
+        nodeIds: renderedNodes.map((node) => node.id),
+        edgeIds: flowEdges.map((edge) => edge.id),
       });
-      const moved = changes.flatMap((change) =>
-        change.type === "position" && change.position && change.dragging === false
-          ? [
-              {
-                id: change.id,
-                x: Math.round(change.position.x),
-                y: Math.round(change.position.y),
-              },
-            ]
-          : [],
-      );
-      if (moved.length) {
-        // React Flow owns the live gesture. Persisting only its final positions
-        // avoids rebuilding the whole workbench on every pointer-move frame.
-        controller.moveNodes(moved);
-        changes.forEach((change) => {
-          if (change.type === "position" && change.dragging === false) {
-            draggingIds.current.delete(change.id);
-          }
-        });
-      }
-      const selection = changes.filter((change) => change.type === "select");
+      if (interactiveChanges.length) applyFlowNodeChanges(interactiveChanges);
+      const selection = interactiveChanges.filter((change) => change.type === "select");
       if (selection.length) {
         const selected = new Set(
-          applyNodeChanges(changes, renderedNodes)
+          applyNodeChanges(interactiveChanges, renderedNodes)
             .filter((node) => node.selected)
             .map((node) => node.id),
         );
         controller.selectNodes([...selected]);
       }
     },
-    [applyNodeChangesOnFrame, controller, renderedNodes],
+    [applyFlowNodeChanges, controller, flowEdges, renderedNodes],
+  );
+  const onNodeDragStart: OnNodeDrag<FlowNode> = useCallback(
+    (_event, node, draggedNodes) => {
+      const activeNodes = draggedNodes.length ? draggedNodes : [node];
+      activeNodes.forEach((item) => draggingNodeIds.current.add(item.id));
+    },
+    [],
+  );
+  const onNodeDragStop: OnNodeDrag<FlowNode> = useCallback(
+    (_event, node, draggedNodes) => {
+      const stoppedNodes = draggedNodes.length ? draggedNodes : [node];
+      stoppedNodes.forEach((item) => draggingNodeIds.current.delete(item.id));
+      const moved = draggedCanvasPositions(node, draggedNodes, semanticZoomRef.current);
+      const movedById = new Map(moved.map((item) => [item.id, item]));
+      setFlowNodes((current) => current.map((item) => {
+        const position = movedById.get(item.id);
+        if (!position) return item;
+        return {
+          ...item,
+          dragging: false,
+          position: {
+            x: screenPixel(position.x * semanticZoomRef.current),
+            y: screenPixel(position.y * semanticZoomRef.current),
+          },
+        };
+      }));
+      traceCanvasEvent("drag-stop", { moved });
+      if (moved.length) controller.moveNodes(moved);
+    },
+    [controller, setFlowNodes],
   );
   const onMoveEnd: OnMoveEnd = useCallback(
     (_event, next) => {
       if (movementEndTimer.current) clearTimeout(movementEndTimer.current);
       movementEndTimer.current = setTimeout(() => {
-        canvasRoot.current?.classList.remove("viewport-moving");
         movementEndTimer.current = null;
       }, 120);
-      setLiveViewport(next);
+      const publicViewport = { x: next.x, y: next.y, zoom: semanticZoomRef.current };
+      setLiveViewport(publicViewport);
       controller.saveViewport({
         x: Math.round(next.x),
         y: Math.round(next.y),
-        zoom: Math.abs(next.zoom - 1) < 0.015 ? 1 : next.zoom,
+        zoom: semanticZoomRef.current,
       });
     },
     [controller],
@@ -556,7 +1023,6 @@ export function WorkflowCanvas({
       clearTimeout(movementEndTimer.current);
       movementEndTimer.current = null;
     }
-    canvasRoot.current?.classList.add("viewport-moving");
   }, []);
   useEffect(
     () => () => {
@@ -564,20 +1030,83 @@ export function WorkflowCanvas({
     },
     [],
   );
+  const setCanvasZoomAt = useCallback(
+    (requestedZoom: number, clientPoint?: { x: number; y: number }) => {
+      if (!instance) return;
+      const zoom = Math.min(MAX_CANVAS_ZOOM, Math.max(MIN_CANVAS_ZOOM, requestedZoom));
+      const currentZoom = semanticZoomRef.current;
+      if (Math.abs(zoom - currentZoom) < 0.0005) return;
+      const bounds = canvasRoot.current?.getBoundingClientRect();
+      if (!bounds) return;
+      const current = instance.getViewport();
+      const center = clientPoint
+        ? { x: clientPoint.x - bounds.left, y: clientPoint.y - bounds.top }
+        : { x: bounds.width / 2, y: bounds.height / 2 };
+      const ratio = zoom / currentZoom;
+      const next = {
+        x: screenPixel(center.x - (center.x - current.x) * ratio),
+        y: screenPixel(center.y - (center.y - current.y) * ratio),
+        zoom: 1,
+      };
+      semanticZoomRef.current = zoom;
+      setSemanticZoom(zoom);
+      setLiveViewport({ x: next.x, y: next.y, zoom });
+      void instance.setViewport(next);
+      controller.saveViewport({ x: Math.round(next.x), y: Math.round(next.y), zoom });
+    },
+    [controller, instance],
+  );
   const changeZoom = useCallback(
     (delta: number) => {
-      const current = instance?.getViewport() || liveViewport;
-      const zoom = Math.min(3, Math.max(0.1, Math.round((current.zoom + delta) * 10) / 10));
-      void instance?.zoomTo(zoom, { duration: 140 });
+      const zoom = Math.round((semanticZoomRef.current + delta) * 10) / 10;
+      setCanvasZoomAt(zoom);
     },
-    [instance, liveViewport],
+    [setCanvasZoomAt],
   );
-  useEffect(() => {
-    controller.registerFitView?.(
-      instance ? () => void instance.fitView({ padding: 0.16, duration: 240 }) : null,
+  const fitCanvasView = useCallback(() => {
+    if (!instance || !canvasRoot.current) return;
+    const bounds = canvasRoot.current.getBoundingClientRect();
+    if (!visible.length) {
+      semanticZoomRef.current = 1;
+      setSemanticZoom(1);
+      setLiveViewport({ x: 0, y: 0, zoom: 1 });
+      void instance.setViewport({ x: 0, y: 0, zoom: 1 }, { duration: 240 });
+      return;
+    }
+    const nodeBounds = visible.reduce(
+      (result, node) => {
+        const dimensions = nodeDimensions(node);
+        const x = Number(node.x) || 0;
+        const y = Number(node.y) || 0;
+        result.minX = Math.min(result.minX, x);
+        result.minY = Math.min(result.minY, y);
+        result.maxX = Math.max(result.maxX, x + dimensions.width);
+        result.maxY = Math.max(result.maxY, y + dimensions.height);
+        return result;
+      },
+      { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity },
     );
+    const contentWidth = Math.max(1, nodeBounds.maxX - nodeBounds.minX);
+    const contentHeight = Math.max(1, nodeBounds.maxY - nodeBounds.minY);
+    const zoom = Math.min(
+      MAX_CANVAS_ZOOM,
+      Math.max(
+        MIN_CANVAS_ZOOM,
+        Math.min((bounds.width * 0.68) / contentWidth, (bounds.height * 0.68) / contentHeight),
+      ),
+    );
+    const x = screenPixel(bounds.width / 2 - ((nodeBounds.minX + nodeBounds.maxX) / 2) * zoom);
+    const y = screenPixel(bounds.height / 2 - ((nodeBounds.minY + nodeBounds.maxY) / 2) * zoom);
+    semanticZoomRef.current = zoom;
+    setSemanticZoom(zoom);
+    setLiveViewport({ x, y, zoom });
+    void instance.setViewport({ x, y, zoom: 1 }, { duration: 240 });
+    controller.saveViewport({ x: Math.round(x), y: Math.round(y), zoom });
+  }, [controller, instance, visible]);
+  useEffect(() => {
+    controller.registerFitView?.(instance ? fitCanvasView : null);
     return () => controller.registerFitView?.(null);
-  }, [controller, instance]);
+  }, [controller, fitCanvasView, instance]);
   function openMenu(event: globalThis.MouseEvent | ReactMouseEvent<Element>) {
     event.preventDefault();
     const bounds = canvasRoot.current?.getBoundingClientRect();
@@ -590,25 +1119,42 @@ export function WorkflowCanvas({
     menuLayer.current?.open({
       x: menuPosition.x,
       y: menuPosition.y,
-      flowX: point.x,
-      flowY: point.y,
+      flowX: point.x / semanticZoomRef.current,
+      flowY: point.y / semanticZoomRef.current,
     });
   }
+  const bindCanvasRoot = useCallback((element: HTMLElement | null) => {
+    canvasRoot.current = element;
+    setCanvasOverlayRoot(element);
+  }, []);
 
   return (
     <RendererContext.Provider value={renderers}>
       <ActionContext.Provider value={nodeActions}>
         <MentionContext.Provider value={mentionInCopilot || null}>
+        <CanvasOverlayRootContext.Provider value={canvasOverlayRoot}>
         <section
-          ref={canvasRoot}
-          className="react-workflow-canvas"
-          data-viewport-layer={visible.length <= VIEWPORT_LAYER_NODE_LIMIT ? "promote" : "standard"}
+          ref={bindCanvasRoot}
+          className={`react-workflow-canvas${renderedSemanticZoom < 0.8 ? " canvas-zoom-compact" : ""}${renderedSemanticZoom < 0.35 ? " canvas-zoom-distant" : ""}${Math.round(renderedSemanticZoom * 100) <= 20 ? " canvas-zoom-overview" : ""}`}
           tabIndex={0}
           onPointerDownCapture={(event) => {
             const target = event.target as Element;
             if (!target.closest("input,textarea,select,button,iframe,[contenteditable=true]")) {
               event.currentTarget.focus({ preventScroll: true });
             }
+          }}
+          onWheelCapture={(event) => {
+            const target = event.target as Element;
+            if (
+              target.closest(
+                ".nowheel,input,textarea,select,button,video,audio,[contenteditable=true]",
+              )
+            ) {
+              return;
+            }
+            event.preventDefault();
+            const nextZoom = semanticZoomRef.current * Math.exp(-event.deltaY * 0.002);
+            setCanvasZoomAt(nextZoom, { x: event.clientX, y: event.clientY });
           }}
           onKeyDown={(event) => {
             const editable = (event.target as Element).matches(
@@ -669,14 +1215,22 @@ export function WorkflowCanvas({
                 .filter((node) => node.selected)
                 .map((node) => ({
                   id: node.id,
-                  x: node.position.x + dx,
-                  y: node.position.y + dy,
+                  x: node.position.x / semanticZoomRef.current + dx,
+                  y: node.position.y / semanticZoomRef.current + dy,
                 }));
               if (moved.length) {
                 setFlowNodes((current) =>
                   current.map((node) => {
                     const next = moved.find((item) => item.id === node.id);
-                    return next ? { ...node, position: { x: next.x, y: next.y } } : node;
+                    return next
+                      ? {
+                          ...node,
+                          position: {
+                            x: next.x * semanticZoomRef.current,
+                            y: next.y * semanticZoomRef.current,
+                          },
+                        }
+                      : node;
                   }),
                 );
                 controller.moveNodes(moved);
@@ -691,10 +1245,11 @@ export function WorkflowCanvas({
             nodes={renderedNodes}
             edges={edgesVisible ? flowEdges : []}
             nodeTypes={nodeTypes}
-            onlyRenderVisibleElements={renderedNodes.length > NODE_VIRTUALIZATION_THRESHOLD}
-            defaultViewport={viewport}
-            minZoom={0.1}
-            maxZoom={3}
+            proOptions={{ hideAttribution: true }}
+            onlyRenderVisibleElements={false}
+            defaultViewport={{ x: viewport.x, y: viewport.y, zoom: 1 }}
+            minZoom={1}
+            maxZoom={1}
             nodesDraggable
             autoPanOnNodeDrag={false}
             nodesConnectable
@@ -703,12 +1258,14 @@ export function WorkflowCanvas({
             connectionRadius={64}
             selectionOnDrag
             panOnDrag
-            zoomOnScroll
-            zoomOnPinch
+            zoomOnScroll={false}
+            zoomOnPinch={false}
             multiSelectionKeyCode={["Meta", "Control", "Shift"]}
             deleteKeyCode={null}
             onInit={setInstance}
             onNodesChange={onNodesChange}
+            onNodeDragStart={onNodeDragStart}
+            onNodeDragStop={onNodeDragStop}
             onConnect={(connection) => void controller.connect(connection)}
             onEdgeClick={(_event, edge) => controller.selectEdge(edge.id)}
             onPaneClick={() => {
@@ -719,14 +1276,12 @@ export function WorkflowCanvas({
             onMoveStart={onMoveStart}
             onMoveEnd={onMoveEnd}
             onPaneContextMenu={openMenu}
-            fitViewOptions={{ padding: 0.16, duration: 240 }}
           >
-            <CanvasGrid />
             {minimapVisible && (
               <MiniMap
                 className="canvas-minimap"
                 pannable
-                zoomable
+                zoomable={false}
                 nodeColor="#7f8d85"
                 maskColor="rgba(250,250,248,.72)"
               />
@@ -751,7 +1306,7 @@ export function WorkflowCanvas({
                 className="canvas-zoom-value"
                 type="button"
                 title="自适应视窗"
-                onClick={() => void instance?.fitView({ padding: 0.16, duration: 240 })}
+                onClick={fitCanvasView}
               >
                 {Math.round(liveViewport.zoom * 100)}%
               </button>
@@ -762,7 +1317,7 @@ export function WorkflowCanvas({
               <button
                 type="button"
                 title="自适应视窗"
-                onClick={() => void instance?.fitView({ padding: 0.16, duration: 240 })}
+                onClick={fitCanvasView}
               >
                 <IconSymbol name="maximize" />
               </button>
@@ -778,6 +1333,7 @@ export function WorkflowCanvas({
           </div>
           {overlay}
         </section>
+        </CanvasOverlayRootContext.Provider>
         </MentionContext.Provider>
       </ActionContext.Provider>
     </RendererContext.Provider>

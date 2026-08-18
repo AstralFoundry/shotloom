@@ -228,7 +228,7 @@ export function getConfiguredProviders(
         id,
         name: config.displayName || id,
         description: '自定义声明式协议模型服务',
-        iconId: config.iconId || 'openai',
+        iconId: config.iconId || 'custom',
         authType: 'api-key' as const,
         defaultBaseUrl: '',
         credentials: [KEY_FIELD, { key: 'baseUrl', label: '接口地址', required: true }],

@@ -11,7 +11,7 @@ import type {
   CompiledProviderRequest, CompileContext, ResourceRef,
 } from './ProviderTransport';
 import type { ModelRuntimeContract } from '../catalog/ModelCatalog';
-import { firstProtocolValue, normalizeProtocolResponse, protocolInlineImage, protocolKlingContents, protocolMediaContent, protocolMessageVariables, renderProtocolTemplate } from '@/utils/modelProtocol.mjs';
+import { firstProtocolValue, normalizeProtocolResponse, protocolInlineImage, protocolMessageVariables, protocolResultEndpointFile, renderProtocolContentTemplate, renderProtocolTemplate } from '@/utils/modelProtocol.mjs';
 import { multipartArrayFieldName } from '@/utils/modelRequestBody.mjs';
 import { providerRequestTimeoutMs } from '@/utils/providerRequestTimeout.mjs';
 
@@ -24,7 +24,7 @@ class DeclarativeProviderTransport implements ProviderTransport {
   compileRequest(context: CompileContext): CompiledProviderRequest {
     const contract = context.modelContract;
     const inputs = context.modelInputs || {};
-    const refs = [...(inputs.referenceImages || []), ...(inputs.images || [])];
+    const refs = inputs.images || [];
     const multipartImageField = multipartArrayFieldName(
       contract.requestFields.multipartImage || contract.requestFields.images || 'image',
       refs.length,
@@ -52,6 +52,8 @@ class DeclarativeProviderTransport implements ProviderTransport {
         fps: context.params?.fps,
       },
       protocolImageRefs: refs,
+      protocolVideoRefs: inputs.videos || [],
+      protocolAudioRefs: inputs.audios || [],
       inputImages: contract.inputFormat === 'multipart'
         ? refs.map(ref => ({ filePath: ref.filePath || '', fileName: ref.fileName || 'input.png', fieldName: multipartImageField, mimeType: ref.mimeType }))
         : undefined,
@@ -62,6 +64,7 @@ class DeclarativeProviderTransport implements ProviderTransport {
       maskField: contract.requestFields.mask || 'mask',
       headers: contract.headers,
       auth: contract.auth,
+      responseEncoding: contract.resultBody?.encoding === 'binary' ? 'binary' : 'json',
       contract,
       signal: context.signal,
       timeoutMs: providerRequestTimeoutMs(context.taskType, context.timeoutMs),
@@ -70,27 +73,45 @@ class DeclarativeProviderTransport implements ProviderTransport {
 
   async submit(request: CompiledProviderRequest): Promise<ProviderTask> {
     const imageContentFormat = request.contract?.requestFields?.imageContentFormat || '';
-    const imageUrls = await collectProtocolImageValues(request.protocolImageRefs || [], {
+    const imageEntries = await collectProtocolResourceEntries(request.protocolImageRefs || [], {
       preferDataUrl: imageContentFormat === 'google-inline',
+      fallbackMimeType: 'image/png',
     });
+    const imageUrls = [...new Set(imageEntries.map((entry) => entry.value))];
+    const videoEntries = await collectProtocolResourceEntries(request.protocolVideoRefs || [], { fallbackMimeType: 'video/mp4' });
+    const audioEntries = await collectProtocolResourceEntries(request.protocolAudioRefs || [], { fallbackMimeType: 'audio/wav' });
+    const videoUrls = [...new Set(videoEntries.map((entry) => entry.value))];
+    const audioUrls = [...new Set(audioEntries.map((entry) => entry.value))];
     const inlineImage = imageContentFormat === 'google-inline'
       ? protocolInlineImage(imageUrls[0])
       : undefined;
     if (imageContentFormat === 'google-inline' && imageUrls.length && !inlineImage) {
       throw new Error(`${request.contract?.modelId || 'Google Veo'} 图生视频需要可读取的本地图片或 Base64 图片`);
     }
-    const content = protocolMediaContent({
-      prompt: request.protocolVariables?.prompt,
-      imageUrls,
-      imageRole: request.contract?.requestFields?.imageContentRole,
+    const imageRoleForSlot = (slot = '') => {
+      const fields = request.contract?.requestFields || {};
+      if (slot === 'firstFrame') return fields.firstFrameImageContentRole || fields.imageContentRole;
+      if (slot === 'lastFrame') return fields.lastFrameImageContentRole || fields.imageContentRole;
+      return fields.referenceImageContentRole || fields.imageContentRole;
+    };
+    const content = renderProtocolContentTemplate(request.contract?.contentTemplate, {
+      text: request.protocolVariables?.prompt,
+      images: imageEntries.map(({ ref, value }) => ({
+        url: value,
+        role: imageRoleForSlot(ref.inputSlot),
+        slot: ref.inputSlot || '',
+      })),
+      videos: videoEntries.map(({ ref, value }) => ({
+        url: value,
+        role: request.contract?.requestFields?.videoContentRole,
+        slot: ref.inputSlot || '',
+      })),
+      audios: audioEntries.map(({ ref, value }) => ({
+        url: value,
+        role: request.contract?.requestFields?.audioContentRole,
+        slot: ref.inputSlot || '',
+      })),
     });
-    const klingContents = imageContentFormat.startsWith('kling-')
-      ? protocolKlingContents({
-        prompt: request.protocolVariables?.prompt,
-        imageUrls,
-        imageType: imageContentFormat === 'kling-references' ? 'refer_image' : 'first_frame',
-      })
-      : undefined;
     const messageVariables = protocolMessageVariables(
       Array.isArray(request.protocolVariables?.messages) ? request.protocolVariables.messages : [],
     );
@@ -100,8 +121,16 @@ class DeclarativeProviderTransport implements ProviderTransport {
       imageUrls: imageUrls.length ? imageUrls : undefined,
       imageUrl: imageUrls[0],
       imageObject: imageUrls[0] ? { url: imageUrls[0] } : undefined,
+      referenceImageUrls: imageEntries.filter(({ ref }) => !ref.inputSlot || ref.inputSlot === 'reference').map(({ value }) => value),
+      firstFrameImageUrl: imageEntries.find(({ ref }) => ref.inputSlot === 'firstFrame')?.value,
+      lastFrameImageUrl: imageEntries.find(({ ref }) => ref.inputSlot === 'lastFrame')?.value,
+      videoUrls: videoUrls.length ? videoUrls : undefined,
+      videoUrl: videoUrls[0],
+      videoObject: videoUrls[0] ? { url: videoUrls[0] } : undefined,
+      audioUrls: audioUrls.length ? audioUrls : undefined,
+      audioUrl: audioUrls[0],
+      audioObject: audioUrls[0] ? { url: audioUrls[0] } : undefined,
       inlineImage,
-      klingContents,
       content,
     });
     const controls = {
@@ -109,9 +138,10 @@ class DeclarativeProviderTransport implements ProviderTransport {
       __providerId: request.providerId,
       __endpointMethod: request.endpointMethod, __endpointPath: request.endpointPath,
       __endpointScope: request.endpointScope, __headers: request.headers, __auth: request.auth,
+      __responseEncoding: request.responseEncoding,
+      __baseUrl: request.baseUrl, __apiKey: request.apiKey,
     };
-    // Route by endpoint path pattern
-    if (request.endpointPath.includes('/images/')) {
+    if (request.taskType === 'imageGeneration' || request.multipart) {
       const data = await desktopApi.model.imageGeneration({
         ...controls,
         __multipart: request.multipart || false,
@@ -123,7 +153,7 @@ class DeclarativeProviderTransport implements ProviderTransport {
       });
       return this.submittedTask(data, request);
     }
-    if (request.taskType === 'videoGeneration' || request.endpointPath.includes('/contents/generations/')) {
+    if (request.taskType === 'videoGeneration') {
       const data = await desktopApi.model.videoGeneration({
         ...controls,
         ...((body as Record<string, unknown>) || {}),
@@ -138,7 +168,7 @@ class DeclarativeProviderTransport implements ProviderTransport {
     return this.submittedTask(data, request);
   }
 
-  async poll(task: ProviderTask, contract: ModelRuntimeContract): Promise<ProviderTaskState> {
+  async poll(task: ProviderTask, contract: ModelRuntimeContract, signal?: AbortSignal): Promise<ProviderTaskState> {
     const encodedTaskId = task.remoteTaskId.split('/').map(encodeURIComponent).join('/');
     const ep = (contract.taskEndpoint?.path || '').replace('{taskId}', encodedTaskId);
     const data = await desktopApi.model.videoTask({
@@ -148,7 +178,7 @@ class DeclarativeProviderTransport implements ProviderTransport {
       providerId: contract.provider || this.provider,
       headers: contract.headers,
       auth: contract.auth,
-      signal: undefined, timeoutMs: 60000,
+      signal, timeoutMs: 60000,
     });
     const rawStatus = pickScalar(firstProtocolValue(data, contract.statusPath || ''));
     if (!rawStatus) throw new Error(`${contract.modelId}/${contract.modeId} 的轮询响应缺少状态路径 ${contract.statusPath}`);
@@ -158,7 +188,9 @@ class DeclarativeProviderTransport implements ProviderTransport {
     return {
       status,
       progress: status === 'completed' ? 100 : Number(progressValue) || 0,
-      result: this.protocolResult(data, contract),
+      result: status === 'completed'
+        ? this.completedProtocolResult(data, contract, task.remoteTaskId)
+        : { raw: data },
       error: pickStr(errorValue),
     };
   }
@@ -168,7 +200,7 @@ class DeclarativeProviderTransport implements ProviderTransport {
     if (!contract) throw new Error('声明式请求缺少运行时模型契约');
     const tid = contract.isAsync ? pickStr(firstProtocolValue(data, contract.taskIdPath || '')) : '';
     if (contract.isAsync && !tid) throw new Error(`${contract.modelId}/${contract.modeId} 的提交响应缺少任务 ID 路径 ${contract.taskIdPath}`);
-    const result = this.protocolResult(data, contract);
+    const result = contract.isAsync ? { raw: data } : this.protocolResult(data, contract);
     return {
       remoteTaskId: tid,
       status: tid ? 'queued' : 'completed',
@@ -180,15 +212,30 @@ class DeclarativeProviderTransport implements ProviderTransport {
   }
 
   private protocolResult(data: Record<string, any>, contract: ModelRuntimeContract): Record<string, unknown> {
-    if (!contract.resultUrlPath && !contract.resultTextPath && !contract.resultBase64Path) throw new Error(`${contract.modelId}/${contract.modeId} 缺少结果路径`);
+    if (!contract.resultUrlPath && !contract.resultTextPath && !contract.resultBase64Path && !contract.resultHexPath && !contract.resultBody) {
+      throw new Error(`${contract.modelId}/${contract.modeId} 缺少结果来源`);
+    }
     return normalizeProtocolResponse(data, contract);
+  }
+
+  private completedProtocolResult(
+    data: Record<string, any>,
+    contract: ModelRuntimeContract,
+    remoteTaskId: string,
+  ): Record<string, unknown> {
+    if (!contract.resultEndpoint?.path) return this.protocolResult(data, contract);
+    return protocolResultEndpointFile(contract, remoteTaskId, data)!;
   }
 }
 
-async function collectProtocolImageValues(refs: ResourceRef[], { preferDataUrl = false } = {}): Promise<string[]> {
+async function collectProtocolResourceValues(
+  refs: ResourceRef[],
+  { preferDataUrl = false, fallbackMimeType = 'application/octet-stream' } = {},
+): Promise<string[]> {
   const values = await Promise.all(refs.map(async (ref) => {
     const direct = pickStr(ref.remoteUrl || ref.url || ref.previewUrl);
-    if (direct && !preferDataUrl) return direct;
+    const remotelyUsable = /^(https?:|data:)/i.test(direct);
+    if (direct && !preferDataUrl && (remotelyUsable || !ref.filePath)) return direct;
     if (ref.filePath) {
       try {
         const buffer = await desktopApi.file.readArrayBuffer?.(ref.filePath);
@@ -196,13 +243,24 @@ async function collectProtocolImageValues(refs: ResourceRef[], { preferDataUrl =
           const bytes = new Uint8Array(buffer);
           let binary = '';
           for (let offset = 0; offset < bytes.length; offset += 0x8000) binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
-          return `data:${ref.mimeType || 'image/png'};base64,${btoa(binary)}`;
+          return `data:${ref.mimeType || fallbackMimeType};base64,${btoa(binary)}`;
         }
       } catch { /* fall through to a remote value when available */ }
     }
     return direct;
   }));
   return [...new Set(values.filter(Boolean))];
+}
+
+async function collectProtocolResourceEntries(
+  refs: ResourceRef[],
+  options: { preferDataUrl?: boolean; fallbackMimeType?: string } = {},
+): Promise<Array<{ ref: ResourceRef; value: string }>> {
+  const entries = await Promise.all(refs.map(async (ref) => ({
+    ref,
+    value: (await collectProtocolResourceValues([ref], options))[0] || '',
+  })));
+  return entries.filter((entry) => Boolean(entry.value));
 }
 
 // ── Registry ─────────────────────────────────────────────────────────────────

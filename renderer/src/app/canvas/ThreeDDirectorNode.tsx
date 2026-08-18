@@ -1,8 +1,6 @@
-import { memo, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Handle, Position } from "@xyflow/react";
+import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { IconSymbol } from "../components/IconSymbol";
 import type { WorkflowNodeData, WorkflowNodeRenderer } from "./WorkflowCanvas";
-import { MentionContext } from "./WorkflowCanvas";
 import "./ThreeDDirectorNode.css";
 
 type IncomingImage = { edgeId: string; nodeId: string; name: string; url: string };
@@ -18,7 +16,6 @@ function readDirectorProject(node: WorkflowNodeData) {
 
 export const ThreeDDirectorNode: WorkflowNodeRenderer = memo(
   ({ node, selected, resizing, inputRevision, actions }) => {
-    const mentionInCopilot = useContext(MentionContext);
     const [incomingImages, setIncomingImages] = useState<IncomingImage[]>([]);
     const [interacting, setInteracting] = useState(false);
     const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -173,32 +170,8 @@ export const ThreeDDirectorNode: WorkflowNodeRenderer = memo(
           actions.select(node.id);
         }}
       >
-        <Handle
-          id="port-left"
-          className="director-port director-port-in"
-          type="source"
-          position={Position.Left}
-        />
-        <Handle
-          id="port-right"
-          className="director-port director-port-out"
-          type="source"
-          position={Position.Right}
-        />
         <header className="director-node-head">
           <span className="director-node-drag-handle" title="拖动 3D 导演台" aria-hidden="true" />
-          {mentionInCopilot && (
-            <button
-              className="node-mention-btn nodrag"
-              title={`引用节点：${node.title || "3D导演台"}`}
-              onClick={(event) => {
-                event.stopPropagation();
-                mentionInCopilot(node.id);
-              }}
-            >
-              @
-            </button>
-          )}
           <label className="director-node-kind">
             <IconSymbol name="box" />
             <input

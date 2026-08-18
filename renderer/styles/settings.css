@@ -286,6 +286,9 @@
 .provider-model-item .provider-model-meta span { flex: 0 0 auto; }
 .provider-model-item code { overflow: hidden; color: #686868; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .provider-model-origin { color: #aaa !important; }
+.provider-model-origin.override { color: #a66a20 !important; }
+.provider-model-agent-status.ready { color: #397350 !important; }
+.provider-model-agent-status.unavailable { color: #a66a20 !important; }
 .provider-model-item-actions {
   display: grid;
   grid-auto-flow: column;
@@ -298,6 +301,25 @@
 .provider-model-item-actions button { height: 27px; border: 1px solid #e3e3e3; border-radius: 6px; padding: 0 8px; color: #737373; background: #fff; font-size: 10px; cursor: pointer; }
 .provider-model-item-actions button:hover { border-color: #cacaca; color: #222; background: #f7f7f7; }
 .provider-model-item-actions button:disabled { color: #bbb; cursor: not-allowed; }
+.provider-agent-capability {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin-top: 8px;
+  padding: 10px 12px;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  background: #fafafa;
+  cursor: pointer;
+}
+.provider-agent-capability input { margin-top: 2px; }
+.provider-agent-capability > span { display: grid; gap: 3px; }
+.provider-agent-capability strong { color: #333; font-size: 11px; }
+.provider-agent-capability small { color: #858585; font-size: 10px; line-height: 1.5; }
+.provider-agent-capability select { width: fit-content; max-width: 100%; height: 28px; margin-top: 4px; border: 1px solid #ddd; border-radius: 6px; padding: 0 24px 0 8px; color: #555; background: #fff; font-size: 10px; }
+.provider-advanced-protocol { border: 1px solid #ececec; border-radius: 8px; padding: 9px 10px; background: #fafafa; }
+.provider-advanced-protocol > summary { cursor: pointer; color: #777; font-size: 11px; user-select: none; }
+.provider-advanced-protocol[open] > summary { margin-bottom: 10px; }
 .provider-model-empty {
   margin-top: 10px;
   padding: 14px 2px;
@@ -334,12 +356,6 @@
 .provider-capability-title { margin-bottom: 7px; color: #666; font-size: 10px; font-weight: 700; letter-spacing: .02em; }
 .provider-model-add-row { margin-top: 10px; justify-content: flex-end; }
 
-.provider-model-guide-link { width: 100%; min-height: 48px; margin-top: 9px; border: 1px solid #e5e5e5; border-radius: 8px; padding: 8px 10px; display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; align-items: center; gap: 9px; color: #777; background: #fafafa; text-align: left; cursor: pointer; }
-.provider-model-guide-link:hover { border-color: #cecece; background: #f7f7f7; }
-.provider-model-guide-link > svg { width: 16px; height: 16px; color: #626262; }
-.provider-model-guide-link > span:nth-child(2) { min-width: 0; font-size: 10px; line-height: 1.4; }
-.provider-model-guide-link strong { display: block; color: #383838; font-size: 11px; }
-.provider-model-guide-link > span:last-child { color: #4f4f4f; font-size: 10px; font-weight: 700; }
 
 .provider-model-protocol-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .provider-model-protocol-heading > div { min-width: 0; }

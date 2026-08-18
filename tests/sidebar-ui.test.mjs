@@ -8,11 +8,13 @@ const appShell = readFileSync(new URL('../renderer/src/app/AppShell.tsx', import
 const topbar = readFileSync(new URL('../renderer/src/app/layout/TopBar.tsx', import.meta.url), 'utf8');
 const projectLibrary = readFileSync(new URL('../renderer/src/app/adapters/projectLibraryAdapter.ts', import.meta.url), 'utf8');
 const taskStore = readFileSync(new URL('../renderer/src/store/taskStore.js', import.meta.url), 'utf8');
-const providerDialog = readFileSync(new URL('../renderer/src/app/views/ProviderConnectionDialog.tsx', import.meta.url), 'utf8');
-const modelGuide = readFileSync(new URL('../renderer/src/app/views/ModelProtocolGuideDialog.tsx', import.meta.url), 'utf8');
+const providerDialog = readFileSync(new URL('../renderer/src/app/views/ProviderConnectionDialog.tsx', import.meta.url), 'utf8')
+  + readFileSync(new URL('../renderer/src/app/views/providerConnectionModel.ts', import.meta.url), 'utf8');
 const styles = readFileSync(new URL('../renderer/styles.css', import.meta.url), 'utf8');
 const settingsStyles = readFileSync(new URL('../renderer/styles/settings.css', import.meta.url), 'utf8');
-const reactMigrationStyles = readFileSync(new URL('../renderer/styles/react-migration.css', import.meta.url), 'utf8');
+const reactMigrationStyles = ['canvas-copilot.css', 'project-materials.css', 'media-overlays.css', 'creation-view.css']
+  .map((name) => readFileSync(new URL(`../renderer/styles/${name}`, import.meta.url), 'utf8'))
+  .join('\n');
 
 test('项目侧栏提供返回项目库入口', () => {
   assert.match(sidebar, /className="side-item sidebar-back-item"/);
@@ -23,14 +25,11 @@ test('项目侧栏提供返回项目库入口', () => {
 test('悬停抽屉只改变宽度和文字，不改变工具图标几何尺寸', () => {
   assert.match(styles, /width 220ms cubic-bezier\(\.22, 1, \.36, 1\)/);
   assert.match(styles, /\.side-item svg \{[\s\S]*?flex:\s*0 0 17px/);
-  assert.match(styles, /\.sidebar-shell\.collapsed \.side-title \{ visibility: hidden; opacity: 0; \}/);
-  assert.match(styles, /\.side-title \{[\s\S]*?white-space:\s*nowrap/);
+  assert.doesNotMatch(sidebar, /className="side-title"/);
   assert.match(styles, /\.sidebar-shell\.collapsed \.sidebar \{[\s\S]*?padding:\s*46px 7px 8px/);
   assert.match(styles, /\.sidebar-shell\.collapsed \.sidebar-footer button \{ width: 40px; height: 36px/);
   assert.match(styles, /\.sidebar-brand \{[^}]*min-height:\s*54px[^}]*margin:\s*0 2\.5px 12px[^}]*padding:\s*3px 0 11px/);
   assert.match(styles, /\.sidebar-shell\.collapsed \.sidebar-brand \{[^}]*min-height:\s*54px[^}]*margin:\s*0 0 12px 3\.5px[^}]*padding:\s*3px 0 11px/);
-  assert.match(styles, /\.sidebar-shell\.collapsed \.side-list \+ \.side-title \+ \.side-list \{\s*border-color:\s*transparent;\s*\}/);
-  assert.doesNotMatch(styles, /\.sidebar-shell\.collapsed \.side-list \+ \.side-title \+ \.side-list \{[^}]*(?:margin-top|padding-top):/);
 });
 
 test('侧栏关闭时保留详情直到抽屉和淡出动画完成', () => {
@@ -111,18 +110,25 @@ test('侧栏底部入口与上方导航使用一致的字号和图标尺寸', ()
   assert.doesNotMatch(styles, /sidebar-settings-icon/);
 });
 
-test('所有页面都不再为顶部栏保留独立布局高度', () => {
+test('侧栏开合不因分组标题改变按钮纵向位置', () => {
+  assert.doesNotMatch(sidebar, /className="side-title"/);
+  assert.doesNotMatch(styles, /\.sidebar-shell\.collapsed \.side-title/);
+});
+
+test('顶部栏不占布局高度并提供窄窗口拖拽区域', () => {
   assert.match(styles, /\.app-shell \{[\s\S]*?display:\s*block/);
   assert.match(styles, /\.topbar \{[\s\S]*?position:\s*absolute/);
+  assert.match(topbar, /className="window-drag-strip" data-tauri-drag-region/);
+  assert.match(styles, /\.window-drag-strip \{[^}]*height:\s*5px;[^}]*pointer-events:\s*auto;[^}]*-webkit-app-region:\s*drag/);
   assert.match(styles, /\.workspace \{[\s\S]*?height:\s*100%/);
   assert.match(styles, /padding:\s*4px 4px 4px 0/);
   assert.doesNotMatch(appShell, /projects-shell/);
 });
 
-test('创作画布使用完整工作区高度且不保留上下装饰留白', () => {
+test('创作画布保留窄窗口操作边界且不恢复厚标题栏', () => {
   assert.match(appShell, /className=\{`app-shell route-\$\{route\}/);
-  assert.match(styles, /\.app-shell\.route-creation \.workspace \{[^}]*padding-top:\s*0[^}]*padding-right:\s*0[^}]*padding-bottom:\s*0/);
-  assert.match(styles, /\.app-shell\.route-creation \.content \{[^}]*border-top:\s*0[^}]*border-bottom:\s*0[^}]*border-radius:\s*0[^}]*padding:\s*0/);
+  assert.match(styles, /\.app-shell\.route-creation \.workspace \{[^}]*padding-top:\s*5px[^}]*padding-right:\s*5px[^}]*padding-bottom:\s*5px/);
+  assert.match(styles, /\.app-shell\.route-creation \.content \{[^}]*border:\s*\.5px solid[^}]*border-radius:\s*var\(--workbench-radius\)[^}]*padding:\s*0/);
   assert.doesNotMatch(styles, /\.creation-shell \.content/);
 });
 
@@ -160,15 +166,33 @@ test('新增 API 模型使用空白协议', () => {
   assert.match(providerDialog, /创建并编辑协议/);
 });
 
-test('模型配置提供独立指南和可复制给 AI 的完整任务说明', () => {
-  assert.match(providerDialog, /ModelProtocolGuideDialog/);
-  assert.match(providerDialog, /打开完整接入指南/);
-  assert.match(modelGuide, /接入步骤/);
-  assert.match(modelGuide, /字段与变量/);
-  assert.match(modelGuide, /异步任务/);
-  assert.match(modelGuide, /交给 AI/);
-  assert.match(modelGuide, /AI_MODEL_PROTOCOL_PROMPT/);
-  assert.match(modelGuide, /navigator\.clipboard/);
-  assert.match(modelGuide, /只输出 JSON 对象，不要 Markdown/);
-  assert.match(modelGuide, /不要根据经验猜测接口、字段、枚举或结果路径/);
+test('自定义厂商复用内置模型 ID 时明确保存并展示覆盖关系', () => {
+  assert.match(providerDialog, /globalBuiltInModels\.has\(model\.id\)/);
+  assert.match(providerDialog, /overridesBuiltIn: true/);
+  assert.match(providerDialog, /覆盖内置 \$\{replacedBuiltIn\.provider\}/);
+  assert.match(settingsStyles, /\.provider-model-origin\.override/);
+});
+
+test('自定义厂商隔离内置 ID 和切换前的敏感状态', () => {
+  assert.match(providerDialog, /initialConfig\?\.custom === true \|\| !editingDefinition/);
+  assert.match(providerDialog, /definitions\.some\(\(definition\) => definition\.id === providerId\)/);
+  assert.match(providerDialog, /厂商 ID .*已被内置厂商保留/);
+  assert.match(providerDialog, /if \(id === CUSTOM_PROVIDER_ID[\s\S]*?setApiKey\(""\);[\s\S]*?setDisabledIds\(new Set\(\)\)/);
+});
+
+test('自定义模型保存和试跑复用运行时协议校验', () => {
+  assert.match(providerDialog, /catalogModelValidationErrors\(model, \{ requireProvider: true \}\)/);
+  assert.match(providerDialog, /catalogModelValidationErrors\(added, \{ requireProvider: true \}\)/);
+  assert.match(providerDialog, /<option value="audioGeneration">音频生成<\/option>/);
+});
+
+test('自定义文本模型明确展示并可编辑 Agent 工具调用能力', () => {
+  assert.match(providerDialog, /supportsAgentTools/);
+  assert.match(providerDialog, /可用于 Agent/);
+  assert.match(providerDialog, /Agent 接口模式/);
+  assert.match(providerDialog, /推荐：使用独立 Agent 接口/);
+  assert.doesNotMatch(providerDialog, /Agent 请求选项 JSON/);
+  assert.match(providerDialog, /高级协议设置（一般无需修改）/);
+  assert.match(providerDialog, /无需阅读或修改代码/);
+  assert.match(settingsStyles, /\.provider-model-agent-status\.unavailable/);
 });

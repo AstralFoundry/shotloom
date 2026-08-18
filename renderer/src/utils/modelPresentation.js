@@ -19,9 +19,18 @@ export function optionLabel(param, value) {
 }
 
 export function isAspectRatioParam(param) {
-  return param.presentation === 'aspectRatio'
+  const control = param.presentation && typeof param.presentation === 'object'
+    ? param.presentation.control
+    : param.presentation;
+  return control === 'ratio' || control === 'aspectRatio'
     || param.key === 'aspectRatio'
     || String(param.label || '').includes('比例');
+}
+
+export function paramPresentation(param) {
+  return param?.presentation && typeof param.presentation === 'object'
+    ? param.presentation
+    : {};
 }
 
 export function isSizeParam(param) {
@@ -74,7 +83,11 @@ export function paramOptionHint(param) {
 }
 
 export function aspectRatioStyle(value) {
-  const [rawWidth, rawHeight] = String(value || '1:1').split(':').map(Number);
+  const match = String(value || '1:1').trim().match(
+    /([0-9]+(?:\.[0-9]+)?)\s*(?::|x|×|\/)\s*([0-9]+(?:\.[0-9]+)?)/i,
+  );
+  const rawWidth = Number(match?.[1]);
+  const rawHeight = Number(match?.[2]);
   const width = Number.isFinite(rawWidth) && rawWidth > 0 ? rawWidth : 1;
   const height = Number.isFinite(rawHeight) && rawHeight > 0 ? rawHeight : 1;
   const ratio = width / height;

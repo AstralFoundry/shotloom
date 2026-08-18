@@ -1,5 +1,5 @@
 use super::{
-    agent_runtime::resolved_system_proxy_url,
+    agent_runtime_proxy::resolved_system_proxy_url,
     common::{file_result, read_json, user_file},
 };
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
@@ -53,7 +53,11 @@ pub struct GenerationRequest {
     pub body: Option<Value>,
     pub form_fields: Vec<(String, String)>,
     pub resources: Vec<GenerationResource>,
+    pub response_encoding: Option<String>,
     pub timeout_ms: u64,
+    /// 试跑请求可显式携带未保存的凭据，绕过按 providerId 读取本地设置。
+    pub base_url: Option<String>,
+    pub api_key: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -61,6 +65,7 @@ pub struct GenerationRequest {
 pub struct GenerationResponse {
     pub status: u16,
     pub body: String,
+    pub body_base64: Option<String>,
     pub content_type: String,
 }
 
@@ -69,7 +74,10 @@ pub struct GenerationResponse {
 pub struct GenerationDownload {
     pub request_id: String,
     pub provider_id: String,
-    pub url: String,
+    pub url: Option<String>,
+    pub path: Option<String>,
+    pub scope: Option<String>,
+    pub method: Option<String>,
     pub target: String,
     pub headers: Vec<(String, String)>,
     pub auth: Option<GenerationAuth>,
@@ -255,7 +263,21 @@ async fn build_request(
     app: &AppHandle,
     input: &GenerationRequest,
 ) -> Result<reqwest::RequestBuilder, String> {
-    let (base_url, api_key) = provider_credentials(app, &input.provider_id)?;
+    let (base_url, api_key) = if input.base_url.is_some() || input.api_key.is_some() {
+        let base_url = input
+            .base_url
+            .as_deref()
+            .unwrap_or_default()
+            .trim_end_matches('/')
+            .to_string();
+        if base_url.is_empty() {
+            return Err("试跑请求缺少接口地址".into());
+        }
+        let api_key = input.api_key.as_deref().unwrap_or_default().trim().to_string();
+        (base_url, api_key)
+    } else {
+        provider_credentials(app, &input.provider_id)?
+    };
     let url = request_url(&base_url, &input.path, &input.scope)?;
     let client = gateway_client(input.timeout_ms)?;
     let method = Method::from_bytes(input.method.as_bytes())
@@ -331,11 +353,18 @@ pub async fn generation_request(
             .and_then(|value| value.to_str().ok())
             .unwrap_or_default()
             .to_string();
-        let body = tokio::select! {
+        let bytes = tokio::select! {
             _ = &mut cancel => return Err("模型请求已取消".into()),
-            result = response.text() => result.map_err(|error| format!("模型响应读取失败：{error}"))?,
+            result = response.bytes() => result.map_err(|error| format!("模型响应读取失败：{error}"))?,
         };
-        Ok(GenerationResponse { status, body, content_type })
+        let binary = request.response_encoding.as_deref() == Some("binary")
+            && (200..300).contains(&status);
+        Ok(GenerationResponse {
+            status,
+            body: if binary { String::new() } else { String::from_utf8_lossy(&bytes).into_owned() },
+            body_base64: binary.then(|| BASE64.encode(&bytes)),
+            content_type,
+        })
     }
     .await;
     state.cancellations.lock().await.remove(&request.request_id);
@@ -364,7 +393,7 @@ pub async fn generation_stream(
             .to_string();
         if !response.status().is_success() {
             let body = response.text().await.map_err(|error| error.to_string())?;
-            return Ok(GenerationResponse { status, body, content_type });
+            return Ok(GenerationResponse { status, body, body_base64: None, content_type });
         }
         let mut stream = response.bytes_stream();
         let mut body = Vec::new();
@@ -389,6 +418,7 @@ pub async fn generation_stream(
         Ok(GenerationResponse {
             status,
             body: String::from_utf8_lossy(&body).into_owned(),
+            body_base64: None,
             content_type,
         })
     }
@@ -413,14 +443,27 @@ pub async fn generation_download(
     state: tauri::State<'_, GenerationGatewayState>,
     request: GenerationDownload,
 ) -> Result<Value, String> {
-    let url = Url::parse(&request.url).map_err(|error| error.to_string())?;
+    let (base_url, api_key) = provider_credentials(&app, &request.provider_id)?;
+    let url = if let Some(value) = request.url.as_deref().filter(|value| !value.is_empty()) {
+        Url::parse(value).map_err(|error| error.to_string())?
+    } else {
+        let path = request
+            .path
+            .as_deref()
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| "生成结果下载缺少 URL 或 endpoint path".to_string())?;
+        request_url(&base_url, path, request.scope.as_deref().unwrap_or("root"))?
+    };
     if !matches!(url.scheme(), "http" | "https") {
         return Err("生成结果下载只允许 HTTP(S) URL".into());
     }
-    let (_, api_key) = provider_credentials(&app, &request.provider_id)?;
     let client = gateway_client(request.timeout_ms)?;
+    let method = Method::from_bytes(request.method.as_deref().unwrap_or("GET").as_bytes())
+        .map_err(|_| "生成结果下载 method 非法".to_string())?;
     let outgoing = apply_auth(
-        client.get(url).headers(safe_headers(&request.headers)?),
+        client
+            .request(method, url)
+            .headers(safe_headers(&request.headers)?),
         request.auth.as_ref(),
         &api_key,
     )?;

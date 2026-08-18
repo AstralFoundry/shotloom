@@ -47,7 +47,7 @@ export function registerProductionPlanTools() {
     id: 'plan_write',
     title: '创建制作计划',
     effect: 'project_write',
-    description: '创建 Production Plan v2。由 Router 根据用户完整语义选择 plan_only 或 execute。计划允许渐进完善；可恢复的依赖和提示词问题会作为 warning 返回。',
+    description: '创建 Production Plan v2。根据用户完整语义选择 plan_only 或 execute。计划允许渐进完善；可恢复的依赖和提示词问题会作为 warning 返回。',
     inputSchema: {
       type: 'object',
       required: ['title', 'goal', 'executionMode', 'stages'],
@@ -113,17 +113,22 @@ export function registerProductionPlanTools() {
 
   registerAgentTool({
     id: 'plan_patch_stage', title: '更新制作阶段计划', effect: 'project_write',
-    description: '更新尚未完成阶段的工作项、提示词和完成条件。无效依赖会被忽略并通过 warning 返回，Agent 可继续修正计划。',
+    description: '基于最近读取的 revision 更新尚未完成阶段。若计划已变化会拒绝旧写入，必须重新读取后再提交。',
     inputSchema: {
-      type: 'object', required: ['planId', 'stageId'], additionalProperties: false,
+      type: 'object', required: ['planId', 'stageId', 'expectedRevision'], additionalProperties: false,
       properties: {
-        planId: { type: 'string' }, stageId: { type: 'string' }, title: { type: 'string' }, description: { type: 'string' }, summary: { type: 'string' },
+        planId: { type: 'string' }, stageId: { type: 'string' }, expectedRevision: { type: 'integer', minimum: 1 }, title: { type: 'string' }, description: { type: 'string' }, summary: { type: 'string' },
         workItems: { type: 'array', items: workItemSchema },
         completionCriteria: { type: 'array', items: { type: 'string' } },
       },
     },
     execute: (input, context) => {
-      const plan = patchProductionPlanStage(String(input.planId), String(input.stageId), input);
+      const plan = patchProductionPlanStage(
+        String(input.planId),
+        String(input.stageId),
+        Number(input.expectedRevision),
+        input,
+      );
       publish(context, plan);
       return { success: true, planId: plan.id, revision: plan.revision, plan };
     },
@@ -131,11 +136,12 @@ export function registerProductionPlanTools() {
 
   registerAgentTool({
     id: 'plan_update_stage_state', title: '推进制作阶段', effect: 'project_write',
-    description: '推进制作阶段状态，并按 workItemId 绑定真实节点和任务。阶段完成时，只规划模式核验真实节点；执行模式核验任务属于对应节点且已经完成。',
+    description: '基于最近读取的 revision 推进阶段状态，并按 workItemId 绑定真实节点和任务；旧 revision 会被拒绝。',
     inputSchema: {
-      type: 'object', required: ['planId', 'stageId', 'status'], additionalProperties: false,
+      type: 'object', required: ['planId', 'stageId', 'expectedRevision', 'status'], additionalProperties: false,
       properties: {
         planId: { type: 'string' }, stageId: { type: 'string' },
+        expectedRevision: { type: 'integer', minimum: 1 },
         status: { type: 'string', enum: ['doing', 'blocked', 'done'] },
         runtimeRefs: { type: 'array', items: runtimeRefSchema },
         summary: { type: 'string' }, blockedReason: { type: 'string' },
@@ -146,6 +152,7 @@ export function registerProductionPlanTools() {
       const plan = updateProductionPlanStage({
         planId: String(input.planId),
         stageId: String(input.stageId),
+        expectedRevision: Number(input.expectedRevision),
         status: input.status as ProductionPlanStageStatus,
         runtimeRefs: input.runtimeRefs as ProductionPlanRuntimeRef[] | undefined,
         summary: input.summary == null ? undefined : String(input.summary),

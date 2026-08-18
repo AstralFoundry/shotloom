@@ -2,212 +2,22 @@ import { reactive, toRaw } from '@/store/domainReactivity';
 import { desktopApi } from '@/services/desktopApi';
 import { uid } from '@/utils/format';
 import { showToast } from '@/composables/useToast';
-import { cancelTask, runNode } from '@/store/taskStore';
-import { selectedNode } from '@/store/nodeStore';
+import { cancelTask } from '@/store/taskStore';
 import { settingsStore } from '@/store/settingsStore';
-import { generationOutputIssue } from '@/utils/generationResultValidation';
-import { summarizeGenerationPayload } from '@/utils/generationPayload';
-import { ensureCopilotConversations } from '@/services/copilotConversations.mjs';
 import { hasPersistedProject, resolveProjectRoute } from '@/utils/projectNavigation.mjs';
 import {
   buildProjectSession,
   hasFullProjectSessionSnapshot,
   PROJECT_SESSION_KEY,
 } from '@/utils/projectSession.mjs';
-
-const MAX_CANVAS_HISTORY = 8;
-
-function createProject(name = '未命名项目') {
-  const project = {
-    id: uid(),
-    schema: 'shotloom-project',
-    name,
-    assets: [],
-    materials: [],
-    nodes: [],
-    edges: [],
-    tasks: [],
-    copilotConversations: [],
-    activeCopilotConversationId: '',
-    canvasViewport: { x: 0, y: 0, zoom: 1 },
-    agentBatches: [],
-    agentSteps: [],
-    agentEvaluations: [],
-    agentRuns: [],
-    agentRuntimeEvents: [],
-    agentInteractions: [],
-    productionPlans: [],
-    canvasHistory: [],
-    canvasRedoStack: [],
-    settings: {
-      autoSave: true,
-      defaultTextModel: 'gpt-5.4',
-      defaultImageModel: 'gpt-image-2',
-      defaultVideoModel: 'grok-imagine-video',
-    },
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  };
-  ensureCopilotConversations(project);
-  return project;
-}
-
-function normalizeProject(project) {
-  const base = createProject(project?.name || '未命名项目');
-  const nodes = Array.isArray(project?.nodes) ? project.nodes : [];
-  const nodeIds = new Set(nodes.map((node) => node.id));
-  const nodeById = new Map(nodes.map((node) => [node.id, node]));
-  const tasks = (Array.isArray(project?.tasks) ? project.tasks : []).map((task) => {
-    const compactRequestPayload = summarizeGenerationPayload(task?.requestPayload || {});
-    task = {
-      ...task,
-      requestPayload: compactRequestPayload,
-      result: task?.result
-        ? {
-            ...task.result,
-            requestPayload: summarizeGenerationPayload(
-              task.result.requestPayload || compactRequestPayload,
-            ),
-          }
-        : task?.result,
-    };
-    // 同步图片/文本请求没有服务端 task ID，只能依赖当前 WebView 中的 Promise。
-    // 项目文件被重新读取意味着原 WebView 已不存在，这类 running 记录不可能恢复；
-    // 立即转为可重试错误，不能永久伪装成“运行中”。异步视频有 remoteTaskId，
-    // 继续保留 active 状态，交给 resumeRemoteTasks 查询真实远端终态。
-    if (
-      ['running', 'queued'].includes(task?.status) &&
-      task?.runner === 'remote' &&
-      !task?.remoteTaskId
-    ) {
-      const error = '同步生成请求已随上次页面会话结束，无法恢复；请重试该节点';
-      const node = nodeById.get(task.nodeId);
-      if (node) {
-        node.status = 'error';
-        node.progress = Math.max(0, Math.min(99, Number(node.progress) || 0));
-        node.error = error;
-      }
-      return {
-        ...task,
-        status: 'error',
-        error,
-        completedAt: new Date().toISOString(),
-        result: {
-          ...(task.result || {}),
-          requestPayload: compactRequestPayload,
-          error,
-          status: 'error',
-        },
-      };
-    }
-    if (task?.status !== 'completed') return task;
-    const node = nodeById.get(task.nodeId);
-    if (node?.type !== 'textGeneration') return task;
-    const issue = generationOutputIssue(
-      node.type,
-      {
-        result: task.result?.output,
-        raw: task.result?.raw,
-      },
-      {
-        text: node.textContent || task.result?.text || '',
-        archivedFiles: task.result?.archivedFiles || [],
-        resultNodes: task.result?.resultNodes || [],
-      },
-    );
-    if (issue?.code !== 'empty-text-length') return task;
-    const currentMaxTokens = Number(node.config?.maxTokens) || 2048;
-    node.config = {
-      ...(node.config || {}),
-      maxTokens: Math.min(16384, Math.max(4096, currentMaxTokens * 2)),
-    };
-    node.status = 'failed';
-    node.progress = Math.min(99, Number(node.progress) || 0);
-    node.error = issue.message;
-    return {
-      ...task,
-      status: 'failed',
-      progress: node.progress,
-      error: issue.message,
-      suggestedConfigPatch: { maxTokens: node.config.maxTokens },
-      result: { ...(task.result || {}), archiveError: issue.message },
-    };
-  });
-  const normalized = {
-    ...base,
-    ...project,
-    id: String(project?.id || base.id),
-    assets: (Array.isArray(project?.assets) ? project.assets : []).map((asset) => {
-      if (!asset?.scope) return asset;
-      const next = { ...asset };
-      delete next.scope;
-      return next;
-    }),
-    materials: Array.isArray(project?.materials) ? project.materials : [],
-    nodes,
-    edges: (Array.isArray(project?.edges) ? project.edges : [])
-      .filter((edge) => nodeIds.has(edge.source) && nodeIds.has(edge.target))
-      .filter((edge) => edge.kind !== 'dependency' && edge.data?.inputRole !== 'dependencyOnly'),
-    tasks,
-    copilotConversations: Array.isArray(project?.copilotConversations)
-      ? project.copilotConversations
-      : [],
-    activeCopilotConversationId: String(project?.activeCopilotConversationId || ''),
-    canvasViewport: normalizeCanvasViewport(project?.canvasViewport),
-    agentBatches: Array.isArray(project?.agentBatches) ? project.agentBatches : [],
-    agentSteps: Array.isArray(project?.agentSteps) ? project.agentSteps : [],
-    agentRuns: (Array.isArray(project?.agentRuns) ? project.agentRuns : []).map((run) => {
-      const { pendingContinuation: _removedLegacyCheckpoint, ...current } = run || {};
-      return current;
-    }),
-    agentRuntimeEvents: Array.isArray(project?.agentRuntimeEvents)
-      ? project.agentRuntimeEvents
-      : [],
-    agentInteractions: Array.isArray(project?.agentInteractions) ? project.agentInteractions : [],
-    productionPlans: Array.isArray(project?.productionPlans)
-      ? project.productionPlans.filter((plan) => plan?.schemaVersion === 2)
-      : [],
-    agentEvaluations: (Array.isArray(project?.agentEvaluations)
-      ? project.agentEvaluations
-      : []
-    ).map((evaluation) => {
-      const task = tasks.find((item) => item.id === evaluation.taskId);
-      if (task?.status !== 'failed' || !task.error) return evaluation;
-      return {
-        ...evaluation,
-        status: 'partial_failed',
-        score: 0,
-        summary: task.error,
-        checks: (evaluation.checks || []).map((check) => ({ ...check, passed: false })),
-      };
-    }),
-    canvasHistory: Array.isArray(project?.canvasHistory)
-      ? project.canvasHistory.slice(0, MAX_CANVAS_HISTORY)
-      : [],
-    canvasRedoStack: Array.isArray(project?.canvasRedoStack)
-      ? project.canvasRedoStack.slice(0, MAX_CANVAS_HISTORY)
-      : [],
-    settings: {
-      autoSave: project?.settings?.autoSave !== false,
-      defaultTextModel: project?.settings?.defaultTextModel || base.settings.defaultTextModel,
-      defaultImageModel: project?.settings?.defaultImageModel || base.settings.defaultImageModel,
-      defaultVideoModel: project?.settings?.defaultVideoModel || base.settings.defaultVideoModel,
-    },
-  };
-  ensureCopilotConversations(normalized);
-  return normalized;
-}
-
-function normalizeCanvasViewport(viewport = {}) {
-  const x = Number(viewport?.x);
-  const y = Number(viewport?.y);
-  const zoom = Number(viewport?.zoom);
-  return {
-    x: Number.isFinite(x) ? x : 0,
-    y: Number.isFinite(y) ? y : 0,
-    zoom: Number.isFinite(zoom) && zoom > 0 ? zoom : 1,
-  };
-}
+import { LatestSaveQueue } from '@/services/latestSaveQueue.mjs';
+import { recordPerformanceMetric } from '@/services/performanceMetrics';
+import { expandCopilotArchivesForPersistence } from '@/services/copilotSessionLifecycle.mjs';
+import {
+  createProject,
+  normalizeCanvasViewport,
+  normalizeProject,
+} from '@/store/projectNormalization';
 
 function restoreSession() {
   try {
@@ -228,11 +38,19 @@ const restored = restoreSession();
 const AUTO_SAVE_DELAY_MS = 1_000;
 const AUTO_SAVE_MAX_DELAY_MS = 30_000;
 let autoSaveTimer = null;
-let autoSaveInFlight = null;
-let autoSaveQueued = false;
 let autoSaveQueuedAt = 0;
-let lastSavedProjectHash = '';
 let sessionPersistTimer = null;
+const projectSaveQueue = new LatestSaveQueue(
+  ({ directory, snapshot }) => desktopApi.project.save(directory, snapshot),
+  {
+    maxRetryAttempts: 1,
+    onMetric: (detail) => recordPerformanceMetric(
+      'project.save.queue',
+      performance.now() - Number(detail.queueMs || 0),
+      detail,
+    ),
+  },
+);
 // ── Shared state ────────────────────────────────────────────────────────────
 
 let cleanCloseSnapshot = '';
@@ -285,7 +103,7 @@ function clearActiveProjectSession() {
     window.clearTimeout(autoSaveTimer);
     autoSaveTimer = null;
   }
-  autoSaveQueued = false;
+  projectSaveQueue.discardPending();
   store.projectDir = null;
   store.filePath = null;
   store.project = createProject();
@@ -308,7 +126,7 @@ function projectPersistenceSnapshot() {
         : [],
     }));
   }
-  return snapshot;
+  return expandCopilotArchivesForPersistence(snapshot);
 }
 
 export function persistSession() {
@@ -394,14 +212,14 @@ function scheduleAutoSave(delay = AUTO_SAVE_DELAY_MS) {
 async function writeProjectFile({ updateRecent = false } = {}) {
   const snapshot = projectPersistenceSnapshot();
   const hash = JSON.stringify({ ...snapshot, updatedAt: '' });
-  if (!updateRecent && hash === lastSavedProjectHash) {
-    persistSession();
-    markProjectCleanForClose();
-    return { filePath: store.filePath, skipped: true };
-  }
-  const result = await desktopApi.project.save(store.projectDir, snapshot);
-  lastSavedProjectHash = hash;
-  store.filePath = result.filePath;
+  const directory = store.projectDir;
+  const projectId = String(snapshot.id || '');
+  const result = await projectSaveQueue.enqueue(
+    { directory, snapshot },
+    { key: `${directory}:${hash}`, scope: String(directory || '') },
+  );
+  if (store.projectDir !== directory || String(store.project?.id || '') !== projectId) return result;
+  if (result.filePath) store.filePath = result.filePath;
   if (updateRecent) {
     await desktopApi.recent.add({
       name: store.project.name,
@@ -422,28 +240,14 @@ export async function flushAutoSave() {
     autoSaveTimer = null;
   }
   if (!canAutoSaveProject()) return false;
-  if (autoSaveInFlight) {
-    autoSaveQueued = true;
-    await autoSaveInFlight;
-    return flushAutoSave();
+  try {
+    await writeProjectFile({ updateRecent: false });
+    autoSaveQueuedAt = 0;
+    return true;
+  } catch (error) {
+    showToast(error?.message || '自动保存失败');
+    return false;
   }
-
-  autoSaveInFlight = writeProjectFile({ updateRecent: false })
-    .then(() => true)
-    .catch((error) => {
-      showToast(error?.message || '自动保存失败');
-      return false;
-    })
-    .finally(() => {
-      autoSaveInFlight = null;
-      autoSaveQueuedAt = 0;
-      if (autoSaveQueued) {
-        autoSaveQueued = false;
-        scheduleAutoSave(0);
-      }
-    });
-
-  return autoSaveInFlight;
 }
 
 export function initProjectCloneProgressListener() {
@@ -712,8 +516,8 @@ export async function trashRecentProject(project) {
       window.clearTimeout(autoSaveTimer);
       autoSaveTimer = null;
     }
-    autoSaveQueued = false;
-    if (autoSaveInFlight) await autoSaveInFlight;
+    projectSaveQueue.discardPending();
+    await projectSaveQueue.waitForIdle();
     for (const task of store.project.tasks || []) {
       if (['running', 'queued'].includes(task.status)) cancelTask(task.id);
     }
@@ -721,7 +525,7 @@ export async function trashRecentProject(project) {
       window.clearTimeout(autoSaveTimer);
       autoSaveTimer = null;
     }
-    autoSaveQueued = false;
+    projectSaveQueue.discardPending();
     // 先解除项目绑定，确保移入废纸篓期间不会被延迟自动保存重新创建。
     store.projectDir = null;
     store.filePath = null;
@@ -895,63 +699,4 @@ function uniqueProjects(projects) {
       return true;
     })
     .sort((a, b) => new Date(b.lastOpenedAt) - new Date(a.lastOpenedAt));
-}
-
-// ── Store facade exports ────────────────────────────────────────────────────
-
-export { showToast } from '@/composables/useToast';
-export { filteredAssets, importAssetFiles } from '@/store/assetStore';
-export { selectedNode };
-export {
-  nodeTypeLabel,
-  defaultGenerationConfig,
-  ensureGenerationConfig,
-  addNode,
-  deleteNodeById,
-  deleteSelectedNode,
-  deleteSelectedNodes,
-  selectNode,
-  selectedNodes,
-  setSelectedNodeIds,
-  startConnect,
-} from '@/store/nodeStore';
-export {
-  failedTaskStatuses,
-  statusLabel,
-  statusTone,
-  runNode,
-  cancelTask,
-  cancelNode,
-  retryTask,
-  retryNode,
-  canRetryTask,
-  clearTasks,
-  isHistoricalModelTask,
-  findLatestTaskForNode,
-  clearActiveTaskForNode,
-} from '@/store/taskStore';
-export {
-  stageSelectedWorkflow,
-  pasteStagedWorkflow,
-  captureWorkflowSnapshot,
-  importWorkflowTemplate,
-} from '@/store/clipboardStore';
-export { deleteCanvasNodeData, remapImportedNodeReferences } from '@/store/canvasGraphStore';
-
-// ── Convenience ─────────────────────────────────────────────────────────────
-
-/**
- * 运行当前选中节点。
- */
-export function runSelectedNode() {
-  const node = selectedNode.value;
-  runNode(node);
-}
-
-// ── Wire circular dependency: taskStore ↔ runGroup ─────────────────────────
-
-// ── Store accessor ─────────────────────────────────────────────────────────
-
-export function useProjectStore() {
-  return { store, selectedNode };
 }

@@ -120,7 +120,7 @@ export async function archiveGeneratedOutput({ project, node, task, output }) {
     );
     let material = null;
 
-    if (sourceUrl) {
+    if (sourceUrl || file.metadata?.downloadAuth?.endpointPath) {
       const downloaded = await desktopApi.file.downloadUrlToProject(
         sourceUrl,
         preferredName,

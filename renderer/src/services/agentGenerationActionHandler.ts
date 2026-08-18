@@ -8,7 +8,7 @@ import {
   getModelCredentialStatus,
   settingsStore,
 } from '@/store/settingsStore';
-import { getModelSchema, getTypeMeta, isModelForType } from '@/domain/catalog/ModelCatalog';
+import { getGenerationInputModes, getModelSchema, getTypeMeta, isModelForType, resolveModeIdForInputMode } from '@/domain/catalog/ModelCatalog';
 import {
   compileGenerationNodeConfig,
   generationOutputSpec,
@@ -198,10 +198,15 @@ export function handleAgentGenerationAction(
     const nodeType = GENERATION_NODE_TYPES.has(requestedNodeType) ? requestedNodeType : 'imageGeneration';
     const position = defaultNodePosition(action);
     const model = String(action.model || preferredModel(nodeType));
+    const inputModes = getGenerationInputModes(model);
+    const inputMode = String(action.inputMode || inputModes[0]?.value || '');
+    if (action.inputMode && !inputModes.some((item) => item.value === inputMode)) {
+      return { applied: false, error: `模型 ${model} 不支持输入模式 ${inputMode}` };
+    }
     const outputSpec = generationOutputSpec(nodeType, action.config, action.outputSpec);
     const config: Record<string, any> = compileGenerationNodeConfig(
       action.config,
-      getModelSchema(nodeType, model, String(action.config?.mode || '')).params,
+      getModelSchema(nodeType, model, resolveModeIdForInputMode(model, inputMode)).params,
       outputSpec,
     );
     const prompt = String(action.prompt || '');
@@ -217,6 +222,7 @@ export function handleAgentGenerationAction(
       title: String(action.title || action.name || nodeTypeLabel(nodeType)),
       prompt,
       model,
+      ...(inputMode ? { inputMode: inputMode as any } : {}),
       recipeId: String(action.recipeId || ''),
       config,
       ...(Object.keys(outputSpec).length ? { outputSpec: outputSpec as any } : {}),
@@ -264,6 +270,12 @@ export function handleAgentGenerationAction(
   }
   const credentialStatus = getModelCredentialStatus(nextModel);
   if (!credentialStatus.available) return { applied: false, error: credentialStatus.message };
+  const availableInputModes = getGenerationInputModes(nextModel);
+  const retainedInputMode = availableInputModes.some((item) => item.value === node.inputMode) ? node.inputMode : '';
+  const nextInputMode = String(action.inputMode || retainedInputMode || availableInputModes[0]?.value || '');
+  if (nextInputMode && !availableInputModes.some((item) => item.value === nextInputMode)) {
+    return { applied: false, error: `模型 ${nextModel} 不支持输入模式 ${nextInputMode}` };
+  }
   const outputSpecPatch = generationOutputSpec(node.type, action.config, action.outputSpec);
   const nextOutputSpec = generationOutputSpec(
     node.type,
@@ -272,7 +284,7 @@ export function handleAgentGenerationAction(
   );
   const nextConfig = compileGenerationNodeConfig(
     configSourceForOutputSpecUpdate(node.config || {}, action),
-    getModelSchema(node.type, nextModel, String(action.config?.mode || node.config?.mode || '')).params,
+    getModelSchema(node.type, nextModel, resolveModeIdForInputMode(nextModel, nextInputMode)).params,
     nextOutputSpec,
   );
   node.config = nextConfig;
@@ -281,6 +293,8 @@ export function handleAgentGenerationAction(
   if (action.title || action.name) node.title = action.title || action.name;
   node.prompt = nextPrompt;
   node.model = nextModel;
+  if (nextInputMode) node.inputMode = nextInputMode as any;
+  else delete node.inputMode;
   if (action.recipeId) node.recipeId = String(action.recipeId);
   node.maxRetries = normalizedInteger(node.maxRetries, 2);
   node.timeoutMs = normalizedInteger(node.timeoutMs, DEFAULT_GENERATION_TIMEOUT_MS);

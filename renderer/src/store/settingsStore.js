@@ -1,6 +1,7 @@
 import { reactive, toRaw } from '@/store/domainReactivity';
 import { desktopApi } from '@/services/desktopApi';
 import { normalizeCanvasActionShortcuts } from '@/utils/canvasActionShortcuts';
+import { clonePlainData } from '@/utils/plainDataClone.mjs';
 import { getModelIdsByType, setExternalCatalogModels } from '@/domain/catalog/ModelCatalog';
 import { getConfiguredProviders, getProviderDefinition } from '@/domain/provider/ProviderRegistry';
 import { buildCustomCatalogModels } from '@/domain/provider/CustomModelCatalog';
@@ -11,7 +12,7 @@ import {
 } from '@/domain/provider/ModelAvailability';
 
 export const settingsStore = reactive({
-  storageVersion: 6,
+  storageVersion: 7,
   providerConfigs: /** @type {Record<string, import('@/domain/provider/ProviderRegistry').ProviderConfig>} */ ({}),
   balance: 0, rawQuota: 0, usedQuota: 0,
   tokenGroups: [], activeTokenGroupId: '',
@@ -24,6 +25,10 @@ export const settingsStore = reactive({
   agentPreferredVideoModel: 'grok-imagine-video',
   canvasActionShortcuts: normalizeCanvasActionShortcuts(),
   layoutAlgorithm: 'grid-aligned', updatedAt: '',
+  runtimeProtection: {
+    healthIntervalMs: 10000, failureThreshold: 3, failureWindowMs: 300000,
+    circuitCooldownMs: 120000, stallWarningMs: 180000, hardCapMs: 1800000,
+  },
   loading: false, syncing: false,
 });
 
@@ -104,16 +109,18 @@ function toPlainSettings(patch = {}) {
     agentPreferredVideoModel: rawStore.agentPreferredVideoModel,
     canvasActionShortcuts: normalizeCanvasActionShortcuts(rawStore.canvasActionShortcuts),
     layoutAlgorithm: rawStore.layoutAlgorithm === 'elk-layered' ? 'elk-layered' : 'grid-aligned',
+    runtimeProtection: { ...rawStore.runtimeProtection },
     ...rawPatch,
   };
   next.tokenGroups = normalizeTokenGroups(next.tokenGroups);
-  return next;
+  return clonePlainData(next);
 }
 
 function applySettings(settings) {
-  settingsStore.storageVersion = settings.storageVersion || 1;
-  settingsStore.providerConfigs = settings.providerConfigs || {};
-  setExternalCatalogModels(buildCustomCatalogModels(settingsStore.providerConfigs));
+  const providerConfigs = clonePlainData(settings.providerConfigs || {});
+  settingsStore.storageVersion = settings.storageVersion;
+  settingsStore.providerConfigs = providerConfigs;
+  setExternalCatalogModels(buildCustomCatalogModels(providerConfigs));
   settingsStore.balance = Number.isFinite(settings.balance) ? settings.balance : 0;
   settingsStore.rawQuota = Number.isFinite(settings.rawQuota) ? settings.rawQuota : 0;
   settingsStore.usedQuota = Number.isFinite(settings.usedQuota) ? settings.usedQuota : 0;
@@ -131,6 +138,10 @@ function applySettings(settings) {
   settingsStore.agentPreferredVideoModel = normalizePreferredVideoModel(settings.agentPreferredVideoModel);
   settingsStore.canvasActionShortcuts = normalizeCanvasActionShortcuts(settings.canvasActionShortcuts);
   settingsStore.layoutAlgorithm = settings.layoutAlgorithm === 'elk-layered' ? 'elk-layered' : 'grid-aligned';
+  settingsStore.runtimeProtection = {
+    ...settingsStore.runtimeProtection,
+    ...(settings.runtimeProtection || {}),
+  };
   settingsStore.updatedAt = settings.updatedAt || '';
 }
 

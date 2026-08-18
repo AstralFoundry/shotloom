@@ -37,7 +37,7 @@ async function executeRequest(payload: { callId: string; name: string; arguments
     ...run.context,
     turnId: `${run.context.requestId}:tool:${payload.callId}`,
   };
-  assertAgentProject(context.projectKey);
+  assertAgentProject(context.projectKey, context.projectInstanceId, context.projectGeneration);
   const prepared = prepareAgentToolCall(payload.name, JSON.stringify(payload.arguments || {}), context);
   const effect = prepared.definition.resolveEffect?.(prepared.input, context) || prepared.definition.effect;
   const policy = resolveAgentToolPolicy(effect, context);

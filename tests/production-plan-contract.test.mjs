@@ -5,7 +5,8 @@ import { readFileSync } from 'node:fs';
 const tools = readFileSync(new URL('../renderer/src/agent/tools/productionPlanTools.ts', import.meta.url), 'utf8');
 const runtime = readFileSync(new URL('../renderer/src/agent/runtime/OpenCodeRuntime.ts', import.meta.url), 'utf8');
 const canvas = readFileSync(new URL('../renderer/src/agent/tools/canvasTools.ts', import.meta.url), 'utf8');
-const store = readFileSync(new URL('../renderer/src/store/projectStore.js', import.meta.url), 'utf8');
+const store = readFileSync(new URL('../renderer/src/store/projectStore.js', import.meta.url), 'utf8')
+  + readFileSync(new URL('../renderer/src/store/projectNormalization.js', import.meta.url), 'utf8');
 const planStore = readFileSync(new URL('../renderer/src/agent/runtime/productionPlanStore.ts', import.meta.url), 'utf8');
 const lifecycle = readFileSync(new URL('../renderer/src/agent/tools/lifecycleTools.ts', import.meta.url), 'utf8');
 const catalog = readFileSync(new URL('../renderer/src/agent/tools/catalogTools.ts', import.meta.url), 'utf8');
@@ -15,21 +16,25 @@ test('Production Plan 提供持久化阶段工具而不是临时文本计划', (
   for (const name of ['plan_write', 'plan_get_stage_status', 'plan_get_stage_detail', 'plan_patch_stage', 'plan_update_stage_state']) {
     assert.match(tools, new RegExp(`id: '${name}'`));
   }
+  assert.match(tools, /expectedRevision/);
+  assert.match(tools, /required: \['planId', 'stageId', 'expectedRevision'/);
+  assert.match(planStore, /StaleProductionPlanRevisionError/);
+  assert.match(planStore, /assertExpectedRevision\(plan, expectedRevision\)/);
   assert.match(store, /productionPlans: \[\]/);
   assert.match(store, /productionPlans: Array\.isArray\(project\?\.productionPlans\)[\s\S]*schemaVersion === 2/);
 });
 
-test('复杂制作是否建立计划由 Router 决定，工具只校验客观执行状态', () => {
+test('复杂制作是否建立计划由主 Agent 决定，工具只校验客观执行状态', () => {
   assert.doesNotMatch(runtime, /requiresProductionPlan|productionPlanPreparedForRun/);
   assert.doesNotMatch(canvas, /首次修改画布前必须先用 plan_write/);
   assert.doesNotMatch(canvas, /activeProductionPlanId|executionMode !== 'execute'|已通过执行计划审核/);
 });
 
-test('复杂制作范围由 Router 判断并按上下文提问', () => {
+test('复杂制作范围由主 Agent 判断并按上下文提问', () => {
   assert.doesNotMatch(runtime, /productionScopeAmbiguous|productionIntent/);
   assert.match(catalog, /id: 'inspect_runtime_capabilities'/);
   assert.doesNotMatch(tools, /runtimeCapabilitiesInspected.*throw new Error/s);
-  assert.match(governance, /Router.*request_clarification/);
+  assert.match(governance, /主 Agent.*request_clarification/);
   assert.doesNotMatch(lifecycle, /PRODUCTION_SCOPE_QUESTION_ID|productionScopeOptions|PLAN_CANVAS_OPTION/);
   assert.match(tools, /exists: false, plan: null/);
   assert.doesNotMatch(tools, /当前对话没有进行中的 Production Plan v2/);

@@ -1,9 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
 import { desktopApi } from "../../services/desktopApi.js";
 import { type IconName, IconSymbol } from "../components/IconSymbol";
 import { openMediaViewer, showToast } from "../store/overlayStore";
 import type { WorkflowNodeData } from "./WorkflowCanvas";
-import { schedulePreviewLoad } from "./previewLoadQueue";
+import { useMediaPreviewCache } from "./useMediaPreviewCache";
 
 type Kind = "image" | "video" | "audio" | "text" | "file";
 const exts = {
@@ -51,47 +50,14 @@ export function ResourcePreview(
       resourceType.includes(item) || exts[item].includes(extension as never)
     ) || (inlineText ? "text" : "file");
   const previewText = content.trim().slice(0, 360) || displayName;
-  const [blobUrl, setBlobUrl] = useState("");
-  const staticUrl = useMemo(
-    () => /^(https?:|blob:|data:|file:)/i.test(displayPath) ? displayPath : "",
-    [displayPath],
-  );
-  const url = blobUrl || staticUrl;
-
-  useEffect(() => {
-    let cancelled = false;
-    let created = "";
-    let cancelLoad = () => {};
-    if (filePath && ["image", "video", "audio"].includes(kind)) {
-      cancelLoad = schedulePreviewLoad(async () => {
-        if (cancelled) return;
-        try {
-          let buffer: ArrayBuffer | undefined;
-          let mime = stringValue(node.mimeType) || `${kind}/*`;
-          if (kind === "image" && desktopApi.file.readImagePreview) {
-            try {
-              buffer = await desktopApi.file.readImagePreview(filePath, 960);
-              mime = "image/jpeg";
-            } catch {
-              buffer = await desktopApi.file.readArrayBuffer?.(filePath);
-            }
-          } else buffer = await desktopApi.file.readArrayBuffer?.(filePath);
-          if (!cancelled && buffer?.byteLength) {
-            created = URL.createObjectURL(new Blob([buffer], { type: mime }));
-            setBlobUrl(created);
-          }
-        } catch {
-          setBlobUrl("");
-        }
-      });
-    }
-    return () => {
-      cancelled = true;
-      cancelLoad();
-      if (created) URL.revokeObjectURL(created);
-      setBlobUrl("");
-    };
-  }, [filePath, kind, node.mimeType]);
+  const { url, buffered, retryBuffered } = useMediaPreviewCache({
+    path: filePath,
+    kind,
+    mimeType: stringValue(node.mimeType),
+    maxSize: 960,
+    revision: stringValue(node.updatedAt || node.id),
+    fallbackUrl: displayPath,
+  });
 
   async function openFile() {
     const result = await desktopApi.file.openPath?.(filePath);
@@ -145,9 +111,9 @@ export function ResourcePreview(
         {kind === "image" && url
           ? <img src={url} alt={displayName} loading="lazy" />
           : kind === "video" && url
-          ? <video src={url} controls preload="metadata" />
+          ? <video src={url} controls preload="metadata" onError={() => !buffered && retryBuffered()} />
           : kind === "audio" && url
-          ? <audio src={url} controls preload="metadata" />
+          ? <audio src={url} controls preload="metadata" onError={() => !buffered && retryBuffered()} />
           : kind === "text"
           ? <pre>{previewText}</pre>
           : (
