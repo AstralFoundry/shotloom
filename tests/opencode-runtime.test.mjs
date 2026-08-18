@@ -65,6 +65,10 @@ test('所有桌面构建入口都在 Cargo 或 Tauri 构建前准备平台 sidec
     rustJob.indexOf('npm run prepare:opencode') <
       rustJob.indexOf('cargo check --manifest-path src-tauri/Cargo.toml --lib'),
   );
+  assert.ok(
+    rustJob.indexOf('npm run prepare:media') <
+      rustJob.indexOf('cargo check --manifest-path src-tauri/Cargo.toml --lib'),
+  );
 
   const release = read('.github/workflows/release.yml');
   assert.ok(release.indexOf('npm run prepare:opencode') < release.indexOf('name: Detect Apple signing credentials'));

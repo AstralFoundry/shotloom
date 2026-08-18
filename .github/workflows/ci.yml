@@ -39,4 +39,5 @@ jobs:
           workspaces: src-tauri
       - run: npm ci
       - run: npm run prepare:opencode
+      - run: npm run prepare:media
       - run: cargo check --manifest-path src-tauri/Cargo.toml --lib
