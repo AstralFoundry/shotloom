@@ -4,6 +4,14 @@ import test from 'node:test';
 const readCanvasAdapter = async () =>
   await readFile(new URL('../renderer/src/app/adapters/canvasAdapter.ts', import.meta.url), 'utf8')
   + await readFile(new URL('../renderer/src/app/adapters/canvas/videoEditorActions.ts', import.meta.url), 'utf8');
+const readVideoEditorUi = async () => (await Promise.all([
+  'VideoEditorWorkspace.tsx',
+  'VideoEditorWorkspaceParts.tsx',
+  'VideoEditorChrome.tsx',
+  'VideoEditorToolPanel.tsx',
+  'VideoEditorTimeline.tsx',
+  'videoEditorCatalog.ts',
+].map((name) => readFile(new URL(`../renderer/src/app/editor/${name}`, import.meta.url), 'utf8')))).join('\n');
 test('图片、视频和音频节点共用直接加入剪辑入口', async () => {
   const [source, adapter] = await Promise.all([
     readFile(new URL('../renderer/src/app/canvas/GenerationNode.tsx', import.meta.url), 'utf8'),
@@ -23,7 +31,7 @@ test('画布左侧视频剪辑入口直接打开空白工程并在编辑器内�
     readFile(new URL('../renderer/src/app/layout/SideBar.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../renderer/src/app/AppShell.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../renderer/src/app/ReactWorkbench.tsx', import.meta.url), 'utf8'),
-    readFile(new URL('../renderer/src/app/editor/VideoEditorWorkspace.tsx', import.meta.url), 'utf8'),
+    readVideoEditorUi(),
     readCanvasAdapter(),
   ]);
   assert.match(sidebar, /onVideoEdit/);
@@ -64,16 +72,7 @@ test('桌面发布包携带对应平台的 FFmpeg sidecar', async () => {
   assert.doesNotMatch(native, /media_tool\("ffprobe"\)/);
 });
 test('独立剪辑工作区接入真实桌面导出', async () => {
-  const workspace = await readFile(
-    new URL('../renderer/src/app/editor/VideoEditorWorkspace.tsx', import.meta.url),
-    'utf8',
-  ) + await readFile(
-    new URL('../renderer/src/app/editor/VideoEditorWorkspaceParts.tsx', import.meta.url),
-    'utf8',
-  ) + await readFile(
-    new URL('../renderer/src/app/editor/videoEditorCatalog.ts', import.meta.url),
-    'utf8',
-  );
+  const workspace = await readVideoEditorUi();
   const root = await readFile(
     new URL('../renderer/src/app/ReactWorkbench.tsx', import.meta.url),
     'utf8',
@@ -136,10 +135,7 @@ test('独立剪辑工作区接入真实桌面导出', async () => {
   assert.match(workspace, /onEnded=\{\(\) => \{[\s\S]*?continueNativeSequence/);
 });
 test('剪辑工作区用真实媒体元数据补齐主轨并提供本地文件回退', async () => {
-  const workspace = await readFile(
-    new URL('../renderer/src/app/editor/VideoEditorWorkspace.tsx', import.meta.url),
-    'utf8',
-  );
+  const workspace = await readVideoEditorUi();
   const styles = (await Promise.all([
     'VideoEditorWorkspace.foundation.css',
     'VideoEditorWorkspace.layout.css',
@@ -185,16 +181,7 @@ test('剪辑工作区用真实媒体元数据补齐主轨并提供本地文件�
 });
 
 test('剪辑工作区主动解码首帧并提供可编辑的中文文字预设', async () => {
-  const workspace = await readFile(
-    new URL('../renderer/src/app/editor/VideoEditorWorkspace.tsx', import.meta.url),
-    'utf8',
-  ) + await readFile(
-    new URL('../renderer/src/app/editor/VideoEditorWorkspaceParts.tsx', import.meta.url),
-    'utf8',
-  ) + await readFile(
-    new URL('../renderer/src/app/editor/videoEditorCatalog.ts', import.meta.url),
-    'utf8',
-  );
+  const workspace = await readVideoEditorUi();
   const styles = (await Promise.all([
     'VideoEditorWorkspace.foundation.css',
     'VideoEditorWorkspace.layout.css',
@@ -214,9 +201,9 @@ test('剪辑工作区主动解码首帧并提供可编辑的中文文字预设',
   assert.match(workspace, /sampleIndex \* sampleWidth/);
   assert.match(styles, /\.ov-clip-frame-loading/);
   assert.match(styles, /\.ov-clip-media \.ov-clip-filmstrip \{ object-fit: fill; \}/);
-  assert.match(workspace, /Math\.max\(180, project\.settings\.fps \* 88\)/);
+  assert.match(workspace, /Math\.max\(180, fps \* 88\)/);
   assert.match(workspace, /Math\.round\(unalignedTarget \* fps\) \/ fps/);
-  assert.match(workspace, /viewportLeft=\{Math\.max\(0, timelineViewport\.left - 112\)\}/);
+  assert.match(workspace, /viewportLeft=\{Math\.max\(0, viewport\.left - 112\)\}/);
   assert.match(workspace, /112 \+ duration \* zoom \+ 24/);
   assert.match(workspace, /const availableWidth = Math\.max\(1, timelineWidth - 112 - 24\)/);
   assert.match(workspace, /zoomTouchedRef\.current = true/);
@@ -277,7 +264,7 @@ test('剪辑工作区主动解码首帧并提供可编辑的中文文字预设',
     styles,
     /\.ov-inspector-section \.ov-check input\[type="checkbox"\] \{[^}]*width:\s*14px[^}]*height:\s*14px[^}]*min-height:\s*0/,
   );
-  assert.match(workspace, /disabled=\{videoClips\.length < 2\}/);
+  assert.match(workspace, /disabled=\{videoClipCount < 2\}/);
   assert.match(workspace, /转场需要连接两段视频/);
   assert.match(workspace, /当前画面可直接预览/);
   assert.match(styles, /\.ov-tool-notice/);
@@ -291,7 +278,7 @@ test('剪辑工作区主动解码首帧并提供可编辑的中文文字预设',
   assert.match(workspace, /function activateAsset\(asset: VideoEditorAsset\)/);
   assert.match(workspace, /function clipFocusTime\(clip: EditorClip\)/);
   assert.match(workspace, /start \+ 1 \/ projectRef\.current\.settings\.fps/);
-  assert.match(workspace, /onClick=\{\(\) => activateAsset\(asset\)\}/);
+  assert.match(workspace, /onClick=\{\(\) => onActivateAsset\(asset\)\}/);
   assert.doesNotMatch(workspace, /onDoubleClick=\{\(\) => addAsset\(asset\)\}/);
   assert.match(workspace, /已定位到“\$\{asset\.name\}”在时间线中的片段/);
   assert.match(workspace, /clipAsset\?\.id \? runtimeMediaUrls\[clipAsset\.id\]/);

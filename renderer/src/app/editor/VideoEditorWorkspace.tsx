@@ -37,20 +37,22 @@ import type {
   VideoEditorTransform,
 } from "./videoEditorTypes";
 import {
-  PanelHeading,
-  Ruler,
   VideoEditorInspector,
-  VideoFilmstripThumbnail,
 } from "./VideoEditorWorkspaceParts";
 import {
   applyBuiltInStickerSources,
   builtInStickers,
   effects,
   textPresets,
-  tools,
-  trackMeta,
   transitions,
 } from "./videoEditorCatalog";
+import {
+  VideoEditorImportBrowser,
+  VideoEditorToolRail,
+  VideoEditorTopBar,
+} from "./VideoEditorChrome";
+import { VideoEditorTimeline } from "./VideoEditorTimeline";
+import { VideoEditorToolPanel } from "./VideoEditorToolPanel";
 
 type EditorProject = VideoEditorProject;
 type EditorClip = VideoEditorClip;
@@ -1338,188 +1340,6 @@ export function VideoEditorWorkspace(
     setImportBrowser({ title: labels[source], items: accepted, kind, loading: false });
   }
 
-  const importSourceMenu = importMenu
-    ? (
-      <div className="ov-import-source-menu">
-        <strong>选择素材来源</strong>
-        <button onClick={() => void importFrom("library")}>项目素材</button>
-        <button onClick={() => void importFrom("local")}>通用素材库</button>
-        <button onClick={() => void importFrom("files")}>素材文件</button>
-        <button onClick={() => void importFrom("device")}>本地文件</button>
-      </div>
-    )
-    : null;
-
-  const toolPanel = activeTool === "media"
-    ? (
-      <>
-        <div className="ov-library-heading">
-          <strong>素材</strong>
-          <span>{allAssets.length}</span>
-          <button
-            onClick={() => setImportMenu(importMenu ? "" : "all")}
-          >
-            <IconSymbol name="download" /> 导入
-          </button>
-        </div>
-        {importSourceMenu}
-        {allAssets.length === 0 && (
-          <button
-            className="ov-import"
-            onClick={() => setImportMenu(importMenu ? "" : "all")}
-          >
-            <IconSymbol name="download" />
-            <strong>导入视频、图片或音频</strong>
-            <span>点击选择本地文件</span>
-          </button>
-        )}
-        <div className="ov-asset-grid">
-          {allAssets.map((asset) => (
-            <article
-              key={asset.id}
-              className="ov-asset-card"
-            >
-              <button
-                className="ov-asset-preview"
-                title="定位到时间线"
-                onClick={() => activateAsset(asset)}
-              >
-              <span className="ov-asset-thumbnail">
-                {asset.type === "image"
-                  ? <img src={asset.sourceUrl} />
-                  : asset.type === "video"
-                  ? (asset.id === primaryVideoAssetId && sourceThumbnail
-                    ? <img src={sourceThumbnail} />
-                    : (
-                    <video
-                      src={runtimeMediaUrls[asset.id] ||
-                        (asset.id === primaryVideoAssetId ? playbackUrl : asset.sourceUrl)}
-                      muted
-                      playsInline
-                      preload="auto"
-                      onLoadedData={(event) => {
-                        if (asset.id === primaryVideoAssetId && !sourceThumbnail) {
-                          captureSourceThumbnail(event.currentTarget);
-                        }
-                      }}
-                    />
-                    ))
-                  : <IconSymbol name="sliders" />}
-              </span>
-              <strong>{asset.name}</strong>
-              <small>
-                {asset.type.toUpperCase()}
-                {asset.duration ? ` · ${formatTime(asset.duration)}` : ""}
-              </small>
-              </button>
-              <button
-                className="ov-asset-delete"
-                title="删除素材及其时间线片段"
-                aria-label={`删除素材 ${asset.name}`}
-                onClick={() => deleteAsset(asset.id)}
-              >
-                <IconSymbol name="trash" />
-              </button>
-            </article>
-          ))}
-        </div>
-      </>
-    )
-    : activeTool === "text"
-    ? (
-      <>
-        <PanelHeading title="文字与字幕" count={textPresets.length} />
-        <div className="ov-text-presets">
-          {textPresets.map((preset) => (
-            <button
-              key={preset.id}
-              className={`ov-preset-card text-preset is-${preset.id}`}
-              onClick={() => addText(preset)}
-            >
-              <strong style={{ fontFamily: preset.fontFamily }}>{preset.name}</strong>
-              <span>{preset.sample} · 添加到当前时间</span>
-            </button>
-          ))}
-        </div>
-        {textNotice && <div className="ov-text-notice">{textNotice}</div>}
-        <p className="ov-panel-note">
-          文字是独立轨道，可在画布中拖动、缩放和旋转。
-        </p>
-      </>
-    )
-    : activeTool === "stickers"
-    ? (
-      <>
-        <div className="ov-library-heading">
-          <strong>贴图</strong>
-          <span>{stickerAssets.length}</span>
-          <button
-            onClick={() => setImportMenu(importMenu ? "" : "image")}
-          >
-            <IconSymbol name="download" /> 导入图片
-          </button>
-        </div>
-        {importSourceMenu}
-        <div className="ov-sticker-grid">
-          {stickerAssets.map((asset) => (
-            <button
-              key={asset.id}
-              onClick={() => addAsset(asset)}
-            >
-              <img src={asset.sourceUrl} />
-              <span>{asset.name}</span>
-            </button>
-          ))}
-        </div>
-        {toolNotice && <div className="ov-tool-notice">{toolNotice}</div>}
-        <p className="ov-panel-note">点击添加到当前画面；选中后可在检查器调整位置、大小、旋转与透明度。</p>
-      </>
-    )
-    : activeTool === "transitions"
-    ? (
-      <>
-        <PanelHeading title="转场" count={transitions.length} />
-        <div className="ov-preset-list">
-          {transitions.map((item) => (
-            <button
-              key={item.key}
-              onClick={() => addTransition(item.key)}
-              disabled={videoClips.length < 2}
-            >
-              <i />
-              <strong>{item.name}</strong>
-              <small>{item.key}</small>
-            </button>
-          ))}
-        </div>
-        {toolNotice && <div className="ov-tool-notice">{toolNotice}</div>}
-        <p className="ov-panel-note">
-          {videoClips.length < 2
-            ? "当前只有一段视频。先移动播放头并切分，或添加第二段视频素材。"
-            : "选择接缝后的片段并应用，转场会连接前后两段视频。"}
-        </p>
-      </>
-    )
-    : (
-      <>
-        <PanelHeading title="视觉特效" count={effects.length} />
-        <div className="ov-preset-list">
-          {effects.map((item) => (
-            <button
-              key={item.key}
-              onClick={() => addEffect(item.key)}
-            >
-              <i className="effect-swatch" />
-              <strong>{item.name}</strong>
-              <small>{item.key}</small>
-            </button>
-          ))}
-        </div>
-        {toolNotice && <div className="ov-tool-notice">{toolNotice}</div>}
-        <p className="ov-panel-note">特效从当前播放头开始，应用后可直接在画布预览。</p>
-      </>
-    );
-
   return createPortal(
     <section
       className="ov-editor"
@@ -1527,98 +1347,60 @@ export function VideoEditorWorkspace(
       aria-modal="true"
       aria-label="视频编辑器"
     >
-      <header className="ov-topbar">
-        <div className="ov-brand">
-          <span>
-            <IconSymbol name="film" />
-          </span>
-          <div>
-            <strong>{title}</strong>
-            <small>{project.tracks.length} 条轨道 · 自动保存</small>
-          </div>
-        </div>
-        <div className="ov-history">
-          <button title="撤销" aria-label="撤销" disabled={!history.length} onClick={undo}>
-            <IconSymbol name="undo" />
-          </button>
-          <button title="重做" aria-label="重做" disabled={!future.length} onClick={redo}>
-            <IconSymbol name="redo" />
-          </button>
-          <button title="重置画布视图" aria-label="重置画布视图" onClick={() => runtimeRef.current?.resetView()}>
-            <IconSymbol name="maximize" />
-          </button>
-        </div>
-        <div className="ov-actions">
-          {exportError && <span>{exportError}</span>}
-          <button disabled={exporting} onClick={controller.close}>关闭</button>
-          <button
-            className="primary"
-            disabled={exporting || !duration}
-            onClick={() => void exportProject()}
-          >
-            <IconSymbol name="download" />
-            {exporting ? "正在导出…" : "导出成片"}
-          </button>
-        </div>
-      </header>
-      {importBrowser && (
-        <div
-          className="ov-import-browser-backdrop"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) setImportBrowser(null);
-          }}
-        >
-          <section className="ov-import-browser">
-            <header>
-              <div>
-                <strong>从{importBrowser.title}导入</strong>
-                <span>选择一个素材添加到当前剪辑工程</span>
-              </div>
-              <button onClick={() => setImportBrowser(null)}>关闭</button>
-            </header>
-            {importBrowser.loading ? (
-              <div className="ov-import-browser-empty">正在读取素材…</div>
-            ) : importBrowser.items.length ? (
-              <div className="ov-import-browser-grid">
-                {importBrowser.items.map((asset) => (
-                  <button
-                    key={asset.id}
-                    onClick={() => {
-                      addAsset(asset);
-                      setImportBrowser(null);
-                    }}
-                  >
-                    <IconSymbol name={asset.type === "video" ? "film" : asset.type === "image" ? "image" : "waveform"} />
-                    <span>
-                      <strong>{asset.name}</strong>
-                      <small>{asset.type.toUpperCase()}{asset.duration ? ` · ${formatTime(asset.duration)}` : ""}</small>
-                    </span>
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <div className="ov-import-browser-empty">这里还没有可导入的素材</div>
-            )}
-          </section>
-        </div>
-      )}
+      <VideoEditorTopBar
+        title={title}
+        trackCount={project.tracks.length}
+        canUndo={history.length > 0}
+        canRedo={future.length > 0}
+        exporting={exporting}
+        exportDisabled={!duration}
+        exportError={exportError}
+        onUndo={undo}
+        onRedo={redo}
+        onResetView={() => runtimeRef.current?.resetView()}
+        onClose={controller.close}
+        onExport={() => void exportProject()}
+      />
+      <VideoEditorImportBrowser
+        browser={importBrowser}
+        onClose={() => setImportBrowser(null)}
+        onImport={(asset) => {
+          addAsset(asset);
+          setImportBrowser(null);
+        }}
+      />
       <main className="ov-stage">
-        <nav className="ov-toolrail">
-          {tools.map((tool) => (
-            <button
-              key={tool.id}
-              className={activeTool === tool.id ? "active" : ""}
-              onClick={() => {
-                setActiveTool(tool.id);
-                setToolNotice("");
-              }}
-            >
-              <IconSymbol name={tool.icon} />
-              <span>{tool.label}</span>
-            </button>
-          ))}
-        </nav>
-        <aside className="ov-library">{toolPanel}</aside>
+        <VideoEditorToolRail
+          activeTool={activeTool}
+          onSelect={(toolId) => {
+            setActiveTool(toolId);
+            setToolNotice("");
+          }}
+        />
+        <aside className="ov-library">
+          <VideoEditorToolPanel
+            activeTool={activeTool}
+            allAssets={allAssets}
+            stickerAssets={stickerAssets}
+            importMenu={importMenu}
+            textNotice={textNotice}
+            toolNotice={toolNotice}
+            videoClipCount={videoClips.length}
+            primaryVideoAssetId={primaryVideoAssetId}
+            sourceThumbnail={sourceThumbnail}
+            playbackUrl={playbackUrl}
+            runtimeMediaUrls={runtimeMediaUrls}
+            onToggleImportMenu={(kind) => setImportMenu(importMenu ? "" : kind)}
+            onImport={(source) => void importFrom(source)}
+            onActivateAsset={activateAsset}
+            onDeleteAsset={deleteAsset}
+            onCaptureThumbnail={captureSourceThumbnail}
+            onAddText={addText}
+            onAddAsset={addAsset}
+            onAddTransition={addTransition}
+            onAddEffect={addEffect}
+          />
+        </aside>
         <section className="ov-program">
           <div className="ov-monitor-head">
             <span>画面预览</span>
@@ -1904,192 +1686,47 @@ export function VideoEditorWorkspace(
           onCanvasAction={(action) => void runCanvasAction(action)}
         />
       </main>
-      <footer className="ov-timeline">
-        <div className="ov-timeline-toolbar">
-          <div className="ov-edit-buttons">
-            <button title="切分片段" aria-label="切分片段" onClick={splitSelected}>
-              <IconSymbol name="scissors" />切分
-            </button>
-            <button title="复制片段" aria-label="复制片段" onClick={duplicateSelected}>
-              <IconSymbol name="copy" />复制
-            </button>
-            <button title="删除片段" aria-label="删除片段" onClick={deleteSelected}>
-              <IconSymbol name="trash" />删除
-            </button>
-          </div>
-          <div className="ov-sequence-title">
-            <strong>主场景</strong>
-            <span>主时间线</span>
-            <em>{formatTime(duration)}</em>
-          </div>
-          <label>
-            缩放<input
-              value={Math.log(zoom / 24) / Math.log(
-                Math.max(180, project.settings.fps * 88) / 24,
-              ) * 1000}
-              type="range"
-              min="0"
-              max="1000"
-              step="1"
-              onChange={(event) => {
-                zoomTouchedRef.current = true;
-                const maximum = Math.max(180, project.settings.fps * 88);
-                const ratio = Number(event.target.value) / 1000;
-                setZoom(24 * Math.pow(maximum / 24, ratio));
-              }}
-            />
-            <output>{Math.round(zoom)}px/s</output>
-          </label>
-        </div>
-        <div
-          ref={timelineRef}
-          className="ov-timeline-scroll"
-          onScroll={(event) => setTimelineViewport({
-            left: event.currentTarget.scrollLeft,
-            width: event.currentTarget.clientWidth,
-          })}
-        >
-          <div
-            className="ov-timeline-content"
-            style={{ width: Math.max(1100, 112 + duration * zoom + 24) }}
-            onPointerDown={(event) => {
-              if (
-                (event.target as Element).closest(".ov-clip,.ov-track-head")
-              ) return;
-              const rect = event.currentTarget.getBoundingClientRect();
-              const value = Math.max(
-                0,
-                Math.min(duration, (event.clientX - rect.left - 112) / zoom),
-              );
-              setTime(value);
-              seekPreview(value);
-            }}
-          >
-            <Ruler duration={duration} zoom={zoom} />
-            {visibleTracks.map((track: any) => (
-              <div
-                className={`ov-track type-${track.type}${
-                  track.hidden ? " hidden" : ""
-                }`}
-                key={track.id}
-              >
-                <div className="ov-track-head">
-                  <b>{trackMeta[track.type]?.code || "?"}</b>
-                  <span>{track.name}</span>
-                  <button
-                    className={track.muted ? "active" : ""}
-                    onClick={() =>
-                      commit(
-                        updateEditorTrack(projectRef.current, track.id, {
-                          muted: !track.muted,
-                        }),
-                      )}
-                  >
-                    M
-                  </button>
-                  <button
-                    className={track.locked ? "active" : ""}
-                    onClick={() =>
-                      commit(
-                        updateEditorTrack(projectRef.current, track.id, {
-                          locked: !track.locked,
-                        }),
-                      )}
-                  >
-                    <IconSymbol name="lock" />
-                  </button>
-                </div>
-                <div className="ov-track-lane">
-                  {track.clips.map((clip: any) => {
-                    const clipAsset = allAssets.find((asset) =>
-                      asset.id === clip.assetId
-                    );
-                    const mediaUrl = clip.src || clipAsset?.sourceUrl;
-                    const hasMedia = Boolean(
-                      mediaUrl && ["video", "image"].includes(clip.type),
-                    );
-                    const hasThumbnail = hasMedia;
-                    return (
-                    <button
-                      key={clip.id}
-                      className={`ov-clip clip-${clip.type}${
-                        clip.id === selectedId ? " selected" : ""
-                      }${hasMedia ? " has-media" : ""}${
-                        hasThumbnail ? " has-thumbnail" : ""
-                      }`}
-                      style={{
-                        left: clip.timelineStart * zoom,
-                        width: Math.max(12, editorClipDuration(clip) * zoom),
-                      }}
-                      onPointerDown={(event) => {
-                        event.stopPropagation();
-                        setSelectedId(clip.id);
-                        const clipEnd = clip.timelineStart + editorClipDuration(clip);
-                        if (time <= clip.timelineStart || time >= clipEnd) {
-                          seekPreview(clipFocusTime(clip));
-                        }
-                        dragRef.current = {
-                          id: clip.id,
-                          startX: event.clientX,
-                          timelineStart: clip.timelineStart,
-                        };
-                      }}
-                      onDoubleClick={() => {
-                        seekPreview(clipFocusTime(clip));
-                      }}
-                    >
-                      {hasMedia && (
-                        <span
-                          className="ov-clip-media"
-                          aria-hidden="true"
-                        >
-                          {clip.type === "image" && <img src={mediaUrl} />}
-                          {clip.type === "video" && (
-                            <VideoFilmstripThumbnail
-                              src={(clipAsset?.id ? runtimeMediaUrls[clipAsset.id] : "") ||
-                                (clipAsset?.id === primaryVideoAssetId
-                                  ? playbackUrl
-                                  : mediaUrl)}
-                              start={Math.max(0, Number(clip.trimStart) || 0)}
-                              end={Math.max(0, Number(clip.trimEnd) || 0)}
-                              displayWidth={Math.max(12, editorClipDuration(clip) * zoom)}
-                              clipLeft={clip.timelineStart * zoom}
-                              viewportLeft={Math.max(0, timelineViewport.left - 112)}
-                              viewportWidth={Math.max(0, timelineViewport.width - 112)}
-                              zoom={zoom}
-                              fps={project.settings.fps}
-                              speed={Number(clip.speed) || 1}
-                              fallback={clipAsset?.id === primaryVideoAssetId
-                                ? sourceThumbnail
-                                : ""}
-                            />
-                          )}
-                        </span>
-                      )}
-                      <i>
-                        {clip.type === "text"
-                          ? clip.text
-                          : clip.type === "transition"
-                          ? clip.transitionKey
-                          : clip.type === "effect"
-                          ? clip.effectKey
-                          : clip.type === "image"
-                          ? "贴图"
-                          : clipAsset?.name || clip.type}
-                      </i>
-                      <small>{formatTime(editorClipDuration(clip))}</small>
-                    </button>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-            <div className="ov-playhead" style={{ left: 112 + time * zoom }}>
-              <i />
-            </div>
-          </div>
-        </div>
-      </footer>
+      <VideoEditorTimeline
+        timelineRef={timelineRef}
+        duration={duration}
+        zoom={zoom}
+        fps={project.settings.fps}
+        time={time}
+        tracks={visibleTracks}
+        assets={allAssets}
+        selectedId={selectedId}
+        viewport={timelineViewport}
+        runtimeMediaUrls={runtimeMediaUrls}
+        primaryVideoAssetId={primaryVideoAssetId}
+        playbackUrl={playbackUrl}
+        sourceThumbnail={sourceThumbnail}
+        onSplit={splitSelected}
+        onDuplicate={duplicateSelected}
+        onDelete={deleteSelected}
+        onZoomChange={(nextZoom) => {
+          zoomTouchedRef.current = true;
+          setZoom(nextZoom);
+        }}
+        onViewportChange={setTimelineViewport}
+        onSeek={(nextTime) => {
+          setTime(nextTime);
+          seekPreview(nextTime);
+        }}
+        onToggleTrack={(trackId, field, value) => {
+          commit(updateEditorTrack(projectRef.current, trackId, { [field]: value }));
+        }}
+        onClipPointerDown={(event, clip) => {
+          event.stopPropagation();
+          setSelectedId(clip.id);
+          const clipEnd = clip.timelineStart + editorClipDuration(clip);
+          if (time <= clip.timelineStart || time >= clipEnd) seekPreview(clipFocusTime(clip));
+          dragRef.current = {
+            id: clip.id,
+            startX: event.clientX,
+            timelineStart: clip.timelineStart,
+          };
+        }}
+      />
     </section>,
     document.body,
   );
