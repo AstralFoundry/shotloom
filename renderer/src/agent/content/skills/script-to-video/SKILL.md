@@ -10,9 +10,17 @@ contracts:
 
 这个 Skill 只处理已经存在的剧本，不把一句创意、故事梗概或小说章节假装成完整剧本。首先检查本轮附件、用户明确引用的画布文本节点和素材库事实；若没有可读取的剧本正文，调用 `request_clarification` 请用户上传 PDF、图片或文本剧本，或指定已有文本节点。不要因为内部字段缺失重复询问已经明确的信息。
 
-读取剧本后先用一句话忠实概括故事，不改写台词、动作结果、场景顺序和结局。图片或扫描 PDF 中无法可靠识别的内容应指出具体缺页或模糊位置，不得补写。用户已提供的角色、场景、道具、音色、图片、视频和音频必须优先复用：先用 `get_canvas` 核验真实资产，需要放回画布时通过 `mutate_canvas` 的 `place_asset_on_canvas` 动作创建真实素材节点，再以真实输入边连接下游；已上传且可直接绑定的元素不编写生成 Prompt Draft，也不重新生成。
+读取剧本后先用一句话忠实概括故事，不改写台词、动作结果、场景顺序和结局。图片或扫描 PDF 中无法可靠识别的内容应指出具体缺页或模糊位置，不得补写。用户已提供的角色、场景、道具、音色、图片、视频和音频必须优先复用：先用 `canvas_list_nodes` 核验真实资产，需要放回画布时通过 `canvas_create_node` 的 `place_asset_on_canvas` 类型创建真实素材节点，再用 `canvas_connect_nodes` 建立真实输入边；已上传且可直接绑定的元素不编写生成 Prompt Draft，也不重新生成。
 
 这是多阶段协作制作，使用 Production Plan 保存阶段、工作项和真实 `runtimeRefs`。每次只推进到下一个审阅点；用户确认当前产物后再继续，不在一轮中跨过多个确认点。确认是对成片规格、故事板或具体 Prompt Draft 的内容审阅，不替代“允许 Agent 运行节点”的权限设置，也不能绕过真实生成权限。
+
+## 画布执行协议
+
+- 进入一个阶段时先用 `canvas_list_nodes` 的 `timeline` 或 `summary` 掌握相关节点；已知剧本、规格、故事板、元素或镜头节点后改用 `canvas_get_node` 局部读取。只有需要从素材库取回资产时才使用 `full`。
+- 每个 Note 或生成节点分别通过 `canvas_create_node` 创建；后续直接使用成功回执里的真实 `nodeIds`。配置修订使用 `canvas_update_node`，输入依赖使用 `canvas_connect_nodes`，并显式填写当前模型契约要求的 `role`、`slot` 和节点 `inputMode`。
+- 先由本 Skill 根据剧本确定阶段、`element_id`、`shot_id`、依赖和故事顺序，再调用 `canvas_layout_nodes` 整理明确的节点集合。布局工具不会从标题、节点类型或文案猜测故事结构，不能用无输入语义的连线表达先后顺序。
+- `plan_canvas` 到真实节点与输入边就停止。`plan_and_execute` 只用 `canvas_start_generation` 启动当前依赖已经满足的节点，保存每次 task 回执，再用 `inspect_tasks` 核验终态；不得把已提交、运行中或布局完成当成媒体完成。
+- 任一写入发生 revision 冲突时重新读取相关节点，只修复尚未成功的动作；已经返回成功 `nodeIds`、`edgeIds` 或 `taskIds` 的操作不得整批重放。
 
 ## 原生阶段
 

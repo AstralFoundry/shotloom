@@ -10,8 +10,8 @@ export type ActionHandler = (
   context: ActionHandlerContext,
 ) => AgentActionResult | null | Promise<AgentActionResult | null>;
 
-// mutate_canvas 是模型可见的统一入口；这里是第二级分发表，把细粒度
-// Action 路由到画布、生成配置或任务生命周期处理器。
+// 所有细粒度画布工具最终都在这里把 Action 路由到画布、生成配置或任务处理器，
+// 保证不同模型工具入口不会产生两套持久化结构。
 const actionHandlers = new Map<string, ActionHandler>();
 
 export function registerAction(type: string, handler: ActionHandler): void {

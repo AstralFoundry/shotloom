@@ -160,7 +160,13 @@ function agentProfiles() {
   };
   const canvasReadonlyTools = {
     ...primaryOnlyTools,
-    shotloom_mutate_canvas: false,
+    shotloom_canvas_create_node: false,
+    shotloom_canvas_update_node: false,
+    shotloom_canvas_connect_nodes: false,
+    shotloom_canvas_layout_nodes: false,
+    shotloom_canvas_delete_node: false,
+    shotloom_canvas_update_edge: false,
+    shotloom_canvas_start_generation: false,
     shotloom_undo_canvas: false,
     shotloom_redo_canvas: false,
   };

@@ -1,7 +1,7 @@
 {
   "id": "script-to-video",
   "category": "video",
-  "version": 1,
+  "version": 2,
   "triggers": {
     "keywords": [
       "剧本生视频",

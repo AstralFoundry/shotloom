@@ -85,7 +85,7 @@ const tools = new Map<string, AgentToolDefinition>();
 
 /**
  * 工具 ID 约定：
- * - 普通工具：`^[a-z][a-z0-9_]*$`（例如 `get_canvas`）
+ * - 普通工具：`^[a-z][a-z0-9_]*$`（例如 `canvas_list_nodes`）
  * - 命名空间工具：命名空间和工具名都使用小写 snake_case，中间以 `__` 分隔
  *
  * `__` 是分隔符；左侧是 Skill 命名空间，右侧是基础工具名。

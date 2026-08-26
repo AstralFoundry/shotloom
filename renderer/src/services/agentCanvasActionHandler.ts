@@ -12,7 +12,7 @@ type CanvasAction = AgentAction & Record<string, any>;
 type CanvasActionContext = Record<string, any>;
 
 const CANVAS_ACTIONS = new Set([
-  'create_note_node', 'connect_nodes', 'delete_node', 'delete_edge', 'move_node', 'toggle_edge',
+  'create_note_node', 'update_note_node', 'connect_nodes', 'delete_node', 'delete_edge', 'move_node', 'toggle_edge',
 ]);
 
 export function handleAgentCanvasAction(
@@ -54,6 +54,20 @@ export function handleAgentCanvasAction(
     project.nodes.push(node);
     if (action.tempId) tempIdMap.set(action.tempId, node.id);
     return { applied: true, createdNodeId: node.id, nodeId: node.id };
+  }
+
+  if (type === 'update_note_node') {
+    const node = resolveNode(action.nodeId);
+    if (!node) return { applied: false, error: '找不到要更新的 Note 节点' };
+    if (node.type !== 'note') return { applied: false, error: 'update_note_node 只能更新 Note 节点' };
+    if (action.title !== undefined) node.title = String(action.title).trim();
+    if (action.content !== undefined) {
+      const content = String(action.content).trim();
+      if (!content) return { applied: false, error: 'Note 正文不能为空' };
+      node.content = content;
+      node.textContent = content;
+    }
+    return { applied: true, nodeId: node.id };
   }
 
   if (type === 'connect_nodes') {

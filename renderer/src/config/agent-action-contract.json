@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "inputRoles": {
     "textContext": "文本或便签为目标生成节点提供语义上下文",
     "referenceImage": "图片作为参考图，目标模型必须支持参考图输入",
@@ -19,17 +19,17 @@
     "nodeId": {
       "type": "string",
       "minLength": 1,
-      "description": "现有节点 ID、get_canvas 返回的 N-xx 别名，或本批次 tempId"
+      "description": "现有节点 ID、canvas_list_nodes 返回的 N-xx 别名，或本次创建回执中的 tempId"
     },
     "assetId": {
       "type": "string",
       "minLength": 1,
-      "description": "get_canvas full 视图中素材库条目的真实 asset ID"
+      "description": "canvas_list_nodes full 视图中素材库条目的真实 asset ID"
     },
     "materialId": {
       "type": "string",
       "minLength": 1,
-      "description": "get_canvas full 视图中素材文件的真实 material ID"
+      "description": "canvas_list_nodes full 视图中素材文件的真实 material ID"
     },
     "assetName": {
       "type": "string",
@@ -64,6 +64,11 @@
       "type": "string",
       "enum": ["reference", "firstFrame", "firstLastFrame", "videoExtension"],
       "description": "素材输入的业务模式；必须来自 inspect_model_catalog 对当前模型返回的 inputModes"
+    },
+    "role": {
+      "type": "string",
+      "enum": ["textContext", "referenceImage", "inputVideo", "referenceAudio"],
+      "description": "输入边的媒体类型；必须与真实上游节点输出一致"
     },
     "slot": {
       "type": "string",
@@ -107,6 +112,9 @@
           },
           "required": {
             "type": "boolean"
+          },
+          "role": {
+            "$ref": "#/commonProperties/role"
           },
           "slot": {
             "$ref": "#/commonProperties/slot"
@@ -259,6 +267,23 @@
         "nodeId"
       ]
     },
+    "update_note_node": {
+      "category": "canvas",
+      "modelVisible": true,
+      "description": "更新一个已有 Note 的标题或正文。只提交需要变化的字段，不创建重复 Note。",
+      "fields": [
+        "nodeId",
+        "title",
+        "content"
+      ],
+      "required": [
+        "nodeId"
+      ],
+      "anyOfRequired": [
+        ["title"],
+        ["content"]
+      ]
+    },
     "start_generation": {
       "category": "task",
       "modelVisible": true,
@@ -274,10 +299,11 @@
     "connect_nodes": {
       "category": "canvas",
       "modelVisible": true,
-      "description": "连接两个现有节点。普通连线始终把上游结果作为下游真实输入，输入类型由上游节点自动推断；source/target 必须来自 get_canvas 或本批次 tempId。",
+      "description": "连接两个现有节点。普通连线始终把上游结果作为下游真实输入，输入类型由上游节点自动推断；source/target 必须来自画布读取或节点创建工具的真实回执。",
       "fields": [
         "source",
         "target",
+        "role",
         "slot",
         "required"
       ],
@@ -319,7 +345,7 @@
     "move_node": {
       "category": "canvas",
       "modelVisible": true,
-      "description": "移动单个节点。提供 position 或 x/y；批量整理使用 mutate_canvas 的 autoLayout。",
+      "description": "移动单个节点。提供 position 或 x/y；批量整理使用 canvas_layout_nodes。",
       "fields": [
         "nodeId",
         "position",

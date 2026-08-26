@@ -64,6 +64,7 @@ function inferActionType(action: AgentAction): string {
   if (String(action.type || '').trim()) return String(action.type).trim();
   if (action.source && action.target) return 'connect_nodes';
   if (action.nodeId && (action.position || action.x != null || action.y != null)) return 'move_node';
+  if (action.nodeId && action.content != null) return 'update_note_node';
   if (action.nodeId && (action.prompt != null || action.model != null || action.config != null || action.outputSpec != null)) return 'update_gen_config';
   if (action.nodeType || action.prompt != null || action.model != null) return 'create_gen_node';
   if (action.content != null && !action.nodeId) return 'create_note_node';
@@ -77,7 +78,15 @@ function normalizeInputLinks(value: unknown): AgentAction['inputLinks'] {
     if (!item || typeof item !== 'object' || Array.isArray(item)) return [];
     const link = item as JsonObject;
     const nodeId = String(link.nodeId || link.id || '').trim();
-    return nodeId ? [{ nodeId, ...(link.required === false ? { required: false } : {}) }] : [];
+    if (!nodeId) return [];
+    const role = String(link.role || '').trim();
+    const slot = String(link.slot || '').trim();
+    return [{
+      nodeId,
+      ...(role ? { role: role as AgentAction['role'] } : {}),
+      ...(slot ? { slot: slot as AgentAction['slot'] } : {}),
+      ...(link.required === false ? { required: false } : {}),
+    }];
   });
 }
 

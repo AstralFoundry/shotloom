@@ -126,9 +126,9 @@ test('内置目录差异忽略启停和运行时字段', () => {
   assert.deepEqual(changedBuiltInFields({ ...original, instructions: 'Edited' }, [original]), ['instructions']);
 });
 
-test('video-production v9 从来源成熟度动态推进并采用合规的人脸策略', () => {
+test('video-production v10 从来源成熟度动态推进并采用合规的人脸策略', () => {
   const { manifest, body } = parseSkill('video-production');
-  assert.equal(manifest.version, 9);
+  assert.equal(manifest.version, 10);
   for (const recipeId of [
     'narrative-source-analysis', 'screenplay-adaptation',
     'video-character-design', 'video-character-turnaround', 'video-storyboard-grid',
@@ -159,11 +159,13 @@ test('video-production v9 从来源成熟度动态推进并采用合规的人脸
   assert.match(body, /默认不做十二格/);
   assert.doesNotMatch(body, /apply_colored_pencil/);
   assert.match(body, /内部适配由运行时自动完成/);
+  assert.match(body, /canvas_layout_nodes/);
+  assert.match(body, /canvas_start_generation/);
 });
 
-test('short-drama v7 支持小说改编并从当前内容成熟度继续', () => {
+test('short-drama v8 支持小说改编并从当前内容成熟度继续', () => {
   const { manifest, body } = parseSkill('short-drama');
-  assert.equal(manifest.version, 7);
+  assert.equal(manifest.version, 8);
   assert.ok(manifest.recipeIds.includes('narrative-source-analysis'));
   assert.ok(manifest.recipeIds.includes('screenplay-adaptation'));
   assert.ok(manifest.triggers.keywords.includes('小说改编'));
@@ -174,9 +176,9 @@ test('short-drama v7 支持小说改编并从当前内容成熟度继续', () =>
   assert.match(body, /不固定为一张|不要规定固定参考数量/);
 });
 
-test('script-to-video v1 使用两轮 Prompt Draft 确认和 Shotloom 原生生成契约', () => {
+test('script-to-video v2 使用两轮 Prompt Draft 确认和细粒度画布工具契约', () => {
   const { manifest, body } = parseSkill('script-to-video');
-  assert.equal(manifest.version, 1);
+  assert.equal(manifest.version, 2);
   for (const recipeId of [
     'script-element-reference', 'script-seedance-shot',
     'drama-shot-planning', 'video-audio-production-sheet',
@@ -193,16 +195,22 @@ test('script-to-video v1 使用两轮 Prompt Draft 确认和 Shotloom 原生生�
   assert.match(body, /no subtitles/);
   assert.match(body, /只有所选模式真实提供清晰度参数时才请求 2K/);
   assert.match(body, /当前 Shotloom Agent 没有可自动操作剪辑时间线的画布工具/);
+  for (const toolId of [
+    'canvas_list_nodes', 'canvas_get_node', 'canvas_create_node', 'canvas_update_node',
+    'canvas_connect_nodes', 'canvas_layout_nodes', 'canvas_start_generation', 'inspect_tasks',
+  ]) assert.match(body, new RegExp(toolId), `script-to-video 缺少 ${toolId}`);
+  assert.match(body, /布局工具不会从标题、节点类型或文案猜测故事结构/);
+  assert.match(body, /已经返回成功 `nodeIds`、`edgeIds` 或 `taskIds` 的操作不得整批重放/);
   assert.doesNotMatch(body, /resource_prepare_and_analyze|text_editor|storyboard_designer|media_generator|video_assembler|reply_to_user/);
 });
 
 test('视频类 Skill 根据镜头风险选择直接参考而不是固定一根线', () => {
   const expectedVersions = {
-    'video-production': 9,
-    'script-to-video': 1,
-    'short-drama': 7,
-    'talking-head': 3,
-    'video-ad': 3,
+    'video-production': 10,
+    'script-to-video': 2,
+    'short-drama': 8,
+    'talking-head': 4,
+    'video-ad': 4,
     'keyframe-video': 3,
   };
   for (const [id, version] of Object.entries(expectedVersions)) {

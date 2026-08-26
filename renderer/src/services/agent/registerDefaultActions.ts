@@ -8,7 +8,7 @@ let registered = false;
 const generationActions = ['create_gen_node', 'place_asset_on_canvas', 'update_gen_config'];
 const taskActions = ['start_generation'];
 const canvasActions = [
-  'create_note_node', 'connect_nodes', 'delete_node', 'delete_edge', 'move_node', 'toggle_edge',
+  'create_note_node', 'update_note_node', 'connect_nodes', 'delete_node', 'delete_edge', 'move_node', 'toggle_edge',
 ];
 export const defaultRegisteredActionTypes = [
   ...generationActions, ...taskActions, ...canvasActions,

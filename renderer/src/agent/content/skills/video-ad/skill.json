@@ -1,7 +1,7 @@
 {
   "id": "video-ad",
   "category": "marketing",
-  "version": 3,
+  "version": 4,
   "triggers": { "keywords": ["视频广告", "产品广告", "品牌片", "广告脚本", "投放素材", "宣传片", "商业视频", "产品卖点"] },
   "recipeIds": ["video-ad-creative-outline", "video-ad-brief", "video-storyboard-grid", "video-frame-extraction", "video-clip-generation", "video-audio-design"]
 }

@@ -11,7 +11,8 @@ test('Agent 节点运行能力只由用户设置和权限策略控制', () => {
   assert.match(settingsStore, /agentCanRunNodes:\s*false/);
   assert.match(runtime, /nodeExecution:\s*settingsStore\.agentCanRunNodes === true/);
   assert.match(canvasTools, /context\.capabilities\.nodeExecution/);
-  assert.match(canvasTools, /canvasActionSchemaWithoutGeneration/);
+  assert.match(canvasTools, /id: 'canvas_start_generation'[\s\S]*?effect: 'media_generation'/);
+  assert.match(canvasTools, /isAvailable: \(context\) => context\.capabilities\.nodeExecution && settingsStore\.agentCanRunNodes === true/);
   assert.match(policy, /effect === 'media_generation'[\s\S]*return 'allow'/);
   assert.doesNotMatch(canvasTools, /productionPlan\.executionMode|已通过执行计划审核|activeProductionPlanId/);
 });

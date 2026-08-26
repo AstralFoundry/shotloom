@@ -16,7 +16,7 @@ const cloneList = (items: RuntimeValue[]) => items.map((item) => ({
 function toolActivity(name: string): string {
   if (name === 'request_clarification') return '需要你的选择';
   if (name === 'inspect_runtime_capabilities') return '正在检查 Agent 能力';
-  if (name === 'get_canvas') return '正在查看画布';
+  if (name === 'canvas_list_nodes' || name === 'canvas_get_node') return '正在查看画布';
   if (name === 'inspect_model_catalog') return '正在检查可用模型';
   if (name === 'list_recipes' || name === 'load_recipe') return '正在准备处理方法';
   if (name === 'report_outcome') return '正在核对结果';
@@ -29,11 +29,19 @@ function toolSummary(name: string, inputSummary: unknown): string {
   const labels: Record<string, string> = {
     request_clarification: '询问关键信息',
     inspect_runtime_capabilities: '检查本轮运行能力',
-    get_canvas: '读取画布',
+    canvas_list_nodes: '浏览画布',
+    canvas_get_node: '读取节点',
+    canvas_focus_nodes: '聚焦节点',
     inspect_model_catalog: '检查可用模型',
     list_recipes: '查找处理策略',
     load_recipe: '加载处理策略',
-    mutate_canvas: '修改画布',
+    canvas_create_node: '创建节点',
+    canvas_update_node: '更新节点',
+    canvas_connect_nodes: '连接节点',
+    canvas_layout_nodes: '整理节点',
+    canvas_delete_node: '删除节点',
+    canvas_update_edge: '更新连线',
+    canvas_start_generation: '启动生成',
     report_outcome: '核对完成结果',
     plan_write: '创建制作计划',
     plan_get_stage_status: '查看计划状态',

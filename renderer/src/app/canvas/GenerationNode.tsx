@@ -2,7 +2,11 @@ import { memo, type ReactNode, useCallback, useContext, useLayoutEffect, useMemo
 import { createPortal } from "react-dom";
 import { type ReactFlowState, useStore } from "@xyflow/react";
 import { getGenerationInputModes, getModelInfo, getModelSchema, getTypeMeta, resolveModeIdForInputMode } from "../../domain/catalog/ModelCatalog";
-import { CanvasNodeLabelRootContext, CanvasOverlayRootContext } from "./WorkflowCanvas";
+import {
+  CanvasNodeLabelRootContext,
+  CanvasOverlayRootContext,
+  CanvasPreviewZoomContext,
+} from "./WorkflowCanvas";
 import {
   aspectRatioStyle,
   isAspectRatioParam,
@@ -174,8 +178,6 @@ function ComposerInputThumbnail({
 export const GenerationNode: WorkflowNodeRenderer = memo(({
   node,
   selected,
-  semanticZoom = 1,
-  previewZoom = semanticZoom,
   incomingInputs = [],
   actions,
 }) => {
@@ -185,6 +187,7 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({
   const [videoDuration, setVideoDuration] = useState(0);
   const [videoMuted, setVideoMuted] = useState(false);
   const labelRoot = useContext(CanvasNodeLabelRootContext);
+  const previewZoom = useContext(CanvasPreviewZoomContext);
   const promptCommit = useImeCommit<HTMLTextAreaElement>(String(node.prompt || ""), (value) =>
     actions.update(node.id, { prompt: value }),
   );
@@ -460,10 +463,7 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({
               </div>
             )}
             {activeKind === "video" && previewUrl && (
-              <div
-                className="work-video-status"
-                style={{ fontSize: `${10 * Math.min(1, semanticZoom)}px` }}
-              >
+              <div className="work-video-status">
                 <span>{formatMediaTime(videoTime)} / {formatMediaTime(videoDuration)}</span>
                 <button
                   type="button"

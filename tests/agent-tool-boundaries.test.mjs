@@ -18,11 +18,11 @@ test('统一 Policy 在节点执行关闭时拒绝媒体生成但允许画布配
 });
 
 test('结构化回执区分只读、完整写入和部分写入', () => {
-  const read = buildToolReceipt('read-1', 'get_canvas', 'read', { success: true });
+  const read = buildToolReceipt('read-1', 'canvas_list_nodes', 'read', { success: true });
   assert.equal(receiptChangesProject(read), false);
   assert.equal(receiptProvesCompletion(read), false);
 
-  const write = buildToolReceipt('write-1', 'mutate_canvas', 'canvas_write', {
+  const write = buildToolReceipt('write-1', 'canvas_create_node', 'canvas_write', {
     success: true,
     complete: true,
     appliedCount: 2,
@@ -31,8 +31,9 @@ test('结构化回执区分只读、完整写入和部分写入', () => {
   assert.equal(receiptChangesProject(write), true);
   assert.equal(receiptProvesCompletion(write), true);
   assert.deepEqual(write.nodeIds, ['node-1', 'node-2']);
+  assert.deepEqual(write.edgeIds, []);
 
-  const partial = buildToolReceipt('write-2', 'mutate_canvas', 'canvas_write', {
+  const partial = buildToolReceipt('write-2', 'canvas_update_node', 'canvas_write', {
     success: true,
     partial: true,
     appliedCount: 1,

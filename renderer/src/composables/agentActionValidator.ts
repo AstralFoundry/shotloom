@@ -63,6 +63,12 @@ export function validateAgentActionShape(value: unknown): AgentActionValidation 
     return { valid: false, error: 'create_note_node requires non-empty content' };
   }
 
+  if (action.type === 'update_note_node') {
+    if (!hasValue(action.title) && !hasValue(action.content)) {
+      return { valid: false, error: 'update_note_node requires title or non-empty content' };
+    }
+  }
+
   if (action.type === 'place_asset_on_canvas'
     && !hasValue(action.assetId) && !hasValue(action.materialId) && !hasValue(action.assetName)) {
     return { valid: false, error: 'place_asset_on_canvas requires assetId, materialId, or assetName' };

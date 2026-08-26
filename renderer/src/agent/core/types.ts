@@ -18,6 +18,7 @@ export interface AgentToolReceipt extends JsonObject {
   partial: boolean;
   skippedCount: number;
   nodeIds: string[];
+  edgeIds: string[];
   taskIds: string[];
   error: string;
 }

@@ -44,6 +44,7 @@
 .react-workflow-canvas .react-flow__node.selected { box-shadow: none; }
 .canvas-node-semantic-content {
   position: relative;
+  contain: layout style;
   -webkit-text-size-adjust: none;
   text-size-adjust: none;
 }
@@ -1529,5 +1530,4 @@ details[open] > summary .copilot-activity-chevron { transform: rotate(180deg); }
 @media (max-width: 1100px) {
   .forge-lite-main { grid-template-columns: minmax(0, 1fr) 340px; }
 }
-
 

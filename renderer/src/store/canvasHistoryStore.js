@@ -1,5 +1,9 @@
 import { computed } from '@/store/domainReactivity';
 import { store, touchProject } from '@/store/projectStore';
+import {
+  applyCanvasTransaction,
+  captureCanvasTransaction,
+} from '@/utils/canvasTransaction.mjs';
 
 // 结构性操作仍需完整快照；高频移动只记录受影响节点的坐标。
 // 限制近期记录数量，避免项目文件、启动 IPC 和 Agent 画布上下文持续膨胀。
@@ -34,6 +38,13 @@ export const canRedoCanvas = computed(
 );
 
 function restore(entry) {
+  if (entry?.kind === 'canvas-transaction') {
+    applyCanvasTransaction(store.project, entry);
+    store.selectedNodeId = entry.selectedNodeId || null;
+    store.selectedNodeIds = [...(entry.selectedNodeIds || [])];
+    touchProject();
+    return;
+  }
   if (entry?.kind === 'node-positions') {
     const positions = new Map((entry.positions || []).map((item) => [item.id, item]));
     for (const node of store.project.nodes || []) {
@@ -83,6 +94,18 @@ export function recordCanvasPositionHistory(nodeIds, label = '移动节点') {
   store.project.canvasRedoStack = [];
 }
 
+export function recordCanvasTransactionHistory(label, transaction) {
+  ensureHistory();
+  store.project.canvasHistory.unshift({
+    ...transaction,
+    kind: 'canvas-transaction',
+    label: label || '画布操作',
+    createdAt: new Date().toISOString(),
+  });
+  store.project.canvasHistory = store.project.canvasHistory.slice(0, MAX_CANVAS_HISTORY);
+  store.project.canvasRedoStack = [];
+}
+
 /**
  * 记录调用方在批量修改前捕获的画布状态。Agent 只有执行完成后才能确认
  * 是否真的发生了修改，因此用这个入口补记批次前快照，避免空撤销记录。
@@ -107,7 +130,18 @@ export function undoCanvas() {
   const previous = store.project.canvasHistory.shift();
   if (!previous) return false;
   store.project.canvasRedoStack.unshift(
-    previous.kind === 'node-positions'
+    previous.kind === 'canvas-transaction'
+      ? {
+          ...captureCanvasTransaction(
+            store.project,
+            previous.nodes.map((item) => item.id),
+            previous.edges.map((item) => item.id),
+            { selectedNodeId: store.selectedNodeId, selectedNodeIds: store.selectedNodeIds },
+          ),
+          label: '重做 Agent 画布操作',
+          createdAt: new Date().toISOString(),
+        }
+      : previous.kind === 'node-positions'
       ? nodePositionSnapshot(
           previous.positions.map((item) => item.id),
           '重做移动',
@@ -124,7 +158,18 @@ export function redoCanvas() {
   const next = store.project.canvasRedoStack.shift();
   if (!next) return false;
   store.project.canvasHistory.unshift(
-    next.kind === 'node-positions'
+    next.kind === 'canvas-transaction'
+      ? {
+          ...captureCanvasTransaction(
+            store.project,
+            next.nodes.map((item) => item.id),
+            next.edges.map((item) => item.id),
+            { selectedNodeId: store.selectedNodeId, selectedNodeIds: store.selectedNodeIds },
+          ),
+          label: '撤销 Agent 画布操作',
+          createdAt: new Date().toISOString(),
+        }
+      : next.kind === 'node-positions'
       ? nodePositionSnapshot(
           next.positions.map((item) => item.id),
           '撤销移动',

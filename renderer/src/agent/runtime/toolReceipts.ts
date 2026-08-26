@@ -22,6 +22,12 @@ export function buildToolReceipt(
     ...stringIds(value.changedNodeIds),
     ...stringIds(value.nodeIds),
   ]);
+  const edgeIds = stringIds([
+    ...stringIds(value.edgeIds),
+    ...((Array.isArray(value.actionResults) ? value.actionResults : [])
+      .flatMap((item) => item && typeof item === 'object' ? [String((item as JsonObject).edgeId || '')] : [])
+      .filter(Boolean)),
+  ]);
   const taskIds = stringIds([
     ...stringIds(value.startedTaskIds),
     ...stringIds(value.taskIds),
@@ -38,6 +44,7 @@ export function buildToolReceipt(
     partial,
     skippedCount,
     nodeIds,
+    edgeIds,
     taskIds,
     error: success ? '' : String(value.error || '工具执行失败'),
   };

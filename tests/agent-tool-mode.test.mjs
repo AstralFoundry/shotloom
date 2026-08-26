@@ -46,6 +46,30 @@ test('默认 Agent 工具以真实注册表为准并允许 Runtime 重复激活'
     new URL('../renderer/src/agent/tools/registerDefaultTools.ts', import.meta.url),
     'utf8',
   );
-  assert.match(source, /hasAgentTool\('get_canvas'\)/);
+  assert.match(source, /hasAgentTool\('canvas_list_nodes'\)/);
   assert.doesNotMatch(source, /let registered = false/);
+});
+
+test('画布能力通过细粒度工具暴露且不保留批量模型入口', () => {
+  const source = readFileSync(
+    new URL('../renderer/src/agent/tools/canvasTools.ts', import.meta.url),
+    'utf8',
+  );
+  for (const tool of [
+    'canvas_list_nodes', 'canvas_get_node', 'canvas_focus_nodes',
+    'canvas_create_node', 'canvas_update_node', 'canvas_connect_nodes',
+    'canvas_layout_nodes', 'canvas_delete_node', 'canvas_update_edge',
+    'canvas_start_generation',
+  ]) {
+    assert.match(source, new RegExp(`id: '${tool}'`));
+  }
+  assert.doesNotMatch(source, /id: 'mutate_canvas'|id: 'get_canvas'|id: 'select_canvas'/);
+  assert.match(source, /execute: executeFocusedAction/);
+  assert.match(source, /focusedActionSchema\(\['update_gen_config', 'update_note_node', 'move_node'\]\)/);
+  const actionHandler = readFileSync(
+    new URL('../renderer/src/services/agentCanvasActionHandler.ts', import.meta.url),
+    'utf8',
+  );
+  assert.match(actionHandler, /if \(type === 'update_note_node'\)/);
+  assert.match(actionHandler, /node\.content = content;\s*node\.textContent = content;/);
 });

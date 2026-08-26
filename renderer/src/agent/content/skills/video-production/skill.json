@@ -1,7 +1,7 @@
 {
   "id": "video-production",
   "category": "video",
-  "version": 9,
+  "version": 10,
   "triggers": { "keywords": ["视频制作", "小说做视频", "故事做视频", "短片", "MV", "预告片", "分镜", "镜头表", "关键帧", "成片", "视频工作流", "预告", "镜头参数", "运镜", "片名"] },
   "recipeIds": ["narrative-source-analysis", "screenplay-adaptation", "video-creative-outline", "video-storyboard-script", "video-character-design", "video-character-turnaround", "video-storyboard-grid", "video-shot-storyboard", "video-action-sequence-board", "video-frame-extraction", "video-clip-generation", "video-audio-design", "video-audio-production-sheet"]
 }

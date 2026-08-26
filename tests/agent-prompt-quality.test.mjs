@@ -22,6 +22,12 @@ test('基础 Agent 提示词包含角色、事实边界、交互、附件、工�
   assert.match(body, /区分创意概念、小说或长篇章节、故事大纲、文学剧本/);
   assert.match(body, /目标不能从输入类型机械推导/);
   assert.match(body, /不得把整部小说直接压缩成少量图片或视频提示词/);
+  assert.match(body, /canvas_list_nodes.*canvas_get_node/s);
+  assert.match(body, /canvas_create_node.*nodeIds/s);
+  assert.match(body, /canvas_layout_nodes.*不得期待布局工具从标题、节点类型或关键词猜测/s);
+  assert.match(body, /不得调用 `canvas_start_generation`/);
+  assert.match(body, /inspect_tasks.*等待上游任务达到终态/s);
+  assert.doesNotMatch(body, /不得调用 `start_generation`/);
 });
 
 test('运行时由 OpenCode 装配唯一 Agent、Skill、Contract 和子 Agent', () => {

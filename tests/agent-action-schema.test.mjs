@@ -48,13 +48,15 @@ test('模型可见 action schema 只在工具边界约束动作类型', () => {
     type: 'connect_nodes',
     source: 'N-01',
     target: 'N-02',
+    role: 'referenceImage',
+    slot: 'firstFrame',
   }));
   assert.throws(() => validateToolInput(schema, {
     type: 'connect_nodes',
     source: 'N-01',
     target: 'N-02',
     role: 'dependencyOnly',
-  }), /role is not allowed/);
+  }), /role must be one of/);
   assert.throws(() => validateToolInput(schema, {
     type: 'create_gen_node',
     nodeType: 'imageGeneration',
@@ -162,6 +164,23 @@ test('动作归一化补齐类型、临时 ID、节点类型和输入列表', ()
     type: 'create_gen_node', prompt: '夜景', tempId: 'run-1:node:1',
     inputLinks: [], nodeType: 'imageGeneration', config: {}, outputSpec: {},
   });
+  assert.deepEqual(normalizeAgentAction({
+    type: 'create_gen_node',
+    prompt: '参考首帧生成视频',
+    inputLinks: [{ nodeId: 'N-01', role: 'referenceImage', slot: 'firstFrame', required: false }],
+  }, 0, 'run-2').inputLinks, [{
+    nodeId: 'N-01', role: 'referenceImage', slot: 'firstFrame', required: false,
+  }]);
+});
+
+test('画布更新工具契约允许修改已有 Note 而不重复创建', () => {
+  const schema = buildAgentActionSchema(contract, {
+    allowedTypes: ['update_note_node'],
+  });
+  assert.doesNotThrow(() => validateToolInput(schema, {
+    type: 'update_note_node', nodeId: 'N-01', content: '修订后的 Prompt Draft',
+  }));
+  assert.equal(MODEL_AGENT_CANVAS_ACTION_TYPES.includes('update_note_node'), true);
 });
 
 test('图校验器能解析已落地助手节点的 tempId', () => {

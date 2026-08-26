@@ -8,7 +8,7 @@ test('Copilot presenter owns runtime-to-message projection', () => {
   const turn = presenter.consume({ type: 'turn_start', turn: 1, summary: '检查画布' });
   const tool = presenter.consume({
     type: 'tool_start', requestId: 'run-1', toolCallId: 'tool-1',
-    toolName: 'mutate_canvas', inputSummary: '创建两个节点',
+    toolName: 'canvas_create_node', inputSummary: '创建节点',
   });
   const pending = presenter.consume({
     type: 'interaction_requested', kind: 'tool_confirmation', requestId: 'run-1',

@@ -117,6 +117,7 @@ function clearActiveProjectSession() {
 }
 
 function projectPersistenceSnapshot() {
+  const startedAt = performance.now();
   const snapshot = JSON.parse(JSON.stringify(store.project));
   if (Array.isArray(snapshot.copilotConversations)) {
     snapshot.copilotConversations = snapshot.copilotConversations.map((conversation) => ({
@@ -126,7 +127,13 @@ function projectPersistenceSnapshot() {
         : [],
     }));
   }
-  return expandCopilotArchivesForPersistence(snapshot);
+  const result = expandCopilotArchivesForPersistence(snapshot);
+  recordPerformanceMetric('project.snapshot.build', startedAt, {
+    nodeCount: Array.isArray(result.nodes) ? result.nodes.length : 0,
+    edgeCount: Array.isArray(result.edges) ? result.edges.length : 0,
+    taskCount: Array.isArray(result.tasks) ? result.tasks.length : 0,
+  });
+  return result;
 }
 
 export function persistSession() {

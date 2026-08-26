@@ -21,7 +21,7 @@ import {
 import {
   canRedoCanvas,
   canUndoCanvas,
-  recordCanvasHistoryState,
+  recordCanvasTransactionHistory,
 } from '@/store/canvasHistoryStore';
 import { settingsStore } from '@/store/settingsStore';
 import { validateAgentActionShape } from '@/composables/agentActionValidator';
@@ -29,7 +29,12 @@ import { agentNodeAliasMaps, buildAgentCanvasSnapshot } from '@/services/agentCa
 import { registerDefaultAgentActions } from '@/services/agent/registerDefaultActions';
 import { validateAgentInputRole } from '@/services/agentInputRole';
 import { getGenerationInputModes } from '@/domain/catalog/ModelCatalog';
-import { defaultInputSlot, type GenerationInputMode, type GenerationInputSlot } from '@/domain/graph/GenerationInputContract';
+import {
+  defaultInputSlot,
+  isSlotValidForMode,
+  type GenerationInputMode,
+  type GenerationInputSlot,
+} from '@/domain/graph/GenerationInputContract';
 import {
   defaultAgentNodePosition,
   numberFromAgentAction as numberFromAction,
@@ -42,6 +47,11 @@ import {
 } from '@/services/agentProjectQueue';
 import { assertAgentProject, getAgentProjectIdentity, getAgentProjectKey } from '@/services/agentProjectIdentity';
 import { dispatchAction } from '@/services/agent/actionRegistry';
+import { recordPerformanceMetric } from '@/services/performanceMetrics';
+import {
+  captureCanvasTransaction,
+  filterChangedCanvasTransaction,
+} from '@/utils/canvasTransaction.mjs';
 import type {
   AgentAction,
   AgentActionRequest,
@@ -173,7 +183,11 @@ function connectInputLinks(
       (activeMode?.value || 'reference') as GenerationInputMode,
       role,
       occupied,
-    ));
+    )) as GenerationInputSlot;
+    if (activeMode && slot && !isSlotValidForMode(activeMode.value, slot, role)) {
+      results.push({ sourceId, targetId, applied: false, error: `槽位 ${slot} 不属于输入模式 ${activeMode.value}` });
+      continue;
+    }
     if (activeMode && role !== 'textContext') target.inputMode = activeMode.value;
     results.push({
       sourceId,
@@ -221,6 +235,7 @@ const CREATE_NODE_ACTIONS = new Set([
 
 const SINGLE_NODE_REF_KEYS: Record<string, string[]> = {
   update_gen_config: ['nodeId'],
+  update_note_node: ['nodeId'],
   start_generation: ['nodeId'],
   delete_node: ['nodeId'],
   move_node: ['nodeId'],
@@ -332,6 +347,135 @@ export function getAgentCanvasSnapshot(request: JsonObject = {}) {
   });
 }
 
+export function layoutAgentCanvasNodes(body: LooseRecord): Promise<AgentBatchResult> {
+  try {
+    assertAgentProject(body.projectKey, body.projectInstanceId, body.projectGeneration);
+  } catch (error) {
+    return Promise.resolve({
+      success: false,
+      complete: false,
+      staleProject: true,
+      error: error instanceof Error ? error.message : String(error),
+      appliedCount: 0,
+      skippedCount: 0,
+      actionResults: [],
+    });
+  }
+  return projectActionQueue.enqueue(async () => {
+    assertAgentProject(body.projectKey, body.projectInstanceId, body.projectGeneration);
+    const requested = Array.isArray(body.nodeIds) ? body.nodeIds : [];
+    const nodeIds = [...new Set(requested.flatMap((value: unknown) => {
+      const resolved = resolveNodeId(String(value || ''), new Map());
+      return resolved ? [resolved] : [];
+    }))];
+    if (!nodeIds.length && body.scope !== 'all') {
+      return {
+        success: false,
+        complete: false,
+        error: '没有可整理的真实画布节点',
+        appliedCount: 0,
+        skippedCount: requested.length,
+        actionResults: [],
+      };
+    }
+    const before = captureCanvasTransaction(
+      store.project,
+      (store.project.nodes || []).map((node: AgentNode) => node.id),
+      [],
+      { selectedNodeId: store.selectedNodeId, selectedNodeIds: store.selectedNodeIds },
+    );
+    const result = layoutAgentNodes(store.project, nodeIds, {
+      scope: body.scope,
+      mode: body.mode,
+      includeConnected: body.includeConnected,
+      avoidCollisions: body.avoidCollisions,
+      x: body.x,
+      y: body.y,
+      gapX: body.gapX,
+      gapY: body.gapY,
+    });
+    if (result.movedCount > 0) {
+      recordCanvasTransactionHistory(
+        'Agent 整理画布',
+        filterChangedCanvasTransaction(store.project, before),
+      );
+      touchProject();
+    }
+    return {
+      success: result.movedCount > 0,
+      complete: result.movedCount > 0,
+      appliedCount: result.movedCount > 0 ? 1 : 0,
+      skippedCount: 0,
+      nodeIds: result.nodeIds,
+      changedNodeIds: result.nodeIds,
+      layoutResult: result,
+      actionResults: [],
+      error: result.movedCount > 0 ? '' : '节点已经处于目标布局',
+    };
+  }) as Promise<AgentBatchResult>;
+}
+
+type CanvasTransactionJournal = {
+  nodes: Map<string, AgentNode | null>;
+  edges: Map<string, LooseRecord | null>;
+  selectedNodeId: string | null;
+  selectedNodeIds: string[];
+};
+
+function clonePlain<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
+function createTransactionJournal(): CanvasTransactionJournal {
+  return {
+    nodes: new Map(),
+    edges: new Map(),
+    selectedNodeId: store.selectedNodeId || null,
+    selectedNodeIds: [...(store.selectedNodeIds || [])],
+  };
+}
+
+function captureJournalNode(journal: CanvasTransactionJournal, nodeId: string | null) {
+  if (!nodeId || journal.nodes.has(nodeId)) return;
+  const node = (store.project.nodes || []).find((item: AgentNode) => item.id === nodeId);
+  journal.nodes.set(nodeId, node ? clonePlain(node) : null);
+}
+
+function captureJournalEdge(journal: CanvasTransactionJournal, edgeId: string | null) {
+  if (!edgeId || journal.edges.has(edgeId)) return;
+  const edge = (store.project.edges || []).find((item: LooseRecord) => item.id === edgeId);
+  journal.edges.set(edgeId, edge ? clonePlain(edge) : null);
+}
+
+function captureActionState(
+  journal: CanvasTransactionJournal,
+  action: AgentAction,
+  tempIdMap: Map<string, string>,
+) {
+  const nodeId = resolveNodeId(action.nodeId, tempIdMap);
+  const sourceId = resolveNodeId(action.source, tempIdMap);
+  const targetId = resolveNodeId(action.target, tempIdMap);
+  captureJournalNode(journal, nodeId);
+  if (action.type === 'connect_nodes') captureJournalNode(journal, targetId);
+  if (action.edgeId) captureJournalEdge(journal, String(action.edgeId));
+  for (const edge of store.project.edges || []) {
+    const matchesEndpoints = sourceId && targetId && edge.source === sourceId && edge.target === targetId;
+    const touchesDeletedNode = action.type === 'delete_node'
+      && nodeId && (edge.source === nodeId || edge.target === nodeId);
+    if (matchesEndpoints || touchesDeletedNode) captureJournalEdge(journal, edge.id);
+  }
+}
+
+function transactionFromJournal(journal: CanvasTransactionJournal) {
+  return filterChangedCanvasTransaction(store.project, {
+    kind: 'canvas-transaction',
+    nodes: [...journal.nodes].map(([id, value]) => ({ id, value })),
+    edges: [...journal.edges].map(([id, value]) => ({ id, value })),
+    selectedNodeId: journal.selectedNodeId,
+    selectedNodeIds: journal.selectedNodeIds,
+  });
+}
+
 // ── Action dispatcher ──────────────────────────────────────────────────────
 
 /**
@@ -421,6 +565,7 @@ async function executeAgentActionsNow(
   const tempIdMap = new Map<string, string>();
   const createdNodeIds: string[] = [];
   const changedNodeIds = new Set<string>();
+  const changedEdgeIds = new Set<string>();
   const startedTaskIds: string[] = [];
   const actionResults: AgentActionResult[] = [];
 
@@ -439,13 +584,8 @@ async function executeAgentActionsNow(
       actionResults: [],
     };
   }
-  const beforeNodes = JSON.parse(JSON.stringify(store.project.nodes || []));
-  const beforeEdges = JSON.parse(JSON.stringify(store.project.edges || []));
-  const beforeMaterials = JSON.parse(JSON.stringify(store.project.materials || []));
-  const beforeSelection = {
-    selectedNodeId: store.selectedNodeId || null,
-    selectedNodeIds: [...(store.selectedNodeIds || [])],
-  };
+  const transactionStartedAt = performance.now();
+  const journal = createTransactionJournal();
   let appliedCount = 0;
   let skippedCount = 0;
   // Action 逐条提交，不做整批回滚。失败项会返回给模型局部修复，成功项保留。
@@ -464,6 +604,7 @@ async function executeAgentActionsNow(
         skippedCount += 1;
         continue;
       }
+      captureActionState(journal, action, tempIdMap);
       const result = await applyAgentAction(action, tempIdMap);
       actionResults.push({
         index,
@@ -473,7 +614,13 @@ async function executeAgentActionsNow(
       if (result?.createdNodeId) {
         createdNodeIds.push(result.createdNodeId);
         changedNodeIds.add(result.createdNodeId);
+        if (!journal.nodes.has(result.createdNodeId)) journal.nodes.set(result.createdNodeId, null);
       }
+      if (result?.edgeId && !journal.edges.has(String(result.edgeId))) {
+        journal.edges.set(String(result.edgeId), null);
+      }
+      if (result?.edgeId) changedEdgeIds.add(String(result.edgeId));
+      if (action.edgeId && result?.applied) changedEdgeIds.add(String(action.edgeId));
       if (result?.nodeId) changedNodeIds.add(result.nodeId);
       if (typeof result?.taskId === 'string' && result.taskId) startedTaskIds.push(result.taskId);
       if (action?.nodeId) {
@@ -493,6 +640,9 @@ async function executeAgentActionsNow(
     || (body.autoLayout == null && settingsStore.agentAutoLayout !== false)
     || (body.autoLayout !== false && createdNodeIds.length > 1 && settingsStore.agentAutoLayout !== false);
   if (shouldAutoLayout && createdNodeIds.length > 0) {
+    if (createdNodeIds.length > 1) {
+      for (const node of store.project.nodes || []) captureJournalNode(journal, node.id);
+    }
     layoutResult = createdNodeIds.length === 1
       ? placeAgentNodesIncrementally(store.project, createdNodeIds)
       : layoutNodeIds(createdNodeIds, {
@@ -500,16 +650,25 @@ async function executeAgentActionsNow(
           scope: 'workflow',
         });
   }
+  const createdSet = new Set(createdNodeIds);
+  for (const edge of store.project.edges || []) {
+    if ((createdSet.has(edge.source) || createdSet.has(edge.target)) && !journal.edges.has(edge.id)) {
+      journal.edges.set(edge.id, null);
+    }
+  }
   if (body.selectCreated !== false && createdNodeIds.length) {
     store.selectedNodeIds = [...createdNodeIds];
     store.selectedNodeId = createdNodeIds[0];
   }
   if (appliedCount > 0) {
-    recordCanvasHistoryState(body.title || body.name || 'Agent 画布操作', {
-      nodes: beforeNodes,
-      edges: beforeEdges,
-      materials: beforeMaterials,
-      ...beforeSelection,
+    const transaction = transactionFromJournal(journal);
+    recordCanvasTransactionHistory(body.title || body.name || 'Agent 画布操作', transaction);
+    recordPerformanceMetric('agent.canvas.transaction', transactionStartedAt, {
+      actionCount: actions.length,
+      changedNodeCount: transaction.nodes.length,
+      changedEdgeCount: transaction.edges.length,
+      totalNodeCount: store.project.nodes.length,
+      totalEdgeCount: store.project.edges.length,
     });
   }
   for (const [tempId, nodeId] of tempIdMap.entries()) {
@@ -532,10 +691,6 @@ async function executeAgentActionsNow(
         startedTaskIds,
         actionResults,
         summary: canvasSummary(),
-        beforeNodes,
-        beforeEdges,
-        afterNodes: JSON.parse(JSON.stringify(store.project.nodes || [])),
-        afterEdges: JSON.parse(JSON.stringify(store.project.edges || [])),
         projectKey,
       })
     : null;
@@ -551,6 +706,7 @@ async function executeAgentActionsNow(
     tempIdById: persistedTempIds.tempIdById,
     createdNodeIds,
     changedNodeIds: [...changedNodeIds],
+    edgeIds: [...changedEdgeIds],
     startedTaskIds,
     actionResults,
     layoutResult,

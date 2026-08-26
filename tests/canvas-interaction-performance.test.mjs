@@ -265,7 +265,7 @@ test('视频画面可拖动节点且拖动期间保持播放', () => {
 });
 
 test('拖动节点时隐藏上下浮层并在松手后由 React Flow 状态恢复', () => {
-  assert.match(canvas, /function CanvasNode\(\{ data, selected, dragging \}/);
+  assert.match(canvas, /function CanvasNode\(\{ data, selected, dragging, width \}/);
   assert.match(canvas, /nodeChromeHidden \? " canvas-node-selection-toolbar--hidden"/);
   assert.match(canvas, /isVisible=\{selected\}/);
   assert.doesNotMatch(canvas, /className="canvas-node-label-anchor"[\s\S]*?visibility: nodeChromeHidden/);
@@ -309,7 +309,8 @@ test('视频节点移除原生控件并在悬停预览时播放原始声音', ()
 test('视频节点悬停时显示时长并提供声音开关', () => {
   assert.match(node, /muted=\{videoMuted\}/);
   assert.match(node, /onDurationChange=[\s\S]*?setVideoDuration[\s\S]*?onTimeUpdate=[\s\S]*?setVideoTime/);
-  assert.match(node, /className="work-video-status"[\s\S]*?10 \* Math\.min\(1, semanticZoom\)[\s\S]*?formatMediaTime\(videoTime\)[\s\S]*?formatMediaTime\(videoDuration\)/);
+  assert.match(node, /className="work-video-status"[\s\S]*?formatMediaTime\(videoTime\)[\s\S]*?formatMediaTime\(videoDuration\)/);
+  assert.doesNotMatch(node, /10 \* Math\.min\(1, semanticZoom\)/);
   assert.match(node, /className="work-video-sound nodrag nopan"[\s\S]*?nextMuted = !videoMuted[\s\S]*?volume-x[\s\S]*?volume/);
   assert.match(migrationStyles, /\.work-video-status \{[\s\S]*?backdrop-filter: blur\(9px\)[\s\S]*?opacity: 0/);
   assert.match(migrationStyles, /\.work-node:hover \.work-video-status,[\s\S]*?opacity: 1/);
@@ -353,7 +354,7 @@ test('画布缩放使用最终布局尺寸并保持 React Flow 视口为 1x', ()
   assert.match(canvas, /width: dimensions\.width \* semanticZoom/);
   assert.match(canvas, /className="canvas-node-semantic-content"[\s\S]*?zoom: semanticZoom/);
   assert.doesNotMatch(canvas, /className="canvas-node-semantic-content"[\s\S]{0,220}?transform: `scale/);
-  assert.match(styles, /\.canvas-node-semantic-content \{[^}]*-webkit-text-size-adjust:\s*none;[^}]*text-size-adjust:\s*none/);
+  assert.match(styles, /\.canvas-node-semantic-content \{[^}]*contain:\s*layout style;[^}]*-webkit-text-size-adjust:\s*none;[^}]*text-size-adjust:\s*none/);
   assert.match(canvas, /defaultViewport=\{\{ x: viewport\.x, y: viewport\.y, zoom: 1 \}\}/);
   assert.match(canvas, /minZoom=\{1\}[\s\S]*?maxZoom=\{1\}/);
   assert.match(canvas, /zoomOnScroll=\{false\}[\s\S]*?zoomOnPinch=\{false\}/);
@@ -380,7 +381,7 @@ test('低倍率画布降低连线与节点操作的信息密度', () => {
   assert.match(canvas, /strokeWidth: Math\.min\(1\.35, Math\.max\(0\.5, semanticZoom\)\)/);
   assert.match(canvas, /opacity: semanticZoom < 0\.55 \? 0\.48 : 0\.72/);
   assert.match(canvas, /canvas-zoom-compact[\s\S]*?canvas-zoom-distant[\s\S]*?canvas-zoom-overview/);
-  assert.match(canvas, /const renderedSemanticZoom = renderedNodes\[0\]\?\.data\.semanticZoom \?\? semanticZoom/);
+  assert.match(canvas, /const renderedSemanticZoom = semanticZoom/);
   assert.match(canvas, /className="canvas-node-label-anchor"[\s\S]*?top: -CANVAS_NODE_LABEL_HEIGHT \* semanticZoom,[\s\S]*?width: dimensions\.width \* semanticZoom/);
   assert.match(canvas, /CanvasNodeLabelRootContext\.Provider value=\{labelRoot\}/);
   assert.match(canvas, /Math\.round\(renderedSemanticZoom \* 100\) <= 20 \? " canvas-zoom-overview"/);
@@ -506,7 +507,10 @@ test('并发任务轮询只在状态变化时触发合并持久化', () => {
 test('图片预览在缩放稳定后升级清晰度且视频不订阅预览尺寸', () => {
   assert.match(canvas, /MEDIA_PREVIEW_ZOOM_SETTLE_MS = 220/);
   assert.match(canvas, /setTimeout\(\(\) => \{[\s\S]*?setPreviewZoom\(semanticZoom\)[\s\S]*?MEDIA_PREVIEW_ZOOM_SETTLE_MS/);
-  assert.match(canvas, /toFlowNodes\(visible, edges, semanticZoom, previewZoom, flowNodeCache\.current\)/);
+  assert.match(canvas, /toFlowNodes\(visible, edges, semanticZoom, flowNodeCache\.current\)/);
+  assert.match(canvas, /CanvasPreviewZoomContext\.Provider value=\{previewZoom\}/);
+  assert.doesNotMatch(canvas, /data: \{ node, inputRevision, incomingInputs, semanticZoom, previewZoom \}/);
+  assert.match(node, /const previewZoom = useContext\(CanvasPreviewZoomContext\)/);
   assert.match(node, /kind === "image" \? canvasPreviewMaxSize\(previewZoom\) : undefined/);
   assert.match(node, /350 \* Math\.max\(1, semanticZoom\) \* dpr[\s\S]*?return 2048[\s\S]*?return 1536[\s\S]*?return 960/);
   assert.match(mediaCache, /readImagePreview\(input\.path, input\.maxSize \|\| 960\)/);

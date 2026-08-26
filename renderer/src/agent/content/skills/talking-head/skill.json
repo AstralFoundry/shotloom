@@ -1,7 +1,7 @@
 {
   "id": "talking-head",
   "category": "video",
-  "version": 3,
+  "version": 4,
   "triggers": { "keywords": ["口播", "数字人", "主播", "带货", "产品讲解", "测评视频", "UGC", "种草口播", "Talking Head"] },
   "recipeIds": ["talking-head-creative-outline", "talking-head-scene-extraction", "talking-head-script", "talking-head-portrait-optimization", "talking-head-scene-image", "talking-head-storyboard-grid", "video-frame-extraction", "talking-head-clip-generation", "video-audio-design"]
 }

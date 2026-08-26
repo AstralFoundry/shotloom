@@ -3,6 +3,7 @@ export const MODEL_AGENT_CANVAS_ACTION_TYPES = Object.freeze([
   'create_note_node',
   'place_asset_on_canvas',
   'update_gen_config',
+  'update_note_node',
   'start_generation',
   'connect_nodes',
   'delete_node',

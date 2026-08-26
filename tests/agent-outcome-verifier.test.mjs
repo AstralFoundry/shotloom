@@ -4,7 +4,7 @@ import { verifyAgentOutcome } from '../renderer/src/agent/runtime/runtimeVerific
 
 const receipt = (patch = {}) => ({
   callId: 'call-write',
-  toolName: 'mutate_canvas',
+  toolName: 'canvas_create_node',
   effect: 'canvas_write',
   success: true,
   applied: true,
@@ -54,7 +54,7 @@ test('完成结果必须引用存在且成功的证据', () => {
 
 test('只读调用和部分成功写入都不能证明项目完整完成', () => {
   const readOnly = receipt({
-    callId: 'call-read', effect: 'read', applied: false, nodeIds: [], toolName: 'get_canvas',
+    callId: 'call-read', effect: 'read', applied: false, nodeIds: [], toolName: 'canvas_list_nodes',
   });
   const readResult = verify({
     status: 'completed', summary: '已完成', evidence: { toolCallIds: ['call-read'] },

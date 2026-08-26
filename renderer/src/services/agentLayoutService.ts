@@ -40,8 +40,6 @@ const SUPPORTED_NODE_TYPES = new Set([
   'threeDDirector',
 ]);
 
-const TERMINAL_ROLE_PATTERN = /(final|video|shot|audio|sound|music|dialogue|voiceover|subtitle|caption|title|delivery|poster|成片|镜头|音频|配音|字幕|片名|交付)/i;
-
 function stringList(value: unknown): string[] {
   return Array.isArray(value) ? value.map(String).filter(Boolean) : [];
 }
@@ -55,64 +53,8 @@ function nodeRunId(node: AgentNode): string {
   return String(node.agentPlan?.runId || '');
 }
 
-function nodeRole(node: AgentNode): string {
-  return String(node.artifactRole || node.agentPlan?.artifactRole || '').trim();
-}
-
-function segmentSortParts(value: string): Array<string | number> {
-  return value.toLowerCase().split(/(\d+)/).filter(Boolean).map((part) => /^\d+$/.test(part) ? Number(part) : part);
-}
-
-function compareSegmentIds(a: string, b: string): number {
-  const left = segmentSortParts(a);
-  const right = segmentSortParts(b);
-  for (let index = 0; index < Math.max(left.length, right.length); index += 1) {
-    if (left[index] == null) return -1;
-    if (right[index] == null) return 1;
-    if (left[index] === right[index]) continue;
-    const leftPart = left[index];
-    const rightPart = right[index];
-    if (typeof leftPart === 'number' && typeof rightPart === 'number') return leftPart - rightPart;
-    return String(left[index]).localeCompare(String(right[index]), 'zh-CN');
-  }
-  return 0;
-}
-
-function semanticBaseDepth(node: AgentNode): number {
-  const role = nodeRole(node);
-  if (TERMINAL_ROLE_PATTERN.test(role)) return 2;
-  if (node.type === 'videoGeneration' || node.type === 'audioGeneration') return 2;
-  if (node.type === 'imageGeneration' || node.type === 'board' || node.type === 'threeDDirector') return 1;
-  if (node.type === 'resource' && /video|audio/i.test(String(node.resourceType || ''))) return 2;
-  return 0;
-}
-
-function sequenceNumber(item: LayoutItem): number {
-  const text = `${nodeRole(item.node)} ${item.node.title || item.node.name || ''}`;
-  const match = text.match(/(?:^|\D)(\d{1,3})(?:\D|$)/);
-  return match ? Number(match[1]) : Number.MAX_SAFE_INTEGER;
-}
-
-function semanticItemSort(a: LayoutItem, b: LayoutItem): number {
-  const typeOrder = (node: AgentNode) => {
-    if (node.type === 'textGeneration' || node.type === 'note') return 0;
-    if (node.type === 'imageGeneration' || node.type === 'board' || node.type === 'threeDDirector') return 1;
-    if (node.type === 'videoGeneration') return 2;
-    if (node.type === 'audioGeneration') return 3;
-    return 4;
-  };
-  const leftSegments = nodeSegmentIds(a.node);
-  const rightSegments = nodeSegmentIds(b.node);
-  const leftSegment = leftSegments.length === 1 ? leftSegments[0] : '';
-  const rightSegment = rightSegments.length === 1 ? rightSegments[0] : '';
-  const segmentOrder = leftSegment && rightSegment
-    ? compareSegmentIds(leftSegment, rightSegment)
-    : leftSegment ? 1 : rightSegment ? -1 : 0;
-  return segmentOrder
-    || typeOrder(a.node) - typeOrder(b.node)
-    || sequenceNumber(a) - sequenceNumber(b)
-    || String(a.node.title || a.node.name || '').localeCompare(String(b.node.title || b.node.name || ''), 'zh-CN')
-    || a.index - b.index;
+function stableItemSort(a: LayoutItem, b: LayoutItem): number {
+  return a.index - b.index;
 }
 
 function selectLayoutNodes(project: AgentProject, requestedIds: Set<string>, scope: AgentLayoutScope): AgentNode[] {
@@ -184,7 +126,7 @@ function layoutFlat(
   rowGap: number,
   mode: Exclude<AgentLayoutMode, 'workflow'>,
 ) {
-  const ordered = [...items].sort(semanticItemSort);
+  const ordered = [...items].sort(stableItemSort);
   if (mode === 'horizontal') {
     let x = startX;
     let height = 0;
@@ -308,32 +250,16 @@ function layoutGroup(
     if (depths.has(id)) return depths.get(id) || 0;
     const item = itemByIdForGroup.get(id);
     if (!item) return 0;
-    const base = semanticBaseDepth(item.node);
     // Malformed cycles stay compact instead of expanding one column per relaxation pass.
-    if (visiting.has(id)) return base;
+    if (visiting.has(id)) return 0;
     const nextVisiting = new Set(visiting).add(id);
     const parentDepths = (parents.get(id) || []).map((parentId) => depthFor(parentId, nextVisiting));
-    const depth = parentDepths.length ? Math.max(base, Math.max(...parentDepths) + 1) : base;
+    const depth = parentDepths.length ? Math.max(...parentDepths) + 1 : 0;
     depths.set(id, depth);
     return depth;
   };
   const itemByIdForGroup = new Map(items.map((item) => [item.node.id, item]));
   items.forEach((item) => depthFor(item.node.id));
-
-  // Only multiple shots inside the same segment form a left-to-right timeline.
-  // Sequencing every video in the workflow would create dozens of mostly empty columns.
-  const videosBySegment = new Map<string, LayoutItem[]>();
-  items.filter((item) => item.node.type === 'videoGeneration').forEach((item) => {
-    const key = nodeSegmentIds(item.node)[0] || `__${item.node.id}`;
-    if (!videosBySegment.has(key)) videosBySegment.set(key, []);
-    videosBySegment.get(key)?.push(item);
-  });
-  for (const videos of videosBySegment.values()) {
-    videos.sort(semanticItemSort);
-    if (videos.length < 2) continue;
-    const firstVideoDepth = Math.max(2, ...videos.map((item) => depths.get(item.node.id) || 0));
-    videos.forEach((item, index) => depths.set(item.node.id, Math.max(depths.get(item.node.id) || 0, firstVideoDepth + index)));
-  }
 
   const columns = new Map<number, LayoutItem[]>();
   for (const item of items) {
@@ -343,7 +269,7 @@ function layoutGroup(
   }
 
   const orderedColumns = [...columns.entries()].sort(([a], [b]) => a - b);
-  orderedColumns.forEach(([, columnItems]) => columnItems.sort(semanticItemSort));
+  orderedColumns.forEach(([, columnItems]) => columnItems.sort(stableItemSort));
   const itemOrder = new Map<string, number>();
   const refreshOrder = () => orderedColumns.forEach(([, columnItems]) => {
     columnItems.forEach((item, index) => itemOrder.set(item.node.id, index));
@@ -354,27 +280,18 @@ function layoutGroup(
     if (!ranks.length) return Number.POSITIVE_INFINITY;
     return ranks.reduce((sum, rank) => sum + rank, 0) / ranks.length;
   };
-  const stableSegmentOrder = (a: LayoutItem, b: LayoutItem) => {
-    const left = nodeSegmentIds(a.node);
-    const right = nodeSegmentIds(b.node);
-    return left.length === 1 && right.length === 1 && left[0] !== right[0]
-      ? compareSegmentIds(left[0], right[0])
-      : 0;
-  };
   refreshOrder();
   // Alternating downward/upward barycentric sweeps are the small-graph version
   // of Sugiyama crossing reduction. They keep corresponding segment nodes aligned.
   for (let pass = 0; pass < 4; pass += 1) {
     for (let index = 1; index < orderedColumns.length; index += 1) {
-      orderedColumns[index][1].sort((a, b) => stableSegmentOrder(a, b)
-        || neighborRank(a, 'parents') - neighborRank(b, 'parents')
-        || semanticItemSort(a, b));
+      orderedColumns[index][1].sort((a, b) =>
+        neighborRank(a, 'parents') - neighborRank(b, 'parents') || stableItemSort(a, b));
       refreshOrder();
     }
     for (let index = orderedColumns.length - 2; index >= 0; index -= 1) {
-      orderedColumns[index][1].sort((a, b) => stableSegmentOrder(a, b)
-        || neighborRank(a, 'children') - neighborRank(b, 'children')
-        || semanticItemSort(a, b));
+      orderedColumns[index][1].sort((a, b) =>
+        neighborRank(a, 'children') - neighborRank(b, 'children') || stableItemSort(a, b));
       refreshOrder();
     }
   }

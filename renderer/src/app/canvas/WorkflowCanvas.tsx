@@ -126,8 +126,6 @@ export interface WorkflowNodeActions {
 export type WorkflowNodeRenderer = ComponentType<{
   node: WorkflowNodeData;
   selected: boolean;
-  semanticZoom?: number;
-  previewZoom?: number;
   resizing?: boolean;
   inputRevision?: string;
   incomingInputs?: WorkflowIncomingInput[];
@@ -157,6 +155,7 @@ const ActionContext = createContext<WorkflowNodeActions | null>(null);
 export const MentionContext = createContext<((nodeId: string) => void) | null>(null);
 export const CanvasOverlayRootContext = createContext<HTMLElement | null>(null);
 export const CanvasNodeLabelRootContext = createContext<HTMLElement | null>(null);
+export const CanvasPreviewZoomContext = createContext(1);
 const MIN_CANVAS_ZOOM = 0.1;
 const MAX_CANVAS_ZOOM = 3;
 const MEDIA_PREVIEW_ZOOM_SETTLE_MS = 220;
@@ -171,14 +170,11 @@ type FlowNode = Node<{
   node: WorkflowNodeData;
   inputRevision: string;
   incomingInputs: WorkflowIncomingInput[];
-  semanticZoom: number;
-  previewZoom: number;
 }>;
 type FlowNodeCacheEntry = {
   input: WorkflowNodeData;
   selected: boolean;
   semanticZoom: number;
-  previewZoom: number;
   inputRevision: string;
   output: FlowNode;
 };
@@ -205,7 +201,6 @@ function toFlowNodes(
   nodes: WorkflowNodeData[],
   edges: WorkflowEdge[] = [],
   semanticZoom = 1,
-  previewZoom = semanticZoom,
   cache?: Map<string, FlowNodeCacheEntry>,
 ): FlowNode[] {
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
@@ -235,47 +230,45 @@ function toFlowNodes(
           ].join(":");
         })
         .join("|");
-      const incomingInputs = (incomingByTarget.get(node.id) || []).flatMap((edge) => {
-        const source = nodeById.get(edge.source);
-        if (!source) return [];
-        const outputs = Array.isArray(source.generatedOutputs) ? source.generatedOutputs : [];
-        const selectedOutput =
-          outputs.find((item) => item && typeof item === "object" && item.selected) || outputs[0];
-        const uploaded =
-          source.uploadedFile && typeof source.uploadedFile === "object"
-            ? source.uploadedFile
-            : null;
-        const candidate =
-          selectedOutput && typeof selectedOutput === "object"
-            ? selectedOutput
-            : uploaded || source;
-        return [
-          {
-            ...candidate,
-            edgeId: edge.id,
-            nodeId: source.id,
-            name: String(
-              candidate.title ||
-                candidate.name ||
-                candidate.fileName ||
-                source.title ||
-                "参考素材",
-            ),
-            resourceType: candidate.resourceType || source.resourceType || "",
-            inputRole: edge.data?.inputRole || "auto",
-            inputSlot: edge.data?.inputSlot || "",
-            skipTaskInput: edge.data?.skipTaskInput === true,
-          },
-        ];
-      });
       const selected = Boolean(node.selected);
       const cached = cache?.get(node.id);
+      const data = cached && cached.input === node && cached.inputRevision === inputRevision
+        ? cached.output.data
+        : {
+            node,
+            inputRevision,
+            incomingInputs: (incomingByTarget.get(node.id) || []).flatMap((edge) => {
+              const source = nodeById.get(edge.source);
+              if (!source) return [];
+              const outputs = Array.isArray(source.generatedOutputs) ? source.generatedOutputs : [];
+              const selectedOutput = outputs.find(
+                (item) => item && typeof item === "object" && item.selected,
+              ) || outputs[0];
+              const uploaded = source.uploadedFile && typeof source.uploadedFile === "object"
+                ? source.uploadedFile
+                : null;
+              const candidate = selectedOutput && typeof selectedOutput === "object"
+                ? selectedOutput
+                : uploaded || source;
+              return [{
+                ...candidate,
+                edgeId: edge.id,
+                nodeId: source.id,
+                name: String(
+                  candidate.title || candidate.name || candidate.fileName || source.title || "参考素材",
+                ),
+                resourceType: candidate.resourceType || source.resourceType || "",
+                inputRole: edge.data?.inputRole || "auto",
+                inputSlot: edge.data?.inputSlot || "",
+                skipTaskInput: edge.data?.skipTaskInput === true,
+              }];
+            }),
+          };
       if (
         cached &&
         cached.input === node &&
         cached.selected === selected &&
         cached.semanticZoom === semanticZoom &&
-        cached.previewZoom === previewZoom &&
         cached.inputRevision === inputRevision
       ) {
         return cached.output;
@@ -293,7 +286,7 @@ function toFlowNodes(
           x: screenPixel((Number(node.x) || 0) * semanticZoom),
           y: screenPixel((Number(node.y) || 0) * semanticZoom),
         },
-        data: { node, inputRevision, incomingInputs, semanticZoom, previewZoom },
+        data,
         selected,
         // React Flow otherwise keeps the previous DOM measurement for handle
         // bounds while semantic zoom is changing. Supplying the screen-space
@@ -308,7 +301,7 @@ function toFlowNodes(
           height: screenHeight,
         },
       };
-      cache?.set(node.id, { input: node, selected, semanticZoom, previewZoom, inputRevision, output });
+      cache?.set(node.id, { input: node, selected, semanticZoom, inputRevision, output });
       return output;
     });
   if (cache && cache.size > result.length) {
@@ -332,7 +325,7 @@ function FallbackNodeInner({ node, selected }: { node: WorkflowNodeData; selecte
 }
 const FallbackNode = memo(FallbackNodeInner);
 
-function CanvasNode({ data, selected, dragging }: NodeProps<FlowNode>) {
+function CanvasNode({ data, selected, dragging, width }: NodeProps<FlowNode>) {
   const registry = useContext(RendererContext);
   const actions = useContext(ActionContext)!;
   const mentionInCopilot = useContext(MentionContext);
@@ -351,7 +344,7 @@ function CanvasNode({ data, selected, dragging }: NodeProps<FlowNode>) {
         ? { width: 135, height: 83 }
         : { width: 195, height: 135 };
   const dimensions = nodeDimensions(item);
-  const semanticZoom = data.semanticZoom;
+  const semanticZoom = Math.max(0.01, Number(width || dimensions.width) / dimensions.width);
   return (
     <>
       <CanvasNodeToolbar
@@ -419,8 +412,6 @@ function CanvasNode({ data, selected, dragging }: NodeProps<FlowNode>) {
         <Renderer
           node={item}
           selected={selected}
-          semanticZoom={semanticZoom}
-          previewZoom={data.previewZoom}
           resizing={resizing}
           inputRevision={data.inputRevision}
           incomingInputs={data.incomingInputs}
@@ -505,7 +496,7 @@ export function WorkflowCanvas({
   const flowNodeCache = useRef(new Map<string, FlowNodeCacheEntry>());
   const flowEdgeCache = useRef(new Map<string, FlowEdgeCacheEntry>());
   const [flowNodes, setFlowNodes, applyFlowNodeChanges] = useNodesState<FlowNode>(
-    toFlowNodes(nodes, edges, initialZoom, initialZoom, flowNodeCache.current),
+    toFlowNodes(nodes, edges, initialZoom, flowNodeCache.current),
   );
   const [instance, setInstance] = useState<ReactFlowInstance<
     FlowNode,
@@ -521,8 +512,8 @@ export function WorkflowCanvas({
   const menuLayer = useRef<CanvasMenuLayerHandle>(null);
   const visible = useMemo(() => nodes.filter((node) => !node.archived), [nodes]);
   const canonicalNodes = useMemo(
-    () => toFlowNodes(visible, edges, semanticZoom, previewZoom, flowNodeCache.current),
-    [edges, previewZoom, semanticZoom, visible],
+    () => toFlowNodes(visible, edges, semanticZoom, flowNodeCache.current),
+    [edges, semanticZoom, visible],
   );
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -540,7 +531,7 @@ export function WorkflowCanvas({
     });
   }, [canonicalNodes]);
   const renderedNodes = flowNodes;
-  const renderedSemanticZoom = renderedNodes[0]?.data.semanticZoom ?? semanticZoom;
+  const renderedSemanticZoom = semanticZoom;
   const ids = useMemo(() => new Set(visible.map((node) => node.id)), [visible]);
   const visibleById = useMemo(() => new Map(visible.map((node) => [node.id, node])), [visible]);
   const flowEdges = useMemo<Array<Edge<WorkflowEdgeData>>>(
@@ -780,6 +771,7 @@ export function WorkflowCanvas({
     <RendererContext.Provider value={renderers}>
       <ActionContext.Provider value={nodeActions}>
         <MentionContext.Provider value={mentionInCopilot || null}>
+        <CanvasPreviewZoomContext.Provider value={previewZoom}>
         <CanvasOverlayRootContext.Provider value={canvasOverlayRoot}>
         <section
           ref={bindCanvasRoot}
@@ -982,6 +974,7 @@ export function WorkflowCanvas({
           {overlay}
         </section>
         </CanvasOverlayRootContext.Provider>
+        </CanvasPreviewZoomContext.Provider>
         </MentionContext.Provider>
       </ActionContext.Provider>
     </RendererContext.Provider>

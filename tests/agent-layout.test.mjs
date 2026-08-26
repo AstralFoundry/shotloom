@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFileSync } from 'node:fs';
 
 import {
   canvasNodeDimensions,
@@ -18,6 +19,33 @@ function node(id, type, extra = {}) {
 function project(nodes, edges = []) {
   return { nodes, edges, tasks: [] };
 }
+
+const layoutSource = readFileSync(
+  new URL('../renderer/src/services/agentLayoutService.ts', import.meta.url),
+  'utf8',
+);
+
+test('工作流布局不从标题、角色关键词或节点类型猜测制作语义', () => {
+  assert.doesNotMatch(layoutSource, /TERMINAL_ROLE_PATTERN|sequenceNumber|semanticBaseDepth|nodeRole/);
+  const original = [
+    node('first', 'videoGeneration', { title: '最终成片 99', artifactRole: 'final' }),
+    node('second', 'textGeneration', { title: '草稿 01', artifactRole: 'draft' }),
+  ];
+  const renamed = [
+    node('first', 'videoGeneration', { title: 'draft', artifactRole: 'draft' }),
+    node('second', 'textGeneration', { title: '最终交付 100', artifactRole: 'final' }),
+  ];
+  layoutAgentNodes(project(original), original.map((item) => item.id), {
+    scope: 'all', x: 0, y: 0,
+  });
+  layoutAgentNodes(project(renamed), renamed.map((item) => item.id), {
+    scope: 'all', x: 0, y: 0,
+  });
+  assert.deepEqual(
+    original.map(({ id, x, y }) => ({ id, x, y })),
+    renamed.map(({ id, x, y }) => ({ id, x, y })),
+  );
+});
 
 test('布局和画布渲染共用唯一的节点尺寸契约', () => {
   assert.deepEqual(canvasNodeDimensions(node('text', 'textGeneration')), {

@@ -5,9 +5,6 @@ type AgentBatch = Record<string, any>;
 
 const terminalStatuses = new Set(['completed', 'failed', 'timeout', 'cancelled', 'error']);
 const MAX_AGENT_BATCHES = 12;
-const batchSnapshots = new Map<string, {
-  beforeNodes: any[]; beforeEdges: any[]; afterNodes: any[]; afterEdges: any[];
-}>();
 
 function ensureAgentBatches(project: MutableProject): AgentBatch[] {
   if (!Array.isArray(project.agentBatches)) project.agentBatches = [];
@@ -35,15 +32,8 @@ export function summarizeAgentBatch(project: MutableProject, batch: AgentBatch):
   else if (counts.total && counts.failed) status = 'failed';
   else if (counts.total && counts.cancelled === counts.total) status = 'cancelled';
   else if (counts.total && counts.terminal === counts.total) status = 'completed';
-  const {
-    beforeNodes: _beforeNodes,
-    beforeEdges: _beforeEdges,
-    afterNodes: _afterNodes,
-    afterEdges: _afterEdges,
-    ...publicBatch
-  } = batch;
   return {
-    ...publicBatch,
+    ...batch,
     status,
     taskCounts: counts,
   };
@@ -80,34 +70,7 @@ export function recordAgentBatch(project: MutableProject, payload: AgentBatch = 
     updatedAt: now,
     status: payload.status || 'applied',
   };
-  batchSnapshots.set(id, {
-    beforeNodes: payload.beforeNodes || [], beforeEdges: payload.beforeEdges || [],
-    afterNodes: payload.afterNodes || [], afterEdges: payload.afterEdges || [],
-  });
   batches.unshift(batch);
-  const removed = batches.splice(MAX_AGENT_BATCHES);
-  removed.forEach((item) => batchSnapshots.delete(String(item.id || item.batchId || '')));
+  batches.splice(MAX_AGENT_BATCHES);
   return summarizeAgentBatch(project, batch);
-}
-
-export function undoAgentBatch(project: MutableProject, batchId: string, options: { cancelTask?: (taskId: string) => unknown } = {}) {
-  const batch = ensureAgentBatches(project).find((item) => item.id === batchId || item.batchId === batchId);
-  if (!batch || batch.undoneAt) return { ok: false, error: batch ? '批次已撤销' : '批次不存在' };
-  const snapshot = batchSnapshots.get(String(batch.id || batch.batchId || ''));
-  if (!snapshot) {
-    return { ok: false, error: '批次缺少可撤销快照' };
-  }
-  const currentState = JSON.stringify({ nodes: project.nodes || [], edges: project.edges || [] });
-  const expectedState = JSON.stringify({ nodes: snapshot.afterNodes, edges: snapshot.afterEdges });
-  if (currentState !== expectedState) {
-    return { ok: false, error: '该批次之后画布已有其他修改，无法安全撤销' };
-  }
-
-  for (const taskId of batch.startedTaskIds || []) options.cancelTask?.(taskId);
-  project.nodes = JSON.parse(JSON.stringify(snapshot.beforeNodes));
-  project.edges = JSON.parse(JSON.stringify(snapshot.beforeEdges));
-  batch.status = 'undone';
-  batch.undoneAt = new Date().toISOString();
-  batch.updatedAt = batch.undoneAt;
-  return { ok: true, batch: summarizeAgentBatch(project, batch) };
 }
