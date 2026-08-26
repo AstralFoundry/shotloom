@@ -27,7 +27,6 @@ import {
 } from "../../utils/videoEditorProject.mjs";
 import { editorMediaMimeType } from "../../utils/editorMediaImport.mjs";
 import { desktopApi } from "../../services/desktopApi.js";
-import { IconSymbol } from "../components/IconSymbol";
 import "./VideoEditorWorkspace.css";
 import { constrainTransformToCanvas, hydrateSourceProject } from "./videoEditorModel";
 import type {
@@ -52,10 +51,12 @@ import {
   VideoEditorTopBar,
 } from "./VideoEditorChrome";
 import { VideoEditorTimeline } from "./VideoEditorTimeline";
+import { VideoEditorMonitor } from "./VideoEditorMonitor";
 import { VideoEditorToolPanel } from "./VideoEditorToolPanel";
-import { formatEditorTime, formatEditorTimecode } from "./videoEditorFormat";
+import { formatEditorTime } from "./videoEditorFormat";
 import { useVideoEditorMediaUrls } from "./useVideoEditorMediaUrls";
 import { useVideoEditorProjectHistory } from "./useVideoEditorProjectHistory";
+import { useVideoEditorShortcuts } from "./useVideoEditorShortcuts";
 import { useVideoEditorTimeline } from "./useVideoEditorTimeline";
 
 type EditorProject = VideoEditorProject;
@@ -1105,30 +1106,14 @@ export function VideoEditorWorkspace(
       window.removeEventListener("pointercancel", up);
     };
   }, [controller, createStudioProject, recordHistory]);
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !exporting) controller.close();
-      else if (
-        event.code === "Space" &&
-        !(event.target instanceof HTMLInputElement ||
-          event.target instanceof HTMLTextAreaElement)
-      ) {
-        event.preventDefault();
-        void togglePlayback();
-      } else if (
-        event.key.toLowerCase() === "s" && !event.metaKey && !event.ctrlKey
-      ) splitSelected();
-      else if (
-        (event.key === "Delete" || event.key === "Backspace") &&
-        !(event.target instanceof HTMLInputElement ||
-          event.target instanceof HTMLTextAreaElement)
-      ) deleteSelected();
-      else if (
-        (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z"
-      ) event.shiftKey ? redo() : undo();
-    };
-    window.addEventListener("keydown", onKey, true);
-    return () => window.removeEventListener("keydown", onKey, true);
+  useVideoEditorShortcuts({
+    exporting,
+    onClose: () => controller.close(),
+    onTogglePlayback: () => void togglePlayback(),
+    onSplit: splitSelected,
+    onDelete: deleteSelected,
+    onUndo: undo,
+    onRedo: redo,
   });
   useEffect(() => {
     const move = (event: PointerEvent) => {
@@ -1304,282 +1289,61 @@ export function VideoEditorWorkspace(
             onAddEffect={addEffect}
           />
         </aside>
-        <section className="ov-program">
-          <div className="ov-monitor-head">
-            <span>画面预览</span>
-            <em>{project.settings.width} × {project.settings.height}</em>
-            <em>{project.settings.fps} FPS</em>
-            <i
-              className={engineReady ? "online" : ""}
-              title={engineError}
-            >
-              {engineReady ? "OpenVideo 已就绪" : sourceState === "loading"
-                ? "正在载入"
-                : "兼容预览"}
-            </i>
-          </div>
-          <div
-            ref={monitorRef}
-            className="ov-monitor"
-            style={{
-              aspectRatio: `${project.settings.width} / ${project.settings.height}`,
-            }}
-          >
-            <canvas
-              ref={canvasRef}
-              className={engineReady && !preferFallbackPreview ? "active" : ""}
-            />
-            <video
-              key={usesNativeSequencePreview ? nativePreviewClip?.id || "gap" : "primary"}
-              ref={fallbackRef}
-              className={!engineReady || preferFallbackPreview ? "active" : ""}
-              src={usesNativeSequencePreview ? nativePreviewUrl : playbackUrl}
-              muted={previewAudio.muted}
-              playsInline
-              preload="auto"
-              onLoadedMetadata={(event) => {
-                const video = event.currentTarget;
-                if (!usesNativeSequencePreview || nativePreviewAsset?.id === primaryVideoAssetId) {
-                  sourceLoaded(video);
-                }
-                if (!usesNativeSequencePreview || !nativePreviewClip) return;
-                video.playbackRate = nativePreviewClip.speed;
-                const mediaTime = Math.min(
-                  nativePreviewClip.trimEnd - .001,
-                  nativePreviewClip.trimStart +
-                    Math.max(0, time - nativePreviewClip.timelineStart) * nativePreviewClip.speed,
-                );
-                if (Math.abs(video.currentTime - mediaTime) > .02) {
-                  video.currentTime = mediaTime;
-                }
-              }}
-              onLoadedData={(event) => {
-                const video = event.currentTarget;
-                if (!usesNativeSequencePreview || nativePreviewAsset?.id === primaryVideoAssetId) {
-                  captureSourceThumbnail(video);
-                  primeSourcePreview(video);
-                }
-                if (usesNativeSequencePreview && playing) {
-                  void video.play().catch(() => setPlaying(false));
-                }
-              }}
-              onSeeked={(event) => {
-                if (!sourceThumbnail) captureSourceThumbnail(event.currentTarget);
-              }}
-              onError={() => {
-                if (usesNativeSequencePreview) {
-                  setEngineError(`片段“${nativePreviewAsset?.name || "视频"}”载入失败`);
-                  setPlaying(false);
-                  return;
-                }
-                void sourceFailed();
-              }}
-              onTimeUpdate={(event) => {
-                if (!engineReady || preferFallbackPreview) {
-                  const video = event.currentTarget;
-                  if (usesNativeSequencePreview && nativePreviewClip) {
-                    const projectTime = nativePreviewClip.timelineStart +
-                      (video.currentTime - nativePreviewClip.trimStart) /
-                        nativePreviewClip.speed;
-                    const clipEnd = nativePreviewClip.timelineStart +
-                      editorClipDuration(nativePreviewClip);
-                    setTime(Math.min(clipEnd, Math.max(nativePreviewClip.timelineStart, projectTime)));
-                    if (
-                      playing &&
-                      video.currentTime >= nativePreviewClip.trimEnd -
-                        1 / project.settings.fps
-                    ) {
-                      continueNativeSequence(nativePreviewClip.id);
-                    }
-                  } else {
-                    setTime(video.currentTime);
-                  }
-                }
-              }}
-              onEnded={() => {
-                if (usesNativeSequencePreview && nativePreviewClip) {
-                  continueNativeSequence(nativePreviewClip.id);
-                } else {
-                  setPlaying(false);
-                }
-              }}
-            />
-            {activeImageClips.length > 0 && (
-              <div className="ov-image-preview-layer">
-                {activeImageClips.map((clip: any) => {
-                  const asset = allAssets.find((item) => item.id === clip.assetId);
-                  const source = clip.src || asset?.sourceUrl;
-                  if (!source) return null;
-                  const transform = constrainTransformToCanvas(
-                    clip.transform,
-                    project.settings.width,
-                    project.settings.height,
-                  );
-                  return (
-                    <div
-                      key={clip.id}
-                      className={`ov-image-preview-item${clip.id === selectedId ? " selected" : ""}`}
-                      style={{
-                        left: `${transform.x / project.settings.width * 100}%`,
-                        top: `${transform.y / project.settings.height * 100}%`,
-                        width: `${transform.width / project.settings.width * 100}%`,
-                        height: `${transform.height / project.settings.height * 100}%`,
-                        opacity: Number(transform.opacity ?? 1),
-                        transform: `rotate(${Number(transform.angle) || 0}deg)`,
-                      }}
-                      onPointerDown={(event) => beginVisualTransform(event, clip, "move")}
-                    >
-                      <img src={source} alt="" draggable={false} />
-                      {clip.id === selectedId && (
-                        <>
-                          <span
-                            className="ov-transform-rotate-handle"
-                            title="拖动旋转"
-                            onPointerDown={(event) => beginVisualTransform(event, clip, "rotate")}
-                          />
-                          <span
-                            className="ov-transform-resize-handle"
-                            title="拖动缩放"
-                            onPointerDown={(event) => beginVisualTransform(event, clip, "resize")}
-                          />
-                        </>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-            {activeTextClips.length > 0 && (
-              <div className="ov-text-preview-layer">
-                {activeTextClips.map((clip: any) => {
-                  const transform = constrainTransformToCanvas(
-                    clip.transform,
-                    project.settings.width,
-                    project.settings.height,
-                  );
-                  const style = clip.style || {};
-                  const stroke = style.stroke || {};
-                  return (
-                    <div
-                      key={clip.id}
-                      className={`ov-text-preview-item${clip.id === selectedId ? " selected" : ""}`}
-                      style={{
-                        left: `${(Number(transform.x) || 0) / project.settings.width * 100}%`,
-                        top: `${(Number(transform.y) || 0) / project.settings.height * 100}%`,
-                        width: `${(Number(transform.width) || project.settings.width) / project.settings.width * 100}%`,
-                        height: `${(Number(transform.height) || 1) / project.settings.height * 100}%`,
-                        color: style.color || "#fff",
-                        background: "transparent",
-                        fontFamily: style.fontFamily || "PingFang SC",
-                        fontSize: `clamp(12px, ${(Number(style.fontSize) || 64) / project.settings.height * 100}cqh, 96px)`,
-                        fontWeight: style.fontWeight || 700,
-                        textAlign: style.align || "center",
-                        opacity: Number(transform.opacity ?? 1),
-                        transform: `rotate(${Number(transform.angle) || 0}deg)`,
-                        WebkitTextStroke: stroke.width
-                          ? `${Math.max(1, Number(stroke.width) / project.settings.height * 100)}cqh ${stroke.color || "#111"}`
-                          : undefined,
-                      }}
-                      onPointerDown={(event) => beginVisualTransform(event, clip, "move")}
-                    >
-                      <span className="ov-text-preview-content">{clip.text}</span>
-                      {clip.id === selectedId && (
-                        <>
-                          <span
-                            className="ov-transform-rotate-handle"
-                            title="拖动旋转"
-                            onPointerDown={(event) => beginVisualTransform(event, clip, "rotate")}
-                          />
-                          <span
-                            className="ov-transform-resize-handle"
-                            title="拖动缩放文字"
-                            onPointerDown={(event) => beginVisualTransform(event, clip, "resize")}
-                          />
-                        </>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-            {sourceState === "loading" && (
-              <div className="ov-monitor-state">正在读取视频…</div>
-            )}
-            {sourceState === "error" && (
-              <div className="ov-monitor-state is-error">
-                <IconSymbol name="film" />
-                <strong>视频载入失败</strong>
-                <span>源文件可能已移动或格式不受支持</span>
-              </div>
-            )}
-            {sourceState === "empty" && (
-              <div className="ov-monitor-state">
-                <IconSymbol name="film" />
-                <strong>空白剪辑工程</strong>
-                <span>从左侧素材面板导入视频开始剪辑</span>
-              </div>
-            )}
-            <div className="ov-safe-frame" />
-            <output>
-              {formatEditorTimecode(time)} <i>/</i> {formatEditorTimecode(duration)}
-            </output>
-          </div>
-          <div className="ov-transport">
-            <button
-              title="上一帧"
-              onClick={() => {
-                if (runtimeRef.current && !preferFallbackPreview) {
-                  void runtimeRef.current.framePrev();
-                } else {
-                  seekPreview(time - 1 / project.settings.fps);
-                }
-              }}
-            >
-              ‹
-            </button>
-            <button className="play" onClick={() => void togglePlayback()}>
-              <IconSymbol name={playing ? "pause" : "play"} />
-            </button>
-            <button onClick={splitSelected}>
-              <IconSymbol name="scissors" />
-            </button>
-            <button
-              title="下一帧"
-              onClick={() => {
-                if (runtimeRef.current && !preferFallbackPreview) {
-                  void runtimeRef.current.frameNext();
-                } else {
-                  seekPreview(time + 1 / project.settings.fps);
-                }
-              }}
-            >
-              ›
-            </button>
-            <input
-              value={time}
-              type="range"
-              min="0"
-              max={Math.max(.01, duration)}
-              step=".01"
-              onChange={(event) => {
-                const value = Number(event.target.value);
-                setTime(value);
-                seekPreview(value);
-              }}
-            />
-            <span>
-              <b>{formatEditorTimecode(time)}</b>
-              <i>/</i>
-              {formatEditorTimecode(duration)}
-            </span>
-            <button
-              className="ov-fit"
-              onClick={() => runtimeRef.current?.resetView()}
-            >
-              适应 <IconSymbol name="maximize" />
-            </button>
-          </div>
-        </section>
+        <VideoEditorMonitor
+          project={project}
+          canvasRef={canvasRef}
+          monitorRef={monitorRef}
+          fallbackRef={fallbackRef}
+          engineReady={engineReady}
+          engineError={engineError}
+          sourceState={sourceState}
+          preferFallbackPreview={preferFallbackPreview}
+          usesNativeSequencePreview={usesNativeSequencePreview}
+          nativePreviewClip={nativePreviewClip}
+          nativePreviewAsset={nativePreviewAsset}
+          primaryVideoAssetId={primaryVideoAssetId}
+          nativePreviewUrl={nativePreviewUrl}
+          playbackUrl={playbackUrl}
+          previewAudio={previewAudio}
+          time={time}
+          duration={duration}
+          playing={playing}
+          sourceThumbnail={sourceThumbnail}
+          activeImageClips={activeImageClips}
+          activeTextClips={activeTextClips}
+          assets={allAssets}
+          selectedId={selectedId}
+          onSourceLoaded={sourceLoaded}
+          onCaptureThumbnail={captureSourceThumbnail}
+          onPrimeSourcePreview={primeSourcePreview}
+          onSourceFailed={() => void sourceFailed()}
+          onSetEngineError={setEngineError}
+          onSetPlaying={setPlaying}
+          onSetTime={setTime}
+          onContinueSequence={continueNativeSequence}
+          onBeginTransform={beginVisualTransform}
+          onFramePrevious={() => {
+            if (runtimeRef.current && !preferFallbackPreview) {
+              void runtimeRef.current.framePrev();
+            } else {
+              seekPreview(time - 1 / project.settings.fps);
+            }
+          }}
+          onFrameNext={() => {
+            if (runtimeRef.current && !preferFallbackPreview) {
+              void runtimeRef.current.frameNext();
+            } else {
+              seekPreview(time + 1 / project.settings.fps);
+            }
+          }}
+          onTogglePlayback={() => void togglePlayback()}
+          onSplit={splitSelected}
+          onSeek={(nextTime) => {
+            setTime(nextTime);
+            seekPreview(nextTime);
+          }}
+          onResetView={() => runtimeRef.current?.resetView()}
+        />
         <VideoEditorInspector
           selected={selected}
           project={project}

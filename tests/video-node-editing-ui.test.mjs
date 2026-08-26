@@ -8,10 +8,12 @@ const readVideoEditorUi = async () => (await Promise.all([
   'VideoEditorWorkspace.tsx',
   'VideoEditorWorkspaceParts.tsx',
   'VideoEditorChrome.tsx',
+  'VideoEditorMonitor.tsx',
   'VideoEditorToolPanel.tsx',
   'VideoEditorTimeline.tsx',
   'useVideoEditorMediaUrls.ts',
   'useVideoEditorProjectHistory.ts',
+  'useVideoEditorShortcuts.ts',
   'useVideoEditorTimeline.ts',
   'videoEditorCatalog.ts',
   'videoEditorFormat.ts',
@@ -136,7 +138,7 @@ test('独立剪辑工作区接入真实桌面导出', async () => {
   assert.match(workspace, /const usesNativeSequencePreview = directPreviewClips\.length > 1/);
   assert.match(workspace, /function continueNativeSequence\(clipId: string\)/);
   assert.match(workspace, /src=\{usesNativeSequencePreview \? nativePreviewUrl : playbackUrl\}/);
-  assert.match(workspace, /onEnded=\{\(\) => \{[\s\S]*?continueNativeSequence/);
+  assert.match(workspace, /onEnded=\{\(\) => \{[\s\S]*?onContinueSequence/);
 });
 test('剪辑工作区用真实媒体元数据补齐主轨并提供本地文件回退', async () => {
   const workspace = await readVideoEditorUi();
@@ -223,7 +225,7 @@ test('剪辑工作区主动解码首帧并提供可编辑的中文文字预设',
   assert.match(workspace, /background:\s*\{\s*color: "#000000",\s*opacity: 0/);
   assert.match(workspace, /stroke: \{ color: "#000000", width: 0 \}/);
   assert.doesNotMatch(workspace, /strokeWidth:/);
-  assert.match(workspace, /\{activeTextClips\.length > 0 && \(/);
+  assert.match(workspace, /<TextPreviewLayer[\s\S]*?clips=\{activeTextClips\}/);
   assert.match(styles, /\.ov-text-preview-item \{[^}]*background:\s*transparent !important/);
   assert.match(workspace, /<IconSymbol name="copy" \/>复制/);
   assert.match(styles, /\.ov-inspector \{[^}]*overflow-x:\s*hidden;[^}]*overflow-y:\s*auto/);
