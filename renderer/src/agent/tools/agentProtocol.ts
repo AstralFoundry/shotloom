@@ -18,6 +18,26 @@ function cloneJson<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
+function resolveCommonPropertyRefs(value: unknown, commonProperties: Record<string, JsonSchema>): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item) => resolveCommonPropertyRefs(item, commonProperties));
+  }
+  if (!value || typeof value !== 'object') return value;
+  const record = value as Record<string, unknown>;
+  const match = typeof record.$ref === 'string'
+    ? record.$ref.match(/^#\/commonProperties\/([^/]+)$/)
+    : null;
+  if (match) {
+    const referenced = commonProperties[match[1]];
+    if (!referenced) throw new Error(`Agent action schema references unknown common property: ${match[1]}`);
+    const overrides = Object.fromEntries(Object.entries(record).filter(([key]) => key !== '$ref'));
+    return resolveCommonPropertyRefs({ ...cloneJson(referenced), ...overrides }, commonProperties);
+  }
+  return Object.fromEntries(
+    Object.entries(record).map(([key, nested]) => [key, resolveCommonPropertyRefs(nested, commonProperties)]),
+  );
+}
+
 export function buildAgentActionSchema(
   contractValue: unknown,
   options: { allowedTypes?: readonly string[]; includeHidden?: boolean } = {},
@@ -36,7 +56,7 @@ export function buildAgentActionSchema(
     };
     for (const field of spec.fields || []) {
       const property = spec.properties?.[field] || commonProperties[field];
-      if (property) properties[field] = cloneJson(property);
+      if (property) properties[field] = resolveCommonPropertyRefs(property, commonProperties) as JsonSchema;
     }
     branches.push({
       type: 'object', description: spec.description, properties,

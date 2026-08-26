@@ -324,11 +324,33 @@ async function resolveSession(client: OpenCodeClient, conversationId: string, di
 }
 
 async function ensureMcpConnected(client: OpenCodeClient, directory: string) {
-  let statuses = responseData<any>(await client.mcp.status({ query: { directory } }));
-  if (statuses?.shotloom?.status === 'connected') return;
+  const readStatus = async () => {
+    const statuses = responseData<any>(await client.mcp.status({ query: { directory } }));
+    return statuses?.shotloom;
+  };
+  const waitForConnection = async () => {
+    let status = await readStatus();
+    for (let attempt = 0; attempt < 4 && status?.status === 'connecting'; attempt += 1) {
+      await new Promise((resolve) => window.setTimeout(resolve, 100));
+      status = await readStatus();
+    }
+    return status;
+  };
+
+  let status = await readStatus();
+  if (status?.status === 'connected') return;
   await client.mcp.connect({ path: { name: 'shotloom' }, query: { directory } });
-  statuses = responseData<any>(await client.mcp.status({ query: { directory } }));
-  const status = statuses?.shotloom;
+  status = await waitForConnection();
+  if (status?.status === 'connected') return;
+
+  // OpenCode 会保留一次 tools/list 失败后的 MCP client。只重建这个已失败的
+  // 本地连接，避免用户点击“重试”时继续命中同一个 failed client。
+  if (status?.status === 'failed') {
+    await client.mcp.disconnect({ path: { name: 'shotloom' }, query: { directory } })
+      .catch(() => undefined);
+    await client.mcp.connect({ path: { name: 'shotloom' }, query: { directory } });
+    status = await waitForConnection();
+  }
   if (status?.status !== 'connected') {
     throw new Error(`Shotloom 工具桥连接失败：${status?.error || status?.status || '未知状态'}`);
   }
@@ -479,6 +501,7 @@ export async function runOpenCodeAgent(
   }
   const childSessions = new Set<string>();
   const assistantMessageIds = new Set<string>();
+  const compactionPartIds = new Set<string>();
   const streamedLengths = new Map<string, number>();
   let parentSessionError = '';
   const subscriptionId = uid('opencode-events');
@@ -541,8 +564,25 @@ export async function runOpenCodeAgent(
         emit({ type: 'runtime_warning', error: parentSessionError, createdAt: new Date().toISOString() });
         return;
       }
+      if (event.type === 'session.compacted' && event.properties.sessionID === sessionId) {
+        emit({
+          type: 'context_compaction', status: 'completed', automatic: true,
+          createdAt: new Date().toISOString(),
+        });
+        return;
+      }
       if (event.type !== 'message.part.updated') return;
       const { part, delta } = event.properties;
+      if (part.sessionID === sessionId && part.type === 'compaction') {
+        if (!compactionPartIds.has(part.id)) {
+          compactionPartIds.add(part.id);
+          emit({
+            type: 'context_compaction', status: 'running', automatic: part.auto,
+            createdAt: new Date().toISOString(),
+          });
+        }
+        return;
+      }
       if (part.sessionID === sessionId && part.type === 'tool' && part.tool === 'skill') {
         const skillId = String(part.state.input?.name || '').trim();
         if (part.state.status === 'completed' && skillId && !toolContext.loadedSkillIds.has(skillId)) {

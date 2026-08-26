@@ -42,7 +42,10 @@ function advanceCanvasWriteFence(context: AgentToolContext) {
 
 function focusedActionSchema(types: string[]) {
   const schema = buildAgentActionSchema(actionContract, { allowedTypes: types });
-  return schema.oneOf?.length === 1 ? schema.oneOf[0] : schema;
+  if (schema.oneOf?.length === 1) return schema.oneOf[0];
+  // MCP tools require inputSchema itself to be an object schema. Keep the
+  // action alternatives inside that object instead of exposing a bare union.
+  return { type: 'object' as const, oneOf: schema.oneOf };
 }
 
 async function executeFocusedAction(input: JsonObject, context: AgentToolContext) {

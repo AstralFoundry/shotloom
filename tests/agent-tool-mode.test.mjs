@@ -66,6 +66,7 @@ test('画布能力通过细粒度工具暴露且不保留批量模型入口', ()
   assert.doesNotMatch(source, /id: 'mutate_canvas'|id: 'get_canvas'|id: 'select_canvas'/);
   assert.match(source, /execute: executeFocusedAction/);
   assert.match(source, /focusedActionSchema\(\['update_gen_config', 'update_note_node', 'move_node'\]\)/);
+  assert.match(source, /return \{ type: 'object' as const, oneOf: schema\.oneOf \}/);
   const actionHandler = readFileSync(
     new URL('../renderer/src/services/agentCanvasActionHandler.ts', import.meta.url),
     'utf8',

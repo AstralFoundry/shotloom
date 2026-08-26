@@ -124,8 +124,25 @@ export class CopilotRuntimePresenter {
         inputBudget: Number(event.inputBudget) || 0,
         outputReserve: Number(event.outputReserve) || 0,
         ratio: Number(event.ratio) || 0,
-        droppedHistoryCount: Number(event.droppedHistoryCount) || 0,
       } };
+    }
+    if (event.type === 'context_compaction') {
+      const id = 'context-compaction';
+      let tool = this.tools.find((item) => item.id === id);
+      if (!tool) {
+        tool = { id, name: 'context_compaction', kind: 'system' };
+        this.tools.push(tool);
+      }
+      const completed = event.status === 'completed';
+      Object.assign(tool, {
+        status: completed ? 'success' : 'running',
+        summary: completed ? '上下文已压缩，保留近期对话继续执行' : '正在压缩较早的对话与工具结果',
+      });
+      this.changed();
+      return {
+        messagePatch: this.snapshot({ title: completed ? '上下文已压缩，正在继续' : '正在整理上下文' }),
+        persist: completed,
+      };
     }
     if (event.type === 'turn_start') {
       this.turns = Math.max(this.turns + 1, Number(event.turn) || 0);

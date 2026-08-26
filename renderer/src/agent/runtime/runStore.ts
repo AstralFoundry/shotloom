@@ -126,9 +126,7 @@ function projectAgentRun(
       run.contextUsage = {
         estimatedTokens: Number(event.estimatedTokens || 0), inputLimit: Number(event.inputLimit || 0),
         inputBudget: Number(event.inputBudget || 0), outputReserve: Number(event.outputReserve || 0),
-        ratio: Number(event.ratio || 0), includedHistoryCount: Number(event.includedHistoryCount || 0),
-        droppedHistoryCount: Number(event.droppedHistoryCount || 0),
-        compactedCurrentToolGroups: Number(event.compactedCurrentToolGroups || 0),
+        ratio: Number(event.ratio || 0),
       };
       break;
     case 'tool_start': {

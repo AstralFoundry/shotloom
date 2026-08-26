@@ -77,6 +77,22 @@ test('模型可见 action schema 只在工具边界约束动作类型', () => {
   }), /type must be one of/);
 });
 
+test('动作 schema 展开 commonProperties 引用，不向 MCP 暴露悬空引用', () => {
+  const schema = buildAgentActionSchema(contract, {
+    allowedTypes: ['create_gen_node'],
+  });
+  assert.doesNotMatch(JSON.stringify(schema), /"\$ref"/);
+  const create = schema.oneOf[0];
+  assert.deepEqual(
+    create.properties.inputLinks.items.properties.role.enum,
+    ['textContext', 'referenceImage', 'inputVideo', 'referenceAudio'],
+  );
+  assert.deepEqual(
+    create.properties.inputLinks.items.properties.slot.enum,
+    ['reference', 'firstFrame', 'lastFrame', 'inputVideo', 'referenceAudio'],
+  );
+});
+
 test('Agent 画布工具公开连接已有节点动作', () => {
   assert.equal(MODEL_AGENT_CANVAS_ACTION_TYPES.includes('connect_nodes'), true);
   const schema = buildAgentActionSchema(contract, {

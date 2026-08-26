@@ -38,9 +38,13 @@ test('原生 Skill ID 契约拒绝旧式冒号、下划线和路径字符', () =
   }
 });
 
-test('Copilot 提供显式 Skill 选择并写入原生 slash 指令', () => {
+test('Copilot 选择 Skill 后直接在输入框写入可见的原生 slash 指令', () => {
   const panel = readFileSync(new URL('../renderer/src/app/copilot/CopilotPanel.tsx', import.meta.url), 'utf8');
-  assert.match(panel, /className="copilot-skill-menu"/);
+  assert.match(panel, /<Dropdown/);
+  assert.match(panel, /items: enabledSkills\.map/);
   assert.match(panel, /setMessage\(current \? `\/\$\{skill\.id\} \$\{current\}` : `\/\$\{skill\.id\} `\)/);
-  assert.match(panel, /aria-label=\{selectedSkillId \? `已选择 Skill/);
+  assert.match(panel, /className=\{selectedSkill \? "is-active" : ""\}/);
+  assert.match(panel, /selectedKeys: selectedSkillId \? \[selectedSkillId\] : \[\]/);
+  assert.doesNotMatch(panel, /className="copilot-selected-skill"/);
+  assert.doesNotMatch(panel, /skill=\{selectedSkillId/);
 });

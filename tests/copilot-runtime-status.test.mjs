@@ -18,39 +18,20 @@ const styles = readFileSync(
   new URL('../renderer/styles/canvas-copilot.css', import.meta.url),
   'utf8',
 );
-const baseStyles = readFileSync(new URL('../renderer/styles.css', import.meta.url), 'utf8');
-
 test('画布助手用可展开的纵向轨迹呈现 Agent 运行过程', () => {
   assert.match(panel, /copilot-run-activity/);
-  assert.doesNotMatch(panel, /深思熟虑/);
-  assert.match(panel, /copilot-activity-group/);
-  assert.match(panel, /copilot-preparation-group/);
-  assert.match(panel, /"处理过程"/);
-  assert.match(panel, /"已自动恢复"/);
-  assert.match(panel, /tool\.effect === "canvas_write"/);
-  assert.match(panel, /tool\.effect === "media_generation"/);
-  assert.match(panel, /生成 1 个视频/);
-  assert.match(panel, /生成 1 张图片/);
-  assert.match(panel, /"等待批准"/);
-  assert.match(panel, /copilot-tool-status-icon/);
-  assert.match(panel, /copilot-tool-spinner/);
-  assert.match(panel, /copilot-tool-shimmer/);
-  assert.match(panel, /toolActivityTitle\(tool\)/);
-  assert.match(panel, /generation \? "生成" : planning \? "规划" : canvas \? "画布" : "工具"/);
-  assert.doesNotMatch(styles, /copilot-run-spin/);
+  assert.match(panel, /ThoughtChain/);
+  assert.match(panel, /className="copilot-thought-chain"/);
+  assert.match(panel, /className="copilot-tool-trace"/);
+  assert.match(panel, /hasPendingConfirmation/);
+  assert.match(styles, /max-height:\s*280px/);
+  assert.match(panel, /status: tool\.pending/);
+  assert.doesNotMatch(panel, /toolActivityTitle/);
+  assert.doesNotMatch(panel, /tool\.effect === "media_generation"/);
   assert.match(panel, /className="copilot-run-stop"/);
   assert.match(panel, /aria-label="停止 Agent"/);
   assert.match(styles, /\.copilot-run-stop > span/);
-  assert.match(
-    styles,
-    /\.copilot-run-activity > \.copilot-tool-stream \{[^}]*background:\s*transparent/,
-  );
-  assert.match(styles, /copilot-activity-chevron/);
-  assert.match(styles, /@keyframes copilot-tool-spin/);
-  assert.match(styles, /@keyframes copilot-tool-shimmer/);
-  assert.match(styles, /prefers-reduced-motion:[^}]+reduce[\s\S]*?\.copilot-tool-spinner/);
-  assert.match(styles, /--activity-line/);
-  assert.match(styles, /\.copilot-preparation-group::before \{ display: none/);
+  assert.match(styles, /copilot-thought-chain/);
   assert.doesNotMatch(panel, /copilot-run-status|copilot-stop-button/);
 });
 
@@ -62,16 +43,15 @@ test('消息发送后立即显示思考状态并把发送按钮切换为停止�
   assert.match(panel, /busyBrailleFrames/);
   assert.match(panel, /}, 140\)/);
   assert.match(panel, /提示：使用 @ 引用画布节点/);
-  assert.match(panel, /onClick=\{busy \? controller\.cancel : send\}/);
-  assert.match(panel, /copilot-stop-mark/);
+  assert.match(panel, /loading=\{busy\}/);
+  assert.match(panel, /onCancel=\{controller\.cancel\}/);
   assert.match(styles, /copilot-busy-braille/);
   assert.match(styles, /copilot-busy-pulse/);
 });
 
 test('聊天正文不再铺开普通工具、技能和执行记录', () => {
-  assert.match(panel, /copilot-tool-stream/);
-  assert.match(styles, /\.copilot-run-activity > \.copilot-tool-stream \{[^}]*max-height:\s*none/);
-  assert.match(baseStyles, /max-height:\s*82px/);
+  assert.match(panel, /ThoughtChain/);
+  assert.doesNotMatch(panel, /copilot-tool-stream/);
   assert.doesNotMatch(panel, /copilot-skill-strip/);
   assert.doesNotMatch(panel, /copilot-work-log/);
   assert.doesNotMatch(presenter, /skillsUsed|workLog|subagents:/);
@@ -94,22 +74,25 @@ test('完成态沿用流式正文而不是用最终响应整段覆盖', () => {
 test('Agent 运行失败后可使用原请求重试且不重复插入用户消息', () => {
   assert.match(panel, /item\.retryable/);
   assert.match(panel, /controller\.retry\(item\.id\)/);
-  assert.match(panel, /重试中…/);
+  assert.match(panel, />\s*重试\s*<\/button>/);
   assert.match(adapter, /retryPayload/);
   assert.match(adapter, /skipUserMessage/);
   assert.match(adapter, /retryable: true/);
   assert.match(adapter, /message\.retryable = false/);
-  assert.match(styles, /copilot-message-error-row button/);
+  assert.match(styles, /copilot-failure-retry/);
 });
 
 test('相同 Runtime 失败合并成紧凑诊断卡', () => {
   assert.match(panel, /compactRepeatedFailures/);
   assert.match(panel, /repeatedFailureCount/);
   assert.match(panel, /repeatsFollowingFailure/);
-  assert.match(panel, /copilot-failure-card/);
-  assert.match(panel, /查看诊断/);
-  assert.match(styles, /\.copilot-failure-card/);
-  assert.match(styles, /\.copilot-failure-heading span/);
+  assert.match(panel, /className="copilot-failure-log"/);
+  assert.match(panel, /<strong>系统<\/strong>/);
+  assert.match(panel, /className="copilot-failure-retry"/);
+  assert.match(panel, /<summary>详情<\/summary>/);
+  assert.match(panel, /item\.diagnosis\?\.primaryAction \|\| "检查配置后重试"/);
+  assert.match(styles, /\.copilot-failure-log/);
+  assert.doesNotMatch(styles, /\.copilot-failure-card/);
 });
 
 test('制作计划跟随助手消息显示阶段和进度', () => {
@@ -120,8 +103,9 @@ test('制作计划跟随助手消息显示阶段和进度', () => {
   assert.match(panel, /runtimeRefs/);
   assert.match(presenter, /production_plan_updated/);
   assert.match(styles, /copilot-production-plan/);
-  assert.match(styles, /\.copilot-production-plan \{[^}]*border-top:/);
-  assert.doesNotMatch(styles, /\.copilot-production-plan \{[^}]*border-radius:/);
+  assert.match(panel, /<Collapse/);
+  assert.match(panel, /<Progress/);
+  assert.match(panel, /copilot-plan-chain/);
   assert.match(
     panel,
     /stages\.every\(\(stage\) => stage\.status === ["']done["']\)\)[\s\S]*?setExpanded\(false\)/,
@@ -143,9 +127,17 @@ test('画布图片节点加入对话时自动携带当前图片产物', () => {
 });
 
 test('已引用节点以名称、短别名和类型组成紧凑信息卡', () => {
-  assert.match(panel, /copilot-node-mention-icon/);
-  assert.match(panel, /copilot-node-mention-copy/);
+  assert.match(panel, /copilot-sender-context/);
   assert.match(panel, /<strong>\{item\.title\}<\/strong>/);
   assert.match(panel, /<small>@\{item\.alias\}<\/small>/);
-  assert.match(styles, /grid-template-columns:\s*18px minmax\(0, 1fr\) auto 20px/);
+  assert.match(styles, /grid-template-columns:\s*15px minmax\(0, 1fr\) auto 18px/);
+});
+
+test('通用对话界面由 Ant Design X 组件承载', () => {
+  assert.match(panel, /from "@ant-design\/x\/es\/bubble"/);
+  assert.match(panel, /<Bubble/);
+  assert.match(panel, /<Sender/);
+  assert.match(panel, /<Attachments/);
+  assert.match(panel, /<Conversations/);
+  assert.doesNotMatch(panel, /<textarea/);
 });

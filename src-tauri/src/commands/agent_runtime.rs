@@ -561,6 +561,17 @@ pub async fn agent_runtime_start(
             "read": false, "write": false, "edit": false, "bash": false,
             "glob": false, "grep": false, "webfetch": false
         },
+        "tool_output": {
+            "max_lines": 2000,
+            "max_bytes": 51200
+        },
+        "compaction": {
+            "auto": true,
+            "prune": true,
+            "tail_turns": 4,
+            "preserve_recent_tokens": 12000,
+            "reserved": 12000
+        },
         "mcp": {
             "shotloom": {
                 "type": "remote", "url": mcp_url, "enabled": false, "timeout": 600000,

@@ -39,6 +39,11 @@ const RULES: Array<{
     suggestions: ['关闭遗留的 Shotloom 或 OpenCode 进程', '再次启动时会重新分配 Runtime 端口'],
   },
   {
+    code: 'runtime_tool_bridge', pattern: /Shotloom 工具桥|Failed to get tools|tools\/list|MCP.*(?:failed|error)/i,
+    title: 'Agent 本地工具桥连接失败', primaryAction: '重试连接本地工具桥',
+    suggestions: ['再次重试会重建已失败的 MCP 连接', '若持续失败，请重启 Shotloom 后查看 Runtime 诊断'],
+  },
+  {
     code: 'runtime_configuration_invalid', pattern: /configuration|config|provider|api.?key|unauthorized|401|403/i,
     title: 'Agent 模型配置不可用', primaryAction: '检查当前模型与 Provider 配置',
     suggestions: ['确认所选模型仍存在', '检查 API Key、Base URL 和模型权限'],
