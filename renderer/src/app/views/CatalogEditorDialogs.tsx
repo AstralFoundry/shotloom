@@ -328,8 +328,8 @@ export function SkillEditorDialog({
     setError("");
   };
   function submit() {
-    if (!/^[a-z0-9:_-]{1,80}$/.test(draft.id)) {
-      return setError("ID 仅允许小写字母、数字、:、-、_，长度 1–80");
+    if (!/^[a-z0-9](?:[a-z0-9-]{0,78}[a-z0-9])?$/.test(draft.id)) {
+      return setError("ID 仅允许小写字母、数字和连字符，且首尾不能是连字符");
     }
     if (!draft.name.trim()) return setError("名称不能为空");
     if (!draft.description.trim()) return setError("用途说明不能为空");

@@ -16,6 +16,7 @@ import { diagnoseRuntimeFailure, RuntimeDiagnosticError } from './runtimeDiagnos
 import { resolveOpenCodeProvider } from './openCodeProvider.mjs';
 import type { AgentPromptPayload, AgentRunResult, AgentRuntimeEvent, AgentToolContext, AgentToolReceipt, JsonObject } from '../core/types';
 import { canvasMutationFingerprint } from '@/utils/canvasMutationFingerprint.mjs';
+import { nativeRuntimeSkills, type NativeRuntimeSkill } from './nativeSkills';
 
 type OpenCodeClient = ReturnType<typeof createOpencodeClient>;
 interface OpenCodeConfiguration {
@@ -23,6 +24,7 @@ interface OpenCodeConfiguration {
   model: string;
   provider: JsonObject;
   agent: JsonObject;
+  skills: NativeRuntimeSkill[];
   workspaceDirectory: string;
   runtimeProtection: {
     healthIntervalMs: number;
@@ -73,6 +75,7 @@ async function providerLkgFallback(current: OpenCodeConfiguration): Promise<Open
     model: current.model,
     workspaceDirectory: current.workspaceDirectory,
     agent: current.agent,
+    skills: current.skills,
     runtimeProtection: current.runtimeProtection,
     provider: {
       ...lkg.provider,
@@ -152,7 +155,11 @@ async function runtimeClient(configuration: OpenCodeConfiguration) {
   return clientPromise;
 }
 
-function agentProfiles() {
+function agentProfiles(skillIds: string[]) {
+  const primarySkillPermission = Object.fromEntries([
+    ['*', 'deny'],
+    ...skillIds.map((skillId) => [skillId, 'allow']),
+  ]);
   const primaryOnlyTools = {
     shotloom_request_clarification: false,
     shotloom_report_outcome: false,
@@ -182,25 +189,31 @@ function agentProfiles() {
       mode: 'primary', maxSteps: 80,
       description: 'Shotloom creative workspace agent',
       prompt: systemPrompt(),
-      permission: { edit: 'deny', bash: 'deny', external_directory: 'deny', webfetch: 'deny' },
+      permission: {
+        edit: 'deny', bash: 'deny', external_directory: 'deny', webfetch: 'deny',
+        skill: primarySkillPermission,
+      },
     },
     'production-planner': {
       mode: 'subagent', maxSteps: 40,
       description: 'Author complete Production Plan work items, prompts, dependencies and completion criteria',
       prompt: `Author a Production Plan for the requested scope. Use the Active Skill and its constraints supplied by the parent task. Do not mutate the canvas or claim completion.\n\n${shared('production-planner')}`,
       tools: { ...canvasReadonlyTools, shotloom_save_skill_bundle: false },
+      permission: { skill: { '*': 'deny' } },
     },
     'stage-executor': {
       mode: 'subagent', maxSteps: 60,
       description: 'Compile and execute the current Production Plan stage',
       prompt: `Execute the requested stage using the Active Skill and constraints supplied by the parent task. Respect real dependencies and return exact receipts.\n\n${shared('stage-executor')}`,
       tools: primaryOnlyTools,
+      permission: { skill: { '*': 'deny' } },
     },
     'result-reviewer': {
       mode: 'subagent', maxSteps: 24,
       description: 'Verify outcomes, constraints, artifacts and canvas state',
       prompt: `Verify using read tools and tool receipts. Never modify the canvas.\n\n${shared('result-reviewer')}`,
       tools: analysisTools,
+      permission: { skill: { '*': 'deny' } },
     },
   };
 }
@@ -221,10 +234,12 @@ function configureModel(model: string, workspaceDirectory: string) {
   );
   const contextLimit = Number(contract?.inputConstraints?.text?.maxTokens || 64_000);
   const outputLimit = Number(contract?.outputConstraints?.maxTokens || 8_192);
+  const skills = nativeRuntimeSkills(availableAgentSkills());
   const configuration: OpenCodeConfiguration = {
     enabledProviders: ['shotloom'],
     model: `shotloom/${model}`,
-    agent: agentProfiles(),
+    agent: agentProfiles(skills.map((skill) => skill.id)),
+    skills,
     workspaceDirectory,
     runtimeProtection: { ...settingsStore.runtimeProtection },
     provider: {
@@ -413,8 +428,6 @@ export async function runOpenCodeAgent(
     }).catch(() => undefined);
   };
   const message = String(payload.message || '').trim();
-  const skills = availableAgentSkills();
-  if (!skills.length) throw new Error('当前没有已启用 Skill，助手无法启动');
   const state = new Map<string, unknown>();
   const continuation = payload.continuation as JsonObject | undefined;
   const restoredReceipts = new Map<string, AgentToolReceipt>();
@@ -530,6 +543,21 @@ export async function runOpenCodeAgent(
       }
       if (event.type !== 'message.part.updated') return;
       const { part, delta } = event.properties;
+      if (part.sessionID === sessionId && part.type === 'tool' && part.tool === 'skill') {
+        const skillId = String(part.state.input?.name || '').trim();
+        if (part.state.status === 'completed' && skillId && !toolContext.loadedSkillIds.has(skillId)) {
+          const skill = availableAgentSkills().find((item) => item.id === skillId);
+          if (skill) {
+            toolContext.loadedSkillIds.add(skillId);
+            toolContext.state.set('activeSkillId', skillId);
+            emit({
+              type: 'skill_used', skillId, name: String(skill.name || skillId),
+              source: skill.builtIn ? 'built-in' : 'user', createdAt: new Date().toISOString(),
+            });
+          }
+        }
+        return;
+      }
       if (part.sessionID === sessionId && part.type === 'step-finish') {
         const estimatedTokens = part.tokens.input + part.tokens.output + part.tokens.reasoning
           + part.tokens.cache.read + part.tokens.cache.write;

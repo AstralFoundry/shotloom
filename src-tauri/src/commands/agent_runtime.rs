@@ -117,9 +117,70 @@ pub struct RuntimeConfiguration {
     pub model: String,
     pub provider: Value,
     pub agent: Value,
+    #[serde(default)]
+    pub skills: Vec<RuntimeSkill>,
     pub workspace_directory: String,
     #[serde(default)]
     pub runtime_protection: Option<RuntimeProtectionConfiguration>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RuntimeSkill {
+    pub id: String,
+    pub content: String,
+}
+
+fn valid_native_skill_id(id: &str) -> bool {
+    let bytes = id.as_bytes();
+    !bytes.is_empty()
+        && bytes.len() <= 80
+        && bytes.first().is_some_and(u8::is_ascii_alphanumeric)
+        && bytes.last().is_some_and(u8::is_ascii_alphanumeric)
+        && bytes
+            .iter()
+            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || *byte == b'-')
+}
+
+fn materialize_runtime_skills(
+    runtime_root: &std::path::Path,
+    skills: &[RuntimeSkill],
+) -> Result<Vec<String>, String> {
+    let target = runtime_root.join("skills");
+    let staging = runtime_root.join("skills-next");
+    if staging.exists() {
+        std::fs::remove_dir_all(&staging).map_err(|error| error.to_string())?;
+    }
+    std::fs::create_dir_all(&staging).map_err(|error| error.to_string())?;
+    let mut seen = std::collections::HashSet::new();
+    let mut relative_paths = Vec::with_capacity(skills.len());
+    for skill in skills {
+        if !valid_native_skill_id(&skill.id) {
+            return Err(format!("Invalid native Skill ID: {}", skill.id));
+        }
+        if !seen.insert(skill.id.as_str()) {
+            return Err(format!("Duplicate native Skill ID: {}", skill.id));
+        }
+        if skill.content.trim().is_empty() {
+            return Err(format!(
+                "Native Skill {} has empty SKILL.md content",
+                skill.id
+            ));
+        }
+        let directory = staging.join(&skill.id);
+        std::fs::create_dir_all(&directory).map_err(|error| error.to_string())?;
+        std::fs::write(directory.join("SKILL.md"), skill.content.as_bytes())
+            .map_err(|error| error.to_string())?;
+        relative_paths.push(skill.id.clone());
+    }
+    if target.exists() {
+        std::fs::remove_dir_all(&target).map_err(|error| error.to_string())?;
+    }
+    std::fs::rename(&staging, &target).map_err(|error| error.to_string())?;
+    Ok(relative_paths
+        .into_iter()
+        .map(|id| target.join(id).to_string_lossy().into_owned())
+        .collect())
 }
 
 #[derive(Clone)]
@@ -459,6 +520,18 @@ pub async fn agent_runtime_start(
     if let Some(cancel) = state.health_cancel.lock().await.take() {
         let _ = cancel.send(());
     }
+    let runtime_root = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?
+        .join("opencode-runtime");
+    let runtime_data = runtime_root.join("data");
+    let runtime_config = runtime_root.join("config");
+    let runtime_cache = runtime_root.join("cache");
+    for directory in [&runtime_data, &runtime_config, &runtime_cache] {
+        std::fs::create_dir_all(directory).map_err(|e| e.to_string())?;
+    }
+    let skill_paths = materialize_runtime_skills(&runtime_root, &configuration.skills)?;
     let mcp_token = uuid_like();
     let runtime_token = uuid_like();
     let mcp_url = start_bridge(app.clone(), &state, mcp_token.clone()).await?;
@@ -474,17 +547,6 @@ pub async fn agent_runtime_start(
         process.desired_running = true;
     }
     let port = available_port()?;
-    let runtime_root = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| e.to_string())?
-        .join("opencode-runtime");
-    let runtime_data = runtime_root.join("data");
-    let runtime_config = runtime_root.join("config");
-    let runtime_cache = runtime_root.join("cache");
-    for directory in [&runtime_data, &runtime_config, &runtime_cache] {
-        std::fs::create_dir_all(directory).map_err(|e| e.to_string())?;
-    }
     let config = json!({
         "$schema": "https://opencode.ai/config.json",
         "autoupdate": false,
@@ -505,6 +567,7 @@ pub async fn agent_runtime_start(
                 "headers": { "Authorization": format!("Bearer {mcp_token}") }
             }
         },
+        "skills": { "paths": skill_paths },
         "enabled_providers": configuration.enabled_providers,
         "model": configuration.model,
         "provider": configuration.provider,

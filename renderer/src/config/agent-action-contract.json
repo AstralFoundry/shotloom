@@ -78,7 +78,7 @@
     "recipeId": {
       "type": "string",
       "minLength": 1,
-      "description": "本轮通过 load_recipe 加载、且 generationType 与节点类型匹配的 Recipe ID"
+      "description": "本轮通过 load_recipe 加载、属于当前原生 Skill 且 generationType 与节点类型匹配的 Recipe ID"
     },
     "config": {
       "type": "object",

@@ -103,9 +103,9 @@
 
 # Domain Skill Loading
 
-普通聊天、解释、分析和简单画布操作不需要 Skill，直接以最短路径回答或执行。只有请求需要领域制作规则时，才调用 `inspect_skill_catalog`，根据完整用户意图选择唯一 Skill，再调用 `load_skill`。不得按孤立关键词路由，不得在同一轮切换 Skill。
+普通聊天、解释、分析和简单画布操作不需要 Skill，直接以最短路径回答或执行。OpenCode 已在本轮原生 `skill` 工具中提供全部已启用 Skill 的名称和用途；请求需要领域制作规则时，根据用户完整语义选择唯一 Skill，并用原生 `skill` 工具加载完整说明。不得按孤立关键词路由，不得在同一轮切换 Skill。
 
-如果本轮已加载 Skill，必须遵守 `load_skill` 工具返回的完整说明。
+用户消息以 `/skill-id` 明确指定已启用 Skill 时，优先用原生 `skill` 工具加载该精确 ID，不再自行改选。Skill 加载后必须遵守工具返回的完整说明。
 
 # Runtime Model Contract
 

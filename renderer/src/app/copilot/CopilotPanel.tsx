@@ -1,4 +1,4 @@
-import { forwardRef, type KeyboardEvent, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
+import { forwardRef, type KeyboardEvent, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { desktopApi } from "../../services/desktopApi.js";
 import { agentNodeAliasMaps } from "../../services/agentCanvasSnapshot.js";
 import {
@@ -14,6 +14,8 @@ import {
   type PresentedCopilotMessage,
   repeatsFollowingFailure,
 } from "./copilotMessagePresentation";
+import { skillsStore } from "../../store/skillsStore.js";
+import { getDomainRevision, subscribeDomain } from "../../store/domainReactivity.js";
 
 export interface CopilotMessage {
   id: string;
@@ -449,6 +451,8 @@ export const CopilotPanel = forwardRef<CopilotPanelHandle, CopilotPanelProps>(fu
   const [mentionQuery, setMentionQuery] = useState("");
   const [mentionStart, setMentionStart] = useState(-1);
   const [mentionIndex, setMentionIndex] = useState(0);
+  const [skillOpen, setSkillOpen] = useState(false);
+  const [selectedSkillId, setSelectedSkillId] = useState<string | null>(null);
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [clarificationAnswers, setClarificationAnswers] = useState<
     Record<string, Record<string, string[]>>
@@ -457,6 +461,10 @@ export const CopilotPanel = forwardRef<CopilotPanelHandle, CopilotPanelProps>(fu
   const messageList = useRef<HTMLDivElement>(null);
   const followsLatest = useRef(true);
   const previousMessageCount = useRef(messages.length);
+  const domainRevision = useSyncExternalStore(subscribeDomain, getDomainRevision, getDomainRevision);
+  const enabledSkills = useMemo(() => (skillsStore.skills as Array<{
+    id: string; name?: string; description?: string; enabled?: boolean;
+  }>).filter((skill) => skill.enabled !== false), [domainRevision]);
   const presentedMessages = useMemo(() => compactRepeatedFailures(messages), [messages]);
   const aliasMaps = useMemo(() => agentNodeAliasMaps(nodes as never[]), [nodes]);
   const mentionable = useMemo(
@@ -603,6 +611,21 @@ export const CopilotPanel = forwardRef<CopilotPanelHandle, CopilotPanelProps>(fu
     setAttachments([]);
     setMentions([]);
     setMentionOpen(false);
+    setSkillOpen(false);
+    setSelectedSkillId(null);
+  }
+  function selectSkill(skill: (typeof enabledSkills)[number]) {
+    let current = message.trimStart();
+    if (selectedSkillId) {
+      const previous = `/${selectedSkillId}`;
+      if (current === previous) current = "";
+      else if (current.startsWith(`${previous} `)) current = current.slice(previous.length).trimStart();
+    }
+    setMessage(current ? `/${skill.id} ${current}` : `/${skill.id} `);
+    setSelectedSkillId(skill.id);
+    setSkillOpen(false);
+    setMentionOpen(false);
+    requestAnimationFrame(() => textarea.current?.focus());
   }
   function keydown(event: KeyboardEvent<HTMLTextAreaElement>) {
     if (isImeKeyEvent(event.nativeEvent)) return;
@@ -627,7 +650,10 @@ export const CopilotPanel = forwardRef<CopilotPanelHandle, CopilotPanelProps>(fu
       event.preventDefault();
       send();
     }
-    if (event.key === "Escape") setMentionOpen(false);
+    if (event.key === "Escape") {
+      setMentionOpen(false);
+      setSkillOpen(false);
+    }
   }
   function clear() {
     if (
@@ -956,6 +982,25 @@ export const CopilotPanel = forwardRef<CopilotPanelHandle, CopilotPanelProps>(fu
               {!options.length && <p>没有匹配的节点</p>}
             </div>
           )}
+          {skillOpen && (
+            <div className="copilot-skill-menu" role="listbox" aria-label="选择 Skill">
+              {enabledSkills.map((skill) => (
+                <button
+                  key={skill.id}
+                  className={skill.id === selectedSkillId ? "active" : ""}
+                  type="button"
+                  onMouseDown={(event) => {
+                    event.preventDefault();
+                    selectSkill(skill);
+                  }}
+                >
+                  <strong>{skill.name || skill.id}</strong>
+                  <span>/{skill.id}</span>
+                  <small>{skill.description || ""}</small>
+                </button>
+              ))}
+            </div>
+          )}
           <textarea
             ref={textarea}
             value={message}
@@ -963,8 +1008,13 @@ export const CopilotPanel = forwardRef<CopilotPanelHandle, CopilotPanelProps>(fu
             spellCheck={false}
             lang="zh-CN"
             onChange={(e) => {
-              setMessage(e.target.value);
-              updateMention(e.target.value);
+              const value = e.target.value;
+              setMessage(value);
+              const selected = enabledSkills.find((skill) => (
+                value === `/${skill.id}` || value.startsWith(`/${skill.id} `)
+              ));
+              setSelectedSkillId(selected?.id || null);
+              updateMention(value);
             }}
             onClick={() => updateMention()}
             onKeyDown={keydown}
@@ -972,6 +1022,20 @@ export const CopilotPanel = forwardRef<CopilotPanelHandle, CopilotPanelProps>(fu
           <div className="copilot-input-row">
             <button className="copilot-action-btn" title="添加文件" onClick={() => void attach()}>
               <IconSymbol name="plus" />
+            </button>
+            <button
+              className={`copilot-action-btn copilot-skill-trigger${selectedSkillId ? " active" : ""}`}
+              type="button"
+              title={selectedSkillId ? `已选择 /${selectedSkillId}` : "选择 Skill"}
+              aria-label={selectedSkillId ? `已选择 Skill：${selectedSkillId}` : "选择 Skill"}
+              aria-expanded={skillOpen}
+              onClick={() => {
+                setSkillOpen((value) => !value);
+                setMentionOpen(false);
+              }}
+            >
+              <IconSymbol name="spark" />
+              {selectedSkillId && <span>{selectedSkillId}</span>}
             </button>
             <span className="copilot-input-spacer" />
             <select

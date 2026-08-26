@@ -73,7 +73,9 @@ export async function upsertSkill(input) {
     builtIn: existing?.builtIn === true,
     updatedAt: new Date().toISOString(),
   };
-  if (!/^[a-z0-9:_-]{1,80}$/.test(skill.id)) throw new Error('技能 ID 仅允许小写字母、数字、:、-、_');
+  if (!/^[a-z0-9](?:[a-z0-9-]{0,78}[a-z0-9])?$/.test(skill.id)) {
+    throw new Error('技能 ID 仅允许小写字母、数字和连字符，且首尾不能是连字符');
+  }
   if (!skill.name || !skill.description || !skill.instructions) throw new Error('技能名称、用途说明和指令均不能为空');
   assertRecipeIdsExist(skill.recipeIds);
   const index = skillsStore.skills.findIndex((item) => item.id === skill.id);

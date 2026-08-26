@@ -1257,6 +1257,16 @@ details[open] > summary .copilot-activity-chevron { transform: rotate(180deg); }
 .copilot-input > textarea:focus { background: transparent; }
 .copilot-input-row { display: flex; align-items: center; gap: 6px; margin-top: 2px; }
 .copilot-input-spacer { flex: 1; }
+.copilot-skill-trigger { width: auto; max-width: 160px; gap: 5px; padding: 0 8px; }
+.copilot-skill-trigger.active { color: #4f46e5; background: rgba(79, 70, 229, .09); }
+.copilot-skill-trigger > span { overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.copilot-skill-menu { position: absolute; z-index: 12; right: 8px; bottom: 48px; left: 8px; display: grid; max-height: 280px; overflow-y: auto; padding: 6px; border: 1px solid rgba(0, 0, 0, .1); border-radius: 12px; background: #fff; box-shadow: 0 18px 42px -24px rgba(17, 17, 19, .45); }
+.copilot-skill-menu > button { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; border: 0; border-radius: 8px; padding: 8px 10px; color: rgba(0, 0, 0, .78); background: transparent; text-align: left; }
+.copilot-skill-menu > button:hover,
+.copilot-skill-menu > button.active { background: rgba(79, 70, 229, .07); }
+.copilot-skill-menu strong { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.copilot-skill-menu span { color: #6366f1; font: 10px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.copilot-skill-menu small { grid-column: 1 / -1; overflow: hidden; color: rgba(0, 0, 0, .5); font-size: 10px; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
 .copilot-action-btn { width: 32px; height: 32px; border: 0; border-radius: 50%; padding: 0; display: inline-flex; align-items: center; justify-content: center; color: rgba(0, 0, 0, .66); background: rgba(0, 0, 0, .04); font-size: 11px; font-weight: 500; }
 .copilot-action-btn svg { width: 13px; height: 13px; }
 .copilot-model-select { min-width: 76px; max-width: 140px; height: 32px; border: 0; border-radius: 999px; outline: none; padding: 0 6px; color: rgba(0, 0, 0, .68); background: transparent; font-size: 12px; font-weight: 450; }
@@ -1530,4 +1540,3 @@ details[open] > summary .copilot-activity-chevron { transform: rotate(180deg); }
 @media (max-width: 1100px) {
   .forge-lite-main { grid-template-columns: minmax(0, 1fr) 340px; }
 }
-
