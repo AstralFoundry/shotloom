@@ -11,6 +11,7 @@ const readVideoEditorUi = async () => (await Promise.all([
   'VideoEditorMonitor.tsx',
   'VideoEditorToolPanel.tsx',
   'VideoEditorTimeline.tsx',
+  'useVideoEditorGestures.ts',
   'useVideoEditorMediaUrls.ts',
   'useVideoEditorProjectHistory.ts',
   'useVideoEditorShortcuts.ts',
@@ -94,7 +95,7 @@ test('独立剪辑工作区接入真实桌面导出', async () => {
   for (const pattern of [
     /splitSelected/,
     /deleteSelected/,
-    /dragRef/,
+    /timelineDragRef/,
     /undo/,
     /redo/,
     /createOpenVideoRuntime/,
@@ -298,8 +299,8 @@ test('剪辑工作区主动解码首帧并提供可编辑的中文文字预设',
   assert.match(workspace, /className="ov-image-preview-layer"/);
   assert.match(styles, /\.ov-image-preview-layer \{[^}]*position:\s*absolute;[^}]*z-index:\s*3/);
   assert.match(styles, /\.ov-image-preview-item\.selected/);
-  assert.match(workspace, /function beginVisualTransform/);
-  assert.match(workspace, /mode: "move" \| "resize" \| "rotate"/);
+  assert.match(workspace, /const beginVisualTransform/);
+  assert.match(workspace, /type TransformMode = "move" \| "resize" \| "rotate"/);
   assert.match(workspace, /className="ov-transform-rotate-handle"/);
   assert.match(workspace, /className="ov-transform-resize-handle"/);
   assert.match(styles, /\.ov-image-preview-item \{[^}]*cursor:\s*move/);

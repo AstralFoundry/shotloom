@@ -1,5 +1,4 @@
 import {
-  type PointerEvent as ReactPointerEvent,
   useCallback,
   useEffect,
   useMemo,
@@ -20,7 +19,6 @@ import {
   findEditorClip,
   normalizeVideoEditorProject,
   removeEditorClip,
-  snapEditorClipStart,
   updateEditorClip,
   updateEditorTrack,
   videoEditorDuration,
@@ -33,7 +31,6 @@ import type {
   VideoEditorAsset,
   VideoEditorClip,
   VideoEditorProject,
-  VideoEditorTransform,
 } from "./videoEditorTypes";
 import {
   VideoEditorInspector,
@@ -55,6 +52,7 @@ import { VideoEditorMonitor } from "./VideoEditorMonitor";
 import { VideoEditorToolPanel } from "./VideoEditorToolPanel";
 import { formatEditorTime } from "./videoEditorFormat";
 import { useVideoEditorMediaUrls } from "./useVideoEditorMediaUrls";
+import { useVideoEditorGestures } from "./useVideoEditorGestures";
 import { useVideoEditorProjectHistory } from "./useVideoEditorProjectHistory";
 import { useVideoEditorShortcuts } from "./useVideoEditorShortcuts";
 import { useVideoEditorTimeline } from "./useVideoEditorTimeline";
@@ -164,28 +162,6 @@ export function VideoEditorWorkspace(
   const sourcePreviewPrimedRef = useRef(false);
   const runtimeRef = useRef<any>(null);
   const runtimeMutationRef = useRef(false);
-  const canvasTransformSnapshotRef = useRef<EditorProject | null>(null);
-  const visualTransformRef = useRef<{
-    id: string;
-    mode: "move" | "resize" | "rotate";
-    startX: number;
-    startY: number;
-    transform: VideoEditorTransform;
-    snapshot: EditorProject;
-    monitor: DOMRect;
-    startPointerAngle: number;
-    clipType: string;
-    fontSize: number;
-    moved: boolean;
-  } | null>(null);
-  const dragRef = useRef<
-    {
-      id: string;
-      startX: number;
-      timelineStart: number;
-      snapshot?: EditorProject;
-    } | null
-  >(null);
   const duration = videoEditorDuration(project);
   const {
     timelineRef,
@@ -285,6 +261,27 @@ export function VideoEditorWorkspace(
       ),
     });
   }, [playbackUrl, primaryVideoAssetId, runtimeMediaUrls]);
+  const {
+    beginVisualTransform,
+    beginTimelineDrag,
+    onRuntimeTransformStart,
+    onRuntimeTransformEnd,
+    visualTransformRef,
+    timelineDragRef,
+  } = useVideoEditorGestures({
+    projectRef,
+    setProject,
+    monitorRef,
+    runtimeRef,
+    runtimeMutationRef,
+    zoom,
+    time,
+    controller,
+    createStudioProject,
+    recordHistory,
+    setSelectedId,
+    seekPreview,
+  });
   const visibleTracks = useMemo(
     () => project.tracks.filter((track: any) =>
       track.clips.length > 0 || ["video", "audio"].includes(track.type)
@@ -654,40 +651,6 @@ export function VideoEditorWorkspace(
     }
     commit(next);
   }
-  function beginVisualTransform(
-    event: ReactPointerEvent,
-    clip: EditorClip,
-    mode: "move" | "resize" | "rotate",
-  ) {
-    const monitor = monitorRef.current?.getBoundingClientRect();
-    const found = findEditorClip(projectRef.current, clip.id);
-    if (!monitor || !monitor.width || !monitor.height || found?.track.locked || clip.locked) return;
-    event.preventDefault();
-    event.stopPropagation();
-    setSelectedId(clip.id);
-    const transform = constrainTransformToCanvas(
-      clip.transform,
-      projectRef.current.settings.width,
-      projectRef.current.settings.height,
-    );
-    const centerX = monitor.left + (transform.x + transform.width / 2) /
-      projectRef.current.settings.width * monitor.width;
-    const centerY = monitor.top + (transform.y + transform.height / 2) /
-      projectRef.current.settings.height * monitor.height;
-    visualTransformRef.current = {
-      id: clip.id,
-      mode,
-      startX: event.clientX,
-      startY: event.clientY,
-      transform,
-      snapshot: clone(projectRef.current),
-      monitor,
-      startPointerAngle: Math.atan2(event.clientY - centerY, event.clientX - centerX),
-      clipType: clip.type,
-      fontSize: Number(clip.style?.fontSize) || 72,
-      moved: false,
-    };
-  }
   async function runCanvasAction(
     action: "centerClip" | "fitClip" | "coverClip",
   ) {
@@ -990,20 +953,8 @@ export function VideoEditorWorkspace(
         }
       },
       onSelection: (ids: string[]) => setSelectedId(ids.at(-1) || ""),
-      onTransformStart: () => {
-        canvasTransformSnapshotRef.current = clone(projectRef.current);
-      },
-      onTransformEnd: ({ id, transform }: { id: string; transform: any }) => {
-        const snapshot = canvasTransformSnapshotRef.current;
-        canvasTransformSnapshotRef.current = null;
-        const next = updateEditorClip(projectRef.current, id, { transform });
-        if (next === projectRef.current) return;
-        runtimeMutationRef.current = true;
-        if (snapshot) recordHistory(snapshot);
-        projectRef.current = next;
-        setProject(next);
-        controller.persist(next);
-      },
+      onTransformStart: onRuntimeTransformStart,
+      onTransformEnd: onRuntimeTransformEnd,
       onPlayingChange: setPlaying,
     }).then(async (runtime) => {
       if (!active) return runtime.destroy();
@@ -1028,11 +979,14 @@ export function VideoEditorWorkspace(
     playbackUrl,
     playbackStructureSignature,
     preferFallbackPreview,
-    recordHistory,
+    onRuntimeTransformEnd,
+    onRuntimeTransformStart,
     sourceState,
   ]);
   useEffect(() => {
-    if (!runtimeRef.current || dragRef.current || visualTransformRef.current) return;
+    if (
+      !runtimeRef.current || timelineDragRef.current || visualTransformRef.current
+    ) return;
     if (runtimeMutationRef.current) {
       runtimeMutationRef.current = false;
       return;
@@ -1043,69 +997,6 @@ export function VideoEditorWorkspace(
   useEffect(() => {
     runtimeRef.current?.selectClip(selectedId);
   }, [selectedId]);
-  useEffect(() => {
-    const move = (event: PointerEvent) => {
-      const gesture = visualTransformRef.current;
-      if (!gesture) return;
-      const canvasWidth = projectRef.current.settings.width;
-      const canvasHeight = projectRef.current.settings.height;
-      const dx = (event.clientX - gesture.startX) / gesture.monitor.width * canvasWidth;
-      const dy = (event.clientY - gesture.startY) / gesture.monitor.height * canvasHeight;
-      let transform: VideoEditorTransform = { ...gesture.transform };
-      if (gesture.mode === "move") {
-        transform.x = gesture.transform.x + dx;
-        transform.y = gesture.transform.y + dy;
-      } else if (gesture.mode === "resize") {
-        const ratio = gesture.transform.width / Math.max(1, gesture.transform.height);
-        const widthDelta = Math.abs(dx) >= Math.abs(dy * ratio) ? dx : dy * ratio;
-        const maxWidth = Math.min(canvasWidth, canvasHeight * ratio);
-        transform.width = Math.min(maxWidth, Math.max(48, gesture.transform.width + widthDelta));
-        transform.height = transform.width / ratio;
-      } else {
-        const centerX = gesture.monitor.left +
-          (gesture.transform.x + gesture.transform.width / 2) / canvasWidth * gesture.monitor.width;
-        const centerY = gesture.monitor.top +
-          (gesture.transform.y + gesture.transform.height / 2) / canvasHeight * gesture.monitor.height;
-        const pointerAngle = Math.atan2(event.clientY - centerY, event.clientX - centerX);
-        transform.angle = (Number(gesture.transform.angle) || 0) +
-          (pointerAngle - gesture.startPointerAngle) * 180 / Math.PI;
-      }
-      transform = constrainTransformToCanvas(transform, canvasWidth, canvasHeight);
-      const currentClip = findEditorClip(projectRef.current, gesture.id)?.clip;
-      const updates: Record<string, unknown> = { transform };
-      if (gesture.mode === "resize" && gesture.clipType === "text" && currentClip) {
-        updates.style = {
-          ...currentClip.style,
-          fontSize: Math.max(8, gesture.fontSize * transform.width / gesture.transform.width),
-        };
-      }
-      const next = updateEditorClip(projectRef.current, gesture.id, updates);
-      if (next === projectRef.current) return;
-      gesture.moved = true;
-      runtimeMutationRef.current = true;
-      projectRef.current = next;
-      setProject(next);
-    };
-    const up = () => {
-      const gesture = visualTransformRef.current;
-      if (!gesture) return;
-      visualTransformRef.current = null;
-      if (!gesture.moved) return;
-      recordHistory(gesture.snapshot);
-      controller.persist(projectRef.current);
-      runtimeMutationRef.current = false;
-      runtimeRef.current?.replaceProject(createStudioProject(projectRef.current));
-      runtimeRef.current?.selectClip(gesture.id);
-    };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
-    window.addEventListener("pointercancel", up);
-    return () => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
-      window.removeEventListener("pointercancel", up);
-    };
-  }, [controller, createStudioProject, recordHistory]);
   useVideoEditorShortcuts({
     exporting,
     onClose: () => controller.close(),
@@ -1115,45 +1006,6 @@ export function VideoEditorWorkspace(
     onUndo: undo,
     onRedo: redo,
   });
-  useEffect(() => {
-    const move = (event: PointerEvent) => {
-      const drag = dragRef.current;
-      if (!drag) return;
-      if (!drag.snapshot) drag.snapshot = clone(projectRef.current);
-      const requestedStart = Math.max(
-        0,
-        drag.timelineStart + (event.clientX - drag.startX) / zoom,
-      );
-      const nextStart = snapEditorClipStart(
-        projectRef.current,
-        drag.id,
-        requestedStart,
-        10 / zoom,
-      );
-      const next = updateEditorClip(projectRef.current, drag.id, {
-        timelineStart: Math.round(nextStart * 100) / 100,
-      });
-      projectRef.current = next;
-      setProject(next);
-    };
-    const up = () => {
-      const drag = dragRef.current;
-      if (!drag) return;
-      dragRef.current = null;
-      if (drag.snapshot) recordHistory(drag.snapshot);
-      controller.persist(projectRef.current);
-      runtimeRef.current?.replaceProject(
-        createStudioProject(projectRef.current),
-      );
-    };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
-    return () => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
-    };
-  }, [controller, createStudioProject, recordHistory, zoom]);
-
   function sourceLoaded(video: HTMLVideoElement) {
     const activeSourceFile = String(primaryVideoAsset?.sourceFile || sourceFile);
     const activeSourceUrl = String(primaryVideoAsset?.sourceUrl || sourceUrl);
@@ -1379,17 +1231,7 @@ export function VideoEditorWorkspace(
         onToggleTrack={(trackId, field, value) => {
           commit(updateEditorTrack(projectRef.current, trackId, { [field]: value }));
         }}
-        onClipPointerDown={(event, clip) => {
-          event.stopPropagation();
-          setSelectedId(clip.id);
-          const clipEnd = clip.timelineStart + editorClipDuration(clip);
-          if (time <= clip.timelineStart || time >= clipEnd) seekPreview(clipFocusTime(clip));
-          dragRef.current = {
-            id: clip.id,
-            startX: event.clientX,
-            timelineStart: clip.timelineStart,
-          };
-        }}
+        onClipPointerDown={beginTimelineDrag}
       />
     </section>,
     document.body,
