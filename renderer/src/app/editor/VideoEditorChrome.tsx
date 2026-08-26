@@ -1,5 +1,6 @@
 import { IconSymbol } from "../components/IconSymbol";
 import { tools } from "./videoEditorCatalog";
+import { formatEditorTime } from "./videoEditorFormat";
 import type { VideoEditorAsset } from "./videoEditorTypes";
 
 export function VideoEditorTopBar({
@@ -120,7 +121,7 @@ export function VideoEditorImportBrowser({
                   <strong>{asset.name}</strong>
                   <small>
                     {asset.type.toUpperCase()}
-                    {asset.duration ? ` · ${formatTime(asset.duration)}` : ""}
+                    {asset.duration ? ` · ${formatEditorTime(asset.duration)}` : ""}
                   </small>
                 </span>
               </button>
@@ -132,9 +133,4 @@ export function VideoEditorImportBrowser({
       </section>
     </div>
   );
-}
-
-function formatTime(seconds: number) {
-  const value = Math.max(0, Number(seconds) || 0);
-  return `${String(Math.floor(value / 60)).padStart(2, "0")}:${(value % 60).toFixed(1).padStart(4, "0")}`;
 }

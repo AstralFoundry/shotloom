@@ -53,6 +53,10 @@ import {
 } from "./VideoEditorChrome";
 import { VideoEditorTimeline } from "./VideoEditorTimeline";
 import { VideoEditorToolPanel } from "./VideoEditorToolPanel";
+import { formatEditorTime, formatEditorTimecode } from "./videoEditorFormat";
+import { useVideoEditorMediaUrls } from "./useVideoEditorMediaUrls";
+import { useVideoEditorProjectHistory } from "./useVideoEditorProjectHistory";
+import { useVideoEditorTimeline } from "./useVideoEditorTimeline";
 
 type EditorProject = VideoEditorProject;
 type EditorClip = VideoEditorClip;
@@ -87,22 +91,6 @@ const createId = (prefix = "item") =>
   `${prefix}-${Date.now().toString(36)}-${
     Math.random().toString(36).slice(2, 7)
   }`;
-const formatTime = (seconds: number) => {
-  const value = Math.max(0, Number(seconds) || 0);
-  return `${String(Math.floor(value / 60)).padStart(2, "0")}:${
-    (value % 60).toFixed(1).padStart(4, "0")
-  }`;
-};
-const formatTimecode = (seconds: number) => {
-  const value = Math.max(0, Number(seconds) || 0);
-  return [
-    Math.floor(value / 3600),
-    Math.floor((value % 3600) / 60),
-    Math.floor(value % 60),
-    Math.floor((value % 1) * 30),
-  ].map((part) => String(part).padStart(2, "0")).join(":");
-};
-
 export function VideoEditorWorkspace(
   {
     title = "视频剪辑",
@@ -125,14 +113,21 @@ export function VideoEditorWorkspace(
       height: metadata?.videoHeight || metadata?.height || 1080,
       createId,
     }) as EditorProject), []);
-  const [project, setProject] = useState<EditorProject>(initial);
-  const projectRef = useRef(project);
-  projectRef.current = project;
+  const {
+    project,
+    projectRef,
+    setProject,
+    commit,
+    recordHistory,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+  } = useVideoEditorProjectHistory(initial, controller);
   const [activeTool, setActiveTool] = useState("media");
   const [selectedId, setSelectedId] = useState("");
   const [time, setTime] = useState(0);
   const [playing, setPlaying] = useState(false);
-  const [zoom, setZoom] = useState(64);
   const [engineReady, setEngineReady] = useState(false);
   const [engineError, setEngineError] = useState("");
   const initialVideoClip = initial.tracks
@@ -144,7 +139,7 @@ export function VideoEditorWorkspace(
   const [playbackUrl, setPlaybackUrl] = useState(
     initialPlaybackAsset?.sourceUrl || sourceUrl,
   );
-  const [runtimeMediaUrls, setRuntimeMediaUrls] = useState<Record<string, string>>({});
+  const runtimeMediaUrls = useVideoEditorMediaUrls(project.assets);
   const [sourceThumbnail, setSourceThumbnail] = useState("");
   const [sourceState, setSourceState] = useState<"empty" | "loading" | "ready" | "error">(
     initialPlaybackAsset?.sourceUrl || sourceUrl ? "loading" : "empty",
@@ -160,21 +155,15 @@ export function VideoEditorWorkspace(
     kind: "all" | "image";
     loading: boolean;
   } | null>(null);
-  const [history, setHistory] = useState<EditorProject[]>([]);
-  const [future, setFuture] = useState<EditorProject[]>([]);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const monitorRef = useRef<HTMLDivElement>(null);
   const fallbackRef = useRef<HTMLVideoElement>(null);
   const blobUrlRef = useRef("");
-  const runtimeBlobUrlsRef = useRef(new Map<string, { sourceFile: string; url: string }>());
   const sourceFallbackPendingRef = useRef(false);
   const sourcePreviewPrimedRef = useRef(false);
   const runtimeRef = useRef<any>(null);
   const runtimeMutationRef = useRef(false);
   const canvasTransformSnapshotRef = useRef<EditorProject | null>(null);
-  const zoomTouchedRef = useRef(false);
-  const timelineRef = useRef<HTMLDivElement>(null);
-  const [timelineViewport, setTimelineViewport] = useState({ left: 0, width: 1200 });
   const visualTransformRef = useRef<{
     id: string;
     mode: "move" | "resize" | "rotate";
@@ -197,6 +186,13 @@ export function VideoEditorWorkspace(
     } | null
   >(null);
   const duration = videoEditorDuration(project);
+  const {
+    timelineRef,
+    zoom,
+    viewport: timelineViewport,
+    changeZoom,
+    setViewport: setTimelineViewport,
+  } = useVideoEditorTimeline(duration);
   const selected = selectedId ? findEditorClip(project, selectedId) : null;
   const directPreviewClips = project.tracks
     .filter((track: any) => track.type === "video" && !track.hidden)
@@ -338,16 +334,6 @@ export function VideoEditorWorkspace(
     })),
   }), [project.settings, project.tracks]);
 
-  const commit = useCallback((next: EditorProject, record = true) => {
-    if (next === projectRef.current) return;
-    if (record) {
-      setHistory((items) => [...items.slice(-59), clone(projectRef.current)]);
-      setFuture([]);
-    }
-    projectRef.current = next;
-    setProject(next);
-    controller.persist(next);
-  }, [controller]);
   const ensureTrack = (type: string, name: string) => {
     const current = projectRef.current;
     const existing = current.tracks.find((track: any) => track.type === type);
@@ -586,7 +572,7 @@ export function VideoEditorWorkspace(
     );
     if (added) {
       seekPreview(start);
-      setTextNotice(`字幕已添加到 ${formatTime(start)}`);
+      setTextNotice(`字幕已添加到 ${formatEditorTime(start)}`);
       window.setTimeout(() => setTextNotice(""), 2200);
     } else {
       setTextNotice("字幕添加失败，请重试");
@@ -811,20 +797,6 @@ export function VideoEditorWorkspace(
     }, createId);
     commit(next);
   }
-  function undo() {
-    const previous = history.at(-1);
-    if (!previous) return;
-    setHistory((items) => items.slice(0, -1));
-    setFuture((items) => [...items, clone(projectRef.current)]);
-    commit(clone(previous), false);
-  }
-  function redo() {
-    const next = future.at(-1);
-    if (!next) return;
-    setFuture((items) => items.slice(0, -1));
-    setHistory((items) => [...items, clone(projectRef.current)]);
-    commit(clone(next), false);
-  }
   async function togglePlayback() {
     const runtime = runtimeRef.current;
     if (!runtime || preferFallbackPreview) {
@@ -953,51 +925,8 @@ export function VideoEditorWorkspace(
     return () => {
       document.body.classList.remove("video-editor-open");
       if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
-      for (const entry of runtimeBlobUrlsRef.current.values()) {
-        URL.revokeObjectURL(entry.url);
-      }
-      runtimeBlobUrlsRef.current.clear();
     };
   }, []);
-  const runtimeAssetSignature = project.assets
-    .map((asset: any) => `${asset.id}:${asset.type}:${asset.sourceFile || ""}`)
-    .join("|");
-  useEffect(() => {
-    let cancelled = false;
-    const assetsById = new Map(projectRef.current.assets.map((asset: any) => [asset.id, asset]));
-    for (const [assetId, entry] of runtimeBlobUrlsRef.current) {
-      const asset: any = assetsById.get(assetId);
-      if (asset?.sourceFile === entry.sourceFile) continue;
-      URL.revokeObjectURL(entry.url);
-      runtimeBlobUrlsRef.current.delete(assetId);
-    }
-    void Promise.all(
-      projectRef.current.assets.map(async (asset: any) => {
-        const sourceFile = String(asset.sourceFile || "");
-        if (!sourceFile || runtimeBlobUrlsRef.current.has(asset.id)) return;
-        try {
-          const buffer = await desktopApi.file.readArrayBuffer(sourceFile);
-          if (cancelled || !buffer?.byteLength) return;
-          const url = URL.createObjectURL(new Blob([
-            buffer,
-          ], { type: editorMediaMimeType(sourceFile, asset.type) }));
-          const previous = runtimeBlobUrlsRef.current.get(asset.id);
-          if (previous) URL.revokeObjectURL(previous.url);
-          runtimeBlobUrlsRef.current.set(asset.id, { sourceFile, url });
-        } catch {
-          // The stable asset URL remains available when a buffered preview cannot be created.
-        }
-      }),
-    ).then(() => {
-      if (cancelled) return;
-      setRuntimeMediaUrls(Object.fromEntries(
-        [...runtimeBlobUrlsRef.current].map(([assetId, entry]) => [assetId, entry.url]),
-      ));
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [runtimeAssetSignature]);
   useEffect(() => {
     const runtimeUrl = primaryVideoAssetId
       ? runtimeMediaUrls[primaryVideoAssetId]
@@ -1028,24 +957,6 @@ export function VideoEditorWorkspace(
     const timer = window.setTimeout(() => void sourceFailed(), 3500);
     return () => window.clearTimeout(timer);
   }, [playbackUrl, sourceState, primaryVideoAsset?.sourceFile, sourceFile]);
-  useEffect(() => {
-    if (!duration || zoomTouchedRef.current) return;
-    const timelineWidth = timelineRef.current?.clientWidth || window.innerWidth;
-    const availableWidth = Math.max(1, timelineWidth - 112 - 24);
-    setZoom(Math.max(24, Math.min(180, availableWidth / duration)));
-  }, [duration]);
-  useEffect(() => {
-    const timeline = timelineRef.current;
-    if (!timeline) return;
-    const sync = () => setTimelineViewport({
-      left: timeline.scrollLeft,
-      width: timeline.clientWidth,
-    });
-    sync();
-    const observer = new ResizeObserver(sync);
-    observer.observe(timeline);
-    return () => observer.disconnect();
-  }, []);
   useEffect(() => {
     sourcePreviewPrimedRef.current = false;
   }, [playbackUrl]);
@@ -1087,10 +998,7 @@ export function VideoEditorWorkspace(
         const next = updateEditorClip(projectRef.current, id, { transform });
         if (next === projectRef.current) return;
         runtimeMutationRef.current = true;
-        if (snapshot) {
-          setHistory((items) => [...items.slice(-59), snapshot]);
-        }
-        setFuture([]);
+        if (snapshot) recordHistory(snapshot);
         projectRef.current = next;
         setProject(next);
         controller.persist(next);
@@ -1119,6 +1027,7 @@ export function VideoEditorWorkspace(
     playbackUrl,
     playbackStructureSignature,
     preferFallbackPreview,
+    recordHistory,
     sourceState,
   ]);
   useEffect(() => {
@@ -1181,8 +1090,7 @@ export function VideoEditorWorkspace(
       if (!gesture) return;
       visualTransformRef.current = null;
       if (!gesture.moved) return;
-      setHistory((items) => [...items.slice(-59), gesture.snapshot]);
-      setFuture([]);
+      recordHistory(gesture.snapshot);
       controller.persist(projectRef.current);
       runtimeMutationRef.current = false;
       runtimeRef.current?.replaceProject(createStudioProject(projectRef.current));
@@ -1196,7 +1104,7 @@ export function VideoEditorWorkspace(
       window.removeEventListener("pointerup", up);
       window.removeEventListener("pointercancel", up);
     };
-  }, [controller, createStudioProject]);
+  }, [controller, createStudioProject, recordHistory]);
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape" && !exporting) controller.close();
@@ -1247,12 +1155,7 @@ export function VideoEditorWorkspace(
       const drag = dragRef.current;
       if (!drag) return;
       dragRef.current = null;
-      if (drag.snapshot) {
-        setHistory((
-          items,
-        ) => [...items.slice(-59), drag.snapshot as EditorProject]);
-      }
-      setFuture([]);
+      if (drag.snapshot) recordHistory(drag.snapshot);
       controller.persist(projectRef.current);
       runtimeRef.current?.replaceProject(
         createStudioProject(projectRef.current),
@@ -1264,7 +1167,7 @@ export function VideoEditorWorkspace(
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
     };
-  }, [controller, createStudioProject, zoom]);
+  }, [controller, createStudioProject, recordHistory, zoom]);
 
   function sourceLoaded(video: HTMLVideoElement) {
     const activeSourceFile = String(primaryVideoAsset?.sourceFile || sourceFile);
@@ -1350,8 +1253,8 @@ export function VideoEditorWorkspace(
       <VideoEditorTopBar
         title={title}
         trackCount={project.tracks.length}
-        canUndo={history.length > 0}
-        canRedo={future.length > 0}
+        canUndo={canUndo}
+        canRedo={canRedo}
         exporting={exporting}
         exportDisabled={!duration}
         exportError={exportError}
@@ -1618,7 +1521,7 @@ export function VideoEditorWorkspace(
             )}
             <div className="ov-safe-frame" />
             <output>
-              {formatTimecode(time)} <i>/</i> {formatTimecode(duration)}
+              {formatEditorTimecode(time)} <i>/</i> {formatEditorTimecode(duration)}
             </output>
           </div>
           <div className="ov-transport">
@@ -1665,9 +1568,9 @@ export function VideoEditorWorkspace(
               }}
             />
             <span>
-              <b>{formatTimecode(time)}</b>
+              <b>{formatEditorTimecode(time)}</b>
               <i>/</i>
-              {formatTimecode(duration)}
+              {formatEditorTimecode(duration)}
             </span>
             <button
               className="ov-fit"
@@ -1703,10 +1606,7 @@ export function VideoEditorWorkspace(
         onSplit={splitSelected}
         onDuplicate={duplicateSelected}
         onDelete={deleteSelected}
-        onZoomChange={(nextZoom) => {
-          zoomTouchedRef.current = true;
-          setZoom(nextZoom);
-        }}
+        onZoomChange={changeZoom}
         onViewportChange={setTimelineViewport}
         onSeek={(nextTime) => {
           setTime(nextTime);

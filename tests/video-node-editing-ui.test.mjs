@@ -10,7 +10,11 @@ const readVideoEditorUi = async () => (await Promise.all([
   'VideoEditorChrome.tsx',
   'VideoEditorToolPanel.tsx',
   'VideoEditorTimeline.tsx',
+  'useVideoEditorMediaUrls.ts',
+  'useVideoEditorProjectHistory.ts',
+  'useVideoEditorTimeline.ts',
   'videoEditorCatalog.ts',
+  'videoEditorFormat.ts',
 ].map((name) => readFile(new URL(`../renderer/src/app/editor/${name}`, import.meta.url), 'utf8')))).join('\n');
 test('图片、视频和音频节点共用直接加入剪辑入口', async () => {
   const [source, adapter] = await Promise.all([

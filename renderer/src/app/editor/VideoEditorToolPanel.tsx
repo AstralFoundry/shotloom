@@ -1,5 +1,6 @@
 import { IconSymbol } from "../components/IconSymbol";
 import { effects, textPresets, transitions } from "./videoEditorCatalog";
+import { formatEditorTime } from "./videoEditorFormat";
 import { PanelHeading } from "./VideoEditorWorkspaceParts";
 import type { VideoEditorAsset } from "./videoEditorTypes";
 
@@ -97,7 +98,7 @@ export function VideoEditorToolPanel({
                   ) : <IconSymbol name="sliders" />}
                 </span>
                 <strong>{asset.name}</strong>
-                <small>{asset.type.toUpperCase()}{asset.duration ? ` · ${formatTime(asset.duration)}` : ""}</small>
+                <small>{asset.type.toUpperCase()}{asset.duration ? ` · ${formatEditorTime(asset.duration)}` : ""}</small>
               </button>
               <button
                 className="ov-asset-delete"
@@ -184,9 +185,4 @@ export function VideoEditorToolPanel({
       <p className="ov-panel-note">特效从当前播放头开始，应用后可直接在画布预览。</p>
     </>
   );
-}
-
-function formatTime(seconds: number) {
-  const value = Math.max(0, Number(seconds) || 0);
-  return `${String(Math.floor(value / 60)).padStart(2, "0")}:${(value % 60).toFixed(1).padStart(4, "0")}`;
 }

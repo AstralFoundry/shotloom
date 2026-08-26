@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { IconSymbol } from "../components/IconSymbol";
+import { formatEditorTime } from "./videoEditorFormat";
 import type { VideoEditorProject } from "./videoEditorTypes";
 
 const trackMeta: Record<string, { code: string }> = {
@@ -9,11 +10,6 @@ const trackMeta: Record<string, { code: string }> = {
   overlay: { code: "O" },
   effect: { code: "FX" },
   transition: { code: "TR" },
-};
-
-const formatTime = (seconds: number) => {
-  const value = Math.max(0, Number(seconds) || 0);
-  return `${String(Math.floor(value / 60)).padStart(2, "0")}:${(value % 60).toFixed(1).padStart(4, "0")}`;
 };
 
 export function PanelHeading({ title, count }: { title: string; count: number }) {
@@ -38,7 +34,7 @@ export function Ruler({ duration, zoom }: { duration: number; zoom: number }) {
       {ticks.map((value) => (
         <span key={value} style={{ left: 112 + value * zoom }}>
           <i />
-          {formatTime(value)}
+          {formatEditorTime(value)}
         </span>
       ))}
     </div>

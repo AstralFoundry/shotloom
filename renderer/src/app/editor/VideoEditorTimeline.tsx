@@ -2,6 +2,7 @@ import type { PointerEvent as ReactPointerEvent, RefObject } from "react";
 import { editorClipDuration } from "../../utils/videoEditorProject.mjs";
 import { IconSymbol } from "../components/IconSymbol";
 import { trackMeta } from "./videoEditorCatalog";
+import { formatEditorTime } from "./videoEditorFormat";
 import { Ruler, VideoFilmstripThumbnail } from "./VideoEditorWorkspaceParts";
 import type { VideoEditorAsset, VideoEditorClip, VideoEditorTrack } from "./videoEditorTypes";
 
@@ -61,7 +62,7 @@ export function VideoEditorTimeline({
           <button title="删除片段" aria-label="删除片段" onClick={onDelete}><IconSymbol name="trash" />删除</button>
         </div>
         <div className="ov-sequence-title">
-          <strong>主场景</strong><span>主时间线</span><em>{formatTime(duration)}</em>
+          <strong>主场景</strong><span>主时间线</span><em>{formatEditorTime(duration)}</em>
         </div>
         <label>
           缩放
@@ -142,7 +143,7 @@ export function VideoEditorTimeline({
                         </span>
                       )}
                       <i>{clipLabel(clip, clipAsset)}</i>
-                      <small>{formatTime(editorClipDuration(clip))}</small>
+                      <small>{formatEditorTime(editorClipDuration(clip))}</small>
                     </button>
                   );
                 })}
@@ -166,9 +167,4 @@ function clipLabel(clip: VideoEditorClip, asset?: VideoEditorAsset) {
   if (clip.type === "effect") return String(clip.effectKey || "");
   if (clip.type === "image") return "贴图";
   return asset?.name || clip.type;
-}
-
-function formatTime(seconds: number) {
-  const value = Math.max(0, Number(seconds) || 0);
-  return `${String(Math.floor(value / 60)).padStart(2, "0")}:${(value % 60).toFixed(1).padStart(4, "0")}`;
 }
