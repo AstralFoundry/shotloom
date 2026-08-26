@@ -2,6 +2,9 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 const canvas = readFileSync(
+  new URL('../renderer/src/app/canvas/CanvasNodeToolbar.tsx', import.meta.url),
+  'utf8',
+) + readFileSync(
   new URL('../renderer/src/app/canvas/WorkflowCanvas.tsx', import.meta.url),
   'utf8',
 );

@@ -10,12 +10,11 @@ import {
   useContext,
   useEffect,
   useImperativeHandle,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
-import { createPortal, flushSync } from "react-dom";
+import { flushSync } from "react-dom";
 import {
   applyNodeChanges,
   type Connection,
@@ -28,26 +27,19 @@ import {
   type NodeChange,
   type OnNodeDrag,
   NodeResizer,
-  NodeToolbar,
   type NodeProps,
   type OnMoveEnd,
   type OnMoveStart,
   ReactFlow,
-  type ReactFlowState,
   type ReactFlowInstance,
   Position,
   useNodesState,
-  useStore,
   type Viewport,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { canvasNodeDimensions, defaultCanvasNodeDimensions } from "../../services/agentLayoutService";
-import { desktopApi } from "../../services/desktopApi.js";
 import { IconSymbol } from "../components/IconSymbol";
-import { ImageCropDialog, type ImageCropRect } from "../components/ImageCropDialog";
-import { assetCategories } from "../constants/navigation";
-import { openMediaViewer } from "../store/overlayStore";
-import { selectedTextOutput, textNodeContent } from "../../utils/textNodeContent.mjs";
+import type { ImageCropRect } from "../components/ImageCropDialog";
 import {
   draggedCanvasPositions,
   reconcileCanvasNodes,
@@ -55,13 +47,12 @@ import {
 import {
   CANVAS_NODE_LABEL_HEIGHT,
   canvasNodePortBounds,
-  canvasNodeToolbarOffset,
 } from "../../utils/canvasNodeChrome.mjs";
+import { CanvasNodeToolbar } from "./CanvasNodeToolbar";
 import { CanvasContextMenu } from "./CanvasContextMenu";
 import {
   canvasMenuPosition,
   screenPixel,
-  selectedLocalMediaPath,
   workflowNodeDimensions as nodeDimensions,
 } from "./canvasScreenGeometry";
 
@@ -347,30 +338,7 @@ function CanvasNode({ data, selected, dragging }: NodeProps<FlowNode>) {
   const mentionInCopilot = useContext(MentionContext);
   const item = data.node;
   const [resizing, setResizing] = useState(false);
-  const [assetScopeMenuOpen, setAssetScopeMenuOpen] = useState(false);
-  const [assetCategory, setAssetCategory] = useState("");
-  const [audioTrackState, setAudioTrackState] = useState<"idle" | "checking" | "present" | "absent">("idle");
-  const [audioSplitRunning, setAudioSplitRunning] = useState(false);
-  const [cropOpen, setCropOpen] = useState(false);
-  const [dragReleaseSettling, setDragReleaseSettling] = useState(false);
-  const [assetMenuPlacement, setAssetMenuPlacement] = useState<CSSProperties>({
-    visibility: "hidden",
-  });
-  const assetTriggerRef = useRef<HTMLButtonElement>(null);
-  const assetMenuRef = useRef<HTMLDivElement>(null);
   const canvasOverlayRoot = useContext(CanvasOverlayRootContext);
-  const nodeChromeHidden = Boolean(dragging || dragReleaseSettling);
-  const assetPlacementRevision = useStore((state: ReactFlowState) => {
-    const internal = state.nodeLookup.get(item.id);
-    const position = internal?.internals.positionAbsolute;
-    return [
-      ...state.transform,
-      Number(position?.x || 0),
-      Number(position?.y || 0),
-      Number(internal?.measured.width || internal?.width || 0),
-      Number(internal?.measured.height || internal?.height || 0),
-    ].join(":");
-  });
   const [labelRoot, setLabelRoot] = useState<HTMLElement | null>(null);
   const Renderer = registry[item.type] || FallbackNode;
   const resizable =
@@ -384,337 +352,17 @@ function CanvasNode({ data, selected, dragging }: NodeProps<FlowNode>) {
         : { width: 195, height: 135 };
   const dimensions = nodeDimensions(item);
   const semanticZoom = data.semanticZoom;
-  const localMediaPath = selectedLocalMediaPath(item);
-  const canSaveToAssets = Boolean(localMediaPath);
-  const isLocalVideo = item.type === "videoGeneration" && Boolean(localMediaPath);
-  const isLocalImage = item.type === "imageGeneration" && Boolean(localMediaPath);
-  const canExtractAudio = isLocalVideo && audioTrackState === "present";
-  const uploadLabels: Record<string, string> = {
-    imageGeneration: "图片",
-    videoGeneration: "视频",
-    audioGeneration: "音频",
-  };
-  const mediaOutputs = Array.isArray(item.generatedOutputs)
-    ? (item.generatedOutputs as Array<Record<string, unknown>>)
-    : [];
-  const hasMediaContent = Boolean(
-    item.uploadedFile ||
-    item.filePath ||
-    item.previewUrl ||
-    item.url ||
-    mediaOutputs.some((output) =>
-      output.filePath || output.path || output.previewUrl || output.url || output.remoteUrl,
-    ),
-  );
-  const uploadLabel = uploadLabels[item.type] || "";
-  const canUpload = Boolean(uploadLabel && !hasMediaContent);
-  const isTextNode = item.type === "textGeneration";
-  const useSubtleUploadToolbar = canUpload && !isTextNode;
-  const toolbarOffset = canvasNodeToolbarOffset(semanticZoom, useSubtleUploadToolbar);
-  const textOutputs = Array.isArray(item.generatedOutputs)
-    ? (item.generatedOutputs as Array<Record<string, unknown>>)
-    : [];
-  const currentTextOutput = selectedTextOutput(item) as Record<string, unknown> | null;
-  const textContent = textNodeContent(item);
-  useEffect(() => {
-    if (!selected) {
-      setAssetScopeMenuOpen(false);
-      setAssetCategory("");
-    }
-  }, [selected]);
-  useEffect(() => {
-    if (!selected || !isLocalVideo) {
-      setAudioTrackState("idle");
-      return;
-    }
-    let active = true;
-    setAudioTrackState("checking");
-    void desktopApi.file.hasAudio(localMediaPath).then(
-      (hasAudio: boolean) => {
-        if (active) setAudioTrackState(hasAudio ? "present" : "absent");
-      },
-      () => {
-        if (active) setAudioTrackState("absent");
-      },
-    );
-    return () => {
-      active = false;
-    };
-  }, [isLocalVideo, localMediaPath, selected]);
-  useLayoutEffect(() => {
-    if (dragging) {
-      setDragReleaseSettling(true);
-      return;
-    }
-    if (!dragReleaseSettling) return;
-    let revealFrame = 0;
-    let revealTimer = 0;
-    const settleFrame = requestAnimationFrame(() => {
-      revealFrame = requestAnimationFrame(() => {
-        revealTimer = window.setTimeout(() => setDragReleaseSettling(false), 64);
-      });
-    });
-    return () => {
-      cancelAnimationFrame(settleFrame);
-      if (revealFrame) cancelAnimationFrame(revealFrame);
-      if (revealTimer) window.clearTimeout(revealTimer);
-    };
-  }, [dragReleaseSettling, dragging]);
-  useLayoutEffect(() => {
-    if (!assetScopeMenuOpen || !canvasOverlayRoot) return;
-    const sync = () => {
-      const trigger = assetTriggerRef.current?.getBoundingClientRect();
-      const menu = assetMenuRef.current;
-      const rootBounds = canvasOverlayRoot.getBoundingClientRect();
-      if (!trigger || !menu) return;
-      const margin = 12;
-      const gap = 7;
-      const width = menu.offsetWidth;
-      const height = menu.offsetHeight;
-      const left = Math.max(
-        margin,
-        Math.min(rootBounds.width - width - margin, trigger.right - rootBounds.left - width),
-      );
-      const below = trigger.bottom - rootBounds.top + gap;
-      const above = trigger.top - rootBounds.top - height - gap;
-      let top = below;
-      if (below + height > rootBounds.height - margin && above >= margin) top = above;
-      top = Math.max(margin, Math.min(rootBounds.height - height - margin, top));
-      setAssetMenuPlacement({ left, top, visibility: "visible" });
-    };
-    const frame = requestAnimationFrame(sync);
-    const observer = new ResizeObserver(sync);
-    observer.observe(canvasOverlayRoot);
-    if (assetTriggerRef.current) observer.observe(assetTriggerRef.current);
-    window.addEventListener("resize", sync);
-    return () => {
-      cancelAnimationFrame(frame);
-      observer.disconnect();
-      window.removeEventListener("resize", sync);
-    };
-  }, [assetScopeMenuOpen, assetPlacementRevision, canvasOverlayRoot]);
-  function openTextDetail() {
-    openMediaViewer({
-      src: textContent,
-      kind: "text",
-      title: String(item.title || "文本详情"),
-      filePath: String(currentTextOutput?.filePath || ""),
-      onSave: (content) => {
-        actions.update(item.id, {
-          textContent: content,
-          generatedOutputs: currentTextOutput
-            ? textOutputs.map((output) =>
-                output.id === currentTextOutput.id ? { ...output, content } : output,
-              )
-            : textOutputs,
-          updatedAt: new Date().toISOString(),
-        });
-      },
-    });
-  }
   return (
     <>
-      {(isTextNode || canUpload || mentionInCopilot || canSaveToAssets || isLocalVideo) && (
-        <NodeToolbar
-          className={`canvas-node-selection-toolbar${useSubtleUploadToolbar ? " canvas-node-selection-toolbar--subtle" : ""}${nodeChromeHidden ? " canvas-node-selection-toolbar--hidden" : ""} nodrag nopan`}
-          isVisible={selected}
-          position={Position.Top}
-          offset={toolbarOffset}
-        >
-          {isTextNode && (
-            <>
-              <span className="canvas-node-toolbar-label">文本节点</span>
-              <button
-                className="canvas-node-toolbar-icon"
-                type="button"
-                title="复制全文"
-                disabled={!textContent}
-                onPointerDown={(event) => event.stopPropagation()}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  void navigator.clipboard.writeText(textContent).then(
-                    () => actions.notify("文本已复制"),
-                    () => actions.notify("文本复制失败"),
-                  );
-                }}
-              >
-                <IconSymbol name="copy" />
-              </button>
-            </>
-          )}
-          {canUpload && (
-            <button
-              className="canvas-node-upload-action"
-              type="button"
-              title={`上传${uploadLabel}`}
-              onPointerDown={(event) => event.stopPropagation()}
-              onClick={(event) => {
-                event.stopPropagation();
-                void actions.upload(item.id);
-              }}
-            >
-              <IconSymbol name="upload" />
-              <span>上传{uploadLabel}</span>
-            </button>
-          )}
-          {isLocalVideo && (
-            <button
-              type="button"
-              title={audioSplitRunning ? "正在后台拆分音视频" : canExtractAudio ? "拆分为无声视频和音乐" : audioTrackState === "checking" ? "正在检测音轨" : "当前视频不包含音轨"}
-              disabled={!canExtractAudio || audioSplitRunning}
-              onPointerDown={(event) => event.stopPropagation()}
-              onClick={(event) => {
-                event.stopPropagation();
-                setAudioSplitRunning(true);
-                void Promise.resolve(actions.extractAudio(item.id)).finally(() => setAudioSplitRunning(false));
-              }}
-            >
-              <IconSymbol name="waveform" />
-              <span>{audioSplitRunning ? "拆分中…" : canExtractAudio ? "音频分离" : audioTrackState === "checking" ? "检测音轨…" : "无音轨"}</span>
-            </button>
-          )}
-          {isLocalImage && (
-            <button
-              type="button"
-              title="裁剪图片"
-              onPointerDown={(event) => event.stopPropagation()}
-              onClick={(event) => {
-                event.stopPropagation();
-                setCropOpen(true);
-              }}
-            >
-              <IconSymbol name="crop" />
-              <span>裁剪</span>
-            </button>
-          )}
-          {canSaveToAssets && (
-            <div className="canvas-node-asset-action">
-              <button
-                ref={assetTriggerRef}
-                type="button"
-                title="选择资产保存范围"
-                aria-haspopup="menu"
-                aria-expanded={assetScopeMenuOpen}
-                onPointerDown={(event) => event.stopPropagation()}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  setAssetScopeMenuOpen((open) => {
-                    if (open) setAssetCategory("");
-                    else setAssetMenuPlacement({ visibility: "hidden" });
-                    return !open;
-                  });
-                }}
-              >
-                <IconSymbol name="archive" />
-                <span>存为资产</span>
-                <IconSymbol className="canvas-node-asset-chevron" name="chevron-down" />
-              </button>
-              {assetScopeMenuOpen && canvasOverlayRoot && createPortal(
-                <div
-                  ref={assetMenuRef}
-                  className={`canvas-node-asset-scope-menu canvas-node-asset-scope-menu--portal${nodeChromeHidden ? " canvas-node-asset-scope-menu--hidden" : ""} nodrag nopan nowheel`}
-                  role="menu"
-                  style={assetMenuPlacement}
-                  onPointerDown={(event) => event.stopPropagation()}
-                >
-                  <header className="canvas-node-asset-menu-head">
-                    <IconSymbol name="archive" />
-                    <span><strong>存为资产</strong><small>选择类型与保存位置</small></span>
-                  </header>
-                  <div className="canvas-node-asset-category-grid">
-                    {assetCategories.map((category) => (
-                      <button
-                        className={assetCategory === category.id ? "active" : ""}
-                        key={category.id}
-                        type="button"
-                        aria-pressed={assetCategory === category.id}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          setAssetCategory(category.id);
-                        }}
-                      >
-                        <IconSymbol name={category.icon} />
-                        <span>{category.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                  <div className="canvas-node-asset-destinations">
-                    <button
-                      type="button"
-                      role="menuitem"
-                      disabled={!assetCategory}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        setAssetScopeMenuOpen(false);
-                        void actions.saveToAssets(item.id, "project", assetCategory);
-                        setAssetCategory("");
-                      }}
-                    >
-                      <IconSymbol name="folder" />
-                      <strong>存到项目</strong>
-                    </button>
-                    <button
-                      type="button"
-                      role="menuitem"
-                      disabled={!assetCategory}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        setAssetScopeMenuOpen(false);
-                        void actions.saveToAssets(item.id, "global", assetCategory);
-                        setAssetCategory("");
-                      }}
-                    >
-                      <IconSymbol name="archive" />
-                      <strong>存到全局</strong>
-                    </button>
-                  </div>
-                </div>,
-                canvasOverlayRoot,
-              )}
-            </div>
-          )}
-          {mentionInCopilot && (canUpload || canExtractAudio || canSaveToAssets) && (
-            <span className="canvas-node-toolbar-divider" />
-          )}
-          {mentionInCopilot && (
-            <button
-              className="canvas-node-toolbar-icon"
-              type="button"
-              title={`加入对话：${item.title || item.type}`}
-              onPointerDown={(event) => event.stopPropagation()}
-              onClick={(event) => {
-                event.stopPropagation();
-                mentionInCopilot(item.id);
-              }}
-            >
-              <IconSymbol name="chat" />
-            </button>
-          )}
-          {isTextNode && (
-            <button
-              className="canvas-node-toolbar-icon"
-              type="button"
-              title="打开完整文本"
-              onPointerDown={(event) => event.stopPropagation()}
-              onClick={(event) => {
-                event.stopPropagation();
-                openTextDetail();
-              }}
-            >
-              <IconSymbol name="maximize" />
-            </button>
-          )}
-        </NodeToolbar>
-      )}
-      {cropOpen && isLocalImage && createPortal(
-        <ImageCropDialog
-          source={localMediaPath}
-          title={String(item.title || "图片")}
-          onCancel={() => setCropOpen(false)}
-          onConfirm={(rect) => actions.cropImage(item.id, rect)}
-        />,
-        document.body,
-      )}
+      <CanvasNodeToolbar
+        node={item}
+        selected={selected}
+        dragging={dragging}
+        semanticZoom={semanticZoom}
+        actions={actions}
+        mentionInCopilot={mentionInCopilot}
+        canvasOverlayRoot={canvasOverlayRoot}
+      />
       {selected && resizable && (
         <NodeResizer
           color="#171717"

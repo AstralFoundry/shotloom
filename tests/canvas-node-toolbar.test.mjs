@@ -2,7 +2,9 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-const canvas = readFileSync(new URL('../renderer/src/app/canvas/WorkflowCanvas.tsx', import.meta.url), 'utf8');
+const toolbar = readFileSync(new URL('../renderer/src/app/canvas/CanvasNodeToolbar.tsx', import.meta.url), 'utf8');
+const workflowCanvas = readFileSync(new URL('../renderer/src/app/canvas/WorkflowCanvas.tsx', import.meta.url), 'utf8');
+const canvas = toolbar + workflowCanvas;
 const cropDialog = readFileSync(new URL('../renderer/src/app/components/ImageCropDialog.tsx', import.meta.url), 'utf8');
 const generation = readFileSync(new URL('../renderer/src/app/canvas/GenerationNode.tsx', import.meta.url), 'utf8');
 const basicNodes = readFileSync(new URL('../renderer/src/app/canvas/CanvasNodes.tsx', import.meta.url), 'utf8');
@@ -19,9 +21,18 @@ const fileRust = readFileSync(new URL('../src-tauri/src/commands/file.rs', impor
 const imageRust = readFileSync(new URL('../src-tauri/src/commands/image.rs', import.meta.url), 'utf8');
 const nodeChrome = await import('../renderer/src/utils/canvasNodeChrome.mjs');
 
+test('画布节点外框与选中操作工具栏保持职责分离', () => {
+  assert.match(workflowCanvas, /import \{ CanvasNodeToolbar \}/);
+  assert.match(workflowCanvas, /<CanvasNodeToolbar[\s\S]*?canvasOverlayRoot=\{canvasOverlayRoot\}/);
+  assert.doesNotMatch(workflowCanvas, /desktopApi\.file\.hasAudio|assetScopeMenuOpen|<ImageCropDialog/);
+  assert.match(toolbar, /desktopApi\.file\.hasAudio/);
+  assert.match(toolbar, /assetScopeMenuOpen/);
+  assert.match(toolbar, /ImageCropDialog/);
+});
+
 test('加入对话只在节点选中工具栏中显示', () => {
   assert.match(canvas, /<NodeToolbar[\s\S]*?canvas-node-selection-toolbar--hidden[\s\S]*?isVisible=\{selected\}[\s\S]*?offset=\{toolbarOffset\}[\s\S]*?>[\s\S]*?加入对话[\s\S]*?<\/NodeToolbar>/);
-  assert.match(canvas, /mentionInCopilot\(item\.id\)/);
+  assert.match(canvas, /mentionInCopilot\(node\.id\)/);
   assert.match(styles, /\.canvas-node-selection-toolbar \{[\s\S]*?z-index: 110/);
   for (const source of [generation, basicNodes, board, director]) {
     assert.doesNotMatch(source, /className="node-mention-btn/);
@@ -29,24 +40,24 @@ test('加入对话只在节点选中工具栏中显示', () => {
 });
 
 test('文本节点工具栏提供复制、加入对话与完整文本编辑', () => {
-  assert.match(canvas, /isTextNode = item\.type === "textGeneration"/);
+  assert.match(canvas, /isTextNode = node\.type === "textGeneration"/);
   assert.match(canvas, /canvas-node-toolbar-label">文本节点/);
   assert.match(canvas, /title="复制全文"[\s\S]*?navigator\.clipboard\.writeText\(textContent\)/);
   assert.match(canvas, /title="打开完整文本"[\s\S]*?openTextDetail\(\)/);
-  assert.match(canvas, /openMediaViewer\(\{[\s\S]*?kind: "text"[\s\S]*?actions\.update\(item\.id/);
+  assert.match(canvas, /openMediaViewer\(\{[\s\S]*?kind: "text"[\s\S]*?actions\.update\(node\.id/);
   assert.doesNotMatch(canvas, /item\.textContent \|\| item\.prompt/);
 });
 
 test('媒体节点工具栏提供真实入库与音频分离', () => {
-  assert.match(canvas, /canExtractAudio[\s\S]*?actions\.extractAudio\(item\.id\)[\s\S]*?音频分离/);
+  assert.match(canvas, /canExtractAudio[\s\S]*?actions\.extractAudio\(node\.id\)[\s\S]*?音频分离/);
   assert.match(canvas, /desktopApi\.file\.hasAudio\(localMediaPath\)[\s\S]*?"present"\s*:\s*"absent"/);
   assert.match(canvas, /disabled=\{!canExtractAudio \|\| audioSplitRunning\}[\s\S]*?"拆分中…"[\s\S]*?"无音轨"/);
   assert.match(canvas, /canSaveToAssets[\s\S]*?存为资产[\s\S]*?assetScopeMenuOpen/);
   assert.match(canvas, /assetCategories\.map[\s\S]*?setAssetCategory\(category\.id\)/);
   assert.match(canvas, /createPortal\([\s\S]*?canvas-node-asset-scope-menu--portal[\s\S]*?canvasOverlayRoot/);
   assert.match(canvas, /assetPlacementRevision = useStore[\s\S]*?positionAbsolute[\s\S]*?state\.transform/);
-  assert.match(canvas, /actions\.saveToAssets\(item\.id, "project", assetCategory\)[\s\S]*?<strong>存到项目<\/strong>/);
-  assert.match(canvas, /actions\.saveToAssets\(item\.id, "global", assetCategory\)[\s\S]*?<strong>存到全局<\/strong>/);
+  assert.match(canvas, /actions\.saveToAssets\(node\.id, "project", assetCategory\)[\s\S]*?<strong>存到项目<\/strong>/);
+  assert.match(canvas, /actions\.saveToAssets\(node\.id, "global", assetCategory\)[\s\S]*?<strong>存到全局<\/strong>/);
   assert.match(adapter, /async function saveToAssets\([\s\S]*?scope === "project"[\s\S]*?addMaterialToAssetLibrary[\s\S]*?promoteMaterialToLocalLibrary/);
   assert.match(adapter, /assetDetails = \{[\s\S]*?category,[\s\S]*?promoteMaterialToLocalLibrary/);
   assert.match(styles, /\.canvas-node-asset-scope-menu \{[\s\S]*?width:\s*220px/);
@@ -65,7 +76,7 @@ test('媒体节点工具栏提供真实入库与音频分离', () => {
 
 test('本地图片节点提供原图裁剪并创建保留来源连线的新节点', () => {
   assert.match(canvas, /isLocalImage[^]*?title="裁剪图片"[^]*?setCropOpen\(true\)/);
-  assert.match(canvas, /createPortal\([^]*?<ImageCropDialog[^]*?actions\.cropImage\(item\.id, rect\)[^]*?document\.body/);
+  assert.match(canvas, /createPortal\([^]*?<ImageCropDialog[^]*?actions\.cropImage\(node\.id, rect\)[^]*?document\.body/);
   assert.match(cropDialog, /readImagePreview\(source, 2048\)/);
   assert.match(cropDialog, /cropRatios[\s\S]*?"1:1"[\s\S]*?"16:9"[\s\S]*?"9:16"/);
   assert.match(adapter, /async function cropImage\(id: string, crop: ImageCropRect\)[\s\S]*?cropImageToProject[\s\S]*?addNode\("imageGeneration"\)/);
@@ -81,7 +92,7 @@ test('空媒体节点从顶部工具栏上传且节点内部只保留占位图�
   assert.match(canvas, /const canUpload = Boolean\(uploadLabel && !hasMediaContent\)/);
   assert.match(canvas, /toolbarOffset = canvasNodeToolbarOffset\(semanticZoom, useSubtleUploadToolbar\)/);
   assert.match(canvas, /useSubtleUploadToolbar[\s\S]*?canvas-node-selection-toolbar--subtle[\s\S]*?offset=\{toolbarOffset\}/);
-  assert.match(canvas, /\{canUpload && \([\s\S]*?title=\{`上传\$\{uploadLabel\}`\}[\s\S]*?actions\.upload\(item\.id\)/);
+  assert.match(canvas, /\{canUpload && \([\s\S]*?title=\{`上传\$\{uploadLabel\}`\}[\s\S]*?actions\.upload\(node\.id\)/);
   assert.doesNotMatch(generation, /className="work-empty-upload/);
   assert.doesNotMatch(generation, /上传\{metaLabel\.replace/);
   assert.match(styles, /\.work-preview \.work-empty-type-icon \{[\s\S]*?width:\s*34px;[\s\S]*?height:\s*34px/);
