@@ -1,7 +1,7 @@
 import { IconSymbol } from "../components/IconSymbol";
 import { effects, textPresets, transitions } from "./videoEditorCatalog";
 import { formatEditorTime } from "./videoEditorFormat";
-import { PanelHeading } from "./VideoEditorWorkspaceParts";
+import { VideoEditorPanelHeading } from "./VideoEditorPanelHeading";
 import type { VideoEditorAsset } from "./videoEditorTypes";
 
 type ImportSource = "device" | "library" | "local" | "files";
@@ -117,7 +117,7 @@ export function VideoEditorToolPanel({
   if (activeTool === "text") {
     return (
       <>
-        <PanelHeading title="文字与字幕" count={textPresets.length} />
+        <VideoEditorPanelHeading title="文字与字幕" count={textPresets.length} />
         <div className="ov-text-presets">
           {textPresets.map((preset) => (
             <button key={preset.id} className={`ov-preset-card text-preset is-${preset.id}`} onClick={() => onAddText(preset)}>
@@ -156,7 +156,7 @@ export function VideoEditorToolPanel({
   if (activeTool === "transitions") {
     return (
       <>
-        <PanelHeading title="转场" count={transitions.length} />
+        <VideoEditorPanelHeading title="转场" count={transitions.length} />
         <div className="ov-preset-list">
           {transitions.map((item) => (
             <button key={item.key} onClick={() => onAddTransition(item.key)} disabled={videoClipCount < 2}>
@@ -173,7 +173,7 @@ export function VideoEditorToolPanel({
   }
   return (
     <>
-      <PanelHeading title="视觉特效" count={effects.length} />
+      <VideoEditorPanelHeading title="视觉特效" count={effects.length} />
       <div className="ov-preset-list">
         {effects.map((item) => (
           <button key={item.key} onClick={() => onAddEffect(item.key)}>

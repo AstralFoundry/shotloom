@@ -3,7 +3,7 @@ import { editorClipDuration } from "../../utils/videoEditorProject.mjs";
 import { IconSymbol } from "../components/IconSymbol";
 import { trackMeta } from "./videoEditorCatalog";
 import { formatEditorTime } from "./videoEditorFormat";
-import { Ruler, VideoFilmstripThumbnail } from "./VideoEditorWorkspaceParts";
+import { VideoEditorRuler, VideoFilmstripThumbnail } from "./VideoEditorTimelineMedia";
 import type { VideoEditorAsset, VideoEditorClip, VideoEditorTrack } from "./videoEditorTypes";
 
 export function VideoEditorTimeline({
@@ -97,7 +97,7 @@ export function VideoEditorTimeline({
             onSeek(Math.max(0, Math.min(duration, (event.clientX - rect.left - 112) / zoom)));
           }}
         >
-          <Ruler duration={duration} zoom={zoom} />
+          <VideoEditorRuler duration={duration} zoom={zoom} />
           {tracks.map((track) => (
             <div className={`ov-track type-${track.type}${track.hidden ? " hidden" : ""}`} key={track.id}>
               <div className="ov-track-head">

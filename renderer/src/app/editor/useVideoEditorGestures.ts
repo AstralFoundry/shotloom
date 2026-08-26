@@ -15,6 +15,7 @@ import {
   updateEditorClip,
 } from "../../utils/videoEditorProject.mjs";
 import { constrainTransformToCanvas } from "./videoEditorModel";
+import type { VideoEditorRuntimeRef } from "./videoEditorRuntimeTypes";
 import type {
   VideoEditorClip,
   VideoEditorProject,
@@ -61,7 +62,7 @@ export function useVideoEditorGestures({
   projectRef: MutableRefObject<VideoEditorProject>;
   setProject: Dispatch<SetStateAction<VideoEditorProject>>;
   monitorRef: RefObject<HTMLDivElement | null>;
-  runtimeRef: MutableRefObject<any>;
+  runtimeRef: VideoEditorRuntimeRef;
   runtimeMutationRef: MutableRefObject<boolean>;
   zoom: number;
   time: number;

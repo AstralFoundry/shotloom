@@ -322,8 +322,10 @@ function TextPreviewLayer({
           project.settings.width,
           project.settings.height,
         );
-        const style = (clip.style || {}) as Record<string, any>;
-        const stroke = (style.stroke || {}) as Record<string, any>;
+        const style = clip.style || {};
+        const stroke = style.stroke && typeof style.stroke === "object"
+          ? style.stroke as Record<string, unknown>
+          : {};
         return (
           <div
             key={clip.id}
@@ -333,16 +335,16 @@ function TextPreviewLayer({
               top: `${(Number(transform.y) || 0) / project.settings.height * 100}%`,
               width: `${(Number(transform.width) || project.settings.width) / project.settings.width * 100}%`,
               height: `${(Number(transform.height) || 1) / project.settings.height * 100}%`,
-              color: style.color || "#fff",
+              color: String(style.color || "#fff"),
               background: "transparent",
-              fontFamily: style.fontFamily || "PingFang SC",
+              fontFamily: String(style.fontFamily || "PingFang SC"),
               fontSize: `clamp(12px, ${(Number(style.fontSize) || 64) / project.settings.height * 100}cqh, 96px)`,
-              fontWeight: style.fontWeight || 700,
-              textAlign: style.align || "center",
+              fontWeight: Number(style.fontWeight) || 700,
+              textAlign: String(style.align || "center") as "left" | "center" | "right",
               opacity: Number(transform.opacity ?? 1),
               transform: `rotate(${Number(transform.angle) || 0}deg)`,
               WebkitTextStroke: stroke.width
-                ? `${Math.max(1, Number(stroke.width) / project.settings.height * 100)}cqh ${stroke.color || "#111"}`
+                ? `${Math.max(1, Number(stroke.width) / project.settings.height * 100)}cqh ${String(stroke.color || "#111")}`
                 : undefined,
             }}
             onPointerDown={(event) => onBeginTransform(event, clip, "move")}

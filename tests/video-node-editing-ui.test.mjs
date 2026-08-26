@@ -4,21 +4,57 @@ import test from 'node:test';
 const readCanvasAdapter = async () =>
   await readFile(new URL('../renderer/src/app/adapters/canvasAdapter.ts', import.meta.url), 'utf8')
   + await readFile(new URL('../renderer/src/app/adapters/canvas/videoEditorActions.ts', import.meta.url), 'utf8');
-const readVideoEditorUi = async () => (await Promise.all([
+const videoEditorFiles = [
   'VideoEditorWorkspace.tsx',
-  'VideoEditorWorkspaceParts.tsx',
+  'VideoEditorInspector.tsx',
+  'VideoEditorPanelHeading.tsx',
+  'VideoEditorTimelineMedia.tsx',
   'VideoEditorChrome.tsx',
   'VideoEditorMonitor.tsx',
   'VideoEditorToolPanel.tsx',
   'VideoEditorTimeline.tsx',
+  'useVideoEditorCommands.ts',
   'useVideoEditorGestures.ts',
   'useVideoEditorMediaUrls.ts',
   'useVideoEditorProjectHistory.ts',
+  'useVideoEditorRuntime.ts',
   'useVideoEditorShortcuts.ts',
+  'useVideoEditorSourcePreview.ts',
   'useVideoEditorTimeline.ts',
   'videoEditorCatalog.ts',
   'videoEditorFormat.ts',
-].map((name) => readFile(new URL(`../renderer/src/app/editor/${name}`, import.meta.url), 'utf8')))).join('\n');
+  'videoEditorRuntimeTypes.ts',
+];
+const readVideoEditorSource = (name) =>
+  readFile(new URL(`../renderer/src/app/editor/${name}`, import.meta.url), 'utf8');
+const readVideoEditorUi = async () =>
+  (await Promise.all(videoEditorFiles.map(readVideoEditorSource))).join('\n');
+
+test('剪辑工作区只编排组件和领域 Hook', async () => {
+  const [workspace, runtime, preview, commands, inspector, timelineMedia] = await Promise.all([
+    readVideoEditorSource('VideoEditorWorkspace.tsx'),
+    readVideoEditorSource('useVideoEditorRuntime.ts'),
+    readVideoEditorSource('useVideoEditorSourcePreview.ts'),
+    readVideoEditorSource('useVideoEditorCommands.ts'),
+    readVideoEditorSource('VideoEditorInspector.tsx'),
+    readVideoEditorSource('VideoEditorTimelineMedia.tsx'),
+  ]);
+  for (const hook of [
+    'useVideoEditorRuntime',
+    'useVideoEditorSourcePreview',
+    'useVideoEditorCommands',
+    'useVideoEditorGestures',
+    'useVideoEditorProjectHistory',
+  ]) assert.match(workspace, new RegExp(`import \\{ ${hook} \\}`));
+  assert.doesNotMatch(workspace, /createOpenVideoRuntime|document\.createElement\("video"\)|const addAsset =|const splitSelected =/);
+  assert.match(runtime, /createOpenVideoRuntime/);
+  assert.match(preview, /desktopApi\.file\.readArrayBuffer/);
+  assert.match(commands, /const addAsset =/);
+  assert.match(commands, /const splitSelected =/);
+  assert.match(inspector, /export function VideoEditorInspector/);
+  assert.match(timelineMedia, /export function VideoFilmstripThumbnail/);
+  assert.match(timelineMedia, /document\.createElement\("video"\)/);
+});
 test('图片、视频和音频节点共用直接加入剪辑入口', async () => {
   const [source, adapter] = await Promise.all([
     readFile(new URL('../renderer/src/app/canvas/GenerationNode.tsx', import.meta.url), 'utf8'),
@@ -130,14 +166,14 @@ test('独立剪辑工作区接入真实桌面导出', async () => {
   assert.doesNotMatch(workspace, /runtimeUpdates\.style = updates\.style/);
   assert.match(
     workspace,
-    /runtimeMutationRef\.current = true;\s*void runtime\.updateClip\(selectedId, runtimeUpdates\)/,
+    /runtimeMutationRef\.current = true;\s*void runtimeRef\.current\.updateClip\(selectedId, runtimeUpdates\)/,
   );
   assert.match(
     workspace,
     /playbackStructureSignature,[\s\S]*?preferFallbackPreview,[\s\S]*?sourceState/,
   );
   assert.match(workspace, /const usesNativeSequencePreview = directPreviewClips\.length > 1/);
-  assert.match(workspace, /function continueNativeSequence\(clipId: string\)/);
+  assert.match(workspace, /const continueNativeSequence = \(clipId: string\)/);
   assert.match(workspace, /src=\{usesNativeSequencePreview \? nativePreviewUrl : playbackUrl\}/);
   assert.match(workspace, /onEnded=\{\(\) => \{[\s\S]*?onContinueSequence/);
 });
@@ -195,7 +231,7 @@ test('剪辑工作区主动解码首帧并提供可编辑的中文文字预设',
     'VideoEditorWorkspace.theme.css',
   ].map((name) => readFile(new URL(`../renderer/src/app/editor/${name}`, import.meta.url), 'utf8')))).join('\n');
   assert.match(workspace, /preload="auto"/);
-  assert.match(workspace, /function primeSourcePreview/);
+  assert.match(workspace, /const primeSourcePreview/);
   assert.match(workspace, /video\.currentTime = frameTime/);
   assert.match(workspace, /Math\.max\(time, 0\)/);
   assert.doesNotMatch(workspace, /video\.duration \* \.08/);
@@ -235,10 +271,10 @@ test('剪辑工作区主动解码首帧并提供可编辑的中文文字预设',
     /\.ov-inspector-section input,[\s\S]*?width:\s*100%;[\s\S]*?max-width:\s*100%/,
   );
   assert.match(styles, /\.ov-edit-buttons button:nth-child\(2\) \{ font-size: 0; \}/);
-  assert.match(workspace, /function deleteAsset\(assetId: string\)/);
+  assert.match(workspace, /const deleteAsset = \(assetId: string\)/);
   assert.match(
     workspace,
-    /clips: track\.clips\.filter\(\(clip: any\) => clip\.assetId !== assetId\)/,
+    /clips: track\.clips\.filter\(\(clip\) => clip\.assetId !== assetId\)/,
   );
   assert.match(workspace, /className="ov-asset-delete"/);
   assert.match(workspace, /if \(found\?\.track\.locked\)/);
@@ -282,8 +318,8 @@ test('剪辑工作区主动解码首帧并提供可编辑的中文文字预设',
   assert.match(workspace, /const videoStart = asset\.type === "video"/);
   assert.match(workspace, /timelineStart: videoStart/);
   assert.match(workspace, /已追加到视频轨末尾/);
-  assert.match(workspace, /function activateAsset\(asset: VideoEditorAsset\)/);
-  assert.match(workspace, /function clipFocusTime\(clip: EditorClip\)/);
+  assert.match(workspace, /const activateAsset = \(asset: VideoEditorAsset\)/);
+  assert.match(workspace, /const clipFocusTime = \(clip: VideoEditorClip\)/);
   assert.match(workspace, /start \+ 1 \/ projectRef\.current\.settings\.fps/);
   assert.match(workspace, /onClick=\{\(\) => onActivateAsset\(asset\)\}/);
   assert.doesNotMatch(workspace, /onDoubleClick=\{\(\) => addAsset\(asset\)\}/);
