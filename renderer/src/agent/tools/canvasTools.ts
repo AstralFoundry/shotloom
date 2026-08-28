@@ -52,7 +52,11 @@ async function executeFocusedAction(input: JsonObject, context: AgentToolContext
 async function executeActions(input: CanvasActionToolInput, context: AgentToolContext) {
   // 工具层采用“有效动作保留、无效动作跳过”的局部成功语义。这样模型修复
   // 单个坏 Action 时不会重复创建前面已经成功的节点。
-  const actions = normalizeAgentActions(input.actions, context.requestId);
+  // A focused tool call contains one action, so using only the run id would
+  // assign every independent create in the run the same fallback tempId.
+  // turnId includes the native tool call id: retries of the same call remain
+  // idempotent while separate calls receive separate identities.
+  const actions = normalizeAgentActions(input.actions, context.turnId);
   const checked = actions.map((action, index) => ({ action, index, validation: validateAgentActionShape(action) }));
   const valid = checked.filter((item) => item.validation.valid);
   const skipped = checked.filter((item) => !item.validation.valid).map((item) => ({

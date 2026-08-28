@@ -14,6 +14,7 @@ import type { ModelRuntimeContract } from '../catalog/ModelCatalog';
 import { firstProtocolValue, normalizeProtocolResponse, protocolInlineImage, protocolMessageVariables, protocolResultEndpointFile, renderProtocolContentTemplate, renderProtocolTemplate } from '@/utils/modelProtocol.mjs';
 import { multipartArrayFieldName } from '@/utils/modelRequestBody.mjs';
 import { providerRequestTimeoutMs } from '@/utils/providerRequestTimeout.mjs';
+import { RunningHubTransport } from './RunningHubTransport';
 
 // ── Unified declarative transport ───────────────────────────────────────────
 
@@ -172,10 +173,14 @@ class DeclarativeProviderTransport implements ProviderTransport {
   async poll(task: ProviderTask, contract: ModelRuntimeContract, signal?: AbortSignal): Promise<ProviderTaskState> {
     const encodedTaskId = task.remoteTaskId.split('/').map(encodeURIComponent).join('/');
     const ep = (contract.taskEndpoint?.path || '').replace('{taskId}', encodedTaskId);
+    const body = contract.taskRequestTemplate === undefined
+      ? undefined
+      : renderProtocolTemplate(contract.taskRequestTemplate, { taskId: task.remoteTaskId });
     const data = await desktopApi.model.videoTask({
       taskId: task.remoteTaskId, endpointPath: ep,
       endpointScope: contract.taskEndpoint?.scope || 'v1',
       endpointMethod: contract.taskEndpoint?.method || 'GET',
+      body,
       providerId: contract.provider || this.provider,
       headers: contract.headers,
       auth: contract.auth,
@@ -271,7 +276,9 @@ const transports = new Map<string, ProviderTransport>();
 export function getProviderTransport(provider: string): ProviderTransport {
   const existing = transports.get(provider);
   if (existing) return existing;
-  const t: ProviderTransport = new DeclarativeProviderTransport(provider);
+  const t: ProviderTransport = provider === 'runninghub'
+    ? new RunningHubTransport()
+    : new DeclarativeProviderTransport(provider);
   transports.set(provider, t);
   return t;
 }

@@ -114,7 +114,7 @@ export function registerLifecycleTools(): void {
   registerAgentTool({
     id: 'report_outcome',
     title: '报告最终结果',
-    description: '本轮真实修改项目、画布或启动任务后，结束前调用。提交完成、部分完成或阻塞状态，以及可核验的节点、任务和成功工具调用证据。纯聊天或解释不调用。',
+    description: '本轮真实修改项目、画布或启动任务后，结束前调用。提交完成、部分完成或阻塞状态，以及可核验的节点、任务和成功工具调用证据。每次工具结果都会返回 toolCallId，evidence.toolCallIds 必须逐字引用这些真实 ID，不能填写工具名称。纯聊天或解释不调用。',
     effect: 'agent_state_write',
     inputSchema: {
       type: 'object',
@@ -127,7 +127,11 @@ export function registerLifecycleTools(): void {
           properties: {
             nodeIds: { type: 'array', items: { type: 'string' } },
             taskIds: { type: 'array', items: { type: 'string' } },
-            toolCallIds: { type: 'array', items: { type: 'string' } },
+            toolCallIds: {
+              type: 'array',
+              description: '逐字复制成功工具结果中的 toolCallId；不得填写 canvas_create_node 等工具名称。',
+              items: { type: 'string' },
+            },
           },
           additionalProperties: false,
         },

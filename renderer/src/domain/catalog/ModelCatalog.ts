@@ -104,11 +104,12 @@ export interface CatalogMode {
   imageValueFormat?: string;
   referenceImageFormat?: string;
   pollStatusMap?: Record<string, string>;
-  auth?: { type: 'bearer' | 'header' | 'none'; name?: string; prefix?: string };
+  auth?: { type: 'bearer' | 'header' | 'body' | 'none'; name?: string; prefix?: string };
   headers?: Record<string, string>;
   requestTemplate?: unknown;
   contentTemplate?: unknown;
   taskIdPath?: string;
+  taskRequestTemplate?: unknown;
   statusPath?: string;
   progressPath?: string;
   errorPath?: string;
@@ -211,7 +212,7 @@ const CATALOG_INPUT_SLOTS = new Set([
   'referenceAudio',
 ]);
 const GENERATION_ENDPOINT_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
-const ENDPOINT_SCOPES = new Set(['root', 'v1']);
+const ENDPOINT_SCOPES = new Set(['origin', 'root', 'v1']);
 const TASK_ENDPOINT_METHODS = new Set(['GET', 'POST']);
 const AGENT_TRANSPORTS = new Set(['provider-default', 'openai-chat-completions', 'openai-responses']);
 
@@ -262,7 +263,7 @@ export function catalogModelValidationErrors(
       errors.push(`${location} 的生成 endpoint method 必须是 POST、PUT、PATCH 或 DELETE`);
     }
     if (!path.startsWith('/') || path.startsWith('//')) errors.push(`${location} 的 endpoint path 必须是单斜杠开头的相对路径`);
-    if (!ENDPOINT_SCOPES.has(String(scope || ''))) errors.push(`${location} 的 endpoint scope 必须是 root 或 v1`);
+    if (!ENDPOINT_SCOPES.has(String(scope || ''))) errors.push(`${location} 的 endpoint scope 必须是 origin、root 或 v1`);
     if (mode?.requestTemplate === undefined || !mode.requestTemplate || typeof mode.requestTemplate !== 'object' || Array.isArray(mode.requestTemplate)) {
       errors.push(`${location} 缺少对象类型的 requestTemplate`);
     }
@@ -349,11 +350,15 @@ export function catalogModelValidationErrors(
       const taskPath = String(mode.taskEndpoint?.path || '');
       const taskMethod = String(mode.taskEndpoint?.method || '').toUpperCase();
       const taskScope = String(mode.taskEndpoint?.scope || '');
-      if (!taskPath.startsWith('/') || taskPath.startsWith('//') || !taskPath.includes('{taskId}')) {
-        errors.push(`${location} 的异步 taskEndpoint 必须包含相对路径和 {taskId}`);
+      if (!taskPath.startsWith('/') || taskPath.startsWith('//')) {
+        errors.push(`${location} 的异步 taskEndpoint 必须是相对路径`);
       }
       if (!TASK_ENDPOINT_METHODS.has(taskMethod)) errors.push(`${location} 的 taskEndpoint method 必须是 GET 或 POST`);
-      if (!ENDPOINT_SCOPES.has(taskScope)) errors.push(`${location} 的 taskEndpoint scope 必须是 root 或 v1`);
+      if (!ENDPOINT_SCOPES.has(taskScope)) errors.push(`${location} 的 taskEndpoint scope 必须是 origin、root 或 v1`);
+      const taskTemplateContainsId = JSON.stringify(mode.taskRequestTemplate || {}).includes('{{taskId}}');
+      if (!taskPath.includes('{taskId}') && !taskTemplateContainsId) {
+        errors.push(`${location} 的异步轮询请求必须在路径或 taskRequestTemplate 中包含 taskId`);
+      }
       if (!String(mode.taskIdPath || '').trim()) errors.push(`${location} 缺少 taskIdPath`);
       if (!String(mode.statusPath || '').trim()) errors.push(`${location} 缺少 statusPath`);
     }
@@ -413,6 +418,7 @@ export interface ModelRuntimeContract {
   requestTemplate?: unknown;
   contentTemplate?: unknown;
   taskIdPath?: string;
+  taskRequestTemplate?: unknown;
   statusPath?: string;
   progressPath?: string;
   errorPath?: string;
@@ -755,6 +761,7 @@ class ModelCatalog {
       headers: { ...mode.headers },
       requestTemplate: mode.requestTemplate === undefined ? undefined : structuredClone(mode.requestTemplate),
       taskIdPath: mode.taskIdPath,
+      taskRequestTemplate: mode.taskRequestTemplate === undefined ? undefined : structuredClone(mode.taskRequestTemplate),
       statusPath: mode.statusPath,
       progressPath: mode.progressPath,
       errorPath: mode.errorPath,

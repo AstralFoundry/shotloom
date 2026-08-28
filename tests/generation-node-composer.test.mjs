@@ -69,13 +69,17 @@ test('节点输入面板层级被限制在画布内且不会盖住剪辑工作�
   assert.match(editorStyles, /\.ov-editor \{[\s\S]*?z-index:\s*1500/);
 });
 
-test('参考素材入口创建真实上游节点和连线并显示可移除缩略图', () => {
+test('参考素材入口创建真实上游节点和连线，缩略图可放大并可独立移除', () => {
   assert.match(source, /mediaInputs\.map\([\s\S]*?ComposerInputThumbnail/);
   assert.match(source, /actions\.addReference\(node\.id(?:, slot)?\)/);
   assert.match(source, /actions\.removeIncomingEdge\(node\.id, input\.edgeId\)/);
   assert.match(source, /getGenerationInputModes\(selectedModel\)/);
   assert.match(source, /actions\.setInputMode\(node\.id, mode\.value\)/);
-  assert.match(styles, /\.work-composer-input > :is\(img, video\)[^}]*object-fit: cover/);
+  assert.match(source, /className="work-composer-input-preview"/);
+  assert.match(source, /openMediaViewer\(\{[\s\S]*?src: url,[\s\S]*?filePath: String\(input\.filePath \|\| input\.path/);
+  assert.match(source, /className="work-composer-input-remove"/);
+  assert.match(styles, /\.work-composer-input-preview > :is\(img, video\)[^}]*object-fit: cover/);
+  assert.match(styles, /cursor:\s*zoom-in/);
   assert.match(adapter, /async addReference\(id, requestedSlot\)[\s\S]*?createUploadedNode\(picked/);
   assert.match(adapter, /inputSlot: resolvedSlot/);
   assert.match(adapter, /addCanvasEdge\(store\.project, source\.id, id/);

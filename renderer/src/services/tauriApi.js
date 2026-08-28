@@ -692,7 +692,7 @@ export function createTauriApi(browserFallback) {
       videoGeneration: (body) => modelRequest(body.__endpointPath || '/contents/generations/tasks', body, { method: body.__endpointMethod || 'POST', scope: body.__endpointScope || 'root', signal: body.__signal, timeoutMs: body.__timeoutMs, headers: body.__headers, auth: body.__auth, responseEncoding: body.__responseEncoding || 'json' }),
       videoTask: (request) => {
         const value = typeof request === 'object' ? request : { taskId: request };
-        return modelRequest(String(value.endpointPath || '/contents/generations/tasks/{taskId}').replace('{taskId}', encodeURIComponent(value.taskId)), null, { method: value.endpointMethod || 'GET', scope: value.endpointScope || 'root', signal: value.signal, timeoutMs: value.timeoutMs || 60000, providerId: value.providerId || '', headers: value.headers, auth: value.auth });
+        return modelRequest(String(value.endpointPath || '/contents/generations/tasks/{taskId}').replace('{taskId}', encodeURIComponent(value.taskId)), value.body, { method: value.endpointMethod || 'GET', scope: value.endpointScope || 'root', signal: value.signal, timeoutMs: value.timeoutMs || 60000, providerId: value.providerId || '', headers: value.headers, auth: value.auth });
       },
     },
     update: {

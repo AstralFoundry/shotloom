@@ -927,10 +927,26 @@
   color: #8a919a;
   background: #f6f7f8;
 }
-.work-composer-input > :is(img, video) { width: 100%; height: 100%; display: block; object-fit: cover; }
-.work-composer-input > svg { width: 16px; height: 16px; }
+.work-composer-input-preview {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border: 0;
+  border-radius: inherit;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  color: inherit;
+  background: transparent;
+  cursor: zoom-in;
+}
+.work-composer-input-preview:disabled { cursor: default; }
+.work-composer-input-preview > :is(img, video) { width: 100%; height: 100%; display: block; object-fit: cover; transition: transform 180ms cubic-bezier(.22, 1, .36, 1); }
+.work-composer-input:hover .work-composer-input-preview:not(:disabled) > :is(img, video) { transform: scale(1.06); }
+.work-composer-input-preview > svg { width: 16px; height: 16px; }
+.work-composer-input-preview:focus-visible { outline: 2px solid rgba(63, 104, 176, .55); outline-offset: -2px; }
 .work-composer-input-label { position: absolute; left: 3px; bottom: 3px; max-width: calc(100% - 6px); overflow: hidden; border-radius: 3px; padding: 1px 3px; color: #fff; background: rgba(17, 24, 39, .7); font-size: 8px; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
-.work-composer-input > button {
+.work-composer-input-remove {
   position: absolute;
   top: 2px;
   right: 2px;
@@ -944,8 +960,9 @@
   color: #fff;
   background: rgba(20, 24, 29, .72);
 }
-.work-composer-input:hover > button { display: grid; }
-.work-composer-input > button svg { width: 9px; height: 9px; }
+.work-composer-input:hover .work-composer-input-remove,
+.work-composer-input:focus-within .work-composer-input-remove { display: grid; }
+.work-composer-input-remove svg { width: 9px; height: 9px; }
 .work-run-btn { width: 32px; height: 32px; margin-left: 0; flex: 0 0 32px; border: 0; border-radius: 9px; display: grid; place-items: center; color: #66707d; background: rgba(15, 23, 42, .045); }
 .work-run-btn:hover:not(:disabled) { color: #303640; background: rgba(15, 23, 42, .075); }
 .work-run-btn svg { width: 14px; height: 14px; }
@@ -1240,12 +1257,13 @@
 .forge-copilot .copilot-message.is-assistant .copilot-message-markdown p { margin: 12px 0; }
 .forge-copilot .copilot-message.is-assistant .copilot-message-markdown li { margin: 5px 0; }
 .forge-copilot .copilot-message.is-assistant .copilot-message-markdown :is(h1, h2, h3, h4) { margin: 18px 0 8px; color: rgba(0, 0, 0, .9); font-size: 14px; font-weight: 560; }
-.copilot-run-activity { margin-top: 12px; overflow: visible; color: rgba(0, 0, 0, .5); }
+.copilot-run-activity { margin-top: 8px; overflow: visible; color: rgba(0, 0, 0, .5); }
 .copilot-run-stop { width: 24px; height: 24px; flex: 0 0 auto; border: 0; border-radius: 6px; padding: 0; display: grid; place-items: center; color: rgba(0, 0, 0, .48); background: transparent; }
 .copilot-run-stop:hover { color: rgba(0, 0, 0, .78); background: rgba(0, 0, 0, .055); }
 .copilot-run-stop > span { width: 7px; height: 7px; border-radius: 1px; background: currentColor; }
-.copilot-production-plan.ant-collapse { margin-top: 7px; border: 0; border-radius: 0; background: transparent; }
-.copilot-production-plan.ant-collapse > .ant-collapse-item > .ant-collapse-header { min-height: 38px; padding: 4px 1px; align-items: center; }
+.copilot-production-plan.ant-collapse { margin-top: 5px; border: 0; border-radius: 0; background: transparent; }
+.copilot-production-plan.ant-collapse > .ant-collapse-item > .ant-collapse-header { min-height: 36px; border-radius: 8px; padding: 3px 4px 3px 1px; align-items: center; }
+.copilot-production-plan.ant-collapse > .ant-collapse-item > .ant-collapse-header:hover { background: rgba(0, 0, 0, .025); }
 .copilot-production-plan .ant-collapse-expand-icon { color: rgba(0, 0, 0, .35); }
 .copilot-production-plan .ant-collapse-content > .ant-collapse-content-box { padding: 3px 1px 7px 23px; }
 .copilot-plan-heading { min-width: 0; display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; align-items: center; gap: 7px; }
@@ -1418,14 +1436,17 @@
 .copilot-sender-context .ant-attachments { max-height: 112px; overflow-y: auto; }
 
 .copilot-run-activity .copilot-thought-chain { margin-top: 2px; color: rgba(0, 0, 0, .58); }
-.copilot-tool-trace { margin-top: 1px; border: 0; }
-.copilot-tool-trace > summary { min-height: 32px; padding: 0 1px; display: grid; grid-template-columns: 7px minmax(0, 1fr) auto auto 14px; align-items: center; gap: 8px; cursor: pointer; list-style: none; color: rgba(0, 0, 0, .46); font-size: 11.5px; }
+.copilot-tool-trace { margin-top: 0; border: 0; }
+.copilot-tool-trace > summary { min-height: 34px; border-radius: 8px; padding: 0 4px; display: grid; grid-template-columns: 7px minmax(0, 1fr) auto auto 14px; align-items: center; gap: 8px; cursor: pointer; list-style: none; color: rgba(0, 0, 0, .46); font-size: 11.5px; transition: background-color .15s ease; }
+.copilot-tool-trace > summary:hover { background: rgba(0, 0, 0, .025); }
 .copilot-tool-trace > summary::-webkit-details-marker { display: none; }
 .copilot-tool-pulse { width: 6px; height: 6px; border-radius: 999px; background: rgba(0, 0, 0, .28); }
 .copilot-tool-trace.is-running > summary .copilot-tool-pulse { background: #6d8eff; animation: copilot-tool-pulse 1.15s ease-in-out infinite; }
+.copilot-tool-trace.is-running > summary .copilot-tool-current > span { animation: copilot-tool-text-pulse 1.15s ease-in-out infinite; }
 @keyframes copilot-tool-pulse { 50% { opacity: .25; box-shadow: 0 0 0 4px rgba(109, 142, 255, .12); } }
+@keyframes copilot-tool-text-pulse { 50% { opacity: .42; } }
 @media (prefers-reduced-motion: reduce) {
-  .copilot-tool-trace.is-running > summary .copilot-tool-pulse { animation: none; }
+  .copilot-tool-trace.is-running > summary :is(.copilot-tool-pulse, .copilot-tool-current > span) { animation: none; }
 }
 .copilot-tool-current { min-width: 0; display: flex; align-items: baseline; gap: 5px; overflow: hidden; }
 .copilot-tool-current strong { flex: 0 0 auto; color: rgba(0, 0, 0, .55); font-weight: 520; }
@@ -1434,7 +1455,7 @@
 .copilot-tool-trace > summary em { color: rgba(0, 0, 0, .34); font-size: 10.5px; font-style: normal; }
 .copilot-tool-trace > summary > svg { width: 11px; height: 11px; grid-column: 5; transition: transform .15s ease; }
 .copilot-tool-trace[open] > summary svg { transform: rotate(180deg); }
-.copilot-tool-trace > .copilot-thought-chain { max-height: 280px; padding: 5px 1px 8px; overflow-y: auto; scrollbar-width: none; -ms-overflow-style: none; }
+.copilot-tool-trace > .copilot-thought-chain { max-height: 220px; padding: 5px 4px 8px; overflow-y: auto; scrollbar-width: none; -ms-overflow-style: none; }
 .copilot-tool-trace > .copilot-thought-chain::-webkit-scrollbar { width: 0; height: 0; display: none; }
 .copilot-thought-chain .ant-thought-chain-item { padding-bottom: 8px; }
 .copilot-thought-chain .ant-thought-chain-item-title { font-size: 12px; font-weight: 450; }

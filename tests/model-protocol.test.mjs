@@ -273,6 +273,19 @@ test('协议控制字段不会泄漏进厂商请求 JSON', () => {
 
 test('厂商根地址与官方原生接口路径只拼接一次', () => {
   assert.equal(
+    modelApiUrl({}, '/chat/completions', 'root', 'starrouter'),
+    'https://starrouter.io/v1/chat/completions',
+  );
+  assert.equal(
+    modelApiUrl(
+      { starrouter: { baseUrl: 'https://starrouter.io/v1' } },
+      '/volcengine/doubao/contents/generations/tasks',
+      'origin',
+      'starrouter',
+    ),
+    'https://starrouter.io/volcengine/doubao/contents/generations/tasks',
+  );
+  assert.equal(
     modelApiUrl({}, '/models/veo-3.1-generate-preview:predictLongRunning', 'root', 'google'),
     'https://generativelanguage.googleapis.com/v1beta/models/veo-3.1-generate-preview:predictLongRunning',
   );

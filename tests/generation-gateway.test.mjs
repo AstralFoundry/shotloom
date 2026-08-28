@@ -19,6 +19,7 @@ test('Generation Gateway 在原生层持有凭据、代理、multipart 和取消
   const rust = read('src-tauri/src/commands/generation_gateway.rs');
   assert.match(rust, /app-settings\.json/);
   assert.match(rust, /providerConfigs/);
+  assert.match(rust, /"starrouter" => "https:\/\/starrouter\.io\/v1"/);
   assert.match(rust, /"minimax" => "https:\/\/api\.minimax\.io"/);
   assert.match(rust, /resolved_system_proxy_url/);
   assert.match(rust, /multipart::Form/);

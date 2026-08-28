@@ -107,7 +107,7 @@
 
 - `method` 只能是 `POST`、`PUT`、`PATCH`、`DELETE`。
 - `path` 必须是单个 `/` 开头的相对路径，不能写完整 URL。
-- `scope` 只能是 `root` 或 `v1`。文档或 curl 已给出相对 Base URL 的完整路径时使用 `root`，避免重复拼接 `/v1`。
+- `scope` 只能是 `origin`、`root` 或 `v1`。`root` 从用户配置的完整 Base URL 后拼接；`v1` 在 Base URL 未包含 `/v1` 时补齐；只有厂商端点必须从站点域名根路径发起、需要丢弃 Base URL 自带路径时才使用 `origin`。
 
 `auth` 只能按材料选择：
 

@@ -12,6 +12,7 @@ const skillsRoot = new URL('../renderer/src/agent/content/skills/', import.meta.
 const expectedIds = [
   'ecommerce-product',
   'general',
+  'h3-video-prompt',
   'keyframe-video',
   'script-to-video',
   'short-drama',
@@ -23,6 +24,7 @@ const expectedIds = [
 const expectedNames = {
   'ecommerce-product': '商品视觉工坊',
   general: '基础任务助手',
+  'h3-video-prompt': 'MiniMax H3 多段式提示词',
   'keyframe-video': '关键帧动态编排',
   'script-to-video': '剧本生视频（需上传剧本）',
   'short-drama': '连续短剧制作',
@@ -124,6 +126,24 @@ test('内置目录差异忽略启停和运行时字段', () => {
   const original = { id: 'demo', name: 'Demo', instructions: 'Default', builtIn: true, enabled: true };
   assert.deepEqual(changedBuiltInFields({ ...original, enabled: false, updatedAt: 'now' }, [original]), []);
   assert.deepEqual(changedBuiltInFields({ ...original, instructions: 'Edited' }, [original]), ['instructions']);
+});
+
+test('h3-video-prompt 使用能力驱动的基础与全参考多段式契约', () => {
+  const { manifest, body } = parseSkill('h3-video-prompt');
+  assert.equal(manifest.version, 1);
+  assert.deepEqual(manifest.recipeIds, ['video-clip-generation']);
+  for (const keyword of ['MiniMax H3', 'T2VA', 'I2VA', 'FL2VA', 'L2VA', 'Ref2VA']) {
+    assert.ok(manifest.triggers.keywords.includes(keyword), `h3-video-prompt 缺少 ${keyword}`);
+  }
+  for (const field of [
+    'integrated_multimodal_description', 'subject_definitions', 'summary',
+    'retention_analysis', 'detailed_description', 'overall_soundscape', 'non_diegetic_music',
+  ]) assert.match(body, new RegExp(field), `h3-video-prompt 缺少 ${field}`);
+  assert.match(body, /inspect_model_catalog/);
+  assert.match(body, /目录真实公开的能力/);
+  assert.match(body, /不能根据文件数量、连接顺序或 UI 文案猜测/);
+  assert.match(body, /台词、歌词和画面内可见文字保留用户原语言/);
+  assert.match(body, /完成前评估/);
 });
 
 test('video-production v10 从来源成熟度动态推进并采用合规的人脸策略', () => {

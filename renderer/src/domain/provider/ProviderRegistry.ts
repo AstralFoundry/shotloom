@@ -113,6 +113,18 @@ const BUILT_IN_PROVIDERS: ProviderDefinition[] = [
     ],
   },
   {
+    id: 'runninghub',
+    name: 'RunningHub',
+    description: 'RunningHub 工作流生成服务',
+    iconId: 'runninghub',
+    authType: 'api-key',
+    defaultBaseUrl: 'https://www.runninghub.ai',
+    credentials: [
+      KEY_FIELD,
+      { key: 'baseUrl', label: '接口地址', required: false, placeholder: 'https://www.runninghub.ai' },
+    ],
+  },
+  {
     id: 'google',
     name: 'Google Gemini',
     description: 'Gemini / Imagen / Veo 官方接口',

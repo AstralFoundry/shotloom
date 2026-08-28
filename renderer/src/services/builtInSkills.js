@@ -2,6 +2,8 @@ import ecommerceProduct from '../agent/content/skills/ecommerce-product/SKILL.md
 import ecommerceProductManifest from '../agent/content/skills/ecommerce-product/skill.json';
 import general from '../agent/content/skills/general/SKILL.md?raw';
 import generalManifest from '../agent/content/skills/general/skill.json';
+import h3VideoPrompt from '../agent/content/skills/h3-video-prompt/SKILL.md?raw';
+import h3VideoPromptManifest from '../agent/content/skills/h3-video-prompt/skill.json';
 import keyframeVideo from '../agent/content/skills/keyframe-video/SKILL.md?raw';
 import keyframeVideoManifest from '../agent/content/skills/keyframe-video/skill.json';
 import shortDrama from '../agent/content/skills/short-drama/SKILL.md?raw';
@@ -70,6 +72,7 @@ function parseBuiltInSkill(content, manifest) {
 export const builtInSkills = [
   parseBuiltInSkill(ecommerceProduct, ecommerceProductManifest),
   parseBuiltInSkill(general, generalManifest),
+  parseBuiltInSkill(h3VideoPrompt, h3VideoPromptManifest),
   parseBuiltInSkill(keyframeVideo, keyframeVideoManifest),
   parseBuiltInSkill(scriptToVideo, scriptToVideoManifest),
   parseBuiltInSkill(shortDrama, shortDramaManifest),

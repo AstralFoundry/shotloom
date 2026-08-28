@@ -158,17 +158,36 @@ function ComposerInputThumbnail({
 }) {
   const kind = generationMediaKind(input);
   const { url } = useGenerationLocalPreview(input, kind, 1);
+  const previewable = (kind === "image" || kind === "video") && Boolean(url);
+  const openInputPreview = () => {
+    if (!previewable) return;
+    openMediaViewer({
+      src: url,
+      kind,
+      title: input.name || (kind === "image" ? "参考图片" : "参考视频"),
+      filePath: String(input.filePath || input.path || ""),
+    });
+  };
   return (
     <div className="work-composer-input" title={input.name}>
-      {kind === "image" && url ? (
-        <img src={url} alt={input.name} />
-      ) : kind === "video" && url ? (
-        <video src={url} muted playsInline preload="metadata" />
-      ) : (
-        <IconSymbol name={kind === "audio" ? "waveform" : kind === "text" ? "text" : "file"} />
-      )}
-      {label && <span className="work-composer-input-label">{label}</span>}
-      <button type="button" title="移除参考素材" onClick={onRemove}>
+      <button
+        type="button"
+        className="work-composer-input-preview"
+        title={previewable ? `放大预览：${input.name}` : input.name}
+        aria-label={previewable ? `放大预览 ${input.name}` : input.name}
+        disabled={!previewable}
+        onClick={openInputPreview}
+      >
+        {kind === "image" && url ? (
+          <img src={url} alt={input.name} />
+        ) : kind === "video" && url ? (
+          <video src={url} muted playsInline preload="metadata" />
+        ) : (
+          <IconSymbol name={kind === "audio" ? "waveform" : kind === "text" ? "text" : "file"} />
+        )}
+        {label && <span className="work-composer-input-label">{label}</span>}
+      </button>
+      <button className="work-composer-input-remove" type="button" title="移除参考素材" onClick={onRemove}>
         <IconSymbol name="x" />
       </button>
     </div>

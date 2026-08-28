@@ -34,7 +34,13 @@ test('内置模型使用统一模型定义结构', () => {
         }
       }
       assert.ok(Array.isArray(mode.params));
-      if (mode.isAsync) assert.ok(mode.taskEndpoint?.path?.includes('{taskId}'));
+      if (mode.isAsync) {
+        assert.ok(
+          mode.taskEndpoint?.path?.includes('{taskId}')
+            || JSON.stringify(mode.taskRequestTemplate || {}).includes('{{taskId}}'),
+          `${model.id}/${mode.id} 的异步轮询请求缺少 taskId`,
+        );
+      }
       for (const param of mode.params) {
         if (!Array.isArray(param.options) || !param.options.length) continue;
         assert.ok(param.options.includes(param.default), `${model.id}/${mode.id}/${param.key} 默认值不在 options 中`);
@@ -287,6 +293,22 @@ test('Seedance 2.0 使用方舟官方视频任务协议', () => {
   assert.equal(referenceMode.requestFields.imageContentRole, 'reference_image');
   assert.equal(referenceMode.requestFields.videoContentRole, 'reference_video');
   assert.equal(referenceMode.requestFields.audioContentRole, 'reference_audio');
+});
+
+test('StarRouter Seedance 从站点根路径调用专用火山协议', () => {
+  for (const id of [
+    'starrouter-doubao-seedance-2-0-260128',
+    'starrouter-doubao-seedance-2-0-fast-260128',
+    'starrouter-doubao-seedance-2-0-mini-260615',
+  ]) {
+    const model = catalog.models.find((item) => item.id === id);
+    assert.equal(model.provider, 'starrouter');
+    for (const mode of model.modes) {
+      assert.equal(mode.endpoint.scope, 'origin');
+      assert.equal(mode.taskEndpoint.scope, 'origin');
+      assert.match(mode.endpoint.path, /^\/volcengine\/doubao\//);
+    }
+  }
 });
 
 test('Grok Imagine Video 和全部 Veo 3.1 模型实际编译单图生视频', () => {

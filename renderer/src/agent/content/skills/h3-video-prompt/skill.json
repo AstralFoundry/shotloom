@@ -1,0 +1,20 @@
+{
+  "id": "h3-video-prompt",
+  "category": "video",
+  "version": 1,
+  "triggers": {
+    "keywords": [
+      "MiniMax H3",
+      "H3 提示词",
+      "H3视频提示词",
+      "多段式视频提示词",
+      "T2VA",
+      "I2VA",
+      "FL2VA",
+      "L2VA",
+      "Ref2VA",
+      "全参考生视频"
+    ]
+  },
+  "recipeIds": ["video-clip-generation"]
+}

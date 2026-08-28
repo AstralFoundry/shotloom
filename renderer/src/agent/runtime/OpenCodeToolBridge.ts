@@ -14,6 +14,13 @@ interface BridgeRun {
   model: string;
 }
 
+function exposeToolCallId(result: unknown, toolCallId: string) {
+  if (result && typeof result === 'object' && !Array.isArray(result)) {
+    return { ...(result as JsonObject), toolCallId };
+  }
+  return { value: result, toolCallId };
+}
+
 let activeRun: BridgeRun | null = null;
 let unlisten: UnlistenFn | null = null;
 
@@ -102,7 +109,7 @@ async function executeRequest(payload: { callId: string; name: string; arguments
       toolCallCount: ((context.state.get('successfulToolCallIds') as Set<string>) || new Set<string>()).size,
       endedAt: new Date().toISOString(),
     });
-    return result;
+    return exposeToolCallId(result, payload.callId);
   } catch (cause) {
     const error = cause instanceof Error ? cause.message : String(cause);
     context.emit({

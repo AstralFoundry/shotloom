@@ -22,6 +22,8 @@ import {
 import { evaluateGenerationTask } from '@/store/agentEvaluationStore';
 import { generationOutputError } from '@/utils/generationResultValidation';
 import { compactGeneratedOutput } from '@/utils/generatedOutputParsing.mjs';
+import { reconcileOrphanedNodeTaskState } from '@/utils/taskStateReconciliation.mjs';
+import { formatRemoteTaskError } from '@/utils/remoteTaskFormatting';
 
 // ── Status helpers ──────────────────────────────────────────────────────────
 
@@ -353,7 +355,7 @@ function attachRemoteTaskPolling(node, task, controller, { immediate = false, re
     } catch (error) {
       if (controller.signal.aborted) return;
       active.pollFailureCount = Number(active.pollFailureCount || 0) + 1;
-      task.lastPollError = error?.message || '远程模型轮询失败';
+      task.lastPollError = formatRemoteTaskError(error) || '远程模型轮询失败';
       task.remote = {
         ...(task.remote || {}),
         taskId: task.remoteTaskId,
@@ -377,6 +379,11 @@ function attachRemoteTaskPolling(node, task, controller, { immediate = false, re
 
 export function resumeRemoteTasks() {
   let resumed = 0;
+  let reconciled = false;
+  for (const node of store.project.nodes || []) {
+    reconciled = reconcileOrphanedNodeTaskState(node, store.project.tasks || []) || reconciled;
+  }
+  if (reconciled) touchProject();
   const recoverableArchiveTasks = new Map();
   for (const task of store.project.tasks || []) {
     const recoverable = failedTaskStatuses.has(task.status)
@@ -490,7 +497,7 @@ async function startRemoteTask(node, task, requestPayload) {
     if (controller.signal.aborted) return;
     const active = activeTaskTimers.get(node.id);
     if (!active || active.taskId !== task.id) return;
-    finishTaskFailure(node, task, 'error', error?.message || '远程模型提交失败');
+    finishTaskFailure(node, task, 'error', formatRemoteTaskError(error) || '远程模型提交失败');
   }
 }
 
@@ -511,7 +518,8 @@ export function runNode(node, options = {}) {
     showToast('当前节点类型不支持运行');
     return null;
   }
-  if (node.status === 'running') {
+  reconcileOrphanedNodeTaskState(node, store.project.tasks || []);
+  if (['running', 'queued'].includes(node.status)) {
     showToast('节点正在运行');
     return findLatestTaskForNode(node.id);
   }

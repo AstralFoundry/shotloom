@@ -212,6 +212,16 @@ test('动作归一化补齐类型、临时 ID、节点类型和输入列表', ()
   }]);
 });
 
+test('独立创建调用使用不同幂等 ID，同一次调用重试保持稳定', () => {
+  const action = { type: 'create_gen_node', prompt: '夜景', model: 'gpt-image-2' };
+  const first = normalizeAgentAction(action, 0, 'run-1:tool:call-a');
+  const retry = normalizeAgentAction(action, 0, 'run-1:tool:call-a');
+  const second = normalizeAgentAction(action, 0, 'run-1:tool:call-b');
+
+  assert.equal(first.tempId, retry.tempId);
+  assert.notEqual(first.tempId, second.tempId);
+});
+
 test('画布更新工具契约允许修改已有 Note 而不重复创建', () => {
   const schema = buildAgentActionSchema(contract, {
     allowedTypes: ['update_note_node'],

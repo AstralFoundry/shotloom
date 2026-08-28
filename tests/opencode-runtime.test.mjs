@@ -79,6 +79,7 @@ test('所有桌面构建入口都在 Cargo 或 Tauri 构建前准备平台 sidec
 
 test('OpenCode Runtime 使用持久 Session、子 Agent、Contract 与本地域工具桥', () => {
   const runtime = read('renderer/src/agent/runtime/OpenCodeRuntime.ts');
+  const bridge = read('renderer/src/agent/runtime/OpenCodeToolBridge.ts');
   const provider = read('renderer/src/agent/runtime/openCodeProvider.mjs');
   assert.match(runtime, /openCodeSessionId/);
   assert.match(runtime, /session\.created/);
@@ -103,6 +104,8 @@ test('OpenCode Runtime 使用持久 Session、子 Agent、Contract 与本地域�
   assert.match(runtime, /agent_runtime_start[\s\S]*\{ configuration \}/);
   assert.match(runtime, /agent_runtime_request/);
   assert.match(runtime, /agent_runtime_subscribe/);
+  assert.match(bridge, /return exposeToolCallId\(result, payload\.callId\)/);
+  assert.match(bridge, /toolCallId/);
   assert.doesNotMatch(runtime, /@tauri-apps\/plugin-http/);
   assert.doesNotMatch(runtime, /client\.event\.subscribe/);
 });

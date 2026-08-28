@@ -18,13 +18,14 @@ const styles = readFileSync(
   new URL('../renderer/styles/canvas-copilot.css', import.meta.url),
   'utf8',
 );
-test('画布助手用可展开的纵向轨迹呈现 Agent 运行过程', () => {
+test('画布助手默认用一行摘要呈现 Agent 运行过程并允许展开详情', () => {
   assert.match(panel, /copilot-run-activity/);
   assert.match(panel, /ThoughtChain/);
   assert.match(panel, /className="copilot-thought-chain"/);
-  assert.match(panel, /className="copilot-tool-trace"/);
+  assert.match(panel, /className=\{`copilot-tool-trace\$\{typing \? " is-running" : ""\}`\}/);
   assert.match(panel, /hasPendingConfirmation/);
-  assert.match(styles, /max-height:\s*280px/);
+  assert.match(styles, /max-height:\s*220px/);
+  assert.match(panel, /const \[expanded, setExpanded\] = useState\(false\)/);
   assert.match(panel, /status: tool\.pending/);
   assert.doesNotMatch(panel, /toolActivityTitle/);
   assert.doesNotMatch(panel, /tool\.effect === "media_generation"/);
@@ -106,10 +107,8 @@ test('制作计划跟随助手消息显示阶段和进度', () => {
   assert.match(panel, /<Collapse/);
   assert.match(panel, /<Progress/);
   assert.match(panel, /copilot-plan-chain/);
-  assert.match(
-    panel,
-    /stages\.every\(\(stage\) => stage\.status === ["']done["']\)\)[\s\S]*?setExpanded\(false\)/,
-  );
+  assert.match(panel, /function ProductionPlanCard[\s\S]*?const \[expanded, setExpanded\] = useState\(false\)/);
+  assert.doesNotMatch(panel, /if \(active\) setExpanded\(true\)/);
 });
 
 test('@ 节点菜单在长别名下保持两行布局且不覆盖类型', () => {

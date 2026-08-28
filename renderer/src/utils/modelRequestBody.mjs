@@ -28,9 +28,11 @@ export function modelJsonRequestBody(body = {}) {
 // Default base URLs for providers (mirrors domain/provider/ProviderRegistry.ts)
 const DEFAULT_BASE_URLS = {
   openai: 'https://api.openai.com/v1',
+  starrouter: 'https://starrouter.io/v1',
   bytedance: 'https://ark.cn-beijing.volces.com/api/v3',
   kling: 'https://api-singapore.klingai.com',
   minimax: 'https://api.minimax.io',
+  runninghub: 'https://www.runninghub.ai',
   google: 'https://generativelanguage.googleapis.com/v1beta',
   xai: 'https://api.x.ai/v1',
   anthropic: 'https://api.anthropic.com',
@@ -56,6 +58,7 @@ export function modelApiUrl(providerConfigs, path, scope = 'v1', providerId = ''
   const config = resolveProviderApiConfig(providerConfigs, providerId);
   if (!config.baseUrl) throw new Error(`请先在设置中配置 ${providerId || 'API'} 地址和 Key`);
   const normalizedPath = String(path || '').startsWith('/') ? String(path) : `/${path}`;
+  if (scope === 'origin') return `${new URL(config.baseUrl).origin}${normalizedPath}`;
   if (scope === 'root' || /\/v1$/i.test(config.baseUrl)) return `${config.baseUrl}${normalizedPath}`;
   return `${config.baseUrl}/v1${normalizedPath}`;
 }

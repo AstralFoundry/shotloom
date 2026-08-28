@@ -108,9 +108,11 @@ impl GenerationGatewayState {
 fn default_base_url(provider: &str) -> &'static str {
     match provider {
         "openai" => "https://api.openai.com/v1",
+        "starrouter" => "https://starrouter.io/v1",
         "bytedance" => "https://ark.cn-beijing.volces.com/api/v3",
         "kling" => "https://api-singapore.klingai.com",
         "minimax" => "https://api.minimax.io",
+        "runninghub" => "https://www.runninghub.ai",
         "google" => "https://generativelanguage.googleapis.com/v1beta",
         "xai" => "https://api.x.ai/v1",
         "anthropic" => "https://api.anthropic.com",
@@ -154,12 +156,53 @@ fn request_url(base_url: &str, path: &str, scope: &str) -> Result<Url, String> {
     if !path.starts_with('/') || path.starts_with("//") {
         return Err("模型请求必须使用相对 endpoint path".into());
     }
+    if !matches!(scope, "origin" | "root" | "v1") {
+        return Err(format!("模型请求 endpoint scope 无效：{scope}"));
+    }
+    if scope == "origin" {
+        return Url::parse(base_url)
+            .and_then(|base| base.join(path))
+            .map_err(|error| error.to_string());
+    }
     let suffix = if scope == "root" || base_url.to_ascii_lowercase().ends_with("/v1") {
         path.to_string()
     } else {
         format!("/v1{path}")
     };
     Url::parse(&format!("{base_url}{suffix}")).map_err(|error| error.to_string())
+}
+
+#[cfg(test)]
+mod request_url_tests {
+    use super::request_url;
+
+    #[test]
+    fn origin_scope_discards_the_configured_base_path() {
+        let url = request_url(
+            "https://starrouter.io/v1",
+            "/volcengine/doubao/contents/generations/tasks",
+            "origin",
+        )
+        .expect("origin endpoint should compile");
+        assert_eq!(
+            url.as_str(),
+            "https://starrouter.io/volcengine/doubao/contents/generations/tasks"
+        );
+    }
+
+    #[test]
+    fn root_scope_keeps_the_configured_base_path() {
+        let url = request_url("https://starrouter.io/v1", "/chat/completions", "root")
+            .expect("root endpoint should compile");
+        assert_eq!(url.as_str(), "https://starrouter.io/v1/chat/completions");
+    }
+
+    #[test]
+    fn unknown_scope_is_rejected() {
+        let error = request_url("https://starrouter.io/v1", "/chat/completions", "other")
+            .expect_err("unknown scope must fail");
+        assert!(error.contains("scope 无效"));
+    }
 }
 
 fn gateway_client(timeout_ms: u64) -> Result<reqwest::Client, String> {
@@ -202,6 +245,9 @@ fn apply_auth(
     if api_key.is_empty() || kind == "none" {
         return Ok(request);
     }
+    if kind == "body" {
+        return Ok(request);
+    }
     let prefix = auth
         .and_then(|value| value.prefix.as_deref())
         .unwrap_or(if kind == "header" { "" } else { "Bearer " });
@@ -218,6 +264,26 @@ fn apply_auth(
         request = request.header(header::AUTHORIZATION, value);
     }
     Ok(request)
+}
+
+fn body_with_auth(
+    body: &Value,
+    auth: Option<&GenerationAuth>,
+    api_key: &str,
+) -> Result<Value, String> {
+    if auth.and_then(|value| value.kind.as_deref()) != Some("body") || api_key.is_empty() {
+        return Ok(body.clone());
+    }
+    let field = auth
+        .and_then(|value| value.name.as_deref())
+        .filter(|value| !value.is_empty())
+        .unwrap_or("apiKey");
+    let mut value = body.clone();
+    let object = value
+        .as_object_mut()
+        .ok_or_else(|| "Body 鉴权要求 JSON 对象请求体".to_string())?;
+    object.insert(field.to_string(), Value::String(api_key.to_string()));
+    Ok(value)
 }
 
 async fn resource_bytes(
@@ -315,7 +381,7 @@ async fn build_request(
         }
         request = request.multipart(form);
     } else if let Some(body) = &input.body {
-        request = request.json(body);
+        request = request.json(&body_with_auth(body, input.auth.as_ref(), &api_key)?);
     }
     Ok(request)
 }
@@ -534,5 +600,20 @@ mod tests {
         .unwrap();
         assert!(headers.get(header::AUTHORIZATION).is_none());
         assert_eq!(headers.get("x-request-id").unwrap(), "safe");
+    }
+
+    #[test]
+    fn gateway_injects_body_credentials_without_mutating_renderer_payload() {
+        let body = json!({ "workflowId": "workflow-1" });
+        let auth = GenerationAuth {
+            kind: Some("body".into()),
+            name: Some("apiKey".into()),
+            prefix: None,
+        };
+        assert_eq!(
+            body_with_auth(&body, Some(&auth), "secret").unwrap(),
+            json!({ "workflowId": "workflow-1", "apiKey": "secret" }),
+        );
+        assert!(body.get("apiKey").is_none());
     }
 }

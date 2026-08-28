@@ -14,10 +14,11 @@ function openAiCompatibleBaseUrl(baseUrl, endpoint) {
   if (!path.endsWith('/chat/completions') && !path.endsWith('/responses')) {
     throw new Error('Agent 文本模型 endpoint 与声明的 OpenAI 协议不匹配');
   }
-  const endpointPath = endpoint?.scope === 'root' || normalized.toLowerCase().endsWith('/v1')
+  const endpointBase = endpoint?.scope === 'origin' ? new URL(normalized).origin : normalized;
+  const endpointPath = endpoint?.scope === 'origin' || endpoint?.scope === 'root' || normalized.toLowerCase().endsWith('/v1')
     ? path
     : `/v1${path}`;
-  const requestUrl = new URL(`${normalized}${endpointPath}`);
+  const requestUrl = new URL(`${endpointBase}${endpointPath}`);
   const suffix = path.endsWith('/chat/completions') ? '/chat/completions' : '/responses';
   requestUrl.pathname = requestUrl.pathname.slice(0, -suffix.length).replace(/\/+$/, '');
   requestUrl.search = '';

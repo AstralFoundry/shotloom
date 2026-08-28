@@ -202,10 +202,10 @@ function AgentRunActivity({
   controller: CopilotController;
 }) {
   const hasPendingConfirmation = tools.some((tool) => tool.pending);
-  const [expanded, setExpanded] = useState(hasPendingConfirmation);
+  const [expanded, setExpanded] = useState(false);
   useEffect(() => {
     if (hasPendingConfirmation) setExpanded(true);
-    else if (!typing) setExpanded(false);
+    else setExpanded(false);
   }, [hasPendingConfirmation, typing]);
   if (!tools.length) return null;
   const activeTool = [...tools].reverse().find((tool) => tool.pending || tool.status === "running") || tools.at(-1)!;
@@ -260,9 +260,9 @@ function AgentRunActivity({
           <summary>
             <span className="copilot-tool-pulse" aria-hidden="true" />
             <span className="copilot-tool-current">
-              <strong>{typing ? activeKind : "运行记录"}</strong>
-              {typing && <i>·</i>}
-              {typing && <span>{activeTool.summary || activeTool.name || title || "正在处理"}</span>}
+              <strong>{typing ? activeKind : "Tool"}</strong>
+              <i>·</i>
+              <span>{typing ? activeTool.summary || activeTool.name || title || "正在处理" : "运行记录"}</span>
             </span>
             <em>{tools.length} 步</em>
             {typing && (
@@ -308,17 +308,10 @@ function ProductionPlanCard({
   controller: CopilotController;
 }) {
   const stages = plan?.stages || [];
-  const active = stages.find((stage) => ["doing", "blocked"].includes(String(stage.status || "")));
-  const [expanded, setExpanded] = useState(Boolean(active));
+  const [expanded, setExpanded] = useState(false);
   useEffect(() => {
-    if (active) setExpanded(true);
-    else if (stages.length && stages.every((stage) => stage.status === "done")) setExpanded(false);
-  }, [
-    active?.id,
-    active?.status,
-    stages.length,
-    stages.filter((stage) => stage.status === "done").length,
-  ]);
+    setExpanded(false);
+  }, [plan?.id]);
   if (!plan || plan.schemaVersion !== 2 || !stages.length) return null;
   const done = stages.filter((stage) => stage.status === "done").length;
   const stageItems = stages.map((stage, index) => ({

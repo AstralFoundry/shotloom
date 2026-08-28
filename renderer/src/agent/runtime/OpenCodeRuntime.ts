@@ -285,7 +285,7 @@ function systemPrompt() {
     canRunNodes
       ? 'Node execution is enabled. Execute according to the user request and real dependencies without asking for duplicate stage approval.'
       : 'Node execution is disabled. You may create and configure nodes, but must not claim to have run them.',
-    'If the run changes the project, canvas, or starts a task, call report_outcome with verifiable evidence before finishing.',
+    'If the run changes the project, canvas, or starts a task, call report_outcome with verifiable evidence before finishing. Every tool result returns toolCallId; copy those exact ids into evidence.toolCallIds and never use tool names as ids.',
     'For a conversational or explanatory answer that makes no project change, answer directly without report_outcome.',
     contracts,
   ].filter(Boolean).join('\n\n');

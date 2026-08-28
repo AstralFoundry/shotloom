@@ -3893,12 +3893,12 @@
           "endpoint": {
             "method": "POST",
             "path": "/volcengine/doubao/contents/generations/tasks",
-            "scope": "root"
+            "scope": "origin"
           },
           "taskEndpoint": {
             "method": "GET",
             "path": "/volcengine/doubao/contents/generations/tasks/{taskId}",
-            "scope": "root"
+            "scope": "origin"
           },
           "isAsync": true,
           "inputConstraints": {
@@ -4081,12 +4081,12 @@
           "endpoint": {
             "method": "POST",
             "path": "/volcengine/doubao/contents/generations/tasks",
-            "scope": "root"
+            "scope": "origin"
           },
           "taskEndpoint": {
             "method": "GET",
             "path": "/volcengine/doubao/contents/generations/tasks/{taskId}",
-            "scope": "root"
+            "scope": "origin"
           },
           "isAsync": true,
           "inputConstraints": {
@@ -4319,12 +4319,12 @@
           "endpoint": {
             "method": "POST",
             "path": "/volcengine/doubao/contents/generations/tasks",
-            "scope": "root"
+            "scope": "origin"
           },
           "taskEndpoint": {
             "method": "GET",
             "path": "/volcengine/doubao/contents/generations/tasks/{taskId}",
-            "scope": "root"
+            "scope": "origin"
           },
           "isAsync": true,
           "inputConstraints": {
@@ -4555,12 +4555,12 @@
           "endpoint": {
             "method": "POST",
             "path": "/volcengine/doubao/contents/generations/tasks",
-            "scope": "root"
+            "scope": "origin"
           },
           "taskEndpoint": {
             "method": "GET",
             "path": "/volcengine/doubao/contents/generations/tasks/{taskId}",
-            "scope": "root"
+            "scope": "origin"
           },
           "isAsync": true,
           "inputConstraints": {
@@ -6952,6 +6952,115 @@
             "failed": "failed"
           },
           "resultUrlPath": "data.0.outputs.*.url"
+        }
+      ]
+    },
+    {
+      "id": "runninghub-minimax-h3-reference-to-video",
+      "name": "MiniMax H3 Reference to Video（RunningHub）",
+      "provider": "runninghub",
+      "upstreamModel": "minimax-h3-reference-to-video",
+      "type": "videoGeneration",
+      "sortOrder": 1,
+      "enabled": true,
+      "defaultMode": "reference-to-video",
+      "modes": [
+        {
+          "id": "reference-to-video",
+          "label": "文本/多模态参考生视频",
+          "inputMode": "reference",
+          "inputSlots": ["reference", "inputVideo", "referenceAudio"],
+          "endpoint": {
+            "method": "POST",
+            "path": "/task/openapi/create",
+            "scope": "origin"
+          },
+          "taskEndpoint": {
+            "method": "POST",
+            "path": "/openapi/v2/query",
+            "scope": "origin"
+          },
+          "isAsync": true,
+          "inputConstraints": {
+            "images": {
+              "min": 0,
+              "max": 9,
+              "roles": ["referenceImage"],
+              "formats": ["jpg", "jpeg", "png"]
+            },
+            "videos": {
+              "min": 0,
+              "max": 2,
+              "roles": ["inputVideo"],
+              "formats": ["mp4"]
+            },
+            "audios": {
+              "min": 0,
+              "max": 2,
+              "roles": ["referenceAudio"],
+              "formats": ["wav", "mp3"]
+            }
+          },
+          "outputConstraints": {
+            "durations": [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+            "defaultDuration": 5,
+            "formats": ["mp4"]
+          },
+          "params": [
+            {
+              "key": "prompt",
+              "label": "提示词",
+              "type": "text"
+            },
+            {
+              "key": "duration",
+              "label": "时长",
+              "type": "select",
+              "default": 5,
+              "numeric": true,
+              "options": [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+              "presentation": { "control": "slider", "group": "视频", "summary": true, "unit": "秒", "min": 5, "max": 15, "step": 1 }
+            },
+            {
+              "key": "aspectRatio",
+              "label": "比例",
+              "type": "select",
+              "default": "16:9",
+              "options": ["16:9", "9:16"],
+              "presentation": { "control": "ratio", "group": "画面", "summary": true }
+            },
+            {
+              "key": "resolution",
+              "label": "分辨率",
+              "type": "select",
+              "default": "1K",
+              "options": ["480p", "720p", "1K", "2K"],
+              "presentation": { "control": "resolution", "group": "画面", "summary": true }
+            }
+          ],
+          "auth": { "type": "body", "name": "apiKey" },
+          "requestTemplate": {
+            "workflowId": "2086743729407733762"
+          },
+          "taskRequestTemplate": {
+            "taskId": "{{taskId}}"
+          },
+          "taskIdPath": "data.taskId",
+          "statusPath": "status",
+          "errorPath": "errorMessage",
+          "pollStatusMap": {
+            "QUEUED": "queued",
+            "PENDING": "queued",
+            "RUNNING": "running",
+            "SUCCESS": "completed",
+            "SUCCEEDED": "completed",
+            "COMPLETED": "completed",
+            "FAILED": "failed",
+            "ERROR": "failed",
+            "CANCELED": "cancelled",
+            "CANCELLED": "cancelled"
+          },
+          "resultUrlPath": "results.*.url"
         }
       ]
     },
