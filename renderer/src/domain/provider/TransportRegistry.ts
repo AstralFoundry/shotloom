@@ -38,7 +38,7 @@ class DeclarativeProviderTransport implements ProviderTransport {
       providerId: contract.provider || this.provider,
       protocolTemplate: contract.requestTemplate,
       protocolVariables: {
-        model: context.model,
+        model: contract.upstreamModel,
         prompt: context.prompt || '',
         messages: [
           { role: 'system', content: '你是文本生成助手。' },
@@ -121,6 +121,7 @@ class DeclarativeProviderTransport implements ProviderTransport {
       imageUrls: imageUrls.length ? imageUrls : undefined,
       imageUrl: imageUrls[0],
       imageObject: imageUrls[0] ? { url: imageUrls[0] } : undefined,
+      imageInputReference: imageUrls[0] ? { image_url: imageUrls[0] } : undefined,
       referenceImageUrls: imageEntries.filter(({ ref }) => !ref.inputSlot || ref.inputSlot === 'reference').map(({ value }) => value),
       firstFrameImageUrl: imageEntries.find(({ ref }) => ref.inputSlot === 'firstFrame')?.value,
       lastFrameImageUrl: imageEntries.find(({ ref }) => ref.inputSlot === 'lastFrame')?.value,

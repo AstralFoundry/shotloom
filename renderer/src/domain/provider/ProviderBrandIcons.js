@@ -29,6 +29,7 @@ import volcengine from '@lobehub/icons-static-svg/icons/volcengine-color.svg';
 import xai from '@lobehub/icons-static-svg/icons/xai.svg';
 import zhipu from '@lobehub/icons-static-svg/icons/zhipu-color.svg';
 import custom from '../../assets/provider-icons/custom.svg';
+import starrouter from '../../assets/provider-icons/starrouter.svg';
 
 /**
  * 可供 API 厂商复用的品牌图标目录。图标来自 @lobehub/icons-static-svg，
@@ -56,6 +57,7 @@ export const PROVIDER_ICON_OPTIONS = Object.freeze([
   { id: 'perplexity', label: 'Perplexity', src: perplexity },
   { id: 'groq', label: 'Groq', src: groq },
   { id: 'openrouter', label: 'OpenRouter', src: openrouter },
+  { id: 'starrouter', label: 'StarRouter', src: starrouter },
   { id: 'together', label: 'Together AI', src: together },
   { id: 'replicate', label: 'Replicate', src: replicate },
   { id: 'fal', label: 'fal.ai', src: fal },

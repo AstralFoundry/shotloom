@@ -249,7 +249,7 @@ function configureModel(model: string, workspaceDirectory: string) {
         options: { baseURL: provider.baseURL, apiKey, timeout: 300_000 },
         models: {
           [model]: {
-            id: model,
+            id: info.upstreamModel,
             name: info.name,
             reasoning: false,
             tool_call: true,

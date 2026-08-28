@@ -62,6 +62,23 @@ test('协议提示词覆盖运行时必需边界和局部模板变量作用域',
   assert.match(prompt, /输出前检查/);
 });
 
+test('协议提示词要求建立来源证据链并区分中转与厂商原生协议', () => {
+  assert.match(prompt, /先研究，再生成/);
+  assert.match(prompt, /模型列表或价格页只能证明模型 ID 可能存在/);
+  assert.match(prompt, /模型 ID → 请求端点 → 输入模式 → 参数 → 异步轮询 → 结果/);
+  assert.match(prompt, /不要把厂商原生端点直接套给协议不同的中转站/);
+  assert.match(prompt, /同一个站点可能分别实现 OpenAI Chat、Responses、Images、Videos、厂商原生任务/);
+  assert.match(prompt, /兼容 OpenAI 不等于支持全部 OpenAI 能力/);
+  assert.match(prompt, /先只问一个集中、具体的澄清问题/);
+});
+
+test('协议提示词不从素材示例或总媒体数猜参考图能力', () => {
+  assert.match(prompt, /最大数量必须逐种核实/);
+  assert.match(prompt, /不要把“最多 N 个媒体”自行解释成“N 张参考图”/);
+  assert.match(prompt, /不要用示例里恰好出现的素材数量当上限/);
+  assert.match(prompt, /Chat Completions 与 Responses 的字段不能混用/);
+});
+
 test('协议提示词优先生成可直接使用的创作者界面', () => {
   assert.ok(prompt.split('\n').length < 300);
   assert.match(prompt, /不要把 API 文档里的全部可选字段复制进 `params`/);

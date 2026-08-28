@@ -76,6 +76,34 @@ test('GPT Image 2 用真实 size 参数提供统一比例选项', () => {
   }
 });
 
+test('StarRouter 内置模型使用上游真实模型 ID 和已声明的图片编辑能力', () => {
+  const text = catalog.models.find((item) => item.id === 'starrouter-gpt-5.4');
+  assert.equal(text.provider, 'starrouter');
+  assert.equal(text.upstreamModel, 'gpt-5.4');
+  assert.equal(text.modes[0].endpoint.path, '/chat/completions');
+
+  const image = catalog.models.find((item) => item.id === 'starrouter-gpt-image-2');
+  assert.equal(image.provider, 'starrouter');
+  assert.equal(image.upstreamModel, 'gpt-image-2');
+  assert.deepEqual(image.modes.map((mode) => mode.endpoint.path), [
+    '/images/generations',
+    '/images/edits',
+  ]);
+  const edit = image.modes.find((mode) => mode.id === 'image-to-image');
+  assert.equal(edit.inputMode, 'reference');
+  assert.deepEqual(edit.inputSlots, ['reference']);
+  assert.equal(edit.inputConstraints.images.max, 16);
+  assert.equal(edit.inputFormat, 'multipart');
+  assert.equal(edit.requestFields.multipartImage, 'image');
+  assert.deepEqual(edit.params.find((param) => param.key === 'quality').options, [
+    'auto', 'low', 'medium', 'high',
+  ]);
+  assert.deepEqual(edit.params.find((param) => param.key === 'outputFormat').options, [
+    'png', 'jpeg', 'webp',
+  ]);
+  assert.equal(Object.hasOwn(edit.requestTemplate, 'input_fidelity'), false);
+});
+
 test('OpenAI GPT 画布文本请求使用 max_completion_tokens', () => {
   const models = catalog.models.filter((item) => (
     item.provider === 'openai' && item.type === 'textGeneration'
@@ -302,7 +330,10 @@ test('内置模型只使用唯一声明式执行协议', () => {
   for (const model of catalog.models) {
     for (const mode of model.modes) {
       assert.ok(mode.requestTemplate, `${model.id}/${mode.id} 缺少 requestTemplate`);
-      assert.ok(mode.resultTextPath || mode.resultUrlPath || mode.resultBase64Path, `${model.id}/${mode.id} 缺少结果路径`);
+      assert.ok(
+        mode.resultTextPath || mode.resultUrlPath || mode.resultBase64Path || mode.resultHexPath || mode.resultBody || mode.resultEndpoint,
+        `${model.id}/${mode.id} 缺少结果路径`,
+      );
       if (mode.isAsync) {
         assert.ok(mode.taskIdPath, `${model.id}/${mode.id} 缺少 taskIdPath`);
         assert.ok(mode.statusPath, `${model.id}/${mode.id} 缺少 statusPath`);

@@ -458,6 +458,24 @@
   caret-color: transparent !important;
   pointer-events: none !important;
 }
+.react-workflow-canvas.canvas-zoom-distant .note-node {
+  padding: 16px;
+  grid-template-rows: 1fr;
+}
+.react-workflow-canvas.canvas-zoom-distant .note-head {
+  align-items: end;
+}
+.react-workflow-canvas.canvas-zoom-distant .note-kind,
+.react-workflow-canvas.canvas-zoom-distant .note-head-actions,
+.react-workflow-canvas.canvas-zoom-distant .note-node textarea {
+  display: none;
+}
+.react-workflow-canvas.canvas-zoom-distant .note-head input {
+  font-size: 18px;
+  line-height: 1.2;
+  opacity: .58;
+  pointer-events: none;
+}
 .react-workflow-canvas.canvas-zoom-overview :is(
   .text-result-scroll,
   .text-result-empty span,
@@ -1061,24 +1079,83 @@
 .note-node,
 .utility-node,
 .board-node { position: relative; width: 100%; height: 100%; box-sizing: border-box; }
-.note-node { min-height: 120px; border: 1px solid #e0d58f; border-radius: 8px; padding: 10px; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 8px; background: #fff7c2; box-shadow: 0 2px 8px rgba(15, 23, 42, .08); }
-.note-node.selected { border-color: rgba(139, 122, 32, .5); box-shadow: 0 0 0 1px rgba(139, 122, 32, .08); }
+.note-node {
+  min-height: 120px;
+  overflow: hidden;
+  border: 1px solid #e6d990;
+  border-radius: 12px;
+  padding: 14px 16px 16px;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 10px;
+  color: #51481f;
+  background:
+    linear-gradient(135deg, transparent 0 13px, rgba(184, 153, 41, .08) 13px 14px, transparent 14px) top right / 24px 24px no-repeat,
+    #fffbea;
+  box-shadow: 0 3px 12px rgba(82, 68, 20, .07);
+  transition: border-color .15s ease, box-shadow .15s ease, background-color .15s ease;
+}
+.note-node::before {
+  position: absolute;
+  top: 14px;
+  bottom: 14px;
+  left: 0;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: #dfc34f;
+  content: "";
+}
+.note-node.selected {
+  border-color: #c9ae3c;
+  box-shadow: 0 0 0 2px rgba(201, 174, 60, .14), 0 5px 16px rgba(82, 68, 20, .09);
+}
 .note-head,
 .utility-head,
 .board-head { display: flex; align-items: center; gap: 6px; }
-.note-head { color: #7a6b1a; }
+.note-head { min-width: 0; color: #7a6b1a; }
+.note-kind {
+  flex: 0 0 auto;
+  border-radius: 4px;
+  padding: 2px 5px;
+  color: #8b7825;
+  background: rgba(221, 194, 80, .17);
+  font-size: 10px;
+  font-weight: 650;
+  line-height: 1.35;
+  letter-spacing: .04em;
+}
 .note-head svg,
 .utility-head svg,
 .board-head svg { width: 12px; height: 12px; flex: 0 0 auto; }
 .note-head input,
 .utility-head input,
 .board-head input { min-width: 0; flex: 1; border: 0; outline: none; background: transparent; font-size: 12px; font-weight: 600; }
-.note-head input { color: #6c5f16; }
+.note-head input {
+  color: #4f461d;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+}
 .note-head button,
 .utility-delete,
 .board-head button { width: 20px; height: 20px; border: 0; border-radius: 6px; padding: 0; display: grid; place-items: center; background: transparent; }
 .note-head button { color: #9f3a38; }
-.note-node textarea { width: 100%; height: 100%; min-height: 0; border: 0; outline: none; resize: none; color: #51470f; background: transparent; font: 13px/1.45 inherit; }
+.note-head button:hover { background: rgba(159, 58, 56, .08); }
+.note-node textarea {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  border: 0;
+  outline: none;
+  resize: none;
+  color: #5b5127;
+  background: transparent;
+  scrollbar-color: rgba(121, 104, 34, .22) transparent;
+  scrollbar-width: thin;
+  font: 14px/1.58 inherit;
+}
+.note-node textarea::placeholder { color: rgba(91, 81, 39, .42); }
 
 .utility-node-wrapper { width: 100%; height: 100%; }
 .utility-node { min-height: 120px; border: 1px dashed #8b929c; border-radius: 8px; padding: 10px; display: grid; gap: 8px; background: rgba(255, 255, 255, .9); box-shadow: 0 1px 2px rgba(15, 23, 42, .04); }

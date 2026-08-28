@@ -39,6 +39,16 @@ test('加入对话只在节点选中工具栏中显示', () => {
   }
 });
 
+test('便签保留静态上下文语义并在低倍率切换为安静的概览卡片', () => {
+  assert.match(basicNodes, /className="note-kind"[^>]*>便签<\/span>/);
+  assert.match(basicNodes, /aria-label="便签标题"/);
+  assert.match(basicNodes, /aria-label="便签内容"/);
+  assert.match(basicNodes, /title="删除便签"/);
+  assert.match(styles, /\.note-node \{[\s\S]*?border-radius: 12px;[\s\S]*?font: 14px\/1\.58 inherit;/);
+  assert.match(styles, /canvas-zoom-distant \.note-kind,[\s\S]*?\.note-node textarea \{[\s\S]*?display: none;/);
+  assert.match(styles, /canvas-zoom-distant \.note-head input \{[\s\S]*?opacity: \.58;[\s\S]*?pointer-events: none;/);
+});
+
 test('文本节点工具栏提供复制、加入对话与完整文本编辑', () => {
   assert.match(canvas, /isTextNode = node\.type === "textGeneration"/);
   assert.match(canvas, /canvas-node-toolbar-label">文本节点/);

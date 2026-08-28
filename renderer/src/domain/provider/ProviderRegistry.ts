@@ -63,6 +63,19 @@ const BUILT_IN_PROVIDERS: ProviderDefinition[] = [
     ],
   },
   {
+    id: 'starrouter',
+    name: 'StarRouter',
+    description: 'OpenAI 兼容的多模型中转服务',
+    iconId: 'starrouter',
+    authType: 'api-key',
+    defaultBaseUrl: 'https://starrouter.io/v1',
+    modelsPath: '/models',
+    credentials: [
+      KEY_FIELD,
+      { key: 'baseUrl', label: '接口地址', required: false, placeholder: 'https://starrouter.io/v1' },
+    ],
+  },
+  {
     id: 'bytedance',
     name: 'Seedance（火山方舟）',
     description: 'Seedance 官方模型服务；模型 ID 以方舟控制台实际开放项为准',

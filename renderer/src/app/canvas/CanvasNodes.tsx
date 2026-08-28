@@ -25,9 +25,10 @@ export const NoteNode: WorkflowNodeRenderer = memo(({ node, selected, actions })
       }}
     >
       <div className="note-head">
-        <IconSymbol name="chat" />
+        <span className="note-kind" aria-hidden="true">便签</span>
         <input
           className="nodrag"
+          aria-label="便签标题"
           placeholder="便签"
           {...titleCommit}
           onClick={(e) => e.stopPropagation()}
@@ -35,7 +36,9 @@ export const NoteNode: WorkflowNodeRenderer = memo(({ node, selected, actions })
         {selected && (
           <div className="note-head-actions">
             <button
-              title="Delete"
+              type="button"
+              aria-label="删除便签"
+              title="删除便签"
               onClick={(e) => {
                 e.stopPropagation();
                 actions.delete(node.id);
@@ -48,6 +51,7 @@ export const NoteNode: WorkflowNodeRenderer = memo(({ node, selected, actions })
       </div>
       <textarea
         className="nodrag nowheel"
+        aria-label="便签内容"
         placeholder="写下批注、想法或给 Agent 的上下文"
         {...contentCommit}
         onClick={(e) => e.stopPropagation()}

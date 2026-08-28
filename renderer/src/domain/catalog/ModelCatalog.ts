@@ -141,6 +141,8 @@ export interface CatalogModel {
   id: string;
   name: string;
   provider: string;
+  /** 目录内稳定 ID 与供应商实际请求 model 不同时显式声明。 */
+  upstreamModel?: string;
   type: string;
   sortOrder: number;
   enabled: boolean;
@@ -236,6 +238,9 @@ export function catalogModelValidationErrors(
   if (typeof value.id !== 'string' || !value.id.trim()) errors.push('模型缺少字符串 id');
   if (typeof value.name !== 'string' || !value.name.trim()) errors.push(`模型 ${modelId} 缺少字符串 name`);
   if (requireProvider && (typeof value.provider !== 'string' || !value.provider.trim())) errors.push(`模型 ${modelId} 缺少字符串 provider`);
+  if (value.upstreamModel !== undefined && (typeof value.upstreamModel !== 'string' || !value.upstreamModel.trim())) {
+    errors.push(`模型 ${modelId} 的 upstreamModel 必须是非空字符串`);
+  }
   if (!CATALOG_MODEL_TYPES.has(String(value.type || ''))) errors.push(`模型 ${modelId} 的 type 不受支持`);
   if (!Array.isArray(value.modes) || !value.modes.length) {
     errors.push(`模型 ${modelId} 缺少 modes`);
@@ -366,6 +371,7 @@ export interface ModelRuntimeContract {
   catalogVersion: number;
   nodeType: string;
   modelId: string;
+  upstreamModel: string;
   modeId: string;
   inputMode: GenerationInputMode | null;
   inputSlots: string[];
@@ -606,9 +612,14 @@ class ModelCatalog {
       .map((m) => m.id);
   }
 
-  getModelInfo(modelId: string): { name: string; provider: string; type: string } | null {
+  getModelInfo(modelId: string): { name: string; provider: string; type: string; upstreamModel: string } | null {
     const model = this.modelMap.get(modelId);
-    return model ? { name: model.name, provider: model.provider, type: model.type } : null;
+    return model ? {
+      name: model.name,
+      provider: model.provider,
+      type: model.type,
+      upstreamModel: model.upstreamModel || model.id,
+    } : null;
   }
 
   isModelForType(nodeType: string, modelId: string): boolean {
@@ -691,6 +702,7 @@ class ModelCatalog {
       catalogVersion: 2,
       nodeType: model.type,
       modelId: model.id,
+      upstreamModel: model.upstreamModel || model.id,
       modeId: mode.id,
       inputMode: this.semanticInputMode(mode, model.type),
       inputSlots: [...(mode.inputSlots || (this.semanticInputMode(mode, model.type) ? slotsForInputMode(this.semanticInputMode(mode, model.type)!) : []))],
