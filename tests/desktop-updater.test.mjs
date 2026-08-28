@@ -23,6 +23,7 @@ test('desktop updater keeps the checked update for download and installation', (
   assert.doesNotMatch(api, /尚未配置 Tauri updater/);
   assert.match(store, /desktopApi\.update\.download\(\(progress\) =>/);
   assert.match(store, /function transition\(event\)/);
+  assert.match(store, /case 'UP_TO_DATE':[\s\S]*error: '', notice: event\.message/);
   assert.match(store, /scheduleRetry\(downloadUpdate/);
   assert.match(store, /applyAvailable\(result\.info \|\| updateStore\.info, 'ready'\)/);
   assert.match(store, /scheduleRetry\(checkForUpdate, '检查更新失败，请稍后重试'/);
@@ -30,11 +31,12 @@ test('desktop updater keeps the checked update for download and installation', (
   assert.match(dialog, /data\.checking[\s\S]*正在连接更新服务器/);
   assert.match(dialog, /button-spinner/);
   assert.match(dialog, /formatReleaseNotes/);
+  assert.match(dialog, /update-current-state/);
   assert.match(dialog, /role="progressbar"/);
   assert.match(dialog, /data\.phase !== "downloading"/);
   assert.doesNotMatch(dialog, />\s*下载中\s*<\/button>/);
   assert.doesNotMatch(dialog, /SHOTLOOM DESKTOP/);
-  assert.match(styles, /\.update-modal \{[\s\S]*border-radius: 10px/);
+  assert.match(styles, /\.update-modal \{[\s\S]*border-radius: 22px/);
   assert.match(styles, /\.progress-track span \{[\s\S]*background: #59616a/);
 });
 

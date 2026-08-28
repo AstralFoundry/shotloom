@@ -544,29 +544,31 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({
                 </button>
                 {openMenu === "preset" && (
                   <div className="preset-menu">
-                    {IMAGE_STYLE_PRESETS.map((preset) => (
-                      <button
-                        key={preset.id || "none"}
-                        type="button"
-                        className={`preset-option${preset.id === selectedPreset.id ? " active" : ""}`}
-                        onClick={() => {
-                          const next = { ...config };
-                          if (preset.id) next.stylePresetId = preset.id;
-                          else delete next.stylePresetId;
-                          actions.update(node.id, { config: next });
-                          setOpenMenu("");
-                        }}
-                      >
-                        <span className="preset-icon" style={{ color: preset.tone }}>
-                          <IconSymbol name={preset.icon} />
-                        </span>
-                        <span>
-                          <strong>{preset.label}</strong>
-                          <em>{preset.description}</em>
-                        </span>
-                        {preset.id === selectedPreset.id && <IconSymbol name="check" />}
-                      </button>
-                    ))}
+                    <div className="preset-menu-scroll">
+                      {IMAGE_STYLE_PRESETS.map((preset) => (
+                        <button
+                          key={preset.id || "none"}
+                          type="button"
+                          className={`preset-option${preset.id === selectedPreset.id ? " active" : ""}`}
+                          onClick={() => {
+                            const next = { ...config };
+                            if (preset.id) next.stylePresetId = preset.id;
+                            else delete next.stylePresetId;
+                            actions.update(node.id, { config: next });
+                            setOpenMenu("");
+                          }}
+                        >
+                          <span className="preset-icon" style={{ color: preset.tone }}>
+                            <IconSymbol name={preset.icon} />
+                          </span>
+                          <span>
+                            <strong>{preset.label}</strong>
+                            <em>{preset.description}</em>
+                          </span>
+                          {preset.id === selectedPreset.id && <IconSymbol name="check" />}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>

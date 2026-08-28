@@ -37,6 +37,7 @@ export interface ProjectsController {
 interface ProjectsViewProps {
   entries: LibraryEntry[];
   currentFilePath?: string | null;
+  initialFolderPath?: string[];
   cloneProgress?: Record<
     string,
     {
@@ -73,10 +74,17 @@ function findFolder(
 }
 
 export function ProjectsView(
-  { entries, currentFilePath, cloneProgress = {}, controller }:
+  {
+    entries,
+    currentFilePath,
+    initialFolderPath = [],
+    cloneProgress = {},
+    controller,
+  }:
     ProjectsViewProps,
 ) {
-  const [folderPath, setFolderPath] = useState<string[]>([]);
+  const initialFolderPathKey = initialFolderPath.join("\u0000");
+  const [folderPath, setFolderPath] = useState<string[]>(initialFolderPath);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [rename, setRename] = useState<
     { entry: LibraryEntry; name: string } | null
@@ -103,6 +111,9 @@ export function ProjectsView(
     renameInput.current?.focus();
     renameInput.current?.select();
   }, [renameEntryKey]);
+  useEffect(() => {
+    setFolderPath(initialFolderPath);
+  }, [initialFolderPathKey]);
   useEffect(() => {
     setFolderPath((path) =>
       path.filter((key) => Boolean(findFolder(entries, key)))
@@ -368,7 +379,10 @@ export function ProjectsView(
                                 name: event.target.value,
                               })}
                             onKeyDown={(event) => {
-                              if (event.key === "Enter") void commitRename();
+                              if (event.key === "Enter") {
+                                event.preventDefault();
+                                event.currentTarget.blur();
+                              }
                               if (event.key === "Escape") setRename(null);
                             }}
                             onBlur={() => void commitRename()}

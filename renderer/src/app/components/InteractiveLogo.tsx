@@ -2,9 +2,10 @@ import { useEffect, useRef } from "react";
 
 interface InteractiveLogoProps {
   src: string;
+  className?: string;
 }
 
-export function InteractiveLogo({ src }: InteractiveLogoProps) {
+export function InteractiveLogo({ src, className = "" }: InteractiveLogoProps) {
   const logoRef = useRef<HTMLSpanElement>(null);
   const pupilsRef = useRef<SVGGElement>(null);
 
@@ -55,7 +56,11 @@ export function InteractiveLogo({ src }: InteractiveLogoProps) {
   }, []);
 
   return (
-    <span ref={logoRef} className="sidebar-brand-logo" aria-hidden="true">
+    <span
+      ref={logoRef}
+      className={`sidebar-brand-logo${className ? ` ${className}` : ""}`}
+      aria-hidden="true"
+    >
       <img src={src} alt="" />
       <svg className="sidebar-brand-eyes" viewBox="0 0 256 256">
         <ellipse

@@ -77,6 +77,7 @@ test('StarRouter GPT 5.5 使用官方上下文、输出长度和推理强度', (
     ['none', 'low', 'medium', 'high', 'xhigh'],
   );
   assert.equal(mode.requestTemplate.reasoning_effort, '{{params.reasoningEffort}}');
+  assert.deepEqual(mode.agent.requestOptions, { reasoningEffort: 'none' });
 });
 
 test('StarRouter Grok 图片模型只公开已验证可用的文生图协议', () => {

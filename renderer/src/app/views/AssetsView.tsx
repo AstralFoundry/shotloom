@@ -13,7 +13,7 @@ export interface AssetsController {
     item: MaterialItem,
     name: string,
   ) => boolean | void | Promise<boolean | void>;
-  deleteProjectAsset: (item: MaterialItem) => void | Promise<void>;
+  deleteProjectAsset: (item: MaterialItem) => boolean | void | Promise<boolean | void>;
   deleteLocalAsset: (
     item: MaterialItem,
   ) => boolean | void | Promise<boolean | void>;
@@ -169,6 +169,7 @@ export function AssetsView({
               showReferenceAction={scope === "local"}
               showCopyAction={scope === "local"}
               showRenameAction={scope === "project"}
+              showDeleteAction
               onPreview={controller.preview}
               onAction={action}
             />

@@ -11,6 +11,7 @@ export interface UpdateDialogData {
   };
   progress: null | { received?: number; total?: number; percent?: number };
   error?: string;
+  notice?: string;
 }
 export interface UpdateDialogController {
   close: () => void;
@@ -82,6 +83,7 @@ export function UpdateDialog(
             <button
               className="icon-btn"
               type="button"
+              aria-label="关闭更新窗口"
               onClick={controller.close}
             >
               <IconSymbol name="x" />
@@ -95,6 +97,17 @@ export function UpdateDialog(
               <div>
                 <strong>正在连接更新服务器</strong>
                 <span>正在确认是否有可用的新版本，请稍候。</span>
+              </div>
+            </div>
+          )}
+          {data.notice && (
+            <div className="update-current-state" role="status">
+              <span className="update-current-icon">
+                <IconSymbol name="check" />
+              </span>
+              <div>
+                <strong>{data.notice}</strong>
+                <span>你正在使用可用的最新版本，无需执行其他操作。</span>
               </div>
             </div>
           )}
@@ -163,7 +176,7 @@ export function UpdateDialog(
               type="button"
               onClick={controller.close}
             >
-              以后
+              {data.notice ? "完成" : "以后"}
             </button>
           )}
           {data.phase === "available" || data.phase === "recovering"
@@ -192,7 +205,7 @@ export function UpdateDialog(
                 type="button"
                 onClick={() => void controller.check()}
               >
-                重新检查
+                <IconSymbol name="refresh" />重新检查
               </button>
             )}
         </div>

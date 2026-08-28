@@ -30,16 +30,61 @@ function replacePathPrefix(value: unknown, oldDir: string, newDir: string) {
     : value;
 }
 
+async function migrateRenamedRecentProjects(
+  entry: LibraryEntry,
+  result: { oldDir: string; newDir: string; name: string },
+) {
+  const recent = await desktopApi.recent.list();
+  const affected = recent.filter((project: { filePath?: string; projectDir?: string }) => (
+    replacePathPrefix(project.filePath, result.oldDir, result.newDir) !== project.filePath ||
+    replacePathPrefix(project.projectDir, result.oldDir, result.newDir) !== project.projectDir
+  ));
+  for (const project of affected) {
+    if (project.filePath) await desktopApi.recent.remove(project.filePath);
+  }
+  for (const project of [...affected].reverse()) {
+    await desktopApi.recent.add({
+      ...project,
+      name: entry.kind === "project" ? result.name : project.name,
+      projectDir: replacePathPrefix(project.projectDir, result.oldDir, result.newDir),
+      filePath: replacePathPrefix(project.filePath, result.oldDir, result.newDir),
+    });
+  }
+}
+
 async function ensureRoot() {
   const requested = settingsStore.projectRootDir ||
     await desktopApi.project.getDefaultRoot();
   return desktopApi.project.ensureRoot(requested);
 }
 
+function findProjectFolderPath(
+  entries: LibraryEntry[],
+  filePath: string | null | undefined,
+): string[] {
+  if (!filePath) return [];
+  for (const entry of entries) {
+    if (entry.kind !== "folder") continue;
+    const children = entry.children || [];
+    if (
+      children.some((child) =>
+        child.kind === "project" && child.filePath === filePath
+      )
+    ) {
+      return [entry.folderDir];
+    }
+    const nestedPath = findProjectFolderPath(children, filePath);
+    if (nestedPath.length) return [entry.folderDir, ...nestedPath];
+  }
+  return [];
+}
+
 export function projectLibraryData() {
+  const entries = (store.projectLibraryEntries || []) as LibraryEntry[];
   return {
-    entries: (store.projectLibraryEntries || []) as LibraryEntry[],
+    entries,
     currentFilePath: store.filePath,
+    initialFolderPath: findProjectFolderPath(entries, store.filePath),
     cloneProgress: store.cloneProgressByProject || {},
   };
 }
@@ -72,6 +117,7 @@ export const projectLibraryController: ProjectsController = {
       ? entry.projectDir
       : entry.folderDir;
     const result = await desktopApi.project.renameEntry(oldDir, name);
+    await migrateRenamedRecentProjects(entry, result);
     store.projectDir = replacePathPrefix(
       store.projectDir,
       result.oldDir,

@@ -2,6 +2,7 @@ import { canvasNodeDimensions } from "../../../services/agentLayoutService";
 import { desktopApi } from "../../../services/desktopApi.js";
 import {
   addMaterialToAssetLibrary,
+  ensureMaterialStoredInProjectAssets,
   registerImportedMaterial,
 } from "../../../store/assetStore.js";
 import { addCanvasEdge } from "../../../store/canvasGraphStore.js";
@@ -37,12 +38,15 @@ export async function saveToAssets(
           item.id === material.id || String(item.path || item.filePath || "") === path
         );
         if (!projectMaterial) {
-          const registered = registerImportedMaterial(material, {
+          const archived = await ensureMaterialStoredInProjectAssets(material);
+          const registered = registerImportedMaterial(archived, {
             resourceType: assetDetails.resourceType,
             sourceType: material.sourceType || material.source || "canvas-asset-save",
             nodeType: assetDetails.nodeType,
           });
           projectMaterial = registered.material;
+        } else {
+          projectMaterial = await ensureMaterialStoredInProjectAssets(projectMaterial);
         }
         const existing = (store.project.assets || []).some(
           (item: any) => item.materialId === projectMaterial.id,

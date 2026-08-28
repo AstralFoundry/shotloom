@@ -41,6 +41,8 @@ test('画布素材入口统一项目、全局和文件并支持搜索与导入',
   assert.match(creation, /controller\.importMaterials\(\)[\s\S]*?refreshMaterials\("files"\)/);
   assert.match(workbench, /importMaterials: materialsController\.importFiles/);
   assert.match(libraryAdapter, /const visibleAssets = \(store\.project\.assets \|\| \[\]\)/);
+  assert.match(creation, /showDeleteAction[\s\S]*?controller\.deleteMaterial\(item, scope\)/);
+  assert.match(workbench, /deleteMaterial\(item, scope\)[\s\S]*?deleteProjectAsset[\s\S]*?deleteLocalAsset[\s\S]*?materialsController\.delete/);
 });
 
 test('资产浏览器从画布底部展开并支持拖动调整高度', () => {

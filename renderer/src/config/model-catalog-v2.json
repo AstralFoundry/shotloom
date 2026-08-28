@@ -3665,7 +3665,10 @@
           },
           "agent": {
             "transport": "provider-default",
-            "supportsTools": true
+            "supportsTools": true,
+            "requestOptions": {
+              "reasoningEffort": "none"
+            }
           },
           "outputConstraints": {
             "supportsStreaming": true,

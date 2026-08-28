@@ -10,16 +10,19 @@ const projectLibrary = readFileSync(new URL('../renderer/src/app/adapters/projec
 const taskStore = readFileSync(new URL('../renderer/src/store/taskStore.js', import.meta.url), 'utf8');
 const providerDialog = readFileSync(new URL('../renderer/src/app/views/ProviderConnectionDialog.tsx', import.meta.url), 'utf8')
   + readFileSync(new URL('../renderer/src/app/views/providerConnectionModel.ts', import.meta.url), 'utf8');
+const copilotPanel = readFileSync(new URL('../renderer/src/app/copilot/CopilotPanel.tsx', import.meta.url), 'utf8');
 const styles = readFileSync(new URL('../renderer/styles.css', import.meta.url), 'utf8');
 const settingsStyles = readFileSync(new URL('../renderer/styles/settings.css', import.meta.url), 'utf8');
 const reactMigrationStyles = ['canvas-copilot.css', 'project-materials.css', 'media-overlays.css', 'creation-view.css']
   .map((name) => readFileSync(new URL(`../renderer/styles/${name}`, import.meta.url), 'utf8'))
   .join('\n');
 
-test('项目侧栏提供返回项目库入口', () => {
+test('项目侧栏提供返回上一层入口并恢复当前画布的父文件夹', () => {
   assert.match(sidebar, /className="side-item sidebar-back-item"/);
   assert.match(sidebar, /navigate\("projects"\)/);
-  assert.match(sidebar, /返回项目库/);
+  assert.match(sidebar, /返回上一层/);
+  assert.match(projectLibrary, /function findProjectFolderPath\(/);
+  assert.match(projectLibrary, /initialFolderPath: findProjectFolderPath\(entries, store\.filePath\)/);
 });
 
 test('悬停抽屉只改变宽度和文字，不改变工具图标几何尺寸', () => {
@@ -138,6 +141,40 @@ test('Copilot 折叠按钮为画布右上角工具组预留空间', () => {
   assert.match(reactMigrationStyles, /\.forge-lite-main\.copilot-collapsed \.canvas-corner-controls \{[^}]*right:\s*calc\(22px \+ var\(--copilot-reopen-width\)\)/);
 });
 
+test('Copilot 空状态使用创作欢迎区并把模型与 Skill 收进大输入器底栏', () => {
+  assert.doesNotMatch(copilotPanel, /Hi，准备开始创作了吗|copilot-welcome-examples/);
+  assert.match(copilotPanel, /描述你想完成的内容/);
+  assert.match(copilotPanel, /用 @ 引用画布节点/);
+  assert.match(copilotPanel, /<InteractiveLogo src="\.\/shotloom-logo\.png" className="copilot-welcome-logo" \/>/);
+  assert.doesNotMatch(copilotPanel, /copilotQuickStarts|SHOTLOOM AGENT|copilot-command-list/);
+  assert.doesNotMatch(copilotPanel, /copilot-welcome-tabs|copilot-welcome-grid/);
+  assert.match(copilotPanel, /aria-label="选择模型"/);
+  assert.match(copilotPanel, /ProviderBrandIcon icon=\{model\.iconId\}/);
+  assert.match(copilotPanel, /copilot-model-option/);
+  assert.match(copilotPanel, /IconSymbol name="puzzle"/);
+  assert.doesNotMatch(copilotPanel, /copilot-tool-glyph|is-attachment|is-skill/);
+  assert.match(copilotPanel, /: "Skill"/);
+  assert.match(reactMigrationStyles, /\.forge-copilot \.copilot-input \{[^}]*border:\s*1px solid rgba\(0, 0, 0, \.1\)[^}]*border-radius:\s*17px/);
+  assert.match(reactMigrationStyles, /\.forge-copilot \.ant-sender \{[^}]*min-height:\s*132px[^}]*border:\s*0/);
+  assert.match(reactMigrationStyles, /\.forge-copilot \.ant-sender \{[^}]*border-radius:\s*16px/);
+  assert.match(reactMigrationStyles, /\.forge-copilot \.copilot-input\.has-api-warning \.ant-sender \{[^}]*border-radius:\s*0 0 16px 16px/);
+  assert.match(reactMigrationStyles, /\.forge-copilot \.ant-sender-actions-list \{[^}]*right:\s*9px[^}]*bottom:\s*9px/);
+  assert.match(reactMigrationStyles, /\.forge-copilot \.ant-sender textarea \{[^}]*scrollbar-width:\s*none/);
+  assert.match(reactMigrationStyles, /\.forge-copilot \.ant-sender textarea::\-webkit-scrollbar \{[^}]*display:\s*none/);
+  assert.match(reactMigrationStyles, /\.forge-copilot \.copilot-welcome \{[^}]*flex:\s*1 1 auto[^}]*align-items:\s*center[^}]*justify-content:\s*center/);
+});
+
+test('Copilot 将运行工具收成可展开的闪烁单行并折叠长用户输入', () => {
+  assert.match(copilotPanel, /className=\{`copilot-tool-trace\$\{typing \? " is-running" : ""\}`\}/);
+  assert.match(copilotPanel, /copilot-tool-current/);
+  assert.match(copilotPanel, /activeTool\.summary \|\| activeTool\.name/);
+  assert.match(copilotPanel, /<CollapsibleUserMessage html=\{messageMarkdown\(item\)\} \/>/);
+  assert.match(reactMigrationStyles, /\.copilot-tool-trace\.is-running > summary \.copilot-tool-pulse \{[^}]*animation:\s*copilot-tool-pulse/);
+  assert.match(reactMigrationStyles, /\.copilot-user-content \.copilot-message-markdown \{[^}]*max-height:\s*6\.2em[^}]*overflow:\s*hidden/);
+  assert.match(reactMigrationStyles, /\.forge-copilot \.copilot-message-list \{[^}]*scrollbar-width:\s*none/);
+  assert.match(reactMigrationStyles, /\.forge-copilot \.copilot-message-list::\-webkit-scrollbar \{[^}]*display:\s*none/);
+});
+
 test('策略编辑弹窗由正文滚动且测试台不会被 Flex 压缩裁切', () => {
   assert.match(settingsStyles, /\.recipe-dialog-body \{[^}]*flex:\s*1 1 auto[^}]*overflow-y:\s*auto/);
   assert.match(settingsStyles, /\.recipe-dialog-body > \* \{ flex-shrink: 0; \}/);
@@ -151,6 +188,22 @@ test('API 厂商按模型逐个编辑协议而不是暴露完整目录数组', (
   assert.match(providerDialog, /value=\{modelJson\}/);
   assert.match(providerDialog, /placeholder="\{\}"/);
   assert.doesNotMatch(providerDialog, /value=\{modelsJson\}/);
+});
+
+test('API 厂商弹窗收起低频 AI 导入并提供可搜索的模型工作区', () => {
+  assert.match(providerDialog, /const \[showAiImport, setShowAiImport\] = useState\(false\)/);
+  assert.match(providerDialog, /aria-expanded=\{showAiImport\}/);
+  assert.match(providerDialog, /showAiImport &&/);
+  assert.match(providerDialog, /placeholder="搜索名称或 ID"/);
+  assert.match(providerDialog, /visibleModels\.map/);
+  assert.match(providerDialog, /className="provider-model-detail"/);
+  assert.match(providerDialog, /models\.length <= 4 \? " compact" : " catalog"/);
+  assert.match(settingsStyles, /\.provider-connection-dialog \{[^}]*width:\s*min\(900px[^}]*height:\s*auto/);
+  assert.match(settingsStyles, /\.provider-connection-dialog \.recipe-dialog-body \{[^}]*overflow-y:\s*auto/);
+  assert.match(settingsStyles, /\.provider-connection-dialog \.provider-model-item\.active \{[^}]*box-shadow:\s*inset 2px 0/);
+  assert.match(settingsStyles, /\.provider-model-detail \{[^}]*border-left:\s*1px solid var\(--provider-line\)/);
+  assert.match(settingsStyles, /\.provider-connection-basics,[\s\S]*?border-bottom:\s*1px solid var\(--provider-line\)/);
+  assert.match(settingsStyles, /\.provider-model-workspace\.compact \{ grid-template-columns:\s*1fr/);
 });
 
 test('新增 API 模型使用空白协议', () => {

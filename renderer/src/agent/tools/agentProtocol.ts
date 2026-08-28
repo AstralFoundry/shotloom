@@ -71,6 +71,45 @@ export function buildAgentActionSchema(
   return { oneOf: branches };
 }
 
+export function flattenAgentActionSchema(schema: JsonSchema): JsonSchema {
+  const branches = schema.oneOf || [];
+  if (!branches.length) {
+    if (schema.type !== 'object') throw new Error('Agent tool input schema must be an object');
+    return cloneJson(schema);
+  }
+
+  const properties: Record<string, JsonSchema> = {};
+  for (const branch of branches) {
+    if (branch.type !== 'object') throw new Error('Agent action branch must be an object');
+    for (const [name, property] of Object.entries(branch.properties || {})) {
+      const existing = properties[name];
+      if (!existing) {
+        properties[name] = cloneJson(property);
+        continue;
+      }
+      if (JSON.stringify(existing) === JSON.stringify(property)) continue;
+      if (existing.enum && property.enum && existing.type === property.type) {
+        properties[name] = {
+          ...existing,
+          enum: [...new Set([...existing.enum, ...property.enum])],
+        };
+        continue;
+      }
+      properties[name] = { anyOf: [existing, cloneJson(property)] };
+    }
+  }
+
+  const required = branches
+    .map((branch) => branch.required || [])
+    .reduce((shared, branchRequired) => shared.filter((name) => branchRequired.includes(name)));
+  return {
+    type: 'object',
+    properties,
+    ...(required.length ? { required } : {}),
+    additionalProperties: false,
+  };
+}
+
 const createActionTypes = new Set([
   'create_gen_node',
   'create_note_node',

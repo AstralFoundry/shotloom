@@ -70,6 +70,7 @@ test('媒体节点工具栏提供真实入库与音频分离', () => {
   assert.match(canvas, /actions\.saveToAssets\(node\.id, "global", assetCategory\)[\s\S]*?<strong>存到全局<\/strong>/);
   assert.match(adapter, /async function saveToAssets\([\s\S]*?scope === "project"[\s\S]*?addMaterialToAssetLibrary[\s\S]*?promoteMaterialToLocalLibrary/);
   assert.match(adapter, /assetDetails = \{[\s\S]*?category,[\s\S]*?promoteMaterialToLocalLibrary/);
+  assert.match(adapter, /scope === "project"[\s\S]*?ensureMaterialStoredInProjectAssets\(projectMaterial\)[\s\S]*?addMaterialToAssetLibrary/);
   assert.match(styles, /\.canvas-node-asset-scope-menu \{[\s\S]*?width:\s*220px/);
   assert.match(styles, /\.canvas-node-asset-scope-menu--portal \{[\s\S]*?z-index:\s*121/);
   assert.match(styles, /\.react-workflow-canvas \{[\s\S]*?isolation:\s*isolate/);

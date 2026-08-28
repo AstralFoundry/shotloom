@@ -26,7 +26,7 @@
   display: grid;
   grid-template-rows: 11px auto auto auto minmax(0, 1fr);
   background: #fff;
-  box-shadow: 0 -10px 28px rgba(0, 0, 0, .045);
+  box-shadow: 0 -14px 36px rgba(0, 0, 0, .035);
   overflow: hidden;
   pointer-events: auto;
   animation: canvas-asset-popover-in 140ms cubic-bezier(.2, .8, .2, 1);

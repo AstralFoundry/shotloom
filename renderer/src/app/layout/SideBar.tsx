@@ -118,11 +118,11 @@ export function SideBar(
               <div className="side-list sidebar-back-list">
                 <button
                   className="side-item sidebar-back-item"
-                  title={iconRail ? "返回项目库" : undefined}
+                  title={iconRail ? "返回上一层" : undefined}
                   onClick={() => navigate("projects")}
                 >
                   <IconSymbol name="chevron-left" />
-                  <span>返回项目库</span>
+                  <span>返回上一层</span>
                 </button>
               </div>
               {workspaceNavigation}

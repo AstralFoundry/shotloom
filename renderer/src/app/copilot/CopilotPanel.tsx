@@ -5,7 +5,7 @@ import Conversations from "@ant-design/x/es/conversations";
 import Sender from "@ant-design/x/es/sender";
 import ThoughtChain from "@ant-design/x/es/thought-chain";
 import type { SenderRef } from "@ant-design/x/es/sender";
-import { Collapse, ConfigProvider, Dropdown, Progress, Select } from "antd";
+import { Collapse, ConfigProvider, Dropdown, Progress } from "antd";
 import { desktopApi } from "../../services/desktopApi.js";
 import { agentNodeAliasMaps } from "../../services/agentCanvasSnapshot.js";
 import {
@@ -13,6 +13,8 @@ import {
   resolveNodeChatImageAttachment,
 } from "../../services/nodeChatAttachment.mjs";
 import { IconSymbol } from "../components/IconSymbol";
+import { InteractiveLogo } from "../components/InteractiveLogo";
+import { ProviderBrandIcon } from "../components/ProviderBrandIcon";
 import type { WorkflowNodeData } from "../canvas/WorkflowCanvas";
 import { isImeKeyEvent } from "../canvas/imeComposition";
 import {
@@ -149,6 +151,43 @@ function BusyBrailleSpinner() {
   );
 }
 
+function CollapsibleUserMessage({ html }: { html: string }) {
+  const content = useRef<HTMLDivElement | null>(null);
+  const [expanded, setExpanded] = useState(false);
+  const [overflowing, setOverflowing] = useState(false);
+  useEffect(() => {
+    setExpanded(false);
+  }, [html]);
+  useEffect(() => {
+    const element = content.current;
+    if (!element || expanded) return;
+    const measure = () => setOverflowing(element.scrollHeight > element.clientHeight + 1);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [expanded, html]);
+  return (
+    <div className={`copilot-user-content${expanded ? " is-expanded" : ""}`}>
+      <div
+        ref={content}
+        className="copilot-message-markdown"
+        dangerouslySetInnerHTML={{ __html: html }}
+      />
+      {overflowing && (
+        <button
+          type="button"
+          className="copilot-user-content-toggle"
+          aria-expanded={expanded}
+          onClick={() => setExpanded((value) => !value)}
+        >
+          {expanded ? "收起" : "展开"}
+        </button>
+      )}
+    </div>
+  );
+}
+
 function AgentRunActivity({
   tools,
   typing,
@@ -163,12 +202,20 @@ function AgentRunActivity({
   controller: CopilotController;
 }) {
   const hasPendingConfirmation = tools.some((tool) => tool.pending);
-  const [expanded, setExpanded] = useState(Boolean(typing || hasPendingConfirmation));
+  const [expanded, setExpanded] = useState(hasPendingConfirmation);
   useEffect(() => {
-    if (typing || hasPendingConfirmation) setExpanded(true);
+    if (hasPendingConfirmation) setExpanded(true);
     else if (!typing) setExpanded(false);
   }, [hasPendingConfirmation, typing]);
   if (!tools.length) return null;
+  const activeTool = [...tools].reverse().find((tool) => tool.pending || tool.status === "running") || tools.at(-1)!;
+  const activeKind = activeTool.kind === "skill"
+    ? "Skill"
+    : activeTool.kind === "recipe"
+      ? "Recipe"
+      : activeTool.kind === "system"
+        ? "Context"
+        : "Tool";
   const items = tools.map((tool, index) => ({
     key: tool.id || `tool-${index}`,
     title: (
@@ -204,36 +251,35 @@ function AgentRunActivity({
     <section
       className={`copilot-run-activity${typing ? " is-running" : ""}${waitingForAnswer ? " is-waiting" : ""}`}
     >
-      {!waitingForAnswer && typing && (
-        <div className="copilot-live-log">
-          <ThoughtChain
-            className="copilot-thought-chain"
-            items={items}
-            defaultExpandedKeys={tools.filter((tool) => tool.pending).map((tool) => String(tool.id))}
-          />
-          <footer>
-            <span>{title || "正在深入处理…"}</span>
-            <button
-              className="copilot-run-stop"
-              type="button"
-              title="停止 Agent"
-              aria-label="停止 Agent"
-              onClick={controller.cancel}
-            >
-              <span aria-hidden="true" />
-            </button>
-          </footer>
-        </div>
-      )}
-      {!waitingForAnswer && !typing && (
+      {!waitingForAnswer && (
         <details
-          className="copilot-tool-trace"
+          className={`copilot-tool-trace${typing ? " is-running" : ""}`}
           open={expanded}
           onToggle={(event) => setExpanded(event.currentTarget.open)}
         >
           <summary>
-            <span>运行记录</span>
+            <span className="copilot-tool-pulse" aria-hidden="true" />
+            <span className="copilot-tool-current">
+              <strong>{typing ? activeKind : "运行记录"}</strong>
+              {typing && <i>·</i>}
+              {typing && <span>{activeTool.summary || activeTool.name || title || "正在处理"}</span>}
+            </span>
             <em>{tools.length} 步</em>
+            {typing && (
+              <button
+                className="copilot-run-stop"
+                type="button"
+                title="停止 Agent"
+                aria-label="停止 Agent"
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  controller.cancel();
+                }}
+              >
+                <span aria-hidden="true" />
+              </button>
+            )}
             <IconSymbol name="chevron-down" />
           </summary>
           <ThoughtChain
@@ -365,7 +411,7 @@ interface CopilotPanelProps {
   conversations: ConversationItem[];
   activeConversationId: string;
   textModel: string;
-  textModels: Array<{ id: string; label: string }>;
+  textModels: Array<{ id: string; label: string; iconId: string }>;
   controller: CopilotController;
 }
 export const CopilotPanel = forwardRef<CopilotPanelHandle, CopilotPanelProps>(function CopilotPanel({
@@ -592,10 +638,6 @@ export const CopilotPanel = forwardRef<CopilotPanelHandle, CopilotPanelProps>(fu
       insertMention(options[mentionIndex]);
       return;
     }
-    if (event.key === "Enter" && !event.shiftKey) {
-      event.preventDefault();
-      send();
-    }
     if (event.key === "Escape") {
       setMentionOpen(false);
     }
@@ -611,6 +653,7 @@ export const CopilotPanel = forwardRef<CopilotPanelHandle, CopilotPanelProps>(fu
   const activeConversation = conversations.find(
     (conversation) => conversation.id === activeConversationId,
   );
+  const activeTextModel = textModels.find((model) => model.id === textModel);
   return (
     <ConfigProvider
       theme={{
@@ -664,12 +707,12 @@ export const CopilotPanel = forwardRef<CopilotPanelHandle, CopilotPanelProps>(fu
                 rootClassName={`copilot-message is-${item.role}${item.typing ? " typing" : ""}${item.error ? " has-error" : ""}`}
                 content={<div className="copilot-message-body">
                 {item.content && (
-                  <div
-                    className="copilot-message-markdown"
-                    dangerouslySetInnerHTML={{
-                      __html: messageMarkdown(item),
-                    }}
-                  />
+                  item.role === "user"
+                    ? <CollapsibleUserMessage html={messageMarkdown(item)} />
+                    : <div
+                        className="copilot-message-markdown"
+                        dangerouslySetInnerHTML={{ __html: messageMarkdown(item) }}
+                      />
                 )}
                 {item.meta?.length ? (
                   <div className="copilot-message-meta">
@@ -823,20 +866,9 @@ export const CopilotPanel = forwardRef<CopilotPanelHandle, CopilotPanelProps>(fu
             ))
           ) : (
             <div className="copilot-welcome">
-              <h3>Hi，准备开始创作了吗？</h3>
-              <p>试一试这些指令开始</p>
-              <div className="copilot-welcome-examples">
-                <button onClick={() => setMessage("分析当前画布，告诉我下一步最值得做什么")}>
-                  分析当前画布
-                </button>
-                <button onClick={() => setMessage("把这段剧本拆成场次并整理到画布")}>
-                  拆分剧本场次
-                </button>
-                <button onClick={() => setMessage("检查失败节点并给出修复方案")}>
-                  检查失败节点
-                </button>
-              </div>
-              <small>也可以直接输入消息，或添加本地文件</small>
+              <InteractiveLogo src="./shotloom-logo.png" className="copilot-welcome-logo" />
+              <strong>描述你想完成的内容</strong>
+              <p>也可以用 @ 引用画布节点，Agent 会结合当前内容继续创作</p>
             </div>
           )}
           {busy &&
@@ -857,12 +889,13 @@ export const CopilotPanel = forwardRef<CopilotPanelHandle, CopilotPanelProps>(fu
             {unreadMessages} 条新消息
           </button>
         )}
-        <div className="copilot-input">
+        <div className={`copilot-input${!textModels.length ? " has-api-warning" : ""}`}>
           {!textModels.length && (
             <div className="copilot-api-warning">
               <IconSymbol name="warning" />
               <span>
-                <strong>Agent 暂不可用</strong>请先在“设置 → API 厂商”配置文本模型。
+                <strong>还未配置文本模型</strong>
+                <small>前往“设置 → API 厂商”完成配置后即可开始创作</small>
               </span>
             </div>
           )}
@@ -943,7 +976,7 @@ export const CopilotPanel = forwardRef<CopilotPanelHandle, CopilotPanelProps>(fu
             footer={(
               <div className="copilot-sender-footer">
                 <div className="copilot-sender-tools">
-                  <button type="button" title="添加文件" onClick={() => void attach()}>
+                  <button className="copilot-attach-trigger" type="button" title="添加文件" onClick={() => void attach()}>
                     <IconSymbol name="paperclip" />
                   </button>
                   <Dropdown
@@ -968,22 +1001,53 @@ export const CopilotPanel = forwardRef<CopilotPanelHandle, CopilotPanelProps>(fu
                   >
                     <button
                       type="button"
-                      className={selectedSkill ? "is-active" : ""}
+                      className={`copilot-skill-trigger${selectedSkill ? " is-active" : ""}`}
                       title={selectedSkill ? `已选择：${selectedSkill.name || selectedSkill.id}` : "选择 Skill"}
+                    >
+                      <IconSymbol name="puzzle" />
+                      <span>{selectedSkill ? selectedSkill.name || selectedSkill.id : "Skill"}</span>
+                    </button>
+                  </Dropdown>
+                  <Dropdown
+                    trigger={["click"]}
+                    placement="topLeft"
+                    overlayClassName="copilot-model-dropdown"
+                    menu={{
+                      selectedKeys: textModel ? [textModel] : [],
+                      items: textModels.map((model) => ({
+                        key: model.id,
+                        label: (
+                          <span className="copilot-model-option">
+                            <span className="copilot-model-brand">
+                              <ProviderBrandIcon icon={model.iconId} />
+                            </span>
+                            <span className="copilot-model-copy">
+                              <strong>{model.label}</strong>
+                              <small>{model.id}</small>
+                            </span>
+                            {model.id === textModel && <IconSymbol name="check" />}
+                          </span>
+                        ),
+                      })),
+                      onClick: ({ key }) => controller.changeModel(key),
+                    }}
                   >
-                      <IconSymbol name="spark" />
+                    <button
+                      className="copilot-model-trigger"
+                      type="button"
+                      aria-label="选择模型"
+                      disabled={!textModels.length}
+                      title={activeTextModel?.label || "选择模型"}
+                    >
+                      <span className="copilot-model-brand">
+                        <ProviderBrandIcon icon={activeTextModel?.iconId || "custom"} />
+                      </span>
+                      <span>{activeTextModel?.label || "模型"}</span>
+                      <IconSymbol name="chevron-down" />
                     </button>
                   </Dropdown>
                 </div>
                 <div className="copilot-sender-options">
-                  <Select
-                    variant="borderless"
-                    size="small"
-                    value={textModel || undefined}
-                    disabled={!textModels.length}
-                    options={textModels.map((model) => ({ value: model.id, label: model.label }))}
-                    onChange={controller.changeModel}
-                  />
                   {busy && (message.trim() || attachments.length || mentions.length) ? (
                     <button
                       className="copilot-queue-button"

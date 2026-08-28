@@ -15,18 +15,18 @@
   --good: #0f9f6e;
   --warn: #c98713;
   --bad: #d74848;
-  --shadow: 0 10px 24px -20px rgba(17, 17, 19, .16), 0 1px 4px -3px rgba(17, 17, 19, .08);
+  --shadow: 0 12px 30px -24px rgba(17, 17, 19, .14);
   --type-primary: rgba(0, 0, 0, .82);
   --type-secondary: rgba(0, 0, 0, .58);
   --type-tertiary: rgba(0, 0, 0, .38);
   --workspace-sidebar-width: 264px;
   --workspace-sidebar-rail-width: 64px;
-  --window-shell: #efeff2;
-  --workbench-radius: 12px;
+  --window-shell: #f1f1f3;
+  --workbench-radius: 16px;
   --control-height-compact: 28px;
   --control-height: 32px;
-  --radius-control: 7px;
-  --radius-panel: 10px;
+  --radius-control: 10px;
+  --radius-panel: 14px;
   --layer-canvas-control: 80;
   --layer-canvas-composer: 120;
 }

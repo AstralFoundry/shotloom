@@ -3,7 +3,11 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 import { classifyAgentToolResult, validateToolInput } from '../renderer/src/agent/core/toolRegistry.ts';
-import { buildAgentActionSchema, normalizeAgentAction } from '../renderer/src/agent/tools/agentProtocol.ts';
+import {
+  buildAgentActionSchema,
+  flattenAgentActionSchema,
+  normalizeAgentAction,
+} from '../renderer/src/agent/tools/agentProtocol.ts';
 import { IncrementalActionsParser } from '../renderer/src/utils/chatCompletionStream.mjs';
 import { MODEL_AGENT_CANVAS_ACTION_TYPES } from '../renderer/src/utils/agentCanvasActionTypes.mjs';
 import {
@@ -91,6 +95,25 @@ test('动作 schema 展开 commonProperties 引用，不向 MCP 暴露悬空引�
     create.properties.inputLinks.items.properties.slot.enum,
     ['reference', 'firstFrame', 'lastFrame', 'inputVideo', 'referenceAudio'],
   );
+});
+
+test('细粒度画布工具向模型暴露顶层纯 object schema', () => {
+  const schema = flattenAgentActionSchema(buildAgentActionSchema(contract, {
+    allowedTypes: ['create_gen_node', 'create_note_node', 'place_asset_on_canvas'],
+  }));
+  assert.equal(schema.type, 'object');
+  for (const keyword of ['oneOf', 'anyOf', 'allOf', 'enum', 'const', 'not']) {
+    assert.equal(Object.hasOwn(schema, keyword), false, `顶层不应包含 ${keyword}`);
+  }
+  assert.deepEqual(schema.properties.type.enum, [
+    'create_gen_node', 'create_note_node', 'place_asset_on_canvas',
+  ]);
+  assert.equal(Object.hasOwn(schema.properties, 'prompt'), true);
+  assert.equal(Object.hasOwn(schema.properties, 'content'), true);
+  assert.equal(Object.hasOwn(schema.properties, 'assetId'), true);
+  assert.doesNotThrow(() => validateToolInput(schema, {
+    type: 'create_note_node', title: '分镜说明', content: '第一场的制作说明',
+  }));
 });
 
 test('Agent 画布工具公开连接已有节点动作', () => {

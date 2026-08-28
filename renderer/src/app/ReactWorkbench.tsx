@@ -372,6 +372,11 @@ export function ReactWorkbench() {
           showMaterialInFolder: assetsController.showFile,
           loadMaterials: resourceLibraryData,
           importMaterials: materialsController.importFiles,
+          deleteMaterial(item, scope) {
+            if (scope === "library") return assetsController.deleteProjectAsset(item);
+            if (scope === "local") return assetsController.deleteLocalAsset(item);
+            return materialsController.delete(item);
+          },
           undo: canvasCommands.undo,
           redo: canvasCommands.redo,
           fitView: canvasCommands.fitView,

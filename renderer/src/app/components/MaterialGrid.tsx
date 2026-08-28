@@ -367,7 +367,14 @@ export function MaterialGrid({
                   </button>
                 )}
                 {showDeleteAction && (
-                  <button title="删除" className="danger" onClick={() => action("delete-item")}>
+                  <button
+                    title="删除"
+                    className="danger"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      action("delete-item");
+                    }}
+                  >
                     <IconSymbol name="trash" />
                   </button>
                 )}

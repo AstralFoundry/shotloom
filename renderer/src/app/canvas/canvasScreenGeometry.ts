@@ -1,8 +1,8 @@
 import { canvasNodeDimensions } from "../../services/agentLayoutService";
 import type { WorkflowNodeData } from "./WorkflowCanvas";
 
-const CANVAS_MENU_WIDTH = 168;
-const CANVAS_MENU_HEIGHT = 334;
+const CANVAS_MENU_WIDTH = 220;
+const CANVAS_MENU_HEIGHT = 468;
 const CANVAS_MENU_MARGIN = 8;
 const CANVAS_MENU_POINTER_OFFSET = 4;
 

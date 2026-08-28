@@ -929,8 +929,13 @@ export function WorkflowCanvas({
           </ReactFlow>
           {!visible.length && (
             <div className="canvas-empty-copy">
-              <strong>画布为空</strong>
-              <small>双击或右键添加节点，也可以从左侧节点栏开始</small>
+              <span className="canvas-empty-icon" aria-hidden="true">
+                <IconSymbol name="cursor" />
+              </span>
+              <strong><b>双击或右键画布</b>，添加创作节点</strong>
+              <small>
+                拖动画布移动视角 <i /> 滚轮缩放 <i /> 也可以让右侧 Agent 直接创建
+              </small>
             </div>
           )}
           <CanvasMenuLayer ref={menuLayer} controller={controller} />

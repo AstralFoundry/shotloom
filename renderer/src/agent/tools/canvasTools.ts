@@ -14,7 +14,7 @@ import { setSelectedNodeIds } from '@/store/nodeStore';
 import { redoCanvas, undoCanvas } from '@/store/canvasHistoryStore';
 import actionContract from '@/config/agent-action-contract.json';
 import { validateAgentActionShape } from '@/composables/agentActionValidator';
-import { buildAgentActionSchema, normalizeAgentActions } from './agentProtocol';
+import { buildAgentActionSchema, flattenAgentActionSchema, normalizeAgentActions } from './agentProtocol';
 import { canvasMutationFingerprint } from '@/utils/canvasMutationFingerprint.mjs';
 
 const generationActions = new Set(['start_generation']);
@@ -41,11 +41,7 @@ function advanceCanvasWriteFence(context: AgentToolContext) {
 }
 
 function focusedActionSchema(types: string[]) {
-  const schema = buildAgentActionSchema(actionContract, { allowedTypes: types });
-  if (schema.oneOf?.length === 1) return schema.oneOf[0];
-  // MCP tools require inputSchema itself to be an object schema. Keep the
-  // action alternatives inside that object instead of exposing a bare union.
-  return { type: 'object' as const, oneOf: schema.oneOf };
+  return flattenAgentActionSchema(buildAgentActionSchema(actionContract, { allowedTypes: types }));
 }
 
 async function executeFocusedAction(input: JsonObject, context: AgentToolContext) {

@@ -3,14 +3,188 @@ use super::common::{
 };
 use serde_json::{json, Value};
 use std::{
+    collections::BTreeSet,
     fs,
     io::{Read, Write},
     path::{Path, PathBuf},
+    sync::Mutex,
 };
 use tauri::AppHandle;
 
 const PROJECT_SCHEMA: &str = "shotloom-project";
 const PROJECT_SCHEMA_VERSION: u64 = 2;
+const SHARED_ASSET_LIBRARY_FILE: &str = "assets.shotloom.json";
+const SHARED_ASSET_LIBRARY_SCHEMA: &str = "shotloom-project-assets";
+static SHARED_ASSET_LIBRARY_LOCK: Mutex<()> = Mutex::new(());
+
+fn lock_shared_asset_library() -> Result<std::sync::MutexGuard<'static, ()>, String> {
+    SHARED_ASSET_LIBRARY_LOCK
+        .lock()
+        .map_err(|_| "项目资产清单锁已损坏".to_string())
+}
+
+fn shared_asset_root(project: &Value) -> Option<PathBuf> {
+    ["library", "series"].iter().find_map(|key| {
+        let boundary = project.get(key)?;
+        if boundary.get("enabled").and_then(Value::as_bool) == Some(false) {
+            return None;
+        }
+        let root = boundary.get("rootDir").and_then(Value::as_str)?.trim();
+        (!root.is_empty()).then(|| PathBuf::from(root))
+    })
+}
+
+fn shared_asset_directory(project: &Value) -> Option<PathBuf> {
+    ["library", "series"].iter().find_map(|key| {
+        let boundary = project.get(key)?;
+        if boundary.get("enabled").and_then(Value::as_bool) == Some(false) {
+            return None;
+        }
+        let directory = boundary.get("assetRootDir").and_then(Value::as_str)?.trim();
+        (!directory.is_empty()).then(|| PathBuf::from(directory))
+    })
+}
+
+fn values(project: &Value, key: &str) -> Vec<Value> {
+    project
+        .get(key)
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default()
+}
+
+fn value_id(value: &Value) -> &str {
+    value.get("id").and_then(Value::as_str).unwrap_or("")
+}
+
+fn upsert_by_id(target: &mut Vec<Value>, value: Value) {
+    let id = value_id(&value);
+    if id.is_empty() {
+        return;
+    }
+    if let Some(index) = target.iter().position(|item| value_id(item) == id) {
+        target[index] = value;
+    } else {
+        target.push(value);
+    }
+}
+
+fn shared_asset_catalog_path(project: &Value) -> Option<PathBuf> {
+    shared_asset_root(project).map(|root| root.join(SHARED_ASSET_LIBRARY_FILE))
+}
+
+fn apply_shared_asset_catalog(project: &mut Value, catalog: &Value) -> Result<(), String> {
+    let record = project
+        .as_object_mut()
+        .ok_or_else(|| "项目数据格式无效".to_string())?;
+    let assets = values(catalog, "assets");
+    let shared_materials = values(catalog, "materials");
+    let mut materials = record
+        .get("materials")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    for material in shared_materials {
+        upsert_by_id(&mut materials, material);
+    }
+    record.insert("assets".into(), Value::Array(assets));
+    record.insert("materials".into(), Value::Array(materials));
+    record.insert(
+        "sharedLibraryDeletedAssetIds".into(),
+        Value::Array(values(catalog, "deletedAssetIds")),
+    );
+    Ok(())
+}
+
+fn persist_shared_asset_catalog(project: &mut Value) -> Result<(), String> {
+    let Some(path) = shared_asset_catalog_path(project) else {
+        return Ok(());
+    };
+    let mut catalog = read_json(&path, json!({}))?;
+    if catalog.get("schema").and_then(Value::as_str) != Some(SHARED_ASSET_LIBRARY_SCHEMA) {
+        catalog = json!({
+            "schema": SHARED_ASSET_LIBRARY_SCHEMA,
+            "schemaVersion": 1,
+            "assets": [],
+            "materials": [],
+            "deletedAssetIds": [],
+            "migratedProjectIds": [],
+        });
+    }
+
+    let mut deleted = values(&catalog, "deletedAssetIds")
+        .into_iter()
+        .filter_map(|value| value.as_str().map(str::to_string))
+        .collect::<BTreeSet<_>>();
+    deleted.extend(
+        values(project, "sharedLibraryDeletedAssetIds")
+            .into_iter()
+            .filter_map(|value| value.as_str().map(str::to_string)),
+    );
+
+    let mut assets = values(&catalog, "assets");
+    for asset in values(project, "assets") {
+        if !deleted.contains(value_id(&asset)) {
+            upsert_by_id(&mut assets, asset);
+        }
+    }
+    assets.retain(|asset| !deleted.contains(value_id(asset)));
+
+    let material_ids = assets
+        .iter()
+        .filter_map(|asset| asset.get("materialId").and_then(Value::as_str))
+        .map(str::to_string)
+        .collect::<BTreeSet<_>>();
+    let mut materials = values(&catalog, "materials");
+    for material in values(project, "materials") {
+        if material_ids.contains(value_id(&material)) {
+            upsert_by_id(&mut materials, material);
+        }
+    }
+    materials.retain(|material| material_ids.contains(value_id(material)));
+
+    let mut migrated = values(&catalog, "migratedProjectIds")
+        .into_iter()
+        .filter_map(|value| value.as_str().map(str::to_string))
+        .collect::<BTreeSet<_>>();
+    if let Some(project_id) = project.get("id").and_then(Value::as_str) {
+        if !project_id.is_empty() {
+            migrated.insert(project_id.to_string());
+        }
+    }
+    catalog = json!({
+        "schema": SHARED_ASSET_LIBRARY_SCHEMA,
+        "schemaVersion": 1,
+        "assets": assets,
+        "materials": materials,
+        "deletedAssetIds": deleted,
+        "migratedProjectIds": migrated,
+    });
+    write_json(&path, &catalog)?;
+    apply_shared_asset_catalog(project, &catalog)
+}
+
+fn hydrate_shared_asset_catalog(project: &mut Value) -> Result<(), String> {
+    let Some(path) = shared_asset_catalog_path(project) else {
+        return Ok(());
+    };
+    let catalog = read_json(&path, Value::Null)?;
+    if catalog.is_null()
+        || catalog.get("schema").and_then(Value::as_str) != Some(SHARED_ASSET_LIBRARY_SCHEMA)
+    {
+        return persist_shared_asset_catalog(project);
+    }
+    let project_id = project.get("id").and_then(Value::as_str).unwrap_or("");
+    let migrated = values(&catalog, "migratedProjectIds")
+        .iter()
+        .any(|value| value.as_str() == Some(project_id));
+    if !migrated {
+        // Each legacy canvas contributes its old embedded assets once. The migrated ID
+        // prevents a stale sibling canvas from resurrecting an asset deleted later.
+        return persist_shared_asset_catalog(project);
+    }
+    apply_shared_asset_catalog(project, &catalog)
+}
 
 fn validate_current_project(project: &Value) -> Result<(), String> {
     if project.get("schema").and_then(Value::as_str) != Some(PROJECT_SCHEMA) {
@@ -37,6 +211,10 @@ fn list_project_tree(root: &Path) -> Result<Vec<Value>, String> {
         .map_err(|error| error.to_string())?
         .filter_map(Result::ok)
         .filter(|entry| entry.path().is_dir())
+        .filter(|entry| {
+            !(root.join(SHARED_ASSET_LIBRARY_FILE).exists()
+                && entry.file_name().to_string_lossy() == "assets")
+        })
         .collect::<Vec<_>>();
     entries.sort_by_key(|entry| entry.file_name());
     for entry in entries {
@@ -100,8 +278,32 @@ pub fn project_rename_entry(path: String, name: String) -> Result<Value, String>
     let source = PathBuf::from(path);
     let target = unique_dir(source.parent().ok_or("目录没有父级")?, &name);
     fs::rename(&source, &target).map_err(|error| error.to_string())?;
+    let actual_name = target
+        .file_name()
+        .and_then(|value| value.to_str())
+        .unwrap_or_default()
+        .to_string();
+    let project_path = target.join(PROJECT_FILE);
+    if project_path.exists() {
+        let update_result = (|| -> Result<(), String> {
+            let mut project = read_json(&project_path, json!({}))?;
+            let record = project
+                .as_object_mut()
+                .ok_or_else(|| "项目数据格式无效".to_string())?;
+            record.insert("name".into(), json!(actual_name));
+            write_json(&project_path, &project)
+        })();
+        if let Err(error) = update_result {
+            return match fs::rename(&target, &source) {
+                Ok(_) => Err(format!("更新项目名称失败：{error}")),
+                Err(rollback_error) => Err(format!(
+                    "更新项目名称失败：{error}；目录回滚失败：{rollback_error}"
+                )),
+            };
+        }
+    }
     Ok(
-        json!({"oldDir":source.to_string_lossy(),"newDir":target.to_string_lossy(),"name":target.file_name().and_then(|v| v.to_str()).unwrap_or_default()}),
+        json!({"oldDir":source.to_string_lossy(),"newDir":target.to_string_lossy(),"name":actual_name}),
     )
 }
 
@@ -129,10 +331,16 @@ pub fn project_list_root(root: String) -> Result<Value, String> {
 }
 
 #[tauri::command]
-pub fn project_save(directory: String, project: Value) -> Result<Value, String> {
+pub fn project_save(directory: String, mut project: Value) -> Result<Value, String> {
     validate_current_project(&project)?;
+    {
+        let _guard = lock_shared_asset_library()?;
+        persist_shared_asset_catalog(&mut project)?;
+    }
     let directory = PathBuf::from(directory);
-    fs::create_dir_all(directory.join("assets")).map_err(|error| error.to_string())?;
+    let asset_directory =
+        shared_asset_directory(&project).unwrap_or_else(|| directory.join("assets"));
+    fs::create_dir_all(asset_directory).map_err(|error| error.to_string())?;
     let path = directory.join(PROJECT_FILE);
     write_json(&path, &project)?;
     Ok(
@@ -142,8 +350,12 @@ pub fn project_save(directory: String, project: Value) -> Result<Value, String> 
 
 #[tauri::command]
 pub fn project_read_file(path: String) -> Result<Value, String> {
-    let project = read_json(Path::new(&path), Value::Null)?;
+    let mut project = read_json(Path::new(&path), Value::Null)?;
     validate_current_project(&project)?;
+    {
+        let _guard = lock_shared_asset_library()?;
+        hydrate_shared_asset_catalog(&mut project)?;
+    }
     Ok(project)
 }
 
@@ -151,11 +363,15 @@ pub fn project_read_file(path: String) -> Result<Value, String> {
 pub fn project_open_folder(directory: String) -> Result<Value, String> {
     let directory = PathBuf::from(directory);
     let path = directory.join(PROJECT_FILE);
-    let project = read_json(&path, Value::Null)?;
+    let mut project = read_json(&path, Value::Null)?;
     if project.is_null() {
         return Err("所选目录不是 Shotloom 画布".into());
     }
     validate_current_project(&project)?;
+    {
+        let _guard = lock_shared_asset_library()?;
+        hydrate_shared_asset_catalog(&mut project)?;
+    }
     Ok(
         json!({"ok":true,"filePath":path.to_string_lossy(),"projectDir":directory.to_string_lossy(),"project":project}),
     )
@@ -536,5 +752,50 @@ mod tests {
             "schema": "shotloom-project"
         }))
         .is_err());
+    }
+
+    #[test]
+    fn sibling_canvases_share_assets_and_deleted_entries_do_not_return() {
+        let root = std::env::temp_dir().join(format!("shotloom-shared-assets-{}", chrono_stamp()));
+        fs::create_dir_all(&root).unwrap();
+        let boundary = json!({
+            "enabled": true,
+            "rootDir": root.to_string_lossy(),
+            "assetRootDir": root.join("assets").to_string_lossy(),
+        });
+        let mut first = json!({
+            "id": "canvas-a",
+            "library": boundary,
+            "assets": [{"id":"asset-a","materialId":"material-a","name":"A"}],
+            "materials": [{"id":"material-a","path":"/shared/assets/a.png"}],
+        });
+        persist_shared_asset_catalog(&mut first).unwrap();
+
+        let mut second = json!({
+            "id": "canvas-b",
+            "library": first.get("library").cloned().unwrap(),
+            "assets": [{"id":"asset-b","materialId":"material-b","name":"B"}],
+            "materials": [{"id":"material-b","path":"/shared/assets/b.png"}],
+        });
+        persist_shared_asset_catalog(&mut second).unwrap();
+        assert_eq!(values(&second, "assets").len(), 2);
+
+        first["assets"] = json!([]);
+        first["sharedLibraryDeletedAssetIds"] = json!(["asset-a"]);
+        persist_shared_asset_catalog(&mut first).unwrap();
+        assert_eq!(values(&first, "assets").len(), 1);
+        assert_eq!(value_id(&values(&first, "assets")[0]), "asset-b");
+
+        // A stale sibling still containing asset-a cannot resurrect the tombstoned entry.
+        second["assets"] = json!([
+            {"id":"asset-a","materialId":"material-a","name":"A"},
+            {"id":"asset-b","materialId":"material-b","name":"B"}
+        ]);
+        second["sharedLibraryDeletedAssetIds"] = json!([]);
+        persist_shared_asset_catalog(&mut second).unwrap();
+        assert_eq!(values(&second, "assets").len(), 1);
+        assert_eq!(value_id(&values(&second, "assets")[0]), "asset-b");
+
+        fs::remove_dir_all(root).unwrap();
     }
 }

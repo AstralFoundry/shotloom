@@ -23,6 +23,7 @@ export function updateDialogData(): UpdateDialogData & {
     info: info ? { ...info } : null,
     progress: progress ? { ...progress } : null,
     error: updateStore.error || "",
+    notice: updateStore.notice || "",
   };
 }
 

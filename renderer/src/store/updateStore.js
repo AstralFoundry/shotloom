@@ -11,6 +11,7 @@ export const updateStore = reactive({
   info: null,
   progress: null,
   error: '',
+  notice: '',
   warning: '',
   dialogOpen: false,
   checking: false,
@@ -22,19 +23,19 @@ export const updateStore = reactive({
 function transition(event) {
   switch (event.type) {
     case 'CHECK_STARTED':
-      return { phase: 'checking', checking: true, error: '', warning: '', progress: null, recoveryMode: false };
+      return { phase: 'checking', checking: true, error: '', notice: '', warning: '', progress: null, recoveryMode: false };
     case 'AVAILABLE':
-      return { phase: event.downloaded ? 'ready' : 'available', checking: false, info: event.info, error: '', retryCount: 0 };
+      return { phase: event.downloaded ? 'ready' : 'available', checking: false, info: event.info, error: '', notice: '', retryCount: 0 };
     case 'UP_TO_DATE':
-      return { phase: 'idle', checking: false, info: null, error: event.message || '', retryCount: 0 };
+      return { phase: 'idle', checking: false, info: null, error: '', notice: event.message || '', retryCount: 0 };
     case 'DOWNLOAD_STARTED':
-      return { phase: 'downloading', progress: { received: 0, total: 0, percent: 0 }, error: '', cancellable: true };
+      return { phase: 'downloading', progress: { received: 0, total: 0, percent: 0 }, error: '', notice: '', cancellable: true };
     case 'DOWNLOAD_PROGRESS':
       return { progress: event.progress };
     case 'DOWNLOAD_CANCELLED':
       return { phase: 'available', progress: null, cancellable: false, error: '' };
     case 'DOWNLOADED':
-      return { phase: 'ready', info: event.info, progress: event.progress, cancellable: false, error: '', retryCount: 0 };
+      return { phase: 'ready', info: event.info, progress: event.progress, cancellable: false, error: '', notice: '', retryCount: 0 };
     case 'SUPERSEDED':
       return { phase: 'available', info: event.info, progress: null, cancellable: false, warning: '已发现更新的版本，请重新下载。' };
     case 'INSTALL_STARTED':
@@ -45,6 +46,7 @@ function transition(event) {
         checking: false,
         cancellable: false,
         error: event.error,
+        notice: '',
         recoveryMode: event.recoveryMode === true,
         retryCount: event.retryCount ?? updateStore.retryCount,
       };

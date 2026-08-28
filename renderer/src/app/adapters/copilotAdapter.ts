@@ -5,6 +5,7 @@ import {
 } from "../copilot/agentInteractionCoordinator";
 import { listAgentInteractions } from "../../agent/runtime/runStore";
 import { getModelInfo } from "../../domain/catalog/ModelCatalog";
+import { resolveProviderIconId } from "../../domain/provider/ProviderBrandIcons.js";
 import { getAgentProjectKey } from "../../services/agentProjectIdentity";
 import {
   clearActiveCopilotConversation,
@@ -64,7 +65,7 @@ type Delivery = {
 };
 const deliveryQueue: Delivery[] = [];
 let textModelConfigSource: object | null = null;
-let cachedTextModels: Array<{ id: string; label: string }> = [];
+let cachedTextModels: Array<{ id: string; label: string; iconId: string }> = [];
 const notify = () => {
   revision += 1;
   listeners.forEach((listener) => listener());
@@ -96,6 +97,7 @@ function availableTextModels() {
   ).map((model: Loose) => ({
     id: model.id,
     label: model.name || getModelInfo(model.id)?.name || model.id,
+    iconId: resolveProviderIconId(model.provider, model.id, model.iconId),
   }));
   return cachedTextModels;
 }

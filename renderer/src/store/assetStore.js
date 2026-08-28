@@ -218,8 +218,9 @@ async function ensureFileChecksum(file = {}) {
 
 export async function copyFileIntoProjectAssets(file = {}) {
   const source = await ensureFileChecksum(file);
+  const root = projectAssetRoot(store.project, store.projectDir);
   const existing = findMaterialByChecksum(source.checksum);
-  if (existing) {
+  if (existing && root && isPathInsideAssetRoot(existing.path || existing.filePath, root)) {
     showToast('已复用已有素材');
     return {
       ...source,
@@ -241,7 +242,6 @@ export async function copyFileIntoProjectAssets(file = {}) {
   if (!sourcePath) return file;
   if (isProjectAssetPath(sourcePath)) return source;
   try {
-    const root = projectAssetRoot(store.project, store.projectDir);
     if (!root) throw new Error('当前项目还没有可写入的素材目录');
     const copied = await desktopApi.file.copyToDirectory?.(sourcePath, root, displayName(source));
     if (!copied?.filePath && !copied?.path) return file;
@@ -262,6 +262,46 @@ export async function copyFileIntoProjectAssets(file = {}) {
     showToast(error?.message || '复制素材到项目文件夹失败');
     return file;
   }
+}
+
+export async function ensureMaterialStoredInProjectAssets(material = {}) {
+  const archived = await copyFileIntoProjectAssets(material);
+  const nextPath = archived.path || archived.filePath || '';
+  if (!nextPath || !isProjectAssetPath(nextPath)) {
+    throw new Error('项目资产归档失败，文件未写入当前项目文件夹的共享 assets 目录');
+  }
+  if (!material.id) return archived;
+  const projectMaterial = store.project.materials.find((item) => item.id === material.id);
+  if (!projectMaterial) return archived;
+  const previousPath = projectMaterial.path || projectMaterial.filePath || '';
+  Object.assign(projectMaterial, {
+    path: nextPath,
+    filePath: nextPath,
+    name: archived.name || projectMaterial.name,
+    fileName: archived.fileName || archived.name || projectMaterial.fileName || projectMaterial.name,
+    ext: archived.ext || projectMaterial.ext,
+    size: archived.size || projectMaterial.size || 0,
+    checksum: archived.checksum || projectMaterial.checksum || '',
+    checksumAlgorithm: archived.checksumAlgorithm || projectMaterial.checksumAlgorithm || '',
+    originalPath: projectMaterial.originalPath || (previousPath !== nextPath ? previousPath : ''),
+    updatedAt: new Date().toISOString(),
+  });
+  store.project.nodes.forEach((node) => {
+    if (node.materialId !== projectMaterial.id && node.uploadedFile?.materialId !== projectMaterial.id) return;
+    node.filePath = nextPath;
+    if (node.uploadedFile) {
+      node.uploadedFile.path = nextPath;
+      node.uploadedFile.filePath = nextPath;
+      node.uploadedFile.name = projectMaterial.name;
+    }
+    if (node.type === 'resource') {
+      node.content = nextPath;
+      node.url = nextPath;
+      node.previewUrl = nextPath;
+      node.fileName = projectMaterial.name;
+    }
+  });
+  return projectMaterial;
 }
 
 function projectAssetsRoot() {

@@ -55,6 +55,7 @@ export interface CreationViewController {
     materials: MaterialItem[];
   };
   importMaterials: () => void | Promise<void>;
+  deleteMaterial: (item: MaterialItem, scope: "library" | "local" | "files") => boolean | void | Promise<boolean | void>;
   undo: () => void;
   redo: () => void;
   fitView: () => void;
@@ -92,7 +93,7 @@ type CreationCopilotData = {
   activeConversationId: string;
   busy: boolean;
   textModel: string;
-  textModels: Array<{ id: string; label: string }>;
+  textModels: Array<{ id: string; label: string; iconId: string }>;
 };
 
 function LiveCopilotPanel({
@@ -491,7 +492,7 @@ export function CreationView({
                   showLibraryAction={false}
                   showFileAction
                   showRenameAction={false}
-                  showDeleteAction={false}
+                  showDeleteAction
                   clickToApply
                   onPreview={controller.previewMaterial}
                   onAction={(action, item) => {
@@ -500,6 +501,16 @@ export function CreationView({
                       setPicker(false);
                     } else if (action === "show-file") {
                       void controller.showMaterialInFolder(item);
+                    } else if (action === "delete-item") {
+                      const label = scope === "library"
+                        ? "从当前项目资产中移除"
+                        : scope === "local"
+                          ? "从全局资产中删除"
+                          : "删除项目文件";
+                      if (!window.confirm(`${label}「${item.name || "未命名素材"}」？`)) return;
+                      void Promise.resolve(controller.deleteMaterial(item, scope)).then((result) => {
+                        if (result !== false) refreshMaterials(scope);
+                      });
                     }
                   }}
                 />

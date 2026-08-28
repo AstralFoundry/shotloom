@@ -190,10 +190,12 @@ export function ProviderConnectionDialog({
   const [testRunning, setTestRunning] = useState(false);
   const [testResult, setTestResult] = useState<ProviderTestResult | null>(null);
   const [testError, setTestError] = useState("");
+  const [showAiImport, setShowAiImport] = useState(false);
   const [showProtocolHelp, setShowProtocolHelp] = useState(false);
   const [promptCopied, setPromptCopied] = useState(false);
   const [aiPasteJson, setAiPasteJson] = useState("");
   const [aiPasteError, setAiPasteError] = useState("");
+  const [modelQuery, setModelQuery] = useState("");
   const providerId = selectedId === CUSTOM_PROVIDER_ID
     ? customId.trim().toLowerCase()
     : selectedId;
@@ -216,6 +218,15 @@ export function ProviderConnectionDialog({
       return null;
     }
   }, [modelJson]);
+  const visibleModels = useMemo(() => {
+    const query = modelQuery.trim().toLocaleLowerCase();
+    if (!query) return models;
+    return models.filter((model) => [
+      model.name,
+      model.id,
+      modelTypeLabel(model.type),
+    ].some((value) => value.toLocaleLowerCase().includes(query)));
+  }, [modelQuery, models]);
 
   function selectProvider(id: string) {
     setSelectedId(id);
@@ -587,7 +598,14 @@ export function ProviderConnectionDialog({
           </button>
         </header>
         <div className="recipe-dialog-body">
-          <div className="recipe-form-grid provider-connection-form-grid">
+          <section className="provider-connection-basics">
+            <div className="provider-section-heading">
+              <div>
+                <strong>连接信息</strong>
+                <small>配置厂商身份与请求地址，凭据只保存在当前设备。</small>
+              </div>
+            </div>
+            <div className="recipe-form-grid provider-connection-form-grid">
             <label className="recipe-field">
               <span>厂商类型</span>
               <select
@@ -629,36 +647,40 @@ export function ProviderConnectionDialog({
                 onChange={setIconId}
               />
             </label>
-          </div>
-          <label className="recipe-field">
-            <span>API Key</span>
-            <input
-              value={apiKey}
-              type="password"
-              autoComplete="off"
-              placeholder="仅保存在本机设置"
-              onChange={(event) => setApiKey(event.target.value)}
-            />
-          </label>
-          <label className="recipe-field">
-            <span>API Base URL</span>
-            <input
-              value={baseUrl}
-              spellCheck={false}
-              placeholder={selectedDefinition?.defaultBaseUrl ||
-                "https://api.example.com/v1"}
-              onChange={(event) => setBaseUrl(event.target.value)}
-            />
-          </label>
-          <section className="provider-model-section">
+            </div>
+            <div className="provider-credential-grid">
+              <label className="recipe-field">
+                <span>API Key</span>
+                <input
+                  value={apiKey}
+                  type="password"
+                  autoComplete="off"
+                  placeholder="仅保存在本机设置"
+                  onChange={(event) => setApiKey(event.target.value)}
+                />
+              </label>
+              <label className="recipe-field">
+                <span>API Base URL</span>
+                <input
+                  value={baseUrl}
+                  spellCheck={false}
+                  placeholder={selectedDefinition?.defaultBaseUrl ||
+                    "https://api.example.com/v1"}
+                  onChange={(event) => setBaseUrl(event.target.value)}
+                />
+              </label>
+            </div>
+          </section>
+          <section className={`provider-model-section provider-ai-import${showAiImport ? " expanded" : ""}`}>
             <div className="provider-model-heading">
               <div>
+                <span className="provider-section-eyebrow">AI 辅助</span>
                 <strong>让 AI 自动配置模型</strong>
                 <span className="provider-model-count">
-                  复制说明并连同厂商文档发给 AI，再把回复原样粘回来；无需阅读或修改代码。
+                  复制提示词并附上厂商文档，获得可直接导入的模型协议；无需阅读或修改代码。
                 </span>
               </div>
-              <div style={{ display: "flex", gap: 8 }}>
+              <div className="provider-model-heading-actions">
                 <button
                   className="provider-inline-action"
                   type="button"
@@ -669,73 +691,97 @@ export function ProviderConnectionDialog({
                 <button
                   className="provider-inline-action"
                   type="button"
+                  aria-expanded={showAiImport}
+                  onClick={() => setShowAiImport((value) => !value)}
+                >
+                  {showAiImport ? "收起" : "展开导入"}
+                </button>
+              </div>
+            </div>
+            {showAiImport && (
+              <div className="provider-ai-import-body">
+                <div className="provider-ai-steps" aria-label="AI 导入步骤">
+                  <span><b>1</b> 复制提示词</span>
+                  <span><b>2</b> 连同接口文档发给 AI</span>
+                  <span><b>3</b> 粘贴返回的 JSON</span>
+                </div>
+                <button
+                  className="provider-ai-help-toggle"
+                  type="button"
                   onClick={() => setShowProtocolHelp((value) => !value)}
                 >
-                  {showProtocolHelp ? "收起字段说明" : "字段说明"}
+                  {showProtocolHelp ? "隐藏完整字段说明" : "查看完整字段说明"}
                 </button>
+                {showProtocolHelp && (
+                  <pre className="provider-ai-prompt-preview">
+                    {protocolAuthoringPrompt}
+                  </pre>
+                )}
+                <label className="recipe-field recipe-prompt-field">
+                  <span>AI 返回的模型协议</span>
+                  <textarea
+                    value={aiPasteJson}
+                    rows={6}
+                    spellCheck={false}
+                    placeholder="粘贴完整 JSON，Shotloom 会在导入前自动校验…"
+                    onChange={(event) => {
+                      setAiPasteJson(event.target.value);
+                      setAiPasteError("");
+                    }}
+                  />
+                </label>
+                <div className="provider-model-create-actions">
+                  <span>自动检查端点、输入能力、结果路径和 Agent 配置。</span>
+                  <div>
+                    <button
+                      className="button primary"
+                      type="button"
+                      disabled={submitting}
+                      onClick={importAiJson}
+                    >
+                      检查并添加模型
+                    </button>
+                  </div>
+                </div>
+                {aiPasteError && (
+                  <p className="recipe-dialog-error">{aiPasteError}</p>
+                )}
               </div>
-            </div>
-            {showProtocolHelp && (
-              <pre
-                style={{
-                  whiteSpace: "pre-wrap", wordBreak: "break-word", maxHeight: 320,
-                  overflow: "auto", padding: 12, borderRadius: 6, fontSize: 12,
-                  lineHeight: 1.5, background: "rgba(0,0,0,0.04)",
-                }}
-              >
-                {protocolAuthoringPrompt}
-              </pre>
-            )}
-            <label className="recipe-field recipe-prompt-field">
-              <span>把 AI 的完整回复粘贴到这里</span>
-              <textarea
-                value={aiPasteJson}
-                rows={6}
-                spellCheck={false}
-                placeholder="直接粘贴即可，不需要看懂内容…"
-                onChange={(event) => {
-                  setAiPasteJson(event.target.value);
-                  setAiPasteError("");
-                }}
-              />
-            </label>
-            <div className="provider-model-create-actions">
-              <span>Shotloom 会自动检查接口、模型能力和 Agent 配置，有问题会说明怎么处理。</span>
-              <div>
-                <button
-                  className="button primary"
-                  type="button"
-                  disabled={submitting}
-                  onClick={importAiJson}
-                >
-                  检查并添加模型
-                </button>
-              </div>
-            </div>
-            {aiPasteError && (
-              <p className="recipe-dialog-error">{aiPasteError}</p>
             )}
           </section>
+          <div className={`provider-model-workspace${models.length <= 4 ? " compact" : " catalog"}`}>
           <section className="provider-model-section">
             <div className="provider-model-heading">
               <div>
+                <span className="provider-section-eyebrow">模型目录</span>
                 <strong>模型</strong>
                 <span className="provider-model-count">
-                  {models.length} 个模型，选择后编辑单个协议
+                  {models.length} 个模型，选择一个模型查看与编辑协议
                 </span>
               </div>
-              <button
-                className="provider-inline-action"
-                type="button"
-                disabled={!providerId || submitting || Boolean(newModel)}
-                onClick={beginAddModel}
-              >
-                + 添加模型
-              </button>
+              <div className="provider-model-heading-actions">
+                <label className="provider-model-search">
+                  <span className="sr-only">搜索模型</span>
+                  <input
+                    value={modelQuery}
+                    type="search"
+                    placeholder="搜索名称或 ID"
+                    onChange={(event) => setModelQuery(event.target.value)}
+                  />
+                </label>
+                <button
+                  className="provider-inline-action provider-add-model-action"
+                  type="button"
+                  disabled={!providerId || submitting || Boolean(newModel)}
+                  onClick={beginAddModel}
+                >
+                  + 添加模型
+                </button>
+              </div>
             </div>
-            {models.length > 0 ? (
+            {visibleModels.length > 0 ? (
               <div className="provider-model-list">
-                {models.map((model) => {
+                {visibleModels.map((model) => {
                   const builtIn = builtInModelIds.has(model.id);
                   const replacedBuiltIn = builtIn
                     ? null
@@ -762,7 +808,7 @@ export function ProviderConnectionDialog({
                         <strong>{model.name}</strong>
                         <code>{model.id}</code>
                         <span className="provider-model-meta">
-                          <span>{modelTypeLabel(model.type)}</span>
+                          <span className="provider-model-type">{modelTypeLabel(model.type)}</span>
                           <span aria-hidden="true">·</span>
                           <span className={`provider-model-origin${
                             replacedBuiltIn ? " override" : ""
@@ -804,7 +850,9 @@ export function ProviderConnectionDialog({
               </div>
             ) : (
               <div className="provider-model-empty">
-                还没有模型，点击“添加模型”创建第一个。
+                {models.length > 0
+                  ? `没有找到与“${modelQuery.trim()}”匹配的模型。`
+                  : "还没有模型，点击“添加模型”创建第一个。"}
               </div>
             )}
           </section>
@@ -884,102 +932,101 @@ export function ProviderConnectionDialog({
             </section>
           )}
           {selectedModelId && !newModel && (
-            <div className="provider-model-protocol-heading">
-              <div>
-                <strong>单模型协议</strong>
-                <span>
-                  当前只编辑 {selectedModelId}，保存厂商时自动汇总模型目录。
-                </span>
+            <section className="provider-model-detail">
+              <div className="provider-model-protocol-heading">
+                <div>
+                  <span className="provider-section-eyebrow">当前模型</span>
+                  <strong>{models.find((model) => model.id === selectedModelId)?.name || "单模型协议"}</strong>
+                  <span>
+                    {selectedModelId} · 保存厂商时自动汇总到模型目录
+                  </span>
+                </div>
+                <span className="provider-selected-badge">已选择</span>
               </div>
-            </div>
-          )}
-          {selectedModelId && !newModel && (
-            <details className="provider-advanced-protocol">
-              <summary>高级协议设置（一般无需修改）</summary>
-              <label className="recipe-field recipe-prompt-field">
-                <span>协议原始数据</span>
-                <textarea
-                  value={modelJson}
-                  rows={12}
-                  spellCheck={false}
-                  placeholder="{}"
-                  onChange={(event) => {
-                    setModelJson(event.target.value);
-                    setError("");
-                  }}
-                />
-                <small>仅供熟悉接口协议的用户排查或微调。</small>
-              </label>
-            </details>
-          )}
-          {selectedModelId && !newModel && editedTextModel && (
-            <label className="provider-agent-capability">
-              <input
-                type="checkbox"
-                checked={supportsAgentTools(editedTextModel)}
-                onChange={(event) => setAgentToolSupport(event.target.checked)}
-              />
-              <span>
-                <strong>可用于 Agent</strong>
-                <small>
-                  协议生成后会自动配置，通常无需修改。关闭后模型仍可普通聊天，只是不再提供给 Agent。
-                </small>
-                {supportsAgentTools(editedTextModel) && (
-                  <>
-                    <select
-                      aria-label="Agent 接口模式"
-                      value={defaultAgentProtocol(editedTextModel)?.transport || "openai-chat-completions"}
-                      onChange={(event) => setAgentTransport(event.target.value as "openai-chat-completions" | "openai-responses")}
-                      onClick={(event) => event.stopPropagation()}
-                    >
-                      <option value="openai-responses">推荐：使用独立 Agent 接口</option>
-                      <option value="openai-chat-completions">兼容：与普通聊天共用接口</option>
-                    </select>
+              <details className="provider-advanced-protocol">
+                <summary>高级协议设置（一般无需修改）</summary>
+                <label className="recipe-field recipe-prompt-field">
+                  <span>协议原始数据</span>
+                  <textarea
+                    value={modelJson}
+                    rows={12}
+                    spellCheck={false}
+                    placeholder="{}"
+                    onChange={(event) => {
+                      setModelJson(event.target.value);
+                      setError("");
+                    }}
+                  />
+                  <small>仅供熟悉接口协议的用户排查或微调。</small>
+                </label>
+              </details>
+              {editedTextModel && (
+                <label className="provider-agent-capability">
+                  <input
+                    type="checkbox"
+                    checked={supportsAgentTools(editedTextModel)}
+                    onChange={(event) => setAgentToolSupport(event.target.checked)}
+                  />
+                  <span>
+                    <strong>可用于 Agent</strong>
                     <small>
-                      {defaultAgentProtocol(editedTextModel)?.transport === "openai-responses"
-                        ? "Agent 使用独立接口，普通聊天不受影响。"
-                        : "仅当服务商没有独立 Agent 接口时使用；部分模型可能无法调用工具。"}
+                      协议生成后会自动配置，通常无需修改。关闭后模型仍可普通聊天，只是不再提供给 Agent。
                     </small>
-                  </>
-                )}
-              </span>
-            </label>
-          )}
-          {selectedModelId && !newModel && (
-            <div className="provider-model-heading">
-              <div>
-                <strong>试跑</strong>
-                <span className="provider-model-count">
-                  用当前协议发送一次真实请求，验证地址、Key 和结果路径
-                </span>
+                    {supportsAgentTools(editedTextModel) && (
+                      <>
+                        <select
+                          aria-label="Agent 接口模式"
+                          value={defaultAgentProtocol(editedTextModel)?.transport || "openai-chat-completions"}
+                          onChange={(event) => setAgentTransport(event.target.value as "openai-chat-completions" | "openai-responses")}
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          <option value="openai-responses">推荐：使用独立 Agent 接口</option>
+                          <option value="openai-chat-completions">兼容：与普通聊天共用接口</option>
+                        </select>
+                        <small>
+                          {defaultAgentProtocol(editedTextModel)?.transport === "openai-responses"
+                            ? "Agent 使用独立接口，普通聊天不受影响。"
+                            : "仅当服务商没有独立 Agent 接口时使用；部分模型可能无法调用工具。"}
+                        </small>
+                      </>
+                    )}
+                  </span>
+                </label>
+              )}
+              <div className="provider-model-test-row">
+                <div>
+                  <strong>发送测试请求</strong>
+                  <span>验证地址、Key、模型参数和结果路径</span>
+                </div>
+                <button
+                  className="provider-inline-action"
+                  type="button"
+                  disabled={testRunning || submitting}
+                  onClick={() => void runTest()}
+                >
+                  {testRunning ? "请求中…" : "开始试跑"}
+                </button>
               </div>
-              <button
-                className="provider-inline-action"
-                type="button"
-                disabled={testRunning || submitting}
-                onClick={() => void runTest()}
-              >
-                {testRunning ? "请求中…" : "发送测试请求"}
-              </button>
-            </div>
+              {testError && (
+                <p className="recipe-dialog-error">{testError}</p>
+              )}
+              {testResult && (
+                <div className="provider-test-result">
+                  <p className="provider-test-status">
+                    状态：{testStatusLabel(testResult.status)}
+                    {testResult.remoteTaskId ? ` · 任务 ID：${testResult.remoteTaskId}` : ""}
+                  </p>
+                  <pre
+                    className="provider-test-raw"
+                    style={{ whiteSpace: "pre-wrap", wordBreak: "break-all", maxHeight: 240, overflow: "auto" }}
+                  >
+                    {JSON.stringify(testResult, null, 2)}
+                  </pre>
+                </div>
+              )}
+            </section>
           )}
-          {testError && (
-            <p className="recipe-dialog-error">{testError}</p>
-          )}
-          {testResult && (
-            <div className="provider-test-result">
-              <p className="provider-test-status">
-                状态：{testStatusLabel(testResult.status)}
-                {testResult.remoteTaskId ? ` · 任务 ID：${testResult.remoteTaskId}` : ""}
-              </p>
-              <pre
-                className="provider-test-raw"
-                style={{ whiteSpace: "pre-wrap", wordBreak: "break-all", maxHeight: 240, overflow: "auto" }}
-              >
-                {JSON.stringify(testResult, null, 2)}
-              </pre>
-            </div>
-          )}
+          </div>
           {(error || submitError) && (
             <p className="recipe-dialog-error">{error || submitError}</p>
           )}

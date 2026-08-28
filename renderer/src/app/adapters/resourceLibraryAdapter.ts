@@ -133,7 +133,7 @@ export const assetsController: AssetsController = {
     return renameAssetInLibrary(item.assetId || item.id, name);
   },
   deleteProjectAsset(item) {
-    deleteAssetFromLibrary(item.assetId || item.id);
+    return deleteAssetFromLibrary(item.assetId || item.id);
   },
   async deleteLocalAsset(item) {
     if (!item.assetId) return false;
