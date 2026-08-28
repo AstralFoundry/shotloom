@@ -35,7 +35,7 @@ export function useGenerationLocalPreview(item: Record<string, unknown> | null, 
     kind,
     mimeType: String(item?.mimeType || item?.type || ""),
     maxSize: kind === "image" ? canvasPreviewMaxSize(previewZoom) : undefined,
-    revision: String(item?.updatedAt || item?.createdAt || item?.id || ""),
+    revision: String(item?.restoredAt || item?.updatedAt || item?.createdAt || item?.id || ""),
     fallbackUrl: raw,
   });
 }

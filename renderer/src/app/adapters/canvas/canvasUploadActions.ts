@@ -45,7 +45,10 @@ export async function createUploadedNode(rawFile: any, position = { x: 120, y: 9
   node.uploadedFile = {
     name: node.title,
     path,
+    fileName: node.title,
+    filePath: path,
     type: file.type || file.mimeType || "",
+    mimeType: file.mimeType || file.type || "",
     size: file.size || 0,
     materialId: node.materialId,
     assetId: node.assetId,
@@ -55,4 +58,3 @@ export async function createUploadedNode(rawFile: any, position = { x: 120, y: 9
   touchProject();
   return node;
 }
-

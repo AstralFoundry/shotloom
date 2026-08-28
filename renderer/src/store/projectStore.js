@@ -13,6 +13,7 @@ import {
 import { LatestSaveQueue } from '@/services/latestSaveQueue.mjs';
 import { recordPerformanceMetric } from '@/services/performanceMetrics';
 import { expandCopilotArchivesForPersistence } from '@/services/copilotSessionLifecycle.mjs';
+import { restoreMissingGeneratedFiles } from '@/services/generatedResultArchive';
 import {
   createProject,
   normalizeCanvasViewport,
@@ -643,6 +644,19 @@ async function applyOpenedProject(result) {
     '@/store/localAssetLibraryStore'
   );
   await reconcileCurrentProjectLocalAssetReferences();
+  const restoration = await restoreMissingGeneratedFiles(store.project);
+  if (restoration.restored) {
+    store.project.updatedAt = new Date().toISOString();
+    const saved = await desktopApi.project.save(
+      store.projectDir,
+      projectPersistenceSnapshot(),
+    );
+    if (saved?.filePath) store.filePath = saved.filePath;
+    showToast(`已恢复 ${restoration.restored} 个缺失的生成文件`);
+  }
+  if (restoration.failures.length) {
+    showToast(`${restoration.failures.length} 个生成文件恢复失败，请查看 Runtime 诊断`);
+  }
   await desktopApi.recent.add({
     name: store.project.name,
     folderName: store.project.library?.name || '',

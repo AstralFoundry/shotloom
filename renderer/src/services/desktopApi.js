@@ -4,6 +4,78 @@ import { withBuiltInRecipes, withoutBuiltInRecipes } from './builtInRecipes';
 
 function createBrowserFallback() {
   const recentKey = 'shotloom-recent';
+  const browserProjectsKey = 'shotloom-browser-projects';
+  const browserFoldersKey = 'shotloom-browser-folders';
+
+  const normalizeBrowserPath = (value) => String(value || '').replace(/\\/g, '/').replace(/\/+$/, '');
+  const parentBrowserPath = (value) => normalizeBrowserPath(value).replace(/\/[^/]+$/, '');
+  const browserBaseName = (value) => normalizeBrowserPath(value).split('/').pop() || '';
+  const readBrowserProjects = () => JSON.parse(localStorage.getItem(browserProjectsKey) || '{}');
+  const writeBrowserProjects = (projects) => {
+    localStorage.setItem(browserProjectsKey, JSON.stringify(projects));
+  };
+  const readBrowserFolders = () => JSON.parse(localStorage.getItem(browserFoldersKey) || '[]');
+  const writeBrowserFolders = (folders) => {
+    localStorage.setItem(browserFoldersKey, JSON.stringify([...new Set(folders.map(normalizeBrowserPath).filter(Boolean))]));
+  };
+  const rememberBrowserFolder = (folderDir) => {
+    const normalized = normalizeBrowserPath(folderDir);
+    if (!normalized) return;
+    writeBrowserFolders([...readBrowserFolders(), normalized]);
+  };
+  const uniqueBrowserFolder = (parentDir, preferredName) => {
+    const parent = normalizeBrowserPath(parentDir) || 'browser/projects';
+    const name = String(preferredName || '未命名项目').trim() || '未命名项目';
+    const projects = Object.values(readBrowserProjects());
+    const occupied = new Set([
+      ...readBrowserFolders(),
+      ...projects.map((record) => record.projectDir),
+    ].map(normalizeBrowserPath));
+    let candidate = `${parent}/${name}`;
+    let suffix = 2;
+    while (occupied.has(candidate)) candidate = `${parent}/${name}-${suffix++}`;
+    rememberBrowserFolder(candidate);
+    return candidate;
+  };
+  const listBrowserProjectTree = (rootDir) => {
+    const root = normalizeBrowserPath(rootDir) || 'browser/projects';
+    const projects = Object.values(readBrowserProjects());
+    const projectDirs = new Set(projects.map((record) => normalizeBrowserPath(record.projectDir)));
+    const folders = new Set(readBrowserFolders().map(normalizeBrowserPath));
+    for (const record of projects) {
+      let directory = parentBrowserPath(record.projectDir);
+      while (directory && directory.startsWith(root)) {
+        folders.add(directory);
+        if (directory === root) break;
+        directory = parentBrowserPath(directory);
+      }
+    }
+    const build = (directory) => {
+      const childProjects = projects
+        .filter((record) => parentBrowserPath(record.projectDir) === directory)
+        .map((record) => ({
+          kind: 'project',
+          name: record.project?.name || browserBaseName(record.projectDir),
+          filePath: record.filePath,
+          projectDir: record.projectDir,
+          updatedAt: record.project?.updatedAt,
+        }));
+      const childFolders = [...folders]
+        .filter((folderDir) =>
+          folderDir !== root &&
+          parentBrowserPath(folderDir) === directory &&
+          !projectDirs.has(folderDir)
+        )
+        .map((folderDir) => ({
+          kind: 'folder',
+          name: browserBaseName(folderDir),
+          folderDir,
+          children: build(folderDir),
+        }));
+      return [...childFolders, ...childProjects];
+    };
+    return build(root);
+  };
 
   return {
     platform: 'browser',
@@ -21,9 +93,35 @@ function createBrowserFallback() {
     },
     project: {
       selectParent: async () => 'browser',
-      createFolder: async () => 'browser',
-      createLibraryFolder: async (parentDir, folderName) => ({ kind: 'folder', name: folderName, folderDir: `${parentDir}/${folderName}` }),
-      renameEntry: async (entryDir, name) => ({ oldDir: entryDir, newDir: `${entryDir.replace(/[/\\][^/\\]+$/, '')}/${name}`, name }),
+      createFolder: async (parentDir, folderName) => uniqueBrowserFolder(parentDir, folderName),
+      createLibraryFolder: async (parentDir, folderName) => {
+        const folderDir = uniqueBrowserFolder(parentDir, folderName);
+        return { kind: 'folder', name: browserBaseName(folderDir), folderDir };
+      },
+      renameEntry: async (entryDir, name) => {
+        const oldDir = normalizeBrowserPath(entryDir);
+        const newDir = `${parentBrowserPath(oldDir)}/${String(name || '').trim() || browserBaseName(oldDir)}`;
+        const projects = readBrowserProjects();
+        const renamedProjects = {};
+        for (const record of Object.values(projects)) {
+          const projectDir = normalizeBrowserPath(record.projectDir);
+          const nextProjectDir = projectDir === oldDir || projectDir.startsWith(`${oldDir}/`)
+            ? `${newDir}${projectDir.slice(oldDir.length)}`
+            : projectDir;
+          const filePath = `${nextProjectDir}/project.shotloom.json`;
+          const project = nextProjectDir === newDir
+            ? { ...record.project, name: browserBaseName(newDir) }
+            : record.project;
+          renamedProjects[filePath] = { ...record, projectDir: nextProjectDir, filePath, project };
+        }
+        writeBrowserProjects(renamedProjects);
+        writeBrowserFolders(readBrowserFolders().map((folderDir) =>
+          folderDir === oldDir || folderDir.startsWith(`${oldDir}/`)
+            ? `${newDir}${folderDir.slice(oldDir.length)}`
+            : folderDir
+        ));
+        return { oldDir, newDir, name: browserBaseName(newDir) };
+      },
       cloneLibraryFolder: async (folderDir) => ({ ok: true, folderDir: `${folderDir}-copy` }),
       exportLibraryFolder: async () => ({ ok: false }),
       trashLibraryFolder: async () => ({ ok: true }),
@@ -34,22 +132,33 @@ function createBrowserFallback() {
         seriesDir: workDir,
         assetRootDir: `${workDir}/assets`,
       }),
-      save: async (_dir, project) => ({
-        filePath: 'browser/project.shotloom.json',
-        projectDir: 'browser',
-        project,
-      }),
+      save: async (directory, project) => {
+        const projectDir = normalizeBrowserPath(directory) || uniqueBrowserFolder('browser/projects', project?.name);
+        const filePath = `${projectDir}/project.shotloom.json`;
+        const projects = readBrowserProjects();
+        projects[filePath] = {
+          filePath,
+          projectDir,
+          project: JSON.parse(JSON.stringify(project)),
+        };
+        writeBrowserProjects(projects);
+        rememberBrowserFolder(projectDir);
+        return { filePath, projectDir, project };
+      },
       getDefaultRoot: async () => 'browser/projects',
       ensureRoot: async (rootDir) => rootDir || 'browser/projects',
       selectRoot: async () => 'browser/projects',
-      listRoot: async () => [],
+      listRoot: async (rootDir) => listBrowserProjectTree(rootDir),
       migrateRoot: async (projects, targetRoot) => ({ root: targetRoot || 'browser/projects', projects, recent: projects || [] }),
       exportPackage: async () => ({ ok: false, error: '浏览器预览不支持导出项目包。' }),
       importPackage: async () => null,
       openDialog: async () => null,
       openFolderDialog: async () => ({ ok: false, error: '浏览器预览不支持选择项目文件夹。' }),
       openFolder: async () => null,
-      readFile: async () => null,
+      readFile: async (filePath) => {
+        const record = readBrowserProjects()[normalizeBrowserPath(filePath)];
+        return record?.project ? JSON.parse(JSON.stringify(record.project)) : null;
+      },
       syncCurrent: async () => true,
       getWindowProjectDir: async () => null,
       setWindowProjectDir: async () => true,

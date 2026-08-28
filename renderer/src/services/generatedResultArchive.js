@@ -11,6 +11,7 @@ import {
   extensionForGeneratedFile,
   semanticOutputFileName,
 } from '@/utils/generatedOutputNaming.mjs';
+import { restoreMissingGeneratedFiles as restoreMissingFiles } from '@/services/generatedFileRestoration.mjs';
 
 export { extractGeneratedFiles, extractGeneratedText } from '@/utils/generatedOutputParsing.mjs';
 
@@ -247,6 +248,10 @@ export async function archiveGeneratedOutput({ project, node, task, output }) {
     };
   }
   return { archivedFiles, resultNodes, text };
+}
+
+export async function restoreMissingGeneratedFiles(project) {
+  return restoreMissingFiles(project, desktopApi.file);
 }
 
 export function createMockGeneratedOutput({ project, node, task }) {
