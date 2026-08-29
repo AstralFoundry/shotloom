@@ -85,10 +85,10 @@ test('顶部栏不再渲染产品 Logo 和名称', () => {
   assert.doesNotMatch(topbar, /topbar-leading|topbar-breadcrumb/);
 });
 
-test('侧栏使用 Shotloom 自有 Logo 和正确产品名', () => {
+test('侧栏使用自有 Logo 和正确产品名', () => {
   assert.match(sidebar, /className="sidebar-brand"/);
   assert.match(sidebar, /shotloom-logo\.png/);
-  assert.match(sidebar, /<strong>Shotloom<\/strong>/);
+  assert.match(sidebar, /<strong>帧野画布<\/strong>/);
   assert.match(sidebar, /<small>AI 创作工作台<\/small>/);
   assert.match(styles, /\.sidebar-brand img/);
   assert.match(styles, /\.sidebar-brand img \{[^}]*width:\s*32px[^}]*height:\s*32px[^}]*flex:\s*0 0 32px/);

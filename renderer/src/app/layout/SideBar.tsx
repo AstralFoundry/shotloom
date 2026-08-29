@@ -80,10 +80,10 @@ export function SideBar(
       }}
     >
       <aside className="sidebar">
-        <div className="sidebar-brand" title="Shotloom">
+        <div className="sidebar-brand" title="帧野画布">
           <InteractiveLogo src="./shotloom-logo.png" />
           <span className="sidebar-brand-copy">
-            <strong>Shotloom</strong>
+            <strong>帧野画布</strong>
             <small>AI 创作工作台</small>
           </span>
         </div>

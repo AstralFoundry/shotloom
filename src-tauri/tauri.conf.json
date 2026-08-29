@@ -28,7 +28,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "Shotloom",
+        "title": "帧野画布",
         "width": 1440,
         "height": 900,
         "minWidth": 1080,

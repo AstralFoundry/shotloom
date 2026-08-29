@@ -397,7 +397,7 @@ export function ReactWorkbench() {
         onNotify={() =>
           void desktopApi
             .notifyTask({
-              title: "Shotloom",
+              title: "帧野画布",
               body: "通知功能可用。",
             })
             .then(() => showToast("通知已发送"))

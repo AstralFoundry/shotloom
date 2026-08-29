@@ -119,7 +119,7 @@ export function UpdateDialog(
                 </span>
                 <div>
                   <span>可用版本</span>
-                  <strong>Shotloom {data.info.version}</strong>
+                  <strong>帧野画布 {data.info.version}</strong>
                 </div>
                 <span className="update-size">{formatBytes(totalBytes)}</span>
               </div>
@@ -156,7 +156,7 @@ export function UpdateDialog(
           {data.phase === "ready" && (
             <div className="update-ready-copy">
               <IconSymbol name="check" />
-              <span>更新已下载完成，安装后 Shotloom 将自动重新启动。</span>
+              <span>更新已下载完成，安装后帧野画布将自动重新启动。</span>
             </div>
           )}
           {data.error && <p className="update-error">{data.error}</p>}

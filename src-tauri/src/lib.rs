@@ -25,15 +25,15 @@ fn macos_menu(app: &tauri::AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::
                 "Shotloom",
                 true,
                 &[
-                    &PredefinedMenuItem::about(app, Some("关于 Shotloom"), None)?,
+                    &PredefinedMenuItem::about(app, Some("关于帧野画布"), None)?,
                     &separator()?,
                     &PredefinedMenuItem::services(app, Some("服务"))?,
                     &separator()?,
-                    &PredefinedMenuItem::hide(app, Some("隐藏 Shotloom"))?,
+                    &PredefinedMenuItem::hide(app, Some("隐藏帧野画布"))?,
                     &PredefinedMenuItem::hide_others(app, Some("隐藏其他"))?,
                     &PredefinedMenuItem::show_all(app, Some("全部显示"))?,
                     &separator()?,
-                    &PredefinedMenuItem::quit(app, Some("退出 Shotloom"))?,
+                    &PredefinedMenuItem::quit(app, Some("退出帧野画布"))?,
                 ],
             )?,
             &Submenu::with_items(

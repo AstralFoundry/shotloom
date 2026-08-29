@@ -472,7 +472,7 @@ export function createTauriApi(browserFallback) {
       syncCurrent: async () => true,
       getWindowProjectDir: async () => sessionProjectDir() || null,
       setWindowProjectDir: async () => true,
-      setWindowProjectName: (name) => currentWindow.setTitle(name ? `${name} - Shotloom` : 'Shotloom'),
+      setWindowProjectName: (name) => currentWindow.setTitle(name ? `${name} - 帧野画布` : '帧野画布'),
       focusExistingWindow: async () => false,
       focusOtherWindow: async () => false,
       showInFolder: (path) => shellOpen(path).then(() => ({ ok: true })),
