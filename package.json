@@ -1,7 +1,7 @@
 {
   "name": "shotloom",
   "productName": "Shotloom",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "private": true,
   "description": "Tauri-powered workflow panel for AI comic production with a light asset-management UI.",
   "scripts": {
