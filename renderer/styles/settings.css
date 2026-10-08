@@ -851,25 +851,7 @@
 .skill-instruction-field > span { display: flex; align-items: center; justify-content: space-between; }
 .skill-instruction-field > span em { color: #999; font-size: 9px; font-style: normal; font-weight: 500; }
 .skill-instruction-field textarea { min-height: 210px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; }
-.skill-recipe-picker { overflow: hidden; border: 1px solid #e3e3e3; border-radius: 9px; background: #fff; }
-.skill-recipe-picker > header { min-height: 49px; padding: 9px 11px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid #ededed; background: #f8f8f8; }
-.skill-recipe-picker > header div { min-width: 0; }
-.skill-recipe-picker > header strong,
-.skill-recipe-picker > header span { display: block; }
-.skill-recipe-picker > header strong { color: #42454a; font-size: 11px; }
-.skill-recipe-picker > header span { margin-top: 3px; color: #999; font-size: 9px; }
-.skill-recipe-picker > header em { color: #777; font-size: 9px; font-style: normal; font-weight: 700; white-space: nowrap; }
-.skill-recipe-options { max-height: 190px; padding: 5px; display: grid; grid-template-columns: 1fr 1fr; gap: 3px; overflow: auto; }
-.skill-recipe-options > label { min-width: 0; min-height: 42px; padding: 6px 8px; display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; align-items: center; gap: 7px; border-radius: 6px; cursor: pointer; }
-.skill-recipe-options > label:hover { background: #f5f5f5; }
-.skill-recipe-options > label.disabled { cursor: not-allowed; opacity: .48; }
-.skill-recipe-options > label > span { min-width: 0; }
-.skill-recipe-options > label strong,
-.skill-recipe-options > label small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.skill-recipe-options > label strong { color: #444; font-size: 10px; }
-.skill-recipe-options > label small { margin-top: 2px; color: #999; font-size: 8px; }
-.skill-recipe-options > label em { padding: 2px 5px; border: 1px solid #dedede; border-radius: 4px; color: #666; background: #fafafa; font-size: 8px; font-style: normal; font-weight: 700; }
-.skill-recipe-options > p { grid-column: 1 / -1; margin: 0; padding: 20px; color: #999; text-align: center; font-size: 10px; }
+
 @keyframes recipe-spin { to { transform: rotate(360deg); } }
 
 @media (max-width: 760px) {
@@ -882,7 +864,6 @@
   .settings-row > select, .settings-row > .settings-number-control, .settings-row > .settings-control-wide { max-width: none; justify-self: stretch; }
   .recipe-form-grid { grid-template-columns: 1fr 1fr; }
   .skill-dialog-grid { grid-template-columns: 1fr 1fr; }
-  .skill-recipe-options { grid-template-columns: 1fr; }
   .recipe-test-input-row { grid-template-columns: 1fr; }
 }
 
@@ -933,15 +914,10 @@
 .recipe-field small,
 .recipe-dialog-change-summary,
 .recipe-test-lab > header div > span,
-.skill-recipe-picker > header span,
 .skill-instruction-field > span em { font-size: 11px; font-weight: 400; }
 .recipe-readonly-note,
 .recipe-dialog-error,
-.recipe-test-result-head strong,
-.skill-recipe-picker > header strong,
-.skill-recipe-options > label strong { color: #30343a; font-size: 12px; font-weight: 500; }
-.skill-recipe-options > label small,
-.skill-recipe-options > label em,
+.recipe-test-result-head strong { color: #30343a; font-size: 12px; font-weight: 500; }
 .recipe-test-result-head span,
 .recipe-test-coverage span { font-size: 11px; font-weight: 400; }
 .settings-workbench-backdrop {
@@ -1288,3 +1264,19 @@
     border-left: 0;
   }
 }
+
+.settings-catalog-intro {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 18px 0 22px;
+  margin-bottom: 18px;
+  border-bottom: 1px solid var(--border-color, #e5e5e5);
+}
+.settings-catalog-intro > svg { width: 20px; height: 20px; flex-shrink: 0; margin-top: 2px; }
+.settings-catalog-intro > div { flex: 1; min-width: 0; }
+.settings-catalog-intro strong { font-size: 14px; font-weight: 600; }
+.settings-catalog-intro p, .catalog-editor-guidance { font-size: 12px; line-height: 1.8; color: var(--text-secondary, #737373); }
+.settings-catalog-intro p { margin: 7px 0 0; max-width: 540px; }
+.settings-catalog-intro > span { font-size: 11px; white-space: nowrap; color: var(--text-secondary, #737373); border: 1px solid var(--border-color, #e5e5e5); padding: 3px 8px; border-radius: 4px; }
+.catalog-editor-guidance { margin: 0 0 18px; }

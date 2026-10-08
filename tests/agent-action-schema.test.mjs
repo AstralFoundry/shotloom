@@ -81,7 +81,7 @@ test('模型可见 action schema 只在工具边界约束动作类型', () => {
   }), /type must be one of/);
 });
 
-test('动作 schema 展开 commonProperties 引用，不向 MCP 暴露悬空引用', () => {
+test('动作 schema 展开 commonProperties 引用，不向工具目录暴露悬空引用', () => {
   const schema = buildAgentActionSchema(contract, {
     allowedTypes: ['create_gen_node'],
   });

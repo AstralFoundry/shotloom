@@ -37,8 +37,8 @@ export async function saveGlobalRecipes() {
 export function createRecipeDraft() {
   return {
     id: recipeId('custom-recipe'),
-    name: '新策略',
-    description: '说明这个策略适合增强哪类提示词。',
+    name: '新提示词模板',
+    description: '说明这个提示词模板适合增强哪类提示词。',
     generationType: 'image',
     operationTypes: ['image'],
     systemPrompt: '写清主体、动作、环境、镜头和风格，输出可直接运行的完整提示词。',
@@ -64,15 +64,15 @@ export async function upsertRecipe(recipe) {
     builtIn: existing?.builtIn === true,
     updatedAt: new Date().toISOString(),
   };
-  if (!/^[a-z0-9:_-]{1,80}$/.test(normalized.id)) throw new Error('策略 ID 仅允许小写字母、数字、:、-、_');
+  if (!/^[a-z0-9:_-]{1,80}$/.test(normalized.id)) throw new Error('提示词模板 ID 仅允许小写字母、数字、:、-、_');
   if (!normalized.name || !normalized.description || !normalized.systemPrompt) {
-    throw new Error('策略名称、用途说明和 System Prompt 均不能为空');
+    throw new Error('提示词模板名称、用途说明和 System Prompt 均不能为空');
   }
   if (!['image', 'video', 'audio', 'text'].includes(normalized.generationType)) {
-    throw new Error(`策略的生成类型无效：${normalized.generationType || '空'}`);
+    throw new Error(`提示词模板的生成类型无效：${normalized.generationType || '空'}`);
   }
   if (!normalized.operationTypes.length || !normalized.requiredElements.length) {
-    throw new Error('策略的 Operation Types 和必需元素均不能为空');
+    throw new Error('提示词模板的 Operation Types 和必需元素均不能为空');
   }
   const index = recipesStore.recipes.findIndex((item) => item.id === normalized.id);
   if (index >= 0) recipesStore.recipes[index] = normalized;

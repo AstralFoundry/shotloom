@@ -122,9 +122,9 @@ const groups: Array<
       description: "定义 Agent 在创作任务中的规划与执行方式",
     }, {
       id: "recipes",
-      label: "策略",
+      label: "提示词模板",
       icon: "file",
-      description: "定义生成节点如何组织提示词",
+      description: "可选的提示词参考，由 Agent 按需读取和调整",
     }],
   },
 ];
@@ -276,13 +276,23 @@ export function SettingsPanel(
   }
   const catalogView = (kind: "skills" | "recipes") => (
     <section className="settings-section settings-list-section">
+      <div className="settings-catalog-intro">
+        <IconSymbol name={kind === "skills" ? "puzzle" : "file"} />
+        <div>
+          <strong>{kind === "skills" ? "让 Agent 按任务选择方法" : "需要时，给提示词一点参考"}</strong>
+          <p>{kind === "skills"
+            ? "启用的技能供 Agent 自动选择。你也可以在对话中指定技能，普通任务直接描述需求即可。"
+            : "模板保存常用风格、结构和写作方法。Agent 可以按需参考、调整或组合，也可以直接编写提示词。"}</p>
+        </div>
+        <span>{kind === "skills" ? "按需使用" : "可选参考"}</span>
+      </div>
       <label className="settings-search">
         <IconSymbol name="search" />
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           type="search"
-          placeholder={`搜索${kind === "skills" ? "技能" : "策略"}`}
+          placeholder={`搜索${kind === "skills" ? "技能" : "提示词模板"}`}
         />
       </label>
       <div className="settings-list-summary">
@@ -301,7 +311,7 @@ export function SettingsPanel(
           <span>全选</span>
         </label>
         <span>
-          {filtered.length} 个{kind === "skills" ? "技能" : "策略"} ·{" "}
+          {filtered.length} 个{kind === "skills" ? "技能" : "提示词模板"} ·{" "}
           {filtered.filter((item) => item.enabled !== false).length} 个已启用
         </span>
       </div>
@@ -316,6 +326,7 @@ export function SettingsPanel(
             className="settings-list-select"
             type="checkbox"
             checked={selected.has(item.id)}
+            aria-label={`选择 ${item.name}`}
             onChange={() => toggleSelection(item.id)}
           />
           <div>
@@ -332,6 +343,7 @@ export function SettingsPanel(
             className="settings-enable-toggle"
             type="checkbox"
             checked={item.enabled !== false}
+            aria-label={`${item.enabled === false ? "启用" : "停用"} ${item.name}`}
             onChange={() =>
               void (kind === "skills"
                 ? controller.toggleSkill(item.id)
@@ -440,7 +452,7 @@ export function SettingsPanel(
                   ? controller.createSkill
                   : controller.createRecipe}
               >
-                + 新建{tab === "skills" ? "技能" : "策略"}
+                + 新建{tab === "skills" ? "技能" : "提示词模板"}
               </button>
               <input
                 ref={importInput}

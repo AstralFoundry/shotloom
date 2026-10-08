@@ -1,5 +1,4 @@
 import { upsertSkill } from '@/store/skillsStore';
-import { upsertRecipe } from '@/store/recipesStore';
 import { canRequestAgentClarification, registerAgentTool } from '../core/toolRegistry';
 import type { AgentToolReceipt, JsonObject } from '../core/types';
 import { waitForAgentClarification } from '../runtime/runtimeInteractions';
@@ -155,17 +154,17 @@ export function registerLifecycleTools(): void {
   });
 
   registerAgentTool({
-    id: 'save_skill_bundle',
-    title: '保存 Skill 与关联 Recipes',
-    description: '仅当用户明确要求创建或更新 Skill 时使用。按唯一 Shotloom 结构保存一个自定义 Skill 和它关联的 Recipes。',
+    id: 'save_skill',
+    title: '保存 Skill',
+    description: '仅当用户明确要求创建或更新 Skill 时使用。保存一个自定义 Skill，包含用途说明与完整领域指令；无需关联提示词模板。',
     effect: 'project_write',
     inputSchema: {
       type: 'object',
-      required: ['skill', 'recipes'],
+      required: ['skill'],
       properties: {
         skill: {
           type: 'object',
-          required: ['id', 'name', 'description', 'category', 'triggers', 'instructions', 'recipeIds'],
+          required: ['id', 'name', 'description', 'category', 'triggers', 'instructions'],
           properties: {
             id: { type: 'string' }, name: { type: 'string' }, description: { type: 'string' },
             category: { type: 'string' }, version: { type: 'number' }, instructions: { type: 'string' },
@@ -173,37 +172,20 @@ export function registerLifecycleTools(): void {
               type: 'object', required: ['keywords'],
               properties: { keywords: { type: 'array', items: { type: 'string' } } }, additionalProperties: false,
             },
-            recipeIds: { type: 'array', items: { type: 'string' } },
           },
           additionalProperties: false,
-        },
-        recipes: {
-          type: 'array',
-          items: {
-            type: 'object',
-            required: ['id', 'name', 'description', 'generationType', 'operationTypes', 'systemPrompt', 'requiredElements'],
-            properties: {
-              id: { type: 'string' }, name: { type: 'string' }, description: { type: 'string' },
-              generationType: { type: 'string', enum: ['image', 'video', 'audio', 'text'] },
-              operationTypes: { type: 'array', items: { type: 'string' } }, systemPrompt: { type: 'string' },
-              requiredElements: { type: 'array', items: { type: 'string' } }, version: { type: 'number' },
-            },
-            additionalProperties: false,
-          },
         },
       },
       additionalProperties: false,
     },
-    summarizeInput: (input) => String((input.skill as JsonObject)?.id || 'skill bundle'),
+    summarizeInput: (input) => String((input.skill as JsonObject)?.id || 'skill'),
     execute: async (input, context) => {
-      const recipes = (input.recipes as JsonObject[]) || [];
-      for (const recipe of recipes) await upsertRecipe(recipe);
       const skill = await upsertSkill(input.skill as JsonObject);
       context.emit({
-        type: 'skill_studio_result', skillId: String(skill.id), recipeIds: recipes.map((recipe) => String(recipe.id)),
+        type: 'skill_studio_result', skillId: String(skill.id),
         createdAt: new Date().toISOString(),
       });
-      return { success: true, skill, recipes };
+      return { success: true, skill };
     },
   });
 }

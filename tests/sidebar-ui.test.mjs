@@ -153,7 +153,7 @@ test('Copilot 空状态使用创作欢迎区并把模型与 Skill 收进大输�
   assert.match(copilotPanel, /copilot-model-option/);
   assert.match(copilotPanel, /IconSymbol name="puzzle"/);
   assert.doesNotMatch(copilotPanel, /copilot-tool-glyph|is-attachment|is-skill/);
-  assert.match(copilotPanel, /: "Skill"/);
+  assert.match(copilotPanel, /: "技能"/);
   assert.match(reactMigrationStyles, /\.forge-copilot \.copilot-input \{[^}]*border:\s*1px solid rgba\(0, 0, 0, \.1\)[^}]*border-radius:\s*17px/);
   assert.match(reactMigrationStyles, /\.forge-copilot \.ant-sender \{[^}]*min-height:\s*132px[^}]*border:\s*0/);
   assert.match(reactMigrationStyles, /\.forge-copilot \.ant-sender \{[^}]*border-radius:\s*16px/);

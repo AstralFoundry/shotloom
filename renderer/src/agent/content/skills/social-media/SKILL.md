@@ -25,6 +25,6 @@ description: 面向小红书、抖音、视频号、微博、公众号、Instagr
 - 微博与公众号优先信息清楚、便于阅读讨论，不只做空洞装饰封面。
 - YouTube 与 TikTok 的缩略图或竖屏规格应适配平台，不能机械复用同一布局。
 
-文案节点加载 `social-copywriting`；图片按平台使用 `social-xiaohongshu-image`、`social-douyin-cover`、`social-ig-post`、`social-weibo-wechat-image` 或 `social-content-image`；连续视频选择 `general-video`。所有生成节点必须填写相应 `recipeId`，模型只能从本轮完整能力快照选取。
+文案可参考 `social-copywriting`；图片按平台使用 `social-xiaohongshu-image`、`social-douyin-cover`、`social-ig-post`、`social-weibo-wechat-image` 或 `social-content-image`；连续视频选择 `general-video`。这些模板仅供按需参考，可以直接编写或组合提示词；模型只能从本轮完整能力快照选取。
 
 完成前评估：平台表达是否准确，标题与画面是否对应，品牌、人物及商品是否稳定，以及各素材是否真正形成内容矩阵差异。

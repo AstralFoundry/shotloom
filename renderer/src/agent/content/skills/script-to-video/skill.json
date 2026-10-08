@@ -1,7 +1,7 @@
 {
   "id": "script-to-video",
   "category": "video",
-  "version": 2,
+  "version": 3,
   "triggers": {
     "keywords": [
       "剧本生视频",
@@ -13,20 +13,5 @@
       "Nano Banana 2",
       "Seedance 2.0"
     ]
-  },
-  "recipeIds": [
-    "narrative-source-analysis",
-    "video-character-design",
-    "drama-scene-extraction",
-    "drama-prop-extraction",
-    "drama-shot-planning",
-    "script-element-reference",
-    "video-shot-storyboard",
-    "video-action-sequence-board",
-    "video-frame-extraction",
-    "script-seedance-shot",
-    "video-clip-generation",
-    "video-audio-design",
-    "video-audio-production-sheet"
-  ]
+  }
 }

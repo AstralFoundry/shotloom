@@ -37,9 +37,10 @@ function continuation(run: BridgeRun, toolCallId: string, toolName: string) {
   };
 }
 
-async function executeRequest(payload: { callId: string; name: string; arguments?: JsonObject }) {
+async function executeRequest(payload: { requestId: string; callId: string; name: string; arguments?: JsonObject }) {
   const run = activeRun;
-  if (!run) throw new Error('Shotloom tool bridge has no active Agent run');
+  if (!run || run.context.requestId !== payload.requestId) throw new Error('Shotloom tool transport has no matching active Agent run');
+  run.context.signal.throwIfAborted();
   const context: AgentToolContext = {
     ...run.context,
     turnId: `${run.context.requestId}:tool:${payload.callId}`,
@@ -122,7 +123,7 @@ async function executeRequest(payload: { callId: string; name: string; arguments
 
 async function ensureListener() {
   if (unlisten) return;
-  unlisten = await listen<{ callId: string; name: string; arguments?: JsonObject }>('agent-tool-request', async ({ payload }) => {
+  unlisten = await listen<{ requestId: string; callId: string; name: string; arguments?: JsonObject }>('agent-tool-request', async ({ payload }) => {
     try {
       const result = await executeRequest(payload);
       await invoke('agent_tool_reply', { callId: payload.callId, result, error: null });
@@ -135,6 +136,9 @@ async function ensureListener() {
 
 export async function activateOpenCodeToolBridge(run: BridgeRun) {
   registerDefaultAgentTools();
+  if (activeRun && activeRun.context.requestId !== run.context.requestId) {
+    throw new Error('Shotloom tool transport already has an active Agent run');
+  }
   activeRun = run;
   await ensureListener();
   const tools = listAgentTools(run.context).map((tool) => ({
@@ -142,9 +146,11 @@ export async function activateOpenCodeToolBridge(run: BridgeRun) {
     description: tool.description,
     inputSchema: tool.resolveInputSchema?.(run.context) || tool.inputSchema,
   }));
-  await invoke('agent_runtime_register_tools', { tools });
+  await invoke('agent_runtime_register_tools', { tools, requestId: run.context.requestId });
+  return tools;
 }
 
-export function deactivateOpenCodeToolBridge(requestId: string) {
+export async function deactivateOpenCodeToolBridge(requestId: string) {
   if (activeRun?.context.requestId === requestId) activeRun = null;
+  await invoke('agent_runtime_release_tool_run', { requestId }).catch(() => undefined);
 }

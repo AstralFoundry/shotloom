@@ -7,7 +7,7 @@ description: 为 MiniMax H3 编写或重写结构化音画提示词，适合纯�
 
 把用户的完整创作意图整理成 H3 可执行的多段式音画描述。先调用 `inspect_model_catalog` 核对目标模型、时长、`inputMode`、`inputSlots` 和媒体数量；只使用目录真实公开的能力。用户已经指定 H3 模型或目标节点时保持该选择，除非真实能力冲突并需要用户决定。
 
-先加载 `video-clip-generation` Recipe 获取镜头生成策略，再结合本 Skill 的 H3 字段契约组织最终 Prompt。
+直接结合本 Skill 的 H3 字段契约组织最终 Prompt；需要镜头提示词参考时，可读取 `video-clip-generation` 模板。
 
 ## 选择输出结构
 
@@ -105,7 +105,7 @@ I2VA 从首帧的身份、服装、构图和空间关系连续向前发展。FL2
 
 ## 写入 Shotloom
 
-使用 `video-clip-generation` 读取镜头生成策略。创建节点用 `canvas_create_node`，修订现有 Prompt 用 `canvas_update_node`；只提交实际变化字段。参考边通过 `canvas_connect_nodes` 写入模型目录要求的媒体 `role` 与业务 `slot`，节点顶层写真实 `inputMode`。首帧、尾帧、普通参考图、输入视频和参考音频必须分别使用目录公开的槽位，不能靠数组位置表达语义。
+需要镜头生成参考时可读取 `video-clip-generation` 模板；无需为创建节点强制加载模板。创建节点用 `canvas_create_node`，修订现有 Prompt 用 `canvas_update_node`；只提交实际变化字段。参考边通过 `canvas_connect_nodes` 写入模型目录要求的媒体 `role` 与业务 `slot`，节点顶层写真实 `inputMode`。首帧、尾帧、普通参考图、输入视频和参考音频必须分别使用目录公开的槽位，不能靠数组位置表达语义。
 
 如果用户只要求提示词，就只返回或写入提示词，不擅自启动生成。用户明确要求生成时，等待所有上游媒体到达成功终态并核验真实输出，再调用 `canvas_start_generation`；已经成功的创建、更新或连接操作不得整批重放。
 

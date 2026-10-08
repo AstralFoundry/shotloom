@@ -7,14 +7,13 @@ import {
   nativeRuntimeSkills,
 } from '../renderer/src/agent/runtime/nativeSkills.ts';
 
-test('原生 Skill 只物化启用项并携带用途、完整正文和 Recipe 范围', () => {
+test('原生 Skill 只物化启用项并携带用途、完整正文且无需模板范围', () => {
   const result = nativeRuntimeSkills([{
     id: 'video-production',
     name: '全流程影像制作',
     description: '根据真实输入制作完整视频工作流。',
     instructions: '先检查来源成熟度，再按真实依赖推进。',
     workflow: '规划后执行。',
-    recipeIds: ['video-creative-outline', 'video-clip-generation'],
     enabled: true,
   }, {
     id: 'disabled-skill',
@@ -27,8 +26,8 @@ test('原生 Skill 只物化启用项并携带用途、完整正文和 Recipe �
   assert.match(result[0].content, /^---\nname: video-production\ndescription:/);
   assert.match(result[0].content, /# 全流程影像制作/);
   assert.match(result[0].content, /先检查来源成熟度/);
-  assert.match(result[0].content, /video-creative-outline/);
-  assert.match(result[0].content, /video-clip-generation/);
+  assert.match(result[0].content, /## Workflow/);
+  assert.doesNotMatch(result[0].content, /Recipe Scope|只可使用/);
 });
 
 test('原生 Skill ID 契约拒绝旧式冒号、下划线和路径字符', () => {
@@ -41,10 +40,11 @@ test('原生 Skill ID 契约拒绝旧式冒号、下划线和路径字符', () =
 test('Copilot 选择 Skill 后直接在输入框写入可见的原生 slash 指令', () => {
   const panel = readFileSync(new URL('../renderer/src/app/copilot/CopilotPanel.tsx', import.meta.url), 'utf8');
   assert.match(panel, /<Dropdown/);
-  assert.match(panel, /items: enabledSkills\.map/);
+  assert.match(panel, /enabledSkills\.map/);
   assert.match(panel, /setMessage\(current \? `\/\$\{skill\.id\} \$\{current\}` : `\/\$\{skill\.id\} `\)/);
-  assert.match(panel, /className=\{selectedSkill \? "is-active" : ""\}/);
-  assert.match(panel, /selectedKeys: selectedSkillId \? \[selectedSkillId\] : \[\]/);
+  assert.match(panel, /copilot-skill-trigger/);
+  assert.match(panel, /selectedKeys: selectedSkill \? \[selectedSkill\.id\] : \[\]/);
+  assert.match(panel, /overlayClassName="copilot-skill-dropdown"/);
   assert.doesNotMatch(panel, /className="copilot-selected-skill"/);
   assert.doesNotMatch(panel, /skill=\{selectedSkillId/);
 });

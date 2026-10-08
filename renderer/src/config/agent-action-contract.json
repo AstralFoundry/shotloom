@@ -62,23 +62,39 @@
     },
     "inputMode": {
       "type": "string",
-      "enum": ["reference", "firstFrame", "firstLastFrame", "videoExtension"],
+      "enum": [
+        "reference",
+        "firstFrame",
+        "firstLastFrame",
+        "videoExtension"
+      ],
       "description": "素材输入的业务模式；必须来自 inspect_model_catalog 对当前模型返回的 inputModes"
     },
     "role": {
       "type": "string",
-      "enum": ["textContext", "referenceImage", "inputVideo", "referenceAudio"],
+      "enum": [
+        "textContext",
+        "referenceImage",
+        "inputVideo",
+        "referenceAudio"
+      ],
       "description": "输入边的媒体类型；必须与真实上游节点输出一致"
     },
     "slot": {
       "type": "string",
-      "enum": ["reference", "firstFrame", "lastFrame", "inputVideo", "referenceAudio"],
+      "enum": [
+        "reference",
+        "firstFrame",
+        "lastFrame",
+        "inputVideo",
+        "referenceAudio"
+      ],
       "description": "输入边的明确槽位；首尾帧必须分别指定 firstFrame/lastFrame，普通参考图使用 reference"
     },
     "recipeId": {
       "type": "string",
       "minLength": 1,
-      "description": "本轮通过 load_recipe 加载、属于当前原生 Skill 且 generationType 与节点类型匹配的 Recipe ID"
+      "description": "可选提示词模板来源 ID，仅在实际使用模板时记录；不要求绑定 Skill，不影响创建或运行节点。"
     },
     "config": {
       "type": "object",
@@ -88,12 +104,24 @@
       "type": "object",
       "description": "跨模型稳定的输出意图，可包含 aspectRatio、duration、resolution、generationCount、generateAudio、quality；运行时同步编译为当前模型真实参数",
       "properties": {
-        "aspectRatio": { "type": "string" },
-        "duration": { "type": "number" },
-        "resolution": { "type": "string" },
-        "generationCount": { "type": "number" },
-        "generateAudio": { "type": "boolean" },
-        "quality": { "type": "string" }
+        "aspectRatio": {
+          "type": "string"
+        },
+        "duration": {
+          "type": "number"
+        },
+        "resolution": {
+          "type": "string"
+        },
+        "generationCount": {
+          "type": "number"
+        },
+        "generateAudio": {
+          "type": "boolean"
+        },
+        "quality": {
+          "type": "string"
+        }
       },
       "additionalProperties": false
     },
@@ -120,7 +148,9 @@
             "$ref": "#/commonProperties/slot"
           }
         },
-        "required": ["nodeId"],
+        "required": [
+          "nodeId"
+        ],
         "additionalProperties": false
       }
     },
@@ -209,8 +239,7 @@
         "nodeType",
         "title",
         "prompt",
-        "model",
-        "recipeId"
+        "model"
       ]
     },
     "create_note_node": {
@@ -244,9 +273,15 @@
         "height"
       ],
       "anyOfRequired": [
-        ["assetId"],
-        ["materialId"],
-        ["assetName"]
+        [
+          "assetId"
+        ],
+        [
+          "materialId"
+        ],
+        [
+          "assetName"
+        ]
       ]
     },
     "update_gen_config": {
@@ -280,8 +315,12 @@
         "nodeId"
       ],
       "anyOfRequired": [
-        ["title"],
-        ["content"]
+        [
+          "title"
+        ],
+        [
+          "content"
+        ]
       ]
     },
     "start_generation": {

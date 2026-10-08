@@ -26,14 +26,7 @@ export interface SkillDraft extends CatalogRecord {
   enabled: boolean;
   builtIn?: boolean;
   triggers: { keywords: string[] };
-  recipeIds: string[];
   instructions: string;
-}
-export interface RecipeChoice {
-  id: string;
-  name: string;
-  generationType: string;
-  enabled?: boolean;
 }
 type TestResult = {
   prompt: string;
@@ -99,7 +92,7 @@ export function RecipeEditorDialog({
     try {
       setTestResult(await testRecipe(clone(draft), testIntent) as TestResult);
     } catch (cause) {
-      setTestError(cause instanceof Error ? cause.message : "策略测试失败");
+      setTestError(cause instanceof Error ? cause.message : "提示词模板测试失败");
     } finally {
       setTesting(false);
     }
@@ -113,11 +106,11 @@ export function RecipeEditorDialog({
         className="recipe-dialog"
         role="dialog"
         aria-modal="true"
-        aria-label={isNew ? "新增策略" : "编辑策略"}
+        aria-label={isNew ? "新增提示词模板" : "编辑提示词模板"}
       >
         <header>
           <div>
-            <h3>{isNew ? "新增策略" : `编辑 ${draft.name}`}</h3>
+            <h3>{isNew ? "新增提示词模板" : `编辑 ${draft.name}`}</h3>
             {modifiedFields.length > 0 && (
               <p className="recipe-dialog-change-summary">
                 已修改 {modifiedFields.length} 个字段
@@ -134,6 +127,7 @@ export function RecipeEditorDialog({
           </button>
         </header>
         <div className="recipe-dialog-body">
+          <p className="catalog-editor-guidance">保存可复用的提示词方法或风格。Agent 按需参考，并根据当前需求调整内容。</p>
           {draft.builtIn && (
             <div className="recipe-readonly-note">
               <IconSymbol name="spark" />
@@ -195,22 +189,22 @@ export function RecipeEditorDialog({
             <span>用途说明</span>
             <input
               value={draft.description}
-              placeholder="Agent 何时应选择这个策略"
+              placeholder="Agent 何时应选择这个提示词模板"
               onChange={(event) => patch({ description: event.target.value })}
             />
           </label>
           <label className="recipe-field">
-            <span>Operation Types</span>
+            <span>适用操作</span>
             <input
               value={draft.operationTypes.join(", ")}
               placeholder="video, shot, motion"
               onChange={(event) =>
                 patch({ operationTypes: splitList(event.target.value) })}
             />
-            <small>Agent 规划单个生成节点时用于匹配，不参与技能选择。</small>
+            <small>描述适用任务，便于 Agent 查找，例如镜头、动作或商品图。</small>
           </label>
           <label className="recipe-field recipe-prompt-field">
-            <span>System Prompt</span>
+            <span>模板内容</span>
             <textarea
               value={draft.systemPrompt}
               rows={8}
@@ -220,7 +214,7 @@ export function RecipeEditorDialog({
             />
           </label>
           <label className="recipe-field">
-            <span>必需元素</span>
+            <span>内容检查项</span>
             <input
               value={draft.requiredElements.join(", ")}
               placeholder="主体, 动作, 场景, 运镜"
@@ -234,7 +228,7 @@ export function RecipeEditorDialog({
           <section className="recipe-test-lab">
             <header>
               <div>
-                <strong>策略测试台</strong>
+                <strong>提示词模板测试台</strong>
                 <span>预览提示词整理结果，不会启动媒体生成。</span>
               </div>
               <span className="recipe-test-model-count">
@@ -261,7 +255,7 @@ export function RecipeEditorDialog({
                   name={testing ? "refresh" : "play"}
                   className={testing ? "spinning" : ""}
                 />
-                {testing ? "测试中" : "测试策略"}
+                {testing ? "测试中" : "测试提示词模板"}
               </button>
             </div>
             {testError && <div className="recipe-test-error">{testError}</div>}
@@ -296,7 +290,7 @@ export function RecipeEditorDialog({
             取消
           </button>
           <button className="button primary" type="button" onClick={submit}>
-            保存策略
+            保存提示词模板
           </button>
         </footer>
       </section>
@@ -306,7 +300,6 @@ export function RecipeEditorDialog({
 
 export function SkillEditorDialog({
   skill,
-  recipes,
   isNew = false,
   modifiedFields = [],
   onClose,
@@ -314,7 +307,6 @@ export function SkillEditorDialog({
   onReset,
 }: {
   skill: SkillDraft;
-  recipes: RecipeChoice[];
   isNew?: boolean;
   modifiedFields?: string[];
   onClose: () => void;
@@ -335,13 +327,6 @@ export function SkillEditorDialog({
     if (!draft.description.trim()) return setError("用途说明不能为空");
     if (!draft.instructions.trim()) return setError("技能指令不能为空");
     onSave(clone(draft));
-  }
-  function toggleRecipe(id: string) {
-    patch({
-      recipeIds: draft.recipeIds.includes(id)
-        ? draft.recipeIds.filter((item) => item !== id)
-        : [...draft.recipeIds, id],
-    });
   }
   return (
     <div
@@ -381,6 +366,7 @@ export function SkillEditorDialog({
           </button>
         </header>
         <div className="recipe-dialog-body">
+          <p className="catalog-editor-guidance">写清适用场景、制作方法和质量标准。启用后由 Agent 按需选择，无需关联提示词模板。</p>
           {draft.builtIn && (
             <div className="recipe-readonly-note">
               <IconSymbol name="spark" />
@@ -454,38 +440,6 @@ export function SkillEditorDialog({
             />
             <small>这些词只作为 Router 理解用途的目录元数据，不触发代码路由。</small>
           </label>
-          <section className="skill-recipe-picker">
-            <header>
-              <div>
-                <strong>关联策略</strong>
-                <span>技能负责整体编排，策略负责单个节点的提示词。</span>
-              </div>
-              <em>{draft.recipeIds.length} 个已关联</em>
-            </header>
-            <div className="skill-recipe-options">
-              {recipes.map((recipe) => {
-                const disabled = recipe.enabled === false &&
-                  !draft.recipeIds.includes(recipe.id);
-                return (
-                  <label key={recipe.id} className={disabled ? "disabled" : ""}>
-                    <input
-                      type="checkbox"
-                      checked={draft.recipeIds.includes(recipe.id)}
-                      disabled={disabled}
-                      onChange={() =>
-                        toggleRecipe(recipe.id)}
-                    />
-                    <span>
-                      <strong>{recipe.name}</strong>
-                      <small>{recipe.id}</small>
-                    </span>
-                    <em>{typeLabel(recipe.generationType)}</em>
-                  </label>
-                );
-              })}
-              {!recipes.length && <p>暂无可关联的策略</p>}
-            </div>
-          </section>
           <label className="recipe-field skill-instruction-field">
             <span>
               技能指令 <em>{draft.instructions.length} 字</em>

@@ -47,7 +47,7 @@ function parseBuiltInSkill(content, manifest) {
   }
   const name = metadata.name || manifest.id;
   if (!manifest.id || !name) throw new Error(`Invalid built-in Skill identity: ${manifest.id || name}`);
-  if (!Array.isArray(manifest.triggers?.keywords) || !Array.isArray(manifest.recipeIds)) {
+  if (!Array.isArray(manifest.triggers?.keywords)) {
     throw new Error(`Invalid built-in Skill manifest: ${manifest.id}`);
   }
   return {
@@ -60,7 +60,6 @@ function parseBuiltInSkill(content, manifest) {
       keywords: Array.isArray(manifest.triggers?.keywords) ? manifest.triggers.keywords : [],
     },
     instructions: String(content || '').slice(frontmatter?.[0]?.length || 0).trim(),
-    recipeIds: Array.isArray(manifest.recipeIds) ? manifest.recipeIds : [],
     contracts: Array.isArray(metadata.contracts) ? metadata.contracts : undefined,
     workflow: typeof metadata.workflow === 'string' ? metadata.workflow : undefined,
     builtIn: true,
@@ -83,11 +82,15 @@ export const builtInSkills = [
 ];
 
 export function withBuiltInSkills(storage = {}) {
-  return withBuiltInEntries(storage, 'skills', builtInSkills);
+  const catalog = withBuiltInEntries(storage, 'skills', builtInSkills);
+  catalog.skills = catalog.skills.map(({ recipeIds, ...skill }) => skill);
+  return catalog;
 }
 
 export function withoutBuiltInSkills(storage = {}) {
-  return withoutBuiltInEntries(storage, 'skills');
+  const catalog = withoutBuiltInEntries(storage, 'skills');
+  catalog.skills = catalog.skills.map(({ recipeIds, ...skill }) => skill);
+  return catalog;
 }
 
 export function builtInSkillChanges(skill) {

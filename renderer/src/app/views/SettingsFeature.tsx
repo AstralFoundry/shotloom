@@ -257,30 +257,10 @@ export function SettingsFeature() {
 
   async function importCatalog(kind: "skills" | "recipes", files: File[]) {
     let imported = 0;
-    let dependencies = 0;
     const errors: string[] = [];
     for (const file of files) {
       try {
         const payload = JSON.parse(await file.text());
-        if (kind === "skills") {
-          for (
-            const recipe of transferItems(
-              (payload as Record<string, unknown>)?.recipes || [],
-              "recipes",
-              "recipe",
-            )
-          ) {
-            try {
-              await upsertRecipe({
-                ...recipe,
-                enabled: recipe.enabled !== false,
-              });
-              dependencies += 1;
-            } catch (cause) {
-              errors.push(`${file.name} / 策略：${message(cause)}`);
-            }
-          }
-        }
         for (
           const item of transferItems(
             payload,
@@ -291,10 +271,12 @@ export function SettingsFeature() {
           try {
             if (kind === "skills") {
               await upsertSkill({ ...item, enabled: item.enabled !== false });
-            } else {await upsertRecipe({
+            } else {
+              await upsertRecipe({
                 ...item,
                 enabled: item.enabled !== false,
-              });}
+              });
+            }
             imported += 1;
           } catch (cause) {
             errors.push(`${file.name}：${message(cause)}`);
@@ -307,9 +289,7 @@ export function SettingsFeature() {
     refresh();
     showToast(
       imported
-        ? `已导入 ${imported} 个${kind === "skills" ? "技能" : "策略"}${
-          dependencies ? `，同时导入 ${dependencies} 个关联策略` : ""
-        }${errors.length ? `；${errors.length} 项未导入` : ""}`
+        ? `已导入 ${imported} 个${kind === "skills" ? "技能" : "提示词模板"}${errors.length ? `；${errors.length} 项未导入` : ""}`
         : errors[0] || "没有可导入的内容",
     );
   }
@@ -318,25 +298,16 @@ export function SettingsFeature() {
       const skills = skillsStore.skills.filter((item: { id: string }) =>
         ids.includes(item.id)
       ).map(transferCopy);
-      const recipeIds = new Set(
-        skills.flatMap((item: { recipeIds?: string[] }) =>
-          item.recipeIds || []
-        ),
-      );
-      const recipes = recipesStore.recipes.filter((item: { id: string }) =>
-        recipeIds.has(item.id)
-      ).map(transferCopy);
       if (
         await desktopApi.file.saveJson("shotloom-skills.json", {
           format: "shotloom.skill-catalog",
           formatVersion: 1,
           exportedAt: new Date().toISOString(),
           skills,
-          recipes,
         })
       ) {
         showToast(
-          `已导出 ${skills.length} 个技能，并携带 ${recipes.length} 个关联策略`,
+          `已导出 ${skills.length} 个技能`,
         );
       }
     } else {
@@ -348,9 +319,8 @@ export function SettingsFeature() {
           format: "shotloom.recipe-catalog",
           formatVersion: 1,
           exportedAt: new Date().toISOString(),
-          recipes,
         })
-      ) showToast(`已导出 ${recipes.length} 个策略`);
+      ) showToast(`已导出 ${recipes.length} 个提示词模板`);
     }
   }
 
@@ -473,7 +443,7 @@ export function SettingsFeature() {
     deleteRecipe: (id) =>
       run(async () => {
         await deleteRecipe(id);
-      }, "策略已删除"),
+      }, "提示词模板已删除"),
     toggleRecipe: (id) =>
       run(async () => {
         await toggleRecipe(id);
@@ -503,7 +473,6 @@ export function SettingsFeature() {
         <SkillEditorDialog
           skill={skillEditor.value}
           isNew={skillEditor.isNew}
-          recipes={clone(recipesStore.recipes)}
           modifiedFields={builtInSkillChanges(skillEditor.value)}
           onClose={() => setSkillEditor(null)}
           onSave={(value) =>
@@ -545,10 +514,10 @@ export function SettingsFeature() {
                 recipesStore.recipes.some((item: { id: string }) =>
                   item.id === value.id
                 )
-              ) throw new Error(`策略 ID 已存在：${value.id}`);
+              ) throw new Error(`提示词模板 ID 已存在：${value.id}`);
               await upsertRecipe(value);
               setRecipeEditor(null);
-            }, "策略已保存")}
+            }, "提示词模板已保存")}
           onReset={() =>
             void run(async () => {
               if (
@@ -561,7 +530,7 @@ export function SettingsFeature() {
                 item.id === recipeEditor.value.id
               );
               if (value) setRecipeEditor({ value: clone(value), isNew: false });
-            }, "策略已恢复默认")}
+            }, "提示词模板已恢复默认")}
         />
       )}
     </>

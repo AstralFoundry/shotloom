@@ -402,7 +402,7 @@ test('Agent 生成节点契约只使用顶层 prompt/model', () => {
   const spec = agentContract.actions.create_gen_node;
   assert.ok(spec.required.includes('prompt'));
   assert.ok(spec.required.includes('model'));
-  assert.ok(spec.required.includes('recipeId'));
+  assert.equal(spec.required.includes('recipeId'), false);
   assert.equal(spec.required.includes('config'), false);
   assert.ok(spec.fields.includes('prompt'));
   assert.ok(spec.fields.includes('model'));

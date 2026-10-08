@@ -118,6 +118,8 @@ pub fn run() {
             commands::agent_runtime_subscribe,
             commands::agent_runtime_unsubscribe,
             commands::agent_runtime_register_tools,
+            commands::agent_runtime_bind_tool_session,
+            commands::agent_runtime_release_tool_run,
             commands::agent_tool_reply,
             commands::agent_runtime_stop,
             commands::recovery_status,

@@ -15,7 +15,7 @@ test('Skill 由 OpenCode 原生目录直接提供，不再先调用自定义目�
   assert.match(runtime, /part\.type === 'tool' && part\.tool === 'skill'/);
   assert.match(nativeRuntime, /"skills": \{ "paths": skill_paths \}/);
   assert.match(nativeRuntime, /materialize_runtime_skills/);
-  assert.match(nativeSkills, /SKILL\.md|Shotloom Recipe Scope/);
+  assert.match(nativeSkills, /name: \$\{id\}|## Workflow/);
   assert.match(prompt, /普通聊天、解释、分析和简单画布操作不需要 Skill/);
   assert.match(prompt, /原生 `skill` 工具/);
   assert.doesNotMatch(runtime, /当前没有已启用 Skill，助手无法启动/);

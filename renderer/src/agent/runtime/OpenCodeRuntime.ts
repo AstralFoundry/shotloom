@@ -14,12 +14,13 @@ import { activateOpenCodeToolBridge, deactivateOpenCodeToolBridge } from './Open
 import { activeProductionPlan } from './productionPlanStore';
 import { diagnoseRuntimeFailure, RuntimeDiagnosticError } from './runtimeDiagnostics';
 import { resolveOpenCodeProvider } from './openCodeProvider.mjs';
-import type { AgentPromptPayload, AgentRunResult, AgentRuntimeEvent, AgentToolContext, AgentToolReceipt, JsonObject } from '../core/types';
+import type { AgentPromptPayload, AgentRunResult, AgentRuntimeEvent, AgentToolContext, AgentToolReceipt, JsonObject, JsonSchema } from '../core/types';
 import { canvasMutationFingerprint } from '@/utils/canvasMutationFingerprint.mjs';
 import { nativeRuntimeSkills, type NativeRuntimeSkill } from './nativeSkills';
 
 type OpenCodeClient = ReturnType<typeof createOpencodeClient>;
 interface OpenCodeConfiguration {
+  tools: Array<{ name: string; description: string; inputSchema: JsonSchema }>;
   enabledProviders: string[];
   model: string;
   provider: JsonObject;
@@ -76,6 +77,7 @@ async function providerLkgFallback(current: OpenCodeConfiguration): Promise<Open
     workspaceDirectory: current.workspaceDirectory,
     agent: current.agent,
     skills: current.skills,
+    tools: current.tools,
     runtimeProtection: current.runtimeProtection,
     provider: {
       ...lkg.provider,
@@ -163,7 +165,7 @@ function agentProfiles(skillIds: string[]) {
   const primaryOnlyTools = {
     shotloom_request_clarification: false,
     shotloom_report_outcome: false,
-    shotloom_save_skill_bundle: false,
+    shotloom_save_skill: false,
   };
   const canvasReadonlyTools = {
     ...primaryOnlyTools,
@@ -198,7 +200,7 @@ function agentProfiles(skillIds: string[]) {
       mode: 'subagent', maxSteps: 40,
       description: 'Author complete Production Plan work items, prompts, dependencies and completion criteria',
       prompt: `Author a Production Plan for the requested scope. Use the Active Skill and its constraints supplied by the parent task. Do not mutate the canvas or claim completion.\n\n${shared('production-planner')}`,
-      tools: { ...canvasReadonlyTools, shotloom_save_skill_bundle: false },
+      tools: { ...canvasReadonlyTools, shotloom_save_skill: false },
       permission: { skill: { '*': 'deny' } },
     },
     'stage-executor': {
@@ -236,6 +238,7 @@ function configureModel(model: string, workspaceDirectory: string) {
   const outputLimit = Number(contract?.outputConstraints?.maxTokens || 8_192);
   const skills = nativeRuntimeSkills(availableAgentSkills());
   const configuration: OpenCodeConfiguration = {
+    tools: [],
     enabledProviders: ['shotloom'],
     model: `shotloom/${model}`,
     agent: agentProfiles(skills.map((skill) => skill.id)),
@@ -274,7 +277,7 @@ function systemPrompt() {
     .replace('{{runtime_model_contract}}', '模型循环、会话、上下文压缩与子 Agent 由 OpenCode Runtime 管理。');
   return [
     base,
-    'Use Shotloom MCP tools for every canvas, project, task, model-catalog, Skill, or media operation.',
+    'Use Shotloom native tools for every canvas, project, task, model-catalog, Skill, or media operation.',
     'For a non-trivial production request, inspect runtime capabilities first. Decide production scope from the full user message. If the scope is genuinely unresolved, use request_clarification and formulate the question and options for the actual context. Do not ask again when the user has already stated the scope clearly. Never infer execution merely because the user pasted a complete script.',
     'A plan_canvas request means creating every determinable, configured canvas node and its real input edges without starting generation. A note describing omitted media nodes is not a canvas plan. A plan_and_execute request runs one dependency stage at a time and verifies actual outputs before continuing.',
     'Keep the Production Plan current. Bind every work item to its own real node/task runtime reference; never mark a stage done from an unrelated summary node.',
@@ -321,39 +324,6 @@ async function resolveSession(client: OpenCodeClient, conversationId: string, di
   if (!session?.id) throw new Error('OpenCode 没有返回 Session ID');
   if (conversation) conversation.openCodeSessionId = session.id;
   return session.id;
-}
-
-async function ensureMcpConnected(client: OpenCodeClient, directory: string) {
-  const readStatus = async () => {
-    const statuses = responseData<any>(await client.mcp.status({ query: { directory } }));
-    return statuses?.shotloom;
-  };
-  const waitForConnection = async () => {
-    let status = await readStatus();
-    for (let attempt = 0; attempt < 4 && status?.status === 'connecting'; attempt += 1) {
-      await new Promise((resolve) => window.setTimeout(resolve, 100));
-      status = await readStatus();
-    }
-    return status;
-  };
-
-  let status = await readStatus();
-  if (status?.status === 'connected') return;
-  await client.mcp.connect({ path: { name: 'shotloom' }, query: { directory } });
-  status = await waitForConnection();
-  if (status?.status === 'connected') return;
-
-  // OpenCode 会保留一次 tools/list 失败后的 MCP client。只重建这个已失败的
-  // 本地连接，避免用户点击“重试”时继续命中同一个 failed client。
-  if (status?.status === 'failed') {
-    await client.mcp.disconnect({ path: { name: 'shotloom' }, query: { directory } })
-      .catch(() => undefined);
-    await client.mcp.connect({ path: { name: 'shotloom' }, query: { directory } });
-    status = await waitForConnection();
-  }
-  if (status?.status !== 'connected') {
-    throw new Error(`Shotloom 工具桥连接失败：${status?.error || status?.status || '未知状态'}`);
-  }
 }
 
 function textFromParts(parts: Part[] = []) {
@@ -478,7 +448,9 @@ export async function runOpenCodeAgent(
   let sessionId: string;
   let modelLimits = { contextLimit: 64_000, outputLimit: 8_192 };
   try {
+    const tools = await activateOpenCodeToolBridge({ context: toolContext, model });
     const configured = configureModel(model, directory);
+    configured.configuration.tools = tools;
     modelLimits = configured;
     ({ client } = await runtimeClient(configured.configuration));
     sessionId = await resolveSession(client, conversationId, directory, message.slice(0, 80) || 'Shotloom Agent');
@@ -489,12 +461,11 @@ export async function runOpenCodeAgent(
     });
     emit({ type: 'run_status', status: 'running', createdAt: new Date().toISOString() });
     noteNativeActivity(false, true);
-    await activateOpenCodeToolBridge({ context: toolContext, model });
-    await ensureMcpConnected(client, directory);
+    await invoke('agent_runtime_bind_tool_session', { requestId, sessionId });
   } catch (cause) {
     controller.abort();
     activeRuns.delete(requestId);
-    deactivateOpenCodeToolBridge(requestId);
+    await deactivateOpenCodeToolBridge(requestId);
     const diagnosis = await diagnoseRuntimeFailure(cause);
     emit({ type: 'run_status', status: 'failed', error: diagnosis.message, diagnosis, createdAt: new Date().toISOString() });
     throw new RuntimeDiagnosticError(diagnosis);
@@ -626,7 +597,7 @@ export async function runOpenCodeAgent(
     supervisorUnlisten?.();
     controller.abort();
     activeRuns.delete(requestId);
-    deactivateOpenCodeToolBridge(requestId);
+    await deactivateOpenCodeToolBridge(requestId);
     const diagnosis = await diagnoseRuntimeFailure(cause);
     emit({ type: 'run_status', status: 'failed', error: diagnosis.message, diagnosis, createdAt: new Date().toISOString() });
     throw new RuntimeDiagnosticError(diagnosis);
@@ -673,6 +644,7 @@ export async function runOpenCodeAgent(
       }));
       if (!replacement?.id) throw new Error('OpenCode 返回了历史回复，且无法创建恢复 Session');
       sessionId = replacement.id;
+      await invoke('agent_runtime_bind_tool_session', { requestId, sessionId });
       const conversation = conversationRecord(conversationId);
       if (conversation) conversation.openCodeSessionId = sessionId;
       activeRuns.set(requestId, { controller, client, sessionId });
@@ -733,7 +705,7 @@ export async function runOpenCodeAgent(
     supervisorUnlisten?.();
     noteNativeActivity(true, true);
     activeRuns.delete(requestId);
-    deactivateOpenCodeToolBridge(requestId);
+    await deactivateOpenCodeToolBridge(requestId);
   }
 }
 

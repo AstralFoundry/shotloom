@@ -2,6 +2,7 @@ import { chmod, copyFile, mkdir } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { dirname, resolve } from 'node:path';
 import { arch, platform } from 'node:process';
+import { build } from 'esbuild';
 
 const require = createRequire(import.meta.url);
 const platformName = platform === 'win32' ? 'windows' : platform;
@@ -29,4 +30,10 @@ const target = resolve('src-tauri', 'binaries', `opencode-${triple}${suffix}`);
 await mkdir(dirname(target), { recursive: true });
 await copyFile(source, target);
 if (platform !== 'win32') await chmod(target, 0o755);
+// Ship the plugin with its imports bundled rather than resolving them at runtime.
+await build({
+  entryPoints: ['scripts/runtime/shotloom-tools-plugin.mjs'],
+  outfile: 'src-tauri/resources/shotloom-tools-plugin.mjs',
+  bundle: true, format: 'esm', platform: 'node', target: 'node22', minify: true,
+});
 console.log(`Prepared OpenCode ${packageName} sidecar at ${target}`);

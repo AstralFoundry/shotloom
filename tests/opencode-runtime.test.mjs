@@ -12,7 +12,7 @@ test('OpenCode 是唯一 Agent Runtime 并固定 SDK 与 sidecar 版本', () => 
   assert.match(read('renderer/src/agent/index.ts'), /import\('\.\/runtime\/OpenCodeRuntime'\)/);
 });
 
-test('Tauri 随应用分发 OpenCode、FFmpeg sidecar 和 MCP bridge', () => {
+test('Tauri 随应用分发 OpenCode、FFmpeg sidecar 和原生工具插件', () => {
   const config = JSON.parse(read('src-tauri/tauri.conf.json'));
   assert.deepEqual(config.bundle.externalBin, ['binaries/opencode', 'binaries/ffmpeg']);
   assert.ok(config.bundle.resources.includes('resources/opencode-LICENSE.txt'));
@@ -20,14 +20,17 @@ test('Tauri 随应用分发 OpenCode、FFmpeg sidecar 和 MCP bridge', () => {
   assert.ok(config.bundle.resources.includes('resources/FFmpeg-SOURCE.txt'));
   const rust = read('src-tauri/src/commands/agent_runtime.rs') + read('src-tauri/src/commands/agent_runtime_proxy.rs');
   assert.match(rust, /OPENCODE_SERVER_PASSWORD/);
-  assert.match(rust, /"--pure"/);
-  assert.match(rust, /"enabled": false/);
+  assert.match(rust, /OPENCODE_DISABLE_PROJECT_CONFIG/);
+  assert.match(rust, /OPENCODE_DISABLE_DEFAULT_PLUGINS/);
+  assert.match(rust, /OPENCODE_TEST_HOME/);
+  assert.doesNotMatch(rust, /"--pure"/);
+  assert.match(rust, /"plugin": \[\[plugin_url/);
   assert.match(rust, /global\/health/);
   assert.match(rust, /\.no_proxy\(\)/);
   assert.match(rust, /configuration_key/);
   assert.match(rust, /Bearer/);
-  assert.match(rust, /tools\/list/);
-  assert.match(rust, /tools\/call/);
+  assert.match(rust, /\.route\("\/execute", post\(execute_tool\)\)/);
+  assert.doesNotMatch(rust, /jsonrpc|mcp_post|"mcp":/);
   assert.match(rust, /agent_runtime_request/);
   assert.match(rust, /agent_runtime_subscribe/);
   assert.match(rust, /runtime-relative path/);
@@ -87,10 +90,8 @@ test('OpenCode Runtime 使用持久 Session、子 Agent、Contract 与本地域�
   assert.match(runtime, /agentProfiles/);
   assert.match(runtime, /contractsForAgentType/);
   assert.match(runtime, /activateOpenCodeToolBridge/);
-  assert.match(runtime, /ensureMcpConnected/);
-  assert.match(runtime, /status\?\.status === 'failed'/);
-  assert.match(runtime, /mcp\.disconnect/);
-  assert.match(runtime, /waitForConnection/);
+  assert.match(runtime, /agent_runtime_bind_tool_session/);
+  assert.doesNotMatch(runtime, /client\.mcp|ensureMcpConnected/);
   assert.doesNotMatch(runtime, /routeSkill/);
   assert.doesNotMatch(runtime, /agent: 'intent-router'/);
   assert.match(runtime, /report_outcome/);

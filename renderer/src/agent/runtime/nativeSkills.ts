@@ -29,16 +29,12 @@ export function nativeRuntimeSkills(skills: StoredSkill[]): NativeRuntimeSkill[]
     const description = String(skill.description || '').trim();
     const instructions = String(skill.instructions || '').trim();
     if (!description || !instructions) throw new Error(`Skill ${id} 缺少用途说明或完整指令`);
-    const recipeIds = [...new Set((skill.recipeIds || []).map(String).filter(Boolean))];
     const workflow = String(skill.workflow || '').trim();
     const sections = [
       `---\nname: ${id}\ndescription: ${frontmatterString(description)}\n---`,
       `# ${name}`,
       instructions,
       workflow ? `## Workflow\n\n${workflow}` : '',
-      recipeIds.length
-        ? `## Shotloom Recipe Scope\n\n本 Skill 只可使用以下 Recipe ID：${recipeIds.map((recipeId) => `\`${recipeId}\``).join('、')}。需要生成节点时，通过 \`list_recipes\` 和 \`load_recipe\` 读取对应策略。`
-        : '',
     ].filter(Boolean);
     return { id, content: `${sections.join('\n\n')}\n` };
   });

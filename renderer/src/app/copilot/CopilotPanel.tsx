@@ -212,7 +212,7 @@ function AgentRunActivity({
   const activeKind = activeTool.kind === "skill"
     ? "Skill"
     : activeTool.kind === "recipe"
-      ? "Recipe"
+      ? "模板"
       : activeTool.kind === "system"
         ? "Context"
         : "Tool";
@@ -220,7 +220,7 @@ function AgentRunActivity({
     key: tool.id || `tool-${index}`,
     title: (
       <span className="copilot-log-line">
-        <strong>{tool.kind === "skill" ? "Skill" : tool.kind === "recipe" ? "Recipe" : tool.kind === "system" ? "Context" : "Tool"}</strong>
+        <strong>{tool.kind === "skill" ? "Skill" : tool.kind === "recipe" ? "模板" : tool.kind === "system" ? "Context" : "Tool"}</strong>
         <i>·</i>
         <span>{tool.summary || tool.name || "处理步骤"}</span>
       </span>
@@ -600,6 +600,19 @@ export const CopilotPanel = forwardRef<CopilotPanelHandle, CopilotPanelProps>(fu
     setMentionOpen(false);
     setSelectedSkillId(null);
   }
+  function useAutomaticSkill() {
+    if (selectedSkillId) {
+      const prefix = `/${selectedSkillId}`;
+      setMessage((value) => {
+        const current = value.trimStart();
+        if (current === prefix) return "";
+        if (current.startsWith(`${prefix} `)) return current.slice(prefix.length).trimStart();
+        return value;
+      });
+    }
+    setSelectedSkillId(null);
+    requestAnimationFrame(() => sender.current?.focus());
+  }
   function selectSkill(skill: (typeof enabledSkills)[number]) {
     let current = message.trimStart();
     if (selectedSkillId) {
@@ -974,19 +987,28 @@ export const CopilotPanel = forwardRef<CopilotPanelHandle, CopilotPanelProps>(fu
                   </button>
                   <Dropdown
                     trigger={["click"]}
+                    placement="topLeft"
+                    overlayClassName="copilot-skill-dropdown"
                     menu={{
-                      selectedKeys: selectedSkillId ? [selectedSkillId] : [],
-                      items: enabledSkills.map((skill) => ({
-                        key: skill.id,
-                        label: (
-                          <span className="copilot-skill-menu-item">
-                            <strong>{skill.name || skill.id}</strong>
-                            <small>/{skill.id}</small>
-                            {selectedSkillId === skill.id && <em>已选择</em>}
-                          </span>
-                        ),
-                      })),
+                      selectedKeys: selectedSkill ? [selectedSkill.id] : [],
+                      items: [
+                        {
+                          key: "automatic",
+                          label: <span className="copilot-skill-menu-item"><strong>交给 Agent 选择</strong><small>根据任务按需使用技能</small></span>,
+                        },
+                        { type: "divider" },
+                        ...enabledSkills.map((skill) => ({
+                          key: skill.id,
+                          label: (
+                            <span className="copilot-skill-menu-item">
+                              <strong>{skill.name || skill.id}</strong>
+                              <small>/{skill.id}</small>
+                            </span>
+                          ),
+                        })),
+                      ],
                       onClick: ({ key }) => {
+                        if (key === "automatic") return useAutomaticSkill();
                         const skill = enabledSkills.find((item) => item.id === key);
                         if (skill) selectSkill(skill);
                       },
@@ -995,10 +1017,10 @@ export const CopilotPanel = forwardRef<CopilotPanelHandle, CopilotPanelProps>(fu
                     <button
                       type="button"
                       className={`copilot-skill-trigger${selectedSkill ? " is-active" : ""}`}
-                      title={selectedSkill ? `已选择：${selectedSkill.name || selectedSkill.id}` : "选择 Skill"}
+                      title={selectedSkill ? `已选择：${selectedSkill.name || selectedSkill.id}` : "Agent 根据任务自动选择技能，可在这里指定"}
                     >
                       <IconSymbol name="puzzle" />
-                      <span>{selectedSkill ? selectedSkill.name || selectedSkill.id : "Skill"}</span>
+                      <span>{selectedSkill ? selectedSkill.name || selectedSkill.id : "技能"}</span>
                     </button>
                   </Dropdown>
                   <Dropdown

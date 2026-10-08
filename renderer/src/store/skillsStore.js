@@ -1,7 +1,6 @@
 import { reactive } from '@/store/domainReactivity';
 import { desktopApi } from '@/services/desktopApi';
 import { getBuiltInSkill } from '@/services/builtInSkills';
-import { recipesStore } from '@/store/recipesStore';
 import { uid } from '@/utils/format';
 
 export const skillsStore = reactive({
@@ -40,7 +39,6 @@ export function createSkillDraft() {
     category: 'general',
     version: 1,
     triggers: { keywords: [] },
-    recipeIds: [],
     instructions: '输入这个技能的领域行为、边界和执行说明。',
     enabled: true,
     updatedAt: new Date().toISOString(),
@@ -48,7 +46,6 @@ export function createSkillDraft() {
 }
 
 export async function updateSkill(skill, patch) {
-  if (Array.isArray(patch?.recipeIds)) assertRecipeIdsExist(patch.recipeIds);
   const builtIn = skill?.builtIn === true;
   Object.assign(skill, patch, { updatedAt: new Date().toISOString() });
   skill.builtIn = builtIn;
@@ -58,7 +55,6 @@ export async function updateSkill(skill, patch) {
 export async function upsertSkill(input) {
   const existing = skillsStore.skills.find((item) => item.id === String(input.id || '').trim());
   const skill = {
-    ...input,
     id: String(input.id || '').trim(),
     name: String(input.name || '').trim(),
     description: String(input.description || '').trim(),
@@ -68,7 +64,8 @@ export async function upsertSkill(input) {
       keywords: [...new Set((input.triggers?.keywords || []).map((value) => String(value).trim()).filter(Boolean))],
     },
     instructions: String(input.instructions || '').trim(),
-    recipeIds: [...new Set((input.recipeIds || []).map((value) => String(value).trim()).filter(Boolean))],
+    contracts: Array.isArray(input.contracts) ? input.contracts.map(String) : undefined,
+    workflow: typeof input.workflow === 'string' ? input.workflow : undefined,
     enabled: input.enabled !== false,
     builtIn: existing?.builtIn === true,
     updatedAt: new Date().toISOString(),
@@ -77,7 +74,6 @@ export async function upsertSkill(input) {
     throw new Error('技能 ID 仅允许小写字母、数字和连字符，且首尾不能是连字符');
   }
   if (!skill.name || !skill.description || !skill.instructions) throw new Error('技能名称、用途说明和指令均不能为空');
-  assertRecipeIdsExist(skill.recipeIds);
   const index = skillsStore.skills.findIndex((item) => item.id === skill.id);
   if (index >= 0) skillsStore.skills[index] = skill;
   else skillsStore.skills.push(skill);
@@ -99,12 +95,6 @@ export async function deleteSkill(skillId) {
     skillsStore.selectedSkillId = skillsStore.skills[0]?.id || null;
   }
   await saveGlobalSkills();
-}
-
-function assertRecipeIdsExist(recipeIds = []) {
-  const knownIds = new Set(recipesStore.recipes.map((recipe) => String(recipe.id)));
-  const unknown = recipeIds.filter((recipeId) => !knownIds.has(String(recipeId)));
-  if (unknown.length) throw new Error(`技能引用了不存在的策略：${unknown.join(', ')}`);
 }
 
 export async function resetSkillToBuiltIn(skillId) {

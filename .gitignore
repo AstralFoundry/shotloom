@@ -9,3 +9,4 @@ src-tauri/target/
 src-tauri/gen/
 src-tauri/browser/
 src-tauri/binaries/
+src-tauri/resources/shotloom-tools-plugin.mjs

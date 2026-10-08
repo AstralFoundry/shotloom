@@ -14,7 +14,6 @@ export interface StoredSkill {
   category?: string;
   version?: number;
   triggers?: { keywords?: string[] };
-  recipeIds?: string[];
   contracts?: string[];
   workflow?: string;
   enabled?: boolean;
@@ -31,14 +30,6 @@ interface StoredRecipe {
   requiredElements?: string[];
   enabled?: boolean;
   builtIn?: boolean;
-}
-
-function allowedRecipeIdsForContext(context: AgentToolContext): Set<string> {
-  return new Set(
-    (skillsStore.skills as StoredSkill[])
-      .filter((skill) => context.loadedSkillIds.has(String(skill.id)))
-      .flatMap((skill) => Array.isArray(skill.recipeIds) ? skill.recipeIds : []),
-  );
 }
 
 export function availableAgentSkills(): StoredSkill[] {
@@ -94,8 +85,8 @@ export function registerCatalogTools(): void {
 
   registerAgentTool({
     id: 'list_recipes',
-    title: '列出提示词 Recipe',
-    description: '列出当前可用的生成提示词策略；可按生成类型或操作类型筛选。Recipe 只增强单个生成节点的 prompt。',
+    title: '查找提示词模板',
+    description: '按需查找已启用的提示词模板，可按生成类型或操作类型筛选。模板是可选参考，不要求先加载 Skill，也不是创建节点的前置条件。',
     effect: 'read',
     inputSchema: {
       type: 'object',
@@ -106,11 +97,8 @@ export function registerCatalogTools(): void {
       additionalProperties: false,
     },
     execute: (input, context) => {
-      if (!context.loadedSkillIds.size) throw new Error('请先使用 OpenCode 原生 skill 工具加载领域 Skill');
-      const allowedRecipeIds = allowedRecipeIdsForContext(context);
       return {
         recipes: availableRecipes()
-          .filter((recipe) => allowedRecipeIds.has(recipe.id))
           .filter((recipe) => !input.generationType || recipe.generationType === input.generationType)
           .filter((recipe) => !input.operationType || (recipe.operationTypes || []).includes(String(input.operationType)))
           .map((recipe) => ({
@@ -126,8 +114,8 @@ export function registerCatalogTools(): void {
 
   registerAgentTool({
     id: 'load_recipe',
-    title: '加载提示词 Recipe',
-    description: '加载一个已启用 Recipe，用它生成单个节点可直接运行的 prompt；可用 usageNote 记录对应节点和用途。',
+    title: '读取提示词模板',
+    description: '按需读取一个已启用的提示词模板，结合用户要求调整或组合其方法；可用 usageNote 记录用途。可以直接编写 prompt，无需加载模板。',
     effect: 'agent_state_write',
     inputSchema: {
       type: 'object',
@@ -143,9 +131,6 @@ export function registerCatalogTools(): void {
       const usageNote = String(input.usageNote || '').trim();
       const recipe = availableRecipes().find((item) => item.id === input.recipeId);
       if (!recipe) throw new Error(`Recipe not found or disabled: ${String(input.recipeId)}`);
-      if (!allowedRecipeIdsForContext(context).has(String(recipe.id))) {
-        throw new Error(`Recipe ${String(recipe.id)} 不属于当前已加载 Skill`);
-      }
       context.emit({
         type: 'recipe_used',
         recipeId: String(recipe.id),

@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
 import test from 'node:test';
-import { builtInRecipes } from '../renderer/src/services/builtInRecipes.js';
 import {
   changedBuiltInFields,
   withBuiltInEntries,
@@ -74,8 +73,7 @@ test('内置 Skill 使用唯一 Nody 风格领域集合', () => {
   assert.deepEqual(ids, expectedIds);
 });
 
-test('每个内置 Skill 都使用新名称并包含触发、Recipe、工作流和终态评估', () => {
-  const recipeIds = new Set(builtInRecipes.map((recipe) => recipe.id));
+test('每个内置 Skill 都使用新名称并包含领域说明和终态评估且无需模板绑定', () => {
   for (const id of expectedIds) {
     const { metadata, manifest, body } = parseSkill(id);
     assert.equal(metadata.name, expectedNames[id]);
@@ -86,9 +84,8 @@ test('每个内置 Skill 都使用新名称并包含触发、Recipe、工作流�
     assert.equal(manifest.id, id);
     assert.ok(manifest.category);
     assert.ok(manifest.triggers.keywords.length > 0);
-    assert.ok(manifest.recipeIds.length > 0);
-    assert.equal(manifest.recipeIds.every((recipeId) => recipeIds.has(recipeId)), true, `${id} 引用了不存在的 Recipe`);
-    assert.match(body, /Recipe|recipeId/);
+    assert.equal(Object.hasOwn(manifest, 'recipeIds'), false);
+    assert.doesNotMatch(body, /recipeId|唯一匹配.*模板|必须.*加载.*模板/);
     assert.match(body, /完成前/);
     assert.doesNotMatch(body, /nano-banana|gemini-3\.5|omni-flash/);
   }
@@ -130,8 +127,8 @@ test('内置目录差异忽略启停和运行时字段', () => {
 
 test('h3-video-prompt 使用能力驱动的基础与全参考多段式契约', () => {
   const { manifest, body } = parseSkill('h3-video-prompt');
-  assert.equal(manifest.version, 1);
-  assert.deepEqual(manifest.recipeIds, ['video-clip-generation']);
+  assert.equal(manifest.version, 2);
+  assert.match(body, /video-clip-generation/);
   for (const keyword of ['MiniMax H3', 'T2VA', 'I2VA', 'FL2VA', 'L2VA', 'Ref2VA']) {
     assert.ok(manifest.triggers.keywords.includes(keyword), `h3-video-prompt 缺少 ${keyword}`);
   }
@@ -148,13 +145,13 @@ test('h3-video-prompt 使用能力驱动的基础与全参考多段式契约', (
 
 test('video-production v10 从来源成熟度动态推进并采用合规的人脸策略', () => {
   const { manifest, body } = parseSkill('video-production');
-  assert.equal(manifest.version, 10);
+  assert.equal(manifest.version, 11);
   for (const recipeId of [
     'narrative-source-analysis', 'screenplay-adaptation',
     'video-character-design', 'video-character-turnaround', 'video-storyboard-grid',
     'video-shot-storyboard', 'video-action-sequence-board', 'video-frame-extraction', 'video-audio-production-sheet',
   ]) {
-    assert.ok(manifest.recipeIds.includes(recipeId), `video-production 缺少 ${recipeId}`);
+    assert.ok(body.includes(recipeId), `video-production 缺少 ${recipeId}`);
   }
   assert.match(body, /内部提取跨镜视觉实体并合并别名/);
   assert.match(body, /小说\/长篇章节/);
@@ -185,9 +182,9 @@ test('video-production v10 从来源成熟度动态推进并采用合规的人�
 
 test('short-drama v8 支持小说改编并从当前内容成熟度继续', () => {
   const { manifest, body } = parseSkill('short-drama');
-  assert.equal(manifest.version, 8);
-  assert.ok(manifest.recipeIds.includes('narrative-source-analysis'));
-  assert.ok(manifest.recipeIds.includes('screenplay-adaptation'));
+  assert.equal(manifest.version, 9);
+  assert.ok(body.includes('narrative-source-analysis'));
+  assert.ok(body.includes('screenplay-adaptation'));
   assert.ok(manifest.triggers.keywords.includes('小说改编'));
   assert.match(body, /来源成熟度和用户目标/);
   assert.match(body, /不要直接从小说跳到图片或视频/);
@@ -198,11 +195,11 @@ test('short-drama v8 支持小说改编并从当前内容成熟度继续', () =>
 
 test('script-to-video v2 使用两轮 Prompt Draft 确认和细粒度画布工具契约', () => {
   const { manifest, body } = parseSkill('script-to-video');
-  assert.equal(manifest.version, 2);
+  assert.equal(manifest.version, 3);
   for (const recipeId of [
     'script-element-reference', 'script-seedance-shot',
     'drama-shot-planning', 'video-audio-production-sheet',
-  ]) assert.ok(manifest.recipeIds.includes(recipeId), `script-to-video 缺少 ${recipeId}`);
+  ]) assert.ok(body.includes(recipeId), `script-to-video 缺少 ${recipeId}`);
   assert.match(body, /没有可读取的剧本正文[\s\S]*?request_clarification/);
   assert.match(body, /Final_Video_Spec\.md/);
   assert.match(body, /元素图 Prompt Draft 与强制确认/);
@@ -226,12 +223,12 @@ test('script-to-video v2 使用两轮 Prompt Draft 确认和细粒度画布工�
 
 test('视频类 Skill 根据镜头风险选择直接参考而不是固定一根线', () => {
   const expectedVersions = {
-    'video-production': 10,
-    'script-to-video': 2,
-    'short-drama': 8,
-    'talking-head': 4,
-    'video-ad': 4,
-    'keyframe-video': 3,
+    'video-production': 11,
+    'script-to-video': 3,
+    'short-drama': 9,
+    'talking-head': 5,
+    'video-ad': 5,
+    'keyframe-video': 4,
   };
   for (const [id, version] of Object.entries(expectedVersions)) {
     const { manifest, body } = parseSkill(id);

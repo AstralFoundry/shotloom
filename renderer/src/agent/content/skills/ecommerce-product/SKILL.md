@@ -30,6 +30,6 @@ description: 为淘宝、天猫、京东、拼多多、亚马逊和独立站制�
 - 优先采用杂志式品牌审美，避免廉价促销冲击；默认至少保留 35% 留白，并建立主色、辅助色和点缀色层级。
 - 不使用爆炸徽章、伪 3D 金属大字、参数贴纸堆叠、大面积红黑撞色或直播战报风格。
 - 详情页默认采用 3:4 竖幅；模型与分辨率根据本轮能力快照选择，不写死供应商或模型名称。
-- 按实际节点加载 Recipe：文案选择 `ecommerce-text-plan`，视觉总板选择 `ecommerce-style-reference`，详情单页选择 `ecommerce-ad-image`，商品场景选择 `ecommerce-scene-image`，参考重制选择 `ecommerce-remix-image`。
+- 需要参考时可按实际节点选择提示词模板：文案选择 `ecommerce-text-plan`，视觉总板选择 `ecommerce-style-reference`，详情单页选择 `ecommerce-ad-image`，商品场景选择 `ecommerce-scene-image`，参考重制选择 `ecommerce-remix-image`。
 
 完成前检查：商品是否一致、信息层次是否清楚、跨屏视觉是否统一、中文是否可读，以及每张单屏是否忠实执行分屏策划与视觉总板。

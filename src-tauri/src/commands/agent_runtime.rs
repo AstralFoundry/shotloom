@@ -119,6 +119,7 @@ pub struct RuntimeConfiguration {
     pub agent: Value,
     #[serde(default)]
     pub skills: Vec<RuntimeSkill>,
+    pub tools: Vec<RuntimeTool>,
     pub workspace_directory: String,
     #[serde(default)]
     pub runtime_protection: Option<RuntimeProtectionConfiguration>,
@@ -183,10 +184,26 @@ fn materialize_runtime_skills(
         .collect())
 }
 
+#[derive(Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ToolRunContext {
+    request_id: String,
+    session_id: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ToolRequest {
+    request_id: String,
+    name: String,
+    arguments: Value,
+}
+
 #[derive(Clone)]
 struct BridgeState {
     app: Option<AppHandle>,
     tools: Arc<RwLock<Vec<RuntimeTool>>>,
+    tool_run: Arc<RwLock<ToolRunContext>>,
     pending: Arc<Mutex<HashMap<String, oneshot::Sender<Result<Value, String>>>>>,
     token: String,
 }
@@ -196,6 +213,7 @@ pub struct AgentRuntimeState {
     process: Mutex<ProcessState>,
     bridge_cancel: Mutex<Option<oneshot::Sender<()>>>,
     tools: Arc<RwLock<Vec<RuntimeTool>>>,
+    tool_run: Arc<RwLock<ToolRunContext>>,
     pending: Arc<Mutex<HashMap<String, oneshot::Sender<Result<Value, String>>>>>,
     subscriptions: Mutex<HashMap<String, oneshot::Sender<()>>>,
     health_cancel: Mutex<Option<oneshot::Sender<()>>>,
@@ -227,6 +245,7 @@ impl AgentRuntimeState {
             }),
             bridge_cancel: Mutex::new(None),
             tools: Arc::new(RwLock::new(Vec::new())),
+            tool_run: Arc::new(RwLock::new(ToolRunContext::default())),
             pending: Arc::new(Mutex::new(HashMap::new())),
             subscriptions: Mutex::new(HashMap::new()),
             health_cancel: Mutex::new(None),
@@ -243,6 +262,7 @@ impl AgentRuntimeState {
         if let Some(cancel) = self.bridge_cancel.lock().await.take() {
             let _ = cancel.send(());
         }
+        *self.tool_run.write().await = ToolRunContext::default();
         for (_, pending) in self.pending.lock().await.drain() {
             let _ = pending.send(Err("Shotloom Agent Runtime stopped".into()));
         }
@@ -302,109 +322,69 @@ fn available_port() -> Result<u16, String> {
         .map_err(|e| e.to_string())
 }
 
-async fn mcp_health() -> impl IntoResponse {
-    Json(json!({ "ok": true, "service": "shotloom-mcp" }))
+fn authorized(headers: &HeaderMap, token: &str) -> bool {
+    headers.get("authorization").and_then(|value| value.to_str().ok())
+        == Some(format!("Bearer {token}").as_str())
 }
 
-fn rpc_result(id: Value, result: Value) -> Response {
-    Json(json!({ "jsonrpc": "2.0", "id": id, "result": result })).into_response()
+fn tool_error(status: StatusCode, error: impl Into<String>) -> Response {
+    (status, Json(json!({ "error": error.into() }))).into_response()
 }
 
-fn rpc_error(id: Value, code: i64, message: impl Into<String>) -> Response {
-    Json(json!({
-        "jsonrpc": "2.0",
-        "id": id,
-        "error": { "code": code, "message": message.into() }
-    }))
-    .into_response()
+async fn tool_context(State(state): State<BridgeState>, headers: HeaderMap) -> Response {
+    if !authorized(&headers, &state.token) {
+        return tool_error(StatusCode::UNAUTHORIZED, "Unauthorized Shotloom tool transport");
+    }
+    let context = state.tool_run.read().await;
+    if context.request_id.is_empty() || context.session_id.is_empty() {
+        return tool_error(StatusCode::CONFLICT, "Shotloom tool transport has no active run");
+    }
+    Json(context.clone()).into_response()
 }
 
-async fn mcp_post(
+async fn execute_tool(
     State(state): State<BridgeState>,
     headers: HeaderMap,
-    Json(request): Json<Value>,
+    Json(request): Json<ToolRequest>,
 ) -> Response {
-    let expected = format!("Bearer {}", state.token);
-    if headers
-        .get("authorization")
-        .and_then(|value| value.to_str().ok())
-        != Some(expected.as_str())
-    {
-        return StatusCode::UNAUTHORIZED.into_response();
+    if !authorized(&headers, &state.token) {
+        return tool_error(StatusCode::UNAUTHORIZED, "Unauthorized Shotloom tool transport");
     }
-    let id = request.get("id").cloned().unwrap_or(Value::Null);
-    let method = request.get("method").and_then(Value::as_str).unwrap_or("");
-    match method {
-        "initialize" => rpc_result(
-            id,
-            json!({
-                "protocolVersion": "2024-11-05",
-                "capabilities": { "tools": { "listChanged": true } },
-                "serverInfo": { "name": "shotloom", "version": env!("CARGO_PKG_VERSION") }
-            }),
-        ),
-        "notifications/initialized" | "notifications/cancelled" => {
-            StatusCode::ACCEPTED.into_response()
-        }
-        "ping" => rpc_result(id, json!({})),
-        "tools/list" => {
-            let tools = state.tools.read().await;
-            rpc_result(id, json!({ "tools": *tools }))
-        }
-        "tools/call" => {
-            let params = request.get("params").cloned().unwrap_or_else(|| json!({}));
-            let name = params.get("name").and_then(Value::as_str).unwrap_or("");
-            if !state
-                .tools
-                .read()
-                .await
-                .iter()
-                .any(|tool| tool.name == name)
-            {
-                return rpc_error(id, -32602, format!("Unknown Shotloom tool: {name}"));
-            }
-            let call_id = format!("mcp-{}", uuid_like());
-            let (tx, rx) = oneshot::channel();
-            state.pending.lock().await.insert(call_id.clone(), tx);
-            let payload = json!({
-                "callId": call_id,
-                "name": name,
-                "arguments": params.get("arguments").cloned().unwrap_or_else(|| json!({}))
-            });
-            let Some(app) = &state.app else {
-                state.pending.lock().await.remove(&call_id);
-                return rpc_error(id, -32603, "Shotloom application bridge is unavailable");
-            };
-            if let Err(error) = app.emit("agent-tool-request", payload) {
-                state.pending.lock().await.remove(&call_id);
-                return rpc_error(id, -32603, error.to_string());
-            }
-            match tokio::time::timeout(Duration::from_secs(600), rx).await {
-                Ok(Ok(Ok(value))) => rpc_result(
-                    id,
-                    json!({
-                        "content": [{ "type": "text", "text": serde_json::to_string(&value).unwrap_or_default() }],
-                        "structuredContent": value,
-                        "isError": false
-                    }),
-                ),
-                Ok(Ok(Err(error))) => rpc_result(
-                    id,
-                    json!({
-                        "content": [{ "type": "text", "text": error }],
-                        "isError": true
-                    }),
-                ),
-                Ok(Err(_)) => rpc_error(id, -32603, "Shotloom tool reply channel closed"),
-                Err(_) => {
-                    state.pending.lock().await.remove(&call_id);
-                    rpc_error(id, -32001, "Shotloom tool timed out")
-                }
-            }
-        }
-        _ if id.is_null() => StatusCode::ACCEPTED.into_response(),
-        _ => rpc_error(id, -32601, format!("Method not found: {method}")),
+    let run = state.tool_run.read().await;
+    if request.request_id.is_empty() || request.request_id != run.request_id || run.session_id.is_empty() {
+        return tool_error(StatusCode::CONFLICT, "Unknown or expired Shotloom Agent run");
     }
+    if !state.tools.read().await.iter().any(|tool| tool.name == request.name) {
+        return tool_error(StatusCode::BAD_REQUEST, format!("Unknown Shotloom tool: {}", request.name));
+    }
+    if !request.arguments.is_object() {
+        return tool_error(StatusCode::BAD_REQUEST, "Shotloom tool arguments must be an object");
+    }
+    let Some(app) = &state.app else {
+        return tool_error(StatusCode::SERVICE_UNAVAILABLE, "Shotloom application bridge is unavailable");
+    };
+    let call_id = format!("tool-{}", uuid_like());
+    let (tx, rx) = oneshot::channel();
+    state.pending.lock().await.insert(call_id.clone(), tx);
+    let emitted = app.emit("agent-tool-request", json!({
+        "callId": call_id, "requestId": request.request_id,
+        "name": request.name, "arguments": request.arguments
+    }));
+    // Registration/release take the write lock, so no request can be queued
+    // after a run is released. Pending calls are then explicitly rejected.
+    drop(run);
+    if let Err(error) = emitted {
+        state.pending.lock().await.remove(&call_id);
+        return tool_error(StatusCode::INTERNAL_SERVER_ERROR, error.to_string());
+    }
+    let response = match tokio::time::timeout(Duration::from_secs(600), rx).await {
+        Ok(Ok(Ok(value))) => Json(value).into_response(),
+        Ok(Ok(Err(error))) => tool_error(StatusCode::UNPROCESSABLE_ENTITY, error),
+        Ok(Err(_)) => tool_error(StatusCode::GONE, "Shotloom tool reply channel closed"),
+        Err(_) => tool_error(StatusCode::GATEWAY_TIMEOUT, "Shotloom tool timed out"),
+    };
+    state.pending.lock().await.remove(&call_id);
+    response
 }
 
 fn uuid_like() -> String {
@@ -431,12 +411,13 @@ async fn start_bridge(
     let bridge = BridgeState {
         app: Some(app),
         tools: state.tools.clone(),
+        tool_run: state.tool_run.clone(),
         pending: state.pending.clone(),
         token,
     };
     let router = Router::new()
-        .route("/health", get(mcp_health))
-        .route("/mcp", post(mcp_post))
+        .route("/context", get(tool_context))
+        .route("/execute", post(execute_tool))
         .with_state(bridge);
     let (cancel_tx, cancel_rx) = oneshot::channel();
     *state.bridge_cancel.lock().await = Some(cancel_tx);
@@ -445,10 +426,10 @@ async fn start_bridge(
             let _ = cancel_rx.await;
         });
         if let Err(error) = server.await {
-            eprintln!("Shotloom MCP bridge stopped: {error}");
+            eprintln!("Shotloom tool transport stopped: {error}");
         }
     });
-    Ok(format!("http://127.0.0.1:{port}/mcp"))
+    Ok(format!("http://127.0.0.1:{port}"))
 }
 
 async fn wait_for_opencode_health(url: &str, token: &str) -> Result<(), String> {
@@ -532,9 +513,14 @@ pub async fn agent_runtime_start(
         std::fs::create_dir_all(directory).map_err(|e| e.to_string())?;
     }
     let skill_paths = materialize_runtime_skills(&runtime_root, &configuration.skills)?;
-    let mcp_token = uuid_like();
+    let tool_token = uuid_like();
     let runtime_token = uuid_like();
-    let mcp_url = start_bridge(app.clone(), &state, mcp_token.clone()).await?;
+    let tool_url = start_bridge(app.clone(), &state, tool_token.clone()).await?;
+    let plugin_path = runtime_root.join("shotloom-tools-plugin.mjs");
+    std::fs::write(&plugin_path, include_str!("../../resources/shotloom-tools-plugin.mjs"))
+        .map_err(|error| error.to_string())?;
+    let plugin_url = reqwest::Url::from_file_path(&plugin_path)
+        .map_err(|_| "Shotloom tool plugin path is invalid")?;
     {
         let mut process = state.process.lock().await;
         process.status = RuntimeStatus {
@@ -572,12 +558,9 @@ pub async fn agent_runtime_start(
             "preserve_recent_tokens": 12000,
             "reserved": 12000
         },
-        "mcp": {
-            "shotloom": {
-                "type": "remote", "url": mcp_url, "enabled": false, "timeout": 600000,
-                "headers": { "Authorization": format!("Bearer {mcp_token}") }
-            }
-        },
+        "plugin": [[plugin_url.as_str(), {
+            "endpoint": tool_url, "token": tool_token, "tools": configuration.tools
+        }]],
         "skills": { "paths": skill_paths },
         "enabled_providers": configuration.enabled_providers,
         "model": configuration.model,
@@ -590,11 +573,20 @@ pub async fn agent_runtime_start(
         .map_err(|e| e.to_string())?
         .args([
             "serve".to_string(),
-            "--pure".to_string(),
             "--hostname=127.0.0.1".to_string(),
             format!("--port={port}"),
         ])
         .env("OPENCODE_CONFIG_CONTENT", config.to_string())
+        .env("OPENCODE_DISABLE_PROJECT_CONFIG", "true")
+        .env("OPENCODE_DISABLE_DEFAULT_PLUGINS", "true")
+        .env("OPENCODE_DISABLE_EXTERNAL_SKILLS", "true")
+        .env("OPENCODE_DISABLE_CLAUDE_CODE", "true")
+        .env("OPENCODE_DISABLE_LSP_DOWNLOAD", "true")
+        .env("OPENCODE_TEST_HOME", &runtime_root)
+        .env("OPENCODE_TEST_MANAGED_CONFIG_DIR", runtime_root.join("managed"))
+        .env("OPENCODE_PURE", "false")
+        .env("OPENCODE_CONFIG", "")
+        .env("OPENCODE_CONFIG_DIR", "")
         .env("OPENCODE_SERVER_PASSWORD", runtime_token.clone())
         .env("XDG_DATA_HOME", &runtime_data)
         .env("XDG_CONFIG_HOME", &runtime_config)
@@ -1037,10 +1029,43 @@ pub async fn agent_runtime_unsubscribe(
 pub async fn agent_runtime_register_tools(
     state: tauri::State<'_, AgentRuntimeState>,
     tools: Vec<RuntimeTool>,
+    request_id: String,
 ) -> Result<usize, String> {
+    if request_id.is_empty() { return Err("Agent tool registration requires requestId".into()); }
+    let mut run = state.tool_run.write().await;
+    if !run.request_id.is_empty() && run.request_id != request_id {
+        return Err("Shotloom tool transport already has an active run".into());
+    }
+    *run = ToolRunContext { request_id, session_id: String::new() };
     let mut target = state.tools.write().await;
     *target = tools;
     Ok(target.len())
+}
+
+#[tauri::command]
+pub async fn agent_runtime_bind_tool_session(
+    state: tauri::State<'_, AgentRuntimeState>, request_id: String, session_id: String,
+) -> Result<(), String> {
+    let mut run = state.tool_run.write().await;
+    if run.request_id != request_id || session_id.is_empty() {
+        return Err("Unknown Agent run or empty tool session".into());
+    }
+    run.session_id = session_id;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn agent_runtime_release_tool_run(
+    state: tauri::State<'_, AgentRuntimeState>, request_id: String,
+) -> Result<(), String> {
+    let mut run = state.tool_run.write().await;
+    if run.request_id == request_id {
+        *run = ToolRunContext::default();
+        for (_, sender) in state.pending.lock().await.drain() {
+            let _ = sender.send(Err("Shotloom Agent run ended".into()));
+        }
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -1084,6 +1109,7 @@ mod tests {
                 input_schema: json!({ "type": "object", "additionalProperties": false }),
             }])),
             pending: Arc::new(Mutex::new(HashMap::new())),
+            tool_run: Arc::new(RwLock::new(ToolRunContext { request_id: "run-1".into(), session_id: "session-1".into() })),
             token: "secret".into(),
         }
     }
@@ -1135,49 +1161,33 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn mcp_requires_bearer_auth() {
-        let response = mcp_post(
-            State(bridge()),
-            HeaderMap::new(),
-            Json(json!({
-                "jsonrpc": "2.0", "id": 1, "method": "tools/list"
-            })),
-        )
-        .await;
+    async fn tool_transport_requires_bearer_auth() {
+        assert_eq!(tool_context(State(bridge()), HeaderMap::new()).await.status(), StatusCode::UNAUTHORIZED);
+        let response = execute_tool(State(bridge()), HeaderMap::new(), Json(ToolRequest {
+            request_id: "run-1".into(), name: "get_canvas".into(), arguments: json!({}),
+        })).await;
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
     }
 
     #[tokio::test]
-    async fn mcp_initializes_and_lists_registered_tools() {
-        let initialized = body(
-            mcp_post(
-                State(bridge()),
-                auth(),
-                Json(json!({
-                    "jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}
-                })),
-            )
-            .await,
-        )
-        .await;
-        assert_eq!(initialized["result"]["protocolVersion"], "2024-11-05");
+    async fn tool_transport_rejects_stale_runs_and_unknown_tools() {
+        let response = execute_tool(State(bridge()), auth(), Json(ToolRequest {
+            request_id: "old-run".into(), name: "get_canvas".into(), arguments: json!({}),
+        })).await;
+        assert_eq!(response.status(), StatusCode::CONFLICT);
+        let response = execute_tool(State(bridge()), auth(), Json(ToolRequest {
+            request_id: "run-1".into(), name: "unknown".into(), arguments: json!({}),
+        })).await;
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    }
 
-        let listed = body(
-            mcp_post(
-                State(bridge()),
-                auth(),
-                Json(json!({
-                    "jsonrpc": "2.0", "id": 2, "method": "tools/list"
-                })),
-            )
-            .await,
-        )
-        .await;
-        assert_eq!(listed["result"]["tools"][0]["name"], "get_canvas");
-        assert_eq!(
-            listed["result"]["tools"][0]["inputSchema"]["type"],
-            "object"
-        );
+    #[tokio::test]
+    async fn tool_context_returns_only_active_run_identity() {
+        let context = body(tool_context(State(bridge()), auth()).await).await;
+        assert_eq!(context, json!({ "requestId": "run-1", "sessionId": "session-1" }));
+        let state = bridge();
+        *state.tool_run.write().await = ToolRunContext::default();
+        assert_eq!(tool_context(State(state), auth()).await.status(), StatusCode::CONFLICT);
     }
 
     #[test]
