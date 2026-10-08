@@ -94,6 +94,8 @@ const paths = {
   x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
   workflow:
     '<rect x="3" y="3" width="6" height="6" rx="1"/><rect x="15" y="15" width="6" height="6" rx="1"/><path d="M9 6h3a4 4 0 0 1 4 4v5"/><path d="m13 12 3 3 3-3"/>',
+  wrench:
+    '<path d="M14.7 6.3a5 5 0 0 0-6.4 6.4L3 18a2 2 0 0 0 3 3l5.3-5.3a5 5 0 0 0 6.4-6.4L14 13l-3-3 3.7-3.7Z"/>',
 } as const;
 
 export type IconName = keyof typeof paths;

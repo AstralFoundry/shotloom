@@ -148,6 +148,7 @@ export interface WorkflowCanvasController {
   redo?: () => void;
   runSelection?: (stop?: boolean) => void;
   registerFitView?: (handler: (() => void) | null) => void;
+  registerFocusNodes?: (handler: ((nodeIds: string[]) => void) | null) => void;
 }
 
 const RendererContext = createContext<Record<string, WorkflowNodeRenderer>>({});
@@ -742,10 +743,37 @@ export function WorkflowCanvas({
     void instance.setViewport({ x, y, zoom: 1 }, { duration: 240 });
     controller.saveViewport({ x: Math.round(x), y: Math.round(y), zoom });
   }, [controller, instance, visible]);
+  const focusCanvasNodes = useCallback((nodeIds: string[]) => {
+    if (!instance || !canvasRoot.current) return;
+    const ids = new Set(nodeIds);
+    const targets = visible.filter((node) => ids.has(node.id));
+    if (!targets.length) return;
+    const bounds = targets.reduce((result, node) => {
+      const dimensions = nodeDimensions(node);
+      const x = Number(node.x) || 0;
+      const y = Number(node.y) || 0;
+      return {
+        minX: Math.min(result.minX, x), minY: Math.min(result.minY, y),
+        maxX: Math.max(result.maxX, x + dimensions.width),
+        maxY: Math.max(result.maxY, y + dimensions.height),
+      };
+    }, { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity });
+    const viewport = canvasRoot.current.getBoundingClientRect();
+    const zoom = semanticZoomRef.current;
+    const x = screenPixel(viewport.width / 2 - (bounds.minX + bounds.maxX) / 2 * zoom);
+    const y = screenPixel(viewport.height / 2 - (bounds.minY + bounds.maxY) / 2 * zoom);
+    setLiveViewport({ x, y, zoom });
+    void instance.setViewport({ x, y, zoom: 1 }, { duration: 240 });
+    controller.saveViewport({ x: Math.round(x), y: Math.round(y), zoom });
+  }, [controller, instance, visible]);
   useEffect(() => {
     controller.registerFitView?.(instance ? fitCanvasView : null);
     return () => controller.registerFitView?.(null);
   }, [controller, fitCanvasView, instance]);
+  useEffect(() => {
+    controller.registerFocusNodes?.(instance ? focusCanvasNodes : null);
+    return () => controller.registerFocusNodes?.(null);
+  }, [controller, focusCanvasNodes, instance]);
   function openMenu(event: globalThis.MouseEvent | ReactMouseEvent<Element>) {
     event.preventDefault();
     const bounds = canvasRoot.current?.getBoundingClientRect();

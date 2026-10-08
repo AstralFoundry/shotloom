@@ -25,7 +25,7 @@ import { uid } from "../../utils/format";
 import type { CopilotController, CopilotMessage } from "../copilot/CopilotPanel";
 import { CopilotRuntimePresenter } from "../copilot/CopilotRuntimePresenter";
 import { showToast } from "../store/overlayStore";
-import { setSelectedNodeIds } from "../../store/nodeStore";
+import { focusCanvasNodes } from "./canvasAdapter";
 import { toRaw } from "../../store/domainReactivity.js";
 import { recordPerformanceMetric } from "../../services/performanceMetrics";
 import {
@@ -593,7 +593,7 @@ export const copilotController: CopilotController = {
     const existing = new Set((store.project.nodes || []).map((node: Loose) => String(node.id)));
     const ids = nodeIds.filter((id) => existing.has(id));
     if (!ids.length) return showToast("这个阶段还没有可定位的画布产物");
-    setSelectedNodeIds(ids);
+    focusCanvasNodes(ids);
     showToast(`已选中 ${ids.length} 个阶段产物`);
   },
 };

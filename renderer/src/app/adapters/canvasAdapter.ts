@@ -68,6 +68,12 @@ import {
 
 const store: any = rawStore;
 let fitViewHandler: (() => void) | null = null;
+let focusNodesHandler: ((nodeIds: string[]) => void) | null = null;
+
+export function focusCanvasNodes(nodeIds: string[]) {
+  setSelectedNodeIds(nodeIds);
+  focusNodesHandler?.(nodeIds);
+}
 
 export function canvasViewData() {
   return buildCanvasViewData(store);
@@ -203,6 +209,9 @@ export const canvasController: WorkflowCanvasController = {
   },
   registerFitView(handler) {
     fitViewHandler = handler;
+  },
+  registerFocusNodes(handler) {
+    focusNodesHandler = handler;
   },
 };
 

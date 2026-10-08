@@ -20,26 +20,30 @@ const styles = readFileSync(
 );
 test('画布助手默认用一行摘要呈现 Agent 运行过程并允许展开详情', () => {
   assert.match(panel, /copilot-run-activity/);
-  assert.match(panel, /ThoughtChain/);
-  assert.match(panel, /className="copilot-thought-chain"/);
   assert.match(panel, /className=\{`copilot-tool-trace\$\{typing \? " is-running" : ""\}`\}/);
   assert.match(panel, /hasPendingConfirmation/);
   assert.match(styles, /max-height:\s*220px/);
   assert.match(panel, /const \[expanded, setExpanded\] = useState\(false\)/);
-  assert.match(panel, /status: tool\.pending/);
+  assert.match(panel, /<ol className="copilot-trace-steps">/);
+  assert.match(panel, /执行过程/);
+  assert.match(panel, /等待确认/);
+  assert.match(panel, /tool\.pending && tool\.interactionId/);
+  assert.doesNotMatch(panel, /运行记录/);
   assert.doesNotMatch(panel, /toolActivityTitle/);
   assert.doesNotMatch(panel, /tool\.effect === "media_generation"/);
   assert.match(panel, /className="copilot-run-stop"/);
   assert.match(panel, /aria-label="停止 Agent"/);
   assert.match(styles, /\.copilot-run-stop > span/);
-  assert.match(styles, /copilot-thought-chain/);
+  assert.match(styles, /copilot-trace-step-line > svg/);
+  assert.match(panel, /<IconSymbol name=\{icon\} \/>/);
+  assert.match(panel, /"wrench"/);
   assert.doesNotMatch(panel, /copilot-run-status|copilot-stop-button/);
 });
 
 test('消息发送后立即显示思考状态并把发送按钮切换为停止操作', () => {
   assert.match(panel, /busy &&[\s\S]*?!messages\.some/);
   assert.match(panel, /Boolean\(item\.toolCalls\?\.length\)/);
-  assert.match(panel, /if \(!tools\.length\) return null/);
+  assert.match(panel, /if \(!tools\.length \|\| waitingForAnswer\) return null/);
   assert.match(panel, /className="copilot-busy-tip"/);
   assert.match(panel, /busyBrailleFrames/);
   assert.match(panel, /}, 140\)/);
@@ -51,7 +55,7 @@ test('消息发送后立即显示思考状态并把发送按钮切换为停止�
 });
 
 test('聊天正文不再铺开普通工具、技能和执行记录', () => {
-  assert.match(panel, /ThoughtChain/);
+  assert.match(panel, /copilot-trace-steps/);
   assert.doesNotMatch(panel, /copilot-tool-stream/);
   assert.doesNotMatch(panel, /copilot-skill-strip/);
   assert.doesNotMatch(panel, /copilot-work-log/);

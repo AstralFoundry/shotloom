@@ -58,6 +58,7 @@ export class CopilotRuntimePresenter {
   turns = 0;
   readonly tools: RuntimeValue[] = [];
   readonly clarifications: RuntimeValue[] = [];
+  readonly artifactRefs = { nodeIds: [] as string[], taskIds: [] as string[] };
   plan: RuntimeValue | null = null;
   private structuralRevision = 0;
   private cachedStructuralRevision = -1;
@@ -72,6 +73,10 @@ export class CopilotRuntimePresenter {
       this.cachedStructuralSnapshot = {
         toolCalls: cloneList(this.tools),
         clarifications: cloneList(this.clarifications),
+        artifactRefs: {
+          nodeIds: [...this.artifactRefs.nodeIds],
+          taskIds: [...this.artifactRefs.taskIds],
+        },
         agentTurnCount: this.turns,
         ...(this.plan ? { productionPlan: JSON.parse(JSON.stringify(this.plan)) } : {}),
       };
@@ -212,6 +217,18 @@ export class CopilotRuntimePresenter {
       return { messagePatch: this.snapshot({ title: event.approved ? '正在执行已确认的操作' : '正在调整处理方案' }) };
     }
     if (event.type === 'tool_end') {
+      const receipt = event.receipt;
+      if (receipt?.success && receipt.applied &&
+          ['canvas_write', 'project_write', 'media_generation'].includes(receipt.effect)) {
+        for (const key of ['nodeIds', 'taskIds'] as const) {
+          for (const id of Array.isArray(receipt[key]) ? receipt[key] : []) {
+            if (typeof id === 'string' && id && !this.artifactRefs[key].includes(id)) {
+              this.artifactRefs[key].push(id);
+            }
+          }
+        }
+        this.changed();
+      }
       const tool = this.tools.find((item) => item.id === event.toolCallId)
         || [...this.tools].reverse().find((item) => item.name === event.toolName && item.status === 'running');
       if (tool) {

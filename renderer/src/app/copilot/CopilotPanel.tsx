@@ -15,6 +15,8 @@ import {
 import { IconSymbol } from "../components/IconSymbol";
 import { InteractiveLogo } from "../components/InteractiveLogo";
 import { ProviderBrandIcon } from "../components/ProviderBrandIcon";
+import { openMediaViewer, showToast } from "../store/overlayStore";
+import { useMediaPreviewCache } from "../canvas/useMediaPreviewCache";
 import type { WorkflowNodeData } from "../canvas/WorkflowCanvas";
 import { isImeKeyEvent } from "../canvas/imeComposition";
 import {
@@ -25,6 +27,7 @@ import {
 } from "./copilotMessagePresentation";
 import { skillsStore } from "../../store/skillsStore.js";
 import { getDomainRevision, subscribeDomain } from "../../store/domainReactivity.js";
+import { artifactsForMessage, type CopilotArtifact, type CopilotArtifactRefs } from "./copilotArtifacts";
 
 export interface CopilotMessage {
   id: string;
@@ -46,6 +49,7 @@ export interface CopilotMessage {
   meta?: string[];
   toolCalls?: CopilotToolCall[];
   productionPlan?: ProductionPlanView;
+  artifactRefs?: CopilotArtifactRefs;
   clarifications?: Array<{
     interactionId?: string;
     runId?: string;
@@ -204,67 +208,28 @@ function AgentRunActivity({
   const hasPendingConfirmation = tools.some((tool) => tool.pending);
   const [expanded, setExpanded] = useState(false);
   useEffect(() => {
-    if (hasPendingConfirmation) setExpanded(true);
-    else setExpanded(false);
+    setExpanded(hasPendingConfirmation);
   }, [hasPendingConfirmation, typing]);
-  if (!tools.length) return null;
+  if (!tools.length || waitingForAnswer) return null;
   const activeTool = [...tools].reverse().find((tool) => tool.pending || tool.status === "running") || tools.at(-1)!;
-  const activeKind = activeTool.kind === "skill"
-    ? "Skill"
-    : activeTool.kind === "recipe"
-      ? "模板"
-      : activeTool.kind === "system"
-        ? "Context"
-        : "Tool";
-  const items = tools.map((tool, index) => ({
-    key: tool.id || `tool-${index}`,
-    title: (
-      <span className="copilot-log-line">
-        <strong>{tool.kind === "skill" ? "Skill" : tool.kind === "recipe" ? "模板" : tool.kind === "system" ? "Context" : "Tool"}</strong>
-        <i>·</i>
-        <span>{tool.summary || tool.name || "处理步骤"}</span>
-      </span>
-    ),
-    status: tool.pending
-      ? "loading" as const
-      : tool.status === "error"
-        ? "error" as const
-        : tool.status === "success"
-          ? "success" as const
-          : "loading" as const,
-    blink: tool.status === "running",
-    collapsible: Boolean(tool.pending),
-    content: tool.pending ? (
-      <div className="copilot-tool-detail">
-        {tool.pending && tool.interactionId && (
-          <span className="copilot-tool-confirm-actions">
-            <button onClick={() => controller.rejectToolCall({ interactionId: tool.interactionId })}>拒绝</button>
-            <button className="primary" onClick={() => controller.approveToolCall({ interactionId: tool.interactionId })}>
-              确认执行
-            </button>
-          </span>
-        )}
-      </div>
-    ) : undefined,
-  }));
+  const completedCount = tools.filter((tool) => tool.status === "success" || tool.status === "error").length;
+  const hasError = tools.some((tool) => tool.status === "error");
+  let activityTitle = activeTool.summary || activeTool.name || title || "执行过程";
+  if (hasPendingConfirmation) activityTitle = "等待确认";
+  else if (hasError && !typing) activityTitle = "执行过程有错误";
   return (
     <section
-      className={`copilot-run-activity${typing ? " is-running" : ""}${waitingForAnswer ? " is-waiting" : ""}`}
+      className={`copilot-run-activity${typing ? " is-running" : ""}${hasPendingConfirmation ? " is-pending" : ""}`}
     >
-      {!waitingForAnswer && (
-        <details
-          className={`copilot-tool-trace${typing ? " is-running" : ""}`}
-          open={expanded}
+      <details
+        className={`copilot-tool-trace${typing ? " is-running" : ""}`}
+        open={expanded}
           onToggle={(event) => setExpanded(event.currentTarget.open)}
-        >
+      >
           <summary>
-            <span className="copilot-tool-pulse" aria-hidden="true" />
-            <span className="copilot-tool-current">
-              <strong>{typing ? activeKind : "Tool"}</strong>
-              <i>·</i>
-              <span>{typing ? activeTool.summary || activeTool.name || title || "正在处理" : "运行记录"}</span>
-            </span>
-            <em>{tools.length} 步</em>
+            <IconSymbol name="wrench" className="copilot-tool-disclosure-icon" />
+            <span className="copilot-tool-title">{activityTitle}</span>
+            <span className="copilot-tool-count">{completedCount}/{tools.length} 步</span>
             {typing && (
               <button
                 className="copilot-run-stop"
@@ -282,13 +247,33 @@ function AgentRunActivity({
             )}
             <IconSymbol name="chevron-down" />
           </summary>
-          <ThoughtChain
-            className="copilot-thought-chain"
-            items={items}
-            defaultExpandedKeys={tools.filter((tool) => tool.pending).map((tool) => String(tool.id))}
-          />
-        </details>
-      )}
+          <ol className="copilot-trace-steps">
+            {tools.map((tool, index) => {
+              const status = tool.pending ? "等待确认" : tool.status === "error" ? "运行失败" : tool.status === "running" ? "正在运行" : "已运行";
+              const description = tool.summary || tool.name || "处理步骤";
+              const icon = tool.kind === "skill" ? "puzzle" : tool.kind === "recipe" ? "file" : tool.kind === "system" ? "layers" : "wrench";
+              return (
+                <li
+                  className={`copilot-trace-step${tool.pending ? " is-pending" : tool.status === "error" ? " is-error" : tool.status === "running" ? " is-running" : " is-complete"}`}
+                  key={tool.id || `tool-${index}`}
+                >
+                  <div className="copilot-trace-step-line" title={`${status} ${description}`}>
+                    <IconSymbol name={icon} />
+                    <span><strong>{status}</strong> {description}</span>
+                  </div>
+                  {tool.pending && tool.interactionId && (
+                    <span className="copilot-tool-confirm-actions">
+                      <button type="button" onClick={() => controller.rejectToolCall({ interactionId: tool.interactionId })}>拒绝</button>
+                      <button type="button" className="primary" onClick={() => controller.approveToolCall({ interactionId: tool.interactionId })}>
+                        确认执行
+                      </button>
+                    </span>
+                  )}
+                </li>
+              );
+            })}
+          </ol>
+      </details>
     </section>
   );
 }
@@ -384,6 +369,97 @@ function ProductionPlanCard({
   );
 }
 
+function ArtifactCard({ artifact, onFocus }: {
+  artifact: CopilotArtifact;
+  onFocus: (nodeIds: string[]) => void;
+}) {
+  const [previewFailed, setPreviewFailed] = useState(false);
+  const preview = useMediaPreviewCache({
+    path: artifact.path,
+    fallbackUrl: artifact.fallbackUrl,
+    kind: artifact.kind,
+    enabled: artifact.kind === "image" || artifact.kind === "video",
+  });
+  useEffect(() => setPreviewFailed(false), [preview.url]);
+  const visual = !previewFailed && preview.url &&
+    (artifact.kind === "image" || artifact.kind === "video");
+  const icon = {
+    image: "image", video: "film", audio: "waveform", text: "text", node: "layers",
+  }[artifact.kind];
+  const kindLabel = artifact.kind === "node" ? "画布节点" : {
+    image: "图片", video: "视频", audio: "音频", text: "文本",
+  }[artifact.kind];
+  const status = {
+    idle: "待执行", queued: "排队中", running: "生成中", failed: "失败",
+    completed: "", partial_failed: "部分失败",
+  }[artifact.status] ?? artifact.status;
+  function openArtifact() {
+    if ((artifact.kind === "image" || artifact.kind === "video") && preview.url) {
+      openMediaViewer({ src: preview.url, kind: artifact.kind,
+        title: artifact.title, filePath: artifact.path });
+    } else if (artifact.kind === "text" && artifact.excerpt) {
+      openMediaViewer({ src: artifact.excerpt, kind: "text", title: artifact.title,
+        filePath: artifact.path });
+    } else {
+      onFocus([artifact.focusNodeId]);
+    }
+  }
+  return (
+    <div className="copilot-artifact-card">
+      <button type="button" className="copilot-artifact-open" onClick={openArtifact}
+        aria-label={`查看${kindLabel}：${artifact.title}`}>
+      <span className={`copilot-artifact-preview is-${artifact.kind}`}>
+        {visual && artifact.kind === "image" ? (
+          <img src={preview.url} alt="" loading="lazy" onError={() => setPreviewFailed(true)} />
+        ) : visual && artifact.kind === "video" ? (
+          <video src={preview.url} muted preload="metadata" onError={() => setPreviewFailed(true)} />
+        ) : artifact.kind === "text" && artifact.excerpt ? (
+          <span className="copilot-artifact-excerpt">{artifact.excerpt}</span>
+        ) : (
+          <IconSymbol name={icon} />
+        )}
+        {artifact.kind === "video" && <span className="copilot-artifact-play"><IconSymbol name="play" /></span>}
+      </span>
+      <span className="copilot-artifact-info">
+        <strong title={artifact.title}>{artifact.title}</strong>
+        <small>{kindLabel}{status ? ` · ${status}` : ""}</small>
+      </span>
+      </button>
+      <button type="button" className="copilot-artifact-locate"
+        onClick={() => onFocus([artifact.focusNodeId])}
+        aria-label={`在画布中定位：${artifact.title}`} title="在画布中定位">
+        <IconSymbol name="maximize" />
+      </button>
+    </div>
+  );
+}
+
+function TurnArtifacts({ refs, nodes, controller }: {
+  refs?: CopilotArtifactRefs;
+  nodes: WorkflowNodeData[];
+  controller: CopilotController;
+}) {
+  const [expanded, setExpanded] = useState(true);
+  const artifacts = artifactsForMessage(refs, nodes);
+  if (!artifacts.length) return null;
+  return (
+    <section className="copilot-turn-artifacts" aria-label="本轮产物">
+      <button type="button" className="copilot-artifacts-heading" aria-expanded={expanded}
+        onClick={() => setExpanded((value) => !value)}>
+        <span><IconSymbol name="layers" />本轮产物 <em>{artifacts.length}</em></span>
+        <IconSymbol name="chevron-down" className={expanded ? "" : "is-collapsed"} />
+      </button>
+      {expanded && (
+        <div className="copilot-artifacts-grid">
+          {artifacts.map((artifact) => (
+            <ArtifactCard key={artifact.nodeId} artifact={artifact} onFocus={controller.focusNodes} />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
 const typeLabels: Record<string, string> = {
   imageGeneration: "图片节点",
   videoGeneration: "视频节点",
@@ -400,6 +476,7 @@ export interface CopilotPanelHandle {
 interface CopilotPanelProps {
   messages: CopilotMessage[];
   nodes: WorkflowNodeData[];
+  artifactNodes: WorkflowNodeData[];
   busy: boolean;
   conversations: ConversationItem[];
   activeConversationId: string;
@@ -410,6 +487,7 @@ interface CopilotPanelProps {
 export const CopilotPanel = forwardRef<CopilotPanelHandle, CopilotPanelProps>(function CopilotPanel({
   messages,
   nodes,
+  artifactNodes,
   busy,
   conversations,
   activeConversationId,
@@ -712,6 +790,17 @@ export const CopilotPanel = forwardRef<CopilotPanelHandle, CopilotPanelProps>(fu
                 loading={item.role === "assistant" && item.typing && !item.content && !item.toolCalls?.length}
                 rootClassName={`copilot-message is-${item.role}${item.typing ? " typing" : ""}${item.error ? " has-error" : ""}`}
                 content={<div className="copilot-message-body">
+                {item.role === "assistant" && (
+                  <AgentRunActivity
+                    tools={item.toolCalls || []}
+                    typing={item.typing}
+                    title={item.title}
+                    waitingForAnswer={Boolean(
+                      item.clarifications?.some((question) => !question.answered),
+                    )}
+                    controller={controller}
+                  />
+                )}
                 {item.content && (
                   item.role === "user"
                     ? <CollapsibleUserMessage html={messageMarkdown(item)} />
@@ -775,6 +864,9 @@ export const CopilotPanel = forwardRef<CopilotPanelHandle, CopilotPanelProps>(fu
                   </div>
                 )}
                 <ProductionPlanCard plan={item.productionPlan} controller={controller} />
+                {item.role === "assistant" && (
+                  <TurnArtifacts refs={item.artifactRefs} nodes={artifactNodes} controller={controller} />
+                )}
                 {item.clarifications
                   ?.filter((question) => !question.answered)
                   .map((question, index) => (
@@ -856,16 +948,17 @@ export const CopilotPanel = forwardRef<CopilotPanelHandle, CopilotPanelProps>(fu
                       </div>
                     </section>
                   ))}
-                {item.role === "assistant" && (
-                  <AgentRunActivity
-                    tools={item.toolCalls || []}
-                    typing={item.typing}
-                    title={item.title}
-                    waitingForAnswer={Boolean(
-                      item.clarifications?.some((question) => !question.answered),
-                    )}
-                    controller={controller}
-                  />
+                {item.role === "assistant" && !item.typing && !item.error && item.content && (
+                  <div className="copilot-message-actions">
+                    <button type="button" title="复制回复" onClick={() => {
+                      void navigator.clipboard.writeText(item.content || "")
+                        .then(() => showToast("回复已复制"))
+                        .catch(() => showToast("复制失败，请检查剪贴板权限"));
+                    }}>
+                      <IconSymbol name="copy" />
+                      <span>复制回复</span>
+                    </button>
+                  </div>
                 )}
                 </div>}
               />

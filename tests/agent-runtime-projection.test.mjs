@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { CopilotRuntimePresenter } from '../renderer/src/app/copilot/CopilotRuntimePresenter.ts';
+import { artifactsForMessage } from '../renderer/src/app/copilot/copilotArtifacts.ts';
 
 test('Copilot presenter owns runtime-to-message projection', () => {
   const presenter = new CopilotRuntimePresenter();
@@ -26,4 +27,37 @@ test('Copilot presenter owns runtime-to-message projection', () => {
   assert.equal(pending.messagePatch.toolCalls[0].interactionId, 'interaction-1');
   assert.equal(question.messagePatch.clarifications[0].questions[0].id, 'ratio');
   assert.equal(pending.persist, true);
+});
+
+test('对话产物只记录成功写入，并在异步生成完成后关联真实资源节点', () => {
+  const presenter = new CopilotRuntimePresenter();
+  presenter.consume({ type: 'tool_end', toolCallId: 'read', receipt: {
+    effect: 'read', success: true, applied: false, nodeIds: ['unrelated'], taskIds: [],
+  } });
+  presenter.consume({ type: 'tool_end', toolCallId: 'failed', receipt: {
+    effect: 'canvas_write', success: false, applied: false, nodeIds: ['failed'], taskIds: [],
+  } });
+  presenter.consume({ type: 'tool_end', toolCallId: 'create', receipt: {
+    effect: 'canvas_write', success: true, applied: true, nodeIds: ['source'], taskIds: [],
+  } });
+  presenter.consume({ type: 'tool_end', toolCallId: 'generate', receipt: {
+    effect: 'media_generation', success: true, applied: true, nodeIds: [], taskIds: ['task-1'],
+  } });
+  const refs = presenter.snapshot().artifactRefs;
+  assert.deepEqual(refs, { nodeIds: ['source'], taskIds: ['task-1'] });
+  const nodes = [
+    { id: 'source', type: 'imageGeneration', title: '商品主图' },
+    { id: 'unrelated', type: 'resource', title: '旧图片', resourceType: 'image' },
+    { id: 'output', type: 'resource', title: '商品主图.png', resourceType: 'image',
+      filePath: '/project/assets/main.png', generatedFrom: { nodeId: 'source', taskId: 'task-1' } },
+  ];
+  assert.deepEqual(artifactsForMessage(refs, nodes).map((item) => item.nodeId), ['output']);
+  assert.equal(artifactsForMessage(refs, nodes)[0].focusNodeId, 'source');
+  assert.deepEqual(artifactsForMessage({ nodeIds: [], taskIds: ['task-1'] }, nodes)
+    .map((item) => item.path), ['/project/assets/main.png']);
+  const embedded = [{ id: 'source', type: 'imageGeneration', title: '商品主图',
+    generatedOutputs: [{ id: 'embedded-output', title: '商品主图 2.png',
+      resourceType: 'image', filePath: '/project/assets/second.png', taskId: 'task-2' }] }];
+  assert.deepEqual(artifactsForMessage({ nodeIds: [], taskIds: ['task-2'] }, embedded)
+    .map((item) => [item.nodeId, item.focusNodeId]), [['embedded-output', 'source']]);
 });

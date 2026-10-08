@@ -66,6 +66,7 @@ export interface CreationViewController {
 }
 export interface CreationViewData {
   nodes: WorkflowNodeData[];
+  artifactNodes: WorkflowNodeData[];
   edges: WorkflowEdge[];
   viewport: Viewport;
   history: { canUndo: boolean; canRedo: boolean };
@@ -98,10 +99,12 @@ type CreationCopilotData = {
 
 function LiveCopilotPanel({
   nodes,
+  artifactNodes,
   controller,
   copilotRef,
 }: {
   nodes: WorkflowNodeData[];
+  artifactNodes: WorkflowNodeData[];
   controller: CreationViewController["copilot"];
   copilotRef: React.Ref<CopilotPanelHandle>;
 }) {
@@ -112,6 +115,7 @@ function LiveCopilotPanel({
       ref={copilotRef}
       messages={data.messages}
       nodes={nodes}
+      artifactNodes={artifactNodes}
       busy={data.busy}
       conversations={data.conversations}
       activeConversationId={data.activeConversationId}
@@ -132,11 +136,12 @@ export function CreationView({
   const [copilotVisible, setCopilotVisible] = useState(true);
   const copilotRef = useRef<CopilotPanelHandle>(null);
   const [copilotWidth, setCopilotWidth] = useState(() => {
-    const saved = Number(window.localStorage.getItem("shotloom:copilot-width-v3"));
-    const preferred = Math.round(window.innerWidth * 0.3);
+    const saved = Number(window.localStorage.getItem("shotloom:copilot-width-v4"));
+    const preferred = Math.round(window.innerWidth * 0.4);
+    const available = Math.max(360, Math.min(680, window.innerWidth - 420));
     return Number.isFinite(saved) && saved > 0
-      ? Math.min(560, Math.max(360, saved))
-      : Math.min(520, Math.max(400, preferred));
+      ? Math.min(available, Math.max(360, saved))
+      : Math.min(available, Math.min(620, Math.max(420, preferred)));
   });
   const [picker, setPicker] = useState(false);
   const assetPickerRef = useRef<HTMLElement>(null);
@@ -235,10 +240,10 @@ export function CreationView({
     close: () => setCopilotVisible(false),
   };
   function resizeCopilot(nextWidth: number) {
-    const maxWidth = Math.max(360, Math.min(560, window.innerWidth - 420));
+    const maxWidth = Math.max(360, Math.min(680, window.innerWidth - 420));
     const width = Math.round(Math.min(maxWidth, Math.max(360, nextWidth)));
     setCopilotWidth(width);
-    window.localStorage.setItem("shotloom:copilot-width-v3", String(width));
+    window.localStorage.setItem("shotloom:copilot-width-v4", String(width));
   }
   function startCopilotResize(event: PointerEvent<HTMLDivElement>) {
     event.preventDefault();
@@ -335,7 +340,7 @@ export function CreationView({
             aria-label="调整画布与助手宽度"
             aria-orientation="vertical"
             aria-valuemin={360}
-            aria-valuemax={560}
+            aria-valuemax={680}
             aria-valuenow={copilotWidth}
             tabIndex={0}
             onPointerDown={startCopilotResize}
@@ -345,6 +350,7 @@ export function CreationView({
         {copilotVisible ? (
           <LiveCopilotPanel
             nodes={data.nodes}
+            artifactNodes={data.artifactNodes}
             controller={copilotController}
             copilotRef={copilotRef}
           />

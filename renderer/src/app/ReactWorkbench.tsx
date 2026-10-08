@@ -350,6 +350,10 @@ export function ReactWorkbench() {
       <CreationView
         data={{
           ...canvas!,
+          artifactNodes: [
+            ...canvas!.nodes,
+            ...store.project.nodes.filter((node: any) => node.type === "resource"),
+          ],
           shortcutLabels: {
             fitView: canvasActionShortcutLabel(settingsStore.canvasActionShortcuts.fitView),
             autoLayout: canvasActionShortcutLabel(settingsStore.canvasActionShortcuts.autoLayout),

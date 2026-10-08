@@ -164,15 +164,15 @@ test('Copilot 空状态使用创作欢迎区并把模型与 Skill 收进大输�
   assert.match(reactMigrationStyles, /\.forge-copilot \.copilot-welcome \{[^}]*flex:\s*1 1 auto[^}]*align-items:\s*center[^}]*justify-content:\s*center/);
 });
 
-test('Copilot 将运行工具收成可展开的闪烁单行并折叠长用户输入', () => {
+test('Copilot 将运行工具收成可展开的过程摘要并折叠长用户输入', () => {
   assert.match(copilotPanel, /className=\{`copilot-tool-trace\$\{typing \? " is-running" : ""\}`\}/);
   assert.match(copilotPanel, /const \[expanded, setExpanded\] = useState\(false\)/);
-  assert.match(copilotPanel, /copilot-tool-current/);
-  assert.match(copilotPanel, /typing \? activeKind : "Tool"/);
+  assert.match(copilotPanel, /copilot-tool-title/);
+  assert.match(copilotPanel, /copilot-trace-steps/);
   assert.match(copilotPanel, /activeTool\.summary \|\| activeTool\.name/);
   assert.match(copilotPanel, /<CollapsibleUserMessage html=\{messageMarkdown\(item\)\} \/>/);
-  assert.match(reactMigrationStyles, /\.copilot-tool-trace\.is-running > summary \.copilot-tool-pulse \{[^}]*animation:\s*copilot-tool-pulse/);
-  assert.match(reactMigrationStyles, /\.copilot-tool-trace\.is-running > summary \.copilot-tool-current > span \{[^}]*animation:\s*copilot-tool-text-pulse/);
+  assert.match(reactMigrationStyles, /\.copilot-tool-trace\.is-running > summary \.copilot-tool-disclosure-icon \{[^}]*animation:\s*copilot-tool-pulse/);
+  assert.match(reactMigrationStyles, /\.copilot-trace-step-line > span \{[^}]*text-overflow:\s*ellipsis[^}]*white-space:\s*nowrap/);
   assert.match(reactMigrationStyles, /\.copilot-user-content \.copilot-message-markdown \{[^}]*max-height:\s*6\.2em[^}]*overflow:\s*hidden/);
   assert.match(reactMigrationStyles, /\.forge-copilot \.copilot-message-list \{[^}]*scrollbar-width:\s*none/);
   assert.match(reactMigrationStyles, /\.forge-copilot \.copilot-message-list::\-webkit-scrollbar \{[^}]*display:\s*none/);
