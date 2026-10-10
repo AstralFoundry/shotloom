@@ -157,6 +157,8 @@ pub fn run() {
             commands::file_crop_image,
             commands::file_has_audio,
             commands::file_separate_audio,
+            commands::file_capture_video_frame,
+            commands::file_concat_videos,
             commands::file_global_asset_root,
             commands::file_trash,
             commands::file_show_item_in_folder,

@@ -23,6 +23,7 @@ import { getProviderDefinition } from "../../domain/provider/ProviderRegistry";
 import { settingsStore } from "../../store/settingsStore.js";
 import { getImageStylePreset, IMAGE_STYLE_PRESETS } from "../../utils/imageStylePresets.mjs";
 import { IconSymbol } from "../components/IconSymbol";
+import { ImageCropEditor } from "../components/ImageCropEditor";
 import { ProviderBrandIcon } from "../components/ProviderBrandIcon";
 import { CameraControlPanel } from "./CameraControlPanel";
 import { DEFAULT_CAMERA_CONFIG, normalizeCameraConfig } from "../../utils/cameraConfig.js";
@@ -36,6 +37,9 @@ import { isImeKeyEvent, useImeCommit } from "./imeComposition";
 import { reconcileMediaNodeDimensions } from "../../domain/graph/CanvasNodeDimensions";
 import { textNodeContent } from "../../utils/textNodeContent.mjs";
 import { desktopApi } from "../../services/desktopApi.js";
+import { store } from "../../store/projectStore.js";
+import { copyTextNodeVersion, renameTextNodeVersion } from "../adapters/canvasAdapter";
+import { selectedNodeLocalMedia } from "../adapters/canvas/canvasMediaSelection";
 import { compileGenerationNodeConfig } from "../../domain/graph/GenerationNodeContract";
 import { formatMediaTime, GenerationAudioPreview } from "./GenerationAudioPreview";
 import {
@@ -51,6 +55,7 @@ interface OutputData {
   mimeType?: string;
   fileName?: string;
   filePath?: string;
+  path?: string;
   previewUrl?: string;
   url?: string;
   content?: string;
@@ -199,13 +204,17 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({
   selected,
   incomingInputs = [],
   actions,
+  imageCropOpen = false,
+  onImageCropClose,
 }) => {
   const [openMenu, setOpenMenu] = useState("");
   const videoPreviewRef = useRef<HTMLVideoElement>(null);
   const [videoTime, setVideoTime] = useState(0);
   const [videoDuration, setVideoDuration] = useState(0);
   const [videoMuted, setVideoMuted] = useState(false);
+  const [imageSize, setImageSize] = useState({ width: 1, height: 1 });
   const labelRoot = useContext(CanvasNodeLabelRootContext);
+  const overlayRoot = useContext(CanvasOverlayRootContext);
   const previewZoom = useContext(CanvasPreviewZoomContext);
   const promptCommit = useImeCommit<HTMLTextAreaElement>(String(node.prompt || ""), (value) =>
     actions.update(node.id, { prompt: value }),
@@ -213,7 +222,9 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({
   const outputs = (
     Array.isArray(node.generatedOutputs) ? node.generatedOutputs : []
   ) as OutputData[];
-  const selectedOutput = outputs.find((item) => item.selected) || outputs[0] || null;
+  const selectedOutputId = String(node.selectedOutputNodeId || "").replace(/^material:/, "");
+  const selectedOutput = outputs.find((item) => item.id === selectedOutputId)
+    || outputs.find((item) => item.selected) || outputs[outputs.length - 1] || null;
   const uploaded =
     node.uploadedFile && typeof node.uploadedFile === "object"
       ? (node.uploadedFile as Record<string, unknown>)
@@ -224,7 +235,7 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({
   const uploadKind = uploaded ? generationMediaKind(uploaded) : "";
   const active = (selectedOutput || uploaded) as unknown as Record<string, unknown> | null;
   const activeKind = selectedOutput ? outputKind : uploadKind;
-  const activeFilePath = String(selectedOutput?.filePath || uploaded?.filePath || uploaded?.path || "");
+  const activeFilePath = selectedNodeLocalMedia(store.project, node).path;
   const activeFileName = String(
     selectedOutput?.fileName || uploaded?.name || node.title ||
       (activeKind === "video" ? "video.mp4" : "image.png"),
@@ -305,6 +316,7 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({
           kind: activeKind,
           title: selectedOutput?.title || String(node.title || metaLabel),
           filePath: String(selectedOutput?.filePath || uploaded?.filePath || uploaded?.path || ""),
+          ...(activeKind === "video" ? { onCaptureFrame: (seconds: number) => actions.captureVideoFrame(node.id, seconds) } : {}),
         });
       }
     } else if (kind === "text") {
@@ -324,6 +336,9 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({
             updatedAt: new Date().toISOString(),
           });
         },
+        getTextVersions: () => ((store.project.nodes.find((item: WorkflowNodeData) => item.id === node.id) as WorkflowNodeData | undefined)?.textVersions || []) as Array<{ id: string; content: string; createdAt: string; name?: string }>,
+        onRenameVersion: (id, name) => renameTextNodeVersion(node.id, id, name),
+        onCopyVersion: (id) => copyTextNodeVersion(node.id, id),
       });
     }
   }
@@ -376,7 +391,7 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({
               node.type === "videoGeneration" ? "wide" : "square"
             } ${kind}`}
             title={kind === "text" ? "双击编辑节点内容" : previewUrl ? "双击查看详情" : ""}
-            onDoubleClick={openDetail}
+            onDoubleClick={imageCropOpen ? undefined : openDetail}
           >
             {kind === "text" ? (
               textContent ? (
@@ -406,6 +421,7 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({
                 alt={String(node.title || metaLabel)}
                 onLoad={(event) => {
                   const image = event.currentTarget;
+                  setImageSize({ width: image.naturalWidth, height: image.naturalHeight });
                   const dimensions = reconcileMediaNodeDimensions(
                     node,
                     image.naturalWidth,
@@ -481,6 +497,17 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({
                 <IconSymbol className="work-empty-type-icon" name={metaIcon} />
               </div>
             )}
+            {imageCropOpen && activeKind === "image" && previewUrl && activeFilePath && (
+              <ImageCropEditor
+                nodeId={node.id}
+                root={overlayRoot}
+                imageWidth={imageSize.width}
+                imageHeight={imageSize.height}
+                onCancel={() => onImageCropClose?.()}
+                onConfirm={(rect) => actions.cropImage(node.id, rect)}
+                onSplit={(rows, cols, selected, rect) => actions.splitImageGrid(node.id, rows, cols, selected, rect)}
+              />
+            )}
             {activeKind === "video" && previewUrl && (
               <div className="work-video-status">
                 <span>{formatMediaTime(videoTime)} / {formatMediaTime(videoDuration)}</span>
@@ -501,7 +528,7 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({
                 </button>
               </div>
             )}
-            {(activeKind === "image" || activeKind === "video") && previewUrl && (
+            {!imageCropOpen && (activeKind === "image" || activeKind === "video") && previewUrl && (
               <button
                 type="button"
                 className="work-preview-download nodrag nopan"
@@ -515,7 +542,7 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({
                 <IconSymbol name="download" />
               </button>
             )}
-            {outputs.length > 1 && (
+            {!imageCropOpen && outputs.length > 1 && (
               <div className="generation-output-dots">
                 {outputs.map((output) => (
                   <button
@@ -539,7 +566,7 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({
           {Boolean(node.error) && <div className="work-error">{String(node.error)}</div>}
         </div>
       </div>
-      {selected && (
+      {selected && !imageCropOpen && (
         <ScreenSpaceComposer nodeId={node.id}>
         <div
           className="work-composer nodrag nopan nowheel"

@@ -116,49 +116,53 @@
   box-shadow: 0 0 0 1px rgba(38, 43, 51, 0.08);
 }
 
-.director-node-preview {
-  position: relative;
+.director-node-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   width: 100%;
   height: 100%;
-  flex: 0 0 auto;
-  overflow: hidden;
+  padding: 28px;
+  text-align: center;
+  color: #696a70;
 }
 
-.director-node-workspace iframe {
-  position: absolute;
-  inset: 0 auto auto 0;
-  display: block;
+.director-node-placeholder > svg {
+  width: 74px;
+  height: 74px;
+  margin-bottom: 20px;
+  color: #d9dadd;
+  stroke-width: 1.4;
+}
+
+.director-node-placeholder strong {
+  color: #27282c;
+  font-size: 22px;
+  font-weight: 650;
+}
+
+.director-node-placeholder p {
+  margin: 14px 0 30px;
+  color: #73747a;
+  font-size: 16px;
+}
+
+.director-node-open-button {
+  min-width: 150px;
+  height: 46px;
+  padding: 0 22px;
   border: 0;
-  background: #fff;
-  transform: scale(.375);
-  transform-origin: top left;
-  will-change: transform;
+  border-radius: 12px;
+  color: #2d2e33;
+  background: #f0f0f1;
+  font-size: 16px;
+  cursor: pointer;
 }
 
-.director-node:not(.interacting) .director-node-workspace iframe {
-  pointer-events: none;
-}
-
-.director-node-entry-hint {
-  position: absolute;
-  z-index: 2;
-  right: 10px;
-  bottom: 10px;
-  padding: 5px 8px;
-  border: 1px solid #dedfe3;
-  border-radius: 7px;
-  color: #676970;
-  background: #fffffff0;
-  box-shadow: 0 1px 4px #00000012;
-  font-size: 10px;
-  line-height: 1;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 120ms ease;
-}
-
-.director-node-workspace:hover .director-node-entry-hint {
-  opacity: 1;
+.director-node-open-button:hover,
+.director-node-open-button:focus-visible {
+  background: #e6e6e8;
 }
 
 .director-node-head button.director-node-done-button {
@@ -183,4 +187,65 @@
    the horizontal/vertical resize cursor state cleanly. */
 .director-node.resizing .director-node-workspace iframe {
   pointer-events: none;
+}
+.director-detail-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: grid;
+  place-items: center;
+  padding: 32px;
+  background: rgba(20, 23, 30, .42);
+  backdrop-filter: blur(5px);
+}
+.director-detail-window {
+  width: min(1600px, calc(100vw - 48px));
+  height: min(900px, calc(100vh - 48px));
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: 48px minmax(0, 1fr);
+  overflow: hidden;
+  border: 1px solid rgba(30, 35, 45, .18);
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, .28);
+}
+.director-detail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  border-bottom: 1px solid #e7e8eb;
+  color: #282b33;
+}
+.director-detail-head button {
+  height: 28px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 7px;
+  color: #fff;
+  background: #282b33;
+  cursor: pointer;
+}
+.director-detail-frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  border: 0;
+  background: #f7f8fa;
+}
+
+@media (max-width: 720px) {
+  .director-detail-backdrop {
+    padding: 12px;
+  }
+
+  .director-detail-window {
+    width: 100%;
+    height: 100%;
+    border-radius: 10px;
+  }
 }

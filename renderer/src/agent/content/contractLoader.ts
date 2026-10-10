@@ -129,6 +129,8 @@ export function formatContractsBlock(contracts: ContractMeta[]): string {
 
 // ── Bootstrap built-in contracts ───────────────────────────────────────
 import safetyRulesRaw from './contracts/safety-rules.md?raw';
+import antiLoopRaw from './contracts/anti-loop.md?raw';
 import productionGovernanceRaw from './contracts/production-governance.md?raw';
 registerContractFromRaw(safetyRulesRaw);
+registerContractFromRaw(antiLoopRaw);
 registerContractFromRaw(productionGovernanceRaw);

@@ -57,6 +57,8 @@ const command = (channel, ...args) => {
     case 'file:separate-audio': return invoke('file_separate_audio', {
       source: args[0], audioTarget: args[1], silentVideoTarget: args[2],
     });
+    case 'file:capture-video-frame': return invoke('file_capture_video_frame', { source: args[0], target: args[1], seconds: args[2] });
+    case 'file:concat-videos': return invoke('file_concat_videos', { sources: args[0], target: args[1] });
     case 'file:write': return invoke('file_write', { path: args[0], data: args[1], append: Boolean(args[2]) });
     case 'file:copy': return invoke('file_copy', { source: args[0], target: args[1] });
     case 'file:export-video-project': return invoke('file_export_video_project', {
@@ -537,6 +539,9 @@ export function createTauriApi(browserFallback) {
         await uniqueProjectAssetPath(audioName),
         await uniqueProjectAssetPath(videoName),
       ),
+      captureVideoFrameToProject: async (source, seconds, preferredName = 'video-frame.png') => command(
+        'file:capture-video-frame', source, await uniqueProjectAssetPath(preferredName), seconds,
+      ),
       checksum: (path) => command('file:checksum', path),
       getGlobalAssetRoot: () => command('file:global-asset-root'),
       trash: (path) => command('file:trash', path),
@@ -591,7 +596,16 @@ export function createTauriApi(browserFallback) {
         return command('file:export-video-project', path, await materializeVideoProjectAssets(project));
       },
       trimVideo: unsupported('FFmpeg 视频裁剪'),
-      concatVideos: unsupported('FFmpeg 视频拼接'),
+      concatVideos: async (sources, options = {}) => {
+        if (!Array.isArray(sources) || sources.length < 2) {
+          throw new Error('视频拼接至少需要两个文件');
+        }
+        return command(
+          'file:concat-videos',
+          sources.map((item) => String(item)),
+          await uniqueProjectAssetPath(String(options?.name || 'merged.mp4')),
+        );
+      },
       probeMedia: async () => ({ duration: null, width: null, height: null }),
       exportResourcePackage: async (payload = {}) => {
         const target = await resourcePackageTarget(payload.name || 'resources');

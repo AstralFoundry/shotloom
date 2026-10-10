@@ -7,6 +7,10 @@ interface MediaPayload {
   title?: string;
   filePath?: string;
   onSave?: (text: string) => void;
+  getTextVersions?: () => Array<{ id: string; content: string; createdAt: string; name?: string }>;
+  onRenameVersion?: (id: string, name: string) => boolean;
+  onCopyVersion?: (id: string) => boolean;
+  onCaptureFrame?: (seconds: number) => void | Promise<void>;
 }
 interface OverlayState {
   toast: string;
@@ -18,6 +22,10 @@ interface OverlayState {
     title: string;
     filePath: string;
     onSave: ((text: string) => void) | null;
+    getTextVersions: (() => Array<{ id: string; content: string; createdAt: string; name?: string }>) | null;
+    onRenameVersion: ((id: string, name: string) => boolean) | null;
+    onCopyVersion: ((id: string) => boolean) | null;
+    onCaptureFrame: ((seconds: number) => void | Promise<void>) | null;
   };
   toastTimer: number | null;
   showToast: (message: string, tone?: "default" | "success") => void;
@@ -36,6 +44,10 @@ export const useOverlayStore = create<OverlayState>((set, get) => ({
     title: "",
     filePath: "",
     onSave: null,
+    getTextVersions: null,
+    onRenameVersion: null,
+    onCopyVersion: null,
+    onCaptureFrame: null,
   },
   showToast: (message, tone = "default") => {
     if (get().toastTimer) window.clearTimeout(get().toastTimer!);
@@ -57,6 +69,10 @@ export const useOverlayStore = create<OverlayState>((set, get) => ({
         title: String(payload.title || "媒体预览"),
         filePath: String(payload.filePath || ""),
         onSave: payload.onSave || null,
+        getTextVersions: payload.getTextVersions || null,
+        onRenameVersion: payload.onRenameVersion || null,
+        onCopyVersion: payload.onCopyVersion || null,
+        onCaptureFrame: payload.onCaptureFrame || null,
       },
     });
     return true;

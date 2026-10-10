@@ -48,6 +48,7 @@ import {
 } from "../../store/resourceNodeStore.js";
 import { runNode } from "../../store/taskStore.js";
 import { uid } from "../../utils/format.js";
+import { updatedTextVersions } from "../../utils/textNodeVersions.mjs";
 import { showSuccessToast, showToast } from "../store/overlayStore";
 import type {
   WorkflowCanvasController,
@@ -56,6 +57,8 @@ import type {
 } from "../canvas/WorkflowCanvas";
 import {
   cropImage,
+  splitImageGrid,
+  captureVideoFrame,
   extractAudio,
   saveToAssets,
 } from "./canvas/canvasMediaActions";
@@ -73,6 +76,33 @@ let focusNodesHandler: ((nodeIds: string[]) => void) | null = null;
 export function focusCanvasNodes(nodeIds: string[]) {
   setSelectedNodeIds(nodeIds);
   focusNodesHandler?.(nodeIds);
+}
+
+export function renameTextNodeVersion(nodeId: string, versionId: string, name: string) {
+  const node: any = store.project.nodes.find((item: any) => item.id === nodeId && item.type === "textGeneration");
+  const version = node?.textVersions?.find((item: any) => item.id === versionId);
+  if (!version) return false;
+  version.name = name.trim().slice(0, 80);
+  touchProject();
+  return true;
+}
+
+export function copyTextNodeVersion(nodeId: string, versionId: string) {
+  const source: any = store.project.nodes.find((item: any) => item.id === nodeId && item.type === "textGeneration");
+  const version = source?.textVersions?.find((item: any) => item.id === versionId);
+  if (!source || !version) return false;
+  recordCanvasHistory("复制文本版本");
+  const copy: any = addNode("textGeneration");
+  copy.title = String(version.name || `${source.title || "文本"} · 版本`).slice(0, 80);
+  copy.prompt = "";
+  copy.textContent = version.content;
+  copy.textVersions = [{ id: uid(), content: version.content, createdAt: new Date().toISOString(), name: "初始版本" }];
+  copy.x = Math.round((Number(source.x) || 0) + canvasNodeDimensions(source).width + 80);
+  copy.y = Math.round(Number(source.y) || 0);
+  setSelectedNodeIds([copy.id]);
+  touchProject();
+  focusNodesHandler?.([copy.id]);
+  return true;
 }
 
 export function canvasViewData() {
@@ -175,6 +205,61 @@ export const canvasController: WorkflowCanvasController = {
     node.y = Math.round(position.y);
     touchProject();
   },
+  createArtifactNodeAt(artifactId, position) {
+    const project = store.project;
+    let source: any = project.nodes.find((item: any) => item.id === artifactId && !item.archived);
+    if (!source) {
+      for (const node of project.nodes) {
+        source = (node.generatedOutputs || []).find((item: any) => item.id === artifactId);
+        if (source) break;
+      }
+    }
+    if (!source && artifactId.startsWith("material:")) {
+      const materialId = artifactId.slice("material:".length);
+      source = (project.materials || []).find((item: any) => item.id === materialId);
+    }
+    if (!source) return showToast("产物已不存在，无法添加到画布");
+    const rawPath = String(source.filePath || source.path || "");
+    const remotePath = /^(https?:|blob:|data:)/i.test(rawPath);
+    const filePath = remotePath ? "" : rawPath;
+    const url = String(source.previewUrl || source.url || source.resourceUrl || (remotePath ? rawPath : ""));
+    const content = String(source.content || source.textContent || "");
+    if (!filePath && !url && !content) return showToast("产物尚无可用内容");
+    const declaredType = String(source.resourceType || source.mediaType || "").toLowerCase();
+    const inferredType = inferFileResourceType({ ...source, name: source.fileName || source.title });
+    const resourceType = ["image", "video", "audio", "text"].find((kind) =>
+      declaredType.includes(kind)
+    ) || (inferredType === "file" && content ? "text" : inferredType);
+    const nodeType = {
+      image: "imageGeneration",
+      video: "videoGeneration",
+      audio: "audioGeneration",
+      text: "textGeneration",
+    }[resourceType] || "textGeneration";
+    const title = String(source.fileName || source.title || source.name || "未命名产物");
+    recordCanvasHistory("从对话产物添加节点");
+    const node: any = addNode(nodeType);
+    node.title = title;
+    node.x = Math.round(position.x);
+    node.y = Math.round(position.y);
+    node.resourceType = resourceType;
+    node.sourceType = "copilot-artifact";
+    node.sourceArtifactId = artifactId;
+    node.content = content;
+    if (resourceType === "text") node.textContent = content;
+    node.uploadedFile = {
+      name: title,
+      fileName: title,
+      path: filePath,
+      filePath,
+      previewUrl: url,
+      resourceType,
+      mimeType: String(source.mimeType || ""),
+      content,
+      source: "copilot-artifact",
+    };
+    touchProject();
+  },
   deleteSelection() {
     if (!(store.selectedNodeIds?.length || store.selectedNodeId || store.selectedEdgeId)) return;
     recordCanvasHistory("删除画布选择");
@@ -219,6 +304,12 @@ export const nodeActions: WorkflowNodeActions = {
   update(id, patch) {
     const node = store.project.nodes.find((item: WorkflowNodeData) => item.id === id);
     if (node) {
+      if (node.type === "textGeneration" && Object.hasOwn(patch, "textContent")) {
+        const versions = updatedTextVersions(node, patch.textContent);
+        if (versions.length !== (Array.isArray(node.textVersions) ? node.textVersions.length : 0)) {
+          patch = { ...patch, textVersions: versions };
+        }
+      }
       Object.assign(node, patch);
       touchProject({ sessionDelay: 250, coalesceSession: true });
     }
@@ -380,6 +471,8 @@ export const nodeActions: WorkflowNodeActions = {
   },
   saveToAssets,
   cropImage,
+  splitImageGrid,
+  captureVideoFrame,
   extractAudio,
   async replaceResource(id) {
     const picked = await desktopApi.file.pickResource();

@@ -7,7 +7,17 @@ import { resolveAgentToolPolicy } from '../core/policyEngine';
 import type { AgentToolContext, AgentToolReceipt, JsonObject } from '../core/types';
 import { createAgentInteraction } from './runStore';
 import { waitForAgentApproval } from './runtimeInteractions';
+import {
+  createLoopGuardState,
+  forgetToolCall,
+  inspectToolCall,
+  loopGuardMessage,
+  recordToolCall,
+  toolCallFingerprint,
+  type LoopGuardState,
+} from './loopGuard';
 import { buildToolReceipt, receiptChangesProject } from './toolReceipts';
+import { describeArgumentChanges, userOverrideNote } from '@/utils/toolArgumentDiff.mjs';
 
 interface BridgeRun {
   context: AgentToolContext;
@@ -37,6 +47,101 @@ function continuation(run: BridgeRun, toolCallId: string, toolName: string) {
   };
 }
 
+const LOOP_GUARD_STATE_KEY = 'loopGuard';
+
+interface GuardedToolCall {
+  reject: boolean;
+  message: string;
+  /** 实际要执行的输入：用户改过参数时是重新校验后的新输入。 */
+  input: JsonObject;
+  overrideNote: string;
+}
+
+/**
+ * 同一轮内用实质上相同的参数反复调用同一个工具时，先请用户裁决再执行。
+ * 复用现有的 tool_confirmation 交互管道：面板、持久化、过期与中断处理都已具备。
+ * `mode: 'decision'` 表示这里没有暂存的画布步骤，只请求"是否继续"。
+ */
+async function reviewRepeatedToolCall(
+  run: BridgeRun,
+  context: AgentToolContext,
+  payload: { callId: string },
+  toolName: string,
+  toolInput: JsonObject,
+): Promise<GuardedToolCall> {
+  const guard = (context.state.get(LOOP_GUARD_STATE_KEY) as LoopGuardState | undefined)
+    || createLoopGuardState();
+  context.state.set(LOOP_GUARD_STATE_KEY, guard);
+  const fingerprint = toolCallFingerprint(toolName, toolInput);
+  const { trip, count } = inspectToolCall(guard, fingerprint);
+  if (!trip) {
+    recordToolCall(guard, fingerprint);
+    return { reject: false, message: '', input: toolInput, overrideNote: '' };
+  }
+
+  const stepId = `loop:${payload.callId}`;
+  const interactionId = `${context.requestId}:tool_confirmation:${stepId}`;
+  const title = loopGuardMessage(toolName, count);
+  createAgentInteraction({
+    id: interactionId, runId: context.requestId, conversationId: context.conversationId,
+    projectKey: context.projectKey, kind: 'tool_confirmation',
+    payload: {
+      toolCallId: payload.callId, toolName, stepId, title, actionCount: 0,
+      mode: 'decision', pendingArgs: toolInput,
+    },
+    continuation: continuation(run, payload.callId, toolName),
+    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1_000).toISOString(),
+  });
+  context.emit({
+    type: 'interaction_requested', interactionId, kind: 'tool_confirmation',
+    toolCallId: payload.callId, toolName, stepId, title, actionCount: 0,
+    pendingArgs: toolInput,
+    createdAt: new Date().toISOString(),
+  });
+  const resolution = await waitForAgentApproval(context.requestId, stepId, context.signal);
+  context.emit({
+    type: 'interaction_resolved', interactionId, kind: 'tool_confirmation',
+    toolCallId: payload.callId, stepId, approved: resolution.approved,
+    createdAt: new Date().toISOString(),
+  });
+  if (!resolution.approved) {
+    // 不清空历史：模型若无视回执继续重试，下一次相同调用会被立即拦下。
+    return {
+      reject: true,
+      message: `${title}。用户已拒绝继续重复调用：请改用不同的工具或实质不同的输入，或停下来向用户确认；不要继续微调参数重试。`,
+      input: toolInput,
+      overrideNote: '',
+    };
+  }
+
+  const modified = resolution.modifiedArgs;
+  // 以"是否携带"判断有没有改过：用户在编辑器里清空成 {} 是有效修改，不能退回原参数。
+  if (!modified) {
+    forgetToolCall(guard, fingerprint);
+    return { reject: false, message: '', input: toolInput, overrideNote: '' };
+  }
+  // 用户改过参数：按工具自己的 schema 重新校验，不能绕过注册表直接执行。
+  let reprepared;
+  try {
+    reprepared = prepareAgentToolCall(toolName, JSON.stringify(modified), context);
+  } catch (cause) {
+    const reason = cause instanceof Error ? cause.message : String(cause);
+    return {
+      reject: true,
+      message: `用户修改后的参数未通过校验：${reason}。这次调用没有执行，请向用户说明问题，不要用原参数重试。`,
+      input: toolInput,
+      overrideNote: '',
+    };
+  }
+  forgetToolCall(guard, toolCallFingerprint(toolName, reprepared.input));
+  return {
+    reject: false,
+    message: '',
+    input: reprepared.input,
+    overrideNote: userOverrideNote(describeArgumentChanges(toolInput, reprepared.input)),
+  };
+}
+
 async function executeRequest(payload: { requestId: string; callId: string; name: string; arguments?: JsonObject }) {
   const run = activeRun;
   if (!run || run.context.requestId !== payload.requestId) throw new Error('Shotloom tool transport has no matching active Agent run');
@@ -59,7 +164,18 @@ async function executeRequest(payload: { requestId: string; callId: string; name
     inputSummary: prepared.inputSummary, startedAt,
   });
   try {
-    let result: any = await prepared.definition.execute(prepared.input, context);
+    // 循环拦截在 execute 之前完成，拒绝时把失败作为普通结果交给既有回执流程处理，
+    // 保证 toolReceipts / lastActionError / tool_end 的记账与其它失败路径一致。
+    const guarded = await reviewRepeatedToolCall(
+      run, context, payload, prepared.definition.id, prepared.input,
+    );
+    let result: any = guarded.reject
+      ? { success: false, rejected: true, repeatedToolCall: true, error: guarded.message }
+      : await prepared.definition.execute(guarded.input, context);
+    if (guarded.overrideNote && result && typeof result === 'object' && !Array.isArray(result)) {
+      // 把用户的手动修改明确告知模型，避免它用原参数再试一遍。
+      result = { ...result, userOverrideNote: guarded.overrideNote };
+    }
     if (result?.pending === true) {
       const step = result.step || {};
       const stepId = String(step.id || step.stepId || '');
@@ -71,6 +187,7 @@ async function executeRequest(payload: { requestId: string; callId: string; name
         payload: {
           toolCallId: payload.callId, toolName: prepared.definition.id, stepId,
           title: String(step.title || prepared.definition.title), actionCount: Number(step.actionCount || 0),
+          mode: 'step',
         },
         continuation: continuation(run, payload.callId, prepared.definition.id),
         expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1_000).toISOString(),

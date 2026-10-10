@@ -18,6 +18,8 @@ import videoAd from '../agent/content/skills/video-ad/SKILL.md?raw';
 import videoAdManifest from '../agent/content/skills/video-ad/skill.json';
 import videoProduction from '../agent/content/skills/video-production/SKILL.md?raw';
 import videoProductionManifest from '../agent/content/skills/video-production/skill.json';
+import videoEditing from '../agent/content/skills/video-editing/SKILL.md?raw';
+import videoEditingManifest from '../agent/content/skills/video-editing/skill.json';
 import { changedBuiltInFields, withBuiltInEntries, withoutBuiltInEntries } from './builtInCatalogStorage.js';
 
 function parseBuiltInSkill(content, manifest) {
@@ -79,6 +81,7 @@ export const builtInSkills = [
   parseBuiltInSkill(talkingHead, talkingHeadManifest),
   parseBuiltInSkill(videoAd, videoAdManifest),
   parseBuiltInSkill(videoProduction, videoProductionManifest),
+  parseBuiltInSkill(videoEditing, videoEditingManifest),
 ];
 
 export function withBuiltInSkills(storage = {}) {

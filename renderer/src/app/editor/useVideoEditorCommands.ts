@@ -59,6 +59,12 @@ export function useVideoEditorCommands({
 }) {
   const selected = selectedId ? findEditorClip(project, selectedId) : null;
 
+  // 手动新建轨道：与 ensureTrack 的"复用第一条同类型轨道"不同，这里总是再加一条。
+  const addTrack = (kind: "video" | "audio" | "text") => {
+    const name = kind === "audio" ? "音乐与音效" : kind === "text" ? "文字" : "补充画面";
+    commit(addEditorTrack(projectRef.current, kind, name, createId));
+  };
+
   const ensureTrack = (type: VideoEditorTrackType, name: string) => {
     const current = projectRef.current;
     const existing = current.tracks.find((track) => track.type === type);
@@ -112,13 +118,13 @@ export function useVideoEditorCommands({
     );
   };
 
-  const addAsset = (asset: VideoEditorAsset) => {
+  const addAsset = (asset: VideoEditorAsset, options: { timelineStart?: number; newTrack?: boolean } = {}) => {
     const mediaDuration = Number(asset.duration);
     if (asset.type !== "image" && (!Number.isFinite(mediaDuration) || mediaDuration <= 0)) {
       setToolNotice(`“${asset.name}”读取失败，无法添加到时间线。`);
       return;
     }
-    if (asset.type !== "image") {
+    if (asset.type !== "image" && !options.newTrack) {
       const matchingAssetIds = new Set(
         projectRef.current.assets
           .filter((item) =>
@@ -151,7 +157,7 @@ export function useVideoEditorCommands({
       : asset.type === "image"
       ? "贴图"
       : "补充画面";
-    let track = next.tracks.find((item) => item.type === trackType);
+    let track = options.newTrack ? undefined : next.tracks.find((item) => item.type === trackType);
     if (!track) {
       next = addEditorTrack(next, trackType, trackName, createId);
       track = next.tracks.at(-1);
@@ -170,7 +176,12 @@ export function useVideoEditorCommands({
     const imageStart = duration > 0
       ? Math.min(time, Math.max(0, duration - imageDuration))
       : 0;
-    const videoStart = asset.type === "video"
+    // 拖放落点优先：显式给了时间就落在那里，否则沿用各自的默认位置。
+    const droppedStart = Number(options.timelineStart);
+    const hasDropStart = Number.isFinite(droppedStart) && droppedStart >= 0;
+    const videoStart = hasDropStart
+      ? droppedStart
+      : asset.type === "video"
       ? Math.max(
         0,
         ...track.clips.map((clip) =>
@@ -198,7 +209,7 @@ export function useVideoEditorCommands({
           type: "image",
           assetId: asset.id,
           src: asset.sourceUrl,
-          timelineStart: imageStart,
+          timelineStart: hasDropStart ? droppedStart : imageStart,
           duration: duration > 0
             ? Math.max(.08, Math.min(imageDuration, duration - imageStart))
             : imageDuration,
@@ -235,7 +246,9 @@ export function useVideoEditorCommands({
         setToolNotice(`“${asset.name}”已添加到画面中央，可在画布拖动、缩放或旋转。`);
       } else if (asset.type === "video") {
         seekPreview(clipFocusTime(added));
-        setToolNotice(`“${asset.name}”已追加到视频轨末尾。`);
+        setToolNotice(hasDropStart
+          ? `“${asset.name}”已放到 ${droppedStart.toFixed(2)} 秒。`
+          : `“${asset.name}”已追加到视频轨末尾。`);
       }
     } else {
       setToolNotice(
@@ -244,6 +257,25 @@ export function useVideoEditorCommands({
           : `“${asset.name}”读取失败，无法添加到时间线。`,
       );
     }
+  };
+
+  // 从素材面板拖到时间线：按落点时间插入，而不是追加到轨道末尾。
+  const addAssetAt = (assetId: string, timeSec: number, assetOverride?: VideoEditorAsset) => {
+    if (!assetId) {
+      // 没有素材标识：拖起来的不是素材卡片（例如拖到了缩略图本身）。
+      setToolNotice("拖入的内容不是素材卡片，请从卡片本身拖动。");
+      return;
+    }
+    const asset = projectRef.current.assets.find((item) => item.id === assetId) || assetOverride;
+    if (!asset) {
+      setToolNotice("这个素材不在当前工程里，无法放入时间线。");
+      return;
+    }
+    addAsset(asset, {
+      timelineStart: Math.max(0, Number(timeSec) || 0),
+      // 从素材面板拖到时间线代表叠加一层，而不是把素材追加到已有轨道。
+      newTrack: true,
+    });
   };
 
   const activateAsset = (asset: VideoEditorAsset) => {
@@ -311,19 +343,31 @@ export function useVideoEditorCommands({
   };
 
   const addTransition = (key: string) => {
-    if (videoClips.length < 2) {
-      setToolNotice("转场需要连接两段视频，请先在时间线上切分视频或添加第二段素材。");
+    const candidates = projectRef.current.tracks
+      .filter((track) => track.type === "video" && !track.locked && !track.hidden)
+      .flatMap((track) => {
+        const clips = track.clips
+          .filter((clip) => clip.type === "video")
+          .sort((left, right) => left.timelineStart - right.timelineStart);
+        return clips.slice(1).map((to, index) => ({
+          from: clips[index],
+          to,
+          gap: to.timelineStart - (clips[index].timelineStart + editorClipDuration(clips[index])),
+        }));
+      })
+      .filter(({ gap }) => Math.abs(gap) <= .05);
+    if (!candidates.length) {
+      setToolNotice("转场需要同一视频轨上首尾相接的两段视频；请先把片段放到同一轨道并贴紧接缝。");
       return;
     }
-    const index = videoClips.findIndex((clip) => clip.id === selectedId);
-    const toIndex = index > 0 ? index : 1;
-    const to = videoClips[toIndex];
-    const from = videoClips[toIndex - 1];
+    const selectedPair = candidates.find(({ from, to }) => from.id === selectedId || to.id === selectedId);
+    const { from, to } = selectedPair || candidates[0];
+    const transitionDuration = Math.min(.6, editorClipDuration(from), editorClipDuration(to));
     const added = addClip(
       "transition",
       {
-        duration: .6,
-        timelineStart: to.timelineStart - .3,
+        duration: transitionDuration,
+        timelineStart: to.timelineStart - transitionDuration / 2,
         transitionKey: key,
         fromClipId: from.id,
         toClipId: to.id,
@@ -380,6 +424,25 @@ export function useVideoEditorCommands({
     commit(next);
   };
 
+  // 画布格式只改工程尺寸，不动任何片段：片段要不要铺满由各自的 transform.fit 决定，
+  // 自动改动会让用户丢失已经在时间线上排好的构图。
+  const updateProjectSettings = (patch: {
+    width?: number;
+    height?: number;
+  }) => {
+    const current = projectRef.current;
+    const width = Math.round(Number(patch.width ?? current.settings.width));
+    const height = Math.round(Number(patch.height ?? current.settings.height));
+    if (!Number.isFinite(width) || !Number.isFinite(height)) return;
+    if (width < 16 || height < 16 || width > 8192 || height > 8192) return;
+    if (width === current.settings.width && height === current.settings.height) return;
+    commit({
+      ...current,
+      settings: { ...current.settings, width, height },
+      updatedAt: new Date().toISOString(),
+    });
+  };
+
   const runCanvasAction = async (action: CanvasAction) => {
     const found = selectedId ? findEditorClip(projectRef.current, selectedId) : null;
     if (!found) return;
@@ -429,6 +492,9 @@ export function useVideoEditorCommands({
         y: (canvasHeight - height) / 2,
         width,
         height,
+        // 适应只缩小片段框、留边显示；填充要让媒体真正居中裁剪铺满画布 ——
+        // 只放大框而不声明 fit 会让画面继续在框内留边，"填充"按钮等于没有效果。
+        ...(action === "centerClip" ? {} : { fit: action === "fitClip" ? "fit" : "fill" }),
       },
     });
   };
@@ -497,6 +563,9 @@ export function useVideoEditorCommands({
     addTransition,
     addEffect,
     updateSelected,
+    updateProjectSettings,
+    addTrack,
+    addAssetAt,
     runCanvasAction,
     deleteSelected,
     deleteAsset,

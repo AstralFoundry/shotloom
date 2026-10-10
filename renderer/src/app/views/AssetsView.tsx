@@ -3,8 +3,8 @@ import { EmptyState } from "../components/EmptyState";
 import { IconSymbol } from "../components/IconSymbol";
 import { MaterialGrid, type MaterialItem } from "../components/MaterialGrid";
 import { ProjectScopeHeader } from "../components/ProjectScopeHeader";
-import { assetCategories } from "../constants/navigation";
 import { useAppStore } from "../store/appStore";
+import { assetCategories } from "../constants/navigation";
 
 export interface AssetsController {
   preview: (item: MaterialItem, src: string, kind: "image" | "video") => void;
@@ -23,6 +23,8 @@ export interface AssetsController {
   openLocalStorage: () => void | Promise<void>;
   importPackage: () => void | Promise<void>;
   exportPackage: () => void | Promise<void>;
+  exportSelected: (items: MaterialItem[]) => void | Promise<void>;
+  moveProjectAssets: (items: MaterialItem[], category: string) => void | Promise<void>;
   importFiles: () => void | Promise<void>;
 }
 
@@ -41,6 +43,8 @@ export function AssetsView({
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const [renameItem, setRenameItem] = useState<MaterialItem | null>(null);
   const [renameDraft, setRenameDraft] = useState("");
+  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
+  const [moving, setMoving] = useState(false);
   const category = useAppStore((state) => state.assetCategory);
   const keyword = useAppStore((state) => state.assetKeyword);
   const setRoute = useAppStore((state) => state.setRoute);
@@ -64,6 +68,25 @@ export function AssetsView({
     () => filter(scope === "project" ? projectAssets : localAssets),
     [scope, projectAssets, localAssets, category, keyword],
   );
+  const selectedItems = displayed.filter((item) => selectedKeys.has(String(item.id || item.path || item.name || "")));
+
+  function toggleSelected(item: MaterialItem) {
+    const key = String(item.id || item.path || item.name || "");
+    setSelectedKeys((current) => { const next = new Set(current); if (next.has(key)) next.delete(key); else next.add(key); return next; });
+  }
+  async function batchDelete() {
+    if (!selectedItems.length || !window.confirm(`删除已选的 ${selectedItems.length} 个素材？`)) return;
+    const failed = new Set<string>();
+    for (const item of selectedItems) {
+      try {
+        const removed = scope === "project"
+          ? await controller.deleteProjectAsset(item)
+          : await controller.deleteLocalAsset(item);
+        if (removed === false) failed.add(String(item.id || item.path || item.name || ""));
+      } catch { failed.add(String(item.id || item.path || item.name || "")); }
+    }
+    setSelectedKeys(failed);
+  }
 
   function openMenu(event: MouseEvent<HTMLDivElement>) {
     event.preventDefault();
@@ -128,6 +151,14 @@ export function AssetsView({
         onClick={() => setMenu(null)}
         onContextMenu={openMenu}
       >
+        {selectedItems.length > 0 && <div className="material-batch-bar">
+          <strong>已选 {selectedItems.length} 项</strong>
+          <button type="button" onClick={() => void controller.exportSelected(selectedItems)}>下载</button>
+          {scope === "project" && <button type="button" onClick={() => setMoving((value) => !value)}>移动到分类</button>}
+          <button type="button" onClick={() => void batchDelete()}>删除</button>
+          <button type="button" onClick={() => { setSelectedKeys(new Set()); setMoving(false); }}>取消选择</button>
+          {moving && <div className="material-batch-categories">{assetCategories.map((item) => <button key={item.id} type="button" onClick={() => { void controller.moveProjectAssets(selectedItems, item.id); setSelectedKeys(new Set()); setMoving(false); }}>{item.label}</button>)}</div>}
+        </div>}
         <div
           className="asset-scope-switch"
           role="tablist"
@@ -135,13 +166,13 @@ export function AssetsView({
         >
           <button
             className={scope === "project" ? "active" : ""}
-            onClick={() => setScope("project")}
+            onClick={() => { setScope("project"); setSelectedKeys(new Set()); }}
           >
             当前项目 <span>{projectAssets.length}</span>
           </button>
           <button
             className={scope === "local" ? "active" : ""}
-            onClick={() => setScope("local")}
+            onClick={() => { setScope("local"); setSelectedKeys(new Set()); }}
           >
             通用素材 <span>{localAssets.length}</span>
           </button>
@@ -163,6 +194,8 @@ export function AssetsView({
           : (
             <MaterialGrid
               materials={displayed}
+              selectedKeys={selectedKeys}
+              onToggleSelected={toggleSelected}
               assetMaterialIds={assetMaterialIds}
               showLibraryAction={false}
               showPromoteAction={scope === "project"}

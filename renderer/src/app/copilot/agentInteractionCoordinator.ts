@@ -62,6 +62,7 @@ export async function resolveToolConfirmation(
   interactionId: string,
   approved: boolean,
   allowRecovery = true,
+  modifiedArgs?: Record<string, unknown>,
 ) {
   const interaction = pendingInteraction(interactionId, 'tool_confirmation');
   const stepId = String(interaction.payload.stepId || '');
@@ -72,9 +73,14 @@ export async function resolveToolConfirmation(
   if (resolvingInteractions.has(interactionId)) throw new Error('该工具确认正在处理中');
   resolvingInteractions.add(interactionId);
   try {
-    const execution = approved
-      ? await executeAgentApproveStep({ stepId })
-      : await executeAgentRejectStep({ stepId, reason: '用户拒绝' });
+    // 两种确认必须分开处理：step 模式有已暂存的画布步骤，批准即执行；decision 模式
+    // 只表示"允许继续"，没有暂存步骤，交给画布执行器会得到"确认步骤不存在"。
+    const decisionOnly = String(interaction.payload.mode || 'step') === 'decision';
+    const execution = decisionOnly
+      ? { success: true }
+      : approved
+        ? await executeAgentApproveStep({ stepId })
+        : await executeAgentRejectStep({ stepId, reason: '用户拒绝' });
     const rawResult = approved ? ((execution as JsonObject).result || execution) : execution;
     const result = (rawResult && typeof rawResult === 'object' ? rawResult : {}) as JsonObject;
     const resolvedResult = approved
@@ -85,6 +91,7 @@ export async function resolveToolConfirmation(
       approved,
       result: resolvedResult,
       error: approved ? String((execution as JsonObject).error || '') : '用户拒绝了本次操作',
+      ...(approved && modifiedArgs !== undefined ? { modifiedArgs } : {}),
     });
     return deliveredToLiveRun
       ? { deliveredToLiveRun }

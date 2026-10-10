@@ -84,14 +84,15 @@ test('durable JSON storage isolates corruption and rejects legacy schemas', () =
   assert.doesNotMatch(projects, /function migrateProject\s*\(/);
 });
 
-test('agent hot paths use coalesced streaming, bounded delivery and latest-wins persistence', () => {
+test('agent hot paths use coalesced streaming, single user delivery and latest-wins persistence', () => {
   const presenter = read('renderer/src/app/copilot/CopilotRuntimePresenter.ts');
   const adapter = read('renderer/src/app/adapters/copilotAdapter.ts');
   const saveQueue = read('renderer/src/services/latestSaveQueue.mjs');
   assert.match(presenter, /cachedStructuralSnapshot/);
   assert.match(adapter, /window\.setTimeout\(flush, 32\)/);
   assert.match(adapter, /MAX_QUEUED_DELIVERIES = 3/);
-  assert.match(adapter, /deliveryStage: "queued"/);
+  assert.match(adapter, /!options\.skipUserMessage && \(busy \|\| deliveryProcessing \|\| deliveryQueue\.length\)/);
+  assert.doesNotMatch(adapter, /deliveryStage: "queued"/);
   assert.match(saveQueue, /pendingLatest/);
   assert.match(saveQueue, /maxRetryAttempts/);
   assert.match(saveQueue, /waitForIdle\(\)/);

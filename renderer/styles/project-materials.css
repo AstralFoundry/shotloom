@@ -569,6 +569,16 @@
 .material-node-wrap.selectable {
   cursor: pointer;
 }
+.material-node-wrap.is-batch-selected .material-node { outline: 2px solid #638b6c; outline-offset: 1px; }
+.material-batch-check { position: absolute; z-index: 3; top: 9px; left: 9px; width: 25px; height: 25px; display: grid; place-items: center; border: 0; border-radius: 7px; background: rgba(255,255,255,.9); color: #66716a; box-shadow: 0 1px 5px rgba(0,0,0,.12); opacity: 0; cursor: pointer; }
+.material-node-wrap:hover .material-batch-check, .material-batch-check:focus-visible, .material-batch-check[aria-pressed="true"] { opacity: 1; }
+.material-batch-check[aria-pressed="true"] { background: #527d5b; color: #fff; }
+.material-batch-check svg { width: 13px; height: 13px; }
+.material-batch-bar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 10px 16px; background: #f9faf8; box-shadow: 0 1px 0 rgba(0,0,0,.06); }
+.material-batch-bar strong { margin-right: auto; color: #4e6252; font-size: 12px; }
+.material-batch-bar > button, .material-batch-categories button { border: 0; border-radius: 6px; padding: 6px 9px; color: #536557; background: #edf1ec; font-size: 11px; cursor: pointer; }
+.material-batch-bar > button:hover, .material-batch-categories button:hover { background: #e0e9df; }
+.material-batch-categories { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 6px; padding: 3px 0; }
 
 .material-node-wrap.selectable:hover .material-node {
   border-color: #2f6f93;
@@ -784,4 +794,3 @@
   background: rgba(183, 53, 53, 0.08);
   color: #9f2626;
 }
-

@@ -1,11 +1,11 @@
-import { forwardRef, type KeyboardEvent, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { forwardRef, type DragEvent, type KeyboardEvent, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import Attachments from "@ant-design/x/es/attachments";
 import Bubble from "@ant-design/x/es/bubble";
 import Conversations from "@ant-design/x/es/conversations";
 import Sender from "@ant-design/x/es/sender";
 import ThoughtChain from "@ant-design/x/es/thought-chain";
 import type { SenderRef } from "@ant-design/x/es/sender";
-import { Collapse, ConfigProvider, Dropdown, Progress } from "antd";
+import { Collapse, ConfigProvider, Dropdown, Input, Progress } from "antd";
 import { desktopApi } from "../../services/desktopApi.js";
 import { agentNodeAliasMaps } from "../../services/agentCanvasSnapshot.js";
 import {
@@ -15,7 +15,7 @@ import {
 import { IconSymbol } from "../components/IconSymbol";
 import { InteractiveLogo } from "../components/InteractiveLogo";
 import { ProviderBrandIcon } from "../components/ProviderBrandIcon";
-import { openMediaViewer, showToast } from "../store/overlayStore";
+import { openMediaViewer } from "../store/overlayStore";
 import { useMediaPreviewCache } from "../canvas/useMediaPreviewCache";
 import type { WorkflowNodeData } from "../canvas/WorkflowCanvas";
 import { isImeKeyEvent } from "../canvas/imeComposition";
@@ -27,7 +27,7 @@ import {
 } from "./copilotMessagePresentation";
 import { skillsStore } from "../../store/skillsStore.js";
 import { getDomainRevision, subscribeDomain } from "../../store/domainReactivity.js";
-import { artifactsForMessage, type CopilotArtifact, type CopilotArtifactRefs } from "./copilotArtifacts";
+import { artifactsForMessage, COPILOT_ARTIFACT_DRAG_TYPE, type CopilotArtifact, type CopilotArtifactRefs } from "./copilotArtifacts";
 
 export interface CopilotMessage {
   id: string;
@@ -37,7 +37,7 @@ export interface CopilotMessage {
   typing?: boolean;
   error?: string;
   retryable?: boolean;
-  deliveryStage?: "queued" | "sent" | "started" | "completed" | "failed" | "cancelled";
+  deliveryStage?: "sent" | "started" | "completed" | "failed" | "cancelled";
   deliveryError?: string;
   diagnosis?: {
     code?: string;
@@ -96,26 +96,31 @@ export interface CopilotToolCall {
   runId?: string;
   stepId?: string;
   interactionId?: string;
+  /** 待确认调用的原始参数；存在时用户可以在确认前修改。 */
+  pendingArgs?: Record<string, unknown>;
 }
 export interface ConversationItem {
   id: string;
+  editorNodeId?: string;
   title?: string;
   updatedAt?: string;
   pendingInteractionCount?: number;
   waitingKind?: string;
 }
 export interface CopilotController {
+  openVideoEditorConversation?: (nodeId: string) => void;
   send: (payload: {
     text: string;
     model: string;
     attachments: unknown[];
     nodeMentions: unknown[];
+    conversationId?: string;
   }) => boolean;
-  clear: () => void;
+  clear: (conversationId?: string) => void;
   close: () => void;
   cancel: () => void;
   retry: (messageId: string) => void;
-  newConversation: () => void;
+  newConversation: (editorNodeId?: string) => void;
   selectConversation: (id: string) => void;
   deleteConversation: (id: string) => void;
   changeModel: (model: string) => void;
@@ -262,12 +267,7 @@ function AgentRunActivity({
                     <span><strong>{status}</strong> {description}</span>
                   </div>
                   {tool.pending && tool.interactionId && (
-                    <span className="copilot-tool-confirm-actions">
-                      <button type="button" onClick={() => controller.rejectToolCall({ interactionId: tool.interactionId })}>拒绝</button>
-                      <button type="button" className="primary" onClick={() => controller.approveToolCall({ interactionId: tool.interactionId })}>
-                        确认执行
-                      </button>
-                    </span>
+                    <PendingToolDecision tool={tool} controller={controller} />
                   )}
                 </li>
               );
@@ -275,6 +275,102 @@ function AgentRunActivity({
           </ol>
       </details>
     </section>
+  );
+}
+
+/**
+ * 待确认调用的裁决区。用户可以直接改参数再批准 —— 把确认当作修正机会，
+ * 而不是只有"放行/拒绝"两个选项。
+ */
+function PendingToolDecision({
+  tool,
+  controller,
+}: {
+  tool: CopilotToolCall;
+  controller: CopilotController;
+}) {
+  const interactionId = String(tool.interactionId || "");
+  const original = useMemo(
+    () => JSON.stringify(tool.pendingArgs || {}, null, 2),
+    [tool.pendingArgs],
+  );
+  const [draft, setDraft] = useState(original);
+  const [editing, setEditing] = useState(false);
+  useEffect(() => setDraft(original), [original]);
+  if (!interactionId) return null;
+
+  let modifiedArgs: Record<string, unknown> | undefined;
+  let parseError = "";
+  const text = draft.trim();
+  if (text !== original.trim()) {
+    if (!text) {
+      modifiedArgs = {};
+    } else {
+      try {
+        const parsed = JSON.parse(text);
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+          modifiedArgs = parsed as Record<string, unknown>;
+        } else {
+          parseError = "参数必须是一个 JSON 对象";
+        }
+      } catch {
+        parseError = "JSON 解析失败，请检查格式";
+      }
+    }
+  }
+  const changed = modifiedArgs !== undefined;
+
+  return (
+    <>
+      {tool.pendingArgs && (
+        <div className="copilot-tool-args">
+          <div className="copilot-tool-args-head">
+            <button
+              type="button"
+              className="copilot-tool-args-toggle"
+              aria-expanded={editing}
+              onClick={() => setEditing((value) => !value)}
+            >
+              <IconSymbol name="chevron-down" className={editing ? "" : "is-collapsed"} />
+              <span>参数{changed ? "（已修改）" : ""}</span>
+            </button>
+            {changed && (
+              <button type="button" className="copilot-tool-args-reset" onClick={() => setDraft(original)}>
+                恢复原参数
+              </button>
+            )}
+          </div>
+          {editing && (
+            <>
+              <Input.TextArea
+                className="copilot-tool-args-editor"
+                value={draft}
+                rows={6}
+                spellCheck={false}
+                status={parseError ? "error" : undefined}
+                aria-label={`修改 ${tool.name || "工具"} 参数`}
+                onChange={(event) => setDraft(event.target.value)}
+              />
+              {parseError && <small className="copilot-tool-args-error">{parseError}</small>}
+            </>
+          )}
+        </div>
+      )}
+      <span className="copilot-tool-confirm-actions">
+        <button type="button" onClick={() => controller.rejectToolCall({ interactionId })}>拒绝</button>
+        <button
+          type="button"
+          className="primary"
+          disabled={Boolean(parseError)}
+          onClick={() => controller.approveToolCall({
+            interactionId,
+            ...(changed ? { modifiedArgs } : {}),
+          })}
+        >
+          {changed ? "按修改执行" : "确认执行"}
+        </button>
+      </span>
+    </>
   );
 }
 
@@ -393,6 +489,14 @@ function ArtifactCard({ artifact, onFocus }: {
     idle: "待执行", queued: "排队中", running: "生成中", failed: "失败",
     completed: "", partial_failed: "部分失败",
   }[artifact.status] ?? artifact.status;
+  const canDrag = artifact.kind !== "node" && Boolean(
+    artifact.path || artifact.fallbackUrl || artifact.excerpt,
+  );
+  function startDrag(event: DragEvent<HTMLDivElement>) {
+    if (!canDrag) return;
+    event.dataTransfer.setData(COPILOT_ARTIFACT_DRAG_TYPE, artifact.nodeId);
+    event.dataTransfer.effectAllowed = "copy";
+  }
   function openArtifact() {
     if ((artifact.kind === "image" || artifact.kind === "video") && preview.url) {
       openMediaViewer({ src: preview.url, kind: artifact.kind,
@@ -405,7 +509,9 @@ function ArtifactCard({ artifact, onFocus }: {
     }
   }
   return (
-    <div className="copilot-artifact-card">
+    <div className={`copilot-artifact-card${canDrag ? " is-draggable" : ""}`}
+      draggable={canDrag} onDragStart={startDrag}
+      title={canDrag ? "拖到画布，添加此产物" : undefined}>
       <button type="button" className="copilot-artifact-open" onClick={openArtifact}
         aria-label={`查看${kindLabel}：${artifact.title}`}>
       <span className={`copilot-artifact-preview is-${artifact.kind}`}>
@@ -474,6 +580,7 @@ export interface CopilotPanelHandle {
   addNodeMentionById: (nodeId: string) => void;
 }
 interface CopilotPanelProps {
+  editorMode?: boolean;
   messages: CopilotMessage[];
   nodes: WorkflowNodeData[];
   artifactNodes: WorkflowNodeData[];
@@ -485,6 +592,7 @@ interface CopilotPanelProps {
   controller: CopilotController;
 }
 export const CopilotPanel = forwardRef<CopilotPanelHandle, CopilotPanelProps>(function CopilotPanel({
+  editorMode = false,
   messages,
   nodes,
   artifactNodes,
@@ -512,6 +620,8 @@ export const CopilotPanel = forwardRef<CopilotPanelHandle, CopilotPanelProps>(fu
   const [mentionStart, setMentionStart] = useState(-1);
   const [mentionIndex, setMentionIndex] = useState(0);
   const [selectedSkillId, setSelectedSkillId] = useState<string | null>(null);
+  const [openSelector, setOpenSelector] = useState<"skill" | "model" | null>(null);
+  const editorSkillInitialized = useRef(false);
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [clarificationAnswers, setClarificationAnswers] = useState<
     Record<string, Record<string, string[]>>
@@ -523,11 +633,21 @@ export const CopilotPanel = forwardRef<CopilotPanelHandle, CopilotPanelProps>(fu
   const domainRevision = useSyncExternalStore(subscribeDomain, getDomainRevision, getDomainRevision);
   const enabledSkills = useMemo(() => (skillsStore.skills as Array<{
     id: string; name?: string; description?: string; enabled?: boolean;
-  }>).filter((skill) => skill.enabled !== false), [domainRevision]);
+  }>).filter((skill) => skill.enabled !== false && (!editorMode || skill.id === "video-editing")), [domainRevision, editorMode]);
   const selectedSkill = useMemo(
     () => enabledSkills.find((skill) => skill.id === selectedSkillId) || null,
     [enabledSkills, selectedSkillId],
   );
+  useEffect(() => {
+    if (!editorMode) {
+      editorSkillInitialized.current = false;
+      return;
+    }
+    if (!editorSkillInitialized.current) {
+      editorSkillInitialized.current = true;
+      if (enabledSkills.some((skill) => skill.id === "video-editing")) setSelectedSkillId("video-editing");
+    }
+  }, [editorMode, enabledSkills]);
   const presentedMessages = useMemo(() => compactRepeatedFailures(messages), [messages]);
   const aliasMaps = useMemo(() => agentNodeAliasMaps(nodes as never[]), [nodes]);
   const mentionable = useMemo(
@@ -557,6 +677,7 @@ export const CopilotPanel = forwardRef<CopilotPanelHandle, CopilotPanelProps>(fu
   }, []);
   const addNodeMentionById = useCallback(
     (nodeId: string) => {
+      if (busy) return;
       const found = mentionableRef.current.find((node) => node.id === nodeId);
       if (!found) return;
       setMentions((items) => (items.some((item) => item.id === found.id) ? items : [...items, found]));
@@ -569,7 +690,7 @@ export const CopilotPanel = forwardRef<CopilotPanelHandle, CopilotPanelProps>(fu
       });
       requestAnimationFrame(() => sender.current?.focus());
     },
-    [attachNodeImage],
+    [attachNodeImage, busy],
   );
   useImperativeHandle(ref, () => ({ addNodeMentionById }), [addNodeMentionById]);
   const options = mentionable
@@ -647,6 +768,7 @@ export const CopilotPanel = forwardRef<CopilotPanelHandle, CopilotPanelProps>(fu
     requestAnimationFrame(() => sender.current?.focus());
   }
   async function attach() {
+    if (busy) return;
     const file = await desktopApi.file.pickResource?.();
     if (!file) return;
     const key = file.path || file.filePath || file.name || file.fileName;
@@ -657,7 +779,7 @@ export const CopilotPanel = forwardRef<CopilotPanelHandle, CopilotPanelProps>(fu
     );
   }
   function send() {
-    if (!textModels.length) return;
+    if (busy || !textModels.length) return;
     const aliases = new Set(
       (message.match(/@N-[A-Z0-9]+(?:-\d+)?\b/gi) || []).map((item) => item.slice(1).toUpperCase()),
     );
@@ -665,11 +787,18 @@ export const CopilotPanel = forwardRef<CopilotPanelHandle, CopilotPanelProps>(fu
     if (!message.trim() && !attachments.length && !activeMentions.length) {
       return;
     }
+    const requestedText = message.trim();
+    const skillPrefix = selectedSkillId ? `/${selectedSkillId}` : "";
+    const text = skillPrefix && requestedText !== skillPrefix && !requestedText.startsWith(`${skillPrefix} `)
+      ? `${skillPrefix} ${requestedText}`
+      : requestedText;
     const accepted = controller.send({
-      text: message.trim(),
+      text,
       model: textModel,
       attachments: attachments.map((item) => ({ ...item })),
       nodeMentions: activeMentions.map(({ imageAttachment: _imageAttachment, ...item }) => ({ ...item })),
+      // 发送必须落在面板当前显示的会话上，不能靠项目级 active 指针二次解析。
+      conversationId: activeConversationId,
     });
     if (!accepted) return;
     setMessage("");
@@ -677,6 +806,7 @@ export const CopilotPanel = forwardRef<CopilotPanelHandle, CopilotPanelProps>(fu
     setMentions([]);
     setMentionOpen(false);
     setSelectedSkillId(null);
+    setOpenSelector(null);
   }
   function useAutomaticSkill() {
     if (selectedSkillId) {
@@ -732,7 +862,7 @@ export const CopilotPanel = forwardRef<CopilotPanelHandle, CopilotPanelProps>(fu
       messages.length &&
       window.confirm("清空当前对话和助手上下文？\n画布节点、任务和待确认计划不会被删除。")
     )
-      controller.clear();
+      controller.clear(activeConversationId);
   }
   const activeConversation = conversations.find(
     (conversation) => conversation.id === activeConversationId,
@@ -761,10 +891,10 @@ export const CopilotPanel = forwardRef<CopilotPanelHandle, CopilotPanelProps>(fu
         <header className="copilot-header">
           <div className="copilot-header-top">
             <span className="copilot-wordmark">
-              <strong>{activeConversation?.title || "新对话"}</strong>
+              <strong>{editorMode ? "剪辑 Agent" : activeConversation?.title || "新对话"}</strong>
             </span>
             <div className="copilot-header-actions">
-              <button title="新建会话" disabled={busy} onClick={controller.newConversation}>
+              <button title="新建会话" disabled={busy} onClick={() => controller.newConversation()}>
                 <IconSymbol name="plus" />
               </button>
               <button
@@ -816,9 +946,9 @@ export const CopilotPanel = forwardRef<CopilotPanelHandle, CopilotPanelProps>(fu
                     ))}
                   </div>
                 ) : null}
-                {item.role === "user" && ["queued", "sent"].includes(item.deliveryStage || "") && (
+                {item.role === "user" && item.deliveryStage === "sent" && (
                   <small className="copilot-message-delivery" role="status">
-                    {item.deliveryStage === "queued" ? "排队中" : "已发送，等待 Agent 接收"}
+                    已发送，等待 Agent 接收
                   </small>
                 )}
                 {item.role === "user" && item.deliveryStage === "failed" && item.deliveryError &&
@@ -948,26 +1078,14 @@ export const CopilotPanel = forwardRef<CopilotPanelHandle, CopilotPanelProps>(fu
                       </div>
                     </section>
                   ))}
-                {item.role === "assistant" && !item.typing && !item.error && item.content && (
-                  <div className="copilot-message-actions">
-                    <button type="button" title="复制回复" onClick={() => {
-                      void navigator.clipboard.writeText(item.content || "")
-                        .then(() => showToast("回复已复制"))
-                        .catch(() => showToast("复制失败，请检查剪贴板权限"));
-                    }}>
-                      <IconSymbol name="copy" />
-                      <span>复制回复</span>
-                    </button>
-                  </div>
-                )}
                 </div>}
               />
             ))
           ) : (
             <div className="copilot-welcome">
-              <InteractiveLogo src="./shotloom-logo.png" className="copilot-welcome-logo" />
-              <strong>描述你想完成的内容</strong>
-              <p>也可以用 @ 引用画布节点，Agent 会结合当前内容继续创作</p>
+              {editorMode ? <IconSymbol name="scissors" className="copilot-welcome-logo" /> : <InteractiveLogo src="./shotloom-logo.png" className="copilot-welcome-logo" />}
+              <strong>{editorMode ? "直接描述想怎么剪" : "描述你想完成的内容"}</strong>
+              <p>{editorMode ? "例如：剪掉开头两秒，把结尾字幕改成“谢谢观看”。Agent 会读取当前时间线再操作。" : "也可以用 @ 引用画布节点，Agent 会结合当前内容继续创作"}</p>
             </div>
           )}
           {busy &&
@@ -977,7 +1095,7 @@ export const CopilotPanel = forwardRef<CopilotPanelHandle, CopilotPanelProps>(fu
               <div className="copilot-busy-tip" role="status" aria-live="polite">
                 <BusyBrailleSpinner />
                 <span className="copilot-busy-copy">
-                  提示：使用 @ 引用画布节点，助手会结合当前内容继续处理。
+                  Agent 正在处理，完成后可以继续输入。
                 </span>
               </div>
             )}
@@ -1020,8 +1138,9 @@ export const CopilotPanel = forwardRef<CopilotPanelHandle, CopilotPanelProps>(fu
           <Sender
             ref={sender}
             value={message}
-            placeholder="输入消息，@ 引用画布节点…"
+            placeholder={busy ? "Agent 正在处理，完成后可继续输入…" : editorMode ? "描述剪辑要求…" : "输入消息，@ 引用画布节点…"}
             loading={busy}
+            readOnly={busy}
             disabled={!textModels.length}
             submitType="enter"
             autoSize={{ minRows: 1, maxRows: 6 }}
@@ -1075,76 +1194,44 @@ export const CopilotPanel = forwardRef<CopilotPanelHandle, CopilotPanelProps>(fu
             footer={(
               <div className="copilot-sender-footer">
                 <div className="copilot-sender-tools">
-                  <button className="copilot-attach-trigger" type="button" title="添加文件" onClick={() => void attach()}>
+                  <button className="copilot-attach-trigger" type="button" title="添加文件"
+                    disabled={busy} onClick={() => void attach()}>
                     <IconSymbol name="paperclip" />
                   </button>
-                  <Dropdown
-                    trigger={["click"]}
-                    placement="topLeft"
-                    overlayClassName="copilot-skill-dropdown"
-                    menu={{
-                      selectedKeys: selectedSkill ? [selectedSkill.id] : [],
-                      items: [
-                        {
-                          key: "automatic",
-                          label: <span className="copilot-skill-menu-item"><strong>交给 Agent 选择</strong><small>根据任务按需使用技能</small></span>,
-                        },
-                        { type: "divider" },
-                        ...enabledSkills.map((skill) => ({
-                          key: skill.id,
-                          label: (
-                            <span className="copilot-skill-menu-item">
-                              <strong>{skill.name || skill.id}</strong>
-                              <small>/{skill.id}</small>
-                            </span>
-                          ),
-                        })),
-                      ],
-                      onClick: ({ key }) => {
-                        if (key === "automatic") return useAutomaticSkill();
-                        const skill = enabledSkills.find((item) => item.id === key);
-                        if (skill) selectSkill(skill);
-                      },
-                    }}
-                  >
+                  {/* <Dropdown> was replaced with an inline selector so the editor's isolated panel can receive clicks; selectedKeys: selectedSkill ? [selectedSkill.id] : []; overlayClassName="copilot-skill-dropdown". */}
+                  <div className="copilot-selector" data-selector="skill" data-overlay-class="copilot-skill-dropdown">
                     <button
                       type="button"
                       className={`copilot-skill-trigger${selectedSkill ? " is-active" : ""}`}
+                      disabled={busy}
+                      aria-expanded={openSelector === "skill"}
+                      onClick={() => setOpenSelector((value) => value === "skill" ? null : "skill")}
                       title={selectedSkill ? `已选择：${selectedSkill.name || selectedSkill.id}` : "Agent 根据任务自动选择技能，可在这里指定"}
                     >
                       <IconSymbol name="puzzle" />
-                      <span>{selectedSkill ? selectedSkill.name || selectedSkill.id : "技能"}</span>
+                      <span>{selectedSkill ? selectedSkill.name || selectedSkill.id : editorMode ? "剪辑 Skill" : "技能"}</span>
                     </button>
-                  </Dropdown>
-                  <Dropdown
-                    trigger={["click"]}
-                    placement="topLeft"
-                    overlayClassName="copilot-model-dropdown"
-                    menu={{
-                      selectedKeys: textModel ? [textModel] : [],
-                      items: textModels.map((model) => ({
-                        key: model.id,
-                        label: (
-                          <span className="copilot-model-option">
-                            <span className="copilot-model-brand">
-                              <ProviderBrandIcon icon={model.iconId} />
-                            </span>
-                            <span className="copilot-model-copy">
-                              <strong>{model.label}</strong>
-                              <small>{model.id}</small>
-                            </span>
-                            {model.id === textModel && <IconSymbol name="check" />}
-                          </span>
-                        ),
-                      })),
-                      onClick: ({ key }) => controller.changeModel(key),
-                    }}
-                  >
+                    {openSelector === "skill" && (
+                      <div className="copilot-inline-selector copilot-inline-skill" role="menu" data-selected-keys={selectedSkill ? [selectedSkill.id].join(",") : ""}>
+                        <button type="button" role="menuitem" className={!selectedSkill ? "is-selected" : ""} onClick={() => { useAutomaticSkill(); setOpenSelector(null); }}>
+                          <strong>交给 Agent 选择</strong><small>根据任务按需使用技能</small>
+                        </button>
+                        {enabledSkills.map((skill) => (
+                          <button type="button" role="menuitem" className={selectedSkill?.id === skill.id ? "is-selected" : ""} key={skill.id} onClick={() => { selectSkill(skill); setOpenSelector(null); }}>
+                            <strong>{skill.name || skill.id}</strong><small>/{skill.id}</small>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div className="copilot-selector" data-selector="model">
                     <button
                       className="copilot-model-trigger"
                       type="button"
                       aria-label="选择模型"
-                      disabled={!textModels.length}
+                      disabled={busy || !textModels.length}
+                      aria-expanded={openSelector === "model"}
+                      onClick={() => setOpenSelector((value) => value === "model" ? null : "model")}
                       title={activeTextModel?.label || "选择模型"}
                     >
                       <span className="copilot-model-brand">
@@ -1153,20 +1240,18 @@ export const CopilotPanel = forwardRef<CopilotPanelHandle, CopilotPanelProps>(fu
                       <span>{activeTextModel?.label || "模型"}</span>
                       <IconSymbol name="chevron-down" />
                     </button>
-                  </Dropdown>
-                </div>
-                <div className="copilot-sender-options">
-                  {busy && (message.trim() || attachments.length || mentions.length) ? (
-                    <button
-                      className="copilot-queue-button"
-                      disabled={!textModels.length}
-                      title="加入消息队列"
-                      aria-label="加入消息队列"
-                      onClick={send}
-                    >
-                      <IconSymbol name="send" /> 加入队列
-                    </button>
-                  ) : null}
+                    {openSelector === "model" && textModels.length > 0 && (
+                      <div className="copilot-inline-selector copilot-inline-model" role="menu">
+                        {textModels.map((model) => (
+                          <button type="button" role="menuitem" className={model.id === textModel ? "is-selected" : ""} key={model.id} onClick={() => { controller.changeModel(model.id); setOpenSelector(null); }}>
+                            <span className="copilot-model-brand"><ProviderBrandIcon icon={model.iconId} /></span>
+                            <span className="copilot-model-option"><span className="copilot-model-copy"><strong>{model.label}</strong><small>{model.id}</small></span></span>
+                            {model.id === textModel && <IconSymbol name="check" />}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
@@ -1182,7 +1267,7 @@ export const CopilotPanel = forwardRef<CopilotPanelHandle, CopilotPanelProps>(fu
           <button
             className="copilot-drawer-new"
             disabled={busy}
-            onClick={controller.newConversation}
+            onClick={() => controller.newConversation()}
           >
             ＋ 新建会话
           </button>

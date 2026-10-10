@@ -112,9 +112,6 @@ export async function createOpenVideoRuntime({
   project,
   previewScale = 0.75,
   onTime,
-  onSelection,
-  onTransformStart,
-  onTransformEnd,
   onPlayingChange,
 }) {
   const [{ BrowserMetadataProvider, Core, CoreConfig }, { Studio }] = await Promise.all([
@@ -134,34 +131,14 @@ export async function createOpenVideoRuntime({
     artboardColor: '#050608',
     canvas,
     core,
-    interactivity: true,
+    // 片段交互由监视器的 HTML 浮层统一承担（与贴图/文字同一条路径），引擎只负责渲染。
+    // 视口的缩放与平移是独立开关，不受影响。
+    interactivity: false,
     allowZoom: true,
     allowPan: true,
     previewScale,
   });
   if (onTime) studio.on('currentTime', ({ currentTime }) => onTime(currentTime / US_PER_SECOND));
-  const emitSelection = ({ selected = [] } = {}) => onSelection?.(selected.map((clip) => clip.id));
-  studio.on('selection:created', emitSelection);
-  studio.on('selection:updated', emitSelection);
-  studio.on('selection:cleared', () => onSelection?.([]));
-  studio.on('transform:start', () => onTransformStart?.());
-  studio.on('transform:end', () => {
-    for (const clip of studio.getSelectedClips()) {
-      onTransformEnd?.({
-        id: clip.id,
-        transform: {
-          x: clip.left,
-          y: clip.top,
-          width: clip.width,
-          height: clip.height,
-          angle: clip.angle,
-          opacity: clip.opacity,
-          zIndex: clip.zIndex,
-          flip: clip.flip,
-        },
-      });
-    }
-  });
   studio.on('play', () => onPlayingChange?.(true));
   studio.on('pause', () => onPlayingChange?.(false));
   await studio.ready;

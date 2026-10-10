@@ -16,6 +16,8 @@ export interface CopilotArtifact {
   status: string;
 }
 
+export const COPILOT_ARTIFACT_DRAG_TYPE = "application/x-shotloom-artifact";
+
 export function artifactsForMessage(
   refs: CopilotArtifactRefs | undefined,
   nodes: WorkflowNodeData[],
@@ -78,7 +80,7 @@ export function artifactsForMessage(
       kind,
       path: local,
       fallbackUrl: remote,
-      excerpt: kind === "text" ? String(node.content || "") : "",
+      excerpt: kind === "text" ? String(node.content || node.textContent || "") : "",
       status: String(node.status || ""),
     };
   });

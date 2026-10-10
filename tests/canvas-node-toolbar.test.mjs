@@ -5,7 +5,7 @@ import test from 'node:test';
 const toolbar = readFileSync(new URL('../renderer/src/app/canvas/CanvasNodeToolbar.tsx', import.meta.url), 'utf8');
 const workflowCanvas = readFileSync(new URL('../renderer/src/app/canvas/WorkflowCanvas.tsx', import.meta.url), 'utf8');
 const canvas = toolbar + workflowCanvas;
-const cropDialog = readFileSync(new URL('../renderer/src/app/components/ImageCropDialog.tsx', import.meta.url), 'utf8');
+const cropEditor = readFileSync(new URL('../renderer/src/app/components/ImageCropEditor.tsx', import.meta.url), 'utf8');
 const generation = readFileSync(new URL('../renderer/src/app/canvas/GenerationNode.tsx', import.meta.url), 'utf8');
 const basicNodes = readFileSync(new URL('../renderer/src/app/canvas/CanvasNodes.tsx', import.meta.url), 'utf8');
 const board = readFileSync(new URL('../renderer/src/app/canvas/BoardNode.tsx', import.meta.url), 'utf8');
@@ -24,10 +24,10 @@ const nodeChrome = await import('../renderer/src/utils/canvasNodeChrome.mjs');
 test('画布节点外框与选中操作工具栏保持职责分离', () => {
   assert.match(workflowCanvas, /import \{ CanvasNodeToolbar \}/);
   assert.match(workflowCanvas, /<CanvasNodeToolbar[\s\S]*?canvasOverlayRoot=\{canvasOverlayRoot\}/);
-  assert.doesNotMatch(workflowCanvas, /desktopApi\.file\.hasAudio|assetScopeMenuOpen|<ImageCropDialog/);
+  assert.doesNotMatch(workflowCanvas, /desktopApi\.file\.hasAudio|assetScopeMenuOpen|<ImageCropEditor/);
   assert.match(toolbar, /desktopApi\.file\.hasAudio/);
   assert.match(toolbar, /assetScopeMenuOpen/);
-  assert.match(toolbar, /ImageCropDialog/);
+  assert.match(toolbar, /onImageCropOpen/);
 });
 
 test('加入对话只在节点选中工具栏中显示', () => {
@@ -86,17 +86,19 @@ test('媒体节点工具栏提供真实入库与音频分离', () => {
 });
 
 test('本地图片节点提供原图裁剪并创建保留来源连线的新节点', () => {
-  assert.match(canvas, /isLocalImage[^]*?title="裁剪图片"[^]*?setCropOpen\(true\)/);
-  assert.match(canvas, /createPortal\([^]*?<ImageCropDialog[^]*?actions\.cropImage\(node\.id, rect\)[^]*?document\.body/);
-  assert.match(cropDialog, /readImagePreview\(source, 2048\)/);
-  assert.match(cropDialog, /cropRatios[\s\S]*?"1:1"[\s\S]*?"16:9"[\s\S]*?"9:16"/);
+  assert.match(toolbar, /isLocalImage[^]*?title="在画布上裁剪图片"[^]*?onImageCropOpen\(\)/);
+  assert.match(workflowCanvas, /imageCropOpen=\{imageCropOpen\}[^]*?onImageCropOpen/);
+  assert.match(generation, /<ImageCropEditor[^]*?actions\.cropImage\(node\.id, rect\)/);
+  assert.match(cropEditor, /createPortal\([^]*?canvas-image-crop-toolbar[^]*?, root\)/);
+  assert.match(cropEditor, /ratios[\s\S]*?"1:1"[\s\S]*?"16:9"[\s\S]*?"9:16"/);
   assert.match(adapter, /async function cropImage\(id: string, crop: ImageCropRect\)[\s\S]*?cropImageToProject[\s\S]*?addNode\("imageGeneration"\)/);
   assert.match(adapter, /addCanvasEdge\(store\.project, source\.id, output\.id[\s\S]*?derivation: "image-crop"/);
   assert.match(api, /case 'file:crop-image':[\s\S]*?file_crop_image/);
   assert.match(api, /cropImageToProject:[\s\S]*?file:crop-image/);
   assert.match(imageRust, /pub async fn file_crop_image[\s\S]*?spawn_blocking/);
   assert.match(imageRust, /fn crop_image[\s\S]*?apply_orientation[\s\S]*?crop_imm[\s\S]*?ImageFormat::Png/);
-  assert.match(styles, /\.image-crop-backdrop \{[\s\S]*?z-index:\s*240/);
+  assert.match(styles, /\.canvas-image-crop-layer \{/);
+  assert.match(styles, /\.canvas-image-crop-toolbar \{[^}]*z-index:\s*120/);
 });
 
 test('空媒体节点从顶部工具栏上传且节点内部只保留占位图标', () => {

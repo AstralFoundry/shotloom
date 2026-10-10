@@ -2,6 +2,7 @@ import {
   type CSSProperties,
   type ComponentType,
   createContext,
+  type DragEvent as ReactDragEvent,
   forwardRef,
   memo,
   type MouseEvent as ReactMouseEvent,
@@ -39,7 +40,7 @@ import {
 import "@xyflow/react/dist/style.css";
 import { canvasNodeDimensions, defaultCanvasNodeDimensions } from "../../services/agentLayoutService";
 import { IconSymbol } from "../components/IconSymbol";
-import type { ImageCropRect } from "../components/ImageCropDialog";
+import type { ImageCropRect } from "../components/ImageCropEditor";
 import {
   draggedCanvasPositions,
   reconcileCanvasNodes,
@@ -50,6 +51,7 @@ import {
 } from "../../utils/canvasNodeChrome.mjs";
 import { CanvasNodeToolbar } from "./CanvasNodeToolbar";
 import { CanvasContextMenu } from "./CanvasContextMenu";
+import { COPILOT_ARTIFACT_DRAG_TYPE } from "../copilot/copilotArtifacts";
 import {
   canvasMenuPosition,
   screenPixel,
@@ -103,6 +105,8 @@ export interface WorkflowNodeActions {
   ) => void | Promise<void>;
   extractAudio: (id: string) => void | Promise<void>;
   cropImage: (id: string, rect: ImageCropRect) => void | Promise<void>;
+  splitImageGrid: (id: string, rows: number, cols: number, selected: number[], rect: ImageCropRect) => void | Promise<void>;
+  captureVideoFrame: (id: string, seconds: number) => void | Promise<void>;
   replaceResource: (id: string) => void;
   archiveResource: (id: string) => void;
   selectOutput: (nodeId: string, outputId: string) => void;
@@ -130,6 +134,8 @@ export type WorkflowNodeRenderer = ComponentType<{
   inputRevision?: string;
   incomingInputs?: WorkflowIncomingInput[];
   actions: WorkflowNodeActions;
+  imageCropOpen?: boolean;
+  onImageCropClose?: () => void;
 }>;
 export interface WorkflowCanvasController {
   moveNodes: (
@@ -141,6 +147,7 @@ export interface WorkflowCanvasController {
   connect: (connection: Connection) => boolean | void | Promise<boolean | void>;
   saveViewport: (viewport: Viewport) => void;
   createNodeAt: (type: string, position: { x: number; y: number }) => void | Promise<void>;
+  createArtifactNodeAt: (artifactId: string, position: { x: number; y: number }) => void | Promise<void>;
   deleteSelection: () => void;
   copySelection?: (withUpstream?: boolean) => void | Promise<void>;
   pasteSelection?: () => void | Promise<void>;
@@ -332,6 +339,8 @@ function CanvasNode({ data, selected, dragging, width }: NodeProps<FlowNode>) {
   const mentionInCopilot = useContext(MentionContext);
   const item = data.node;
   const [resizing, setResizing] = useState(false);
+  const [imageCropOpen, setImageCropOpen] = useState(false);
+  useEffect(() => { if (!selected) setImageCropOpen(false); }, [selected]);
   const canvasOverlayRoot = useContext(CanvasOverlayRootContext);
   const [labelRoot, setLabelRoot] = useState<HTMLElement | null>(null);
   const Renderer = registry[item.type] || FallbackNode;
@@ -356,6 +365,8 @@ function CanvasNode({ data, selected, dragging, width }: NodeProps<FlowNode>) {
         actions={actions}
         mentionInCopilot={mentionInCopilot}
         canvasOverlayRoot={canvasOverlayRoot}
+        imageCropOpen={imageCropOpen}
+        onImageCropOpen={() => setImageCropOpen(true)}
       />
       {selected && resizable && (
         <NodeResizer
@@ -417,6 +428,8 @@ function CanvasNode({ data, selected, dragging, width }: NodeProps<FlowNode>) {
           inputRevision={data.inputRevision}
           incomingInputs={data.incomingInputs}
           actions={actions}
+          imageCropOpen={imageCropOpen}
+          onImageCropClose={() => setImageCropOpen(false)}
         />
       </div>
       </CanvasNodeLabelRootContext.Provider>
@@ -790,6 +803,22 @@ export function WorkflowCanvas({
       flowY: point.y / semanticZoomRef.current,
     });
   }
+  function onArtifactDragOver(event: ReactDragEvent<HTMLElement>) {
+    if (!event.dataTransfer.types.includes(COPILOT_ARTIFACT_DRAG_TYPE)) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+  }
+  function onArtifactDrop(event: ReactDragEvent<HTMLElement>) {
+    const artifactId = event.dataTransfer.getData(COPILOT_ARTIFACT_DRAG_TYPE);
+    if (!artifactId || !instance) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const point = instance.screenToFlowPosition({ x: event.clientX, y: event.clientY });
+    void controller.createArtifactNodeAt(artifactId, {
+      x: point.x / semanticZoomRef.current,
+      y: point.y / semanticZoomRef.current,
+    });
+  }
   const bindCanvasRoot = useCallback((element: HTMLElement | null) => {
     canvasRoot.current = element;
     setCanvasOverlayRoot(element);
@@ -803,6 +832,8 @@ export function WorkflowCanvas({
         <CanvasOverlayRootContext.Provider value={canvasOverlayRoot}>
         <section
           ref={bindCanvasRoot}
+          onDragOver={onArtifactDragOver}
+          onDrop={onArtifactDrop}
           className={`react-workflow-canvas${renderedSemanticZoom < 0.8 ? " canvas-zoom-compact" : ""}${renderedSemanticZoom < 0.35 ? " canvas-zoom-distant" : ""}${Math.round(renderedSemanticZoom * 100) <= 20 ? " canvas-zoom-overview" : ""}`}
           tabIndex={0}
           onPointerDownCapture={(event) => {

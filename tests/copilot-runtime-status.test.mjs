@@ -47,9 +47,11 @@ test('消息发送后立即显示思考状态并把发送按钮切换为停止�
   assert.match(panel, /className="copilot-busy-tip"/);
   assert.match(panel, /busyBrailleFrames/);
   assert.match(panel, /}, 140\)/);
-  assert.match(panel, /提示：使用 @ 引用画布节点/);
+  assert.match(panel, /Agent 正在处理，完成后可以继续输入/);
   assert.match(panel, /loading=\{busy\}/);
+  assert.match(panel, /readOnly=\{busy\}/);
   assert.match(panel, /onCancel=\{controller\.cancel\}/);
+  assert.doesNotMatch(panel, /加入队列|copilot-queue-button/);
   assert.match(styles, /copilot-busy-braille/);
   assert.match(styles, /copilot-busy-pulse/);
 });

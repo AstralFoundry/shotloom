@@ -11,7 +11,8 @@ import { promoteMaterialToLocalLibrary } from "../../../store/localAssetLibraryS
 import { addNode, setSelectedNodeIds } from "../../../store/nodeStore.js";
 import { store as rawStore, touchProject } from "../../../store/projectStore.js";
 import { showSuccessToast, showToast } from "../../store/overlayStore";
-import type { ImageCropRect } from "../../components/ImageCropDialog";
+import type { ImageCropRect } from "../../components/ImageCropEditor";
+import { imageGridCellRect } from "../../../utils/imageGridCrop.mjs";
 import { selectedNodeLocalMedia } from "./canvasMediaSelection";
 
 const store: any = rawStore;
@@ -134,6 +135,116 @@ export async function cropImage(id: string, crop: ImageCropRect) {
       showToast(cause instanceof Error ? cause.message : "图片裁剪失败");
       throw cause;
     }
+}
+
+export async function splitImageGrid(id: string, rows: number, cols: number, selected: number[], rect: ImageCropRect) {
+    const source: any = (store.project.nodes || []).find(
+      (item: any) => item.id === id && item.type === "imageGeneration" && !item.archived,
+    );
+    const { path } = selectedNodeLocalMedia(store.project, source);
+    if (!source || !path) throw new Error("当前节点没有可切分的本地图片");
+    if (!Number.isInteger(rows) || !Number.isInteger(cols) || rows < 1 || cols < 1 || rows > 5 || cols > 5) {
+      throw new Error("宫格行列数应为 1–5");
+    }
+    if (![rect.x, rect.y, rect.width, rect.height].every(Number.isFinite) ||
+      rect.x < 0 || rect.y < 0 || rect.width <= 0 || rect.height <= 0 ||
+      rect.x + rect.width > 1.000001 || rect.y + rect.height > 1.000001) {
+      throw new Error("宫格裁剪区域无效");
+    }
+    const cells = [...new Set(selected)].filter((index) => Number.isInteger(index) && index >= 0 && index < rows * cols).sort((a, b) => a - b);
+    if (!cells.length) throw new Error("请至少选择一个宫格");
+    const stem = String(source.title || path.split(/[\\/]/).pop() || "图片")
+      .replace(/\.[a-z0-9]{1,10}$/i, "")
+      .replace(/[\\/:*?"<>|]/g, "-");
+    const files: Array<{ index: number; file: any }> = [];
+    for (const index of cells) {
+      const row = Math.floor(index / cols);
+      const col = index % cols;
+      const file = await desktopApi.file.cropImageToProject(
+        path, `${stem}-${row + 1}-${col + 1}.png`, imageGridCellRect(rect, rows, cols, index),
+      );
+      if (!file?.filePath && !file?.path) throw new Error(`第 ${row + 1} 行第 ${col + 1} 列切分失败`);
+      files.push({ index, file });
+    }
+    recordCanvasHistory("宫格切分");
+    const sourceDimensions = canvasNodeDimensions(source);
+    const created: string[] = [];
+    for (const { index, file } of files) {
+      const row = Math.floor(index / cols);
+      const col = index % cols;
+      const filePath = String(file.filePath || file.path);
+      const name = String(file.name || `${stem}-${row + 1}-${col + 1}.png`);
+      const registered: any = registerImportedMaterial(
+        { ...file, name, type: "image/png", mimeType: "image/png" },
+        { resourceType: "image", source: "image-grid-split", sourceType: "image-grid-split", nodeType: "imageGeneration", assetTag: "宫格切分" },
+      );
+      if (!registered.material) throw new Error(`宫格 ${row + 1}-${col + 1} 未能登记为项目素材`);
+      const output: any = addNode("imageGeneration");
+      output.title = `${stem} ${row + 1}-${col + 1}`;
+      output.prompt = "";
+      output.x = Math.round((Number(source.x) || 0) + sourceDimensions.width + 80 + col * (sourceDimensions.width + 36));
+      output.y = Math.round((Number(source.y) || 0) + row * (sourceDimensions.height + 36));
+      output.materialId = registered.material.id;
+      output.assetId = registered.asset?.id || "";
+      output.resourceType = "image";
+      output.sourceType = "image-grid-split";
+      output.generatedFrom = { nodeId: source.id, type: "image-grid-split", row, col, rows, cols };
+      output.filePath = filePath;
+      output.uploadedFile = { name, path: filePath, filePath, type: "image/png", mimeType: "image/png", size: file.size || 0, materialId: output.materialId, assetId: output.assetId, resourceType: "image", source: "image-grid-split" };
+      registered.material.nodeId = output.id;
+      addCanvasEdge(store.project, source.id, output.id, {
+        touch: false,
+        kind: "derived-output",
+        edge: { data: { skipTaskInput: true, derivation: "image-grid-split" } },
+      });
+      created.push(output.id);
+    }
+    setSelectedNodeIds(created);
+    touchProject();
+    showSuccessToast(`已创建 ${created.length} 个宫格图片节点`);
+}
+
+export async function captureVideoFrame(id: string, seconds: number) {
+    const source: any = (store.project.nodes || []).find(
+      (item: any) => item.id === id && item.type === "videoGeneration" && !item.archived,
+    );
+    const { path } = selectedNodeLocalMedia(store.project, source);
+    if (!source || !path) throw new Error("当前节点没有可截帧的本地视频");
+    if (!Number.isFinite(seconds) || seconds < 0) throw new Error("截帧时间无效");
+    const stem = String(source.title || path.split(/[\\/]/).pop() || "视频")
+      .replace(/\.[a-z0-9]{1,10}$/i, "")
+      .replace(/[\\/:*?"<>|]/g, "-");
+    const timeLabel = seconds.toFixed(2).replace(".", "-");
+    const file: any = await desktopApi.file.captureVideoFrameToProject(path, seconds, `${stem}-${timeLabel}s.png`);
+    const filePath = String(file?.filePath || file?.path || "");
+    if (!filePath) throw new Error("截帧结果未能保存到项目");
+    const registered: any = registerImportedMaterial(
+      { ...file, type: "image/png", mimeType: "image/png" },
+      { resourceType: "image", source: "video-frame", sourceType: "video-frame", nodeType: "imageGeneration", assetTag: "视频截帧" },
+    );
+    if (!registered.material) throw new Error("截帧结果未能登记为项目素材");
+    recordCanvasHistory("视频截帧");
+    const output: any = addNode("imageGeneration");
+    output.title = `${stem} ${seconds.toFixed(2)}s`;
+    output.prompt = "";
+    output.x = Math.round((Number(source.x) || 0) + canvasNodeDimensions(source).width + 80);
+    output.y = Math.round(Number(source.y) || 0);
+    output.materialId = registered.material.id;
+    output.assetId = registered.asset?.id || "";
+    output.resourceType = "image";
+    output.sourceType = "video-frame";
+    output.generatedFrom = { nodeId: source.id, type: "video-frame", seconds };
+    output.filePath = filePath;
+    output.uploadedFile = { name: file.name || `${stem}-${timeLabel}s.png`, path: filePath, filePath, type: "image/png", mimeType: "image/png", size: file.size || 0, materialId: output.materialId, assetId: output.assetId, resourceType: "image", source: "video-frame" };
+    registered.material.nodeId = output.id;
+    addCanvasEdge(store.project, source.id, output.id, {
+      touch: false,
+      kind: "derived-output",
+      edge: { data: { skipTaskInput: true, derivation: "video-frame" } },
+    });
+    setSelectedNodeIds([output.id]);
+    touchProject();
+    showSuccessToast("当前画面已截取为图片节点");
 }
 
 export async function extractAudio(id: string) {

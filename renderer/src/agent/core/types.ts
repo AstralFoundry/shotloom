@@ -57,6 +57,7 @@ export interface AgentToolContext {
   attachments: JsonObject[];
   capabilities: {
     nodeExecution: boolean;
+    agentType: 'canvas' | 'editor';
   };
   state: Map<string, unknown>;
   emit: (event: JsonObject & { type: string }) => void;

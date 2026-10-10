@@ -150,16 +150,16 @@ fn crop_image(source: String, target: String, crop: ImageCropRect) -> Result<Val
     if image_width == 0 || image_height == 0 {
         return Err("图片尺寸无效".into());
     }
-    let x = ((crop.x.clamp(0.0, 1.0) * image_width as f64).floor() as u32)
-        .min(image_width - 1);
-    let y = ((crop.y.clamp(0.0, 1.0) * image_height as f64).floor() as u32)
-        .min(image_height - 1);
-    let width = ((crop.width.clamp(0.0, 1.0) * image_width as f64).round() as u32)
-        .max(1)
-        .min(image_width - x);
-    let height = ((crop.height.clamp(0.0, 1.0) * image_height as f64).round() as u32)
-        .max(1)
-        .min(image_height - y);
+    // Shared boundaries must resolve to the same pixel for neighboring grid cells.
+    let x = (crop.x.clamp(0.0, 1.0) * image_width as f64).round() as u32;
+    let y = (crop.y.clamp(0.0, 1.0) * image_height as f64).round() as u32;
+    let right = ((crop.x + crop.width).clamp(0.0, 1.0) * image_width as f64).round() as u32;
+    let bottom = ((crop.y + crop.height).clamp(0.0, 1.0) * image_height as f64).round() as u32;
+    if right <= x || bottom <= y {
+        return Err("裁剪区域小于一个像素".into());
+    }
+    let width = right - x;
+    let height = bottom - y;
     let target = PathBuf::from(target);
     if let Some(parent) = target.parent() {
         fs::create_dir_all(parent).map_err(|error| error.to_string())?;

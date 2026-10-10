@@ -46,6 +46,10 @@ export default async function shotloomToolsPlugin({ client, directory }, options
             method: 'POST', signal: context.abort,
             body: JSON.stringify({ requestId, name: definition.name, arguments: arguments_ }),
           });
+          if (Array.isArray(result.__toolAttachments)) {
+            const { __toolAttachments: attachments, ...output } = result;
+            return { output: JSON.stringify(output), attachments };
+          }
           return JSON.stringify(result);
         },
       })];

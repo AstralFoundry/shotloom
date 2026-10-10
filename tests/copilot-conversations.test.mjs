@@ -2,11 +2,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   createCopilotConversation,
-  clearActiveCopilotConversation,
+  clearCopilotConversation,
   deleteCopilotConversation,
   ensureCopilotConversations,
   getActiveCopilotConversation,
   switchCopilotConversation,
+  canvasCopilotConversation,
+  editorCopilotConversation,
+  scopedCopilotConversations,
 } from '../renderer/src/services/copilotConversations.mjs';
 
 test('clearing a conversation also starts a fresh Runtime session', () => {
@@ -15,7 +18,7 @@ test('clearing a conversation also starts a fresh Runtime session', () => {
   active.messages.push({ id: 'old-message' });
   active.openCodeSessionId = 'ses_old';
 
-  clearActiveCopilotConversation(project);
+  clearCopilotConversation(project, active.id);
 
   assert.deepEqual(active.messages, []);
   assert.equal(active.openCodeSessionId, undefined);
@@ -90,4 +93,82 @@ test('deleting the last conversation creates a fresh canonical conversation', ()
   assert.equal(project.activeCopilotConversationId, replacement.id);
   assert.notEqual(replacement.id, only.id);
   assert.deepEqual(replacement.messages, []);
+});
+
+test('canvas scope hides editor conversations and lists newest first', () => {
+  const project = {};
+  const oldest = getActiveCopilotConversation(project);
+  oldest.updatedAt = '2026-01-01T00:00:00.000Z';
+  const newest = createCopilotConversation(project);
+  newest.updatedAt = '2026-01-02T00:00:00.000Z';
+  const editor = createCopilotConversation(project, { title: '剪辑 Agent' });
+  editor.editorNodeId = 'node-editor';
+
+  assert.deepEqual(
+    scopedCopilotConversations(project, 'canvas').map((item) => item.id),
+    [newest.id, oldest.id],
+  );
+  assert.deepEqual(
+    scopedCopilotConversations(project, 'editor', 'node-editor').map((item) => item.id),
+    [editor.id],
+  );
+  assert.deepEqual(scopedCopilotConversations(project, 'editor', 'node-other'), []);
+  assert.deepEqual(scopedCopilotConversations(project, 'editor', ''), []);
+});
+
+test('canvas panel resolves its own conversation while the project pointer sits on an editor conversation', () => {
+  const project = {};
+  const canvas = getActiveCopilotConversation(project);
+  const editor = createCopilotConversation(project, { title: '剪辑 Agent' });
+  editor.editorNodeId = 'node-editor';
+  assert.equal(project.activeCopilotConversationId, editor.id);
+
+  const resolved = canvasCopilotConversation(project);
+
+  assert.equal(resolved.id, canvas.id);
+  assert.notEqual(resolved.id, editor.id);
+});
+
+test('canvas scope creates a canonical conversation when only editor conversations remain', () => {
+  const project = {};
+  const canvas = getActiveCopilotConversation(project);
+  const editor = createCopilotConversation(project, { title: '剪辑 Agent' });
+  editor.editorNodeId = 'node-editor';
+  project.copilotConversations = project.copilotConversations.filter(
+    (item) => item.id !== canvas.id,
+  );
+
+  const resolved = canvasCopilotConversation(project);
+
+  assert.equal(resolved.editorNodeId, undefined);
+  assert.equal(project.activeCopilotConversationId, resolved.id);
+  assert.equal(scopedCopilotConversations(project, 'canvas').length, 1);
+});
+
+test('editor scope creates one conversation per editor node and reuses it', () => {
+  const project = {};
+  getActiveCopilotConversation(project);
+
+  const created = editorCopilotConversation(project, 'node-a');
+
+  assert.equal(created.editorNodeId, 'node-a');
+  assert.equal(created.title, '剪辑 Agent');
+  assert.equal(editorCopilotConversation(project, 'node-a'), created);
+  assert.notEqual(editorCopilotConversation(project, 'node-b').id, created.id);
+});
+
+test('clearing targets one conversation without touching the other scope', () => {
+  const project = {};
+  const canvas = getActiveCopilotConversation(project);
+  const editor = editorCopilotConversation(project, 'node-editor');
+  canvas.messages.push({ id: 'canvas-message' });
+  editor.messages.push({ id: 'editor-message' });
+  editor.openCodeSessionId = 'ses_editor';
+  assert.equal(project.activeCopilotConversationId, editor.id);
+
+  clearCopilotConversation(project, canvas.id);
+
+  assert.deepEqual(canvas.messages, []);
+  assert.deepEqual(editor.messages, [{ id: 'editor-message' }]);
+  assert.equal(editor.openCodeSessionId, 'ses_editor');
 });

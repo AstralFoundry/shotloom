@@ -11,7 +11,9 @@ const nativeRuntime = readFileSync(new URL('../src-tauri/src/commands/agent_runt
 test('Skill 由 OpenCode 原生目录直接提供，不再先调用自定义目录工具', () => {
   assert.doesNotMatch(runtime, /routeSkill|agent: 'intent-router'|Skill Router/);
   assert.doesNotMatch(catalog, /id: 'inspect_skill_catalog'|id: 'load_skill'/);
-  assert.match(runtime, /nativeRuntimeSkills\(availableAgentSkills\(\)\)/);
+  assert.match(runtime, /nativeRuntimeSkills\(availableAgentSkills\(skillScope\)\)/);
+  assert.match(runtime, /editorMode \? 'video-editing' : 'general'/);
+  assert.match(catalog, /availableAgentSkills\(scope: 'general' \| 'video-editing'/);
   assert.match(runtime, /part\.type === 'tool' && part\.tool === 'skill'/);
   assert.match(nativeRuntime, /"skills": \{ "paths": skill_paths \}/);
   assert.match(nativeRuntime, /materialize_runtime_skills/);

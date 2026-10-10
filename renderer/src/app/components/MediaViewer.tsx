@@ -13,6 +13,7 @@ import {
 import { IconSymbol } from "./IconSymbol";
 import { showToast, useOverlayStore } from "../store/overlayStore";
 import { markdownToRichHtml, richHtmlToMarkdown } from "../../utils/richTextMarkdown.mjs";
+import { diffTextLines } from "../../utils/textVersionDiff.mjs";
 
 const MIN_ZOOM = .5, MAX_ZOOM = 5, STEP = .25;
 function formatMediaTime(value: number) {
@@ -31,9 +32,17 @@ export function MediaViewer() {
   const [textDraft, setTextDraft] = useState("");
   const [textSearchOpen, setTextSearchOpen] = useState(false);
   const [textSearch, setTextSearch] = useState("");
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyCompare, setHistoryCompare] = useState(false);
+  const [historyIndex, setHistoryIndex] = useState(0);
+  const [textVersions, setTextVersions] = useState<Array<{ id: string; content: string; createdAt: string; name?: string }>>([]);
+  const [renamingId, setRenamingId] = useState("");
+  const [versionName, setVersionName] = useState("");
+  const savedText = useRef("");
   const [videoTime, setVideoTime] = useState(0);
   const [videoDuration, setVideoDuration] = useState(0);
   const [videoMuted, setVideoMuted] = useState(false);
+  const [capturingFrame, setCapturingFrame] = useState(false);
   const panOrigin = useRef<{ x: number; y: number; id: number } | null>(null);
   const backdrop = useRef<HTMLDivElement>(null);
   const textEditor = useRef<HTMLDivElement>(null);
@@ -55,8 +64,16 @@ export function MediaViewer() {
     setVideoTime(0);
     setVideoDuration(0);
     setVideoMuted(false);
+    setCapturingFrame(false);
     if (media.kind === "text") {
       setTextDraft(media.src);
+      savedText.current = media.src;
+      const versions = media.getTextVersions?.() || [];
+      setTextVersions(versions);
+      setHistoryOpen(false);
+      setHistoryCompare(false);
+      setHistoryIndex(Math.max(0, versions.length - 1));
+      setRenamingId("");
       setTextSearchOpen(false);
       setTextSearch("");
       requestAnimationFrame(() => {
@@ -150,15 +167,46 @@ export function MediaViewer() {
   function saveText() {
     const markdown = currentMarkdown();
     setTextDraft(markdown);
-    media.onSave?.(markdown);
+    if (markdown !== savedText.current) {
+      media.onSave?.(markdown);
+      savedText.current = markdown;
+      const versions = media.getTextVersions?.() || [];
+      setTextVersions(versions);
+      setHistoryIndex(Math.max(0, versions.length - 1));
+    }
     showToast("文本已保存");
   }
   function closeViewer() {
     const markdown = currentMarkdown();
-    if (media.kind === "text" && media.onSave && markdown !== media.src) {
+    if (media.kind === "text" && media.onSave && markdown !== savedText.current) {
       media.onSave(markdown);
     }
     close();
+  }
+  function restoreTextVersion() {
+    const version = textVersions[historyIndex];
+    if (!version || !media.onSave) return;
+    media.onSave(version.content);
+    savedText.current = version.content;
+    setTextDraft(version.content);
+    if (textEditor.current) textEditor.current.innerHTML = markdownToRichHtml(version.content);
+    const versions = media.getTextVersions?.() || [];
+    setTextVersions(versions);
+    setHistoryIndex(Math.max(0, versions.length - 1));
+    setHistoryCompare(false);
+    showToast("已恢复版本");
+  }
+  function saveVersionName() {
+    if (!renamingId || !media.onRenameVersion) return;
+    if (media.onRenameVersion(renamingId, versionName)) {
+      setTextVersions(media.getTextVersions?.() || []);
+      setRenamingId("");
+    }
+  }
+  function copyVersion() {
+    const version = textVersions[historyIndex];
+    if (!version || !media.onCopyVersion) return;
+    if (media.onCopyVersion(version.id)) showToast("已复制为新画布节点");
   }
   function currentMarkdown() {
     return media.kind === "text" && textEditor.current
@@ -238,6 +286,7 @@ export function MediaViewer() {
               <button title="插入表格" className="text-format-table" onMouseDown={(event) => { event.preventDefault(); insertTable(); }}>▦</button>
             </div>
             <div className="text-editor-actions">
+              {media.getTextVersions && <button title="版本历史" aria-label="版本历史" aria-pressed={historyOpen} onClick={() => setHistoryOpen((value) => !value)}><IconSymbol name="refresh" /></button>}
               {textSearchOpen && (
                 <input
                   autoFocus
@@ -293,6 +342,7 @@ export function MediaViewer() {
           media.kind === "image" && zoom > 1 ? " pannable" : ""
         }${panning ? " panning" : ""}${
           media.kind === "text" ? " is-text" : ""
+        }${historyOpen && media.kind === "text" ? " is-history-open" : ""
         }`}
         onWheel={(event: WheelEvent<HTMLElement>) => {
           if (media.kind === "image") {
@@ -359,10 +409,42 @@ export function MediaViewer() {
             />
           )
           : <pre className="media-viewer-text">{media.src}</pre>}
+        {media.kind === "text" && historyOpen && (
+          <aside className="text-version-panel" aria-label="文本版本历史">
+            <div className="text-version-heading"><strong>版本历史</strong><span>{textVersions.length} 个版本</span></div>
+            {textVersions.length ? <>
+              <div className="text-version-list">
+                {textVersions.map((version, index) => (
+                  <button key={version.id} type="button" className={index === historyIndex ? "is-selected" : ""} onClick={() => setHistoryIndex(index)}>
+                    <strong>{version.name || `版本 ${index + 1}`}</strong>
+                    <time>{new Date(version.createdAt).toLocaleString()}</time>
+                    <small>{version.content.slice(0, 80) || "空白文本"}</small>
+                  </button>
+                ))}
+              </div>
+              <div className="text-version-name-row">
+                {renamingId === textVersions[historyIndex]?.id ? <input autoFocus aria-label="版本名称" value={versionName} onChange={(event) => setVersionName(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") saveVersionName(); if (event.key === "Escape") setRenamingId(""); }} /> : <span>{textVersions[historyIndex]?.name || `版本 ${historyIndex + 1}`}</span>}
+                <button type="button" onClick={() => { if (renamingId) saveVersionName(); else { setRenamingId(textVersions[historyIndex]?.id || ""); setVersionName(textVersions[historyIndex]?.name || ""); } }}>{renamingId ? "保存" : "命名"}</button>
+              </div>
+              <div className="text-version-actions">
+                <button type="button" onClick={() => setHistoryCompare((value) => !value)}>{historyCompare ? "隐藏对比" : "与当前对比"}</button>
+                {media.onCopyVersion && <button type="button" onClick={copyVersion}>复制到画布</button>}
+                <button type="button" onClick={restoreTextVersion} disabled={!media.onSave || textVersions[historyIndex]?.content === currentMarkdown()}>恢复此版本</button>
+              </div>
+              {historyCompare && <div className="text-version-compare" aria-label="版本差异">
+                {diffTextLines(textVersions[historyIndex]?.content, textDraft).map((line, index) => <div key={index} className={`is-${line.type}`}><span>{line.type === "added" ? "+" : line.type === "removed" ? "−" : " "}</span><code>{line.text || " "}</code></div>)}
+              </div>}
+            </> : <p className="text-version-empty">编辑并保存后，版本会显示在这里。</p>}
+          </aside>
+        )}
       </main>
       <footer className="media-viewer-hint">
         {media.kind !== "text" ? (
           <div className="media-viewer-primary-actions">
+            {media.kind === "video" && media.onCaptureFrame && media.filePath && <button type="button" disabled={capturingFrame} onClick={() => {
+              setCapturingFrame(true);
+              void Promise.resolve(media.onCaptureFrame?.(videoTime)).catch((cause) => showToast(cause instanceof Error ? cause.message : "视频截帧失败")).finally(() => setCapturingFrame(false));
+            }}><IconSymbol name="image" />{capturingFrame ? "截帧中…" : "截取当前帧"}</button>}
             {media.filePath && (
               <>
                 <button type="button" onClick={() => void saveMedia()}>

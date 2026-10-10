@@ -1,0 +1,6 @@
+{
+  "id": "video-editing",
+  "category": "video",
+  "version": 2,
+  "triggers": { "keywords": ["剪辑", "剪辑 Agent", "时间线", "字幕", "转场", "特效", "成片"] }
+}

@@ -140,7 +140,14 @@ export function unregisterAgentTool(toolId: string): boolean {
 
 export function listAgentTools(context: AgentToolContext): AgentToolDefinition[] {
   // 原生插件按 Runtime 配置注册目录；执行时仍重新检查可用性和 Skill。
-  return [...tools.values()].filter((tool) => tool.isAvailable?.(context) !== false);
+  return [...tools.values()].filter((tool) => {
+    if (tool.isAvailable?.(context) === false) return false;
+    const editorTool = tool.id.startsWith('video_project_');
+    if (context.capabilities.agentType === 'editor') {
+      return editorTool || ['request_clarification', 'report_outcome', 'inspect_runtime_capabilities', 'inspect_model_catalog'].includes(tool.id);
+    }
+    return !editorTool;
+  });
 }
 
 export function assistantToolDefinitions(context: AgentToolContext): JsonObject[] {
@@ -160,6 +167,9 @@ export function prepareAgentToolCall(name: string, rawArguments: string, context
   // 校验通过后 AgentRuntime 才会调用 definition.execute。
   const definition = tools.get(name);
   if (!definition || definition.isAvailable?.(context) === false) throw new Error(`Unknown or unavailable Agent tool: ${name}`);
+  if (!listAgentTools(context).some((tool) => tool.id === name)) {
+    throw new Error(`Tool ${name} is not available to the ${context.capabilities.agentType} Agent`);
+  }
   const namespace = toolNamespacePrefix(name);
   if (namespace && (namespace === 'skill' || namespace.startsWith('skill_'))
     && !skillNamespaceIsLoaded(namespace, context.loadedSkillIds)) {

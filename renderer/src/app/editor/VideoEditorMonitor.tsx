@@ -4,7 +4,7 @@ import type {
 } from "react";
 import { editorClipDuration } from "../../utils/videoEditorProject.mjs";
 import { IconSymbol } from "../components/IconSymbol";
-import { constrainTransformToCanvas } from "./videoEditorModel";
+import { constrainTransformToCanvas, type TransformCorner } from "./videoEditorModel";
 import { formatEditorTimecode } from "./videoEditorFormat";
 import type {
   VideoEditorAsset,
@@ -35,6 +35,7 @@ export function VideoEditorMonitor({
   duration,
   playing,
   sourceThumbnail,
+  activeVideoClips,
   activeImageClips,
   activeTextClips,
   assets,
@@ -74,6 +75,7 @@ export function VideoEditorMonitor({
   duration: number;
   playing: boolean;
   sourceThumbnail: string;
+  activeVideoClips: VideoEditorClip[];
   activeImageClips: VideoEditorClip[];
   activeTextClips: VideoEditorClip[];
   assets: VideoEditorAsset[];
@@ -90,6 +92,7 @@ export function VideoEditorMonitor({
     event: ReactPointerEvent<Element>,
     clip: VideoEditorClip,
     mode: TransformMode,
+    corner?: TransformCorner,
   ) => void;
   onFramePrevious: () => void;
   onFrameNext: () => void;
@@ -102,7 +105,7 @@ export function VideoEditorMonitor({
   return (
     <section className="ov-program">
       <div className="ov-monitor-head">
-        <span>画面预览</span>
+        <span>播放器</span>
         <em>{settings.width} × {settings.height}</em>
         <em>{settings.fps} FPS</em>
         <i className={engineReady ? "online" : ""} title={engineError}>
@@ -197,6 +200,12 @@ export function VideoEditorMonitor({
             }
           }}
         />
+        <VideoInteractionLayer
+          clips={activeVideoClips}
+          selectedId={selectedId}
+          project={project}
+          onBeginTransform={onBeginTransform}
+        />
         <ImagePreviewLayer
           clips={activeImageClips}
           assets={assets}
@@ -244,6 +253,58 @@ export function VideoEditorMonitor({
   );
 }
 
+/**
+ * 视频片段的可交互浮层：本体透明（画面仍由引擎渲染），提供点选与四角手柄。
+ * 引擎自己的片段交互只做点击选中，且会被本层挡住，因此交互统一由这里承担。
+ */
+function VideoInteractionLayer({
+  clips,
+  selectedId,
+  project,
+  onBeginTransform,
+}: {
+  clips: VideoEditorClip[];
+  selectedId: string;
+  project: VideoEditorProject;
+  onBeginTransform: (
+    event: ReactPointerEvent<Element>,
+    clip: VideoEditorClip,
+    mode: TransformMode,
+    corner?: TransformCorner,
+  ) => void;
+}) {
+  if (!clips.length) return null;
+  return (
+    <div className="ov-video-interaction-layer">
+      {clips.map((clip) => {
+        const transform = constrainTransformToCanvas(
+          clip.transform,
+          project.settings.width,
+          project.settings.height,
+        );
+        return (
+          <div
+            key={clip.id}
+            className={`ov-video-hit${clip.id === selectedId ? " selected" : ""}`}
+            style={{
+              left: `${transform.x / project.settings.width * 100}%`,
+              top: `${transform.y / project.settings.height * 100}%`,
+              width: `${transform.width / project.settings.width * 100}%`,
+              height: `${transform.height / project.settings.height * 100}%`,
+              transform: `rotate(${Number(transform.angle) || 0}deg)`,
+            }}
+            onPointerDown={(event) => onBeginTransform(event, clip, "move")}
+          >
+            {clip.id === selectedId && (
+              <TransformHandles clip={clip} onBeginTransform={onBeginTransform} />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function ImagePreviewLayer({
   clips,
   assets,
@@ -259,6 +320,7 @@ function ImagePreviewLayer({
     event: ReactPointerEvent<Element>,
     clip: VideoEditorClip,
     mode: TransformMode,
+    corner?: TransformCorner,
   ) => void;
 }) {
   if (!clips.length) return null;
@@ -287,7 +349,12 @@ function ImagePreviewLayer({
             }}
             onPointerDown={(event) => onBeginTransform(event, clip, "move")}
           >
-            <img src={source} alt="" draggable={false} />
+            <img
+              src={source}
+              alt=""
+              draggable={false}
+              style={{ objectFit: transform.fit === "fill" ? "cover" : "contain" }}
+            />
             {clip.id === selectedId && (
               <TransformHandles clip={clip} onBeginTransform={onBeginTransform} />
             )}
@@ -311,6 +378,7 @@ function TextPreviewLayer({
     event: ReactPointerEvent<Element>,
     clip: VideoEditorClip,
     mode: TransformMode,
+    corner?: TransformCorner,
   ) => void;
 }) {
   if (!clips.length) return null;
@@ -364,6 +432,13 @@ function TextPreviewLayer({
   );
 }
 
+const TRANSFORM_CORNERS: Array<{ corner: TransformCorner; className: string; title: string }> = [
+  { corner: "nw", className: "is-nw", title: "拖动调整左上角" },
+  { corner: "ne", className: "is-ne", title: "拖动调整右上角" },
+  { corner: "sw", className: "is-sw", title: "拖动调整左下角" },
+  { corner: "se", className: "is-se", title: "拖动调整右下角" },
+];
+
 function TransformHandles({
   clip,
   resizeTitle = "拖动缩放",
@@ -375,6 +450,7 @@ function TransformHandles({
     event: ReactPointerEvent<Element>,
     clip: VideoEditorClip,
     mode: TransformMode,
+    corner?: TransformCorner,
   ) => void;
 }) {
   return (
@@ -384,11 +460,14 @@ function TransformHandles({
         title="拖动旋转"
         onPointerDown={(event) => onBeginTransform(event, clip, "rotate")}
       />
-      <span
-        className="ov-transform-resize-handle"
-        title={resizeTitle}
-        onPointerDown={(event) => onBeginTransform(event, clip, "resize")}
-      />
+      {TRANSFORM_CORNERS.map(({ corner, className, title }) => (
+        <span
+          key={corner}
+          className={`ov-transform-resize-handle ${className}`}
+          title={corner === "se" ? resizeTitle : "拖动调整画面大小"}
+          onPointerDown={(event) => onBeginTransform(event, clip, "resize", corner)}
+        />
+      ))}
     </>
   );
 }

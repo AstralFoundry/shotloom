@@ -26,6 +26,8 @@ export interface MaterialItem {
 
 interface MaterialGridProps {
   materials: MaterialItem[];
+  selectedKeys?: Set<string>;
+  onToggleSelected?: (item: MaterialItem) => void;
   assetMaterialIds?: Set<string>;
   showLibraryAction?: boolean;
   showApplyAction?: boolean;
@@ -269,6 +271,8 @@ const MaterialPreview = memo(function MaterialPreview({
 
 export function MaterialGrid({
   materials,
+  selectedKeys,
+  onToggleSelected,
   assetMaterialIds = new Set(),
   showLibraryAction = true,
   showApplyAction = false,
@@ -292,10 +296,11 @@ export function MaterialGrid({
         return (
           <article
             key={key}
-            className={`material-node-wrap${clickToApply ? " selectable" : ""}`}
+            className={`material-node-wrap${clickToApply ? " selectable" : ""}${selectedKeys?.has(key) ? " is-batch-selected" : ""}`}
             onClick={() => clickToApply && action("apply-to-canvas")}
           >
             <div className="material-node">
+              {onToggleSelected && <button type="button" className="material-batch-check" title={selectedKeys?.has(key) ? "取消选择" : "选择素材"} aria-pressed={Boolean(selectedKeys?.has(key))} onClick={(event) => { event.stopPropagation(); onToggleSelected(file); }}><IconSymbol name={selectedKeys?.has(key) ? "check" : "plus"} /></button>}
               <MaterialPreview file={file} kind={kind} onPreview={onPreview} />
               <div className="material-node-kicker">
                 <IconSymbol name={iconOf(file)} />

@@ -44,7 +44,8 @@ export interface CreationViewController {
   copilot: CopilotController & {
     subscribe: (listener: () => void) => () => void;
     getRevision: () => number;
-    read: () => CreationCopilotData;
+    read: (scope?: "canvas" | "editor", editorNodeId?: string) => CreationCopilotData;
+    openVideoEditorConversation?: (nodeId: string) => void;
   };
   applyMaterial: (item: MaterialItem, scope: "library" | "local" | "files") => void | Promise<void>;
   previewMaterial: (item: MaterialItem, src: string, kind: "image" | "video") => void;
@@ -72,6 +73,7 @@ export interface CreationViewData {
   history: { canUndo: boolean; canRedo: boolean };
   shortcutLabels: { fitView: string; autoLayout: string };
   editor?: {
+    nodeId: string;
     title?: string;
     project?: Record<string, unknown>;
     sourceFile: string;
@@ -561,7 +563,23 @@ export function CreationView({
       </main>
       {data.editor && controller.editor && (
         <Suspense fallback={<div className="video-editor-loading">正在打开剪辑工作区…</div>}>
-          <VideoEditorWorkspace {...data.editor} controller={controller.editor} />
+          <VideoEditorWorkspace
+            {...data.editor}
+            controller={controller.editor}
+            copilot={{
+              ...controller.copilot,
+              // 剪辑面板固定在剪辑作用域读写；项目级 active 指针只描述“最近所在会话”，
+              // 不能作为面板该显示哪个会话的依据，否则画布与剪辑会互相抢消息。
+              read: () => controller.copilot.read("editor", data.editor!.nodeId),
+              send: (payload) => {
+                const conversationId = controller.copilot
+                  .read("editor", data.editor!.nodeId)
+                  .activeConversationId;
+                controller.copilot.openVideoEditorConversation?.(data.editor!.nodeId);
+                return controller.copilot.send({ ...payload, conversationId });
+              },
+            }}
+          />
         </Suspense>
       )}
     </div>

@@ -199,16 +199,22 @@ export class CopilotRuntimePresenter {
     }
     if (event.type === 'interaction_requested' && event.kind === 'tool_confirmation') {
       const tool = this.tools.find((item) => item.id === event.toolCallId);
+      const actionCount = Number(event.actionCount || 0);
+      // 循环拦截没有"项"数，标题也必须通用：它可能来自画布操作，也可能来自重复调用拦截。
+      const summary = actionCount > 0
+        ? `${event.title || '画布操作'} · ${actionCount} 项，等待确认`
+        : `${event.title || '画布操作'}，等待确认`;
       if (tool) Object.assign(tool, {
         pending: true,
         status: 'pending',
         runId: event.requestId,
         stepId: event.stepId,
         interactionId: event.interactionId,
-        summary: `${event.title || '画布操作'} · ${event.actionCount || 0} 项，等待确认`,
+        summary,
+        pendingArgs: event.pendingArgs,
       });
       if (tool) this.changed();
-      return { messagePatch: this.snapshot({ title: '等待你确认画布操作', transient: false }), persist: true };
+      return { messagePatch: this.snapshot({ title: '等待你确认操作', transient: false }), persist: true };
     }
     if (event.type === 'interaction_resolved' && event.kind === 'tool_confirmation') {
       const tool = this.tools.find((item) => item.id === event.toolCallId);

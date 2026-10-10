@@ -10,6 +10,8 @@ export interface VideoEditorTransform extends Record<string, unknown> {
   opacity?: number;
   angle?: number;
   zIndex?: number;
+  /** 片段框与素材比例不一致时的缩放语义：fit 留边（缺省），fill 居中裁剪填满。 */
+  fit?: "fit" | "fill";
 }
 
 export interface VideoEditorAsset extends Record<string, unknown> {

@@ -16,6 +16,8 @@ export function VideoEditorTopBar({
   onResetView,
   onClose,
   onExport,
+  agentVisible,
+  onToggleAgent,
 }: {
   title: string;
   trackCount: number;
@@ -29,6 +31,8 @@ export function VideoEditorTopBar({
   onResetView: () => void;
   onClose: () => void;
   onExport: () => void;
+  agentVisible: boolean;
+  onToggleAgent: () => void;
 }) {
   return (
     <header className="ov-topbar">
@@ -52,7 +56,14 @@ export function VideoEditorTopBar({
       </div>
       <div className="ov-actions">
         {exportError && <span>{exportError}</span>}
-        <button disabled={exporting} onClick={onClose}>关闭</button>
+        <button
+          className={`ov-agent-toggle${agentVisible ? " active" : ""}`}
+          aria-pressed={agentVisible}
+          onClick={onToggleAgent}
+        >
+          <IconSymbol name="spark" />剪辑 Agent
+        </button>
+        <button disabled={exporting} onClick={onClose}>退出编辑</button>
         <button className="primary" disabled={exporting || exportDisabled} onClick={onExport}>
           <IconSymbol name="download" />
           {exporting ? "正在导出…" : "导出成片"}
@@ -75,6 +86,9 @@ export function VideoEditorToolRail({
         <button
           key={tool.id}
           className={activeTool === tool.id ? "active" : ""}
+          type="button"
+          aria-label={tool.label}
+          aria-current={activeTool === tool.id ? "page" : undefined}
           onClick={() => onSelect(tool.id)}
         >
           <IconSymbol name={tool.icon} />

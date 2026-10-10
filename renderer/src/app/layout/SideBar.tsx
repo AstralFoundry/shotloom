@@ -8,6 +8,7 @@ interface SideBarProps {
   onNotify: () => void;
   onSettings: () => void;
   onUpdate: () => void;
+  onSearch: () => void;
   onToggleSidebar: () => void;
   onNavigationBlocked?: () => void;
   previewOpen: boolean;
@@ -21,6 +22,7 @@ export function SideBar(
     onNotify,
     onSettings,
     onUpdate,
+    onSearch,
     onToggleSidebar,
     onNavigationBlocked,
     previewOpen,
@@ -130,6 +132,10 @@ export function SideBar(
             )}
         </div>
         <footer className="sidebar-footer">
+          <button type="button" title="搜索项目内容 (⌘/Ctrl K)" onClick={onSearch}>
+            <IconSymbol name="search" />
+            <span>搜索</span>
+          </button>
           <button type="button" title="检查更新" onClick={onUpdate}>
             <IconSymbol name="package" />
             <span>检查更新</span>

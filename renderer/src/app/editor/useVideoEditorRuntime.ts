@@ -37,8 +37,6 @@ export function useVideoEditorRuntime({
   setTime,
   setPlaying,
   setSelectedId,
-  onTransformStart,
-  onTransformEnd,
 }: {
   canvasRef: RefObject<HTMLCanvasElement | null>;
   project: VideoEditorProject;
@@ -56,8 +54,6 @@ export function useVideoEditorRuntime({
   setTime: Dispatch<SetStateAction<number>>;
   setPlaying: Dispatch<SetStateAction<boolean>>;
   setSelectedId: Dispatch<SetStateAction<string>>;
-  onTransformStart: () => void;
-  onTransformEnd: (event: { id: string; transform: VideoEditorTransform }) => void;
 }) {
   const [engineReady, setEngineReady] = useState(false);
   const [engineError, setEngineError] = useState("");
@@ -106,9 +102,6 @@ export function useVideoEditorRuntime({
         setTime(Math.min(duration, value));
         if (value >= duration - .02) setPlaying(false);
       },
-      onSelection: (ids: string[]) => setSelectedId(ids.at(-1) || ""),
-      onTransformStart,
-      onTransformEnd,
       onPlayingChange: setPlaying,
     }).then(async (runtime) => {
       if (!active) return runtime.destroy();
@@ -131,8 +124,6 @@ export function useVideoEditorRuntime({
     };
   }, [
     createStudioProject,
-    onTransformEnd,
-    onTransformStart,
     playbackStructureSignature,
     playbackUrl,
     preferFallbackPreview,

@@ -32,8 +32,10 @@ interface StoredRecipe {
   builtIn?: boolean;
 }
 
-export function availableAgentSkills(): StoredSkill[] {
-  return (skillsStore.skills as StoredSkill[]).filter((skill) => skill.enabled !== false);
+export function availableAgentSkills(scope: 'general' | 'video-editing' = 'general'): StoredSkill[] {
+  const enabled = (skillsStore.skills as StoredSkill[]).filter((skill) => skill.enabled !== false);
+  if (scope === 'video-editing') return enabled.filter((skill) => skill.id === 'video-editing');
+  return enabled;
 }
 
 function availableRecipes(): StoredRecipe[] {

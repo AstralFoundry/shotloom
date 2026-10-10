@@ -168,7 +168,14 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
 }
-.ov-asset-card { border-radius: 7px; background: #fff; }
+.ov-asset-card {
+  border-radius: 7px;
+  background: #fff;
+  cursor: grab;
+  /* WebKit（macOS 上的 Tauri）需要显式声明该元素可拖拽。 */
+  -webkit-user-drag: element;
+}
+.ov-asset-card:active { cursor: grabbing; }
 .ov-asset-card > span { height: 56px; background: #f0f2f4; }
 .ov-asset-card strong { font-size: 11.5px; line-height: 16px; font-weight: 550; }
 .ov-asset-card small { font-size: 10px; line-height: 14px; }
@@ -254,6 +261,28 @@
   right: -8px;
   bottom: -8px;
   cursor: nwse-resize;
+}
+/* 四角各自贴到对应角，光标方向按对角线指向。 */
+.ov-transform-resize-handle.is-nw { top: -8px; right: auto; bottom: auto; left: -8px; cursor: nwse-resize; }
+.ov-transform-resize-handle.is-ne { top: -8px; right: -8px; bottom: auto; left: auto; cursor: nesw-resize; }
+.ov-transform-resize-handle.is-sw { top: auto; right: auto; bottom: -8px; left: -8px; cursor: nesw-resize; }
+.ov-transform-resize-handle.is-se { top: auto; right: -8px; bottom: -8px; left: auto; cursor: nwse-resize; }
+/* 视频片段的可交互框：本体透明，选中时给出描边，手柄由 TransformHandles 渲染。 */
+.ov-video-interaction-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.ov-video-hit {
+  position: absolute;
+  pointer-events: auto;
+  cursor: move;
+  touch-action: none;
+  transform-origin: center;
+}
+.ov-video-hit.selected {
+  outline: 2px solid var(--ov-accent);
+  outline-offset: 2px;
 }
 .ov-text-preview-item {
   position: absolute;
@@ -379,6 +408,19 @@
   height: 100%;
   color: #9ba1a8;
 }
+/* 未选中片段时画布格式仍要可见可点：空态改为可收缩的弹性块，而不是占满整个面板。 */
+.ov-inspector.is-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow: auto;
+}
+.ov-inspector.is-empty .ov-inspector-empty {
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 140px;
+}
+.ov-inspector.is-empty .ov-project-facts { margin-top: auto; }
 .ov-inspector-empty svg { width: 26px; }
 .ov-inspector-empty strong { color: #34393f; font-size: 14px; line-height: 20px; font-weight: 600; }
 .ov-inspector-empty span { max-width: 240px; font-size: 11.5px; line-height: 17px; }
@@ -393,6 +435,12 @@
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 5px;
+}
+.ov-canvas-presets {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+  margin: 5px 0 3px;
 }
 .ov-transform-presets button {
   height: 28px;
@@ -456,13 +504,38 @@
 .ov-track.type-audio { height: 55px; }
 .ov-track:is(.type-text, .type-overlay, .type-effect, .type-transition) { height: 31px; }
 .ov-track-head {
-  grid-template-columns: 22px minmax(0, 1fr) 16px 16px;
+  grid-template-columns: 22px minmax(0, 1fr) 16px 16px 16px;
   border-color: #e0e4e7;
   background: #fff;
 }
 .ov-track-head > b { width: 20px; height: 20px; border-radius: 5px; color: #8a9198; background: #f1f3f5; }
 .ov-track-head > span { visibility: hidden; font-size: 11.5px; line-height: 16px; }
 .ov-track-lane { background: repeating-linear-gradient(90deg, #fff 0 63px, #f2f4f6 64px); }
+/* 跨轨拖动时的落点提示：同类型轨道高亮，空白处提示将新建轨道。 */
+.ov-track-lane.drop-target { outline: 2px solid var(--ov-accent); outline-offset: -2px; }
+.ov-track-lane.drop-create { outline-style: dashed; }
+/* 素材拖入整条时间线时的落点提示。 */
+.ov-timeline.is-drag-over { outline: 2px solid var(--ov-accent); outline-offset: -2px; }
+.ov-track-add {
+  margin: 6px 0 0 112px;
+  display: flex;
+  gap: 6px;
+}
+.ov-track-add button {
+  height: 24px;
+  border: 1px dashed var(--ov-line-strong);
+  border-radius: 6px;
+  padding: 0 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #6f7c87;
+  background: transparent;
+  cursor: pointer;
+  font-size: 10px;
+}
+.ov-track-add button:hover { border-color: var(--ov-accent); color: var(--ov-accent); }
+.ov-track-add svg { width: 11px; height: 11px; }
 .ov-clip {
   top: 3px;
   height: calc(100% - 6px);
@@ -472,6 +545,35 @@
   background: #dff1fb;
   overflow: hidden;
 }
+/* 裁剪手柄：默认透明，hover 或选中时出现，避免常态下挡住画面缩略图。 */
+.ov-clip-trim {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 3;
+  width: 8px;
+  display: block;
+  opacity: 0;
+  cursor: ew-resize;
+  touch-action: none;
+  transition: opacity .12s ease;
+}
+.ov-clip-trim::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 2px;
+  height: 42%;
+  border-radius: 2px;
+  transform: translate(-50%, -50%);
+  background: currentColor;
+  opacity: .75;
+}
+.ov-clip-trim.is-start { left: 0; }
+.ov-clip-trim.is-end { right: 0; }
+.ov-clip:hover .ov-clip-trim, .ov-clip.selected .ov-clip-trim { opacity: 1; }
+.ov-clip-trim:hover { background: rgba(255, 255, 255, .28); }
 .ov-clip i,
 .ov-clip small { position: relative; z-index: 2; }
 .ov-clip i { font-size: 11.5px; line-height: 16px; font-weight: 500; }
@@ -531,4 +633,3 @@
   .ov-stage { grid-template-columns: 40px 220px minmax(400px, 1fr) 250px; gap: 4px; }
   .ov-monitor { width: 94%; }
 }
-

@@ -220,7 +220,7 @@ function agentProfiles(skillIds: string[]) {
   };
 }
 
-function configureModel(model: string, workspaceDirectory: string) {
+function configureModel(model: string, workspaceDirectory: string, editorMode = false) {
   const info = getModelInfo(model);
   if (!info) throw new Error(`文本模型未在模型目录中配置：${model}`);
   const credential = getModelCredentialStatus(model);
@@ -236,7 +236,8 @@ function configureModel(model: string, workspaceDirectory: string) {
   );
   const contextLimit = Number(contract?.inputConstraints?.text?.maxTokens || 64_000);
   const outputLimit = Number(contract?.outputConstraints?.maxTokens || 8_192);
-  const skills = nativeRuntimeSkills(availableAgentSkills());
+  const skillScope = editorMode ? 'video-editing' : 'general';
+  const skills = nativeRuntimeSkills(availableAgentSkills(skillScope));
   const configuration: OpenCodeConfiguration = {
     tools: [],
     enabledProviders: ['shotloom'],
@@ -267,7 +268,7 @@ function configureModel(model: string, workspaceDirectory: string) {
   return { configuration, contextLimit, outputLimit };
 }
 
-function systemPrompt() {
+function systemPrompt(conversationId = '') {
   const canRunNodes = settingsStore.agentCanRunNodes === true;
   const contracts = formatContractsBlock(contractsForAgentType('shotloom'));
   const base = systemBasePrompt
@@ -277,6 +278,9 @@ function systemPrompt() {
     .replace('{{runtime_model_contract}}', '模型循环、会话、上下文压缩与子 Agent 由 OpenCode Runtime 管理。');
   return [
     base,
+    conversationRecord(conversationId)?.editorNodeId
+      ? '当前会话属于视频剪辑工作区。先加载 video-editing Skill，并用 video_project_get 读取真实轨道和片段 ID。时间线上缺少素材时用 video_project_media 发现可导入的画布产物与项目素材，再用 video_project_edit 的 add_media 引入。成片比例用 set_canvas 设定，片段要不要铺满用 set_transform 的 fit。依据该 Skill 和用户要求使用剪辑工具；需要判断画面内容时查看真实素材帧，修改后重新读取项目并核验。剪辑任务不要改动画布节点。仅承诺工具实际支持并成功执行的操作。'
+      : '',
     'Use Shotloom native tools for every canvas, project, task, model-catalog, Skill, or media operation.',
     'For a non-trivial production request, inspect runtime capabilities first. Decide production scope from the full user message. If the scope is genuinely unresolved, use request_clarification and formulate the question and options for the actual context. Do not ask again when the user has already stated the scope clearly. Never infer execution merely because the user pasted a complete script.',
     'A plan_canvas request means creating every determinable, configured canvas node and its real input edges without starting generation. A note describing omitted media nodes is not a canvas plan. A plan_and_execute request runs one dependency stage at a time and verifies actual outputs before continuing.',
@@ -394,6 +398,7 @@ export async function runOpenCodeAgent(
   const projectKey = String(payload.projectKey || getAgentProjectKey());
   const projectIdentity = getAgentProjectIdentity();
   const conversationId = String(payload.conversationId || '');
+  const editorMode = Boolean(conversationRecord(conversationId)?.editorNodeId);
   const model = String(payload.model || settingsStore.agentPreferredTextModel || '');
   const directory = String(store.projectDir || '.');
   assertAgentProject(projectKey, projectIdentity.instanceId, projectIdentity.generation);
@@ -442,14 +447,14 @@ export async function runOpenCodeAgent(
     conversationId,
     signal: controller.signal, loadedSkillIds: new Set<string>(),
     attachments: payload.attachments || [],
-    capabilities: { nodeExecution: settingsStore.agentCanRunNodes === true }, state, emit,
+    capabilities: { nodeExecution: settingsStore.agentCanRunNodes === true, agentType: editorMode ? 'editor' : 'canvas' }, state, emit,
   };
   let client: OpenCodeClient;
   let sessionId: string;
   let modelLimits = { contextLimit: 64_000, outputLimit: 8_192 };
   try {
     const tools = await activateOpenCodeToolBridge({ context: toolContext, model });
-    const configured = configureModel(model, directory);
+    const configured = configureModel(model, directory, editorMode);
     configured.configuration.tools = tools;
     modelLimits = configured;
     ({ client } = await runtimeClient(configured.configuration));
@@ -557,7 +562,8 @@ export async function runOpenCodeAgent(
       if (part.sessionID === sessionId && part.type === 'tool' && part.tool === 'skill') {
         const skillId = String(part.state.input?.name || '').trim();
         if (part.state.status === 'completed' && skillId && !toolContext.loadedSkillIds.has(skillId)) {
-          const skill = availableAgentSkills().find((item) => item.id === skillId);
+          const skill = availableAgentSkills(conversationRecord(conversationId)?.editorNodeId ? 'video-editing' : 'general')
+            .find((item) => item.id === skillId);
           if (skill) {
             toolContext.loadedSkillIds.add(skillId);
             toolContext.state.set('activeSkillId', skillId);
@@ -626,7 +632,7 @@ export async function runOpenCodeAgent(
         body: {
           agent: 'shotloom',
           model: { providerID: 'shotloom', modelID: model },
-          system: systemPrompt(),
+          system: systemPrompt(conversationId),
           parts,
         },
         signal: controller.signal,

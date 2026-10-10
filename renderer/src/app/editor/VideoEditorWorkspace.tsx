@@ -4,6 +4,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
 } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -12,6 +13,7 @@ import {
 import {
   editorClipDuration,
   normalizeVideoEditorProject,
+  removeEmptyEditorTrack,
   updateEditorTrack,
   videoEditorDuration,
 } from "../../utils/videoEditorProject.mjs";
@@ -24,6 +26,7 @@ import { VideoEditorInspector } from "./VideoEditorInspector";
 import {
   applyBuiltInStickerSources,
   builtInStickers,
+  textPresets,
 } from "./videoEditorCatalog";
 import {
   VideoEditorImportBrowser,
@@ -42,8 +45,12 @@ import { useVideoEditorShortcuts } from "./useVideoEditorShortcuts";
 import { useVideoEditorSourcePreview } from "./useVideoEditorSourcePreview";
 import { useVideoEditorTimeline } from "./useVideoEditorTimeline";
 import type { VideoEditorRuntime } from "./videoEditorRuntimeTypes";
+import { CopilotPanel, type CopilotController, type CopilotMessage, type ConversationItem } from "../copilot/CopilotPanel";
+import { registerActiveVideoEditor } from "../../agent/tools/videoEditorTools";
+import { getAgentProjectKey } from "../../services/agentProjectIdentity";
 
 type EditorProject = VideoEditorProject;
+// 转场需要连接两段视频；命令层还会进一步校验同轨首尾相接，避免只写入无效占位片段。
 export type { VideoEditorAsset } from "./videoEditorTypes";
 export interface VideoEditorController {
   persist: (project: EditorProject) => void;
@@ -54,6 +61,7 @@ export interface VideoEditorController {
   ) => Promise<VideoEditorAsset[]>;
 }
 export interface VideoEditorWorkspaceProps {
+  nodeId: string;
   title?: string;
   project?: Record<string, unknown>;
   sourceFile: string;
@@ -68,6 +76,47 @@ export interface VideoEditorWorkspaceProps {
   };
   assets?: VideoEditorAsset[];
   controller: VideoEditorController;
+  copilot?: CopilotController & {
+    subscribe: (listener: () => void) => () => void;
+    getRevision: () => number;
+    read: () => {
+      messages: CopilotMessage[];
+      conversations: ConversationItem[];
+      activeConversationId: string;
+      busy: boolean;
+      textModel: string;
+      textModels: Array<{ id: string; label: string; iconId: string }>;
+    };
+  };
+}
+
+function VideoEditorAgentPanel({ copilot, onClose, nodeId }: {
+  copilot: NonNullable<VideoEditorWorkspaceProps["copilot"]>;
+  onClose: () => void;
+  nodeId: string;
+}) {
+  useSyncExternalStore(copilot.subscribe, copilot.getRevision, copilot.getRevision);
+  const data = copilot.read();
+  return <div className="ov-agent-panel">
+    <CopilotPanel
+      editorMode
+      messages={data.messages}
+      nodes={[]}
+      artifactNodes={[]}
+      busy={data.busy}
+      conversations={data.conversations}
+      activeConversationId={data.activeConversationId}
+      textModel={data.textModel}
+      textModels={data.textModels}
+      controller={{
+        ...copilot,
+        close: onClose,
+        // 剪辑面板的会话管理必须落在剪辑作用域，不能跟随项目级 active 指针。
+        newConversation: () => copilot.newConversation(nodeId),
+        clear: () => copilot.clear(data.activeConversationId),
+      }}
+    />
+  </div>;
 }
 
 const createId = (prefix = "item") =>
@@ -76,6 +125,7 @@ const createId = (prefix = "item") =>
   }`;
 export function VideoEditorWorkspace(
   {
+    nodeId,
     title = "视频剪辑",
     project: savedProject,
     sourceFile,
@@ -84,6 +134,7 @@ export function VideoEditorWorkspace(
     metadata,
     assets = [],
     controller,
+    copilot,
   }: VideoEditorWorkspaceProps,
 ) {
   const initial = useMemo(() =>
@@ -108,6 +159,12 @@ export function VideoEditorWorkspace(
     canRedo,
   } = useVideoEditorProjectHistory(initial, controller);
   const [activeTool, setActiveTool] = useState("media");
+  const [agentVisible, setAgentVisible] = useState(true);
+  const previousConversationRef = useRef("");
+  const copilotRef = useRef(copilot);
+  copilotRef.current = copilot;
+  const controllerRef = useRef(controller);
+  controllerRef.current = controller;
   const [selectedId, setSelectedId] = useState("");
   const [time, setTime] = useState(0);
   const [playing, setPlaying] = useState(false);
@@ -128,6 +185,7 @@ export function VideoEditorWorkspace(
   const runtimeRef = useRef<VideoEditorRuntime | null>(null);
   const runtimeMutationRef = useRef(false);
   const duration = videoEditorDuration(project);
+  const editorStateRef = useRef({ time, selectedId, seekPreview: (_time: number) => {}, undo, redo, canUndo, canRedo });
   const {
     timelineRef,
     zoom,
@@ -172,6 +230,21 @@ export function VideoEditorWorkspace(
     setPlaying,
     controller,
   });
+  editorStateRef.current = { time, selectedId, seekPreview, undo, redo, canUndo, canRedo };
+  useEffect(() => registerActiveVideoEditor({
+    projectKey: getAgentProjectKey(),
+    nodeId,
+    read: () => projectRef.current,
+    commit,
+    playhead: () => editorStateRef.current.time,
+    selectedClipId: () => editorStateRef.current.selectedId,
+    seek: (nextTime) => editorStateRef.current.seekPreview(nextTime),
+    undo: () => editorStateRef.current.undo(),
+    redo: () => editorStateRef.current.redo(),
+    canUndo: () => editorStateRef.current.canUndo,
+    canRedo: () => editorStateRef.current.canRedo,
+    exportProject: (currentProject) => controllerRef.current.export(currentProject),
+  }), [nodeId, commit, projectRef]);
   const activeTextClips = useMemo(
     () => project.tracks
       .filter((track) => track.type === "text" && !track.hidden)
@@ -189,6 +262,18 @@ export function VideoEditorWorkspace(
       .filter((track) => track.type === "overlay" && !track.hidden)
       .flatMap((track) => track.clips)
       .filter((clip) =>
+        time >= clip.timelineStart &&
+        time <= clip.timelineStart + editorClipDuration(clip)
+      ),
+    [project.tracks, time],
+  );
+  // 主画面轨的可见视频片段：监视器的可交互浮层按轨道顺序渲染，后面的轨道在上层。
+  const activeVideoClips = useMemo(
+    () => project.tracks
+      .filter((track) => track.type === "video" && !track.hidden)
+      .flatMap((track) => track.clips)
+      .filter((clip) =>
+        clip.type === "video" &&
         time >= clip.timelineStart &&
         time <= clip.timelineStart + editorClipDuration(clip)
       ),
@@ -228,14 +313,16 @@ export function VideoEditorWorkspace(
   const {
     beginVisualTransform,
     beginTimelineDrag,
-    onRuntimeTransformStart,
-    onRuntimeTransformEnd,
+    beginTimelineTrim,
+    beginTimelineScrub,
     visualTransformRef,
     timelineDragRef,
+    timelineTrimRef,
   } = useVideoEditorGestures({
     projectRef,
     setProject,
     monitorRef,
+    timelineRef,
     runtimeRef,
     runtimeMutationRef,
     zoom,
@@ -267,8 +354,6 @@ export function VideoEditorWorkspace(
     setTime,
     setPlaying,
     setSelectedId,
-    onTransformStart: onRuntimeTransformStart,
-    onTransformEnd: onRuntimeTransformEnd,
   });
   const visibleTracks = useMemo(
     () => project.tracks.filter((track) =>
@@ -291,6 +376,9 @@ export function VideoEditorWorkspace(
     addTransition,
     addEffect,
     updateSelected,
+    updateProjectSettings,
+    addTrack,
+    addAssetAt,
     runCanvasAction,
     deleteSelected,
     deleteAsset,
@@ -340,6 +428,22 @@ export function VideoEditorWorkspace(
       document.body.classList.remove("video-editor-open");
     };
   }, []);
+  useEffect(() => {
+    const activeCopilot = copilotRef.current;
+    if (!activeCopilot || activeCopilot.read().busy) return;
+    previousConversationRef.current = activeCopilot.read().activeConversationId;
+    activeCopilot.openVideoEditorConversation?.(nodeId);
+  }, [nodeId]);
+  const closeAgent = () => {
+    setAgentVisible(false);
+    if (previousConversationRef.current) {
+      copilot?.selectConversation(previousConversationRef.current);
+      previousConversationRef.current = "";
+    }
+  };
+  useEffect(() => () => {
+    if (previousConversationRef.current) copilotRef.current?.selectConversation(previousConversationRef.current);
+  }, []);
   useVideoEditorShortcuts({
     exporting,
     onClose: () => controller.close(),
@@ -358,7 +462,7 @@ export function VideoEditorWorkspace(
       if (kind === "image" && !accepted.length && items.length) {
         setToolNotice("请选择 PNG、JPG、WebP 或 GIF 图片作为贴图。");
       }
-      accepted.forEach(addAsset);
+      accepted.forEach((asset) => addAsset(asset));
       return;
     }
     const labels = {
@@ -392,6 +496,16 @@ export function VideoEditorWorkspace(
         onResetView={() => runtimeRef.current?.resetView()}
         onClose={controller.close}
         onExport={() => void exportProject()}
+        agentVisible={agentVisible}
+        onToggleAgent={() => {
+          if (agentVisible) closeAgent();
+          else {
+            if (copilot?.read().busy) return;
+            previousConversationRef.current = copilot?.read().activeConversationId || "";
+            copilot?.openVideoEditorConversation?.(nodeId);
+            setAgentVisible(true);
+          }
+        }}
       />
       <VideoEditorImportBrowser
         browser={importBrowser}
@@ -401,7 +515,7 @@ export function VideoEditorWorkspace(
           setImportBrowser(null);
         }}
       />
-      <main className="ov-stage">
+      <main className={`ov-stage${agentVisible ? " agent-open" : ""}`}>
         <VideoEditorToolRail
           activeTool={activeTool}
           onSelect={(toolId) => {
@@ -410,7 +524,15 @@ export function VideoEditorWorkspace(
           }}
         />
         <aside className="ov-library">
-          <VideoEditorToolPanel
+          {activeTool === "adjust" ? <VideoEditorInspector
+            selected={selected}
+            project={project}
+            onUpdate={updateSelected}
+            onDelete={deleteSelected}
+            onDuplicate={duplicateSelected}
+            onCanvasAction={(action) => void runCanvasAction(action)}
+            onUpdateSettings={updateProjectSettings}
+          /> : <VideoEditorToolPanel
             activeTool={activeTool}
             allAssets={allAssets}
             stickerAssets={stickerAssets}
@@ -431,7 +553,7 @@ export function VideoEditorWorkspace(
             onAddAsset={addAsset}
             onAddTransition={addTransition}
             onAddEffect={addEffect}
-          />
+          />}
         </aside>
         <VideoEditorMonitor
           project={project}
@@ -453,6 +575,7 @@ export function VideoEditorWorkspace(
           duration={duration}
           playing={playing}
           sourceThumbnail={sourceThumbnail}
+          activeVideoClips={activeVideoClips}
           activeImageClips={activeImageClips}
           activeTextClips={activeTextClips}
           assets={allAssets}
@@ -488,16 +611,8 @@ export function VideoEditorWorkspace(
           }}
           onResetView={() => runtimeRef.current?.resetView()}
         />
-        <VideoEditorInspector
-          selected={selected}
-          project={project}
-          onUpdate={updateSelected}
-          onDelete={deleteSelected}
-          onDuplicate={duplicateSelected}
-          onCanvasAction={(action) => void runCanvasAction(action)}
-        />
-      </main>
-      <VideoEditorTimeline
+        {agentVisible && copilot && <VideoEditorAgentPanel copilot={copilot} nodeId={nodeId} onClose={closeAgent} />}
+        <VideoEditorTimeline
         timelineRef={timelineRef}
         duration={duration}
         zoom={zoom}
@@ -514,6 +629,11 @@ export function VideoEditorWorkspace(
         onSplit={splitSelected}
         onDuplicate={duplicateSelected}
         onDelete={deleteSelected}
+        onUndo={undo}
+        onRedo={redo}
+        canUndo={canUndo}
+        canRedo={canRedo}
+        onAddSubtitle={() => addText(textPresets[0])}
         onZoomChange={changeZoom}
         onViewportChange={setTimelineViewport}
         onSeek={(nextTime) => {
@@ -523,8 +643,20 @@ export function VideoEditorWorkspace(
         onToggleTrack={(trackId, field, value) => {
           commit(updateEditorTrack(projectRef.current, trackId, { [field]: value }));
         }}
+        onDeleteTrack={(trackId) => {
+          commit(removeEmptyEditorTrack(projectRef.current, trackId));
+        }}
         onClipPointerDown={beginTimelineDrag}
+        onClipTrimPointerDown={beginTimelineTrim}
+        onScrubPointerDown={beginTimelineScrub}
+        onAddTrack={addTrack}
+        onAssetDrop={(assetId, timeSec) => addAssetAt(
+          assetId,
+          timeSec,
+          allAssets.find((asset) => asset.id === assetId),
+        )}
       />
+      </main>
     </section>,
     document.body,
   );

@@ -17,7 +17,7 @@ import {
   promoteMaterialToLocalLibrary,
   useLocalAssetInProject,
 } from "../../store/localAssetLibraryStore.js";
-import { store } from "../../store/projectStore.js";
+import { store, touchProject } from "../../store/projectStore.js";
 import { openMediaViewer, showToast } from "../store/overlayStore";
 import type { MaterialItem } from "../components/MaterialGrid";
 import type { AssetsController } from "../views/AssetsView";
@@ -162,6 +162,25 @@ export const assetsController: AssetsController = {
   },
   async exportPackage() {
     await exportResourcePackage("library");
+  },
+  async exportSelected(items) {
+    const paths = [...new Set(items.map((item) => String(item.path || item.filePath || "")).filter(Boolean))];
+    if (!paths.length) return showToast("已选素材没有可下载的本地文件");
+    const result = paths.length === 1
+      ? await desktopApi.file.exportFile(paths[0], String(items[0]?.name || ""))
+      : await desktopApi.file.exportFilesPackage(paths, "selected-assets");
+    if (result?.ok === false) return showToast("当前环境无法导出素材文件");
+    if (result) showToast(`已导出 ${paths.length} 个素材文件`);
+  },
+  moveProjectAssets(items, category) {
+    const ids = new Set(items.map((item) => String(item.assetId || item.id || "")));
+    let changed = 0;
+    for (const asset of store.project.assets || []) {
+      if (!ids.has(String(asset.id)) || asset.category === category) continue;
+      asset.category = category;
+      changed++;
+    }
+    if (changed) { touchProject(); showToast(`已移动 ${changed} 个素材`); }
   },
   async importFiles() {
     await importAssetFiles();

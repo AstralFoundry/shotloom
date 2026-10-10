@@ -1,4 +1,4 @@
-const MIN_DURATION = 0.08;
+export const MIN_DURATION = 0.08;
 const TRACK_TYPES = new Set(['video', 'audio', 'text', 'overlay', 'effect', 'transition']);
 const CLIP_TYPES = new Set(['video', 'audio', 'text', 'image', 'effect', 'transition']);
 
@@ -110,8 +110,8 @@ export function normalizeVideoEditorProject(project, options = {}) {
     settings: {
       ...base.settings,
       ...(project.settings || {}),
-      width: Math.max(16, Math.round(number(project.settings?.width, base.settings.width))),
-      height: Math.max(16, Math.round(number(project.settings?.height, base.settings.height))),
+      width: clamp(Math.round(number(project.settings?.width, base.settings.width)), 16, 8192),
+      height: clamp(Math.round(number(project.settings?.height, base.settings.height)), 16, 8192),
       fps: clamp(project.settings?.fps, 1, 120),
     },
     assets,
@@ -302,10 +302,10 @@ function normalizeClip(clip, assets) {
       speed: clamp(clip.speed || 1, 0.5, 2),
       muted: clip.muted === true,
       volume: clamp(clip.volume ?? 1, 0, 2),
-      transform: {
+      transform: normalizeFit({
         ...defaultTransform(asset.width || 1920, asset.height || 1080, 10),
         ...(clip.transform || {}),
-      },
+      }),
       effects: Array.isArray(clip.effects) ? clip.effects.map(String) : [],
     };
   }
@@ -325,7 +325,7 @@ function normalizeClip(clip, assets) {
         stroke: { color: '#000000', width: 0 },
         background: { color: '#000000', opacity: 0, borderRadius: 0, paddingX: 0, paddingY: 0 },
       },
-      transform: { ...defaultTransform(1200, 180, 40), y: 760, ...(clip.transform || {}) },
+      transform: normalizeFit({ ...defaultTransform(1200, 180, 40), y: 760, ...(clip.transform || {}) }),
     };
   if (clip.type === 'image')
     return {
@@ -333,7 +333,7 @@ function normalizeClip(clip, assets) {
       duration,
       assetId: String(clip.assetId || ''),
       src: String(clip.src || ''),
-      transform: { ...defaultTransform(480, 480, 30), x: 720, y: 300, ...(clip.transform || {}) },
+      transform: normalizeFit({ ...defaultTransform(480, 480, 30), x: 720, y: 300, ...(clip.transform || {}) }),
       style: { ...(clip.style || {}) },
     };
   if (clip.type === 'effect')
@@ -365,6 +365,15 @@ function defaultTransform(width, height, zIndex) {
   };
 }
 
+// fit 是片段缩放语义的唯一声明。缺省表示留边，非法值必须丢弃：预览与导出各自读取
+// 这个字段，容忍未知值会让两边按不同语义渲染同一片段。
+function normalizeFit(transform) {
+  const next = { ...transform };
+  if (next.fit === 'fill') next.fit = 'fill';
+  else delete next.fit;
+  return next;
+}
+
 export function editorClipDuration(clip) {
   return clip?.type === 'video' || clip?.type === 'audio'
     ? Math.max(0, number(clip.trimEnd) - number(clip.trimStart)) / clamp(clip.speed || 1, 0.5, 2)
@@ -381,24 +390,44 @@ export function activeEditorClip(clips, time) {
   }
   return active;
 }
-export function snapEditorClipStart(project, clipId, requestedStart, tolerance) {
+// 吸附优先级：片段边缘与时间线起点永远优先于播放头，播放头优先于网格。
+// 仅比较距离会让 1 秒网格抢走接缝，手感立刻变差。
+const SNAP_PRIORITY = { clip: 0, playhead: 1, grid: 2 };
+
+export function snapEditorClipStart(project, clipId, requestedStart, tolerance, options = {}) {
   const found = findEditorClip(project, clipId);
   if (!found) return requestedStart;
   const duration = editorClipDuration(found.clip);
-  const boundaries = [0];
+  const { playhead, gridSize = 0 } = options;
+  const candidates = [];
+  const add = (time, priority) => {
+    const value = number(time);
+    if (value >= 0) candidates.push({ time: value, priority });
+  };
+  add(0, SNAP_PRIORITY.clip);
   for (const clip of found.track.clips) {
     if (clip.id === clipId) continue;
     const start = number(clip.timelineStart);
-    boundaries.push(start, start + editorClipDuration(clip));
+    add(start, SNAP_PRIORITY.clip);
+    add(start + editorClipDuration(clip), SNAP_PRIORITY.clip);
   }
+  if (Number.isFinite(playhead)) add(playhead, SNAP_PRIORITY.playhead);
+  if (gridSize > 0) add(Math.round(requestedStart / gridSize) * gridSize, SNAP_PRIORITY.grid);
+
   let best = requestedStart;
-  let distance = tolerance + Number.EPSILON;
-  for (const boundary of boundaries) {
-    for (const candidate of [boundary, boundary - duration]) {
-      const candidateDistance = Math.abs(candidate - requestedStart);
-      if (candidate >= 0 && candidateDistance < distance) {
-        best = candidate;
-        distance = candidateDistance;
+  let bestPriority = Number.POSITIVE_INFINITY;
+  let bestDistance = tolerance;
+  for (const candidate of candidates) {
+    // 拖动的是片段起点，但被拖片段的终点也要找落点，所以两个方向都试。
+    for (const time of [candidate.time, candidate.time - duration]) {
+      if (time < 0) continue;
+      const distance = Math.abs(time - requestedStart);
+      if (distance > tolerance) continue;
+      if (candidate.priority < bestPriority
+        || (candidate.priority === bestPriority && distance < bestDistance)) {
+        best = time;
+        bestPriority = candidate.priority;
+        bestDistance = distance;
       }
     }
   }
@@ -435,6 +464,14 @@ export function addEditorTrack(project, type, name, createId = idFactory) {
   next.updatedAt = new Date().toISOString();
   return next;
 }
+export function removeEmptyEditorTrack(project, trackId) {
+  const track = project?.tracks?.find((item) => item.id === trackId);
+  if (!track || track.clips.length) return project;
+  const next = copy(project);
+  next.tracks = next.tracks.filter((item) => item.id !== trackId);
+  next.updatedAt = new Date().toISOString();
+  return next;
+}
 export function addEditorClip(project, trackId, clip, createId = idFactory) {
   const next = copy(project);
   const track = next.tracks.find((item) => item.id === trackId);
@@ -465,11 +502,86 @@ export function removeEditorClip(project, clipId) {
   next.updatedAt = new Date().toISOString();
   return next;
 }
+
+/**
+ * 以源秒为增量调整片段入点或出点，供时间线上拖动裁剪手柄使用。
+ *
+ * 裁左边时固定右端：时间线起点与源入点同向移动，片段右端不动，因此不会在时间线上
+ * 整体漂移。两端都留有最小时长，且不越过素材边界；增量在源时间上计算，所以变速片段
+ * 裁同样长度只占更短的时间轴。
+ *
+ * `origin` 是手势开始时的时间线起点与源入出点。拖动过程中每帧都基于它算绝对位置，
+ * 否则把同一段位移反复叠加到已经裁剪过的片段上，越拖越偏。
+ */
+export function trimEditorClip(project, clipId, edge, deltaSource, origin) {
+  const found = findEditorClip(project, clipId);
+  if (!found) return project;
+  const { clip } = found;
+  // 源时间按毫秒定精度：增量与钳位会产生 1e-16 级残渣，不该写进工程 JSON。
+  const roundSource = (value) => Math.round(value * 1000) / 1000;
+  const speed = clamp(clip.speed || 1, 0.5, 2);
+  const minSource = MIN_DURATION * speed;
+  const base = origin || {
+    timelineStart: number(clip.timelineStart),
+    trimStart: number(clip.trimStart),
+    trimEnd: number(clip.trimEnd),
+  };
+  if (edge === 'start') {
+    const delta = clamp(
+      deltaSource,
+      Math.max(-base.trimStart, -base.timelineStart * speed),
+      base.trimEnd - base.trimStart - minSource,
+    );
+    return updateEditorClip(project, clipId, {
+      trimStart: roundSource(base.trimStart + delta),
+      timelineStart: Math.round((base.timelineStart + delta / speed) * 100) / 100,
+    });
+  }
+  const assetDuration = number(project.assets.find((item) => item.id === clip.assetId)?.duration);
+  const delta = clamp(
+    deltaSource,
+    minSource - (base.trimEnd - base.trimStart),
+    assetDuration > 0 ? assetDuration - base.trimEnd : 0,
+  );
+  return updateEditorClip(project, clipId, { trimEnd: roundSource(base.trimEnd + delta) });
+}
+
 export function updateEditorTrack(project, trackId, updates) {
   const next = copy(project);
   const track = next.tracks.find((item) => item.id === trackId);
   if (!track) return project;
   Object.assign(track, updates);
+  next.updatedAt = new Date().toISOString();
+  return next;
+}
+
+/**
+ * 把片段移到目标轨道的指定时间。同轨只改时间；跨轨在同一份副本上完成。
+ *
+ * 跨轨必须先校验再搬移：若走「先 removeEditorClip 再 addEditorClip」，一旦加入失败
+ * （素材缺失、时长不合法等）片段就永久消失了。任何一步不成立都返回原工程（不抛）。
+ */
+export function moveEditorClip(project, clipId, trackId, timelineStart) {
+  const found = findEditorClip(project, clipId);
+  if (!found || found.track.locked || found.clip.locked) return project;
+  const start = Math.max(0, number(timelineStart));
+  if (found.track.id === trackId) {
+    return updateEditorClip(project, clipId, { timelineStart: start });
+  }
+  const target = project.tracks.find((item) => item.id === trackId);
+  if (!target || target.locked || target.type !== found.track.type) return project;
+  const next = copy(project);
+  const source = findEditorClip(next, clipId);
+  const destination = next.tracks.find((item) => item.id === trackId);
+  if (!source || !destination) return project;
+  const normalized = normalizeClip(
+    { ...source.clip, timelineStart: start },
+    next.assets,
+  );
+  if (!normalized) return project;
+  source.track.clips.splice(source.index, 1);
+  destination.clips.push(normalized);
+  destination.clips.sort((a, b) => a.timelineStart - b.timelineStart);
   next.updatedAt = new Date().toISOString();
   return next;
 }
@@ -526,7 +638,7 @@ export function editorProjectToOpenVideo(project) {
           ...result,
           type: clip.type === 'video' ? 'Video' : 'Audio',
           src: asset.sourceUrl || asset.sourceFile,
-          ...(clip.type === 'video' ? { audio: true } : {}),
+          ...(clip.type === 'video' ? { audio: true, objectFit: clip.transform?.fit === 'fill' ? 'cover' : 'contain' } : {}),
           volume: track.muted || clip.muted ? 0 : number(clip.volume, 1),
           effects: clip.effects || [],
         };
@@ -538,6 +650,7 @@ export function editorProjectToOpenVideo(project) {
           ...result,
           type: 'Image',
           src: clip.src || asset?.sourceUrl || asset?.sourceFile || '',
+          objectFit: clip.transform?.fit === 'fill' ? 'cover' : 'contain',
           style: clip.style || {},
         };
         if (!result.src) continue;

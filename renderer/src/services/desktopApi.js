@@ -221,6 +221,9 @@ function createBrowserFallback() {
       separateAudioToProject: async () => {
         throw new Error('浏览器预览不支持音频分离，请在桌面应用中使用。');
       },
+      captureVideoFrameToProject: async () => {
+        throw new Error('浏览器预览不支持视频截帧，请在桌面应用中使用。');
+      },
       checksum: async () => ({ checksum: '', checksumAlgorithm: 'sha256', size: 0 }),
       getGlobalAssetRoot: async () => 'browser/local-asset-library/blobs',
       trash: async () => ({ ok: false, error: '浏览器预览不支持移入回收站。' }),

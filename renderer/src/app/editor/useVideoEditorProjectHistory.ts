@@ -12,11 +12,15 @@ export function useVideoEditorProjectHistory(
   const projectRef = useRef(project);
   const [history, setHistory] = useState<VideoEditorProject[]>([]);
   const [future, setFuture] = useState<VideoEditorProject[]>([]);
+  const historyRef = useRef(history);
+  const futureRef = useRef(future);
   projectRef.current = project;
 
   const recordHistory = useCallback((snapshot: VideoEditorProject) => {
-    setHistory((items) => [...items.slice(-59), snapshot]);
-    setFuture([]);
+    historyRef.current = [...historyRef.current.slice(-59), snapshot];
+    futureRef.current = [];
+    setHistory(historyRef.current);
+    setFuture(futureRef.current);
   }, []);
 
   const commit = useCallback((next: VideoEditorProject, record = true) => {
@@ -28,20 +32,26 @@ export function useVideoEditorProjectHistory(
   }, [controller, recordHistory]);
 
   const undo = useCallback(() => {
-    const previous = history.at(-1);
-    if (!previous) return;
-    setHistory((items) => items.slice(0, -1));
-    setFuture((items) => [...items, cloneProject(projectRef.current)]);
+    const previous = historyRef.current.at(-1);
+    if (!previous) return false;
+    historyRef.current = historyRef.current.slice(0, -1);
+    futureRef.current = [...futureRef.current, cloneProject(projectRef.current)];
+    setHistory(historyRef.current);
+    setFuture(futureRef.current);
     commit(cloneProject(previous), false);
-  }, [commit, history]);
+    return true;
+  }, [commit]);
 
   const redo = useCallback(() => {
-    const next = future.at(-1);
-    if (!next) return;
-    setFuture((items) => items.slice(0, -1));
-    setHistory((items) => [...items, cloneProject(projectRef.current)]);
+    const next = futureRef.current.at(-1);
+    if (!next) return false;
+    futureRef.current = futureRef.current.slice(0, -1);
+    historyRef.current = [...historyRef.current, cloneProject(projectRef.current)];
+    setFuture(futureRef.current);
+    setHistory(historyRef.current);
     commit(cloneProject(next), false);
-  }, [commit, future]);
+    return true;
+  }, [commit]);
 
   return {
     project,

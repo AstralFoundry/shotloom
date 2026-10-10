@@ -143,6 +143,20 @@
 .ov-project-facts { border-color: #eceef0; }
 .ov-project-facts span,
 .ov-project-facts small { color: var(--ov-muted); }
+.ov-canvas-presets button {
+  height: 24px;
+  border: 1px solid var(--ov-line-strong);
+  border-radius: 6px;
+  color: #41474d;
+  background: #fafbfb;
+  font-size: 10px;
+}
+.ov-canvas-presets button:hover { border-color: #c8ced4; background: #f2f4f5; }
+.ov-canvas-presets button.active {
+  border-color: #2f6f93;
+  color: #2f6f93;
+  background: #eef4f8;
+}
 .ov-timeline { border-radius: 5px 5px 0 0; background: var(--ov-panel); }
 .ov-sequence-title {
   border-color: var(--ov-line-strong);

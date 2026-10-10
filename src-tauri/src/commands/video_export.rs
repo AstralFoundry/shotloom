@@ -109,6 +109,12 @@ struct VideoEditorTransform {
     angle: f64,
     #[serde(default = "default_clip_opacity")]
     opacity: f64,
+    #[serde(default = "default_transform_fit")]
+    fit: String,
+}
+
+fn default_transform_fit() -> String {
+    "fit".to_string()
 }
 
 impl Default for VideoEditorTransform {
@@ -120,6 +126,7 @@ impl Default for VideoEditorTransform {
             height: 0.0,
             angle: 0.0,
             opacity: 1.0,
+            fit: default_transform_fit(),
         }
     }
 }
@@ -354,6 +361,18 @@ fn validate_video_editor_project(project: &VideoEditorProject) -> Result<(), Str
     Ok(())
 }
 
+/// 片段框与素材比例不一致时的缩放语义。fit 留边（透明补边，居中），fill 居中裁剪填满。
+/// 两种语义都保持画面居中，导出结果必须与监视器预览一致。
+fn visual_scale_filter(width: u32, height: u32, fit: &str) -> String {
+    if fit == "fill" {
+        format!("scale={width}:{height}:force_original_aspect_ratio=increase,crop={width}:{height}")
+    } else {
+        format!(
+            "scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:color=black@0"
+        )
+    }
+}
+
 fn export_video_editor_project(
     target: String,
     project: VideoEditorProject,
@@ -424,7 +443,9 @@ fn export_video_editor_project(
                     && clip.transform.angle.abs() < 0.001
                     && (clip.transform.opacity - 1.0).abs() < 0.001
                     && (clip.transform.width - project.settings.width as f64).abs() < 0.5
-                    && (clip.transform.height - project.settings.height as f64).abs() < 0.5;
+                    && (clip.transform.height - project.settings.height as f64).abs() < 0.5
+                    // fill 会裁剪画面，即使尺寸恰好等于画布也不能直接复制源文件。
+                    && clip.transform.fit != "fill";
                 if source_is_mp4 && unchanged {
                     if source != &target {
                         fs::copy(source, &target)
@@ -543,8 +564,9 @@ fn export_video_editor_project(
                 } else {
                     format!(",rotate={angle:.8}:ow=rotw(iw):oh=roth(ih):c=none")
                 };
+                let scale_filter = visual_scale_filter(width, height, &clip.transform.fit);
                 filters.push(format!(
-                    "[{input}:v]{source_filter},scale={width}:{height}:force_original_aspect_ratio=decrease,setsar=1,format=rgba{rotation_filter},colorchannelmixer=aa={opacity:.5},setpts=PTS+{:.6}/TB[visual{visual_index}]",
+                    "[{input}:v]{source_filter},{scale_filter},setsar=1,format=rgba{rotation_filter},colorchannelmixer=aa={opacity:.5},setpts=PTS+{:.6}/TB[visual{visual_index}]",
                     clip.timeline_start
                 ));
                 let next_canvas = format!("canvas{}", visual_index + 1);
@@ -794,6 +816,100 @@ mod video_edit_tests {
         let top_left = pixels.get_pixel(8, 8);
         assert!(top_left[2] > 150, "top-left pixel was {top_left:?}");
         assert!(top_left[0] < 80, "top-left pixel was {top_left:?}");
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn visual_scale_filter_letterboxes_for_fit_and_center_crops_for_fill() {
+        let fit = visual_scale_filter(1080, 1920, "fit");
+        assert!(fit.contains("scale=1080:1920:force_original_aspect_ratio=decrease"));
+        assert!(fit.contains("pad=1080:1920:(ow-iw)/2:(oh-ih)/2:color=black@0"));
+
+        let fill = visual_scale_filter(1080, 1920, "fill");
+        assert!(fill.contains("scale=1080:1920:force_original_aspect_ratio=increase"));
+        assert!(fill.contains("crop=1080:1920"));
+        assert!(!fill.contains("pad="));
+
+        // 未知值必须按留边处理，与前端 normalizeFit 的回落保持一致。
+        assert_eq!(
+            visual_scale_filter(640, 480, "stretch"),
+            visual_scale_filter(640, 480, "fit")
+        );
+    }
+
+    /// 真 ffmpeg 端到端：同一段横屏纯色源放进竖屏画布，fill 必须裁剪填满（顶部即画面内容），
+    /// fit 必须在框内上下居中留边（顶部与底部都是黑边、中部才是画面）。
+    #[test]
+    fn ffmpeg_fill_crops_to_canvas_and_fit_centers_the_letterbox() {
+        let Ok(ffmpeg) = media_tool("ffmpeg") else {
+            return;
+        };
+        let root = std::env::temp_dir().join(format!("shotloom-video-fit-{}", chrono_stamp()));
+        fs::create_dir_all(&root).unwrap();
+        let source = root.join("source.mp4");
+        let generated = Command::new(&ffmpeg)
+            .args([
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-y",
+                "-f",
+                "lavfi",
+                "-i",
+                "color=c=0x147ad6:s=320x180:r=24:d=1",
+                "-c:v",
+                "libx264",
+                "-pix_fmt",
+                "yuv420p",
+            ])
+            .arg(&source)
+            .status()
+            .unwrap();
+        assert!(generated.success());
+
+        let export = |fit: &str, name: &str| -> std::path::PathBuf {
+            let target = root.join(name);
+            let project: VideoEditorProject = serde_json::from_value(json!({
+                "settings": { "width": 180, "height": 320, "fps": 24, "backgroundColor": "#050608" },
+                "assets": [{ "id": "source", "type": "video", "sourceFile": source, "duration": 1 }],
+                "tracks": [{ "type": "video", "clips": [{
+                    "id": "v1", "type": "video", "assetId": "source", "timelineStart": 0,
+                    "trimStart": 0.1, "trimEnd": 0.9, "speed": 1,
+                    "transform": { "x": 0, "y": 0, "width": 180, "height": 320, "angle": 0, "opacity": 1, "fit": fit }
+                }]}]
+            }))
+            .unwrap();
+            export_video_editor_project(target.to_string_lossy().into_owned(), project).unwrap();
+            target
+        };
+        let frame_of = |target: &std::path::Path, name: &str| -> image::RgbImage {
+            let frame = root.join(name);
+            let status = Command::new(&ffmpeg)
+                .args(["-hide_banner", "-loglevel", "error", "-y", "-ss", "0.3", "-i"])
+                .arg(target)
+                .args(["-frames:v", "1"])
+                .arg(&frame)
+                .status()
+                .unwrap();
+            assert!(status.success());
+            image::open(&frame).unwrap().to_rgb8()
+        };
+
+        let filled = frame_of(&export("fill", "fill.mp4"), "fill.png");
+        assert_eq!(filled.dimensions(), (180, 320));
+        for y in [4, 316] {
+            let edge = filled.get_pixel(90, y);
+            assert!(edge[2] > 150 && edge[0] < 80, "fill 第 {y} 行应为画面内容：{edge:?}");
+        }
+
+        let fitted = frame_of(&export("fit", "fit.mp4"), "fit.png");
+        assert_eq!(fitted.dimensions(), (180, 320));
+        for y in [4, 316] {
+            let edge = fitted.get_pixel(90, y);
+            assert!(edge[0] < 40 && edge[1] < 40, "fit 第 {y} 行应为居中留边：{edge:?}");
+        }
+        let middle = fitted.get_pixel(90, 160);
+        assert!(middle[2] > 150, "fit 中部应为画面内容：{middle:?}");
         let _ = fs::remove_dir_all(root);
     }
 

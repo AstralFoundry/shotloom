@@ -43,6 +43,43 @@ export function getActiveCopilotConversation(project) {
   return conversations.find((item) => item.id === project.activeCopilotConversationId) || conversations[0];
 }
 
+// 画布与每个剪辑工作区各自拥有独立会话，互不可见。project.activeCopilotConversationId
+// 只是项目级的“最近所在会话”指针，不能用来判断某个面板该显示哪个会话，否则剪辑会话会
+// 抢走画布面板的消息归属。作用域解析必须由这里统一决定。
+export function scopedCopilotConversations(project, scope = 'canvas', editorNodeId = '') {
+  const conversations = ensureCopilotConversations(project);
+  const nodeId = String(editorNodeId || '');
+  if (scope === 'editor') {
+    if (!nodeId) return [];
+    return conversations.filter((item) => String(item.editorNodeId || '') === nodeId);
+  }
+  return conversations
+    .filter((item) => !item.editorNodeId)
+    .sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')));
+}
+
+// 画布作用域的活动会话。画布面板必须始终落在画布会话上：即使项目级指针指向剪辑会话，
+// 也不能让画布面板读写剪辑会话。
+export function canvasCopilotConversation(project) {
+  const conversations = scopedCopilotConversations(project, 'canvas');
+  const active = conversations.find((item) => item.id === project.activeCopilotConversationId);
+  if (active) return active;
+  if (conversations.length) return conversations[0];
+  return createCopilotConversation(project);
+}
+
+// 剪辑作用域的活动会话。一个剪辑工作区同时只保留一个会话，首次读取即建立，
+// 使面板读取与发送指向同一个会话。
+export function editorCopilotConversation(project, editorNodeId) {
+  const nodeId = String(editorNodeId || '');
+  const conversations = scopedCopilotConversations(project, 'editor', nodeId);
+  if (!nodeId) return conversations[0] || getActiveCopilotConversation(project);
+  if (conversations.length) return conversations[0];
+  const conversation = createCopilotConversation(project, { title: '剪辑 Agent' });
+  conversation.editorNodeId = nodeId;
+  return conversation;
+}
+
 export function createCopilotConversation(project, options = {}) {
   ensureCopilotConversations(project);
   const now = new Date().toISOString();
@@ -89,14 +126,19 @@ export function deleteCopilotConversation(project, conversationId) {
   return getActiveCopilotConversation(project);
 }
 
-export function clearActiveCopilotConversation(project) {
-  const active = getActiveCopilotConversation(project);
-  active.messages = [];
-  delete active.agentMessages;
-  delete active.openCodeSessionId;
-  active.contextUsage = null;
-  active.updatedAt = new Date().toISOString();
-  return active;
+// 清空必须按目标会话执行：画布面板与剪辑面板的“清空当前会话”各自只影响自己的作用域。
+// 目标 id 缺失或失效时退回项目级活动会话，避免清错另一个作用域的会话。
+export function clearCopilotConversation(project, conversationId) {
+  const conversations = ensureCopilotConversations(project);
+  const requested = String(conversationId || '');
+  const conversation = conversations.find((item) => item.id === requested)
+    || getActiveCopilotConversation(project);
+  conversation.messages = [];
+  delete conversation.agentMessages;
+  delete conversation.openCodeSessionId;
+  conversation.contextUsage = null;
+  conversation.updatedAt = new Date().toISOString();
+  return conversation;
 }
 
 export function titleConversationFromMessage(conversation, message) {

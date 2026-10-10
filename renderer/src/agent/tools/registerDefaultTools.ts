@@ -3,6 +3,7 @@ import { registerCatalogTools } from './catalogTools';
 import { registerLifecycleTools } from './lifecycleTools';
 import { registerShortDramaTools } from './scriptTools';
 import { registerProductionPlanTools } from './productionPlanTools';
+import { registerVideoEditorTools } from './videoEditorTools';
 import { hasAgentTool } from '../core/toolRegistry';
 
 export function registerDefaultAgentTools(): void {
@@ -15,4 +16,5 @@ export function registerDefaultAgentTools(): void {
   registerLifecycleTools();
   registerProductionPlanTools();
   registerShortDramaTools();
+  registerVideoEditorTools();
 }

@@ -1,14 +1,34 @@
-import { useEffect, useState } from "react";
+import { memo, useEffect, useState } from "react";
 import { formatEditorTime } from "./videoEditorFormat";
 
-export function VideoEditorRuler({ duration, zoom }: { duration: number; zoom: number }) {
+/** 轨道头宽度：时间线内容左边缘到时间原点（0 秒）的距离。 */
+export const TRACK_HEAD_WIDTH = 112;
+
+export function VideoEditorRuler({
+  duration,
+  zoom,
+  onScrubPointerDown,
+}: {
+  duration: number;
+  zoom: number;
+  onScrubPointerDown?: (event: React.PointerEvent<HTMLDivElement>, originLeft: number) => void;
+}) {
   const step = zoom >= 100 ? 1 : zoom >= 48 ? 5 : 10;
   const ticks = [];
   for (let value = 0; value <= duration; value += step) ticks.push(value);
   return (
-    <div className="ov-ruler">
+    <div
+      className="ov-ruler"
+      // 标尺与时间线内容同宽同起点，因此时间原点在自身左边缘 + 轨道头宽度处。
+      onPointerDown={onScrubPointerDown
+        ? (event) => onScrubPointerDown(
+          event,
+          event.currentTarget.getBoundingClientRect().left + TRACK_HEAD_WIDTH,
+        )
+        : undefined}
+    >
       {ticks.map((value) => (
-        <span key={value} style={{ left: 112 + value * zoom }}>
+        <span key={value} style={{ left: TRACK_HEAD_WIDTH + value * zoom }}>
           <i />
           {formatEditorTime(value)}
         </span>
@@ -17,7 +37,8 @@ export function VideoEditorRuler({ duration, zoom }: { duration: number; zoom: n
   );
 }
 
-export function VideoFilmstripThumbnail({
+// 拖动时每帧都会重建工程并重渲染时间线；memo 让未变化的片段跳过胶片缩略图的重新渲染。
+export const VideoFilmstripThumbnail = memo(function VideoFilmstripThumbnail({
   src,
   start,
   end,
@@ -145,4 +166,4 @@ export function VideoFilmstripThumbnail({
         : <span className="ov-clip-frame-loading" />}
     </span>
   );
-}
+});

@@ -49,6 +49,7 @@ import { taskController, taskViewData } from "./adapters/taskAdapter";
 import { updateDialogController, updateDialogData } from "./adapters/updateAdapter";
 import { MediaViewer } from "./components/MediaViewer";
 import { ToastHost } from "./components/ToastHost";
+import { ProjectSearch } from "./components/ProjectSearch";
 import { UpdateDialog } from "./components/UpdateDialog";
 import { CreationView } from "./views/CreationView";
 import { AssetsView } from "./views/AssetsView";
@@ -67,6 +68,7 @@ import { installMediaPreviewCacheMemoryPressureListener } from "../services/medi
 export function ReactWorkbench() {
   const [, refresh] = useReducer((value) => value + 1, 0);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [editorNodeId, setEditorNodeId] = useState("");
   const appRoute = useAppStore((state) => state.route);
   const domainRevision = useSyncExternalStore(
@@ -74,6 +76,17 @@ export function ReactWorkbench() {
     getDomainRevision,
     getDomainRevision,
   );
+
+  useEffect(() => {
+    function onSearchKey(event: KeyboardEvent) {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setSearchOpen(true);
+      }
+    }
+    window.addEventListener("keydown", onSearchKey);
+    return () => window.removeEventListener("keydown", onSearchKey);
+  }, []);
 
   useEffect(() => {
     let taskTimer = 0;
@@ -218,6 +231,7 @@ export function ReactWorkbench() {
   const editor =
     editorNode
       ? {
+          nodeId: editorNode.id,
           title: editorNode.title || "视频剪辑",
           project: editorNode.videoEditProject,
           sourceFile: editorFile,
@@ -367,7 +381,10 @@ export function ReactWorkbench() {
             ...copilotController,
             subscribe: subscribeCopilot,
             getRevision: getCopilotRevision,
-            read: copilotData,
+            // 作用域参数必须透传给 copilotData：剪辑面板按 editorNodeId 读自己的会话，
+            // 丢弃参数会让两个面板读到同一个作用域。
+            read: (scope: "canvas" | "editor" = "canvas", editorNodeId = "") =>
+              copilotData(scope, editorNodeId),
           },
           async applyMaterial(item) {
             await canvasCommands.applyMaterial(item);
@@ -408,8 +425,10 @@ export function ReactWorkbench() {
         }
         onSettings={() => setSettingsOpen(true)}
         onUpdate={() => void updateDialogController.check()}
+        onSearch={() => setSearchOpen(true)}
         onNavigationBlocked={() => showToast("请先新建或打开一个项目")}
       />
+      {searchOpen && <ProjectSearch onClose={() => setSearchOpen(false)} />}
       {settingsOpen && (
         <div
           className="modal-backdrop open settings-workbench-backdrop"

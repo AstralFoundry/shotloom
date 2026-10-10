@@ -18,6 +18,7 @@ const expectedIds = [
   'social-media',
   'talking-head',
   'video-ad',
+  'video-editing',
   'video-production',
 ];
 const expectedNames = {
@@ -30,6 +31,7 @@ const expectedNames = {
   'social-media': '社媒内容运营',
   'talking-head': '主播口播制作',
   'video-ad': '商业广告影片',
+  'video-editing': '剪辑与成片核验',
   'video-production': '全流程影像制作',
 };
 
@@ -211,7 +213,7 @@ test('script-to-video v2 使用两轮 Prompt Draft 确认和细粒度画布工�
   assert.match(body, /no music/);
   assert.match(body, /no subtitles/);
   assert.match(body, /只有所选模式真实提供清晰度参数时才请求 2K/);
-  assert.match(body, /当前 Shotloom Agent 没有可自动操作剪辑时间线的画布工具/);
+  assert.match(body, /画布工具不直接操作剪辑时间线/);
   for (const toolId of [
     'canvas_list_nodes', 'canvas_get_node', 'canvas_create_node', 'canvas_update_node',
     'canvas_connect_nodes', 'canvas_layout_nodes', 'canvas_start_generation', 'inspect_tasks',

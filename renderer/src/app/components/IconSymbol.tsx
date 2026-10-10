@@ -66,6 +66,10 @@ const paths = {
   search: '<path d="m21 21-4.3-4.3"/><circle cx="11" cy="11" r="8"/>',
   scissors:
     '<circle cx="6" cy="7" r="3"/><circle cx="6" cy="17" r="3"/><path d="m8.7 8.5 11.3 6.5"/><path d="m8.7 15.5 4.6-2.6"/>',
+  shapes:
+    '<circle cx="8" cy="7" r="3"/><path d="M15 4h5v6h-5z"/><path d="m7 14-4 7h8z"/><path d="m18 14 4 7h-8z"/>',
+  shuffle:
+    '<path d="m18 14 4 4-4 4"/><path d="m18 2 4 4-4 4"/><path d="M2 18h2c6 0 8-12 14-12h4"/><path d="M2 6h2c2 0 3 1 4 3"/><path d="M14 15c1 2 2 3 4 3h4"/>',
   send: '<path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/>',
   sliders:
     '<path d="M4 21v-7"/><path d="M4 10V3"/><path d="M12 21v-9"/><path d="M12 8V3"/><path d="M20 21v-5"/><path d="M20 12V3"/><path d="M2 14h4"/><path d="M10 8h4"/><path d="M18 16h4"/>',

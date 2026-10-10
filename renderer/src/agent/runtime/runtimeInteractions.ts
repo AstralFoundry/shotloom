@@ -7,6 +7,11 @@ export interface AgentApprovalResolution {
   approved: boolean;
   result?: unknown;
   error?: string;
+  /**
+   * 用户在确认时修改后的工具参数。存在时必须按它重新校验并执行，而不是用原参数 ——
+   * 这正是把工具确认当作"修正机会"而不是"放行开关"的意义。
+   */
+  modifiedArgs?: Record<string, unknown>;
 }
 
 interface PendingInteraction<T> {

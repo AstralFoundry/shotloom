@@ -13,6 +13,47 @@ export interface VideoEditorSelection {
   track: VideoEditorTrack;
   index: number;
 }
+
+const canvasPresets = [
+  { label: "9:16", width: 1080, height: 1920 },
+  { label: "1:1", width: 1080, height: 1080 },
+  { label: "16:9", width: 1920, height: 1080 },
+] as const;
+
+// 画布格式属于工程级设置，与是否选中片段无关，因此不放进选中态分支。
+function CanvasFormatSection({
+  project,
+  onUpdateSettings,
+}: {
+  project: VideoEditorProject;
+  onUpdateSettings: (patch: { width: number; height: number }) => void;
+}) {
+  return (
+    <div className="ov-project-facts">
+      <span>工程画布</span>
+      <strong>{project.settings.width} × {project.settings.height}</strong>
+      <div className="ov-canvas-presets">
+        {canvasPresets.map((preset) => {
+          const active = project.settings.width === preset.width
+            && project.settings.height === preset.height;
+          return (
+            <button
+              key={preset.label}
+              type="button"
+              className={active ? "active" : ""}
+              title={`${preset.label} · ${preset.width}×${preset.height}`}
+              onClick={() => onUpdateSettings({ width: preset.width, height: preset.height })}
+            >
+              {preset.label}
+            </button>
+          );
+        })}
+      </div>
+      <small>{project.settings.fps} FPS · JSON v{project.version}</small>
+    </div>
+  );
+}
+
 export function VideoEditorInspector({
   selected,
   project,
@@ -20,6 +61,7 @@ export function VideoEditorInspector({
   onDelete,
   onDuplicate,
   onCanvasAction,
+  onUpdateSettings,
 }: {
   selected: VideoEditorSelection | null;
   project: VideoEditorProject;
@@ -27,15 +69,17 @@ export function VideoEditorInspector({
   onDelete: () => void;
   onDuplicate: () => void;
   onCanvasAction: (action: "centerClip" | "fitClip" | "coverClip") => void;
+  onUpdateSettings: (patch: { width: number; height: number }) => void;
 }) {
   if (!selected) {
     return (
-      <aside className="ov-inspector">
+      <aside className="ov-inspector is-empty">
         <div className="ov-inspector-empty">
           <IconSymbol name="cursor" />
           <strong>选择一个片段</strong>
           <span>在时间线或画布中选择内容后编辑参数</span>
         </div>
+        <CanvasFormatSection project={project} onUpdateSettings={onUpdateSettings} />
       </aside>
     );
   }
@@ -184,9 +228,9 @@ export function VideoEditorInspector({
         <div className="ov-inspector-section ov-transform-section">
           <h4>画布变换</h4>
           <div className="ov-transform-presets">
-            <button onClick={() => onCanvasAction("centerClip")}>居中</button>
-            <button onClick={() => onCanvasAction("fitClip")}>适应</button>
-            <button onClick={() => onCanvasAction("coverClip")}>填充</button>
+            <button title="在画布中居中，不改尺寸" onClick={() => onCanvasAction("centerClip")}>居中</button>
+            <button title="等比缩小到画布内，多余部分留边" onClick={() => onCanvasAction("fitClip")}>适应</button>
+            <button title="居中裁剪铺满画布" onClick={() => onCanvasAction("coverClip")}>填充</button>
           </div>
           {(["x", "y", "width", "height", "angle", "opacity"] as const).map((
             key,
@@ -224,11 +268,7 @@ export function VideoEditorInspector({
           <IconSymbol name="trash" />删除
         </button>
       </div>
-      <div className="ov-project-facts">
-        <span>工程画布</span>
-        <strong>{project.settings.width} × {project.settings.height}</strong>
-        <small>{project.settings.fps} FPS · JSON v{project.version}</small>
-      </div>
+      <CanvasFormatSection project={project} onUpdateSettings={onUpdateSettings} />
     </aside>
   );
 }

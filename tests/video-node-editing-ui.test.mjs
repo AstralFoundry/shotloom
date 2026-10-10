@@ -52,7 +52,7 @@ test('剪辑工作区只编排组件和领域 Hook', async () => {
   assert.match(commands, /const addAsset =/);
   assert.match(commands, /const splitSelected =/);
   assert.match(inspector, /export function VideoEditorInspector/);
-  assert.match(timelineMedia, /export function VideoFilmstripThumbnail/);
+  assert.match(timelineMedia, /export (?:const|function) VideoFilmstripThumbnail/);
   assert.match(timelineMedia, /document\.createElement\("video"\)/);
 });
 test('图片、视频和音频节点共用直接加入剪辑入口', async () => {
@@ -136,8 +136,9 @@ test('独立剪辑工作区接入真实桌面导出', async () => {
     /redo/,
     /createOpenVideoRuntime/,
     /playbackStructureSignature/,
-    /onSelection/,
-    /onTransformEnd/,
+    // 片段交互由监视器浮层承担（引擎只渲染），不再是引擎中介的 selection/transform 回调。
+    /ov-video-interaction-layer/,
+    /activeVideoClips/,
     /framePrev/,
     /frameNext/,
     /runCanvasAction/,
@@ -239,7 +240,7 @@ test('剪辑工作区主动解码首帧并提供可编辑的中文文字预设',
     workspace,
     /start=\{Math\.max\(0, Number\(clip\.trimStart\) \|\| 0\)\}/,
   );
-  assert.match(workspace, /export function VideoFilmstripThumbnail/);
+  assert.match(workspace, /export (?:const|function) VideoFilmstripThumbnail/);
   assert.match(workspace, /const sampleCount = visibleEnd > visibleStart \? lastSlot - firstSlot : 0/);
   assert.match(workspace, /sampleIndex \* sampleWidth/);
   assert.match(styles, /\.ov-clip-frame-loading/);
@@ -315,7 +316,8 @@ test('剪辑工作区主动解码首帧并提供可编辑的中文文字预设',
   assert.match(workspace, /video\.volume = previewAudio\.volume/);
   assert.match(workspace, /const stickerAssets = useMemo/);
   assert.match(workspace, /const imageStart = duration > 0/);
-  assert.match(workspace, /const videoStart = asset\.type === "video"/);
+  // 视频片段默认追加到轨道末尾；拖放落点存在时优先用落点。
+  assert.match(workspace, /hasDropStart[\s\S]{0,80}asset\.type === "video"[\s\S]{0,200}Math\.max\(\s*0,\s*\.\.\.track\.clips\.map/);
   assert.match(workspace, /timelineStart: videoStart/);
   assert.match(workspace, /已追加到视频轨末尾/);
   assert.match(workspace, /const activateAsset = \(asset: VideoEditorAsset\)/);
@@ -338,7 +340,11 @@ test('剪辑工作区主动解码首帧并提供可编辑的中文文字预设',
   assert.match(workspace, /const beginVisualTransform/);
   assert.match(workspace, /type TransformMode = "move" \| "resize" \| "rotate"/);
   assert.match(workspace, /className="ov-transform-rotate-handle"/);
-  assert.match(workspace, /className="ov-transform-resize-handle"/);
+  // 四个角各自一个手柄，类名按角拼装并带上方向后缀。
+  assert.match(workspace, /className=\{`ov-transform-resize-handle \$\{className\}`\}/);
+  for (const corner of ['"nw"', '"ne"', '"sw"', '"se"']) {
+    assert.ok(workspace.includes(`corner: ${corner}`), `缺少 ${corner} 角手柄`);
+  }
   assert.match(styles, /\.ov-image-preview-item \{[^}]*cursor:\s*move/);
   assert.match(styles, /\.ov-transform-resize-handle \{[^}]*nwse-resize/);
   assert.match(workspace, /className=\{`ov-text-preview-item/);

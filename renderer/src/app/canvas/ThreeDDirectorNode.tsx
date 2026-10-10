@@ -1,12 +1,10 @@
-import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { IconSymbol } from "../components/IconSymbol";
 import type { WorkflowNodeData, WorkflowNodeRenderer } from "./WorkflowCanvas";
 import "./ThreeDDirectorNode.css";
 
 type IncomingImage = { edgeId: string; nodeId: string; name: string; url: string };
-const PREVIEW_WIDTH = 1440;
-const PREVIEW_HEIGHT = 880;
-
 function readDirectorProject(node: WorkflowNodeData) {
   const directorData = node.directorData;
   if (!directorData || typeof directorData !== "object" || Array.isArray(directorData)) return null;
@@ -18,58 +16,59 @@ export const ThreeDDirectorNode: WorkflowNodeRenderer = memo(
   ({ node, selected, resizing, inputRevision, actions }) => {
     const [incomingImages, setIncomingImages] = useState<IncomingImage[]>([]);
     const [interacting, setInteracting] = useState(false);
-    const iframeRef = useRef<HTMLIFrameElement>(null);
-    const workspaceRef = useRef<HTMLDivElement>(null);
+    const [detailOpen, setDetailOpen] = useState(false);
+    const detailIframeRef = useRef<HTMLIFrameElement>(null);
+
+    const postToDirectorFrames = useCallback((message: unknown) => {
+      detailIframeRef.current?.contentWindow?.postMessage(message, window.location.origin);
+    }, []);
 
     const sendSession = useCallback(() => {
-      iframeRef.current?.contentWindow?.postMessage(
-        {
-          type: "storyai:director-desk-session",
-          payload: {
-            instanceId: node.id,
-            theme: "light",
-            project: readDirectorProject(node),
-          },
+      postToDirectorFrames({
+        type: "storyai:director-desk-session",
+        payload: {
+          instanceId: node.id,
+          theme: "light",
+          project: readDirectorProject(node),
         },
-        window.location.origin,
-      );
-    }, [node]);
+      });
+    }, [node, postToDirectorFrames]);
 
     const sendPanorama = useCallback(() => {
       const image = incomingImages.at(-1);
       if (!image) {
-        iframeRef.current?.contentWindow?.postMessage(
-          { type: "storyai:director-desk-panorama-clear" },
-          window.location.origin,
-        );
+        postToDirectorFrames({ type: "storyai:director-desk-panorama-clear" });
         return;
       }
-      iframeRef.current?.contentWindow?.postMessage(
-        {
-          type: "storyai:director-desk-panorama",
-          payload: {
-            edgeId: image.edgeId,
-            sourceNodeId: image.nodeId,
-            imageUrl: image.url,
-            fileName: image.name,
-          },
+      postToDirectorFrames({
+        type: "storyai:director-desk-panorama",
+        payload: {
+          edgeId: image.edgeId,
+          sourceNodeId: image.nodeId,
+          imageUrl: image.url,
+          fileName: image.name,
         },
-        window.location.origin,
-      );
-    }, [incomingImages]);
+      });
+    }, [incomingImages, postToDirectorFrames]);
 
     useEffect(() => {
       void actions.getDirectorIncomingImages(node.id).then(setIncomingImages);
     }, [actions, inputRevision, node.id]);
 
     useEffect(() => {
-      if (!selected) setInteracting(false);
+      if (!selected) {
+        setInteracting(false);
+        setDetailOpen(false);
+      }
     }, [selected]);
 
     useEffect(() => {
       if (!interacting) return;
       const handleEscape = (event: KeyboardEvent) => {
-        if (event.key === "Escape") setInteracting(false);
+        if (event.key === "Escape") {
+          setInteracting(false);
+          setDetailOpen(false);
+        }
       };
       window.addEventListener("keydown", handleEscape);
       return () => window.removeEventListener("keydown", handleEscape);
@@ -79,36 +78,11 @@ export const ThreeDDirectorNode: WorkflowNodeRenderer = memo(
       sendPanorama();
     }, [incomingImages, sendPanorama]);
 
-    useLayoutEffect(() => {
-      const workspace = workspaceRef.current;
-      if (!workspace) return;
-      let animationFrame = 0;
-      const resize = () => {
-        cancelAnimationFrame(animationFrame);
-        animationFrame = requestAnimationFrame(() => {
-          const iframe = iframeRef.current;
-          if (!iframe) return;
-          const scale = Math.min(
-            workspace.clientWidth / PREVIEW_WIDTH,
-            workspace.clientHeight / PREVIEW_HEIGHT,
-          );
-          if (scale > 0) iframe.style.transform = `scale(${scale})`;
-        });
-      };
-      resize();
-      const observer = new ResizeObserver(resize);
-      observer.observe(workspace);
-      return () => {
-        cancelAnimationFrame(animationFrame);
-        observer.disconnect();
-      };
-    }, []);
-
     useEffect(() => {
       const handleMessage = (event: MessageEvent) => {
         if (
           event.origin !== window.location.origin ||
-          event.source !== iframeRef.current?.contentWindow
+          event.source !== detailIframeRef.current?.contentWindow
         )
           return;
         const message = event.data as { type?: string; payload?: Record<string, unknown> };
@@ -123,6 +97,7 @@ export const ThreeDDirectorNode: WorkflowNodeRenderer = memo(
         }
         if (message.type === "storyai:director-desk-exit-interaction") {
           setInteracting(false);
+          setDetailOpen(false);
           return;
         }
         if (message.type === "storyai:director-desk-delete-node") {
@@ -163,6 +138,7 @@ export const ThreeDDirectorNode: WorkflowNodeRenderer = memo(
     }, [actions, node.id, sendPanorama, sendSession]);
 
     return (
+      <>
       <div
         className={`director-node${selected ? " selected" : ""}${resizing ? " resizing" : ""}${interacting ? " interacting" : ""}`}
         onClick={(event) => {
@@ -214,34 +190,55 @@ export const ThreeDDirectorNode: WorkflowNodeRenderer = memo(
           )}
         </header>
         <div
-          ref={workspaceRef}
           className={`director-node-workspace nopan nowheel${interacting ? " nodrag" : ""}`}
           onDoubleClick={(event) => {
             if (interacting) return;
             event.stopPropagation();
             actions.select(node.id);
             setInteracting(true);
+            setDetailOpen(true);
           }}
         >
-          <div className="director-node-preview">
-            <iframe
-              ref={iframeRef}
-              src={`./director-desk.html?instanceId=${encodeURIComponent(node.id)}&theme=light&embedded=canvas`}
-              title="3D 导演台"
-              style={{
-                width: PREVIEW_WIDTH,
-                height: PREVIEW_HEIGHT,
+          <div className="director-node-placeholder">
+            <IconSymbol name="box" />
+            <strong>导演台</strong>
+            <p>在 3D 空间中搭建场景并进行多视角截图。</p>
+            <button
+              type="button"
+              className="director-node-open-button nodrag"
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={(event) => {
+                event.stopPropagation();
+                actions.select(node.id);
+                setInteracting(true);
+                setDetailOpen(true);
               }}
-              onFocus={() => actions.select(node.id)}
-              onLoad={() => {
-                sendSession();
-                sendPanorama();
-              }}
-            />
+            >
+              打开导演台
+            </button>
           </div>
-          {!interacting && <span className="director-node-entry-hint">双击操作 3D 场景</span>}
         </div>
       </div>
+      {detailOpen && createPortal(
+        <div className="director-detail-backdrop" role="dialog" aria-modal="true" aria-label="3D 导演台详情">
+          <div className="director-detail-window">
+            <div className="director-detail-head">
+              <strong>{String(node.title || "3D 导演台")}</strong>
+              <button type="button" onClick={() => { setDetailOpen(false); setInteracting(false); }}>完成</button>
+            </div>
+            <iframe
+              ref={detailIframeRef}
+              // 详情窗口使用独立布局；embedded=canvas 会触发导演台的缩略嵌入样式。
+              src={`./director-desk.html?instanceId=${encodeURIComponent(node.id)}&theme=light`}
+              title="3D 导演台详情"
+              className="director-detail-frame"
+              onLoad={() => { sendSession(); sendPanorama(); }}
+            />
+          </div>
+        </div>,
+        document.body,
+      )}
+      </>
     );
   },
 );

@@ -3,13 +3,15 @@ import stickerActionUrl from "../../assets/stickers/action.svg?no-inline";
 import stickerHeartUrl from "../../assets/stickers/heart.svg?no-inline";
 import stickerStarUrl from "../../assets/stickers/star.svg?no-inline";
 import type { VideoEditorAsset, VideoEditorProject } from "./videoEditorTypes";
+import { videoEditorEffectKeys, videoEditorTransitionKeys } from "../../utils/videoEditorEffects.mjs";
 
 export const tools: Array<{ id: string; label: string; icon: IconName }> = [
   { id: "media", label: "素材", icon: "film" },
   { id: "text", label: "文字", icon: "text" },
-  { id: "stickers", label: "贴图", icon: "spark" },
-  { id: "transitions", label: "转场", icon: "layers" },
-  { id: "effects", label: "特效", icon: "sliders" },
+  { id: "stickers", label: "图形", icon: "shapes" },
+  { id: "effects", label: "特效", icon: "spark" },
+  { id: "transitions", label: "转场", icon: "shuffle" },
+  { id: "adjust", label: "调整", icon: "sliders" },
 ];
 export const trackMeta: Record<string, { code: string; icon: IconName }> = {
   video: { code: "V", icon: "film" },
@@ -19,21 +21,8 @@ export const trackMeta: Record<string, { code: string; icon: IconName }> = {
   effect: { code: "FX", icon: "spark" },
   transition: { code: "TR", icon: "layers" },
 };
-export const transitions = [
-  { key: "fade", name: "溶解" },
-  { key: "Directional", name: "方向推移" },
-  { key: "directionalwarp", name: "方向扭曲" },
-  { key: "circleopen", name: "圆形展开" },
-  { key: "pixelize", name: "像素化" },
-  { key: "CrossZoom", name: "交叉缩放" },
-];
-export const effects = [
-  { key: "vignette", name: "暗角" },
-  { key: "glitch", name: "故障" },
-  { key: "pixelate", name: "像素" },
-  { key: "chromatic", name: "色散" },
-  { key: "filmStripPro", name: "胶片" },
-];
+export const transitions = videoEditorTransitionKeys.map((key, index) => ({ key, name: ["溶解", "方向推移", "方向扭曲", "圆形展开", "像素化", "交叉缩放"][index] }));
+export const effects = videoEditorEffectKeys.map((key, index) => ({ key, name: ["暗角", "故障", "像素", "色散", "胶片"][index] }));
 export const textPresets = [{
   id: "subtitle",
   name: "清晰字幕",
@@ -82,6 +71,9 @@ export const builtInStickers: VideoEditorAsset[] = [{
   height: 512,
 }];
 export const builtInStickerById = new Map(builtInStickers.map((asset) => [asset.id, asset]));
+
+/** 素材面板拖到时间线时使用的拖拽类型；同时写 text/plain 作为回退。 */
+export const EDITOR_ASSET_DRAG_TYPE = "application/x-shotloom-editor-asset";
 
 export function applyBuiltInStickerSources(project: VideoEditorProject) {
   for (const asset of project.assets || []) {

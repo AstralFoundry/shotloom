@@ -8,10 +8,13 @@ import { getModelInfo } from "../../domain/catalog/ModelCatalog";
 import { resolveProviderIconId } from "../../domain/provider/ProviderBrandIcons.js";
 import { getAgentProjectKey } from "../../services/agentProjectIdentity";
 import {
-  clearActiveCopilotConversation,
+  canvasCopilotConversation,
+  clearCopilotConversation,
   createCopilotConversation,
   deleteCopilotConversation,
+  editorCopilotConversation,
   getActiveCopilotConversation,
+  scopedCopilotConversations,
   switchCopilotConversation,
   titleConversationFromMessage,
 } from "../../services/copilotConversations.mjs";
@@ -40,6 +43,7 @@ type CopilotSendPayload = {
   model: string;
   attachments: unknown[];
   nodeMentions: unknown[];
+  conversationId?: string;
 };
 type AgentResume = {
   conversationId: string;
@@ -87,6 +91,12 @@ export function maintainCopilotSessionMemory() {
 function active() {
   return getActiveCopilotConversation(store.project) as Loose;
 }
+function conversationById(conversationId: string) {
+  if (!conversationId) return null;
+  return ((store.project.copilotConversations || []) as Loose[]).find(
+    (item) => String(item.id) === conversationId,
+  ) || null;
+}
 function availableTextModels() {
   const source = toRaw(settingsStore.providerConfigs) as object;
   if (source === textModelConfigSource) return cachedTextModels;
@@ -101,8 +111,8 @@ function availableTextModels() {
   }));
   return cachedTextModels;
 }
-function pushMessage(message: Loose) {
-  const conversation = active();
+function pushMessage(message: Loose, targetConversation?: Loose) {
+  const conversation = targetConversation || (toRaw(active()) as Loose);
   if (!busy) {
     conversation.messages = conversation.messages.filter((item: Loose) => !item.transient);
   }
@@ -120,9 +130,9 @@ function pushMessage(message: Loose) {
   notify();
   return id;
 }
-function pushTyping() {
+function pushTyping(targetConversation?: Loose) {
   const id = uid();
-  const conversation = toRaw(active()) as Loose;
+  const conversation = toRaw(targetConversation || active()) as Loose;
   conversation.messages.push({
     id,
     role: "assistant",
@@ -135,16 +145,16 @@ function pushTyping() {
   notify();
   return id;
 }
-function patchMessage(id: string, patch: Loose) {
-  const conversation = toRaw(active()) as Loose;
+function patchMessage(id: string, patch: Loose, targetConversation?: Loose) {
+  const conversation = toRaw(targetConversation || active()) as Loose;
   const item = conversation.messages.find((message: Loose) => message.id === id);
   if (item) Object.assign(item, patch);
   notify();
 }
-function finalizeMessage(id: string, patch: Loose) {
-  const conversation = toRaw(active()) as Loose;
+function finalizeMessage(id: string, patch: Loose, targetConversation?: Loose) {
+  const conversation = toRaw(targetConversation || active()) as Loose;
   const item = conversation.messages.find((message: Loose) => message.id === id);
-  if (!item) return pushMessage(patch);
+  if (!item) return pushMessage(patch, conversation);
   Object.assign(item, patch, {
     id: item.id,
     createdAt: item.createdAt,
@@ -167,8 +177,11 @@ function patchConversationMessage(conversationId: string, id: string, patch: Loo
   notify();
 }
 
-export function copilotData() {
-  const conversation = active();
+export function copilotData(scope: 'canvas' | 'editor' = 'canvas', editorNodeId = '') {
+  const scoped = scopedCopilotConversations(store.project, scope, editorNodeId) as Loose[];
+  const conversation = scope === 'editor'
+    ? editorCopilotConversation(store.project, editorNodeId)
+    : canvasCopilotConversation(store.project);
   const interactionList = listAgentInteractions();
   const interactions = new Map(interactionList.map((item) => [item.id, item]));
   for (const message of conversation.messages as Loose[]) {
@@ -191,13 +204,14 @@ export function copilotData() {
   const configured = settingsStore.agentPreferredTextModel;
   return {
     messages: conversation.messages as CopilotMessage[],
-    conversations: (store.project.copilotConversations || []).map((item: Loose) => {
+    conversations: scoped.map((item: Loose) => {
       const pending = interactionList.filter(
         (interaction) =>
           interaction.conversationId === String(item.id) && interaction.status === "pending",
       );
       return {
         id: item.id,
+        editorNodeId: item.editorNodeId,
         title: item.title,
         updatedAt: item.updatedAt,
         pendingInteractionCount: pending.length,
@@ -208,9 +222,9 @@ export function copilotData() {
             : "",
       };
     }),
-    activeConversationId: String(store.project.activeCopilotConversationId || ""),
+    // 列表与高亮必须来自同一作用域解析结果，否则抽屉会把另一个作用域的会话 id 当作选中项。
+    activeConversationId: String(conversation.id || ""),
     busy,
-    queuedMessageCount: deliveryQueue.length,
     textModel: textModels.some((item: Loose) => item.id === configured)
       ? configured
       : textModels[0]?.id || "",
@@ -225,7 +239,8 @@ async function send(
 ) {
   const project = options.delivery?.project || store.project;
   const projectKey = options.delivery?.projectKey || getAgentProjectKey();
-  const conversation = active();
+  const requestedConversationId = String(payload.conversationId || "");
+  const conversation = conversationById(requestedConversationId) || active();
   if (resume && String(conversation.id || "") !== resume.conversationId) {
     showToast("待续跑的 Agent 属于另一个对话，请先切换回原对话");
     return;
@@ -244,9 +259,9 @@ async function send(
           (file) => `附件 ${file.name || file.fileName || "未命名文件"}`,
         ),
       ],
-    });
+    }, conversation);
   }
-  const typingId = pushTyping();
+  const typingId = pushTyping(conversation);
   const presentation = new CopilotRuntimePresenter();
   let timer = 0;
   let pendingPatch: Loose = {};
@@ -263,7 +278,7 @@ async function send(
       content: presentation.streamed,
       typing: true,
       ...pendingPatch,
-    });
+    }, conversation);
     recordPerformanceMetric("copilot.stream.flush", startedAt, {
       eventCount: pendingEventCount,
       contentLength: presentation.streamed.length,
@@ -344,7 +359,7 @@ async function send(
       content: presentation.streamed || result?.reply || "Agent 已完成本轮处理。",
       ...presentation.snapshot(),
       requestId: result?.requestId || "",
-    });
+    }, conversation);
   } catch (cause: any) {
     if (store.project === project && getAgentProjectKey() === projectKey) {
       flush();
@@ -376,7 +391,7 @@ async function send(
               },
             }),
         ...presentation.snapshot({ toolCalls: presentation.failRunningTools() }),
-      });
+      }, conversation);
     }
   } finally {
     stopTimer();
@@ -389,13 +404,17 @@ function enqueueDelivery(
   resume?: AgentResume,
   options: { skipUserMessage?: boolean; priority?: boolean } = {},
 ): boolean {
+  if (!resume && !options.skipUserMessage && (busy || deliveryProcessing || deliveryQueue.length)) {
+    return false;
+  }
   if (deliveryQueue.length >= MAX_QUEUED_DELIVERIES) {
-    showToast(`消息队列已满（最多 ${MAX_QUEUED_DELIVERIES} 条），请等待当前任务结束`);
+    showToast("待续任务过多，请等待当前任务结束");
     return false;
   }
   const project = store.project as Loose;
   const projectKey = getAgentProjectKey();
-  const conversation = active();
+  // 面板发送必须显式带上目标会话；只有续跑/重试这类没有面板上下文的投递才回退到项目级活动会话。
+  const conversation = conversationById(String(payload.conversationId || "")) || active();
   const clientMessageId = uid();
   const messageText = payload.text.trim() || "请结合我选择的节点和附件继续处理。";
   const userMessageId = !resume && !options.skipUserMessage
@@ -404,7 +423,7 @@ function enqueueDelivery(
         title: "你的消息",
         content: messageText,
         clientMessageId,
-        deliveryStage: "queued",
+        deliveryStage: "sent",
         meta: [
           ...(payload.nodeMentions as Loose[]).map(
             (node) => `@${node.alias || node.id} ${node.title || "未命名节点"}`,
@@ -413,12 +432,13 @@ function enqueueDelivery(
             (file) => `附件 ${file.name || file.fileName || "未命名文件"}`,
           ),
         ],
-      })
+      }, conversation)
     : undefined;
   const delivery: Delivery = {
     clientMessageId,
     payload: {
       ...payload,
+      conversationId: String(conversation.id || ""),
       attachments: [...payload.attachments],
       nodeMentions: [...payload.nodeMentions],
     },
@@ -454,15 +474,6 @@ async function drainDeliveries() {
         }
         continue;
       }
-      if (String(active().id || "") !== delivery.conversationId) {
-        if (delivery.userMessageId) {
-          patchConversationMessage(delivery.conversationId, delivery.userMessageId, {
-            deliveryStage: "failed",
-            deliveryError: "消息所属对话已经切换",
-          });
-        }
-        continue;
-      }
       await send(delivery.payload, delivery.resume, {
         skipUserMessage: delivery.skipUserMessage,
         delivery,
@@ -477,8 +488,29 @@ async function drainDeliveries() {
 }
 
 export const copilotController: CopilotController = {
+  openVideoEditorConversation: (nodeId: string) => {
+    if (busy) return;
+    const existing = (store.project.copilotConversations || []).find(
+      (item: Loose) => item.editorNodeId === nodeId,
+    );
+    if (existing) {
+      restoreCopilotSession(toRaw(store.project), String(existing.id));
+      switchCopilotConversation(store.project, String(existing.id));
+    } else {
+      const conversation = createCopilotConversation(store.project, { title: "剪辑 Agent" });
+      (conversation as Loose).editorNodeId = nodeId;
+    }
+    touchProject();
+    notify();
+  },
   send: (payload) => {
-    return enqueueDelivery(payload);
+    // 共享 controller 的 send 只服务画布面板；剪辑面板会覆盖 send 并自带剪辑会话。
+    // 缺省目标固定为画布作用域的活动会话，不跟随项目级 active 指针，否则画布消息会被写进剪辑会话。
+    return enqueueDelivery({
+      ...payload,
+      conversationId: payload.conversationId
+        || String(canvasCopilotConversation(store.project).id || ""),
+    });
   },
   close: () => {},
   cancel: () => {
@@ -489,7 +521,11 @@ export const copilotController: CopilotController = {
   },
   retry: (messageId) => {
     if (busy) return;
-    const message = active().messages.find((item: Loose) => item.id === messageId);
+    // 重试必须回到失败消息所属的会话：项目级 active 可能停在另一个作用域。
+    const conversation = ((store.project.copilotConversations || []) as Loose[]).find((item) =>
+      (item.messages || []).some((message: Loose) => message.id === messageId),
+    );
+    const message = (conversation?.messages || []).find((item: Loose) => item.id === messageId);
     if (!message?.retryable || !message.retryPayload) {
       showToast("这条失败消息没有可用的重试信息");
       return;
@@ -503,31 +539,39 @@ export const copilotController: CopilotController = {
         model: String(message.retryPayload.model || ""),
         attachments: [...(message.retryPayload.attachments || [])],
         nodeMentions: [...(message.retryPayload.nodeMentions || [])],
+        conversationId: String(conversation?.id || ""),
       },
       undefined,
       { skipUserMessage: true },
     );
   },
-  clear: () => {
+  clear: (conversationId?: string) => {
+    const target = String(conversationId || "")
+      || String(canvasCopilotConversation(store.project).id || "");
     if (
       listAgentInteractions({ pendingOnly: true }).some(
-        (item) => item.conversationId === String(active().id || ""),
+        (item) => item.conversationId === target,
       )
     ) {
       showToast("当前对话仍有问题或操作等待处理，完成后才能清空");
       return;
     }
-    clearActiveCopilotConversation(store.project);
+    clearCopilotConversation(store.project, target);
     touchProject();
     notify();
     showToast("当前 Copilot 对话上下文已清空");
   },
-  newConversation: () => {
+  newConversation: (editorNodeId?: string) => {
     if (busy) return;
-    createCopilotConversation(store.project);
+    const nodeId = String(editorNodeId || "");
+    const conversation = createCopilotConversation(
+      store.project,
+      nodeId ? { title: "剪辑 Agent" } : {},
+    );
+    if (nodeId) (conversation as Loose).editorNodeId = nodeId;
     touchProject();
     notify();
-    showToast("已新建项目对话");
+    showToast(nodeId ? "已新建剪辑对话" : "已新建项目对话");
   },
   selectConversation: (id) => {
     if (!busy) restoreCopilotSession(toRaw(store.project), id);
@@ -571,7 +615,10 @@ export const copilotController: CopilotController = {
     const value = payload as Loose;
     const interactionId = String(value.interactionId || "");
     if (!interactionId) return;
-    void resolveToolConfirmation(interactionId, true, !busy)
+    const modifiedArgs = value.modifiedArgs && typeof value.modifiedArgs === "object"
+      ? (value.modifiedArgs as Record<string, unknown>)
+      : undefined;
+    void resolveToolConfirmation(interactionId, true, !busy, modifiedArgs)
       .then((resolution) => {
         if (resolution.resume) enqueueDelivery(resolution.resume.payload, resolution.resume, { skipUserMessage: true, priority: true });
         notify();

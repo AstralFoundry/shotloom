@@ -34,6 +34,46 @@ export function constrainTransformToCanvas(
   };
 }
 
+export type TransformCorner = "nw" | "ne" | "sw" | "se";
+
+/** 拖动角手柄时允许的最小片段框尺寸（画布像素）。 */
+const MIN_TRANSFORM_SIZE = 24;
+
+/**
+ * 以拖动角的对角为锚点调整片段框尺寸：拖 nw 时右下角固定，依此类推。
+ *
+ * 默认自由调整宽高 —— 这才是"拖拽裁剪大小"的直觉操作；`lockRatio` 时按起始比例等比
+ * 缩放，取变化更大的那一轴主导，避免锁比时来回抖。画布钳位交给
+ * `constrainTransformToCanvas`，本函数只负责尺寸与锚点。
+ */
+export function resizeEditorTransform(
+  start: VideoEditorTransform,
+  corner: TransformCorner,
+  dx: number,
+  dy: number,
+  options: { lockRatio?: boolean } = {},
+): VideoEditorTransform {
+  // 东侧角由拖动的 x 决定宽度，南侧角由拖动的 y 决定高度；西/北侧角反向。
+  const eastCorner = corner === "ne" || corner === "se";
+  const southCorner = corner === "se" || corner === "sw";
+  let width = Math.max(MIN_TRANSFORM_SIZE, Number(start.width) + (eastCorner ? dx : -dx));
+  let height = Math.max(MIN_TRANSFORM_SIZE, Number(start.height) + (southCorner ? dy : -dy));
+  if (options.lockRatio) {
+    const ratio = Number(start.width) / Math.max(1, Number(start.height));
+    if (Math.abs(dx) >= Math.abs(dy * ratio)) height = width / ratio;
+    else width = height * ratio;
+  }
+  const right = Number(start.x) + Number(start.width);
+  const bottom = Number(start.y) + Number(start.height);
+  return {
+    ...start,
+    x: eastCorner ? Number(start.x) : right - width,
+    y: southCorner ? Number(start.y) : bottom - height,
+    width,
+    height,
+  };
+}
+
 export function hydrateSourceProject(
   project: VideoEditorProject,
   source: VideoEditorSource,

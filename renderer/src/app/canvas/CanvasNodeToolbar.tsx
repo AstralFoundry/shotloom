@@ -13,13 +13,14 @@ import {
   useStore,
 } from "@xyflow/react";
 import { desktopApi } from "../../services/desktopApi.js";
+import { store } from "../../store/projectStore.js";
 import { selectedTextOutput, textNodeContent } from "../../utils/textNodeContent.mjs";
 import { canvasNodeToolbarOffset } from "../../utils/canvasNodeChrome.mjs";
 import { IconSymbol } from "../components/IconSymbol";
-import { ImageCropDialog } from "../components/ImageCropDialog";
 import { assetCategories } from "../constants/navigation";
 import { openMediaViewer } from "../store/overlayStore";
 import { selectedLocalMediaPath } from "./canvasScreenGeometry";
+import { copyTextNodeVersion, renameTextNodeVersion } from "../adapters/canvasAdapter";
 import type { WorkflowNodeActions, WorkflowNodeData } from "./WorkflowCanvas";
 
 export function CanvasNodeToolbar({
@@ -30,6 +31,8 @@ export function CanvasNodeToolbar({
   actions,
   mentionInCopilot,
   canvasOverlayRoot,
+  imageCropOpen,
+  onImageCropOpen,
 }: {
   node: WorkflowNodeData;
   selected: boolean;
@@ -38,6 +41,8 @@ export function CanvasNodeToolbar({
   actions: WorkflowNodeActions;
   mentionInCopilot: ((nodeId: string) => void) | null;
   canvasOverlayRoot: HTMLElement | null;
+  imageCropOpen: boolean;
+  onImageCropOpen: () => void;
 }) {
   const [assetScopeMenuOpen, setAssetScopeMenuOpen] = useState(false);
   const [assetCategory, setAssetCategory] = useState("");
@@ -45,7 +50,6 @@ export function CanvasNodeToolbar({
     "idle" | "checking" | "present" | "absent"
   >("idle");
   const [audioSplitRunning, setAudioSplitRunning] = useState(false);
-  const [cropOpen, setCropOpen] = useState(false);
   const [dragReleaseSettling, setDragReleaseSettling] = useState(false);
   const [assetMenuPlacement, setAssetMenuPlacement] = useState<CSSProperties>({
     visibility: "hidden",
@@ -195,6 +199,9 @@ export function CanvasNodeToolbar({
           updatedAt: new Date().toISOString(),
         });
       },
+      getTextVersions: () => ((store.project.nodes.find((item: WorkflowNodeData) => item.id === node.id) as WorkflowNodeData | undefined)?.textVersions || []) as Array<{ id: string; content: string; createdAt: string; name?: string }>,
+      onRenameVersion: (id, name) => renameTextNodeVersion(node.id, id, name),
+      onCopyVersion: (id) => copyTextNodeVersion(node.id, id),
     });
   }
 
@@ -266,11 +273,12 @@ export function CanvasNodeToolbar({
           {isLocalImage && (
             <button
               type="button"
-              title="裁剪图片"
+              title="在画布上裁剪图片"
+              aria-pressed={imageCropOpen}
               onPointerDown={(event) => event.stopPropagation()}
               onClick={(event) => {
                 event.stopPropagation();
-                setCropOpen(true);
+                onImageCropOpen();
               }}
             >
               <IconSymbol name="crop" />
@@ -395,15 +403,6 @@ export function CanvasNodeToolbar({
             </button>
           )}
         </NodeToolbar>
-      )}
-      {cropOpen && isLocalImage && createPortal(
-        <ImageCropDialog
-          source={localMediaPath}
-          title={String(node.title || "图片")}
-          onCancel={() => setCropOpen(false)}
-          onConfirm={(rect) => actions.cropImage(node.id, rect)}
-        />,
-        document.body,
       )}
     </>
   );

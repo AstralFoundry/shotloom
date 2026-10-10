@@ -51,9 +51,20 @@ export async function addToVideoEditor(id: string) {
   if (!["image", "video", "audio"].includes(type)) {
     return showToast("当前产物不是可剪辑的图片、视频或音频");
   }
-  const sourceUrl = sourceFile ? convertFileSrc(sourceFile) : remoteUrl;
+  // 优先使用产物自身的可访问 URL 探测元数据；Web 预览环境不能读取由本地路径转换出的
+  // Tauri asset URL，但仍可读取生成服务返回的 remote/preview URL。保存本地路径仍供桌面端使用。
+  const localSourceUrl = sourceFile ? convertFileSrc(sourceFile) : "";
+  const sourceUrl = remoteUrl || localSourceUrl;
   let facts: any = {
-    duration: Number(candidate?.duration || candidate?.metadata?.duration || 0),
+    duration: Number(
+      candidate?.duration
+      || candidate?.videoDuration
+      || candidate?.metadata?.duration
+      || candidate?.metadata?.videoDuration
+      || node.videoDuration
+      || node.metadata?.duration
+      || 0,
+    ),
     width: Number(candidate?.width || candidate?.metadata?.width || 0),
     height: Number(candidate?.height || candidate?.metadata?.height || 0),
   };
@@ -81,7 +92,7 @@ export async function addToVideoEditor(id: string) {
     type,
     name: String(candidate?.title || candidate?.name || candidate?.fileName || node.title || "画布素材"),
     sourceFile,
-    sourceUrl,
+    sourceUrl: sourceUrl || localSourceUrl,
     sourceNodeId: id,
     sourceOutputId: String(candidate?.id || ""),
     ...facts,

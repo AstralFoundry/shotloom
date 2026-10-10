@@ -35,7 +35,7 @@ test('文本详情使用可持久化格式工具栏和居中文档编辑器', ()
   assert.match(viewer, /richHtmlToMarkdown\(textEditor\.current\.innerHTML/);
   assert.match(viewer, /editCommand\("bold"\)/);
   assert.match(viewer, /textSearchOpen[\s\S]*?function findText/);
-  assert.match(viewer, /const markdown = currentMarkdown\(\)[\s\S]*?markdown !== media\.src[\s\S]*?media\.onSave\(markdown\)/);
+  assert.match(viewer, /const markdown = currentMarkdown\(\)[\s\S]*?markdown !== savedText\.current[\s\S]*?media\.onSave\(markdown\)/);
   assert.match(styles, /\.media-viewer-backdrop\.is-text \{[\s\S]*?background: rgba\(16, 18, 20, \.62\)/);
   assert.match(styles, /\.text-editor-formatting/);
   assert.match(overlay, /kind !== "text" && !src\.trim\(\)/);

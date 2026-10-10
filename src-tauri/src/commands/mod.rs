@@ -11,7 +11,9 @@ mod project;
 mod recent;
 mod recovery;
 mod settings;
+mod video_concat;
 mod video_export;
+mod video_frame;
 
 pub use agent_runtime::*;
 pub use audio::*;
@@ -22,4 +24,6 @@ pub use project::*;
 pub use recent::*;
 pub use recovery::*;
 pub use settings::*;
+pub use video_concat::*;
 pub use video_export::*;
+pub use video_frame::*;
