@@ -301,40 +301,54 @@ export async function loadRecentProjects() {
 
 export async function createNewProject(name = '未命名项目', options = {}) {
   stopActiveTaskPolling();
+  // 目录创建/保存失败时必须回滚：否则这个空白项目会绑在旧项目的 projectDir/
+  // filePath 上，下一次 touchProject 自动保存就会用空白项目覆盖原项目。
+  const previous = { project: store.project, projectDir: store.projectDir, filePath: store.filePath };
   store.project = createProject(name || '未命名项目');
-  const rootDir = await ensureProjectRoot();
-  if (options.parentDir) {
-    store.projectDir = await desktopApi.project.createFolder(options.parentDir, store.project.name);
-    if (options.sharedRootDir) {
-      store.project.library = {
+  store.projectDir = null;
+  store.filePath = null;
+  try {
+    const rootDir = await ensureProjectRoot();
+    if (options.parentDir) {
+      store.projectDir = await desktopApi.project.createFolder(options.parentDir, store.project.name);
+      if (options.sharedRootDir) {
+        store.project.library = {
+          enabled: true,
+          name: options.sharedName || '',
+          rootDir: options.sharedRootDir,
+          assetRootDir: `${String(options.sharedRootDir).replace(/[\\/]$/, '')}/assets`,
+        };
+      }
+    } else if (options.createEpisode) {
+      const folder = await desktopApi.project.createEpisodeFolder(
+        options.parentDir,
+        options.workDir,
+        options.episodeName || store.project.name,
+      );
+      store.projectDir = folder.projectDir;
+      store.project.series = {
         enabled: true,
-        name: options.sharedName || '',
-        rootDir: options.sharedRootDir,
-        assetRootDir: `${String(options.sharedRootDir).replace(/[\\/]$/, '')}/assets`,
+        name: options.workName || store.project.name,
+        seasonName: options.seasonName || '',
+        rootDir: folder.seriesDir,
+        assetRootDir: folder.assetRootDir,
       };
+    } else {
+      store.projectDir = await desktopApi.project.createFolder(rootDir, store.project.name);
     }
-  } else if (options.createEpisode) {
-    const folder = await desktopApi.project.createEpisodeFolder(
-      options.parentDir,
-      options.workDir,
-      options.episodeName || store.project.name,
+    const result = await desktopApi.project.save(
+      store.projectDir,
+      JSON.parse(JSON.stringify(store.project)),
     );
-    store.projectDir = folder.projectDir;
-    store.project.series = {
-      enabled: true,
-      name: options.workName || store.project.name,
-      seasonName: options.seasonName || '',
-      rootDir: folder.seriesDir,
-      assetRootDir: folder.assetRootDir,
-    };
-  } else {
-    store.projectDir = await desktopApi.project.createFolder(rootDir, store.project.name);
+    store.filePath = result.filePath;
+  } catch (error) {
+    store.project = previous.project;
+    store.projectDir = previous.projectDir;
+    store.filePath = previous.filePath;
+    persistSession();
+    showToast(`新建项目失败：${error?.message || '无法创建项目目录'}`);
+    throw error;
   }
-  const result = await desktopApi.project.save(
-    store.projectDir,
-    JSON.parse(JSON.stringify(store.project)),
-  );
-  store.filePath = result.filePath;
   store.selectedNodeId = null;
   store.selectedNodeIds = [];
   store.selectedEdgeId = null;
