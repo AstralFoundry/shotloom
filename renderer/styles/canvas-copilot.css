@@ -1555,35 +1555,42 @@
 .copilot-sender-tools { position: relative; min-width: 0; width: 100%; display: flex; align-items: center; gap: 3px; }
 .copilot-selector { position: static; min-width: 0; }
 .copilot-selector[data-selector="skill"] { flex: 0 0 96px; }
-.copilot-selector[data-selector="model"] { flex: 1 1 0; max-width: none; }
+.copilot-selector[data-selector="model"] { flex: 0 1 auto; max-width: 240px; }
+.copilot-selector[data-selector="shell"] { flex: 0 0 34px; }
+.copilot-selector[data-selector="shell"] > button { width: 34px; justify-content: center; padding: 0; gap: 0; }
+.copilot-selector[data-selector="shell"] > button > span,
+.copilot-selector[data-selector="shell"] > button > svg:last-child { display: none; }
+.copilot-selector[data-selector="shell"] > button > svg:first-child { width: 15px; height: 15px; }
+.copilot-selector[data-selector="shell"] > button.is-full { color: #a34848; }
+.copilot-selector[data-selector="shell"] > button.is-full:hover { color: #8c3d3d; }
 .copilot-inline-selector {
   position: absolute;
   z-index: 41;
   bottom: calc(100% + 8px);
   left: 0;
-  width: min(312px, 100%);
+  width: min(264px, 100%);
   box-sizing: border-box;
-  max-height: min(420px, max(180px, calc(100dvh - 180px)));
-  padding: 7px;
+  max-height: min(380px, max(160px, calc(100dvh - 180px)));
+  padding: 6px;
   display: grid;
   gap: 2px;
   overflow-x: hidden;
   overflow-y: auto;
   border: 1px solid rgba(0, 0, 0, .1);
-  border-radius: 14px;
+  border-radius: 12px;
   background: rgba(255, 255, 255, .99);
   box-shadow: 0 16px 40px rgba(0, 0, 0, .16);
 }
 .copilot-inline-selector button {
   min-width: 0;
-  min-height: 42px;
+  min-height: 36px;
   width: 100%;
   display: flex;
   align-items: center;
   gap: 8px;
   border: 0;
-  border-radius: 9px;
-  padding: 7px 9px;
+  border-radius: 8px;
+  padding: 6px 8px;
   color: rgba(0, 0, 0, .78);
   background: transparent;
   text-align: left;
@@ -1596,11 +1603,23 @@
 .copilot-inline-selector button > strong { font-size: 12px; font-weight: 560; }
 .copilot-inline-selector button > small { color: rgba(0, 0, 0, .42); font-size: 10px; }
 .copilot-inline-skill button { display: grid; justify-items: start; gap: 2px; }
-.copilot-inline-model { left: auto; right: 0; width: min(320px, 100%); }
+.copilot-inline-model { left: auto; right: 0; width: min(264px, 100%); }
 .copilot-inline-model button > .copilot-model-option { flex: 1; min-width: 0; display: block; }
 .copilot-inline-model button > .copilot-model-option .copilot-model-copy { display: grid; gap: 2px; }
-.copilot-inline-model button { min-height: 44px; }
+.copilot-inline-model button { min-height: 38px; }
 .copilot-inline-model button > svg { width: 14px; height: 14px; flex: 0 0 auto; color: #4e735c; }
+/* AGENT 模式（Shell 权限）下拉：标题 + 图标 + 两行文案 + 右侧对勾 */
+.copilot-inline-mode { left: auto; right: 0; width: min(264px, 100%); }
+.copilot-inline-mode::before { content: "AGENT 模式"; display: block; padding: 4px 8px 7px; color: rgba(0, 0, 0, .4); font-size: 10px; font-weight: 520; letter-spacing: .04em; }
+.copilot-inline-mode button { min-height: 46px; display: flex; align-items: center; gap: 10px; }
+.copilot-inline-mode button > svg:first-child { width: 16px; height: 16px; flex: 0 0 16px; color: rgba(0, 0, 0, .66); stroke-width: 1.7; }
+.copilot-inline-mode button > svg:last-child { width: 13px; height: 13px; flex: 0 0 auto; color: #4e735c; }
+.copilot-inline-mode .copilot-mode-option { min-width: 0; flex: 1; display: grid; gap: 3px; }
+.copilot-inline-mode .copilot-mode-option strong { color: rgba(0, 0, 0, .78); font-size: 12.5px; font-weight: 540; }
+.copilot-inline-mode .copilot-mode-option small { color: rgba(0, 0, 0, .42); font-size: 10.5px; line-height: 1.45; overflow-wrap: anywhere; }
+.copilot-inline-mode button.is-full > svg:first-child { color: #a34848; }
+.copilot-inline-mode button.is-full > svg:last-child { color: #a34848; }
+.copilot-inline-mode button.is-full .copilot-mode-option strong { color: #a34848; }
 .copilot-sender-tools > button,
 .copilot-selector > button,
 .copilot-sender-tools .ant-dropdown-trigger { width: 100%; min-width: 0; height: 36px; border: 0; border-radius: 8px; padding: 0 7px; display: inline-flex; align-items: center; justify-content: flex-start; gap: 7px; color: rgba(0, 0, 0, .58); background: transparent; font-size: 12px; }

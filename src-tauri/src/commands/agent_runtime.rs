@@ -121,9 +121,13 @@ pub struct RuntimeConfiguration {
     pub skills: Vec<RuntimeSkill>,
     pub tools: Vec<RuntimeTool>,
     pub workspace_directory: String,
+    #[serde(default = "default_shell_approval")]
+    pub shell_approval: String,
     #[serde(default)]
     pub runtime_protection: Option<RuntimeProtectionConfiguration>,
 }
+
+fn default_shell_approval() -> String { "full".into() }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -539,12 +543,12 @@ pub async fn agent_runtime_start(
         "share": "disabled",
         "permission": {
             "edit": "deny",
-            "bash": "deny",
+            "bash": if configuration.shell_approval == "ask" { "ask" } else { "allow" },
             "external_directory": "deny",
             "webfetch": "deny"
         },
         "tools": {
-            "read": false, "write": false, "edit": false, "bash": false,
+            "read": false, "write": false, "edit": false,
             "glob": false, "grep": false, "webfetch": false
         },
         "tool_output": {

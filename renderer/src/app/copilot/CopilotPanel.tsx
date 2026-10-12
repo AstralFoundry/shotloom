@@ -7,6 +7,7 @@ import ThoughtChain from "@ant-design/x/es/thought-chain";
 import type { SenderRef } from "@ant-design/x/es/sender";
 import { Collapse, ConfigProvider, Dropdown, Input, Progress } from "antd";
 import { desktopApi } from "../../services/desktopApi.js";
+import { settingsStore, saveAppSettings } from "../../store/settingsStore.js";
 import { agentNodeAliasMaps } from "../../services/agentCanvasSnapshot.js";
 import {
   nodeChatAttachmentKey,
@@ -677,7 +678,7 @@ export const CopilotPanel = forwardRef<CopilotPanelHandle, CopilotPanelProps>(fu
   const [mentionStart, setMentionStart] = useState(-1);
   const [mentionIndex, setMentionIndex] = useState(0);
   const [selectedSkillId, setSelectedSkillId] = useState<string | null>(null);
-  const [openSelector, setOpenSelector] = useState<"skill" | "model" | null>(null);
+  const [openSelector, setOpenSelector] = useState<"skill" | "model" | "shell" | null>(null);
   const editorSkillInitialized = useRef(false);
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [clarificationAnswers, setClarificationAnswers] = useState<
@@ -1290,6 +1291,35 @@ export const CopilotPanel = forwardRef<CopilotPanelHandle, CopilotPanelProps>(fu
                             {model.id === textModel && <IconSymbol name="check" />}
                           </button>
                         ))}
+                      </div>
+                    )}
+                  </div>
+                  <div className="copilot-selector" data-selector="shell">
+                    <button
+                      type="button"
+                      className={`copilot-model-trigger${settingsStore.agentShellApproval === "full" ? " is-full" : ""}`}
+                      disabled={busy}
+                      aria-expanded={openSelector === "shell"}
+                      onClick={() => setOpenSelector((value) => value === "shell" ? null : "shell")}
+                      aria-label={`Agent 模式：${settingsStore.agentShellApproval === "ask" ? "询问" : "自动"}`} title="Agent 模式">
+                      <IconSymbol name={settingsStore.agentShellApproval === "ask" ? "hand" : "shield"} />
+                      <span>{settingsStore.agentShellApproval === "ask" ? "询问" : "自动"}</span>
+                      <IconSymbol name="chevron-down" />
+                    </button>
+                    {openSelector === "shell" && (
+                      <div className="copilot-inline-selector copilot-inline-mode" role="menu">
+                        <button type="button" role="menuitem" className={settingsStore.agentShellApproval === "ask" ? "is-selected" : ""}
+                          onClick={() => { void saveAppSettings({ agentShellApproval: "ask" }); setOpenSelector(null); }}>
+                          <IconSymbol name="hand" />
+                          <span className="copilot-mode-option"><strong>询问</strong><small>执行生成等关键操作前，先询问你。</small></span>
+                          {settingsStore.agentShellApproval === "ask" && <IconSymbol name="check" />}
+                        </button>
+                        <button type="button" role="menuitem" className={settingsStore.agentShellApproval === "full" ? "is-selected is-full" : ""}
+                          onClick={() => { void saveAppSettings({ agentShellApproval: "full" }); setOpenSelector(null); }}>
+                          <IconSymbol name="shield" />
+                          <span className="copilot-mode-option"><strong>自动</strong><small>自动完成生成等操作，减少中途打断。</small></span>
+                          {settingsStore.agentShellApproval === "full" && <IconSymbol name="check" />}
+                        </button>
                       </div>
                     )}
                   </div>

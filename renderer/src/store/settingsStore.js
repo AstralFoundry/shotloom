@@ -20,6 +20,7 @@ export const settingsStore = reactive({
   projectRootDir: '',
   modelPollIntervalMs: 1500,
   agentAutoEval: true, agentAutoLayout: true, agentCanRunNodes: false,
+  agentShellApproval: 'full',
   agentPreferredTextModel: 'gpt-5.4',
   agentPreferredImageModel: 'gpt-image-2',
   agentPreferredVideoModel: 'grok-imagine-video',
@@ -104,6 +105,7 @@ function toPlainSettings(patch = {}) {
     modelPollIntervalMs: rawStore.modelPollIntervalMs,
     agentAutoEval: rawStore.agentAutoEval, agentAutoLayout: rawStore.agentAutoLayout,
     agentCanRunNodes: rawStore.agentCanRunNodes,
+    agentShellApproval: rawStore.agentShellApproval,
     agentPreferredTextModel: rawStore.agentPreferredTextModel,
     agentPreferredImageModel: rawStore.agentPreferredImageModel,
     agentPreferredVideoModel: rawStore.agentPreferredVideoModel,
@@ -133,6 +135,7 @@ function applySettings(settings) {
   settingsStore.agentAutoEval = settings.agentAutoEval !== false;
   settingsStore.agentAutoLayout = settings.agentAutoLayout !== false;
   settingsStore.agentCanRunNodes = settings.agentCanRunNodes === true;
+  settingsStore.agentShellApproval = settings.agentShellApproval === 'ask' ? 'ask' : 'full';
   settingsStore.agentPreferredTextModel = normalizePreferredTextModel(settings.agentPreferredTextModel);
   settingsStore.agentPreferredImageModel = normalizePreferredImageModel(settings.agentPreferredImageModel);
   settingsStore.agentPreferredVideoModel = normalizePreferredVideoModel(settings.agentPreferredVideoModel);

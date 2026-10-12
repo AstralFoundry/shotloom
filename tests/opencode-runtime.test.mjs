@@ -111,6 +111,14 @@ test('OpenCode Runtime 使用持久 Session、子 Agent、Contract 与本地域�
   assert.doesNotMatch(runtime, /client\.event\.subscribe/);
 });
 
+test('OpenCode 内置 bash 作为通用执行器保留给主 Agent', () => {
+  const runtime = read('renderer/src/agent/runtime/OpenCodeRuntime.ts');
+  const tauri = read('src-tauri/src/commands/agent_runtime.rs');
+  assert.match(runtime, /edit: 'deny', bash: settingsStore\.agentShellApproval === 'ask' \? 'ask' : 'allow'/);
+  assert.match(tauri, /"edit": "deny",\s*"bash": if configuration\.shell_approval == "ask" \{ "ask" \} else \{ "allow" \}/);
+  assert.doesNotMatch(tauri, /"edit": false,\s*"bash": false/);
+});
+
 test('Agent 凭据读取不把 CommonJS require 带进 WebView', () => {
   const settings = read('renderer/src/store/settingsStore.js');
   assert.doesNotMatch(settings, /\brequire\s*\(/);

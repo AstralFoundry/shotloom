@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { assertAgentProject } from '@/services/agentProjectIdentity';
+import { settingsStore } from '@/store/settingsStore';
 import { registerDefaultAgentTools } from '../tools/registerDefaultTools';
 import { listAgentTools, prepareAgentToolCall } from '../core/toolRegistry';
 import { resolveAgentToolPolicy } from '../core/policyEngine';
@@ -153,8 +154,48 @@ async function executeRequest(payload: { requestId: string; callId: string; name
   assertAgentProject(context.projectKey, context.projectInstanceId, context.projectGeneration);
   const prepared = prepareAgentToolCall(payload.name, JSON.stringify(payload.arguments || {}), context);
   const effect = prepared.definition.resolveEffect?.(prepared.input, context) || prepared.definition.effect;
-  const policy = resolveAgentToolPolicy(effect, context);
+  // “询问”模式：只对会改写项目/画布/启动媒体生成的关键工具申请审批；
+  // 只读与 Agent 内部记账（read / agent_state_write）不打扰用户。
+  const policy = resolveAgentToolPolicy(effect, {
+    ...context,
+    requireApproval: settingsStore.agentShellApproval === 'ask',
+  });
   if (policy === 'deny') throw new Error('当前用户设置或权限不允许执行这个工具');
+  if (policy === 'confirm') {
+    const stepId = `policy:${payload.callId}`;
+    const interactionId = `${context.requestId}:tool_confirmation:${stepId}`;
+    const title = prepared.definition.title || prepared.definition.id;
+    createAgentInteraction({
+      id: interactionId, runId: context.requestId, conversationId: context.conversationId,
+      projectKey: context.projectKey, kind: 'tool_confirmation',
+      payload: {
+        toolCallId: payload.callId, toolName: prepared.definition.id, stepId,
+        title, actionCount: 0, mode: 'decision', pendingArgs: prepared.input,
+      },
+      continuation: continuation(run, payload.callId, prepared.definition.id),
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1_000).toISOString(),
+    });
+    context.emit({
+      type: 'interaction_requested', interactionId, kind: 'tool_confirmation',
+      toolCallId: payload.callId, toolName: prepared.definition.id, stepId, title, actionCount: 0,
+      pendingArgs: prepared.input,
+      createdAt: new Date().toISOString(),
+    });
+    const resolution = await waitForAgentApproval(context.requestId, stepId, context.signal);
+    context.emit({
+      type: 'interaction_resolved', interactionId, kind: 'tool_confirmation',
+      toolCallId: payload.callId, stepId, approved: resolution.approved,
+      createdAt: new Date().toISOString(),
+    });
+    if (!resolution.approved) {
+      throw new Error(resolution.error || `用户拒绝了「${title}」`);
+    }
+    // 用户在确认时改过参数：按工具自己的 schema 重新校验后执行，而不是用原参数。
+    if (resolution.modifiedArgs) {
+      const reprepared = prepareAgentToolCall(payload.name, JSON.stringify(resolution.modifiedArgs), context);
+      prepared.input = reprepared.input;
+    }
+  }
   const startedAt = new Date().toISOString();
   context.state.set('activeInteractionId', `${context.requestId}:question:${payload.callId}`);
   context.state.set('activeInteractionContinuation', continuation(run, payload.callId, prepared.definition.id));

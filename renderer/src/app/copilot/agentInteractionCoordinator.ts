@@ -75,7 +75,8 @@ export async function resolveToolConfirmation(
   try {
     // 两种确认必须分开处理：step 模式有已暂存的画布步骤，批准即执行；decision 模式
     // 只表示"允许继续"，没有暂存步骤，交给画布执行器会得到"确认步骤不存在"。
-    const decisionOnly = String(interaction.payload.mode || 'step') === 'decision';
+    const permissionMode = String(interaction.payload.mode || '') === 'opencode_permission';
+    const decisionOnly = permissionMode || String(interaction.payload.mode || 'step') === 'decision';
     const execution = decisionOnly
       ? { success: true }
       : approved

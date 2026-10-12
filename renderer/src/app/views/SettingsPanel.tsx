@@ -39,7 +39,7 @@ export interface SettingsData {
   projectModels: Record<string, string>;
   agentModels: Record<string, string>;
   availableModels: Record<string, SettingsModel[]>;
-  agentToggles: Record<string, boolean>;
+  agentToggles: Record<string, boolean | string>;
   providers: ProviderItem[];
   skills: CatalogItem[];
   recipes: CatalogItem[];
@@ -52,7 +52,7 @@ export interface SettingsController {
   setPollInterval: (value: number) => void | Promise<void>;
   setProjectModel: (key: string, value: string) => void;
   setAgentModel: (key: string, value: string) => void | Promise<void>;
-  setAgentToggle: (key: string, value: boolean) => void | Promise<void>;
+  setAgentToggle: (key: string, value: boolean | string) => void | Promise<void>;
   recordShortcut: (key: string) => void;
   resetShortcuts: () => void | Promise<void>;
   addProvider: () => void;

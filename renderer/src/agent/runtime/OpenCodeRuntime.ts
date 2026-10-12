@@ -9,7 +9,8 @@ import { getModelCredentialStatus, getProviderCredentials, settingsStore } from 
 import { availableAgentSkills } from '../tools/catalogTools';
 import { contractsForAgentType, formatContractsBlock } from '../content/contractLoader';
 import systemBasePrompt from '../content/prompts/system-base.md?raw';
-import { appendAgentRuntimeEvent } from './runStore';
+import { appendAgentRuntimeEvent, createAgentInteraction } from './runStore';
+import { waitForAgentApproval } from './runtimeInteractions';
 import { activateOpenCodeToolBridge, deactivateOpenCodeToolBridge } from './OpenCodeToolBridge';
 import { activeProductionPlan } from './productionPlanStore';
 import { diagnoseRuntimeFailure, RuntimeDiagnosticError } from './runtimeDiagnostics';
@@ -27,6 +28,7 @@ interface OpenCodeConfiguration {
   agent: JsonObject;
   skills: NativeRuntimeSkill[];
   workspaceDirectory: string;
+  shellApproval: 'ask' | 'full';
   runtimeProtection: {
     healthIntervalMs: number;
     failureThreshold: number;
@@ -192,7 +194,7 @@ function agentProfiles(skillIds: string[]) {
       description: 'Shotloom creative workspace agent',
       prompt: systemPrompt(),
       permission: {
-        edit: 'deny', bash: 'deny', external_directory: 'deny', webfetch: 'deny',
+        edit: 'deny', bash: settingsStore.agentShellApproval === 'ask' ? 'ask' : 'allow', external_directory: 'deny', webfetch: 'deny',
         skill: primarySkillPermission,
       },
     },
@@ -246,6 +248,7 @@ function configureModel(model: string, workspaceDirectory: string, editorMode = 
     skills,
     workspaceDirectory,
     runtimeProtection: { ...settingsStore.runtimeProtection },
+    shellApproval: settingsStore.agentShellApproval === 'ask' ? 'ask' : 'full',
     provider: {
       'shotloom': {
         name: credential.providerName,
@@ -512,6 +515,34 @@ export async function runOpenCodeAgent(
         emit({ type: 'session_stalled', stalled: false, createdAt: new Date().toISOString() });
       }
       noteNativeActivity();
+      if (event.type === 'permission.updated'
+        && String((event.properties as any)?.sessionID || '') === sessionId) {
+        const permission = (event.properties || {}) as any;
+        const permissionId = String(permission.id || permission.permissionID || '');
+        if (!permissionId) return;
+        const interactionId = `${requestId}:opencode-permission:${permissionId}`;
+        const stepId = `opencode:${permissionId}`;
+        createAgentInteraction({
+          id: interactionId, runId: requestId, conversationId, projectKey,
+          kind: 'tool_confirmation',
+          payload: {
+            toolCallId: String(permission.callID || permissionId), toolName: 'bash', stepId,
+            mode: 'opencode_permission', title: String(permission.title || 'Shell 命令需要审批'),
+            pendingArgs: { command: String(permission.metadata?.command || permission.title || ''), workdir: directory,
+              permission: String(permission.type || 'shell'), pattern: permission.pattern || '*' },
+          },
+          continuation: { toolCallId: String(permission.callID || permissionId), toolName: 'bash', model, conversationId,
+            sessionMessages: [], attachments: payload.attachments || [], nodeMentions: [], successfulToolCallIds: [], toolReceipts: [],
+            hasAppliedActions: false, lastActionError: '', modelRounds: 0 },
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1_000).toISOString(),
+        });
+        emit({ type: 'interaction_requested', interactionId, kind: 'tool_confirmation', toolCallId: String(permission.callID || permissionId),
+          stepId, title: String(permission.title || 'Shell 命令需要审批'), pendingArgs: { command: String(permission.metadata?.command || permission.title || ''), workdir: directory }, createdAt: new Date().toISOString() });
+        void waitForAgentApproval(requestId, stepId, controller.signal).then(async (resolution) => {
+          await client.postSessionIdPermissionsPermissionId({ path: { id: sessionId, permissionID: permissionId }, query: { directory }, body: { response: resolution.approved ? 'once' : 'reject' } });
+        }).catch(() => undefined);
+        return;
+      }
       if (event.type === 'message.updated') {
         const info = event.properties.info;
         if (info.sessionID === sessionId && info.role === 'assistant') assistantMessageIds.add(info.id);

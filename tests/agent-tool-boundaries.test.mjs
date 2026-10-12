@@ -17,6 +17,17 @@ test('统一 Policy 在节点执行关闭时拒绝媒体生成但允许画布配
   }), 'allow');
 });
 
+test('询问模式只对改写项目/画布/生成的关键工具申请确认，只读不打扰用户', () => {
+  const ask = { capabilities: { nodeExecution: true }, requireApproval: true };
+  assert.equal(resolveAgentToolPolicy('read', ask), 'allow');
+  assert.equal(resolveAgentToolPolicy('agent_state_write', ask), 'allow');
+  assert.equal(resolveAgentToolPolicy('canvas_write', ask), 'confirm');
+  assert.equal(resolveAgentToolPolicy('project_write', ask), 'confirm');
+  assert.equal(resolveAgentToolPolicy('media_generation', ask), 'confirm');
+  // 未开启询问模式时，写入仍直接放行。
+  assert.equal(resolveAgentToolPolicy('canvas_write', { capabilities: { nodeExecution: true } }), 'allow');
+});
+
 test('结构化回执区分只读、完整写入和部分写入', () => {
   const read = buildToolReceipt('read-1', 'canvas_list_nodes', 'read', { success: true });
   assert.equal(receiptChangesProject(read), false);
