@@ -319,6 +319,7 @@ export function SettingsFeature() {
           format: "shotloom.recipe-catalog",
           formatVersion: 1,
           exportedAt: new Date().toISOString(),
+          recipes,
         })
       ) showToast(`已导出 ${recipes.length} 个提示词模板`);
     }

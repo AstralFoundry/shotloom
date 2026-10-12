@@ -2,7 +2,7 @@ import { reactive, toRaw } from '@/store/domainReactivity';
 import { desktopApi } from '@/services/desktopApi';
 import { uid } from '@/utils/format';
 import { showToast } from '@/composables/useToast';
-import { cancelTask } from '@/store/taskStore';
+import { cancelTask, stopActiveTaskPolling } from '@/store/taskStore';
 import { settingsStore } from '@/store/settingsStore';
 import { hasPersistedProject, resolveProjectRoute } from '@/utils/projectNavigation.mjs';
 import {
@@ -100,6 +100,7 @@ export function navigateToRoute(route, { notify = true } = {}) {
 }
 
 function clearActiveProjectSession() {
+  stopActiveTaskPolling();
   if (autoSaveTimer) {
     window.clearTimeout(autoSaveTimer);
     autoSaveTimer = null;
@@ -299,6 +300,7 @@ export async function loadRecentProjects() {
 }
 
 export async function createNewProject(name = '未命名项目', options = {}) {
+  stopActiveTaskPolling();
   store.project = createProject(name || '未命名项目');
   const rootDir = await ensureProjectRoot();
   if (options.parentDir) {
@@ -557,6 +559,7 @@ export async function trashRecentProject(project) {
       await releaseAllLocalAssetReferences(deletedProjectId);
     }
     if (deletingCurrentProject) {
+      stopActiveTaskPolling();
       store.project = createProject();
       store.selectedNodeId = null;
       store.selectedNodeIds = [];
@@ -632,6 +635,7 @@ export async function loadBoundWindowProject() {
 }
 
 async function applyOpenedProject(result) {
+  stopActiveTaskPolling();
   store.project = normalizeProject(result.project);
   store.projectDir = result.projectDir;
   store.filePath = result.filePath;

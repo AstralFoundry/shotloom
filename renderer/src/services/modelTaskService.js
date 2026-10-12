@@ -99,6 +99,25 @@ export async function pollRemoteGenerationTask({ remoteTaskId, modelContract, si
   return transport.poll({ remoteTaskId, status: 'running', progress: 0 }, modelContract, signal);
 }
 
-export async function cancelRemoteGenerationTask({ remoteTaskId }) {
-  return false;
+/**
+ * 取消远程生成任务。
+ *
+ * 同步（非 async）模型请求由调用方通过 AbortSignal 中止，AbortSignal 会一路传到
+ * Tauri 的 generation_request，由 Rust 端 generation_cancel 终止上游 HTTP 请求。
+ *
+ * 异步任务（remoteTaskId 非空）只能在目录声明了 cancel 端点时才能通知上游；
+ * 当前 model-catalog-v2 没有 cancelEndpoint 定义，此时返回 false 让调用方如实
+ * 提示用户“仅取消本地等待，上游任务仍在运行”，而不是假装成功。
+ *
+ * @param {{remoteTaskId?: string, modelContract?: object}} params
+ * @returns {Promise<boolean>} 是否已向远端确认取消
+ */
+export async function cancelRemoteGenerationTask({ remoteTaskId, modelContract } = {}) {
+  if (!remoteTaskId) return true;
+  const cancelEndpoint = modelContract?.cancelEndpoint;
+  if (!cancelEndpoint?.path) return false;
+  const transport = getProviderTransport(modelContract.provider);
+  if (!transport.cancel) return false;
+  await transport.cancel({ remoteTaskId });
+  return true;
 }

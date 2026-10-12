@@ -75,6 +75,15 @@ export function statusTone(status) {
 
 const activeTaskTimers = new Map();
 
+/**
+ * 切换/关闭项目时，先停止所有进行中任务的本地定时器与轮询，再替换 store.project。
+ * 这样旧项目的任务既不会把结果写进新打开的项目（跨项目污染），也不会在原来
+ * 的项目上留下永不回收的定时器；重新打开原项目时由 resumeRemoteTasks 续跑。
+ */
+export function stopActiveTaskPolling() {
+  for (const nodeId of [...activeTaskTimers.keys()]) clearActiveTaskForNode(nodeId);
+}
+
 /** @param {number} value @param {number} fallback @returns {number} */
 function normalizedInteger(value, fallback) {
   const next = Number(value);
@@ -228,8 +237,16 @@ function applyRemoteTaskUpdate(node, task, remote) {
   }
 }
 
-async function finishRemoteTaskIfTerminal(node, task, remote) {
+async function finishRemoteTaskIfTerminal(node, task, remote, owningProjectId = store.project?.id || '') {
   if (remote.status === 'completed') {
+    // 任务所属项目已被切走：此时 store.project 指向另一个项目，任何归档写入
+    // 都会污染它。保持节点状态并停止本地轮询，避免跨项目写入。
+    if ((store.project?.id || '') !== owningProjectId) {
+      node.status = 'failed';
+      node.error = '项目已切换，生成任务已终止';
+      touchProject();
+      return true;
+    }
     let archivedFiles = [];
     let resultNodes = [];
     let generatedText = '';
@@ -336,7 +353,12 @@ function attachRemoteTaskPolling(node, task, controller, { immediate = false, re
   };
   activeTaskTimers.set(node.id, active);
   const intervalMs = Math.max(500, Number(settingsStore.modelPollIntervalMs) || 1500);
+  const owningProjectId = store.project?.id || '';
   const poll = async () => {
+    if ((store.project?.id || '') !== owningProjectId) {
+      clearActiveTaskForNode(node.id);
+      return;
+    }
     if (active.polling || !task.remoteTaskId || !['running', 'queued'].includes(task.status)) return;
     active.polling = true;
     active.pollStartedAt = Date.now();
@@ -351,7 +373,7 @@ function attachRemoteTaskPolling(node, task, controller, { immediate = false, re
       active.pollFailureCount = 0;
       delete task.lastPollError;
       applyRemoteTaskUpdate(node, task, remote);
-      await finishRemoteTaskIfTerminal(node, task, remote);
+      await finishRemoteTaskIfTerminal(node, task, remote, owningProjectId);
     } catch (error) {
       if (controller.signal.aborted) return;
       active.pollFailureCount = Number(active.pollFailureCount || 0) + 1;
@@ -650,6 +672,11 @@ export function cancelTask(taskId) {
     cancelRemoteGenerationTask({
       settings: settingsStore,
       remoteTaskId: task.remoteTaskId,
+      modelContract: task.requestPayload?.modelContract,
+    }).then((confirmed) => {
+      // 上游异步任务没有可声明的取消端点时，本地停止轮询并不影响远端任务：
+      // 如实告知用户，避免误以为已停止计费/执行。
+      if (!confirmed) showToast('已停止本地等待，远端生成任务仍在运行');
     }).catch(() => {});
   }
   if (node) {
