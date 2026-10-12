@@ -1,7 +1,11 @@
-import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { IconSymbol } from "../components/IconSymbol";
-import type { WorkflowNodeData, WorkflowNodeRenderer } from "./WorkflowCanvas";
+import {
+  CanvasNodeLabelRootContext,
+  type WorkflowNodeData,
+  type WorkflowNodeRenderer,
+} from "./WorkflowCanvas";
 import "./ThreeDDirectorNode.css";
 
 type IncomingImage = { edgeId: string; nodeId: string; name: string; url: string };
@@ -13,7 +17,8 @@ function readDirectorProject(node: WorkflowNodeData) {
 }
 
 export const ThreeDDirectorNode: WorkflowNodeRenderer = memo(
-  ({ node, selected, resizing, inputRevision, actions }) => {
+  ({ node, selected, resizing, inputRevision, actions, semanticZoom = 1 }) => {
+    const labelRoot = useContext(CanvasNodeLabelRootContext);
     const [incomingImages, setIncomingImages] = useState<IncomingImage[]>([]);
     const [interacting, setInteracting] = useState(false);
     const [detailOpen, setDetailOpen] = useState(false);
@@ -139,47 +144,27 @@ export const ThreeDDirectorNode: WorkflowNodeRenderer = memo(
 
     return (
       <>
-      <div
-        className={`director-node${selected ? " selected" : ""}${resizing ? " resizing" : ""}${interacting ? " interacting" : ""}`}
-        onClick={(event) => {
-          event.stopPropagation();
-          actions.select(node.id);
-        }}
-      >
-        <header className="director-node-head">
+      {labelRoot && createPortal(
+        <div className="director-node-label">
           <span className="director-node-drag-handle" title="拖动 3D 导演台" aria-hidden="true" />
-          <label className="director-node-kind">
-            <IconSymbol name="box" />
-            <input
-              className="nodrag"
-              value={String(node.title || "3D 导演台")}
-              onClick={(event) => event.stopPropagation()}
-              onChange={(event) =>
-                actions.update(node.id, {
-                  title: event.target.value,
-                  updatedAt: new Date().toISOString(),
-                })
-              }
-            />
-          </label>
-          {interacting && (
-            <button
-              type="button"
-              className="director-node-done-button nodrag"
-              title="退出 3D 场景操作"
-              onPointerDown={(event) => event.stopPropagation()}
-              onClick={(event) => {
-                event.stopPropagation();
-                setInteracting(false);
-              }}
-            >
-              完成
-            </button>
-          )}
+          <IconSymbol name="box" aria-hidden="true" />
+          <input
+            className="nodrag"
+            aria-label="3D 导演台标题"
+            value={String(node.title || "3D 导演台")}
+            onClick={(event) => event.stopPropagation()}
+            onChange={(event) =>
+              actions.update(node.id, {
+                title: event.target.value,
+                updatedAt: new Date().toISOString(),
+              })
+            }
+          />
           {selected && (
             <button
+              type="button"
               className="nodrag"
-              title="删除"
+              title="删除 3D 导演台"
               onClick={(event) => {
                 event.stopPropagation();
                 actions.delete(node.id);
@@ -188,7 +173,16 @@ export const ThreeDDirectorNode: WorkflowNodeRenderer = memo(
               <IconSymbol name="trash" />
             </button>
           )}
-        </header>
+        </div>,
+        labelRoot,
+      )}
+      <div
+        className={`director-node${selected ? " selected" : ""}${resizing ? " resizing" : ""}${interacting ? " interacting" : ""}`}
+        onClick={(event) => {
+          event.stopPropagation();
+          actions.select(node.id);
+        }}
+      >
         <div
           className={`director-node-workspace nopan nowheel${interacting ? " nodrag" : ""}`}
           onDoubleClick={(event) => {

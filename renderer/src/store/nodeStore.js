@@ -12,7 +12,7 @@ import { resolveProjectDefaultModel } from '@/utils/projectModelDefaults.mjs';
 import { defaultCanvasNodeDimensions } from '@/domain/graph/CanvasNodeDimensions.ts';
 
 export const generationNodeTypes = ['imageGeneration', 'videoGeneration', 'audioGeneration', 'textGeneration'];
-export const utilityNodeTypes = ['threeDDirector', 'board', 'note'];
+export const utilityNodeTypes = ['threeDDirector'];
 export const canvasNodeTypes = [...generationNodeTypes, ...utilityNodeTypes];
 export const DEFAULT_GENERATION_TIMEOUT_MS = 900000;
 
@@ -48,8 +48,6 @@ export function nodeTypeLabel(type) {
     audioGeneration: '音频生成',
     textGeneration: '文本生成',
     resource: '资源节点',
-    board: '画板',
-    note: '便签',
     threeDDirector: '3D导演台',
   }[type] || type;
 }
@@ -88,7 +86,6 @@ export function addNode(type = 'imageGeneration') {
   if (!canvasNodeTypes.includes(type)) type = 'imageGeneration';
   const isGenerationNode = generationNodeTypes.includes(type);
   const isDirector = type === 'threeDDirector';
-  const isBoard = type === 'board';
   const count = store.project.nodes.filter((node) => canvasNodeTypes.includes(node.type)).length;
   const dimensions = defaultCanvasNodeDimensions(type);
   const node = {
@@ -110,10 +107,6 @@ export function addNode(type = 'imageGeneration') {
     const defaultInputMode = getGenerationInputModes(node.model)[0]?.value;
     if (defaultInputMode) node.inputMode = defaultInputMode;
     node.config = defaultGenerationConfig(type, node.model);
-  }
-  if (isBoard) {
-    node.boardText = '';
-    node.boardData = { strokes: [], texts: [], images: [], crop: null };
   }
   if (isDirector) {
     node.directorData = {};

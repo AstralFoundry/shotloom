@@ -42,7 +42,6 @@ import {
 import {
   archiveResourceNode,
   connectResourceToNode,
-  createBoardOutputResource,
   replaceResourceNode,
   selectGeneratedOutput,
 } from "../../store/resourceNodeStore.js";
@@ -67,8 +66,8 @@ import { createUploadedNode } from "./canvas/canvasUploadActions";
 import {
   addToVideoEditor,
   openVideoEditor,
-import { openSimpleClipEditor } from "./canvas/simpleClipEditorActions";
 } from "./canvas/videoEditorActions";
+import { openSimpleClipEditor } from "./canvas/simpleClipEditorActions";
 
 const store: any = rawStore;
 let fitViewHandler: (() => void) | null = null;
@@ -514,28 +513,9 @@ export const nodeActions: WorkflowNodeActions = {
     const result = selectGeneratedOutput(store.project, nodeId, outputId);
     if (!result.ok) showToast(result.error || "选择输出失败");
   },
-  openSimpleClipEditor,
   openVideoEditor,
+  openSimpleClipEditor,
   addToVideoEditor,
-  async exportBoard(id, dataUrl) {
-    recordCanvasHistory("导出画板");
-    const index =
-      store.project.nodes.filter(
-        (node: WorkflowNodeData) =>
-          node.type === "resource" && (node.generatedFrom as any)?.nodeId === id,
-      ).length + 1;
-    let file = null;
-    try {
-      file = await desktopApi.file.saveDataUrlToProject(
-        dataUrl,
-        `board-${String(id).slice(0, 8)}-${index}.png`,
-      );
-    } catch {}
-    const result = createBoardOutputResource(store.project, id, dataUrl, {
-      file,
-    });
-    showToast(result.ok ? "画板已导出为资源节点" : result.error || "导出失败");
-  },
   async getDirectorIncomingImages(id) {
     const incomingEdges = (store.project.edges || []).filter(
       (edge: any) => edge.target === id && edge.data?.skipTaskInput !== true,
@@ -698,38 +678,6 @@ export const nodeActions: WorkflowNodeActions = {
   },
   notify(message) {
     if (message) showToast(message);
-  },
-  addBoardImage(id) {
-    const board = store.project.nodes.find(
-      (node: WorkflowNodeData) => node.id === id && node.type === "board",
-    );
-    const resource = store.project.nodes.find(
-      (node: WorkflowNodeData) =>
-        node.type === "resource" &&
-        node.id !== id &&
-        !node.archived &&
-        (store.selectedNodeIds || []).includes(node.id) &&
-        String(node.resourceType || "").includes("image"),
-    );
-    if (!board || !resource) return showToast("请同时选择一个图片资源节点");
-    const src = String(resource.filePath || resource.url || resource.content || "");
-    if (!src) return showToast("图片资源缺少可用地址");
-    recordCanvasHistory("添加画板图片");
-    board.boardData ||= { strokes: [], texts: [], images: [] };
-    board.boardData.images ||= [];
-    const index = board.boardData.images.length;
-    board.boardData.images.push({
-      id: uid(),
-      src,
-      title: resource.title || resource.fileName || "图片",
-      resourceNodeId: resource.id,
-      x: 40 + (index % 3) * 36,
-      y: 36 + (index % 3) * 24,
-      width: 180,
-      height: 120,
-    });
-    touchProject();
-    showToast("图片已加入画板");
   },
   async applyColoredPencil(id) {
     const node = store.project.nodes.find((item: any) => item.id === id);

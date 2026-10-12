@@ -3,24 +3,101 @@
   width: 100%;
   height: 100%;
   box-sizing: border-box;
-  overflow: visible;
+  overflow: hidden;
+  border: 1px solid #d9d9dc;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .88);
+  box-shadow: 0 2px 8px #0000000f;
+}
+
+.director-node-label {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: calc(4px * var(--node-label-zoom, 1));
+  padding: 0 calc(2px * var(--node-label-zoom, 1));
+  color: #55565b;
+  pointer-events: none;
+}
+
+.director-node-label > svg {
+  width: calc(var(--canvas-node-icon-size) * var(--node-label-zoom, 1));
+  height: calc(var(--canvas-node-icon-size) * var(--node-label-zoom, 1));
+  flex: 0 0 auto;
+}
+
+.director-node-label > .director-node-drag-handle {
+  width: calc(var(--canvas-node-action-size) * var(--node-label-zoom, 1));
+  height: calc(var(--canvas-node-action-size) * var(--node-label-zoom, 1));
+  flex: 0 0 auto;
+  pointer-events: auto;
+}
+
+.director-node-label input {
+  min-width: 0;
+  flex: 1;
+  height: calc(var(--canvas-node-action-size) * var(--node-label-zoom, 1));
+  padding: 0;
+  border: 0;
+  outline: 0;
+  color: inherit;
+  background: transparent;
+  font-size: calc(var(--canvas-node-title-size) * var(--node-label-zoom, 1));
+  font-weight: 600;
+  pointer-events: auto;
+}
+
+.director-node-label button {
+  width: calc(var(--canvas-node-action-size) * var(--node-label-zoom, 1));
+  height: calc(var(--canvas-node-action-size) * var(--node-label-zoom, 1));
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: calc(6px * var(--node-label-zoom, 1));
+  padding: 0;
+  color: #777;
+  background: transparent;
+  pointer-events: auto;
+}
+
+.director-node-label button:hover { color: #b42318; background: #f7eeee; }
+.director-node-label button svg {
+  width: calc(var(--canvas-node-icon-size) * var(--node-label-zoom, 1));
+  height: calc(var(--canvas-node-icon-size) * var(--node-label-zoom, 1));
+}
+
+.director-node-label > .director-node-drag-handle::before {
+  width: calc(3px * var(--node-label-zoom, 1));
+  height: calc(3px * var(--node-label-zoom, 1));
+  box-shadow:
+    0 calc(5px * var(--node-label-zoom, 1)) currentColor,
+    calc(5px * var(--node-label-zoom, 1)) 0 currentColor,
+    calc(5px * var(--node-label-zoom, 1)) calc(5px * var(--node-label-zoom, 1)) currentColor;
 }
 
 .director-node-head {
-  position: absolute;
-  z-index: 2;
-  inset: -22px 0 auto;
-  height: 20px;
+  position: relative;
+  z-index: 1;
+  height: calc(var(--canvas-node-head-height) * var(--node-semantic-zoom, 1));
+  flex: 0 0 calc(var(--canvas-node-head-height) * var(--node-semantic-zoom, 1));
   box-sizing: border-box;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 2px;
+  gap: calc(4px * var(--node-semantic-zoom, 1));
+  padding: 0 calc(6px * var(--node-semantic-zoom, 1)) 0 calc(4px * var(--node-semantic-zoom, 1));
+  border-bottom: 1px solid #ededee;
+  background: #fafafa;
 }
 
 .director-node-drag-handle {
-  width: 22px;
-  height: 20px;
+  width: var(--canvas-node-action-size);
+  height: var(--canvas-node-action-size);
   flex: none;
   display: grid;
   place-items: center;
@@ -54,31 +131,31 @@
   flex: 1;
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: calc(4px * var(--node-semantic-zoom, 1));
   color: #55565b;
 }
 
 .director-node-kind svg {
-  width: 12px;
-  height: 12px;
+  width: var(--canvas-node-icon-size);
+  height: var(--canvas-node-icon-size);
 }
 
 .director-node-kind input {
   min-width: 0;
   flex: 1;
-  height: 20px;
+  height: var(--canvas-node-action-size);
   padding: 0;
   border: 0;
   outline: 0;
   color: #55565b;
   background: transparent;
-  font-size: 11px;
+  font-size: var(--canvas-node-title-size);
   font-weight: 600;
 }
 
 .director-node-head button {
-  width: 20px;
-  height: 20px;
+  width: var(--canvas-node-action-size);
+  height: var(--canvas-node-action-size);
   display: grid;
   place-items: center;
   border: 0;
@@ -93,25 +170,24 @@
 }
 
 .director-node-head button svg {
-  width: 11px;
-  height: 11px;
+  width: var(--canvas-node-icon-size);
+  height: var(--canvas-node-icon-size);
 }
 
 .director-node-workspace {
   width: 100%;
   height: 100%;
+  min-height: 0;
+  flex: 1 1 auto;
   box-sizing: border-box;
   margin: 0;
   overflow: hidden;
-  border: 1px solid #d9d9dc;
-  border-radius: 12px;
   display: grid;
   place-items: center;
-  background: #fff;
-  box-shadow: 0 2px 8px #0000000f;
+  background: rgba(255, 255, 255, .88);
 }
 
-.director-node.selected .director-node-workspace {
+.director-node.selected {
   border-color: rgba(38, 43, 51, 0.38);
   box-shadow: 0 0 0 1px rgba(38, 43, 51, 0.08);
 }
@@ -123,40 +199,41 @@
   justify-content: center;
   width: 100%;
   height: 100%;
-  padding: 28px;
+  box-sizing: border-box;
+  padding: calc(24px * var(--node-semantic-zoom, 1));
   text-align: center;
   color: #696a70;
 }
 
 .director-node-placeholder > svg {
-  width: 74px;
-  height: 74px;
-  margin-bottom: 20px;
+  width: var(--canvas-node-state-icon-size);
+  height: var(--canvas-node-state-icon-size);
+  margin-bottom: calc(12px * var(--node-semantic-zoom, 1));
   color: #d9dadd;
   stroke-width: 1.4;
 }
 
 .director-node-placeholder strong {
   color: #27282c;
-  font-size: 22px;
+  font-size: calc(var(--canvas-node-hero-size) * var(--node-semantic-zoom, 1));
   font-weight: 650;
 }
 
 .director-node-placeholder p {
-  margin: 14px 0 30px;
+  margin: calc(10px * var(--node-semantic-zoom, 1)) 0 calc(18px * var(--node-semantic-zoom, 1));
   color: #73747a;
-  font-size: 16px;
+  font-size: calc(var(--canvas-node-body-size) * var(--node-semantic-zoom, 1));
 }
 
 .director-node-open-button {
-  min-width: 150px;
-  height: 46px;
-  padding: 0 22px;
+  min-width: calc(128px * var(--node-semantic-zoom, 1));
+  height: calc(34px * var(--node-semantic-zoom, 1));
+  padding: 0 calc(18px * var(--node-semantic-zoom, 1));
   border: 0;
-  border-radius: 12px;
+  border-radius: 8px;
   color: #2d2e33;
   background: #f0f0f1;
-  font-size: 16px;
+  font-size: calc(var(--canvas-node-body-size) * var(--node-semantic-zoom, 1));
   cursor: pointer;
 }
 
@@ -168,12 +245,12 @@
 .director-node-head button.director-node-done-button {
   width: auto;
   min-width: 34px;
-  height: 20px;
+  height: var(--canvas-node-action-size);
   padding: 0 6px;
   border-radius: 6px;
   color: #55565b;
   background: #f2f3f5;
-  font-size: 10px;
+  font-size: var(--canvas-node-title-size);
   cursor: pointer;
 }
 

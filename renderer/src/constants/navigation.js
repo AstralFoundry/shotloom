@@ -19,6 +19,4 @@ export const nodeTypes = [
   { id: 'threeDDirector', label: '3D导演台', icon: 'box' },
   { id: 'audioGeneration', label: '音频生成', icon: 'spark' },
   { id: 'textGeneration', label: '文本生成', icon: 'spark' },
-  { id: 'board', label: '画板', icon: 'grid' },
-  { id: 'note', label: '便签', icon: 'chat' },
 ];

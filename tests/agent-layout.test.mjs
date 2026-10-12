@@ -56,8 +56,6 @@ test('布局和画布渲染共用唯一的节点尺寸契约', () => {
   assert.deepEqual(canvasNodeDimensions(node('video', 'videoGeneration')), { width: 350, height: 280 });
   assert.deepEqual(canvasNodeDimensions(node('audio', 'audioGeneration')), { width: 350, height: 125 });
   assert.deepEqual(canvasNodeDimensions(node('resource', 'resource')), { width: 350, height: 150 });
-  assert.deepEqual(canvasNodeDimensions(node('note', 'note')), { width: 300, height: 200 });
-  assert.deepEqual(canvasNodeDimensions(node('board', 'board')), { width: 440, height: 400 });
   assert.deepEqual(canvasNodeDimensions(node('director', 'threeDDirector')), {
     width: 540,
     height: 330,

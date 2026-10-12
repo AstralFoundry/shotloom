@@ -265,7 +265,7 @@ test('视频画面可拖动节点且拖动期间保持播放', () => {
 });
 
 test('拖动节点时隐藏上下浮层并在松手后由 React Flow 状态恢复', () => {
-  assert.match(canvas, /function CanvasNode\(\{ data, selected, dragging, width \}/);
+  assert.match(canvas, /function CanvasNode\(\{ data, selected, dragging \}/);
   assert.match(canvas, /nodeChromeHidden \? " canvas-node-selection-toolbar--hidden"/);
   assert.match(canvas, /isVisible=\{selected\}/);
   assert.doesNotMatch(canvas, /className="canvas-node-label-anchor"[\s\S]*?visibility: nodeChromeHidden/);
@@ -315,7 +315,7 @@ test('视频节点悬停时显示时长并提供声音开关', () => {
   assert.match(migrationStyles, /\.work-video-status \{[\s\S]*?backdrop-filter: blur\(9px\)[\s\S]*?opacity: 0/);
   assert.match(migrationStyles, /\.work-node:hover \.work-video-status,[\s\S]*?opacity: 1/);
   assert.match(migrationStyles, /\.audio-play-glyph \{[\s\S]*?border-left: 6px solid #fff/);
-  assert.match(migrationStyles, /\.work-preview \.audio-waveform-download svg \{ width: 14px; height: 14px; \}/);
+  assert.match(migrationStyles, /\.work-preview \.audio-waveform-download svg \{ width: calc\(var\(--canvas-node-icon-size\) \* var\(--node-semantic-zoom, 1\)\); height: calc\(var\(--canvas-node-icon-size\) \* var\(--node-semantic-zoom, 1\)\); \}/);
 });
 test('工作台只计算当前路由数据且素材选择器按需加载', () => {
   assert.match(workbench, /appRoute === "creation" \? canvasViewData\(\) : null/);
@@ -352,12 +352,37 @@ test('节点与连线使用线性索引和稳定集合', () => {
 test('画布缩放使用最终布局尺寸并保持 React Flow 视口为 1x', () => {
   assert.match(canvas, /x: screenPixel\(\(Number\(node\.x\) \|\| 0\) \* semanticZoom\)/);
   assert.match(canvas, /width: dimensions\.width \* semanticZoom/);
+  assert.match(canvas, /semanticZoom,\s*\n\s*};/);
+  assert.match(canvas, /const semanticZoom = data\.semanticZoom/);
   assert.match(canvas, /className="canvas-node-semantic-content"[\s\S]*?zoom: semanticZoom/);
   assert.doesNotMatch(canvas, /className="canvas-node-semantic-content"[\s\S]{0,220}?transform: `scale/);
   assert.match(styles, /\.canvas-node-semantic-content \{[^}]*contain:\s*layout style;[^}]*-webkit-text-size-adjust:\s*none;[^}]*text-size-adjust:\s*none/);
   assert.match(canvas, /defaultViewport=\{\{ x: viewport\.x, y: viewport\.y, zoom: 1 \}\}/);
   assert.match(canvas, /minZoom=\{1\}[\s\S]*?maxZoom=\{1\}/);
   assert.match(canvas, /zoomOnScroll=\{false\}[\s\S]*?zoomOnPinch=\{false\}/);
+});
+test('节点文字、图标和错误态共享语义尺寸并沿同一缩放轨道', () => {
+  assert.match(styles, /--canvas-node-title-size: 12px/);
+  assert.match(styles, /--canvas-node-body-size: 12px/);
+  assert.match(styles, /--canvas-node-error-size: 12px/);
+  assert.match(styles, /--canvas-node-icon-size: 12px/);
+  assert.match(styles, /--canvas-node-head-height: 24px/);
+  assert.match(styles, /\.work-error \{[\s\S]*?font-size: var\(--canvas-node-error-size\)[\s\S]*?word-break: break-word/);
+  assert.match(styles, /\.audio-waveform-download \{[\s\S]*?width: var\(--canvas-node-action-size\)[\s\S]*?height: var\(--canvas-node-action-size\)/);
+  assert.match(canvas, /"--node-label-zoom": semanticZoom/);
+});
+test('导演台名称使用画布外部标签并和语义缩放同步', () => {
+  assert.match(director, /CanvasNodeLabelRootContext/);
+  assert.match(director, /className="director-node-label"/);
+  assert.match(directorStyles, /\.director-node-label \{[\s\S]*?var\(--node-label-zoom, 1\)/);
+  assert.match(directorStyles, /\.director-node-workspace \{[\s\S]*?height: 100%;/);
+  assert.match(canvas, /<CanvasNodeSemanticContent width=\{dimensions\.width\} height=\{dimensions\.height\} semanticZoom=\{semanticZoom\}>/);
+  assert.match(directorStyles, /\.director-node-placeholder p \{[\s\S]*?font-size: calc\(var\(--canvas-node-body-size\) \* var\(--node-semantic-zoom, 1\)\)/);
+  assert.match(directorStyles, /\.director-node-open-button \{[\s\S]*?font-size: calc\(var\(--canvas-node-body-size\) \* var\(--node-semantic-zoom, 1\)\)/);
+  assert.doesNotMatch(migrationStyles, /canvas-zoom-overview :is\([\s\S]*?\.director-node-placeholder/);
+  assert.doesNotMatch(migrationStyles, /canvas-zoom-overview :is\([\s\S]*?\.director-node-open-button/);
+  assert.match(canvas, /CanvasNodeSemanticContent/);
+  assert.match(canvas, /function CanvasNodeSemanticContent/);
 });
 test('语义缩放时端口与节点边缘使用同一屏幕坐标', () => {
   for (const zoom of [0.55, 1, 1.8]) {
@@ -426,14 +451,9 @@ test('连线按节点相对位置选择最近端口且不会折返回头', () =>
   assert.match(canvas, /className="canvas-flow-port canvas-flow-port-in"[\s\S]*?className="canvas-flow-port canvas-flow-port-out"/);
 });
 test('3D 导演台随节点比例铺满，画布删除键删除当前节点选择', () => {
-  assert.match(director, /const PREVIEW_WIDTH = 1440/);
-  assert.match(director, /const PREVIEW_HEIGHT = 880/);
-  assert.match(director, /workspace\.clientWidth \/ PREVIEW_WIDTH/);
-  assert.match(director, /workspace\.clientHeight \/ PREVIEW_HEIGHT/);
-  assert.match(director, /iframe\.style\.transform = `scale\(\$\{scale\}\)`/);
-  assert.match(director, /width: PREVIEW_WIDTH/);
-  assert.match(director, /height: PREVIEW_HEIGHT/);
-  assert.match(director, /requestAnimationFrame/);
+  assert.match(director, /className="director-node-placeholder"/);
+  assert.match(director, /className="director-node-open-button nodrag"/);
+  assert.match(director, /打开导演台/);
   assert.match(canvas, /keepAspectRatio=\{item\.type === "threeDDirector"\}/);
   assert.match(canvas, /resizing=\{resizing\}/);
   assert.doesNotMatch(director, /if \(resizing\) return/);
@@ -465,7 +485,7 @@ test('3D 导演台默认整块可移动，双击后进入场景交互', () => {
     /event\.key === "Escape"[\s\S]*?storyai:director-desk-exit-interaction/,
   );
   assert.match(director, /storyai:director-desk-exit-interaction[\s\S]*?setInteracting\(false\)/);
-  assert.match(directorStyles, /\.director-node:not\(\.interacting\)[\s\S]*?pointer-events: none/);
+  assert.match(director, /className="director-node-open-button nodrag"[\s\S]*?打开导演台/);
   assert.match(directorStyles, /\.director-node-drag-handle[\s\S]*?cursor: grab/);
 });
 test('3D 导演台从真实上游连线同步当前图片输出', () => {

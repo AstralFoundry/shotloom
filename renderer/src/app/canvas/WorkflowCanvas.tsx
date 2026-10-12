@@ -113,7 +113,6 @@ export interface WorkflowNodeActions {
   openVideoEditor: (id: string) => void;
   openSimpleClipEditor: (id: string) => void;
   addToVideoEditor: (id: string) => void | Promise<void>;
-  exportBoard: (id: string, dataUrl: string) => void;
   getDirectorIncomingImages: (
     id: string,
   ) => Promise<Array<{ edgeId: string; nodeId: string; name: string; url: string }>>;
@@ -125,7 +124,6 @@ export interface WorkflowNodeActions {
     kind: "image" | "video",
   ) => Promise<{ nodeId: string } | null>;
   notify: (message: string) => void;
-  addBoardImage: (id: string) => void;
   applyColoredPencil: (id: string) => void | Promise<void>;
 }
 export type WorkflowNodeRenderer = ComponentType<{
@@ -135,6 +133,7 @@ export type WorkflowNodeRenderer = ComponentType<{
   inputRevision?: string;
   incomingInputs?: WorkflowIncomingInput[];
   actions: WorkflowNodeActions;
+  semanticZoom?: number;
   imageCropOpen?: boolean;
   onImageCropClose?: () => void;
 }>;
@@ -165,20 +164,47 @@ export const MentionContext = createContext<((nodeId: string) => void) | null>(n
 export const CanvasOverlayRootContext = createContext<HTMLElement | null>(null);
 export const CanvasNodeLabelRootContext = createContext<HTMLElement | null>(null);
 export const CanvasPreviewZoomContext = createContext(1);
-const MIN_CANVAS_ZOOM = 0.1;
+
+export function CanvasNodeSemanticContent({
+  width,
+  height,
+  semanticZoom,
+  children,
+}: {
+  width: number;
+  height: number;
+  semanticZoom: number;
+  children: ReactNode;
+}) {
+  return (
+    <div
+      className="canvas-node-semantic-content"
+      style={{
+        width,
+        height,
+        zoom: semanticZoom,
+        "--node-semantic-zoom": semanticZoom,
+        transformOrigin: "top left",
+      } as CSSProperties}
+    >
+      {children}
+    </div>
+  );
+}
+const MIN_CANVAS_ZOOM = 0.21;
 const MAX_CANVAS_ZOOM = 3;
 const MEDIA_PREVIEW_ZOOM_SETTLE_MS = 220;
 const MEDIA_NODE_TYPES = new Set([
   "imageGeneration",
   "videoGeneration",
   "audioGeneration",
-  "board",
   "threeDDirector",
 ]);
 type FlowNode = Node<{
   node: WorkflowNodeData;
   inputRevision: string;
   incomingInputs: WorkflowIncomingInput[];
+  semanticZoom: number;
 }>;
 type FlowNodeCacheEntry = {
   input: WorkflowNodeData;
@@ -220,7 +246,7 @@ function toFlowNodes(
     incomingByTarget.set(edge.target, incoming);
   });
   const result = nodes
-    .filter((node) => !node.archived)
+    .filter((node) => !node.archived && node.type !== "board" && node.type !== "note")
     .map((node) => {
       const dimensions = nodeDimensions(node);
       const screenWidth = dimensions.width * semanticZoom;
@@ -241,7 +267,10 @@ function toFlowNodes(
         .join("|");
       const selected = Boolean(node.selected);
       const cached = cache?.get(node.id);
-      const data = cached && cached.input === node && cached.inputRevision === inputRevision
+      const data = cached &&
+          cached.input === node &&
+          cached.semanticZoom === semanticZoom &&
+          cached.inputRevision === inputRevision
         ? cached.output.data
         : {
             node,
@@ -272,6 +301,7 @@ function toFlowNodes(
                 skipTaskInput: edge.data?.skipTaskInput === true,
               }];
             }),
+            semanticZoom,
           };
       if (
         cached &&
@@ -334,7 +364,7 @@ function FallbackNodeInner({ node, selected }: { node: WorkflowNodeData; selecte
 }
 const FallbackNode = memo(FallbackNodeInner);
 
-function CanvasNode({ data, selected, dragging, width }: NodeProps<FlowNode>) {
+function CanvasNode({ data, selected, dragging }: NodeProps<FlowNode>) {
   const registry = useContext(RendererContext);
   const actions = useContext(ActionContext)!;
   const mentionInCopilot = useContext(MentionContext);
@@ -346,16 +376,14 @@ function CanvasNode({ data, selected, dragging, width }: NodeProps<FlowNode>) {
   const [labelRoot, setLabelRoot] = useState<HTMLElement | null>(null);
   const Renderer = registry[item.type] || FallbackNode;
   const resizable =
-    item.type === "textGeneration" || item.type === "note" || item.type === "threeDDirector";
+    item.type === "textGeneration" || item.type === "threeDDirector";
   const defaultSize = defaultCanvasNodeDimensions(item.type);
   const minimum =
     item.type === "threeDDirector"
       ? defaultSize
-      : item.type === "note"
-        ? { width: 135, height: 83 }
-        : { width: 195, height: 135 };
+      : { width: 195, height: 135 };
   const dimensions = nodeDimensions(item);
-  const semanticZoom = Math.max(0.01, Number(width || dimensions.width) / dimensions.width);
+  const semanticZoom = data.semanticZoom;
   return (
     <>
       <CanvasNodeToolbar
@@ -414,14 +442,7 @@ function CanvasNode({ data, selected, dragging, width }: NodeProps<FlowNode>) {
         position={Position.Right}
       />
       <CanvasNodeLabelRootContext.Provider value={labelRoot}>
-      <div
-        className="canvas-node-semantic-content"
-        style={{
-          width: dimensions.width,
-          height: dimensions.height,
-          zoom: semanticZoom,
-        }}
-      >
+      <CanvasNodeSemanticContent width={dimensions.width} height={dimensions.height} semanticZoom={semanticZoom}>
         <Renderer
           node={item}
           selected={selected}
@@ -429,10 +450,11 @@ function CanvasNode({ data, selected, dragging, width }: NodeProps<FlowNode>) {
           inputRevision={data.inputRevision}
           incomingInputs={data.incomingInputs}
           actions={actions}
+          semanticZoom={semanticZoom}
           imageCropOpen={imageCropOpen}
           onImageCropClose={() => setImageCropOpen(false)}
         />
-      </div>
+      </CanvasNodeSemanticContent>
       </CanvasNodeLabelRootContext.Provider>
     </>
   );

@@ -54,6 +54,4 @@ export const nodeTypes = [
   { id: "threeDDirector", label: "3D导演台", icon: "box" as const },
   { id: "audioGeneration", label: "音频生成", icon: "waveform" as const },
   { id: "textGeneration", label: "文本生成", icon: "text" as const },
-  { id: "board", label: "画板", icon: "grid" as const },
-  { id: "note", label: "便签", icon: "chat" as const },
 ];

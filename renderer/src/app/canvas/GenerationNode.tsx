@@ -563,7 +563,9 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({
               <span style={{ width: `${Number(node.progress) || 0}%` }} />
             </div>
           )}
-          {Boolean(node.error) && <div className="work-error">{String(node.error)}</div>}
+          {Boolean(node.error) && (
+            <div className="work-error" title={String(node.error)}>{String(node.error)}</div>
+          )}
         </div>
       </div>
       {selected && !imageCropOpen && (

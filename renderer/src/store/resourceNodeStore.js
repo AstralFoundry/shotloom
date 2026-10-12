@@ -1,4 +1,3 @@
-import { uid } from '@/utils/format';
 import { touchProject } from '@/store/projectStore';
 import { addCanvasEdge } from '@/store/canvasGraphStore';
 
@@ -111,40 +110,4 @@ export function selectGeneratedOutput(project, sourceNodeId, outputNodeId, { tou
   source.updatedAt = new Date().toISOString();
   if (touch) touchProject();
   return { ok: true, source, output };
-}
-
-export function createBoardOutputResource(project, boardNodeId, dataUrl, { touch = true, file = null } = {}) {
-  const board = project.nodes.find((node) => node.id === boardNodeId && node.type === 'board');
-  if (!board) return { ok: false, error: '画板节点不存在' };
-  if (!String(dataUrl || '').startsWith('data:image/png;base64,')) {
-    return { ok: false, error: '画板图片数据无效' };
-  }
-  const filePath = file?.filePath || file?.path || '';
-  if (!filePath) return { ok: false, error: '画板输出未能写入项目素材目录' };
-  const index = (project.materials || []).filter((material) => (
-    material.source === 'board' && material.nodeId === board.id
-  )).length + 1;
-  const now = new Date().toISOString();
-  const material = {
-    id: uid(),
-    name: file?.name || `board-${board.id.slice(0, 8)}-${index}.png`,
-    path: filePath,
-    filePath,
-    ext: 'png',
-    size: file?.size || 0,
-    mimeType: file?.mimeType || 'image/png',
-    resourceType: 'image',
-    source: 'board',
-    sourceType: 'board',
-    nodeId: board.id,
-    nodeType: board.type,
-    boardText: board.boardText || board.content || '',
-    storageScope: 'project',
-    importedAt: now,
-  };
-  project.materials.unshift(material);
-  board.selectedOutputNodeId = `material:${material.id}`;
-  board.updatedAt = now;
-  if (touch) touchProject();
-  return { ok: true, board, material, resource: material };
 }

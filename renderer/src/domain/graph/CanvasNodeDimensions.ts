@@ -16,8 +16,6 @@ export function defaultCanvasNodeDimensions(type: string) {
   if (type === "audioGeneration") return { width: scaled(350), height: scaled(125) };
   if (type === "textGeneration") return { width: scaled(350), height: scaled(500) };
   if (type === "resource") return { width: scaled(350), height: scaled(150) };
-  if (type === "note") return { width: scaled(300), height: scaled(200) };
-  if (type === "board") return { width: scaled(440), height: scaled(400) };
   if (type === "threeDDirector") return { width: scaled(540), height: scaled(330) };
   return { width: scaled(370), height: scaled(270) };
 }
