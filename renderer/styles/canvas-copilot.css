@@ -1556,13 +1556,14 @@
 .copilot-selector { position: static; min-width: 0; }
 .copilot-selector[data-selector="skill"] { flex: 0 0 96px; }
 .copilot-selector[data-selector="model"] { flex: 0 1 auto; max-width: 240px; }
-.copilot-selector[data-selector="shell"] { flex: 0 0 34px; }
-.copilot-selector[data-selector="shell"] > button { width: 34px; justify-content: center; padding: 0; gap: 0; }
-.copilot-selector[data-selector="shell"] > button > span,
+.copilot-selector[data-selector="shell"] { flex: 0 0 auto; min-width: 0; }
+.copilot-selector[data-selector="shell"] > button { width: auto; min-width: 0; justify-content: flex-start; padding: 0 8px; gap: 6px; color: #b06a1e; }
+.copilot-selector[data-selector="shell"] > button:hover { color: #8f5a18; }
+.copilot-selector[data-selector="shell"] > button > span { display: inline-flex; }
 .copilot-selector[data-selector="shell"] > button > svg:last-child { display: none; }
 .copilot-selector[data-selector="shell"] > button > svg:first-child { width: 15px; height: 15px; }
-.copilot-selector[data-selector="shell"] > button.is-full { color: #a34848; }
-.copilot-selector[data-selector="shell"] > button.is-full:hover { color: #8c3d3d; }
+.copilot-selector[data-selector="shell"] > button.is-full,
+.copilot-selector[data-selector="shell"] > button.is-full:hover { color: #b06a1e; }
 .copilot-inline-selector {
   position: absolute;
   z-index: 41;
@@ -1617,9 +1618,9 @@
 .copilot-inline-mode .copilot-mode-option { min-width: 0; flex: 1; display: grid; gap: 3px; }
 .copilot-inline-mode .copilot-mode-option strong { color: rgba(0, 0, 0, .78); font-size: 12.5px; font-weight: 540; }
 .copilot-inline-mode .copilot-mode-option small { color: rgba(0, 0, 0, .42); font-size: 10.5px; line-height: 1.45; overflow-wrap: anywhere; }
-.copilot-inline-mode button.is-full > svg:first-child { color: #a34848; }
-.copilot-inline-mode button.is-full > svg:last-child { color: #a34848; }
-.copilot-inline-mode button.is-full .copilot-mode-option strong { color: #a34848; }
+.copilot-inline-mode button.is-full > svg:first-child { color: #b06a1e; }
+.copilot-inline-mode button.is-full > svg:last-child { color: #b06a1e; }
+.copilot-inline-mode button.is-full .copilot-mode-option strong { color: #b06a1e; }
 .copilot-sender-tools > button,
 .copilot-selector > button,
 .copilot-sender-tools .ant-dropdown-trigger { width: 100%; min-width: 0; height: 36px; border: 0; border-radius: 8px; padding: 0 7px; display: inline-flex; align-items: center; justify-content: flex-start; gap: 7px; color: rgba(0, 0, 0, .58); background: transparent; font-size: 12px; }
@@ -1634,6 +1635,9 @@
 .copilot-skill-trigger > svg { width: 17px; height: 17px; flex: 0 0 17px; color: currentColor; stroke-width: 1.7; }
 .copilot-skill-trigger,
 .copilot-model-trigger { max-width: none; }
+.copilot-skill-trigger { gap: 4px; padding: 0 8px; }
+.copilot-selector[data-selector="skill"] { flex: 0 0 auto; }
+.copilot-selector[data-selector="shell"] > button { gap: 5px; }
 .copilot-model-trigger > span:not(.copilot-model-brand) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .copilot-model-brand { width: 18px; height: 18px; flex: 0 0 18px; display: grid; place-items: center; background: transparent; }
 .copilot-model-brand .provider-brand-icon { width: 17px; height: 17px; }
