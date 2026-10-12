@@ -1,5 +1,5 @@
 import { computed } from '@/store/domainReactivity';
-import { assetCategories } from '@/constants/navigation';
+import { assetCategories } from '../app/constants/navigation';
 import { desktopApi } from '@/services/desktopApi';
 import { store, touchProject } from '@/store/projectStore';
 import { showToast } from '@/composables/useToast';

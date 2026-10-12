@@ -4,6 +4,8 @@ dist/
 npm-debug.log*
 .idea/
 .learnings/
+.claude/
+.playwright-cli/
 release/
 src-tauri/target/
 src-tauri/gen/
