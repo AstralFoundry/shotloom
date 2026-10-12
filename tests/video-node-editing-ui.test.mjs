@@ -55,15 +55,14 @@ test('剪辑工作区只编排组件和领域 Hook', async () => {
   assert.match(timelineMedia, /export (?:const|function) VideoFilmstripThumbnail/);
   assert.match(timelineMedia, /document\.createElement\("video"\)/);
 });
-test('图片、视频和音频节点共用直接加入剪辑入口', async () => {
-  const [source, adapter] = await Promise.all([
+test('视频节点通过选中工具栏加入原剪辑台', async () => {
+  const [source, toolbar, adapter] = await Promise.all([
     readFile(new URL('../renderer/src/app/canvas/GenerationNode.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../renderer/src/app/canvas/CanvasNodeToolbar.tsx', import.meta.url), 'utf8'),
     readCanvasAdapter(),
   ]);
-  assert.match(source, /className="video-export-trigger"/);
-  assert.match(source, /\["image", "video", "audio"\]\.includes\(activeKind\)/);
-  assert.match(source, /加入剪辑/);
-  assert.match(source, /actions\.addToVideoEditor/);
+  assert.match(toolbar, /isLocalVideo[\s\S]*?添加到剪辑节点，进入原剪辑台[\s\S]*?actions\.addToVideoEditor\(node\.id\)/);
+  assert.doesNotMatch(source, /video-export-trigger|进入剪辑/);
   assert.match(adapter, /activeVideoEditorNodeId/);
   assert.match(adapter, /appendEditorMediaAsset/);
   assert.match(adapter, /sourceNodeId: id/);
@@ -152,7 +151,9 @@ test('独立剪辑工作区接入真实桌面导出', async () => {
     /effects/,
   ])
     assert.match(workspace, pattern);
-  assert.match(root, /desktopApi\.file\.exportVideoProject/);
+  assert.match(root, /desktopApi\.file\.renderVideoProjectToCanvas/);
+  assert.match(root, /createVideoExportNode\(editorNode, result/);
+  assert.match(tauri, /renderVideoProjectToCanvas:[\s\S]*?uniqueProjectAssetPath/);
   assert.match(tauri, /prepared = JSON\.parse\(JSON\.stringify\(project\)\)/);
   assert.doesNotMatch(tauri, /structuredClone\(project\)/);
   assert.match(

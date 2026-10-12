@@ -7,6 +7,7 @@ import {
   activeEditorClip,
   appendEditorMediaAsset,
   createVideoEditorProject,
+  createVideoSegmentProject,
   editorClipDuration,
   editorProjectToOpenVideo,
   moveEditorClip,
@@ -18,6 +19,19 @@ import {
   updateEditorTrack,
   videoEditorDuration,
 } from '../renderer/src/utils/videoEditorProject.mjs';
+
+test('切分导出仅包含选中的源视频片段', () => {
+  const source = { sourceFile: '/project/source.mp4', sourceName: 'source.mp4', duration: 8, width: 1280, height: 720 };
+  const project = createVideoSegmentProject(source, { start: 2.5, end: 5.75 });
+  const clips = project.tracks.flatMap((track) => track.clips);
+  assert.equal(clips.length, 1);
+  assert.equal(clips[0].timelineStart, 0);
+  assert.equal(clips[0].trimStart, 2.5);
+  assert.equal(clips[0].trimEnd, 5.75);
+  assert.equal(videoEditorDuration(project), 3.25);
+  assert.equal(project.assets[0].sourceFile, source.sourceFile);
+  assert.throws(() => createVideoSegmentProject(source, { start: 5, end: 2 }), /范围无效/);
+});
 
 test('画布媒体按类型加入对应轨道且不会重复添加', () => {
   let id = 0;

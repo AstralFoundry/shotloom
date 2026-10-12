@@ -575,6 +575,63 @@ const typeLabels: Record<string, string> = {
   note: "便签",
   threeDDirector: "3D导演台",
 };
+
+function NodeMentionCard({ node, title, onRemove }: {
+  node: WorkflowNodeData | undefined;
+  title: string;
+  onRemove: () => void;
+}) {
+  const outputs = Array.isArray(node?.generatedOutputs)
+    ? node.generatedOutputs as Array<Record<string, unknown>>
+    : [];
+  const selectedId = String(node?.selectedOutputNodeId || "").replace(/^material:/, "");
+  const selected = outputs.find((output) => String(output.id || "") === selectedId)
+    || outputs.find((output) => output.selected)
+    || outputs.at(-1);
+  const source = selected || (node?.uploadedFile as Record<string, unknown> | undefined) || node;
+  const mediaType = String(source?.resourceType || source?.mimeType || node?.resourceType || node?.type || "").toLowerCase();
+  const kind = mediaType.includes("video") ? "video" : mediaType.includes("image") ? "image" : "node";
+  const location = String(source?.filePath || source?.path || source?.previewUrl || source?.url || "");
+  const path = /^(https?:|blob:|data:)/i.test(location) ? "" : location;
+  const preview = useMediaPreviewCache({
+    path,
+    fallbackUrl: path ? String(source?.previewUrl || source?.url || "") : location,
+    kind,
+    enabled: kind !== "node",
+  });
+  const [duration, setDuration] = useState(Number(source?.duration || source?.videoDuration || node?.videoDuration || 0));
+  const [previewFailed, setPreviewFailed] = useState(false);
+  useEffect(() => {
+    setPreviewFailed(false);
+    setDuration(Number(source?.duration || source?.videoDuration || node?.videoDuration || 0));
+  }, [location, node?.videoDuration, source?.duration, source?.videoDuration]);
+  const durationLabel = duration > 0
+    && Number.isFinite(duration) ? `${Math.floor(duration / 60)}:${String(Math.floor(duration % 60)).padStart(2, "0")}`
+    : "";
+  return (
+    <div className="copilot-node-preview" title={title}>
+      {!previewFailed && preview.url && kind === "image" ? (
+        <img src={preview.url} alt={title} onError={() => setPreviewFailed(true)} />
+      ) : !previewFailed && preview.url && kind === "video" ? (
+        <video src={preview.url} muted preload="metadata"
+          onLoadedMetadata={(event) => {
+            setDuration(event.currentTarget.duration);
+            event.currentTarget.currentTime = Math.min(0.1, event.currentTarget.duration / 2);
+          }}
+          onError={() => {
+            if (path && !preview.buffered) preview.retryBuffered();
+            else setPreviewFailed(true);
+          }} />
+      ) : (
+        <IconSymbol name={kind === "video" ? "film" : kind === "image" ? "image" : "workflow"} />
+      )}
+      {kind === "video" && <IconSymbol className="copilot-node-preview-play" name="play" />}
+      {kind === "video" && durationLabel && <span className="copilot-node-preview-duration">{durationLabel}</span>}
+      <button type="button" className="copilot-node-preview-remove" aria-label={`移除节点引用：${title}`}
+        onClick={onRemove}>×</button>
+    </div>
+  );
+}
 export interface CopilotPanelHandle {
   /** 通过节点 id 添加引用，CopilotPanel 内部会查找 alias / title */
   addNodeMentionById: (nodeId: string) => void;
@@ -682,12 +739,6 @@ export const CopilotPanel = forwardRef<CopilotPanelHandle, CopilotPanelProps>(fu
       if (!found) return;
       setMentions((items) => (items.some((item) => item.id === found.id) ? items : [...items, found]));
       attachNodeImage(found);
-      setMessage((value) => {
-        const token = `@${found.alias}`;
-        if (value.includes(token)) return value;
-        const trimmed = value.trimEnd();
-        return trimmed ? `${trimmed} ${token} ` : `${token} `;
-      });
       requestAnimationFrame(() => sender.current?.focus());
     },
     [attachNodeImage, busy],
@@ -704,6 +755,8 @@ export const CopilotPanel = forwardRef<CopilotPanelHandle, CopilotPanelProps>(fu
             .includes(mentionQuery.toLowerCase())),
     )
     .slice(0, 8);
+  const visibleAttachments = attachments.map((file, index) => ({ file, index }))
+    .filter(({ file }) => !mentions.some((item) => item.id === file.nodeId));
   useEffect(() => {
     const added = Math.max(0, messages.length - previousMessageCount.current);
     previousMessageCount.current = messages.length;
@@ -760,8 +813,7 @@ export const CopilotPanel = forwardRef<CopilotPanelHandle, CopilotPanelProps>(fu
     const input = sender.current?.inputElement as HTMLTextAreaElement | null;
     const caret = input?.selectionStart ?? message.length;
     const before = message.slice(0, mentionStart >= 0 ? mentionStart : caret);
-    const token = `@${node.alias}`;
-    setMessage(`${before}${token} ${message.slice(caret).replace(/^[^\s@]*/, "")}`);
+    setMessage(`${before}${message.slice(caret).replace(/^[^\s@]*/, "")}`);
     setMentions((items) => (items.some((item) => item.id === node.id) ? items : [...items, node]));
     attachNodeImage(node);
     setMentionOpen(false);
@@ -780,10 +832,7 @@ export const CopilotPanel = forwardRef<CopilotPanelHandle, CopilotPanelProps>(fu
   }
   function send() {
     if (busy || !textModels.length) return;
-    const aliases = new Set(
-      (message.match(/@N-[A-Z0-9]+(?:-\d+)?\b/gi) || []).map((item) => item.slice(1).toUpperCase()),
-    );
-    const activeMentions = mentions.filter((item) => aliases.has(item.alias.toUpperCase()));
+    const activeMentions = mentions;
     if (!message.trim() && !attachments.length && !activeMentions.length) {
       return;
     }
@@ -1155,30 +1204,22 @@ export const CopilotPanel = forwardRef<CopilotPanelHandle, CopilotPanelProps>(fu
               requestAnimationFrame(() => updateMention(value));
             }}
             onKeyDown={keydown}
-            header={(mentions.length || attachments.length) ? (
+            header={(mentions.length || visibleAttachments.length) ? (
               <div className="copilot-sender-context">
                 {mentions.length > 0 && (
                   <div className="copilot-node-mentions">
                     {mentions.map((item) => (
-                      <span key={item.id} title={`@${item.alias} · ${item.title}`}>
-                        <IconSymbol name={item.imageAttachment ? "image" : "workflow"} />
-                        <strong>{item.title}</strong>
-                        <small>@{item.alias}</small>
-                        <button
-                          type="button"
-                          aria-label={`移除节点引用：${item.title}`}
-                          onClick={() => {
-                            setMentions((items) => items.filter((value) => value.id !== item.id));
-                            setMessage((value) => value.replace(new RegExp(`@${item.alias}\\s*`, "ig"), ""));
-                          }}
-                        >×</button>
-                      </span>
+                      <NodeMentionCard key={item.id} node={nodes.find((node) => node.id === item.id)}
+                        title={item.title} onRemove={() => {
+                          setMentions((items) => items.filter((value) => value.id !== item.id));
+                          setAttachments((items) => items.filter((value) => value.nodeId !== item.id));
+                        }} />
                     ))}
                   </div>
                 )}
-                {attachments.length > 0 && (
+                {visibleAttachments.length > 0 && (
                   <Attachments
-                    items={attachments.map((file, index) => ({
+                    items={visibleAttachments.map(({ file, index }) => ({
                       uid: String(index),
                       name: String(file.name || file.fileName || "附件"),
                       status: "done" as const,

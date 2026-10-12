@@ -255,6 +255,20 @@ export function CanvasNodeToolbar({
           {isLocalVideo && (
             <button
               type="button"
+              title="剪辑"
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={(event) => {
+                event.stopPropagation();
+                actions.openSimpleClipEditor(node.id);
+              }}
+            >
+              <IconSymbol name="scissors" />
+              剪辑
+            </button>
+          )}
+          {isLocalVideo && (
+            <button
+              type="button"
               title={audioSplitRunning ? "正在后台拆分音视频" : canExtractAudio ? "拆分为无声视频和音乐" : audioTrackState === "checking" ? "正在检测音轨" : "当前视频不包含音轨"}
               disabled={!canExtractAudio || audioSplitRunning}
               onPointerDown={(event) => event.stopPropagation()}
@@ -370,6 +384,21 @@ export function CanvasNodeToolbar({
                 canvasOverlayRoot,
               )}
             </div>
+          )}
+          {isLocalVideo && (
+            <button
+              className="canvas-node-toolbar-icon canvas-node-toolbar-editor"
+              type="button"
+              title="添加到剪辑节点，进入原剪辑台"
+              aria-label="添加到剪辑节点，进入原剪辑台"
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={(event) => {
+                event.stopPropagation();
+                void actions.addToVideoEditor(node.id);
+              }}
+            >
+              <IconSymbol name="add-to-editor" />
+            </button>
           )}
           {mentionInCopilot && (canUpload || canExtractAudio || canSaveToAssets) && (
             <span className="canvas-node-toolbar-divider" />

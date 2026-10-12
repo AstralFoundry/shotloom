@@ -619,15 +619,6 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({
                 )}
               </div>
             )}
-            {["image", "video", "audio"].includes(activeKind) && (
-              <button
-                className="video-export-trigger"
-                onClick={() => void actions.addToVideoEditor(node.id)}
-              >
-                <IconSymbol name="film" />
-                加入剪辑
-              </button>
-            )}
           </div>
           <div className="work-prompt-shell">
             <div className="work-composer-inputs">

@@ -207,6 +207,9 @@ function createBrowserFallback() {
       exportVideoProject: async () => {
         throw new Error('浏览器预览不支持多轨视频导出，请在桌面应用中使用。');
       },
+      renderVideoProjectToCanvas: async () => {
+        throw new Error('浏览器预览不支持视频渲染，请在桌面应用中使用。');
+      },
       concatVideos: async () => null,
       probeMedia: async () => ({ duration: null, width: null, height: null }),
       readArrayBuffer: async () => new ArrayBuffer(0),

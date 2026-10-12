@@ -66,7 +66,7 @@ export function VideoEditorTopBar({
         <button disabled={exporting} onClick={onClose}>退出编辑</button>
         <button className="primary" disabled={exporting || exportDisabled} onClick={onExport}>
           <IconSymbol name="download" />
-          {exporting ? "正在导出…" : "导出成片"}
+          {exporting ? "正在生成…" : "生成视频节点"}
         </button>
       </div>
     </header>

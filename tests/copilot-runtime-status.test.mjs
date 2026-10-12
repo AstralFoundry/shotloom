@@ -131,11 +131,14 @@ test('画布图片节点加入对话时自动携带当前图片产物', () => {
   assert.match(panel, /imageAttachment: _imageAttachment/);
 });
 
-test('已引用节点以名称、短别名和类型组成紧凑信息卡', () => {
+test('已引用节点显示媒体缩略卡片，正文无需节点别名也可发送引用', () => {
   assert.match(panel, /copilot-sender-context/);
-  assert.match(panel, /<strong>\{item\.title\}<\/strong>/);
-  assert.match(panel, /<small>@\{item\.alias\}<\/small>/);
-  assert.match(styles, /grid-template-columns:\s*15px minmax\(0, 1fr\) auto 18px/);
+  assert.match(panel, /<NodeMentionCard key=\{item\.id\}/);
+  assert.match(panel, /const activeMentions = mentions/);
+  assert.match(panel, /nodeMentions: activeMentions\.map/);
+  assert.match(panel, /setAttachments\(\(items\) => items\.filter\(\(value\) => value\.nodeId !== item\.id\)\)/);
+  assert.match(styles, /\.copilot-node-preview \{[^}]*width: 64px; height: 64px/);
+  assert.match(styles, /\.copilot-node-preview-play \{/);
 });
 
 test('通用对话界面由 Ant Design X 组件承载', () => {

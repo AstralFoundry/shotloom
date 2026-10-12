@@ -111,6 +111,7 @@ export interface WorkflowNodeActions {
   archiveResource: (id: string) => void;
   selectOutput: (nodeId: string, outputId: string) => void;
   openVideoEditor: (id: string) => void;
+  openSimpleClipEditor: (id: string) => void;
   addToVideoEditor: (id: string) => void | Promise<void>;
   exportBoard: (id: string, dataUrl: string) => void;
   getDirectorIncomingImages: (

@@ -595,6 +595,10 @@ export function createTauriApi(browserFallback) {
         const path = String(selected).toLowerCase().endsWith('.mp4') ? selected : `${selected}.mp4`;
         return command('file:export-video-project', path, await materializeVideoProjectAssets(project));
       },
+      renderVideoProjectToCanvas: async (project, preferredName = 'clip.mp4') => {
+        const target = await uniqueProjectAssetPath(preferredName);
+        return command('file:export-video-project', target, await materializeVideoProjectAssets(project));
+      },
       trimVideo: unsupported('FFmpeg 视频裁剪'),
       concatVideos: async (sources, options = {}) => {
         if (!Array.isArray(sources) || sources.length < 2) {

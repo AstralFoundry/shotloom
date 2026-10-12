@@ -407,7 +407,8 @@ export function VideoEditorWorkspace(
     runtimeRef.current?.pause();
     setPlaying(false);
     try {
-      await controller.export(projectRef.current);
+      const result = await controller.export(projectRef.current);
+      if (result) controller.close();
     } catch (cause) {
       const message = cause instanceof Error
         ? cause.message

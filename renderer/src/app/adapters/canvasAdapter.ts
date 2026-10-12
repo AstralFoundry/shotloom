@@ -67,6 +67,7 @@ import { createUploadedNode } from "./canvas/canvasUploadActions";
 import {
   addToVideoEditor,
   openVideoEditor,
+import { openSimpleClipEditor } from "./canvas/simpleClipEditorActions";
 } from "./canvas/videoEditorActions";
 
 const store: any = rawStore;
@@ -513,6 +514,7 @@ export const nodeActions: WorkflowNodeActions = {
     const result = selectGeneratedOutput(store.project, nodeId, outputId);
     if (!result.ok) showToast(result.error || "选择输出失败");
   },
+  openSimpleClipEditor,
   openVideoEditor,
   addToVideoEditor,
   async exportBoard(id, dataUrl) {

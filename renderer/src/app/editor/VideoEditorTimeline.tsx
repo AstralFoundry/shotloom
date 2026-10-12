@@ -1,4 +1,4 @@
-import { useState, type PointerEvent as ReactPointerEvent, type RefObject } from "react";
+import { useEffect, useState, type PointerEvent as ReactPointerEvent, type RefObject } from "react";
 import { editorClipDuration } from "../../utils/videoEditorProject.mjs";
 import { IconSymbol } from "../components/IconSymbol";
 import { EDITOR_ASSET_DRAG_TYPE, trackMeta } from "./videoEditorCatalog";
@@ -80,8 +80,20 @@ export function VideoEditorTimeline({
 }) {
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const [verticalScroll, setVerticalScroll] = useState(0);
   const maximumZoom = Math.max(180, fps * 88);
   const zoomSliderValue = Math.log(zoom / 24) / Math.log(maximumZoom / 24) * 1000;
+  useEffect(() => {
+    const scroll = timelineRef.current;
+    if (!scroll) return;
+    const sync = () => {
+      const max = Math.max(0, scroll.scrollHeight - scroll.clientHeight);
+      setVerticalScroll(max ? scroll.scrollTop / max : 0);
+    };
+    sync();
+    scroll.addEventListener("scroll", sync, { passive: true });
+    return () => scroll.removeEventListener("scroll", sync);
+  }, [timelineRef, tracks.length]);
   return (
     <footer
       className={`ov-timeline${dragOver ? " is-drag-over" : ""}`}
@@ -161,7 +173,24 @@ export function VideoEditorTimeline({
           left: event.currentTarget.scrollLeft,
           width: event.currentTarget.clientWidth,
         })}
-      >
+        >
+        <label className="ov-timeline-vertical-scroll" aria-label="时间线轨道滚动">
+          <span aria-hidden="true" />
+          <input
+            type="range"
+            min="0"
+            max="1000"
+            step="1"
+            value={Math.round(verticalScroll * 1000)}
+            onChange={(event) => {
+              const scroll = timelineRef.current;
+              if (!scroll) return;
+              const next = Number(event.target.value) / 1000;
+              scroll.scrollTop = next * Math.max(0, scroll.scrollHeight - scroll.clientHeight);
+              setVerticalScroll(next);
+            }}
+          />
+        </label>
         <div
           className="ov-timeline-content"
           style={{ width: Math.max(1100, 112 + duration * zoom + 24) }}

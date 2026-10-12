@@ -23,6 +23,7 @@ import {
   inferEditorMediaType,
   probeEditorMedia,
 } from "../utils/editorMediaImport.mjs";
+import { createVideoSegmentProject, normalizeVideoEditorProject } from "../utils/videoEditorProject.mjs";
 import { AppShell } from "./AppShell";
 import {
   canvasCommands,
@@ -30,7 +31,8 @@ import {
   canvasViewData,
   nodeActions,
 } from "./adapters/canvasAdapter";
-import { registerVideoEditorOpener } from "./adapters/canvas/videoEditorActions";
+import { createVideoExportNode, registerVideoEditorOpener } from "./adapters/canvas/videoEditorActions";
+import { registerSimpleClipEditorOpener } from "./adapters/canvas/simpleClipEditorActions";
 import {
   copilotController,
   copilotData,
@@ -61,6 +63,8 @@ import { showToast } from "./store/overlayStore";
 import { recoverInterruptedAgentRuns, relieveAgentHistoryMemoryPressure } from "../agent/runtime/runStore";
 import { type AppRoute, useAppStore } from "./store/appStore";
 import { installMediaPreviewCacheMemoryPressureListener } from "../services/mediaPreviewCache";
+import { SimpleClipEditor } from "./editor/SimpleClipEditor";
+import { selectedNodeLocalMedia } from "./adapters/canvas/canvasMediaSelection";
 
 /**
  * React 主工作台根；领域状态通过框架无关订阅同步到视图。
@@ -70,6 +74,7 @@ export function ReactWorkbench() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [editorNodeId, setEditorNodeId] = useState("");
+  const [simpleClipNodeId, setSimpleClipNodeId] = useState("");
   const appRoute = useAppStore((state) => state.route);
   const domainRevision = useSyncExternalStore(
     subscribeDomain,
@@ -134,9 +139,11 @@ export function ReactWorkbench() {
       refresh();
     })().catch((cause) => showToast(cause instanceof Error ? cause.message : "应用初始化失败"));
     registerVideoEditorOpener(setEditorNodeId);
+    registerSimpleClipEditorOpener(setSimpleClipNodeId);
     return () => {
       cancelled = true;
       registerVideoEditorOpener(null);
+      registerSimpleClipEditorOpener(null);
       if (taskTimer) window.clearInterval(taskTimer);
       if (sessionMemoryTimer) window.clearInterval(sessionMemoryTimer);
       disposeClose?.();
@@ -183,6 +190,30 @@ export function ReactWorkbench() {
   const editorNode: any = editorNodeId
     ? store.project.nodes.find((node: any) => node.id === editorNodeId)
     : null;
+  const simpleClipNode: any = simpleClipNodeId
+    ? store.project.nodes.find((node: any) => node.id === simpleClipNodeId)
+    : null;
+  const simpleClipOutputs: any[] = simpleClipNode
+    ? [
+        ...(Array.isArray(simpleClipNode.generatedOutputs) ? simpleClipNode.generatedOutputs : []),
+        ...(store.project.materials || []).filter((item: any) => item.nodeId === simpleClipNode.id),
+        ...(store.project.nodes || []).filter((item: any) => item.type === "resource" && item.generatedFrom?.nodeId === simpleClipNode.id),
+        simpleClipNode.uploadedFile,
+      ].filter(Boolean)
+    : [];
+  const selectedClipOutputId = String(simpleClipNode?.selectedOutputNodeId || "").replace(/^material:/, "");
+  const simpleClipOutput: any = simpleClipOutputs.find((item: any) => String(item.id) === selectedClipOutputId)
+    || simpleClipOutputs.find((item: any) => item.selected)
+    || (Array.isArray(simpleClipNode?.generatedOutputs) ? simpleClipNode.generatedOutputs.at(-1) : null)
+    || simpleClipOutputs.at(-1);
+  const selectedLocalMedia = simpleClipNode ? selectedNodeLocalMedia(store.project, simpleClipNode) : { path: "", material: null, asset: {} };
+  const simpleClipFile = String(selectedLocalMedia.path || simpleClipOutput?.filePath || simpleClipOutput?.path || "");
+  const simpleClipRawUrl = String(simpleClipOutput?.url || simpleClipOutput?.remoteUrl || simpleClipOutput?.previewUrl || simpleClipOutput?.resourceUrl || simpleClipNode?.previewUrl || simpleClipNode?.url || simpleClipNode?.resourceUrl || "");
+  const simpleClipUrl = simpleClipFile
+    ? convertFileSrc(simpleClipFile)
+    : /^(https?:|data:|blob:|asset:|file:)/i.test(simpleClipRawUrl)
+      ? simpleClipRawUrl
+      : "";
   const editorTask: any = editorNode
     ? [...(store.project.tasks || [])]
         .reverse()
@@ -250,8 +281,8 @@ export function ReactWorkbench() {
         },
         async export(project: Record<string, unknown>) {
           const safeName = String(editorNode.title || "video").replace(/[\\/:*?"<>|]/g, "-");
-          const result = await desktopApi.file.exportVideoProject(project, `${safeName}-剪辑.mp4`);
-          if (!result) return null;
+          const result = await desktopApi.file.renderVideoProjectToCanvas(project, `${safeName}-剪辑.mp4`);
+          createVideoExportNode(editorNode, result, `${safeName}-剪辑`);
           const filePath = result.filePath || result.path;
           editorNode.videoEditProject = {
             ...project,
@@ -264,7 +295,7 @@ export function ReactWorkbench() {
           editorNode.videoEdit = { exportedFile: filePath, dirty: false };
           touchProject();
           refresh();
-          showToast(`剪辑已导出：${result.name || "MP4"}`);
+          showToast("已在画布创建剪辑视频节点");
           return result;
         },
         close() {
@@ -448,6 +479,34 @@ export function ReactWorkbench() {
         </div>
       )}
       {update.open && <UpdateDialog data={update} controller={updateDialogController} />}
+      {simpleClipNode && (
+        <SimpleClipEditor
+          sourceUrl={simpleClipUrl}
+          sourceFile={simpleClipFile}
+          sourceName={String(simpleClipOutput?.name || simpleClipOutput?.fileName || simpleClipNode.title || "视频")}
+          onClose={() => setSimpleClipNodeId("")}
+          onExport={async (segment, index) => {
+            const sourceDuration = Math.max(
+              Number(simpleClipOutput?.duration || 0),
+              Number(simpleClipNode.metadata?.duration || 0),
+              segment.end,
+            );
+            const base = createVideoSegmentProject({
+              sourceFile: simpleClipFile,
+              sourceUrl: simpleClipUrl,
+              sourceName: String(simpleClipOutput?.name || simpleClipOutput?.fileName || simpleClipNode.title || "video.mp4"),
+              duration: sourceDuration,
+              width: Number(simpleClipNode.metadata?.width || 1920),
+              height: Number(simpleClipNode.metadata?.height || 1080),
+            }, segment) as any;
+            const safeName = String(simpleClipNode.title || "video").replace(/[\\/:*?"<>|]/g, "-");
+            const fileName = `${safeName}-片段${index + 1}.mp4`;
+            const result = await desktopApi.file.renderVideoProjectToCanvas(base, fileName);
+            createVideoExportNode(simpleClipNode, result, `${safeName}-片段${index + 1}`);
+            refresh();
+          }}
+        />
+      )}
       <MediaViewer />
       <ToastHost />
     </>

@@ -1,13 +1,61 @@
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { desktopApi } from "../../../services/desktopApi.js";
 import { recordCanvasHistory } from "../../../store/canvasHistoryStore.js";
-import { addNode } from "../../../store/nodeStore.js";
+import { addNode, setSelectedNodeIds } from "../../../store/nodeStore.js";
+import { registerImportedMaterial } from "../../../store/assetStore.js";
+import { addCanvasEdge } from "../../../store/canvasGraphStore.js";
+import { canvasNodeDimensions } from "../../../services/agentLayoutService";
 import { store, touchProject } from "../../../store/projectStore.js";
 import { appendEditorMediaAsset, normalizeVideoEditorProject } from "../../../utils/videoEditorProject.mjs";
 import { inferEditorMediaType, probeEditorMedia } from "../../../utils/editorMediaImport.mjs";
 import { showSuccessToast, showToast } from "../../store/overlayStore";
 
 let videoEditorOpener: ((id: string) => void) | null = null;
+
+export function createVideoExportNode(source: any, result: any, title: string) {
+  const filePath = String(result?.filePath || result?.path || "");
+  if (!filePath) throw new Error("剪辑未生成本地视频文件");
+  const fileName = String(result.name || `${title}.mp4`);
+  recordCanvasHistory("导出剪辑视频");
+  const registered: any = registerImportedMaterial(
+    { ...result, name: fileName, filePath, type: "video/mp4", mimeType: "video/mp4" },
+    { resourceType: "video", sourceType: "video-editor-export", nodeType: "videoGeneration" },
+  );
+  if (!registered.material) throw new Error("剪辑视频未能登记为项目素材");
+  const output: any = addNode("videoGeneration");
+  const siblings = store.project.nodes.filter((node: any) =>
+    node.id !== output.id && node.generatedFrom?.nodeId === source.id && node.generatedFrom?.type === "video-editor-export"
+  ).length;
+  output.title = title;
+  output.prompt = "";
+  output.x = Math.round((Number(source.x) || 0) + canvasNodeDimensions(source).width + 80);
+  output.y = Math.round((Number(source.y) || 0) + siblings * 130);
+  output.materialId = registered.material.id;
+  output.resourceType = "video";
+  output.sourceType = "video-editor-export";
+  output.generatedFrom = { nodeId: source.id, type: "video-editor-export" };
+  output.uploadedFile = {
+    name: fileName,
+    path: filePath,
+    filePath,
+    type: "video/mp4",
+    mimeType: "video/mp4",
+    size: result.size || 0,
+    materialId: registered.material.id,
+    resourceType: "video",
+    source: "video-editor-export",
+  };
+  registered.material.nodeId = output.id;
+  const connection = addCanvasEdge(store.project, source.id, output.id, {
+    touch: false,
+    kind: "derived-output",
+    edge: { data: { skipTaskInput: true, derivation: "video-editor-export" } },
+  });
+  if (!connection.ok) throw new Error(connection.error || "剪辑视频节点连线失败");
+  setSelectedNodeIds([output.id]);
+  touchProject();
+  return output;
+}
 
 export function registerVideoEditorOpener(handler: ((id: string) => void) | null) {
   videoEditorOpener = handler;

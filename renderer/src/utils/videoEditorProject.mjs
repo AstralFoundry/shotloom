@@ -84,6 +84,21 @@ export function createVideoEditorProject({
   };
 }
 
+export function createVideoSegmentProject(options, segment) {
+  const start = Number(segment?.start);
+  const end = Number(segment?.end);
+  const sourceDuration = Number(options?.duration);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || start < 0 || end <= start || end > sourceDuration + 0.01) {
+    throw new Error('所选视频片段范围无效');
+  }
+  const project = createVideoEditorProject(options);
+  const clip = project.tracks[0]?.clips[0];
+  if (!clip) throw new Error('当前视频没有可导出的片段');
+  clip.trimStart = start;
+  clip.trimEnd = end;
+  return project;
+}
+
 export function normalizeVideoEditorProject(project, options = {}) {
   if (project?.version !== 2 || project?.schema !== 'shotloom.video-edit')
     return migrateLegacyProject(project, options);
