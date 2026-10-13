@@ -15,7 +15,6 @@ const artifacts = read(`${dir}ArtifactList.tsx`);
 const referenceCard = read(`${dir}ReferenceCard.tsx`);
 const mediaThumb = read(`${dir}MediaThumb.tsx`);
 const presentation = read(`${dir}messagePresentation.ts`);
-const theme = read(`${dir}useAgentTheme.ts`);
 const adapter = read('../renderer/src/app/adapters/copilotAdapter.ts');
 const presenter = read('../renderer/src/app/copilot/CopilotRuntimePresenter.ts');
 const canvasTools = read('../renderer/src/agent/tools/canvasTools.ts');
@@ -39,12 +38,12 @@ test('助手面板不再依赖 antd，样式只来自 CSS Modules 与 --slk-* �
   assert.match(modules, /var\(--slk-/);
 });
 
-test('明暗主题的双值都写在令牌层，面板根元素决定作用域', () => {
-  assert.match(tokens, /\[data-slk-theme="dark"\]/);
-  assert.match(tokens, /--slk-bg-base: var\(--slk-static-n-950\)/);
-  assert.match(panel, /data-slk-theme=\{theme\}/);
-  assert.match(theme, /shotloom:agent-theme/);
-  assert.match(theme, /useSyncExternalStore/);
+// 暗色模式整条链路都不存在：令牌只有浅色一套值，面板没有主题属性和切换入口。
+test('助手面板只有浅色，不提供暗色模式', () => {
+  assert.ok(!existsSync(new URL(`${dir}useAgentTheme.ts`, import.meta.url)));
+  assert.doesNotMatch(`${tokens}${modules}${panel}`, /data-slk-theme/);
+  assert.match(tokens, /--slk-bg-base: var\(--slk-static-n-00\)/);
+  assert.doesNotMatch(panel, /theme/i);
 });
 
 test('运行轨迹默认一行摘要，等待确认时才自动展开', () => {

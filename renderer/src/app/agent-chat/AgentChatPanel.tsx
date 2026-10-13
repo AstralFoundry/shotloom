@@ -17,7 +17,6 @@ import { compactRepeatedFailures } from "./messagePresentation";
 import { Transcript } from "./Transcript";
 import { Composer } from "./Composer";
 import { HistoryDrawer } from "./HistoryDrawer";
-import { useAgentTheme } from "./useAgentTheme";
 import type {
   AgentController,
   AgentMessage,
@@ -43,7 +42,6 @@ export interface AgentChatPanelProps {
 export const AgentChatPanel = forwardRef<AgentPanelHandle, AgentChatPanelProps>(
   function AgentChatPanel(props, ref) {
     const { editorMode = false, messages, nodes, busy, activeConversationId, controller } = props;
-    const [theme, toggleTheme] = useAgentTheme();
     const [historyOpen, setHistoryOpen] = useState(false);
     const [unread, setUnread] = useState(0);
     const [clarificationAnswers, setClarificationAnswers] = useState<
@@ -116,7 +114,7 @@ export const AgentChatPanel = forwardRef<AgentPanelHandle, AgentChatPanelProps>(
     );
 
     return (
-      <aside className={styles.root} data-slk-theme={theme} data-editor={editorMode || undefined}>
+      <aside className={styles.root} data-editor={editorMode || undefined}>
         <header className={styles.header}>
           <h2 className={styles.title} title={activeConversation?.title}>
             {editorMode ? "剪辑 Agent" : activeConversation?.title || "新对话"}
@@ -131,9 +129,6 @@ export const AgentChatPanel = forwardRef<AgentPanelHandle, AgentChatPanelProps>(
               onClick={() => setHistoryOpen((value) => !value)}
             >
               <Glyph name="clock" />
-            </IconButton>
-            <IconButton label={theme === "dark" ? "切换为浅色" : "切换为深色"} onClick={toggleTheme}>
-              <Glyph name={theme === "dark" ? "sun" : "moon"} />
             </IconButton>
             <IconButton label="收起助手" onClick={controller.close}>
               <Glyph name="x" />

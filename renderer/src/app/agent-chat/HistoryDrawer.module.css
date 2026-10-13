@@ -195,10 +195,6 @@
   font-weight: 650;
 }
 
-[data-slk-theme="dark"] .itemMain > small {
-  background: color-mix(in srgb, var(--slk-static-amber-500) 22%, transparent);
-}
-
 .itemMain:disabled {
   color: var(--slk-label-caption);
   cursor: default;

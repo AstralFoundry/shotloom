@@ -16,11 +16,6 @@
   color: var(--slk-static-amber-900);
 }
 
-[data-slk-theme="dark"] .warning {
-  background: color-mix(in srgb, var(--slk-static-amber-500) 18%, transparent);
-  color: var(--slk-static-amber-400);
-}
-
 .warning > svg {
   width: 15px;
   height: 15px;
@@ -287,10 +282,6 @@
   background: var(--slk-static-accent-50);
 }
 
-[data-slk-theme="dark"] .chip[data-active] {
-  background: color-mix(in srgb, var(--slk-static-accent-400) 20%, transparent);
-}
-
 @media (hover: hover) {
   .chip:hover:not(:disabled) {
     color: var(--slk-label-primary);
@@ -437,10 +428,6 @@
 
 .send[data-stop] {
   background: var(--slk-static-n-1000);
-}
-
-[data-slk-theme="dark"] .send[data-stop] {
-  background: var(--slk-static-n-50);
 }
 
 .send:disabled {

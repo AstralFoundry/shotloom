@@ -97,12 +97,6 @@
   box-shadow: inset 0 0 0 0.5px var(--slk-static-n-1000);
 }
 
-[data-slk-theme="dark"] .options button[aria-pressed="true"] {
-  color: var(--slk-static-n-950);
-  background: var(--slk-static-n-50);
-  box-shadow: inset 0 0 0 0.5px var(--slk-static-n-50);
-}
-
 .actions {
   display: flex;
   align-items: center;

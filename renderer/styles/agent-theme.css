@@ -5,59 +5,37 @@
  * 交互强调色用冷蓝，与暖背景形成对比，并且刻意与 brand-primary（墨色）分开——
  * 墨色是品牌主色，蓝色才是"可点"的信号。
  *
- * 暗色值挂在面板根元素 [data-slk-theme="dark"] 上而不是 body 上：应用整体还没有暗色，
- * 这样面板可以先具备完整双值，将来应用级暗色只需要把这个属性上移到 body。
+ * 这套令牌只有浅色一套值。应用整体还没有暗色，面板跟随应用保持浅色，不单独提供暗色开关。
  */
 
 body {
   --slk-content-font-size: 14px;
   --slk-code-font-size: 11px;
 
-  /* static: 暖灰中性阶 */
+  /* static: 暖灰中性阶（只保留面板真实消费的色阶） */
   --slk-static-n-00: rgb(255, 255, 255);
   --slk-static-n-50: rgb(250, 249, 247);
   --slk-static-n-60: rgb(247, 246, 243);
-  --slk-static-n-75: rgb(241, 239, 236);
-  --slk-static-n-100: rgb(236, 233, 229);
-  --slk-static-n-150: rgb(229, 225, 220);
-  --slk-static-n-200: rgb(220, 216, 209);
   --slk-static-n-300: rgb(200, 195, 188);
   --slk-static-n-400: rgb(172, 167, 160);
-  --slk-static-n-500: rgb(150, 145, 138);
   --slk-static-n-600: rgb(128, 123, 116);
   --slk-static-n-700: rgb(97, 92, 86);
-  --slk-static-n-750: rgb(72, 68, 63);
-  --slk-static-n-800: rgb(53, 50, 46);
-  --slk-static-n-850: rgb(43, 40, 37);
-  --slk-static-n-875: rgb(35, 33, 31);
-  --slk-static-n-900: rgb(28, 26, 25);
-  --slk-static-n-950: rgb(21, 20, 19);
   --slk-static-n-1000: rgb(40, 35, 31);
 
   /* static: 强调色 */
   --slk-static-accent-50: rgb(238, 244, 253);
-  --slk-static-accent-100: rgb(222, 233, 251);
-  --slk-static-accent-400: rgb(122, 164, 255);
   --slk-static-accent-500: rgb(52, 102, 214);
   --slk-static-accent-600: rgb(40, 82, 178);
-  --slk-static-accent-900: rgb(23, 40, 79);
 
   /* static: 状态色，沿用应用既有语义色 */
-  --slk-static-green-100: rgb(223, 247, 238);
-  --slk-static-green-400: rgb(52, 197, 149);
   --slk-static-green-500: rgb(15, 159, 110);
-  --slk-static-green-900: rgb(12, 56, 42);
   --slk-static-amber-100: rgb(252, 243, 224);
-  --slk-static-amber-400: rgb(224, 160, 44);
   --slk-static-amber-500: rgb(201, 135, 19);
   --slk-static-amber-900: rgb(64, 45, 12);
   --slk-static-red-100: rgb(252, 232, 232);
-  --slk-static-red-400: rgb(231, 112, 112);
-  --slk-static-red-500: rgb(215, 72, 72);
   --slk-static-red-600: rgb(190, 52, 52);
-  --slk-static-red-900: rgb(74, 20, 20);
 
-  /* alias: 浅色 */
+  /* alias */
   --slk-bg-base: var(--slk-static-n-00);
   --slk-bg-sunken: var(--slk-static-n-50);
   --slk-bg-raised: var(--slk-static-n-00);
@@ -65,15 +43,12 @@ body {
   --slk-bg-code: var(--slk-static-n-50);
   --slk-bg-inline-code: var(--slk-static-n-60);
   --slk-bg-bubble: var(--slk-static-accent-50);
-  --slk-bg-tooltip: var(--slk-static-n-850);
-  --slk-label-tooltip: var(--slk-static-n-00);
   --slk-label-primary: var(--slk-static-n-1000);
   --slk-label-secondary: var(--slk-static-n-700);
   --slk-label-tertiary: var(--slk-static-n-600);
   --slk-label-caption: var(--slk-static-n-400);
   --slk-label-inverted: var(--slk-static-n-00);
   --slk-label-accent: var(--slk-static-accent-500);
-  --slk-label-shimmer: color-mix(in srgb, var(--slk-static-n-1000) 30%, transparent);
   --slk-border-l1: rgba(40, 35, 31, 0.05);
   --slk-border-l2: rgba(40, 35, 31, 0.1);
   --slk-border-l3: rgba(40, 35, 31, 0.13);
@@ -93,41 +68,6 @@ body {
   --slk-menu-blur: blur(40px) saturate(150%);
 }
 
-[data-slk-theme="dark"] {
-  --slk-bg-base: var(--slk-static-n-950);
-  --slk-bg-sunken: var(--slk-static-n-900);
-  --slk-bg-raised: var(--slk-static-n-875);
-  --slk-bg-selector: var(--slk-static-n-850);
-  --slk-bg-code: var(--slk-static-n-900);
-  --slk-bg-inline-code: var(--slk-static-n-850);
-  --slk-bg-bubble: var(--slk-static-n-850);
-  --slk-bg-tooltip: var(--slk-static-n-750);
-  --slk-label-tooltip: var(--slk-static-n-00);
-  --slk-label-primary: var(--slk-static-n-50);
-  --slk-label-secondary: var(--slk-static-n-300);
-  --slk-label-tertiary: var(--slk-static-n-400);
-  --slk-label-caption: var(--slk-static-n-600);
-  --slk-label-inverted: var(--slk-static-n-1000);
-  --slk-label-accent: var(--slk-static-accent-400);
-  --slk-label-shimmer: color-mix(in srgb, var(--slk-static-n-00) 45%, transparent);
-  --slk-border-l1: rgba(255, 255, 255, 0.06);
-  --slk-border-l2: rgba(255, 255, 255, 0.12);
-  --slk-border-l3: rgba(255, 255, 255, 0.16);
-  --slk-border-l4: rgba(255, 255, 255, 0.2);
-  --slk-hover-wash: rgba(255, 255, 255, 0.07);
-  --slk-hover-wash-strong: rgba(255, 255, 255, 0.12);
-  --slk-active-wash: rgba(255, 255, 255, 0.16);
-  --slk-button-accent: var(--slk-static-accent-400);
-  --slk-button-accent-hover: var(--slk-static-accent-500);
-  --slk-state-success: var(--slk-static-green-400);
-  --slk-state-warn: var(--slk-static-amber-400);
-  --slk-state-error: var(--slk-static-red-400);
-  --slk-state-idle: var(--slk-static-n-600);
-  --slk-scrollbar: rgba(255, 255, 255, 0.16);
-  --slk-scrollbar-hover: rgba(255, 255, 255, 0.3);
-  --slk-menu-fill: rgba(43, 40, 37, 0.86);
-}
-
 /* 圆角按用途分级，面板级只给输入卡片和对话框。 */
 body {
   --slk-radius-xs: 4px;
@@ -139,7 +79,7 @@ body {
 }
 
 /* 高表面用 0.5px 发丝描边 + 极淡柔光，而不是 1px 实线边框：描边画进 box-shadow
-   所以不占布局，组件配 border:0。深色主题柔光几乎不可见，分离感由描边承担。
+   所以不占布局，组件配 border:0。柔光在浅背景上很弱，分离感主要由描边承担。
    派生值逐元素声明（而非从 body 继承），这样组件重绑 --slk-stroke-color 才有效。 */
 body {
   --slk-ease: cubic-bezier(0.4, 0, 0.2, 1);
@@ -152,8 +92,7 @@ body {
     Menlo, Courier, "PingFang SC", "Microsoft YaHei";
 }
 
-body *,
-[data-slk-theme] * {
+body * {
   --slk-stroke-color: var(--slk-border-l4);
   --slk-elevation-stroke: 0 0 0 0.5px var(--slk-stroke-color);
   --slk-elevation-panel: var(--slk-elevation-stroke), 0 3px 8px 0 rgba(0, 0, 0, 0.03),
@@ -172,15 +111,5 @@ body {
     calc(var(--slk-content-font-size) - 1px),
     max(13px, calc(var(--slk-content-font-size) - 2px))
   );
-  --slk-font-delta-secondary: calc(var(--slk-font-secondary) - 13px);
   --slk-code-delta: calc(var(--slk-code-font-size) - 11px);
-}
-
-@supports (corner-shape: superellipse(1.5)) {
-  [data-slk-theme],
-  [data-slk-theme] *,
-  [data-slk-theme] *::before,
-  [data-slk-theme] *::after {
-    corner-shape: superellipse(1.5);
-  }
 }
