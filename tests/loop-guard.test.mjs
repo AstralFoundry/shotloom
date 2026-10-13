@@ -24,8 +24,8 @@ const contractLoader = readFileSync(
   new URL('../renderer/src/agent/content/contractLoader.ts', import.meta.url),
   'utf8',
 );
-const bridge = readFileSync(
-  new URL('../renderer/src/agent/runtime/OpenCodeToolBridge.ts', import.meta.url),
+const executor = readFileSync(
+  new URL('../renderer/src/agent/runtime/executeToolCall.ts', import.meta.url),
   'utf8',
 );
 const coordinator = readFileSync(
@@ -137,19 +137,19 @@ test('契约告诉模型的触发规则与 LoopGuard 常量一致', () => {
 });
 
 test('循环拦截发生在工具执行之前，并把拒绝交给既有回执流程', () => {
-  const guardCall = bridge.indexOf('await reviewRepeatedToolCall(');
-  const executeCall = bridge.indexOf('await prepared.definition.execute(guarded.input, context)');
-  assert.ok(guardCall > 0 && executeCall > 0, '工具桥必须同时包含拦截与执行');
+  const guardCall = executor.indexOf('await reviewRepeatedToolCall(');
+  const executeCall = executor.indexOf('await prepared.definition.execute(guarded.input, context)');
+  assert.ok(guardCall > 0 && executeCall > 0, '执行管道必须同时包含拦截与执行');
   assert.ok(guardCall < executeCall, '拦截必须先于工具执行');
-  assert.match(bridge, /repeatedToolCall: true/);
+  assert.match(executor, /repeatedToolCall: true/);
   // 拒绝走普通失败结果，才能复用 toolReceipts / lastActionError / tool_end 的记账。
-  assert.doesNotMatch(bridge, /guarded\.reject[\s\S]{0,200}throw /);
+  assert.doesNotMatch(executor, /guarded\.reject[\s\S]{0,200}throw /);
 });
 
 test('每种工具确认都声明自己的处理模式', () => {
   // decision 模式没有暂存步骤，走画布执行器会得到"确认步骤不存在"，必须显式区分。
-  assert.match(bridge, /mode: 'decision'/, '循环拦截必须声明 decision 模式');
-  assert.match(bridge, /mode: 'step'/, '画布暂存步骤确认必须声明 step 模式');
+  assert.match(executor, /mode: 'decision'/, '循环拦截必须声明 decision 模式');
+  assert.match(executor, /mode: 'step'/, '画布暂存步骤确认必须声明 step 模式');
   assert.match(coordinator, /String\(interaction\.payload\.mode \|\| 'step'\) === 'decision'/);
   const decisionIndex = coordinator.indexOf("=== 'decision'");
   const approveIndex = coordinator.indexOf('await executeAgentApproveStep(');
@@ -158,13 +158,13 @@ test('每种工具确认都声明自己的处理模式', () => {
 });
 
 test('用户改过的参数必须重新校验后执行，并回写说明', () => {
-  assert.match(bridge, /prepareAgentToolCall\(toolName, JSON\.stringify\(modified\), context\)/);
-  assert.match(bridge, /userOverrideNote/);
-  assert.match(bridge, /pendingArgs: toolInput/);
+  assert.match(executor, /prepareAgentToolCall\(toolName, JSON\.stringify\(modified\), context\)/);
+  assert.match(executor, /userOverrideNote/);
+  assert.match(executor, /pendingArgs: toolInput/);
   assert.match(coordinator, /modifiedArgs/);
   // 用户改了参数却不重新校验，就等于把注册表的 schema 校验绕过去了。
-  const reprepareIndex = bridge.indexOf('prepareAgentToolCall(toolName, JSON.stringify(modified), context)');
-  const executeIndex = bridge.indexOf('await prepared.definition.execute(guarded.input, context)');
+  const reprepareIndex = executor.indexOf('prepareAgentToolCall(toolName, JSON.stringify(modified), context)');
+  const executeIndex = executor.indexOf('await prepared.definition.execute(guarded.input, context)');
   assert.ok(reprepareIndex > 0 && reprepareIndex !== executeIndex);
 });
 

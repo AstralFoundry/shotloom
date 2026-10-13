@@ -3,19 +3,18 @@ import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { createOpencodeClient, type Event, type Part } from '@opencode-ai/sdk/client';
 import { getModelInfo, resolveModelRuntimeContract } from '@/domain/catalog/ModelCatalog';
 import { assertAgentProject, getAgentProjectIdentity, getAgentProjectKey } from '@/services/agentProjectIdentity';
-import { desktopApi } from '@/services/desktopApi';
 import { store } from '@/store/projectStore';
 import { getModelCredentialStatus, getProviderCredentials, settingsStore } from '@/store/settingsStore';
 import { availableAgentSkills } from '../tools/catalogTools';
-import { AGENT_DEFINITIONS, EDITOR_AGENT_ID, agentDefinition } from '../agents/definitions.ts';
+import { AGENT_DEFINITIONS, agentDefinition } from '../agents/definitions.ts';
 import { listAgentTools } from '../core/toolRegistry.ts';
 import { selectAgentTools } from '../core/visibility.ts';
-import { contractsForAgentType, formatContractsBlock } from '../content/contractLoader';
-import systemBasePrompt from '../content/prompts/system-base.md?raw';
+import { buildAgentSystemPrompt, buildRunContextBlock, buildSubagentPrompt } from '../content/instructions';
+import { resolveImageAttachments } from '../content/attachments';
 import { appendAgentRuntimeEvent, createAgentInteraction } from './runStore';
 import { waitForAgentApproval } from './runtimeInteractions';
 import { activateOpenCodeToolBridge, deactivateOpenCodeToolBridge } from './OpenCodeToolBridge';
-import { activeProductionPlan } from './productionPlanStore';
+import { activeProductionPlanSummary } from './productionPlanStore';
 import { diagnoseRuntimeFailure, RuntimeDiagnosticError } from './runtimeDiagnostics';
 import { resolveOpenCodeProvider } from './openCodeProvider.mjs';
 import type { AgentPromptPayload, AgentRunResult, AgentRuntimeEvent, AgentToolContext, AgentToolReceipt, JsonObject, JsonSchema } from '../core/types';
@@ -45,6 +44,9 @@ const activeRuns = new Map<string, { controller: AbortController; client: OpenCo
 let clientPromise: Promise<{ client: OpenCodeClient }> | null = null;
 let clientConfigurationKey = '';
 const PROVIDER_LKG_FILE = 'agent-provider-lkg.json';
+
+// system prompt 里唯一随引擎变化的句子：告诉模型谁在管理循环、历史和子 Agent。
+const RUNTIME_MODEL_CONTRACT = '模型循环、会话、上下文压缩与子 Agent 由 OpenCode Runtime 管理。';
 
 function stripProviderSecrets(configuration: OpenCodeConfiguration): OpenCodeConfiguration {
   const clone = JSON.parse(JSON.stringify(configuration)) as OpenCodeConfiguration;
@@ -178,7 +180,7 @@ function agentProfiles(context: AgentToolContext, skills: NativeRuntimeSkill[]) 
       if (definition.id !== primary.id) continue;
       profiles[definition.id] = {
         mode: 'primary', maxSteps: definition.maxSteps, description: definition.description,
-        prompt: systemPrompt(context),
+        prompt: buildAgentSystemPrompt(context, RUNTIME_MODEL_CONTRACT),
         permission: {
           edit: 'deny', bash: settingsStore.agentShellApproval === 'ask' ? 'ask' : 'allow',
           external_directory: 'deny', webfetch: 'deny',
@@ -198,7 +200,7 @@ function agentProfiles(context: AgentToolContext, skills: NativeRuntimeSkill[]) 
     );
     profiles[definition.id] = {
       mode: 'subagent', maxSteps: definition.maxSteps, description: definition.description,
-      prompt: `${definition.instructions || ''}\n\n${formatContractsBlock(contractsForAgentType(definition.id))}`,
+      prompt: buildSubagentPrompt(definition.id, definition.instructions || ''),
       tools: Object.fromEntries(registeredToolIds.filter((id) => !allowed.has(id)).map((id) => [id, false])),
       permission: { skill: { '*': 'deny' } },
     };
@@ -254,37 +256,6 @@ function configureModel(model: string, workspaceDirectory: string, context: Agen
   return { configuration, contextLimit, outputLimit };
 }
 
-function systemPrompt(context: AgentToolContext) {
-  const canRunNodes = settingsStore.agentCanRunNodes === true;
-  const contracts = formatContractsBlock(contractsForAgentType(context.agentId));
-  const base = systemBasePrompt
-    .replace('{{mode_contract}}', canRunNodes
-      ? '画布写入遵守本地策略；设置已允许 Agent 运行节点。复杂制作的范围和执行阶段由 Agent 根据用户完整语义与真实依赖管理。'
-      : '画布可按用户要求创建和配置节点；“允许 Agent 运行节点”已关闭，任何生成任务都会在统一权限边界被拒绝。')
-    .replace('{{runtime_model_contract}}', '模型循环、会话、上下文压缩与子 Agent 由 OpenCode Runtime 管理。');
-  return [
-    base,
-    context.agentId === EDITOR_AGENT_ID
-      ? '当前会话属于视频剪辑工作区。先加载 video-editing Skill，并用 video_project_get 读取真实轨道和片段 ID。时间线上缺少素材时用 video_project_media 发现可导入的画布产物与项目素材，再用 video_project_edit 的 add_media 引入。成片比例用 set_canvas 设定，片段要不要铺满用 set_transform 的 fit。依据该 Skill 和用户要求使用剪辑工具；需要判断画面内容时查看真实素材帧，修改后重新读取项目并核验。剪辑任务不要改动画布节点。仅承诺工具实际支持并成功执行的操作。'
-      : '',
-    'Use Shotloom native tools for every canvas, project, task, model-catalog, Skill, or media operation.',
-    'When a user asks what an existing image or video contains, inspect the real media instead of inferring from its filename, node title, prompt, or path. For a referenced canvas video, call canvas_media_frame with the real node ID or alias and one or more representative time points; the tool returns visual image attachments that you must actually examine before describing the content. Use bash/FFmpeg only as a fallback when no native media tool can perform the required inspection, and do not claim to have seen a frame unless an image attachment was returned successfully.',
-    'For a non-trivial production request, inspect runtime capabilities first. Decide production scope from the full user message. If the scope is genuinely unresolved, use request_clarification and formulate the question and options for the actual context. Do not ask again when the user has already stated the scope clearly. Never infer execution merely because the user pasted a complete script.',
-    'A plan_canvas request means creating every determinable, configured canvas node and its real input edges without starting generation. A note describing omitted media nodes is not a canvas plan. A plan_and_execute request runs one dependency stage at a time and verifies actual outputs before continuing.',
-    'Keep the Production Plan current. Bind every work item to its own real node/task runtime reference; never mark a stage done from an unrelated summary node.',
-    'The newest user message is the current request. An unfinished question or rejected action from an earlier turn is context, not permission to replace the newest request.',
-    'Never claim that an operation succeeded without a successful tool receipt.',
-    'Use production-planner, stage-executor, or result-reviewer only for their named bounded responsibility. The primary agent owns Skill selection, user interaction and stage lifecycle.',
-    'When delegating, include the selected Active Skill id and the relevant Skill constraints in the child task. Subagents must return their findings to the parent; only the parent addresses the user.',
-    canRunNodes
-      ? 'Node execution is enabled. Execute according to the user request and real dependencies without asking for duplicate stage approval.'
-      : 'Node execution is disabled. You may create and configure nodes, but must not claim to have run them.',
-    'If the run changes the project, canvas, or starts a task, call report_outcome with verifiable evidence before finishing. Every tool result returns toolCallId; copy those exact ids into evidence.toolCallIds and never use tool names as ids.',
-    'For a conversational or explanatory answer that makes no project change, answer directly without report_outcome.',
-    contracts,
-  ].filter(Boolean).join('\n\n');
-}
-
 function conversationRecord(conversationId: string): any {
   return (store.project.copilotConversations || []).find((item: any) => String(item.id) === conversationId);
 }
@@ -324,55 +295,12 @@ function textFromParts(parts: Part[] = []) {
     .join('');
 }
 
-function attachmentString(attachment: JsonObject, ...keys: string[]) {
-  for (const key of keys) {
-    const value = attachment[key];
-    if (typeof value === 'string' && value.trim()) return value.trim();
-  }
-  return '';
-}
-
-function attachmentMime(attachment: JsonObject) {
-  const declared = attachmentString(attachment, 'mimeType', 'mime');
-  if (declared) return declared;
-  const source = attachmentString(attachment, 'fileName', 'name', 'filePath', 'path', 'url').toLowerCase();
-  const extensionMimes: Record<string, string> = {
-    '.avif': 'image/avif', '.gif': 'image/gif', '.jpeg': 'image/jpeg', '.jpg': 'image/jpeg',
-    '.png': 'image/png', '.webp': 'image/webp',
-  };
-  return Object.entries(extensionMimes).find(([extension]) => source.split(/[?#]/)[0].endsWith(extension))?.[1] || '';
-}
-
-function arrayBufferDataUrl(buffer: ArrayBuffer, mime: string) {
-  const bytes = new Uint8Array(buffer);
-  let binary = '';
-  for (let offset = 0; offset < bytes.length; offset += 0x8000) {
-    binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
-  }
-  return `data:${mime};base64,${btoa(binary)}`;
-}
-
 async function promptParts(text: string, attachments: JsonObject[] = []) {
-  const parts: Array<
-    { type: 'text'; text: string }
-    | { type: 'file'; mime: string; filename: string; url: string }
-  > = [{ type: 'text', text }];
-  for (const attachment of attachments) {
-    const mime = attachmentMime(attachment);
-    if (!mime.startsWith('image/')) continue;
-    const filename = attachmentString(attachment, 'fileName', 'name') || 'attachment';
-    const remoteUrl = attachmentString(attachment, 'url');
-    if (/^(?:data:|https?:\/\/)/i.test(remoteUrl)) {
-      parts.push({ type: 'file', mime, filename, url: remoteUrl });
-      continue;
-    }
-    const filePath = attachmentString(attachment, 'filePath', 'path');
-    if (!filePath) continue;
-    const buffer = await desktopApi.file.readArrayBuffer(filePath);
-    if (!buffer?.byteLength) throw new Error(`无法读取附件：${filename}`);
-    parts.push({ type: 'file', mime, filename, url: arrayBufferDataUrl(buffer, mime) });
-  }
-  return parts;
+  const images = await resolveImageAttachments(attachments);
+  return [
+    { type: 'text' as const, text },
+    ...images.map((image) => ({ type: 'file' as const, mime: image.mime, filename: image.filename, url: image.url })),
+  ];
 }
 
 export async function runOpenCodeAgent(
@@ -451,7 +379,7 @@ export async function runOpenCodeAgent(
     sessionId = await resolveSession(client, conversationId, directory, message.slice(0, 80) || 'Shotloom Agent');
     activeRuns.set(requestId, { controller, client, sessionId });
     emit({
-      type: 'run_started', mode: 'standard', title: message.slice(0, 80) || 'Agent 任务',
+      type: 'run_started', runtime: 'opencode', mode: 'standard', title: message.slice(0, 80) || 'Agent 任务',
       conversationId, model, openCodeSessionId: sessionId, createdAt: new Date().toISOString(),
     });
     emit({ type: 'run_status', status: 'running', createdAt: new Date().toISOString() });
@@ -519,7 +447,7 @@ export async function runOpenCodeAgent(
               permission: String(permission.type || 'shell'), pattern: permission.pattern || '*' },
           },
           continuation: { toolCallId: String(permission.callID || permissionId), toolName: 'bash', model, conversationId,
-            sessionMessages: [], attachments: payload.attachments || [], nodeMentions: [], successfulToolCallIds: [], toolReceipts: [],
+            attachments: payload.attachments || [], nodeMentions: [], successfulToolCallIds: [], toolReceipts: [],
             hasAppliedActions: false, lastActionError: '', modelRounds: 0 },
           expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1_000).toISOString(),
         });
@@ -626,21 +554,11 @@ export async function runOpenCodeAgent(
     throw new RuntimeDiagnosticError(diagnosis);
   }
   try {
-    const existingPlan = activeProductionPlan(conversationId);
-    const planSummary = existingPlan ? {
-      id: existingPlan.id,
-      revision: existingPlan.revision,
-      title: existingPlan.title,
-      goal: existingPlan.goal,
-      executionMode: existingPlan.executionMode,
-      stages: existingPlan.stages.map((stage) => ({ id: stage.id, title: stage.title, status: stage.status })),
-    } : undefined;
-    const contextSuffix = [
-      payload.nodeMentions?.length ? `Mentioned nodes: ${JSON.stringify(payload.nodeMentions)}` : '',
-      payload.attachments?.length ? `Attachments: ${JSON.stringify(payload.attachments)}` : '',
-      planSummary ? `Existing Production Plan candidate; continue it only if the newest request is genuinely related: ${JSON.stringify(planSummary)}` : '',
-    ].filter(Boolean).join('\n');
-    const text = [message, contextSuffix].filter(Boolean).join('\n\n');
+    const text = [message, buildRunContextBlock({
+      nodeMentions: payload.nodeMentions,
+      attachments: payload.attachments,
+      planSummary: activeProductionPlanSummary(conversationId),
+    })].filter(Boolean).join('\n\n');
     const parts = await promptParts(text, payload.attachments || []);
     const promptSession = async () => {
       const startedAt = Date.now();
@@ -649,7 +567,7 @@ export async function runOpenCodeAgent(
         body: {
           agent: agent.id,
           model: { providerID: 'shotloom', modelID: model },
-          system: systemPrompt(toolContext),
+          system: buildAgentSystemPrompt(toolContext, RUNTIME_MODEL_CONTRACT),
           parts,
         },
         signal: controller.signal,
@@ -710,7 +628,7 @@ export async function runOpenCodeAgent(
     emit({ type: 'run_status', status: runStatus, outcome, createdAt: new Date().toISOString() });
     return {
       requestId, reply, model, toolCallCount: (state.get('successfulToolCallIds') as Set<string>).size,
-      sessionMessages: [], openCodeSessionId: sessionId, outcome,
+      openCodeSessionId: sessionId, outcome,
     };
   } catch (cause) {
     const aborted = controller.signal.aborted || (cause instanceof Error && cause.name === 'AbortError');

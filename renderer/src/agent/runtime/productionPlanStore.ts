@@ -179,6 +179,23 @@ export function getProductionPlan(id: string): ProductionPlan | undefined {
   return found ? clone(found) : undefined;
 }
 
+/**
+ * 送给模型的计划候选摘要。只保留模型判断"这次请求是否续上做业"需要的字段，
+ * 完整阶段内容仍要用 plan_get_stage_* 读取真实数据。
+ */
+export function activeProductionPlanSummary(conversationId: string): JsonObject | undefined {
+  const plan = activeProductionPlan(conversationId);
+  if (!plan) return undefined;
+  return {
+    id: plan.id,
+    revision: plan.revision,
+    title: plan.title,
+    goal: plan.goal,
+    executionMode: plan.executionMode,
+    stages: plan.stages.map((stage) => ({ id: stage.id, title: stage.title, status: stage.status })),
+  };
+}
+
 export function writeProductionPlan(input: {
   conversationId: string;
   title: string;

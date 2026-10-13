@@ -53,8 +53,19 @@ Shotloom 的 Agent 以模型为决策主体。不要在应用代码中用关键�
 - `effects` 是独立于白名单的第二层副作用上限，用来表达“这个 Agent 原则上不能造成某类改动”。新增副作用类别时必须同时更新白名单与上限，不能只加一处。
 - Skill 归属只在 Agent 定义里声明。运行时请求组装、执行时的 Skill 事件回写和输入框选择器必须消费同一份解析结果；不要在别处恢复 `'general' | 'video-editing'` 这类作用域字符串。
 - 子 Agent 只能由主 Agent 的 `dispatch` 显式授予；契约文件的 `appliesTo` 只能引用已声明的 Agent id 或 `'*'`。
-- 当前一个 run 内所有 Agent 共用主 Agent 的执行上下文，`agentId` 代表本轮权限上界；按 session 区分每个 Agent 的可见集合属于自研 Agent loop 的工作，不要在小改动里声称已经隔离。
+- 自研 Agent loop（`renderer/src/agent/loop/`）每一步都按当前 `agentId` 重新解析可见集：子 Agent 只看得见自己定义里的工具与 Skill，父 Agent 的画布写权限不会随派发继承。
+- OpenCode 双轨路径仍共用主 Agent 的执行上下文，`agentId` 只代表本轮权限上界；该限制在删除 sidecar 时一并消失，不要在 sidecar 侧声称已隔离。
 - 修改可见性必须覆盖五类失败：未列入白名单的新工具、超出副作用上限的写工具、`isAvailable` 关闭、Skill 未加载、未知 Agent id。
+
+## 模型引擎与执行管道
+
+- `renderer/src/agent/index.ts` 的 `selectAgentEngine(model)` 是唯一引擎入口：模型目录里 `agent` 协议为 `/chat/completions` 的模型走自研 loop，其余协议显式退回 OpenCode；不得把请求降级成“语义相近但不同”的协议。
+- 双轨回归期间允许用 `localStorage.SHOTLOOM_AGENT_ENGINE`（`loop` | `opencode`）强制指定引擎；删除 sidecar 时必须把这个开关连同退回分支一起删掉，不留兼容层。
+- 两个引擎共用同一条执行管道 `runtime/executeToolCall.ts`：权限确认、重复调用拦截、用户改参重校验、回执记账和 `tool_start`/`tool_end` 事件只有一份实现，引擎层不得自行调用 `definition.execute`。
+- 提示词装配（`content/instructions.ts`）、附件转图片（`content/attachments.ts`）和终态结果推导也只有一份实现，双轨对比才有意义。
+- `skill` 与 `dispatch_subagent` 是 loop 自带的循环机制，不进工具注册表；其可见性完全来自 Agent 定义的 `skills`/`dispatch`，为空就没有该工具。
+- loop 与 `context.emit` 必须是同一个事件出口（见 `loop/runLoopAgent.ts`）；新引擎或测试不得把两者当成两条独立通道，否则权限交互事件在界面上消失。
+- 模型凭证仍由 Rust 侧注入：渲染进程只传 `providerId` 与 endpoint 元信息，`__` 前缀字段在发请求前剥离，不得为自研 loop 新增放宽 `agent_runtime_request` 的命令。
 
 ## 技能与提示词模板
 

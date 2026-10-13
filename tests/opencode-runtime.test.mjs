@@ -83,21 +83,27 @@ test('所有桌面构建入口都在 Cargo 或 Tauri 构建前准备平台 sidec
 test('OpenCode Runtime 使用持久 Session、子 Agent、Contract 与本地域工具桥', () => {
   const runtime = read('renderer/src/agent/runtime/OpenCodeRuntime.ts');
   const bridge = read('renderer/src/agent/runtime/OpenCodeToolBridge.ts');
+  const executor = read('renderer/src/agent/runtime/executeToolCall.ts');
   const provider = read('renderer/src/agent/runtime/openCodeProvider.mjs');
   assert.match(runtime, /openCodeSessionId/);
   assert.match(runtime, /session\.created/);
   assert.match(runtime, /parentID/);
   assert.match(runtime, /agentProfiles/);
-  assert.match(runtime, /contractsForAgentType/);
+  // system prompt 与子 Agent 说明只有一个来源，两个引擎都从这里取，避免指令漂移。
+  assert.match(runtime, /buildAgentSystemPrompt\(context, RUNTIME_MODEL_CONTRACT\)/);
+  assert.match(runtime, /buildSubagentPrompt\(definition\.id/);
+  assert.match(read('renderer/src/agent/content/instructions.ts'), /contractsForAgentType/);
   assert.match(runtime, /activateOpenCodeToolBridge/);
   assert.match(runtime, /agent_runtime_bind_tool_session/);
   assert.doesNotMatch(runtime, /client\.mcp|ensureMcpConnected/);
   assert.doesNotMatch(runtime, /routeSkill/);
   assert.doesNotMatch(runtime, /agent: 'intent-router'/);
-  assert.match(runtime, /report_outcome/);
   assert.match(provider, /@ai-sdk\/openai/);
   assert.match(runtime, /resolveOpenCodeProvider/);
-  assert.doesNotMatch(runtime, /Runtime requirement: call report_outcome/);
+  assert.match(read('renderer/src/agent/content/instructions.ts'), /call report_outcome with verifiable evidence/);
+  // 提示词只做指导，不能写成"必须调用才算完成"的运行时要求；权限边界由执行管道强制。
+  assert.doesNotMatch(read('renderer/src/agent/content/instructions.ts'), /Runtime requirement: call report_outcome/);
+  assert.match(read('renderer/src/agent/content/instructions.ts'), /当前会话属于视频剪辑工作区/);
   assert.match(runtime, /hasAppliedActions/);
   assert.doesNotMatch(runtime, /没有提交可核验的终态结果|Agent 没有返回文字内容/);
   assert.match(runtime, /Agent 没有提交完整终态说明/);
@@ -105,8 +111,11 @@ test('OpenCode Runtime 使用持久 Session、子 Agent、Contract 与本地域�
   assert.match(runtime, /agent_runtime_start[\s\S]*\{ configuration \}/);
   assert.match(runtime, /agent_runtime_request/);
   assert.match(runtime, /agent_runtime_subscribe/);
-  assert.match(bridge, /return exposeToolCallId\(result, payload\.callId\)/);
-  assert.match(bridge, /toolCallId/);
+  // 桥接层只做传输；权限、循环拦截与回执都在引擎无关的执行管道里。
+  assert.doesNotMatch(bridge, /resolveAgentToolPolicy|buildToolReceipt|reviewRepeatedToolCall/);
+  assert.match(bridge, /argumentsJson: JSON\.stringify\(payload\.arguments \|\| \{\}\)/);
+  assert.match(executor, /return exposeToolCallId\(result, call\.callId\)/);
+  assert.match(executor, /toolCallId/);
   assert.doesNotMatch(runtime, /@tauri-apps\/plugin-http/);
   assert.doesNotMatch(runtime, /client\.event\.subscribe/);
 });

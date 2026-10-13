@@ -30,11 +30,15 @@ test('基础 Agent 提示词包含角色、事实边界、交互、附件、工�
   assert.doesNotMatch(body, /不得调用 `start_generation`/);
 });
 
-test('运行时由 OpenCode 装配唯一 Agent、Skill、Contract 和子 Agent', () => {
+// 提示词组装在 content/instructions.ts，运行时只负责把它交给具体引擎；两处都不能各自拼一份。
+test('主 Agent 提示词由共享模块装配，运行时不再自带副本', () => {
   const runtime = readFileSync(new URL('../renderer/src/agent/runtime/OpenCodeRuntime.ts', import.meta.url), 'utf8');
+  const instructions = readFileSync(new URL('../renderer/src/agent/content/instructions.ts', import.meta.url), 'utf8');
   assert.match(runtime, /createOpencodeClient/);
-  assert.match(runtime, /system-base\.md\?raw/);
-  assert.match(runtime, /contractsForAgentType/);
+  assert.match(runtime, /buildAgentSystemPrompt/);
   assert.match(runtime, /subagent_started/);
-  assert.doesNotMatch(runtime, /collaborative|autonomous/);
+  assert.doesNotMatch(runtime, /system-base\.md\?raw/);
+  assert.match(instructions, /system-base\.md\?raw/);
+  assert.match(instructions, /contractsForAgentType/);
+  assert.doesNotMatch(`${runtime}${instructions}`, /collaborative|autonomous/);
 });

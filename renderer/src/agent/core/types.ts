@@ -104,7 +104,6 @@ export interface PreparedAgentToolCall {
 export interface AgentPromptPayload extends JsonObject {
   message?: string;
   model?: string;
-  sessionMessages?: JsonObject[];
   attachments?: JsonObject[];
   nodeMentions?: JsonObject[];
   projectKey?: string;
@@ -117,7 +116,6 @@ export interface AgentRunResult extends JsonObject {
   reply: string;
   model: string;
   toolCallCount: number;
-  sessionMessages: JsonObject[];
   contextUsage?: JsonObject;
   budget?: JsonObject;
   outcome?: JsonObject;

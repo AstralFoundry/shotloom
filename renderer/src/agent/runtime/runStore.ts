@@ -12,7 +12,6 @@ export interface AgentRunContinuation extends JsonObject {
   toolName: string;
   model: string;
   conversationId: string;
-  sessionMessages: JsonObject[];
   attachments: JsonObject[];
   nodeMentions: JsonObject[];
   successfulToolCallIds: string[];
@@ -85,8 +84,9 @@ function projectAgentRun(
   const now = String(event.createdAt || new Date().toISOString());
   const run: AgentRun = current
     ? { ...current }
+    // runtime 标签由引擎在 run_started 自己声明，不给默认值：漏标会让诊断找错引擎。
     : {
-        id: String(event.requestId || ''), runtime: 'opencode', status: 'running',
+        id: String(event.requestId || ''), runtime: String(event.runtime || ''), status: 'running',
         projectKey, createdAt: now, steps: [], pendingReasons: [],
       };
   const steps = Array.isArray(run.steps) ? run.steps : [];
@@ -94,7 +94,7 @@ function projectAgentRun(
   switch (event.type) {
     case 'run_started':
       Object.assign(run, {
-        runtime: 'opencode', status: 'running',
+        runtime: String(event.runtime || run.runtime || ''), status: 'running',
         title: String(event.title || 'Agent 任务'), conversationId: String(event.conversationId || ''),
         model: String(event.model || ''), modelRounds: Number(event.modelRounds || 0),
         openCodeSessionId: String(event.openCodeSessionId || ''),
