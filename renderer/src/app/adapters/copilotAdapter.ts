@@ -25,7 +25,8 @@ import {
   settingsStore,
 } from "../../store/settingsStore";
 import { uid } from "../../utils/format";
-import type { CopilotController, CopilotMessage } from "../copilot/CopilotPanel";
+import type { AgentController, AgentMessage } from "../agent-chat/contracts";
+import type { AgentReference } from "../agent-chat/mediaReference";
 import { CopilotRuntimePresenter } from "../copilot/CopilotRuntimePresenter";
 import { showToast } from "../store/overlayStore";
 import { focusCanvasNodes } from "./canvasAdapter";
@@ -43,6 +44,7 @@ type CopilotSendPayload = {
   model: string;
   attachments: unknown[];
   nodeMentions: unknown[];
+  references?: AgentReference[];
   conversationId?: string;
 };
 type AgentResume = {
@@ -203,7 +205,7 @@ export function copilotData(scope: 'canvas' | 'editor' = 'canvas', editorNodeId 
   const textModels = availableTextModels();
   const configured = settingsStore.agentPreferredTextModel;
   return {
-    messages: conversation.messages as CopilotMessage[],
+    messages: conversation.messages as AgentMessage[],
     conversations: scoped.map((item: Loose) => {
       const pending = interactionList.filter(
         (interaction) =>
@@ -251,14 +253,7 @@ async function send(
       role: "user",
       title: "你的消息",
       content: messageText,
-      meta: [
-        ...(payload.nodeMentions as Loose[]).map(
-          (node) => `@${node.alias || node.id} ${node.title || "未命名节点"}`,
-        ),
-        ...(payload.attachments as Loose[]).map(
-          (file) => `附件 ${file.name || file.fileName || "未命名文件"}`,
-        ),
-      ],
+      references: [...(payload.references || [])],
     }, conversation);
   }
   const typingId = pushTyping(conversation);
@@ -424,14 +419,7 @@ function enqueueDelivery(
         content: messageText,
         clientMessageId,
         deliveryStage: "sent",
-        meta: [
-          ...(payload.nodeMentions as Loose[]).map(
-            (node) => `@${node.alias || node.id} ${node.title || "未命名节点"}`,
-          ),
-          ...(payload.attachments as Loose[]).map(
-            (file) => `附件 ${file.name || file.fileName || "未命名文件"}`,
-          ),
-        ],
+        references: [...(payload.references || [])],
       }, conversation)
     : undefined;
   const delivery: Delivery = {
@@ -487,7 +475,7 @@ async function drainDeliveries() {
   }
 }
 
-export const copilotController: CopilotController = {
+export const copilotController: AgentController = {
   openVideoEditorConversation: (nodeId: string) => {
     if (busy) return;
     const existing = (store.project.copilotConversations || []).find(

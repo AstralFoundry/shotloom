@@ -1,0 +1,329 @@
+.trace {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 2px;
+}
+
+/* 折叠时是一行 26px 的安静披露条：三级灰、图标 + 标题 + 计数，
+   悬停时图标淡出换成箭头。展开才列出每一步。 */
+.head {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto auto 16px;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 26px;
+  padding: 0 4px 0 0;
+  border: 0;
+  border-radius: var(--slk-radius-sm);
+  color: var(--slk-label-tertiary);
+  background: transparent;
+  text-align: left;
+  font-size: calc(var(--slk-font-secondary));
+  line-height: 22px;
+  transition: color var(--slk-dur-fast) var(--slk-ease);
+}
+
+@media (hover: hover) {
+  .head:hover {
+    color: var(--slk-label-secondary);
+  }
+}
+
+.headIcon,
+.headChevron {
+  width: 14px;
+  height: 14px;
+}
+
+.headLabel {
+  display: flex;
+  min-width: 0;
+  gap: 6px;
+}
+
+.headTitle {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 折叠状态下也要能一眼看到这一步的产出，否则整条 trace 只是"已运行"。 */
+.headDetail {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--slk-label-caption);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.headCount {
+  color: var(--slk-label-caption);
+  font-family: var(--slk-font-code);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.headChevron {
+  transition: transform var(--slk-dur) var(--slk-ease);
+}
+
+.trace[data-open="false"] .headChevron {
+  transform: rotate(-90deg);
+}
+
+.stop {
+  position: relative;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1.5px currentColor;
+  color: var(--slk-label-tertiary);
+  cursor: pointer;
+}
+
+.stop::after {
+  content: "";
+  position: absolute;
+  inset: 4.5px;
+  border-radius: 1.5px;
+  background: currentColor;
+}
+
+@media (hover: hover) {
+  .stop:hover {
+    color: var(--slk-state-error);
+  }
+}
+
+.trace[data-running] .stop {
+  animation: breathe 1.6s var(--slk-ease) infinite;
+}
+
+@keyframes breathe {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin: 0;
+  padding: 2px 0 4px 22px;
+  list-style: none;
+}
+
+.step {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stepLine {
+  display: grid;
+  grid-template-columns: 14px auto minmax(0, 1fr);
+  align-items: baseline;
+  gap: 6px;
+  min-height: 22px;
+  color: var(--slk-label-tertiary);
+  font-size: calc(var(--slk-font-secondary) - 1px);
+  line-height: 20px;
+}
+
+.stepIcon {
+  width: 13px;
+  height: 13px;
+  /* 图标按行高居中，否则在 baseline 网格里会跟着文字下沉。 */
+  align-self: center;
+}
+
+.stepState {
+  color: var(--slk-label-secondary);
+  font-weight: 550;
+  white-space: nowrap;
+}
+
+.stepDetail {
+  display: flex;
+  min-width: 0;
+  gap: 6px;
+}
+
+.stepTitle {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--slk-label-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stepSummary {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stepSummary::before {
+  content: "·";
+  margin-right: 6px;
+  opacity: 0.5;
+}
+
+/* 缩进 = stepLine 的 14px 图标列 + 6px 间距，让产出与状态文字左对齐。 */
+.stepOutput {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-left: 20px;
+  color: var(--slk-label-tertiary);
+  font-size: calc(var(--slk-font-secondary) - 1px);
+  line-height: 20px;
+}
+
+.previewRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+/* 帧图是工具的真实依据，必须原样显示，不能只留一句"已完成"。 */
+.preview {
+  width: 84px;
+  height: 50px;
+  border: 0.5px solid var(--slk-border-l1);
+  border-radius: var(--slk-radius-sm);
+  background: var(--slk-bg-sunken);
+  object-fit: cover;
+}
+
+.step[data-status="running"] .stepState,
+.step[data-status="pending"] .stepState {
+  color: var(--slk-label-accent);
+}
+
+.step[data-status="error"] .stepState {
+  color: var(--slk-state-error);
+}
+
+.step[data-status="success"] .stepIcon {
+  color: var(--slk-state-success);
+}
+
+/* ---------- 待确认裁决 ---------- */
+.decision {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 4px 0 6px;
+  padding: 10px;
+  border-radius: var(--slk-radius-md);
+  background: var(--slk-bg-sunken);
+  box-shadow: var(--slk-elevation-panel);
+  --slk-stroke-color: var(--slk-border-l1);
+}
+
+.args {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.argsToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  color: var(--slk-label-secondary);
+  background: transparent;
+  font: 550 12px/18px var(--slk-font-family);
+}
+
+.argsToggle > svg {
+  width: 12px;
+  height: 12px;
+}
+
+.argsEditor {
+  width: 100%;
+  padding: 8px 9px;
+  border: 0.5px solid var(--slk-border-l2);
+  border-radius: var(--slk-radius-sm);
+  color: var(--slk-label-primary);
+  background: var(--slk-bg-base);
+  font-family: var(--slk-font-code);
+  font-size: calc(var(--slk-code-font-size) + var(--slk-code-delta));
+  line-height: 18px;
+  resize: vertical;
+  outline: none;
+}
+
+.argsEditor:focus-visible {
+  border-color: var(--slk-label-accent);
+}
+
+.argsError {
+  color: var(--slk-state-error);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.argsReset {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  color: var(--slk-label-accent);
+  background: transparent;
+  font: 500 11px/16px var(--slk-font-family);
+}
+
+.decisionActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.decisionActions button {
+  height: 26px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 999px;
+  color: var(--slk-label-secondary);
+  background: var(--slk-hover-wash-strong);
+  font: 500 12px/1 var(--slk-font-family);
+}
+
+@media (hover: hover) {
+  .decisionActions button:hover {
+    color: var(--slk-label-primary);
+  }
+}
+
+.decisionActions .primary {
+  color: var(--slk-label-inverted);
+  background: var(--slk-button-accent);
+}
+
+.decisionActions .primary:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .trace[data-running] .stop {
+    animation: none;
+  }
+}

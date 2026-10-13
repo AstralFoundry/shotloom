@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { CopilotRuntimePresenter } from '../renderer/src/app/copilot/CopilotRuntimePresenter.ts';
-import { artifactsForMessage } from '../renderer/src/app/copilot/copilotArtifacts.ts';
+import { artifactsForMessage } from '../renderer/src/app/agent-chat/artifactHelpers.ts';
 
 test('Copilot presenter owns runtime-to-message projection', () => {
   const presenter = new CopilotRuntimePresenter();

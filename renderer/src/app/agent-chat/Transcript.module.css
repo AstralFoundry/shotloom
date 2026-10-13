@@ -1,0 +1,450 @@
+.list {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 22px;
+  min-height: 0;
+  padding: 20px 20px 24px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--slk-scrollbar) transparent;
+}
+
+.list::-webkit-scrollbar {
+  width: 9px;
+}
+.list::-webkit-scrollbar-track {
+  background: transparent;
+}
+.list::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: var(--slk-scrollbar);
+  background-clip: content-box;
+}
+.list::-webkit-scrollbar-thumb:hover {
+  background-color: var(--slk-scrollbar-hover);
+}
+
+/* 长会话里离屏消息跳过渲染；首屏高度由 intrinsic size 预估，
+   避免滚动条在消息进入视口时突然跳位。 */
+.userRow,
+.assistantRow {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 88px;
+}
+
+/* ---------- 空态 ---------- */
+/* 用 auto 外边距而不是 justify-content: center 居中：
+   面板高度不足时内容退回顶部对齐，不会两头被裁掉。 */
+.empty {
+  display: flex;
+  flex-shrink: 0;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin: auto 0;
+  padding: 16px 28px;
+  text-align: center;
+}
+
+.emptyMark {
+  width: 44px;
+  height: 44px;
+  margin-bottom: 10px;
+  border-radius: 13px;
+  color: var(--slk-label-secondary);
+}
+
+.empty strong {
+  font-size: calc(15px + var(--slk-font-delta));
+  font-weight: 600;
+  line-height: 24px;
+  color: var(--slk-label-primary);
+}
+
+.empty p {
+  max-width: 320px;
+  margin: 0;
+  color: var(--slk-label-tertiary);
+  font-size: calc(13px + var(--slk-font-delta));
+  line-height: 20px;
+}
+
+/* ---------- 用户消息 ---------- */
+.userRow {
+  display: flex;
+  align-self: flex-end;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  max-width: min(100%, 460px);
+}
+
+.bubble {
+  max-width: 100%;
+  padding: 8px 14px;
+  border-radius: var(--slk-radius-xl);
+  color: var(--slk-label-primary);
+  background: var(--slk-bg-bubble);
+  font-size: calc(var(--slk-content-font-size) - 1px);
+  line-height: calc(22px + var(--slk-font-delta));
+  overflow-wrap: anywhere;
+}
+
+/* 引用素材是用户消息的一部分，必须跟着气泡一起显示，
+   否则用户看不出 Agent 这一轮到底读到了什么。 */
+.references {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+  max-width: 100%;
+}
+
+.userBody {
+  position: relative;
+}
+
+/* 裁剪状态必须先测量才知道，所以 max-height 一直在；
+   只有真的溢出到 max-height 时才加渐隐遮罩，否则短消息会被淡掉半行。 */
+.userBody .markdown {
+  max-height: 168px;
+  overflow: hidden;
+}
+
+.userBody[data-expanded] .markdown {
+  max-height: none;
+}
+
+.userBody[data-clamped] .markdown {
+  mask-image: linear-gradient(to bottom, rgb(0 0 0) calc(100% - 28px), transparent);
+}
+
+.expand {
+  margin-top: 2px;
+  padding: 0;
+  border: 0;
+  color: var(--slk-label-accent);
+  background: transparent;
+  font: 500 12px/18px var(--slk-font-family);
+}
+
+.deliveryError {
+  padding-right: 14px;
+  color: var(--slk-state-error);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+/* ---------- 助手消息 ---------- */
+.assistantRow {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.loading {
+  padding: 2px 0;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  color: var(--slk-label-caption);
+  font-size: calc(var(--slk-font-secondary));
+  line-height: 18px;
+}
+
+.meta > span + span::before {
+  content: "·";
+  margin-right: 8px;
+  color: var(--slk-label-caption);
+}
+
+/* ---------- Markdown ---------- */
+.markdown {
+  color: var(--slk-label-primary);
+  font-size: var(--slk-content-font-size);
+  line-height: calc(24px + var(--slk-font-delta));
+  overflow-wrap: anywhere;
+}
+
+.markdown > :first-child {
+  margin-top: 0;
+}
+.markdown > :last-child {
+  margin-bottom: 0;
+}
+.markdown p {
+  margin: 0 0 12px;
+}
+.markdown h1,
+.markdown h2,
+.markdown h3,
+.markdown h4 {
+  margin: 20px 0 10px;
+  font-weight: 650;
+}
+.markdown h1 {
+  font-size: calc(19px + var(--slk-font-delta));
+  line-height: calc(28px + var(--slk-font-delta));
+}
+.markdown h2 {
+  font-size: calc(17px + var(--slk-font-delta));
+  line-height: calc(26px + var(--slk-font-delta));
+}
+.markdown h3,
+.markdown h4 {
+  font-size: calc(15px + var(--slk-font-delta));
+  line-height: calc(24px + var(--slk-font-delta));
+}
+.markdown ul,
+.markdown ol {
+  margin: 0 0 12px;
+  padding-left: 22px;
+}
+.markdown li {
+  margin: 2px 0;
+}
+.markdown li::marker {
+  color: var(--slk-label-secondary);
+}
+.markdown a {
+  color: var(--slk-label-accent);
+  font-weight: 500;
+  text-decoration: none;
+}
+@media (hover: hover) {
+  .markdown a:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    text-decoration-thickness: 1px;
+  }
+}
+.markdown strong {
+  font-weight: 650;
+}
+.markdown code {
+  padding: 1px 5px;
+  border: 0.5px solid var(--slk-border-l1);
+  border-radius: var(--slk-radius-sm);
+  background: var(--slk-bg-inline-code);
+  font-family: var(--slk-font-code);
+  font-size: 0.875em;
+}
+.markdown pre {
+  margin: 0 0 12px;
+  padding: 12px 14px;
+  border-radius: var(--slk-radius-lg);
+  overflow-x: auto;
+  background: var(--slk-bg-code);
+  box-shadow: inset 0 0 0 0.5px var(--slk-border-l1);
+}
+.markdown pre code {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-size: calc(var(--slk-code-font-size) + var(--slk-code-delta));
+  line-height: calc(19px + var(--slk-code-delta));
+  white-space: pre;
+}
+.markdown blockquote {
+  margin: 0 0 12px;
+  padding-left: 14px;
+  border-left: 2px solid var(--slk-border-l3);
+  color: var(--slk-label-secondary);
+}
+
+/* ---------- 失败与诊断 ---------- */
+.failure {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 8px;
+  padding: 9px 11px;
+  border-radius: var(--slk-radius-md);
+  background: color-mix(in srgb, var(--slk-state-error) 7%, transparent);
+}
+
+.failureDot {
+  width: 6px;
+  height: 6px;
+  margin-top: 9px;
+  border-radius: 50%;
+  background: var(--slk-state-error);
+}
+
+.failureCopy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.failureCopy > strong {
+  color: var(--slk-state-error);
+  font-size: calc(var(--slk-font-secondary));
+  font-weight: 600;
+  line-height: 20px;
+}
+
+.failureCopy details {
+  color: var(--slk-label-secondary);
+  font-size: calc(var(--slk-font-secondary) - 1px);
+  line-height: 19px;
+}
+
+.failureCopy summary {
+  cursor: pointer;
+  color: var(--slk-label-tertiary);
+  font-size: 11px;
+  list-style: none;
+}
+
+.failureCopy summary::-webkit-details-marker {
+  display: none;
+}
+
+.failureCopy code {
+  display: block;
+  margin-top: 4px;
+  padding: 6px 8px;
+  border-radius: var(--slk-radius-sm);
+  background: var(--slk-bg-code);
+  font-family: var(--slk-font-code);
+  font-size: calc(var(--slk-code-font-size) + var(--slk-code-delta));
+  line-height: 17px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.failureRepeat {
+  color: var(--slk-label-caption);
+  font-size: 11px;
+  line-height: 20px;
+  white-space: nowrap;
+}
+
+.retry {
+  padding: 3px 10px;
+  border: 0;
+  border-radius: 999px;
+  color: var(--slk-label-inverted);
+  background: var(--slk-state-error);
+  font: 500 12px/18px var(--slk-font-family);
+  white-space: nowrap;
+}
+
+.diagnosis {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 9px 11px;
+  border-radius: var(--slk-radius-md);
+  background: var(--slk-bg-sunken);
+  font-size: calc(var(--slk-font-secondary));
+  line-height: 20px;
+}
+
+.diagnosis strong {
+  font-weight: 600;
+}
+
+.diagnosis ul {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--slk-label-secondary);
+}
+
+.diagnosis small {
+  color: var(--slk-label-caption);
+  font-family: var(--slk-font-code);
+  font-size: 11px;
+}
+
+/* ---------- 运行中 ---------- */
+.running {
+  padding: 2px 0 0;
+  border-top: 0.5px solid var(--slk-border-l1);
+  padding-top: 10px;
+  font-size: calc(var(--slk-font-secondary));
+}
+
+.busy {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+/* 只有文字渐亮不够确定，配一组依次点亮的点，用户才读得出这一轮真的在跑。 */
+.dots {
+  display: inline-flex;
+  gap: 3px;
+}
+
+.dots > i {
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--slk-label-tertiary);
+  animation: dot-pulse 1.1s var(--slk-ease) infinite;
+}
+
+.dots > i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.dots > i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes dot-pulse {
+  0%,
+  60%,
+  100% {
+    opacity: 0.3;
+    transform: translateY(0);
+  }
+
+  30% {
+    opacity: 1;
+    background: var(--slk-label-accent);
+    transform: translateY(-2px);
+  }
+}
+
+.shimmer {
+  background-image: linear-gradient(
+    90deg,
+    var(--slk-label-tertiary) 0%,
+    var(--slk-label-primary) 45%,
+    var(--slk-label-tertiary) 90%
+  );
+  background-size: 220% 100%;
+  background-position: 0 0;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: sweep 1.5s linear infinite;
+}
+
+@keyframes sweep {
+  to {
+    background-position: -220% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shimmer {
+    animation: none;
+  }
+
+  .dots > i {
+    opacity: 0.55;
+    animation: none;
+  }
+}

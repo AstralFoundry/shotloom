@@ -1,0 +1,86 @@
+.thumb {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  border-radius: var(--slk-radius-md);
+  color: var(--slk-label-tertiary);
+  background: var(--slk-bg-sunken);
+}
+
+.thumb:not(:disabled) {
+  cursor: zoom-in;
+}
+
+.thumb[data-playing] {
+  cursor: default;
+}
+
+.thumb > img,
+.thumb > video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform var(--slk-dur) var(--slk-ease);
+}
+
+/* 只在静止预览上放大；播放时不能把画面从原生控件底下推开。 */
+@media (hover: hover) {
+  .thumb:not([data-playing]):hover > img,
+  .thumb:not([data-playing]):hover > video {
+    transform: scale(1.07);
+  }
+}
+
+.thumb > svg {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 20px;
+  height: 20px;
+}
+
+.play {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  color: var(--slk-label-inverted);
+  background: transparent;
+}
+
+.play > svg {
+  width: 26px;
+  height: 26px;
+  padding: 6px;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 45%);
+  transition: transform var(--slk-dur) var(--slk-ease);
+}
+
+@media (hover: hover) {
+  .play:hover > svg {
+    transform: scale(1.08);
+    background: rgb(0 0 0 / 60%);
+  }
+}
+
+.badge {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  padding: 0 4px;
+  border-radius: 3px;
+  color: var(--slk-label-inverted);
+  background: rgb(0 0 0 / 62%);
+  font-size: calc(10px + var(--slk-font-delta));
+  font-variant-numeric: tabular-nums;
+  line-height: 15px;
+}

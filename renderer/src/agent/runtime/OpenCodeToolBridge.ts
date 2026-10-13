@@ -249,7 +249,8 @@ async function executeRequest(payload: { requestId: string; callId: string; name
         createdAt: new Date().toISOString(),
       });
     }
-    const receipt = buildToolReceipt(payload.callId, prepared.definition.id, effect, result);
+    const receipt = buildToolReceipt(payload.callId, prepared.definition.id, effect, result,
+      prepared.definition.summarizeResult?.(result));
     const receipts = (context.state.get('toolReceipts') as Map<string, AgentToolReceipt>) || new Map<string, AgentToolReceipt>();
     receipts.set(payload.callId, receipt);
     context.state.set('toolReceipts', receipts);

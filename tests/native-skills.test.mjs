@@ -37,14 +37,12 @@ test('原生 Skill ID 契约拒绝旧式冒号、下划线和路径字符', () =
   }
 });
 
-test('Copilot 选择 Skill 后直接在输入框写入可见的原生 slash 指令', () => {
-  const panel = readFileSync(new URL('../renderer/src/app/copilot/CopilotPanel.tsx', import.meta.url), 'utf8');
-  assert.match(panel, /<Dropdown/);
-  assert.match(panel, /enabledSkills\.map/);
-  assert.match(panel, /setMessage\(current \? `\/\$\{skill\.id\} \$\{current\}` : `\/\$\{skill\.id\} `\)/);
-  assert.match(panel, /copilot-skill-trigger/);
-  assert.match(panel, /selectedKeys: selectedSkill \? \[selectedSkill\.id\] : \[\]/);
-  assert.match(panel, /overlayClassName="copilot-skill-dropdown"/);
-  assert.doesNotMatch(panel, /className="copilot-selected-skill"/);
-  assert.doesNotMatch(panel, /skill=\{selectedSkillId/);
+test('助手选择 Skill 后直接在输入框写入可见的原生 slash 指令', () => {
+  const composer = readFileSync(new URL('../renderer/src/app/agent-chat/Composer.tsx', import.meta.url), 'utf8');
+  // Skill 前缀是用户可见、可编辑的文本，不是隐藏的附件字段。
+  assert.match(composer, /setText\(stripped \? `\/\$\{item\.id\} \$\{stripped\}` : `\/\$\{item\.id\} `\)/);
+  assert.match(composer, /const prefix = skillId \? `\/\$\{skillId\}` : ""/);
+  assert.match(composer, /const \[skillId, setSkillId\] = useState<string \| null>\(null\)/);
+  assert.match(composer, /skill\.enabled !== false/);
+  assert.doesNotMatch(composer, /selectedSkillId|<Dropdown/);
 });

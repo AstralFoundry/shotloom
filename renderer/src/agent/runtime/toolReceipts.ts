@@ -1,4 +1,4 @@
-import type { AgentToolEffect, AgentToolReceipt, JsonObject } from '../core/types';
+import type { AgentToolDisplay, AgentToolEffect, AgentToolReceipt, JsonObject } from '../core/types';
 
 const persistentEffects = new Set<AgentToolEffect>(['project_write', 'canvas_write', 'media_generation']);
 
@@ -12,6 +12,7 @@ export function buildToolReceipt(
   toolName: string,
   effect: AgentToolEffect,
   result: unknown,
+  display?: AgentToolDisplay,
 ): AgentToolReceipt {
   const value = result && typeof result === 'object' ? result as JsonObject : {};
   const skippedCount = Number(value.skippedCount || 0);
@@ -47,6 +48,7 @@ export function buildToolReceipt(
     edgeIds,
     taskIds,
     error: success ? '' : String(value.error || '工具执行失败'),
+    ...(display ? { display } : {}),
   };
 }
 

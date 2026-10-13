@@ -22,12 +22,12 @@ import { workflowNodeRenderers } from "../canvas/nodeRegistry";
 import { IconSymbol } from "../components/IconSymbol";
 import { MaterialGrid, type MaterialItem } from "../components/MaterialGrid";
 import {
+  type AgentController,
+  type AgentMessage,
+  type AgentPanelHandle,
   type ConversationItem,
-  type CopilotController,
-  type CopilotMessage,
-  CopilotPanel,
-  type CopilotPanelHandle,
-} from "../copilot/CopilotPanel";
+} from "../agent-chat/contracts";
+import { AgentChatPanel } from "../agent-chat/AgentChatPanel";
 import type { VideoEditorAsset, VideoEditorController } from "../editor/VideoEditorWorkspace";
 import type { AgentLayoutMode } from "../../services/agentLayoutService";
 import { assetCategories } from "../constants/navigation";
@@ -41,7 +41,7 @@ const VideoEditorWorkspace = lazy(() =>
 export interface CreationViewController {
   canvas: WorkflowCanvasController;
   nodes: WorkflowNodeActions;
-  copilot: CopilotController & {
+  copilot: AgentController & {
     subscribe: (listener: () => void) => () => void;
     getRevision: () => number;
     read: (scope?: "canvas" | "editor", editorNodeId?: string) => CreationCopilotData;
@@ -91,7 +91,7 @@ export interface CreationViewData {
 }
 
 type CreationCopilotData = {
-  messages: CopilotMessage[];
+  messages: AgentMessage[];
   conversations: ConversationItem[];
   activeConversationId: string;
   busy: boolean;
@@ -108,12 +108,12 @@ function LiveCopilotPanel({
   nodes: WorkflowNodeData[];
   artifactNodes: WorkflowNodeData[];
   controller: CreationViewController["copilot"];
-  copilotRef: React.Ref<CopilotPanelHandle>;
+  copilotRef: React.Ref<AgentPanelHandle>;
 }) {
   useSyncExternalStore(controller.subscribe, controller.getRevision, controller.getRevision);
   const data = controller.read();
   return (
-    <CopilotPanel
+    <AgentChatPanel
       ref={copilotRef}
       messages={data.messages}
       nodes={nodes}
@@ -136,7 +136,7 @@ export function CreationView({
   controller: CreationViewController;
 }) {
   const [copilotVisible, setCopilotVisible] = useState(true);
-  const copilotRef = useRef<CopilotPanelHandle>(null);
+  const copilotRef = useRef<AgentPanelHandle>(null);
   const [copilotWidth, setCopilotWidth] = useState(() => {
     const saved = Number(window.localStorage.getItem("shotloom:copilot-width-v4"));
     const preferred = Math.round(window.innerWidth * 0.4);
@@ -305,7 +305,7 @@ export function CreationView({
   return (
     <div className="forge-lite">
       <main
-        className={`forge-lite-main${copilotVisible ? "" : " copilot-collapsed"}`}
+        className={`forge-lite-main${copilotVisible ? "" : " agent-collapsed"}`}
         style={
           copilotVisible ? { gridTemplateColumns: `minmax(0, 1fr) ${copilotWidth}px` } : undefined
         }
@@ -357,8 +357,8 @@ export function CreationView({
             copilotRef={copilotRef}
           />
         ) : (
-          <button className="forge-copilot-reopen" onClick={() => setCopilotVisible(true)}>
-            打开 Copilot
+          <button className="forge-agent-reopen" onClick={() => setCopilotVisible(true)}>
+            打开助手
           </button>
         )}
       {picker && (

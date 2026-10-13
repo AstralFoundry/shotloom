@@ -1,11 +1,11 @@
 import type { WorkflowNodeData } from "../canvas/WorkflowCanvas";
 
-export interface CopilotArtifactRefs {
+export interface AgentArtifactRefs {
   nodeIds: string[];
   taskIds: string[];
 }
 
-export interface CopilotArtifact {
+export interface AgentArtifact {
   nodeId: string;
   focusNodeId: string;
   title: string;
@@ -13,15 +13,14 @@ export interface CopilotArtifact {
   path: string;
   fallbackUrl: string;
   excerpt: string;
-  status: string;
 }
 
-export const COPILOT_ARTIFACT_DRAG_TYPE = "application/x-shotloom-artifact";
+export const ARTIFACT_DRAG_TYPE = "application/x-shotloom-artifact";
 
 export function artifactsForMessage(
-  refs: CopilotArtifactRefs | undefined,
+  refs: AgentArtifactRefs | undefined,
   nodes: WorkflowNodeData[],
-): CopilotArtifact[] {
+): AgentArtifact[] {
   if (!refs) return [];
   const nodeIds = new Set(refs.nodeIds || []);
   const taskIds = new Set(refs.taskIds || []);
@@ -65,7 +64,7 @@ export function artifactsForMessage(
   ];
   return selected.map((node) => {
     const resourceType = String(node.resourceType || node.mimeType || node.type || "").toLowerCase();
-    let kind: CopilotArtifact["kind"] = "node";
+    let kind: AgentArtifact["kind"] = "node";
     if (resourceType.includes("image")) kind = "image";
     else if (resourceType.includes("video")) kind = "video";
     else if (resourceType.includes("audio")) kind = "audio";
@@ -81,7 +80,6 @@ export function artifactsForMessage(
       path: local,
       fallbackUrl: remote,
       excerpt: kind === "text" ? String(node.content || node.textContent || "") : "",
-      status: String(node.status || ""),
     };
   });
 }

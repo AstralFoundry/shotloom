@@ -74,6 +74,14 @@ const paths = {
     '<circle cx="8" cy="7" r="3"/><path d="M15 4h5v6h-5z"/><path d="m7 14-4 7h8z"/><path d="m18 14 4 7h-8z"/>',
   shuffle:
     '<path d="m18 14 4 4-4 4"/><path d="m18 2 4 4-4 4"/><path d="M2 18h2c6 0 8-12 14-12h4"/><path d="M2 6h2c2 0 3 1 4 3"/><path d="M14 15c1 2 2 3 4 3h4"/>',
+  "arrow-up": '<path d="M12 19V5"/><path d="m5 12 7-7 7 7"/>',
+  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/>',
+  "chevron-right": '<path d="m9 18 6-6-6-6"/>',
+  "chevron-up": '<path d="m18 15-6-6-6 6"/>',
+  stop: '<rect x="6" y="6" width="12" height="12" rx="3"/>',
+  sun:
+    '<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.9 4.9 1.4 1.4"/><path d="m17.7 17.7 1.4 1.4"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m4.9 19.1 1.4-1.4"/><path d="m17.7 6.3 1.4-1.4"/>',
+  moon: '<path d="M21 13.2A9 9 0 1 1 10.8 3a7 7 0 0 0 10.2 10.2Z"/>',
   send: '<path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/>',
   shield:
     '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>',

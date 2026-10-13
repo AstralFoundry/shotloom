@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 const source = readFileSync(new URL('../renderer/src/app/canvas/GenerationNode.tsx', import.meta.url), 'utf8');
-const styles = readFileSync(new URL('../renderer/styles/canvas-copilot.css', import.meta.url), 'utf8');
+const styles = readFileSync(new URL('../renderer/styles/canvas.css', import.meta.url), 'utf8');
 const adapter = readFileSync(new URL('../renderer/src/app/adapters/canvasAdapter.ts', import.meta.url), 'utf8');
 const editorStyles = [
   'VideoEditorWorkspace.foundation.css',

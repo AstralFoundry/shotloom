@@ -1,0 +1,118 @@
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  min-height: 24px;
+  padding: 0 2px;
+  border: 0;
+  color: var(--slk-label-tertiary);
+  background: transparent;
+  font: 550 calc(var(--slk-font-secondary) - 1px)/20px var(--slk-font-family);
+  text-align: left;
+}
+
+@media (hover: hover) {
+  .head:hover {
+    color: var(--slk-label-secondary);
+  }
+}
+
+.headLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.headLabel > svg {
+  width: 13px;
+  height: 13px;
+}
+
+.headLabel em {
+  padding: 0 5px;
+  border-radius: var(--slk-radius-xs);
+  color: var(--slk-label-secondary);
+  background: var(--slk-bg-sunken);
+  font-family: var(--slk-font-code);
+  font-size: 10px;
+  font-style: normal;
+  line-height: 16px;
+}
+
+.headChevron {
+  width: 13px;
+  height: 13px;
+  transition: transform var(--slk-dur) var(--slk-ease);
+}
+
+.headChevron[data-collapsed] {
+  transform: rotate(-90deg);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  gap: 8px;
+}
+
+/* 产物卡只呈现素材本身：无边框、无底色，靠圆角和缩略图说话。 */
+.card {
+  position: relative;
+  border-radius: var(--slk-radius-md);
+}
+
+.excerpt {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  padding: 8px 10px;
+  color: var(--slk-label-secondary);
+  font-size: 11px;
+  line-height: 15px;
+  text-align: left;
+}
+
+.locate {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--slk-radius-sm);
+  color: var(--slk-label-secondary);
+  background: var(--slk-menu-fill);
+  backdrop-filter: var(--slk-menu-blur);
+  opacity: 0;
+  transition: opacity var(--slk-dur-fast) var(--slk-ease);
+}
+
+.locate > svg {
+  width: 13px;
+  height: 13px;
+}
+
+@media (hover: hover) {
+  .card:hover .locate,
+  .locate:focus-visible {
+    opacity: 1;
+  }
+}
+
+@media (hover: none) {
+  .locate {
+    opacity: 1;
+  }
+}

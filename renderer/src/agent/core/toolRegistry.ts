@@ -122,6 +122,29 @@ export function hasAgentTool(toolId: string): boolean {
   return tools.has(toolId);
 }
 
+/**
+ * 展示层用的工具标题。运行时事件只携带 toolId，
+ * 界面不能再各自维护一份中文名字表，否则新增工具就会漏掉。
+ */
+export function agentToolTitle(toolId: string): string {
+  return tools.get(toolId)?.title || tools.get(toolBaseName(toolId))?.title || '';
+}
+
+const effectIcon: Record<string, string> = {
+  read: 'search',
+  agent_state_write: 'list',
+  project_write: 'archive',
+  canvas_write: 'workflow',
+  media_generation: 'spark',
+};
+
+/** 展示层图标：工具自己声明优先，其次按 effect 取类别图标。 */
+export function agentToolIcon(toolId: string): string {
+  const definition = tools.get(toolId) || tools.get(toolBaseName(toolId));
+  if (!definition) return 'wrench';
+  return definition.icon || effectIcon[definition.effect] || 'wrench';
+}
+
 export function registerSkillTool<TInput extends JsonObject>(
   skillId: string,
   definition: AgentToolDefinition<TInput>,

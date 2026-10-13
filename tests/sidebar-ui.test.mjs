@@ -10,10 +10,20 @@ const projectLibrary = readFileSync(new URL('../renderer/src/app/adapters/projec
 const taskStore = readFileSync(new URL('../renderer/src/store/taskStore.js', import.meta.url), 'utf8');
 const providerDialog = readFileSync(new URL('../renderer/src/app/views/ProviderConnectionDialog.tsx', import.meta.url), 'utf8')
   + readFileSync(new URL('../renderer/src/app/views/providerConnectionModel.ts', import.meta.url), 'utf8');
-const copilotPanel = readFileSync(new URL('../renderer/src/app/copilot/CopilotPanel.tsx', import.meta.url), 'utf8');
+const agentChat = '../renderer/src/app/agent-chat/';
+const transcript = readFileSync(new URL(`${agentChat}Transcript.tsx`, import.meta.url), 'utf8');
+const composer = readFileSync(new URL(`${agentChat}Composer.tsx`, import.meta.url), 'utf8');
+const transcriptStyles = readFileSync(new URL(`${agentChat}Transcript.module.css`, import.meta.url), 'utf8');
+const composerStyles = readFileSync(new URL(`${agentChat}Composer.module.css`, import.meta.url), 'utf8');
+const copilotAdapter = readFileSync(new URL('../renderer/src/app/adapters/copilotAdapter.ts', import.meta.url), 'utf8');
+const referenceCard = readFileSync(new URL(`${agentChat}ReferenceCard.tsx`, import.meta.url), 'utf8');
+const referenceModel = readFileSync(new URL(`${agentChat}mediaReference.ts`, import.meta.url), 'utf8');
+const referenceStyles = readFileSync(new URL(`${agentChat}ReferenceCard.module.css`, import.meta.url), 'utf8');
+const mediaThumb = readFileSync(new URL(`${agentChat}MediaThumb.tsx`, import.meta.url), 'utf8');
+const mediaThumbStyles = readFileSync(new URL(`${agentChat}MediaThumb.module.css`, import.meta.url), 'utf8');
 const styles = readFileSync(new URL('../renderer/styles.css', import.meta.url), 'utf8');
 const settingsStyles = readFileSync(new URL('../renderer/styles/settings.css', import.meta.url), 'utf8');
-const reactMigrationStyles = ['canvas-copilot.css', 'project-materials.css', 'media-overlays.css', 'creation-view.css']
+const reactMigrationStyles = ['canvas.css', 'project-materials.css', 'media-overlays.css', 'creation-view.css']
   .map((name) => readFileSync(new URL(`../renderer/styles/${name}`, import.meta.url), 'utf8'))
   .join('\n');
 
@@ -135,54 +145,94 @@ test('创作画布保留窄窗口操作边界且不恢复厚标题栏', () => {
   assert.doesNotMatch(styles, /\.creation-shell \.content/);
 });
 
-test('Copilot 折叠按钮为画布右上角工具组预留空间', () => {
-  assert.match(styles, /--copilot-reopen-width:\s*104px/);
-  assert.match(styles, /\.forge-copilot-reopen \{[^}]*width:\s*var\(--copilot-reopen-width\)[^}]*height:\s*40px/);
-  assert.match(reactMigrationStyles, /\.forge-lite-main\.copilot-collapsed \.canvas-corner-controls \{[^}]*right:\s*calc\(22px \+ var\(--copilot-reopen-width\)\)/);
+test('助手折叠按钮为画布右上角工具组预留空间', () => {
+  assert.match(styles, /--agent-reopen-width:\s*104px/);
+  assert.match(styles, /\.forge-agent-reopen \{[^}]*width:\s*var\(--agent-reopen-width\)[^}]*height:\s*40px/);
+  assert.match(reactMigrationStyles, /\.forge-lite-main\.agent-collapsed \.canvas-corner-controls \{[^}]*right:\s*calc\(22px \+ var\(--agent-reopen-width\)\)/);
+  assert.doesNotMatch(`${styles}${reactMigrationStyles}${settingsStyles}`, /copilot/i);
 });
 
-test('Copilot 空状态使用创作欢迎区并把模型与 Skill 收进大输入器底栏', () => {
-  assert.doesNotMatch(copilotPanel, /Hi，准备开始创作了吗|copilot-welcome-examples/);
-  assert.match(copilotPanel, /描述你想完成的内容/);
-  assert.match(copilotPanel, /用 @ 引用画布节点/);
-  assert.match(copilotPanel, /<InteractiveLogo src="\.\/shotloom-logo\.png" className="copilot-welcome-logo" \/>/);
-  assert.doesNotMatch(copilotPanel, /copilotQuickStarts|SHOTLOOM AGENT|copilot-command-list/);
-  assert.doesNotMatch(copilotPanel, /copilot-welcome-tabs|copilot-welcome-grid/);
-  assert.match(copilotPanel, /aria-label="选择模型"/);
-  assert.match(copilotPanel, /ProviderBrandIcon icon=\{model\.iconId\}/);
-  assert.match(copilotPanel, /copilot-model-option/);
-  assert.match(copilotPanel, /IconSymbol name="puzzle"/);
-  assert.doesNotMatch(copilotPanel, /copilot-tool-glyph|is-attachment|is-skill/);
-  assert.match(copilotPanel, /: "技能"/);
-  assert.match(reactMigrationStyles, /\.forge-copilot \.copilot-input \{[^}]*border:\s*1px solid rgba\(0, 0, 0, \.1\)[^}]*border-radius:\s*17px/);
-  assert.match(reactMigrationStyles, /\.forge-copilot \.ant-sender \{[^}]*min-height:\s*132px[^}]*border:\s*0/);
-  assert.match(reactMigrationStyles, /\.forge-copilot \.ant-sender \{[^}]*border-radius:\s*16px/);
-  assert.match(reactMigrationStyles, /\.forge-copilot \.copilot-input\.has-api-warning \.ant-sender \{[^}]*border-radius:\s*0 0 16px 16px/);
-  assert.match(reactMigrationStyles, /\.forge-copilot \.ant-sender-actions-list \{[^}]*right:\s*9px[^}]*bottom:\s*9px/);
-  assert.match(reactMigrationStyles, /\.forge-copilot \.ant-sender textarea \{[^}]*scrollbar-width:\s*none/);
-  assert.match(reactMigrationStyles, /\.forge-copilot \.ant-sender textarea::\-webkit-scrollbar \{[^}]*display:\s*none/);
-  assert.match(reactMigrationStyles, /\.forge-copilot \.copilot-welcome \{[^}]*flex:\s*1 1 auto[^}]*align-items:\s*center[^}]*justify-content:\s*center/);
+test('助手空状态使用创作欢迎区并把模型与 Skill 收进大输入器底栏', () => {
+  assert.match(transcript, /<InteractiveLogo src="\.\/shotloom-logo\.png" className=\{styles\.emptyMark\} \/>/);
+  assert.match(transcript, /描述你想完成的内容/);
+  assert.match(transcript, /用 @ 引用画布节点/);
+  // 窄面板里欢迎区必须退回顶部对齐并可滚动，不能用居中把两头裁掉。
+  assert.match(transcriptStyles, /\.empty \{[^}]*flex-shrink:\s*0[^}]*margin:\s*auto 0/);
+  assert.doesNotMatch(transcriptStyles, /\.empty \{[^}]*justify-content:\s*center/);
+  assert.doesNotMatch(transcript, /Hi，准备开始创作了吗|copilotQuickStarts|SHOTLOOM AGENT|copilot-welcome-tabs/);
+
+  assert.match(composer, /hint=\{activeModel\?\.label \|\| "选择模型"\}/);
+  assert.match(composer, /<ProviderBrandIcon icon=\{item\.iconId\} \/>/);
+  assert.match(composer, /icon="puzzle"/);
+  assert.match(composer, /: "技能"/);
+  assert.match(composer, /aria-haspopup="menu"/);
+  assert.match(composer, /role="menuitemradio" aria-checked=\{selected\}/);
+  assert.doesNotMatch(composer, /@ant-design|from "antd"|ant-sender/);
+
+  // 选择器弹层在输入卡内部向上弹出，不再依赖 antd Dropdown 的视口定位。
+  assert.match(composerStyles, /\.menu \{[^}]*position:\s*absolute;[^}]*bottom:\s*calc\(100% \+ 8px\)/);
+  assert.match(composerStyles, /\.toolbar \{[^}]*display:\s*flex/);
 });
 
-test('Copilot 将运行工具收成可展开的过程摘要并折叠长用户输入', () => {
-  assert.match(copilotPanel, /className=\{`copilot-tool-trace\$\{typing \? " is-running" : ""\}`\}/);
-  assert.match(copilotPanel, /const \[expanded, setExpanded\] = useState\(false\)/);
-  assert.match(copilotPanel, /copilot-tool-title/);
-  assert.match(copilotPanel, /copilot-trace-steps/);
-  assert.match(copilotPanel, /activeTool\.summary \|\| activeTool\.name/);
-  assert.match(copilotPanel, /<CollapsibleUserMessage html=\{messageMarkdown\(item\)\} \/>/);
-  assert.match(reactMigrationStyles, /\.copilot-tool-trace\.is-running > summary \.copilot-tool-disclosure-icon \{[^}]*animation:\s*copilot-tool-pulse/);
-  assert.match(reactMigrationStyles, /\.copilot-trace-step-line > span \{[^}]*text-overflow:\s*ellipsis[^}]*white-space:\s*nowrap/);
-  assert.match(reactMigrationStyles, /\.copilot-user-content \.copilot-message-markdown \{[^}]*max-height:\s*6\.2em[^}]*overflow:\s*hidden/);
-  assert.match(reactMigrationStyles, /\.forge-copilot \.copilot-message-list \{[^}]*scrollbar-width:\s*none/);
-  assert.match(reactMigrationStyles, /\.forge-copilot \.copilot-message-list::\-webkit-scrollbar \{[^}]*display:\s*none/);
+test('长用户输入默认折叠，消息列表用细滚动条而不是完全隐藏', () => {
+  assert.match(transcript, /<UserBody html=\{messageMarkdown\(message\)\} \/>/);
+  assert.match(transcript, /data-expanded=\{expanded \|\| undefined\}/);
+  assert.match(transcript, /\{expanded \? "收起" : "展开"\}/);
+  assert.match(transcriptStyles, /\.userBody \.markdown \{[^}]*max-height:\s*168px[^}]*overflow:\s*hidden/);
+  assert.match(transcriptStyles, /\.userBody\[data-expanded\] \.markdown \{\s*max-height: none;/);
+  // 渐隐只属于真正被裁掉的消息；无条件加遮罩会把短消息最后半行淡掉。
+  assert.match(transcriptStyles, /\.userBody\[data-clamped\] \.markdown \{[^}]*mask-image/);
+  assert.doesNotMatch(transcriptStyles, /\.userBody \.markdown \{[^}]*mask-image/);
+  assert.match(transcript, /data-clamped=\{overflowing && !expanded \? "true" : undefined\}/);
+  assert.match(transcriptStyles, /\.list \{[^}]*scrollbar-width:\s*thin[^}]*scrollbar-color:\s*var\(--slk-scrollbar\) transparent/);
+  assert.match(transcriptStyles, /\.list::-webkit-scrollbar-thumb \{[^}]*background-clip:\s*content-box/);
 });
 
-test('Copilot 制作计划默认保持紧凑并由用户点击展开', () => {
-  assert.match(copilotPanel, /function ProductionPlanCard[\s\S]*?const \[expanded, setExpanded\] = useState\(false\)/);
-  assert.doesNotMatch(copilotPanel, /if \(active\) setExpanded\(true\)/);
-  assert.match(copilotPanel, /setExpanded\(false\);\s*\}, \[plan\?\.id\]\)/);
-  assert.match(copilotPanel, /activeKey=\{expanded \? \["plan"\] : \[\]\}/);
+// 引用素材按真实媒体呈现；输入区和用户气泡共用同一张卡，发送前后看到的必须是同一个素材。
+test('附件引用显示为媒体卡，输入框焦点不出现双重描边', () => {
+  assert.match(transcript, /className=\{styles\.references\}/);
+  assert.match(transcript, /message\.references\.map/);
+  assert.match(transcript, /<ReferenceCard key=\{`\$\{reference\.label\}-\$\{index\}`\} reference=\{reference\} \/>/);
+  assert.match(composer, /<ReferenceCard/);
+  // 旧的文本胶囊不能留着，否则同一份引用会有两种呈现。
+  assert.doesNotMatch(composer, /function MentionChip|styles\.fileChip|styles\.mentionAt/);
+  assert.doesNotMatch(copilotAdapter, /未命名节点|未命名文件/);
+  assert.match(copilotAdapter, /references: \[\.\.\.\(payload\.references \|\| \[\]\)\]/);
+  // 节点引用取用户此刻在画布上看到的那份产物，不能盲目取最后一个输出。
+  assert.match(referenceModel, /String\(record\.selectedOutputNodeId \|\| ""\)\.replace/);
+  // 素材名只在 title 悬浮提示和无障碍标签里，卡片本身不放文字。
+  assert.doesNotMatch(referenceCard, /styles\.label|styles\.name|styles\.at/);
+  assert.match(referenceCard, /className=\{styles\.card\} title=\{reference\.label\}/);
+  assert.match(referenceCard, /<MediaThumb[\s\S]*?kind=\{reference\.kind\}/);
+  // 卡片就是素材本身，不再套边框和底色。
+  assert.doesNotMatch(referenceStyles, /\.card \{[^}]*(box-shadow|--slk-stroke-color|background:|border:)/);
+  // 删除入口只在悬停或聚焦时出现，触屏保持常驻。
+  assert.match(referenceStyles, /\.remove \{[^}]*opacity:\s*0/);
+  assert.match(referenceStyles, /\.card:hover \.remove,[\s\S]*?\.card:focus-within \.remove \{\s*opacity:\s*1/);
+  assert.match(referenceStyles, /@media \(hover: none\) \{[^}]*\.remove \{\s*opacity:\s*1/);
+  // 视频流式失败要退回整段缓冲，与画布视频节点用同一套回退。
+  assert.match(mediaThumb, /preview\.buffered \? setFailed\(true\) : preview\.retryBuffered\(\)/);
+  // preload="metadata" 只读到时长不会解码画面，必须显式 seek 一帧才有海报。
+  assert.match(mediaThumb, /element\.currentTime === 0 && element\.duration > 0/);
+  assert.match(mediaThumb, /element\.currentTime = Math\.min\(1 \/ 30, Math\.max\(0, element\.duration - 0\.04\)\)/);
+  assert.match(mediaThumb, /muted\n\s+playsInline\n\s+preload="metadata"\n\s+controls=\{playing\}/);
+  assert.match(mediaThumbStyles, /\.badge \{[^}]*font-variant-numeric:\s*tabular-nums/);
+  assert.match(composerStyles, /\.input \{[^}]*outline: none/);
+});
+
+// 图片要能悬停放大，视频要能在原地播出去，不能只是"看起来像"。
+test('素材缩略图悬停放大，视频点击后就地播放', () => {
+  assert.match(mediaThumbStyles, /\.thumb > img,\s*\.thumb > video \{[\s\S]*?transition:\s*transform/);
+  assert.match(mediaThumbStyles, /\.thumb:not\(\[data-playing\]\):hover > img,\s*\.thumb:not\(\[data-playing\]\):hover > video \{\s*transform: scale\(1\.07\)/);
+  assert.match(mediaThumb, /const \[playing, setPlaying\] = useState\(false\)/);
+  assert.match(mediaThumb, /onPlay=\{\(\) => setPlaying\(true\)\}/);
+  assert.match(mediaThumb, /aria-label=\{`播放：\$\{label\}`\}/);
+  assert.match(mediaThumb, /setPlaying\(true\);\n\s+void videoRef\.current\?\.play\(\)/);
+  // 播放时让出原生控件，海报角标不能压在进度条上。
+  assert.match(mediaThumb, /\{!!badge && !playing && <span className=\{styles\.badge\}\>/);
+  // 静止预览用 zoom-in，播放中不能继续承诺放大。
+  assert.match(mediaThumbStyles, /\.thumb:not\(:disabled\) \{\s*cursor: zoom-in/);
+  assert.match(mediaThumbStyles, /\.thumb\[data-playing\] \{\s*cursor: default/);
 });
 
 test('策略编辑弹窗由正文滚动且测试台不会被 Flex 压缩裁切', () => {

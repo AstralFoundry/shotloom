@@ -21,7 +21,7 @@ const canvasGeometry = readFileSync(
   'utf8',
 );
 const styles = readFileSync(
-  new URL('../renderer/styles/canvas-copilot.css', import.meta.url),
+  new URL('../renderer/styles/canvas.css', import.meta.url),
   'utf8',
 );
 const task = readFileSync(new URL('../renderer/src/store/taskStore.js', import.meta.url), 'utf8');
@@ -116,16 +116,21 @@ const copilotAdapter = readFileSync(
   new URL('../renderer/src/app/adapters/copilotAdapter.ts', import.meta.url),
   'utf8',
 );
-const copilotPanel = readFileSync(
-  new URL('../renderer/src/app/copilot/CopilotPanel.tsx', import.meta.url),
+const agentChat = '../renderer/src/app/agent-chat/';
+const transcript = readFileSync(
+  new URL(`${agentChat}Transcript.tsx`, import.meta.url),
   'utf8',
 );
-const copilotMessagePresentation = readFileSync(
-  new URL('../renderer/src/app/copilot/copilotMessagePresentation.ts', import.meta.url),
+const transcriptStyles = readFileSync(
+  new URL(`${agentChat}Transcript.module.css`, import.meta.url),
+  'utf8',
+);
+const messagePresentation = readFileSync(
+  new URL(`${agentChat}messagePresentation.ts`, import.meta.url),
   'utf8',
 );
 const migrationStyles = readFileSync(
-  new URL('../renderer/styles/canvas-copilot.css', import.meta.url),
+  new URL('../renderer/styles/canvas.css', import.meta.url),
   'utf8',
 );
 test('React Flow 保持节点挂载并在拖动结束后合并持久化', () => {
@@ -330,12 +335,13 @@ test('工作台只计算当前路由数据且素材选择器按需加载', () =>
   );
   assert.match(copilotAdapter, /toRaw\(active\(\)\)[\s\S]*?conversation\.messages/);
   assert.match(copilotAdapter, /source === textModelConfigSource/);
-  assert.doesNotMatch(migrationStyles, /copilot-busy-shimmer/);
-  assert.match(migrationStyles, /copilot-busy-pulse/);
-  assert.doesNotMatch(copilotPanel, /}, 80\);/);
-  assert.match(copilotMessagePresentation, /markdownByMessage = new WeakMap/);
-  assert.match(copilotPanel, /__html: messageMarkdown\(item\)/);
-  assert.match(migrationStyles, /\.forge-copilot \.copilot-message \{ content-visibility: auto/);
+  assert.match(messagePresentation, /markdownByMessage = new WeakMap/);
+  assert.match(transcript, /__html: messageMarkdown\(message\)/);
+  assert.match(transcriptStyles, /\.userRow,[\s\S]*?\.assistantRow \{[\s\S]*?content-visibility:\s*auto;[\s\S]*?contain-intrinsic-size: auto 88px/);
+  assert.doesNotMatch(transcript, /setInterval|}, 80\);/);
+  // 运行指示只在单行文本上做 background-clip 动画，不整块重绘消息列表。
+  assert.match(transcriptStyles, /\.shimmer \{[^}]*background-clip:\s*text;[^}]*color:\s*transparent/);
+  assert.match(transcriptStyles, /@media \(prefers-reduced-motion: reduce\) \{\s*\.shimmer \{\s*animation: none;/);
 });
 test('画布视图用索引关联素材且每个节点只保留两个 Loose 端口', () => {
   assert.match(adapter, /const materialsByNode = new Map/);

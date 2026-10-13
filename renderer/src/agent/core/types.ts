@@ -21,6 +21,16 @@ export interface AgentToolReceipt extends JsonObject {
   edgeIds: string[];
   taskIds: string[];
   error: string;
+  display?: AgentToolDisplay;
+}
+
+/**
+ * 工具自己描述给用户的产出。界面不再猜结果结构，
+ * 否则新增工具就会在对话里显示成一条没有内容的"已运行"。
+ */
+export interface AgentToolDisplay extends JsonObject {
+  summary: string;
+  previews?: Array<{ path: string; label: string }>;
 }
 
 export interface JsonSchema {
@@ -66,6 +76,8 @@ export interface AgentToolContext {
 export interface AgentToolDefinition<TInput extends JsonObject = JsonObject, TResult = unknown> {
   id: string;
   title: string;
+  /** 界面图标名（IconSymbol）。缺省时按 effect 取类别图标。 */
+  icon?: string;
   description: string;
   inputSchema: JsonSchema;
   resolveInputSchema?: (context: AgentToolContext) => JsonSchema;
@@ -73,6 +85,7 @@ export interface AgentToolDefinition<TInput extends JsonObject = JsonObject, TRe
   resolveEffect?: (input: TInput, context: AgentToolContext) => AgentToolEffect;
   isAvailable?: (context: AgentToolContext) => boolean;
   summarizeInput?: (input: TInput) => string;
+  summarizeResult?: (result: TResult) => AgentToolDisplay | undefined;
   execute: (input: TInput, context: AgentToolContext) => Promise<TResult> | TResult;
 }
 

@@ -20,14 +20,14 @@
 .ov-agent-panel {
   grid-column: 4;
   grid-row: 1;
+  display: grid;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  border-left: 1px solid var(--ov-line);
   background: var(--ov-panel);
+  /* 剪辑视图里助手是网格的一列，不需要压住任何浮层。 */
+  --agent-chat-z: auto;
 }
-.ov-agent-panel .forge-copilot { height: 100%; z-index: auto; }
-.ov-agent-panel .copilot-main { border-left: 0; }
 /* The reference editor is a continuous work surface: library, player and
    timeline meet at shared dividers, while the Agent owns the right column. */
 .ov-editor { grid-template-rows: 36px minmax(0, 1fr); background: #fff; }
@@ -211,9 +211,7 @@
 .ov-shortcuts-popover { position: absolute; z-index: 8; top: 40px; left: 160px; width: 260px; padding: 14px; display: grid; gap: 7px; border: 1px solid var(--ov-line); border-radius: 10px; background: #fff; box-shadow: 0 12px 32px #0002; color: #555; font-size: 11px; }
 .ov-shortcuts-popover strong { color: #222; font-size: 12px; }
 .ov-shortcuts-popover button { justify-self: end; padding: 4px 8px; }
-.ov-agent-panel { grid-column: 3; grid-row: 1 / 4; border-left: 1px solid var(--ov-line) !important; }
-.ov-agent-panel .forge-copilot { height: 100%; }
-.ov-agent-panel .copilot-main { border-left: 0; }
+.ov-agent-panel { grid-column: 3; grid-row: 1 / 4; }
 @media (max-width: 1250px) {
   .ov-stage.agent-open { grid-template-columns: 268px minmax(0, 1fr) 350px; }
   .ov-stage:not(.agent-open) { grid-template-columns: 268px minmax(0, 1fr); }

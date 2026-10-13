@@ -45,6 +45,7 @@ function publish(context: AgentToolContext, plan: JsonObject) {
 export function registerProductionPlanTools() {
   registerAgentTool({
     id: 'plan_write',
+    icon: 'pencil',
     title: '创建制作计划',
     effect: 'project_write',
     description: '创建 Production Plan v2。根据用户完整语义选择 plan_only 或 execute。计划允许渐进完善；可恢复的依赖和提示词问题会作为 warning 返回。',
@@ -87,7 +88,7 @@ export function registerProductionPlanTools() {
   });
 
   registerAgentTool({
-    id: 'plan_get_stage_status', title: '查看制作计划状态', effect: 'read',
+    id: 'plan_get_stage_status', icon: 'list', title: '查看制作计划状态', effect: 'read',
     description: '读取当前 Production Plan v2、阶段进度和活动阶段。',
     inputSchema: { type: 'object', properties: { planId: { type: 'string' } }, additionalProperties: false },
     execute: (input, context) => {
@@ -99,7 +100,7 @@ export function registerProductionPlanTools() {
   });
 
   registerAgentTool({
-    id: 'plan_get_stage_detail', title: '查看制作阶段详情', effect: 'read',
+    id: 'plan_get_stage_detail', icon: 'search', title: '查看制作阶段详情', effect: 'read',
     description: '读取一个阶段的工作项、提示词、依赖和逐项运行凭证。',
     inputSchema: { type: 'object', required: ['planId', 'stageId'], properties: { planId: { type: 'string' }, stageId: { type: 'string' } }, additionalProperties: false },
     execute: (input, context) => {
@@ -112,7 +113,7 @@ export function registerProductionPlanTools() {
   });
 
   registerAgentTool({
-    id: 'plan_patch_stage', title: '更新制作阶段计划', effect: 'project_write',
+    id: 'plan_patch_stage', icon: 'pencil', title: '更新制作阶段计划', effect: 'project_write',
     description: '基于最近读取的 revision 更新尚未完成阶段。若计划已变化会拒绝旧写入，必须重新读取后再提交。',
     inputSchema: {
       type: 'object', required: ['planId', 'stageId', 'expectedRevision'], additionalProperties: false,
@@ -135,7 +136,7 @@ export function registerProductionPlanTools() {
   });
 
   registerAgentTool({
-    id: 'plan_update_stage_state', title: '推进制作阶段', effect: 'project_write',
+    id: 'plan_update_stage_state', icon: 'check', title: '推进制作阶段', effect: 'project_write',
     description: '基于最近读取的 revision 推进阶段状态，并按 workItemId 绑定真实节点和任务；旧 revision 会被拒绝。',
     inputSchema: {
       type: 'object', required: ['planId', 'stageId', 'expectedRevision', 'status'], additionalProperties: false,

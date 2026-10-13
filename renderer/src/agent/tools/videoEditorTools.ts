@@ -230,6 +230,7 @@ function imageDataUrl(bytes: ArrayBuffer) {
 export function registerVideoEditorTools() {
   registerAgentTool({
     id: 'video_project_media',
+    icon: 'film',
     title: '列出可导入剪辑的媒体',
     description: '列出可导入当前剪辑工程的项目素材与画布节点产物。返回的 id 可直接作为 video_project_edit 的 add_media 的 materialId 或 nodeId；不修改任何内容。',
     effect: 'read',
@@ -243,6 +244,7 @@ export function registerVideoEditorTools() {
 
   registerAgentTool({
     id: 'video_project_get',
+    icon: 'search',
     title: '读取剪辑项目',
     description: '读取当前剪辑工作区的真实媒体、轨道、片段时间、播放头和选择状态。剪辑前及修改后使用；返回的 ID 可用于 video_project_edit。',
     effect: 'read',
@@ -258,6 +260,7 @@ export function registerVideoEditorTools() {
 
   registerAgentTool<JsonObject>({
     id: 'video_project_edit',
+    icon: 'scissors',
     title: '修改剪辑时间线',
     description: '将 1–50 个操作按顺序作为一次可撤销修改提交。先调用 video_project_get 获取真实 ID。支持 split_clip、trim_clip、move_clip、remove_clip、remove_range、close_gap、duplicate_clip、add_clip、add_media、add_track、add_text、set_text、set_text_style、set_transform、set_clip、set_speed、set_track、set_canvas、add_effect、add_transition。add_media 用 video_project_media 返回的 materialId/nodeId 把画布产物或项目素材导入工程；add_clip 与 add_media 省略 atSec 时追加到目标轨道末尾，因此一次提交多段即按顺序首尾相接。set_canvas 只改画布尺寸（如抖音竖屏 1080×1920），不会改动已有片段；要让某个片段铺满画面，再用 set_transform 把它的框设为画布尺寸并设 fit:"fill"（居中裁剪填满），fit:"fit" 或省略则留边。时间单位是秒。validateOnly 可预检整个批次；失败则整个批次不写入。',
     effect: 'project_write',
@@ -330,6 +333,7 @@ export function registerVideoEditorTools() {
 
   registerAgentTool<JsonObject>({
     id: 'video_project_view',
+    icon: 'image',
     title: '定位剪辑播放头',
     description: '将播放头定位到指定项目时间（秒），便于用户预览和核验；不修改剪辑项目。',
     effect: 'read',
@@ -348,6 +352,7 @@ export function registerVideoEditorTools() {
 
   registerAgentTool({
     id: 'video_project_diagnostics',
+    icon: 'warning',
     title: '检查剪辑时间线',
     description: '核验时间线上每条轨道的空隙、重叠和缺失素材。修改剪辑后调用，依据真实项目状态判断是否达到用户要求。',
     effect: 'read',
@@ -358,6 +363,7 @@ export function registerVideoEditorTools() {
 
   registerAgentTool<JsonObject>({
     id: 'video_project_frame',
+    icon: 'camera',
     title: '查看剪辑素材帧',
     description: '按真实片段 ID 和该片段内的项目时间读取源视频帧，作为画面内容与剪点判断的证据。返回图片附件；只代表源素材，不包含文字、特效、叠层或转场的合成结果。',
     effect: 'read',
@@ -400,6 +406,7 @@ export function registerVideoEditorTools() {
 
   registerAgentTool({
     id: 'video_project_export',
+    icon: 'download',
     title: '导出剪辑成片',
     description: '仅在用户明确要求导出时调用。打开 MP4 保存对话框并等待真实导出完成；用户取消时返回未导出。',
     effect: 'project_write',
@@ -421,6 +428,7 @@ export function registerVideoEditorTools() {
 
   registerAgentTool<JsonObject>({
     id: 'video_project_history',
+    icon: 'clock',
     title: '剪辑撤销与重做',
     description: '对当前剪辑项目执行一次撤销或重做。每个 video_project_edit 批次是一条历史记录。',
     effect: 'project_write',

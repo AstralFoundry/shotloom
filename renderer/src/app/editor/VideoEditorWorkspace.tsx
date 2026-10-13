@@ -45,7 +45,12 @@ import { useVideoEditorShortcuts } from "./useVideoEditorShortcuts";
 import { useVideoEditorSourcePreview } from "./useVideoEditorSourcePreview";
 import { useVideoEditorTimeline } from "./useVideoEditorTimeline";
 import type { VideoEditorRuntime } from "./videoEditorRuntimeTypes";
-import { CopilotPanel, type CopilotController, type CopilotMessage, type ConversationItem } from "../copilot/CopilotPanel";
+import {
+  type AgentController,
+  type AgentMessage,
+  type ConversationItem,
+} from "../agent-chat/contracts";
+import { AgentChatPanel } from "../agent-chat/AgentChatPanel";
 import { registerActiveVideoEditor } from "../../agent/tools/videoEditorTools";
 import { getAgentProjectKey } from "../../services/agentProjectIdentity";
 
@@ -76,11 +81,11 @@ export interface VideoEditorWorkspaceProps {
   };
   assets?: VideoEditorAsset[];
   controller: VideoEditorController;
-  copilot?: CopilotController & {
+  copilot?: AgentController & {
     subscribe: (listener: () => void) => () => void;
     getRevision: () => number;
     read: () => {
-      messages: CopilotMessage[];
+      messages: AgentMessage[];
       conversations: ConversationItem[];
       activeConversationId: string;
       busy: boolean;
@@ -98,7 +103,7 @@ function VideoEditorAgentPanel({ copilot, onClose, nodeId }: {
   useSyncExternalStore(copilot.subscribe, copilot.getRevision, copilot.getRevision);
   const data = copilot.read();
   return <div className="ov-agent-panel">
-    <CopilotPanel
+    <AgentChatPanel
       editorMode
       messages={data.messages}
       nodes={[]}

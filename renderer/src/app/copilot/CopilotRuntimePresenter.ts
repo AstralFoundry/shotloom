@@ -11,6 +11,7 @@ const cloneList = (items: RuntimeValue[]) => items.map((item) => ({
   ...item,
   ...(item.options ? { options: [...item.options] } : {}),
   ...(item.evidence ? { evidence: [...item.evidence] } : {}),
+  ...(item.previews ? { previews: [...item.previews] } : {}),
 }));
 
 function toolActivity(name: string): string {
@@ -25,31 +26,28 @@ function toolActivity(name: string): string {
   return '正在处理任务';
 }
 
-function toolSummary(name: string, inputSummary: unknown): string {
-  const labels: Record<string, string> = {
-    request_clarification: '询问关键信息',
-    inspect_runtime_capabilities: '检查本轮运行能力',
-    canvas_list_nodes: '浏览画布',
-    canvas_get_node: '读取节点',
-    canvas_focus_nodes: '聚焦节点',
-    inspect_model_catalog: '检查可用模型',
-    list_recipes: '查找提示词模板',
-    load_recipe: '读取提示词模板',
-    canvas_create_node: '创建节点',
-    canvas_update_node: '更新节点',
-    canvas_connect_nodes: '连接节点',
-    canvas_layout_nodes: '整理节点',
-    canvas_delete_node: '删除节点',
-    canvas_update_edge: '更新连线',
-    canvas_start_generation: '启动生成',
-    report_outcome: '核对完成结果',
-    plan_write: '创建制作计划',
-    plan_get_stage_status: '查看计划状态',
-    plan_get_stage_detail: '查看阶段详情',
-    plan_patch_stage: '更新阶段计划',
-    plan_update_stage_state: '推进制作阶段',
-  };
-  return String(inputSummary || labels[name] || '执行处理步骤');
+function toolSummary(inputSummary: unknown): string {
+  return String(inputSummary || '');
+}
+
+/**
+ * 工具没有自己声明产出时，用回执里真实影响的对象数量回答"这一步做了什么"。
+ * 只统计回执中的真实 ID，不从工具名或文本猜结果。
+ */
+function receiptOutcome(receipt: RuntimeValue | undefined): string {
+  const counted: Array<[unknown, string]> = [
+    [receipt?.nodeIds, '节点'],
+    [receipt?.edgeIds, '连线'],
+    [receipt?.taskIds, '任务'],
+  ];
+  const parts: string[] = [];
+  for (const [value, label] of counted) {
+    const total = Array.isArray(value) ? value.filter(Boolean).length : 0;
+    if (total) parts.push(`${total} 个${label}`);
+  }
+  const skipped = Number(receipt?.skippedCount || 0);
+  if (skipped) parts.push(`跳过 ${skipped} 项`);
+  return parts.join(' · ');
 }
 
 /** Converts domain runtime events into the single assistant-message presentation model. */
@@ -164,7 +162,7 @@ export class CopilotRuntimePresenter {
         name: name || 'tool',
         kind: 'tool',
         effect: String(event.effect || ''),
-        summary: toolSummary(name, event.inputSummary),
+        summary: toolSummary(event.inputSummary),
         status: 'running',
         runId: event.requestId,
         startedAt: event.startedAt,
@@ -238,14 +236,17 @@ export class CopilotRuntimePresenter {
       const tool = this.tools.find((item) => item.id === event.toolCallId)
         || [...this.tools].reverse().find((item) => item.name === event.toolName && item.status === 'running');
       if (tool) {
-        let summary = String(tool.summary || event.toolName || '处理完成');
+        let summary = String(tool.summary || '');
         if (event.error) summary = String(event.error);
         if (event.pending) summary = `已提交 ${event.requestedCount || 0} 项操作，等待确认`;
+        const display = receipt?.display;
         Object.assign(tool, {
           status: event.isError ? 'error' : 'success',
           error: event.error || '',
           pending: event.pending === true,
           summary,
+          output: event.isError || event.pending ? '' : String(display?.summary || receiptOutcome(receipt)),
+          previews: event.isError ? undefined : display?.previews,
         });
         this.changed();
       }
@@ -270,6 +271,7 @@ export class CopilotRuntimePresenter {
         name: String(event.name || event.skillId || 'Skill'),
         kind: 'skill',
         status: 'success',
+        title: '加载技能',
         summary: String(event.name || event.skillId || 'Skill'),
       });
       this.changed();
@@ -282,6 +284,7 @@ export class CopilotRuntimePresenter {
         name: String(event.name || event.recipeId || 'Recipe'),
         kind: 'recipe',
         status: 'success',
+        title: '读取提示词模板',
         summary: String(event.name || event.recipeId || 'Recipe'),
       });
       this.changed();

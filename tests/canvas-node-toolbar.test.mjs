@@ -9,7 +9,7 @@ const cropEditor = readFileSync(new URL('../renderer/src/app/components/ImageCro
 const generation = readFileSync(new URL('../renderer/src/app/canvas/GenerationNode.tsx', import.meta.url), 'utf8');
 const basicNodes = readFileSync(new URL('../renderer/src/app/canvas/CanvasNodes.tsx', import.meta.url), 'utf8');
 const director = readFileSync(new URL('../renderer/src/app/canvas/ThreeDDirectorNode.tsx', import.meta.url), 'utf8');
-const styles = ['canvas-copilot.css', 'media-overlays.css']
+const styles = ['canvas.css', 'media-overlays.css']
   .map((name) => readFileSync(new URL(`../renderer/styles/${name}`, import.meta.url), 'utf8'))
   .join('\n');
 const adapter = readFileSync(new URL('../renderer/src/app/adapters/canvasAdapter.ts', import.meta.url), 'utf8')
@@ -103,7 +103,8 @@ test('空媒体节点从顶部工具栏上传且节点内部只保留占位图�
   assert.match(canvas, /\{canUpload && \([\s\S]*?title=\{`上传\$\{uploadLabel\}`\}[\s\S]*?actions\.upload\(node\.id\)/);
   assert.doesNotMatch(generation, /className="work-empty-upload/);
   assert.doesNotMatch(generation, /上传\{metaLabel\.replace/);
-  assert.match(styles, /\.work-preview \.work-empty-type-icon \{[\s\S]*?width:\s*34px;[\s\S]*?height:\s*34px/);
+  assert.match(styles, /--canvas-node-state-icon-size:\s*34px/);
+  assert.match(styles, /\.work-preview \.work-empty-type-icon \{[^}]*width:\s*var\(--canvas-node-state-icon-size\)[^}]*height:\s*var\(--canvas-node-state-icon-size\)/);
   assert.match(styles, /\.canvas-node-selection-toolbar--subtle \{[\s\S]*?background:\s*transparent;[\s\S]*?box-shadow:\s*none/);
   assert.match(styles, /\.canvas-node-selection-toolbar--subtle button \{[\s\S]*?height:\s*26px;[\s\S]*?font-size:\s*11px/);
 });

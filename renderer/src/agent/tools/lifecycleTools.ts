@@ -11,6 +11,7 @@ import { store } from '@/store/projectStore';
 export function registerLifecycleTools(): void {
   registerAgentTool({
     id: 'request_clarification',
+    icon: 'chat',
     title: '请求用户澄清',
     description: '只有缺少的信息会实质改变工作流或生成结果时使用。集中提交当前确实需要用户决定的问题，每题提供明确选项，可声明是否多选。调用后暂停同一次运行，收到完整回答后继续。',
     effect: 'agent_state_write',
@@ -112,6 +113,7 @@ export function registerLifecycleTools(): void {
 
   registerAgentTool({
     id: 'report_outcome',
+    icon: 'check',
     title: '报告最终结果',
     description: '本轮真实修改项目、画布或启动任务后，结束前调用。提交完成、部分完成或阻塞状态，以及可核验的节点、任务和成功工具调用证据。每次工具结果都会返回 toolCallId，evidence.toolCallIds 必须逐字引用这些真实 ID，不能填写工具名称。纯聊天或解释不调用。',
     effect: 'agent_state_write',
@@ -155,6 +157,7 @@ export function registerLifecycleTools(): void {
 
   registerAgentTool({
     id: 'save_skill',
+    icon: 'puzzle',
     title: '保存 Skill',
     description: '仅当用户明确要求创建或更新 Skill 时使用。保存一个自定义 Skill，包含用途说明与完整领域指令；无需关联提示词模板。',
     effect: 'project_write',

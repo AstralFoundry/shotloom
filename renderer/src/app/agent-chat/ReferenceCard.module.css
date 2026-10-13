@@ -1,0 +1,47 @@
+/* 素材本身就是内容，卡片不再套边框或底色。 */
+.card {
+  position: relative;
+  width: 132px;
+  min-width: 0;
+}
+
+.remove {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  color: var(--slk-label-inverted);
+  background: rgb(0 0 0 / 55%);
+  opacity: 0;
+  transition: opacity var(--slk-dur-fast) var(--slk-ease);
+}
+
+.remove > svg {
+  width: 10px;
+  height: 10px;
+}
+
+@media (hover: hover) {
+  .card:hover .remove,
+  .card:focus-within .remove {
+    opacity: 1;
+  }
+
+  .remove:hover {
+    background: rgb(0 0 0 / 75%);
+  }
+}
+
+/* 触屏没有悬停，删除入口必须常驻可见。 */
+@media (hover: none) {
+  .remove {
+    opacity: 1;
+  }
+}

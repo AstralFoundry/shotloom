@@ -1,0 +1,131 @@
+.root {
+  position: relative;
+  /* 画布视图里助手要压住分隔条；剪辑视图里它只是网格里的一列，
+     由宿主通过 --agent-chat-z 把层级降回 auto。 */
+  z-index: var(--agent-chat-z, 100);
+  justify-self: end;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  overflow: hidden;
+  border-left: 0.5px solid var(--slk-border-l2);
+  background: var(--slk-bg-base);
+  color: var(--slk-label-primary);
+  font-family: var(--slk-font-family);
+  font-size: var(--slk-content-font-size);
+  line-height: calc(24px + var(--slk-font-delta));
+  -webkit-font-smoothing: antialiased;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 46px;
+  padding: 0 8px 0 16px;
+  border-bottom: 0.5px solid var(--slk-border-l1);
+}
+
+.title {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: var(--slk-label-primary);
+  font-size: calc(13px + var(--slk-font-delta));
+  font-weight: 550;
+  line-height: 20px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+}
+
+.iconButton {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--slk-radius-sm);
+  color: var(--slk-label-tertiary);
+  background: transparent;
+  transition:
+    color var(--slk-dur-fast) var(--slk-ease),
+    background-color var(--slk-dur-fast) var(--slk-ease);
+}
+
+@media (hover: hover) {
+  .iconButton:hover {
+    color: var(--slk-label-primary);
+    background: var(--slk-hover-wash);
+  }
+}
+
+.iconButton:active {
+  color: var(--slk-label-primary);
+  background: var(--slk-active-wash);
+}
+
+.iconButton[data-active] {
+  color: var(--slk-label-primary);
+  background: var(--slk-hover-wash-strong);
+}
+
+.iconButton:disabled {
+  color: var(--slk-label-caption);
+  opacity: 0.5;
+  cursor: default;
+}
+
+.glyph {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+}
+
+.transcriptSeat {
+  position: relative;
+  display: flex;
+  min-height: 0;
+  min-width: 0;
+}
+
+.jump {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  z-index: 8;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 30px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 999px;
+  transform: translateX(-50%);
+  color: var(--slk-label-secondary);
+  background: var(--slk-bg-raised);
+  box-shadow: var(--slk-elevation-panel);
+  font: 500 12px/1 var(--slk-font-family);
+  transition: color var(--slk-dur-fast) var(--slk-ease);
+}
+
+.jump > svg {
+  width: 13px;
+  height: 13px;
+}
+
+@media (hover: hover) {
+  .jump:hover {
+    color: var(--slk-label-primary);
+  }
+}

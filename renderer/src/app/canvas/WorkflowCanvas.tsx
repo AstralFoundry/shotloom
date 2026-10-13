@@ -51,7 +51,7 @@ import {
 } from "../../utils/canvasNodeChrome.mjs";
 import { CanvasNodeToolbar } from "./CanvasNodeToolbar";
 import { CanvasContextMenu } from "./CanvasContextMenu";
-import { COPILOT_ARTIFACT_DRAG_TYPE } from "../copilot/copilotArtifacts";
+import { ARTIFACT_DRAG_TYPE } from "../agent-chat/artifactHelpers";
 import {
   canvasMenuPosition,
   screenPixel,
@@ -827,12 +827,12 @@ export function WorkflowCanvas({
     });
   }
   function onArtifactDragOver(event: ReactDragEvent<HTMLElement>) {
-    if (!event.dataTransfer.types.includes(COPILOT_ARTIFACT_DRAG_TYPE)) return;
+    if (!event.dataTransfer.types.includes(ARTIFACT_DRAG_TYPE)) return;
     event.preventDefault();
     event.dataTransfer.dropEffect = "copy";
   }
   function onArtifactDrop(event: ReactDragEvent<HTMLElement>) {
-    const artifactId = event.dataTransfer.getData(COPILOT_ARTIFACT_DRAG_TYPE);
+    const artifactId = event.dataTransfer.getData(ARTIFACT_DRAG_TYPE);
     if (!artifactId || !instance) return;
     event.preventDefault();
     event.stopPropagation();

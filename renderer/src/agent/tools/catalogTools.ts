@@ -45,6 +45,7 @@ function availableRecipes(): StoredRecipe[] {
 export function registerCatalogTools(): void {
   registerAgentTool({
     id: 'inspect_runtime_capabilities',
+    icon: 'shield',
     title: '查看 Agent 运行能力',
     description: '读取本轮画布编排和节点执行能力。需要时可以重复读取；能力与用户意图冲突时不得静默降级。',
     effect: 'read',
@@ -62,6 +63,7 @@ export function registerCatalogTools(): void {
 
   registerAgentTool({
     id: 'inspect_model_catalog',
+    icon: 'package',
     title: '查看模型目录',
     description: '读取当前完整模型能力快照，包括节点类型、输入角色、模式和 config 参数 schema。需要刷新能力信息时可以重复读取。',
     effect: 'read',
@@ -87,6 +89,7 @@ export function registerCatalogTools(): void {
 
   registerAgentTool({
     id: 'list_recipes',
+    icon: 'list',
     title: '查找提示词模板',
     description: '按需查找已启用的提示词模板，可按生成类型或操作类型筛选。模板是可选参考，不要求先加载 Skill，也不是创建节点的前置条件。',
     effect: 'read',
@@ -116,6 +119,7 @@ export function registerCatalogTools(): void {
 
   registerAgentTool({
     id: 'load_recipe',
+    icon: 'file',
     title: '读取提示词模板',
     description: '按需读取一个已启用的提示词模板，结合用户要求调整或组合其方法；可用 usageNote 记录用途。可以直接编写 prompt，无需加载模板。',
     effect: 'agent_state_write',

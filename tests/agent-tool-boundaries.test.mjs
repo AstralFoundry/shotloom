@@ -61,3 +61,13 @@ test('计划和 Skill 写入也属于必须提交终态的项目修改', () => {
     assert.equal(receiptProvesCompletion(receipt), true);
   }
 });
+
+// 工具没声明产出时回执就不带 display，界面不得凭空编一条结果。
+test('回执只携带工具自己声明的产出描述', () => {
+  const plain = buildToolReceipt('read-1', 'canvas_list_nodes', 'read', { success: true });
+  assert.equal(plain.display, undefined);
+
+  const display = { summary: '4 帧源视频画面', previews: [{ path: '/tmp/a.jpg', label: '2.0s' }] };
+  const framed = buildToolReceipt('read-2', 'canvas_media_frame', 'read', { success: true }, display);
+  assert.deepEqual(framed.display, display);
+});

@@ -62,7 +62,9 @@ test('Production Plan v2 用逐项 runtime ref 核验真实节点和任务', () 
   assert.doesNotMatch(planStore, /nodeIds: string\[\]/);
   assert.doesNotMatch(planStore, /taskIds: string\[\]/);
   assert.doesNotMatch(tools, /maxItems/);
-  assert.doesNotMatch(canvas, /maxItems/);
+  // 抽帧数量上限是真实附件成本边界，画布写入契约本身不得用数量阈值限制模型。
+  assert.equal(canvas.match(/maxItems/g).length, 1);
+  assert.match(canvas, /timesSec:[^}]*maxItems: 8/);
   assert.doesNotMatch(lifecycle, /maxItems/);
 });
 
