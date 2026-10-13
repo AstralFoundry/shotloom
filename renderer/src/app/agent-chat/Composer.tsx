@@ -14,6 +14,8 @@ import { desktopApi } from "../../services/desktopApi.js";
 import { saveAppSettings, settingsStore } from "../../store/settingsStore.js";
 import { skillsStore } from "../../store/skillsStore.js";
 import { nodeChatAttachmentKey } from "../../services/nodeChatAttachment.mjs";
+import { CANVAS_AGENT_ID, EDITOR_AGENT_ID, agentDefinition } from "../../agent/agents/definitions";
+import { selectAgentSkills } from "../../agent/core/visibility";
 import { isImeKeyEvent } from "../canvas/imeComposition";
 import { ReferenceCard } from "./ReferenceCard";
 import { fileReference, nodeReference } from "./mediaReference";
@@ -44,27 +46,32 @@ export function Composer(props: ComposerProps) {
   const [skillId, setSkillId] = useState<string | null>(null);
   const textarea = useRef<HTMLTextAreaElement | null>(null);
   const seatRef = useRef<HTMLDivElement | null>(null);
-  const editorSkill = useRef(false);
+  const autoSkill = useRef(false);
 
+  // Skill 选择器和运行时共用同一份 Agent 定义，不再在界面里猜作用域。
   const skills = useMemo(
     () =>
-      (skillsStore.skills as Array<{ id: string; name?: string; enabled?: boolean }>).filter(
-        (skill) => skill.enabled !== false && (!editorMode || skill.id === "video-editing"),
+      selectAgentSkills(
+        agentDefinition(editorMode ? EDITOR_AGENT_ID : CANVAS_AGENT_ID),
+        (skillsStore.skills as Array<{ id: string; name?: string; enabled?: boolean }>).filter(
+          (skill) => skill.enabled !== false,
+        ),
       ),
     [props.domainRevision, editorMode],
   );
   const skill = useMemo(() => skills.find((item) => item.id === skillId) || null, [skills, skillId]);
 
   useEffect(() => {
-    if (!editorMode) {
-      editorSkill.current = false;
+    // 当前 Agent 只有一个可选 Skill 时默认选中它，用户仍可手动改选。
+    if (skills.length !== 1) {
+      autoSkill.current = false;
       return;
     }
-    if (!editorSkill.current && skills.some((item) => item.id === "video-editing")) {
-      editorSkill.current = true;
-      setSkillId("video-editing");
+    if (!autoSkill.current) {
+      autoSkill.current = true;
+      setSkillId(skills[0].id);
     }
-  }, [editorMode, skills]);
+  }, [skills]);
 
   const focusInput = useCallback(() => {
     requestAnimationFrame(() => textarea.current?.focus());

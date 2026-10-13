@@ -1,4 +1,5 @@
 import { abortAgent, runAgent } from "../../agent";
+import { EDITOR_AGENT_ID } from "../../agent/agents/definitions";
 import {
   resolveClarification,
   resolveToolConfirmation,
@@ -485,7 +486,7 @@ export const copilotController: AgentController = {
       restoreCopilotSession(toRaw(store.project), String(existing.id));
       switchCopilotConversation(store.project, String(existing.id));
     } else {
-      const conversation = createCopilotConversation(store.project, { title: "剪辑 Agent" });
+      const conversation = createCopilotConversation(store.project, { title: "剪辑 Agent", agentId: EDITOR_AGENT_ID });
       (conversation as Loose).editorNodeId = nodeId;
     }
     touchProject();

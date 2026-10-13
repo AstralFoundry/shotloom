@@ -157,6 +157,30 @@ test('editor scope creates one conversation per editor node and reuses it', () =
   assert.notEqual(editorCopilotConversation(project, 'node-b').id, created.id);
 });
 
+test('会话记录显式携带所属 Agent，运行时的权限集合据此解析', () => {
+  const project = {};
+  const canvas = getActiveCopilotConversation(project);
+  const editor = editorCopilotConversation(project, 'node-a');
+
+  assert.equal(canvas.agentId, 'canvas-primary');
+  assert.equal(editor.agentId, 'editor-primary');
+  assert.equal(createCopilotConversation(project, { title: '新对话' }).agentId, 'canvas-primary');
+});
+
+test('历史会话缺少 agentId 时按作用域补齐', () => {
+  const project = {
+    copilotConversations: [
+      { id: 'legacy-canvas', title: '旧对话', messages: [], updatedAt: '2026-01-01' },
+      { id: 'legacy-editor', title: '剪辑 Agent', messages: [], editorNodeId: 'node-1', updatedAt: '2026-01-02' },
+    ],
+  };
+
+  ensureCopilotConversations(project);
+
+  assert.equal(project.copilotConversations[0].agentId, 'canvas-primary');
+  assert.equal(project.copilotConversations[1].agentId, 'editor-primary');
+});
+
 test('clearing targets one conversation without touching the other scope', () => {
   const project = {};
   const canvas = getActiveCopilotConversation(project);

@@ -2,6 +2,10 @@ function uid() {
   return globalThis.crypto?.randomUUID?.() || `conversation-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
+// 会话归属的 Agent id。权威定义在 renderer/src/agent/agents/definitions.ts，
+// 这里只保留作用域到 id 的映射，本模块是纯 JS 数据层，不反向依赖 Agent 运行时。
+const SCOPE_AGENT_IDS = { canvas: 'canvas-primary', editor: 'editor-primary' };
+
 export function ensureCopilotConversations(project) {
   if (!project || typeof project !== 'object') return [];
   const original = Array.isArray(project.copilotConversations) ? project.copilotConversations : [];
@@ -23,6 +27,10 @@ export function ensureCopilotConversations(project) {
   for (const conversation of conversations) {
     if (!conversation.id) conversation.id = uid();
     else if (typeof conversation.id !== 'string') conversation.id = String(conversation.id);
+    // agentId 决定这个会话能使用哪个 Agent 的工具与 Skill 集合，必须显式存在于记录上。
+    if (!conversation.agentId) {
+      conversation.agentId = conversation.editorNodeId ? SCOPE_AGENT_IDS.editor : SCOPE_AGENT_IDS.canvas;
+    }
     const title = String(conversation.title || '新对话').slice(0, 80);
     if (conversation.title !== title) conversation.title = title;
     delete conversation.mode;
@@ -75,7 +83,7 @@ export function editorCopilotConversation(project, editorNodeId) {
   const conversations = scopedCopilotConversations(project, 'editor', nodeId);
   if (!nodeId) return conversations[0] || getActiveCopilotConversation(project);
   if (conversations.length) return conversations[0];
-  const conversation = createCopilotConversation(project, { title: '剪辑 Agent' });
+  const conversation = createCopilotConversation(project, { title: '剪辑 Agent', agentId: SCOPE_AGENT_IDS.editor });
   conversation.editorNodeId = nodeId;
   return conversation;
 }
@@ -86,6 +94,7 @@ export function createCopilotConversation(project, options = {}) {
   const conversation = {
     id: uid(),
     title: String(options.title || '新对话').slice(0, 80),
+    agentId: String(options.agentId || SCOPE_AGENT_IDS.canvas),
     messages: [],
     contextUsage: null,
     createdAt: now,

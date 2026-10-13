@@ -45,6 +45,17 @@ Shotloom 的 Agent 以模型为决策主体。不要在应用代码中用关键�
 
 保持分层清晰，但不要为了分层创建只有几行转发逻辑的文件或函数。优先让一个模块完整拥有一项职责。
 
+## Agent 定义与工具可见性
+
+`renderer/src/agent/agents/definitions.ts` 是每个 Agent 的工具、Skill、副作用上限和可派发子 Agent 的唯一来源。会话记录用 `agentId` 表明归属，运行时不得再从 `editorNodeId`、工具名前缀或界面作用域反推 Agent 身份。
+
+- 工具白名单是 fail-closed 的：新工具没有列入任何 Agent，就对所有 Agent 不可见——既不进入模型请求，也无法在本地执行。禁止改回 deny 黑名单或“默认可见再加例外”的写法。
+- `effects` 是独立于白名单的第二层副作用上限，用来表达“这个 Agent 原则上不能造成某类改动”。新增副作用类别时必须同时更新白名单与上限，不能只加一处。
+- Skill 归属只在 Agent 定义里声明。运行时请求组装、执行时的 Skill 事件回写和输入框选择器必须消费同一份解析结果；不要在别处恢复 `'general' | 'video-editing'` 这类作用域字符串。
+- 子 Agent 只能由主 Agent 的 `dispatch` 显式授予；契约文件的 `appliesTo` 只能引用已声明的 Agent id 或 `'*'`。
+- 当前一个 run 内所有 Agent 共用主 Agent 的执行上下文，`agentId` 代表本轮权限上界；按 session 区分每个 Agent 的可见集合属于自研 Agent loop 的工作，不要在小改动里声称已经隔离。
+- 修改可见性必须覆盖五类失败：未列入白名单的新工具、超出副作用上限的写工具、`isAvailable` 关闭、Skill 未加载、未知 Agent id。
+
 ## 技能与提示词模板
 
 - Skill 保存领域知识、制作方法和质量标准，由模型根据完整语义按需加载。

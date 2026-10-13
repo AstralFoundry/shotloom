@@ -5,6 +5,8 @@ import { registerAgentTool } from '../core/toolRegistry';
 import type { JsonObject } from '../core/types';
 import type { AgentToolContext } from '../core/types';
 import { compactAgentModelCatalog } from '@/utils/agentModelCatalog.mjs';
+import { agentDefinition } from '../agents/definitions.ts';
+import { selectAgentSkills } from '../core/visibility.ts';
 
 export interface StoredSkill {
   id: string;
@@ -32,10 +34,14 @@ interface StoredRecipe {
   builtIn?: boolean;
 }
 
-export function availableAgentSkills(scope: 'general' | 'video-editing' = 'general'): StoredSkill[] {
+/**
+ * 某个 Agent 可用的 Skill 列表。Skill 授予属于 Agent 定义的一部分，
+ * 运行时请求、执行时的 Skill 事件和输入框选择器都必须走这里，
+ * 不能各自再维护一份作用域判断。
+ */
+export function availableAgentSkills(agentId: string): StoredSkill[] {
   const enabled = (skillsStore.skills as StoredSkill[]).filter((skill) => skill.enabled !== false);
-  if (scope === 'video-editing') return enabled.filter((skill) => skill.id === 'video-editing');
-  return enabled;
+  return selectAgentSkills(agentDefinition(agentId), enabled);
 }
 
 function availableRecipes(): StoredRecipe[] {

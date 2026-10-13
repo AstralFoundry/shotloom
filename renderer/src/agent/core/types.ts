@@ -62,12 +62,18 @@ export interface AgentToolContext {
   projectInstanceId: string;
   projectGeneration: number;
   conversationId: string;
+  /**
+   * 本轮运行所属的主 Agent id。工具可见性完全由 agents/definitions.ts 的
+   * 白名单按此 id 解析，不再从会话作用域或工具名前缀猜测。
+   * 子 Agent 通过父 Agent 的同一份上下文执行，其独立可见性要到自研 loop 才按
+   * session 区分，因此这里的 agentId 始终代表本轮的权限上界。
+   */
+  agentId: string;
   signal: AbortSignal;
   loadedSkillIds: Set<string>;
   attachments: JsonObject[];
   capabilities: {
     nodeExecution: boolean;
-    agentType: 'canvas' | 'editor';
   };
   state: Map<string, unknown>;
   emit: (event: JsonObject & { type: string }) => void;

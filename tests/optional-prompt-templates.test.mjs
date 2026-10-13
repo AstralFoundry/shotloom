@@ -26,6 +26,7 @@ test('templates are accessible without a loaded Skill, but disabled and missing 
   const events = [];
   const context = {
     loadedSkillIds: new Set(), signal: new AbortController().signal,
+    agentId: 'canvas-primary',
     capabilities: { nodeExecution: false }, state: new Map(), emit: (event) => events.push(event),
   };
   const list = registry.prepareAgentToolCall('list_recipes', '{"generationType":"image"}', context);

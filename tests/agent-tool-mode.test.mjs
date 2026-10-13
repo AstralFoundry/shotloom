@@ -15,7 +15,7 @@ test('唯一 Agent 可在关键信息缺失时询问', () => {
   assert.equal(canRequestAgentClarification(), true);
 });
 
-test('命名空间工具预先暴露，但执行前必须加载对应 Skill', () => {
+test('Skill 命名空间工具在对应 Skill 加载前不进入模型请求', () => {
   clearAgentToolsForTests();
   registerAgentTool({
     id: 'skill_short_drama__inspect_structure',
@@ -27,16 +27,19 @@ test('命名空间工具预先暴露，但执行前必须加载对应 Skill', ()
   });
   const context = {
     requestId: 'test', turnId: 'turn', projectKey: 'project', conversationId: 'conversation',
+    agentId: 'canvas-primary',
     signal: new AbortController().signal,
     loadedSkillIds: new Set(['video-production']), attachments: [],
     capabilities: { nodeExecution: false }, state: new Map(), emit: () => {},
   };
-  assert.deepEqual(listAgentTools(context).map((tool) => tool.id), ['skill_short_drama__inspect_structure']);
+  // 只加载了别的 Skill：该工具既不会被序列化给模型，也不允许执行。
+  assert.deepEqual(listAgentTools(context).map((tool) => tool.id), []);
   assert.throws(
     () => prepareAgentToolCall('skill_short_drama__inspect_structure', '{}', context),
-    /requires its Skill to be loaded first/,
+    /not visible to Agent canvas-primary/,
   );
   context.loadedSkillIds = new Set(['short-drama']);
+  assert.deepEqual(listAgentTools(context).map((tool) => tool.id), ['skill_short_drama__inspect_structure']);
   assert.equal(prepareAgentToolCall('skill_short_drama__inspect_structure', '{}', context).definition.id,
     'skill_short_drama__inspect_structure');
   clearAgentToolsForTests();

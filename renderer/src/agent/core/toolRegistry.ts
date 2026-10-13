@@ -1,6 +1,8 @@
 import type {
   AgentToolContext, AgentToolDefinition, JsonObject, JsonSchema, JsonValue, PreparedAgentToolCall,
 } from './types';
+import { TOOL_ID_RE, skillToolNamespace, toolBaseName } from './toolIdentity.ts';
+import { visibleAgentTools } from './visibility.ts';
 
 export class AgentToolInputError extends Error {
   public readonly issues: string[];
@@ -83,33 +85,9 @@ export function classifyAgentToolResult(result: unknown) {
 // id、description 和 inputSchema，不会把 execute 函数或应用内部状态暴露出去。
 const tools = new Map<string, AgentToolDefinition>();
 
-/**
- * 工具 ID 约定：
- * - 普通工具：`^[a-z][a-z0-9_]*$`（例如 `canvas_list_nodes`）
- * - 命名空间工具：命名空间和工具名都使用小写 snake_case，中间以 `__` 分隔
- *
- * `__` 是分隔符；左侧是 Skill 命名空间，右侧是基础工具名。
- */
-const TOOL_ID_RE = /^[a-z][a-z0-9_]*(?:__[a-z][a-z0-9_]*)?$/;
-
-export function toolNamespacePrefix(toolId: string): string | null {
-  const match = toolId.match(/^([a-z][a-z0-9_]*)__/);
-  return match ? match[1] : null;
-}
-
-export function toolBaseName(toolId: string): string {
-  const idx = toolId.indexOf('__');
-  return idx >= 0 ? toolId.slice(idx + 2) : toolId;
-}
-
-function normalizedNamespaceId(value: string): string {
-  return value.toLowerCase().replace(/[^a-z0-9]/g, '');
-}
-
-function skillNamespaceIsLoaded(namespace: string, loadedIds: Set<string>): boolean {
-  if (namespace === 'skill') return loadedIds.size > 0;
-  const expected = normalizedNamespaceId(namespace.slice('skill'.length + 1));
-  return [...loadedIds].some((id) => normalizedNamespaceId(id) === expected);
+/** 注册表原始全集。可见子集一律由 core/visibility.ts 按 Agent 定义解析。 */
+export function allAgentTools(): AgentToolDefinition[] {
+  return [...tools.values()];
 }
 
 export function registerAgentTool<TInput extends JsonObject>(definition: AgentToolDefinition<TInput>): void {
@@ -149,11 +127,9 @@ export function registerSkillTool<TInput extends JsonObject>(
   skillId: string,
   definition: AgentToolDefinition<TInput>,
 ): void {
-  const safeId = String(skillId || '').toLowerCase().replace(/[^a-z0-9]/g, '_');
-  if (!safeId) throw new Error('registerSkillTool requires a non-empty skillId');
   registerAgentTool({
     ...definition,
-    id: `skill_${safeId}__${definition.id}`,
+    id: `${skillToolNamespace(skillId)}__${definition.id}`,
   });
 }
 
@@ -161,28 +137,12 @@ export function unregisterAgentTool(toolId: string): boolean {
   return tools.delete(toolId);
 }
 
+/**
+ * 当前 Agent 在本轮可见的工具集合，同时也是真正序列化进模型请求的集合。
+ * 判定全部来自 Agent 定义白名单，未列出的工具不会出现在这里。
+ */
 export function listAgentTools(context: AgentToolContext): AgentToolDefinition[] {
-  // 原生插件按 Runtime 配置注册目录；执行时仍重新检查可用性和 Skill。
-  return [...tools.values()].filter((tool) => {
-    if (tool.isAvailable?.(context) === false) return false;
-    const editorTool = tool.id.startsWith('video_project_');
-    if (context.capabilities.agentType === 'editor') {
-      return editorTool || ['request_clarification', 'report_outcome', 'inspect_runtime_capabilities', 'inspect_model_catalog'].includes(tool.id);
-    }
-    return !editorTool;
-  });
-}
-
-export function assistantToolDefinitions(context: AgentToolContext): JsonObject[] {
-  // 转换为 OpenAI-compatible Function Calling 结构，供 modelRequestBody 直接传给模型。
-  return listAgentTools(context).map((tool) => ({
-    type: 'function',
-    function: {
-      name: tool.id,
-      description: tool.description,
-      parameters: JSON.parse(JSON.stringify(tool.resolveInputSchema?.(context) || tool.inputSchema)),
-    },
-  }) as JsonObject);
+  return visibleAgentTools(context.agentId, allAgentTools(), context);
 }
 
 export function prepareAgentToolCall(name: string, rawArguments: string, context: AgentToolContext): PreparedAgentToolCall {
@@ -191,12 +151,7 @@ export function prepareAgentToolCall(name: string, rawArguments: string, context
   const definition = tools.get(name);
   if (!definition || definition.isAvailable?.(context) === false) throw new Error(`Unknown or unavailable Agent tool: ${name}`);
   if (!listAgentTools(context).some((tool) => tool.id === name)) {
-    throw new Error(`Tool ${name} is not available to the ${context.capabilities.agentType} Agent`);
-  }
-  const namespace = toolNamespacePrefix(name);
-  if (namespace && (namespace === 'skill' || namespace.startsWith('skill_'))
-    && !skillNamespaceIsLoaded(namespace, context.loadedSkillIds)) {
-    throw new Error(`Tool ${name} requires its Skill to be loaded first`);
+    throw new Error(`Tool ${name} is not visible to Agent ${context.agentId}`);
   }
   let input: JsonObject;
   try {

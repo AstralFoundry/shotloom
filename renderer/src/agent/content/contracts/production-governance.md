@@ -1,6 +1,6 @@
 ---
 id: production-governance
-appliesTo: ['shotloom', 'production-planner', 'stage-executor', 'result-reviewer']
+appliesTo: ['canvas-primary', 'production-planner', 'stage-executor', 'result-reviewer']
 priority: 100
 summary: 多阶段制作的意图、计划、执行和核验契约
 ---

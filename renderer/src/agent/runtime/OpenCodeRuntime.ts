@@ -7,6 +7,9 @@ import { desktopApi } from '@/services/desktopApi';
 import { store } from '@/store/projectStore';
 import { getModelCredentialStatus, getProviderCredentials, settingsStore } from '@/store/settingsStore';
 import { availableAgentSkills } from '../tools/catalogTools';
+import { AGENT_DEFINITIONS, EDITOR_AGENT_ID, agentDefinition } from '../agents/definitions.ts';
+import { listAgentTools } from '../core/toolRegistry.ts';
+import { selectAgentTools } from '../core/visibility.ts';
 import { contractsForAgentType, formatContractsBlock } from '../content/contractLoader';
 import systemBasePrompt from '../content/prompts/system-base.md?raw';
 import { appendAgentRuntimeEvent, createAgentInteraction } from './runStore';
@@ -159,70 +162,51 @@ async function runtimeClient(configuration: OpenCodeConfiguration) {
   return clientPromise;
 }
 
-function agentProfiles(skillIds: string[]) {
-  const primarySkillPermission = Object.fromEntries([
-    ['*', 'deny'],
-    ...skillIds.map((skillId) => [skillId, 'allow']),
-  ]);
-  const primaryOnlyTools = {
-    shotloom_request_clarification: false,
-    shotloom_report_outcome: false,
-    shotloom_save_skill: false,
-  };
-  const canvasReadonlyTools = {
-    ...primaryOnlyTools,
-    shotloom_canvas_create_node: false,
-    shotloom_canvas_update_node: false,
-    shotloom_canvas_connect_nodes: false,
-    shotloom_canvas_layout_nodes: false,
-    shotloom_canvas_delete_node: false,
-    shotloom_canvas_update_edge: false,
-    shotloom_canvas_start_generation: false,
-    shotloom_undo_canvas: false,
-    shotloom_redo_canvas: false,
-  };
-  const analysisTools = {
-    ...canvasReadonlyTools,
-    shotloom_plan_write: false,
-    shotloom_plan_patch_stage: false,
-    shotloom_plan_update_stage_state: false,
-  };
-  const shared = (profile: string) => formatContractsBlock(contractsForAgentType(profile));
-  return {
-    'shotloom': {
-      mode: 'primary', maxSteps: 80,
-      description: 'Shotloom creative workspace agent',
-      prompt: systemPrompt(),
-      permission: {
-        edit: 'deny', bash: settingsStore.agentShellApproval === 'ask' ? 'ask' : 'allow', external_directory: 'deny', webfetch: 'deny',
-        skill: primarySkillPermission,
-      },
-    },
-    'production-planner': {
-      mode: 'subagent', maxSteps: 40,
-      description: 'Author complete Production Plan work items, prompts, dependencies and completion criteria',
-      prompt: `Author a Production Plan for the requested scope. Use the Active Skill and its constraints supplied by the parent task. Do not mutate the canvas or claim completion.\n\n${shared('production-planner')}`,
-      tools: { ...canvasReadonlyTools, shotloom_save_skill: false },
+/**
+ * 把 Agent 定义翻译成 Runtime 的 agent profile。
+ *
+ * 子 Agent 的工具关闭项由"主 Agent 已注册的集合减去该子 Agent 的可见集合"生成，
+ * 因此白名单或副作用上限一变，这里自动生效，不再需要手工维护 deny 列表。
+ */
+function agentProfiles(context: AgentToolContext, skills: NativeRuntimeSkill[]) {
+  const primary = agentDefinition(context.agentId);
+  const registeredTools = listAgentTools(context);
+  const registeredToolIds = registeredTools.map((tool) => `shotloom_${tool.id}`);
+  const profiles: JsonObject = {};
+  for (const definition of AGENT_DEFINITIONS) {
+    if (definition.role === 'primary') {
+      if (definition.id !== primary.id) continue;
+      profiles[definition.id] = {
+        mode: 'primary', maxSteps: definition.maxSteps, description: definition.description,
+        prompt: systemPrompt(context),
+        permission: {
+          edit: 'deny', bash: settingsStore.agentShellApproval === 'ask' ? 'ask' : 'allow',
+          external_directory: 'deny', webfetch: 'deny',
+          skill: Object.fromEntries([
+            ['*', 'deny'],
+            // skills 已由 configureModel 按该 Agent 的 Skill 白名单解析过。
+            ...skills.map((skill) => [skill.id, 'allow']),
+          ]),
+        },
+      };
+      continue;
+    }
+    // 只有主 Agent 显式授予的 dispatch 才建立 profile，避免任何 primary 都能调用全部子 Agent。
+    if (!primary.dispatch.includes(definition.id)) continue;
+    const allowed = new Set(
+      selectAgentTools(definition, registeredTools, context).map((tool) => `shotloom_${tool.id}`),
+    );
+    profiles[definition.id] = {
+      mode: 'subagent', maxSteps: definition.maxSteps, description: definition.description,
+      prompt: `${definition.instructions || ''}\n\n${formatContractsBlock(contractsForAgentType(definition.id))}`,
+      tools: Object.fromEntries(registeredToolIds.filter((id) => !allowed.has(id)).map((id) => [id, false])),
       permission: { skill: { '*': 'deny' } },
-    },
-    'stage-executor': {
-      mode: 'subagent', maxSteps: 60,
-      description: 'Compile and execute the current Production Plan stage',
-      prompt: `Execute the requested stage using the Active Skill and constraints supplied by the parent task. Respect real dependencies and return exact receipts.\n\n${shared('stage-executor')}`,
-      tools: primaryOnlyTools,
-      permission: { skill: { '*': 'deny' } },
-    },
-    'result-reviewer': {
-      mode: 'subagent', maxSteps: 24,
-      description: 'Verify outcomes, constraints, artifacts and canvas state',
-      prompt: `Verify using read tools and tool receipts. Never modify the canvas.\n\n${shared('result-reviewer')}`,
-      tools: analysisTools,
-      permission: { skill: { '*': 'deny' } },
-    },
-  };
+    };
+  }
+  return profiles;
 }
 
-function configureModel(model: string, workspaceDirectory: string, editorMode = false) {
+function configureModel(model: string, workspaceDirectory: string, context: AgentToolContext) {
   const info = getModelInfo(model);
   if (!info) throw new Error(`文本模型未在模型目录中配置：${model}`);
   const credential = getModelCredentialStatus(model);
@@ -238,13 +222,12 @@ function configureModel(model: string, workspaceDirectory: string, editorMode = 
   );
   const contextLimit = Number(contract?.inputConstraints?.text?.maxTokens || 64_000);
   const outputLimit = Number(contract?.outputConstraints?.maxTokens || 8_192);
-  const skillScope = editorMode ? 'video-editing' : 'general';
-  const skills = nativeRuntimeSkills(availableAgentSkills(skillScope));
+  const skills = nativeRuntimeSkills(availableAgentSkills(context.agentId));
   const configuration: OpenCodeConfiguration = {
     tools: [],
     enabledProviders: ['shotloom'],
     model: `shotloom/${model}`,
-    agent: agentProfiles(skills.map((skill) => skill.id)),
+    agent: agentProfiles(context, skills),
     skills,
     workspaceDirectory,
     runtimeProtection: { ...settingsStore.runtimeProtection },
@@ -271,9 +254,9 @@ function configureModel(model: string, workspaceDirectory: string, editorMode = 
   return { configuration, contextLimit, outputLimit };
 }
 
-function systemPrompt(conversationId = '') {
+function systemPrompt(context: AgentToolContext) {
   const canRunNodes = settingsStore.agentCanRunNodes === true;
-  const contracts = formatContractsBlock(contractsForAgentType('shotloom'));
+  const contracts = formatContractsBlock(contractsForAgentType(context.agentId));
   const base = systemBasePrompt
     .replace('{{mode_contract}}', canRunNodes
       ? '画布写入遵守本地策略；设置已允许 Agent 运行节点。复杂制作的范围和执行阶段由 Agent 根据用户完整语义与真实依赖管理。'
@@ -281,7 +264,7 @@ function systemPrompt(conversationId = '') {
     .replace('{{runtime_model_contract}}', '模型循环、会话、上下文压缩与子 Agent 由 OpenCode Runtime 管理。');
   return [
     base,
-    conversationRecord(conversationId)?.editorNodeId
+    context.agentId === EDITOR_AGENT_ID
       ? '当前会话属于视频剪辑工作区。先加载 video-editing Skill，并用 video_project_get 读取真实轨道和片段 ID。时间线上缺少素材时用 video_project_media 发现可导入的画布产物与项目素材，再用 video_project_edit 的 add_media 引入。成片比例用 set_canvas 设定，片段要不要铺满用 set_transform 的 fit。依据该 Skill 和用户要求使用剪辑工具；需要判断画面内容时查看真实素材帧，修改后重新读取项目并核验。剪辑任务不要改动画布节点。仅承诺工具实际支持并成功执行的操作。'
       : '',
     'Use Shotloom native tools for every canvas, project, task, model-catalog, Skill, or media operation.',
@@ -402,7 +385,10 @@ export async function runOpenCodeAgent(
   const projectKey = String(payload.projectKey || getAgentProjectKey());
   const projectIdentity = getAgentProjectIdentity();
   const conversationId = String(payload.conversationId || '');
-  const editorMode = Boolean(conversationRecord(conversationId)?.editorNodeId);
+  // 会话记录上的 agentId 决定本轮使用哪个 Agent 定义；未声明的 id 直接失败，
+  // 不退回某个默认 Agent，避免错误配置静默获得另一套工具权限。
+  const agentId = String(conversationRecord(conversationId)?.agentId || '');
+  const agent = agentDefinition(agentId);
   const model = String(payload.model || settingsStore.agentPreferredTextModel || '');
   const directory = String(store.projectDir || '.');
   assertAgentProject(projectKey, projectIdentity.instanceId, projectIdentity.generation);
@@ -448,17 +434,17 @@ export async function runOpenCodeAgent(
     requestId, turnId: `${requestId}:root`, projectKey,
     projectInstanceId: projectIdentity.instanceId,
     projectGeneration: projectIdentity.generation,
-    conversationId,
+    conversationId, agentId,
     signal: controller.signal, loadedSkillIds: new Set<string>(),
     attachments: payload.attachments || [],
-    capabilities: { nodeExecution: settingsStore.agentCanRunNodes === true, agentType: editorMode ? 'editor' : 'canvas' }, state, emit,
+    capabilities: { nodeExecution: settingsStore.agentCanRunNodes === true }, state, emit,
   };
   let client: OpenCodeClient;
   let sessionId: string;
   let modelLimits = { contextLimit: 64_000, outputLimit: 8_192 };
   try {
     const tools = await activateOpenCodeToolBridge({ context: toolContext, model });
-    const configured = configureModel(model, directory, editorMode);
+    const configured = configureModel(model, directory, toolContext);
     configured.configuration.tools = tools;
     modelLimits = configured;
     ({ client } = await runtimeClient(configured.configuration));
@@ -594,8 +580,7 @@ export async function runOpenCodeAgent(
       if (part.sessionID === sessionId && part.type === 'tool' && part.tool === 'skill') {
         const skillId = String(part.state.input?.name || '').trim();
         if (part.state.status === 'completed' && skillId && !toolContext.loadedSkillIds.has(skillId)) {
-          const skill = availableAgentSkills(conversationRecord(conversationId)?.editorNodeId ? 'video-editing' : 'general')
-            .find((item) => item.id === skillId);
+          const skill = availableAgentSkills(agentId).find((item) => item.id === skillId);
           if (skill) {
             toolContext.loadedSkillIds.add(skillId);
             toolContext.state.set('activeSkillId', skillId);
@@ -662,9 +647,9 @@ export async function runOpenCodeAgent(
       const response = responseData<any>(await client.session.prompt({
         path: { id: sessionId }, query: { directory },
         body: {
-          agent: 'shotloom',
+          agent: agent.id,
           model: { providerID: 'shotloom', modelID: model },
-          system: systemPrompt(conversationId),
+          system: systemPrompt(toolContext),
           parts,
         },
         signal: controller.signal,
