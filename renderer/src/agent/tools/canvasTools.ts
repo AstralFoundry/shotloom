@@ -16,6 +16,37 @@ import actionContract from '@/config/agent-action-contract.json';
 import { validateAgentActionShape } from '@/composables/agentActionValidator';
 import { buildAgentActionSchema, flattenAgentActionSchema, normalizeAgentActions } from './agentProtocol';
 import { canvasMutationFingerprint } from '@/utils/canvasMutationFingerprint.mjs';
+import { desktopApi } from '@/services/desktopApi';
+
+function imageDataUrl(bytes: ArrayBuffer) {
+  const data = new Uint8Array(bytes);
+  let binary = '';
+  for (let offset = 0; offset < data.length; offset += 0x8000) {
+    binary += String.fromCharCode(...data.subarray(offset, offset + 0x8000));
+  }
+  return `data:image/jpeg;base64,${btoa(binary)}`;
+}
+
+function mediaCandidate(node: Record<string, any>) {
+  const outputs = Array.isArray(node.generatedOutputs) ? node.generatedOutputs : [];
+  const selectedId = String(node.selectedOutputNodeId || '').replace(/^material:/, '');
+  const selected = outputs.find((item: any) => String(item?.id || '') === selectedId)
+    || outputs.find((item: any) => item?.selected)
+    || outputs.at(-1);
+  const material = (projectStore.project.materials || []).find((item: any) =>
+    item.nodeId === node.id && (!selectedId || String(item.id) === selectedId));
+  return selected || material || node.uploadedFile || node;
+}
+
+function mediaPath(candidate: Record<string, any>) {
+  const path = String(candidate?.filePath || candidate?.path || '');
+  return path && !/^(?:https?:|blob:|data:)/i.test(path) ? path : '';
+}
+
+function isVideoCandidate(candidate: Record<string, any>, path: string) {
+  const kind = String(candidate?.resourceType || candidate?.mimeType || candidate?.type || '').toLowerCase();
+  return kind.includes('video') || /\.(?:mp4|m4v|mov|webm|mkv|avi)$/i.test(path);
+}
 
 const generationActions = new Set(['start_generation']);
 // 模型只看到这份白名单中的 Action。完整存储契约可以包含内部动作，
@@ -147,6 +178,63 @@ export function registerCanvasTools(): void {
       const snapshot = getAgentCanvasSnapshot({ view: 'working', nodeIds: [nodeId] });
       advanceCanvasWriteFence(context);
       return snapshot;
+    },
+  });
+
+  registerAgentTool<JsonObject>({
+    id: 'canvas_media_frame',
+    title: '查看画布视频画面',
+    description: '读取画布节点的真实视频文件，在指定时间点用 FFmpeg 抽取源视频帧并以图片附件返回给模型。用于判断视频画面内容；不修改画布，不用文件名或路径猜测内容。一次最多读取 8 个明确时间点。',
+    effect: 'read',
+    inputSchema: {
+      type: 'object',
+      required: ['nodeId', 'timesSec'],
+      properties: {
+        nodeId: { type: 'string' },
+        timesSec: { type: 'array', minItems: 1, maxItems: 8, items: { type: 'number', minimum: 0 } },
+      },
+      additionalProperties: false,
+    },
+    summarizeInput: (input) => `${input.nodeId} @ ${Array.isArray(input.timesSec) ? input.timesSec.join(', ') : ''}s`,
+    execute: async (input, context) => {
+      assertContextProject(context);
+      const rawNodeId = String(input.nodeId || '').trim();
+      const aliasMap = agentNodeAliasMaps(projectStore.project.nodes || []).aliasMap;
+      const nodeId = String(aliasMap[rawNodeId.toUpperCase()] || rawNodeId);
+      const node = (projectStore.project.nodes || []).find((item: any) => String(item.id) === nodeId) as Record<string, any> | undefined;
+      if (!node || node.archived) return { success: false, error: '画布视频节点不存在，请先重新读取画布' };
+      const candidate = mediaCandidate(node);
+      const source = mediaPath(candidate);
+      if (!source) return { success: false, error: '该节点没有可读取的本地视频文件' };
+      if (!isVideoCandidate(candidate, source)) return { success: false, error: '该节点不是视频素材，不能使用视频抽帧工具' };
+      const times = [...new Set((Array.isArray(input.timesSec) ? input.timesSec : [])
+        .map((value) => Number(value)).filter((value) => Number.isFinite(value) && value >= 0))];
+      if (!times.length) return { success: false, error: '至少提供一个有效的时间点（秒）' };
+      const attachments: JsonObject[] = [];
+      const frames: JsonObject[] = [];
+      for (const seconds of times) {
+        try {
+          const frame = await desktopApi.file.captureVideoFrameToProject(source, seconds, `agent-frame-${nodeId}-${seconds.toFixed(3)}.jpg`);
+          const path = String(frame?.filePath || frame?.path || '');
+          if (!path) throw new Error('截帧没有返回文件');
+          const bytes = await desktopApi.file.readImagePreview(path, 1280);
+          if (!bytes?.byteLength) throw new Error('截帧文件无法读取');
+          const filename = `${String(node.title || node.fileName || nodeId)}-${seconds.toFixed(3)}s.jpg`;
+          attachments.push({ type: 'file', mime: 'image/jpeg', filename, url: imageDataUrl(bytes) });
+          frames.push({ seconds, filename });
+        } catch (error) {
+          frames.push({ seconds, error: error instanceof Error ? error.message : String(error) });
+        }
+      }
+      if (!attachments.length) return { success: false, nodeId, frames, error: '所有指定时间点都无法抽取视频帧' };
+      return {
+        success: true,
+        nodeId,
+        sourceFile: source,
+        frames,
+        evidence: '源视频帧；不含画布叠层或剪辑合成效果',
+        __toolAttachments: attachments,
+      };
     },
   });
 

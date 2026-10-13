@@ -76,3 +76,11 @@ test('画布能力通过细粒度工具暴露且不保留批量模型入口', ()
   assert.match(actionHandler, /if \(type === 'update_note_node'\)/);
   assert.match(actionHandler, /node\.content = content;\s*node\.textContent = content;/);
 });
+
+test('普通画布 Agent 暴露真实视频抽帧工具并返回视觉附件', () => {
+  const source = readFileSync(new URL('../renderer/src/agent/tools/canvasTools.ts', import.meta.url), 'utf8');
+  assert.match(source, /id: 'canvas_media_frame'/);
+  assert.match(source, /captureVideoFrameToProject/);
+  assert.match(source, /__toolAttachments/);
+  assert.match(source, /timesSec/);
+});
