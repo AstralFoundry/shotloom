@@ -63,12 +63,17 @@ export interface AgentToolContext {
   projectGeneration: number;
   conversationId: string;
   /**
-   * 本轮运行所属的主 Agent id。工具可见性完全由 agents/definitions.ts 的
-   * 白名单按此 id 解析，不再从会话作用域或工具名前缀猜测。
-   * 子 Agent 通过父 Agent 的同一份上下文执行，其独立可见性要到自研 loop 才按
-   * session 区分，因此这里的 agentId 始终代表本轮的权限上界。
+   * 本轮运行使用的 Agent 定义 id。主 Agent 与每个子 Agent 各自一份，
+   * 工具可见性完全由 agents/definitions.ts 的白名单按此 id 解析，
+   * 不再从会话作用域或工具名前缀猜测。
    */
   agentId: string;
+  /**
+   * 事件归属用的会话标识：主 Agent 用 requestId，子 Agent 用派发时生成的
+   * childSessionId。子 Agent 与父级共用同一条执行管道和同一个事件出口，
+   * 少了这个标识就无法诊断"这条回执是哪个 Agent 产生的"。
+   */
+  agentSessionId: string;
   signal: AbortSignal;
   loadedSkillIds: Set<string>;
   attachments: JsonObject[];

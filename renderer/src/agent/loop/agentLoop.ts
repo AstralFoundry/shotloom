@@ -76,23 +76,26 @@ export async function runAgentLoop(input: AgentLoopInput): Promise<AgentLoopResu
   const agent = input.agent || agentDefinition(input.context.agentId);
   const maxSteps = input.maxSteps ?? agent.maxSteps;
   const messages = input.messages;
-  const emit = input.emit;
+  // 一次运行只有一个事件出口：先打上本轮 Agent 的身份，再交给上层。
+  // 循环机制事件用这个出口，工具管道事件用 context.emit，两者必须是同一个，
+  // 否则子 Agent 的工具回执在 agentRuntimeEvents 里会和父级混成同一个身份。
+  const emit = (event: JsonObject & { type: string }) => input.emit({
+    agentId: agent.id,
+    agentSessionId: input.context.agentSessionId,
+    ...event,
+  });
+  const context: AgentToolContext = { ...input.context, emit };
   const builtinByName = new Map<string, LoopBuiltin>();
   const builtins = createLoopBuiltins({
     agent,
-    context: input.context,
+    context,
     emit,
-    runSubagent: async (child, task) => {
+    runSubagent: async (child, task, childSessionId) => {
       // 子 Agent 用自身定义解析可见集：这是自研循环才有的隔离，sidecar 路径共用主 Agent 上界。
-      const childContext: AgentToolContext = {
-        ...input.context,
-        agentId: child.id,
-        turnId: `${input.context.requestId}:${child.id}`,
-      };
       const result = await runAgentLoop({
         ...input,
         agent: child,
-        context: childContext,
+        context: { ...context, agentId: child.id, agentSessionId: childSessionId, turnId: `${childSessionId}:root` },
         systemPrompt: buildSubagentPrompt(child.id, child.instructions || ''),
         messages: [{ role: 'user', content: task }],
         maxSteps: child.maxSteps,
@@ -103,7 +106,6 @@ export async function runAgentLoop(input: AgentLoopInput): Promise<AgentLoopResu
   });
   for (const builtin of builtins) builtinByName.set(builtin.name, builtin);
 
-  let compacted = false;
   let modelRounds = 0;
   let reply = '';
   const inputBudget = Math.max(1, input.plan.contextLimit - input.plan.outputLimit);
@@ -112,8 +114,12 @@ export async function runAgentLoop(input: AgentLoopInput): Promise<AgentLoopResu
 
   for (let step = 1; step <= maxSteps; step += 1) {
     const window = fitTranscript(messages, inputBudget);
-    if (window.droppedGroups && !compacted) {
-      compacted = true;
+    if (window.droppedGroups) {
+      // 落盘的历史必须与模型真正看到的一致：把内存里的历史收敛到窗口，
+      // 否则长会话的 runtimeTranscript 只增不减，最终把整个项目 JSON 撑大。
+      messages.length = 0;
+      messages.push(...window.messages);
+      commit();
       emit({ type: 'context_compaction', status: 'completed', automatic: true, droppedGroups: window.droppedGroups, createdAt: new Date().toISOString() });
     }
     emit({ type: 'turn_start', turn: step, createdAt: new Date().toISOString() });
@@ -121,7 +127,7 @@ export async function runAgentLoop(input: AgentLoopInput): Promise<AgentLoopResu
     const turnId = `${input.context.requestId}:step:${step}`;
     const body = buildLoopRequestBody(
       input.plan,
-      [...serializeLoopTools(input.context), ...builtins.map(builtinToRequestTool)],
+      [...serializeLoopTools(context), ...builtins.map(builtinToRequestTool)],
       [{ role: 'system', content: input.systemPrompt }, ...window.messages],
     );
     const turn = await input.callModel(body, (delta) => emit({ type: 'text_delta', turnId, delta }));
@@ -169,7 +175,7 @@ export async function runAgentLoop(input: AgentLoopInput): Promise<AgentLoopResu
       } else {
         try {
           result = await executeAgentToolCall(
-            { context: input.context, model: input.plan.model },
+            { context, model: input.plan.model },
             { callId: call.id, name: call.function.name, argumentsJson: call.function.arguments || '{}' },
           );
         } catch (cause) {

@@ -27,6 +27,8 @@ export interface AgentRun extends JsonObject {
   status: string;
   conversationId?: string;
   projectKey?: string;
+  /** 这一轮由哪个 Agent 定义驱动；由引擎在 run_started 声明，不给默认值。 */
+  agentId?: string;
   modelRounds?: number;
   toolCallCount?: number;
   steps?: JsonObject[];
@@ -96,6 +98,7 @@ function projectAgentRun(
       Object.assign(run, {
         runtime: String(event.runtime || run.runtime || ''), status: 'running',
         title: String(event.title || 'Agent 任务'), conversationId: String(event.conversationId || ''),
+        agentId: String(event.agentId || ''),
         model: String(event.model || ''), modelRounds: Number(event.modelRounds || 0),
         openCodeSessionId: String(event.openCodeSessionId || ''),
         toolCallCount: Number(event.toolCallCount || 0), budget: event.budget || {},
@@ -107,6 +110,8 @@ function projectAgentRun(
       const children = Array.isArray(run.children) ? run.children as JsonObject[] : [];
       run.children = upsertStep(children, String(event.childSessionId || ''), {
         title: String(event.title || '子任务'), status: 'running', startedAt: now,
+        // sidecar 路径只知道子会话 id，报不出子 Agent 定义；空串表示身份确实未知。
+        agentId: String(event.childAgentId || ''),
       });
       break;
     }

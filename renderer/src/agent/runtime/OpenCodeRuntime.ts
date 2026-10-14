@@ -321,7 +321,10 @@ export async function runOpenCodeAgent(
   const directory = String(store.projectDir || '.');
   assertAgentProject(projectKey, projectIdentity.instanceId, projectIdentity.generation);
   const emit = (event: JsonObject & { type: string }) => {
-    const runtimeEvent = { ...event, requestId, sessionId: conversationId } as AgentRuntimeEvent;
+    // 每条事件都带本轮身份：agentId 表示"谁在执行"，agentSessionId 区分子会话。
+    const runtimeEvent = {
+      agentId, agentSessionId: requestId, ...event, requestId, sessionId: conversationId,
+    } as AgentRuntimeEvent;
     appendAgentRuntimeEvent(requestId, conversationId, runtimeEvent, projectKey);
     onEvent(runtimeEvent);
   };
@@ -362,7 +365,7 @@ export async function runOpenCodeAgent(
     requestId, turnId: `${requestId}:root`, projectKey,
     projectInstanceId: projectIdentity.instanceId,
     projectGeneration: projectIdentity.generation,
-    conversationId, agentId,
+    conversationId, agentId, agentSessionId: requestId,
     signal: controller.signal, loadedSkillIds: new Set<string>(),
     attachments: payload.attachments || [],
     capabilities: { nodeExecution: settingsStore.agentCanRunNodes === true }, state, emit,

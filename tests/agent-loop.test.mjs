@@ -74,9 +74,11 @@ const PLAN = {
 
 function makeContext(agentId = 'canvas-primary', overrides = {}) {
   const identity = projectIdentity.getAgentProjectIdentity();
+  const requestId = `run-${Math.random().toString(36).slice(2, 8)}`;
   return {
-    requestId: `run-${Math.random().toString(36).slice(2, 8)}`,
-    turnId: 'root',
+    requestId,
+    turnId: `${requestId}:root`,
+    agentSessionId: requestId,
     projectKey: identity.projectKey,
     projectInstanceId: identity.instanceId,
     projectGeneration: identity.generation,
@@ -389,6 +391,40 @@ test('子 Agent 失败把错误返回给父级，而不是终止整轮', async (
   assert.equal(result.reply, '我自己用只读工具核验');
 });
 
+test('每条事件都标明执行者：子 Agent 的回执不会算到父级身份上', async () => {
+  registry.clearAgentToolsForTests();
+  defineTool('canvas_list_nodes');
+  const context = makeContext();
+  const script = scriptedModel([
+    { toolCalls: [{ id: 'call-dispatch', name: 'dispatch_subagent', args: { agentId: 'production-planner', task: '列出节点' } }] },
+    { toolCalls: [{ id: 'call-child', name: 'canvas_list_nodes' }] },
+    { text: '子结论：1 个节点' },
+    { text: '已合并子结论' },
+  ]);
+  const events = [];
+  const result = await run({ context, callModel: script.callModel, emit: (event) => events.push(event), messages: [{ role: 'user', content: '先派给规划 Agent' }] });
+
+  const started = events.find((event) => event.type === 'subagent_started');
+  assert.equal(started.childAgentId, 'production-planner', '被派发的 Agent 用 childAgentId 表示');
+  assert.equal(started.agentId, 'canvas-primary', '发出这条事件的那一轮仍是父级');
+  assert.equal(started.agentSessionId, context.requestId);
+
+  const childToolEnd = events.filter((event) => event.type === 'tool_end' && event.toolCallId === 'call-child')[0];
+  assert.equal(childToolEnd.agentId, 'production-planner', '子 Agent 执行的回执归属子 Agent');
+  assert.equal(childToolEnd.agentSessionId, started.childSessionId, '事件里的会话标识要与派发时生成的子会话一致');
+
+  const parentTurns = events.filter((event) => event.type === 'turn_start' && event.agentId === 'canvas-primary');
+  const childTurns = events.filter((event) => event.type === 'turn_start' && event.agentId === 'production-planner');
+  assert.equal(parentTurns.length, 2, '父级在派发前后各发起一次请求');
+  assert.equal(childTurns.length, 2, '子 Agent 自己的循环也逐步上报');
+  assert.ok(parentTurns.every((event) => event.agentSessionId === context.requestId));
+  assert.ok(childTurns.every((event) => event.agentSessionId === started.childSessionId));
+  assert.ok(events.every((event) => event.agentId && event.agentSessionId), '不得有无身份的事件落入事件日志');
+
+  assert.equal(toolContent(result.messages, 'call-dispatch').summary, '子结论：1 个节点');
+  assert.equal(result.reply, '已合并子结论');
+});
+
 test('超出步数上限时明确失败，不返回空回复', async () => {
   registry.clearAgentToolsForTests();
   defineTool('canvas_list_nodes');
@@ -434,15 +470,18 @@ test('上下文超预算时整组丢弃旧对话，并且只上报一次压缩�
   ];
   const script = scriptedModel([{ text: '只看到近期历史' }]);
   const events = [];
+  let persisted = null;
   const result = await run({
     context: makeContext(),
     plan: { ...PLAN, contextLimit: 1_500, outputLimit: 100 },
     callModel: script.callModel,
     emit: (event) => events.push(event),
+    onMessagesChanged: (messages) => { persisted = [...messages]; },
     messages: history,
   });
   const sent = script.requests[0].messages.slice(1);
   assert.ok(!JSON.stringify(sent).includes(filler), '超预算的旧分组不得再送给模型');
+  assert.ok(persisted && !JSON.stringify(persisted).includes(filler), '落盘的历史必须收敛到模型真正看到的窗口');
   assert.equal(sent[0].role, 'user');
   assert.equal(sent[sent.length - 1].content, '最新问题');
   assert.equal(events.filter((event) => event.type === 'context_compaction').length, 1);

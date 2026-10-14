@@ -29,7 +29,7 @@ import type { AgentPromptPayload, AgentRunResult, AgentRuntimeEvent, AgentToolCo
  * providerId 注入），模型可见历史由本模块自己读写并持久化在会话记录上。
  */
 
-const LOOP_RUNTIME_MODEL_CONTRACT = '模型循环、会话历史、上下文裁剪与子 Agent 全部由 Shotloom 自研 Agent Loop 管理；历史里的工具结果都是本地真实回执。';
+const LOOP_RUNTIME_MODEL_CONTRACT = '模型循环、会话历史、上下文裁剪与子 Agent 全部由 Shotloom 自研 Agent Loop 管理；历史里的工具结果都是本地真实回执。超出上下文预算时，较早的对话会整组丢弃且不再对你可见，需要旧信息就用只读工具重新查看真实状态，不要假设自己记得全部历史。';
 const INTERRUPTED_TOOL_NOTE = '这次工具调用因为本轮运行中断而没有执行，没有产生任何效果。';
 
 const activeLoopRuns = new Map<string, AbortController>();
@@ -114,7 +114,10 @@ export async function runLoopAgent(
   assertAgentProject(projectKey, projectIdentity.instanceId, projectIdentity.generation);
 
   const emit = (event: JsonObject & { type: string }) => {
-    const runtimeEvent = { ...event, requestId, sessionId: conversationId } as AgentRuntimeEvent;
+    // 每条事件都带本轮身份；循环内部还会按 run 覆盖成子 Agent 的 agentId/agentSessionId。
+    const runtimeEvent = {
+      agentId, agentSessionId: requestId, ...event, requestId, sessionId: conversationId,
+    } as AgentRuntimeEvent;
     appendAgentRuntimeEvent(requestId, conversationId, runtimeEvent, projectKey);
     onEvent(runtimeEvent);
   };
@@ -145,7 +148,7 @@ export async function runLoopAgent(
     requestId, turnId: `${requestId}:root`, projectKey,
     projectInstanceId: projectIdentity.instanceId,
     projectGeneration: projectIdentity.generation,
-    conversationId, agentId,
+    conversationId, agentId, agentSessionId: requestId,
     signal: controller.signal, loadedSkillIds: new Set<string>(),
     attachments: payload.attachments || [],
     capabilities: { nodeExecution: settingsStore.agentCanRunNodes === true }, state, emit,

@@ -21,7 +21,7 @@ export interface LoopBuiltinHost {
   agent: AgentDefinition;
   context: AgentToolContext;
   /** 派发一次子 Agent 循环，返回子 Agent 给父级的结论文字。 */
-  runSubagent: (child: AgentDefinition, task: string) => Promise<string>;
+  runSubagent: (child: AgentDefinition, task: string, childSessionId: string) => Promise<string>;
   emit: (event: JsonObject & { type: string }) => void;
 }
 
@@ -76,22 +76,25 @@ export function createLoopBuiltins(host: LoopBuiltinHost): LoopBuiltin[] {
         const task = String(input.task || '').trim();
         if (!task) return { success: false, error: '派发子任务必须给出完整任务说明' };
         const childSessionId = `${host.context.requestId}:sub:${childId}:${Date.now().toString(36)}`;
+        // childAgentId 表示"这条事件说的是哪个子 Agent"；事件自身的 agentId
+        // 始终是发出它的那一轮，二者不能混用，否则归属会互相覆盖。
         host.emit({
           type: 'subagent_started', parentRunId: host.context.requestId,
-          childSessionId, title: `${child.title}：${task.slice(0, 40)}`, createdAt: new Date().toISOString(),
+          childAgentId: childId, childSessionId, title: `${child.title}：${task.slice(0, 40)}`,
+          createdAt: new Date().toISOString(),
         });
         try {
-          const summary = await host.runSubagent(child, task);
+          const summary = await host.runSubagent(child, task, childSessionId);
           host.emit({
             type: 'subagent_completed', parentRunId: host.context.requestId,
-            childSessionId, createdAt: new Date().toISOString(),
+            childAgentId: childId, childSessionId, createdAt: new Date().toISOString(),
           });
           return { success: true, agentId: childId, childSessionId, summary };
         } catch (cause) {
           const error = cause instanceof Error ? cause.message : String(cause);
           host.emit({
             type: 'subagent_failed', parentRunId: host.context.requestId,
-            childSessionId, error, createdAt: new Date().toISOString(),
+            childAgentId: childId, childSessionId, error, createdAt: new Date().toISOString(),
           });
           // 失败返回给父 Agent 而不是抛错：父模型可以改派任务或自行完成，整轮不必因一次派发失败而终止。
           return { success: false, agentId: childId, childSessionId, error };

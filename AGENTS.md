@@ -64,7 +64,8 @@ Shotloom 的 Agent 以模型为决策主体。不要在应用代码中用关键�
 - 两个引擎共用同一条执行管道 `runtime/executeToolCall.ts`：权限确认、重复调用拦截、用户改参重校验、回执记账和 `tool_start`/`tool_end` 事件只有一份实现，引擎层不得自行调用 `definition.execute`。
 - 提示词装配（`content/instructions.ts`）、附件转图片（`content/attachments.ts`）和终态结果推导也只有一份实现，双轨对比才有意义。
 - `skill` 与 `dispatch_subagent` 是 loop 自带的循环机制，不进工具注册表；其可见性完全来自 Agent 定义的 `skills`/`dispatch`，为空就没有该工具。
-- loop 与 `context.emit` 必须是同一个事件出口（见 `loop/runLoopAgent.ts`）；新引擎或测试不得把两者当成两条独立通道，否则权限交互事件在界面上消失。
+- loop 与 `context.emit` 必须是同一个事件出口：循环为每一轮（主 Agent 与每个子 Agent）派生一个带身份的事件出口，同时用作 `input.emit` 和工具管道的 `context.emit`。测试或新引擎不得把它们拆成两条通道，否则权限确认与工具事件在界面上消失。
+- 每条 runtime 事件都带 `agentId`（谁在执行）与 `agentSessionId`（主 Agent 用 requestId，子 Agent 用派发时生成的 childSessionId）。`subagent_*` 事件用 `childAgentId` 表示被派发的 Agent，不得复用 `agentId`，否则发出方与对象的身份会互相覆盖。身份缺失或不一致会让事件在 `agentRuntimeEvents` 里无法归属。
 - 模型凭证仍由 Rust 侧注入：渲染进程只传 `providerId` 与 endpoint 元信息，`__` 前缀字段在发请求前剥离，不得为自研 loop 新增放宽 `agent_runtime_request` 的命令。
 
 ## 技能与提示词模板
