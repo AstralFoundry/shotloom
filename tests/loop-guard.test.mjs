@@ -144,6 +144,10 @@ test('循环拦截发生在工具执行之前，并把拒绝交给既有回执�
   assert.match(executor, /repeatedToolCall: true/);
   // 拒绝走普通失败结果，才能复用 toolReceipts / lastActionError / tool_end 的记账。
   assert.doesNotMatch(executor, /guarded\.reject[\s\S]{0,200}throw /);
+  // "已开始执行"的标记必须落在真实派发点上：被拦下的调用要在中断后仍被判为可以原样重试。
+  const markCall = executor.indexOf('markToolCallStarted(context, call.callId)');
+  assert.ok(markCall > guardCall && markCall < executeCall, '标记必须在拦截之后、执行之前');
+  assert.match(executor, /if \(!guarded\.reject\) markToolCallStarted/);
 });
 
 test('每种工具确认都声明自己的处理模式', () => {

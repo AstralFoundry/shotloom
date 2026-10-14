@@ -1,5 +1,6 @@
 import { store, touchProject } from '@/store/projectStore';
-import type { JsonObject, JsonValue } from '../core/types';
+import { receiptChangesProject } from '../runtime/toolReceipts';
+import type { AgentToolContext, AgentToolReceipt, JsonObject, JsonValue } from '../core/types';
 
 /**
  * Agent loop 的模型可见历史。
@@ -29,9 +30,7 @@ export interface ChatMessage {
   tool_call_id?: string;
 }
 
-/** 单条工具结果写给模型的上限；画布快照之类的返回可以很大，不能整轮被它占满。 */
-const TOOL_RESULT_CHAR_LIMIT = 20_000;
-/** 估算只用于决定窗口边界，真实占用仍以模型返回的 usage 上报给界面。 */
+/** 单条消息的估算只用于决定窗口边界，真实占用仍以模型返回的 usage 上报给界面。 */
 const CHARS_PER_TOKEN = 3;
 
 function messageChars(message: ChatMessage): number {
@@ -49,31 +48,91 @@ export function estimateMessageTokens(messages: ChatMessage[]): number {
 }
 
 /**
+ * 工具本体真正开始执行的标记。
+ *
+ * 中断后要给无应答的调用补一条工具消息，而"能不能直接重试"取决于这次调用有没有
+ * 碰过外部世界：等待用户确认时被打断可以原样重试，已经在 execute 里被打断就不行。
+ * 只有工具自己知道后者，所以必须在派发点记账，不能让模型或界面试着去猜。
+ */
+const STARTED_TOOL_CALLS_KEY = 'startedToolCallIds';
+
+export function markToolCallStarted(context: AgentToolContext, callId: string): void {
+  const started = (context.state.get(STARTED_TOOL_CALLS_KEY) as Set<string>) || new Set<string>();
+  started.add(callId);
+  context.state.set(STARTED_TOOL_CALLS_KEY, started);
+}
+
+export function startedToolCallIds(state: Map<string, unknown>): Set<string> {
+  return (state.get(STARTED_TOOL_CALLS_KEY) as Set<string>) || new Set<string>();
+}
+
+/** 历史里没有应答的工具调用 id。 */
+export function danglingToolCallIds(messages: ChatMessage[]): Set<string> {
+  const answered = new Set(messages
+    .filter((message) => message.role === 'tool' && message.tool_call_id)
+    .map((message) => String(message.tool_call_id)));
+  const dangling = new Set<string>();
+  for (const message of messages) {
+    for (const call of message.tool_calls || []) {
+      if (!answered.has(call.id)) dangling.add(call.id);
+    }
+  }
+  return dangling;
+}
+
+/**
+ * 无应答工具调用的补写内容，按这次调用的真实进度分档。
+ *
+ * 统一说"没有执行，没有产生任何效果"是不实的：写画布的调用完全可能在 execute 内部
+ * 被打断，此时节点已经落地，模型相信这句话就会重复创建，用户看到一排重复节点。
+ * 档位只由本地已记录的事实决定（回执是否改变项目、是否已派发），不去猜工具语义。
+ *
+ * `unattributed` 是上一次没来得及收尾的运行留下的调用（强退或崩溃）：本地对它们
+ * 没有任何执行记录，既不能宣称已完成，也不能宣称没有效果。
+ */
+export function interruptedToolNoteFor(
+  state: Map<string, unknown>,
+  unattributed: Set<string>,
+): (call: AgentToolCall) => string {
+  const receipts = (state.get('toolReceipts') as Map<string, AgentToolReceipt>) || new Map<string, AgentToolReceipt>();
+  const started = startedToolCallIds(state);
+  const unknownOutcome = (label: string, reason: string) =>
+    `${label}${reason}，实际影响未知。它可能有副作用，先用只读工具核验当前状态再决定是否重做，不要直接重复调用。`;
+  return (call) => {
+    const label = `工具 ${call.function.name}`;
+    const receipt = receipts.get(call.id);
+    if (receipt) {
+      return receiptChangesProject(receipt)
+        ? `${label} 在本次中断的运行里已经执行完成，并且真实改动了项目（涉及的节点或任务已记录在回执里）。结果没能写回历史。不要重试这个写操作；需要确认就用只读工具查看当前画布真实状态。`
+        : `${label} 在本次中断的运行里已经执行完成，没有改动项目。结果没能写回历史，需要它就重新调用一次。`;
+    }
+    if (started.has(call.id)) return unknownOutcome(label, ' 在本次中断的运行里已经开始执行，但结果没能写回历史');
+    if (unattributed.has(call.id)) return unknownOutcome(label, ' 来自上一次未正常退出的运行，本地没有它的执行记录');
+    return `${label} 在本次中断的运行里尚未开始执行，没有产生任何效果；需要时可以直接重新调用。`;
+  };
+}
+
+/**
  * 中断可能发生在"assistant 提出 tool_calls"与"工具结果回写"之间。落盘前给每个
  * 没有应答的调用补一条工具消息，否则下一轮请求带着无应答的 tool_calls 会被
  * provider 直接拒绝，这个会话就永久卡在坏历史上。
  */
-export function closeDanglingToolCalls(messages: ChatMessage[], note: string): ChatMessage[] {
-  const answered = new Set(messages
-    .filter((message) => message.role === 'tool' && message.tool_call_id)
-    .map((message) => String(message.tool_call_id)));
+export function closeDanglingToolCalls(
+  messages: ChatMessage[],
+  noteFor: (call: AgentToolCall) => string,
+): ChatMessage[] {
+  const pending = danglingToolCallIds(messages);
   const output: ChatMessage[] = [];
   for (const message of messages) {
     output.push(message);
     if (message.role !== 'assistant') continue;
     for (const call of message.tool_calls || []) {
-      if (answered.has(call.id)) continue;
-      answered.add(call.id);
-      output.push({ role: 'tool', tool_call_id: call.id, content: note });
+      if (!pending.has(call.id)) continue;
+      pending.delete(call.id);
+      output.push({ role: 'tool', tool_call_id: call.id, content: noteFor(call) });
     }
   }
   return output;
-}
-
-/** 截断必须让模型知道内容被截断，否则它会以为看到了完整回执。 */
-export function truncateToolResult(text: string): string {
-  if (text.length <= TOOL_RESULT_CHAR_LIMIT) return text;
-  return `${text.slice(0, TOOL_RESULT_CHAR_LIMIT)}\n…（工具结果过长，已截断 ${text.length - TOOL_RESULT_CHAR_LIMIT} 个字符）`;
 }
 
 /**
@@ -107,7 +166,7 @@ export function fitTranscript(messages: ChatMessage[], inputBudget: number): Tra
   return { messages: kept, droppedGroups: dropped, estimatedTokens: estimateMessageTokens(kept) };
 }
 
-function conversationRecord(conversationId: string): JsonObject | undefined {
+export function conversationRecord(conversationId: string): JsonObject | undefined {
   return (store.project.copilotConversations || []).find(
     (item: JsonObject) => String(item.id || '') === String(conversationId),
   );

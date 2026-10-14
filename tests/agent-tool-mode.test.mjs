@@ -124,6 +124,7 @@ test('每个 Agent 工具都声明图标且图标名真实存在', () => {
     'productionPlanTools', 'scriptTools', 'videoEditorTools',
   ];
   const declared = [];
+  const missingIcon = [];
   for (const file of files) {
     const source = readFileSync(new URL(`../renderer/src/agent/tools/${file}.ts`, import.meta.url), 'utf8');
     // 定义可以是一行或多行，按下一个 id 切块后再在块内找 icon，避免依赖换行。
@@ -132,9 +133,11 @@ test('每个 Agent 工具都声明图标且图标名真实存在', () => {
       const body = source.slice(start.index, starts[index + 1]?.index ?? source.length);
       const icon = /\bicon: '([a-z-]+)'/.exec(body)?.[1];
       if (icon) declared.push([start[1], icon]);
+      else missingIcon.push(`${file}::${start[1]}`);
     });
   }
-  assert.equal(declared.length, 35, '工具定义与图标必须一一对应');
+  assert.deepEqual(missingIcon, [], '每个工具定义都必须声明图标');
+  assert.ok(declared.length >= 35, `解析到的工具定义异常：${declared.length}`);
   const invalid = declared.filter(([, icon]) => !iconNames.has(icon));
   assert.deepEqual(invalid, [], '工具声明了不存在的图标');
   assert.notEqual(declared.filter(([, icon]) => icon === 'wrench').length, declared.length, '工具不能全部共用同一个图标');

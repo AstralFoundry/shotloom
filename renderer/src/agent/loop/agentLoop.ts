@@ -3,10 +3,11 @@ import { buildSubagentPrompt } from '../content/instructions';
 import { executeAgentToolCall } from '../runtime/executeToolCall';
 import type { AgentToolContext, JsonObject } from '../core/types';
 import { createLoopBuiltins, type LoopBuiltin } from './builtinTools';
+import { serializeToolOutputForTranscript } from './toolOutputSpill';
 import { serializeLoopTools, buildLoopRequestBody, type LoopModelPlan } from './modelRequest';
 import {
   fitTranscript,
-  truncateToolResult,
+  markToolCallStarted,
   type AgentToolCall,
   type ChatContentPart,
   type ChatMessage,
@@ -171,6 +172,8 @@ export async function runAgentLoop(input: AgentLoopInput): Promise<AgentLoopResu
         } catch {
           parsed = {};
         }
+        // 子 Agent 的画布写发生在这次派发内部，中断时同样可能已经改过项目。
+        markToolCallStarted(context, call.id);
         result = await builtin.run(parsed);
       } else {
         try {
@@ -185,7 +188,13 @@ export async function runAgentLoop(input: AgentLoopInput): Promise<AgentLoopResu
         }
       }
       const { __toolAttachments: rawAttachments, ...output } = result;
-      messages.push({ role: 'tool', tool_call_id: call.id, content: truncateToolResult(JSON.stringify(output)) });
+      messages.push({
+        role: 'tool',
+        tool_call_id: call.id,
+        content: await serializeToolOutputForTranscript({
+          context, callId: call.id, toolName: call.function.name, text: JSON.stringify(output),
+        }),
+      });
       const attachments = Array.isArray(rawAttachments) ? rawAttachments as JsonObject[] : [];
       if (attachments.length) {
         const parts = imageParts(attachments);

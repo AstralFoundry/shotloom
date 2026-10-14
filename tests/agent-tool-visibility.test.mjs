@@ -59,6 +59,23 @@ test('剪辑 Agent 的工具集合只包含时间线与交互工具', () => {
   clearAgentToolsForTests();
 });
 
+// 落盘摘要把完整输出交给 read_tool_output；哪个 Agent 缺了它，哪个 Agent 的历史就留下读不回来的省略。
+test('每个 Agent 都能读回落盘的工具输出', () => {
+  for (const agent of AGENT_DEFINITIONS) {
+    assert.ok(agent.tools.includes('read_tool_output'), `${agent.id} 必须能读回落盘结果`);
+    assert.ok(agent.effects.includes('read'), `${agent.id} 必须保留只读副作用`);
+  }
+  clearAgentToolsForTests();
+  define('read_tool_output');
+  for (const agent of AGENT_DEFINITIONS) {
+    assert.ok(
+      listAgentTools(contextFor(agent.id)).some((tool) => tool.id === 'read_tool_output'),
+      `${agent.id} 必须在运行时真的看见 read_tool_output`,
+    );
+  }
+  clearAgentToolsForTests();
+});
+
 test('副作用上限独立于工具白名单生效', () => {
   clearAgentToolsForTests();
   // result-reviewer 的白名单里有 canvas_list_nodes，但没有 canvas_create_node；

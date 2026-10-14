@@ -18,6 +18,10 @@ let registry;
 let interactions;
 let skillsStore;
 let settingsStore;
+let projectStore;
+let normalization;
+let desktopApi;
+let spill;
 let projectIdentity;
 let modelRequest;
 let catalog;
@@ -52,6 +56,10 @@ before(async () => {
   interactions = await server.ssrLoadModule('/src/agent/runtime/runtimeInteractions.ts');
   skillsStore = await server.ssrLoadModule('/src/store/skillsStore.js');
   settingsStore = await server.ssrLoadModule('/src/store/settingsStore.js');
+  projectStore = await server.ssrLoadModule('/src/store/projectStore.js');
+  normalization = await server.ssrLoadModule('/src/store/projectNormalization.js');
+  desktopApi = (await server.ssrLoadModule('/src/services/desktopApi.js')).desktopApi;
+  spill = await server.ssrLoadModule('/src/agent/loop/toolOutputSpill.ts');
   projectIdentity = await server.ssrLoadModule('/src/services/agentProjectIdentity.ts');
   modelRequest = await server.ssrLoadModule('/src/agent/loop/modelRequest.ts');
   catalog = await server.ssrLoadModule('/src/domain/catalog/ModelCatalog.ts');
@@ -137,6 +145,11 @@ function toolNames(body) {
   return (body.tools || []).map((tool) => tool.function.name);
 }
 
+function toolMessage(messages, toolCallId) {
+  const message = messages.find((item) => item.role === 'tool' && item.tool_call_id === toolCallId);
+  return String(message?.content ?? '');
+}
+
 function toolContent(messages, toolCallId) {
   const message = messages.find((item) => item.role === 'tool' && item.tool_call_id === toolCallId);
   return message ? JSON.parse(message.content) : undefined;
@@ -146,7 +159,7 @@ function run(input) {
   // 真实运行时里 input.emit 与 context.emit 是同一个出口（见 runLoopAgent），
   // 测试也必须把两者接到同一个收集器上，否则工具管道的事件就丢了。
   const emit = input.emit || (() => {});
-  return runAgentLoop({ plan: PLAN, systemPrompt: 'SYSTEM', messages: [], ...input, context: { ...input.context, emit } });
+  return runAgentLoop({ plan: PLAN, systemPrompt: 'SYSTEM', messages: [], ...input, emit, context: { ...input.context, emit } });
 }
 
 test('模型只看见本 Agent 白名单内的工具，无工具调用才结束本轮', async () => {
@@ -288,12 +301,14 @@ test('“询问”模式下写工具先请求确认，批准后才真正执行',
       messages: [{ role: 'user', content: '建一个节点' }],
     });
     assert.equal(executed, 1, '批准后必须真实执行一次');
+    assert.ok(transcript.startedToolCallIds(context.state).has('call-write'), '真实派发过就必须留下开始执行的标记');
     assert.equal(result.reply, '节点已按你的确认创建');
     const requested = events.find((event) => event.type === 'interaction_requested');
     assert.equal(requested.kind, 'tool_confirmation');
     assert.equal(requested.toolName, 'canvas_create_node');
     assert.equal(events.find((event) => event.type === 'interaction_resolved').approved, true);
     assert.equal(toolContent(result.messages, 'call-write').nodeIds[0], 'n1');
+    assert.ok(transcript.startedToolCallIds(context.state).has('call-write'), '真实派发过就必须留下开始执行的标记');
     assert.equal(context.state.get('hasAppliedActions'), true, '只有真实 nodeIds 回执才算画布改动');
   } finally {
     settingsStore.settingsStore.agentShellApproval = originalShellApproval;
@@ -325,6 +340,8 @@ test('用户拒绝确认后不执行，拒绝原因作为工具结果返回', as
       messages: [{ role: 'user', content: '删掉这个节点' }],
     });
     assert.equal(executed, 0, '拒绝后不得执行');
+    // 等待确认时被打断的调用没碰过外部世界，所以不能留下"已开始执行"的标记。
+    assert.equal(transcript.startedToolCallIds(context.state).has('call-delete'), false);
     assert.match(toolContent(result.messages, 'call-delete').error, /用户拒绝了删除/);
     assert.equal(result.reply, '已停止删除，改用其他方式');
   } finally {
@@ -363,6 +380,7 @@ test('子 Agent 只使用自己定义里的工具，不继承父 Agent 的画布
     assert.equal(script.requests[1].messages[1].content, '规划三个镜头');
 
     assert.equal(toolContent(result.messages, 'call-dispatch').summary, '规划完成：三个镜头');
+    assert.ok(transcript.startedToolCallIds(context.state).has('call-dispatch'), '子 Agent 的派发同样要留下开始标记，它的写操作可能已经落地');
     assert.ok(events.some((event) => event.type === 'subagent_started'));
     const completed = events.find((event) => event.type === 'subagent_completed');
     assert.ok(completed.childSessionId.startsWith(`${context.requestId}:sub:production-planner:`));
@@ -516,14 +534,154 @@ test('历史裁剪保持分组完整，中断历史会被补齐应答', () => {
     ] },
     { role: 'tool', tool_call_id: 'c1', content: '{"success":true}' },
   ];
-  const closed = transcript.closeDanglingToolCalls(dangling, '未执行');
+  const closed = transcript.closeDanglingToolCalls(dangling, () => '未执行');
   assert.deepEqual(closed.map((message) => message.role), ['user', 'assistant', 'tool', 'tool'], '占位结果紧跟在未应答的 assistant 分组后');
   assert.deepEqual([...new Set(closed.filter((message) => message.role === 'tool').map((message) => message.tool_call_id))].sort(), ['c1', 'c2'], '每个调用都必须有应答');
   assert.equal(closed.find((message) => message.tool_call_id === 'c2').content, '未执行');
-  assert.deepEqual(transcript.closeDanglingToolCalls(closed, '未执行'), closed, '补齐是幂等的');
+  assert.deepEqual(transcript.closeDanglingToolCalls(closed, () => '未执行'), closed, '补齐是幂等的');
+});
+test('中断补齐按这次调用的真实进度说话，不把已落地的写操作说成没有效果', () => {
+  const writeCall = { id: 'w1', type: 'function', function: { name: 'canvas_create_node', arguments: '{}' } };
+  const readCall = { id: 'r1', type: 'function', function: { name: 'canvas_list_nodes', arguments: '{}' } };
+  const deleteCall = { id: 'd1', type: 'function', function: { name: 'canvas_delete_node', arguments: '{}' } };
+  const unknownCall = { id: 'u1', type: 'function', function: { name: 'generation_start', arguments: '{}' } };
+  const state = new Map();
+  state.set('toolReceipts', new Map([
+    ['w1', { callId: 'w1', toolName: 'canvas_create_node', effect: 'canvas_write', success: true, applied: true, partial: false, skippedCount: 0, nodeIds: ['n1'], edgeIds: [], taskIds: [], error: '' }],
+    ['r1', { callId: 'r1', toolName: 'canvas_list_nodes', effect: 'read', success: true, applied: false, partial: false, skippedCount: 0, nodeIds: [], edgeIds: [], taskIds: [], error: '' }],
+  ]));
+  // deleteCall 只走到等待用户确认，尚未派发；unknownCall 已派发但在中断时没留下回执。
+  transcript.markToolCallStarted({ state }, 'u1');
+  const noteFor = transcript.interruptedToolNoteFor(state, new Set(['gone']));
 
-  const truncated = transcript.truncateToolResult('y'.repeat(20_500));
-  assert.match(truncated, /已截断/, '截断必须告知模型');
+  assert.match(noteFor(writeCall), /已经执行完成[\s\S]*真实改动了项目/);
+  assert.match(noteFor(writeCall), /不要重试这个写操作/);
+  assert.match(noteFor(readCall), /已经执行完成，没有改动项目/);
+  assert.match(noteFor(unknownCall), /已经开始执行[\s\S]*影响未知/);
+  assert.match(noteFor(deleteCall), /尚未开始执行，没有产生任何效果/);
+  // 上一次未正常退出的调用没有任何本地记录，不能宣称它没产生效果。
+  assert.match(noteFor({ id: 'gone', type: 'function', function: { name: 'canvas_create_node', arguments: '{}' } }),
+    /上一次未正常退出的运行[\s\S]*影响未知/);
+  for (const call of [writeCall, readCall, unknownCall]) {
+    assert.doesNotMatch(noteFor(call), /没有产生任何效果/, '有执行痕迹的调用不得声称无副作用');
+  }
+
+  const dangling = [{ role: 'assistant', content: null, tool_calls: [writeCall, deleteCall] }];
+  assert.deepEqual([...transcript.danglingToolCallIds(dangling)], ['w1', 'd1']);
+  const closed = transcript.closeDanglingToolCalls(dangling, noteFor);
+  assert.equal(closed.find((message) => message.tool_call_id === 'w1').content, noteFor(writeCall));
+  assert.equal(closed.find((message) => message.tool_call_id === 'd1').content, noteFor(deleteCall));
+});
+
+test('超长工具结果落盘后历史只留摘要，模型按 callId 能读回原文', async () => {
+  registry.clearAgentToolsForTests();
+  const fullText = JSON.stringify({
+    success: true,
+    nodes: Array.from({ length: 400 }, (_item, index) => ({ id: `n-${index}`, title: `镜头 ${index}`, prompt: 'x'.repeat(80) })),
+  });
+  assert.ok(fullText.length > 20_000, '用例必须真的超过落盘阈值');
+  // 落盘的是模型本应看到的完整回执，工具管道会在结果上补 callId。
+  const spilledText = JSON.stringify({ ...JSON.parse(fullText), toolCallId: 'call-big' });
+  defineTool('canvas_list_nodes', { execute: () => JSON.parse(fullText) });
+  const project = normalization.createProject('落盘测试项目');
+  project.copilotConversations = [{ id: 'conversation-1' }];
+  const previous = {
+    projectDir: projectStore.store.projectDir,
+    filePath: projectStore.store.filePath,
+    project: projectStore.store.project,
+    writeFileToPath: desktopApi.file.writeFileToPath,
+    readArrayBuffer: desktopApi.file.readArrayBuffer,
+  };
+  const files = new Map();
+  projectStore.store.project = project;
+  projectStore.store.filePath = null;
+  projectStore.store.projectDir = '/tmp/shotloom-spill-loop-test';
+  desktopApi.file.writeFileToPath = async (filePath, bytes) => {
+    files.set(filePath, new TextDecoder().decode(bytes));
+    return { filePath };
+  };
+  desktopApi.file.readArrayBuffer = async (filePath) => new TextEncoder()
+    .encode(String(files.get(filePath) ?? '')).buffer;
+  const context = makeContext();
+  const script = scriptedModel([
+    { toolCalls: [{ id: 'call-big', name: 'canvas_list_nodes' }] },
+    { text: '已确认落盘并可读回' },
+  ]);
+  try {
+    const result = await run({
+      context, callModel: script.callModel, messages: [{ role: 'user', content: '列出全部节点' }],
+    });
+    const recorded = toolMessage(result.messages, 'call-big');
+    assert.ok(recorded.length < spilledText.length, '历史里不能整条塞进超大结果');
+    assert.ok(recorded.startsWith('{"success":true'), '摘要必须保留真实头部');
+    assert.match(recorded, /中间省略 \d+ 个字符/);
+    assert.match(recorded, /read_tool_output[\s\S]*callId="call-big"/);
+    assert.equal([...files.keys()].length, 1, '完整结果必须真的落盘一次');
+    assert.equal([...files.values()][0], spilledText, '落盘内容必须与工具原始输出逐字一致');
+    assert.ok([...files.keys()][0].startsWith('/tmp/shotloom-spill-loop-test/.shotloom/agent-spill/conversation-1__call-big'),
+      `落盘位置必须在项目目录内并按会话+callId 命名：${[...files.keys()][0]}`);
+    assert.deepEqual(
+      project.copilotConversations[0].toolOutputs.map((item) => [item.callId, item.chars]),
+      [['call-big', spilledText.length]],
+      '落盘索引必须随会话持久化，读回只认这份索引',
+    );
+
+    const firstPage = await spill.readSpilledToolOutput(context, { callId: 'call-big', limit: 7_000 });
+    assert.equal(firstPage.success, true);
+    assert.equal(firstPage.eof, false, '一次读取必须能分段继续');
+
+    const reassembled = await readEverythingBack(context, 'call-big');
+    assert.equal(reassembled, spilledText, '分段读回拼起来必须与原始输出逐字一致');
+
+    const missing = await spill.readSpilledToolOutput(context, { callId: 'call-other' });
+    assert.equal(missing.success, false);
+    assert.match(missing.error, /没有 callId 为「call-other」的落盘输出/);
+  } finally {
+    projectStore.store.projectDir = previous.projectDir;
+    projectStore.store.filePath = previous.filePath;
+    projectStore.store.project = previous.project;
+    desktopApi.file.writeFileToPath = previous.writeFileToPath;
+    desktopApi.file.readArrayBuffer = previous.readArrayBuffer;
+    registry.clearAgentToolsForTests();
+    // 落盘索引写入会排期一次会话持久化；等它真实跑完再结束测试。
+    await new Promise((resolve) => setTimeout(resolve, 320));
+  }
+});
+
+async function readEverythingBack(context, callId) {
+  let text = '';
+  let offset = 0;
+  for (;;) {
+    const page = await spill.readSpilledToolOutput(context, { callId, offset, limit: 7_000 });
+    assert.equal(page.success, true, '分段读回不能失败');
+    text += page.content;
+    offset = page.nextOffset;
+    if (page.eof) return text;
+  }
+}
+
+test('没有磁盘目录时不落盘，摘要必须承认读不回来', async () => {
+  const previousDir = projectStore.store.projectDir;
+  projectStore.store.projectDir = null;
+  try {
+    const small = '{"success":true}';
+    assert.equal(
+      await spill.serializeToolOutputForTranscript({
+        context: makeContext(), callId: 'call-small', toolName: 'canvas_get_node', text: small,
+      }),
+      small,
+      '没超阈值的结果必须原样进历史，不产生文件往返',
+    );
+
+    const summary = await spill.serializeToolOutputForTranscript({
+      context: makeContext(), callId: 'call-big', toolName: 'canvas_list_nodes', text: 'y'.repeat(25_000),
+    });
+    assert.match(summary, /完整结果未能落盘/);
+    assert.doesNotMatch(summary, /read_tool_output/, '没有落盘就不能指向读回工具');
+    assert.ok(summary.length < 25_000, '落盘失败时也必须缩减历史体积');
+  } finally {
+    projectStore.store.projectDir = previousDir;
+  }
 });
 
 test('loop 只驱动 Chat Completions 模型，其余协议显式判定为不支持', () => {

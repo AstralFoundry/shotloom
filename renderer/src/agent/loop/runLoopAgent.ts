@@ -16,6 +16,8 @@ import { createStallWatchdog } from './stallWatchdog';
 import { resolveLoopModelPlan, type LoopModelPlan } from './modelRequest';
 import {
   closeDanglingToolCalls,
+  danglingToolCallIds,
+  interruptedToolNoteFor,
   loadConversationTranscript,
   saveConversationTranscript,
   type ChatMessage,
@@ -29,8 +31,7 @@ import type { AgentPromptPayload, AgentRunResult, AgentRuntimeEvent, AgentToolCo
  * 本模块自己读写并持久化在会话记录上；界面层只消费这里发出的事件流与诊断结果。
  */
 
-const LOOP_RUNTIME_MODEL_CONTRACT = '模型循环、会话历史、上下文裁剪与子 Agent 全部由 Shotloom 自研 Agent Loop 管理；历史里的工具结果都是本地真实回执。超出上下文预算时，较早的对话会整组丢弃且不再对你可见，需要旧信息就用只读工具重新查看真实状态，不要假设自己记得全部历史。';
-const INTERRUPTED_TOOL_NOTE = '这次工具调用因为本轮运行中断而没有执行，没有产生任何效果。';
+const LOOP_RUNTIME_MODEL_CONTRACT = '模型循环、会话历史、上下文裁剪与子 Agent 全部由 Shotloom 自研 Agent Loop 管理；历史里的工具结果都是本地真实回执。超出上下文预算时，较早的对话会整组丢弃且不再对你可见，需要旧信息就用只读工具重新查看真实状态，不要假设自己记得全部历史。工具结果过长时历史里只保留头尾摘要，完整输出落盘在本项目内，摘要会给出可用于 read_tool_output 的 callId；不要拿摘要的开头去推测被省略的内容。';
 
 const activeLoopRuns = new Map<string, AbortController>();
 
@@ -186,6 +187,9 @@ export async function runLoopAgent(
   watchdog.start();
 
   let transcript: ChatMessage[] = loadConversationTranscript(conversationId);
+  // 上一次运行如果是强退或崩溃结束的，它的无应答调用会留在历史里，而本地没有任何
+  // 执行记录可查；这一档只能声明"影响未知"，不能宣称没有产生效果。
+  const unattributedDangling = danglingToolCallIds(transcript);
   const commitTranscript = (messages: ChatMessage[]) => {
     transcript = messages;
     saveConversationTranscript(conversationId, messages);
@@ -242,8 +246,9 @@ export async function runLoopAgent(
   } finally {
     watchdog.stop();
     // 中断可能停在 tool_calls 与工具结果之间；落盘的历史必须仍然对 provider 合法，
-    // 并且明确写出"这次调用没有执行"，模型下一轮才不会把未执行的调用当成已完成。
-    commitTranscript(closeDanglingToolCalls(transcript, INTERRUPTED_TOOL_NOTE));
+    // 并且按这次调用的真实进度说明它做到了哪一步，模型下一轮既不会把未执行的调用
+    // 当成已完成，也不会重试一个已经写进画布的调用。
+    commitTranscript(closeDanglingToolCalls(transcript, interruptedToolNoteFor(state, unattributedDangling)));
     controller.abort();
     activeLoopRuns.delete(requestId);
     noteRecoveryState(true);

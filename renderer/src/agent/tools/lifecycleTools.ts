@@ -6,6 +6,7 @@ import { createAgentInteraction } from '../runtime/runStore';
 import type { AgentRunContinuation } from '../runtime/runStore';
 import { verifyAgentOutcome, type AgentOutcome } from '../runtime/runtimeVerification';
 import { getProductionPlan } from '../runtime/productionPlanStore';
+import { readSpilledToolOutput } from '../loop/toolOutputSpill';
 import { store } from '@/store/projectStore';
 
 export function registerLifecycleTools(): void {
@@ -190,5 +191,25 @@ export function registerLifecycleTools(): void {
       });
       return { success: true, skill };
     },
+  });
+
+  registerAgentTool({
+    id: 'read_tool_output',
+    icon: 'search',
+    title: '读回完整工具输出',
+    description: '工具结果过长时，历史里只保留头尾摘要，完整输出落盘在本项目内。用摘要中指明的 callId 读回；offset 传上一次返回的 nextOffset 继续读，读到 eof 为止。',
+    effect: 'read',
+    inputSchema: {
+      type: 'object',
+      required: ['callId'],
+      properties: {
+        callId: { type: 'string' },
+        offset: { type: 'number', minimum: 0 },
+        limit: { type: 'number', minimum: 1 },
+      },
+      additionalProperties: false,
+    },
+    summarizeInput: (input) => String(input.callId || ''),
+    execute: (input, context) => readSpilledToolOutput(context, input),
   });
 }

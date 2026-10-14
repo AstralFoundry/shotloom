@@ -15,6 +15,7 @@ import {
   type LoopGuardState,
 } from './loopGuard';
 import { buildToolReceipt, receiptChangesProject } from './toolReceipts';
+import { markToolCallStarted } from '../loop/transcript';
 import { describeArgumentChanges, userOverrideNote } from '@/utils/toolArgumentDiff.mjs';
 
 /**
@@ -217,6 +218,8 @@ export async function executeAgentToolCall(
     // 循环拦截在 execute 之前完成，拒绝时把失败作为普通结果交给既有回执流程处理，
     // 保证 toolReceipts / lastActionError / tool_end 的记账与其它失败路径一致。
     const guarded = await reviewRepeatedToolCall(run, context, call.callId, prepared.definition.id, prepared.input);
+    // 只有真的派发下去才算"已开始执行"；等待用户确认时被打断仍然可以原样重试。
+    if (!guarded.reject) markToolCallStarted(context, call.callId);
     let result: any = guarded.reject
       ? { success: false, rejected: true, repeatedToolCall: true, error: guarded.message }
       : await prepared.definition.execute(guarded.input, context);

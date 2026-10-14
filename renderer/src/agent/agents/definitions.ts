@@ -35,6 +35,11 @@ export interface AgentDefinition {
 const canvasReadTools = [
   'canvas_list_nodes', 'canvas_get_node', 'canvas_media_frame', 'canvas_focus_nodes', 'inspect_tasks',
 ];
+/**
+ * 超长工具结果只留头尾摘要，完整内容落盘后按 callId 读回。
+ * 这是模型看清自己历史里被省略内容的唯一途径，因此每个 Agent 都必须授予。
+ */
+const toolOutputReadTools = ['read_tool_output'];
 const canvasWriteTools = [
   'canvas_create_node', 'canvas_update_node', 'canvas_connect_nodes', 'canvas_layout_nodes',
   'canvas_delete_node', 'canvas_update_edge', 'undo_canvas', 'redo_canvas',
@@ -60,6 +65,7 @@ export const AGENT_DEFINITIONS: AgentDefinition[] = [
     maxSteps: 80,
     effects: ['read', 'agent_state_write', 'project_write', 'canvas_write', 'media_generation'],
     tools: [
+      ...toolOutputReadTools,
       ...canvasReadTools, ...canvasWriteTools, ...generationTools, ...catalogTools,
       ...userInteractionTools, ...productionPlanWriteTools, ...productionPlanReadTools,
       ...skillNamespacedTools,
@@ -76,6 +82,7 @@ export const AGENT_DEFINITIONS: AgentDefinition[] = [
     // 剪辑 agent 只改时间线（project_write），不拥有画布写入与媒体生成。
     effects: ['read', 'agent_state_write', 'project_write'],
     tools: [
+      ...toolOutputReadTools,
       ...videoEditorTools, 'request_clarification', 'report_outcome',
       'inspect_runtime_capabilities', 'inspect_model_catalog',
     ],
@@ -90,6 +97,7 @@ export const AGENT_DEFINITIONS: AgentDefinition[] = [
     maxSteps: 40,
     effects: ['read', 'agent_state_write', 'project_write'],
     tools: [
+      ...toolOutputReadTools,
       ...canvasReadTools, ...catalogTools, ...productionPlanWriteTools, ...productionPlanReadTools,
       ...skillNamespacedTools,
     ],
@@ -105,6 +113,7 @@ export const AGENT_DEFINITIONS: AgentDefinition[] = [
     maxSteps: 60,
     effects: ['read', 'agent_state_write', 'project_write', 'canvas_write', 'media_generation'],
     tools: [
+      ...toolOutputReadTools,
       ...canvasReadTools, ...canvasWriteTools, ...generationTools, ...catalogTools,
       ...productionPlanWriteTools, ...productionPlanReadTools, ...skillNamespacedTools,
     ],
@@ -120,7 +129,7 @@ export const AGENT_DEFINITIONS: AgentDefinition[] = [
     maxSteps: 24,
     // 核验者只读：任何写入类别都不在它的上限内。
     effects: ['read', 'agent_state_write'],
-    tools: [...canvasReadTools, ...catalogTools, ...productionPlanReadTools, ...skillNamespacedTools],
+    tools: [...toolOutputReadTools, ...canvasReadTools, ...catalogTools, ...productionPlanReadTools, ...skillNamespacedTools],
     skills: [],
     dispatch: [],
     instructions: 'Verify using read tools and tool receipts. Never modify the canvas.',
