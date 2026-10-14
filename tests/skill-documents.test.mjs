@@ -3,12 +3,12 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 import {
-  assertNativeSkillId,
-  nativeRuntimeSkills,
-} from '../renderer/src/agent/runtime/nativeSkills.ts';
+  assertSkillId,
+  buildSkillDocuments,
+} from '../renderer/src/agent/loop/skillDocuments.ts';
 
-test('原生 Skill 只物化启用项并携带用途、完整正文且无需模板范围', () => {
-  const result = nativeRuntimeSkills([{
+test('Skill 说明只装配启用项并携带用途、完整正文且无需模板范围', () => {
+  const result = buildSkillDocuments([{
     id: 'video-production',
     name: '全流程影像制作',
     description: '根据真实输入制作完整视频工作流。',
@@ -30,14 +30,23 @@ test('原生 Skill 只物化启用项并携带用途、完整正文且无需模�
   assert.doesNotMatch(result[0].content, /Recipe Scope|只可使用/);
 });
 
-test('原生 Skill ID 契约拒绝旧式冒号、下划线和路径字符', () => {
-  assert.doesNotThrow(() => assertNativeSkillId('script-to-video'));
+test('缺少用途或正文的 Skill 不会静默进入模型上下文', () => {
+  assert.throws(() => buildSkillDocuments([{ id: 'video-production', name: '影像制作' }]),
+    /缺少用途说明或完整指令/);
+  assert.throws(() => buildSkillDocuments([
+    { id: 'video-editing', description: '剪辑。', instructions: '按需求剪辑。' },
+    { id: 'video-editing', description: '剪辑。', instructions: '按需求剪辑。' },
+  ]), /Skill ID 重复/);
+});
+
+test('Skill ID 契约拒绝旧式冒号、下划线和路径字符', () => {
+  assert.doesNotThrow(() => assertSkillId('script-to-video'));
   for (const id of ['skill:name', 'skill_name', '../skill', '-skill', 'skill-']) {
-    assert.throws(() => assertNativeSkillId(id));
+    assert.throws(() => assertSkillId(id));
   }
 });
 
-test('助手选择 Skill 后直接在输入框写入可见的原生 slash 指令', () => {
+test('助手选择 Skill 后直接在输入框写入可见的 slash 指令', () => {
   const composer = readFileSync(new URL('../renderer/src/app/agent-chat/Composer.tsx', import.meta.url), 'utf8');
   // Skill 前缀是用户可见、可编辑的文本，不是隐藏的附件字段。
   assert.match(composer, /setText\(stripped \? `\/\$\{item\.id\} \$\{stripped\}` : `\/\$\{item\.id\} `\)/);

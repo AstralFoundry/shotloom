@@ -5,10 +5,10 @@ import systemBasePrompt from './prompts/system-base.md?raw';
 import type { AgentToolContext, JsonObject } from '../core/types';
 
 /**
- * 主 Agent 的 system prompt 只有一个来源，OpenCode 路径和自研 loop 必须发送同一份指令。
+ * 主 Agent 的 system prompt 只有一个来源，由运行入口在每一步装配。
  *
- * 引擎之间唯一的差异是 `{{runtime_model_contract}}` 这一句：它描述谁在管理循环、
- * 历史和子 Agent，其余内容变化都会让两个引擎的行为对比失去意义。
+ * `{{runtime_model_contract}}` 声明谁在管理循环、历史和子 Agent；其余内容来自提示词模板
+ * 与契约，不在装配路径之外再维护一份引擎专属指令。
  */
 export function buildAgentSystemPrompt(
   context: AgentToolContext,

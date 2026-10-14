@@ -14,8 +14,8 @@ const transportSource = readFileSync(
   new URL('../renderer/src/domain/provider/TransportRegistry.ts', import.meta.url),
   'utf8',
 );
-const runtimeSource = readFileSync(
-  new URL('../renderer/src/agent/runtime/OpenCodeRuntime.ts', import.meta.url),
+const loopRequestSource = readFileSync(
+  new URL('../renderer/src/agent/loop/modelRequest.ts', import.meta.url),
   'utf8',
 );
 
@@ -27,7 +27,7 @@ test('StarRouter 是使用官方 /v1 地址和模型发现端点的内置供应�
 test('画布和 Agent 请求均使用目录声明的上游模型 ID', () => {
   assert.match(catalogSource, /upstreamModel: model\.upstreamModel \|\| model\.id/);
   assert.match(transportSource, /model: contract\.upstreamModel/);
-  assert.match(runtimeSource, /id: info\.upstreamModel/);
+  assert.match(loopRequestSource, /upstreamModel: info\.upstreamModel/);
 });
 
 test('StarRouter 内置目录覆盖文本、图片、视频和音频生成', () => {

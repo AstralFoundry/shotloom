@@ -137,7 +137,7 @@ export function agentDefinition(agentId: string): AgentDefinition {
 
 /**
  * 界面按 agentId 显示"谁在执行"。未知身份返回空串，让界面回落通用文案，
- * 不能猜成某个具体 Agent —— sidecar 路径就确实报不出子 Agent 定义。
+ * 不能猜成某个具体 Agent。
  */
 export function agentTitle(agentId: string): string {
   return definitions.get(String(agentId || ''))?.title || '';

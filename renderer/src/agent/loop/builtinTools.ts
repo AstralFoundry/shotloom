@@ -1,6 +1,6 @@
 import { availableAgentSkills } from '../tools/catalogTools';
 import { agentDefinition, type AgentDefinition } from '../agents/definitions.ts';
-import { nativeRuntimeSkills } from '../runtime/nativeSkills';
+import { buildSkillDocuments } from './skillDocuments';
 import type { AgentToolContext, JsonObject, JsonSchema } from '../core/types';
 
 /**
@@ -33,7 +33,7 @@ export function createLoopBuiltins(host: LoopBuiltinHost): LoopBuiltin[] {
   const builtins: LoopBuiltin[] = [];
   const skills = availableAgentSkills(host.agent.id);
   if (skills.length) {
-    const contents = new Map(nativeRuntimeSkills(skills).map((skill) => [skill.id, skill.content]));
+    const contents = new Map(buildSkillDocuments(skills).map((skill) => [skill.id, skill.content]));
     builtins.push({
       name: 'skill',
       description: '按 id 加载一个已授予本 Agent 的 Skill，返回其完整方法与质量标准说明。加载后该 Skill 命名空间下的工具才会对你可见。',

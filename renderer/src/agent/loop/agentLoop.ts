@@ -91,7 +91,7 @@ export async function runAgentLoop(input: AgentLoopInput): Promise<AgentLoopResu
     context,
     emit,
     runSubagent: async (child, task, childSessionId) => {
-      // 子 Agent 用自身定义解析可见集：这是自研循环才有的隔离，sidecar 路径共用主 Agent 上界。
+      // 子 Agent 用自身定义解析可见集：父级的画布写权限不随派发继承。
       const result = await runAgentLoop({
         ...input,
         agent: child,

@@ -1,4 +1,4 @@
-import { abortAgent, runAgent } from "../../agent";
+import { abortLoopAgent, runLoopAgent } from "../../agent/loop/runLoopAgent";
 import { EDITOR_AGENT_ID } from "../../agent/agents/definitions";
 import {
   resolveClarification,
@@ -300,7 +300,7 @@ async function send(
         deliveryStage: "sent",
       });
     }
-    const result = await runAgent(
+    const result = await runLoopAgent(
       {
         message: messageText,
         model: payload.model,
@@ -378,7 +378,6 @@ async function send(
               error: diagnosis?.title ? `${diagnosis.title}：${diagnosis.message}` : `Agent 运行失败：${error}`,
               diagnosis,
               retryable: true,
-              ...(diagnosis?.retryable === false ? { retryable: false } : {}),
               retryPayload: {
                 text: payload.text,
                 model: payload.model,
@@ -504,7 +503,7 @@ export const copilotController: AgentController = {
   close: () => {},
   cancel: () => {
     if (!activeRequestId) return;
-    void abortAgent(activeRequestId).then((cancelled) => {
+    void abortLoopAgent(activeRequestId).then((cancelled) => {
       if (cancelled) showToast("正在停止 Agent");
     });
   },

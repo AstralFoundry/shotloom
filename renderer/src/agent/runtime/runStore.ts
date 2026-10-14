@@ -100,7 +100,6 @@ function projectAgentRun(
         title: String(event.title || 'Agent 任务'), conversationId: String(event.conversationId || ''),
         agentId: String(event.agentId || ''),
         model: String(event.model || ''), modelRounds: Number(event.modelRounds || 0),
-        openCodeSessionId: String(event.openCodeSessionId || ''),
         toolCallCount: Number(event.toolCallCount || 0), budget: event.budget || {},
         contextUsage: event.contextUsage || {}, steps: Array.isArray(event.steps) ? event.steps : [],
         pendingReasons: [], error: '',
@@ -110,7 +109,7 @@ function projectAgentRun(
       const children = Array.isArray(run.children) ? run.children as JsonObject[] : [];
       run.children = upsertStep(children, String(event.childSessionId || ''), {
         title: String(event.title || '子任务'), status: 'running', startedAt: now,
-        // sidecar 路径只知道子会话 id，报不出子 Agent 定义；空串表示身份确实未知。
+        // 事件没上报子 Agent 身份时是空串，界面只能显示通用文案，不得猜一个名字。
         agentId: String(event.childAgentId || ''),
         task: String(event.task || ''),
       });

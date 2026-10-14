@@ -19,7 +19,7 @@ let interactions;
 let skillsStore;
 let settingsStore;
 let projectIdentity;
-let agentIndex;
+let modelRequest;
 let catalog;
 let originalShellApproval;
 
@@ -53,7 +53,7 @@ before(async () => {
   skillsStore = await server.ssrLoadModule('/src/store/skillsStore.js');
   settingsStore = await server.ssrLoadModule('/src/store/settingsStore.js');
   projectIdentity = await server.ssrLoadModule('/src/services/agentProjectIdentity.ts');
-  agentIndex = await server.ssrLoadModule('/src/agent/index.ts');
+  modelRequest = await server.ssrLoadModule('/src/agent/loop/modelRequest.ts');
   catalog = await server.ssrLoadModule('/src/domain/catalog/ModelCatalog.ts');
   originalShellApproval = settingsStore.settingsStore.agentShellApproval;
 });
@@ -526,19 +526,18 @@ test('历史裁剪保持分组完整，中断历史会被补齐应答', () => {
   assert.match(truncated, /已截断/, '截断必须告知模型');
 });
 
-test('引擎按模型目录声明的协议选择，协议不符时显式退回', () => {
-  const loopIds = [];
-  const sidecarIds = [];
+test('loop 只驱动 Chat Completions 模型，其余协议显式判定为不支持', () => {
+  const supported = [];
+  const unsupported = [];
   for (const model of catalog.getBuiltInCatalogModels()) {
     if (!catalog.resolveModelRuntimeContract('textGeneration', model.id, [])) continue;
-    (agentIndex.selectAgentEngine(model.id) === 'loop' ? loopIds : sidecarIds).push(model.id);
+    (modelRequest.loopUnsupportedReason(model.id) ? unsupported : supported).push(model.id);
   }
-  assert.ok(loopIds.length, '目录里必须有可由自研 loop 驱动的 Chat Completions 模型');
-  assert.ok(sidecarIds.length, '目录里声明了非 Chat Completions 协议的模型必须退回原引擎');
-
-  storage.set('SHOTLOOM_AGENT_ENGINE', 'opencode');
-  assert.equal(agentIndex.selectAgentEngine(loopIds[0]), 'opencode', '双轨回归期间可以强制指定引擎');
-  storage.set('SHOTLOOM_AGENT_ENGINE', 'loop');
-  assert.equal(agentIndex.selectAgentEngine(sidecarIds[0]), 'loop');
-  storage.delete('SHOTLOOM_AGENT_ENGINE');
+  assert.ok(supported.length, '目录里必须有可由自研 loop 驱动的 Chat Completions 模型');
+  assert.ok(unsupported.length, '目录里声明了非 Chat Completions 协议的模型必须显式判定为不支持');
+  assert.match(
+    modelRequest.loopUnsupportedReason(unsupported[0]),
+    /协议不是|未声明支持|运行时契约/,
+    '不支持的原因必须说明是哪条契约不满足',
+  );
 });

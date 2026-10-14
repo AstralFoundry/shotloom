@@ -2,11 +2,10 @@ import { store, touchProject } from '@/store/projectStore';
 import type { JsonObject, JsonValue } from '../core/types';
 
 /**
- * 自研 Agent loop 的模型可见历史。
+ * Agent loop 的模型可见历史。
  *
- * OpenCode 把历史存在 sidecar 的 session 里，Shotloom 只有对话展示层的消息；
- * 自己驱动循环就必须自己保存"模型真正看到过什么"，包括工具调用与工具结果。
- * 这份记录挂在会话记录上，只服务模型，不参与界面渲染。
+ * 界面消息只是展示层的内容，不能代替"模型真正看到过什么"；循环自己读写这份记录，
+ * 包括工具调用与工具结果。它挂在会话记录上，只服务模型，不参与界面渲染。
  */
 
 export interface AgentToolCall {

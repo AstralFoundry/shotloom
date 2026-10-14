@@ -37,8 +37,8 @@ const toolIcon = (tool: AgentToolCall) =>
   kindIcon[String(tool.kind || "")] || agentToolIcon(String(tool.name || ""));
 
 /**
- * 子 Agent 的显示名。sidecar 报不出子 Agent 定义时 agentId 为空，
- * 此时只能显示通用文案，不能挑一个具体 Agent 的名字冒充。
+ * 子 Agent 的显示名。事件没有携带可解析的 agentId 时，
+ * 只能显示通用文案，不能挑一个具体 Agent 的名字冒充。
  */
 const subagentName = (subagent: AgentSubagentView) =>
   agentTitle(String(subagent.agentId || "")) || "子 Agent";

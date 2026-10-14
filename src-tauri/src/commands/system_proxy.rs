@@ -48,32 +48,3 @@ pub(crate) fn resolved_system_proxy_url() -> Option<String> {
     #[cfg(not(target_os = "macos"))]
     None
 }
-
-pub(crate) fn child_proxy_environment() -> Vec<(String, String)> {
-    let loopback = "127.0.0.1,localhost,::1";
-    let existing_no_proxy = std::env::var("NO_PROXY")
-        .or_else(|_| std::env::var("no_proxy"))
-        .unwrap_or_default();
-    let no_proxy = if existing_no_proxy.is_empty() {
-        loopback.to_string()
-    } else {
-        format!("{existing_no_proxy},{loopback}")
-    };
-    let mut environment = vec![("NO_PROXY".into(), no_proxy.clone()), ("no_proxy".into(), no_proxy)];
-    let inherited_proxy = [
-        "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy",
-    ]
-    .iter()
-    .any(|key| std::env::var(key).is_ok_and(|value| !value.trim().is_empty()));
-    if inherited_proxy {
-        return environment;
-    }
-    if let Some(proxy) = resolved_system_proxy_url() {
-        for key in [
-            "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy",
-        ] {
-            environment.push((key.into(), proxy.clone()));
-        }
-    }
-    environment
-}

@@ -12,16 +12,16 @@ import {
   scopedCopilotConversations,
 } from '../renderer/src/services/copilotConversations.mjs';
 
-test('clearing a conversation also starts a fresh Runtime session', () => {
+test('清空会话同时丢弃模型可见历史', () => {
   const project = {};
   const active = getActiveCopilotConversation(project);
   active.messages.push({ id: 'old-message' });
-  active.openCodeSessionId = 'ses_old';
+  active.runtimeTranscript = [{ role: 'user', content: '上一轮' }];
 
   clearCopilotConversation(project, active.id);
 
   assert.deepEqual(active.messages, []);
-  assert.equal(active.openCodeSessionId, undefined);
+  assert.equal(active.runtimeTranscript, undefined, '界面清空后模型也必须不再记得上一轮');
 });
 
 test('empty project gets one canonical conversation', () => {
@@ -187,12 +187,12 @@ test('clearing targets one conversation without touching the other scope', () =>
   const editor = editorCopilotConversation(project, 'node-editor');
   canvas.messages.push({ id: 'canvas-message' });
   editor.messages.push({ id: 'editor-message' });
-  editor.openCodeSessionId = 'ses_editor';
+  editor.runtimeTranscript = [{ role: 'user', content: '编辑器会话历史' }];
   assert.equal(project.activeCopilotConversationId, editor.id);
 
   clearCopilotConversation(project, canvas.id);
 
   assert.deepEqual(canvas.messages, []);
   assert.deepEqual(editor.messages, [{ id: 'editor-message' }]);
-  assert.equal(editor.openCodeSessionId, 'ses_editor');
+  assert.deepEqual(editor.runtimeTranscript, [{ role: 'user', content: '编辑器会话历史' }]);
 });

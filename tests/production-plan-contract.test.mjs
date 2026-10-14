@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 const tools = readFileSync(new URL('../renderer/src/agent/tools/productionPlanTools.ts', import.meta.url), 'utf8');
-const runtime = readFileSync(new URL('../renderer/src/agent/runtime/OpenCodeRuntime.ts', import.meta.url), 'utf8');
+const loop = readFileSync(new URL('../renderer/src/agent/loop/runLoopAgent.ts', import.meta.url), 'utf8')
+  + readFileSync(new URL('../renderer/src/agent/loop/agentLoop.ts', import.meta.url), 'utf8');
 const canvas = readFileSync(new URL('../renderer/src/agent/tools/canvasTools.ts', import.meta.url), 'utf8');
 const store = readFileSync(new URL('../renderer/src/store/projectStore.js', import.meta.url), 'utf8')
   + readFileSync(new URL('../renderer/src/store/projectNormalization.js', import.meta.url), 'utf8');
@@ -25,13 +26,13 @@ test('Production Plan 提供持久化阶段工具而不是临时文本计划', (
 });
 
 test('复杂制作是否建立计划由主 Agent 决定，工具只校验客观执行状态', () => {
-  assert.doesNotMatch(runtime, /requiresProductionPlan|productionPlanPreparedForRun/);
+  assert.doesNotMatch(loop, /requiresProductionPlan|productionPlanPreparedForRun/);
   assert.doesNotMatch(canvas, /首次修改画布前必须先用 plan_write/);
   assert.doesNotMatch(canvas, /activeProductionPlanId|executionMode !== 'execute'|已通过执行计划审核/);
 });
 
 test('复杂制作范围由主 Agent 判断并按上下文提问', () => {
-  assert.doesNotMatch(runtime, /productionScopeAmbiguous|productionIntent/);
+  assert.doesNotMatch(loop, /productionScopeAmbiguous|productionIntent/);
   assert.match(catalog, /id: 'inspect_runtime_capabilities'/);
   assert.doesNotMatch(tools, /runtimeCapabilitiesInspected.*throw new Error/s);
   assert.match(governance, /主 Agent.*request_clarification/);
@@ -66,9 +67,4 @@ test('Production Plan v2 用逐项 runtime ref 核验真实节点和任务', () 
   assert.equal(canvas.match(/maxItems/g).length, 1);
   assert.match(canvas, /timesSec:[^}]*maxItems: 8/);
   assert.doesNotMatch(lifecycle, /maxItems/);
-});
-
-test('OpenCode 文字流只接收 assistant 消息', () => {
-  assert.match(runtime, /info\.role === 'assistant'/);
-  assert.match(runtime, /assistantMessageIds\.has\(part\.messageID\)/);
 });

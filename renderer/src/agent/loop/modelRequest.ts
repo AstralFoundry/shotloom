@@ -9,7 +9,7 @@ import type { ChatMessage } from './transcript';
  *
  * 模型目录是输入能力的唯一来源：这里不猜 endpoint、不猜鉴权方式，也不在协议不符时
  * 退化成一个"语义相近"的协议。目录声明的 agent 协议不是 Chat Completions 时，
- * 由运行时选择层显式退回另一个引擎。
+ * 运行入口直接以诊断失败结束，由用户换一个受支持的模型。
  */
 
 export interface LoopModelPlan {
@@ -29,12 +29,12 @@ export interface LoopModelPlan {
 
 const CHAT_COMPLETIONS_SUFFIX = '/chat/completions';
 /**
- * 自研 loop 没有 Rust 侧的 watchdog 与硬上限，单轮模型请求必须自己带超时，
+ * 单轮模型请求必须自己带超时：loop 侧的看门狗只负责提示用户"卡住了"，不会中止请求，
  * 否则一次挂死的流式响应会让整轮运行永久停在"正在处理"。
  */
 const MODEL_REQUEST_TIMEOUT_MS = 300_000;
 
-/** 供运行时选择层判断：该文本模型能否由自研 loop 直接驱动。返回空字符串表示支持。 */
+/** 供运行入口判断：该文本模型能否由自研 loop 直接驱动。返回空字符串表示支持。 */
 export function loopUnsupportedReason(model: string): string {
   const info = getModelInfo(model);
   if (!info) return `文本模型未在模型目录中配置：${model}`;

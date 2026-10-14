@@ -36,12 +36,12 @@ function recoveryRequest(
 ): AgentResumeRequest {
   const checkpoint = interaction.continuation;
   if (!checkpoint.conversationId || !checkpoint.toolCallId || !checkpoint.toolName) {
-    throw new Error('该 Agent 没有可恢复的 OpenCode 会话信息');
+    throw new Error('该 Agent 交互缺少可恢复的运行检查点');
   }
   return {
     conversationId: checkpoint.conversationId,
     payload: {
-      text: `${text}\n\n这是上次中断的 ${checkpoint.toolName} 工具结果：${JSON.stringify(result)}。请在原 OpenCode 会话中核验当前画布后继续，不要重复已成功的操作。`,
+      text: `${text}\n\n这是上次中断的 ${checkpoint.toolName} 工具结果：${JSON.stringify(result)}。请核验当前画布的真实状态后继续，不要重复已成功的操作。`,
       model: checkpoint.model,
       attachments: checkpoint.attachments,
       nodeMentions: checkpoint.nodeMentions,
@@ -75,8 +75,7 @@ export async function resolveToolConfirmation(
   try {
     // 两种确认必须分开处理：step 模式有已暂存的画布步骤，批准即执行；decision 模式
     // 只表示"允许继续"，没有暂存步骤，交给画布执行器会得到"确认步骤不存在"。
-    const permissionMode = String(interaction.payload.mode || '') === 'opencode_permission';
-    const decisionOnly = permissionMode || String(interaction.payload.mode || 'step') === 'decision';
+    const decisionOnly = String(interaction.payload.mode || 'step') === 'decision';
     const execution = decisionOnly
       ? { success: true }
       : approved

@@ -64,8 +64,7 @@ test('对话产物只记录成功写入，并在异步生成完成后关联真�
     .map((item) => [item.nodeId, item.focusNodeId]), [['embedded-output', 'source']]);
 });
 
-// 双轨里 sidecar 报不出子 Agent 定义，此时身份确实未知：投影保留空串，
-// 由界面回落通用文案，而不是挑一个 Agent 的名字冒充。
+// 子 Agent 的派发、步骤与结论按执行者归属，父级后续步骤不会被并回派发前
 test('子 Agent 的派发、步骤与结论按执行者归属，父级后续步骤不会被并回派发前', () => {
   const presenter = new CopilotRuntimePresenter();
   const root = 'run-1';
@@ -115,6 +114,8 @@ test('并行时的上下文压缩按会话分开，子 Agent 的压缩不会盖�
   assert.equal(rows[0].status, 'success');
 });
 
+// 事件没有上报 childAgentId 时身份确实未知：投影保留空串，由界面回落通用文案，
+// 而不是挑一个 Agent 的名字冒充。
 test('子任务的身份未知时不冒充，中断时未结束的工具与子任务一起结算', () => {
   const presenter = new CopilotRuntimePresenter();
   presenter.consume({ type: 'subagent_started', requestId: 'run-2', parentRunId: 'run-2',
@@ -123,7 +124,7 @@ test('子任务的身份未知时不冒充，中断时未结束的工具与子�
     toolName: 'canvas_list_nodes', agentId: 'canvas-primary', agentSessionId: 'run-2' });
 
   const running = presenter.snapshot();
-  assert.equal(running.subagents[0].agentId, '', 'sidecar 无法上报子 Agent 身份时保持未知');
+  assert.equal(running.subagents[0].agentId, '', '事件缺少子 Agent 身份时保持未知');
   assert.equal(agentTitle(''), '', '未知身份不能回落到某个具体 Agent 的名字');
 
   const settled = presenter.failRunning();

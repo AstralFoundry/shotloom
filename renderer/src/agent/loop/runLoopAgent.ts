@@ -12,6 +12,7 @@ import { appendAgentRuntimeEvent } from '../runtime/runStore';
 import { diagnoseRuntimeFailure, RuntimeDiagnosticError } from '../runtime/runtimeDiagnostics';
 import { activeProductionPlanSummary } from '../runtime/productionPlanStore';
 import { runAgentLoop, type LoopModelCaller } from './agentLoop';
+import { createStallWatchdog } from './stallWatchdog';
 import { resolveLoopModelPlan, type LoopModelPlan } from './modelRequest';
 import {
   closeDanglingToolCalls,
@@ -22,11 +23,10 @@ import {
 import type { AgentPromptPayload, AgentRunResult, AgentRuntimeEvent, AgentToolContext, AgentToolReceipt, JsonObject } from '../core/types';
 
 /**
- * 自研 Agent loop 的运行入口，契约与 runOpenCodeAgent 完全对齐：
- * 同样的事件流、同样的项目身份校验、同样的结果与诊断语义，界面层不需要知道是谁在驱动循环。
+ * Agent 的唯一运行入口：模型循环、会话历史、上下文裁剪与子 Agent 都在这里驱动。
  *
- * 与 sidecar 路径的差异只有两处：模型请求走渲染进程已有的流式网关（鉴权由 Rust 按
- * providerId 注入），模型可见历史由本模块自己读写并持久化在会话记录上。
+ * 模型请求走渲染进程已有的流式网关（鉴权由 Rust 按 providerId 注入），模型可见历史由
+ * 本模块自己读写并持久化在会话记录上；界面层只消费这里发出的事件流与诊断结果。
  */
 
 const LOOP_RUNTIME_MODEL_CONTRACT = '模型循环、会话历史、上下文裁剪与子 Agent 全部由 Shotloom 自研 Agent Loop 管理；历史里的工具结果都是本地真实回执。超出上下文预算时，较早的对话会整组丢弃且不再对你可见，需要旧信息就用只读工具重新查看真实状态，不要假设自己记得全部历史。';
@@ -113,13 +113,25 @@ export async function runLoopAgent(
   const message = String(payload.message || '').trim();
   assertAgentProject(projectKey, projectIdentity.instanceId, projectIdentity.generation);
 
-  const emit = (event: JsonObject & { type: string }) => {
+  const emitEvent = (event: JsonObject & { type: string }) => {
     // 每条事件都带本轮身份；循环内部还会按 run 覆盖成子 Agent 的 agentId/agentSessionId。
     const runtimeEvent = {
       agentId, agentSessionId: requestId, ...event, requestId, sessionId: conversationId,
     } as AgentRuntimeEvent;
     appendAgentRuntimeEvent(requestId, conversationId, runtimeEvent, projectKey);
     onEvent(runtimeEvent);
+  };
+  // 卡住检测只认事件出口的动静：任何事件（包括子 Agent 的）都算活着。
+  // 提示本身必须走原始出口，若它也重置静默计时，就永远到不了长时运行分类。
+  const watchdog = createStallWatchdog({
+    stalled: (silent) => emitEvent({
+      type: 'session_stalled', stalled: true, ...silent, createdAt: new Date().toISOString(),
+    }),
+    recovered: () => emitEvent({ type: 'session_stalled', stalled: false, createdAt: new Date().toISOString() }),
+  });
+  const emit = (event: JsonObject & { type: string }) => {
+    emitEvent(event);
+    watchdog.activity();
   };
   const noteRecoveryState = (finished: boolean) => {
     void invoke('recovery_update_activity', {
@@ -159,7 +171,7 @@ export async function runLoopAgent(
     registerDefaultAgentTools();
     plan = resolveLoopModelPlan(model);
   } catch (cause) {
-    const diagnosis = await diagnoseRuntimeFailure(cause);
+    const diagnosis = diagnoseRuntimeFailure(cause);
     emit({ type: 'run_status', status: 'failed', error: diagnosis.message, diagnosis, createdAt: new Date().toISOString() });
     throw new RuntimeDiagnosticError(diagnosis);
   }
@@ -171,6 +183,7 @@ export async function runLoopAgent(
   });
   emit({ type: 'run_status', status: 'running', createdAt: new Date().toISOString() });
   noteRecoveryState(false);
+  watchdog.start();
 
   let transcript: ChatMessage[] = loadConversationTranscript(conversationId);
   const commitTranscript = (messages: ChatMessage[]) => {
@@ -223,10 +236,11 @@ export async function runLoopAgent(
       emit({ type: 'run_status', status: 'cancelled', error: cause instanceof Error ? cause.message : String(cause), createdAt: new Date().toISOString() });
       throw cause;
     }
-    const diagnosis = await diagnoseRuntimeFailure(cause);
+    const diagnosis = diagnoseRuntimeFailure(cause);
     emit({ type: 'run_status', status: 'failed', error: diagnosis.message, diagnosis, createdAt: new Date().toISOString() });
     throw new RuntimeDiagnosticError(diagnosis);
   } finally {
+    watchdog.stop();
     // 中断可能停在 tool_calls 与工具结果之间；落盘的历史必须仍然对 provider 合法，
     // 并且明确写出"这次调用没有执行"，模型下一轮才不会把未执行的调用当成已完成。
     commitTranscript(closeDanglingToolCalls(transcript, INTERRUPTED_TOOL_NOTE));

@@ -92,7 +92,7 @@ export function loadContracts(): ContractMeta[] {
 /**
  * Resolve contracts applicable to the given agent profile and optional Skill filter.
  *
- * @param agent — OpenCode agent profile ID
+ * @param agent — agent definition ID declared in agents/definitions.ts
  * @param skillContracts — optional list of contract IDs from the loaded skill's frontmatter
  * @returns sorted list of matching contracts
  */

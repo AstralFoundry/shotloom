@@ -1,6 +1,6 @@
 use super::{
-    agent_runtime_proxy::resolved_system_proxy_url,
     common::{file_result, read_json, user_file},
+    system_proxy::resolved_system_proxy_url,
 };
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use futures_util::StreamExt;

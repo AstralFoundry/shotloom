@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-const runtime = readFileSync(new URL('../renderer/src/agent/runtime/OpenCodeRuntime.ts', import.meta.url), 'utf8');
+const loopRunner = readFileSync(new URL('../renderer/src/agent/loop/runLoopAgent.ts', import.meta.url), 'utf8');
 const settings = readFileSync(new URL('../renderer/src/app/views/SettingsPanel.tsx', import.meta.url), 'utf8');
 const settingsStore = readFileSync(new URL('../renderer/src/store/settingsStore.js', import.meta.url), 'utf8');
 const canvasTools = readFileSync(new URL('../renderer/src/agent/tools/canvasTools.ts', import.meta.url), 'utf8');
@@ -9,7 +9,7 @@ const policy = readFileSync(new URL('../renderer/src/agent/core/policyEngine.ts'
 const composer = readFileSync(new URL('../renderer/src/app/agent-chat/Composer.tsx', import.meta.url), 'utf8');
 test('Agent 节点运行能力只由用户设置和权限策略控制', () => {
   assert.match(settingsStore, /agentCanRunNodes:\s*false/);
-  assert.match(runtime, /nodeExecution:\s*settingsStore\.agentCanRunNodes === true/);
+  assert.match(loopRunner, /nodeExecution:\s*settingsStore\.agentCanRunNodes === true/);
   assert.match(canvasTools, /context\.capabilities\.nodeExecution/);
   assert.match(canvasTools, /id: 'canvas_start_generation'[\s\S]*?effect: 'media_generation'/);
   assert.match(canvasTools, /isAvailable: \(context\) => context\.capabilities\.nodeExecution && settingsStore\.agentCanRunNodes === true/);

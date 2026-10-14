@@ -83,7 +83,6 @@ pub fn run() {
     prefer_simplified_chinese();
 
     let builder = tauri::Builder::default()
-        .manage(commands::AgentRuntimeState::new())
         .manage(commands::GenerationGatewayState::new())
         .manage(commands::RecoveryState::new())
         .plugin(tauri_plugin_dialog::init())
@@ -110,18 +109,6 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            commands::agent_runtime_start,
-            commands::agent_runtime_status,
-            commands::agent_runtime_diagnostics,
-            commands::agent_runtime_note_activity,
-            commands::agent_runtime_request,
-            commands::agent_runtime_subscribe,
-            commands::agent_runtime_unsubscribe,
-            commands::agent_runtime_register_tools,
-            commands::agent_runtime_bind_tool_session,
-            commands::agent_runtime_release_tool_run,
-            commands::agent_tool_reply,
-            commands::agent_runtime_stop,
             commands::recovery_status,
             commands::recovery_update_activity,
             commands::generation_request,
@@ -175,9 +162,6 @@ pub fn run() {
         .expect("failed to build Shotloom");
     app.run(|app_handle, event| {
         if matches!(event, tauri::RunEvent::Exit) {
-            use tauri::Manager;
-            let state = app_handle.state::<commands::AgentRuntimeState>();
-            let _ = tauri::async_runtime::block_on(state.shutdown());
             let _ = commands::mark_clean_exit(app_handle);
         }
     });

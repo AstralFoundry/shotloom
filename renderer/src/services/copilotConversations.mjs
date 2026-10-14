@@ -147,7 +147,6 @@ export function clearCopilotConversation(project, conversationId) {
   // runtimeTranscript 是自研 Agent loop 写给模型的可见历史；界面清空时它必须一起消失，
   // 否则对话框空了而模型仍记得上一轮。ensure 不会删除它，只有清空才删。
   delete conversation.runtimeTranscript;
-  delete conversation.openCodeSessionId;
   conversation.contextUsage = null;
   conversation.updatedAt = new Date().toISOString();
   return conversation;

@@ -18,11 +18,10 @@ import { buildToolReceipt, receiptChangesProject } from './toolReceipts';
 import { describeArgumentChanges, userOverrideNote } from '@/utils/toolArgumentDiff.mjs';
 
 /**
- * Agent 工具的唯一执行管道，与"谁驱动模型循环"无关。
+ * Agent 工具的唯一执行管道。
  *
- * OpenCode 桥接和自研 loop 都必须经过这里，因此权限确认、重复调用拦截、
- * 用户改参重校验、回执记账和 tool_start/tool_end 事件只有一份实现。
- * 引擎层不得自行调用 definition.execute，否则会绕过其中任何一层。
+ * 权限确认、重复调用拦截、用户改参重校验、回执记账和 tool_start/tool_end 事件只有一份实现。
+ * 模型循环不得自行调用 definition.execute，否则会绕过其中任何一层。
  */
 export interface AgentToolRun {
   context: AgentToolContext;

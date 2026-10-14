@@ -123,7 +123,6 @@ jobs:
 
       - run: npm ci
       - run: npm run check
-      - run: npm run prepare:opencode
       - run: npm rebuild ffmpeg-static --foreground-scripts
       - run: npm run prepare:media
 

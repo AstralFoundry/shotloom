@@ -54,20 +54,20 @@ Shotloom 的 Agent 以模型为决策主体。不要在应用代码中用关键�
 - Skill 归属只在 Agent 定义里声明。运行时请求组装、执行时的 Skill 事件回写和输入框选择器必须消费同一份解析结果；不要在别处恢复 `'general' | 'video-editing'` 这类作用域字符串。
 - 子 Agent 只能由主 Agent 的 `dispatch` 显式授予；契约文件的 `appliesTo` 只能引用已声明的 Agent id 或 `'*'`。
 - 自研 Agent loop（`renderer/src/agent/loop/`）每一步都按当前 `agentId` 重新解析可见集：子 Agent 只看得见自己定义里的工具与 Skill，父 Agent 的画布写权限不会随派发继承。
-- OpenCode 双轨路径仍共用主 Agent 的执行上下文，`agentId` 只代表本轮权限上界；该限制在删除 sidecar 时一并消失，不要在 sidecar 侧声称已隔离。
 - 修改可见性必须覆盖五类失败：未列入白名单的新工具、超出副作用上限的写工具、`isAvailable` 关闭、Skill 未加载、未知 Agent id。
 
-## 模型引擎与执行管道
+## 运行引擎与执行管道
 
-- `renderer/src/agent/index.ts` 的 `selectAgentEngine(model)` 是唯一引擎入口：模型目录里 `agent` 协议为 `/chat/completions` 的模型走自研 loop，其余协议显式退回 OpenCode；不得把请求降级成“语义相近但不同”的协议。
-- 双轨回归期间允许用 `localStorage.SHOTLOOM_AGENT_ENGINE`（`loop` | `opencode`）强制指定引擎；删除 sidecar 时必须把这个开关连同退回分支一起删掉，不留兼容层。
-- 两个引擎共用同一条执行管道 `runtime/executeToolCall.ts`：权限确认、重复调用拦截、用户改参重校验、回执记账和 `tool_start`/`tool_end` 事件只有一份实现，引擎层不得自行调用 `definition.execute`。
-- 提示词装配（`content/instructions.ts`）、附件转图片（`content/attachments.ts`）和终态结果推导也只有一份实现，双轨对比才有意义。
+- `renderer/src/agent/loop/runLoopAgent.ts` 是唯一的 Agent 运行入口：模型循环、会话历史、上下文裁剪与子 Agent 全部由自研 loop 驱动，没有第二个引擎，也没有引擎选择层。
+- loop 只实现 OpenAI Chat Completions。`loop/modelRequest.ts` 的 `loopUnsupportedReason(model)` 是协议能力的唯一判断：模型目录声明的 `agent` 协议不是 `/chat/completions` 时，本轮直接以诊断失败结束，不得把请求降级成“语义相近但不同”的协议，也不得用 `localStorage` 之类的开关绕过目录。
+- 执行管道 `runtime/executeToolCall.ts` 只有一份实现：权限确认、重复调用拦截、用户改参重校验、回执记账和 `tool_start`/`tool_end` 事件，loop 不得自行调用 `definition.execute`。
+- 提示词装配（`content/instructions.ts`）、附件转图片（`content/attachments.ts`）、运行失败诊断（`runtime/runtimeDiagnostics.ts`）和终态结果推导同样只有一份实现。诊断只按模型请求与本地运行环境的真实错误文本分类，不得为某个外部进程的实现细节分类。
 - `skill` 与 `dispatch_subagent` 是 loop 自带的循环机制，不进工具注册表；其可见性完全来自 Agent 定义的 `skills`/`dispatch`，为空就没有该工具。
-- loop 与 `context.emit` 必须是同一个事件出口：循环为每一轮（主 Agent 与每个子 Agent）派生一个带身份的事件出口，同时用作 `input.emit` 和工具管道的 `context.emit`。测试或新引擎不得把它们拆成两条通道，否则权限确认与工具事件在界面上消失。
+- loop 与 `context.emit` 必须是同一个事件出口：循环为每一轮（主 Agent 与每个子 Agent）派生一个带身份的事件出口，同时用作 `input.emit` 和工具管道的 `context.emit`。测试或调用方不得把它们拆成两条通道，否则权限确认与工具事件在界面上消失。
 - 每条 runtime 事件都带 `agentId`（谁在执行）与 `agentSessionId`（主 Agent 用 requestId，子 Agent 用派发时生成的 childSessionId）。`subagent_*` 事件用 `childAgentId` 表示被派发的 Agent，不得复用 `agentId`，否则发出方与对象的身份会互相覆盖。身份缺失或不一致会让事件在 `agentRuntimeEvents` 里无法归属。
-- 运行轨迹按 `agentSessionId` 分组显示"谁在执行"：主 Agent 的步骤平铺，子 Agent 的派发是一条标题行，它的步骤挂在它下面。分组的顺序来自事件真实到达顺序，界面不得从工具名或文本猜测执行者，也不得把子 Agent 的回执并入父级步骤。子 Agent 标题显示 `childAgentId` 对应的真实 Agent 名；身份未知（sidecar 无法上报）时只能显示通用文案。
-- 模型凭证仍由 Rust 侧注入：渲染进程只传 `providerId` 与 endpoint 元信息，`__` 前缀字段在发请求前剥离，不得为自研 loop 新增放宽 `agent_runtime_request` 的命令。
+- 运行轨迹按 `agentSessionId` 分组显示"谁在执行"：主 Agent 的步骤平铺，子 Agent 的派发是一条标题行，它的步骤挂在它下面。分组的顺序来自事件真实到达顺序，界面不得从工具名或文本猜测执行者，也不得把子 Agent 的回执并入父级步骤。子 Agent 标题显示 `childAgentId` 对应的真实 Agent 名；`childAgentId` 无法解析成已声明的 Agent 时只显示通用文案，不得挑一个相近的名字冒充。
+- 卡住检测由 `loop/stallWatchdog.ts` 负责，唯一的进展依据是事件出口有没有动静：静默 180 秒提示"可继续等待或停止"，超过 30 分钟改成长时运行提示，恢复只报一次。看门狗只通知不中止运行，单轮模型请求的超时仍由 `MODEL_REQUEST_TIMEOUT_MS` 负责，看门狗自身的提示事件必须走原始事件出口，不能重置自己的静默计时。
+- 模型凭证仍由 Rust 侧注入：渲染进程只传 `providerId` 与 endpoint 元信息，`__` 前缀字段在发请求前剥离。自研 loop 的模型请求与画布生成共用 `generation_request`/`generation_stream` 网关，不得为 Agent 新增放宽网关校验的命令。
 
 ## 技能与提示词模板
 

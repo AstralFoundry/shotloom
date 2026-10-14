@@ -99,16 +99,15 @@ test('未声明的 Agent 直接失败，不退回默认工具集', () => {
 });
 
 test('只有主 Agent 声明的 dispatch 才会建立子 Agent profile', () => {
-  // dispatch 是 Agent 之间的调用边界，运行时只能为被授予的子 Agent 建立 profile。
-  const runtime = readFileSync(
-    new URL('../renderer/src/agent/runtime/OpenCodeRuntime.ts', import.meta.url),
-    'utf8',
-  );
-  assert.match(runtime, /if \(!primary\.dispatch\.includes\(definition\.id\)\) continue;/);
+  // dispatch 是 Agent 之间的调用边界：未声明的子 Agent 既不出现在工具参数枚举里，也无法被执行。
+  const planner = agentDefinition('canvas-primary');
   assert.deepEqual(agentDefinition('editor-primary').dispatch, []);
-  assert.deepEqual(agentDefinition('canvas-primary').dispatch, [
+  assert.deepEqual(planner.dispatch, [
     'production-planner', 'stage-executor', 'result-reviewer',
   ]);
+  for (const child of planner.dispatch) {
+    assert.equal(agentDefinition(child).role, 'subagent', `${child} 必须声明为子 Agent 才可派发`);
+  }
 });
 
 // 契约按 agent id 匹配，改名会静默丢掉整段约束，所以必须校验引用有效性。

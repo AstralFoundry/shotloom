@@ -30,15 +30,13 @@ test('基础 Agent 提示词包含角色、事实边界、交互、附件、工�
   assert.doesNotMatch(body, /不得调用 `start_generation`/);
 });
 
-// 提示词组装在 content/instructions.ts，运行时只负责把它交给具体引擎；两处都不能各自拼一份。
-test('主 Agent 提示词由共享模块装配，运行时不再自带副本', () => {
-  const runtime = readFileSync(new URL('../renderer/src/agent/runtime/OpenCodeRuntime.ts', import.meta.url), 'utf8');
+// 提示词组装在 content/instructions.ts，运行入口只负责把它交给模型；两处都不能各自拼一份。
+test('主 Agent 提示词由共享模块装配，运行入口不再自带副本', () => {
+  const loopRunner = readFileSync(new URL('../renderer/src/agent/loop/runLoopAgent.ts', import.meta.url), 'utf8');
   const instructions = readFileSync(new URL('../renderer/src/agent/content/instructions.ts', import.meta.url), 'utf8');
-  assert.match(runtime, /createOpencodeClient/);
-  assert.match(runtime, /buildAgentSystemPrompt/);
-  assert.match(runtime, /subagent_started/);
-  assert.doesNotMatch(runtime, /system-base\.md\?raw/);
+  assert.match(loopRunner, /buildAgentSystemPrompt/);
+  assert.doesNotMatch(loopRunner, /system-base\.md\?raw/);
   assert.match(instructions, /system-base\.md\?raw/);
   assert.match(instructions, /contractsForAgentType/);
-  assert.doesNotMatch(`${runtime}${instructions}`, /collaborative|autonomous/);
+  assert.doesNotMatch(`${loopRunner}${instructions}`, /collaborative|autonomous/);
 });

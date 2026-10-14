@@ -84,7 +84,7 @@ export interface AgentToolCall {
 }
 
 /**
- * 一次子 Agent 派发的呈现视图。`agentId` 可能为空：sidecar 报不出子 Agent 定义，
+ * 一次子 Agent 派发的呈现视图。`agentId` 可能为空（事件未上报或身份未知），
  * 界面此时只能显示通用文案，不能冒充某个具体 Agent。
  */
 export interface AgentSubagentView {

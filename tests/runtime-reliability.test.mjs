@@ -4,40 +4,6 @@ import test from 'node:test';
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
 
-test('native runtime supervisor provides health watchdog, stall detection and circuit breaking', () => {
-  const runtime = read('src-tauri/src/commands/agent_runtime.rs');
-  assert.match(runtime, /failure_times_ms: VecDeque<u128>/);
-  assert.match(runtime, /circuit_open_until_ms/);
-  assert.match(runtime, /failed three consecutive health probes/);
-  assert.match(runtime, /session_stalled/);
-  assert.match(runtime, /agent_runtime_diagnostics/);
-  assert.match(runtime, /agent_runtime_note_activity/);
-});
-
-test('native runtime atomically materializes enabled Skills for OpenCode', () => {
-  const runtime = read('src-tauri/src/commands/agent_runtime.rs');
-  assert.match(runtime, /pub skills: Vec<RuntimeSkill>/);
-  assert.match(runtime, /runtime_root\.join\("skills-next"\)/);
-  assert.match(runtime, /std::fs::rename\(&staging, &target\)/);
-  assert.match(runtime, /"skills": \{ "paths": skill_paths \}/);
-  assert.match(runtime, /valid_native_skill_id/);
-});
-
-test('OpenCode 原生裁剪工具输出并在压缩上下文时通知界面', () => {
-  const nativeRuntime = read('src-tauri/src/commands/agent_runtime.rs');
-  const runtime = read('renderer/src/agent/runtime/OpenCodeRuntime.ts');
-  const presenter = read('renderer/src/app/copilot/CopilotRuntimePresenter.ts');
-  assert.match(nativeRuntime, /"tool_output": \{/);
-  assert.match(nativeRuntime, /"max_lines": 2000/);
-  assert.match(nativeRuntime, /"max_bytes": 51200/);
-  assert.match(nativeRuntime, /"compaction": \{[\s\S]*?"prune": true/);
-  assert.match(runtime, /event\.type === 'session\.compacted'/);
-  assert.match(runtime, /part\.type === 'compaction'/);
-  assert.match(presenter, /event\.type === 'context_compaction'/);
-  assert.match(presenter, /kind: 'system'/);
-  assert.doesNotMatch(presenter, /droppedHistoryCount/);
-});
-
 test('workspace writes use instance, generation and canvas revision fences', () => {
   const identity = read('renderer/src/services/agentProjectIdentity.ts');
   const tools = read('renderer/src/agent/tools/canvasTools.ts');
@@ -48,14 +14,6 @@ test('workspace writes use instance, generation and canvas revision fences', () 
   assert.match(tools, /AgentCanvasRevisionConflictError/);
   assert.match(executor, /body\.projectInstanceId/);
   assert.match(executor, /body\.projectGeneration/);
-});
-
-test('provider configuration has a secret-free last-known-good fallback', () => {
-  const runtime = read('renderer/src/agent/runtime/OpenCodeRuntime.ts');
-  assert.match(runtime, /stripProviderSecrets/);
-  assert.match(runtime, /agent-provider-lkg\.json/);
-  assert.match(runtime, /providerLkgFallback/);
-  assert.match(runtime, /stripProviderSecrets[\s\S]*authorization/i);
 });
 
 test('crash recovery persists heartbeats and relieves sustained memory pressure', () => {
@@ -98,17 +56,12 @@ test('agent hot paths use coalesced streaming, single user delivery and latest-w
   assert.match(saveQueue, /waitForIdle\(\)/);
 });
 
-test('plan writes fence stale revisions and runtime failures are structured', () => {
+test('plan writes fence stale revisions and session archives stay bounded', () => {
   const plans = read('renderer/src/agent/runtime/productionPlanStore.ts');
   const tools = read('renderer/src/agent/tools/productionPlanTools.ts');
-  const diagnostics = read('renderer/src/agent/runtime/runtimeDiagnostics.ts');
   const sessions = read('renderer/src/services/copilotSessionLifecycle.mjs');
   assert.match(plans, /StaleProductionPlanRevisionError/);
   assert.match(tools, /expectedRevision/);
-  assert.match(diagnostics, /runtime_port_conflict/);
-  assert.match(diagnostics, /runtime_tool_bridge/);
-  assert.ok(diagnostics.indexOf('runtime_tool_bridge') < diagnostics.indexOf('runtime_network'));
-  assert.match(diagnostics, /circuitOpenUntilMs/);
   assert.match(sessions, /DEFAULT_KEEP_COUNT = 80/);
   assert.match(sessions, /expandCopilotArchivesForPersistence/);
 });
