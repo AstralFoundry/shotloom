@@ -322,9 +322,9 @@ export function registerCanvasTools(): void {
     id: 'canvas_create_node',
     icon: 'plus',
     title: '创建画布节点',
-    description: '创建一个生成节点、说明节点，或把已有真实素材放回画布。成功回执中的 nodeIds 可直接用于后续连接。',
+    description: '创建一个生成节点，或把已有真实素材放回画布。成功回执中的 nodeIds 可直接用于后续连接。',
     effect: 'canvas_write',
-    inputSchema: focusedActionSchema(['create_gen_node', 'create_note_node', 'place_asset_on_canvas']),
+    inputSchema: focusedActionSchema(['create_gen_node', 'place_asset_on_canvas']),
     summarizeInput: (input) => String(input.title || input.type || 'create node'),
     execute: executeFocusedAction,
   });
@@ -369,9 +369,9 @@ export function registerCanvasTools(): void {
     id: 'canvas_update_node',
     icon: 'pencil',
     title: '更新画布节点',
-    description: '更新一个生成节点的模型、提示词、输入模式或参数，修改 Note 的标题或正文，或者移动一个现有节点。只提交需要变化的字段。',
+    description: '更新一个生成节点的模型、提示词、输入模式或参数，或者移动一个现有节点。只提交需要变化的字段。',
     effect: 'canvas_write',
-    inputSchema: focusedActionSchema(['update_gen_config', 'update_note_node', 'move_node']),
+    inputSchema: focusedActionSchema(['update_gen_config', 'move_node']),
     summarizeInput: (input) => nodeSummaryLabel(input.nodeId),
     execute: executeFocusedAction,
   });

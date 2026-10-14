@@ -1,7 +1,7 @@
 {
   "version": 3,
   "inputRoles": {
-    "textContext": "文本或便签为目标生成节点提供语义上下文",
+    "textContext": "文本生成节点或素材文本为目标生成节点提供语义上下文",
     "referenceImage": "图片作为参考图，目标模型必须支持参考图输入",
     "inputVideo": "视频作为视频生成输入，目标模型必须支持视频输入",
     "referenceAudio": "音频作为参考声音或音色，目标模型必须支持参考音频输入"
@@ -44,11 +44,6 @@
       "type": "string",
       "minLength": 1,
       "description": "简短、可辨识的语义标题，应描述该节点的具体内容；不得只写‘图片生成’、‘视频生成’等节点类型"
-    },
-    "content": {
-      "type": "string",
-      "minLength": 1,
-      "description": "文本节点正文，可保存剧本、场次、分镜表或制作说明"
     },
     "prompt": {
       "type": "string",
@@ -242,22 +237,6 @@
         "model"
       ]
     },
-    "create_note_node": {
-      "category": "canvas",
-      "modelVisible": true,
-      "description": "创建可继续连接和编排的文本节点，适合保存剧本、场次、分镜表与制作说明；不会调用生成模型。",
-      "fields": [
-        "tempId",
-        "title",
-        "content",
-        "position",
-        "width",
-        "height"
-      ],
-      "required": [
-        "content"
-      ]
-    },
     "place_asset_on_canvas": {
       "category": "canvas",
       "modelVisible": true,
@@ -300,27 +279,6 @@
       ],
       "required": [
         "nodeId"
-      ]
-    },
-    "update_note_node": {
-      "category": "canvas",
-      "modelVisible": true,
-      "description": "更新一个已有 Note 的标题或正文。只提交需要变化的字段，不创建重复 Note。",
-      "fields": [
-        "nodeId",
-        "title",
-        "content"
-      ],
-      "required": [
-        "nodeId"
-      ],
-      "anyOfRequired": [
-        [
-          "title"
-        ],
-        [
-          "content"
-        ]
       ]
     },
     "start_generation": {

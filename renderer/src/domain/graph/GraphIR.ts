@@ -31,8 +31,6 @@ export interface GraphNode {
   materialId?: string;
   mimeType?: string;
   content?: string;
-  boardText?: string;
-  boardData?: unknown;
   directorData?: unknown;
   selectedOutputNodeId?: string;
   selectedOutput?: unknown;

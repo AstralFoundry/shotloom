@@ -21,7 +21,7 @@ interface SnapshotOptions {
 }
 
 const OUTPUT_NODE_TYPES = new Set([
-  'imageGeneration', 'videoGeneration', 'audioGeneration', 'textGeneration', 'board', 'threeDDirector',
+  'imageGeneration', 'videoGeneration', 'audioGeneration', 'textGeneration', 'threeDDirector',
 ]);
 
 /**

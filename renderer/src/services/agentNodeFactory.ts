@@ -48,7 +48,7 @@ export function defaultAgentNodePosition(project: AgentProject, action: FactoryA
   const obstacles = nodes.map(nodeRect);
   const anchorIds = new Set((action.anchorNodeIds || []).map(String));
   const anchors = nodes.filter((node) => anchorIds.has(String(node.id)));
-  const defaultType = action.type === 'create_note_node' ? 'note' : String(action.nodeType || 'imageGeneration');
+  const defaultType = String(action.nodeType || 'imageGeneration');
   const defaultSize = defaultCanvasNodeDimensions(defaultType);
   const width = sizeFromAgentAction(action, 'width', defaultSize.width);
   const height = sizeFromAgentAction(action, 'height', defaultSize.height);

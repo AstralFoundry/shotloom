@@ -3,7 +3,7 @@ import { store, touchProject } from '@/store/projectStore';
 import type { JsonObject } from '../core/types';
 
 export type ProductionExecutionMode = 'plan_only' | 'execute';
-export type ProductionOutputType = 'document' | 'image' | 'video' | 'audio' | 'text';
+export type ProductionOutputType = 'image' | 'video' | 'audio' | 'text';
 export type ProductionPlanStageStatus = 'pending' | 'doing' | 'blocked' | 'done';
 
 export interface ProductionPlanWorkItem extends JsonObject {
@@ -87,7 +87,6 @@ function generatedId(prefix: string, index?: number) {
 }
 
 function expectedNodeType(outputType: ProductionOutputType): string {
-  if (outputType === 'document') return 'note';
   if (outputType === 'image') return 'imageGeneration';
   if (outputType === 'video') return 'videoGeneration';
   if (outputType === 'audio') return 'audioGeneration';
@@ -117,7 +116,7 @@ function normalizePlanStructure(stages: ProductionPlanStage[]): string[] {
       warnings.push(`${item.id} 缺少标题，已使用默认标题`);
     }
     item.prompt = String(item.prompt || '').trim() || undefined;
-    if (item.outputType !== 'document' && !item.prompt) {
+    if (!item.prompt) {
       warnings.push(`${item.id} 尚未填写生成提示词`);
     }
   });
@@ -152,11 +151,9 @@ function validateRuntimeRefs(plan: ProductionPlan, stage: ProductionPlanStage, r
     if (String(node.type) !== requiredType) {
       throw new Error(`工作项 ${item.id} 需要 ${requiredType} 节点，实际是 ${String(node.type || 'unknown')}`);
     }
-    if (item.outputType !== 'document') {
-      if (!String(node.prompt || '').trim()) throw new Error(`工作项 ${item.id} 的节点缺少 prompt`);
-      if (!String(node.model || '').trim()) throw new Error(`工作项 ${item.id} 的节点缺少 model`);
-    }
-    if (!requireOutputs || item.outputType === 'document') continue;
+    if (!String(node.prompt || '').trim()) throw new Error(`工作项 ${item.id} 的节点缺少 prompt`);
+    if (!String(node.model || '').trim()) throw new Error(`工作项 ${item.id} 的节点缺少 model`);
+    if (!requireOutputs) continue;
 
     const task = ref.taskId ? taskById.get(ref.taskId) : undefined;
     const hasCompletedTask = task?.status === 'completed' && String(task.nodeId || '') === ref.nodeId;

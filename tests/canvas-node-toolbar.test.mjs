@@ -38,10 +38,16 @@ test('加入对话只在节点选中工具栏中显示', () => {
   }
 });
 
-test('画布节点菜单不再提供画板和便签', () => {
+test('画布不存在便签与画板节点', () => {
   const navigation = readFileSync(new URL('../renderer/src/app/constants/navigation.ts', import.meta.url), 'utf8');
-  assert.doesNotMatch(navigation, /id: "board"|id: "note"/);
-  assert.match(workflowCanvas, /node\.type !== "board" && node\.type !== "note"/);
+  const nodeTypes = readFileSync(new URL('../renderer/src/services/agentTypes.ts', import.meta.url), 'utf8');
+  const registry = readFileSync(new URL('../renderer/src/app/canvas/nodeRegistry.ts', import.meta.url), 'utf8');
+  const graphIr = readFileSync(new URL('../renderer/src/domain/graph/GraphIR.ts', import.meta.url), 'utf8');
+  assert.doesNotMatch(nodeTypes, /'note'|'board'/);
+  assert.doesNotMatch(graphIr, /boardText|boardData/);
+  for (const source of [navigation, registry, workflowCanvas, styles]) {
+    assert.doesNotMatch(source, /\bnote\b|\bboard\b/);
+  }
 });
 
 test('文本节点工具栏提供复制、加入对话与完整文本编辑', () => {

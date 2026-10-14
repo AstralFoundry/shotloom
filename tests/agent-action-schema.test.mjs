@@ -99,20 +99,19 @@ test('动作 schema 展开 commonProperties 引用，不向工具目录暴露悬
 
 test('细粒度画布工具向模型暴露顶层纯 object schema', () => {
   const schema = flattenAgentActionSchema(buildAgentActionSchema(contract, {
-    allowedTypes: ['create_gen_node', 'create_note_node', 'place_asset_on_canvas'],
+    allowedTypes: ['create_gen_node', 'place_asset_on_canvas'],
   }));
   assert.equal(schema.type, 'object');
   for (const keyword of ['oneOf', 'anyOf', 'allOf', 'enum', 'const', 'not']) {
     assert.equal(Object.hasOwn(schema, keyword), false, `顶层不应包含 ${keyword}`);
   }
   assert.deepEqual(schema.properties.type.enum, [
-    'create_gen_node', 'create_note_node', 'place_asset_on_canvas',
+    'create_gen_node', 'place_asset_on_canvas',
   ]);
   assert.equal(Object.hasOwn(schema.properties, 'prompt'), true);
-  assert.equal(Object.hasOwn(schema.properties, 'content'), true);
   assert.equal(Object.hasOwn(schema.properties, 'assetId'), true);
   assert.doesNotThrow(() => validateToolInput(schema, {
-    type: 'create_note_node', title: '分镜说明', content: '第一场的制作说明',
+    type: 'create_gen_node', nodeType: 'textGeneration', title: '分镜说明', prompt: '第一场', model: 'text-model',
   }));
 });
 
@@ -149,7 +148,7 @@ test('Agent 不暴露画布菜单中不存在的资源节点创建动作', () =>
   const exposedCreateTypes = schema.oneOf
     .map((branch) => branch.properties.type.enum[0])
     .filter((type) => type.startsWith('create_'));
-  assert.deepEqual(exposedCreateTypes, ['create_gen_node', 'create_note_node']);
+  assert.deepEqual(exposedCreateTypes, ['create_gen_node']);
   assert.deepEqual(Object.keys(contract.actions).sort(), [...MODEL_AGENT_CANVAS_ACTION_TYPES].sort());
 });
 
@@ -174,7 +173,6 @@ test('普通画布 schema 不暴露付费运行 action', () => {
   const exposed = schema.oneOf.map((branch) => branch.properties.type.enum[0]);
 
   assert.ok(exposed.includes('create_gen_node'));
-  assert.equal(exposed.includes('create_note_node'), true);
   assert.equal(exposed.includes('start_generation'), false);
   assert.equal(exposed.includes('create_resource_node'), false);
 });
@@ -222,14 +220,18 @@ test('独立创建调用使用不同幂等 ID，同一次调用重试保持稳�
   assert.notEqual(first.tempId, second.tempId);
 });
 
-test('画布更新工具契约允许修改已有 Note 而不重复创建', () => {
-  const schema = buildAgentActionSchema(contract, {
-    allowedTypes: ['update_note_node'],
-  });
-  assert.doesNotThrow(() => validateToolInput(schema, {
-    type: 'update_note_node', nodeId: 'N-01', content: '修订后的 Prompt Draft',
+test('便签动作已从契约与模型白名单移除', () => {
+  for (const type of ['create_note_node', 'update_note_node']) {
+    assert.equal(Object.hasOwn(contract.actions, type), false);
+    assert.equal(MODEL_AGENT_CANVAS_ACTION_TYPES.includes(type), false);
+  }
+  const schema = flattenAgentActionSchema(buildAgentActionSchema(contract, {
+    allowedTypes: MODEL_AGENT_CANVAS_ACTION_TYPES,
   }));
-  assert.equal(MODEL_AGENT_CANVAS_ACTION_TYPES.includes('update_note_node'), true);
+  assert.equal(Object.hasOwn(schema.properties, 'content'), false);
+  assert.throws(() => validateToolInput(schema, {
+    type: 'create_note_node', title: '分镜说明', content: '第一场的制作说明',
+  }), /Invalid tool input/);
 });
 
 test('图校验器能解析已落地助手节点的 tempId', () => {

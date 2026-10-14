@@ -22,7 +22,7 @@ export function resolveAgentInputRole(
   _options: ResolveRoleOptions = {},
 ): AgentInputRole {
   if (!source || !target) return 'textContext';
-  if (['textGeneration', 'note', 'board'].includes(source.type)) return 'textContext';
+  if (source.type === 'textGeneration') return 'textContext';
 
   const resourceKind = String(source.resourceType || source.mimeType || '').toLowerCase();
   if (source.type === 'resource' && resourceKind.includes('text')) return 'textContext';
@@ -59,7 +59,7 @@ export function validateAgentInputRole(
   }
 
   const resourceKind = String(source.resourceType || source.mimeType || '').toLowerCase();
-  const isText = ['textGeneration', 'note', 'board'].includes(source.type)
+  const isText = source.type === 'textGeneration'
     || (source.type === 'resource' && resourceKind.includes('text'));
   const isImage = source.type === 'imageGeneration'
     || (source.type === 'resource' && resourceKind.includes('image'));

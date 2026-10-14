@@ -1,6 +1,6 @@
 export function hasMeaningfulGeneratedOutput(nodeType, archived = {}) {
   if (nodeType === 'textGeneration') return Boolean(String(archived.text || '').trim());
-  // 图片/视频/音频必须真的落盘为媒体素材；文本说明节点不能冒充媒体成功。
+  // 图片/视频/音频必须真的落盘为媒体素材；文本节点不能冒充媒体成功。
   return Boolean(archived.archivedFiles?.length);
 }
 

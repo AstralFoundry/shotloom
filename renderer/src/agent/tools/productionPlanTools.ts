@@ -18,7 +18,7 @@ const workItemSchema = {
   properties: {
     id: { type: 'string' as const },
     title: { type: 'string' as const },
-    outputType: { type: 'string' as const, enum: ['document', 'image', 'video', 'audio', 'text'] },
+    outputType: { type: 'string' as const, enum: ['image', 'video', 'audio', 'text'] },
     prompt: { type: 'string' as const },
     dependsOn: { type: 'array' as const, items: { type: 'string' as const } },
     referenceNodeIds: { type: 'array' as const, items: { type: 'string' as const } },

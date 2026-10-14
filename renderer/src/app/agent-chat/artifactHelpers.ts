@@ -68,7 +68,7 @@ export function artifactsForMessage(
     if (resourceType.includes("image")) kind = "image";
     else if (resourceType.includes("video")) kind = "video";
     else if (resourceType.includes("audio")) kind = "audio";
-    else if (resourceType.includes("text") || node.type === "note") kind = "text";
+    else if (resourceType.includes("text")) kind = "text";
     const source = String(node.filePath || node.path || node.previewUrl || node.url || "");
     const local = source && !/^(https?:|blob:|data:)/i.test(source) ? source : "";
     const remote = source && !local ? source : "";

@@ -11,8 +11,6 @@ export type AgentNodeType =
   | 'audioGeneration'
   | 'textGeneration'
   | 'resource'
-  | 'note'
-  | 'board'
   | 'threeDDirector';
 
 export type AgentInputRole =

@@ -560,7 +560,6 @@ export const nodeActions: WorkflowNodeActions = {
         .toLowerCase();
       const imageSource =
         node.type === "imageGeneration" ||
-        node.type === "board" ||
         mediaType.includes("image") ||
         /\.(?:png|jpe?g|webp|gif|avif|bmp|svg)$/.test(location);
       if (!imageSource || /(?:video|audio|text)/.test(mediaType)) continue;

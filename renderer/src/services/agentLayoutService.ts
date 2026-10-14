@@ -35,8 +35,6 @@ const SUPPORTED_NODE_TYPES = new Set([
   'audioGeneration',
   'textGeneration',
   'resource',
-  'note',
-  'board',
   'threeDDirector',
 ]);
 

@@ -229,13 +229,11 @@ function canvasSummary() {
 
 const CREATE_NODE_ACTIONS = new Set([
   'create_gen_node',
-  'create_note_node',
   'place_asset_on_canvas',
 ]);
 
 const SINGLE_NODE_REF_KEYS: Record<string, string[]> = {
   update_gen_config: ['nodeId'],
-  update_note_node: ['nodeId'],
   start_generation: ['nodeId'],
   delete_node: ['nodeId'],
   move_node: ['nodeId'],

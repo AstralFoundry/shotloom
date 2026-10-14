@@ -4,15 +4,13 @@ import { cancelNode } from '@/store/taskStore';
 import { validateAgentInputRole } from '@/services/agentInputRole';
 import { getGenerationInputModes } from '@/domain/catalog/ModelCatalog';
 import { defaultInputSlot, isSlotValidForMode, type GenerationInputMode, type GenerationInputSlot } from '@/domain/graph/GenerationInputContract';
-import { canvasNodeDimensions } from '@/services/agentLayoutService';
-import { uid } from '@/utils/format';
 import type { AgentAction, AgentActionResult, AgentInputRole } from './agentTypes';
 
 type CanvasAction = AgentAction & Record<string, any>;
 type CanvasActionContext = Record<string, any>;
 
 const CANVAS_ACTIONS = new Set([
-  'create_note_node', 'update_note_node', 'connect_nodes', 'delete_node', 'delete_edge', 'move_node', 'toggle_edge',
+  'connect_nodes', 'delete_node', 'delete_edge', 'move_node', 'toggle_edge',
 ]);
 
 export function handleAgentCanvasAction(
@@ -23,52 +21,7 @@ export function handleAgentCanvasAction(
   if (!CANVAS_ACTIONS.has(type)) return null;
   const {
     project, resolveNode, resolveNodeId, numberFromAction,
-    defaultNodePosition, sizeFromAction, tempIdMap,
   } = context;
-
-  if (type === 'create_note_node') {
-    const content = String(action.content || '').trim();
-    if (!content) return { applied: false, error: '文本节点内容不能为空' };
-    const position = defaultNodePosition(action);
-    const dimensions = canvasNodeDimensions({ type: 'note' });
-    const node = {
-      id: uid(),
-      type: 'note',
-      ...(action.tempId ? { agentTempId: String(action.tempId) } : {}),
-      title: String(action.title || action.name || '剧本文本'),
-      content,
-      textContent: content,
-      status: 'idle',
-      width: sizeFromAction(action, 'width', dimensions.width),
-      height: sizeFromAction(action, 'height', dimensions.height),
-      x: position.x,
-      y: position.y,
-      createdAt: new Date().toISOString(),
-      agentPlan: action.agentPlan || (action.tempId ? {
-        id: action.tempId,
-        source: 'assistant',
-        artifactRole: action.artifactRole || 'script-scene',
-        segmentIds: Array.isArray(action.segmentIds) ? [...action.segmentIds] : [],
-      } : null),
-    };
-    project.nodes.push(node);
-    if (action.tempId) tempIdMap.set(action.tempId, node.id);
-    return { applied: true, createdNodeId: node.id, nodeId: node.id };
-  }
-
-  if (type === 'update_note_node') {
-    const node = resolveNode(action.nodeId);
-    if (!node) return { applied: false, error: '找不到要更新的 Note 节点' };
-    if (node.type !== 'note') return { applied: false, error: 'update_note_node 只能更新 Note 节点' };
-    if (action.title !== undefined) node.title = String(action.title).trim();
-    if (action.content !== undefined) {
-      const content = String(action.content).trim();
-      if (!content) return { applied: false, error: 'Note 正文不能为空' };
-      node.content = content;
-      node.textContent = content;
-    }
-    return { applied: true, nodeId: node.id };
-  }
 
   if (type === 'connect_nodes') {
     const sourceId = resolveNodeId(action.source);

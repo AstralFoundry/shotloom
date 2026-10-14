@@ -70,15 +70,15 @@ test('画布能力通过细粒度工具暴露且不保留批量模型入口', ()
   assert.doesNotMatch(source, /id: 'mutate_canvas'|id: 'get_canvas'|id: 'select_canvas'/);
   assert.match(source, /execute: executeFocusedAction/);
   assert.match(source, /normalizeAgentActions\(input\.actions, context\.turnId\)/);
-  assert.match(source, /focusedActionSchema\(\['update_gen_config', 'update_note_node', 'move_node'\]\)/);
+  assert.match(source, /focusedActionSchema\(\['update_gen_config', 'move_node'\]\)/);
   assert.match(source, /flattenAgentActionSchema\(buildAgentActionSchema/);
   assert.doesNotMatch(source, /return \{ type: 'object' as const, oneOf:/);
+  assert.doesNotMatch(source, /note_node/);
   const actionHandler = readFileSync(
     new URL('../renderer/src/services/agentCanvasActionHandler.ts', import.meta.url),
     'utf8',
   );
-  assert.match(actionHandler, /if \(type === 'update_note_node'\)/);
-  assert.match(actionHandler, /node\.content = content;\s*node\.textContent = content;/);
+  assert.doesNotMatch(actionHandler, /note_node|'note'/);
 });
 
 test('普通画布 Agent 暴露真实视频抽帧工具并返回视觉附件', () => {

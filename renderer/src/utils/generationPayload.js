@@ -44,7 +44,7 @@ function basePayload(node, config, project) {
   const inputCapability = modelContract || {};
   const upstreamContext = inputs
     .filter((input) => input.inputRole === 'textContext'
-      || (input.inputRole === 'auto' && ['textGeneration', 'note'].includes(input.nodeType)))
+      || (input.inputRole === 'auto' && input.nodeType === 'textGeneration'))
     .map((input) => `[${input.title}] ${input.prompt}`)
     .filter(Boolean)
     .join('\n');
@@ -147,7 +147,7 @@ function collectUpstreamInputs(node, project) {
     .map((edge) => ({ edge, source: project.nodes.find((item) => item.id === edge.source) }))
     .filter(({ source }) => Boolean(source))
     .filter(({ source }) => !source.archived)
-    .filter(({ source }) => ['imageGeneration', 'videoGeneration', 'audioGeneration', 'textGeneration', 'resource', 'note', 'board', 'threeDDirector'].includes(source.type))
+    .filter(({ source }) => ['imageGeneration', 'videoGeneration', 'audioGeneration', 'textGeneration', 'resource', 'threeDDirector'].includes(source.type))
     .map(({ edge, source }) => {
       const inputMeta = {
         edgeId: edge.id || '',
@@ -177,16 +177,15 @@ function collectUpstreamInputs(node, project) {
           duration: source.duration || 0,
         };
       }
-      if (source.type === 'note' || source.type === 'board' || source.type === 'threeDDirector') {
+      if (source.type === 'threeDDirector') {
         return {
           ...inputMeta,
           nodeId: source.id,
           nodeType: source.type,
-          title: pickString(source.title, source.type === 'board' ? '画板' : source.type === 'threeDDirector' ? '3D导演台' : '便签'),
-          prompt: source.type === 'threeDDirector' ? '' : pickString(source.content || source.boardText),
+          title: pickString(source.title, '3D导演台'),
+          prompt: '',
           status: 'completed',
-          boardData: source.type === 'board' ? source.boardData || null : null,
-          directorData: source.type === 'threeDDirector' ? source.directorData || null : null,
+          directorData: source.directorData || null,
         };
       }
       return {

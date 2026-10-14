@@ -246,7 +246,7 @@ function toFlowNodes(
     incomingByTarget.set(edge.target, incoming);
   });
   const result = nodes
-    .filter((node) => !node.archived && node.type !== "board" && node.type !== "note")
+    .filter((node) => !node.archived)
     .map((node) => {
       const dimensions = nodeDimensions(node);
       const screenWidth = dimensions.width * semanticZoom;

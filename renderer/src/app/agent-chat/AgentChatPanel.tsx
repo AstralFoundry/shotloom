@@ -192,8 +192,6 @@ export const typeLabels: Record<string, string> = {
   videoGeneration: "视频节点",
   audioGeneration: "音频节点",
   textGeneration: "文本节点",
-  board: "画板",
-  note: "便签",
   threeDDirector: "3D导演台",
 };
 
