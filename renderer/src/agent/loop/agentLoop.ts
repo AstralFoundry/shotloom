@@ -1,7 +1,9 @@
 import { agentDefinition, type AgentDefinition } from '../agents/definitions.ts';
 import { buildSubagentPrompt } from '../content/instructions';
 import { executeAgentToolCall } from '../runtime/executeToolCall';
-import type { AgentToolContext, JsonObject } from '../core/types';
+import { receiptChangesProject } from '../runtime/toolReceipts';
+import { toolCallFingerprint } from '../runtime/loopGuard';
+import type { AgentToolContext, AgentToolReceipt, JsonObject } from '../core/types';
 import { createLoopBuiltins, type LoopBuiltin } from './builtinTools';
 import { serializeToolOutputForTranscript } from './toolOutputSpill';
 import { serializeLoopTools, buildLoopRequestBody, type LoopModelPlan } from './modelRequest';
@@ -41,7 +43,6 @@ export interface AgentLoopInput {
   plan: LoopModelPlan;
   systemPrompt: string;
   messages: ChatMessage[];
-  maxSteps?: number;
   callModel: LoopModelCaller;
   emit: (event: JsonObject & { type: string }) => void;
   onMessagesChanged?: (messages: ChatMessage[]) => void;
@@ -52,6 +53,12 @@ export interface AgentLoopResult {
   modelRounds: number;
   messages: ChatMessage[];
 }
+
+/**
+ * 连续多少轮"既没有尝试过新调用、也没有真实改动项目"判定为原地打转。
+ * 轮次本身不设上限：合法长任务该一直跑下去，只有完全不推进的循环才该被切断。
+ */
+export const STALLED_ROUND_LIMIT = 3;
 
 function builtinToRequestTool(builtin: LoopBuiltin) {
   return {
@@ -73,9 +80,22 @@ function imageParts(attachments: JsonObject[]): ChatContentPart[] {
   return parts;
 }
 
+/**
+ * 一次调用的身份：与 LoopGuard 用同一套参数归一化，标点、空格与数值微小抖动
+ * 不会被当成"新的尝试"。参数解析不了时按原始文本比较，不做二次猜测。
+ */
+function callSignature(call: AgentToolCall): string {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(call.function.arguments || '{}');
+  } catch {
+    parsed = String(call.function.arguments || '');
+  }
+  return toolCallFingerprint(call.function.name, parsed);
+}
+
 export async function runAgentLoop(input: AgentLoopInput): Promise<AgentLoopResult> {
   const agent = input.agent || agentDefinition(input.context.agentId);
-  const maxSteps = input.maxSteps ?? agent.maxSteps;
   const messages = input.messages;
   // 一次运行只有一个事件出口：先打上本轮 Agent 的身份，再交给上层。
   // 循环机制事件用这个出口，工具管道事件用 context.emit，两者必须是同一个，
@@ -99,7 +119,6 @@ export async function runAgentLoop(input: AgentLoopInput): Promise<AgentLoopResu
         context: { ...context, agentId: child.id, agentSessionId: childSessionId, turnId: `${childSessionId}:root` },
         systemPrompt: buildSubagentPrompt(child.id, child.instructions || ''),
         messages: [{ role: 'user', content: task }],
-        maxSteps: child.maxSteps,
         onMessagesChanged: undefined,
       });
       return result.reply;
@@ -110,10 +129,15 @@ export async function runAgentLoop(input: AgentLoopInput): Promise<AgentLoopResu
   let modelRounds = 0;
   let reply = '';
   const inputBudget = Math.max(1, input.plan.contextLimit - input.plan.outputLimit);
+  // 没有步数预算：合法的长任务不该被固定轮次砍断，跑飞由"有没有进展"判定。
+  const seenCallSignatures = new Set<string>();
+  let stalledRounds = 0;
 
   const commit = () => input.onMessagesChanged?.([...messages]);
 
-  for (let step = 1; step <= maxSteps; step += 1) {
+  for (;;) {
+    modelRounds += 1;
+    const step = modelRounds;
     const window = fitTranscript(messages, inputBudget);
     if (window.droppedGroups) {
       // 落盘的历史必须与模型真正看到的一致：把内存里的历史收敛到窗口，
@@ -124,7 +148,6 @@ export async function runAgentLoop(input: AgentLoopInput): Promise<AgentLoopResu
       emit({ type: 'context_compaction', status: 'completed', automatic: true, droppedGroups: window.droppedGroups, createdAt: new Date().toISOString() });
     }
     emit({ type: 'turn_start', turn: step, createdAt: new Date().toISOString() });
-    modelRounds = step;
     const turnId = `${input.context.requestId}:step:${step}`;
     const body = buildLoopRequestBody(
       input.plan,
@@ -162,7 +185,14 @@ export async function runAgentLoop(input: AgentLoopInput): Promise<AgentLoopResu
       return { reply, modelRounds, messages };
     }
 
+    let progressed = false;
     for (const call of turn.toolCalls) {
+      const signature = callSignature(call);
+      // 这一轮试过的新调用，或真实落到项目上的改动，都算向前推进了一步。
+      if (!seenCallSignatures.has(signature)) {
+        seenCallSignatures.add(signature);
+        progressed = true;
+      }
       const builtin = builtinByName.get(call.function.name);
       let result: Record<string, unknown>;
       if (builtin) {
@@ -205,8 +235,21 @@ export async function runAgentLoop(input: AgentLoopInput): Promise<AgentLoopResu
           });
         }
       }
+      const receipts = (context.state.get('toolReceipts') as Map<string, AgentToolReceipt>)
+        || new Map<string, AgentToolReceipt>();
+      const receipt = receipts.get(call.id);
+      if (receipt && receiptChangesProject(receipt)) progressed = true;
       commit();
     }
+    if (progressed) {
+      stalledRounds = 0;
+      continue;
+    }
+    stalledRounds += 1;
+    if (stalledRounds >= STALLED_ROUND_LIMIT) {
+      throw new Error(
+        `Agent 连续 ${stalledRounds} 轮只重复已经试过的调用，也没有真实改动项目，本轮已停止以避免无限执行`,
+      );
+    }
   }
-  throw new Error(`Agent 达到 ${maxSteps} 步上限仍未给出最终回复，本轮已停止以避免无限执行`);
 }

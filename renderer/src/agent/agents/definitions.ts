@@ -13,7 +13,6 @@ export interface AgentDefinition {
   role: 'primary' | 'subagent';
   title: string;
   description: string;
-  maxSteps: number;
   /** 该 agent 允许的副作用类别上限。与 tools 白名单是两层独立校验： */
   /** 即使工具被误加进白名单，超出 effects 上限依然不可见、不可执行。 */
   effects: AgentToolEffect[];
@@ -62,7 +61,6 @@ export const AGENT_DEFINITIONS: AgentDefinition[] = [
     role: 'primary',
     title: '画布 Agent',
     description: 'Shotloom creative workspace agent',
-    maxSteps: 80,
     effects: ['read', 'agent_state_write', 'project_write', 'canvas_write', 'media_generation'],
     tools: [
       ...toolOutputReadTools,
@@ -78,7 +76,6 @@ export const AGENT_DEFINITIONS: AgentDefinition[] = [
     role: 'primary',
     title: '剪辑 Agent',
     description: 'Video editing workspace agent bound to one timeline session',
-    maxSteps: 80,
     // 剪辑 agent 只改时间线（project_write），不拥有画布写入与媒体生成。
     effects: ['read', 'agent_state_write', 'project_write'],
     tools: [
@@ -94,7 +91,6 @@ export const AGENT_DEFINITIONS: AgentDefinition[] = [
     role: 'subagent',
     title: '制作规划',
     description: 'Author complete Production Plan work items, prompts, dependencies and completion criteria',
-    maxSteps: 40,
     effects: ['read', 'agent_state_write', 'project_write'],
     tools: [
       ...toolOutputReadTools,
@@ -110,7 +106,6 @@ export const AGENT_DEFINITIONS: AgentDefinition[] = [
     role: 'subagent',
     title: '阶段执行',
     description: 'Compile and execute the current Production Plan stage',
-    maxSteps: 60,
     effects: ['read', 'agent_state_write', 'project_write', 'canvas_write', 'media_generation'],
     tools: [
       ...toolOutputReadTools,
@@ -126,7 +121,6 @@ export const AGENT_DEFINITIONS: AgentDefinition[] = [
     role: 'subagent',
     title: '结果核验',
     description: 'Verify outcomes, constraints, artifacts and canvas state',
-    maxSteps: 24,
     // 核验者只读：任何写入类别都不在它的上限内。
     effects: ['read', 'agent_state_write'],
     tools: [...toolOutputReadTools, ...canvasReadTools, ...catalogTools, ...productionPlanReadTools, ...skillNamespacedTools],

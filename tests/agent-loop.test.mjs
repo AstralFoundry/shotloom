@@ -449,18 +449,64 @@ test('每条事件都标明执行者：子 Agent 的回执不会算到父级身�
   assert.equal(result.reply, '已合并子结论');
 });
 
-test('超出步数上限时明确失败，不返回空回复', async () => {
+test('长任务不被固定轮次切断：每轮都在推进就一直跑下去', async () => {
   registry.clearAgentToolsForTests();
   defineTool('canvas_list_nodes');
   const context = makeContext();
-  const script = scriptedModel([
-    { toolCalls: [{ id: 'a', name: 'canvas_list_nodes' }] },
-    { toolCalls: [{ id: 'b', name: 'canvas_list_nodes' }] },
-  ]);
+  // 曾经这里有一个 80 步上限，第 81 轮无论进行到哪都会被判失败。
+  const rounds = 90;
+  let round = 0;
+  const callModel = async () => {
+    round += 1;
+    if (round > rounds) {
+      return { text: `核对完 ${rounds} 个节点`, toolCalls: [], finishReason: 'stop' };
+    }
+    return {
+      text: '',
+      toolCalls: [{
+        id: `call-${round}`, type: 'function',
+        function: { name: 'canvas_list_nodes', arguments: JSON.stringify({ scope: `node-${round}` }) },
+      }],
+      finishReason: 'tool_calls',
+    };
+  };
+  const result = await run({ context, callModel, messages: [{ role: 'user', content: '逐个核对节点' }] });
+  assert.equal(result.modelRounds, rounds + 1);
+  assert.equal(result.reply, `核对完 ${rounds} 个节点`);
+});
+
+test('连续只重复已试过的调用且不改动项目时，按无进展停止', async () => {
+  registry.clearAgentToolsForTests();
+  defineTool('canvas_list_nodes');
+  const context = makeContext();
+  // 三个调用轮换着来，LoopGuard 的 5 次窗口拦不住它；此时只有"有没有进展"能判定。
+  const cycle = ['first', 'second', 'third'];
+  const script = scriptedModel(Array.from({ length: 8 }, (_item, index) => ({
+    toolCalls: [{ id: `call-${index}`, name: 'canvas_list_nodes', args: { scope: cycle[index % 3] } }],
+  })));
   await assert.rejects(
-    run({ context, callModel: script.callModel, emit: () => {}, maxSteps: 2, messages: [{ role: 'user', content: '继续' }] }),
-    /达到 2 步上限/,
+    run({ context, callModel: script.callModel, messages: [{ role: 'user', content: '继续' }] }),
+    /连续 3 轮只重复已经试过的调用[\s\S]*本轮已停止/,
   );
+  assert.equal(script.requests.length, 6, '达到无进展上限就必须停，不能继续请求模型');
+});
+
+test('真实落到项目上的改动算进展，重复调用也能一直跑下去', async () => {
+  registry.clearAgentToolsForTests();
+  defineTool('canvas_list_nodes');
+  defineTool('canvas_create_node', { effect: 'canvas_write', execute: () => ({ success: true, createdNodeIds: ['n1'] }) });
+  const context = makeContext();
+  const script = scriptedModel(Array.from({ length: 9 }, (_item, index) => (
+    index % 3 === 2
+      ? { toolCalls: [{ id: `call-${index}`, name: 'canvas_create_node' }] }
+      : { toolCalls: [{ id: `call-${index}`, name: 'canvas_list_nodes', args: { scope: `s${index % 3}` } }] }
+  )));
+  // 与上一条用例唯一的差别是每三轮有一次真实建节点：循环不该切断它在推进的任务。
+  await assert.rejects(
+    run({ context, callModel: script.callModel, messages: [{ role: 'user', content: '继续' }] }),
+    /脚本只有 9 步/,
+  );
+  assert.equal(script.requests.length, 10, '有真实改动就不该触发无进展停止');
 });
 
 test('模型返回空响应或本轮被截断时都作为失败上报', async () => {

@@ -60,6 +60,13 @@ test('剪辑 Agent 的工具集合只包含时间线与交互工具', () => {
 });
 
 // 落盘摘要把完整输出交给 read_tool_output；哪个 Agent 缺了它，哪个 Agent 的历史就留下读不回来的省略。
+// 循环没有步数预算：Agent 定义里再出现 maxSteps，说明旧的轮次上限被偷偷加回来了。
+test('Agent 定义不再声明步数上限', () => {
+  for (const agent of AGENT_DEFINITIONS) {
+    assert.equal('maxSteps' in agent, false, `${agent.id} 不该再有步数上限`);
+  }
+});
+
 test('每个 Agent 都能读回落盘的工具输出', () => {
   for (const agent of AGENT_DEFINITIONS) {
     assert.ok(agent.tools.includes('read_tool_output'), `${agent.id} 必须能读回落盘结果`);
