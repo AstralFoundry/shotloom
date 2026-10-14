@@ -112,6 +112,7 @@ function projectAgentRun(
         title: String(event.title || '子任务'), status: 'running', startedAt: now,
         // sidecar 路径只知道子会话 id，报不出子 Agent 定义；空串表示身份确实未知。
         agentId: String(event.childAgentId || ''),
+        task: String(event.task || ''),
       });
       break;
     }
@@ -120,7 +121,8 @@ function projectAgentRun(
       const children = Array.isArray(run.children) ? run.children as JsonObject[] : [];
       run.children = upsertStep(children, String(event.childSessionId || ''), {
         status: event.type === 'subagent_completed' ? 'completed' : 'failed',
-        error: String(event.error || ''), endedAt: now,
+        // 结论与失败原因都是运行时真实报出来的内容，界面直接显示，不再从标题猜。
+        error: String(event.error || ''), summary: String(event.summary || ''), endedAt: now,
       });
       break;
     }

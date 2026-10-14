@@ -37,6 +37,8 @@ export interface AgentMessage {
   /** 用户这条消息引用的真实素材，界面按媒体卡呈现。 */
   references?: AgentReference[];
   toolCalls?: AgentToolCall[];
+  /** 本轮派发过的子 Agent，用于显示"谁在执行、子任务到哪一步、结论是什么"。 */
+  subagents?: AgentSubagentView[];
   productionPlan?: AgentPlanView;
   artifactRefs?: AgentArtifactRefs;
   clarifications?: Array<{
@@ -74,6 +76,30 @@ export interface AgentToolCall {
   interactionId?: string;
   /** 待确认调用的原始参数；存在时用户可以在确认前修改。 */
   pendingArgs?: Record<string, unknown>;
+  /** 执行这一步的 Agent 与会话；界面按会话把子 Agent 的步骤归到它的任务下面。 */
+  agentId?: string;
+  agentSessionId?: string;
+  /** 事件到达顺序，用于把子任务标题插在父级步骤之间而不是堆到末尾。 */
+  seq?: number;
+}
+
+/**
+ * 一次子 Agent 派发的呈现视图。`agentId` 可能为空：sidecar 报不出子 Agent 定义，
+ * 界面此时只能显示通用文案，不能冒充某个具体 Agent。
+ */
+export interface AgentSubagentView {
+  /** 派发时生成的子会话 id，与工具行的 agentSessionId 对应。 */
+  id?: string;
+  agentId?: string;
+  title?: string;
+  /** 父 Agent 交给它的完整任务说明。 */
+  task?: string;
+  status?: string;
+  /** 子 Agent 返回给父级的结论；失败时为空，错误在 error 里。 */
+  summary?: string;
+  error?: string;
+  runId?: string;
+  seq?: number;
 }
 
 export interface AgentPlanView {

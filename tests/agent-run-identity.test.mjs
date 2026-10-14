@@ -72,7 +72,7 @@ test('run_started 把驱动这一轮的 Agent 身份投影进 agentRuns', () => 
   assert.deepEqual(events.map((event) => event.type), ['run_started', 'turn_start']);
 });
 
-test('子任务按 childAgentId 记录归属，失败时留下错误但不冒充父级', () => {
+test('子任务按 childAgentId 记录归属与任务，结论和失败原因都进运行记录', () => {
   const runId = 'run-agent-identity-2';
   const childSessionId = `${runId}:sub:production-planner:abc`;
   append(runId, {
@@ -82,6 +82,7 @@ test('子任务按 childAgentId 记录归属，失败时留下错误但不冒充
   append(runId, {
     type: 'subagent_started', agentId: 'canvas-primary', agentSessionId: runId,
     childAgentId: 'production-planner', childSessionId, title: '制作规划：规划三个镜头',
+    task: '规划三个镜头',
   });
   append(runId, {
     type: 'tool_end', agentId: 'production-planner', agentSessionId: childSessionId,
@@ -94,6 +95,7 @@ test('子任务按 childAgentId 记录归属，失败时留下错误但不冒充
   assert.equal(run.children[0].id, childSessionId);
   assert.equal(run.children[0].agentId, 'production-planner');
   assert.equal(run.children[0].status, 'running');
+  assert.equal(run.children[0].task, '规划三个镜头');
   assert.equal(run.agentId, 'canvas-primary', '父级身份不因派发子任务而改变');
 
   append(runId, {
@@ -104,4 +106,20 @@ test('子任务按 childAgentId 记录归属，失败时留下错误但不冒充
   assert.equal(failed.status, 'failed');
   assert.equal(failed.error, '模型不可用');
   assert.equal(failed.agentId, 'production-planner', '状态更新不得抹掉已记录的归属');
+
+  const doneId = `${runId}:sub:result-reviewer:def`;
+  append(runId, {
+    type: 'subagent_started', agentId: 'canvas-primary', agentSessionId: runId,
+    childAgentId: 'result-reviewer', childSessionId: doneId, title: '结果核验：核对交付',
+    task: '核对交付',
+  });
+  append(runId, {
+    type: 'subagent_completed', agentId: 'canvas-primary', agentSessionId: runId,
+    childAgentId: 'result-reviewer', childSessionId: doneId, summary: '5 个节点均已生成',
+  });
+  const done = runStore.getAgentRun(runId).children[1];
+  assert.equal(done.status, 'completed');
+  // 结论是子 Agent 真正返回给父级的文字，界面据此回答"子任务做完了什么"。
+  assert.equal(done.summary, '5 个节点均已生成');
+  assert.equal(runStore.getAgentRun(runId).children[0].status, 'failed', '后完成的子任务不得覆盖失败记录');
 });

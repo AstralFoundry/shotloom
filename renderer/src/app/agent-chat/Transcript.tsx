@@ -154,6 +154,7 @@ function MessageRow({
         <>
           <ToolTrace
             tools={message.toolCalls || []}
+            subagents={message.subagents || []}
             typing={message.typing}
             waitingForAnswer={pendingQuestions.length > 0}
             controller={controller}

@@ -408,6 +408,12 @@ test('每条事件都标明执行者：子 Agent 的回执不会算到父级身�
   assert.equal(started.childAgentId, 'production-planner', '被派发的 Agent 用 childAgentId 表示');
   assert.equal(started.agentId, 'canvas-primary', '发出这条事件的那一轮仍是父级');
   assert.equal(started.agentSessionId, context.requestId);
+  // 界面要分开显示"谁在执行"和"在做什么"，所以任务原文与结论各自成字段，
+  // 不能让展示层从拼接后的标题里反推。
+  assert.equal(started.task, '列出节点');
+
+  const childCompleted = events.find((event) => event.type === 'subagent_completed');
+  assert.equal(childCompleted.summary, '子结论：1 个节点', '子 Agent 的结论要能被界面直接显示');
 
   const childToolEnd = events.filter((event) => event.type === 'tool_end' && event.toolCallId === 'call-child')[0];
   assert.equal(childToolEnd.agentId, 'production-planner', '子 Agent 执行的回执归属子 Agent');

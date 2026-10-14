@@ -56,14 +56,28 @@ export class CopilotRuntimePresenter {
   turns = 0;
   readonly tools: RuntimeValue[] = [];
   readonly clarifications: RuntimeValue[] = [];
+  readonly subagents: RuntimeValue[] = [];
   readonly artifactRefs = { nodeIds: [] as string[], taskIds: [] as string[] };
   plan: RuntimeValue | null = null;
   private structuralRevision = 0;
   private cachedStructuralRevision = -1;
   private cachedStructuralSnapshot: RuntimeValue = {};
+  private seq = 0;
 
   private changed(): void {
     this.structuralRevision += 1;
+  }
+
+  /**
+   * 每一行都带执行者身份和到达顺序。身份让界面按会话把子 Agent 的步骤归到它的
+   * 任务下，顺序让子任务标题插在父级步骤之间，而不是全部堆到轨迹末尾。
+   */
+  private rowIdentity(event: RuntimeValue): RuntimeValue {
+    return {
+      agentId: String(event.agentId || ''),
+      agentSessionId: String(event.agentSessionId || ''),
+      seq: (this.seq += 1),
+    };
   }
 
   snapshot(patch: RuntimeValue = {}): RuntimeValue {
@@ -71,6 +85,7 @@ export class CopilotRuntimePresenter {
       this.cachedStructuralSnapshot = {
         toolCalls: cloneList(this.tools),
         clarifications: cloneList(this.clarifications),
+        subagents: cloneList(this.subagents),
         artifactRefs: {
           nodeIds: [...this.artifactRefs.nodeIds],
           taskIds: [...this.artifactRefs.taskIds],
@@ -87,11 +102,48 @@ export class CopilotRuntimePresenter {
     };
   }
 
-  failRunningTools(): RuntimeValue[] {
-    return this.tools.map((item) => ({
+  /**
+   * 运行中断时，仍未结束的工具和子任务都要落到失败态：
+   * 只结算工具会让子 Agent 的"执行中"永远挂在界面上。
+   */
+  failRunning(): RuntimeValue {
+    const settle = (item: RuntimeValue) => ({
       ...item,
       status: item.status === 'running' ? 'error' : item.status,
-    }));
+    });
+    return { toolCalls: this.tools.map(settle), subagents: this.subagents.map(settle) };
+  }
+
+  /**
+   * 子任务按 childSessionId 聚合。状态沿用工具行的 running/success/error，
+   * 界面就只需要一套状态文案。
+   */
+  private subagent(event: RuntimeValue): void {
+    const id = String(event.childSessionId || '');
+    if (!id) return;
+    let item = this.subagents.find((value) => value.id === id);
+    if (!item) {
+      item = { id };
+      this.subagents.push(item);
+    }
+    if (event.type === 'subagent_started') {
+      Object.assign(item, {
+        // childAgentId 是"这条事件说的是哪个子 Agent"，与发出事件的父级身份分开保存。
+        agentId: String(event.childAgentId || ''),
+        title: String(event.title || ''),
+        task: String(event.task || ''),
+        status: 'running',
+        runId: String(event.parentRunId || event.requestId || ''),
+        seq: (this.seq += 1),
+      });
+    } else {
+      Object.assign(item, {
+        status: event.type === 'subagent_completed' ? 'success' : 'error',
+        summary: String(event.summary || ''),
+        error: String(event.error || ''),
+      });
+    }
+    this.changed();
   }
 
   private clarification(event: RuntimeValue): void {
@@ -130,10 +182,12 @@ export class CopilotRuntimePresenter {
       } };
     }
     if (event.type === 'context_compaction') {
-      const id = 'context-compaction';
+      const row = { ...this.rowIdentity(event) };
+      // 子 Agent 有独立的上下文窗口，压缩行必须按会话分开，否则并行时互相覆盖。
+      const id = `context-compaction:${row.agentSessionId}`;
       let tool = this.tools.find((item) => item.id === id);
       if (!tool) {
-        tool = { id, name: 'context_compaction', kind: 'system' };
+        tool = { id, name: 'context_compaction', kind: 'system', ...row };
         this.tools.push(tool);
       }
       const completed = event.status === 'completed';
@@ -166,6 +220,7 @@ export class CopilotRuntimePresenter {
         status: 'running',
         runId: event.requestId,
         startedAt: event.startedAt,
+        ...this.rowIdentity(event),
       });
       this.changed();
       if (event.clarification) this.clarification(event);
@@ -174,9 +229,11 @@ export class CopilotRuntimePresenter {
       }) };
     }
     if (event.type === 'subagent_started') {
+      this.subagent(event);
       return { messagePatch: this.snapshot({ title: '正在并行分析' }) };
     }
     if (event.type === 'subagent_completed' || event.type === 'subagent_failed') {
+      this.subagent(event);
       return { messagePatch: this.snapshot({
         title: event.type === 'subagent_completed' ? '正在汇总分析结果' : '正在调整处理方案',
       }) };
@@ -273,6 +330,7 @@ export class CopilotRuntimePresenter {
         status: 'success',
         title: '加载技能',
         summary: String(event.name || event.skillId || 'Skill'),
+        ...this.rowIdentity(event),
       });
       this.changed();
       return { messagePatch: this.snapshot({ title: '正在准备处理方法' }) };
@@ -286,6 +344,7 @@ export class CopilotRuntimePresenter {
         status: 'success',
         title: '读取提示词模板',
         summary: String(event.name || event.recipeId || 'Recipe'),
+        ...this.rowIdentity(event),
       });
       this.changed();
       return { messagePatch: this.snapshot({ title: '正在准备处理方法' }) };

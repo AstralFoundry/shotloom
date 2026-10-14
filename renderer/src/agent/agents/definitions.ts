@@ -135,6 +135,14 @@ export function agentDefinition(agentId: string): AgentDefinition {
   return definition;
 }
 
+/**
+ * 界面按 agentId 显示"谁在执行"。未知身份返回空串，让界面回落通用文案，
+ * 不能猜成某个具体 Agent —— sidecar 路径就确实报不出子 Agent 定义。
+ */
+export function agentTitle(agentId: string): string {
+  return definitions.get(String(agentId || ''))?.title || '';
+}
+
 /** 两个主 Agent 的 id 会被会话层和适配层引用，集中在这里避免各处再写字面量。 */
 export const CANVAS_AGENT_ID = 'canvas-primary';
 export const EDITOR_AGENT_ID = 'editor-primary';

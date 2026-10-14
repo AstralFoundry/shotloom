@@ -49,7 +49,7 @@ test('助手面板只有浅色，不提供暗色模式', () => {
 test('运行轨迹默认一行摘要，等待确认时才自动展开', () => {
   assert.match(trace, /const \[open, setOpen\] = useState\(false\)/);
   assert.match(trace, /setOpen\(hasPending\)/);
-  assert.match(trace, /if \(!tools\.length \|\| waitingForAnswer\) return null/);
+  assert.match(trace, /if \(\(!tools\.length && !knownSubagents\.length\) \|\| waitingForAnswer\) return null/);
   assert.match(trace, /aria-expanded=\{open\}/);
   assert.match(trace, /\{open && \(\s*<ol className=\{styles\.steps\}/);
   assert.match(trace, /等待确认/);
@@ -78,7 +78,7 @@ test('工具步骤显示注册表标题与真实产出', () => {
 // 图标由工具自己声明，展示层只保留运行时合成行的类别图标，不再把所有步骤画成同一个扳手。
 test('工具步骤图标取自注册表声明而不写死在界面', () => {
   assert.match(trace, /kindIcon\[String\(tool\.kind \|\| ""\)\] \|\| agentToolIcon\(String\(tool\.name \|\| ""\)\)/);
-  assert.match(trace, /name=\{toolIcon\(active\)\} className=\{styles\.headIcon\}/);
+  assert.match(trace, /name=\{active \? toolIcon\(active\) : "workflow"\} className=\{styles\.headIcon\}/);
   assert.doesNotMatch(trace, /statusIcon|"wrench"/);
   assert.match(toolRegistry, /return definition\.icon \|\| effectIcon\[definition\.effect\] \|\| 'wrench'/);
 });

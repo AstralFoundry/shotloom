@@ -81,13 +81,15 @@ export function createLoopBuiltins(host: LoopBuiltinHost): LoopBuiltin[] {
         host.emit({
           type: 'subagent_started', parentRunId: host.context.requestId,
           childAgentId: childId, childSessionId, title: `${child.title}：${task.slice(0, 40)}`,
-          createdAt: new Date().toISOString(),
+          // 界面要分开显示"谁在执行"和"在做什么"，所以任务原文单独成字段，
+          // 不再让展示层从拼接后的标题里反推。
+          task, createdAt: new Date().toISOString(),
         });
         try {
           const summary = await host.runSubagent(child, task, childSessionId);
           host.emit({
             type: 'subagent_completed', parentRunId: host.context.requestId,
-            childAgentId: childId, childSessionId, createdAt: new Date().toISOString(),
+            childAgentId: childId, childSessionId, summary, createdAt: new Date().toISOString(),
           });
           return { success: true, agentId: childId, childSessionId, summary };
         } catch (cause) {

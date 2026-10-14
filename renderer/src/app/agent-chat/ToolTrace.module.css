@@ -222,6 +222,87 @@
   color: var(--slk-state-success);
 }
 
+/* ---------- 子 Agent 分支 ---------- */
+/* 派发标题占一行，子步骤整体缩进并挂在一条细轨线上，
+   一眼能看出这些步骤是上面那个任务做的，而不是主 Agent 自己的。 */
+.branch {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.branchHead {
+  display: grid;
+  grid-template-columns: 14px auto minmax(0, 1fr);
+  align-items: baseline;
+  gap: 6px;
+  min-height: 22px;
+  color: var(--slk-label-tertiary);
+  font-size: calc(var(--slk-font-secondary) - 1px);
+  line-height: 20px;
+}
+
+.branchIcon {
+  width: 13px;
+  height: 13px;
+  align-self: center;
+}
+
+.branchState {
+  color: var(--slk-label-secondary);
+  font-weight: 550;
+  white-space: nowrap;
+}
+
+.branchDetail {
+  display: flex;
+  min-width: 0;
+  gap: 6px;
+}
+
+.branchName {
+  flex: 0 0 auto;
+  color: var(--slk-label-secondary);
+  font-weight: 550;
+  white-space: nowrap;
+}
+
+.branchTask {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--slk-label-caption);
+}
+
+/* 结论是子 Agent 真正返回给父级的文字，单独成一行，不重复列成步骤。 */
+.branchResult {
+  margin-left: 20px;
+  color: var(--slk-label-tertiary);
+  font-size: calc(var(--slk-font-secondary) - 1px);
+  line-height: 20px;
+}
+
+.branchSteps {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin: 1px 0 3px;
+  padding-left: 12px;
+  list-style: none;
+  border-left: 1px solid var(--slk-border-l1);
+}
+
+.branch[data-status="running"] .branchState {
+  color: var(--slk-label-accent);
+}
+
+.branch[data-status="error"] .branchState,
+.branch[data-status="error"] .branchResult {
+  color: var(--slk-state-error);
+}
+
 /* ---------- 待确认裁决 ---------- */
 .decision {
   display: flex;

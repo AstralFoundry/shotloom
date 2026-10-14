@@ -386,7 +386,7 @@ async function send(
                 nodeMentions: [...payload.nodeMentions],
               },
             }),
-        ...presentation.snapshot({ toolCalls: presentation.failRunningTools() }),
+        ...presentation.snapshot(presentation.failRunning()),
       }, conversation);
     }
   } finally {

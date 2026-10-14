@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
+import { agentTitle } from "../../agent/agents/definitions";
 import { agentToolIcon, agentToolTitle } from "../../agent/core/toolRegistry";
 import { useMediaPreviewCache } from "../canvas/useMediaPreviewCache";
 import { IconSymbol } from "../components/IconSymbol";
-import type { AgentController, AgentToolCall } from "./contracts";
+import type { AgentController, AgentSubagentView, AgentToolCall } from "./contracts";
+import { traceGroups } from "./traceTimeline";
 import styles from "./ToolTrace.module.css";
 
 // 只有运行时合成的行（技能/模板/系统）由界面决定图标；
@@ -20,6 +22,12 @@ const statusLabel: Record<string, string> = {
   error: "运行失败",
 };
 
+const subagentLabel: Record<string, string> = {
+  running: "执行中",
+  success: "已完成",
+  error: "失败",
+};
+
 // 工具名是给模型和运行时用的，界面必须换成注册表里的中文标题，
 // 否则新增工具就得在展示层再维护一份名字表。
 const toolTitle = (tool: AgentToolCall) =>
@@ -28,13 +36,22 @@ const toolTitle = (tool: AgentToolCall) =>
 const toolIcon = (tool: AgentToolCall) =>
   kindIcon[String(tool.kind || "")] || agentToolIcon(String(tool.name || ""));
 
+/**
+ * 子 Agent 的显示名。sidecar 报不出子 Agent 定义时 agentId 为空，
+ * 此时只能显示通用文案，不能挑一个具体 Agent 的名字冒充。
+ */
+const subagentName = (subagent: AgentSubagentView) =>
+  agentTitle(String(subagent.agentId || "")) || "子 Agent";
+
 export function ToolTrace({
   tools,
+  subagents,
   typing,
   waitingForAnswer,
   controller,
 }: {
   tools: AgentToolCall[];
+  subagents?: AgentSubagentView[];
   typing?: boolean;
   waitingForAnswer?: boolean;
   controller: AgentController;
@@ -42,19 +59,31 @@ export function ToolTrace({
   const hasPending = tools.some((tool) => tool.pending);
   const [open, setOpen] = useState(false);
   useEffect(() => setOpen(hasPending), [hasPending]);
-  if (!tools.length || waitingForAnswer) return null;
+  const knownSubagents = subagents || [];
+  if ((!tools.length && !knownSubagents.length) || waitingForAnswer) return null;
 
   const active =
     [...tools].reverse().find((tool) => tool.pending || tool.status === "running") ||
     tools[tools.length - 1];
   const settled = tools.filter((tool) => tool.status === "success" || tool.status === "error").length;
   const failed = tools.some((tool) => tool.status === "error");
-  const headline = hasPending
-    ? "等待确认"
-    : failed && !typing
-      ? "执行过程有错误"
-      : toolTitle(active);
-  const headlineDetail = hasPending || (failed && !typing) ? "" : active.output || active.summary || "";
+  const activeSubagent = knownSubagents.find(
+    (subagent) => subagent.id && subagent.id === active?.agentSessionId,
+  );
+  // 父 Agent 第一步就派发时，本轮还没有任何步骤，只能用最近一次子任务代表"谁在执行"。
+  const onlySubagent = tools.length ? undefined : knownSubagents[knownSubagents.length - 1];
+  const owner = activeSubagent || onlySubagent;
+  const headlineDetail = hasPending || (failed && !typing) || !active
+    ? ""
+    : active.output || active.summary || "";
+  let headline = "处理步骤";
+  if (hasPending) headline = "等待确认";
+  else if (failed && !typing) headline = "执行过程有错误";
+  else if (active) headline = `${owner ? `${subagentName(owner)} · ` : ""}${toolTitle(active)}`;
+  else if (onlySubagent) {
+    const status = onlySubagent.status || "running";
+    headline = `${subagentName(onlySubagent)} · ${subagentLabel[status] || status}`;
+  }
 
   return (
     <section
@@ -69,14 +98,16 @@ export function ToolTrace({
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
       >
-        <IconSymbol name={toolIcon(active)} className={styles.headIcon} />
+        <IconSymbol name={active ? toolIcon(active) : "workflow"} className={styles.headIcon} />
         <span className={styles.headLabel}>
           <span className={styles.headTitle}>{headline}</span>
           {headlineDetail && <span className={styles.headDetail}>{headlineDetail}</span>}
         </span>
-        <span className={styles.headCount}>
-          {settled}/{tools.length}
-        </span>
+        {!!tools.length && (
+          <span className={styles.headCount}>
+            {settled}/{tools.length}
+          </span>
+        )}
         {typing && (
           <span
             className={styles.stop}
@@ -100,51 +131,98 @@ export function ToolTrace({
       </button>
       {open && (
         <ol className={styles.steps}>
-          {tools.map((tool, index) => {
-            const status = tool.pending ? "pending" : tool.status || "success";
-            const previews = (tool.previews || []).filter((item) => item.path);
-            return (
+          {traceGroups(tools, knownSubagents).map((group, groupIndex) =>
+            group.subagent ? (
               <li
-                key={tool.id || `tool-${index}`}
-                className={styles.step}
-                data-status={status}
+                key={group.subagent.id || `branch-${groupIndex}`}
+                className={styles.branch}
+                data-status={group.subagent.status || "running"}
               >
-                <span
-                  className={styles.stepLine}
-                  title={`${statusLabel[status] || status} ${toolTitle(tool)} ${tool.summary || ""}`}
-                >
-                  <IconSymbol name={toolIcon(tool)} className={styles.stepIcon} />
-                  <span className={styles.stepState}>{statusLabel[status] || status}</span>
-                  <span className={styles.stepDetail}>
-                    <span className={styles.stepTitle}>{toolTitle(tool)}</span>
-                    {tool.summary && <span className={styles.stepSummary}>{tool.summary}</span>}
-                  </span>
-                </span>
-                {(tool.output || previews.length) && (
-                  <span className={styles.stepOutput}>
-                    {!!tool.output && <span className={styles.outputText}>{tool.output}</span>}
-                    {!!previews.length && (
-                      <span className={styles.previewRow}>
-                        {previews.map((preview) => (
-                          <PreviewImage
-                            key={preview.path}
-                            path={preview.path}
-                            alt={`${toolTitle(tool)} ${preview.label}`}
-                          />
-                        ))}
-                      </span>
-                    )}
-                  </span>
-                )}
-                {tool.pending && tool.interactionId && (
-                  <PendingDecision tool={tool} controller={controller} />
+                <SubagentLine subagent={group.subagent} />
+                {!!group.tools.length && (
+                  <ol className={styles.branchSteps}>
+                    {group.tools.map((tool, index) => (
+                      <StepLine key={tool.id || `tool-${groupIndex}-${index}`} tool={tool} controller={controller} />
+                    ))}
+                  </ol>
                 )}
               </li>
-            );
-          })}
+            ) : (
+              <Fragment key={`main-${groupIndex}`}>
+                {group.tools.map((tool, index) => (
+                  <StepLine key={tool.id || `tool-${groupIndex}-${index}`} tool={tool} controller={controller} />
+                ))}
+              </Fragment>
+            ),
+          )}
         </ol>
       )}
     </section>
+  );
+}
+
+function StepLine({ tool, controller }: { tool: AgentToolCall; controller: AgentController }) {
+  const status = tool.pending ? "pending" : tool.status || "success";
+  const previews = (tool.previews || []).filter((item) => item.path);
+  return (
+    <li
+      className={styles.step}
+      data-status={status}
+    >
+      <span
+        className={styles.stepLine}
+        title={`${statusLabel[status] || status} ${toolTitle(tool)} ${tool.summary || ""}`}
+      >
+        <IconSymbol name={toolIcon(tool)} className={styles.stepIcon} />
+        <span className={styles.stepState}>{statusLabel[status] || status}</span>
+        <span className={styles.stepDetail}>
+          <span className={styles.stepTitle}>{toolTitle(tool)}</span>
+          {tool.summary && <span className={styles.stepSummary}>{tool.summary}</span>}
+        </span>
+      </span>
+      {(tool.output || previews.length) && (
+        <span className={styles.stepOutput}>
+          {!!tool.output && <span className={styles.outputText}>{tool.output}</span>}
+          {!!previews.length && (
+            <span className={styles.previewRow}>
+              {previews.map((preview) => (
+                <PreviewImage
+                  key={preview.path}
+                  path={preview.path}
+                  alt={`${toolTitle(tool)} ${preview.label}`}
+                />
+              ))}
+            </span>
+          )}
+        </span>
+      )}
+      {tool.pending && tool.interactionId && (
+        <PendingDecision tool={tool} controller={controller} />
+      )}
+    </li>
+  );
+}
+
+/** 谁在执行：一行说明被派发的子 Agent、它接到的任务与状态，下面挂它的步骤和结论。 */
+function SubagentLine({ subagent }: { subagent: AgentSubagentView }) {
+  const status = subagent.status || "running";
+  const result = status === "error" ? subagent.error : subagent.summary;
+  const task = subagent.task || subagent.title || "";
+  return (
+    <>
+      <div
+        className={styles.branchHead}
+        title={`${subagentName(subagent)} ${subagentLabel[status] || status} ${task}`}
+      >
+        <IconSymbol name="workflow" className={styles.branchIcon} />
+        <span className={styles.branchState}>{subagentLabel[status] || status}</span>
+        <span className={styles.branchDetail}>
+          <span className={styles.branchName}>{subagentName(subagent)}</span>
+          {task && <span className={styles.branchTask}>{task}</span>}
+        </span>
+      </div>
+      {!!result && <div className={styles.branchResult}>{result}</div>}
+    </>
   );
 }
 
