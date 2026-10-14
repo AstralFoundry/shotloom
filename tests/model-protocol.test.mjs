@@ -11,7 +11,7 @@ import {
   renderProtocolContentTemplate,
   renderProtocolTemplate,
 } from '../renderer/src/utils/modelProtocol.mjs';
-import { modelApiUrl, modelJsonRequestBody, multipartArrayFieldName } from '../renderer/src/utils/modelRequestBody.mjs';
+import { modelJsonRequestBody, multipartArrayFieldName } from '../renderer/src/utils/modelRequestBody.mjs';
 
 const openaiContentTemplate = {
   text: { type: 'text', text: '{{text}}' },
@@ -265,40 +265,8 @@ test('声明式路径支持 Claude 文本、图片数组和异步视频结果', 
 
 test('协议控制字段不会泄漏进厂商请求 JSON', () => {
   assert.deepEqual(modelJsonRequestBody({
-    model: 'test', prompt: 'hello', __providerId: 'custom',
+    model: 'test', prompt: 'hello', __providerId: 'openai',
     __headers: { 'anthropic-version': '2023-06-01' }, __auth: { type: 'header', name: 'x-api-key' },
     __responseEncoding: 'binary',
   }), { model: 'test', prompt: 'hello' });
-});
-
-test('厂商根地址与官方原生接口路径只拼接一次', () => {
-  assert.equal(
-    modelApiUrl({}, '/chat/completions', 'root', 'starrouter'),
-    'https://starrouter.io/v1/chat/completions',
-  );
-  assert.equal(
-    modelApiUrl(
-      { starrouter: { baseUrl: 'https://starrouter.io/v1' } },
-      '/volcengine/doubao/contents/generations/tasks',
-      'origin',
-      'starrouter',
-    ),
-    'https://starrouter.io/volcengine/doubao/contents/generations/tasks',
-  );
-  assert.equal(
-    modelApiUrl({}, '/models/veo-3.1-generate-preview:predictLongRunning', 'root', 'google'),
-    'https://generativelanguage.googleapis.com/v1beta/models/veo-3.1-generate-preview:predictLongRunning',
-  );
-  assert.equal(
-    modelApiUrl({ qwen: { baseUrl: 'https://workspace.ap-southeast-1.maas.aliyuncs.com' } }, '/api/v1/services/aigc/multimodal-generation/generation', 'root', 'qwen'),
-    'https://workspace.ap-southeast-1.maas.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation',
-  );
-  assert.equal(
-    modelApiUrl({}, '/text-to-video/kling-3.0', 'root', 'kling'),
-    'https://api-singapore.klingai.com/text-to-video/kling-3.0',
-  );
-  assert.equal(
-    modelApiUrl({}, '/v2/video_generation', 'root', 'minimax'),
-    'https://api.minimax.io/v2/video_generation',
-  );
 });

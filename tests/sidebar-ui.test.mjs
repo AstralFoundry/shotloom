@@ -8,8 +8,8 @@ const appShell = readFileSync(new URL('../renderer/src/app/AppShell.tsx', import
 const topbar = readFileSync(new URL('../renderer/src/app/layout/TopBar.tsx', import.meta.url), 'utf8');
 const projectLibrary = readFileSync(new URL('../renderer/src/app/adapters/projectLibraryAdapter.ts', import.meta.url), 'utf8');
 const taskStore = readFileSync(new URL('../renderer/src/store/taskStore.js', import.meta.url), 'utf8');
-const providerDialog = readFileSync(new URL('../renderer/src/app/views/ProviderConnectionDialog.tsx', import.meta.url), 'utf8')
-  + readFileSync(new URL('../renderer/src/app/views/providerConnectionModel.ts', import.meta.url), 'utf8');
+const settingsPanel = readFileSync(new URL('../renderer/src/app/views/SettingsPanel.tsx', import.meta.url), 'utf8');
+const settingsFeature = readFileSync(new URL('../renderer/src/app/views/SettingsFeature.tsx', import.meta.url), 'utf8');
 const agentChat = '../renderer/src/app/agent-chat/';
 const transcript = readFileSync(new URL(`${agentChat}Transcript.tsx`, import.meta.url), 'utf8');
 const composer = readFileSync(new URL(`${agentChat}Composer.tsx`, import.meta.url), 'utf8');
@@ -241,71 +241,40 @@ test('策略编辑弹窗由正文滚动且测试台不会被 Flex 压缩裁切',
   assert.match(settingsStyles, /\.recipe-dialog > header,[\s\S]*?\.recipe-dialog > footer \{[\s\S]*?flex:\s*0 0 auto/);
 });
 
-test('API 厂商按模型逐个编辑协议而不是暴露完整目录数组', () => {
-  assert.match(providerDialog, /const \[models, setModels\] = useState<CatalogModel\[]>/);
-  assert.match(providerDialog, /const \[selectedModelId, setSelectedModelId\]/);
-  assert.match(providerDialog, /单模型协议/);
-  assert.match(providerDialog, /value=\{modelJson\}/);
-  assert.match(providerDialog, /placeholder="\{\}"/);
-  assert.doesNotMatch(providerDialog, /value=\{modelsJson\}/);
+test('API 厂商页只展示内置厂商卡片，界面不再添加厂商或模型', () => {
+  assert.match(settingsFeature, /const providers = getProviderAdapters\(\)\.map/);
+  assert.match(settingsPanel, /data\.providers\.map\(\(item\) => \(\n\s+<ProviderCard/);
+  assert.doesNotMatch(settingsPanel, /controller\.(add|edit|delete)Provider/);
+  assert.doesNotMatch(settingsFeature, /addProvider|editProvider|deleteProvider|ProviderConnectionDialog|getConfiguredProviders|getProviderDefinition/);
+  assert.equal(existsSync(new URL('../renderer/src/app/views/ProviderConnectionDialog.tsx', import.meta.url)), false);
 });
 
-test('API 厂商弹窗收起低频 AI 导入并提供可搜索的模型工作区', () => {
-  assert.match(providerDialog, /const \[showAiImport, setShowAiImport\] = useState\(false\)/);
-  assert.match(providerDialog, /aria-expanded=\{showAiImport\}/);
-  assert.match(providerDialog, /showAiImport &&/);
-  assert.match(providerDialog, /placeholder="搜索名称或 ID"/);
-  assert.match(providerDialog, /visibleModels\.map/);
-  assert.match(providerDialog, /className="provider-model-detail"/);
-  assert.match(providerDialog, /models\.length <= 4 \? " compact" : " catalog"/);
-  assert.match(settingsStyles, /\.provider-connection-dialog \{[^}]*width:\s*min\(900px[^}]*height:\s*auto/);
-  assert.match(settingsStyles, /\.provider-connection-dialog \.recipe-dialog-body \{[^}]*overflow-y:\s*auto/);
-  assert.match(settingsStyles, /\.provider-connection-dialog \.provider-model-item\.active \{[^}]*box-shadow:\s*inset 2px 0/);
-  assert.match(settingsStyles, /\.provider-model-detail \{[^}]*border-left:\s*1px solid var\(--provider-line\)/);
-  assert.match(settingsStyles, /\.provider-connection-basics,[\s\S]*?border-bottom:\s*1px solid var\(--provider-line\)/);
-  assert.match(settingsStyles, /\.provider-model-workspace\.compact \{ grid-template-columns:\s*1fr/);
+test('厂商卡片只提交 API Key 与接口地址，其余配置属于代码声明', () => {
+  assert.match(settingsPanel, /onChange=\{controller\.setProviderConfig\}/);
+  assert.match(settingsPanel, /onChange\(item\.id, \{ \[field\]: next \}\)/);
+  assert.match(settingsPanel, /interface ProviderConfigPatch \{[\s\S]*?apiKey\?: string;[\s\S]*?baseUrl\?: string;[\s\S]*?\}/);
+  assert.doesNotMatch(settingsPanel, /disabledModelIds|customModels|protocol|apiKeyValid/);
+  // 地址可覆盖但必填的厂商（Qwen 百炼）要在卡片上说明缺失。
+  assert.match(settingsPanel, /item\.baseUrlRequired && !item\.baseUrl\.trim\(\)/);
+  assert.match(settingsPanel, /该厂商必须填写接口地址/);
+  assert.match(settingsFeature, /saveAppSettings\(\{[\s\S]*?providerConfigs[\s\S]*?\}\)/);
 });
 
-test('新增 API 模型使用空白协议', () => {
-  assert.match(providerDialog, /starterProtocolModel\(newModel\.type\)/);
-  assert.match(providerDialog, /endpoint: \{ method: "POST", path: "", scope: "root" \}/);
-  assert.match(providerDialog, /requestTemplate: \{\}/);
-  assert.match(providerDialog, /inputConstraints: \{\}/);
-  assert.match(providerDialog, /outputConstraints: \{\}/);
-  assert.match(providerDialog, /requestTemplate/);
-  assert.doesNotMatch(providerDialog, /const template = models\.find/);
-  assert.doesNotMatch(providerDialog, /model: "\{\{model\}\}"/);
-  assert.match(providerDialog, /selectedModelId && !newModel/);
-  assert.match(providerDialog, /创建并编辑协议/);
+test('厂商卡片用配置状态说明模型可见性而不是承诺连通性', () => {
+  assert.match(settingsPanel, /item\.configured \? "已配置" : "未配置"/);
+  assert.match(settingsPanel, /填写 API Key 后该厂商的模型才会进入目录/);
+  assert.match(settingsPanel, /实际连通性在调用模型时验证/);
+  assert.match(settingsStyles, /\.provider-incomplete i \{ background: #c9c4be/);
 });
 
-test('自定义厂商复用内置模型 ID 时明确保存并展示覆盖关系', () => {
-  assert.match(providerDialog, /globalBuiltInModels\.has\(model\.id\)/);
-  assert.match(providerDialog, /overridesBuiltIn: true/);
-  assert.match(providerDialog, /覆盖内置 \$\{replacedBuiltIn\.provider\}/);
-  assert.match(settingsStyles, /\.provider-model-origin\.override/);
-});
-
-test('自定义厂商隔离内置 ID 和切换前的敏感状态', () => {
-  assert.match(providerDialog, /initialConfig\?\.custom === true \|\| !editingDefinition/);
-  assert.match(providerDialog, /definitions\.some\(\(definition\) => definition\.id === providerId\)/);
-  assert.match(providerDialog, /厂商 ID .*已被内置厂商保留/);
-  assert.match(providerDialog, /if \(id === CUSTOM_PROVIDER_ID[\s\S]*?setApiKey\(""\);[\s\S]*?setDisabledIds\(new Set\(\)\)/);
-});
-
-test('自定义模型保存和试跑复用运行时协议校验', () => {
-  assert.match(providerDialog, /catalogModelValidationErrors\(model, \{ requireProvider: true \}\)/);
-  assert.match(providerDialog, /catalogModelValidationErrors\(added, \{ requireProvider: true \}\)/);
-  assert.match(providerDialog, /<option value="audioGeneration">音频生成<\/option>/);
-});
-
-test('自定义文本模型明确展示并可编辑 Agent 工具调用能力', () => {
-  assert.match(providerDialog, /supportsAgentTools/);
-  assert.match(providerDialog, /可用于 Agent/);
-  assert.match(providerDialog, /Agent 接口模式/);
-  assert.match(providerDialog, /推荐：使用独立 Agent 接口/);
-  assert.doesNotMatch(providerDialog, /Agent 请求选项 JSON/);
-  assert.match(providerDialog, /高级协议设置（一般无需修改）/);
-  assert.match(providerDialog, /无需阅读或修改代码/);
-  assert.match(settingsStyles, /\.provider-model-agent-status\.unavailable/);
+test('厂商卡片按生成类型展示该厂商的全部内置模型', () => {
+  assert.match(settingsFeature, /models: getProviderModelRows\(adapter\.id\)/);
+  assert.match(settingsPanel, /interface ProviderItem \{[\s\S]*?models: ProviderModelRow\[\];/);
+  assert.doesNotMatch(settingsPanel, /modelCount/);
+  // 分组与徽标全部消费目录派生的行，界面不另写一份模型清单。
+  assert.match(settingsPanel, /groupProviderModels\(item\.models\)\.map/);
+  assert.match(settingsPanel, /\{label\}[\s\S]*?\{models\.length\}/);
+  assert.match(settingsPanel, /MODEL_INPUT_LABELS\[kind\]/);
+  assert.match(settingsPanel, /可用于 Agent[\s\S]*?仅画布使用，Agent 不能选它/);
+  assert.match(settingsStyles, /\.provider-model-chips \{ display: flex; flex-wrap: wrap/);
 });

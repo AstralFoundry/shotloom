@@ -2,40 +2,54 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
 
-const registrySource = readFileSync(
-  new URL('../renderer/src/domain/provider/ProviderRegistry.ts', import.meta.url),
+const adaptersIndexSource = readFileSync(
+  new URL('../renderer/src/domain/provider/adapters/index.ts', import.meta.url),
+  'utf8',
+);
+const adapterSource = (name) => readFileSync(
+  new URL(`../renderer/src/domain/provider/adapters/${name}.ts`, import.meta.url),
   'utf8',
 );
 const catalogSource = readFileSync(
   new URL('../renderer/src/domain/catalog/ModelCatalog.ts', import.meta.url),
   'utf8',
 );
-const transportSource = readFileSync(
-  new URL('../renderer/src/domain/provider/TransportRegistry.ts', import.meta.url),
-  'utf8',
-);
 const loopRequestSource = readFileSync(
   new URL('../renderer/src/agent/loop/modelRequest.ts', import.meta.url),
   'utf8',
 );
+const catalogJson = JSON.parse(readFileSync(
+  new URL('../renderer/src/config/model-catalog-v2.json', import.meta.url),
+  'utf8',
+));
+const starrouterAdapter = adapterSource('starrouter');
 
-test('StarRouter 是使用官方 /v1 地址和模型发现端点的内置供应商', () => {
-  assert.match(registrySource, /id: 'starrouter'[\s\S]*defaultBaseUrl: 'https:\/\/starrouter\.io\/v1'/);
-  assert.match(registrySource, /id: 'starrouter'[\s\S]*modelsPath: '\/models'/);
+test('StarRouter 适配器声明官方地址并在注册表中唯一登记', () => {
+  assert.match(starrouterAdapter, /id: 'starrouter'/);
+  assert.match(starrouterAdapter, /baseUrl: 'https:\/\/starrouter\.io\/v1'/);
+  assert.match(adaptersIndexSource, /import \{ starrouterAdapter \} from '\.\/starrouter'/);
+  assert.equal(
+    [...adaptersIndexSource.matchAll(/starrouterAdapter/g)].length,
+    2,
+    'StarRouter 只能在 import 与登记数组中各出现一次',
+  );
+});
+
+test('未登记的厂商没有适配器可执行', () => {
+  assert.match(
+    adaptersIndexSource,
+    /没有内置厂商适配器[\s\S]*domain\/provider\/adapters/,
+  );
 });
 
 test('画布和 Agent 请求均使用目录声明的上游模型 ID', () => {
   assert.match(catalogSource, /upstreamModel: model\.upstreamModel \|\| model\.id/);
-  assert.match(transportSource, /model: contract\.upstreamModel/);
+  assert.match(adapterSource('declarative'), /model: contract\.upstreamModel/);
   assert.match(loopRequestSource, /upstreamModel: info\.upstreamModel/);
 });
 
 test('StarRouter 内置目录覆盖文本、图片、视频和音频生成', () => {
-  const catalog = JSON.parse(readFileSync(
-    new URL('../renderer/src/config/model-catalog-v2.json', import.meta.url),
-    'utf8',
-  ));
-  const models = catalog.models.filter((model) => model.provider === 'starrouter');
+  const models = catalogJson.models.filter((model) => model.provider === 'starrouter');
   const byType = Object.groupBy(models, (model) => model.type);
   assert.equal(byType.textGeneration.length, 8);
   assert.equal(byType.imageGeneration.length, 5);
@@ -61,11 +75,7 @@ test('StarRouter 内置目录覆盖文本、图片、视频和音频生成', () 
 });
 
 test('StarRouter GPT 5.5 使用官方上下文、输出长度和推理强度', () => {
-  const catalog = JSON.parse(readFileSync(
-    new URL('../renderer/src/config/model-catalog-v2.json', import.meta.url),
-    'utf8',
-  ));
-  const model = catalog.models.find((candidate) => candidate.id === 'starrouter-gpt-5.5');
+  const model = catalogJson.models.find((candidate) => candidate.id === 'starrouter-gpt-5.5');
   const mode = model.modes[0];
 
   assert.equal(model.upstreamModel, 'gpt-5.5');
@@ -81,11 +91,7 @@ test('StarRouter GPT 5.5 使用官方上下文、输出长度和推理强度', (
 });
 
 test('StarRouter Grok 图片模型只公开已验证可用的文生图协议', () => {
-  const catalog = JSON.parse(readFileSync(
-    new URL('../renderer/src/config/model-catalog-v2.json', import.meta.url),
-    'utf8',
-  ));
-  const models = catalog.models.filter((model) => [
+  const models = catalogJson.models.filter((model) => [
     'starrouter-grok-imagine-image',
     'starrouter-grok-imagine-image-quality',
   ].includes(model.id));
@@ -103,11 +109,7 @@ test('StarRouter Grok 图片模型只公开已验证可用的文生图协议', (
 });
 
 test('StarRouter Seedance 保留显式输入槽位并使用火山中转任务端点', () => {
-  const catalog = JSON.parse(readFileSync(
-    new URL('../renderer/src/config/model-catalog-v2.json', import.meta.url),
-    'utf8',
-  ));
-  const models = catalog.models.filter((model) => model.id.startsWith('starrouter-doubao-seedance-2-0'));
+  const models = catalogJson.models.filter((model) => model.id.startsWith('starrouter-doubao-seedance-2-0'));
 
   assert.deepEqual(models.map((model) => model.upstreamModel), [
     'doubao-seedance-2-0-260128',

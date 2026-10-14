@@ -1,15 +1,12 @@
 /**
  * modelTaskService — 生成任务的薄入口。
  *
- * 所有请求编译、提交、轮询和结果归一化委托给 domain/provider/ 下的 Transport。
- * 本文件只负责：校验设置 → 解析模型契约 → 获取 transport → 调用管道。
+ * 请求编译、提交、轮询全部委托给 domain/provider/adapters 下的厂商适配器。
+ * 本文件只负责：校验设置 → 解析模型契约 → 取适配器 → 调用管道。
  */
 
-import { desktopApi } from '@/services/desktopApi';
 import { getModelCredentialStatus } from '@/store/settingsStore';
-import { getProviderTransport, normalizeRemoteTask } from '@/domain/provider/TransportRegistry';
-
-export { normalizeRemoteTask } from '@/domain/provider/TransportRegistry';
+import { getProviderAdapter } from '@/domain/provider/adapters';
 
 export function imageRequestUsesMultipart(payload = {}) {
   return payload.modelContract?.inputFormat === 'multipart';
@@ -32,7 +29,7 @@ export async function submitRemoteGenerationTask({ task, payload, signal }) {
   if (!credentialStatus.available) {
     throw new Error(`${credentialStatus.message}，请先在设置 → API 厂商中完成配置`);
   }
-  const transport = getProviderTransport(contract.provider);
+  const adapter = getProviderAdapter(contract.provider);
 
   const context = {
     taskType: task.type,
@@ -55,12 +52,7 @@ export async function submitRemoteGenerationTask({ task, payload, signal }) {
     multipart: contract.inputFormat === 'multipart',
   };
 
-  const req = transport.compileRequest(context);
-  // Inject providerId into body so the Rust HTTP layer routes to correct key
-  if (req.body && typeof req.body === 'object') {
-    req.body.__providerId = req.providerId;
-  }
-  const result = await transport.submit(req);
+  const result = await adapter.submit(adapter.compileRequest(context));
 
   // Async task validation
   if (result.remoteTaskId && !result.remoteTaskId.startsWith('mock-')) {
@@ -77,26 +69,14 @@ export async function submitRemoteGenerationTask({ task, payload, signal }) {
  */
 export async function pollRemoteGenerationTask({ remoteTaskId, modelContract, signal }) {
   if (!remoteTaskId || remoteTaskId.startsWith('mock-')) {
-    return normalizeRemoteTask({ id: remoteTaskId, status: 'completed', progress: 100 });
+    return { remoteTaskId: remoteTaskId || '', status: 'completed', progress: 100 };
   }
   if (signal?.aborted) throw new DOMException('任务查询已取消', 'AbortError');
   if (!modelContract?.isAsync || !modelContract.taskEndpoint?.path) {
     throw new Error('缺少 v2 catalog 异步轮询契约');
   }
-  const transport = getProviderTransport(modelContract.provider);
-  if (!transport.poll) {
-    // Fallback: generic poll via desktopApi
-    const data = await desktopApi.model.videoTask({
-      taskId: remoteTaskId,
-      endpointPath: modelContract.taskEndpoint.path,
-      endpointScope: modelContract.taskEndpoint.scope,
-      endpointMethod: modelContract.taskEndpoint.method,
-      providerId: modelContract.provider,
-      signal, timeoutMs: 60000,
-    });
-    return normalizeRemoteTask(data, { remoteTaskId, status: 'running' });
-  }
-  return transport.poll({ remoteTaskId, status: 'running', progress: 0 }, modelContract, signal);
+  return getProviderAdapter(modelContract.provider)
+    .poll({ remoteTaskId, status: 'running', progress: 0 }, modelContract, signal);
 }
 
 /**
@@ -116,8 +96,8 @@ export async function cancelRemoteGenerationTask({ remoteTaskId, modelContract }
   if (!remoteTaskId) return true;
   const cancelEndpoint = modelContract?.cancelEndpoint;
   if (!cancelEndpoint?.path) return false;
-  const transport = getProviderTransport(modelContract.provider);
-  if (!transport.cancel) return false;
-  await transport.cancel({ remoteTaskId });
+  const adapter = getProviderAdapter(modelContract.provider);
+  if (!adapter.cancel) return false;
+  await adapter.cancel({ remoteTaskId });
   return true;
 }

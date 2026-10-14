@@ -55,9 +55,6 @@ pub struct GenerationRequest {
     pub resources: Vec<GenerationResource>,
     pub response_encoding: Option<String>,
     pub timeout_ms: u64,
-    /// 试跑请求可显式携带未保存的凭据，绕过按 providerId 读取本地设置。
-    pub base_url: Option<String>,
-    pub api_key: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -105,24 +102,6 @@ impl GenerationGatewayState {
     }
 }
 
-fn default_base_url(provider: &str) -> &'static str {
-    match provider {
-        "openai" => "https://api.openai.com/v1",
-        "starrouter" => "https://starrouter.io/v1",
-        "bytedance" => "https://ark.cn-beijing.volces.com/api/v3",
-        "kling" => "https://api-singapore.klingai.com",
-        "minimax" => "https://api.minimax.io",
-        "runninghub" => "https://www.runninghub.ai",
-        "google" => "https://generativelanguage.googleapis.com/v1beta",
-        "xai" => "https://api.x.ai/v1",
-        "anthropic" => "https://api.anthropic.com",
-        "deepseek" => "https://api.deepseek.com/v1",
-        "moonshot" => "https://api.moonshot.ai/v1",
-        "zhipu" => "https://open.bigmodel.cn/api",
-        _ => "",
-    }
-}
-
 fn provider_credentials(app: &AppHandle, provider: &str) -> Result<(String, String), String> {
     if provider.is_empty() {
         return Ok((String::new(), String::new()));
@@ -133,16 +112,15 @@ fn provider_credentials(app: &AppHandle, provider: &str) -> Result<(String, Stri
         .and_then(|configs| configs.get(provider))
         .cloned()
         .unwrap_or_else(|| json!({}));
+    // baseUrl 的实际生效值由渲染进程按内置厂商适配器写进设置，这里不维护任何厂商地址。
     let base_url = config
         .get("baseUrl")
         .and_then(Value::as_str)
-        .filter(|value| !value.trim().is_empty())
-        .unwrap_or_else(|| default_base_url(provider))
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| format!("请先在设置中配置 {provider} API 地址和 Key"))?
         .trim_end_matches('/')
         .to_string();
-    if base_url.is_empty() {
-        return Err(format!("请先在设置中配置 {provider} API 地址和 Key"));
-    }
     let api_key = config
         .get("apiKey")
         .and_then(Value::as_str)
@@ -329,21 +307,7 @@ async fn build_request(
     app: &AppHandle,
     input: &GenerationRequest,
 ) -> Result<reqwest::RequestBuilder, String> {
-    let (base_url, api_key) = if input.base_url.is_some() || input.api_key.is_some() {
-        let base_url = input
-            .base_url
-            .as_deref()
-            .unwrap_or_default()
-            .trim_end_matches('/')
-            .to_string();
-        if base_url.is_empty() {
-            return Err("试跑请求缺少接口地址".into());
-        }
-        let api_key = input.api_key.as_deref().unwrap_or_default().trim().to_string();
-        (base_url, api_key)
-    } else {
-        provider_credentials(app, &input.provider_id)?
-    };
+    let (base_url, api_key) = provider_credentials(app, &input.provider_id)?;
     let url = request_url(&base_url, &input.path, &input.scope)?;
     let client = gateway_client(input.timeout_ms)?;
     let method = Method::from_bytes(input.method.as_bytes())

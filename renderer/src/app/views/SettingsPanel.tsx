@@ -8,6 +8,7 @@ import {
 } from "react";
 import { type IconName, IconSymbol } from "../components/IconSymbol";
 import { ProviderBrandIcon } from "../components/ProviderBrandIcon";
+import type { ProviderModelRow } from "../../domain/provider/ModelAvailability";
 
 export interface SettingsModel {
   id: string;
@@ -16,10 +17,18 @@ export interface SettingsModel {
 }
 export interface ProviderItem {
   id: string;
+  name: string;
+  description: string;
   iconId: string;
-  displayName: string;
-  summaryUrl: string;
-  modelCount: number;
+  apiKey: string;
+  baseUrl: string;
+  baseUrlRequired: boolean;
+  configured: boolean;
+  models: ProviderModelRow[];
+}
+export interface ProviderConfigPatch {
+  apiKey?: string;
+  baseUrl?: string;
 }
 export interface CatalogItem {
   id: string;
@@ -55,9 +64,10 @@ export interface SettingsController {
   setAgentToggle: (key: string, value: boolean | string) => void | Promise<void>;
   recordShortcut: (key: string) => void;
   resetShortcuts: () => void | Promise<void>;
-  addProvider: () => void;
-  editProvider: (id: string) => void;
-  deleteProvider: (id: string) => void | Promise<void>;
+  setProviderConfig: (
+    id: string,
+    patch: ProviderConfigPatch,
+  ) => void | Promise<void>;
   createSkill: () => void;
   editSkill: (id: string) => void;
   deleteSkill: (id: string) => void | Promise<void>;
@@ -105,7 +115,7 @@ const groups: Array<
       id: "providers",
       label: "API 厂商",
       icon: "link",
-      description: "模型服务配置、凭据和模型目录",
+      description: "内置厂商的 API Key 与接口地址",
     }, {
       id: "agent",
       label: "Copilot",
@@ -227,6 +237,128 @@ function ModelSelect(
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+const MODEL_INPUT_LABELS: Record<ProviderModelRow["inputs"][number], string> = {
+  image: "图片",
+  video: "视频",
+  audio: "音频",
+};
+
+function groupProviderModels(models: ProviderModelRow[]) {
+  const groups = new Map<string, ProviderModelRow[]>();
+  for (const model of models) {
+    const group = groups.get(model.typeLabel);
+    if (group) group.push(model);
+    else groups.set(model.typeLabel, [model]);
+  }
+  return [...groups];
+}
+
+function ProviderCard(
+  { item, onChange }: {
+    item: ProviderItem;
+    onChange: (id: string, patch: ProviderConfigPatch) => void | Promise<void>;
+  },
+) {
+  const [draft, setDraft] = useState({
+    apiKey: item.apiKey,
+    baseUrl: item.baseUrl,
+  });
+  useEffect(
+    () => setDraft({ apiKey: item.apiKey, baseUrl: item.baseUrl }),
+    [item.apiKey, item.baseUrl],
+  );
+  // 只有实际改动才落盘，避免失焦就写一次设置。
+  function commit(field: "apiKey" | "baseUrl") {
+    const next = draft[field].trim();
+    if (next === item[field]) return;
+    void onChange(item.id, { [field]: next });
+  }
+  const urlMissing = item.baseUrlRequired && !item.baseUrl.trim();
+  return (
+    <div className="provider-card">
+      <div className="provider-card-head">
+        <span className="provider-badge">
+          <ProviderBrandIcon icon={item.iconId} />
+        </span>
+        <div className="provider-card-title">
+          <strong>{item.name}</strong>
+          <small>{item.description} · {item.models.length} 个内置模型</small>
+        </div>
+        <span
+          className={item.configured ? "provider-configured" : "provider-incomplete"}
+          title={item.configured
+            ? "凭据保存在本机，实际连通性在调用模型时验证"
+            : "填写 API Key 后该厂商的模型才会进入目录"}
+        >
+          <i />{item.configured ? "已配置" : "未配置"}
+        </span>
+      </div>
+      <div className="provider-card-fields">
+        <label className="provider-field">
+          <span>API Key</span>
+          <input
+            type="password"
+            value={draft.apiKey}
+            placeholder={item.configured ? "已保存，输入新值可替换" : "粘贴厂商 API Key"}
+            onChange={(e) => setDraft((d) => ({ ...d, apiKey: e.target.value }))}
+            onBlur={() => commit("apiKey")}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+            }}
+          />
+        </label>
+        <label className="provider-field">
+          <span>接口地址</span>
+          <input
+            value={draft.baseUrl}
+            placeholder={urlMissing ? "该厂商必须填写接口地址" : "使用内置地址，可改为代理地址"}
+            onChange={(e) => setDraft((d) => ({ ...d, baseUrl: e.target.value }))}
+            onBlur={() => commit("baseUrl")}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+            }}
+          />
+        </label>
+      </div>
+      <div className="provider-models">
+        {groupProviderModels(item.models).map(([label, models]) => (
+          <div className="provider-model-group" key={label}>
+            <span className="provider-model-group-label">
+              {label}
+              <i>{models.length}</i>
+            </span>
+            <div className="provider-model-chips">
+              {models.map((model) => (
+                <span
+                  className="provider-model-chip"
+                  key={model.id}
+                  title={[
+                    model.id,
+                    model.inputs.length
+                      ? `接受${model.inputs.map((kind) => MODEL_INPUT_LABELS[kind]).join("、")}输入`
+                      : "",
+                    model.agentReady ? "可用于 Agent" : "仅画布使用，Agent 不能选它",
+                  ].filter(Boolean).join(" · ")}
+                >
+                  <span className="provider-model-name">{model.name}</span>
+                  {model.inputs.map((kind) => (
+                    <span className="provider-model-input" key={kind}>
+                      {MODEL_INPUT_LABELS[kind]}
+                    </span>
+                  ))}
+                  {!model.agentReady && (
+                    <span className="provider-model-canvas-only">仅画布</span>
+                  )}
+                </span>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -422,14 +554,6 @@ export function SettingsPanel(
               恢复默认
             </button>
           )}
-          {tab === "providers" && (
-            <button
-              className="button primary compact"
-              onClick={controller.addProvider}
-            >
-              + 添加厂商
-            </button>
-          )}
           {(tab === "skills" || tab === "recipes") && (
             <div className="settings-head-actions">
               <button
@@ -592,40 +716,20 @@ export function SettingsPanel(
           )}
           {tab === "providers" && (
             <section className="settings-section settings-list-section">
-              {!data.providers.length && (
-                <div className="settings-empty">
-                  尚未配置 API 厂商，添加后模型会自动按厂商路由。
+              <div className="settings-catalog-intro">
+                <IconSymbol name="link" />
+                <div>
+                  <strong>厂商与模型已内置在产品中</strong>
+                  <p>填写对应厂商的 API Key 即可使用它的模型；未填写的厂商不会进入模型目录，也不需要在界面上添加厂商或模型。</p>
                 </div>
-              )}
+                <span>{data.providers.filter((item) => item.configured).length} 个已配置</span>
+              </div>
               {data.providers.map((item) => (
-                <div key={item.id} className="provider-card">
-                  <span className="provider-badge">
-                    <ProviderBrandIcon icon={item.iconId} />
-                  </span>
-                  <div>
-                    <strong>{item.displayName}</strong>
-                    <small>
-                      {item.summaryUrl} · {item.modelCount} 个模型
-                    </small>
-                  </div>
-                  <span className="provider-configured" title="配置已保存在本机，实际连通性会在调用模型时验证">
-                    <i />已配置
-                  </span>
-                  <button
-                    className="icon-action"
-                    onClick={() =>
-                      controller.editProvider(item.id)}
-                  >
-                    <IconSymbol name="pencil" />
-                  </button>
-                  <button
-                    className="icon-action danger"
-                    onClick={() =>
-                      void controller.deleteProvider(item.id)}
-                  >
-                    <IconSymbol name="trash" />
-                  </button>
-                </div>
+                <ProviderCard
+                  key={item.id}
+                  item={item}
+                  onChange={controller.setProviderConfig}
+                />
               ))}
             </section>
           )}

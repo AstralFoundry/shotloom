@@ -1,26 +1,86 @@
 /**
- * TransportRegistry — Provider 传输层注册中心。
+ * declarative — 声明式协议适配器的共享实现。
  *
- * 所有 Provider 共用声明式协议执行器，差异只存在于模型目录。
+ * 请求骨架全部来自 model-catalog-v2.json 的模式声明，因此绝大多数厂商只需要声明元数据
+ * 就能工作；只有协议真正不同的厂商才在自己的适配器文件里提供完整实现。
  */
 
 import { desktopApi } from '@/services/desktopApi';
-import { normalizeRemoteStatus, formatRemoteTaskError } from '@/utils/remoteTaskFormatting';
-import type {
-  ProviderTransport, ProviderTask, ProviderTaskState,
-  CompiledProviderRequest, CompileContext, ResourceRef,
-} from './ProviderTransport';
-import type { ModelRuntimeContract } from '../catalog/ModelCatalog';
-import { firstProtocolValue, normalizeProtocolResponse, protocolInlineImage, protocolMessageVariables, protocolResultEndpointFile, renderProtocolContentTemplate, renderProtocolTemplate } from '@/utils/modelProtocol.mjs';
+import { normalizeRemoteStatus } from '@/utils/remoteTaskFormatting';
+import {
+  firstProtocolValue, normalizeProtocolResponse, protocolInlineImage, protocolMessageVariables,
+  protocolResultEndpointFile, renderProtocolContentTemplate, renderProtocolTemplate,
+} from '@/utils/modelProtocol.mjs';
 import { multipartArrayFieldName } from '@/utils/modelRequestBody.mjs';
 import { providerRequestTimeoutMs } from '@/utils/providerRequestTimeout.mjs';
-import { RunningHubTransport } from './RunningHubTransport';
+import type {
+  CompiledProviderRequest, CompileContext, ProviderAdapter,
+  ProviderTask, ProviderTaskState, ResourceRef,
+} from '../ProviderAdapter';
+import type { ModelRuntimeContract } from '../../catalog/ModelCatalog';
+import type { DeclarativeAdapterMeta } from './meta';
 
-// ── Unified declarative transport ───────────────────────────────────────────
+function pickStr(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
 
-class DeclarativeProviderTransport implements ProviderTransport {
-  readonly provider: string;
-  constructor(provider: string) { this.provider = provider; }
+function pickScalar(value: unknown): string {
+  if (typeof value === 'string') return value.trim();
+  if (typeof value === 'boolean' || typeof value === 'number') return String(value);
+  return '';
+}
+
+async function collectProtocolResourceValues(
+  refs: ResourceRef[],
+  { preferDataUrl = false, fallbackMimeType = 'application/octet-stream' } = {},
+): Promise<string[]> {
+  const values = await Promise.all(refs.map(async (ref) => {
+    const direct = pickStr(ref.remoteUrl || ref.url || ref.previewUrl);
+    const remotelyUsable = /^(https?:|data:)/i.test(direct);
+    if (direct && !preferDataUrl && (remotelyUsable || !ref.filePath)) return direct;
+    if (ref.filePath) {
+      try {
+        const buffer = await desktopApi.file.readArrayBuffer?.(ref.filePath);
+        if (buffer?.byteLength) {
+          const bytes = new Uint8Array(buffer);
+          let binary = '';
+          for (let offset = 0; offset < bytes.length; offset += 0x8000) binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+          return `data:${ref.mimeType || fallbackMimeType};base64,${btoa(binary)}`;
+        }
+      } catch { /* fall through to a remote value when available */ }
+    }
+    return direct;
+  }));
+  return [...new Set(values.filter(Boolean))];
+}
+
+async function collectProtocolResourceEntries(
+  refs: ResourceRef[],
+  options: { preferDataUrl?: boolean; fallbackMimeType?: string } = {},
+): Promise<Array<{ ref: ResourceRef; value: string }>> {
+  const entries = await Promise.all(refs.map(async (ref) => ({
+    ref,
+    value: (await collectProtocolResourceValues([ref], options))[0] || '',
+  })));
+  return entries.filter((entry) => Boolean(entry.value));
+}
+
+export class DeclarativeAdapter implements ProviderAdapter {
+  readonly id: string;
+  readonly name: string;
+  readonly description: string;
+  readonly iconId: string;
+  readonly baseUrl: string;
+  readonly baseUrlRequired?: boolean;
+
+  constructor(meta: DeclarativeAdapterMeta) {
+    this.id = meta.id;
+    this.name = meta.name;
+    this.description = meta.description;
+    this.iconId = meta.iconId;
+    this.baseUrl = meta.baseUrl;
+    this.baseUrlRequired = meta.baseUrlRequired;
+  }
 
   compileRequest(context: CompileContext): CompiledProviderRequest {
     const contract = context.modelContract;
@@ -36,7 +96,7 @@ class DeclarativeProviderTransport implements ProviderTransport {
       endpointPath: contract.endpoint.path,
       endpointScope: contract.endpoint.scope,
       endpointMethod: contract.endpoint.method,
-      providerId: contract.provider || this.provider,
+      providerId: this.id,
       protocolTemplate: contract.requestTemplate,
       protocolVariables: {
         model: contract.upstreamModel,
@@ -141,7 +201,6 @@ class DeclarativeProviderTransport implements ProviderTransport {
       __endpointMethod: request.endpointMethod, __endpointPath: request.endpointPath,
       __endpointScope: request.endpointScope, __headers: request.headers, __auth: request.auth,
       __responseEncoding: request.responseEncoding,
-      __baseUrl: request.baseUrl, __apiKey: request.apiKey,
     };
     if (request.taskType === 'imageGeneration' || request.multipart) {
       const data = await desktopApi.model.imageGeneration({
@@ -170,7 +229,11 @@ class DeclarativeProviderTransport implements ProviderTransport {
     return this.submittedTask(data, request);
   }
 
-  async poll(task: ProviderTask, contract: ModelRuntimeContract, signal?: AbortSignal): Promise<ProviderTaskState> {
+  async poll(
+    task: ProviderTask,
+    contract: ModelRuntimeContract,
+    signal?: AbortSignal,
+  ): Promise<ProviderTaskState> {
     const encodedTaskId = task.remoteTaskId.split('/').map(encodeURIComponent).join('/');
     const ep = (contract.taskEndpoint?.path || '').replace('{taskId}', encodedTaskId);
     const body = contract.taskRequestTemplate === undefined
@@ -181,7 +244,7 @@ class DeclarativeProviderTransport implements ProviderTransport {
       endpointScope: contract.taskEndpoint?.scope || 'v1',
       endpointMethod: contract.taskEndpoint?.method || 'GET',
       body,
-      providerId: contract.provider || this.provider,
+      providerId: this.id,
       headers: contract.headers,
       auth: contract.auth,
       signal, timeoutMs: 60000,
@@ -232,78 +295,4 @@ class DeclarativeProviderTransport implements ProviderTransport {
     if (!contract.resultEndpoint?.path) return this.protocolResult(data, contract);
     return protocolResultEndpointFile(contract, remoteTaskId, data)!;
   }
-}
-
-async function collectProtocolResourceValues(
-  refs: ResourceRef[],
-  { preferDataUrl = false, fallbackMimeType = 'application/octet-stream' } = {},
-): Promise<string[]> {
-  const values = await Promise.all(refs.map(async (ref) => {
-    const direct = pickStr(ref.remoteUrl || ref.url || ref.previewUrl);
-    const remotelyUsable = /^(https?:|data:)/i.test(direct);
-    if (direct && !preferDataUrl && (remotelyUsable || !ref.filePath)) return direct;
-    if (ref.filePath) {
-      try {
-        const buffer = await desktopApi.file.readArrayBuffer?.(ref.filePath);
-        if (buffer?.byteLength) {
-          const bytes = new Uint8Array(buffer);
-          let binary = '';
-          for (let offset = 0; offset < bytes.length; offset += 0x8000) binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
-          return `data:${ref.mimeType || fallbackMimeType};base64,${btoa(binary)}`;
-        }
-      } catch { /* fall through to a remote value when available */ }
-    }
-    return direct;
-  }));
-  return [...new Set(values.filter(Boolean))];
-}
-
-async function collectProtocolResourceEntries(
-  refs: ResourceRef[],
-  options: { preferDataUrl?: boolean; fallbackMimeType?: string } = {},
-): Promise<Array<{ ref: ResourceRef; value: string }>> {
-  const entries = await Promise.all(refs.map(async (ref) => ({
-    ref,
-    value: (await collectProtocolResourceValues([ref], options))[0] || '',
-  })));
-  return entries.filter((entry) => Boolean(entry.value));
-}
-
-// ── Registry ─────────────────────────────────────────────────────────────────
-
-const transports = new Map<string, ProviderTransport>();
-
-export function getProviderTransport(provider: string): ProviderTransport {
-  const existing = transports.get(provider);
-  if (existing) return existing;
-  const t: ProviderTransport = provider === 'runninghub'
-    ? new RunningHubTransport()
-    : new DeclarativeProviderTransport(provider);
-  transports.set(provider, t);
-  return t;
-}
-
-// ── Shared normalize ─────────────────────────────────────────────────────────
-
-const TERMINAL = new Set(['completed', 'failed', 'timeout', 'cancelled', 'error']);
-function normStatus(s: string): ProviderTask['status'] {
-  const v = normalizeRemoteStatus(s);
-  return (TERMINAL.has(v) ? v : 'running') as ProviderTask['status'];
-}
-function pickStr(v: unknown): string { return typeof v === 'string' ? v.trim() : ''; }
-function pickScalar(v: unknown): string {
-  if (typeof v === 'string') return v.trim();
-  if (typeof v === 'boolean' || typeof v === 'number') return String(v);
-  return '';
-}
-
-export function normalizeRemoteTask(data: Record<string, unknown> = {}, fallback: Record<string, unknown> = {}): ProviderTask {
-  return {
-    remoteTaskId: pickStr(data.taskId || data.task_id || data.requestId || data.request_id || data.id || data.remoteTaskId || data.serverTaskId || fallback.remoteTaskId),
-    status: normStatus(pickStr(data.status || data.task_status || fallback.status)),
-    progress: typeof data.progress === 'number' ? data.progress : 0,
-    result: data.result ?? data.output ?? fallback.result,
-    error: formatRemoteTaskError(pickStr(data.error || data.fail_reason || data.message || fallback.error)),
-    raw: data,
-  };
 }

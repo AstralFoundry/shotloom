@@ -1,8 +1,9 @@
 /**
- * ProviderTransport — 声明式模型协议执行接口。
+ * ProviderAdapter — 一个厂商一个适配器的唯一契约。
  *
- * 所有 Provider 共用同一个实现，请求字段全部来自 model-catalog-v2.json 的模式声明。
- * Rust 只提供通用安全 HTTP Transport，不解析业务字段。
+ * 厂商是什么、内置接口地址在哪里、请求怎么编译提交轮询，全部由 domain/provider/adapters
+ * 下的代码声明；用户数据只提供 API Key 和可选的接口地址覆盖，界面不能新增厂商。
+ * 渲染进程只发 providerId 与 endpoint 元信息，地址与密钥都由 Rust 网关按厂商从本机设置读取。
  */
 
 import type { ModelRuntimeContract } from '../catalog/ModelCatalog';
@@ -106,9 +107,6 @@ export interface CompiledProviderRequest {
   timeoutMs?: number;
   headers?: Record<string, string>;
   auth?: ModelRuntimeContract['auth'];
-  /** 试跑请求可显式携带未保存的凭据，绕过按 providerId 读取本地设置。 */
-  baseUrl?: string;
-  apiKey?: string;
   responseEncoding?: 'json' | 'binary';
   contract?: ModelRuntimeContract;
   protocolTemplate?: unknown;
@@ -120,10 +118,17 @@ export interface CompiledProviderRequest {
 
 // ── Interface ────────────────────────────────────────────────────────────────
 
-export interface ProviderTransport {
-  readonly provider: string;
+export interface ProviderAdapter {
+  readonly id: string;
+  readonly name: string;
+  readonly description: string;
+  readonly iconId: string;
+  /** 内置接口地址；适配器级唯一来源，Rust 侧不再维护任何厂商地址表。 */
+  readonly baseUrl: string;
+  /** 没有内置地址、必须由用户填写的厂商（如 Qwen 工作空间地址）。 */
+  readonly baseUrlRequired?: boolean;
   compileRequest(context: CompileContext): CompiledProviderRequest;
   submit(request: CompiledProviderRequest): Promise<ProviderTask>;
-  poll?(task: ProviderTask, contract: ModelRuntimeContract, signal?: AbortSignal): Promise<ProviderTaskState>;
+  poll(task: ProviderTask, contract: ModelRuntimeContract, signal?: AbortSignal): Promise<ProviderTaskState>;
   cancel?(task: ProviderTask): Promise<void>;
 }

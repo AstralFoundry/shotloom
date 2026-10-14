@@ -70,7 +70,18 @@ Shotloom 的 Agent 以模型为决策主体。不要在应用代码中用关键�
 - 循环不设步数或轮次上限，合法的长任务必须一直跑下去。跑飞由"有没有进展"判定：一轮里出现的调用参数指纹（与 LoopGuard 同一套归一化）在本轮运行中是新的，或这一轮的回执证明项目真被改动，都算进展；连续 `STALLED_ROUND_LIMIT` 轮既不试新调用也不改动项目才失败，并说明是哪几类重复。判定只看本地真实痕迹，不猜任务复杂度，也不猜用户意图。剩下的兜底是权限与确认边界、单轮模型超时、看门狗提示和用户停止，不得再把固定步数当成安全网。
 - 中断留下的无应答工具调用必须补齐后才能落盘，补写内容只按本地真实痕迹分档：有回执且回执证明改动了项目 → 不得重试；已开始派发但无回执 → 影响未知，先只读核验；上一次未正常退出的运行遗留 → 同样只能声明影响未知；本轮确实没派发 → 才可以说"没有产生任何效果"。派发点必须记账（管道在 `execute` 前、循环在 `builtin.run` 前），等待用户确认时被中断不算已派发。
 - 超长工具结果只由 `loop/toolOutputSpill.ts` 一份实现处理：超过阈值就把完整回执写进 `<projectDir>/.shotloom/agent-spill/`，历史只留头尾摘要和摘要里的 `callId`；读回只有 `read_tool_output`，它只按当前会话登记的 `callId` 取文件，不接受任意路径。因此每个 Agent 的白名单都必须授予它，模型才有办法看清被省略的内容。项目没有磁盘目录（浏览器预览）或写文件失败时只能退回"读不回来"的摘要，不得假装可以读回，也不得因此终止本轮。落盘索引随会话持久化并限制条数，超出上限的旧文件连记录一起移除。
-- 模型凭证仍由 Rust 侧注入：渲染进程只传 `providerId` 与 endpoint 元信息，`__` 前缀字段在发请求前剥离。自研 loop 的模型请求与画布生成共用 `generation_request`/`generation_stream` 网关，不得为 Agent 新增放宽网关校验的命令。
+- 模型凭证仍由 Rust 侧注入：渲染进程只传 `providerId` 与 endpoint 元信息，请求里不含接口地址与密钥，`__` 前缀字段在发请求前剥离。自研 loop 的模型请求与画布生成共用 `generation_request`/`generation_stream` 网关，不得为 Agent 新增放宽网关校验的命令。
+
+## 厂商适配器与模型来源
+
+`renderer/src/domain/provider/adapters/` 是厂商身份与传输层的唯一来源，和 Agent 工具白名单一样是 fail-closed 的：
+
+- 厂商与协议由代码声明，模型能力仍然只写在 `model-catalog-v2.json`。界面不提供添加厂商、添加/编辑模型、停用模型和试跑入口；设置里每个内置厂商只能保存 API Key 与可选接口地址，其余配置一律不接受。
+- 未在 `adapters/index.ts` 登记的厂商不存在：`getProviderAdapter` 直接失败，不回落到通用协议。支持新厂商 = 新增一个适配器文件并在注册表登记一行；只有协议形状无法用目录声明表达时（如 RunningHub 的素材上传 + 工作流提交）才自己实现 compile/submit/poll。
+- 适配器声明的 `baseUrl` 是唯一默认地址。`normalizeProviderConfigs` 在加载和保存时把"用户覆盖优先，否则内置地址"的实际生效值写回设置，Rust 网关只读设置中的 baseUrl，不再维护厂商地址表。加载时发现磁盘值与生效值不一致必须回写一次，否则原生层会读到缺失地址。
+- 请求不得携带地址或密钥覆盖通道（`__baseUrl`/`__apiKey` 与 `GenerationRequest.base_url`/`api_key` 已删除）。`baseUrlRequired` 的厂商（Qwen 百炼）没有可内置地址，界面必须提示填写，不得用另一个语义相近的地址顶上。
+- `ProviderConfig` 只含 `apiKey`/`baseUrl`。历史设置里的 `custom`、`models`、`disabledModelIds`、`displayName`、`iconId` 和未知厂商 id 在规范化时被丢弃，不写迁移兼容层。
+- 厂商卡片里的模型清单只允许来自 `ModelAvailability.getProviderModelRows(providerId)`：类型分组顺序取自 `GENERATION_TYPES`，多模态标记取自各 mode 与 `inputVariants` 的 `inputConstraints`，"可用于 Agent"取自 Agent 目录的解析结果。界面不得另写一份厂商→模型表格，也不得用模型名称或版本号去猜它是否接受图片、视频或音频输入。
 
 ## 技能与提示词模板
 

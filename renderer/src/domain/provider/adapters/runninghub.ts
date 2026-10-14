@@ -1,4 +1,11 @@
-import workflowTemplate from '../../config/runninghub-minimax-h3-workflow.json';
+/**
+ * RunningHub 适配器 — 第一个不走声明式协议的厂商。
+ *
+ * 生成前必须把素材逐个上传换取 fileName，再把 ComfyUI 工作流整体提交，响应里的
+ * code/taskId 也不是任何通用协议的形状，因此 compile/submit/poll 全部自己实现。
+ */
+
+import workflowTemplate from '../../../config/runninghub-minimax-h3-workflow.json';
 import { desktopApi } from '@/services/desktopApi';
 import { renderProtocolTemplate } from '@/utils/modelProtocol.mjs';
 import { providerRequestTimeoutMs } from '@/utils/providerRequestTimeout.mjs';
@@ -7,14 +14,10 @@ import {
   runningHubTaskState,
 } from '@/utils/runningHubWorkflow.mjs';
 import type {
-  CompiledProviderRequest,
-  CompileContext,
-  ProviderTask,
-  ProviderTaskState,
-  ProviderTransport,
-  ResourceRef,
-} from './ProviderTransport';
-import type { ModelRuntimeContract } from '../catalog/ModelCatalog';
+  CompiledProviderRequest, CompileContext, ProviderAdapter,
+  ProviderTask, ProviderTaskState, ResourceRef,
+} from '../ProviderAdapter';
+import type { ModelRuntimeContract } from '../../catalog/ModelCatalog';
 
 type UnknownRecord = Record<string, any>;
 
@@ -78,8 +81,6 @@ async function uploadResource(
         __auth: { type: 'bearer' },
         __signal: request.signal,
         __timeoutMs: request.timeoutMs,
-        __baseUrl: request.baseUrl,
-        __apiKey: request.apiKey,
       });
       break;
     } catch (error) {
@@ -102,8 +103,12 @@ async function uploadSequentially(refs: ResourceRef[], request: CompiledProvider
   return fileNames;
 }
 
-export class RunningHubTransport implements ProviderTransport {
-  readonly provider = 'runninghub';
+class RunningHubAdapter implements ProviderAdapter {
+  readonly id = 'runninghub';
+  readonly name = 'RunningHub';
+  readonly description = 'RunningHub 工作流生成服务';
+  readonly iconId = 'runninghub';
+  readonly baseUrl = 'https://www.runninghub.ai';
 
   compileRequest(context: CompileContext): CompiledProviderRequest {
     if (context.modelContract.requestTemplate === undefined) {
@@ -114,7 +119,7 @@ export class RunningHubTransport implements ProviderTransport {
       endpointPath: context.modelContract.endpoint.path,
       endpointScope: context.modelContract.endpoint.scope,
       endpointMethod: context.modelContract.endpoint.method,
-      providerId: this.provider,
+      providerId: this.id,
       protocolTemplate: context.modelContract.requestTemplate,
       protocolVariables: {
         prompt: context.prompt || '',
@@ -156,15 +161,13 @@ export class RunningHubTransport implements ProviderTransport {
         workflowId,
         workflow: JSON.stringify(workflow),
         addMetadata: false,
-        __providerId: this.provider,
+        __providerId: this.id,
         __endpointMethod: request.endpointMethod,
         __endpointPath: request.endpointPath,
         __endpointScope: request.endpointScope,
         __auth: { type: 'body', name: 'apiKey' },
         __signal: request.signal,
         __timeoutMs: request.timeoutMs,
-        __baseUrl: request.baseUrl,
-        __apiKey: request.apiKey,
       });
     } catch (error) {
       throw new Error(`RunningHub 工作流提交失败：${thrownMessage(error)}`);
@@ -175,7 +178,11 @@ export class RunningHubTransport implements ProviderTransport {
     return { remoteTaskId: taskId, status: 'queued', progress: 0, raw: data, result: { raw: data } };
   }
 
-  async poll(task: ProviderTask, contract: ModelRuntimeContract, signal?: AbortSignal): Promise<ProviderTaskState> {
+  async poll(
+    task: ProviderTask,
+    contract: ModelRuntimeContract,
+    signal?: AbortSignal,
+  ): Promise<ProviderTaskState> {
     const body = renderProtocolTemplate(contract.taskRequestTemplate || {}, { taskId: task.remoteTaskId });
     const data = await desktopApi.model.videoTask({
       taskId: task.remoteTaskId,
@@ -183,7 +190,7 @@ export class RunningHubTransport implements ProviderTransport {
       endpointScope: contract.taskEndpoint?.scope || 'origin',
       endpointMethod: contract.taskEndpoint?.method || 'POST',
       body,
-      providerId: this.provider,
+      providerId: this.id,
       auth: { type: 'bearer' },
       signal,
       timeoutMs: 60000,
@@ -203,3 +210,5 @@ export class RunningHubTransport implements ProviderTransport {
     };
   }
 }
+
+export const runningHubAdapter = new RunningHubAdapter();

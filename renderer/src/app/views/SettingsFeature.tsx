@@ -1,13 +1,9 @@
 import { useEffect, useMemo, useReducer, useState } from "react";
 import { getModelInfo } from "../../domain/catalog/ModelCatalog";
-import {
-  getConfiguredProviders,
-  getProviderDefinitions,
-  getProviderDefinition,
-  type ProviderConfig,
-} from "../../domain/provider/ProviderRegistry";
+import { findProviderAdapter, getProviderAdapters } from "../../domain/provider/adapters";
+import { getProviderModelRows } from "../../domain/provider/ModelAvailability";
+import type { ProviderConfig } from "../../domain/provider/ProviderConfig";
 import { resolveProviderIconId } from "../../domain/provider/ProviderBrandIcons.js";
-import { findDuplicateCustomModelIds } from "../../domain/provider/CustomModelCatalog";
 import { builtInRecipeChanges } from "../../services/builtInRecipes";
 import { builtInSkillChanges } from "../../services/builtInSkills";
 import { desktopApi } from "../../services/desktopApi";
@@ -60,10 +56,6 @@ import {
   type SkillDraft,
   SkillEditorDialog,
 } from "./CatalogEditorDialogs";
-import {
-  ProviderConnectionDialog,
-  type ProviderConnectionResult,
-} from "./ProviderConnectionDialog";
 import {
   type SettingsController,
   type SettingsData,
@@ -126,9 +118,6 @@ function transferCopy<T>(value: T): T {
 
 export function SettingsFeature() {
   const [revision, refresh] = useReducer((value) => value + 1, 0);
-  const [providerEditor, setProviderEditor] = useState<string | null>(null);
-  const [providerSaving, setProviderSaving] = useState(false);
-  const [providerError, setProviderError] = useState("");
   const [skillEditor, setSkillEditor] = useState<EditorState<SkillDraft>>(null);
   const [recipeEditor, setRecipeEditor] = useState<EditorState<RecipeDraft>>(
     null,
@@ -155,33 +144,28 @@ export function SettingsFeature() {
         type,
         getAvailableModelIdsByType(type).map((id: string) => {
           const providerId = String(getModelInfo(id)?.provider || "");
-          const configuredIcon = settingsStore.providerConfigs?.[providerId]
-            ?.iconId || getProviderDefinition(providerId)?.iconId || "";
           return {
             id,
             label: getModelInfo(id)?.name || id,
-            iconId: resolveProviderIconId(providerId, id, configuredIcon),
+            iconId: resolveProviderIconId(providerId, id, findProviderAdapter(providerId)?.iconId || ""),
           };
         }),
       ]),
     );
-    const providers = getConfiguredProviders(settingsStore.providerConfigs).map(
-      ({ id, definition, config }) => ({
-        id,
-        iconId: config.iconId || definition.iconId,
-        displayName: config.displayName || definition.name,
-        summaryUrl: (config.baseUrl || definition.defaultBaseUrl || "").replace(
-          /^https?:\/\//,
-          "",
-        ).replace(/\/+$/, ""),
-        modelCount: getAvailableModelIdsByType("textGeneration").concat(
-          getAvailableModelIdsByType("imageGeneration"),
-          getAvailableModelIdsByType("videoGeneration"),
-          getAvailableModelIdsByType("audioGeneration"),
-        ).filter((modelId: string) => getModelInfo(modelId)?.provider === id)
-          .length,
-      }),
-    );
+    const providers = getProviderAdapters().map((adapter) => {
+      const config = settingsStore.providerConfigs[adapter.id];
+      return {
+        id: adapter.id,
+        name: adapter.name,
+        description: adapter.description,
+        iconId: adapter.iconId,
+        apiKey: config?.apiKey || "",
+        baseUrl: config?.baseUrl || "",
+        baseUrlRequired: adapter.baseUrlRequired === true,
+        configured: Boolean(config?.apiKey?.trim()),
+        models: getProviderModelRows(adapter.id),
+      };
+    });
     return {
       projectRootDir: settingsStore.projectRootDir || "",
       downloadDir: fileStore.downloadDir || "",
@@ -325,33 +309,15 @@ export function SettingsFeature() {
     }
   }
 
-  async function saveProvider(result: ProviderConnectionResult) {
-    const previous = { ...settingsStore.providerConfigs };
-    setProviderSaving(true);
-    setProviderError("");
-    try {
-      const nextProviderConfigs = {
-        ...previous,
-        [result.providerId]: result.config,
-      };
-      const duplicate = findDuplicateCustomModelIds(nextProviderConfigs)[0];
-      if (duplicate) {
-        throw new Error(
-          `模型 ID “${duplicate.modelId}” 已被多个厂商使用：${duplicate.providers.join("、")}。模型 ID 必须全局唯一`,
-        );
-      }
-      await saveAppSettings({
-        providerConfigs: nextProviderConfigs,
-      });
-      setProviderEditor(null);
-      refresh();
-      showToast("API 厂商配置已保存");
-    } catch (cause) {
-      settingsStore.providerConfigs = previous;
-      setProviderError(message(cause));
-    } finally {
-      setProviderSaving(false);
-    }
+  async function saveProviderConfig(id: string, patch: Partial<ProviderConfig>) {
+    const current = settingsStore.providerConfigs[id];
+    await saveAppSettings({
+      providerConfigs: {
+        ...toRaw(settingsStore.providerConfigs),
+        [id]: { ...current, ...patch },
+      },
+    });
+    refresh();
   }
 
   const controller: SettingsController = {
@@ -399,21 +365,9 @@ export function SettingsFeature() {
           ),
         });
       }, "画布快捷键已恢复默认"),
-    addProvider: () => {
-      setProviderError("");
-      setProviderEditor("");
-    },
-    editProvider: (id) => {
-      setProviderError("");
-      setProviderEditor(id);
-    },
-    deleteProvider: (id) =>
-      run(async () => {
-        if (!window.confirm("确定删除这个 API 厂商连接吗？")) return;
-        const next = { ...settingsStore.providerConfigs };
-        delete next[id];
-        await saveAppSettings({ providerConfigs: next });
-      }, "API 厂商已删除"),
+    setProviderConfig: (id, patch) => run(async () => {
+      await saveProviderConfig(id, patch);
+    }),
     createSkill: () =>
       setSkillEditor({ value: createSkillDraft() as SkillDraft, isNew: true }),
     editSkill: (id) => {
@@ -453,23 +407,8 @@ export function SettingsFeature() {
     exportCatalog,
   };
 
-  const providerConfig = providerEditor
-    ? settingsStore.providerConfigs[providerEditor] as ProviderConfig
-    : null;
   const overlays = (
     <>
-      {providerEditor !== null && (
-        <ProviderConnectionDialog
-          editingId={providerEditor}
-          initialConfig={providerConfig}
-          connectedIds={getConfiguredProviders(settingsStore.providerConfigs)
-            .map(({ id }) => id)}
-          submitting={providerSaving}
-          submitError={providerError}
-          onClose={() => !providerSaving && setProviderEditor(null)}
-          onSave={saveProvider}
-        />
-      )}
       {skillEditor && (
         <SkillEditorDialog
           skill={skillEditor.value}

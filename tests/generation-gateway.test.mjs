@@ -13,14 +13,18 @@ test('画布模型请求统一进入原生 Generation Gateway', () => {
   assert.doesNotMatch(api, /nativeFetch/);
   assert.doesNotMatch(api, /requestWithDeadline/);
   assert.doesNotMatch(api, /file:download-url/);
+  assert.doesNotMatch(api, /__apiKey|__baseUrl/);
 });
 
 test('Generation Gateway 在原生层持有凭据、代理、multipart 和取消边界', () => {
   const rust = read('src-tauri/src/commands/generation_gateway.rs');
   assert.match(rust, /app-settings\.json/);
   assert.match(rust, /providerConfigs/);
-  assert.match(rust, /"starrouter" => "https:\/\/starrouter\.io\/v1"/);
-  assert.match(rust, /"minimax" => "https:\/\/api\.minimax\.io"/);
+  // 地址唯一来源是设置里由厂商适配器写入的生效值，原生层不再维护厂商地址表，
+  // 也不接受渲染进程携带的凭据覆盖。
+  assert.doesNotMatch(rust, /default_base_url|=> "https:\/\//);
+  assert.doesNotMatch(rust, /pub base_url|pub api_key/);
+  assert.match(rust, /请先在设置中配置 \{provider\} API 地址和 Key/);
   assert.match(rust, /resolved_system_proxy_url/);
   assert.match(rust, /multipart::Form/);
   assert.match(rust, /generation_cancel/);

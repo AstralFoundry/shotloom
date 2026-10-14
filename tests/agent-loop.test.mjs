@@ -733,7 +733,7 @@ test('没有磁盘目录时不落盘，摘要必须承认读不回来', async ()
 test('loop 只驱动 Chat Completions 模型，其余协议显式判定为不支持', () => {
   const supported = [];
   const unsupported = [];
-  for (const model of catalog.getBuiltInCatalogModels()) {
+  for (const model of catalog.getCatalogModels()) {
     if (!catalog.resolveModelRuntimeContract('textGeneration', model.id, [])) continue;
     (modelRequest.loopUnsupportedReason(model.id) ? unsupported : supported).push(model.id);
   }

@@ -9,15 +9,17 @@ import {
 
 const catalog = JSON.parse(readFileSync(new URL('../renderer/src/config/model-catalog-v2.json', import.meta.url), 'utf8'));
 const template = JSON.parse(readFileSync(new URL('../renderer/src/config/runninghub-minimax-h3-workflow.json', import.meta.url), 'utf8'));
-const registrySource = readFileSync(new URL('../renderer/src/domain/provider/ProviderRegistry.ts', import.meta.url), 'utf8');
-const transportSource = readFileSync(new URL('../renderer/src/domain/provider/RunningHubTransport.ts', import.meta.url), 'utf8');
+const adaptersIndexSource = readFileSync(new URL('../renderer/src/domain/provider/adapters/index.ts', import.meta.url), 'utf8');
+const adapterSource = readFileSync(new URL('../renderer/src/domain/provider/adapters/runninghub.ts', import.meta.url), 'utf8');
 const gatewaySource = readFileSync(new URL('../src-tauri/src/commands/generation_gateway.rs', import.meta.url), 'utf8');
 
-test('RunningHub 是可配置的内置厂商且密钥由网关注入请求体', () => {
-  assert.match(registrySource, /id: 'runninghub'[\s\S]*defaultBaseUrl: 'https:\/\/www\.runninghub\.ai'/);
+test('RunningHub 是内置厂商且密钥由网关注入请求体', () => {
+  assert.match(adapterSource, /readonly id = 'runninghub'/);
+  assert.match(adapterSource, /readonly baseUrl = 'https:\/\/www\.runninghub\.ai'/);
+  assert.match(adaptersIndexSource, /import \{ runningHubAdapter \} from '\.\/runninghub'/);
   assert.match(gatewaySource, /kind == "body"/);
   assert.match(gatewaySource, /body_with_auth/);
-  assert.doesNotMatch(transportSource, /getProviderCredentials|settingsStore\.providerConfigs/);
+  assert.doesNotMatch(adapterSource, /__apiKey|__baseUrl|settingsStore\.providerConfigs/);
 });
 
 test('RunningHub MiniMax H3 目录公开真实多模态输入与异步接口', () => {

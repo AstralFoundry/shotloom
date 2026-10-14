@@ -19,7 +19,7 @@ import {
   paramVisualText,
 } from "../../utils/modelPresentation.js";
 import { resolveProviderIconId } from "../../domain/provider/ProviderBrandIcons.js";
-import { getProviderDefinition } from "../../domain/provider/ProviderRegistry";
+import { findProviderAdapter } from "../../domain/provider/adapters";
 import { settingsStore } from "../../store/settingsStore.js";
 import { getImageStylePreset, IMAGE_STYLE_PRESETS } from "../../utils/imageStylePresets.mjs";
 import { IconSymbol } from "../components/IconSymbol";
@@ -274,11 +274,11 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({
   const summaryParams = hasExplicitPresentation ? explicitSummaryParams : params.slice(0, 4);
   function modelIcon(modelId: string) {
     const providerId = String(getModelInfo(modelId)?.provider || "");
-    const configuredIcon =
-      settingsStore.providerConfigs?.[providerId]?.iconId ||
-      getProviderDefinition(providerId)?.iconId ||
-      "";
-    return resolveProviderIconId(providerId, modelId, configuredIcon);
+    return resolveProviderIconId(
+      providerId,
+      modelId,
+      findProviderAdapter(providerId)?.iconId || "",
+    );
   }
   const selectedModel = String(node.model || models[0] || "");
   const inputModes = getGenerationInputModes(selectedModel);

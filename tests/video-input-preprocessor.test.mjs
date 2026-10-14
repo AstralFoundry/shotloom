@@ -13,7 +13,7 @@ test('视频任务直接提交用户连接或上传的原始图片输入', () =>
   assert.match(taskService, /modelInputs: payload\.modelInputs/);
   assert.ok(
     taskService.indexOf('const contract = requireModelContract(payload)')
-      < taskService.indexOf('const req = transport.compileRequest(context)'),
+      < taskService.indexOf('adapter.compileRequest(context)'),
   );
 });
 

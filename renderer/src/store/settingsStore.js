@@ -2,9 +2,8 @@ import { reactive, toRaw } from '@/store/domainReactivity';
 import { desktopApi } from '@/services/desktopApi';
 import { normalizeCanvasActionShortcuts } from '@/utils/canvasActionShortcuts';
 import { clonePlainData } from '@/utils/plainDataClone.mjs';
-import { getModelIdsByType, setExternalCatalogModels } from '@/domain/catalog/ModelCatalog';
-import { getConfiguredProviders, getProviderDefinition } from '@/domain/provider/ProviderRegistry';
-import { buildCustomCatalogModels } from '@/domain/provider/CustomModelCatalog';
+import { getModelIdsByType } from '@/domain/catalog/ModelCatalog';
+import { normalizeProviderConfigs } from '@/domain/provider/ProviderConfig';
 import {
   getConfiguredAgentModelCatalog,
   getConfiguredModelIdsByType,
@@ -13,7 +12,7 @@ import {
 
 export const settingsStore = reactive({
   storageVersion: 7,
-  providerConfigs: /** @type {Record<string, import('@/domain/provider/ProviderRegistry').ProviderConfig>} */ ({}),
+  providerConfigs: /** @type {import('@/domain/provider/ProviderConfig').ProviderConfigs} */ ({}),
   balance: 0, rawQuota: 0, usedQuota: 0,
   tokenGroups: [], activeTokenGroupId: '',
   apiKeyValid: false, accountSyncError: '',
@@ -37,8 +36,7 @@ export const settingsStore = reactive({
  * 至少有一个 Provider 配置了 API Key 即视为远程模型可用。
  */
 export function isRemoteModelEnabled() {
-  const providers = getConfiguredProviders(settingsStore.providerConfigs);
-  return providers.length > 0;
+  return Object.values(settingsStore.providerConfigs).some((config) => Boolean(config?.apiKey?.trim()));
 }
 
 export function getModelCredentialStatus(modelId) {
@@ -55,19 +53,6 @@ export function getAvailableModelIdsByType(nodeType) {
 
 export function getAvailableAgentModelCatalog() {
   return getConfiguredAgentModelCatalog(settingsStore.providerConfigs);
-}
-
-/**
- * 根据 modelId 查找对应的 provider key/url。
- * 优先使用 per-provider 配置，fallback 到 provider 默认值。
- */
-export function getProviderCredentials(providerId) {
-  const cfg = settingsStore.providerConfigs[providerId];
-  const def = getProviderDefinition(providerId);
-  return {
-    baseUrl: (cfg?.baseUrl || def?.defaultBaseUrl || '').replace(/\/+$/, ''),
-    apiKey: cfg?.apiKey || '',
-  };
 }
 
 function normalizeTokenGroups(tokenGroups) {
@@ -115,14 +100,13 @@ function toPlainSettings(patch = {}) {
     ...rawPatch,
   };
   next.tokenGroups = normalizeTokenGroups(next.tokenGroups);
+  next.providerConfigs = normalizeProviderConfigs(next.providerConfigs);
   return clonePlainData(next);
 }
 
 function applySettings(settings) {
-  const providerConfigs = clonePlainData(settings.providerConfigs || {});
   settingsStore.storageVersion = settings.storageVersion;
-  settingsStore.providerConfigs = providerConfigs;
-  setExternalCatalogModels(buildCustomCatalogModels(providerConfigs));
+  settingsStore.providerConfigs = normalizeProviderConfigs(toRaw(settings.providerConfigs) || {});
   settingsStore.balance = Number.isFinite(settings.balance) ? settings.balance : 0;
   settingsStore.rawQuota = Number.isFinite(settings.rawQuota) ? settings.rawQuota : 0;
   settingsStore.usedQuota = Number.isFinite(settings.usedQuota) ? settings.usedQuota : 0;
@@ -160,9 +144,18 @@ export async function loadAppSettings() {
       }
     }
     applySettings(settings);
+    // Rust 网关生成时只从设置文件读取 baseUrl，因此加载后要把适配器算出的生效地址写回磁盘。
+    if (desktopApi.platform !== 'browser' && providerConfigsNeedWrite(settings.providerConfigs)) {
+      await saveAppSettings({ providerConfigs: toRaw(settingsStore.providerConfigs) });
+    }
   } finally {
     settingsStore.loading = false;
   }
+}
+
+function providerConfigsNeedWrite(stored) {
+  const normalized = normalizeProviderConfigs(toRaw(stored) || {});
+  return JSON.stringify(toRaw(stored) ?? null) !== JSON.stringify(normalized);
 }
 
 export async function saveAppSettings(patch = {}) {

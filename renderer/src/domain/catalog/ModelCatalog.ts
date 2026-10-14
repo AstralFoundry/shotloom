@@ -150,51 +150,6 @@ export interface CatalogModel {
   disabledReason?: string;
   defaultMode: string;
   modes: CatalogMode[];
-  /** 用户在设置中基于同 ID 内置模型保存的本机覆盖。 */
-  overridesBuiltIn?: boolean;
-}
-
-export function normalizeCatalogModel(model: CatalogModel): {
-  model: CatalogModel;
-  warnings: string[];
-} {
-  const normalized = structuredClone(model);
-  const warnings: string[] = [];
-  const normalizeInputDeclaration = (
-    owner: { inputSlots?: string[]; inputConstraints?: CatalogInputConstraints },
-    location: string,
-  ) => {
-    if (Array.isArray(owner.inputSlots)) {
-      owner.inputSlots = owner.inputSlots.map((slot) => {
-        if (slot !== 'referenceImage') return slot;
-        warnings.push(`${location} 将媒体角色 referenceImage 规范化为业务槽位 reference`);
-        return 'reference';
-      });
-    }
-    const constraints = owner.inputConstraints;
-    if (!constraints || typeof constraints !== 'object') return;
-    for (const media of ['images', 'videos', 'audios'] as const) {
-      const declaration = constraints[media];
-      if (!declaration || typeof declaration !== 'object') continue;
-      const min = Number(declaration.min);
-      const max = Number(declaration.max);
-      if (Number.isFinite(min) && !Number.isFinite(max)) {
-        declaration.max = min;
-        warnings.push(`${location} 根据 ${media}.min 补齐缺失的 max`);
-      } else if (!Number.isFinite(min) && Number.isFinite(max)) {
-        declaration.min = 0;
-        warnings.push(`${location} 为 ${media} 补齐缺失的 min=0`);
-      }
-    }
-  };
-  for (const mode of normalized.modes || []) {
-    const location = `${normalized.id}/${mode.id}`;
-    normalizeInputDeclaration(mode, location);
-    for (const variant of mode.inputVariants || []) {
-      normalizeInputDeclaration(variant, `${location}/${variant.inputMode}`);
-    }
-  }
-  return { model: normalized, warnings };
 }
 
 const CATALOG_MODEL_TYPES = new Set([
@@ -472,16 +427,14 @@ const defaultCap = {
 
 class ModelCatalog {
   models: CatalogModel[];
-  private readonly builtInModels: CatalogModel[];
   private modelMap: Map<string, CatalogModel>;
 
   constructor() {
     const raw = modelCatalogV2 as { version: number; models: CatalogModel[] };
     if (raw.version !== 2) throw new Error('model-catalog-v2.json version must be 2');
-    this.builtInModels = (raw.models || []).filter((m) => m.enabled !== false);
-    this.models = [...this.builtInModels];
+    this.models = (raw.models || []).filter((m) => m.enabled !== false);
 
-    // 内置目录与外部目录消费同一份客观执行契约。
+    // 目录声明与运行时消费同一份客观执行契约；一条声明不完整就不能启动。
     for (const model of this.models) {
       const errors = catalogModelValidationErrors(model, { requireProvider: true });
       if (errors.length) throw new Error(errors.join('\n'));
@@ -490,50 +443,8 @@ class ModelCatalog {
     this.modelMap = new Map(this.models.map((m) => [m.id, m]));
   }
 
-  /** 替换设置中声明的外部模型；只有显式标记的条目可以覆盖同 ID 内置模型。 */
-  setExternalModels(models: CatalogModel[] = []): void {
-    const builtInById = new Map(this.builtInModels.map((model) => [model.id, model]));
-    const overrides = new Map<string, CatalogModel>();
-    const external: CatalogModel[] = [];
-    const occupied = new Set<string>();
-    for (const sourceModel of models) {
-      const { model, warnings } = normalizeCatalogModel(sourceModel);
-      if (warnings.length) console.warn(`已规范化外部模型协议：\n${warnings.join('\n')}`);
-      const errors = catalogModelValidationErrors(model, { requireProvider: true });
-      if (errors.length) {
-        console.warn(`已忽略无效的外部模型协议：\n${errors.join('\n')}`);
-        continue;
-      }
-      if (occupied.has(model.id)) {
-        console.warn(`已忽略重复的外部模型 ID：${model.id}`);
-        continue;
-      }
-      occupied.add(model.id);
-      const normalized = {
-        ...model,
-        enabled: true,
-        modes: model.modes,
-      };
-      const builtIn = builtInById.get(model.id);
-      if (builtIn) {
-        // A cross-provider duplicate is necessarily a routing override: keeping
-        // the built-in provider would make the saved external model unreachable.
-        if (model.overridesBuiltIn === true || model.provider !== builtIn.provider) {
-          overrides.set(model.id, normalized);
-        }
-        continue;
-      }
-      external.push(normalized);
-    }
-    this.models = [
-      ...this.builtInModels.map(model => overrides.get(model.id) || model),
-      ...external,
-    ];
-    this.modelMap = new Map(this.models.map((model) => [model.id, model]));
-  }
-
-  getBuiltInModels(providerId = ''): CatalogModel[] {
-    return this.builtInModels.filter((model) => !providerId || model.provider === providerId);
+  getModels(providerId = ''): CatalogModel[] {
+    return this.models.filter((model) => !providerId || model.provider === providerId);
   }
 
   // ── Queries ────────────────────────────────────────────────────────────────
@@ -879,8 +790,7 @@ class ModelCatalog {
 // ── Singleton export ─────────────────────────────────────────────────────────
 
 export const modelCatalog = new ModelCatalog();
-export const setExternalCatalogModels = (models: CatalogModel[]) => modelCatalog.setExternalModels(models);
-export const getBuiltInCatalogModels = (providerId = '') => modelCatalog.getBuiltInModels(providerId);
+export const getCatalogModels = (providerId = '') => modelCatalog.getModels(providerId);
 
 // Re-export query functions for drop-in compatibility
 export const getModelModeConfig = (modelId: string, modeId?: string) => modelCatalog.getModeConfig(modelId, modeId);
