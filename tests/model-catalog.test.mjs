@@ -23,14 +23,15 @@ test('内置模型使用统一模型定义结构', () => {
       assert.ok(mode.auth?.type);
       if (model.type === 'textGeneration') {
         if (mode.agent?.supportsTools) {
-          assert.equal(mode.agent.transport, 'provider-default');
-          assert.equal(mode.requestTemplate.messages, '{{messages}}');
-          assert.equal(mode.requestTemplate.tools, '{{tools}}');
-          assert.equal(mode.requestTemplate.tool_choice, '{{toolChoice}}');
-        } else {
-          assert.equal(model.provider, 'anthropic');
-          assert.equal(mode.requestTemplate.messages, '{{nonSystemMessages}}');
-          assert.equal(mode.requestTemplate.system, '{{system}}');
+          assert.ok(['provider-default', 'openai-responses', 'anthropic-messages'].includes(mode.agent.transport));
+          if (mode.agent.transport === 'anthropic-messages') {
+            assert.equal(mode.requestTemplate.messages, '{{nonSystemMessages}}');
+            assert.equal(mode.requestTemplate.system, '{{system}}');
+          } else {
+            assert.equal(mode.requestTemplate.messages, '{{messages}}');
+            assert.equal(mode.requestTemplate.tools, '{{tools}}');
+            assert.equal(mode.requestTemplate.tool_choice, '{{toolChoice}}');
+          }
         }
       }
       assert.ok(Array.isArray(mode.params));

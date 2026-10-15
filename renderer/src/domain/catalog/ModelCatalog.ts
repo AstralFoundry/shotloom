@@ -83,7 +83,7 @@ export interface CatalogOutputConstraints {
 }
 
 export interface CatalogAgentProtocol {
-  transport: 'provider-default' | 'openai-chat-completions' | 'openai-responses';
+  transport: 'provider-default' | 'openai-chat-completions' | 'openai-responses' | 'anthropic-messages';
   supportsTools: boolean;
   endpoint?: CatalogEndpoint;
   requestOptions?: Record<string, unknown>;
@@ -169,7 +169,7 @@ const CATALOG_INPUT_SLOTS = new Set([
 const GENERATION_ENDPOINT_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 const ENDPOINT_SCOPES = new Set(['origin', 'root', 'v1']);
 const TASK_ENDPOINT_METHODS = new Set(['GET', 'POST']);
-const AGENT_TRANSPORTS = new Set(['provider-default', 'openai-chat-completions', 'openai-responses']);
+const AGENT_TRANSPORTS = new Set(['provider-default', 'openai-chat-completions', 'openai-responses', 'anthropic-messages']);
 
 function isJsonValue(value: unknown): boolean {
   if (value === null || typeof value === 'string' || typeof value === 'boolean') return true;
@@ -243,6 +243,9 @@ export function catalogModelValidationErrors(
         }
         if (mode.agent.transport === 'openai-responses' && !agentPath.endsWith('/responses')) {
           errors.push(`${location} 的 Agent Responses 协议与 endpoint path 不匹配`);
+        }
+        if (mode.agent.transport === 'anthropic-messages' && !agentPath.endsWith('/messages')) {
+          errors.push(`${location} 的 Agent Messages 协议与 endpoint path 不匹配`);
         }
         const requestOptions = mode.agent.requestOptions;
         if (requestOptions !== undefined && (!requestOptions || typeof requestOptions !== 'object' || Array.isArray(requestOptions) ||

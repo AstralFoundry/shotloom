@@ -59,7 +59,7 @@ Shotloom 的 Agent 以模型为决策主体。不要在应用代码中用关键�
 ## 运行引擎与执行管道
 
 - `renderer/src/agent/loop/runLoopAgent.ts` 是唯一的 Agent 运行入口：模型循环、会话历史、上下文裁剪与子 Agent 全部由自研 loop 驱动，没有第二个引擎，也没有引擎选择层。
-- loop 只实现 OpenAI Chat Completions。`loop/modelRequest.ts` 的 `loopUnsupportedReason(model)` 是协议能力的唯一判断：模型目录声明的 `agent` 协议不是 `/chat/completions` 时，本轮直接以诊断失败结束，不得把请求降级成“语义相近但不同”的协议，也不得用 `localStorage` 之类的开关绕过目录。
+- loop 支持模型目录明确声明的 OpenAI Chat Completions、OpenAI Responses 和 Anthropic Messages。`loop/modelRequest.ts` 的 `loopUnsupportedReason(model)` 是协议能力的唯一判断：声明的协议与 endpoint 不匹配时，本轮直接以诊断失败结束，不得把请求降级成“语义相近但不同”的协议，也不得用 `localStorage` 之类的开关绕过目录。三种协议只在请求与流式响应边界转换，内部会话历史与工具执行管道仍共用一份。
 - 执行管道 `runtime/executeToolCall.ts` 只有一份实现：权限确认、重复调用拦截、用户改参重校验、回执记账和 `tool_start`/`tool_end` 事件，loop 不得自行调用 `definition.execute`。
 - 提示词装配（`content/instructions.ts`）、附件转图片（`content/attachments.ts`）、运行失败诊断（`runtime/runtimeDiagnostics.ts`）和终态结果推导同样只有一份实现。诊断只按模型请求与本地运行环境的真实错误文本分类，不得为某个外部进程的实现细节分类。
 - `skill` 与 `dispatch_subagent` 是 loop 自带的循环机制，不进工具注册表；其可见性完全来自 Agent 定义的 `skills`/`dispatch`，为空就没有该工具。

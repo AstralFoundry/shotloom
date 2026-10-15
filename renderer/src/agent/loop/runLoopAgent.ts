@@ -61,6 +61,8 @@ function createModelCaller(signal: AbortSignal): LoopModelCaller {
       }) as {
         choices?: Array<{ message?: { content?: string; tool_calls?: Array<JsonObject> } }>;
         usage?: { prompt_tokens?: number; completion_tokens?: number };
+        __finishReason?: string;
+        __responseItems?: Record<string, unknown>[];
       };
     const message = response?.choices?.[0]?.message || {};
     const toolCalls = ((message.tool_calls as Array<JsonObject> | undefined) || []).map((call, index) => ({
@@ -74,8 +76,9 @@ function createModelCaller(signal: AbortSignal): LoopModelCaller {
     return {
       text: typeof message.content === 'string' ? message.content : '',
       toolCalls,
+      responseItems: response?.__responseItems,
       // provider 没上报 finish_reason 时只按已观察到的事实推断，不据此宣称正常结束。
-      finishReason: finishReason || (toolCalls.length ? 'tool_calls' : 'stop'),
+      finishReason: response?.__finishReason || finishReason || (toolCalls.length ? 'tool_calls' : 'stop'),
       usage: response?.usage ? {
         input: Number(response.usage.prompt_tokens || 0),
         output: Number(response.usage.completion_tokens || 0),

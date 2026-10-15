@@ -3,6 +3,7 @@ const CONTROL_FIELDS = new Set([
   '__multipart', '__inputImages', '__imageField', '__maskResource', '__maskField',
   '__signal', '__timeoutMs', '__providerId',
   '__headers', '__auth', '__responseEncoding',
+  '__agentProtocol',
 ]);
 
 const MULTIPART_RESOURCE_FIELDS = new Set(['images', 'input_images', 'reference_images']);

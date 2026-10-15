@@ -129,8 +129,8 @@ test('厂商模型清单逐条来自目录声明，输入模态不靠模型名�
 
   const anthropic = getProviderModelRows('anthropic');
   assert.equal(anthropic.length, 2);
-  assert.ok(anthropic.every((row) => row.inputs.length === 0 && row.agentReady === false),
-    '未声明 Agent 协议的模型必须标记为不可用于 Agent');
+  assert.ok(anthropic.every((row) => row.inputs.length === 0 && row.agentReady === true),
+    '声明了 Messages 工具协议的模型必须可用于 Agent');
   assert.ok(getProviderModelRows('openai').some((row) => row.agentReady),
     '目录声明了 Agent 协议的文本模型必须可用于 Agent');
 });

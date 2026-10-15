@@ -11,6 +11,7 @@ import { withBuiltInRecipes, withoutBuiltInRecipes } from './builtInRecipes';
 import { modelJsonRequestBody, modelRequestEntries } from '@/utils/modelRequestBody.mjs';
 import { modelResponseError, parseModelResponseText } from '@/utils/modelResponseParsing.mjs';
 import { createChatCompletionStreamAccumulator, parseChatCompletionSseLine } from '@/utils/chatCompletionStream.mjs';
+import { createAgentProtocolAccumulator, normalizeAgentProtocolResponse } from '@/utils/agentProtocolStream.mjs';
 import { resourceFileDialogFilters } from '@/utils/resourceFileTypes.mjs';
 
 const command = (channel, ...args) => {
@@ -365,14 +366,15 @@ async function modelStreamRequest(path, body, onTextDelta, {
   headers: requestedHeaders = {}, auth: requestedAuth,
 } = {}) {
   const providerId = body?.__providerId || '';
+  const protocol = body?.__agentProtocol || 'openai-chat-completions';
   const request = generationGatewayRequest(path, { ...body, stream: true }, {
     method, scope, timeoutMs, providerId,
     headers: { accept: 'text/event-stream', ...requestedHeaders }, auth: requestedAuth,
   });
   const decoder = new TextDecoder();
-  const accumulator = createChatCompletionStreamAccumulator(onTextDelta, (_event) => {
-    onTextDelta?.('', _event);
-  });
+  const accumulator = protocol === 'openai-chat-completions'
+    ? createChatCompletionStreamAccumulator(onTextDelta, (_event) => onTextDelta?.('', _event))
+    : createAgentProtocolAccumulator(protocol, onTextDelta);
   let pending = '';
   let raw = '';
   let streamError = '';
@@ -407,6 +409,7 @@ async function modelStreamRequest(path, body, onTextDelta, {
     if (accumulator.eventCount) return accumulator.result();
     const data = parseModelResponseText(raw || response.body);
     if (!data) throw new Error('模型服务返回了无法识别的响应');
+    if (protocol !== 'openai-chat-completions') return normalizeAgentProtocolResponse(protocol, data, onTextDelta);
     const content = data?.choices?.[0]?.message?.content;
     if (typeof content === 'string' && content) onTextDelta?.(content);
     return data;

@@ -27,8 +27,13 @@
             }
           },
           "agent": {
-            "transport": "provider-default",
-            "supportsTools": true
+            "transport": "openai-responses",
+            "supportsTools": true,
+            "endpoint": {
+              "method": "POST",
+              "path": "/responses",
+              "scope": "root"
+            }
           },
           "outputConstraints": {
             "supportsStreaming": true,
@@ -79,8 +84,13 @@
             }
           },
           "agent": {
-            "transport": "provider-default",
-            "supportsTools": true
+            "transport": "openai-responses",
+            "supportsTools": true,
+            "endpoint": {
+              "method": "POST",
+              "path": "/responses",
+              "scope": "root"
+            }
           },
           "outputConstraints": {
             "supportsStreaming": true,
@@ -131,8 +141,13 @@
             }
           },
           "agent": {
-            "transport": "provider-default",
-            "supportsTools": true
+            "transport": "openai-responses",
+            "supportsTools": true,
+            "endpoint": {
+              "method": "POST",
+              "path": "/responses",
+              "scope": "root"
+            }
           },
           "outputConstraints": {
             "supportsStreaming": true,
@@ -194,8 +209,13 @@
             }
           },
           "agent": {
-            "transport": "provider-default",
-            "supportsTools": true
+            "transport": "openai-responses",
+            "supportsTools": true,
+            "endpoint": {
+              "method": "POST",
+              "path": "/responses",
+              "scope": "root"
+            }
           },
           "outputConstraints": {
             "supportsStreaming": true,
@@ -245,8 +265,13 @@
             }
           },
           "agent": {
-            "transport": "provider-default",
-            "supportsTools": true
+            "transport": "openai-responses",
+            "supportsTools": true,
+            "endpoint": {
+              "method": "POST",
+              "path": "/responses",
+              "scope": "root"
+            }
           },
           "outputConstraints": {
             "supportsStreaming": true,
@@ -296,8 +321,13 @@
             }
           },
           "agent": {
-            "transport": "provider-default",
-            "supportsTools": true
+            "transport": "openai-responses",
+            "supportsTools": true,
+            "endpoint": {
+              "method": "POST",
+              "path": "/responses",
+              "scope": "root"
+            }
           },
           "outputConstraints": {
             "supportsStreaming": true,
@@ -849,6 +879,10 @@
               "maxTokens": 1000000
             }
           },
+          "agent": {
+            "transport": "anthropic-messages",
+            "supportsTools": true
+          },
           "outputConstraints": {
             "supportsStreaming": true,
             "supportsStructuredOutput": true,
@@ -899,6 +933,10 @@
               "maxTokens": 1000000
             }
           },
+          "agent": {
+            "transport": "anthropic-messages",
+            "supportsTools": true
+          },
           "outputConstraints": {
             "supportsStreaming": true,
             "supportsStructuredOutput": true,
@@ -948,6 +986,10 @@
             "text": {
               "maxTokens": 1000000
             }
+          },
+          "agent": {
+            "transport": "anthropic-messages",
+            "supportsTools": true
           },
           "outputConstraints": {
             "supportsStreaming": true,
@@ -1010,6 +1052,10 @@
               "maxTokens": 1000000
             }
           },
+          "agent": {
+            "transport": "anthropic-messages",
+            "supportsTools": true
+          },
           "outputConstraints": {
             "supportsStreaming": true,
             "supportsStructuredOutput": true,
@@ -1060,6 +1106,10 @@
               "maxTokens": 1000000
             }
           },
+          "agent": {
+            "transport": "anthropic-messages",
+            "supportsTools": true
+          },
           "outputConstraints": {
             "supportsStreaming": true,
             "supportsStructuredOutput": true,
@@ -1109,6 +1159,10 @@
             "text": {
               "maxTokens": 1000000
             }
+          },
+          "agent": {
+            "transport": "anthropic-messages",
+            "supportsTools": true
           },
           "outputConstraints": {
             "supportsStreaming": true,

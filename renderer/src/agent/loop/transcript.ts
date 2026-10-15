@@ -28,6 +28,8 @@ export interface ChatMessage {
   content: string | ChatContentPart[] | null;
   tool_calls?: AgentToolCall[];
   tool_call_id?: string;
+  /** Responses 推理项需要随手动维护的历史回传，其他协议忽略。 */
+  responseItems?: Record<string, unknown>[];
 }
 
 /** 单条消息的估算只用于决定窗口边界，真实占用仍以模型返回的 usage 上报给界面。 */
@@ -44,7 +46,8 @@ function messageChars(message: ChatMessage): number {
 
 export function estimateMessageTokens(messages: ChatMessage[]): number {
   return Math.ceil(messages.reduce((total, message) => total + messageChars(message)
-    + (message.tool_calls || []).reduce((inner, call) => inner + call.function.name.length + call.function.arguments.length, 0), 0) / CHARS_PER_TOKEN);
+    + (message.tool_calls || []).reduce((inner, call) => inner + call.function.name.length + call.function.arguments.length, 0)
+    + JSON.stringify(message.responseItems || []).length, 0) / CHARS_PER_TOKEN);
 }
 
 /**

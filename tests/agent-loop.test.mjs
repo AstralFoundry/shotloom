@@ -730,18 +730,43 @@ test('没有磁盘目录时不落盘，摘要必须承认读不回来', async ()
   }
 });
 
-test('loop 只驱动 Chat Completions 模型，其余协议显式判定为不支持', () => {
+test('loop 只驱动目录明确声明的三种 Agent 协议', () => {
   const supported = [];
   const unsupported = [];
   for (const model of catalog.getCatalogModels()) {
     if (!catalog.resolveModelRuntimeContract('textGeneration', model.id, [])) continue;
     (modelRequest.loopUnsupportedReason(model.id) ? unsupported : supported).push(model.id);
   }
-  assert.ok(supported.length, '目录里必须有可由自研 loop 驱动的 Chat Completions 模型');
-  assert.ok(unsupported.length, '目录里声明了非 Chat Completions 协议的模型必须显式判定为不支持');
-  assert.match(
-    modelRequest.loopUnsupportedReason(unsupported[0]),
-    /协议不是|未声明支持|运行时契约/,
-    '不支持的原因必须说明是哪条契约不满足',
-  );
+  assert.ok(supported.length);
+  assert.ok(supported.includes('gpt-5.6'));
+  assert.ok(supported.some((id) => id.startsWith('claude-')));
+  for (const id of unsupported) assert.match(modelRequest.loopUnsupportedReason(id), /未声明支持|运行时契约|协议声明/);
+});
+
+test('Responses 和 Messages 请求保留工具历史并只发送各自协议字段', () => {
+  const tools = [{ type: 'function', function: { name: 'lookup', description: '查询', parameters: { type: 'object' } } }];
+  const messages = [
+    { role: 'system', content: '按事实回答' },
+    { role: 'user', content: [{ type: 'text', text: '看图' }, { type: 'image_url', image_url: { url: 'data:image/png;base64,YWJj' } }] },
+    { role: 'assistant', content: '查询中', tool_calls: [{ id: 'call-1', type: 'function', function: { name: 'lookup', arguments: '{"id":1}' } }] },
+    { role: 'tool', tool_call_id: 'call-1', content: '{"ok":true}' },
+  ];
+  const responses = modelRequest.buildLoopRequestBody({ ...PLAN, protocol: 'openai-responses' }, tools, messages);
+  assert.equal(responses.__agentProtocol, 'openai-responses');
+  assert.equal(responses.messages, undefined);
+  assert.equal(responses.input[1].content[1].type, 'input_image');
+  assert.deepEqual(responses.input.at(-1), { type: 'function_call_output', call_id: 'call-1', output: '{"ok":true}' });
+  assert.equal(responses.tools[0].name, 'lookup');
+
+  const anthropic = modelRequest.buildLoopRequestBody({ ...PLAN, protocol: 'anthropic-messages' }, tools, messages);
+  assert.equal(anthropic.system, '按事实回答');
+  assert.equal(anthropic.input, undefined);
+  assert.equal(anthropic.messages[0].content[1].source.media_type, 'image/png');
+  assert.deepEqual(anthropic.messages[1].content[1], { type: 'tool_use', id: 'call-1', name: 'lookup', input: { id: 1 } });
+  assert.equal(anthropic.messages[2].content[0].tool_use_id, 'call-1');
+  assert.equal(anthropic.tools[0].input_schema.type, 'object');
+
+  const chat = modelRequest.buildLoopRequestBody({ ...PLAN, protocol: 'openai-chat-completions' }, tools,
+    [{ role: 'assistant', content: '之前的答复', responseItems: [{ type: 'reasoning', id: 'rs-1' }] }]);
+  assert.equal(chat.messages[0].responseItems, undefined, '跨协议继续对话时不能把 Responses 元数据发给 Chat 接口');
 });

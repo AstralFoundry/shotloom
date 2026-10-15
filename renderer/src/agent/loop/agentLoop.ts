@@ -28,6 +28,7 @@ export interface AssistantTurn {
   text: string;
   toolCalls: AgentToolCall[];
   finishReason: string;
+  responseItems?: Record<string, unknown>[];
   /** 模型上报的真实占用；缺失时调用方用估算值兜底。 */
   usage?: { input?: number; output?: number };
 }
@@ -170,14 +171,16 @@ export async function runAgentLoop(input: AgentLoopInput): Promise<AgentLoopResu
     messages.push({
       role: 'assistant',
       content: turn.text || null,
+      ...(turn.responseItems?.length ? { responseItems: turn.responseItems } : {}),
       ...(turn.toolCalls.length ? { tool_calls: turn.toolCalls } : {}),
     });
     commit();
 
+    if (turn.finishReason === 'length') {
+      throw new Error('Agent 达到本轮输出上限，回复或工具参数可能不完整');
+    }
+
     if (!turn.toolCalls.length) {
-      if (turn.finishReason === 'length') {
-        throw new Error('Agent 达到本轮输出上限，尚未完成工具调用');
-      }
       reply = turn.text;
       if (!reply.trim()) {
         throw new Error('模型返回了 0 token 空响应；请检查文本模型 endpoint 与 OpenAI-compatible 流式响应格式');
