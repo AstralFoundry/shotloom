@@ -2,6 +2,7 @@ import { loadModelCatalog } from './helpers/modelCatalog.mjs';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
+import { optionLabel } from '../renderer/src/utils/modelPresentation.js';
 
 const adaptersIndexSource = readFileSync(
   new URL('../renderer/src/domain/provider/adapters/index.ts', import.meta.url),
@@ -80,10 +81,10 @@ test('StarRouter GPT 5.5 使用官方上下文、输出长度和推理强度', (
   assert.equal(mode.endpoint.path, '/chat/completions');
   assert.equal(mode.inputConstraints.text.maxTokens, 1_050_000);
   assert.equal(mode.outputConstraints.maxTokens, 128_000);
-  assert.deepEqual(
-    mode.params.find((param) => param.key === 'reasoningEffort').options,
-    ['none', 'low', 'medium', 'high', 'xhigh'],
-  );
+  const reasoningEffort = mode.params.find((param) => param.key === 'reasoningEffort');
+  assert.deepEqual(reasoningEffort.options, ['none', 'low', 'medium', 'high', 'xhigh']);
+  assert.deepEqual(reasoningEffort.options.map((value) => optionLabel(reasoningEffort, value)),
+    ['关闭', '低', '中', '高', '极高']);
   assert.equal(mode.requestTemplate.reasoning_effort, '{{params.reasoningEffort}}');
   assert.deepEqual(mode.agent.requestOptions, { reasoningEffort: 'none' });
 });

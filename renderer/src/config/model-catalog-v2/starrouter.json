@@ -1660,7 +1660,14 @@
                 "medium",
                 "high",
                 "xhigh"
-              ]
+              ],
+              "optionLabels": {
+                "none": "关闭",
+                "low": "低",
+                "medium": "中",
+                "high": "高",
+                "xhigh": "极高"
+              }
             }
           ],
           "auth": {
