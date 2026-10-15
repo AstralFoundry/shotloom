@@ -52,6 +52,28 @@
                 8192,
                 16384
               ]
+            },
+            {
+              "key": "reasoningEffort",
+              "label": "推理强度",
+              "type": "select",
+              "default": "medium",
+              "options": [
+                "none",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ],
+              "optionLabels": {
+                "none": "关闭",
+                "low": "低",
+                "medium": "中",
+                "high": "高",
+                "xhigh": "极高",
+                "max": "最高"
+              }
             }
           ],
           "auth": {
@@ -61,7 +83,7 @@
             "model": "{{model}}",
             "messages": "{{messages}}",
             "max_completion_tokens": "{{params.maxTokens}}",
-            "reasoning_effort": "{{reasoningEffort}}",
+            "reasoning_effort": "{{params.reasoningEffort}}",
             "tools": "{{tools}}",
             "tool_choice": "{{toolChoice}}"
           },
@@ -109,6 +131,28 @@
                 8192,
                 16384
               ]
+            },
+            {
+              "key": "reasoningEffort",
+              "label": "推理强度",
+              "type": "select",
+              "default": "medium",
+              "options": [
+                "none",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ],
+              "optionLabels": {
+                "none": "关闭",
+                "low": "低",
+                "medium": "中",
+                "high": "高",
+                "xhigh": "极高",
+                "max": "最高"
+              }
             }
           ],
           "auth": {
@@ -118,7 +162,7 @@
             "model": "{{model}}",
             "messages": "{{messages}}",
             "max_completion_tokens": "{{params.maxTokens}}",
-            "reasoning_effort": "{{reasoningEffort}}",
+            "reasoning_effort": "{{params.reasoningEffort}}",
             "tools": "{{tools}}",
             "tool_choice": "{{toolChoice}}"
           },
@@ -166,6 +210,28 @@
                 8192,
                 16384
               ]
+            },
+            {
+              "key": "reasoningEffort",
+              "label": "推理强度",
+              "type": "select",
+              "default": "medium",
+              "options": [
+                "none",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ],
+              "optionLabels": {
+                "none": "关闭",
+                "low": "低",
+                "medium": "中",
+                "high": "高",
+                "xhigh": "极高",
+                "max": "最高"
+              }
             }
           ],
           "auth": {
@@ -175,7 +241,7 @@
             "model": "{{model}}",
             "messages": "{{messages}}",
             "max_completion_tokens": "{{params.maxTokens}}",
-            "reasoning_effort": "{{reasoningEffort}}",
+            "reasoning_effort": "{{params.reasoningEffort}}",
             "tools": "{{tools}}",
             "tool_choice": "{{toolChoice}}"
           },
@@ -234,6 +300,26 @@
                 8192,
                 16384
               ]
+            },
+            {
+              "key": "reasoningEffort",
+              "label": "推理强度",
+              "type": "select",
+              "default": "none",
+              "options": [
+                "none",
+                "low",
+                "medium",
+                "high",
+                "xhigh"
+              ],
+              "optionLabels": {
+                "none": "关闭",
+                "low": "低",
+                "medium": "中",
+                "high": "高",
+                "xhigh": "极高"
+              }
             }
           ],
           "auth": {
@@ -244,7 +330,8 @@
             "messages": "{{messages}}",
             "max_completion_tokens": "{{params.maxTokens}}",
             "tools": "{{tools}}",
-            "tool_choice": "{{toolChoice}}"
+            "tool_choice": "{{toolChoice}}",
+            "reasoning_effort": "{{params.reasoningEffort}}"
           },
           "resultTextPath": "choices.0.message.content"
         },
@@ -290,6 +377,26 @@
                 8192,
                 16384
               ]
+            },
+            {
+              "key": "reasoningEffort",
+              "label": "推理强度",
+              "type": "select",
+              "default": "none",
+              "options": [
+                "none",
+                "low",
+                "medium",
+                "high",
+                "xhigh"
+              ],
+              "optionLabels": {
+                "none": "关闭",
+                "low": "低",
+                "medium": "中",
+                "high": "高",
+                "xhigh": "极高"
+              }
             }
           ],
           "auth": {
@@ -300,7 +407,8 @@
             "messages": "{{messages}}",
             "max_completion_tokens": "{{params.maxTokens}}",
             "tools": "{{tools}}",
-            "tool_choice": "{{toolChoice}}"
+            "tool_choice": "{{toolChoice}}",
+            "reasoning_effort": "{{params.reasoningEffort}}"
           },
           "resultTextPath": "choices.0.message.content"
         },
@@ -346,6 +454,26 @@
                 8192,
                 16384
               ]
+            },
+            {
+              "key": "reasoningEffort",
+              "label": "推理强度",
+              "type": "select",
+              "default": "none",
+              "options": [
+                "none",
+                "low",
+                "medium",
+                "high",
+                "xhigh"
+              ],
+              "optionLabels": {
+                "none": "关闭",
+                "low": "低",
+                "medium": "中",
+                "high": "高",
+                "xhigh": "极高"
+              }
             }
           ],
           "auth": {
@@ -356,7 +484,8 @@
             "messages": "{{messages}}",
             "max_completion_tokens": "{{params.maxTokens}}",
             "tools": "{{tools}}",
-            "tool_choice": "{{toolChoice}}"
+            "tool_choice": "{{toolChoice}}",
+            "reasoning_effort": "{{params.reasoningEffort}}"
           },
           "resultTextPath": "choices.0.message.content"
         }
@@ -531,6 +660,594 @@
             "model": "{{model}}",
             "prompt": "{{prompt}}",
             "size": "{{params.size}}",
+            "n": "{{params.generationCount}}"
+          },
+          "resultBase64Path": "data.*.b64_json",
+          "resultUrlPath": "data.*.url"
+        }
+      ]
+    },
+    {
+      "id": "gpt-image-2.5-sunburst",
+      "name": "GPT Image 2.5 Sunburst",
+      "provider": "openai",
+      "type": "imageGeneration",
+      "sortOrder": 2,
+      "enabled": true,
+      "defaultMode": "text-to-image",
+      "modes": [
+        {
+          "id": "text-to-image",
+          "label": "文生图",
+          "endpoint": {
+            "method": "POST",
+            "path": "/images/generations",
+            "scope": "root"
+          },
+          "inputConstraints": {
+            "images": {
+              "min": 0,
+              "max": 0
+            }
+          },
+          "outputConstraints": {
+            "maxCount": 4,
+            "formats": [
+              "png",
+              "jpeg",
+              "webp"
+            ]
+          },
+          "params": [
+            {
+              "key": "prompt",
+              "label": "提示词",
+              "type": "text",
+              "required": true
+            },
+            {
+              "key": "size",
+              "label": "比例与尺寸",
+              "type": "select",
+              "default": "1024x1024",
+              "presentation": "aspectRatio",
+              "options": [
+                "1024x1024",
+                "1536x1024",
+                "1024x1536",
+                "2048x2048",
+                "2048x1152",
+                "1152x2048",
+                "3840x2160",
+                "2160x3840"
+              ],
+              "optionLabels": {
+                "1024x1024": "1:1 · 标准",
+                "1536x1024": "3:2 · 标准",
+                "1024x1536": "2:3 · 标准",
+                "2048x2048": "1:1 · 高清",
+                "2048x1152": "16:9 · 高清",
+                "1152x2048": "9:16 · 高清",
+                "3840x2160": "16:9 · 超清",
+                "2160x3840": "9:16 · 超清"
+              }
+            },
+            {
+              "key": "quality",
+              "label": "质量",
+              "type": "select",
+              "default": "auto",
+              "options": [
+                "auto",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ],
+              "optionLabels": {
+                "auto": "自动",
+                "low": "低",
+                "medium": "中",
+                "high": "高",
+                "xhigh": "极高",
+                "max": "最高"
+              }
+            },
+            {
+              "key": "background",
+              "label": "背景",
+              "type": "select",
+              "default": "auto",
+              "options": [
+                "auto",
+                "opaque",
+                "transparent"
+              ],
+              "optionLabels": {
+                "auto": "自动",
+                "opaque": "不透明",
+                "transparent": "透明"
+              }
+            },
+            {
+              "key": "outputFormat",
+              "label": "输出格式",
+              "type": "select",
+              "default": "png",
+              "options": [
+                "png",
+                "jpeg",
+                "webp"
+              ],
+              "optionLabels": {
+                "png": "无损格式",
+                "jpeg": "照片格式",
+                "webp": "网页格式"
+              }
+            },
+            {
+              "key": "generationCount",
+              "label": "张数",
+              "type": "select",
+              "default": 1,
+              "options": [
+                1,
+                2,
+                4
+              ],
+              "numeric": true
+            }
+          ],
+          "auth": {
+            "type": "bearer"
+          },
+          "requestTemplate": {
+            "model": "{{model}}",
+            "prompt": "{{prompt}}",
+            "size": "{{params.size}}",
+            "quality": "{{params.quality}}",
+            "background": "{{params.background}}",
+            "output_format": "{{params.outputFormat}}",
+            "n": "{{params.generationCount}}"
+          },
+          "resultBase64Path": "data.*.b64_json",
+          "resultUrlPath": "data.*.url"
+        },
+        {
+          "id": "image-to-image",
+          "label": "图片编辑",
+          "endpoint": {
+            "method": "POST",
+            "path": "/images/edits",
+            "scope": "root"
+          },
+          "inputFormat": "multipart",
+          "requestFields": {
+            "multipartImage": "image"
+          },
+          "inputConstraints": {
+            "images": {
+              "min": 1,
+              "max": 16,
+              "roles": [
+                "referenceImage"
+              ]
+            }
+          },
+          "outputConstraints": {
+            "maxCount": 4,
+            "formats": [
+              "png",
+              "jpeg",
+              "webp"
+            ]
+          },
+          "params": [
+            {
+              "key": "prompt",
+              "label": "提示词",
+              "type": "text",
+              "required": true
+            },
+            {
+              "key": "size",
+              "label": "比例与尺寸",
+              "type": "select",
+              "default": "1024x1024",
+              "presentation": "aspectRatio",
+              "options": [
+                "1024x1024",
+                "1536x1024",
+                "1024x1536",
+                "2048x2048",
+                "2048x1152",
+                "1152x2048",
+                "3840x2160",
+                "2160x3840"
+              ],
+              "optionLabels": {
+                "1024x1024": "1:1 · 标准",
+                "1536x1024": "3:2 · 标准",
+                "1024x1536": "2:3 · 标准",
+                "2048x2048": "1:1 · 高清",
+                "2048x1152": "16:9 · 高清",
+                "1152x2048": "9:16 · 高清",
+                "3840x2160": "16:9 · 超清",
+                "2160x3840": "9:16 · 超清"
+              }
+            },
+            {
+              "key": "quality",
+              "label": "质量",
+              "type": "select",
+              "default": "auto",
+              "options": [
+                "auto",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ],
+              "optionLabels": {
+                "auto": "自动",
+                "low": "低",
+                "medium": "中",
+                "high": "高",
+                "xhigh": "极高",
+                "max": "最高"
+              }
+            },
+            {
+              "key": "background",
+              "label": "背景",
+              "type": "select",
+              "default": "auto",
+              "options": [
+                "auto",
+                "opaque",
+                "transparent"
+              ],
+              "optionLabels": {
+                "auto": "自动",
+                "opaque": "不透明",
+                "transparent": "透明"
+              }
+            },
+            {
+              "key": "outputFormat",
+              "label": "输出格式",
+              "type": "select",
+              "default": "png",
+              "options": [
+                "png",
+                "jpeg",
+                "webp"
+              ],
+              "optionLabels": {
+                "png": "无损格式",
+                "jpeg": "照片格式",
+                "webp": "网页格式"
+              }
+            },
+            {
+              "key": "generationCount",
+              "label": "张数",
+              "type": "select",
+              "default": 1,
+              "options": [
+                1,
+                2,
+                4
+              ],
+              "numeric": true
+            }
+          ],
+          "auth": {
+            "type": "bearer"
+          },
+          "requestTemplate": {
+            "model": "{{model}}",
+            "prompt": "{{prompt}}",
+            "size": "{{params.size}}",
+            "quality": "{{params.quality}}",
+            "background": "{{params.background}}",
+            "output_format": "{{params.outputFormat}}",
+            "n": "{{params.generationCount}}"
+          },
+          "resultBase64Path": "data.*.b64_json",
+          "resultUrlPath": "data.*.url"
+        }
+      ]
+    },
+    {
+      "id": "gpt-image-2.5-flare",
+      "name": "GPT Image 2.5 Flare",
+      "provider": "openai",
+      "type": "imageGeneration",
+      "sortOrder": 3,
+      "enabled": true,
+      "defaultMode": "text-to-image",
+      "modes": [
+        {
+          "id": "text-to-image",
+          "label": "文生图",
+          "endpoint": {
+            "method": "POST",
+            "path": "/images/generations",
+            "scope": "root"
+          },
+          "inputConstraints": {
+            "images": {
+              "min": 0,
+              "max": 0
+            }
+          },
+          "outputConstraints": {
+            "maxCount": 4,
+            "formats": [
+              "png",
+              "jpeg",
+              "webp"
+            ]
+          },
+          "params": [
+            {
+              "key": "prompt",
+              "label": "提示词",
+              "type": "text",
+              "required": true
+            },
+            {
+              "key": "size",
+              "label": "比例与尺寸",
+              "type": "select",
+              "default": "1024x1024",
+              "presentation": "aspectRatio",
+              "options": [
+                "1024x1024",
+                "1536x1024",
+                "1024x1536",
+                "2048x2048",
+                "2048x1152",
+                "1152x2048",
+                "3840x2160",
+                "2160x3840"
+              ],
+              "optionLabels": {
+                "1024x1024": "1:1 · 标准",
+                "1536x1024": "3:2 · 标准",
+                "1024x1536": "2:3 · 标准",
+                "2048x2048": "1:1 · 高清",
+                "2048x1152": "16:9 · 高清",
+                "1152x2048": "9:16 · 高清",
+                "3840x2160": "16:9 · 超清",
+                "2160x3840": "9:16 · 超清"
+              }
+            },
+            {
+              "key": "quality",
+              "label": "质量",
+              "type": "select",
+              "default": "auto",
+              "options": [
+                "auto",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ],
+              "optionLabels": {
+                "auto": "自动",
+                "low": "低",
+                "medium": "中",
+                "high": "高",
+                "xhigh": "极高",
+                "max": "最高"
+              }
+            },
+            {
+              "key": "background",
+              "label": "背景",
+              "type": "select",
+              "default": "auto",
+              "options": [
+                "auto",
+                "opaque",
+                "transparent"
+              ],
+              "optionLabels": {
+                "auto": "自动",
+                "opaque": "不透明",
+                "transparent": "透明"
+              }
+            },
+            {
+              "key": "outputFormat",
+              "label": "输出格式",
+              "type": "select",
+              "default": "png",
+              "options": [
+                "png",
+                "jpeg",
+                "webp"
+              ],
+              "optionLabels": {
+                "png": "无损格式",
+                "jpeg": "照片格式",
+                "webp": "网页格式"
+              }
+            },
+            {
+              "key": "generationCount",
+              "label": "张数",
+              "type": "select",
+              "default": 1,
+              "options": [
+                1,
+                2,
+                4
+              ],
+              "numeric": true
+            }
+          ],
+          "auth": {
+            "type": "bearer"
+          },
+          "requestTemplate": {
+            "model": "{{model}}",
+            "prompt": "{{prompt}}",
+            "size": "{{params.size}}",
+            "quality": "{{params.quality}}",
+            "background": "{{params.background}}",
+            "output_format": "{{params.outputFormat}}",
+            "n": "{{params.generationCount}}"
+          },
+          "resultBase64Path": "data.*.b64_json",
+          "resultUrlPath": "data.*.url"
+        },
+        {
+          "id": "image-to-image",
+          "label": "图片编辑",
+          "endpoint": {
+            "method": "POST",
+            "path": "/images/edits",
+            "scope": "root"
+          },
+          "inputFormat": "multipart",
+          "requestFields": {
+            "multipartImage": "image"
+          },
+          "inputConstraints": {
+            "images": {
+              "min": 1,
+              "max": 16,
+              "roles": [
+                "referenceImage"
+              ]
+            }
+          },
+          "outputConstraints": {
+            "maxCount": 4,
+            "formats": [
+              "png",
+              "jpeg",
+              "webp"
+            ]
+          },
+          "params": [
+            {
+              "key": "prompt",
+              "label": "提示词",
+              "type": "text",
+              "required": true
+            },
+            {
+              "key": "size",
+              "label": "比例与尺寸",
+              "type": "select",
+              "default": "1024x1024",
+              "presentation": "aspectRatio",
+              "options": [
+                "1024x1024",
+                "1536x1024",
+                "1024x1536",
+                "2048x2048",
+                "2048x1152",
+                "1152x2048",
+                "3840x2160",
+                "2160x3840"
+              ],
+              "optionLabels": {
+                "1024x1024": "1:1 · 标准",
+                "1536x1024": "3:2 · 标准",
+                "1024x1536": "2:3 · 标准",
+                "2048x2048": "1:1 · 高清",
+                "2048x1152": "16:9 · 高清",
+                "1152x2048": "9:16 · 高清",
+                "3840x2160": "16:9 · 超清",
+                "2160x3840": "9:16 · 超清"
+              }
+            },
+            {
+              "key": "quality",
+              "label": "质量",
+              "type": "select",
+              "default": "auto",
+              "options": [
+                "auto",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ],
+              "optionLabels": {
+                "auto": "自动",
+                "low": "低",
+                "medium": "中",
+                "high": "高",
+                "xhigh": "极高",
+                "max": "最高"
+              }
+            },
+            {
+              "key": "background",
+              "label": "背景",
+              "type": "select",
+              "default": "auto",
+              "options": [
+                "auto",
+                "opaque",
+                "transparent"
+              ],
+              "optionLabels": {
+                "auto": "自动",
+                "opaque": "不透明",
+                "transparent": "透明"
+              }
+            },
+            {
+              "key": "outputFormat",
+              "label": "输出格式",
+              "type": "select",
+              "default": "png",
+              "options": [
+                "png",
+                "jpeg",
+                "webp"
+              ],
+              "optionLabels": {
+                "png": "无损格式",
+                "jpeg": "照片格式",
+                "webp": "网页格式"
+              }
+            },
+            {
+              "key": "generationCount",
+              "label": "张数",
+              "type": "select",
+              "default": 1,
+              "options": [
+                1,
+                2,
+                4
+              ],
+              "numeric": true
+            }
+          ],
+          "auth": {
+            "type": "bearer"
+          },
+          "requestTemplate": {
+            "model": "{{model}}",
+            "prompt": "{{prompt}}",
+            "size": "{{params.size}}",
+            "quality": "{{params.quality}}",
+            "background": "{{params.background}}",
+            "output_format": "{{params.outputFormat}}",
             "n": "{{params.generationCount}}"
           },
           "resultBase64Path": "data.*.b64_json",

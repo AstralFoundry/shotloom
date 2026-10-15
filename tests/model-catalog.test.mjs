@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { modelResponseError } from '../renderer/src/utils/modelResponseParsing.mjs';
-import { renderProtocolTemplate } from '../renderer/src/utils/modelProtocol.mjs';
+import { renderProtocolContentTemplate, renderProtocolTemplate } from '../renderer/src/utils/modelProtocol.mjs';
 import { optionLabel } from '../renderer/src/utils/modelPresentation.js';
 
 const catalog = loadModelCatalog();
@@ -65,25 +65,25 @@ test('内置模型使用统一模型定义结构', () => {
   }
 });
 
-test('GPT 5.6 的工具请求显式关闭 Chat Completions 推理', () => {
-  const model = catalog.models.find((item) => item.id === 'gpt-5.6');
-  assert.ok(model);
-  for (const mode of model.modes) {
-    assert.equal(mode.requestTemplate.reasoning_effort, '{{reasoningEffort}}');
-    assert.equal(renderProtocolTemplate(mode.requestTemplate, {
-      model: model.id,
-      messages: [{ role: 'user', content: '测试' }],
-      reasoningEffort: 'none',
-      tools: [{ type: 'function', function: { name: 'test' } }],
-      toolChoice: 'auto',
-      params: {},
-    }).reasoning_effort, 'none');
-    assert.equal(Object.hasOwn(renderProtocolTemplate(mode.requestTemplate, {
-      model: model.id,
-      messages: [{ role: 'user', content: '测试' }],
-      tools: undefined,
-      params: {},
-    }), 'reasoning_effort'), false);
+test('OpenAI 与 Gemini 文本模型按官方档位传递推理强度', () => {
+  const expected = {
+    'gpt-5.6': ['none', 'low', 'medium', 'high', 'xhigh', 'max'],
+    'gpt-5.4': ['none', 'low', 'medium', 'high', 'xhigh'],
+    'gemini-3.6-flash': ['minimal', 'low', 'medium', 'high'],
+    'gemini-3.1-pro-preview': ['low', 'medium', 'high'],
+  };
+  for (const [id, values] of Object.entries(expected)) {
+    const model = catalog.models.find((item) => item.id === id);
+    for (const mode of model.modes) {
+      const param = mode.params.find((item) => item.key === 'reasoningEffort');
+      assert.deepEqual(param.options, values);
+      for (const value of values) assert.doesNotMatch(optionLabel(param, value), /[a-z]/i);
+      assert.equal(mode.requestTemplate.reasoning_effort, '{{params.reasoningEffort}}');
+      assert.equal(renderProtocolTemplate(mode.requestTemplate, {
+        model: id, messages: [{ role: 'user', content: '测试' }],
+        params: { reasoningEffort: values.at(-1) },
+      }).reasoning_effort, values.at(-1));
+    }
   }
 });
 
@@ -95,6 +95,48 @@ test('GPT Image 2 用真实 size 参数提供统一比例选项', () => {
     assert.equal(size.optionLabels['1536x864'], '16:9');
     assert.ok(size.options.includes('1536x864'));
     assert.equal(mode.requestTemplate.size, '{{params.size}}');
+  }
+});
+
+test('GPT Image 2.5 两种官方模型支持生成、编辑和真实质量档位', () => {
+  for (const id of ['gpt-image-2.5-sunburst', 'gpt-image-2.5-flare']) {
+    const model = catalog.models.find((item) => item.id === id);
+    assert.deepEqual(model.modes.map((mode) => mode.id), ['text-to-image', 'image-to-image']);
+    for (const mode of model.modes) {
+      assert.deepEqual(mode.params.find((param) => param.key === 'quality').options,
+        ['auto', 'low', 'medium', 'high', 'xhigh', 'max']);
+      assert.equal(mode.params.find((param) => param.key === 'size').optionLabels['3840x2160'], '16:9 · 超清');
+      const body = renderProtocolTemplate(mode.requestTemplate, {
+        model: id, prompt: '测试',
+        params: { size: '2048x1152', quality: 'xhigh', background: 'opaque', outputFormat: 'webp', generationCount: 2 },
+      });
+      assert.deepEqual([body.model, body.size, body.quality, body.output_format, body.n],
+        [id, '2048x1152', 'xhigh', 'webp', 2]);
+    }
+    assert.equal(model.modes[1].inputFormat, 'multipart');
+  }
+});
+
+test('Nano Banana 新型号按目录编译原生生图与多参考图请求', () => {
+  for (const id of ['gemini-nano-banana-2.1', 'gemini-3.1-flash-lite-image', 'gemini-3-pro-image', 'gemini-3.1-flash-image', 'gemini-2.5-flash-image']) {
+    const model = catalog.models.find((item) => item.id === id);
+    assert.deepEqual(model.modes.map((mode) => mode.id), ['text-to-image', 'image-to-image']);
+    const edit = model.modes[1];
+    assert.equal(edit.inputMode, 'reference');
+    assert.equal(edit.inputConstraints.images.max, id === 'gemini-2.5-flash-image' ? 3 : 14);
+    const content = renderProtocolContentTemplate(edit.contentTemplate, {
+      text: '测试', images: [{ url: 'data:image/png;base64,QUJD' }, { url: 'data:image/jpeg;base64,REVG' }],
+    });
+    const params = { aspectRatio: '16:9', imageSize: '2K', thinkingLevel: 'high' };
+    const body = renderProtocolTemplate(edit.requestTemplate, { content, params });
+    assert.deepEqual(body.contents[0].parts, [
+      { text: '测试' },
+      { inlineData: { mimeType: 'image/png', data: 'QUJD' } },
+      { inlineData: { mimeType: 'image/jpeg', data: 'REVG' } },
+    ]);
+    assert.equal(body.generationConfig.responseFormat.image.aspectRatio, '16:9');
+    assert.equal(body.generationConfig.responseFormat.image.imageSize,
+      ['gemini-3.1-flash-lite-image', 'gemini-2.5-flash-image'].includes(id) ? undefined : '2K');
   }
 });
 

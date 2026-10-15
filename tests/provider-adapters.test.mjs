@@ -115,14 +115,18 @@ test('厂商模型清单逐条来自目录声明，输入模态不靠模型名�
   assert.deepEqual(
     googleRows.map((row) => [row.type, row.id, row.inputs]),
     [
-      ['imageGeneration', 'gemini-3.1-flash-image', []],
+      ['imageGeneration', 'gemini-3.1-flash-image', ['image']],
+      ['imageGeneration', 'gemini-nano-banana-2.1', ['image']],
+      ['imageGeneration', 'gemini-3.1-flash-lite-image', ['image']],
+      ['imageGeneration', 'gemini-3-pro-image', ['image']],
+      ['imageGeneration', 'gemini-2.5-flash-image', ['image']],
       ['videoGeneration', 'veo-3.1-generate-preview', ['image']],
       ['videoGeneration', 'veo-3.1-fast-generate-preview', ['image']],
       ['videoGeneration', 'veo-3.1-lite-generate-preview', ['image']],
       ['textGeneration', 'gemini-3.6-flash', []],
       ['textGeneration', 'gemini-3.1-pro-preview', []],
     ],
-    '只有目录声明了媒体输入的模型才能有多模态徽标，纯文本与纯文生图模型不得虚报',
+    '只有目录声明了媒体输入的模型才能有多模态徽标，纯文本模型不得虚报',
   );
 
   const anthropic = getProviderModelRows('anthropic');

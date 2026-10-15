@@ -92,8 +92,11 @@ export function renderProtocolContentTemplate(
   }
   for (const [index, ref] of images.entries()) {
     if (!ref?.url) continue;
+    const inlineImage = protocolInlineImage(ref.url);
     const rendered = renderProtocolTemplate(contentTemplate.image, {
-      url: ref.url, role: ref.role || undefined, slot: ref.slot || undefined, index: index + 1,
+      url: ref.url,
+      inlineData: inlineImage ? { mimeType: inlineImage.mimeType, data: inlineImage.bytesBase64Encoded } : undefined,
+      role: ref.role || undefined, slot: ref.slot || undefined, index: index + 1,
     });
     if (rendered !== undefined) items.push(rendered);
   }

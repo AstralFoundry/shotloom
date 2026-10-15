@@ -47,6 +47,24 @@
                 8192,
                 16384
               ]
+            },
+            {
+              "key": "reasoningEffort",
+              "label": "推理强度",
+              "type": "select",
+              "default": "medium",
+              "options": [
+                "minimal",
+                "low",
+                "medium",
+                "high"
+              ],
+              "optionLabels": {
+                "minimal": "极简",
+                "low": "低",
+                "medium": "中",
+                "high": "高"
+              }
             }
           ],
           "auth": {
@@ -57,7 +75,8 @@
             "messages": "{{messages}}",
             "max_tokens": "{{params.maxTokens}}",
             "tools": "{{tools}}",
-            "tool_choice": "{{toolChoice}}"
+            "tool_choice": "{{toolChoice}}",
+            "reasoning_effort": "{{params.reasoningEffort}}"
           },
           "resultTextPath": "choices.0.message.content"
         },
@@ -98,6 +117,24 @@
                 8192,
                 16384
               ]
+            },
+            {
+              "key": "reasoningEffort",
+              "label": "推理强度",
+              "type": "select",
+              "default": "medium",
+              "options": [
+                "minimal",
+                "low",
+                "medium",
+                "high"
+              ],
+              "optionLabels": {
+                "minimal": "极简",
+                "low": "低",
+                "medium": "中",
+                "high": "高"
+              }
             }
           ],
           "auth": {
@@ -108,7 +145,8 @@
             "messages": "{{messages}}",
             "max_tokens": "{{params.maxTokens}}",
             "tools": "{{tools}}",
-            "tool_choice": "{{toolChoice}}"
+            "tool_choice": "{{toolChoice}}",
+            "reasoning_effort": "{{params.reasoningEffort}}"
           },
           "resultTextPath": "choices.0.message.content"
         },
@@ -149,6 +187,24 @@
                 8192,
                 16384
               ]
+            },
+            {
+              "key": "reasoningEffort",
+              "label": "推理强度",
+              "type": "select",
+              "default": "medium",
+              "options": [
+                "minimal",
+                "low",
+                "medium",
+                "high"
+              ],
+              "optionLabels": {
+                "minimal": "极简",
+                "low": "低",
+                "medium": "中",
+                "high": "高"
+              }
             }
           ],
           "auth": {
@@ -159,7 +215,8 @@
             "messages": "{{messages}}",
             "max_tokens": "{{params.maxTokens}}",
             "tools": "{{tools}}",
-            "tool_choice": "{{toolChoice}}"
+            "tool_choice": "{{toolChoice}}",
+            "reasoning_effort": "{{params.reasoningEffort}}"
           },
           "resultTextPath": "choices.0.message.content"
         }
@@ -211,6 +268,22 @@
                 8192,
                 16384
               ]
+            },
+            {
+              "key": "reasoningEffort",
+              "label": "推理强度",
+              "type": "select",
+              "default": "high",
+              "options": [
+                "low",
+                "medium",
+                "high"
+              ],
+              "optionLabels": {
+                "low": "低",
+                "medium": "中",
+                "high": "高"
+              }
             }
           ],
           "auth": {
@@ -221,7 +294,8 @@
             "messages": "{{messages}}",
             "max_tokens": "{{params.maxTokens}}",
             "tools": "{{tools}}",
-            "tool_choice": "{{toolChoice}}"
+            "tool_choice": "{{toolChoice}}",
+            "reasoning_effort": "{{params.reasoningEffort}}"
           },
           "resultTextPath": "choices.0.message.content"
         },
@@ -262,6 +336,22 @@
                 8192,
                 16384
               ]
+            },
+            {
+              "key": "reasoningEffort",
+              "label": "推理强度",
+              "type": "select",
+              "default": "high",
+              "options": [
+                "low",
+                "medium",
+                "high"
+              ],
+              "optionLabels": {
+                "low": "低",
+                "medium": "中",
+                "high": "高"
+              }
             }
           ],
           "auth": {
@@ -272,7 +362,8 @@
             "messages": "{{messages}}",
             "max_tokens": "{{params.maxTokens}}",
             "tools": "{{tools}}",
-            "tool_choice": "{{toolChoice}}"
+            "tool_choice": "{{toolChoice}}",
+            "reasoning_effort": "{{params.reasoningEffort}}"
           },
           "resultTextPath": "choices.0.message.content"
         },
@@ -313,6 +404,22 @@
                 8192,
                 16384
               ]
+            },
+            {
+              "key": "reasoningEffort",
+              "label": "推理强度",
+              "type": "select",
+              "default": "high",
+              "options": [
+                "low",
+                "medium",
+                "high"
+              ],
+              "optionLabels": {
+                "low": "低",
+                "medium": "中",
+                "high": "高"
+              }
             }
           ],
           "auth": {
@@ -323,7 +430,8 @@
             "messages": "{{messages}}",
             "max_tokens": "{{params.maxTokens}}",
             "tools": "{{tools}}",
-            "tool_choice": "{{toolChoice}}"
+            "tool_choice": "{{toolChoice}}",
+            "reasoning_effort": "{{params.reasoningEffort}}"
           },
           "resultTextPath": "choices.0.message.content"
         }
@@ -372,11 +480,42 @@
               "default": "1:1",
               "options": [
                 "1:1",
+                "3:2",
+                "2:3",
+                "4:3",
+                "3:4",
+                "4:5",
+                "5:4",
                 "16:9",
                 "9:16",
-                "4:3",
-                "3:4"
+                "21:9"
               ]
+            },
+            {
+              "key": "imageSize",
+              "label": "清晰度",
+              "type": "select",
+              "default": "1K",
+              "options": [
+                "512",
+                "1K",
+                "2K",
+                "4K"
+              ]
+            },
+            {
+              "key": "thinkingLevel",
+              "label": "推理强度",
+              "type": "select",
+              "default": "minimal",
+              "options": [
+                "minimal",
+                "high"
+              ],
+              "optionLabels": {
+                "minimal": "极简",
+                "high": "高"
+              }
             }
           ],
           "auth": {
@@ -398,12 +537,136 @@
                 "TEXT",
                 "IMAGE"
               ],
-              "imageConfig": {
-                "aspectRatio": "{{params.aspectRatio}}"
+              "responseFormat": {
+                "image": {
+                  "aspectRatio": "{{params.aspectRatio}}",
+                  "imageSize": "{{params.imageSize}}"
+                }
+              },
+              "thinkingConfig": {
+                "thinkingLevel": "{{params.thinkingLevel}}"
               }
             }
           },
           "resultBase64Path": "candidates.0.content.parts.*.inlineData.data"
+        },
+        {
+          "id": "image-to-image",
+          "label": "图片编辑",
+          "endpoint": {
+            "method": "POST",
+            "path": "/models/gemini-3.1-flash-image:generateContent",
+            "scope": "root"
+          },
+          "inputConstraints": {
+            "images": {
+              "min": 1,
+              "max": 14,
+              "roles": [
+                "referenceImage"
+              ]
+            }
+          },
+          "outputConstraints": {
+            "maxCount": 1,
+            "formats": [
+              "png"
+            ]
+          },
+          "params": [
+            {
+              "key": "prompt",
+              "label": "提示词",
+              "type": "text",
+              "required": true
+            },
+            {
+              "key": "aspectRatio",
+              "label": "比例",
+              "type": "select",
+              "default": "1:1",
+              "options": [
+                "1:1",
+                "3:2",
+                "2:3",
+                "4:3",
+                "3:4",
+                "4:5",
+                "5:4",
+                "16:9",
+                "9:16",
+                "21:9"
+              ]
+            },
+            {
+              "key": "imageSize",
+              "label": "清晰度",
+              "type": "select",
+              "default": "1K",
+              "options": [
+                "512",
+                "1K",
+                "2K",
+                "4K"
+              ]
+            },
+            {
+              "key": "thinkingLevel",
+              "label": "推理强度",
+              "type": "select",
+              "default": "minimal",
+              "options": [
+                "minimal",
+                "high"
+              ],
+              "optionLabels": {
+                "minimal": "极简",
+                "high": "高"
+              }
+            }
+          ],
+          "auth": {
+            "type": "header",
+            "name": "x-goog-api-key"
+          },
+          "requestTemplate": {
+            "contents": [
+              {
+                "parts": "{{content}}"
+              }
+            ],
+            "generationConfig": {
+              "responseModalities": [
+                "TEXT",
+                "IMAGE"
+              ],
+              "responseFormat": {
+                "image": {
+                  "aspectRatio": "{{params.aspectRatio}}",
+                  "imageSize": "{{params.imageSize}}"
+                }
+              },
+              "thinkingConfig": {
+                "thinkingLevel": "{{params.thinkingLevel}}"
+              }
+            }
+          },
+          "resultBase64Path": "candidates.0.content.parts.*.inlineData.data",
+          "inputMode": "reference",
+          "inputSlots": [
+            "reference"
+          ],
+          "requestFields": {
+            "imageContentFormat": "google-inline"
+          },
+          "contentTemplate": {
+            "text": {
+              "text": "{{text}}"
+            },
+            "image": {
+              "inlineData": "{{inlineData}}"
+            }
+          }
         }
       ]
     },
@@ -728,6 +991,818 @@
           },
           "resultUrlPath": "response.generateVideoResponse.generatedSamples.0.video.uri",
           "resultDownloadAuth": true
+        }
+      ]
+    },
+    {
+      "id": "gemini-nano-banana-2.1",
+      "name": "Nano Banana 2.1",
+      "provider": "google",
+      "type": "imageGeneration",
+      "sortOrder": 3,
+      "enabled": true,
+      "defaultMode": "text-to-image",
+      "modes": [
+        {
+          "id": "text-to-image",
+          "label": "文生图",
+          "endpoint": {
+            "method": "POST",
+            "path": "/models/gemini-nano-banana-2.1:generateContent",
+            "scope": "root"
+          },
+          "inputConstraints": {
+            "images": {
+              "min": 0,
+              "max": 0
+            }
+          },
+          "outputConstraints": {
+            "maxCount": 1,
+            "formats": [
+              "png"
+            ]
+          },
+          "params": [
+            {
+              "key": "prompt",
+              "label": "提示词",
+              "type": "text",
+              "required": true
+            },
+            {
+              "key": "aspectRatio",
+              "label": "比例",
+              "type": "select",
+              "default": "1:1",
+              "options": [
+                "1:1",
+                "3:2",
+                "2:3",
+                "4:3",
+                "3:4",
+                "4:5",
+                "5:4",
+                "16:9",
+                "9:16",
+                "21:9"
+              ]
+            },
+            {
+              "key": "imageSize",
+              "label": "清晰度",
+              "type": "select",
+              "default": "1K",
+              "options": [
+                "1K",
+                "2K",
+                "4K"
+              ]
+            },
+            {
+              "key": "thinkingLevel",
+              "label": "推理强度",
+              "type": "select",
+              "default": "medium",
+              "options": [
+                "minimal",
+                "medium",
+                "high"
+              ],
+              "optionLabels": {
+                "minimal": "极简",
+                "medium": "中",
+                "high": "高"
+              }
+            }
+          ],
+          "auth": {
+            "type": "header",
+            "name": "x-goog-api-key"
+          },
+          "requestTemplate": {
+            "contents": [
+              {
+                "parts": [
+                  {
+                    "text": "{{prompt}}"
+                  }
+                ]
+              }
+            ],
+            "generationConfig": {
+              "responseModalities": [
+                "TEXT",
+                "IMAGE"
+              ],
+              "responseFormat": {
+                "image": {
+                  "aspectRatio": "{{params.aspectRatio}}",
+                  "imageSize": "{{params.imageSize}}"
+                }
+              },
+              "thinkingConfig": {
+                "thinkingLevel": "{{params.thinkingLevel}}"
+              }
+            }
+          },
+          "resultBase64Path": "candidates.0.content.parts.*.inlineData.data"
+        },
+        {
+          "id": "image-to-image",
+          "label": "图片编辑",
+          "endpoint": {
+            "method": "POST",
+            "path": "/models/gemini-nano-banana-2.1:generateContent",
+            "scope": "root"
+          },
+          "inputConstraints": {
+            "images": {
+              "min": 1,
+              "max": 14,
+              "roles": [
+                "referenceImage"
+              ]
+            }
+          },
+          "outputConstraints": {
+            "maxCount": 1,
+            "formats": [
+              "png"
+            ]
+          },
+          "params": [
+            {
+              "key": "prompt",
+              "label": "提示词",
+              "type": "text",
+              "required": true
+            },
+            {
+              "key": "aspectRatio",
+              "label": "比例",
+              "type": "select",
+              "default": "1:1",
+              "options": [
+                "1:1",
+                "3:2",
+                "2:3",
+                "4:3",
+                "3:4",
+                "4:5",
+                "5:4",
+                "16:9",
+                "9:16",
+                "21:9"
+              ]
+            },
+            {
+              "key": "imageSize",
+              "label": "清晰度",
+              "type": "select",
+              "default": "1K",
+              "options": [
+                "1K",
+                "2K",
+                "4K"
+              ]
+            },
+            {
+              "key": "thinkingLevel",
+              "label": "推理强度",
+              "type": "select",
+              "default": "medium",
+              "options": [
+                "minimal",
+                "medium",
+                "high"
+              ],
+              "optionLabels": {
+                "minimal": "极简",
+                "medium": "中",
+                "high": "高"
+              }
+            }
+          ],
+          "auth": {
+            "type": "header",
+            "name": "x-goog-api-key"
+          },
+          "requestTemplate": {
+            "contents": [
+              {
+                "parts": "{{content}}"
+              }
+            ],
+            "generationConfig": {
+              "responseModalities": [
+                "TEXT",
+                "IMAGE"
+              ],
+              "responseFormat": {
+                "image": {
+                  "aspectRatio": "{{params.aspectRatio}}",
+                  "imageSize": "{{params.imageSize}}"
+                }
+              },
+              "thinkingConfig": {
+                "thinkingLevel": "{{params.thinkingLevel}}"
+              }
+            }
+          },
+          "resultBase64Path": "candidates.0.content.parts.*.inlineData.data",
+          "inputMode": "reference",
+          "inputSlots": [
+            "reference"
+          ],
+          "requestFields": {
+            "imageContentFormat": "google-inline"
+          },
+          "contentTemplate": {
+            "text": {
+              "text": "{{text}}"
+            },
+            "image": {
+              "inlineData": "{{inlineData}}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "gemini-3.1-flash-lite-image",
+      "name": "Nano Banana 2 Lite",
+      "provider": "google",
+      "type": "imageGeneration",
+      "sortOrder": 4,
+      "enabled": true,
+      "defaultMode": "text-to-image",
+      "modes": [
+        {
+          "id": "text-to-image",
+          "label": "文生图",
+          "endpoint": {
+            "method": "POST",
+            "path": "/models/gemini-3.1-flash-lite-image:generateContent",
+            "scope": "root"
+          },
+          "inputConstraints": {
+            "images": {
+              "min": 0,
+              "max": 0
+            }
+          },
+          "outputConstraints": {
+            "maxCount": 1,
+            "formats": [
+              "png"
+            ]
+          },
+          "params": [
+            {
+              "key": "prompt",
+              "label": "提示词",
+              "type": "text",
+              "required": true
+            },
+            {
+              "key": "aspectRatio",
+              "label": "比例",
+              "type": "select",
+              "default": "1:1",
+              "options": [
+                "1:1",
+                "3:2",
+                "2:3",
+                "4:3",
+                "3:4",
+                "4:5",
+                "5:4",
+                "16:9",
+                "9:16",
+                "21:9"
+              ]
+            },
+            {
+              "key": "thinkingLevel",
+              "label": "推理强度",
+              "type": "select",
+              "default": "minimal",
+              "options": [
+                "minimal",
+                "high"
+              ],
+              "optionLabels": {
+                "minimal": "极简",
+                "high": "高"
+              }
+            }
+          ],
+          "auth": {
+            "type": "header",
+            "name": "x-goog-api-key"
+          },
+          "requestTemplate": {
+            "contents": [
+              {
+                "parts": [
+                  {
+                    "text": "{{prompt}}"
+                  }
+                ]
+              }
+            ],
+            "generationConfig": {
+              "responseModalities": [
+                "TEXT",
+                "IMAGE"
+              ],
+              "responseFormat": {
+                "image": {
+                  "aspectRatio": "{{params.aspectRatio}}"
+                }
+              },
+              "thinkingConfig": {
+                "thinkingLevel": "{{params.thinkingLevel}}"
+              }
+            }
+          },
+          "resultBase64Path": "candidates.0.content.parts.*.inlineData.data"
+        },
+        {
+          "id": "image-to-image",
+          "label": "图片编辑",
+          "endpoint": {
+            "method": "POST",
+            "path": "/models/gemini-3.1-flash-lite-image:generateContent",
+            "scope": "root"
+          },
+          "inputConstraints": {
+            "images": {
+              "min": 1,
+              "max": 14,
+              "roles": [
+                "referenceImage"
+              ]
+            }
+          },
+          "outputConstraints": {
+            "maxCount": 1,
+            "formats": [
+              "png"
+            ]
+          },
+          "params": [
+            {
+              "key": "prompt",
+              "label": "提示词",
+              "type": "text",
+              "required": true
+            },
+            {
+              "key": "aspectRatio",
+              "label": "比例",
+              "type": "select",
+              "default": "1:1",
+              "options": [
+                "1:1",
+                "3:2",
+                "2:3",
+                "4:3",
+                "3:4",
+                "4:5",
+                "5:4",
+                "16:9",
+                "9:16",
+                "21:9"
+              ]
+            },
+            {
+              "key": "thinkingLevel",
+              "label": "推理强度",
+              "type": "select",
+              "default": "minimal",
+              "options": [
+                "minimal",
+                "high"
+              ],
+              "optionLabels": {
+                "minimal": "极简",
+                "high": "高"
+              }
+            }
+          ],
+          "auth": {
+            "type": "header",
+            "name": "x-goog-api-key"
+          },
+          "requestTemplate": {
+            "contents": [
+              {
+                "parts": "{{content}}"
+              }
+            ],
+            "generationConfig": {
+              "responseModalities": [
+                "TEXT",
+                "IMAGE"
+              ],
+              "responseFormat": {
+                "image": {
+                  "aspectRatio": "{{params.aspectRatio}}"
+                }
+              },
+              "thinkingConfig": {
+                "thinkingLevel": "{{params.thinkingLevel}}"
+              }
+            }
+          },
+          "resultBase64Path": "candidates.0.content.parts.*.inlineData.data",
+          "inputMode": "reference",
+          "inputSlots": [
+            "reference"
+          ],
+          "requestFields": {
+            "imageContentFormat": "google-inline"
+          },
+          "contentTemplate": {
+            "text": {
+              "text": "{{text}}"
+            },
+            "image": {
+              "inlineData": "{{inlineData}}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "gemini-3-pro-image",
+      "name": "Nano Banana Pro",
+      "provider": "google",
+      "type": "imageGeneration",
+      "sortOrder": 5,
+      "enabled": true,
+      "defaultMode": "text-to-image",
+      "modes": [
+        {
+          "id": "text-to-image",
+          "label": "文生图",
+          "endpoint": {
+            "method": "POST",
+            "path": "/models/gemini-3-pro-image:generateContent",
+            "scope": "root"
+          },
+          "inputConstraints": {
+            "images": {
+              "min": 0,
+              "max": 0
+            }
+          },
+          "outputConstraints": {
+            "maxCount": 1,
+            "formats": [
+              "png"
+            ]
+          },
+          "params": [
+            {
+              "key": "prompt",
+              "label": "提示词",
+              "type": "text",
+              "required": true
+            },
+            {
+              "key": "aspectRatio",
+              "label": "比例",
+              "type": "select",
+              "default": "1:1",
+              "options": [
+                "1:1",
+                "3:2",
+                "2:3",
+                "4:3",
+                "3:4",
+                "4:5",
+                "5:4",
+                "16:9",
+                "9:16",
+                "21:9"
+              ]
+            },
+            {
+              "key": "imageSize",
+              "label": "清晰度",
+              "type": "select",
+              "default": "1K",
+              "options": [
+                "1K",
+                "2K",
+                "4K"
+              ]
+            }
+          ],
+          "auth": {
+            "type": "header",
+            "name": "x-goog-api-key"
+          },
+          "requestTemplate": {
+            "contents": [
+              {
+                "parts": [
+                  {
+                    "text": "{{prompt}}"
+                  }
+                ]
+              }
+            ],
+            "generationConfig": {
+              "responseModalities": [
+                "TEXT",
+                "IMAGE"
+              ],
+              "responseFormat": {
+                "image": {
+                  "aspectRatio": "{{params.aspectRatio}}",
+                  "imageSize": "{{params.imageSize}}"
+                }
+              }
+            }
+          },
+          "resultBase64Path": "candidates.0.content.parts.*.inlineData.data"
+        },
+        {
+          "id": "image-to-image",
+          "label": "图片编辑",
+          "endpoint": {
+            "method": "POST",
+            "path": "/models/gemini-3-pro-image:generateContent",
+            "scope": "root"
+          },
+          "inputConstraints": {
+            "images": {
+              "min": 1,
+              "max": 14,
+              "roles": [
+                "referenceImage"
+              ]
+            }
+          },
+          "outputConstraints": {
+            "maxCount": 1,
+            "formats": [
+              "png"
+            ]
+          },
+          "params": [
+            {
+              "key": "prompt",
+              "label": "提示词",
+              "type": "text",
+              "required": true
+            },
+            {
+              "key": "aspectRatio",
+              "label": "比例",
+              "type": "select",
+              "default": "1:1",
+              "options": [
+                "1:1",
+                "3:2",
+                "2:3",
+                "4:3",
+                "3:4",
+                "4:5",
+                "5:4",
+                "16:9",
+                "9:16",
+                "21:9"
+              ]
+            },
+            {
+              "key": "imageSize",
+              "label": "清晰度",
+              "type": "select",
+              "default": "1K",
+              "options": [
+                "1K",
+                "2K",
+                "4K"
+              ]
+            }
+          ],
+          "auth": {
+            "type": "header",
+            "name": "x-goog-api-key"
+          },
+          "requestTemplate": {
+            "contents": [
+              {
+                "parts": "{{content}}"
+              }
+            ],
+            "generationConfig": {
+              "responseModalities": [
+                "TEXT",
+                "IMAGE"
+              ],
+              "responseFormat": {
+                "image": {
+                  "aspectRatio": "{{params.aspectRatio}}",
+                  "imageSize": "{{params.imageSize}}"
+                }
+              }
+            }
+          },
+          "resultBase64Path": "candidates.0.content.parts.*.inlineData.data",
+          "inputMode": "reference",
+          "inputSlots": [
+            "reference"
+          ],
+          "requestFields": {
+            "imageContentFormat": "google-inline"
+          },
+          "contentTemplate": {
+            "text": {
+              "text": "{{text}}"
+            },
+            "image": {
+              "inlineData": "{{inlineData}}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "gemini-2.5-flash-image",
+      "name": "Nano Banana（Gemini 2.5 Flash Image）",
+      "provider": "google",
+      "type": "imageGeneration",
+      "sortOrder": 6,
+      "enabled": true,
+      "defaultMode": "text-to-image",
+      "modes": [
+        {
+          "id": "text-to-image",
+          "label": "文生图",
+          "endpoint": {
+            "method": "POST",
+            "path": "/models/gemini-2.5-flash-image:generateContent",
+            "scope": "root"
+          },
+          "inputConstraints": {
+            "images": {
+              "min": 0,
+              "max": 0
+            }
+          },
+          "outputConstraints": {
+            "maxCount": 1,
+            "formats": [
+              "png"
+            ]
+          },
+          "params": [
+            {
+              "key": "prompt",
+              "label": "提示词",
+              "type": "text",
+              "required": true
+            },
+            {
+              "key": "aspectRatio",
+              "label": "比例",
+              "type": "select",
+              "default": "1:1",
+              "options": [
+                "1:1",
+                "3:2",
+                "2:3",
+                "4:3",
+                "3:4",
+                "4:5",
+                "5:4",
+                "16:9",
+                "9:16",
+                "21:9"
+              ]
+            }
+          ],
+          "auth": {
+            "type": "header",
+            "name": "x-goog-api-key"
+          },
+          "requestTemplate": {
+            "contents": [
+              {
+                "parts": [
+                  {
+                    "text": "{{prompt}}"
+                  }
+                ]
+              }
+            ],
+            "generationConfig": {
+              "responseModalities": [
+                "TEXT",
+                "IMAGE"
+              ],
+              "responseFormat": {
+                "image": {
+                  "aspectRatio": "{{params.aspectRatio}}"
+                }
+              }
+            }
+          },
+          "resultBase64Path": "candidates.0.content.parts.*.inlineData.data"
+        },
+        {
+          "id": "image-to-image",
+          "label": "图片编辑",
+          "endpoint": {
+            "method": "POST",
+            "path": "/models/gemini-2.5-flash-image:generateContent",
+            "scope": "root"
+          },
+          "inputConstraints": {
+            "images": {
+              "min": 1,
+              "max": 3,
+              "roles": [
+                "referenceImage"
+              ]
+            }
+          },
+          "outputConstraints": {
+            "maxCount": 1,
+            "formats": [
+              "png"
+            ]
+          },
+          "params": [
+            {
+              "key": "prompt",
+              "label": "提示词",
+              "type": "text",
+              "required": true
+            },
+            {
+              "key": "aspectRatio",
+              "label": "比例",
+              "type": "select",
+              "default": "1:1",
+              "options": [
+                "1:1",
+                "3:2",
+                "2:3",
+                "4:3",
+                "3:4",
+                "4:5",
+                "5:4",
+                "16:9",
+                "9:16",
+                "21:9"
+              ]
+            }
+          ],
+          "auth": {
+            "type": "header",
+            "name": "x-goog-api-key"
+          },
+          "requestTemplate": {
+            "contents": [
+              {
+                "parts": "{{content}}"
+              }
+            ],
+            "generationConfig": {
+              "responseModalities": [
+                "TEXT",
+                "IMAGE"
+              ],
+              "responseFormat": {
+                "image": {
+                  "aspectRatio": "{{params.aspectRatio}}"
+                }
+              }
+            }
+          },
+          "resultBase64Path": "candidates.0.content.parts.*.inlineData.data",
+          "inputMode": "reference",
+          "inputSlots": [
+            "reference"
+          ],
+          "requestFields": {
+            "imageContentFormat": "google-inline"
+          },
+          "contentTemplate": {
+            "text": {
+              "text": "{{text}}"
+            },
+            "image": {
+              "inlineData": "{{inlineData}}"
+            }
+          }
         }
       ]
     }

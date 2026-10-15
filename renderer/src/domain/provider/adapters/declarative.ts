@@ -146,8 +146,8 @@ export class DeclarativeAdapter implements ProviderAdapter {
     const inlineImage = imageContentFormat === 'google-inline'
       ? protocolInlineImage(imageUrls[0])
       : undefined;
-    if (imageContentFormat === 'google-inline' && imageUrls.length && !inlineImage) {
-      throw new Error(`${request.contract?.modelId || 'Google Veo'} 图生视频需要可读取的本地图片或 Base64 图片`);
+    if (imageContentFormat === 'google-inline' && imageUrls.some((url) => !protocolInlineImage(url))) {
+      throw new Error(`${request.contract?.modelId || 'Google 模型'} 需要可读取的本地图片或 Base64 图片`);
     }
     const imageRoleForSlot = (slot = '') => {
       const fields = request.contract?.requestFields || {};
