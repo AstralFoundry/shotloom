@@ -241,9 +241,12 @@ test('策略编辑弹窗由正文滚动且测试台不会被 Flex 压缩裁切',
   assert.match(settingsStyles, /\.recipe-dialog > header,[\s\S]*?\.recipe-dialog > footer \{[\s\S]*?flex:\s*0 0 auto/);
 });
 
-test('API 厂商页只展示内置厂商卡片，界面不再添加厂商或模型', () => {
+test('API 厂商页先展示内置厂商列表，点击后进入详情', () => {
   assert.match(settingsFeature, /const providers = getProviderAdapters\(\)\.map/);
-  assert.match(settingsPanel, /data\.providers\.map\(\(item\) => \(\n\s+<ProviderCard/);
+  assert.match(settingsPanel, /data\.providers\.map\(\(item\) => \(\n\s+<button className="provider-list-row"/);
+  assert.match(settingsPanel, /setSelectedProviderId\(item\.id\)/);
+  assert.match(settingsPanel, /返回厂商列表/);
+  assert.match(settingsPanel, /<ProviderCard item=\{selectedProvider\}/);
   assert.doesNotMatch(settingsPanel, /controller\.(add|edit|delete)Provider/);
   assert.doesNotMatch(settingsFeature, /addProvider|editProvider|deleteProvider|ProviderConnectionDialog|getConfiguredProviders|getProviderDefinition/);
   assert.equal(existsSync(new URL('../renderer/src/app/views/ProviderConnectionDialog.tsx', import.meta.url)), false);
@@ -275,6 +278,6 @@ test('厂商卡片按生成类型展示该厂商的全部内置模型', () => {
   assert.match(settingsPanel, /groupProviderModels\(item\.models\)\.map/);
   assert.match(settingsPanel, /\{label\}[\s\S]*?\{models\.length\}/);
   assert.match(settingsPanel, /MODEL_INPUT_LABELS\[kind\]/);
-  assert.match(settingsPanel, /可用于 Agent[\s\S]*?仅画布使用，Agent 不能选它/);
-  assert.match(settingsStyles, /\.provider-model-chips \{ display: flex; flex-wrap: wrap/);
+  assert.match(settingsPanel, /model\.agentReady \? "可用于 Agent" : "仅画布"/);
+  assert.match(settingsStyles, /\.provider-model-list \{ display: grid; gap: 8px; \}/);
 });

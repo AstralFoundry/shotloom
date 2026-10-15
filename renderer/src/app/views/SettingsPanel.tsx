@@ -279,7 +279,7 @@ function ProviderCard(
   }
   const urlMissing = item.baseUrlRequired && !item.baseUrl.trim();
   return (
-    <div className="provider-card">
+    <section className="provider-detail">
       <div className="provider-card-head">
         <span className="provider-badge">
           <ProviderBrandIcon icon={item.iconId} />
@@ -327,39 +327,35 @@ function ProviderCard(
       <div className="provider-models">
         {groupProviderModels(item.models).map(([label, models]) => (
           <div className="provider-model-group" key={label}>
-            <span className="provider-model-group-label">
-              {label}
-              <i>{models.length}</i>
-            </span>
-            <div className="provider-model-chips">
+            <div className="provider-model-group-label">
+              <strong>{label}</strong>
+              <span>{models.length} 个模型</span>
+            </div>
+            <div className="provider-model-list">
               {models.map((model) => (
-                <span
-                  className="provider-model-chip"
+                <div
+                  className="provider-model-card"
                   key={model.id}
-                  title={[
-                    model.id,
-                    model.inputs.length
-                      ? `接受${model.inputs.map((kind) => MODEL_INPUT_LABELS[kind]).join("、")}输入`
-                      : "",
-                    model.agentReady ? "可用于 Agent" : "仅画布使用，Agent 不能选它",
-                  ].filter(Boolean).join(" · ")}
                 >
-                  <span className="provider-model-name">{model.name}</span>
-                  {model.inputs.map((kind) => (
-                    <span className="provider-model-input" key={kind}>
-                      {MODEL_INPUT_LABELS[kind]}
+                  <div className="provider-model-card-main">
+                    <strong>{model.name}</strong>
+                    <small title={model.id}>{model.id}</small>
+                  </div>
+                  <div className="provider-model-card-meta">
+                    {model.inputs.map((kind) => (
+                      <span className="provider-model-input" key={kind}>{MODEL_INPUT_LABELS[kind]}输入</span>
+                    ))}
+                    <span className={model.agentReady ? "provider-model-agent" : "provider-model-canvas-only"}>
+                      {model.agentReady ? "可用于 Agent" : "仅画布"}
                     </span>
-                  ))}
-                  {!model.agentReady && (
-                    <span className="provider-model-canvas-only">仅画布</span>
-                  )}
-                </span>
+                  </div>
+                </div>
               ))}
             </div>
           </div>
         ))}
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -373,6 +369,9 @@ export function SettingsPanel(
   const [tab, setTab] = useState<Tab>("general");
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null);
+  const selectedProvider = data.providers.find((item) => item.id === selectedProviderId);
+  const contentScroll = useRef<HTMLDivElement>(null);
   const importInput = useRef<HTMLInputElement>(null);
   const meta = groups.flatMap((group) => group.items).find((item) =>
     item.id === tab
@@ -524,6 +523,7 @@ export function SettingsPanel(
                   setTab(item.id);
                   setQuery("");
                   setSelected(new Set());
+                  setSelectedProviderId(null);
                 }}
               >
                 <IconSymbol name={item.icon} />
@@ -543,8 +543,8 @@ export function SettingsPanel(
       <main className="settings-content">
         <header className="settings-content-head">
           <div>
-            <h3>{meta.label}</h3>
-            <p>{meta.description}</p>
+            <h3>{selectedProvider && tab === "providers" ? selectedProvider.name : meta.label}</h3>
+            <p>{selectedProvider && tab === "providers" ? selectedProvider.description : meta.description}</p>
           </div>
           {tab === "canvas" && (
             <button
@@ -589,7 +589,7 @@ export function SettingsPanel(
             </div>
           )}
         </header>
-        <div className="settings-content-scroll">
+        <div className="settings-content-scroll" ref={contentScroll}>
           {tab === "general" && (
             <>
               <section className="settings-section">
@@ -716,21 +716,43 @@ export function SettingsPanel(
           )}
           {tab === "providers" && (
             <section className="settings-section settings-list-section">
-              <div className="settings-catalog-intro">
-                <IconSymbol name="link" />
-                <div>
-                  <strong>厂商与模型已内置在产品中</strong>
-                  <p>填写对应厂商的 API Key 即可使用它的模型；未填写的厂商不会进入模型目录，也不需要在界面上添加厂商或模型。</p>
-                </div>
-                <span>{data.providers.filter((item) => item.configured).length} 个已配置</span>
-              </div>
-              {data.providers.map((item) => (
-                <ProviderCard
-                  key={item.id}
-                  item={item}
-                  onChange={controller.setProviderConfig}
-                />
-              ))}
+              {selectedProvider ? (
+                <>
+                  <button className="provider-back" type="button" onClick={() => {
+                    setSelectedProviderId(null);
+                    if (contentScroll.current) contentScroll.current.scrollTop = 0;
+                  }}>
+                    <IconSymbol name="chevron-left" />返回厂商列表
+                  </button>
+                  <ProviderCard item={selectedProvider} onChange={controller.setProviderConfig} />
+                </>
+              ) : (
+                <>
+                  <div className="provider-list-intro">
+                    <span>选择厂商配置连接并查看模型</span>
+                    <span>{data.providers.filter((item) => item.configured).length} / {data.providers.length} 已配置</span>
+                  </div>
+                  <div className="provider-list">
+                    {data.providers.map((item) => (
+                      <button className="provider-list-row" type="button" key={item.id} onClick={() => {
+                        setSelectedProviderId(item.id);
+                        if (contentScroll.current) contentScroll.current.scrollTop = 0;
+                      }}>
+                        <span className="provider-badge"><ProviderBrandIcon icon={item.iconId} /></span>
+                        <span className="provider-list-copy">
+                          <strong>{item.name}</strong>
+                          <small>{item.description}</small>
+                        </span>
+                        <span className="provider-list-count">{item.models.length} 个模型</span>
+                        <span className={item.configured ? "provider-configured" : "provider-incomplete"}>
+                          <i />{item.configured ? "已配置" : "未配置"}
+                        </span>
+                        <IconSymbol name="chevron-right" />
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
             </section>
           )}
           {tab === "agent" && (
