@@ -124,6 +124,50 @@
   height: 13px;
 }
 
+.textEditProposal {
+  margin-top: 12px;
+  overflow: hidden;
+  border: 1px solid var(--slk-border-strong);
+  border-radius: 10px;
+  background: var(--slk-bg-raised);
+}
+
+.textEditProposalHeader {
+  display: flex;
+  justify-content: space-between;
+  padding: 9px 11px;
+  border-bottom: 1px solid var(--slk-border-subtle);
+  color: var(--slk-label-secondary);
+  font-size: 11px;
+}
+
+.textEditProposalHeader span {
+  color: var(--slk-label-caption);
+}
+
+.textEditProposal pre {
+  max-height: 180px;
+  margin: 0;
+  padding: 10px 11px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--slk-label-primary);
+  font: 12px/1.6 var(--slk-font-family);
+}
+
+.textEditProposal > button {
+  width: calc(100% - 22px);
+  margin: 0 11px 10px;
+  border: 0;
+  border-radius: 7px;
+  padding: 7px 10px;
+  color: var(--slk-on-accent);
+  background: var(--slk-accent);
+  font: 600 11px/1 var(--slk-font-family);
+  cursor: pointer;
+}
+
 @media (hover: hover) {
   .jump:hover {
     color: var(--slk-label-primary);

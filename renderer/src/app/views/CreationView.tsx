@@ -44,7 +44,7 @@ export interface CreationViewController {
   copilot: AgentController & {
     subscribe: (listener: () => void) => () => void;
     getRevision: () => number;
-    read: (scope?: "canvas" | "editor", editorNodeId?: string) => CreationCopilotData;
+    read: (scope?: "canvas" | "editor" | "text", editorNodeId?: string, preferredConversationId?: string) => CreationCopilotData;
     openVideoEditorConversation?: (nodeId: string) => void;
   };
   applyMaterial: (item: MaterialItem, scope: "library" | "local" | "files") => void | Promise<void>;

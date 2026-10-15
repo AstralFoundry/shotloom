@@ -37,6 +37,12 @@ export interface AgentChatPanelProps {
   textModel: string;
   textModels: TextModelOption[];
   controller: AgentController;
+  textEdit?: TextEditPresentation;
+}
+
+export interface TextEditPresentation {
+  onApply: (replacement: string) => void;
+  hasSelection: (message: AgentMessage) => boolean;
 }
 
 export const AgentChatPanel = forwardRef<AgentPanelHandle, AgentChatPanelProps>(
@@ -147,6 +153,7 @@ export const AgentChatPanel = forwardRef<AgentPanelHandle, AgentChatPanelProps>(
             clarificationAnswers={clarificationAnswers}
             setClarificationAnswers={setClarificationAnswers}
             controller={controller}
+            textEdit={props.textEdit}
           />
           {unread > 0 && (
             <button

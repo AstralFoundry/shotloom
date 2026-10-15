@@ -414,8 +414,8 @@ export function ReactWorkbench() {
             getRevision: getCopilotRevision,
             // 作用域参数必须透传给 copilotData：剪辑面板按 editorNodeId 读自己的会话，
             // 丢弃参数会让两个面板读到同一个作用域。
-            read: (scope: "canvas" | "editor" = "canvas", editorNodeId = "") =>
-              copilotData(scope, editorNodeId),
+            read: (scope: "canvas" | "editor" | "text" = "canvas", editorNodeId = "", preferredConversationId = "") =>
+              copilotData(scope, editorNodeId, preferredConversationId),
           },
           async applyMaterial(item) {
             await canvasCommands.applyMaterial(item);

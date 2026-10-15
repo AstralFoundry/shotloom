@@ -13,6 +13,7 @@ import { ArtifactList } from "./ArtifactList";
 import { ReferenceCard } from "./ReferenceCard";
 import { ClarificationCard } from "./ClarificationCard";
 import type { AgentController, AgentMessage } from "./contracts";
+import type { TextEditPresentation } from "./AgentChatPanel";
 import styles from "./Transcript.module.css";
 
 interface TranscriptProps {
@@ -27,6 +28,7 @@ interface TranscriptProps {
     next: (current: Record<string, Record<string, string[]>>) => Record<string, Record<string, string[]>>,
   ) => void;
   controller: AgentController;
+  textEdit?: TextEditPresentation;
 }
 
 export function Transcript({
@@ -39,6 +41,7 @@ export function Transcript({
   clarificationAnswers,
   setClarificationAnswers,
   controller,
+  textEdit,
 }: TranscriptProps) {
   // 底部提示只补“还没有任何可见反馈”的空档（消息排队、占位消息尚未建立）。
   // 一旦有正在流式的助手消息，思考中、正文或工具轨迹本身就是反馈，不能再叠一行。
@@ -57,6 +60,7 @@ export function Transcript({
             clarificationAnswers={clarificationAnswers}
             setClarificationAnswers={setClarificationAnswers}
             controller={controller}
+            textEdit={textEdit}
           />
         ))
       ) : (
@@ -111,6 +115,7 @@ function MessageRow({
   clarificationAnswers,
   setClarificationAnswers,
   controller,
+  textEdit,
 }: {
   message: PresentedAgentMessage;
   next?: PresentedAgentMessage;
@@ -120,6 +125,7 @@ function MessageRow({
   clarificationAnswers: Record<string, Record<string, string[]>>;
   setClarificationAnswers: TranscriptProps["setClarificationAnswers"];
   controller: AgentController;
+  textEdit?: TextEditPresentation;
 }) {
   const isUser = message.role === "user";
   const pendingQuestions = message.clarifications?.filter((question) => !question.answered) || [];
@@ -160,10 +166,8 @@ function MessageRow({
             controller={controller}
           />
           {message.content && (
-            <div
-              className={styles.markdown}
-              dangerouslySetInnerHTML={{ __html: messageMarkdown(message) }}
-            />
+            textEdit ? <TextEditAnswer message={message} textEdit={textEdit} /> :
+              <div className={styles.markdown} dangerouslySetInnerHTML={{ __html: messageMarkdown(message) }} />
           )}
           {!!message.meta?.length && (
             <div className={styles.meta}>
@@ -209,6 +213,26 @@ function MessageRow({
       )}
     </article>
   );
+}
+
+function TextEditAnswer({ message, textEdit }: { message: AgentMessage; textEdit: TextEditPresentation }) {
+  let answer: { summary?: string; replacement?: string | null } | null = null;
+  try {
+    const parsed = JSON.parse(String(message.content || '').trim());
+    if (parsed && typeof parsed === 'object') answer = parsed;
+  } catch { /* 兼容模型偶尔返回的普通说明 */ }
+  if (!answer || typeof answer.summary !== 'string') {
+    return <div className={styles.markdown} dangerouslySetInnerHTML={{ __html: messageMarkdown(message) }} />;
+  }
+  const replacement = typeof answer.replacement === 'string' ? answer.replacement : '';
+  return <>
+    <div className={styles.markdown}>{answer.summary}</div>
+    {replacement && <div className={styles.textEditProposal}>
+      <div className={styles.textEditProposalHeader}><strong>{textEdit.hasSelection(message) ? '选区修改稿' : '全文修改稿'}</strong><span>{replacement.length} 字</span></div>
+      <pre>{replacement}</pre>
+      <button type="button" onClick={() => textEdit.onApply(replacement)}>应用到文本</button>
+    </div>}
+  </>;
 }
 
 function UserBody({ html }: { html: string }) {
