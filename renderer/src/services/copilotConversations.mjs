@@ -62,8 +62,19 @@ export function scopedCopilotConversations(project, scope = 'canvas', editorNode
     return conversations.filter((item) => String(item.editorNodeId || '') === nodeId);
   }
   return conversations
-    .filter((item) => !item.editorNodeId)
+    .filter((item) => !item.editorNodeId && !item.textNodeId)
     .sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')));
+}
+
+export function textCopilotConversation(project, textNodeId) {
+  const nodeId = String(textNodeId || '');
+  if (!nodeId) return null;
+  const conversations = ensureCopilotConversations(project);
+  const existing = conversations.find((item) => item.textNodeId === nodeId && item.agentId === 'text-primary');
+  if (existing) return existing;
+  const conversation = createCopilotConversation(project, { title: '文本 Agent', agentId: 'text-primary' });
+  conversation.textNodeId = nodeId;
+  return conversation;
 }
 
 // 画布作用域的活动会话。画布面板必须始终落在画布会话上：即使项目级指针指向剪辑会话，

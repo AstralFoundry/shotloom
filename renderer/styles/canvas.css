@@ -142,6 +142,9 @@
 }
 .canvas-node-selection-toolbar .canvas-node-toolbar-editor svg { width: 20px; height: 20px; }
 .canvas-node-toolbar-label { padding: 0 9px 0 7px; color: #3f4650; font-size: 12px; font-weight: 550; line-height: 30px; white-space: nowrap; }
+.canvas-node-selection-toolbar .canvas-node-toolbar-text-agent { color: #6557b4; background: #f2efff; }
+.canvas-node-selection-toolbar .canvas-node-toolbar-text-agent:hover { color: #514398; background: #e9e3ff; }
+.canvas-node-toolbar-text-agent svg { width: 14px; height: 14px; }
 .canvas-node-toolbar-divider { width: 1px; height: 18px; margin: 0 3px; background: rgba(31, 41, 55, .12); }
 .canvas-node-asset-action { position: relative; display: flex; }
 .canvas-node-selection-toolbar .canvas-node-asset-chevron {

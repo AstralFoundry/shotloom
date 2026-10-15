@@ -10,6 +10,7 @@ import {
   canvasCopilotConversation,
   editorCopilotConversation,
   scopedCopilotConversations,
+  textCopilotConversation,
 } from '../renderer/src/services/copilotConversations.mjs';
 
 test('清空会话同时丢弃模型可见历史', () => {
@@ -22,6 +23,20 @@ test('清空会话同时丢弃模型可见历史', () => {
 
   assert.deepEqual(active.messages, []);
   assert.equal(active.runtimeTranscript, undefined, '界面清空后模型也必须不再记得上一轮');
+});
+
+test('文本节点拥有独立 Agent 会话，画布列表不混入文本对话', () => {
+  const project = {};
+  const canvas = getActiveCopilotConversation(project);
+  const first = textCopilotConversation(project, 'text-a');
+  const same = textCopilotConversation(project, 'text-a');
+  const other = textCopilotConversation(project, 'text-b');
+
+  assert.equal(first, same);
+  assert.notEqual(first.id, other.id);
+  assert.equal(first.agentId, 'text-primary');
+  assert.deepEqual(scopedCopilotConversations(project, 'canvas').map((item) => item.id), [canvas.id]);
+  assert.equal(canvasCopilotConversation(project).id, canvas.id);
 });
 
 test('empty project gets one canonical conversation', () => {

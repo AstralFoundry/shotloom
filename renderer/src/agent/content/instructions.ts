@@ -1,7 +1,8 @@
 import { settingsStore } from '@/store/settingsStore';
-import { EDITOR_AGENT_ID } from '../agents/definitions.ts';
+import { EDITOR_AGENT_ID, TEXT_AGENT_ID } from '../agents/definitions.ts';
 import { contractsForAgentType, formatContractsBlock } from './contractLoader';
 import systemBasePrompt from './prompts/system-base.md?raw';
+import textAgentPrompt from './prompts/text-agent.md?raw';
 import type { AgentToolContext, JsonObject } from '../core/types';
 
 /**
@@ -14,6 +15,7 @@ export function buildAgentSystemPrompt(
   context: AgentToolContext,
   runtimeModelContract: string,
 ): string {
+  if (context.agentId === TEXT_AGENT_ID) return textAgentPrompt;
   const canRunNodes = settingsStore.agentCanRunNodes === true;
   const contracts = formatContractsBlock(contractsForAgentType(context.agentId));
   const base = systemBasePrompt

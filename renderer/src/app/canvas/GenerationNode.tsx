@@ -325,6 +325,7 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({
         kind: "text",
         title: String(node.title || "文本详情"),
         filePath: String(selectedOutput?.filePath || ""),
+        textNodeId: node.id,
         onSave: (content) => {
           actions.update(node.id, {
             textContent: content,
