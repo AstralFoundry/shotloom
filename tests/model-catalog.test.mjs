@@ -98,7 +98,7 @@ test('GPT Image 2 用真实 size 参数提供统一比例选项', () => {
   }
 });
 
-test('像素尺寸只作为协议值，界面展示比例或清晰度标签', () => {
+test('像素尺寸只作为协议值，界面展示不含英文字母的比例标签', () => {
   const pixelSize = /^\d+[x*]\d+$/;
   for (const model of catalog.models) {
     for (const mode of model.modes) {
@@ -108,13 +108,15 @@ test('像素尺寸只作为协议值，界面展示比例或清晰度标签', ()
         if (!pixelSize.test(String(value))) continue;
         assert.ok(param.optionLabels?.[value], `${model.id}/${mode.id}/${value} 缺少展示标签`);
         assert.doesNotMatch(optionLabel(param, value), pixelSize);
+        assert.doesNotMatch(optionLabel(param, value), /[a-z]/i);
       }
     }
   }
   const video = catalog.models.find((item) => item.id === 'starrouter-grok-imagine-video');
   const mode = video.modes[0];
   const size = mode.params.find((item) => item.key === 'size');
-  assert.equal(size.optionLabels['1280x720'], '16:9 · 720p');
+  assert.equal(size.optionLabels['1280x720'], '16:9');
+  assert.equal(size.optionLabels['720x1280'], '9:16');
   assert.equal(renderProtocolTemplate(mode.requestTemplate, {
     model: video.upstreamModel,
     prompt: 'test',
