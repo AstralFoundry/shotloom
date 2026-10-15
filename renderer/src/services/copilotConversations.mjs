@@ -57,9 +57,6 @@ export function getActiveCopilotConversation(project) {
 export function scopedCopilotConversations(project, scope = 'canvas', editorNodeId = '') {
   const conversations = ensureCopilotConversations(project);
   const nodeId = String(editorNodeId || '');
-  if (scope === 'text') {
-    return conversations.filter((item) => String(item.textNodeId || '') === nodeId && item.agentId === 'text-primary');
-  }
   if (scope === 'editor') {
     if (!nodeId) return [];
     return conversations.filter((item) => String(item.editorNodeId || '') === nodeId);
@@ -69,12 +66,11 @@ export function scopedCopilotConversations(project, scope = 'canvas', editorNode
     .sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')));
 }
 
-export function textCopilotConversation(project, textNodeId, preferredId = '') {
+export function textCopilotConversation(project, textNodeId) {
   const nodeId = String(textNodeId || '');
   if (!nodeId) return null;
   const conversations = ensureCopilotConversations(project);
-  const existing = conversations.find((item) => item.id === preferredId && item.textNodeId === nodeId && item.agentId === 'text-primary')
-    || conversations.find((item) => item.textNodeId === nodeId && item.agentId === 'text-primary');
+  const existing = conversations.find((item) => item.textNodeId === nodeId && item.agentId === 'text-primary');
   if (existing) return existing;
   const conversation = createCopilotConversation(project, { title: '文本 Agent', agentId: 'text-primary' });
   conversation.textNodeId = nodeId;

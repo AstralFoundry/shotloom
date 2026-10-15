@@ -393,14 +393,6 @@
 .text-agent-send { display: grid; place-items: center; flex: none; width: 29px; height: 29px; border: 0; border-radius: 50%; color: #fff; background: #6d60c5; cursor: pointer; }
 .text-agent-send:disabled { background: #c4c3cf; cursor: default; }
 .text-agent-send svg { width: 15px; height: 15px; }
-.text-agent-existing-ui { display: flex; flex-direction: column; min-width: 0; min-height: 0; height: 100%; }
-.text-agent-context-bar { display: flex; align-items: center; gap: 8px; min-height: 38px; padding: 0 14px; border-bottom: 1px solid #eeeef2; color: #666576; background: #fff; font: 11px/1 -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; }
-.text-agent-context-bar > span { display: inline-flex; align-items: center; gap: 5px; color: #6255ae; font-weight: 650; }
-.text-agent-context-bar svg { width: 13px; height: 13px; }
-.text-agent-context-bar button { border: 0; border-radius: 5px; padding: 5px 7px; color: #7164b3; background: #f4f1ff; font: inherit; cursor: pointer; }
-.text-agent-context-bar button:hover { background: #ebe7ff; }
-.text-agent-context-bar em { min-width: 0; max-width: 220px; overflow: hidden; color: #9997a7; font-size: 10px; font-style: normal; text-overflow: ellipsis; white-space: nowrap; }
-.text-agent-existing-ui > .text-agent-revision { display: none; }
 .text-version-panel { display: flex; flex-direction: column; min-width: 0; height: 100%; overflow: hidden; border-left: 1px solid #eceeea; color: #343a34; background: #fbfcfa; font: 12px/1.5 -apple-system, BlinkMacSystemFont, sans-serif; }
 .text-version-heading { display: flex; justify-content: space-between; align-items: baseline; padding: 17px 16px 12px; }
 .text-version-heading strong { font-size: 13px; }

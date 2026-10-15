@@ -14,7 +14,6 @@ import {
   createCopilotConversation,
   deleteCopilotConversation,
   editorCopilotConversation,
-  textCopilotConversation,
   getActiveCopilotConversation,
   scopedCopilotConversations,
   switchCopilotConversation,
@@ -181,16 +180,11 @@ function patchConversationMessage(conversationId: string, id: string, patch: Loo
   notify();
 }
 
-export function copilotData(scope: 'canvas' | 'editor' | 'text' = 'canvas', editorNodeId = '', preferredConversationId = '') {
+export function copilotData(scope: 'canvas' | 'editor' = 'canvas', editorNodeId = '') {
   const scoped = scopedCopilotConversations(store.project, scope, editorNodeId) as Loose[];
   const conversation = scope === 'editor'
     ? editorCopilotConversation(store.project, editorNodeId)
-    : scope === 'text'
-      ? textCopilotConversation(store.project, editorNodeId, preferredConversationId)
-      : canvasCopilotConversation(store.project);
-  if (!conversation) return {
-    messages: [], conversations: [], activeConversationId: '', busy, textModel: '', textModels: availableTextModels(),
-  };
+    : canvasCopilotConversation(store.project);
   const interactionList = listAgentInteractions();
   const interactions = new Map(interactionList.map((item) => [item.id, item]));
   for (const message of conversation.messages as Loose[]) {
