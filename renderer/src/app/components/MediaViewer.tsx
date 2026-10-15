@@ -14,7 +14,6 @@ import { IconSymbol } from "./IconSymbol";
 import { showToast, useOverlayStore } from "../store/overlayStore";
 import { markdownToRichHtml, richHtmlToMarkdown } from "../../utils/richTextMarkdown.mjs";
 import { diffTextLines } from "../../utils/textVersionDiff.mjs";
-import { TextAgentPanel, type TextEditSnapshot } from "./TextAgentPanel";
 
 const MIN_ZOOM = .5, MAX_ZOOM = 5, STEP = .25;
 function formatMediaTime(value: number) {
@@ -33,7 +32,6 @@ export function MediaViewer() {
   const [textDraft, setTextDraft] = useState("");
   const [textSearchOpen, setTextSearchOpen] = useState(false);
   const [textSearch, setTextSearch] = useState("");
-  const [textAgentOpen, setTextAgentOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyCompare, setHistoryCompare] = useState(false);
   const [historyIndex, setHistoryIndex] = useState(0);
@@ -78,7 +76,6 @@ export function MediaViewer() {
       setRenamingId("");
       setTextSearchOpen(false);
       setTextSearch("");
-      setTextAgentOpen(media.openTextAgent && Boolean(media.textNodeId && media.onSave));
       requestAnimationFrame(() => {
         if (textEditor.current) textEditor.current.innerHTML = markdownToRichHtml(media.src);
       });
@@ -219,37 +216,6 @@ export function MediaViewer() {
   function syncRichText() {
     setTextDraft(currentMarkdown());
   }
-  function captureTextEdit(): TextEditSnapshot {
-    const editor = textEditor.current;
-    const selection = window.getSelection();
-    const range = selection?.rangeCount ? selection.getRangeAt(0) : null;
-    const inside = Boolean(editor && range && editor.contains(range.commonAncestorContainer));
-    return {
-      source: currentMarkdown(),
-      selection: inside ? range!.toString() : "",
-      range: inside && !range!.collapsed ? range!.cloneRange() : null,
-    };
-  }
-  function applyTextEdit(replacement: string, snapshot: TextEditSnapshot): boolean {
-    const editor = textEditor.current;
-    if (!editor || currentMarkdown() !== snapshot.source) return false;
-    if (snapshot.selection) {
-      const range = snapshot.range;
-      if (!range || !editor.contains(range.commonAncestorContainer) || range.toString() !== snapshot.selection) return false;
-      range.deleteContents();
-      range.insertNode(document.createTextNode(replacement));
-      editor.normalize();
-    } else editor.innerHTML = markdownToRichHtml(replacement);
-    const next = currentMarkdown();
-    setTextDraft(next);
-    media.onSave?.(next);
-    savedText.current = next;
-    const versions = media.getTextVersions?.() || [];
-    setTextVersions(versions);
-    setHistoryIndex(Math.max(0, versions.length - 1));
-    showToast("修改稿已应用并保存");
-    return true;
-  }
   function editCommand(command: string, value?: string) {
     textEditor.current?.focus();
     document.execCommand(command, false, value);
@@ -320,8 +286,7 @@ export function MediaViewer() {
               <button title="插入表格" className="text-format-table" onMouseDown={(event) => { event.preventDefault(); insertTable(); }}>▦</button>
             </div>
             <div className="text-editor-actions">
-              {media.textNodeId && media.onSave && <button className="text-agent-toggle" title="文本 Agent" aria-label="文本 Agent" aria-pressed={textAgentOpen} onClick={() => { setTextAgentOpen((value) => !value); setHistoryOpen(false); }}><IconSymbol name="spark" /><span>文本 Agent</span></button>}
-              {media.getTextVersions && <button title="版本历史" aria-label="版本历史" aria-pressed={historyOpen} onClick={() => { setHistoryOpen((value) => !value); setTextAgentOpen(false); }}><IconSymbol name="refresh" /></button>}
+              {media.getTextVersions && <button title="版本历史" aria-label="版本历史" aria-pressed={historyOpen} onClick={() => setHistoryOpen((value) => !value)}><IconSymbol name="refresh" /></button>}
               {textSearchOpen && (
                 <input
                   autoFocus
@@ -378,7 +343,6 @@ export function MediaViewer() {
         }${panning ? " panning" : ""}${
           media.kind === "text" ? " is-text" : ""
         }${historyOpen && media.kind === "text" ? " is-history-open" : ""
-        }${textAgentOpen && media.kind === "text" ? " is-agent-open" : ""
         }`}
         onWheel={(event: WheelEvent<HTMLElement>) => {
           if (media.kind === "image") {
@@ -473,7 +437,6 @@ export function MediaViewer() {
             </> : <p className="text-version-empty">编辑并保存后，版本会显示在这里。</p>}
           </aside>
         )}
-        {media.kind === "text" && textAgentOpen && media.textNodeId && media.onSave && <TextAgentPanel nodeId={media.textNodeId} capture={captureTextEdit} apply={applyTextEdit} />}
       </main>
       <footer className="media-viewer-hint">
         {media.kind !== "text" ? (

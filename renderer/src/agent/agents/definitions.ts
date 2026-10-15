@@ -87,16 +87,6 @@ export const AGENT_DEFINITIONS: AgentDefinition[] = [
     dispatch: [],
   },
   {
-    id: 'text-primary',
-    role: 'primary',
-    title: '文本 Agent',
-    description: 'Focused writing and revision assistant for one text node',
-    effects: ['read', 'agent_state_write'],
-    tools: [...toolOutputReadTools],
-    skills: [],
-    dispatch: [],
-  },
-  {
     id: 'production-planner',
     role: 'subagent',
     title: '制作规划',
@@ -159,4 +149,3 @@ export function agentTitle(agentId: string): string {
 /** 两个主 Agent 的 id 会被会话层和适配层引用，集中在这里避免各处再写字面量。 */
 export const CANVAS_AGENT_ID = 'canvas-primary';
 export const EDITOR_AGENT_ID = 'editor-primary';
-export const TEXT_AGENT_ID = 'text-primary';

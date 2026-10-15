@@ -182,14 +182,12 @@ export function CanvasNodeToolbar({
     };
   }, [assetScopeMenuOpen, assetPlacementRevision, canvasOverlayRoot]);
 
-  function openTextDetail(openTextAgent = false) {
+  function openTextDetail() {
     openMediaViewer({
       src: textContent,
       kind: "text",
       title: String(node.title || "文本详情"),
       filePath: String(currentTextOutput?.filePath || ""),
-      textNodeId: node.id,
-      openTextAgent,
       onSave: (content) => {
         actions.update(node.id, {
           textContent: content,
@@ -221,9 +219,6 @@ export function CanvasNodeToolbar({
           {isTextNode && (
             <>
               <span className="canvas-node-toolbar-label">文本节点</span>
-              <button type="button" className="canvas-node-toolbar-text-agent" title="用文本 Agent 编辑" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); openTextDetail(true); }}>
-                <IconSymbol name="spark" /><span>文本 Agent</span>
-              </button>
               <button
                 className="canvas-node-toolbar-icon"
                 type="button"

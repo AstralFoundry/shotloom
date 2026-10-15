@@ -6,8 +6,6 @@ interface MediaPayload {
   kind?: MediaKind;
   title?: string;
   filePath?: string;
-  textNodeId?: string;
-  openTextAgent?: boolean;
   onSave?: (text: string) => void;
   getTextVersions?: () => Array<{ id: string; content: string; createdAt: string; name?: string }>;
   onRenameVersion?: (id: string, name: string) => boolean;
@@ -23,8 +21,6 @@ interface OverlayState {
     kind: MediaKind;
     title: string;
     filePath: string;
-    textNodeId: string;
-    openTextAgent: boolean;
     onSave: ((text: string) => void) | null;
     getTextVersions: (() => Array<{ id: string; content: string; createdAt: string; name?: string }>) | null;
     onRenameVersion: ((id: string, name: string) => boolean) | null;
@@ -47,8 +43,6 @@ export const useOverlayStore = create<OverlayState>((set, get) => ({
     kind: "image",
     title: "",
     filePath: "",
-    textNodeId: "",
-    openTextAgent: false,
     onSave: null,
     getTextVersions: null,
     onRenameVersion: null,
@@ -74,8 +68,6 @@ export const useOverlayStore = create<OverlayState>((set, get) => ({
         kind,
         title: String(payload.title || "媒体预览"),
         filePath: String(payload.filePath || ""),
-        textNodeId: String(payload.textNodeId || ""),
-        openTextAgent: payload.openTextAgent === true,
         onSave: payload.onSave || null,
         getTextVersions: payload.getTextVersions || null,
         onRenameVersion: payload.onRenameVersion || null,
