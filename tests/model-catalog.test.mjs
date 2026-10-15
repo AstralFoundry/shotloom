@@ -124,6 +124,29 @@ test('像素尺寸只作为协议值，界面展示不含英文字母的比例�
   }).size, '720x1280', '展示标签不得改变供应商 size 字段');
 });
 
+test('StarRouter 图片参数显示中文，接口仍使用原始枚举值', () => {
+  for (const id of ['starrouter-gpt-image-2', 'starrouter-gpt-image-2-t8']) {
+    const model = catalog.models.find((item) => item.id === id);
+    for (const mode of model.modes) {
+      for (const key of ['quality', 'background', 'outputFormat']) {
+        const param = mode.params.find((item) => item.key === key);
+        for (const value of param.options) {
+          assert.match(optionLabel(param, value), /[\u4e00-\u9fff]/);
+          assert.doesNotMatch(optionLabel(param, value), /[a-z]/i);
+        }
+      }
+      const request = renderProtocolTemplate(mode.requestTemplate, {
+        model: model.upstreamModel,
+        prompt: '测试',
+        params: { quality: 'medium', background: 'transparent', outputFormat: 'webp' },
+      });
+      assert.equal(request.quality, 'medium');
+      assert.equal(request.background, 'transparent');
+      assert.equal(request.output_format, 'webp');
+    }
+  }
+});
+
 test('StarRouter 内置模型使用上游真实模型 ID 和已声明的图片编辑能力', () => {
   const text = catalog.models.find((item) => item.id === 'starrouter-gpt-5.4');
   assert.equal(text.provider, 'starrouter');

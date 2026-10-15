@@ -132,7 +132,13 @@
                 "low",
                 "medium",
                 "high"
-              ]
+              ],
+              "optionLabels": {
+                "auto": "自动",
+                "low": "低",
+                "medium": "中",
+                "high": "高"
+              }
             },
             {
               "key": "background",
@@ -143,7 +149,12 @@
                 "auto",
                 "opaque",
                 "transparent"
-              ]
+              ],
+              "optionLabels": {
+                "auto": "自动",
+                "opaque": "不透明",
+                "transparent": "透明"
+              }
             },
             {
               "key": "outputFormat",
@@ -154,7 +165,12 @@
                 "png",
                 "jpeg",
                 "webp"
-              ]
+              ],
+              "optionLabels": {
+                "png": "无损格式",
+                "jpeg": "照片格式",
+                "webp": "网页格式"
+              }
             },
             {
               "key": "generationCount",
@@ -258,7 +274,13 @@
                 "low",
                 "medium",
                 "high"
-              ]
+              ],
+              "optionLabels": {
+                "auto": "自动",
+                "low": "低",
+                "medium": "中",
+                "high": "高"
+              }
             },
             {
               "key": "background",
@@ -269,7 +291,12 @@
                 "auto",
                 "opaque",
                 "transparent"
-              ]
+              ],
+              "optionLabels": {
+                "auto": "自动",
+                "opaque": "不透明",
+                "transparent": "透明"
+              }
             },
             {
               "key": "outputFormat",
@@ -280,7 +307,12 @@
                 "png",
                 "jpeg",
                 "webp"
-              ]
+              ],
+              "optionLabels": {
+                "png": "无损格式",
+                "jpeg": "照片格式",
+                "webp": "网页格式"
+              }
             },
             {
               "key": "generationCount",
@@ -740,7 +772,13 @@
                 "low",
                 "medium",
                 "high"
-              ]
+              ],
+              "optionLabels": {
+                "auto": "自动",
+                "low": "低",
+                "medium": "中",
+                "high": "高"
+              }
             },
             {
               "key": "background",
@@ -751,7 +789,12 @@
                 "auto",
                 "opaque",
                 "transparent"
-              ]
+              ],
+              "optionLabels": {
+                "auto": "自动",
+                "opaque": "不透明",
+                "transparent": "透明"
+              }
             },
             {
               "key": "outputFormat",
@@ -762,7 +805,12 @@
                 "png",
                 "jpeg",
                 "webp"
-              ]
+              ],
+              "optionLabels": {
+                "png": "无损格式",
+                "jpeg": "照片格式",
+                "webp": "网页格式"
+              }
             },
             {
               "key": "generationCount",
@@ -866,7 +914,13 @@
                 "low",
                 "medium",
                 "high"
-              ]
+              ],
+              "optionLabels": {
+                "auto": "自动",
+                "low": "低",
+                "medium": "中",
+                "high": "高"
+              }
             },
             {
               "key": "background",
@@ -877,7 +931,12 @@
                 "auto",
                 "opaque",
                 "transparent"
-              ]
+              ],
+              "optionLabels": {
+                "auto": "自动",
+                "opaque": "不透明",
+                "transparent": "透明"
+              }
             },
             {
               "key": "outputFormat",
@@ -888,7 +947,12 @@
                 "png",
                 "jpeg",
                 "webp"
-              ]
+              ],
+              "optionLabels": {
+                "png": "无损格式",
+                "jpeg": "照片格式",
+                "webp": "网页格式"
+              }
             },
             {
               "key": "generationCount",
