@@ -1,3 +1,4 @@
+import { loadModelCatalog } from './helpers/modelCatalog.mjs';
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import test from 'node:test';
@@ -7,7 +8,7 @@ import {
   runningHubTaskState,
 } from '../renderer/src/utils/runningHubWorkflow.mjs';
 
-const catalog = JSON.parse(readFileSync(new URL('../renderer/src/config/model-catalog-v2.json', import.meta.url), 'utf8'));
+const catalog = loadModelCatalog();
 const template = JSON.parse(readFileSync(new URL('../renderer/src/config/runninghub-minimax-h3-workflow.json', import.meta.url), 'utf8'));
 const adaptersIndexSource = readFileSync(new URL('../renderer/src/domain/provider/adapters/index.ts', import.meta.url), 'utf8');
 const adapterSource = readFileSync(new URL('../renderer/src/domain/provider/adapters/runninghub.ts', import.meta.url), 'utf8');

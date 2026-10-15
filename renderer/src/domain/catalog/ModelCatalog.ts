@@ -1,11 +1,11 @@
 /**
  * ModelCatalog — 模型目录 v2 解析与查询。
  *
- * 框架无关的纯 TypeScript 模块。model-catalog-v2.json 是唯一模型能力来源。
+ * 框架无关的纯 TypeScript 模块。模型能力只来自 model-catalog-v2/ 的厂商文件。
  * 不依赖 Vue、Vue Flow 或任何 Store。
  */
 
-import modelCatalogV2 from '../../config/model-catalog-v2.json';
+import { modelCatalogV2 } from '../../config/model-catalog-v2/index';
 import {
   GENERATION_INPUT_MODE_LABELS,
   slotsForInputMode,
@@ -433,8 +433,8 @@ class ModelCatalog {
   private modelMap: Map<string, CatalogModel>;
 
   constructor() {
-    const raw = modelCatalogV2 as { version: number; models: CatalogModel[] };
-    if (raw.version !== 2) throw new Error('model-catalog-v2.json version must be 2');
+    const raw = modelCatalogV2 as unknown as { version: number; models: CatalogModel[] };
+    if (raw.version !== 2) throw new Error('模型目录 version 必须为 2');
     this.models = (raw.models || []).filter((m) => m.enabled !== false);
 
     // 目录声明与运行时消费同一份客观执行契约；一条声明不完整就不能启动。

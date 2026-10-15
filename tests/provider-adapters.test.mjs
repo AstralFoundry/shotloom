@@ -1,3 +1,4 @@
+import { loadModelCatalog } from './helpers/modelCatalog.mjs';
 /**
  * 厂商适配器注册表契约：厂商与模型只能来自代码登记。
  *
@@ -11,10 +12,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createServer } from 'vite';
 
-const catalogJson = JSON.parse(readFileSync(
-  new URL('../renderer/src/config/model-catalog-v2.json', import.meta.url),
-  'utf8',
-));
+const catalogJson = loadModelCatalog();
 
 let server;
 let getProviderAdapter;

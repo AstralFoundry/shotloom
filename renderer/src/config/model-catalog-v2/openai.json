@@ -1,0 +1,542 @@
+{
+  "provider": "openai",
+  "models": [
+    {
+      "id": "gpt-5.6",
+      "name": "GPT 5.6",
+      "provider": "openai",
+      "type": "textGeneration",
+      "sortOrder": 1,
+      "enabled": true,
+      "defaultMode": "text-generation",
+      "modes": [
+        {
+          "id": "text-generation",
+          "label": "文本生成",
+          "endpoint": {
+            "method": "POST",
+            "path": "/chat/completions",
+            "scope": "root"
+          },
+          "inputConstraints": {
+            "text": {
+              "maxTokens": 1000000
+            }
+          },
+          "agent": {
+            "transport": "openai-responses",
+            "supportsTools": true,
+            "endpoint": {
+              "method": "POST",
+              "path": "/responses",
+              "scope": "root"
+            }
+          },
+          "outputConstraints": {
+            "supportsStreaming": true,
+            "supportsStructuredOutput": true,
+            "maxTokens": 16384
+          },
+          "capabilities": [
+            "reasoning"
+          ],
+          "params": [
+            {
+              "key": "maxTokens",
+              "label": "最大长度",
+              "type": "select",
+              "default": 8192,
+              "numeric": true,
+              "options": [
+                4096,
+                8192,
+                16384
+              ]
+            }
+          ],
+          "auth": {
+            "type": "bearer"
+          },
+          "requestTemplate": {
+            "model": "{{model}}",
+            "messages": "{{messages}}",
+            "max_completion_tokens": "{{params.maxTokens}}",
+            "reasoning_effort": "{{reasoningEffort}}",
+            "tools": "{{tools}}",
+            "tool_choice": "{{toolChoice}}"
+          },
+          "resultTextPath": "choices.0.message.content"
+        },
+        {
+          "id": "semantic-split",
+          "label": "语义拆分",
+          "endpoint": {
+            "method": "POST",
+            "path": "/chat/completions",
+            "scope": "root"
+          },
+          "inputConstraints": {
+            "text": {
+              "maxTokens": 1000000
+            }
+          },
+          "agent": {
+            "transport": "openai-responses",
+            "supportsTools": true,
+            "endpoint": {
+              "method": "POST",
+              "path": "/responses",
+              "scope": "root"
+            }
+          },
+          "outputConstraints": {
+            "supportsStreaming": true,
+            "supportsStructuredOutput": true,
+            "maxTokens": 16384
+          },
+          "capabilities": [
+            "structured-output"
+          ],
+          "params": [
+            {
+              "key": "maxTokens",
+              "label": "最大长度",
+              "type": "select",
+              "default": 8192,
+              "numeric": true,
+              "options": [
+                4096,
+                8192,
+                16384
+              ]
+            }
+          ],
+          "auth": {
+            "type": "bearer"
+          },
+          "requestTemplate": {
+            "model": "{{model}}",
+            "messages": "{{messages}}",
+            "max_completion_tokens": "{{params.maxTokens}}",
+            "reasoning_effort": "{{reasoningEffort}}",
+            "tools": "{{tools}}",
+            "tool_choice": "{{toolChoice}}"
+          },
+          "resultTextPath": "choices.0.message.content"
+        },
+        {
+          "id": "storyboard-generation",
+          "label": "分镜生成",
+          "endpoint": {
+            "method": "POST",
+            "path": "/chat/completions",
+            "scope": "root"
+          },
+          "inputConstraints": {
+            "text": {
+              "maxTokens": 1000000
+            }
+          },
+          "agent": {
+            "transport": "openai-responses",
+            "supportsTools": true,
+            "endpoint": {
+              "method": "POST",
+              "path": "/responses",
+              "scope": "root"
+            }
+          },
+          "outputConstraints": {
+            "supportsStreaming": true,
+            "supportsStructuredOutput": true,
+            "maxTokens": 16384
+          },
+          "capabilities": [
+            "structured-output"
+          ],
+          "params": [
+            {
+              "key": "maxTokens",
+              "label": "最大长度",
+              "type": "select",
+              "default": 8192,
+              "numeric": true,
+              "options": [
+                4096,
+                8192,
+                16384
+              ]
+            }
+          ],
+          "auth": {
+            "type": "bearer"
+          },
+          "requestTemplate": {
+            "model": "{{model}}",
+            "messages": "{{messages}}",
+            "max_completion_tokens": "{{params.maxTokens}}",
+            "reasoning_effort": "{{reasoningEffort}}",
+            "tools": "{{tools}}",
+            "tool_choice": "{{toolChoice}}"
+          },
+          "resultTextPath": "choices.0.message.content"
+        }
+      ]
+    },
+    {
+      "id": "gpt-5.4",
+      "name": "GPT 5.4",
+      "provider": "openai",
+      "type": "textGeneration",
+      "sortOrder": 2,
+      "enabled": true,
+      "defaultMode": "text-generation",
+      "modes": [
+        {
+          "id": "text-generation",
+          "label": "文本生成",
+          "endpoint": {
+            "method": "POST",
+            "path": "/chat/completions",
+            "scope": "root"
+          },
+          "inputConstraints": {
+            "text": {
+              "maxTokens": 1000000
+            }
+          },
+          "agent": {
+            "transport": "openai-responses",
+            "supportsTools": true,
+            "endpoint": {
+              "method": "POST",
+              "path": "/responses",
+              "scope": "root"
+            }
+          },
+          "outputConstraints": {
+            "supportsStreaming": true,
+            "supportsStructuredOutput": true,
+            "maxTokens": 16384
+          },
+          "capabilities": [
+            "reasoning"
+          ],
+          "params": [
+            {
+              "key": "maxTokens",
+              "label": "最大长度",
+              "type": "select",
+              "default": 8192,
+              "numeric": true,
+              "options": [
+                4096,
+                8192,
+                16384
+              ]
+            }
+          ],
+          "auth": {
+            "type": "bearer"
+          },
+          "requestTemplate": {
+            "model": "{{model}}",
+            "messages": "{{messages}}",
+            "max_completion_tokens": "{{params.maxTokens}}",
+            "tools": "{{tools}}",
+            "tool_choice": "{{toolChoice}}"
+          },
+          "resultTextPath": "choices.0.message.content"
+        },
+        {
+          "id": "semantic-split",
+          "label": "语义拆分",
+          "endpoint": {
+            "method": "POST",
+            "path": "/chat/completions",
+            "scope": "root"
+          },
+          "inputConstraints": {
+            "text": {
+              "maxTokens": 1000000
+            }
+          },
+          "agent": {
+            "transport": "openai-responses",
+            "supportsTools": true,
+            "endpoint": {
+              "method": "POST",
+              "path": "/responses",
+              "scope": "root"
+            }
+          },
+          "outputConstraints": {
+            "supportsStreaming": true,
+            "supportsStructuredOutput": true,
+            "maxTokens": 16384
+          },
+          "capabilities": [
+            "structured-output"
+          ],
+          "params": [
+            {
+              "key": "maxTokens",
+              "label": "最大长度",
+              "type": "select",
+              "default": 8192,
+              "numeric": true,
+              "options": [
+                4096,
+                8192,
+                16384
+              ]
+            }
+          ],
+          "auth": {
+            "type": "bearer"
+          },
+          "requestTemplate": {
+            "model": "{{model}}",
+            "messages": "{{messages}}",
+            "max_completion_tokens": "{{params.maxTokens}}",
+            "tools": "{{tools}}",
+            "tool_choice": "{{toolChoice}}"
+          },
+          "resultTextPath": "choices.0.message.content"
+        },
+        {
+          "id": "storyboard-generation",
+          "label": "分镜生成",
+          "endpoint": {
+            "method": "POST",
+            "path": "/chat/completions",
+            "scope": "root"
+          },
+          "inputConstraints": {
+            "text": {
+              "maxTokens": 1000000
+            }
+          },
+          "agent": {
+            "transport": "openai-responses",
+            "supportsTools": true,
+            "endpoint": {
+              "method": "POST",
+              "path": "/responses",
+              "scope": "root"
+            }
+          },
+          "outputConstraints": {
+            "supportsStreaming": true,
+            "supportsStructuredOutput": true,
+            "maxTokens": 16384
+          },
+          "capabilities": [
+            "structured-output"
+          ],
+          "params": [
+            {
+              "key": "maxTokens",
+              "label": "最大长度",
+              "type": "select",
+              "default": 8192,
+              "numeric": true,
+              "options": [
+                4096,
+                8192,
+                16384
+              ]
+            }
+          ],
+          "auth": {
+            "type": "bearer"
+          },
+          "requestTemplate": {
+            "model": "{{model}}",
+            "messages": "{{messages}}",
+            "max_completion_tokens": "{{params.maxTokens}}",
+            "tools": "{{tools}}",
+            "tool_choice": "{{toolChoice}}"
+          },
+          "resultTextPath": "choices.0.message.content"
+        }
+      ]
+    },
+    {
+      "id": "gpt-image-2",
+      "name": "GPT Image 2",
+      "provider": "openai",
+      "type": "imageGeneration",
+      "sortOrder": 1,
+      "enabled": true,
+      "defaultMode": "text-to-image",
+      "modes": [
+        {
+          "id": "text-to-image",
+          "label": "文生图",
+          "endpoint": {
+            "method": "POST",
+            "path": "/images/generations",
+            "scope": "root"
+          },
+          "inputConstraints": {
+            "images": {
+              "min": 0,
+              "max": 0
+            }
+          },
+          "outputConstraints": {
+            "maxCount": 4,
+            "formats": [
+              "png"
+            ]
+          },
+          "params": [
+            {
+              "key": "prompt",
+              "label": "提示词",
+              "type": "text",
+              "required": true
+            },
+            {
+              "key": "size",
+              "label": "比例",
+              "type": "select",
+              "default": "1024x1024",
+              "presentation": "aspectRatio",
+              "options": [
+                "1024x1024",
+                "1536x864",
+                "864x1536",
+                "1280x960",
+                "960x1280",
+                "1536x1024",
+                "1024x1536",
+                "1680x720"
+              ],
+              "optionLabels": {
+                "1024x1024": "1:1",
+                "1536x864": "16:9",
+                "864x1536": "9:16",
+                "1280x960": "4:3",
+                "960x1280": "3:4",
+                "1536x1024": "3:2",
+                "1024x1536": "2:3",
+                "1680x720": "21:9"
+              }
+            },
+            {
+              "key": "generationCount",
+              "label": "张数",
+              "type": "select",
+              "default": 1,
+              "numeric": true,
+              "options": [
+                1,
+                2,
+                4
+              ]
+            }
+          ],
+          "auth": {
+            "type": "bearer"
+          },
+          "requestTemplate": {
+            "model": "{{model}}",
+            "prompt": "{{prompt}}",
+            "size": "{{params.size}}",
+            "n": "{{params.generationCount}}"
+          },
+          "resultBase64Path": "data.*.b64_json",
+          "resultUrlPath": "data.*.url"
+        },
+        {
+          "id": "image-to-image",
+          "label": "图片编辑",
+          "endpoint": {
+            "method": "POST",
+            "path": "/images/edits",
+            "scope": "root"
+          },
+          "inputFormat": "multipart",
+          "requestFields": {
+            "multipartImage": "image"
+          },
+          "inputConstraints": {
+            "images": {
+              "min": 1,
+              "max": 16,
+              "roles": [
+                "referenceImage"
+              ]
+            }
+          },
+          "outputConstraints": {
+            "maxCount": 4,
+            "formats": [
+              "png"
+            ]
+          },
+          "params": [
+            {
+              "key": "prompt",
+              "label": "提示词",
+              "type": "text",
+              "required": true
+            },
+            {
+              "key": "size",
+              "label": "比例",
+              "type": "select",
+              "default": "1024x1024",
+              "presentation": "aspectRatio",
+              "options": [
+                "1024x1024",
+                "1536x864",
+                "864x1536",
+                "1280x960",
+                "960x1280",
+                "1536x1024",
+                "1024x1536",
+                "1680x720"
+              ],
+              "optionLabels": {
+                "1024x1024": "1:1",
+                "1536x864": "16:9",
+                "864x1536": "9:16",
+                "1280x960": "4:3",
+                "960x1280": "3:4",
+                "1536x1024": "3:2",
+                "1024x1536": "2:3",
+                "1680x720": "21:9"
+              }
+            },
+            {
+              "key": "generationCount",
+              "label": "张数",
+              "type": "select",
+              "default": 1,
+              "numeric": true,
+              "options": [
+                1,
+                2,
+                4
+              ]
+            }
+          ],
+          "auth": {
+            "type": "bearer"
+          },
+          "requestTemplate": {
+            "model": "{{model}}",
+            "prompt": "{{prompt}}",
+            "size": "{{params.size}}",
+            "n": "{{params.generationCount}}"
+          },
+          "resultBase64Path": "data.*.b64_json",
+          "resultUrlPath": "data.*.url"
+        }
+      ]
+    }
+  ]
+}

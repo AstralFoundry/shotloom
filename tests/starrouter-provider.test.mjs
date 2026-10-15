@@ -1,3 +1,4 @@
+import { loadModelCatalog } from './helpers/modelCatalog.mjs';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
@@ -18,10 +19,7 @@ const loopRequestSource = readFileSync(
   new URL('../renderer/src/agent/loop/modelRequest.ts', import.meta.url),
   'utf8',
 );
-const catalogJson = JSON.parse(readFileSync(
-  new URL('../renderer/src/config/model-catalog-v2.json', import.meta.url),
-  'utf8',
-));
+const catalogJson = loadModelCatalog();
 const starrouterAdapter = adapterSource('starrouter');
 
 test('StarRouter 适配器声明官方地址并在注册表中唯一登记', () => {

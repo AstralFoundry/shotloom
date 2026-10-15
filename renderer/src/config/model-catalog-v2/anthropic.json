@@ -1,0 +1,351 @@
+{
+  "provider": "anthropic",
+  "models": [
+    {
+      "id": "claude-sonnet-5",
+      "name": "Claude Sonnet 5",
+      "provider": "anthropic",
+      "type": "textGeneration",
+      "sortOrder": 6,
+      "enabled": true,
+      "defaultMode": "text-generation",
+      "modes": [
+        {
+          "id": "text-generation",
+          "label": "文本生成",
+          "endpoint": {
+            "method": "POST",
+            "path": "/v1/messages",
+            "scope": "root"
+          },
+          "inputConstraints": {
+            "text": {
+              "maxTokens": 1000000
+            }
+          },
+          "agent": {
+            "transport": "anthropic-messages",
+            "supportsTools": true
+          },
+          "outputConstraints": {
+            "supportsStreaming": true,
+            "supportsStructuredOutput": true,
+            "maxTokens": 128000
+          },
+          "capabilities": [
+            "reasoning"
+          ],
+          "params": [
+            {
+              "key": "maxTokens",
+              "label": "最大长度",
+              "type": "select",
+              "default": 8192,
+              "numeric": true,
+              "options": [
+                4096,
+                8192,
+                16384
+              ]
+            }
+          ],
+          "auth": {
+            "type": "header",
+            "name": "x-api-key"
+          },
+          "headers": {
+            "anthropic-version": "2023-06-01"
+          },
+          "requestTemplate": {
+            "model": "{{model}}",
+            "system": "{{system}}",
+            "messages": "{{nonSystemMessages}}",
+            "max_tokens": "{{params.maxTokens}}"
+          },
+          "resultTextPath": "content.0.text"
+        },
+        {
+          "id": "semantic-split",
+          "label": "语义拆分",
+          "endpoint": {
+            "method": "POST",
+            "path": "/v1/messages",
+            "scope": "root"
+          },
+          "inputConstraints": {
+            "text": {
+              "maxTokens": 1000000
+            }
+          },
+          "agent": {
+            "transport": "anthropic-messages",
+            "supportsTools": true
+          },
+          "outputConstraints": {
+            "supportsStreaming": true,
+            "supportsStructuredOutput": true,
+            "maxTokens": 128000
+          },
+          "capabilities": [
+            "structured-output"
+          ],
+          "params": [
+            {
+              "key": "maxTokens",
+              "label": "最大长度",
+              "type": "select",
+              "default": 8192,
+              "numeric": true,
+              "options": [
+                4096,
+                8192,
+                16384
+              ]
+            }
+          ],
+          "auth": {
+            "type": "header",
+            "name": "x-api-key"
+          },
+          "headers": {
+            "anthropic-version": "2023-06-01"
+          },
+          "requestTemplate": {
+            "model": "{{model}}",
+            "system": "{{system}}",
+            "messages": "{{nonSystemMessages}}",
+            "max_tokens": "{{params.maxTokens}}"
+          },
+          "resultTextPath": "content.0.text"
+        },
+        {
+          "id": "storyboard-generation",
+          "label": "分镜生成",
+          "endpoint": {
+            "method": "POST",
+            "path": "/v1/messages",
+            "scope": "root"
+          },
+          "inputConstraints": {
+            "text": {
+              "maxTokens": 1000000
+            }
+          },
+          "agent": {
+            "transport": "anthropic-messages",
+            "supportsTools": true
+          },
+          "outputConstraints": {
+            "supportsStreaming": true,
+            "supportsStructuredOutput": true,
+            "maxTokens": 128000
+          },
+          "capabilities": [
+            "structured-output"
+          ],
+          "params": [
+            {
+              "key": "maxTokens",
+              "label": "最大长度",
+              "type": "select",
+              "default": 8192,
+              "numeric": true,
+              "options": [
+                4096,
+                8192,
+                16384
+              ]
+            }
+          ],
+          "auth": {
+            "type": "header",
+            "name": "x-api-key"
+          },
+          "headers": {
+            "anthropic-version": "2023-06-01"
+          },
+          "requestTemplate": {
+            "model": "{{model}}",
+            "system": "{{system}}",
+            "messages": "{{nonSystemMessages}}",
+            "max_tokens": "{{params.maxTokens}}"
+          },
+          "resultTextPath": "content.0.text"
+        }
+      ]
+    },
+    {
+      "id": "claude-opus-4-8",
+      "name": "Claude Opus 4.8",
+      "provider": "anthropic",
+      "type": "textGeneration",
+      "sortOrder": 7,
+      "enabled": true,
+      "defaultMode": "text-generation",
+      "modes": [
+        {
+          "id": "text-generation",
+          "label": "文本生成",
+          "endpoint": {
+            "method": "POST",
+            "path": "/v1/messages",
+            "scope": "root"
+          },
+          "inputConstraints": {
+            "text": {
+              "maxTokens": 1000000
+            }
+          },
+          "agent": {
+            "transport": "anthropic-messages",
+            "supportsTools": true
+          },
+          "outputConstraints": {
+            "supportsStreaming": true,
+            "supportsStructuredOutput": true,
+            "maxTokens": 128000
+          },
+          "capabilities": [
+            "reasoning"
+          ],
+          "params": [
+            {
+              "key": "maxTokens",
+              "label": "最大长度",
+              "type": "select",
+              "default": 8192,
+              "numeric": true,
+              "options": [
+                4096,
+                8192,
+                16384
+              ]
+            }
+          ],
+          "auth": {
+            "type": "header",
+            "name": "x-api-key"
+          },
+          "headers": {
+            "anthropic-version": "2023-06-01"
+          },
+          "requestTemplate": {
+            "model": "{{model}}",
+            "system": "{{system}}",
+            "messages": "{{nonSystemMessages}}",
+            "max_tokens": "{{params.maxTokens}}"
+          },
+          "resultTextPath": "content.0.text"
+        },
+        {
+          "id": "semantic-split",
+          "label": "语义拆分",
+          "endpoint": {
+            "method": "POST",
+            "path": "/v1/messages",
+            "scope": "root"
+          },
+          "inputConstraints": {
+            "text": {
+              "maxTokens": 1000000
+            }
+          },
+          "agent": {
+            "transport": "anthropic-messages",
+            "supportsTools": true
+          },
+          "outputConstraints": {
+            "supportsStreaming": true,
+            "supportsStructuredOutput": true,
+            "maxTokens": 128000
+          },
+          "capabilities": [
+            "structured-output"
+          ],
+          "params": [
+            {
+              "key": "maxTokens",
+              "label": "最大长度",
+              "type": "select",
+              "default": 8192,
+              "numeric": true,
+              "options": [
+                4096,
+                8192,
+                16384
+              ]
+            }
+          ],
+          "auth": {
+            "type": "header",
+            "name": "x-api-key"
+          },
+          "headers": {
+            "anthropic-version": "2023-06-01"
+          },
+          "requestTemplate": {
+            "model": "{{model}}",
+            "system": "{{system}}",
+            "messages": "{{nonSystemMessages}}",
+            "max_tokens": "{{params.maxTokens}}"
+          },
+          "resultTextPath": "content.0.text"
+        },
+        {
+          "id": "storyboard-generation",
+          "label": "分镜生成",
+          "endpoint": {
+            "method": "POST",
+            "path": "/v1/messages",
+            "scope": "root"
+          },
+          "inputConstraints": {
+            "text": {
+              "maxTokens": 1000000
+            }
+          },
+          "agent": {
+            "transport": "anthropic-messages",
+            "supportsTools": true
+          },
+          "outputConstraints": {
+            "supportsStreaming": true,
+            "supportsStructuredOutput": true,
+            "maxTokens": 128000
+          },
+          "capabilities": [
+            "structured-output"
+          ],
+          "params": [
+            {
+              "key": "maxTokens",
+              "label": "最大长度",
+              "type": "select",
+              "default": 8192,
+              "numeric": true,
+              "options": [
+                4096,
+                8192,
+                16384
+              ]
+            }
+          ],
+          "auth": {
+            "type": "header",
+            "name": "x-api-key"
+          },
+          "headers": {
+            "anthropic-version": "2023-06-01"
+          },
+          "requestTemplate": {
+            "model": "{{model}}",
+            "system": "{{system}}",
+            "messages": "{{nonSystemMessages}}",
+            "max_tokens": "{{params.maxTokens}}"
+          },
+          "resultTextPath": "content.0.text"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,735 @@
+{
+  "provider": "google",
+  "models": [
+    {
+      "id": "gemini-3.6-flash",
+      "name": "Gemini 3.6 Flash",
+      "provider": "google",
+      "type": "textGeneration",
+      "sortOrder": 3,
+      "enabled": true,
+      "defaultMode": "text-generation",
+      "modes": [
+        {
+          "id": "text-generation",
+          "label": "文本生成",
+          "endpoint": {
+            "method": "POST",
+            "path": "/openai/chat/completions",
+            "scope": "root"
+          },
+          "inputConstraints": {
+            "text": {
+              "maxTokens": 1000000
+            }
+          },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
+          "outputConstraints": {
+            "supportsStreaming": true,
+            "supportsStructuredOutput": true,
+            "maxTokens": 16384
+          },
+          "capabilities": [
+            "reasoning"
+          ],
+          "params": [
+            {
+              "key": "maxTokens",
+              "label": "最大长度",
+              "type": "select",
+              "default": 8192,
+              "numeric": true,
+              "options": [
+                4096,
+                8192,
+                16384
+              ]
+            }
+          ],
+          "auth": {
+            "type": "bearer"
+          },
+          "requestTemplate": {
+            "model": "{{model}}",
+            "messages": "{{messages}}",
+            "max_tokens": "{{params.maxTokens}}",
+            "tools": "{{tools}}",
+            "tool_choice": "{{toolChoice}}"
+          },
+          "resultTextPath": "choices.0.message.content"
+        },
+        {
+          "id": "semantic-split",
+          "label": "语义拆分",
+          "endpoint": {
+            "method": "POST",
+            "path": "/openai/chat/completions",
+            "scope": "root"
+          },
+          "inputConstraints": {
+            "text": {
+              "maxTokens": 1000000
+            }
+          },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
+          "outputConstraints": {
+            "supportsStreaming": true,
+            "supportsStructuredOutput": true,
+            "maxTokens": 16384
+          },
+          "capabilities": [
+            "structured-output"
+          ],
+          "params": [
+            {
+              "key": "maxTokens",
+              "label": "最大长度",
+              "type": "select",
+              "default": 8192,
+              "numeric": true,
+              "options": [
+                4096,
+                8192,
+                16384
+              ]
+            }
+          ],
+          "auth": {
+            "type": "bearer"
+          },
+          "requestTemplate": {
+            "model": "{{model}}",
+            "messages": "{{messages}}",
+            "max_tokens": "{{params.maxTokens}}",
+            "tools": "{{tools}}",
+            "tool_choice": "{{toolChoice}}"
+          },
+          "resultTextPath": "choices.0.message.content"
+        },
+        {
+          "id": "storyboard-generation",
+          "label": "分镜生成",
+          "endpoint": {
+            "method": "POST",
+            "path": "/openai/chat/completions",
+            "scope": "root"
+          },
+          "inputConstraints": {
+            "text": {
+              "maxTokens": 1000000
+            }
+          },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
+          "outputConstraints": {
+            "supportsStreaming": true,
+            "supportsStructuredOutput": true,
+            "maxTokens": 16384
+          },
+          "capabilities": [
+            "structured-output"
+          ],
+          "params": [
+            {
+              "key": "maxTokens",
+              "label": "最大长度",
+              "type": "select",
+              "default": 8192,
+              "numeric": true,
+              "options": [
+                4096,
+                8192,
+                16384
+              ]
+            }
+          ],
+          "auth": {
+            "type": "bearer"
+          },
+          "requestTemplate": {
+            "model": "{{model}}",
+            "messages": "{{messages}}",
+            "max_tokens": "{{params.maxTokens}}",
+            "tools": "{{tools}}",
+            "tool_choice": "{{toolChoice}}"
+          },
+          "resultTextPath": "choices.0.message.content"
+        }
+      ]
+    },
+    {
+      "id": "gemini-3.1-pro-preview",
+      "name": "Gemini 3.1 Pro",
+      "provider": "google",
+      "type": "textGeneration",
+      "sortOrder": 4,
+      "enabled": true,
+      "defaultMode": "text-generation",
+      "modes": [
+        {
+          "id": "text-generation",
+          "label": "文本生成",
+          "endpoint": {
+            "method": "POST",
+            "path": "/openai/chat/completions",
+            "scope": "root"
+          },
+          "inputConstraints": {
+            "text": {
+              "maxTokens": 1000000
+            }
+          },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
+          "outputConstraints": {
+            "supportsStreaming": true,
+            "supportsStructuredOutput": true,
+            "maxTokens": 16384
+          },
+          "capabilities": [
+            "reasoning"
+          ],
+          "params": [
+            {
+              "key": "maxTokens",
+              "label": "最大长度",
+              "type": "select",
+              "default": 8192,
+              "numeric": true,
+              "options": [
+                4096,
+                8192,
+                16384
+              ]
+            }
+          ],
+          "auth": {
+            "type": "bearer"
+          },
+          "requestTemplate": {
+            "model": "{{model}}",
+            "messages": "{{messages}}",
+            "max_tokens": "{{params.maxTokens}}",
+            "tools": "{{tools}}",
+            "tool_choice": "{{toolChoice}}"
+          },
+          "resultTextPath": "choices.0.message.content"
+        },
+        {
+          "id": "semantic-split",
+          "label": "语义拆分",
+          "endpoint": {
+            "method": "POST",
+            "path": "/openai/chat/completions",
+            "scope": "root"
+          },
+          "inputConstraints": {
+            "text": {
+              "maxTokens": 1000000
+            }
+          },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
+          "outputConstraints": {
+            "supportsStreaming": true,
+            "supportsStructuredOutput": true,
+            "maxTokens": 16384
+          },
+          "capabilities": [
+            "structured-output"
+          ],
+          "params": [
+            {
+              "key": "maxTokens",
+              "label": "最大长度",
+              "type": "select",
+              "default": 8192,
+              "numeric": true,
+              "options": [
+                4096,
+                8192,
+                16384
+              ]
+            }
+          ],
+          "auth": {
+            "type": "bearer"
+          },
+          "requestTemplate": {
+            "model": "{{model}}",
+            "messages": "{{messages}}",
+            "max_tokens": "{{params.maxTokens}}",
+            "tools": "{{tools}}",
+            "tool_choice": "{{toolChoice}}"
+          },
+          "resultTextPath": "choices.0.message.content"
+        },
+        {
+          "id": "storyboard-generation",
+          "label": "分镜生成",
+          "endpoint": {
+            "method": "POST",
+            "path": "/openai/chat/completions",
+            "scope": "root"
+          },
+          "inputConstraints": {
+            "text": {
+              "maxTokens": 1000000
+            }
+          },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
+          "outputConstraints": {
+            "supportsStreaming": true,
+            "supportsStructuredOutput": true,
+            "maxTokens": 16384
+          },
+          "capabilities": [
+            "structured-output"
+          ],
+          "params": [
+            {
+              "key": "maxTokens",
+              "label": "最大长度",
+              "type": "select",
+              "default": 8192,
+              "numeric": true,
+              "options": [
+                4096,
+                8192,
+                16384
+              ]
+            }
+          ],
+          "auth": {
+            "type": "bearer"
+          },
+          "requestTemplate": {
+            "model": "{{model}}",
+            "messages": "{{messages}}",
+            "max_tokens": "{{params.maxTokens}}",
+            "tools": "{{tools}}",
+            "tool_choice": "{{toolChoice}}"
+          },
+          "resultTextPath": "choices.0.message.content"
+        }
+      ]
+    },
+    {
+      "id": "gemini-3.1-flash-image",
+      "name": "Gemini 3.1 Flash Image",
+      "provider": "google",
+      "type": "imageGeneration",
+      "sortOrder": 2,
+      "enabled": true,
+      "defaultMode": "text-to-image",
+      "modes": [
+        {
+          "id": "text-to-image",
+          "label": "文生图",
+          "endpoint": {
+            "method": "POST",
+            "path": "/models/gemini-3.1-flash-image:generateContent",
+            "scope": "root"
+          },
+          "inputConstraints": {
+            "images": {
+              "min": 0,
+              "max": 0
+            }
+          },
+          "outputConstraints": {
+            "maxCount": 1,
+            "formats": [
+              "png"
+            ]
+          },
+          "params": [
+            {
+              "key": "prompt",
+              "label": "提示词",
+              "type": "text",
+              "required": true
+            },
+            {
+              "key": "aspectRatio",
+              "label": "比例",
+              "type": "select",
+              "default": "1:1",
+              "options": [
+                "1:1",
+                "16:9",
+                "9:16",
+                "4:3",
+                "3:4"
+              ]
+            }
+          ],
+          "auth": {
+            "type": "header",
+            "name": "x-goog-api-key"
+          },
+          "requestTemplate": {
+            "contents": [
+              {
+                "parts": [
+                  {
+                    "text": "{{prompt}}"
+                  }
+                ]
+              }
+            ],
+            "generationConfig": {
+              "responseModalities": [
+                "TEXT",
+                "IMAGE"
+              ],
+              "imageConfig": {
+                "aspectRatio": "{{params.aspectRatio}}"
+              }
+            }
+          },
+          "resultBase64Path": "candidates.0.content.parts.*.inlineData.data"
+        }
+      ]
+    },
+    {
+      "id": "veo-3.1-generate-preview",
+      "name": "Veo 3.1 Preview",
+      "provider": "google",
+      "type": "videoGeneration",
+      "sortOrder": 2,
+      "enabled": true,
+      "defaultMode": "text-or-image-to-video",
+      "modes": [
+        {
+          "id": "text-or-image-to-video",
+          "label": "文生/图生视频",
+          "inputMode": "firstFrame",
+          "inputSlots": [
+            "firstFrame"
+          ],
+          "endpoint": {
+            "method": "POST",
+            "path": "/models/veo-3.1-generate-preview:predictLongRunning",
+            "scope": "root"
+          },
+          "taskEndpoint": {
+            "method": "GET",
+            "path": "/{taskId}",
+            "scope": "root"
+          },
+          "isAsync": true,
+          "inputConstraints": {
+            "images": {
+              "min": 0,
+              "max": 1,
+              "roles": [
+                "referenceImage"
+              ]
+            }
+          },
+          "outputConstraints": {
+            "durations": [
+              4,
+              6,
+              8
+            ],
+            "defaultDuration": 8,
+            "formats": [
+              "mp4"
+            ]
+          },
+          "params": [
+            {
+              "key": "prompt",
+              "label": "提示词",
+              "type": "text",
+              "required": true
+            },
+            {
+              "key": "duration",
+              "label": "时长",
+              "type": "select",
+              "default": 8,
+              "numeric": true,
+              "options": [
+                4,
+                6,
+                8
+              ]
+            },
+            {
+              "key": "aspectRatio",
+              "label": "比例",
+              "type": "select",
+              "default": "16:9",
+              "options": [
+                "16:9",
+                "9:16"
+              ]
+            }
+          ],
+          "auth": {
+            "type": "header",
+            "name": "x-goog-api-key"
+          },
+          "requestFields": {
+            "imageContentFormat": "google-inline"
+          },
+          "requestTemplate": {
+            "instances": [
+              {
+                "prompt": "{{prompt}}",
+                "image": "{{inlineImage}}"
+              }
+            ],
+            "parameters": {
+              "durationSeconds": "{{duration}}",
+              "aspectRatio": "{{aspectRatio}}"
+            }
+          },
+          "taskIdPath": "name",
+          "statusPath": "done",
+          "errorPath": "error.message",
+          "pollStatusMap": {
+            "false": "running",
+            "true": "completed"
+          },
+          "resultUrlPath": "response.generateVideoResponse.generatedSamples.0.video.uri",
+          "resultDownloadAuth": true
+        }
+      ]
+    },
+    {
+      "id": "veo-3.1-fast-generate-preview",
+      "name": "Veo 3.1 Fast Preview",
+      "provider": "google",
+      "type": "videoGeneration",
+      "sortOrder": 3,
+      "enabled": true,
+      "defaultMode": "text-or-image-to-video",
+      "modes": [
+        {
+          "id": "text-or-image-to-video",
+          "label": "文生/图生视频",
+          "inputMode": "firstFrame",
+          "inputSlots": [
+            "firstFrame"
+          ],
+          "endpoint": {
+            "method": "POST",
+            "path": "/models/veo-3.1-fast-generate-preview:predictLongRunning",
+            "scope": "root"
+          },
+          "taskEndpoint": {
+            "method": "GET",
+            "path": "/{taskId}",
+            "scope": "root"
+          },
+          "isAsync": true,
+          "inputConstraints": {
+            "images": {
+              "min": 0,
+              "max": 1,
+              "roles": [
+                "referenceImage"
+              ]
+            }
+          },
+          "outputConstraints": {
+            "durations": [
+              4,
+              6,
+              8
+            ],
+            "defaultDuration": 8,
+            "formats": [
+              "mp4"
+            ]
+          },
+          "params": [
+            {
+              "key": "prompt",
+              "label": "提示词",
+              "type": "text",
+              "required": true
+            },
+            {
+              "key": "duration",
+              "label": "时长",
+              "type": "select",
+              "default": 8,
+              "numeric": true,
+              "options": [
+                4,
+                6,
+                8
+              ]
+            },
+            {
+              "key": "aspectRatio",
+              "label": "比例",
+              "type": "select",
+              "default": "16:9",
+              "options": [
+                "16:9",
+                "9:16"
+              ]
+            }
+          ],
+          "auth": {
+            "type": "header",
+            "name": "x-goog-api-key"
+          },
+          "requestFields": {
+            "imageContentFormat": "google-inline"
+          },
+          "requestTemplate": {
+            "instances": [
+              {
+                "prompt": "{{prompt}}",
+                "image": "{{inlineImage}}"
+              }
+            ],
+            "parameters": {
+              "durationSeconds": "{{duration}}",
+              "aspectRatio": "{{aspectRatio}}"
+            }
+          },
+          "taskIdPath": "name",
+          "statusPath": "done",
+          "errorPath": "error.message",
+          "pollStatusMap": {
+            "false": "running",
+            "true": "completed"
+          },
+          "resultUrlPath": "response.generateVideoResponse.generatedSamples.0.video.uri",
+          "resultDownloadAuth": true
+        }
+      ]
+    },
+    {
+      "id": "veo-3.1-lite-generate-preview",
+      "name": "Veo 3.1 Lite Preview",
+      "provider": "google",
+      "type": "videoGeneration",
+      "sortOrder": 4,
+      "enabled": true,
+      "defaultMode": "text-or-image-to-video",
+      "modes": [
+        {
+          "id": "text-or-image-to-video",
+          "label": "文生/图生视频",
+          "inputMode": "firstFrame",
+          "inputSlots": [
+            "firstFrame"
+          ],
+          "endpoint": {
+            "method": "POST",
+            "path": "/models/veo-3.1-lite-generate-preview:predictLongRunning",
+            "scope": "root"
+          },
+          "taskEndpoint": {
+            "method": "GET",
+            "path": "/{taskId}",
+            "scope": "root"
+          },
+          "isAsync": true,
+          "inputConstraints": {
+            "images": {
+              "min": 0,
+              "max": 1,
+              "roles": [
+                "referenceImage"
+              ]
+            }
+          },
+          "outputConstraints": {
+            "durations": [
+              4,
+              6,
+              8
+            ],
+            "defaultDuration": 8,
+            "formats": [
+              "mp4"
+            ]
+          },
+          "params": [
+            {
+              "key": "prompt",
+              "label": "提示词",
+              "type": "text",
+              "required": true
+            },
+            {
+              "key": "duration",
+              "label": "时长",
+              "type": "select",
+              "default": 8,
+              "numeric": true,
+              "options": [
+                4,
+                6,
+                8
+              ]
+            },
+            {
+              "key": "aspectRatio",
+              "label": "比例",
+              "type": "select",
+              "default": "16:9",
+              "options": [
+                "16:9",
+                "9:16"
+              ]
+            }
+          ],
+          "auth": {
+            "type": "header",
+            "name": "x-goog-api-key"
+          },
+          "requestFields": {
+            "imageContentFormat": "google-inline"
+          },
+          "requestTemplate": {
+            "instances": [
+              {
+                "prompt": "{{prompt}}",
+                "image": "{{inlineImage}}"
+              }
+            ],
+            "parameters": {
+              "durationSeconds": "{{duration}}",
+              "aspectRatio": "{{aspectRatio}}"
+            }
+          },
+          "taskIdPath": "name",
+          "statusPath": "done",
+          "errorPath": "error.message",
+          "pollStatusMap": {
+            "false": "running",
+            "true": "completed"
+          },
+          "resultUrlPath": "response.generateVideoResponse.generatedSamples.0.video.uri",
+          "resultDownloadAuth": true
+        }
+      ]
+    }
+  ]
+}

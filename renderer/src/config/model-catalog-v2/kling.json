@@ -1,0 +1,785 @@
+{
+  "provider": "kling",
+  "models": [
+    {
+      "id": "kling-3.0-turbo",
+      "name": "Kling 3.0 Turbo",
+      "provider": "kling",
+      "type": "videoGeneration",
+      "sortOrder": 5,
+      "enabled": true,
+      "defaultMode": "text-to-video",
+      "modes": [
+        {
+          "id": "text-to-video",
+          "label": "文生视频",
+          "endpoint": {
+            "method": "POST",
+            "path": "/text-to-video/kling-3.0-turbo",
+            "scope": "root"
+          },
+          "taskEndpoint": {
+            "method": "GET",
+            "path": "/tasks?task_ids={taskId}",
+            "scope": "root"
+          },
+          "isAsync": true,
+          "inputConstraints": {},
+          "outputConstraints": {
+            "durations": [
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15
+            ],
+            "defaultDuration": 5,
+            "formats": [
+              "mp4"
+            ]
+          },
+          "params": [
+            {
+              "key": "prompt",
+              "label": "提示词",
+              "type": "text",
+              "required": true
+            },
+            {
+              "key": "duration",
+              "label": "时长",
+              "type": "select",
+              "default": 5,
+              "numeric": true,
+              "options": [
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14,
+                15
+              ]
+            },
+            {
+              "key": "aspectRatio",
+              "label": "比例",
+              "type": "select",
+              "default": "16:9",
+              "options": [
+                "16:9",
+                "9:16",
+                "1:1"
+              ]
+            },
+            {
+              "key": "resolution",
+              "label": "分辨率",
+              "type": "select",
+              "default": "720p",
+              "options": [
+                "720p",
+                "1080p"
+              ]
+            },
+            {
+              "key": "watermark",
+              "label": "生成水印版",
+              "type": "select",
+              "default": false,
+              "options": [
+                false,
+                true
+              ]
+            }
+          ],
+          "auth": {
+            "type": "bearer"
+          },
+          "requestTemplate": {
+            "prompt": "{{prompt}}",
+            "settings": {
+              "resolution": "{{resolution}}",
+              "aspect_ratio": "{{aspectRatio}}",
+              "duration": "{{duration}}"
+            },
+            "options": {
+              "watermark_info": {
+                "enabled": "{{params.watermark}}"
+              }
+            }
+          },
+          "taskIdPath": "data.id",
+          "statusPath": "data.0.status",
+          "errorPath": "data.0.message",
+          "pollStatusMap": {
+            "submitted": "running",
+            "processing": "running",
+            "succeeded": "completed",
+            "failed": "failed"
+          },
+          "resultUrlPath": "data.0.outputs.*.url"
+        },
+        {
+          "id": "image-to-video",
+          "label": "图生视频",
+          "inputMode": "firstFrame",
+          "inputSlots": [
+            "firstFrame"
+          ],
+          "endpoint": {
+            "method": "POST",
+            "path": "/image-to-video/kling-3.0-turbo",
+            "scope": "root"
+          },
+          "taskEndpoint": {
+            "method": "GET",
+            "path": "/tasks?task_ids={taskId}",
+            "scope": "root"
+          },
+          "isAsync": true,
+          "inputConstraints": {
+            "images": {
+              "min": 1,
+              "max": 1,
+              "roles": [
+                "referenceImage"
+              ],
+              "formats": [
+                "jpg",
+                "jpeg",
+                "png"
+              ]
+            }
+          },
+          "outputConstraints": {
+            "durations": [
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15
+            ],
+            "defaultDuration": 5,
+            "formats": [
+              "mp4"
+            ]
+          },
+          "params": [
+            {
+              "key": "prompt",
+              "label": "提示词",
+              "type": "text",
+              "required": true
+            },
+            {
+              "key": "duration",
+              "label": "时长",
+              "type": "select",
+              "default": 5,
+              "numeric": true,
+              "options": [
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14,
+                15
+              ]
+            },
+            {
+              "key": "resolution",
+              "label": "分辨率",
+              "type": "select",
+              "default": "720p",
+              "options": [
+                "720p",
+                "1080p"
+              ]
+            },
+            {
+              "key": "watermark",
+              "label": "生成水印版",
+              "type": "select",
+              "default": false,
+              "options": [
+                false,
+                true
+              ]
+            }
+          ],
+          "auth": {
+            "type": "bearer"
+          },
+          "requestTemplate": {
+            "contents": "{{content}}",
+            "settings": {
+              "resolution": "{{resolution}}",
+              "duration": "{{duration}}"
+            },
+            "options": {
+              "watermark_info": {
+                "enabled": "{{params.watermark}}"
+              }
+            }
+          },
+          "contentTemplate": {
+            "text": {
+              "type": "prompt",
+              "text": "{{text}}"
+            },
+            "image": {
+              "type": "first_frame",
+              "url": "{{url}}"
+            }
+          },
+          "taskIdPath": "data.id",
+          "statusPath": "data.0.status",
+          "errorPath": "data.0.message",
+          "pollStatusMap": {
+            "submitted": "running",
+            "processing": "running",
+            "succeeded": "completed",
+            "failed": "failed"
+          },
+          "resultUrlPath": "data.0.outputs.*.url"
+        }
+      ]
+    },
+    {
+      "id": "kling-3.0",
+      "name": "Kling 3.0",
+      "provider": "kling",
+      "type": "videoGeneration",
+      "sortOrder": 6,
+      "enabled": true,
+      "defaultMode": "text-to-video",
+      "modes": [
+        {
+          "id": "text-to-video",
+          "label": "文生视频",
+          "endpoint": {
+            "method": "POST",
+            "path": "/text-to-video/kling-3.0",
+            "scope": "root"
+          },
+          "taskEndpoint": {
+            "method": "GET",
+            "path": "/tasks?task_ids={taskId}",
+            "scope": "root"
+          },
+          "isAsync": true,
+          "inputConstraints": {},
+          "outputConstraints": {
+            "durations": [
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15
+            ],
+            "defaultDuration": 5,
+            "formats": [
+              "mp4"
+            ]
+          },
+          "params": [
+            {
+              "key": "prompt",
+              "label": "提示词",
+              "type": "text",
+              "required": true
+            },
+            {
+              "key": "duration",
+              "label": "时长",
+              "type": "select",
+              "default": 5,
+              "numeric": true,
+              "options": [
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14,
+                15
+              ]
+            },
+            {
+              "key": "aspectRatio",
+              "label": "比例",
+              "type": "select",
+              "default": "16:9",
+              "options": [
+                "16:9",
+                "9:16",
+                "1:1"
+              ]
+            },
+            {
+              "key": "resolution",
+              "label": "分辨率",
+              "type": "select",
+              "default": "720p",
+              "options": [
+                "720p",
+                "1080p",
+                "4k"
+              ]
+            },
+            {
+              "key": "audio",
+              "label": "声音",
+              "type": "select",
+              "default": "off",
+              "options": [
+                "off",
+                "native"
+              ]
+            },
+            {
+              "key": "multiShot",
+              "label": "多镜头",
+              "type": "select",
+              "default": true,
+              "options": [
+                true,
+                false
+              ]
+            },
+            {
+              "key": "watermark",
+              "label": "生成水印版",
+              "type": "select",
+              "default": false,
+              "options": [
+                false,
+                true
+              ]
+            }
+          ],
+          "auth": {
+            "type": "bearer"
+          },
+          "requestTemplate": {
+            "prompt": "{{prompt}}",
+            "settings": {
+              "resolution": "{{resolution}}",
+              "aspect_ratio": "{{aspectRatio}}",
+              "duration": "{{duration}}",
+              "audio": "{{params.audio}}",
+              "multi_shot": "{{params.multiShot}}"
+            },
+            "options": {
+              "watermark_info": {
+                "enabled": "{{params.watermark}}"
+              }
+            }
+          },
+          "taskIdPath": "data.id",
+          "statusPath": "data.0.status",
+          "errorPath": "data.0.message",
+          "pollStatusMap": {
+            "submitted": "running",
+            "processing": "running",
+            "succeeded": "completed",
+            "failed": "failed"
+          },
+          "resultUrlPath": "data.0.outputs.*.url"
+        },
+        {
+          "id": "image-to-video",
+          "label": "图生视频",
+          "inputMode": "firstFrame",
+          "inputSlots": [
+            "firstFrame"
+          ],
+          "endpoint": {
+            "method": "POST",
+            "path": "/image-to-video/kling-3.0",
+            "scope": "root"
+          },
+          "taskEndpoint": {
+            "method": "GET",
+            "path": "/tasks?task_ids={taskId}",
+            "scope": "root"
+          },
+          "isAsync": true,
+          "inputConstraints": {
+            "images": {
+              "min": 1,
+              "max": 1,
+              "roles": [
+                "referenceImage"
+              ],
+              "formats": [
+                "jpg",
+                "jpeg",
+                "png"
+              ]
+            }
+          },
+          "outputConstraints": {
+            "durations": [
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15
+            ],
+            "defaultDuration": 5,
+            "formats": [
+              "mp4"
+            ]
+          },
+          "params": [
+            {
+              "key": "prompt",
+              "label": "提示词",
+              "type": "text",
+              "required": true
+            },
+            {
+              "key": "duration",
+              "label": "时长",
+              "type": "select",
+              "default": 5,
+              "numeric": true,
+              "options": [
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14,
+                15
+              ]
+            },
+            {
+              "key": "resolution",
+              "label": "分辨率",
+              "type": "select",
+              "default": "720p",
+              "options": [
+                "720p",
+                "1080p",
+                "4k"
+              ]
+            },
+            {
+              "key": "audio",
+              "label": "声音",
+              "type": "select",
+              "default": "off",
+              "options": [
+                "off",
+                "native"
+              ]
+            },
+            {
+              "key": "multiShot",
+              "label": "多镜头",
+              "type": "select",
+              "default": true,
+              "options": [
+                true,
+                false
+              ]
+            },
+            {
+              "key": "watermark",
+              "label": "生成水印版",
+              "type": "select",
+              "default": false,
+              "options": [
+                false,
+                true
+              ]
+            }
+          ],
+          "auth": {
+            "type": "bearer"
+          },
+          "requestTemplate": {
+            "contents": "{{content}}",
+            "settings": {
+              "resolution": "{{resolution}}",
+              "duration": "{{duration}}",
+              "audio": "{{params.audio}}",
+              "multi_shot": "{{params.multiShot}}"
+            },
+            "options": {
+              "watermark_info": {
+                "enabled": "{{params.watermark}}"
+              }
+            }
+          },
+          "contentTemplate": {
+            "text": {
+              "type": "prompt",
+              "text": "{{text}}"
+            },
+            "image": {
+              "type": "first_frame",
+              "url": "{{url}}"
+            }
+          },
+          "taskIdPath": "data.id",
+          "statusPath": "data.0.status",
+          "errorPath": "data.0.message",
+          "pollStatusMap": {
+            "submitted": "running",
+            "processing": "running",
+            "succeeded": "completed",
+            "failed": "failed"
+          },
+          "resultUrlPath": "data.0.outputs.*.url"
+        }
+      ]
+    },
+    {
+      "id": "kling-3.0-omni",
+      "name": "Kling 3.0 Omni",
+      "provider": "kling",
+      "type": "videoGeneration",
+      "sortOrder": 7,
+      "enabled": true,
+      "defaultMode": "text-or-reference-image-to-video",
+      "modes": [
+        {
+          "id": "text-or-reference-image-to-video",
+          "label": "文生/参考图生视频",
+          "inputMode": "reference",
+          "inputSlots": [
+            "reference"
+          ],
+          "endpoint": {
+            "method": "POST",
+            "path": "/omni-video/kling-3.0-omni",
+            "scope": "root"
+          },
+          "taskEndpoint": {
+            "method": "GET",
+            "path": "/tasks?task_ids={taskId}",
+            "scope": "root"
+          },
+          "isAsync": true,
+          "inputConstraints": {
+            "images": {
+              "min": 0,
+              "max": 7,
+              "roles": [
+                "referenceImage"
+              ],
+              "formats": [
+                "jpg",
+                "jpeg",
+                "png"
+              ]
+            }
+          },
+          "outputConstraints": {
+            "durations": [
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15
+            ],
+            "defaultDuration": 5,
+            "formats": [
+              "mp4"
+            ]
+          },
+          "params": [
+            {
+              "key": "prompt",
+              "label": "提示词",
+              "type": "text",
+              "required": true
+            },
+            {
+              "key": "duration",
+              "label": "时长",
+              "type": "select",
+              "default": 5,
+              "numeric": true,
+              "options": [
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14,
+                15
+              ]
+            },
+            {
+              "key": "aspectRatio",
+              "label": "比例",
+              "type": "select",
+              "default": "16:9",
+              "options": [
+                "16:9",
+                "9:16",
+                "1:1"
+              ]
+            },
+            {
+              "key": "resolution",
+              "label": "分辨率",
+              "type": "select",
+              "default": "720p",
+              "options": [
+                "720p",
+                "1080p",
+                "4k"
+              ]
+            },
+            {
+              "key": "audio",
+              "label": "声音",
+              "type": "select",
+              "default": "off",
+              "options": [
+                "off",
+                "native"
+              ]
+            },
+            {
+              "key": "multiShot",
+              "label": "多镜头",
+              "type": "select",
+              "default": true,
+              "options": [
+                true,
+                false
+              ]
+            },
+            {
+              "key": "watermark",
+              "label": "生成水印版",
+              "type": "select",
+              "default": false,
+              "options": [
+                false,
+                true
+              ]
+            }
+          ],
+          "auth": {
+            "type": "bearer"
+          },
+          "requestTemplate": {
+            "contents": "{{content}}",
+            "settings": {
+              "resolution": "{{resolution}}",
+              "aspect_ratio": "{{aspectRatio}}",
+              "duration": "{{duration}}",
+              "audio": "{{params.audio}}",
+              "multi_shot": "{{params.multiShot}}"
+            },
+            "options": {
+              "watermark_info": {
+                "enabled": "{{params.watermark}}"
+              }
+            }
+          },
+          "contentTemplate": {
+            "text": {
+              "type": "prompt",
+              "text": "{{text}}"
+            },
+            "image": {
+              "type": "refer_image",
+              "url": "{{url}}",
+              "id": "image_{{index}}"
+            }
+          },
+          "taskIdPath": "data.id",
+          "statusPath": "data.0.status",
+          "errorPath": "data.0.message",
+          "pollStatusMap": {
+            "submitted": "running",
+            "processing": "running",
+            "succeeded": "completed",
+            "failed": "failed"
+          },
+          "resultUrlPath": "data.0.outputs.*.url"
+        }
+      ]
+    }
+  ]
+}
