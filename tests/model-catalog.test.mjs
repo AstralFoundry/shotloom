@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { modelResponseError } from '../renderer/src/utils/modelResponseParsing.mjs';
 import { renderProtocolTemplate } from '../renderer/src/utils/modelProtocol.mjs';
+import { optionLabel } from '../renderer/src/utils/modelPresentation.js';
 
 const catalog = loadModelCatalog();
 const agentContract = JSON.parse(readFileSync(new URL('../renderer/src/config/agent-action-contract.json', import.meta.url), 'utf8'));
@@ -95,6 +96,30 @@ test('GPT Image 2 用真实 size 参数提供统一比例选项', () => {
     assert.ok(size.options.includes('1536x864'));
     assert.equal(mode.requestTemplate.size, '{{params.size}}');
   }
+});
+
+test('像素尺寸只作为协议值，界面展示比例或清晰度标签', () => {
+  const pixelSize = /^\d+[x*]\d+$/;
+  for (const model of catalog.models) {
+    for (const mode of model.modes) {
+      const param = mode.params.find((item) => item.key === 'size');
+      if (!param) continue;
+      for (const value of param.options || []) {
+        if (!pixelSize.test(String(value))) continue;
+        assert.ok(param.optionLabels?.[value], `${model.id}/${mode.id}/${value} 缺少展示标签`);
+        assert.doesNotMatch(optionLabel(param, value), pixelSize);
+      }
+    }
+  }
+  const video = catalog.models.find((item) => item.id === 'starrouter-grok-imagine-video');
+  const mode = video.modes[0];
+  const size = mode.params.find((item) => item.key === 'size');
+  assert.equal(size.optionLabels['1280x720'], '16:9 · 720p');
+  assert.equal(renderProtocolTemplate(mode.requestTemplate, {
+    model: video.upstreamModel,
+    prompt: 'test',
+    params: { duration: 8, size: '720x1280' },
+  }).size, '720x1280', '展示标签不得改变供应商 size 字段');
 });
 
 test('StarRouter 内置模型使用上游真实模型 ID 和已声明的图片编辑能力', () => {

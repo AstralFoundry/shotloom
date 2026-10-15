@@ -114,7 +114,13 @@
                 "1536x1024",
                 "1024x1536",
                 "auto"
-              ]
+              ],
+              "optionLabels": {
+                "1024x1024": "1:1",
+                "1536x1024": "3:2",
+                "1024x1536": "2:3",
+                "auto": "自动"
+              }
             },
             {
               "key": "quality",
@@ -234,7 +240,13 @@
                 "1536x1024",
                 "1024x1536",
                 "auto"
-              ]
+              ],
+              "optionLabels": {
+                "1024x1024": "1:1",
+                "1536x1024": "3:2",
+                "1024x1536": "2:3",
+                "auto": "自动"
+              }
             },
             {
               "key": "quality",
@@ -710,7 +722,13 @@
                 "1536x1024",
                 "1024x1536",
                 "auto"
-              ]
+              ],
+              "optionLabels": {
+                "1024x1024": "1:1",
+                "1536x1024": "3:2",
+                "1024x1536": "2:3",
+                "auto": "自动"
+              }
             },
             {
               "key": "quality",
@@ -830,7 +848,13 @@
                 "1536x1024",
                 "1024x1536",
                 "auto"
-              ]
+              ],
+              "optionLabels": {
+                "1024x1024": "1:1",
+                "1536x1024": "3:2",
+                "1024x1536": "2:3",
+                "auto": "自动"
+              }
             },
             {
               "key": "quality",
@@ -1050,14 +1074,18 @@
             },
             {
               "key": "size",
-              "label": "画面尺寸",
+              "label": "画面比例",
               "type": "select",
               "default": "1280x720",
-              "presentation": "resolution",
+              "presentation": "aspectRatio",
               "options": [
                 "1280x720",
                 "720x1280"
-              ]
+              ],
+              "optionLabels": {
+                "1280x720": "16:9 · 720p",
+                "720x1280": "9:16 · 720p"
+              }
             }
           ],
           "auth": {
@@ -1170,14 +1198,18 @@
             },
             {
               "key": "size",
-              "label": "画面尺寸",
+              "label": "画面比例",
               "type": "select",
               "default": "1280x720",
-              "presentation": "resolution",
+              "presentation": "aspectRatio",
               "options": [
                 "1280x720",
                 "720x1280"
-              ]
+              ],
+              "optionLabels": {
+                "1280x720": "16:9 · 720p",
+                "720x1280": "9:16 · 720p"
+              }
             }
           ],
           "auth": {
@@ -1290,14 +1322,18 @@
             },
             {
               "key": "size",
-              "label": "画面尺寸",
+              "label": "画面比例",
               "type": "select",
               "default": "1280x720",
-              "presentation": "resolution",
+              "presentation": "aspectRatio",
               "options": [
                 "1280x720",
                 "720x1280"
-              ]
+              ],
+              "optionLabels": {
+                "1280x720": "16:9 · 720p",
+                "720x1280": "9:16 · 720p"
+              }
             }
           ],
           "auth": {
