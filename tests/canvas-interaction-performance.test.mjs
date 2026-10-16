@@ -248,8 +248,8 @@ test('视频画面可拖动节点且拖动期间保持播放', () => {
   assert.match(node, /<video[\s\S]*?className="nowheel"[\s\S]*?draggable=\{false\}[\s\S]*?playsInline/);
   assert.doesNotMatch(node, /preload="auto"\s*onPointerDown=\{\(event\) => event\.stopPropagation\(\)\}/);
   assert.doesNotMatch(node, /preload="auto"\s*onPointerDown=\{\(event\) => event\.currentTarget\.pause\(\)\}/);
-  assert.match(node, /onPointerEnter=\{\(event\) => \{[\s\S]*?const video = event\.currentTarget;[\s\S]*?video\.play\(\)/);
-  assert.match(node, /onPointerLeave=\{\(event\) => \{[\s\S]*?if \(event\.buttons\) return;[\s\S]*?video\.pause\(\)/);
+  assert.match(node, /onPointerEnter=\{\(\) => \{[\s\S]*?video\.muted = videoMuted;[\s\S]*?video\.play\(\)/);
+  assert.match(node, /onPointerLeave=\{\(event\) => \{[\s\S]*?event\.buttons\) return;[\s\S]*?videoPreviewRef\.current\?\.pause\(\)/);
   assert.doesNotMatch(node, /video\.pause\(\);\s*if \(video\.duration/);
   assert.match(audioPreview, /<audio[\s\S]*?className="nodrag nopan nowheel[^"]*"/);
   assert.match(audioPreview, /className="audio-waveform"[\s\S]*?audio\.currentTime =/);
@@ -304,11 +304,10 @@ test('视频节点加载后主动解码首帧作为默认封面', () => {
     /onLoadedData=\{\(event\) => \{[\s\S]*?video\.currentTime = Math\.min\([\s\S]*?1 \/ 30/,
   );
 });
-test('视频节点移除原生控件并在悬停预览时播放原始声音', () => {
+test('视频节点移除原生控件并在悬停预览区域播放原始声音', () => {
   assert.doesNotMatch(node, /<video[^>]*\bcontrols\b/);
-  assert.match(node, /useState\(false\)[\s\S]*?className="nowheel"[\s\S]*?muted=\{videoMuted\}[\s\S]*?loop[\s\S]*?onPointerEnter/);
-  assert.match(node, /onPointerEnter=\{\(event\) => \{[\s\S]*?video\.muted = videoMuted;[\s\S]*?video\.volume = 1;[\s\S]*?video\.play\(\)/);
-  assert.match(node, /onPointerLeave=\{\(event\) => \{[\s\S]*?video\.pause\(\)/);
+  assert.match(node, /onPointerEnter=\{\(\) => \{[\s\S]*?video\.muted = videoMuted;[\s\S]*?video\.volume = 1;[\s\S]*?video\.play\(\)/);
+  assert.match(node, /onPointerLeave=\{\(event\) => \{[\s\S]*?videoPreviewRef\.current\?\.pause\(\)/);
   assert.match(migrationStyles, /\.work-preview > video \{ object-fit: cover; \}/);
 });
 test('视频节点持续显示时长并提供声音开关', () => {

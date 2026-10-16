@@ -433,6 +433,18 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({
             } ${kind}`}
             title={kind === "text" ? "双击编辑节点内容" : previewUrl ? "双击查看详情" : ""}
             onDoubleClick={imageCropOpen ? undefined : () => openDetail(false)}
+            onPointerEnter={() => {
+              if (activeKind !== "video" || !previewUrl) return;
+              const video = videoPreviewRef.current;
+              if (!video) return;
+              video.muted = videoMuted;
+              video.volume = 1;
+              void video.play().catch(() => undefined);
+            }}
+            onPointerLeave={(event) => {
+              if (activeKind !== "video" || !previewUrl || event.buttons) return;
+              videoPreviewRef.current?.pause();
+            }}
           >
             {kind === "text" ? (
               textContent ? (
@@ -517,17 +529,6 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({
                       canvasHeight: dimensions.height,
                     });
                   }
-                }}
-                onPointerEnter={(event) => {
-                  const video = event.currentTarget;
-                  video.muted = videoMuted;
-                  video.volume = 1;
-                  void video.play().catch(() => undefined);
-                }}
-                onPointerLeave={(event) => {
-                  if (event.buttons) return;
-                  const video = event.currentTarget;
-                  video.pause();
                 }}
                 onLoadedData={(event) => {
                   const video = event.currentTarget;
