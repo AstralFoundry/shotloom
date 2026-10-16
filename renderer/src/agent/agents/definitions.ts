@@ -111,7 +111,7 @@ export const AGENT_DEFINITIONS: AgentDefinition[] = [
     ],
     skills: [],
     dispatch: [],
-    instructions: 'Author a Production Plan for the requested scope. Use the Active Skill and its constraints supplied by the parent task. Do not mutate the canvas or claim completion.',
+    instructions: 'Author a Production Plan for the requested scope. Read the latest plan revision before writing. Keep stable workItem ids, real dependencies, finished prompts, and completion criteria. Use the Active Skill and constraints supplied by the parent task. Do not mutate the canvas, create media, or claim completion.',
   },
   {
     id: 'stage-executor',
@@ -126,7 +126,7 @@ export const AGENT_DEFINITIONS: AgentDefinition[] = [
     ],
     skills: [],
     dispatch: [],
-    instructions: 'Execute the requested stage using the Active Skill and constraints supplied by the parent task. Respect real dependencies and return exact receipts.',
+    instructions: 'Execute only the requested Production Plan stage. Read its latest detail first, respect real dependencies and model-catalog capabilities, preserve successful work items, retry only missing or failed items, and return exact node/task/path receipts. Do not replan or dispatch another Agent.',
   },
   {
     id: 'result-reviewer',
@@ -138,7 +138,7 @@ export const AGENT_DEFINITIONS: AgentDefinition[] = [
     tools: [...toolOutputReadTools, ...canvasReadTools, ...catalogTools, ...productionPlanReadTools, ...skillNamespacedTools],
     skills: [],
     dispatch: [],
-    instructions: 'Verify using read tools and tool receipts. Never modify the canvas.',
+    instructions: 'Verify only from read tools, task terminal states, canvas facts, and tool receipts. Distinguish configured, running, succeeded, failed, and blocked. Return missing evidence and nextAction; never modify the canvas.',
   },
 ];
 

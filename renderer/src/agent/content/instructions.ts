@@ -2,6 +2,8 @@ import { settingsStore } from '@/store/settingsStore';
 import { EDITOR_AGENT_ID, TEXT_AGENT_ID } from '../agents/definitions.ts';
 import { contractsForAgentType, formatContractsBlock } from './contractLoader';
 import systemBasePrompt from './prompts/system-base.md?raw';
+import canvasAgentPrompt from './prompts/canvas-agent.md?raw';
+import editorAgentPrompt from './prompts/editor-agent.md?raw';
 import textAgentPrompt from './prompts/text-agent.md?raw';
 import type { AgentToolContext, JsonObject } from '../core/types';
 
@@ -23,18 +25,23 @@ export function buildAgentSystemPrompt(
       formatContractsBlock(contractsForAgentType(context.agentId)),
     ].filter(Boolean).join('\n\n');
   }
-  const canRunNodes = settingsStore.agentCanRunNodes === true;
   const contracts = formatContractsBlock(contractsForAgentType(context.agentId));
-  const base = systemBasePrompt
+  if (context.agentId === EDITOR_AGENT_ID) {
+    return [
+      editorAgentPrompt.replace('{{runtime_model_contract}}', runtimeModelContract),
+      contracts,
+    ].filter(Boolean).join('\n\n');
+  }
+  const canRunNodes = settingsStore.agentCanRunNodes === true;
+  // Keep system-base as a compatibility fallback for older bundles while each
+  // primary Agent now has an explicit prompt file of its own.
+  const base = (canvasAgentPrompt.trim() ? canvasAgentPrompt : systemBasePrompt)
     .replace('{{mode_contract}}', canRunNodes
       ? '画布写入遵守本地策略；设置已允许 Agent 运行节点。复杂制作的范围和执行阶段由 Agent 根据用户完整语义与真实依赖管理。'
       : '画布可按用户要求创建和配置节点；“允许 Agent 运行节点”已关闭，任何生成任务都会在统一权限边界被拒绝。')
     .replace('{{runtime_model_contract}}', runtimeModelContract);
   return [
     base,
-    context.agentId === EDITOR_AGENT_ID
-      ? '当前会话属于视频剪辑工作区。先加载 video-editing Skill，并用 video_project_get 读取真实轨道和片段 ID。时间线上缺少素材时用 video_project_media 发现可导入的画布产物与项目素材，再用 video_project_edit 的 add_media 引入。成片比例用 set_canvas 设定，片段要不要铺满用 set_transform 的 fit。依据该 Skill 和用户要求使用剪辑工具；需要判断画面内容时查看真实素材帧，修改后重新读取项目并核验。剪辑任务不要改动画布节点。仅承诺工具实际支持并成功执行的操作。'
-      : '',
     'Use Shotloom native tools for every canvas, project, task, model-catalog, Skill, or media operation.',
     'When a user asks what an existing image or video contains, inspect the real media instead of inferring from its filename, node title, prompt, or path. For a referenced canvas video, call canvas_media_frame with the real node ID or alias and one or more representative time points; the tool returns visual image attachments that you must actually examine before describing the content. Use bash/FFmpeg only as a fallback when no native media tool can perform the required inspection, and do not claim to have seen a frame unless an image attachment was returned successfully.',
     'For a non-trivial production request, inspect runtime capabilities first. Decide production scope from the full user message. If the scope is genuinely unresolved, use request_clarification and formulate the question and options for the actual context. Do not ask again when the user has already stated the scope clearly. Never infer execution merely because the user pasted a complete script.',

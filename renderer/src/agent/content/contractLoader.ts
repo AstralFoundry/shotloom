@@ -128,9 +128,15 @@ export function formatContractsBlock(contracts: ContractMeta[]): string {
 }
 
 // ── Bootstrap built-in contracts ───────────────────────────────────────
+import baselineRaw from './contracts/baseline.md?raw';
 import safetyRulesRaw from './contracts/safety-rules.md?raw';
 import antiLoopRaw from './contracts/anti-loop.md?raw';
 import productionGovernanceRaw from './contracts/production-governance.md?raw';
+import semanticJudgmentRaw from './contracts/semantic-judgment.md?raw';
+import canvasDisciplineRaw from './contracts/canvas-discipline.md?raw';
+registerContractFromRaw(baselineRaw);
 registerContractFromRaw(safetyRulesRaw);
 registerContractFromRaw(antiLoopRaw);
 registerContractFromRaw(productionGovernanceRaw);
+registerContractFromRaw(semanticJudgmentRaw);
+registerContractFromRaw(canvasDisciplineRaw);
