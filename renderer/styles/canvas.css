@@ -690,27 +690,27 @@
 .work-preview .work-preview-download svg { width: var(--canvas-node-icon-size); height: var(--canvas-node-icon-size); }
 .work-video-status {
   position: absolute;
-  left: 8px;
-  bottom: 8px;
+  left: 6px;
+  bottom: 6px;
   z-index: 3;
-  min-height: 25px;
+  min-height: 18px;
   border-radius: 999px;
-  padding: 0 4px 0 9px;
+  padding: 0 3px 0 6px;
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 3px;
   color: rgba(255, 255, 255, .94);
   background: rgba(10, 12, 15, .68);
   box-shadow: 0 4px 14px rgba(0, 0, 0, .18);
   backdrop-filter: blur(9px);
-  font-size: var(--canvas-node-meta-size);
+  font-size: 9px;
   font-variant-numeric: tabular-nums;
   opacity: 1;
   pointer-events: none;
 }
 .work-video-sound {
-  width: 21px;
-  height: 21px;
+  width: 17px;
+  height: 17px;
   border: 0;
   border-radius: 999px;
   padding: 0;
