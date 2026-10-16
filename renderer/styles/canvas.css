@@ -694,20 +694,21 @@
   bottom: 6px;
   z-index: 3;
   min-height: 18px;
-  border-radius: 999px;
+  border-radius: 4px;
   padding: 0 3px 0 6px;
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  color: rgba(255, 255, 255, .94);
-  background: rgba(10, 12, 15, .68);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, .18);
-  backdrop-filter: blur(9px);
+  color: rgba(42, 47, 54, .84);
+  background: rgba(255, 255, 255, .78);
+  box-shadow: 0 1px 5px rgba(15, 23, 42, .12);
+  backdrop-filter: blur(7px);
   font-size: 9px;
   font-variant-numeric: tabular-nums;
   opacity: 1;
   pointer-events: none;
 }
+.work-preview:hover .work-video-status { opacity: 0; }
 .work-video-controls {
   position: absolute;
   inset: auto 0 0;

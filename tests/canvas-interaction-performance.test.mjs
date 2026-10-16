@@ -318,8 +318,8 @@ test('视频节点持续显示时长并提供声音开关', () => {
   assert.match(node, /className="work-video-controls nodrag nopan"[\s\S]*?videoPlaying[\s\S]*?requestFullscreen/);
   assert.doesNotMatch(node, /10 \* Math\.min\(1, semanticZoom\)/);
   assert.match(node, /className="work-video-control-button"[\s\S]*?nextMuted = !videoMuted[\s\S]*?volume-x[\s\S]*?volume/);
-  assert.match(migrationStyles, /\.work-video-status \{[\s\S]*?backdrop-filter: blur\(9px\)[\s\S]*?opacity: 1/);
-  assert.doesNotMatch(migrationStyles, /\.work-node:hover \.work-video-status/);
+  assert.match(migrationStyles, /\.work-video-status \{[\s\S]*?border-radius: 4px[\s\S]*?background: rgba\(255, 255, 255, \.78\)[\s\S]*?opacity: 1/);
+  assert.match(migrationStyles, /\.work-preview:hover \.work-video-status \{ opacity: 0; \}/);
   assert.match(migrationStyles, /\.work-video-controls \{[\s\S]*?background: linear-gradient\(180deg, transparent, rgba\(10, 12, 15, \.8\)\)/);
   assert.match(migrationStyles, /\.audio-play-glyph \{[\s\S]*?border-left: 6px solid #fff/);
   assert.match(migrationStyles, /\.work-preview \.audio-waveform-download svg \{ width: var\(--canvas-node-icon-size\); height: var\(--canvas-node-icon-size\); \}/);
