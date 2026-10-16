@@ -83,14 +83,14 @@
 .director-node-head {
   position: relative;
   z-index: 1;
-  height: calc(var(--canvas-node-head-height) * var(--node-semantic-zoom, 1));
-  flex: 0 0 calc(var(--canvas-node-head-height) * var(--node-semantic-zoom, 1));
+  height: var(--canvas-node-head-height);
+  flex: 0 0 var(--canvas-node-head-height);
   box-sizing: border-box;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: calc(4px * var(--node-semantic-zoom, 1));
-  padding: 0 calc(6px * var(--node-semantic-zoom, 1)) 0 calc(4px * var(--node-semantic-zoom, 1));
+  gap: 4px;
+  padding: 0 6px 0 4px;
   border-bottom: 1px solid #ededee;
   background: #fafafa;
 }
@@ -131,7 +131,7 @@
   flex: 1;
   display: flex;
   align-items: center;
-  gap: calc(4px * var(--node-semantic-zoom, 1));
+  gap: 4px;
   color: #55565b;
 }
 
@@ -200,7 +200,7 @@
   width: 100%;
   height: 100%;
   box-sizing: border-box;
-  padding: calc(24px * var(--node-semantic-zoom, 1));
+  padding: 24px;
   text-align: center;
   color: #696a70;
 }
@@ -208,32 +208,32 @@
 .director-node-placeholder > svg {
   width: var(--canvas-node-state-icon-size);
   height: var(--canvas-node-state-icon-size);
-  margin-bottom: calc(12px * var(--node-semantic-zoom, 1));
+  margin-bottom: 12px;
   color: #d9dadd;
   stroke-width: 1.4;
 }
 
 .director-node-placeholder strong {
   color: #27282c;
-  font-size: calc(var(--canvas-node-hero-size) * var(--node-semantic-zoom, 1));
+  font-size: var(--canvas-node-hero-size);
   font-weight: 650;
 }
 
 .director-node-placeholder p {
-  margin: calc(10px * var(--node-semantic-zoom, 1)) 0 calc(18px * var(--node-semantic-zoom, 1));
+  margin: 10px 0 18px;
   color: #73747a;
-  font-size: calc(var(--canvas-node-body-size) * var(--node-semantic-zoom, 1));
+  font-size: var(--canvas-node-body-size);
 }
 
 .director-node-open-button {
-  min-width: calc(128px * var(--node-semantic-zoom, 1));
-  height: calc(34px * var(--node-semantic-zoom, 1));
-  padding: 0 calc(18px * var(--node-semantic-zoom, 1));
+  min-width: 128px;
+  height: 34px;
+  padding: 0 18px;
   border: 0;
   border-radius: 8px;
   color: #2d2e33;
   background: #f0f0f1;
-  font-size: calc(var(--canvas-node-body-size) * var(--node-semantic-zoom, 1));
+  font-size: var(--canvas-node-body-size);
   cursor: pointer;
 }
 
@@ -266,44 +266,21 @@
   pointer-events: none;
 }
 .director-detail-backdrop {
-  position: fixed;
+  /* 导演台详情和剪辑台一样是内容区里的工作面：铺满、不压暗、不画悬浮卡片。 */
+  position: absolute;
   inset: 0;
-  z-index: 1100;
+  z-index: 20;
   display: grid;
-  place-items: center;
-  padding: 32px;
-  background: rgba(20, 23, 30, .42);
-  backdrop-filter: blur(5px);
+  background: #fff;
 }
 .director-detail-window {
-  width: min(1600px, calc(100vw - 48px));
-  height: min(900px, calc(100vh - 48px));
+  /* 导演台自带顶栏（标题、视角切换、导出、关闭），这里不再叠一层宿主标题栏。 */
   min-width: 0;
   min-height: 0;
   display: grid;
-  grid-template-rows: 48px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   overflow: hidden;
-  border: 1px solid rgba(30, 35, 45, .18);
-  border-radius: 14px;
   background: #fff;
-  box-shadow: 0 24px 70px rgba(0, 0, 0, .28);
-}
-.director-detail-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 16px;
-  border-bottom: 1px solid #e7e8eb;
-  color: #282b33;
-}
-.director-detail-head button {
-  height: 28px;
-  padding: 0 12px;
-  border: 0;
-  border-radius: 7px;
-  color: #fff;
-  background: #282b33;
-  cursor: pointer;
 }
 .director-detail-frame {
   display: block;
@@ -313,16 +290,4 @@
   min-height: 0;
   border: 0;
   background: #f7f8fa;
-}
-
-@media (max-width: 720px) {
-  .director-detail-backdrop {
-    padding: 12px;
-  }
-
-  .director-detail-window {
-    width: 100%;
-    height: 100%;
-    border-radius: 10px;
-  }
 }

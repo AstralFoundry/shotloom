@@ -9,6 +9,7 @@ import {
   registerAgentTool,
 } from '../renderer/src/agent/core/toolRegistry.ts';
 import { AGENT_DEFINITIONS, agentDefinition } from '../renderer/src/agent/agents/definitions.ts';
+import { selectAgentSkills } from '../renderer/src/agent/core/visibility.ts';
 
 function contextFor(agentId, overrides = {}) {
   return {
@@ -151,9 +152,52 @@ test('契约的 appliesTo 只能引用已声明的 Agent', () => {
   }
 });
 
+// 文本 Agent 是独立的工作区会话：它只能读写当前草稿，画布写入与生成权限一个都不能继承。
+test('文本 Agent 只看见草稿读写与会话工具', () => {
+  clearAgentToolsForTests();
+  define('read_tool_output');
+  define('text_draft_read');
+  define('text_draft_write', { effect: 'agent_state_write' });
+  define('request_clarification', { effect: 'agent_state_write' });
+  define('canvas_create_node', { effect: 'canvas_write' });
+  define('canvas_start_generation', { effect: 'media_generation' });
+  define('video_project_edit', { effect: 'project_write' });
+  assert.deepEqual(
+    listAgentTools(contextFor('text-primary')).map((tool) => tool.id).sort(),
+    ['read_tool_output', 'request_clarification', 'text_draft_read', 'text_draft_write'],
+  );
+  for (const id of ['canvas-primary', 'editor-primary']) {
+    assert.deepEqual(
+      listAgentTools(contextFor(id))
+        .map((tool) => tool.id)
+        .filter((toolId) => toolId.startsWith('text_draft_')),
+      [],
+      `${id} 不应看见文本草稿工具`,
+    );
+  }
+  clearAgentToolsForTests();
+});
+
+test('文本 Agent 的 Skill 选择独立于画布与剪辑', () => {
+  const enabled = [
+    { id: 'text-writing', name: '文档写作与改写', enabled: true },
+    { id: 'video-editing', name: '视频剪辑', enabled: true },
+    { id: 'short-drama', name: '短剧', enabled: true },
+  ];
+  assert.deepEqual(
+    selectAgentSkills(agentDefinition('text-primary'), enabled).map((skill) => skill.id),
+    ['text-writing'],
+  );
+  assert.deepEqual(
+    selectAgentSkills(agentDefinition('editor-primary'), enabled).map((skill) => skill.id),
+    ['video-editing'],
+  );
+  assert.equal(selectAgentSkills(agentDefinition('canvas-primary'), enabled).length, enabled.length);
+});
+
 // fail-closed 的代价是漏写就静默失效：这里保证每个真实注册的工具都至少属于一个 Agent。
 test('所有默认工具都至少被一个 Agent 白名单授予', () => {
-  const files = ['canvasTools', 'catalogTools', 'lifecycleTools', 'productionPlanTools', 'videoEditorTools'];
+  const files = ['canvasTools', 'catalogTools', 'lifecycleTools', 'productionPlanTools', 'textTools', 'videoEditorTools'];
   const registered = [];
   for (const file of files) {
     const source = readFileSync(new URL(`../renderer/src/agent/tools/${file}.ts`, import.meta.url), 'utf8');

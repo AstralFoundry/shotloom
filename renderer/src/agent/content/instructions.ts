@@ -1,7 +1,8 @@
 import { settingsStore } from '@/store/settingsStore';
-import { EDITOR_AGENT_ID } from '../agents/definitions.ts';
+import { EDITOR_AGENT_ID, TEXT_AGENT_ID } from '../agents/definitions.ts';
 import { contractsForAgentType, formatContractsBlock } from './contractLoader';
 import systemBasePrompt from './prompts/system-base.md?raw';
+import textAgentPrompt from './prompts/text-agent.md?raw';
 import type { AgentToolContext, JsonObject } from '../core/types';
 
 /**
@@ -14,6 +15,14 @@ export function buildAgentSystemPrompt(
   context: AgentToolContext,
   runtimeModelContract: string,
 ): string {
+  // 文本 Agent 面对的是编辑器里的一份草稿，不是画布工作流，因此它有独立的提示词，
+  // 不复用画布的制作、节点与生成契约。
+  if (context.agentId === TEXT_AGENT_ID) {
+    return [
+      textAgentPrompt.replace('{{runtime_model_contract}}', runtimeModelContract),
+      formatContractsBlock(contractsForAgentType(context.agentId)),
+    ].filter(Boolean).join('\n\n');
+  }
   const canRunNodes = settingsStore.agentCanRunNodes === true;
   const contracts = formatContractsBlock(contractsForAgentType(context.agentId));
   const base = systemBasePrompt

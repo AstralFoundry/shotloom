@@ -9,6 +9,7 @@ import {
   switchCopilotConversation,
   canvasCopilotConversation,
   editorCopilotConversation,
+  textCopilotConversation,
   scopedCopilotConversations,
 } from '../renderer/src/services/copilotConversations.mjs';
 
@@ -195,4 +196,53 @@ test('clearing targets one conversation without touching the other scope', () =>
   assert.deepEqual(canvas.messages, []);
   assert.deepEqual(editor.messages, [{ id: 'editor-message' }]);
   assert.deepEqual(editor.runtimeTranscript, [{ role: 'user', content: '编辑器会话历史' }]);
+});
+
+test('文本作用域每个节点一个会话，且不会出现在画布和剪辑列表里', () => {
+  const project = {};
+  getActiveCopilotConversation(project);
+
+  const created = textCopilotConversation(project, 'text-a');
+
+  assert.equal(created.textNodeId, 'text-a');
+  assert.equal(created.title, '文本 Agent');
+  assert.equal(textCopilotConversation(project, 'text-a'), created);
+  assert.notEqual(textCopilotConversation(project, 'text-b').id, created.id);
+
+  assert.deepEqual(
+    scopedCopilotConversations(project, 'text', 'text-a').map((item) => item.id),
+    [created.id],
+  );
+  assert.deepEqual(scopedCopilotConversations(project, 'text', ''), []);
+  assert.equal(scopedCopilotConversations(project, 'editor', 'text-a').length, 0);
+  assert.equal(
+    scopedCopilotConversations(project, 'canvas').some((item) => item.textNodeId),
+    false,
+    '文本会话不得混进画布历史',
+  );
+});
+
+test('文本面板的会话解析不受项目级活动指针影响', () => {
+  const project = {};
+  const canvas = getActiveCopilotConversation(project);
+  const text = textCopilotConversation(project, 'text-a');
+  const editor = editorCopilotConversation(project, 'node-editor');
+  assert.equal(project.activeCopilotConversationId, editor.id);
+
+  assert.equal(textCopilotConversation(project, 'text-a').id, text.id);
+  assert.equal(canvasCopilotConversation(project).id, canvas.id);
+});
+
+test('文本会话记录携带 text-primary，历史缺字段时按节点补齐', () => {
+  assert.equal(textCopilotConversation({}, 'text-a').agentId, 'text-primary');
+
+  const project = {
+    copilotConversations: [
+      { id: 'legacy-text', title: '文本 Agent', messages: [], textNodeId: 'text-1', updatedAt: '2026-01-03' },
+    ],
+  };
+
+  ensureCopilotConversations(project);
+
+  assert.equal(project.copilotConversations[0].agentId, 'text-primary');
 });

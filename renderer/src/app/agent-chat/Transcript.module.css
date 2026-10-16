@@ -49,12 +49,10 @@
   text-align: center;
 }
 
+/* 尺寸由 .sidebar-brand-logo 统一声明为 32px，这里只管空状态自己的间距和圆角。 */
 .emptyMark {
-  width: 44px;
-  height: 44px;
   margin-bottom: 10px;
   border-radius: 13px;
-  color: var(--slk-label-secondary);
 }
 
 .empty strong {

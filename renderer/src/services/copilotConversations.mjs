@@ -4,7 +4,7 @@ function uid() {
 
 // 会话归属的 Agent id。权威定义在 renderer/src/agent/agents/definitions.ts，
 // 这里只保留作用域到 id 的映射，本模块是纯 JS 数据层，不反向依赖 Agent 运行时。
-const SCOPE_AGENT_IDS = { canvas: 'canvas-primary', editor: 'editor-primary' };
+const SCOPE_AGENT_IDS = { canvas: 'canvas-primary', editor: 'editor-primary', text: 'text-primary' };
 
 export function ensureCopilotConversations(project) {
   if (!project || typeof project !== 'object') return [];
@@ -29,7 +29,9 @@ export function ensureCopilotConversations(project) {
     else if (typeof conversation.id !== 'string') conversation.id = String(conversation.id);
     // agentId 决定这个会话能使用哪个 Agent 的工具与 Skill 集合，必须显式存在于记录上。
     if (!conversation.agentId) {
-      conversation.agentId = conversation.editorNodeId ? SCOPE_AGENT_IDS.editor : SCOPE_AGENT_IDS.canvas;
+      conversation.agentId = conversation.textNodeId
+        ? SCOPE_AGENT_IDS.text
+        : conversation.editorNodeId ? SCOPE_AGENT_IDS.editor : SCOPE_AGENT_IDS.canvas;
     }
     const title = String(conversation.title || '新对话').slice(0, 80);
     if (conversation.title !== title) conversation.title = title;
@@ -51,18 +53,23 @@ export function getActiveCopilotConversation(project) {
   return conversations.find((item) => item.id === project.activeCopilotConversationId) || conversations[0];
 }
 
-// 画布与每个剪辑工作区各自拥有独立会话，互不可见。project.activeCopilotConversationId
+// 画布、每个剪辑工作区和每个文本编辑器各自拥有独立会话，互不可见。project.activeCopilotConversationId
 // 只是项目级的“最近所在会话”指针，不能用来判断某个面板该显示哪个会话，否则剪辑会话会
 // 抢走画布面板的消息归属。作用域解析必须由这里统一决定。
-export function scopedCopilotConversations(project, scope = 'canvas', editorNodeId = '') {
+export function scopedCopilotConversations(project, scope = 'canvas', boundNodeId = '') {
   const conversations = ensureCopilotConversations(project);
-  const nodeId = String(editorNodeId || '');
+  const nodeId = String(boundNodeId || '');
   if (scope === 'editor') {
     if (!nodeId) return [];
     return conversations.filter((item) => String(item.editorNodeId || '') === nodeId);
   }
+  if (scope === 'text') {
+    if (!nodeId) return [];
+    return conversations.filter((item) => String(item.textNodeId || '') === nodeId);
+  }
+  // 工作区会话（剪辑、文本）不属于画布列表，否则会在画布历史抽屉里互相污染。
   return conversations
-    .filter((item) => !item.editorNodeId)
+    .filter((item) => !item.editorNodeId && !item.textNodeId)
     .sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')));
 }
 
@@ -83,9 +90,21 @@ export function editorCopilotConversation(project, editorNodeId) {
   const conversations = scopedCopilotConversations(project, 'editor', nodeId);
   if (!nodeId) return conversations[0] || getActiveCopilotConversation(project);
   if (conversations.length) return conversations[0];
-  const conversation = createCopilotConversation(project, { title: '剪辑 Agent', agentId: SCOPE_AGENT_IDS.editor });
-  conversation.editorNodeId = nodeId;
-  return conversation;
+  return createCopilotConversation(project, {
+    title: '剪辑 Agent', agentId: SCOPE_AGENT_IDS.editor, editorNodeId: nodeId,
+  });
+}
+
+// 文本编辑器作用域。一个文本节点同时只保留一个会话，首次读取即建立，
+// 使面板读取与发送指向同一个会话。
+export function textCopilotConversation(project, textNodeId) {
+  const nodeId = String(textNodeId || '');
+  const conversations = scopedCopilotConversations(project, 'text', nodeId);
+  if (!nodeId) return conversations[0] || getActiveCopilotConversation(project);
+  if (conversations.length) return conversations[0];
+  return createCopilotConversation(project, {
+    title: '文本 Agent', agentId: SCOPE_AGENT_IDS.text, textNodeId: nodeId,
+  });
 }
 
 export function createCopilotConversation(project, options = {}) {
@@ -95,6 +114,9 @@ export function createCopilotConversation(project, options = {}) {
     id: uid(),
     title: String(options.title || '新对话').slice(0, 80),
     agentId: String(options.agentId || SCOPE_AGENT_IDS.canvas),
+    // 工作区会话在建立时就绑定所属节点，避免先落成画布会话再改作用域。
+    ...(options.editorNodeId ? { editorNodeId: String(options.editorNodeId) } : {}),
+    ...(options.textNodeId ? { textNodeId: String(options.textNodeId) } : {}),
     messages: [],
     contextUsage: null,
     createdAt: now,

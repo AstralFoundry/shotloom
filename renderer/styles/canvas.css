@@ -60,8 +60,16 @@
   box-shadow: none;
 }
 .react-workflow-canvas .react-flow__node.selected { box-shadow: none; }
+.canvas-node-semantic-frame {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: visible;
+}
 .canvas-node-semantic-content {
   position: relative;
+  display: block;
   contain: layout style;
   -webkit-text-size-adjust: none;
   text-size-adjust: none;
@@ -497,7 +505,7 @@
 }
 .react-workflow-canvas.canvas-zoom-overview :is(
   .text-result-scroll,
-  .text-result-empty span,
+  .text-result-starters,
   .work-empty-upload span,
   .resource-media pre
 ) {
@@ -606,8 +614,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: calc(4px * var(--node-semantic-zoom, 1)) calc(5px * var(--node-semantic-zoom, 1)) 0;
-  font-size: calc(var(--canvas-node-meta-size) * var(--node-semantic-zoom, 1));
+  padding: 4px 5px 0;
+  font-size: var(--canvas-node-meta-size);
   font-variant-numeric: tabular-nums;
 }
 .audio-waveform-controls button {
@@ -622,8 +630,8 @@
   position: absolute;
   left: 50%;
   top: 50%;
-  width: calc((var(--canvas-node-action-size) + 6px) * var(--node-semantic-zoom, 1));
-  height: calc((var(--canvas-node-action-size) + 6px) * var(--node-semantic-zoom, 1));
+  width: calc(var(--canvas-node-action-size) + 6px);
+  height: calc(var(--canvas-node-action-size) + 6px);
   border-radius: 999px !important;
   color: #fff !important;
   background: #08090a !important;
@@ -638,20 +646,20 @@
   border-left: 6px solid #fff;
 }
 .work-preview .audio-waveform-play svg {
-  width: calc(var(--canvas-node-icon-size) * var(--node-semantic-zoom, 1));
-  height: calc(var(--canvas-node-icon-size) * var(--node-semantic-zoom, 1));
+  width: var(--canvas-node-icon-size);
+  height: var(--canvas-node-icon-size);
   fill: none;
   stroke-width: 2.4;
 }
 .audio-waveform-download {
-  width: calc(var(--canvas-node-action-size) * var(--node-semantic-zoom, 1));
-  height: calc(var(--canvas-node-action-size) * var(--node-semantic-zoom, 1));
+  width: var(--canvas-node-action-size);
+  height: var(--canvas-node-action-size);
   margin-left: auto;
   border-radius: 6px !important;
   color: #747c86 !important;
 }
 .audio-waveform-download:hover { color: #24282e !important; background: #f1f2f3 !important; }
-.work-preview .audio-waveform-download svg { width: calc(var(--canvas-node-icon-size) * var(--node-semantic-zoom, 1)); height: calc(var(--canvas-node-icon-size) * var(--node-semantic-zoom, 1)); }
+.work-preview .audio-waveform-download svg { width: var(--canvas-node-icon-size); height: var(--canvas-node-icon-size); }
 .audio-waveform-native { display: none; }
 .work-preview-download {
   position: absolute;
@@ -723,8 +731,7 @@
 .work-preview .work-video-sound svg { width: var(--canvas-node-icon-size); height: var(--canvas-node-icon-size); }
 .work-preview .work-empty-type-icon { flex: 0 0 auto; }
 
-.work-planned-placeholder,
-.text-result-empty {
+.work-planned-placeholder {
   width: min(82%, 300px);
   display: grid;
   justify-items: center;
@@ -735,29 +742,55 @@
 .work-planned-placeholder strong { color: #344054; font-size: var(--canvas-node-hero-size); font-weight: 600; }
 .work-planned-placeholder span { border-radius: 999px; padding: 2px 7px; color: #475467; background: rgba(148, 163, 184, .14); font-size: var(--canvas-node-meta-size); }
 .work-planned-placeholder p { display: -webkit-box; margin: 0; overflow: hidden; color: #7c8491; font-size: var(--canvas-node-body-size); line-height: 1.45; -webkit-box-orient: vertical; -webkit-line-clamp: 4; }
-.text-result-empty span { font-size: calc(var(--canvas-node-body-size) * var(--node-semantic-zoom, 1)); }
-.text-result-empty > svg {
-  width: var(--canvas-node-state-icon-size);
-  height: var(--canvas-node-state-icon-size);
-  color: #a4a8ae;
+
+/* 空文本节点：图标占据上部空间，试试入口贴在卡片底部左侧。 */
+.text-result-empty {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 14px;
+  color: #667085;
+}
+.text-result-empty > .text-result-sheet {
+  width: 44px;
+  height: 44px;
+  margin: auto;
   flex: 0 0 auto;
+  color: #d2d6dc;
 }
-.text-result-manual {
-  min-height: calc(34px * var(--node-semantic-zoom, 1));
-  margin-top: calc(3px * var(--node-semantic-zoom, 1));
-  border: 1px solid rgba(0, 0, 0, .1);
+.text-result-starters {
+  display: grid;
+  gap: 8px;
+}
+.text-result-starters > span {
+  color: #9aa1ab;
+  font-size: var(--canvas-node-body-size);
+}
+.text-result-starter {
+  min-height: 32px;
+  border: 0;
   border-radius: 8px;
-  padding: 0 calc(11px * var(--node-semantic-zoom, 1));
-  display: inline-flex;
+  padding: 0 10px;
+  display: flex;
   align-items: center;
-  gap: 6px;
-  color: #363b42;
-  background: #fff;
-  font-size: calc(var(--canvas-node-body-size) * var(--node-semantic-zoom, 1));
-  font-weight: 550;
+  gap: 8px;
+  color: #616873;
+  background: #f7f8f9;
+  font-size: var(--canvas-node-body-size);
+  font-weight: 500;
+  text-align: left;
 }
-.text-result-manual:hover { border-color: rgba(0, 0, 0, .2); background: #f7f7f7; }
-.text-result-manual svg { width: calc(var(--canvas-node-icon-size) * var(--node-semantic-zoom, 1)); height: calc(var(--canvas-node-icon-size) * var(--node-semantic-zoom, 1)); }
+.text-result-starter:hover { background: #eff1f4; }
+.text-result-starter svg {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  color: #9aa1ab;
+}
 .work-empty-state {
   display: grid;
   justify-items: center;
@@ -769,7 +802,7 @@
   color: #a4a8ae;
 }
 .text-result-scroll { width: 100%; height: 100%; overflow: auto; }
-.text-result-scroll p { margin: 0; padding: calc(14px * var(--node-semantic-zoom, 1)); color: #334155; font: calc(12px * var(--node-semantic-zoom, 1))/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; }
+.text-result-scroll p { margin: 0; padding: 14px; color: #334155; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--canvas-node-body-size); font-weight: normal; line-height: 1.55; white-space: pre-wrap; }
 
 .canvas-flow-port {
   position: absolute;

@@ -320,14 +320,14 @@ test('视频节点悬停时显示时长并提供声音开关', () => {
   assert.match(migrationStyles, /\.work-video-status \{[\s\S]*?backdrop-filter: blur\(9px\)[\s\S]*?opacity: 0/);
   assert.match(migrationStyles, /\.work-node:hover \.work-video-status,[\s\S]*?opacity: 1/);
   assert.match(migrationStyles, /\.audio-play-glyph \{[\s\S]*?border-left: 6px solid #fff/);
-  assert.match(migrationStyles, /\.work-preview \.audio-waveform-download svg \{ width: calc\(var\(--canvas-node-icon-size\) \* var\(--node-semantic-zoom, 1\)\); height: calc\(var\(--canvas-node-icon-size\) \* var\(--node-semantic-zoom, 1\)\); \}/);
+  assert.match(migrationStyles, /\.work-preview \.audio-waveform-download svg \{ width: var\(--canvas-node-icon-size\); height: var\(--canvas-node-icon-size\); \}/);
 });
 test('工作台只计算当前路由数据且素材选择器按需加载', () => {
   assert.match(workbench, /appRoute === "creation" \? canvasViewData\(\) : null/);
   assert.match(workbench, /\["assets", "materials"\]\.includes\(appRoute\)/);
   assert.match(workbench, /loadMaterials: resourceLibraryData/);
   assert.match(creationView, /controller\.loadMaterials\(\)/);
-  assert.match(shell, /<section className="content">\{view\}<\/section>/);
+  assert.match(shell, /<section className="content">\s*\{view\}/);
   assert.doesNotMatch(workbench, /subscribeCopilot\(refresh\)/);
   assert.match(
     creationView,
@@ -360,9 +360,12 @@ test('画布缩放使用最终布局尺寸并保持 React Flow 视口为 1x', ()
   assert.match(canvas, /width: dimensions\.width \* semanticZoom/);
   assert.match(canvas, /semanticZoom,\s*\n\s*};/);
   assert.match(canvas, /const semanticZoom = data\.semanticZoom/);
-  assert.match(canvas, /className="canvas-node-semantic-content"[\s\S]*?zoom: semanticZoom/);
+  assert.match(canvas, /className="canvas-node-semantic-content"[\s\S]*?zoom: USE_WEBKIT_NODE_SCALE_FALLBACK \? 1 : semanticZoom/);
+  assert.match(canvas, /scale: USE_WEBKIT_NODE_SCALE_FALLBACK \? semanticZoom : 1/);
+  assert.match(canvas, /className="canvas-node-semantic-frame"[\s\S]*?width: width \* semanticZoom[\s\S]*?height: height \* semanticZoom/);
   assert.doesNotMatch(canvas, /className="canvas-node-semantic-content"[\s\S]{0,220}?transform: `scale/);
-  assert.match(styles, /\.canvas-node-semantic-content \{[^}]*contain:\s*layout style;[^}]*-webkit-text-size-adjust:\s*none;[^}]*text-size-adjust:\s*none/);
+  assert.match(styles, /\.canvas-node-semantic-frame \{[^}]*min-width:\s*0;[^}]*min-height:\s*0/);
+  assert.match(styles, /\.canvas-node-semantic-content \{[^}]*display:\s*block;[^}]*contain:\s*layout style;[^}]*-webkit-text-size-adjust:\s*none;[^}]*text-size-adjust:\s*none/);
   assert.match(canvas, /defaultViewport=\{\{ x: viewport\.x, y: viewport\.y, zoom: 1 \}\}/);
   assert.match(canvas, /minZoom=\{1\}[\s\S]*?maxZoom=\{1\}/);
   assert.match(canvas, /zoomOnScroll=\{false\}[\s\S]*?zoomOnPinch=\{false\}/);
@@ -376,6 +379,10 @@ test('节点文字、图标和错误态共享语义尺寸并沿同一缩放轨�
   assert.match(styles, /\.work-error \{[\s\S]*?font-size: var\(--canvas-node-error-size\)[\s\S]*?word-break: break-word/);
   assert.match(styles, /\.audio-waveform-download \{[\s\S]*?width: var\(--canvas-node-action-size\)[\s\S]*?height: var\(--canvas-node-action-size\)/);
   assert.match(canvas, /"--node-label-zoom": semanticZoom/);
+  // 节点内容只做一次语义缩放：容器上的 CSS zoom 之外不得再乘语义倍率，否则文字图标按 zoom² 增长并溢出节点。
+  assert.doesNotMatch(canvas, /--node-semantic-zoom/);
+  assert.doesNotMatch(styles, /--node-semantic-zoom/);
+  assert.doesNotMatch(directorStyles, /--node-semantic-zoom/);
 });
 test('导演台名称使用画布外部标签并和语义缩放同步', () => {
   assert.match(director, /CanvasNodeLabelRootContext/);
@@ -383,8 +390,8 @@ test('导演台名称使用画布外部标签并和语义缩放同步', () => {
   assert.match(directorStyles, /\.director-node-label \{[\s\S]*?var\(--node-label-zoom, 1\)/);
   assert.match(directorStyles, /\.director-node-workspace \{[\s\S]*?height: 100%;/);
   assert.match(canvas, /<CanvasNodeSemanticContent width=\{dimensions\.width\} height=\{dimensions\.height\} semanticZoom=\{semanticZoom\}>/);
-  assert.match(directorStyles, /\.director-node-placeholder p \{[\s\S]*?font-size: calc\(var\(--canvas-node-body-size\) \* var\(--node-semantic-zoom, 1\)\)/);
-  assert.match(directorStyles, /\.director-node-open-button \{[\s\S]*?font-size: calc\(var\(--canvas-node-body-size\) \* var\(--node-semantic-zoom, 1\)\)/);
+  assert.match(directorStyles, /\.director-node-placeholder p \{[\s\S]*?font-size: var\(--canvas-node-body-size\)/);
+  assert.match(directorStyles, /\.director-node-open-button \{[\s\S]*?font-size: var\(--canvas-node-body-size\)/);
   assert.doesNotMatch(migrationStyles, /canvas-zoom-overview :is\([\s\S]*?\.director-node-placeholder/);
   assert.doesNotMatch(migrationStyles, /canvas-zoom-overview :is\([\s\S]*?\.director-node-open-button/);
   assert.match(canvas, /CanvasNodeSemanticContent/);
@@ -423,6 +430,11 @@ test('低倍率画布降低连线与节点操作的信息密度', () => {
   assert.doesNotMatch(migrationStyles, /canvas-zoom-compact \.work-node-kicker \{[^}]*?inset:/);
   assert.doesNotMatch(migrationStyles, /canvas-zoom-compact \.work-node-kicker > span/);
   assert.match(migrationStyles, /canvas-zoom-distant \.work-node-kicker \{ opacity: \.42; \}/);
+  // 低倍率不靠隐藏，也不给节点内某块内容套第二层缩放：入口与节点名称、卡片共用
+  // CanvasNodeSemanticContent 上唯一的一层 zoom，所以按卡片尺寸等比缩小，不会折行也不会溢出卡片。
+  assert.doesNotMatch(canvas, /nodeActionCounterScale|--node-action-scale|--node-logical-width/);
+  assert.doesNotMatch(migrationStyles, /(^|\n)\s*zoom:/);
+  assert.doesNotMatch(migrationStyles, /canvas-zoom-compact[^{]*\.text-result-starters/);
   assert.match(migrationStyles, /canvas-zoom-overview :is\([\s\S]*?\.director-node-head,[\s\S]*?\.resource-meta,[\s\S]*?display: none !important/);
   assert.match(migrationStyles, /canvas-zoom-overview \.canvas-flow-port[\s\S]*?pointer-events: none/);
 });
@@ -511,7 +523,9 @@ test('3D 导演台从真实上游连线同步当前图片输出', () => {
 });
 test('3D 导演台空闲时停止连续渲染且连续变换只持久化一次', () => {
   assert.equal(directorCanvas.match(/frameloop="demand"/g)?.length, 2);
-  assert.match(directorCanvas, /dpr=\{0\.75\}/);
+  // 性能来自空闲停帧，不靠降低分辨率：两个视口都按设备像素比光栅化，Retina 下才不会被放大成糊图。
+  assert.equal(directorCanvas.match(/dpr=\{\[1, 2\]\}/g)?.length, 2);
+  assert.doesNotMatch(directorCanvas, /dpr=\{0?\.75\}|dpr=\{1\}/);
   assert.match(
     directorScene,
     /onMouseUp=\{\(\) => \{[\s\S]*?onObjectChange\(\);[\s\S]*?endUndoBatch\(\)/,

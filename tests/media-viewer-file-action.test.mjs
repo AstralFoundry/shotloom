@@ -36,7 +36,10 @@ test('文本详情使用可持久化格式工具栏和居中文档编辑器', ()
   assert.match(viewer, /editCommand\("bold"\)/);
   assert.match(viewer, /textSearchOpen[\s\S]*?function findText/);
   assert.match(viewer, /const markdown = currentMarkdown\(\)[\s\S]*?markdown !== savedText\.current[\s\S]*?media\.onSave\(markdown\)/);
-  assert.match(styles, /\.media-viewer-backdrop\.is-text \{[\s\S]*?background: rgba\(16, 18, 20, \.62\)/);
+  const textSurface = styles.match(/\.media-viewer-backdrop\.is-text \{[^}]*\}/)?.[0] || '';
+  assert.match(textSurface, /grid-template-rows: 46px minmax\(0, 1fr\);/);
+  assert.match(textSurface, /background: #fff;/);
+  assert.doesNotMatch(textSurface, /backdrop-filter|padding: 32px|rgba\(16, 18, 20/);
   assert.match(styles, /\.text-editor-formatting/);
   assert.match(overlay, /kind !== "text" && !src\.trim\(\)/);
 });

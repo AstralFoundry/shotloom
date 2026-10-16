@@ -1,0 +1,6 @@
+{
+  "id": "text-writing",
+  "category": "text",
+  "version": 1,
+  "triggers": { "keywords": ["写作", "文案", "剧本", "策划案", "大纲", "标题", "润色", "改写", "续写", "总结"] }
+}

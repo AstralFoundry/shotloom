@@ -14,10 +14,11 @@ import { desktopApi } from "../../services/desktopApi.js";
 import { saveAppSettings, settingsStore } from "../../store/settingsStore.js";
 import { skillsStore } from "../../store/skillsStore.js";
 import { nodeChatAttachmentKey } from "../../services/nodeChatAttachment.mjs";
-import { CANVAS_AGENT_ID, EDITOR_AGENT_ID, agentDefinition } from "../../agent/agents/definitions";
+import { agentDefinition } from "../../agent/agents/definitions";
 import { selectAgentSkills } from "../../agent/core/visibility";
 import { isImeKeyEvent } from "../canvas/imeComposition";
 import { ReferenceCard } from "./ReferenceCard";
+import { agentPresentation } from "./agentPresentation";
 import { fileReference, nodeReference } from "./mediaReference";
 import type { AgentController, AgentPanelHandle, MentionableNode } from "./contracts";
 import styles from "./Composer.module.css";
@@ -25,7 +26,7 @@ import styles from "./Composer.module.css";
 const MAX_INPUT_LINES = 8;
 
 interface ComposerProps {
-  editorMode?: boolean;
+  agentId: string;
   busy: boolean;
   activeConversationId: string;
   textModel: string;
@@ -37,7 +38,8 @@ interface ComposerProps {
 }
 
 export function Composer(props: ComposerProps) {
-  const { editorMode = false, busy, activeConversationId, textModel, textModels, controller } = props;
+  const { agentId, busy, activeConversationId, textModel, textModels, controller } = props;
+  const presentation = agentPresentation(agentId);
   const [text, setText] = useState("");
   const [attachments, setAttachments] = useState<Record<string, unknown>[]>([]);
   const [mentions, setMentions] = useState<MentionableNode[]>([]);
@@ -48,16 +50,16 @@ export function Composer(props: ComposerProps) {
   const seatRef = useRef<HTMLDivElement | null>(null);
   const autoSkill = useRef(false);
 
-  // Skill 选择器和运行时共用同一份 Agent 定义，不再在界面里猜作用域。
+  // Skill 选择器和运行时共用同一份 Agent 定义，选择结果只来自这个面板服务的 Agent。
   const skills = useMemo(
     () =>
       selectAgentSkills(
-        agentDefinition(editorMode ? EDITOR_AGENT_ID : CANVAS_AGENT_ID),
+        agentDefinition(agentId),
         (skillsStore.skills as Array<{ id: string; name?: string; enabled?: boolean }>).filter(
           (skill) => skill.enabled !== false,
         ),
       ),
-    [props.domainRevision, editorMode],
+    [props.domainRevision, agentId],
   );
   const skill = useMemo(() => skills.find((item) => item.id === skillId) || null, [skills, skillId]);
 
@@ -285,11 +287,7 @@ export function Composer(props: ComposerProps) {
             disabled={disabled}
             spellCheck={false}
             placeholder={
-              busy
-                ? "Agent 正在处理，完成后可继续输入…"
-                : editorMode
-                  ? "描述剪辑要求…"
-                  : "输入消息，@ 引用画布节点…"
+              busy ? "Agent 正在处理，完成后可继续输入…" : presentation.placeholder
             }
             aria-label="给 Agent 的消息"
             onChange={(event) => {
@@ -340,7 +338,7 @@ export function Composer(props: ComposerProps) {
             </button>
             <SelectorChip
               open={menu === "skill"}
-              label={skill ? skill.name || skill.id : editorMode ? "剪辑 Skill" : "技能"}
+              label={skill ? skill.name || skill.id : presentation.skillLabel}
               hint={
                 skill
                   ? `已选择：${skill.name || skill.id}`

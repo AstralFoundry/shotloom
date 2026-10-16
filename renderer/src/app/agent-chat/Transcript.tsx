@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
-import { IconSymbol } from "../components/IconSymbol";
 import { InteractiveLogo } from "../components/InteractiveLogo";
 import {
   messageMarkdown,
@@ -12,6 +11,7 @@ import { PlanCard } from "./PlanCard";
 import { ArtifactList } from "./ArtifactList";
 import { ReferenceCard } from "./ReferenceCard";
 import { ClarificationCard } from "./ClarificationCard";
+import { agentPresentation } from "./agentPresentation";
 import type { AgentController, AgentMessage } from "./contracts";
 import styles from "./Transcript.module.css";
 
@@ -20,7 +20,7 @@ interface TranscriptProps {
   onScroll: () => void;
   messages: PresentedAgentMessage[];
   busy: boolean;
-  editorMode: boolean;
+  agentId: string;
   artifactNodes: WorkflowNodeData[];
   clarificationAnswers: Record<string, Record<string, string[]>>;
   setClarificationAnswers: (
@@ -34,7 +34,7 @@ export function Transcript({
   onScroll,
   messages,
   busy,
-  editorMode,
+  agentId,
   artifactNodes,
   clarificationAnswers,
   setClarificationAnswers,
@@ -60,7 +60,7 @@ export function Transcript({
           />
         ))
       ) : (
-        <EmptyState editorMode={editorMode} />
+        <EmptyState agentId={agentId} />
       )}
       {running && (
         <div className={styles.running} role="status" aria-live="polite">
@@ -71,20 +71,14 @@ export function Transcript({
   );
 }
 
-function EmptyState({ editorMode }: { editorMode: boolean }) {
+function EmptyState({ agentId }: { agentId: string }) {
+  const presentation = agentPresentation(agentId);
   return (
     <div className={styles.empty}>
-      {editorMode ? (
-        <IconSymbol name="scissors" className={styles.emptyMark} />
-      ) : (
-        <InteractiveLogo src="./shotloom-logo.png" className={styles.emptyMark} />
-      )}
-      <strong>{editorMode ? "直接描述想怎么剪" : "描述你想完成的内容"}</strong>
-      <p>
-        {editorMode
-          ? "例如：剪掉开头两秒，把结尾字幕改成“谢谢观看”。Agent 会读取当前时间线再操作。"
-          : "也可以用 @ 引用画布节点，Agent 会结合当前内容继续创作"}
-      </p>
+      {/* 空状态统一用产品标识：领域图标会让三个面板看起来像三套不同的产品。 */}
+      <InteractiveLogo src="./shotloom-logo.png" className={styles.emptyMark} />
+      <strong>{presentation.emptyTitle}</strong>
+      <p>{presentation.emptyText}</p>
     </div>
   );
 }

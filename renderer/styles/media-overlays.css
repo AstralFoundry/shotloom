@@ -1,14 +1,12 @@
 .media-viewer-backdrop {
-  position: fixed;
+  /* 挂在 .workbench-surface-root 里：只覆盖内容区，左侧导航保持可见。
+     背景由 .is-text（白色工作面）和 :not(.is-text)（灯箱）各自声明，基础层不压暗。 */
+  position: absolute;
   inset: 0;
-  z-index: 240;
+  z-index: 30;
   display: grid;
   grid-template-rows: 58px minmax(0, 1fr) 42px;
   color: #eef3f7;
-  background:
-    radial-gradient(circle at 50% 46%, rgba(104, 127, 143, 0.16), transparent 38%),
-    rgba(7, 11, 16, 0.965);
-  backdrop-filter: blur(18px) saturate(0.8);
   user-select: none;
   outline: none;
 }
@@ -134,8 +132,8 @@
 .media-viewer-stage video {
   position: relative;
   z-index: 1;
-  max-width: calc(100vw - 80px);
-  max-height: calc(100vh - 140px);
+  max-width: calc(100% - 44px);
+  max-height: calc(100% - 44px);
   object-fit: contain;
   display: block;
   border-radius: 3px;
@@ -226,8 +224,8 @@
 .media-viewer-backdrop:not(.is-text) .media-viewer-stage::before { display: none; }
 .media-viewer-backdrop:not(.is-text) .media-viewer-stage img,
 .media-viewer-backdrop:not(.is-text) .media-viewer-stage video {
-  max-width: calc(100vw - 120px);
-  max-height: calc(100vh - 180px);
+  max-width: calc(100% - 64px);
+  max-height: calc(100% - 64px);
   border-radius: 12px;
   box-shadow: 0 24px 70px rgba(0, 0, 0, .35);
 }
@@ -253,23 +251,29 @@
 .media-viewer-primary-actions svg { width: 13px; height: 13px; }
 
 .media-viewer-backdrop.is-text {
+  /* 文本界面是内容区里的工作面：通栏工具条 + 铺满剩余高度的列，不压暗、不画卡片。
+     列分配只在这里声明一次，工具条与舞台共用。 */
+  --viewer-columns: minmax(0, 1fr);
   color: #30353b;
-  grid-template-rows: 46px minmax(0, 650px);
-  align-content: center;
-  padding: 32px;
-  background: rgba(16, 18, 20, .62);
-  backdrop-filter: blur(8px) saturate(.7);
+  grid-template-rows: 46px minmax(0, 1fr);
+  background: #fff;
   user-select: auto;
 }
+.media-viewer-backdrop.is-text.is-history-open {
+  --viewer-columns: minmax(0, 1fr) 286px;
+}
+.media-viewer-backdrop.is-text.is-agent-open {
+  --viewer-columns: minmax(0, 1fr) minmax(300px, 380px);
+}
+.media-viewer-backdrop.is-text.is-history-open.is-agent-open {
+  --viewer-columns: minmax(0, 1fr) 286px minmax(300px, 380px);
+}
 .media-viewer-backdrop.is-text .media-viewer-toolbar {
-  width: min(900px, 100%);
   margin: 0;
-  justify-self: center;
   grid-template-columns: minmax(44px, 1fr) auto minmax(44px, 1fr);
   gap: 8px;
   border: 0;
   border-bottom: 1px solid #e5e5e5;
-  border-radius: 16px 16px 0 0;
   padding: 0 12px;
   background: #fff;
 }
@@ -302,20 +306,15 @@
 .text-editor-actions input { width: 120px; height: 28px; border: 1px solid #ddd; border-radius: 6px; outline: none; padding: 0 8px; color: #333; background: #fafafa; font: 12px/1.4 "Songti SC", "Noto Serif CJK SC", serif; }
 .text-editor-actions input:focus { border-color: #aaa; background: #fff; }
 .media-viewer-backdrop.is-text .media-viewer-stage {
-  width: min(900px, 100%);
-  max-height: calc(100vh - 110px);
-  justify-self: center;
-  border-radius: 0 0 16px 16px;
+  grid-template-columns: var(--viewer-columns);
   padding: 0;
   overflow: hidden;
   background: #fff;
-  box-shadow: 0 28px 70px rgba(0, 0, 0, .22);
 }
 .media-viewer-backdrop.is-text .media-viewer-stage::before { display: none; }
 .media-viewer-backdrop.is-text .media-viewer-text {
   resize: none;
   outline: none;
-  width: 100%;
   border: 0;
   border-radius: 0;
   padding: 20px 24px 32px;
@@ -337,8 +336,8 @@
 .media-viewer-backdrop.is-text .media-viewer-text:focus {
   box-shadow: none;
 }
-.media-viewer-backdrop.is-text .media-viewer-stage.is-history-open { grid-template-columns: minmax(0, 1fr) 286px; width: min(1186px, 100%); }
 .media-viewer-backdrop.is-text .media-viewer-stage.is-history-open .media-viewer-text { min-width: 0; }
+.text-agent-panel { display: grid; min-width: 0; height: 100%; overflow: hidden; }
 .text-version-panel { display: flex; flex-direction: column; min-width: 0; height: 100%; overflow: hidden; border-left: 1px solid #eceeea; color: #343a34; background: #fbfcfa; font: 12px/1.5 -apple-system, BlinkMacSystemFont, sans-serif; }
 .text-version-heading { display: flex; justify-content: space-between; align-items: baseline; padding: 17px 16px 12px; }
 .text-version-heading strong { font-size: 13px; }
@@ -407,9 +406,13 @@
 .project-search-empty { padding: 22px; margin: 0; color: #989e98; text-align: center; font-size: 13px; }
 .project-search-footer { display: flex; gap: 15px; padding: 11px 18px; border-top: 1px solid #edeeea; color: #a0a6a0; font-size: 11px; }
 @media (max-width: 760px) {
-  .media-viewer-backdrop.is-text { padding: 16px; }
-  .media-viewer-backdrop.is-text .media-viewer-stage.is-history-open { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) minmax(150px, 35%); }
-  .text-version-panel { border-left: 0; border-top: 1px solid #eceeea; }
+  .media-viewer-backdrop.is-text .media-viewer-stage:is(.is-history-open, .is-agent-open) {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    grid-auto-rows: minmax(150px, 35%);
+  }
+  .media-viewer-backdrop.is-text .text-version-panel,
+  .media-viewer-backdrop.is-text .text-agent-panel { border-left: 0; border-top: 1px solid #eceeea; }
   .text-editor-formatting button:nth-of-type(2),
   .text-editor-formatting button:nth-of-type(3),
   .text-editor-formatting .text-format-table { display: none; }

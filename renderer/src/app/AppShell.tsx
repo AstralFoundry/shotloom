@@ -1,6 +1,7 @@
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { SideBar } from "./layout/SideBar";
 import { TopBar } from "./layout/TopBar";
+import { setWorkbenchSurfaceRoot } from "./layout/workbenchSurface";
 import { type AppRoute, useAppStore } from "./store/appStore";
 
 interface AppShellProps {
@@ -120,7 +121,10 @@ export function AppShell({
           previewClosing={previewActive && sidebarPreviewClosing}
           onPreviewOpenChange={changeSidebarPreview}
         />
-        <section className="content">{view}</section>
+        <section className="content">
+          {view}
+          <div className="workbench-surface-root" ref={setWorkbenchSurfaceRoot} />
+        </section>
       </main>
     </div>
   );

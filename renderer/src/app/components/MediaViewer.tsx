@@ -5,12 +5,16 @@ import {
   useState,
   type WheelEvent,
 } from "react";
+import { createPortal } from "react-dom";
 import { desktopApi } from "../../services/desktopApi.js";
 import {
   acquireMediaPreview,
   type CachedMediaLease,
 } from "../../services/mediaPreviewCache";
 import { IconSymbol } from "./IconSymbol";
+import { useWorkbenchSurfaceRoot } from "../layout/workbenchSurface";
+import { TextAgentPanel } from "../agent-chat/TextAgentPanel";
+import { registerTextDraftTarget } from "../../agent/runtime/textDraftBridge";
 import { showToast, useOverlayStore } from "../store/overlayStore";
 import { markdownToRichHtml, richHtmlToMarkdown } from "../../utils/richTextMarkdown.mjs";
 import { diffTextLines } from "../../utils/textVersionDiff.mjs";
@@ -24,6 +28,7 @@ function formatMediaTime(value: number) {
 export function MediaViewer() {
   const media = useOverlayStore((state) => state.media);
   const close = useOverlayStore((state) => state.closeMedia);
+  const surface = useWorkbenchSurfaceRoot();
   const [zoom, setZoom] = useState(1);
   const [rotation, setRotation] = useState(0);
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -43,6 +48,7 @@ export function MediaViewer() {
   const [videoDuration, setVideoDuration] = useState(0);
   const [videoMuted, setVideoMuted] = useState(false);
   const [capturingFrame, setCapturingFrame] = useState(false);
+  const [agentOpen, setAgentOpen] = useState(true);
   const panOrigin = useRef<{ x: number; y: number; id: number } | null>(null);
   const backdrop = useRef<HTMLDivElement>(null);
   const textEditor = useRef<HTMLDivElement>(null);
@@ -68,6 +74,7 @@ export function MediaViewer() {
     if (media.kind === "text") {
       setTextDraft(media.src);
       savedText.current = media.src;
+      setAgentOpen(true);
       const versions = media.getTextVersions?.() || [];
       setTextVersions(versions);
       setHistoryOpen(false);
@@ -115,7 +122,27 @@ export function MediaViewer() {
     window.addEventListener("keydown", key, true);
     return () => window.removeEventListener("keydown", key, true);
   });
-  if (!media.open) return null;
+  const agentNodeId = media.kind === "text" ? media.textAgentNodeId : "";
+  useEffect(() => {
+    if (!media.open || !agentNodeId) return;
+    // Agent 只通过这里读写编辑器的未保存草稿；DOM 是唯一来源，避免与用户输入竞态。
+    return registerTextDraftTarget({
+      nodeId: agentNodeId,
+      read: () => (textEditor.current ? richHtmlToMarkdown(textEditor.current.innerHTML) : ""),
+      apply: (content, mode) => {
+        const editor = textEditor.current;
+        if (!editor) throw new Error("文本编辑器尚未就绪");
+        const current = richHtmlToMarkdown(editor.innerHTML);
+        const draft = mode === "append" && current.trim()
+          ? `${current.trimEnd()}\n\n${content}`
+          : content;
+        editor.innerHTML = markdownToRichHtml(draft);
+        setTextDraft(draft);
+        return draft;
+      },
+    });
+  }, [media.open, agentNodeId]);
+  if (!media.open || !surface) return null;
   function startPan(event: PointerEvent<HTMLElement>) {
     if (media.kind !== "image" || zoom <= 1 || event.button !== 0) return;
     setPanning(true);
@@ -250,14 +277,15 @@ export function MediaViewer() {
     selection?.addRange(range);
     editor.focus();
   }
-  return (
+  return createPortal(
     <div
       ref={backdrop}
       className={`media-viewer-backdrop${
         media.kind === "text" ? " is-text" : ""
+      }${media.kind === "text" && historyOpen ? " is-history-open" : ""}${
+        agentNodeId && agentOpen ? " is-agent-open" : ""
       }`}
       role="dialog"
-      aria-modal="true"
       tabIndex={-1}
       aria-label={media.title}
       onPointerDown={(e) => e.target === e.currentTarget && closeViewer()}
@@ -343,7 +371,7 @@ export function MediaViewer() {
         }${panning ? " panning" : ""}${
           media.kind === "text" ? " is-text" : ""
         }${historyOpen && media.kind === "text" ? " is-history-open" : ""
-        }`}
+        }${agentNodeId && agentOpen ? " is-agent-open" : ""}`}
         onWheel={(event: WheelEvent<HTMLElement>) => {
           if (media.kind === "image") {
             event.preventDefault();
@@ -437,6 +465,9 @@ export function MediaViewer() {
             </> : <p className="text-version-empty">编辑并保存后，版本会显示在这里。</p>}
           </aside>
         )}
+        {agentNodeId && agentOpen && (
+          <TextAgentPanel nodeId={agentNodeId} onClose={() => setAgentOpen(false)} />
+        )}
       </main>
       <footer className="media-viewer-hint">
         {media.kind !== "text" ? (
@@ -463,6 +494,7 @@ export function MediaViewer() {
           : "可选中文本 · 右上角复制全文"}</span>}
         {media.kind === "text" && <kbd>ESC</kbd>}
       </footer>
-    </div>
+    </div>,
+    surface,
   );
 }

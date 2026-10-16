@@ -12,6 +12,7 @@ const settingsPanel = readFileSync(new URL('../renderer/src/app/views/SettingsPa
 const settingsFeature = readFileSync(new URL('../renderer/src/app/views/SettingsFeature.tsx', import.meta.url), 'utf8');
 const agentChat = '../renderer/src/app/agent-chat/';
 const transcript = readFileSync(new URL(`${agentChat}Transcript.tsx`, import.meta.url), 'utf8');
+const agentPresentation = readFileSync(new URL(`${agentChat}agentPresentation.ts`, import.meta.url), 'utf8');
 const composer = readFileSync(new URL(`${agentChat}Composer.tsx`, import.meta.url), 'utf8');
 const transcriptStyles = readFileSync(new URL(`${agentChat}Transcript.module.css`, import.meta.url), 'utf8');
 const composerStyles = readFileSync(new URL(`${agentChat}Composer.module.css`, import.meta.url), 'utf8');
@@ -154,8 +155,9 @@ test('助手折叠按钮为画布右上角工具组预留空间', () => {
 
 test('助手空状态使用创作欢迎区并把模型与 Skill 收进大输入器底栏', () => {
   assert.match(transcript, /<InteractiveLogo src="\.\/shotloom-logo\.png" className=\{styles\.emptyMark\} \/>/);
-  assert.match(transcript, /描述你想完成的内容/);
-  assert.match(transcript, /用 @ 引用画布节点/);
+  // 欢迎文案按 Agent 声明在呈现表里，面板组件不再用布尔开关猜作用域。
+  assert.match(agentPresentation, /描述你想完成的内容/);
+  assert.match(agentPresentation, /用 @ 引用画布节点/);
   // 窄面板里欢迎区必须退回顶部对齐并可滚动，不能用居中把两头裁掉。
   assert.match(transcriptStyles, /\.empty \{[^}]*flex-shrink:\s*0[^}]*margin:\s*auto 0/);
   assert.doesNotMatch(transcriptStyles, /\.empty \{[^}]*justify-content:\s*center/);
@@ -164,7 +166,7 @@ test('助手空状态使用创作欢迎区并把模型与 Skill 收进大输入�
   assert.match(composer, /hint=\{activeModel\?\.label \|\| "选择模型"\}/);
   assert.match(composer, /<ProviderBrandIcon icon=\{item\.iconId\} \/>/);
   assert.match(composer, /icon="puzzle"/);
-  assert.match(composer, /: "技能"/);
+  assert.match(agentPresentation, /skillLabel: "技能"/);
   assert.match(composer, /aria-haspopup="menu"/);
   assert.match(composer, /role="menuitemradio" aria-checked=\{selected\}/);
   assert.doesNotMatch(composer, /@ant-design|from "antd"|ant-sender/);

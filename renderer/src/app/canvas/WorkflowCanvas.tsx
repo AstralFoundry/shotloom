@@ -165,6 +165,14 @@ export const CanvasOverlayRootContext = createContext<HTMLElement | null>(null);
 export const CanvasNodeLabelRootContext = createContext<HTMLElement | null>(null);
 export const CanvasPreviewZoomContext = createContext(1);
 
+// Tauri on macOS is backed by WKWebView. Its CSS zoom implementation has
+// differed from Chromium in nested layout and form controls, so use the
+// standards-based scale property there while keeping CSS zoom for Chromium.
+const USE_WEBKIT_NODE_SCALE_FALLBACK =
+  typeof navigator !== "undefined" &&
+  /AppleWebKit/i.test(navigator.userAgent) &&
+  !/(Chrome|Chromium|CriOS|Edg)/i.test(navigator.userAgent);
+
 export function CanvasNodeSemanticContent({
   width,
   height,
@@ -176,18 +184,29 @@ export function CanvasNodeSemanticContent({
   semanticZoom: number;
   children: ReactNode;
 }) {
+  // CSS zoom 已让节点内容按最终屏幕尺寸重新布局，所以节点内样式只写逻辑像素。
+  // 再乘一次语义倍率（或给某块内容单独反向缩放）都会让它脱离节点外框所在的坐标系：
+  // 高倍率下溢出节点，低倍率下按第二套尺寸折行。
   return (
     <div
-      className="canvas-node-semantic-content"
+      className="canvas-node-semantic-frame"
       style={{
-        width,
-        height,
-        zoom: semanticZoom,
-        "--node-semantic-zoom": semanticZoom,
-        transformOrigin: "top left",
-      } as CSSProperties}
+        width: width * semanticZoom,
+        height: height * semanticZoom,
+      }}
     >
-      {children}
+      <div
+        className="canvas-node-semantic-content"
+        style={{
+          width,
+          height,
+          zoom: USE_WEBKIT_NODE_SCALE_FALLBACK ? 1 : semanticZoom,
+          scale: USE_WEBKIT_NODE_SCALE_FALLBACK ? semanticZoom : 1,
+          transformOrigin: "top left",
+        } as CSSProperties}
+      >
+        {children}
+      </div>
     </div>
   );
 }

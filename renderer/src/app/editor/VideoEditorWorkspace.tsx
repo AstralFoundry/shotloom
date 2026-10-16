@@ -7,6 +7,8 @@ import {
   useSyncExternalStore,
 } from "react";
 import { createPortal } from "react-dom";
+import { useWorkbenchSurfaceRoot } from "../layout/workbenchSurface";
+import { EDITOR_AGENT_ID } from "../../agent/agents/definitions";
 import {
   createOpenVideoStudioProject,
 } from "../../services/openVideoRuntime.js";
@@ -104,7 +106,7 @@ function VideoEditorAgentPanel({ copilot, onClose, nodeId }: {
   const data = copilot.read();
   return <div className="ov-agent-panel">
     <AgentChatPanel
-      editorMode
+      agentId={EDITOR_AGENT_ID}
       messages={data.messages}
       nodes={[]}
       artifactNodes={[]}
@@ -142,6 +144,7 @@ export function VideoEditorWorkspace(
     copilot,
   }: VideoEditorWorkspaceProps,
 ) {
+  const surface = useWorkbenchSurfaceRoot();
   const initial = useMemo(() =>
     applyBuiltInStickerSources(normalizeVideoEditorProject(savedProject, {
       sourceFile,
@@ -429,12 +432,6 @@ export function VideoEditorWorkspace(
   }
 
   useEffect(() => {
-    document.body.classList.add("video-editor-open");
-    return () => {
-      document.body.classList.remove("video-editor-open");
-    };
-  }, []);
-  useEffect(() => {
     const activeCopilot = copilotRef.current;
     if (!activeCopilot || activeCopilot.read().busy) return;
     previousConversationRef.current = activeCopilot.read().activeConversationId;
@@ -482,11 +479,11 @@ export function VideoEditorWorkspace(
     setImportBrowser({ title: labels[source], items: accepted, kind, loading: false });
   }
 
+  if (!surface) return null;
   return createPortal(
     <section
       className="ov-editor"
       role="dialog"
-      aria-modal="true"
       aria-label="视频编辑器"
     >
       <VideoEditorTopBar
@@ -664,6 +661,6 @@ export function VideoEditorWorkspace(
       />
       </main>
     </section>,
-    document.body,
+    surface,
   );
 }

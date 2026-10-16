@@ -19,7 +19,7 @@ test('文本节点提示词与节点正文使用独立数据', () => {
   assert.match(source, /textNodeContent\(\{ \.\.\.node, generatedOutputs: outputs \}\)/);
   assert.doesNotMatch(source, /node\.textContent \|\| node\.prompt/);
   assert.match(source, /placeholder=\{kind === "text" \? "输入给大模型的文本生成提示词"/);
-  assert.match(source, /className="text-result-manual nodrag nopan"[\s\S]*?自己编写内容/);
+  assert.match(source, /className="text-result-starters nodrag nopan"[\s\S]*?试试：[\s\S]*?className="text-result-starter"[\s\S]*?自己编写内容/);
 });
 test('非文本节点使用模型目录类型与节点内配置面板', () => {
   assert.match(source, /getTypeMeta\(node\.type\)/); assert.match(source, /work-composer nodrag nopan nowheel/);
@@ -66,7 +66,9 @@ test('长提示词滚动时不会进入参考素材区域', () => {
 test('节点输入面板层级被限制在画布内且不会盖住剪辑工作区', () => {
   assert.match(styles, /\.react-workflow-canvas \{[\s\S]*?isolation:\s*isolate/);
   assert.doesNotMatch(styles, /\.work-composer-anchor \{[\s\S]*?z-index:\s*10000/);
-  assert.match(editorStyles, /\.ov-editor \{[\s\S]*?z-index:\s*1500/);
+  // 剪辑台铺在内容区挂载点里，靠 .content 的层叠上下文隔离，不再用应用级 z-index 逃逸。
+  assert.match(editorStyles, /\.ov-editor \{[\s\S]*?position:\s*absolute;[\s\S]*?inset:\s*0;[\s\S]*?z-index:\s*10\b/);
+  assert.doesNotMatch(editorStyles, /\.ov-editor[^{]*\{[^}]*?position:\s*fixed/);
 });
 
 test('参考素材入口创建真实上游节点和连线，缩略图可放大并可独立移除', () => {

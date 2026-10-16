@@ -54,6 +54,7 @@ const videoEditorTools = [
   'video_project_get', 'video_project_media', 'video_project_edit', 'video_project_view',
   'video_project_diagnostics', 'video_project_frame', 'video_project_export', 'video_project_history',
 ];
+const textDraftTools = ['text_draft_read', 'text_draft_write'];
 
 export const AGENT_DEFINITIONS: AgentDefinition[] = [
   {
@@ -84,6 +85,17 @@ export const AGENT_DEFINITIONS: AgentDefinition[] = [
       'inspect_runtime_capabilities', 'inspect_model_catalog',
     ],
     skills: ['video-editing'],
+    dispatch: [],
+  },
+  {
+    id: 'text-primary',
+    role: 'primary',
+    title: '文本 Agent',
+    description: 'Text editor workspace agent bound to one open document draft',
+    // 文本 agent 只在编辑器草稿上工作：既没有画布写入，也没有项目持久化权限。
+    effects: ['read', 'agent_state_write'],
+    tools: [...toolOutputReadTools, ...textDraftTools, 'request_clarification'],
+    skills: ['text-writing'],
     dispatch: [],
   },
   {
@@ -146,6 +158,7 @@ export function agentTitle(agentId: string): string {
   return definitions.get(String(agentId || ''))?.title || '';
 }
 
-/** 两个主 Agent 的 id 会被会话层和适配层引用，集中在这里避免各处再写字面量。 */
+/** 主 Agent 的 id 会被会话层、适配层和界面呈现引用，集中在这里避免各处再写字面量。 */
 export const CANVAS_AGENT_ID = 'canvas-primary';
 export const EDITOR_AGENT_ID = 'editor-primary';
+export const TEXT_AGENT_ID = 'text-primary';

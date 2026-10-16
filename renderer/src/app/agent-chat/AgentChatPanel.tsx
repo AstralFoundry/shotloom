@@ -16,6 +16,7 @@ import { getDomainRevision, subscribeDomain } from "../../store/domainReactivity
 import { compactRepeatedFailures } from "./messagePresentation";
 import { Transcript } from "./Transcript";
 import { Composer } from "./Composer";
+import { agentPresentation } from "./agentPresentation";
 import { HistoryDrawer } from "./HistoryDrawer";
 import type {
   AgentController,
@@ -27,7 +28,8 @@ import type {
 import styles from "./AgentChatPanel.module.css";
 
 export interface AgentChatPanelProps {
-  editorMode?: boolean;
+  /** 面板服务的 Agent：决定标题、输入文案与可选 Skill 集合。 */
+  agentId: string;
   messages: AgentMessage[];
   nodes: WorkflowNodeData[];
   artifactNodes: WorkflowNodeData[];
@@ -41,7 +43,8 @@ export interface AgentChatPanelProps {
 
 export const AgentChatPanel = forwardRef<AgentPanelHandle, AgentChatPanelProps>(
   function AgentChatPanel(props, ref) {
-    const { editorMode = false, messages, nodes, busy, activeConversationId, controller } = props;
+    const { agentId, messages, nodes, busy, activeConversationId, controller } = props;
+    const presentation = agentPresentation(agentId);
     const [historyOpen, setHistoryOpen] = useState(false);
     const [unread, setUnread] = useState(0);
     const [clarificationAnswers, setClarificationAnswers] = useState<
@@ -114,10 +117,10 @@ export const AgentChatPanel = forwardRef<AgentPanelHandle, AgentChatPanelProps>(
     );
 
     return (
-      <aside className={styles.root} data-editor={editorMode || undefined}>
+      <aside className={styles.root}>
         <header className={styles.header}>
           <h2 className={styles.title} title={activeConversation?.title}>
-            {editorMode ? "剪辑 Agent" : activeConversation?.title || "新对话"}
+            {presentation.title || activeConversation?.title || "新对话"}
           </h2>
           <div className={styles.headerActions}>
             <IconButton label="新建会话" disabled={busy} onClick={() => controller.newConversation()}>
@@ -142,7 +145,7 @@ export const AgentChatPanel = forwardRef<AgentPanelHandle, AgentChatPanelProps>(
             onScroll={trackFollow}
             messages={presented}
             busy={busy}
-            editorMode={editorMode}
+            agentId={agentId}
             artifactNodes={props.artifactNodes}
             clarificationAnswers={clarificationAnswers}
             setClarificationAnswers={setClarificationAnswers}

@@ -93,6 +93,8 @@ export function CanvasNodeToolbar({
   const uploadLabel = uploadLabels[node.type] || "";
   const canUpload = Boolean(uploadLabel && !hasMediaContent);
   const isTextNode = node.type === "textGeneration";
+  // 3D 导演台在详情面板里和 Agent 一起工作，节点上不再挂引用入口；@ 引用仍然可用。
+  const mentionNode = node.type === "threeDDirector" ? null : mentionInCopilot;
   const useSubtleUploadToolbar = canUpload && !isTextNode;
   const toolbarOffset = canvasNodeToolbarOffset(semanticZoom, useSubtleUploadToolbar);
   const textOutputs = Array.isArray(node.generatedOutputs)
@@ -205,7 +207,7 @@ export function CanvasNodeToolbar({
     });
   }
 
-  const hasToolbar = isTextNode || canUpload || mentionInCopilot ||
+  const hasToolbar = isTextNode || canUpload || mentionNode ||
     canSaveToAssets || isLocalVideo;
   return (
     <>
@@ -400,10 +402,10 @@ export function CanvasNodeToolbar({
               <IconSymbol name="add-to-editor" />
             </button>
           )}
-          {mentionInCopilot && (canUpload || canExtractAudio || canSaveToAssets) && (
+          {mentionNode && (canUpload || canExtractAudio || canSaveToAssets) && (
             <span className="canvas-node-toolbar-divider" />
           )}
-          {mentionInCopilot && (
+          {mentionNode && (
             <button
               className="canvas-node-toolbar-icon"
               type="button"
@@ -411,7 +413,7 @@ export function CanvasNodeToolbar({
               onPointerDown={(event) => event.stopPropagation()}
               onClick={(event) => {
                 event.stopPropagation();
-                mentionInCopilot(node.id);
+                mentionNode(node.id);
               }}
             >
               <IconSymbol name="chat" />

@@ -1,5 +1,5 @@
 import { abortLoopAgent, runLoopAgent } from "../../agent/loop/runLoopAgent";
-import { EDITOR_AGENT_ID } from "../../agent/agents/definitions";
+import { EDITOR_AGENT_ID, TEXT_AGENT_ID } from "../../agent/agents/definitions";
 import {
   resolveClarification,
   resolveToolConfirmation,
@@ -17,6 +17,7 @@ import {
   getActiveCopilotConversation,
   scopedCopilotConversations,
   switchCopilotConversation,
+  textCopilotConversation,
   titleConversationFromMessage,
 } from "../../services/copilotConversations.mjs";
 import { store, touchProject } from "../../store/projectStore";
@@ -180,10 +181,12 @@ function patchConversationMessage(conversationId: string, id: string, patch: Loo
   notify();
 }
 
-export function copilotData(scope: 'canvas' | 'editor' = 'canvas', editorNodeId = '') {
-  const scoped = scopedCopilotConversations(store.project, scope, editorNodeId) as Loose[];
+export function copilotData(scope: 'canvas' | 'editor' | 'text' = 'canvas', scopedNodeId = '') {
+  const scoped = scopedCopilotConversations(store.project, scope, scopedNodeId) as Loose[];
   const conversation = scope === 'editor'
-    ? editorCopilotConversation(store.project, editorNodeId)
+    ? editorCopilotConversation(store.project, scopedNodeId)
+    : scope === 'text'
+    ? textCopilotConversation(store.project, scopedNodeId)
     : canvasCopilotConversation(store.project);
   const interactionList = listAgentInteractions();
   const interactions = new Map(interactionList.map((item) => [item.id, item]));
@@ -475,6 +478,16 @@ async function drainDeliveries() {
   }
 }
 
+/** 文本面板的"新建会话"落在该文本节点的作用域，不跟随项目级 active 指针。 */
+export function newTextConversation(nodeId: string): void {
+  if (busy) return;
+  createCopilotConversation(store.project, {
+    title: "文本 Agent", agentId: TEXT_AGENT_ID, textNodeId: String(nodeId || ""),
+  });
+  touchProject();
+  notify();
+}
+
 export const copilotController: AgentController = {
   openVideoEditorConversation: (nodeId: string) => {
     if (busy) return;
@@ -485,8 +498,9 @@ export const copilotController: AgentController = {
       restoreCopilotSession(toRaw(store.project), String(existing.id));
       switchCopilotConversation(store.project, String(existing.id));
     } else {
-      const conversation = createCopilotConversation(store.project, { title: "剪辑 Agent", agentId: EDITOR_AGENT_ID });
-      (conversation as Loose).editorNodeId = nodeId;
+      createCopilotConversation(store.project, {
+        title: "剪辑 Agent", agentId: EDITOR_AGENT_ID, editorNodeId: nodeId,
+      });
     }
     touchProject();
     notify();
@@ -552,11 +566,12 @@ export const copilotController: AgentController = {
   newConversation: (editorNodeId?: string) => {
     if (busy) return;
     const nodeId = String(editorNodeId || "");
-    const conversation = createCopilotConversation(
+    createCopilotConversation(
       store.project,
-      nodeId ? { title: "剪辑 Agent" } : {},
+      nodeId
+        ? { title: "剪辑 Agent", agentId: EDITOR_AGENT_ID, editorNodeId: nodeId }
+        : {},
     );
-    if (nodeId) (conversation as Loose).editorNodeId = nodeId;
     touchProject();
     notify();
     showToast(nodeId ? "已新建剪辑对话" : "已新建项目对话");

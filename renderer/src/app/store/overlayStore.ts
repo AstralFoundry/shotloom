@@ -11,6 +11,8 @@ interface MediaPayload {
   onRenameVersion?: (id: string, name: string) => boolean;
   onCopyVersion?: (id: string) => boolean;
   onCaptureFrame?: (seconds: number) => void | Promise<void>;
+  /** 文本编辑器右侧文本 Agent 面板绑定的节点；为空则不显示面板。 */
+  textAgentNodeId?: string;
 }
 interface OverlayState {
   toast: string;
@@ -26,6 +28,7 @@ interface OverlayState {
     onRenameVersion: ((id: string, name: string) => boolean) | null;
     onCopyVersion: ((id: string) => boolean) | null;
     onCaptureFrame: ((seconds: number) => void | Promise<void>) | null;
+    textAgentNodeId: string;
   };
   toastTimer: number | null;
   showToast: (message: string, tone?: "default" | "success") => void;
@@ -48,6 +51,7 @@ export const useOverlayStore = create<OverlayState>((set, get) => ({
     onRenameVersion: null,
     onCopyVersion: null,
     onCaptureFrame: null,
+    textAgentNodeId: "",
   },
   showToast: (message, tone = "default") => {
     if (get().toastTimer) window.clearTimeout(get().toastTimer!);
@@ -73,6 +77,7 @@ export const useOverlayStore = create<OverlayState>((set, get) => ({
         onRenameVersion: payload.onRenameVersion || null,
         onCopyVersion: payload.onCopyVersion || null,
         onCaptureFrame: payload.onCaptureFrame || null,
+        textAgentNodeId: String(payload.textAgentNodeId || ""),
       },
     });
     return true;

@@ -2,6 +2,7 @@ import { registerCanvasTools } from './canvasTools';
 import { registerCatalogTools } from './catalogTools';
 import { registerLifecycleTools } from './lifecycleTools';
 import { registerShortDramaTools } from './scriptTools';
+import { registerTextDraftTools } from './textTools';
 import { registerProductionPlanTools } from './productionPlanTools';
 import { registerVideoEditorTools } from './videoEditorTools';
 import { hasAgentTool } from '../core/toolRegistry';
@@ -16,5 +17,6 @@ export function registerDefaultAgentTools(): void {
   registerLifecycleTools();
   registerProductionPlanTools();
   registerShortDramaTools();
+  registerTextDraftTools();
   registerVideoEditorTools();
 }

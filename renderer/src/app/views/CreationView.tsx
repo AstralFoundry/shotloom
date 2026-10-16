@@ -28,6 +28,7 @@ import {
   type ConversationItem,
 } from "../agent-chat/contracts";
 import { AgentChatPanel } from "../agent-chat/AgentChatPanel";
+import { CANVAS_AGENT_ID } from "../../agent/agents/definitions";
 import type { VideoEditorAsset, VideoEditorController } from "../editor/VideoEditorWorkspace";
 import type { AgentLayoutMode } from "../../services/agentLayoutService";
 import { assetCategories } from "../constants/navigation";
@@ -115,6 +116,7 @@ function LiveCopilotPanel({
   return (
     <AgentChatPanel
       ref={copilotRef}
+      agentId={CANVAS_AGENT_ID}
       messages={data.messages}
       nodes={nodes}
       artifactNodes={artifactNodes}

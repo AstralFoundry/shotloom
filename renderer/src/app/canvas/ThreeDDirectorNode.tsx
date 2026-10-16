@@ -1,6 +1,7 @@
 import { memo, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { IconSymbol } from "../components/IconSymbol";
+import { useWorkbenchSurfaceRoot } from "../layout/workbenchSurface";
 import {
   CanvasNodeLabelRootContext,
   type WorkflowNodeData,
@@ -19,6 +20,7 @@ function readDirectorProject(node: WorkflowNodeData) {
 export const ThreeDDirectorNode: WorkflowNodeRenderer = memo(
   ({ node, selected, resizing, inputRevision, actions, semanticZoom = 1 }) => {
     const labelRoot = useContext(CanvasNodeLabelRootContext);
+    const surface = useWorkbenchSurfaceRoot();
     const [incomingImages, setIncomingImages] = useState<IncomingImage[]>([]);
     const [interacting, setInteracting] = useState(false);
     const [detailOpen, setDetailOpen] = useState(false);
@@ -101,6 +103,12 @@ export const ThreeDDirectorNode: WorkflowNodeRenderer = memo(
           return;
         }
         if (message.type === "storyai:director-desk-exit-interaction") {
+          setInteracting(false);
+          setDetailOpen(false);
+          return;
+        }
+        // 详情窗口没有自己的标题栏，导演台顶栏的 × 是唯一的关闭入口。
+        if (message.type === "storyai:director-desk-close") {
           setInteracting(false);
           setDetailOpen(false);
           return;
@@ -213,13 +221,9 @@ export const ThreeDDirectorNode: WorkflowNodeRenderer = memo(
           </div>
         </div>
       </div>
-      {detailOpen && createPortal(
-        <div className="director-detail-backdrop" role="dialog" aria-modal="true" aria-label="3D 导演台详情">
+      {detailOpen && surface && createPortal(
+        <div className="director-detail-backdrop" role="dialog" aria-label="3D 导演台详情">
           <div className="director-detail-window">
-            <div className="director-detail-head">
-              <strong>{String(node.title || "3D 导演台")}</strong>
-              <button type="button" onClick={() => { setDetailOpen(false); setInteracting(false); }}>完成</button>
-            </div>
             <iframe
               ref={detailIframeRef}
               // 详情窗口使用独立布局；embedded=canvas 会触发导演台的缩略嵌入样式。
@@ -230,7 +234,7 @@ export const ThreeDDirectorNode: WorkflowNodeRenderer = memo(
             />
           </div>
         </div>,
-        document.body,
+        surface,
       )}
       </>
     );

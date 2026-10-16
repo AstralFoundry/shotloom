@@ -1,9 +1,10 @@
 /* Reference layout: a quiet four-column editing shell with a generous
    program monitor and a separate timeline deck. */
 .ov-editor {
-  position: fixed;
+  /* 剪辑台是内容区里的工作面，不是盖住整个窗口的浮层；层级由 .workbench-surface-root 决定。 */
+  position: absolute;
   inset: 0;
-  z-index: 1500;
+  z-index: 10;
   grid-template-rows: 54px minmax(0, 1fr) 282px;
   --ov-accent: #159ee9;
   --ov-accent-soft: #e8f6ff;

@@ -14,6 +14,8 @@ import socialMedia from '../agent/content/skills/social-media/SKILL.md?raw';
 import socialMediaManifest from '../agent/content/skills/social-media/skill.json';
 import talkingHead from '../agent/content/skills/talking-head/SKILL.md?raw';
 import talkingHeadManifest from '../agent/content/skills/talking-head/skill.json';
+import textWriting from '../agent/content/skills/text-writing/SKILL.md?raw';
+import textWritingManifest from '../agent/content/skills/text-writing/skill.json';
 import videoAd from '../agent/content/skills/video-ad/SKILL.md?raw';
 import videoAdManifest from '../agent/content/skills/video-ad/skill.json';
 import videoProduction from '../agent/content/skills/video-production/SKILL.md?raw';
@@ -79,6 +81,7 @@ export const builtInSkills = [
   parseBuiltInSkill(shortDrama, shortDramaManifest),
   parseBuiltInSkill(socialMedia, socialMediaManifest),
   parseBuiltInSkill(talkingHead, talkingHeadManifest),
+  parseBuiltInSkill(textWriting, textWritingManifest),
   parseBuiltInSkill(videoAd, videoAdManifest),
   parseBuiltInSkill(videoProduction, videoProductionManifest),
   parseBuiltInSkill(videoEditing, videoEditingManifest),

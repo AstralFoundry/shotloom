@@ -542,6 +542,10 @@ label.button {
 .content {
   min-width: 0;
   min-height: 0;
+  position: relative;
+  /* 大工作区浮层挂在内容区里，层叠上下文必须在这里隔离：
+     浮层可以盖住画布，但盖不到左侧导航、模态框和提示条。 */
+  isolation: isolate;
   display: flex;
   flex-direction: column;
   border: .5px solid rgba(0, 0, 0, .08);
@@ -550,6 +554,18 @@ label.button {
   overflow: hidden;
   background: #fafafa;
   transition: margin-left 220ms cubic-bezier(.22, 1, .36, 1);
+}
+
+/* 剪辑台 / 文本编辑器 / 3D 导演台的共用挂载点。高于画布内的节点工具条与输入面板，
+   空挂载点不吃鼠标事件，否则画布无法操作。 */
+.workbench-surface-root {
+  position: absolute;
+  inset: 0;
+  z-index: 130;
+  pointer-events: none;
+}
+.workbench-surface-root > * {
+  pointer-events: auto;
 }
 
 /* The infinite canvas accepts an overlay drawer. Fixed list and detail pages

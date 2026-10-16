@@ -644,7 +644,7 @@ function ViewportGizmoOverlay({
       <Canvas
         className="viewport-gizmo-canvas"
         camera={{ fov: snapshot.fov, position: [0, 0, 1] }}
-        dpr={1}
+        dpr={[1, 2]}
         frameloop="demand"
         gl={{ alpha: true, antialias: true }}
       >
@@ -761,7 +761,7 @@ export function DirectorCanvas() {
             position: DEFAULT_DIRECTOR_VIEW_SNAPSHOT.position,
             fov: DEFAULT_DIRECTOR_VIEW_SNAPSHOT.fov,
           }}
-          dpr={0.75}
+          dpr={[1, 2]}
           frameloop="demand"
           gl={{ antialias: true, preserveDrawingBuffer: true }}
           onPointerMissed={openSceneInspector}

@@ -68,6 +68,31 @@ const generationTypes = new Set([
 ]);
 const MAX_TEXT_PREVIEW_CHARS = 6000;
 
+/**
+ * 空文本节点的快捷入口只写入提示词，不触发运行，
+ * 让用户在输入面板里先补充主题再自行发送。
+ */
+const TEXT_NODE_STARTERS = [
+  {
+    key: "script",
+    label: "剧本生成",
+    icon: "film",
+    prompt: "写一个可拍摄的短视频剧本：先给出主题与人物，再按镜头列出画面、台词和时长。主题：",
+  },
+  {
+    key: "proposal",
+    label: "策划案生成",
+    icon: "file",
+    prompt: "输出一份内容策划案：项目背景、目标受众、核心创意、内容结构、传播渠道与执行排期。项目：",
+  },
+  {
+    key: "prompt",
+    label: "提示词生成",
+    icon: "spark",
+    prompt: "把下面的主题写成可直接用于图片/视频生成的提示词，补充主体、风格、镜头、光线和氛围。主题：",
+  },
+];
+
 function generationNodeDisplayTitle(
   node: WorkflowNodeData,
   output: OutputData | null,
@@ -219,6 +244,7 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({
   const promptCommit = useImeCommit<HTMLTextAreaElement>(String(node.prompt || ""), (value) =>
     actions.update(node.id, { prompt: value }),
   );
+  const promptRef = useRef<HTMLTextAreaElement>(null);
   const outputs = (
     Array.isArray(node.generatedOutputs) ? node.generatedOutputs : []
   ) as OutputData[];
@@ -308,7 +334,7 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({
     if (/watermark/i.test(key) || label.includes("水印")) return value ? "水印" : "无水印";
     return value ? label : "关闭";
   }
-  function openDetail() {
+  function openDetail(withTextAgent: boolean) {
     if (activeKind === "image" || activeKind === "video") {
       if (previewUrl) {
         openMediaViewer({
@@ -339,8 +365,22 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({
         getTextVersions: () => ((store.project.nodes.find((item: WorkflowNodeData) => item.id === node.id) as WorkflowNodeData | undefined)?.textVersions || []) as Array<{ id: string; content: string; createdAt: string; name?: string }>,
         onRenameVersion: (id, name) => renameTextNodeVersion(node.id, id, name),
         onCopyVersion: (id) => copyTextNodeVersion(node.id, id),
+        textAgentNodeId: withTextAgent ? node.id : "",
       });
     }
+  }
+  function startFromStarter(prompt: string) {
+    actions.select(node.id);
+    actions.update(node.id, { prompt });
+    // 输入面板只在节点选中后挂载，等它进入屏幕空间后再聚焦。
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const textarea = promptRef.current;
+        if (!textarea) return;
+        textarea.focus();
+        textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+      });
+    });
   }
   async function saveActiveMedia() {
     if (!activeFilePath) return showToast("当前媒体没有可导出的本地原始文件");
@@ -391,7 +431,7 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({
               node.type === "videoGeneration" ? "wide" : "square"
             } ${kind}`}
             title={kind === "text" ? "双击编辑节点内容" : previewUrl ? "双击查看详情" : ""}
-            onDoubleClick={imageCropOpen ? undefined : openDetail}
+            onDoubleClick={imageCropOpen ? undefined : () => openDetail(false)}
           >
             {kind === "text" ? (
               textContent ? (
@@ -400,19 +440,36 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({
                 </div>
               ) : (
                 <div className="text-result-empty">
-                  <IconSymbol name="chat" />
-                  <span>模型返回或手动编写的内容显示在这里</span>
-                  <button
-                    type="button"
-                    className="text-result-manual nodrag nopan"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      openDetail();
-                    }}
-                  >
-                    <IconSymbol name="pencil" />
-                    自己编写内容
-                  </button>
+                  <IconSymbol className="text-result-sheet" name="sheet" />
+                  <div className="text-result-starters nodrag nopan">
+                    <span>试试：</span>
+                    <button
+                      type="button"
+                      className="text-result-starter"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        // 只有"自己编写内容"这条路径带文本 Agent；双击和工具栏入口保持纯编辑器。
+                        openDetail(true);
+                      }}
+                    >
+                      <IconSymbol name="pencil" />
+                      自己编写内容
+                    </button>
+                    {TEXT_NODE_STARTERS.map((starter) => (
+                      <button
+                        key={starter.key}
+                        type="button"
+                        className="text-result-starter"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          startFromStarter(starter.prompt);
+                        }}
+                      >
+                        <IconSymbol name={starter.icon} />
+                        {starter.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )
             ) : activeKind === "image" && previewUrl ? (
@@ -665,6 +722,7 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({
               )}
             </div>
             <textarea
+              ref={promptRef}
               placeholder={kind === "text" ? "输入给大模型的文本生成提示词" : "描述你想生成的画面、视频或音频"}
               rows={2}
               {...promptCommit}

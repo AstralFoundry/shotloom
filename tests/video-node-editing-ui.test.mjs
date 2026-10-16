@@ -206,7 +206,8 @@ test('剪辑工作区用真实媒体元数据补齐主轨并提供本地文件�
   assert.match(styles, /--ov-bg: #f7f7f8/);
   assert.match(styles, /same restrained, light workspace language/);
   assert.match(workspace, /createPortal/);
-  assert.match(styles, /position: fixed/);
+  assert.match(workspace, /useWorkbenchSurfaceRoot/);
+  assert.doesNotMatch(styles, /position: fixed/);
   assert.match(
     styles,
     /grid-template-columns: 42px minmax\(230px, \.95fr\) minmax\(440px, 2fr\) minmax\(260px, 1fr\)/,
