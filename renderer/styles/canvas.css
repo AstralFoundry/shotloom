@@ -699,16 +699,19 @@
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  color: rgba(42, 47, 54, .84);
-  background: rgba(255, 255, 255, .78);
-  box-shadow: 0 1px 5px rgba(15, 23, 42, .12);
+  color: rgba(255, 255, 255, .94);
+  background: rgba(78, 83, 90, .86);
+  box-shadow: 0 1px 5px rgba(15, 23, 42, .18);
   backdrop-filter: blur(7px);
   font-size: 9px;
   font-variant-numeric: tabular-nums;
   opacity: 1;
   pointer-events: none;
 }
-.work-preview:hover .work-video-status { opacity: 0; }
+.work-preview:hover .work-video-status {
+  opacity: 0;
+  visibility: hidden;
+}
 .work-video-controls {
   position: absolute;
   inset: auto 0 0;
@@ -716,7 +719,7 @@
   min-height: 72px;
   padding: 25px 10px 8px;
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   gap: 10px;
   color: #fff;
   background: linear-gradient(180deg, transparent, rgba(10, 12, 15, .8));
@@ -746,6 +749,8 @@
 .work-video-control-button:focus-visible { color: #fff; background: rgba(255, 255, 255, .16); }
 .work-video-control-button svg { width: 16px; height: 16px; }
 .work-video-controls-time {
+  height: 22px;
+  line-height: 22px;
   font-size: 12px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
