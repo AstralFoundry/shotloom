@@ -162,7 +162,7 @@ test('video-production v10 从来源成熟度动态推进并采用合规的人�
   assert.match(body, /不把小说直接当分镜/);
   assert.match(body, /纸人.*纸扎人.*纸扎人队列/);
   assert.match(body, /非人角色、怪物、拟人道具、群体角色/);
-  assert.match(body, /简洁角色三视图/);
+  assert.match(body, /电影级角色设计板/);
   assert.match(body, /不要把它当成所有视觉约束的通用替代品/);
   assert.match(body, /规划模式下关键帧尚无真实输出/);
   assert.match(body, /不要按固定数量连接/);
