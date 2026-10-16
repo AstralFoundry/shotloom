@@ -705,12 +705,9 @@
   backdrop-filter: blur(9px);
   font-size: var(--canvas-node-meta-size);
   font-variant-numeric: tabular-nums;
-  opacity: 0;
+  opacity: 1;
   pointer-events: none;
-  transition: opacity 120ms ease;
 }
-.work-node:hover .work-video-status,
-.work-video-status:focus-within { opacity: 1; }
 .work-video-sound {
   width: 21px;
   height: 21px;
