@@ -708,26 +708,62 @@
   opacity: 1;
   pointer-events: none;
 }
-.work-video-sound {
+.work-video-controls {
   position: absolute;
-  right: 3px;
-  width: 17px;
-  height: 17px;
+  inset: auto 0 0;
+  z-index: 4;
+  min-height: 72px;
+  padding: 25px 10px 8px;
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  color: #fff;
+  background: linear-gradient(180deg, transparent, rgba(10, 12, 15, .8));
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+.work-preview:hover .work-video-controls,
+.work-video-controls:focus-within {
+  opacity: 1;
+  pointer-events: auto;
+}
+.work-video-control-button {
+  width: 22px;
+  height: 22px;
   border: 0;
   border-radius: 999px;
   padding: 0;
   display: grid;
   place-items: center;
-  color: rgba(255, 255, 255, .76);
+  flex: 0 0 22px;
+  color: rgba(255, 255, 255, .92);
   background: transparent;
-  opacity: 0;
-  pointer-events: auto;
-  transition: opacity 120ms ease, background-color 120ms ease, color 120ms ease;
+  cursor: pointer;
 }
-.work-video-sound:focus-visible { opacity: 1; }
-.work-video-sound:hover,
-.work-video-sound[aria-pressed="true"] { color: #fff; background: rgba(255, 255, 255, .13); }
-.work-preview .work-video-sound svg { width: var(--canvas-node-icon-size); height: var(--canvas-node-icon-size); }
+.work-video-control-button:hover,
+.work-video-control-button:focus-visible { color: #fff; background: rgba(255, 255, 255, .16); }
+.work-video-control-button svg { width: 16px; height: 16px; }
+.work-video-controls-time {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.work-video-controls-spacer { flex: 1 1 auto; }
+.work-video-progress {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 4px;
+  height: 4px;
+  border: 0;
+  border-radius: 999px;
+  padding: 0;
+  overflow: hidden;
+  background: rgba(255, 255, 255, .38);
+  cursor: pointer;
+}
+.work-video-progress span { display: block; height: 100%; border-radius: inherit; background: #fff; }
 .work-preview .work-empty-type-icon { flex: 0 0 auto; }
 
 .work-planned-placeholder {

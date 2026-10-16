@@ -315,10 +315,12 @@ test('视频节点持续显示时长并提供声音开关', () => {
   assert.match(node, /muted=\{videoMuted\}/);
   assert.match(node, /onDurationChange=[\s\S]*?setVideoDuration[\s\S]*?onTimeUpdate=[\s\S]*?setVideoTime/);
   assert.match(node, /className="work-video-status"[\s\S]*?formatMediaTime\(videoTime\)[\s\S]*?formatMediaTime\(videoDuration\)/);
+  assert.match(node, /className="work-video-controls nodrag nopan"[\s\S]*?videoPlaying[\s\S]*?requestFullscreen/);
   assert.doesNotMatch(node, /10 \* Math\.min\(1, semanticZoom\)/);
-  assert.match(node, /className="work-video-sound nodrag nopan"[\s\S]*?nextMuted = !videoMuted[\s\S]*?volume-x[\s\S]*?volume/);
+  assert.match(node, /className="work-video-control-button"[\s\S]*?nextMuted = !videoMuted[\s\S]*?volume-x[\s\S]*?volume/);
   assert.match(migrationStyles, /\.work-video-status \{[\s\S]*?backdrop-filter: blur\(9px\)[\s\S]*?opacity: 1/);
   assert.doesNotMatch(migrationStyles, /\.work-node:hover \.work-video-status/);
+  assert.match(migrationStyles, /\.work-video-controls \{[\s\S]*?background: linear-gradient\(180deg, transparent, rgba\(10, 12, 15, \.8\)\)/);
   assert.match(migrationStyles, /\.audio-play-glyph \{[\s\S]*?border-left: 6px solid #fff/);
   assert.match(migrationStyles, /\.work-preview \.audio-waveform-download svg \{ width: var\(--canvas-node-icon-size\); height: var\(--canvas-node-icon-size\); \}/);
 });

@@ -236,6 +236,7 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({
   const videoPreviewRef = useRef<HTMLVideoElement>(null);
   const [videoTime, setVideoTime] = useState(0);
   const [videoDuration, setVideoDuration] = useState(0);
+  const [videoPlaying, setVideoPlaying] = useState(false);
   const [videoMuted, setVideoMuted] = useState(false);
   const [imageSize, setImageSize] = useState({ width: 1, height: 1 });
   const labelRoot = useContext(CanvasNodeLabelRootContext);
@@ -536,6 +537,8 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({
                 }}
                 onDurationChange={(event) => setVideoDuration(Number(event.currentTarget.duration) || 0)}
                 onTimeUpdate={(event) => setVideoTime(event.currentTarget.currentTime)}
+                onPlay={() => setVideoPlaying(true)}
+                onPause={() => setVideoPlaying(false)}
                 onError={() => {
                   if (!bufferedPreview) retryBufferedPreview();
                 }}
@@ -568,12 +571,37 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({
             {activeKind === "video" && previewUrl && (
               <div className="work-video-status">
                 <span>{formatMediaTime(videoTime)} / {formatMediaTime(videoDuration)}</span>
+              </div>
+            )}
+            {activeKind === "video" && previewUrl && (
+              <div
+                className="work-video-controls nodrag nopan"
+                onPointerDown={(event) => event.stopPropagation()}
+              >
                 <button
                   type="button"
-                  className="work-video-sound nodrag nopan"
+                  className="work-video-control-button"
+                  title={videoPlaying ? "暂停" : "播放"}
+                  aria-label={videoPlaying ? "暂停视频" : "播放视频"}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    const video = videoPreviewRef.current;
+                    if (!video) return;
+                    if (video.paused) void video.play().catch(() => undefined);
+                    else video.pause();
+                  }}
+                >
+                  <IconSymbol name={videoPlaying ? "pause" : "play"} />
+                </button>
+                <span className="work-video-controls-time">
+                  {formatMediaTime(videoTime)} / {formatMediaTime(videoDuration)}
+                </span>
+                <div className="work-video-controls-spacer" />
+                <button
+                  type="button"
+                  className="work-video-control-button"
                   title={videoMuted ? "开启声音" : "关闭声音"}
                   aria-pressed={!videoMuted}
-                  onPointerDown={(event) => event.stopPropagation()}
                   onClick={(event) => {
                     event.stopPropagation();
                     const nextMuted = !videoMuted;
@@ -582,6 +610,34 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({
                   }}
                 >
                   <IconSymbol name={videoMuted ? "volume-x" : "volume"} />
+                </button>
+                <button
+                  type="button"
+                  className="work-video-control-button"
+                  title="全屏预览"
+                  aria-label="全屏预览"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    const video = videoPreviewRef.current;
+                    if (video?.requestFullscreen) void video.requestFullscreen().catch(() => undefined);
+                  }}
+                >
+                  <IconSymbol name="maximize" />
+                </button>
+                <button
+                  type="button"
+                  className="work-video-progress"
+                  aria-label="调整视频进度"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    const video = videoPreviewRef.current;
+                    if (!video || !(videoDuration > 0)) return;
+                    const bounds = event.currentTarget.getBoundingClientRect();
+                    video.currentTime = Math.max(0, Math.min(videoDuration, (event.clientX - bounds.left) / bounds.width * videoDuration));
+                    setVideoTime(video.currentTime);
+                  }}
+                >
+                  <span style={{ width: `${videoDuration > 0 ? Math.min(100, videoTime / videoDuration * 100) : 0}%` }} />
                 </button>
               </div>
             )}
