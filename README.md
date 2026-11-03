@@ -140,6 +140,8 @@ npm ci && npm run dev
 npm run dev:web
 ```
 
+开发服务允许最大 64 KiB 的请求头，兼容本机共享 Cookie 等较大的请求头；桌面开发也使用同一启动命令。若遇到 Vite 的 431 错误，更新后重启开发进程。仍然报错时，检查失败请求的 Cookie、Referer 等字段，清理对应站点不再使用的 Cookie。参见 [Vite 431 排查说明](https://vite.dev/guide/troubleshooting.html#_431-request-header-fields-too-large)。
+
 浏览器模式不提供文件系统访问、原生导出和本地运行能力，完整体验请用桌面版。
 
 ### 接上模型

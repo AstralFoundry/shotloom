@@ -14,6 +14,7 @@ use super::harness_bridge::{bridge_env, start_harness_bridge, HarnessBridgeState
 
 #[derive(Default, Clone)]
 pub struct HarnessRuntimeState {
+    startup: Arc<tokio::sync::Mutex<()>>,
     child: Arc<Mutex<Option<Child>>>,
     pub(super) url: Arc<Mutex<Option<String>>>,
     last_error: Arc<Mutex<Option<String>>>,
@@ -65,14 +66,35 @@ pub fn harness_runtime_status(state: State<'_, HarnessRuntimeState>) -> HarnessR
 }
 
 #[tauri::command]
-pub fn start_harness_runtime(
+pub async fn start_harness_runtime(
     app: AppHandle,
     state: State<'_, HarnessRuntimeState>,
     bridge: State<'_, HarnessBridgeState>,
     options: HarnessRuntimeOptions,
 ) -> Result<HarnessRuntimeStatus, String> {
+    let _startup = state.startup.lock().await;
     if status_inner(&state).running {
         return Ok(status_inner(&state));
+    }
+    // No Host from this runtime is alive, so its old browser credentials are
+    // obsolete. Remove only Harness cookies in this app's loopback store.
+    // Cookie APIs must run off the event thread (WebView2 otherwise deadlocks).
+    if let Some(window) = app.get_webview_window("main") {
+        let cleanup = tauri::async_runtime::spawn_blocking(move || -> Result<(), String> {
+            // WKWebView's URL-filtered API compares Url::domain(), which is
+            // absent for IP literals. Filter the full store by exact host.
+            for cookie in window.cookies().map_err(|error| error.to_string())? {
+                if cookie.domain() == Some("127.0.0.1") && cookie.name().starts_with("dsh-auth-") {
+                    window.delete_cookie(cookie).map_err(|error| error.to_string())?;
+                }
+            }
+            Ok(())
+        }).await;
+        match cleanup {
+            Ok(Ok(())) => {}
+            Ok(Err(error)) => eprintln!("Harness cookie cleanup failed: {error}"),
+            Err(error) => eprintln!("Harness cookie cleanup task failed: {error}"),
+        }
     }
     let root = host_root(&app, &options)?;
     if !root.join("dist/main.js").exists() {
@@ -87,12 +109,18 @@ pub fn start_harness_runtime(
             .join("deepseek-harness"),
     };
     fs::create_dir_all(&data_root).map_err(|error| error.to_string())?;
-    start_harness_bridge(&app, &bridge)?;
+    let bridge_app = app.clone();
+    let bridge_state = bridge.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || start_harness_bridge(&bridge_app, &bridge_state))
+        .await.map_err(|error| error.to_string())??;
     let (bridge_port, bridge_token) = bridge_env(&bridge).ok_or_else(|| localized_error("native.harness.bridgeNotReady", json!({}), "工具桥接尚未就绪".into()))?;
     let executable = root.join(if cfg!(windows) { "node.exe" } else { "node" });
     let mut command = Command::new(executable);
     command
         .current_dir(&root)
+        // Host authentication uses port-scoped cookies on a shared loopback
+        // hostname. Match the Vite limit after repeated development restarts.
+        .arg("--max-http-header-size=65536")
         .arg(root.join("dist/main.js"))
         .env("SHOTLOOM_DATA_ROOT", &data_root)
         .env("SHOTLOOM_BRIDGE_URL", format!("http://127.0.0.1:{bridge_port}"))
@@ -157,12 +185,12 @@ pub fn stop_harness_runtime(state: State<'_, HarnessRuntimeState>) -> Result<Har
 }
 
 #[tauri::command]
-pub fn restart_harness_runtime(
+pub async fn restart_harness_runtime(
     app: AppHandle,
     state: State<'_, HarnessRuntimeState>,
     bridge: State<'_, HarnessBridgeState>,
     options: HarnessRuntimeOptions,
 ) -> Result<HarnessRuntimeStatus, String> {
     stop_harness_runtime(state.clone())?;
-    start_harness_runtime(app, state, bridge, options)
+    start_harness_runtime(app, state, bridge, options).await
 }

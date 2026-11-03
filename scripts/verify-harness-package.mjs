@@ -12,7 +12,7 @@ const dataRoot = await mkdtemp(join(tmpdir(), 'shotloom-package-smoke-'));
 const token = randomUUID();
 let child;
 async function start() {
-  child = spawn(join(root, process.platform === 'win32' ? 'node.exe' : 'node'), [join(root, 'dist/main.js')], {
+  child = spawn(join(root, process.platform === 'win32' ? 'node.exe' : 'node'), ['--max-http-header-size=65536', join(root, 'dist/main.js')], {
     cwd: dataRoot,
     env: { ...process.env, SHOTLOOM_CONTENT_ROOT: join(root, 'content'), SHOTLOOM_RULES_PATH: join(root, 'AGENTS.md'),
       SHOTLOOM_DATA_ROOT: dataRoot, SHOTLOOM_BRIDGE_URL: 'http://127.0.0.1:1', SHOTLOOM_BRIDGE_TOKEN: token },
@@ -52,6 +52,11 @@ async function session(origin, sessionId) {
   const page = await fetch(new URL(body.url).origin, { headers: { cookie } });
   assert.equal(page.status, 200);
   assert.match(await page.text(), /client\.js/);
+  // Loopback cookies are shared across ports, including old Host activations.
+  const largeCookie = `${cookie}; previous-hosts=${'x'.repeat(20 * 1024)}`;
+  assert.equal((await fetch(new URL(body.url).origin, { headers: { cookie: largeCookie } })).status, 200);
+  const rejected = await fetch(new URL(body.url).origin, { headers: { cookie: `${cookie}; oversized=${'x'.repeat(70 * 1024)}` } });
+  assert.equal(rejected.status, 431);
   return body.sessionId;
 }
 try {

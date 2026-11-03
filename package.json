@@ -12,7 +12,7 @@
     "prebuild:desktop": "npm run prepare:openreel && npm run prepare:media",
     "pretauri": "npm run prepare:media",
     "dev": "tauri dev",
-    "dev:web": "vite --host 127.0.0.1",
+    "dev:web": "node --max-http-header-size=65536 node_modules/vite/bin/vite.js --host 127.0.0.1",
     "prepare:screenshots": "node scripts/prepare-react-screenshots.mjs",
     "build": "npm run prepare:harness && npm run prepare:openreel && npm run prepare:screenshots && vite build",
     "build:desktop": "tauri build",
