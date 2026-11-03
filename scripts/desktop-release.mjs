@@ -43,13 +43,15 @@ async function filesUnder(directory) {
 }
 const digest = async file => createHash('sha256').update(await readFile(file)).digest('hex');
 
-export async function stageAssets({ bundle, destination, platform, version }) {
+export async function stageAssets({ bundle, destination, platform, version, artifactPaths }) {
   const target = targets.find(item => item.platform === platform);
   if (!target) throw new Error(`Unknown platform: ${platform}`);
-  const files = await filesUnder(bundle);
+  // Tauri reports the final artifacts after retries; its bundle directory can
+  // also contain temporary disk images left behind by a failed attempt.
+  const files = artifactPaths ?? await filesUnder(bundle);
   const updater = files.filter(file => file.endsWith(target.updaterExtension));
   const installers = files.filter(file => file.endsWith(target.installerExtension));
-  if (updater.length !== 1 || installers.length !== 1) throw new Error(`Expected one installer and updater for ${platform}`);
+  if (updater.length !== 1 || installers.length !== 1) throw new Error(`Expected one installer and updater for ${platform}; found installers: ${JSON.stringify(installers)}, updaters: ${JSON.stringify(updater)}`);
   const signature = (await readFile(`${updater[0]}.sig`, 'utf8')).trim();
   if (!signature) throw new Error(`Empty updater signature for ${platform}`);
   await mkdir(destination, { recursive: true });
@@ -114,7 +116,7 @@ async function main() {
     await appendFile(process.env.GITHUB_OUTPUT, `tag=${release.tag}\nversion=${release.version}\nprerelease=${release.prerelease}\nmatrix=${JSON.stringify({ include: targets })}\n`);
     return;
   }
-  if (command === 'stage') return stageAssets({ bundle: process.env.BUNDLE_DIR, destination: process.env.ASSET_DIR, platform: process.env.RELEASE_PLATFORM, version: release.version });
+  if (command === 'stage') return stageAssets({ bundle: process.env.BUNDLE_DIR, destination: process.env.ASSET_DIR, platform: process.env.RELEASE_PLATFORM, version: release.version, artifactPaths: JSON.parse(process.env.BUNDLE_ARTIFACTS) });
   if (command === 'publish') {
     const repository = process.env.GITHUB_REPOSITORY;
     const assets = await assembleAssets({ directory: process.env.ASSET_DIR, version: release.version, tag: release.tag, repository, server: process.env.GITHUB_SERVER_URL });

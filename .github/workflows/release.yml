@@ -138,6 +138,7 @@ jobs:
           } >> "$GITHUB_ENV"
 
       - name: Build desktop application
+        id: tauri
         uses: tauri-apps/tauri-action@v1
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -157,6 +158,7 @@ jobs:
           RELEASE_TAG: ${{ needs.metadata.outputs.tag }}
           RELEASE_PLATFORM: ${{ matrix.platform }}
           BUNDLE_DIR: src-tauri/target/${{ matrix.target }}/release/bundle
+          BUNDLE_ARTIFACTS: ${{ steps.tauri.outputs.artifactPaths }}
           ASSET_DIR: release-assets
         run: node scripts/desktop-release.mjs stage
 

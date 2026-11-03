@@ -98,3 +98,19 @@ test('a missing signature is rejected when staging a platform', () => fixture(as
   await writeFile(join(root, 'app.dmg'), 'installer');
   await assert.rejects(stageAssets({ bundle: root, destination: join(root, 'staged'), platform: target.platform, version: '2.0.0' }), /ENOENT/);
 }));
+
+test('staging uses successful Tauri artifacts despite disk images left by a failed attempt', () => fixture(async root => {
+  const destination = join(root, 'staged');
+  const installer = join(root, 'Shotloom.dmg');
+  const updater = join(root, 'Shotloom.app.tar.gz');
+  await writeFile(installer, 'final installer');
+  await writeFile(updater, 'final updater');
+  await writeFile(`${updater}.sig`, 'signature');
+  await writeFile(join(root, 'rw.123.Shotloom.dmg'), 'incomplete temporary image');
+  const options = { bundle: root, destination, platform: 'darwin-x86_64', version: '0.8.1' };
+  await assert.rejects(stageAssets(options), /Expected one installer/);
+  const manifest = await stageAssets({ ...options, artifactPaths: [installer, updater, `${updater}.sig`] });
+  assert.equal(manifest.assets.length, 3);
+  assert.equal(await readFile(join(destination, 'darwin-x86_64-Shotloom.dmg'), 'utf8'), 'final installer');
+  assert.ok(manifest.assets.every(asset => !asset.name.includes('rw.123')));
+}));
