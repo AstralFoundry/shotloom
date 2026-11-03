@@ -26,7 +26,7 @@ npm run release:version -- 0.2.0
 ## 自动执行的工作
 
 - PR 和 main 提交：产品检查、Harness 测试、完整前端构建及打包运行时启动验证；macOS/Windows Rust 测试。
-- Release：复用上述检查，再构建 macOS Apple Silicon、macOS Intel 和 Windows x64 安装包。
+- Release：复用上述检查，再构建 macOS Apple Silicon 和 Windows x64 安装包；不构建 Intel Mac 版本。
 - 每个平台按本次构建产物生成清单，确认安装包及更新签名存在。
 - 汇总所有目标，验证版本、文件完整性及 SHA-256，生成 `latest.json` 和 `SHA256SUMS`。
 - 所有构建完成后才创建草稿 Release，上传完整文件，再公开发布。上传失败保留草稿，可对同一提交重新运行；已公开的 Release 不会被重写。

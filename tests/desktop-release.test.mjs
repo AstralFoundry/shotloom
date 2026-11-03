@@ -52,7 +52,7 @@ async function staged(root) {
   return { directory, version: '2.0.0', repository: 'another-owner/another-repo' };
 }
 
-test('release artifacts preserve both Mac architectures and produce repository-specific updater URLs and checksums', () => fixture(async root => {
+test('release artifacts preserve configured platforms and produce repository-specific updater URLs and checksums', () => fixture(async root => {
   const options = await staged(root);
   const files = await assembleAssets(options);
   const latest = JSON.parse(await readFile(join(options.directory, 'latest.json'), 'utf8'));
@@ -107,10 +107,10 @@ test('staging uses successful Tauri artifacts despite disk images left by a fail
   await writeFile(updater, 'final updater');
   await writeFile(`${updater}.sig`, 'signature');
   await writeFile(join(root, 'rw.123.Shotloom.dmg'), 'incomplete temporary image');
-  const options = { bundle: root, destination, platform: 'darwin-x86_64', version: '0.8.1' };
+  const options = { bundle: root, destination, platform: 'darwin-aarch64', version: '0.8.1' };
   await assert.rejects(stageAssets(options), /Expected one installer/);
   const manifest = await stageAssets({ ...options, artifactPaths: [installer, updater, `${updater}.sig`] });
   assert.equal(manifest.assets.length, 3);
-  assert.equal(await readFile(join(destination, 'darwin-x86_64-Shotloom.dmg'), 'utf8'), 'final installer');
+  assert.equal(await readFile(join(destination, 'darwin-aarch64-Shotloom.dmg'), 'utf8'), 'final installer');
   assert.ok(manifest.assets.every(asset => !asset.name.includes('rw.123')));
 }));
