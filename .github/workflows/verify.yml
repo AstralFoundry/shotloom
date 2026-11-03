@@ -28,5 +28,8 @@ jobs:
         with:
           workspaces: src-tauri
       - run: npm run prepare:media
+      - name: Expose packaged FFmpeg to native integration tests
+        shell: bash
+        run: echo "$(node -p "require('node:path').dirname(require('ffmpeg-static'))")" >> "$GITHUB_PATH"
       - run: npm run prepare:harness
       - run: cargo test --locked --manifest-path src-tauri/Cargo.toml --lib

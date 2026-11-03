@@ -29,7 +29,7 @@
     "prepare:harness": "node scripts/prepare-harness.mjs",
     "check:storage": "node scripts/verify-storage-discipline.mjs",
     "check:i18n": "node scripts/generate-i18n-types.mjs --check",
-    "verify:product": "npm run prepare:openreel && npm run check && npm run harness:test && npm run build && npm run harness:verify-package",
+    "verify:product": "npm run prepare:openreel && npm run prepare:screenshots && npm run check && npm run harness:test && npm run build && npm run harness:verify-package",
     "release:version": "node scripts/desktop-release.mjs version"
   },
   "dependencies": {
