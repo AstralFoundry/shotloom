@@ -19,13 +19,14 @@ test('release versions accept stable/prerelease tags and reject unsafe or ambigu
   }
 });
 
-test('tag version synchronizes npm, Tauri and Cargo while preserving dependency versions', () => fixture(async root => {
+for (const eol of ['\n', '\r\n']) {
+test(`tag version synchronizes npm, Tauri and Cargo with ${eol === '\n' ? 'LF' : 'CRLF'} while preserving dependency versions`, () => fixture(async root => {
   await mkdir(join(root, 'src-tauri'));
   await writeFile(join(root, 'package.json'), '{"version":"0.1.0"}');
   await writeFile(join(root, 'package-lock.json'), '{"version":"0.1.0","packages":{"":{"version":"0.1.0"},"dependency":{"version":"9.0.0"}}}');
   await writeFile(join(root, 'src-tauri/tauri.conf.json'), '{"version":"0.1.0"}');
-  await writeFile(join(root, 'src-tauri/Cargo.toml'), '[package]\nname = "shotloom"\nversion = "0.1.0"\n[dependencies]\nfoo = "9.0.0"\n');
-  await writeFile(join(root, 'src-tauri/Cargo.lock'), '[[package]]\nname = "foo"\nversion = "9.0.0"\n\n[[package]]\nname = "shotloom"\nversion = "0.1.0"\n');
+  await writeFile(join(root, 'src-tauri/Cargo.toml'), '[package]\nname = "shotloom"\nversion = "0.1.0"\n[dependencies]\nfoo = "9.0.0"\n'.replaceAll('\n', eol));
+  await writeFile(join(root, 'src-tauri/Cargo.lock'), '[[package]]\nname = "foo"\nversion = "9.0.0"\n\n[[package]]\nname = "shotloom"\nversion = "0.1.0"\n'.replaceAll('\n', eol));
   await syncVersion('2.0.0-beta.1', root);
   const lock = JSON.parse(await readFile(join(root, 'package-lock.json'), 'utf8'));
   assert.equal(lock.version, '2.0.0-beta.1');
@@ -33,8 +34,9 @@ test('tag version synchronizes npm, Tauri and Cargo while preserving dependency 
   assert.equal(lock.packages.dependency.version, '9.0.0');
   assert.equal(JSON.parse(await readFile(join(root, 'src-tauri/tauri.conf.json'), 'utf8')).version, lock.version);
   assert.match(await readFile(join(root, 'src-tauri/Cargo.toml'), 'utf8'), /version = "2.0.0-beta.1"/);
-  assert.match(await readFile(join(root, 'src-tauri/Cargo.lock'), 'utf8'), /name = "foo"\nversion = "9.0.0"[\s\S]*name = "shotloom"\nversion = "2.0.0-beta.1"/);
+  assert.match((await readFile(join(root, 'src-tauri/Cargo.lock'), 'utf8')).replaceAll('\r\n', '\n'), /name = "foo"\nversion = "9.0.0"[\s\S]*name = "shotloom"\nversion = "2.0.0-beta.1"/);
 }));
+}
 
 async function staged(root) {
   const directory = join(root, 'assets');

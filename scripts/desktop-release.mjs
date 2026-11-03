@@ -27,7 +27,7 @@ export async function syncVersion(version, directory = root) {
   }
   for (const [relative, pattern] of [
     ['src-tauri/Cargo.toml', /(\[package\][\s\S]*?\nversion\s*=\s*")[^"]+(")/],
-    ['src-tauri/Cargo.lock', /(\[\[package\]\]\nname = "shotloom"\nversion = ")[^"]+(")/],
+    ['src-tauri/Cargo.lock', /(\[\[package\]\]\r?\nname = "shotloom"\r?\nversion = ")[^"]+(")/],
   ]) {
     const file = join(directory, relative), text = await readFile(file, 'utf8');
     if (!pattern.test(text)) throw new Error(`Cannot find the product version in ${relative}`);
