@@ -12,10 +12,9 @@
  * 用内容 hash 做 stamp：第二次 npm run dev 不会重复安装/构建。
  */
 import { createHash } from "node:crypto";
-import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { prepareOpenReelAgent } from './prepare-openreel-agent.mjs';
+import { prepareOpenReelAgent, runOpenReelPnpm } from './prepare-openreel-agent.mjs';
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -24,7 +23,6 @@ const webDir = path.join(vendor, "apps", "web");
 const embeddedDist = path.join(webDir, "dist-embedded");
 const target = path.join(root, "renderer", "public", "openreel");
 const stampFile = path.join(target, ".shotloom-build.json");
-const PNPM_VERSION = JSON.parse(fs.readFileSync(path.join(vendor, "package.json"), "utf8")).packageManager.split("@")[1];
 await prepareOpenReelAgent();
 
 const HASH_FILES = [
@@ -105,30 +103,6 @@ function outputLooksValid() {
   return wasm.length > 0;
 }
 
-function resolvePnpm() {
-  if (process.env.SHOTLOOM_PNPM) {
-    return { command: process.env.SHOTLOOM_PNPM, prefix: [] };
-  }
-  const corepack = spawnSync("corepack", ["--version"], { stdio: "ignore", shell: process.platform === "win32" });
-  if (corepack.status === 0) {
-    return { command: "corepack", prefix: [`pnpm@${PNPM_VERSION}`] };
-  }
-  return { command: "npx", prefix: ["--yes", `pnpm@${PNPM_VERSION}`] };
-}
-
-function runPnpm(args, options = {}) {
-  const pnpm = resolvePnpm();
-  const result = spawnSync(pnpm.command, [...pnpm.prefix, ...args], {
-    cwd: vendor,
-    shell: process.platform === "win32",
-    stdio: "inherit",
-    env: { ...process.env, OPENREEL_DESKTOP: "1", ...(options.env || {}) },
-  });
-  if (result.status !== 0) {
-    throw new Error(`${pnpm.command} ${pnpm.prefix.join(" ")} ${args.join(" ")} 失败（${result.status}）`);
-  }
-}
-
 function copyDir(source, destination) {
   fs.rmSync(destination, { recursive: true, force: true });
   fs.mkdirSync(path.dirname(destination), { recursive: true });
@@ -147,12 +121,10 @@ function main() {
     return;
   }
 
-  console.log("[openreel] 安装依赖（pnpm %s）…", PNPM_VERSION);
-  runPnpm(["install", "--frozen-lockfile"]);
   console.log("[openreel] 构建 wasm…");
-  runPnpm(["--filter", "@openreel/core", "build:wasm"]);
+  runOpenReelPnpm(["--filter", "@openreel/core", "build:wasm"]);
   console.log("[openreel] 构建 ShadowRoot runtime…");
-  runPnpm(["--filter", "@openreel/web", "build:embedded"], { env: { OPENREEL_EMBEDDED: "1" } });
+  runOpenReelPnpm(["--filter", "@openreel/web", "build:embedded"], { OPENREEL_EMBEDDED: "1" });
   if (!fs.existsSync(path.join(embeddedDist, "embedded-runtime.js"))) {
     throw new Error("ShadowRoot runtime 构建没有产出 embedded-runtime.js");
   }

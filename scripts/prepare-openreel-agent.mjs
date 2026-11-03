@@ -1,13 +1,42 @@
 import { build } from 'esbuild';
-import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
+import { mkdtemp, readFile, writeFile, rm, mkdir } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
+const root = resolve(import.meta.dirname, '..');
+const vendor = join(root, 'vendor/openreel');
+
+export function runOpenReelPnpm(args, env = {}) {
+  const version = JSON.parse(readFileSync(join(vendor, 'package.json'), 'utf8')).packageManager.split('@')[1];
+  // npx respects the vendored pin without relying on the runner's Corepack trust store.
+  const command = process.env.SHOTLOOM_PNPM || 'npx';
+  const prefix = process.env.SHOTLOOM_PNPM ? [] : ['--yes', `pnpm@${version}`];
+  const result = spawnSync(command, [...prefix, ...args], {
+    cwd: vendor, shell: process.platform === 'win32', stdio: 'inherit',
+    env: { ...process.env, OPENREEL_DESKTOP: '1', ...env },
+  });
+  if (result.status !== 0) throw new Error(`OpenReel pnpm ${args.join(' ')} failed (${result.status})`);
+}
+
+export async function ensureOpenReelDependencies() {
+  const hash = createHash('sha256').update(`${process.platform}:${process.arch}:${process.version}`);
+  for (const file of ['package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml']) hash.update(await readFile(join(vendor, file)));
+  const key = hash.digest('hex');
+  const stamp = join(vendor, 'node_modules/.shotloom-dependencies');
+  if (await readFile(stamp, 'utf8').catch(() => '') === key) return;
+  runOpenReelPnpm(['install', '--frozen-lockfile']);
+  await mkdir(join(vendor, 'node_modules'), { recursive: true });
+  await writeFile(stamp, key);
+}
+
 // Generate from the executable native registry, including its real schemas.
 // This bundle never imports OpenReel's Agent loop or LLM transport.
 export async function prepareOpenReelAgent() {
-  const root = resolve(import.meta.dirname, '..');
+  await ensureOpenReelDependencies();
   const temp = await mkdtemp(join(tmpdir(), 'shotloom-openreel-tools-'));
   try {
     const outfile = join(temp, 'registry.mjs');
