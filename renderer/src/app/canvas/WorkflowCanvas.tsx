@@ -121,7 +121,7 @@ export interface WorkflowNodeActions {
   createAnnotationNode: (id: string, blob: Blob) => void | Promise<boolean>;
   createWatermarkNode: (id: string, blob: Blob) => void | Promise<boolean>;
   splitImageGrid: (id: string, rows: number, cols: number, selected: number[], rect: ImageCropRect) => void | Promise<void>;
-  captureVideoFrame: (id: string, seconds: number) => void | Promise<void>;
+  captureVideoFrame: (id: string, seconds: number | 'last') => void | Promise<void>;
   replaceResource: (id: string) => void;
   archiveResource: (id: string) => void;
   selectOutput: (nodeId: string, outputId: string) => void;

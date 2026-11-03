@@ -92,10 +92,10 @@ test('媒体节点工具栏提供真实入库与音频分离', () => {
   assert.match(audioRust, /fn separate_audio[\s\S]*?source_has_audio[\s\S]*?"-map", "0:a:0"[\s\S]*?"-c:a", "aac"[\s\S]*?"-map", "0:v:0"[\s\S]*?"-an"[\s\S]*?"copy"/);
 });
 
-test('取尾帧按真实媒体时长寻址，不依赖空桩', () => {
+test('取尾帧交给解码器，不按容器时长和固定帧率猜测时间点', () => {
   const probeRust = readSource('src-tauri/src/commands/media_probe.rs');
-  assert.match(toolbar, /desktopApi\.file\.probeMedia\?\.\(localMediaPath\)/);
-  assert.match(toolbar, /duration - 1 \/ 30/);
+  assert.match(toolbar, /captureFrame\('last'\)/);
+  assert.doesNotMatch(toolbar, /duration - 1 \/ 30/);
   assert.match(api, /probeMedia:[\s\S]*?file:probe-media/);
   assert.match(api, /invoke\('file_probe_media', \{ source: args\[0\] \}\)/);
   assert.match(probeRust, /pub async fn file_probe_media[\s\S]*?spawn_blocking/);

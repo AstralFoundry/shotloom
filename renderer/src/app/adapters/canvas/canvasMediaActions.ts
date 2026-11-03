@@ -303,18 +303,19 @@ export async function splitImageGrid(id: string, rows: number, cols: number, sel
     showSuccessToast(t("ui.canvasMediaActions.text.f3bb5b2f", { value0: created.length }));
 }
 
-export async function captureVideoFrame(id: string, seconds: number) {
+export async function captureVideoFrame(id: string, seconds: number | 'last') {
     const source: any = (store.project.nodes || []).find(
       (item: any) => item.id === id && item.type === "videoGeneration" && !item.archived,
     );
     const { path } = selectedNodeLocalMedia(store.project, source);
     if (!source || !path) throw new Error(t("ui.canvasMediaActions.text.49c2f9a6"));
-    if (!Number.isFinite(seconds) || seconds < 0) throw new Error(t("ui.canvasMediaActions.text.3f51b31f"));
+    if (seconds !== 'last' && (!Number.isFinite(seconds) || seconds < 0)) throw new Error(t("ui.canvasMediaActions.text.3f51b31f"));
     const stem = String(source.title || path.split(/[\\/]/).pop() || t("ui.canvasMediaActions.text.fa4e33b6"))
       .replace(/\.[a-z0-9]{1,10}$/i, "")
       .replace(/[\\/:*?"<>|]/g, "-");
-    const timeLabel = seconds.toFixed(2).replace(".", "-");
-    const file: any = await desktopApi.file.captureVideoFrameToProject(path, seconds, `${stem}-${timeLabel}s.png`);
+    const timeLabel = seconds === 'last' ? t('ui.CanvasNodeToolbar.label.35b12241') : `${seconds.toFixed(2)}s`;
+    const frameName = `${stem}-${timeLabel.replace('.', '-')}.png`;
+    const file: any = await desktopApi.file.captureVideoFrameToProject(path, seconds, frameName);
     const filePath = String(file?.filePath || file?.path || "");
     if (!filePath) throw new Error(t("ui.canvasMediaActions.text.1f8dac30"));
     const registered: any = registerImportedMaterial(
@@ -324,7 +325,7 @@ export async function captureVideoFrame(id: string, seconds: number) {
     if (!registered.material) throw new Error(t("ui.canvasMediaActions.text.eeaab800"));
     recordCanvasHistory(t("ui.canvasMediaActions.assetTag.c87869a7"));
     const output: any = addNode("imageGeneration");
-    output.title = `${stem} ${seconds.toFixed(2)}s`;
+    output.title = `${stem} ${timeLabel}`;
     output.prompt = "";
     output.x = Math.round((Number(source.x) || 0) + canvasNodeDimensions(source).width + 80);
     output.y = Math.round(Number(source.y) || 0);
@@ -334,7 +335,7 @@ export async function captureVideoFrame(id: string, seconds: number) {
     output.sourceType = "video-frame";
     output.generatedFrom = { nodeId: source.id, type: "video-frame", seconds };
     output.filePath = filePath;
-    output.uploadedFile = { name: file.name || `${stem}-${timeLabel}s.png`, path: filePath, filePath, type: "image/png", mimeType: "image/png", size: file.size || 0, materialId: output.materialId, assetId: output.assetId, resourceType: "image", source: "video-frame" };
+    output.uploadedFile = { name: file.name || frameName, path: filePath, filePath, type: "image/png", mimeType: "image/png", size: file.size || 0, materialId: output.materialId, assetId: output.assetId, resourceType: "image", source: "video-frame" };
     registered.material.nodeId = output.id;
     addCanvasEdge(store.project, source.id, output.id, {
       touch: false,

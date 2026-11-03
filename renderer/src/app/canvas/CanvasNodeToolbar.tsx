@@ -396,24 +396,10 @@ export function CanvasNodeToolbar({
     });
   }
 
-  function captureFrame(seconds: number) {
+  function captureFrame(seconds: number | 'last') {
     void Promise.resolve(actions.captureVideoFrame(node.id, seconds)).catch((cause) =>
       actions.notify(cause instanceof Error ? cause.message : t("ui.CanvasNodeToolbar.text.22c39936")),
     );
-  }
-
-  /**
-   * 尾帧没有独立入口：截帧按秒寻址，取 duration 处会落在最后一帧之后取不到画面，
-   * 因此按 30fps 的一帧余量回退。
-   */
-  async function captureLastFrame() {
-    const probed = await desktopApi.file.probeMedia?.(localMediaPath).catch(() => null);
-    const duration = Number(probed?.duration);
-    if (!Number.isFinite(duration) || duration <= 0) {
-      actions.notify(t("ui.CanvasNodeToolbar.text.0863ef8b"));
-      return;
-    }
-    captureFrame(Math.max(0, duration - 1 / 30));
   }
 
   function resolveTool(tool: NodeToolDefinition): ResolvedTool | null {
@@ -452,7 +438,7 @@ export function CanvasNodeToolbar({
           onClick: () => setOpenMenu((current) => (current === "frame" ? null : "frame")),
           menu: [
             { id: "frame-first", label: t("ui.CanvasNodeToolbar.label.f19f6b6d"), icon: "camera", onSelect: () => captureFrame(0) },
-            { id: "frame-last", label: t("ui.CanvasNodeToolbar.label.35b12241"), icon: "camera", onSelect: () => void captureLastFrame() },
+            { id: "frame-last", label: t("ui.CanvasNodeToolbar.label.35b12241"), icon: "camera", onSelect: () => captureFrame('last') },
           ],
         };
       case "extract-audio":
