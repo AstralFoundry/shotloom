@@ -54,7 +54,7 @@ fn stage_workflow(root: &Path, mut payload: Value) -> Result<Value, String> {
                 let target = directory.join(format!("{index}-{name}"));
                 fs::copy(source_path, &target)
                     .map_err(|error| localized_error("native.error.6f326882a2", json!({"source": source.to_string(), "error": error.to_string()}), format!("暂存素材失败（{source}）：{error}")))?;
-                fs::File::open(&target)
+                fs::OpenOptions::new().write(true).open(&target)
                     .and_then(|file| file.sync_all())
                     .map_err(|error| error.to_string())?;
                 resource["stagedPath"] = json!(target.to_string_lossy());
