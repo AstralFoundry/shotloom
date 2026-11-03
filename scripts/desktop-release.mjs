@@ -14,7 +14,7 @@ export function releaseVersion(value) {
   if (version.trim() !== version || !/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?$/.test(version)) {
     throw new Error('Expected a semantic version such as v1.2.3 or v1.2.3-beta.1 (without build metadata)');
   }
-  return { version, tag: `v${version}`, prerelease: version.includes('-') };
+  return { version, tag: value, prerelease: version.includes('-') };
 }
 
 // Only build-workspace files change in CI. The tag is the release source of truth.
@@ -65,7 +65,8 @@ export async function stageAssets({ bundle, destination, platform, version }) {
   return manifest;
 }
 
-export async function assembleAssets({ directory, version, repository, server = 'https://github.com' }) {
+export async function assembleAssets({ directory, version, repository, server = 'https://github.com', tag = `v${version}` }) {
+  if (releaseVersion(tag).version !== version) throw new Error('Release tag and artifact version do not match');
   if (!/^[\w.-]+\/[\w.-]+$/.test(repository)) throw new Error('Invalid GitHub repository');
   const expected = new Set(targets.map(target => target.platform));
   const manifests = (await readdir(directory)).filter(name => name.endsWith('.manifest.json'));
@@ -85,11 +86,11 @@ export async function assembleAssets({ directory, version, repository, server = 
     const signature = (await readFile(join(directory, `${manifest.updater}.sig`), 'utf8')).trim();
     if (signature !== manifest.signature) throw new Error(`Signature mismatch: ${name}`);
     platforms[manifest.platform] = {
-      signature, url: `${server}/${repository}/releases/download/v${version}/${encodeURIComponent(manifest.updater)}`,
+      signature, url: `${server}/${repository}/releases/download/${tag}/${encodeURIComponent(manifest.updater)}`,
     };
   }
   if (expected.size) throw new Error(`Missing platforms: ${[...expected].join(', ')}`);
-  const latest = { version, notes: `See ${server}/${repository}/releases/tag/v${version}`, pub_date: new Date().toISOString(), platforms };
+  const latest = { version, notes: `See ${server}/${repository}/releases/tag/${tag}`, pub_date: new Date().toISOString(), platforms };
   await writeJson(join(directory, 'latest.json'), latest);
   assets.push({ name: 'latest.json', sha256: await digest(join(directory, 'latest.json')) });
   await writeFile(join(directory, 'SHA256SUMS'), assets.map(asset => `${asset.sha256}  ${asset.name}`).sort().join('\n') + '\n');
@@ -99,7 +100,7 @@ export async function assembleAssets({ directory, version, repository, server = 
 const gh = (...args) => execFileSync('gh', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim();
 async function main() {
   const command = process.argv[2];
-  const requested = process.argv[3] || process.env.RELEASE_TAG || (await readJson(join(root, 'package.json'))).version;
+  const requested = process.argv[3] || process.env.RELEASE_TAG || `v${(await readJson(join(root, 'package.json'))).version}`;
   const release = releaseVersion(requested);
   if (command === 'version') return syncVersion(release.version);
   if (command === 'metadata') {
@@ -116,7 +117,7 @@ async function main() {
   if (command === 'stage') return stageAssets({ bundle: process.env.BUNDLE_DIR, destination: process.env.ASSET_DIR, platform: process.env.RELEASE_PLATFORM, version: release.version });
   if (command === 'publish') {
     const repository = process.env.GITHUB_REPOSITORY;
-    const assets = await assembleAssets({ directory: process.env.ASSET_DIR, version: release.version, repository, server: process.env.GITHUB_SERVER_URL });
+    const assets = await assembleAssets({ directory: process.env.ASSET_DIR, version: release.version, tag: release.tag, repository, server: process.env.GITHUB_SERVER_URL });
     const releases = JSON.parse(gh('api', '--paginate', '--slurp', `repos/${repository}/releases?per_page=100`)).flat();
     const existing = releases.find(item => item.tag_name === release.tag);
     if (existing && !existing.draft) throw new Error(`${release.tag} is already public; use a new version instead of replacing released files`);

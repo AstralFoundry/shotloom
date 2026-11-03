@@ -12,6 +12,7 @@ async function fixture(fn) {
 
 test('release versions accept stable/prerelease tags and reject unsafe or ambiguous values', () => {
   assert.deepEqual(releaseVersion('v1.2.3'), { version: '1.2.3', tag: 'v1.2.3', prerelease: false });
+  assert.deepEqual(releaseVersion('0.8.1'), { version: '0.8.1', tag: '0.8.1', prerelease: false });
   assert.equal(releaseVersion('1.2.3-beta.1').prerelease, true);
   for (const version of ['1.2', 'v01.2.3', '1.2.3-beta.01', '1.2.3+build', '1.2.3\n', '--latest', '../1.2.3']) {
     assert.throws(() => releaseVersion(version));
@@ -60,6 +61,17 @@ test('release artifacts preserve both Mac architectures and produce repository-s
   }
   assert.equal(new Set(files).size, files.length);
   assert.equal((await readFile(join(options.directory, 'SHA256SUMS'), 'utf8')).trim().split('\n').length, files.length - 1);
+}));
+
+test('unprefixed release tags are preserved in updater downloads and release notes', () => fixture(async root => {
+  const options = await staged(root);
+  await assembleAssets({ ...options, tag: '2.0.0' });
+  const latest = JSON.parse(await readFile(join(options.directory, 'latest.json'), 'utf8'));
+  for (const platform of Object.values(latest.platforms)) {
+    assert.match(platform.url, /\/releases\/download\/2\.0\.0\//);
+  }
+  assert.match(latest.notes, /\/releases\/tag\/2\.0\.0$/);
+  await assert.rejects(assembleAssets({ ...options, tag: '1.0.0' }), /tag and artifact version/);
 }));
 
 test('incomplete or corrupted artifacts cannot reach publication', () => fixture(async root => {

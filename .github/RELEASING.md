@@ -11,7 +11,7 @@ git tag v0.2.0
 git push origin v0.2.0
 ```
 
-标签是本次发布的版本来源。工作流自动在临时构建目录同步 package.json、package-lock.json、Tauri 配置及 Cargo.toml/Cargo.lock，不要求先手改这些文件，也不向源分支提交自动修改。
+标签可使用 `v0.2.0` 或 `0.2.0`；工作流保留实际标签名称，不自动添加前缀。标签是本次发布的版本来源。工作流自动在临时构建目录同步 package.json、package-lock.json、Tauri 配置及 Cargo.toml/Cargo.lock，不要求先手改这些文件，也不向源分支提交自动修改。
 
 也可以在 Actions → Release → Run workflow 中选择分支，填写 `v0.2.0`。留空时使用该分支 package.json 的版本。同名标签若已指向其他提交会被拒绝，不会移动已有标签。
 
