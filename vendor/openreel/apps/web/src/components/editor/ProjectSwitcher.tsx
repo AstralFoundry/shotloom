@@ -1,0 +1,297 @@
+import { editorMessage } from "../../shotloom-mode";
+import React, { lazy, Suspense, useState, useEffect, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
+import {
+  ChevronDown,
+  Plus,
+  FolderOpen,
+  Clock,
+  Check,
+  Pencil,
+  FileVideo,
+} from "@/icons/lucide-compat";
+import { ToolcraftButton as Button } from "@openreel/ui";
+import { ToolcraftCard as Card } from "@openreel/ui";
+import { ToolcraftClickableCard as ClickableCard } from "@openreel/ui";
+import { ToolcraftIconButton as IconButton } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
+import { ToolcraftTextInputControl } from "@openreel/ui";
+import { ToolcraftPopover as Popover } from "@openreel/ui";
+import { useProjectStore } from "../../stores/project-store";
+import { autoSaveManager, type AutoSaveMetadata } from "../../services/auto-save";
+import { ErrorBoundary } from "../ErrorBoundary";
+const ProjectPackageDialog = lazy(() => import("./ProjectPackageDialog").then((module) => ({ default: module.ProjectPackageDialog })));
+
+function formatTimeAgo(timestamp: number): string {
+  const seconds = Math.floor((Date.now() - timestamp) / 1000);
+  if (seconds < 60) return editorMessage("editor.projectMenu.justNow");
+  if (seconds < 3600) {
+    const mins = Math.floor(seconds / 60);
+    return editorMessage("editor.projectMenu.minutesAgo", { count: mins });
+  }
+  if (seconds < 86400) {
+    const hours = Math.floor(seconds / 3600);
+    return editorMessage("editor.projectMenu.hoursAgo", { count: hours });
+  }
+  const days = Math.floor(seconds / 86400);
+  return editorMessage("editor.projectMenu.daysAgo", { count: days });
+}
+
+export const ProjectSwitcher: React.FC = () => {
+  const { project, createNewProject, recoverFromAutoSave, renameProject } = useProjectStore();
+  const [isOpen, setIsOpen] = useState(false);
+  const [savedProjects, setSavedProjects] = useState<AutoSaveMetadata[]>([]);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editName, setEditName] = useState(project.name);
+  const [isLoading, setIsLoading] = useState(false);
+  const [filesOpen, setFilesOpen] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const loadSavedProjects = async () => {
+      try {
+        await autoSaveManager.initialize();
+        const saves = await autoSaveManager.checkForRecovery();
+        const uniqueProjects = saves.reduce((acc, save) => {
+          const existing = acc.find((s) => s.projectId === save.projectId);
+          if (!existing || save.timestamp > existing.timestamp) {
+            return [...acc.filter((s) => s.projectId !== save.projectId), save];
+          }
+          return acc;
+        }, [] as AutoSaveMetadata[]);
+        setSavedProjects(uniqueProjects.sort((a, b) => b.timestamp - a.timestamp));
+      } catch (err) {
+        console.warn("[ProjectSwitcher] Failed to load saved projects:", err);
+      }
+    };
+
+    if (isOpen) {
+      loadSavedProjects();
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [isEditing]);
+
+  useEffect(() => {
+    setEditName(project.name);
+  }, [project.name]);
+
+  const handleSaveName = useCallback(async () => {
+    const trimmedName = editName.trim();
+    if (trimmedName && trimmedName !== project.name) {
+      await renameProject(trimmedName);
+    }
+    setIsEditing(false);
+  }, [editName, project.name, renameProject]);
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === "Enter") {
+        handleSaveName();
+      } else if (e.key === "Escape") {
+        setEditName(project.name);
+        setIsEditing(false);
+      }
+    },
+    [handleSaveName, project.name]
+  );
+
+  const handleNewProject = useCallback(() => {
+    createNewProject();
+    setIsOpen(false);
+  }, [createNewProject]);
+
+  const handleSwitchProject = useCallback(
+    async (saveId: string) => {
+      setIsLoading(true);
+      try {
+        await recoverFromAutoSave(saveId);
+        setIsOpen(false);
+      } catch (err) {
+        console.error("[ProjectSwitcher] Failed to switch project:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [recoverFromAutoSave]
+  );
+
+  const otherProjects = savedProjects.filter((s) => s.projectId !== project.id);
+
+  return (
+    <div className="relative min-w-0 max-w-full">
+      <Popover
+        label={editorMessage("editor.projectMenu.menu")}
+        isOpen={isOpen}
+        onOpenChange={(open) => { setIsOpen(open); if (!open) setIsEditing(false); }}
+        placement="below"
+        alignment="start"
+        className="!w-[min(320px,calc(100vw-24px))] border-border bg-bg-1 shadow-xl"
+        content={
+        <Card
+          variant="default"
+          padding={0}
+          className="max-h-[var(--radix-popover-content-available-height)] overflow-y-auto rounded-none border-0 bg-bg-1"
+        >
+          <div className="p-3 border-b border-border">
+            <Text
+              type="supporting"
+              color="secondary"
+              className="mb-2 text-xs font-medium uppercase tracking-wider"
+            >
+              {editorMessage("editor.projectMenu.current")}
+            </Text>
+            {isEditing ? (
+              <div className="flex items-center gap-2">
+                <ToolcraftTextInputControl
+                  ref={inputRef}
+                  label={editorMessage("editor.projectMenu.name")}
+                  isLabelHidden
+                  size="sm"
+                  width="100%"
+                  value={editName}
+                  onChange={setEditName}
+                  onBlur={handleSaveName}
+                  onKeyDown={handleKeyDown}
+                  className="flex-1 bg-background-secondary border-primary text-text-primary"
+                />
+                <IconButton
+                  label={editorMessage("editor.projectMenu.saveName")}
+                  onClick={handleSaveName}
+                  variant="secondary"
+                  size="sm"
+                  icon={<Check className="h-4 w-4" aria-hidden />}
+                  className="bg-primary text-white hover:bg-primary-hover"
+                />
+              </div>
+            ) : (
+              <Card
+                variant="muted"
+                padding={2}
+                className="group flex items-center gap-2 bg-background-secondary"
+              >
+                <FileVideo className="w-4 h-4 text-primary shrink-0" />
+                <Text
+                  type="supporting"
+                  color="primary"
+                  className="flex-1 truncate text-sm font-medium"
+                >
+                  <span data-shotloom-user-content>{project.name}</span>
+                </Text>
+                <IconButton
+                  label={editorMessage("editor.projectMenu.rename")}
+                  onClick={() => setIsEditing(true)}
+                  variant="ghost"
+                  size="sm"
+                  icon={<Pencil className="h-3.5 w-3.5" aria-hidden />}
+                  className="text-text-muted opacity-0 hover:bg-background-tertiary hover:text-text-primary group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
+                />
+              </Card>
+            )}
+          </div>
+
+          <div className="p-2">
+            <ClickableCard label={editorMessage("editor.projectMenu.backups")} onClick={() => { setIsOpen(false); setFilesOpen(true); }} padding={3} variant="transparent"
+              className="flex w-full items-start gap-3 text-left hover:bg-background-secondary">
+              <FolderOpen className="h-4 w-4 shrink-0 text-primary" aria-hidden />
+              <div className="min-w-0 flex-1 space-y-0.5"><Text type="supporting" display="block" className="text-sm font-medium leading-5">{editorMessage("editor.projectMenu.backups")}</Text>
+                <Text type="supporting" display="block" color="secondary" className="text-xs leading-4">{editorMessage("editor.projectMenu.backupsHint")}</Text></div>
+            </ClickableCard>
+            <ClickableCard
+              label={editorMessage("editor.projectMenu.new")}
+              onClick={handleNewProject}
+              padding={3}
+              variant="transparent"
+              className="group flex w-full items-center gap-3 text-left hover:bg-background-secondary"
+            >
+              <div className="p-1.5 bg-primary/10 rounded-md text-primary group-hover:bg-primary/20 transition-colors">
+                <Plus className="w-4 h-4" />
+              </div>
+              <div className="min-w-0 flex-1 space-y-0.5">
+                <Text type="supporting" display="block" color="primary" className="text-sm font-medium leading-5">
+                  {editorMessage("editor.projectMenu.new")}
+                </Text>
+                <Text type="supporting" display="block" color="secondary" className="text-xs leading-4">
+                  {editorMessage("editor.projectMenu.newHint")}
+                </Text>
+              </div>
+            </ClickableCard>
+          </div>
+
+          {otherProjects.length > 0 && (
+            <>
+              <div className="px-3 py-2 border-t border-border">
+                <div className="flex items-center gap-2">
+                  <Clock className="w-3 h-3" />
+                  <Text
+                    type="supporting"
+                    color="secondary"
+                    className="text-xs font-medium uppercase tracking-wider"
+                  >
+                  {editorMessage("editor.projectMenu.recent")}
+                  </Text>
+                </div>
+              </div>
+              <div className="max-h-64 overflow-y-auto px-2 pb-2">
+                {otherProjects.map((save) => (
+                  <ClickableCard
+                    key={save.id}
+                    label={editorMessage("editor.projectMenu.open", { name: save.projectName })}
+                    onClick={() => handleSwitchProject(save.id)}
+                    isDisabled={isLoading}
+                    padding={3}
+                    variant="transparent"
+                    className="group flex w-full items-center gap-3 text-left hover:bg-background-secondary"
+                  >
+                    <div className="p-1.5 bg-background-tertiary rounded-md text-text-muted group-hover:text-text-secondary transition-colors">
+                      <FolderOpen className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0 space-y-0.5">
+                      <Text
+                        type="supporting"
+                        color="primary"
+                        display="block"
+                        className="truncate text-sm font-medium group-hover:text-primary"
+                      >
+                        <span data-shotloom-user-content>{save.projectName}</span>
+                      </Text>
+                      <Text type="supporting" display="block" color="secondary" className="text-xs leading-4">
+                        {formatTimeAgo(save.timestamp)}
+                      </Text>
+                    </div>
+                  </ClickableCard>
+                ))}
+              </div>
+            </>
+          )}
+        </Card>
+        }
+      >
+        <Button
+          data-shotloom-user-content
+          label={project.name}
+          variant="ghost"
+          size="md"
+          icon={<FileVideo className="h-4 w-4 shrink-0 text-primary" aria-hidden />}
+          endContent={<ChevronDown className={`h-3.5 w-3.5 shrink-0 text-text-muted transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`} aria-hidden />}
+          className="min-w-0 max-w-full sm:max-w-[200px] justify-start truncate hover:bg-background-secondary"
+        />
+      </Popover>
+      {filesOpen && <ErrorBoundary fallback={createPortal(
+        <div role="alert" className="fixed right-3 top-[72px] z-[10000] max-w-sm rounded-lg border border-border bg-bg-1 p-4 text-sm text-fg shadow-lg">
+          <p>{editorMessage("editor.projectMenu.backupsFailed")}</p>
+          <Button label={editorMessage("editor.projectMenu.dismiss")} variant="ghost" size="sm" onClick={() => setFilesOpen(false)} className="mt-2" />
+        </div>, document.body,
+      )}>
+        <Suspense fallback={createPortal(<div role="status" className="fixed right-3 top-[72px] z-[10000] rounded-lg border border-border bg-bg-1 p-4 text-sm text-fg shadow-lg">{editorMessage("editor.projectMenu.openingBackups")}</div>, document.body)}>
+          <ProjectPackageDialog onClose={() => setFilesOpen(false)} />
+        </Suspense>
+      </ErrorBoundary>}
+    </div>
+  );
+};

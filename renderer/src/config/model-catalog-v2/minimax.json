@@ -1,0 +1,3455 @@
+{
+  "provider": "minimax",
+  "models": [
+    {
+      "id": "MiniMax-H3-Max",
+      "name": "MiniMax H3 Max",
+      "provider": "minimax",
+      "type": "videoGeneration",
+      "sortOrder": 3,
+      "enabled": true,
+      "defaultMode": "text-to-video",
+      "modes": [
+        {
+          "id": "text-to-video",
+          "label": "文生视频",
+          "endpoint": {
+            "method": "POST",
+            "path": "/v2/video_generation",
+            "scope": "root"
+          },
+          "taskEndpoint": {
+            "method": "GET",
+            "path": "/v2/query/video_generation/{taskId}",
+            "scope": "root"
+          },
+          "isAsync": true,
+          "inputConstraints": {
+            "images": {
+              "min": 0,
+              "max": 0
+            }
+          },
+          "outputConstraints": {
+            "durations": [
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15
+            ],
+            "defaultDuration": 5,
+            "formats": [
+              "mp4"
+            ]
+          },
+          "params": [
+            {
+              "key": "prompt",
+              "label": "提示词",
+              "type": "text",
+              "required": true,
+              "labelKey": "catalog.label.2f0bb12387"
+            },
+            {
+              "key": "duration",
+              "label": "时长",
+              "type": "select",
+              "default": 5,
+              "numeric": true,
+              "options": [
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14,
+                15
+              ],
+              "labelKey": "catalog.label.29d0552d2e"
+            },
+            {
+              "key": "aspectRatio",
+              "label": "比例",
+              "type": "select",
+              "default": "16:9",
+              "options": [
+                "21:9",
+                "16:9",
+                "4:3",
+                "1:1",
+                "3:4",
+                "9:16"
+              ],
+              "labelKey": "catalog.label.c27f341ce5"
+            },
+            {
+              "key": "resolution",
+              "label": "分辨率",
+              "type": "select",
+              "default": "768P",
+              "options": [
+                "480P",
+                "768P"
+              ],
+              "labelKey": "catalog.label.cde9b52b23"
+            }
+          ],
+          "auth": {
+            "type": "bearer"
+          },
+          "requestTemplate": {
+            "model": "{{model}}",
+            "content": "{{content}}",
+            "resolution": "{{params.resolution}}",
+            "duration": "{{params.duration}}",
+            "ratio": "{{params.aspectRatio}}"
+          },
+          "contentTemplate": {
+            "text": {
+              "type": "text",
+              "text": "{{text}}"
+            },
+            "image": {
+              "type": "image_url",
+              "image_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            },
+            "video": {
+              "type": "video_url",
+              "video_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            },
+            "audio": {
+              "type": "audio_url",
+              "audio_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            }
+          },
+          "taskIdPath": "task_id",
+          "statusPath": "task.status",
+          "errorPath": "task.error.message",
+          "pollStatusMap": {
+            "queued": "running",
+            "running": "running",
+            "succeeded": "completed",
+            "failed": "failed",
+            "cancelled": "cancelled"
+          },
+          "resultUrlPath": "task.content.url",
+          "errorCodePath": "base_resp.status_code",
+          "errorMessagePath": "base_resp.status_msg",
+          "labelKey": "catalog.label.dd6f194c41"
+        },
+        {
+          "id": "first-frame-to-video",
+          "label": "首帧图生视频",
+          "inputMode": "firstFrame",
+          "inputSlots": [
+            "firstFrame"
+          ],
+          "endpoint": {
+            "method": "POST",
+            "path": "/v2/video_generation",
+            "scope": "root"
+          },
+          "taskEndpoint": {
+            "method": "GET",
+            "path": "/v2/query/video_generation/{taskId}",
+            "scope": "root"
+          },
+          "isAsync": true,
+          "inputConstraints": {
+            "images": {
+              "min": 1,
+              "max": 1,
+              "roles": [
+                "referenceImage"
+              ],
+              "formats": [
+                "jpg",
+                "jpeg",
+                "png",
+                "webp",
+                "heic",
+                "heif"
+              ]
+            }
+          },
+          "outputConstraints": {
+            "durations": [
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15
+            ],
+            "defaultDuration": 5,
+            "formats": [
+              "mp4"
+            ]
+          },
+          "requestFields": {
+            "imageContentRole": "first_frame"
+          },
+          "params": [
+            {
+              "key": "prompt",
+              "label": "提示词",
+              "type": "text",
+              "required": true,
+              "labelKey": "catalog.label.2f0bb12387"
+            },
+            {
+              "key": "duration",
+              "label": "时长",
+              "type": "select",
+              "default": 5,
+              "numeric": true,
+              "options": [
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14,
+                15
+              ],
+              "labelKey": "catalog.label.29d0552d2e"
+            },
+            {
+              "key": "resolution",
+              "label": "分辨率",
+              "type": "select",
+              "default": "768P",
+              "options": [
+                "480P",
+                "768P"
+              ],
+              "labelKey": "catalog.label.cde9b52b23"
+            }
+          ],
+          "auth": {
+            "type": "bearer"
+          },
+          "requestTemplate": {
+            "model": "{{model}}",
+            "content": "{{content}}",
+            "resolution": "{{params.resolution}}",
+            "duration": "{{params.duration}}",
+            "ratio": "adaptive"
+          },
+          "contentTemplate": {
+            "text": {
+              "type": "text",
+              "text": "{{text}}"
+            },
+            "image": {
+              "type": "image_url",
+              "image_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            },
+            "video": {
+              "type": "video_url",
+              "video_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            },
+            "audio": {
+              "type": "audio_url",
+              "audio_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            }
+          },
+          "taskIdPath": "task_id",
+          "statusPath": "task.status",
+          "errorPath": "task.error.message",
+          "pollStatusMap": {
+            "queued": "running",
+            "running": "running",
+            "succeeded": "completed",
+            "failed": "failed",
+            "cancelled": "cancelled"
+          },
+          "resultUrlPath": "task.content.url",
+          "errorCodePath": "base_resp.status_code",
+          "errorMessagePath": "base_resp.status_msg",
+          "labelKey": "catalog.label.41d852e209"
+        },
+        {
+          "id": "first-last-frame-to-video",
+          "label": "首尾帧",
+          "inputMode": "firstLastFrame",
+          "inputSlots": [
+            "firstFrame",
+            "lastFrame"
+          ],
+          "endpoint": {
+            "method": "POST",
+            "path": "/v2/video_generation",
+            "scope": "root"
+          },
+          "taskEndpoint": {
+            "method": "GET",
+            "path": "/v2/query/video_generation/{taskId}",
+            "scope": "root"
+          },
+          "isAsync": true,
+          "inputConstraints": {
+            "images": {
+              "min": 2,
+              "max": 2,
+              "roles": [
+                "referenceImage"
+              ],
+              "formats": [
+                "jpg",
+                "jpeg",
+                "png",
+                "webp",
+                "heic",
+                "heif"
+              ]
+            }
+          },
+          "outputConstraints": {
+            "durations": [
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15
+            ],
+            "defaultDuration": 5,
+            "formats": [
+              "mp4"
+            ]
+          },
+          "requestFields": {
+            "firstFrameImageContentRole": "first_frame",
+            "lastFrameImageContentRole": "last_frame"
+          },
+          "params": [
+            {
+              "key": "prompt",
+              "label": "提示词",
+              "type": "text",
+              "required": true,
+              "labelKey": "catalog.label.2f0bb12387"
+            },
+            {
+              "key": "duration",
+              "label": "时长",
+              "type": "select",
+              "default": 5,
+              "numeric": true,
+              "options": [
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14,
+                15
+              ],
+              "labelKey": "catalog.label.29d0552d2e"
+            },
+            {
+              "key": "resolution",
+              "label": "分辨率",
+              "type": "select",
+              "default": "768P",
+              "options": [
+                "480P",
+                "768P"
+              ],
+              "labelKey": "catalog.label.cde9b52b23"
+            }
+          ],
+          "auth": {
+            "type": "bearer"
+          },
+          "requestTemplate": {
+            "model": "{{model}}",
+            "content": "{{content}}",
+            "resolution": "{{params.resolution}}",
+            "duration": "{{params.duration}}",
+            "ratio": "adaptive"
+          },
+          "contentTemplate": {
+            "text": {
+              "type": "text",
+              "text": "{{text}}"
+            },
+            "image": {
+              "type": "image_url",
+              "image_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            },
+            "video": {
+              "type": "video_url",
+              "video_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            },
+            "audio": {
+              "type": "audio_url",
+              "audio_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            }
+          },
+          "taskIdPath": "task_id",
+          "statusPath": "task.status",
+          "errorPath": "task.error.message",
+          "pollStatusMap": {
+            "queued": "running",
+            "running": "running",
+            "succeeded": "completed",
+            "failed": "failed",
+            "cancelled": "cancelled"
+          },
+          "resultUrlPath": "task.content.url",
+          "errorCodePath": "base_resp.status_code",
+          "errorMessagePath": "base_resp.status_msg",
+          "labelKey": "catalog.label.d5b5b1fde9"
+        },
+        {
+          "id": "omni-reference-to-video",
+          "label": "全模态参考生视频",
+          "endpoint": {
+            "method": "POST",
+            "path": "/v2/video_generation",
+            "scope": "root"
+          },
+          "taskEndpoint": {
+            "method": "GET",
+            "path": "/v2/query/video_generation/{taskId}",
+            "scope": "root"
+          },
+          "isAsync": true,
+          "inputConstraints": {
+            "images": {
+              "min": 0,
+              "max": 9,
+              "roles": [
+                "referenceImage"
+              ],
+              "formats": [
+                "jpg",
+                "jpeg",
+                "png",
+                "webp",
+                "heic",
+                "heif"
+              ]
+            },
+            "videos": {
+              "min": 0,
+              "max": 3,
+              "roles": [
+                "inputVideo"
+              ],
+              "formats": [
+                "mp4",
+                "mov"
+              ],
+              "maxBytes": 52428800
+            },
+            "audios": {
+              "min": 0,
+              "max": 3,
+              "roles": [
+                "referenceAudio"
+              ],
+              "formats": [
+                "wav",
+                "mp3"
+              ],
+              "maxBytes": 15728640,
+              "minDuration": 2,
+              "maxDuration": 15,
+              "maxTotalDuration": 15
+            }
+          },
+          "outputConstraints": {
+            "durations": [
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15
+            ],
+            "defaultDuration": 5,
+            "formats": [
+              "mp4"
+            ]
+          },
+          "params": [
+            {
+              "key": "prompt",
+              "label": "提示词",
+              "type": "text",
+              "required": true,
+              "labelKey": "catalog.label.2f0bb12387"
+            },
+            {
+              "key": "duration",
+              "label": "时长",
+              "type": "select",
+              "default": 5,
+              "numeric": true,
+              "options": [
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14,
+                15
+              ],
+              "labelKey": "catalog.label.29d0552d2e"
+            },
+            {
+              "key": "aspectRatio",
+              "label": "比例",
+              "type": "select",
+              "default": "adaptive",
+              "options": [
+                "adaptive",
+                "21:9",
+                "16:9",
+                "4:3",
+                "1:1",
+                "3:4",
+                "9:16"
+              ],
+              "labelKey": "catalog.label.c27f341ce5"
+            },
+            {
+              "key": "resolution",
+              "label": "分辨率",
+              "type": "select",
+              "default": "768P",
+              "options": [
+                "480P",
+                "768P"
+              ],
+              "labelKey": "catalog.label.cde9b52b23"
+            }
+          ],
+          "auth": {
+            "type": "bearer"
+          },
+          "requestTemplate": {
+            "model": "{{model}}",
+            "content": "{{content}}",
+            "resolution": "{{params.resolution}}",
+            "duration": "{{params.duration}}",
+            "ratio": "{{params.aspectRatio}}"
+          },
+          "contentTemplate": {
+            "text": {
+              "type": "text",
+              "text": "{{text}}"
+            },
+            "image": {
+              "type": "image_url",
+              "image_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            },
+            "video": {
+              "type": "video_url",
+              "video_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            },
+            "audio": {
+              "type": "audio_url",
+              "audio_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            }
+          },
+          "taskIdPath": "task_id",
+          "statusPath": "task.status",
+          "errorPath": "task.error.message",
+          "pollStatusMap": {
+            "queued": "running",
+            "running": "running",
+            "succeeded": "completed",
+            "failed": "failed",
+            "cancelled": "cancelled"
+          },
+          "resultUrlPath": "task.content.url",
+          "errorCodePath": "base_resp.status_code",
+          "errorMessagePath": "base_resp.status_msg",
+          "labelKey": "catalog.label.d108de51ea",
+          "inputMode": "reference",
+          "inputSlots": [
+            "reference",
+            "inputVideo",
+            "referenceAudio"
+          ],
+          "requestFields": {
+            "imageContentRole": "reference_image",
+            "videoContentRole": "reference_video",
+            "audioContentRole": "reference_audio"
+          }
+        }
+      ]
+    },
+    {
+      "id": "MiniMax-H3",
+      "name": "MiniMax H3",
+      "provider": "minimax",
+      "type": "videoGeneration",
+      "sortOrder": 4,
+      "enabled": true,
+      "defaultMode": "text-to-video",
+      "modes": [
+        {
+          "id": "text-to-video",
+          "label": "文生视频",
+          "endpoint": {
+            "method": "POST",
+            "path": "/v2/video_generation",
+            "scope": "root"
+          },
+          "taskEndpoint": {
+            "method": "GET",
+            "path": "/v2/query/video_generation/{taskId}",
+            "scope": "root"
+          },
+          "isAsync": true,
+          "inputConstraints": {
+            "images": {
+              "min": 0,
+              "max": 0
+            }
+          },
+          "outputConstraints": {
+            "durations": [
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15
+            ],
+            "defaultDuration": 5,
+            "formats": [
+              "mp4"
+            ]
+          },
+          "params": [
+            {
+              "key": "prompt",
+              "label": "提示词",
+              "type": "text",
+              "required": true,
+              "labelKey": "catalog.label.2f0bb12387"
+            },
+            {
+              "key": "duration",
+              "label": "时长",
+              "type": "select",
+              "default": 5,
+              "numeric": true,
+              "options": [
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14,
+                15
+              ],
+              "labelKey": "catalog.label.29d0552d2e"
+            },
+            {
+              "key": "aspectRatio",
+              "label": "比例",
+              "type": "select",
+              "default": "16:9",
+              "options": [
+                "21:9",
+                "16:9",
+                "4:3",
+                "1:1",
+                "3:4",
+                "9:16"
+              ],
+              "labelKey": "catalog.label.c27f341ce5"
+            },
+            {
+              "key": "resolution",
+              "label": "分辨率",
+              "type": "select",
+              "default": "768P",
+              "options": [
+                "768P",
+                "2K"
+              ],
+              "labelKey": "catalog.label.cde9b52b23"
+            }
+          ],
+          "auth": {
+            "type": "bearer"
+          },
+          "requestTemplate": {
+            "model": "{{model}}",
+            "content": "{{content}}",
+            "resolution": "{{params.resolution}}",
+            "duration": "{{params.duration}}",
+            "ratio": "{{params.aspectRatio}}"
+          },
+          "contentTemplate": {
+            "text": {
+              "type": "text",
+              "text": "{{text}}"
+            },
+            "image": {
+              "type": "image_url",
+              "image_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            },
+            "video": {
+              "type": "video_url",
+              "video_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            },
+            "audio": {
+              "type": "audio_url",
+              "audio_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            }
+          },
+          "taskIdPath": "task_id",
+          "statusPath": "task.status",
+          "errorPath": "task.error.message",
+          "pollStatusMap": {
+            "queued": "running",
+            "running": "running",
+            "succeeded": "completed",
+            "failed": "failed",
+            "cancelled": "cancelled"
+          },
+          "resultUrlPath": "task.content.url",
+          "errorCodePath": "base_resp.status_code",
+          "errorMessagePath": "base_resp.status_msg",
+          "labelKey": "catalog.label.dd6f194c41"
+        },
+        {
+          "id": "first-frame-to-video",
+          "label": "首帧图生视频",
+          "inputMode": "firstFrame",
+          "inputSlots": [
+            "firstFrame"
+          ],
+          "endpoint": {
+            "method": "POST",
+            "path": "/v2/video_generation",
+            "scope": "root"
+          },
+          "taskEndpoint": {
+            "method": "GET",
+            "path": "/v2/query/video_generation/{taskId}",
+            "scope": "root"
+          },
+          "isAsync": true,
+          "inputConstraints": {
+            "images": {
+              "min": 1,
+              "max": 1,
+              "roles": [
+                "referenceImage"
+              ],
+              "formats": [
+                "jpg",
+                "jpeg",
+                "png",
+                "webp",
+                "heic",
+                "heif"
+              ]
+            }
+          },
+          "outputConstraints": {
+            "durations": [
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15
+            ],
+            "defaultDuration": 5,
+            "formats": [
+              "mp4"
+            ]
+          },
+          "requestFields": {
+            "imageContentRole": "first_frame"
+          },
+          "params": [
+            {
+              "key": "prompt",
+              "label": "提示词",
+              "type": "text",
+              "required": true,
+              "labelKey": "catalog.label.2f0bb12387"
+            },
+            {
+              "key": "duration",
+              "label": "时长",
+              "type": "select",
+              "default": 5,
+              "numeric": true,
+              "options": [
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14,
+                15
+              ],
+              "labelKey": "catalog.label.29d0552d2e"
+            },
+            {
+              "key": "resolution",
+              "label": "分辨率",
+              "type": "select",
+              "default": "768P",
+              "options": [
+                "768P",
+                "2K"
+              ],
+              "labelKey": "catalog.label.cde9b52b23"
+            }
+          ],
+          "auth": {
+            "type": "bearer"
+          },
+          "requestTemplate": {
+            "model": "{{model}}",
+            "content": "{{content}}",
+            "resolution": "{{params.resolution}}",
+            "duration": "{{params.duration}}",
+            "ratio": "adaptive"
+          },
+          "contentTemplate": {
+            "text": {
+              "type": "text",
+              "text": "{{text}}"
+            },
+            "image": {
+              "type": "image_url",
+              "image_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            },
+            "video": {
+              "type": "video_url",
+              "video_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            },
+            "audio": {
+              "type": "audio_url",
+              "audio_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            }
+          },
+          "taskIdPath": "task_id",
+          "statusPath": "task.status",
+          "errorPath": "task.error.message",
+          "pollStatusMap": {
+            "queued": "running",
+            "running": "running",
+            "succeeded": "completed",
+            "failed": "failed",
+            "cancelled": "cancelled"
+          },
+          "resultUrlPath": "task.content.url",
+          "errorCodePath": "base_resp.status_code",
+          "errorMessagePath": "base_resp.status_msg",
+          "labelKey": "catalog.label.41d852e209"
+        },
+        {
+          "id": "first-last-frame-to-video",
+          "label": "首尾帧",
+          "inputMode": "firstLastFrame",
+          "inputSlots": [
+            "firstFrame",
+            "lastFrame"
+          ],
+          "endpoint": {
+            "method": "POST",
+            "path": "/v2/video_generation",
+            "scope": "root"
+          },
+          "taskEndpoint": {
+            "method": "GET",
+            "path": "/v2/query/video_generation/{taskId}",
+            "scope": "root"
+          },
+          "isAsync": true,
+          "inputConstraints": {
+            "images": {
+              "min": 2,
+              "max": 2,
+              "roles": [
+                "referenceImage"
+              ],
+              "formats": [
+                "jpg",
+                "jpeg",
+                "png",
+                "webp",
+                "heic",
+                "heif"
+              ]
+            }
+          },
+          "outputConstraints": {
+            "durations": [
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15
+            ],
+            "defaultDuration": 5,
+            "formats": [
+              "mp4"
+            ]
+          },
+          "requestFields": {
+            "firstFrameImageContentRole": "first_frame",
+            "lastFrameImageContentRole": "last_frame"
+          },
+          "params": [
+            {
+              "key": "prompt",
+              "label": "提示词",
+              "type": "text",
+              "required": true,
+              "labelKey": "catalog.label.2f0bb12387"
+            },
+            {
+              "key": "duration",
+              "label": "时长",
+              "type": "select",
+              "default": 5,
+              "numeric": true,
+              "options": [
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14,
+                15
+              ],
+              "labelKey": "catalog.label.29d0552d2e"
+            },
+            {
+              "key": "resolution",
+              "label": "分辨率",
+              "type": "select",
+              "default": "768P",
+              "options": [
+                "768P",
+                "2K"
+              ],
+              "labelKey": "catalog.label.cde9b52b23"
+            }
+          ],
+          "auth": {
+            "type": "bearer"
+          },
+          "requestTemplate": {
+            "model": "{{model}}",
+            "content": "{{content}}",
+            "resolution": "{{params.resolution}}",
+            "duration": "{{params.duration}}",
+            "ratio": "adaptive"
+          },
+          "contentTemplate": {
+            "text": {
+              "type": "text",
+              "text": "{{text}}"
+            },
+            "image": {
+              "type": "image_url",
+              "image_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            },
+            "video": {
+              "type": "video_url",
+              "video_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            },
+            "audio": {
+              "type": "audio_url",
+              "audio_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            }
+          },
+          "taskIdPath": "task_id",
+          "statusPath": "task.status",
+          "errorPath": "task.error.message",
+          "pollStatusMap": {
+            "queued": "running",
+            "running": "running",
+            "succeeded": "completed",
+            "failed": "failed",
+            "cancelled": "cancelled"
+          },
+          "resultUrlPath": "task.content.url",
+          "errorCodePath": "base_resp.status_code",
+          "errorMessagePath": "base_resp.status_msg",
+          "labelKey": "catalog.label.d5b5b1fde9"
+        },
+        {
+          "id": "omni-reference-to-video",
+          "label": "全模态参考生视频",
+          "endpoint": {
+            "method": "POST",
+            "path": "/v2/video_generation",
+            "scope": "root"
+          },
+          "taskEndpoint": {
+            "method": "GET",
+            "path": "/v2/query/video_generation/{taskId}",
+            "scope": "root"
+          },
+          "isAsync": true,
+          "inputConstraints": {
+            "images": {
+              "min": 0,
+              "max": 9,
+              "roles": [
+                "referenceImage"
+              ],
+              "formats": [
+                "jpg",
+                "jpeg",
+                "png",
+                "webp",
+                "heic",
+                "heif"
+              ]
+            },
+            "videos": {
+              "min": 0,
+              "max": 3,
+              "roles": [
+                "inputVideo"
+              ],
+              "formats": [
+                "mp4",
+                "mov"
+              ],
+              "maxBytes": 52428800
+            },
+            "audios": {
+              "min": 0,
+              "max": 3,
+              "roles": [
+                "referenceAudio"
+              ],
+              "formats": [
+                "wav",
+                "mp3"
+              ],
+              "maxBytes": 15728640,
+              "minDuration": 2,
+              "maxDuration": 15,
+              "maxTotalDuration": 15
+            }
+          },
+          "outputConstraints": {
+            "durations": [
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15
+            ],
+            "defaultDuration": 5,
+            "formats": [
+              "mp4"
+            ]
+          },
+          "params": [
+            {
+              "key": "prompt",
+              "label": "提示词",
+              "type": "text",
+              "required": true,
+              "labelKey": "catalog.label.2f0bb12387"
+            },
+            {
+              "key": "duration",
+              "label": "时长",
+              "type": "select",
+              "default": 5,
+              "numeric": true,
+              "options": [
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14,
+                15
+              ],
+              "labelKey": "catalog.label.29d0552d2e"
+            },
+            {
+              "key": "aspectRatio",
+              "label": "比例",
+              "type": "select",
+              "default": "adaptive",
+              "options": [
+                "adaptive",
+                "21:9",
+                "16:9",
+                "4:3",
+                "1:1",
+                "3:4",
+                "9:16"
+              ],
+              "labelKey": "catalog.label.c27f341ce5"
+            },
+            {
+              "key": "resolution",
+              "label": "分辨率",
+              "type": "select",
+              "default": "768P",
+              "options": [
+                "768P",
+                "2K"
+              ],
+              "labelKey": "catalog.label.cde9b52b23"
+            }
+          ],
+          "auth": {
+            "type": "bearer"
+          },
+          "requestTemplate": {
+            "model": "{{model}}",
+            "content": "{{content}}",
+            "resolution": "{{params.resolution}}",
+            "duration": "{{params.duration}}",
+            "ratio": "{{params.aspectRatio}}"
+          },
+          "contentTemplate": {
+            "text": {
+              "type": "text",
+              "text": "{{text}}"
+            },
+            "image": {
+              "type": "image_url",
+              "image_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            },
+            "video": {
+              "type": "video_url",
+              "video_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            },
+            "audio": {
+              "type": "audio_url",
+              "audio_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            }
+          },
+          "taskIdPath": "task_id",
+          "statusPath": "task.status",
+          "errorPath": "task.error.message",
+          "pollStatusMap": {
+            "queued": "running",
+            "running": "running",
+            "succeeded": "completed",
+            "failed": "failed",
+            "cancelled": "cancelled"
+          },
+          "resultUrlPath": "task.content.url",
+          "errorCodePath": "base_resp.status_code",
+          "errorMessagePath": "base_resp.status_msg",
+          "labelKey": "catalog.label.d108de51ea",
+          "inputMode": "reference",
+          "inputSlots": [
+            "reference",
+            "inputVideo",
+            "referenceAudio"
+          ],
+          "requestFields": {
+            "imageContentRole": "reference_image",
+            "videoContentRole": "reference_video",
+            "audioContentRole": "reference_audio"
+          }
+        }
+      ]
+    },
+    {
+      "id": "MiniMax-H3-Highspeed",
+      "name": "MiniMax H3 Highspeed",
+      "provider": "minimax",
+      "type": "videoGeneration",
+      "sortOrder": 4,
+      "enabled": true,
+      "defaultMode": "text-to-video",
+      "modes": [
+        {
+          "id": "text-to-video",
+          "label": "文生视频",
+          "endpoint": {
+            "method": "POST",
+            "path": "/v2/video_generation",
+            "scope": "root"
+          },
+          "taskEndpoint": {
+            "method": "GET",
+            "path": "/v2/query/video_generation/{taskId}",
+            "scope": "root"
+          },
+          "isAsync": true,
+          "inputConstraints": {
+            "images": {
+              "min": 0,
+              "max": 0
+            }
+          },
+          "outputConstraints": {
+            "durations": [
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15
+            ],
+            "defaultDuration": 5,
+            "formats": [
+              "mp4"
+            ]
+          },
+          "params": [
+            {
+              "key": "prompt",
+              "label": "提示词",
+              "type": "text",
+              "required": true,
+              "labelKey": "catalog.label.2f0bb12387"
+            },
+            {
+              "key": "duration",
+              "label": "时长",
+              "type": "select",
+              "default": 5,
+              "numeric": true,
+              "options": [
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14,
+                15
+              ],
+              "labelKey": "catalog.label.29d0552d2e"
+            },
+            {
+              "key": "aspectRatio",
+              "label": "比例",
+              "type": "select",
+              "default": "16:9",
+              "options": [
+                "21:9",
+                "16:9",
+                "4:3",
+                "1:1",
+                "3:4",
+                "9:16"
+              ],
+              "labelKey": "catalog.label.c27f341ce5"
+            },
+            {
+              "key": "resolution",
+              "label": "分辨率",
+              "type": "select",
+              "default": "768P",
+              "options": [
+                "480P",
+                "768P"
+              ],
+              "labelKey": "catalog.label.cde9b52b23"
+            }
+          ],
+          "auth": {
+            "type": "bearer"
+          },
+          "requestTemplate": {
+            "model": "{{model}}",
+            "content": "{{content}}",
+            "resolution": "{{params.resolution}}",
+            "duration": "{{params.duration}}",
+            "ratio": "{{params.aspectRatio}}"
+          },
+          "contentTemplate": {
+            "text": {
+              "type": "text",
+              "text": "{{text}}"
+            },
+            "image": {
+              "type": "image_url",
+              "image_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            },
+            "video": {
+              "type": "video_url",
+              "video_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            },
+            "audio": {
+              "type": "audio_url",
+              "audio_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            }
+          },
+          "taskIdPath": "task_id",
+          "statusPath": "task.status",
+          "errorPath": "task.error.message",
+          "pollStatusMap": {
+            "queued": "running",
+            "running": "running",
+            "succeeded": "completed",
+            "failed": "failed",
+            "cancelled": "cancelled"
+          },
+          "resultUrlPath": "task.content.url",
+          "errorCodePath": "base_resp.status_code",
+          "errorMessagePath": "base_resp.status_msg",
+          "labelKey": "catalog.label.dd6f194c41"
+        },
+        {
+          "id": "first-frame-to-video",
+          "label": "首帧图生视频",
+          "inputMode": "firstFrame",
+          "inputSlots": [
+            "firstFrame"
+          ],
+          "endpoint": {
+            "method": "POST",
+            "path": "/v2/video_generation",
+            "scope": "root"
+          },
+          "taskEndpoint": {
+            "method": "GET",
+            "path": "/v2/query/video_generation/{taskId}",
+            "scope": "root"
+          },
+          "isAsync": true,
+          "inputConstraints": {
+            "images": {
+              "min": 1,
+              "max": 1,
+              "roles": [
+                "referenceImage"
+              ],
+              "formats": [
+                "jpg",
+                "jpeg",
+                "png",
+                "webp",
+                "heic",
+                "heif"
+              ]
+            }
+          },
+          "outputConstraints": {
+            "durations": [
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15
+            ],
+            "defaultDuration": 5,
+            "formats": [
+              "mp4"
+            ]
+          },
+          "requestFields": {
+            "imageContentRole": "first_frame"
+          },
+          "params": [
+            {
+              "key": "prompt",
+              "label": "提示词",
+              "type": "text",
+              "required": true,
+              "labelKey": "catalog.label.2f0bb12387"
+            },
+            {
+              "key": "duration",
+              "label": "时长",
+              "type": "select",
+              "default": 5,
+              "numeric": true,
+              "options": [
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14,
+                15
+              ],
+              "labelKey": "catalog.label.29d0552d2e"
+            },
+            {
+              "key": "resolution",
+              "label": "分辨率",
+              "type": "select",
+              "default": "768P",
+              "options": [
+                "480P",
+                "768P"
+              ],
+              "labelKey": "catalog.label.cde9b52b23"
+            }
+          ],
+          "auth": {
+            "type": "bearer"
+          },
+          "requestTemplate": {
+            "model": "{{model}}",
+            "content": "{{content}}",
+            "resolution": "{{params.resolution}}",
+            "duration": "{{params.duration}}",
+            "ratio": "adaptive"
+          },
+          "contentTemplate": {
+            "text": {
+              "type": "text",
+              "text": "{{text}}"
+            },
+            "image": {
+              "type": "image_url",
+              "image_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            },
+            "video": {
+              "type": "video_url",
+              "video_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            },
+            "audio": {
+              "type": "audio_url",
+              "audio_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            }
+          },
+          "taskIdPath": "task_id",
+          "statusPath": "task.status",
+          "errorPath": "task.error.message",
+          "pollStatusMap": {
+            "queued": "running",
+            "running": "running",
+            "succeeded": "completed",
+            "failed": "failed",
+            "cancelled": "cancelled"
+          },
+          "resultUrlPath": "task.content.url",
+          "errorCodePath": "base_resp.status_code",
+          "errorMessagePath": "base_resp.status_msg",
+          "labelKey": "catalog.label.41d852e209"
+        },
+        {
+          "id": "first-last-frame-to-video",
+          "label": "首尾帧",
+          "inputMode": "firstLastFrame",
+          "inputSlots": [
+            "firstFrame",
+            "lastFrame"
+          ],
+          "endpoint": {
+            "method": "POST",
+            "path": "/v2/video_generation",
+            "scope": "root"
+          },
+          "taskEndpoint": {
+            "method": "GET",
+            "path": "/v2/query/video_generation/{taskId}",
+            "scope": "root"
+          },
+          "isAsync": true,
+          "inputConstraints": {
+            "images": {
+              "min": 2,
+              "max": 2,
+              "roles": [
+                "referenceImage"
+              ],
+              "formats": [
+                "jpg",
+                "jpeg",
+                "png",
+                "webp",
+                "heic",
+                "heif"
+              ]
+            }
+          },
+          "outputConstraints": {
+            "durations": [
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15
+            ],
+            "defaultDuration": 5,
+            "formats": [
+              "mp4"
+            ]
+          },
+          "requestFields": {
+            "firstFrameImageContentRole": "first_frame",
+            "lastFrameImageContentRole": "last_frame"
+          },
+          "params": [
+            {
+              "key": "prompt",
+              "label": "提示词",
+              "type": "text",
+              "required": true,
+              "labelKey": "catalog.label.2f0bb12387"
+            },
+            {
+              "key": "duration",
+              "label": "时长",
+              "type": "select",
+              "default": 5,
+              "numeric": true,
+              "options": [
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14,
+                15
+              ],
+              "labelKey": "catalog.label.29d0552d2e"
+            },
+            {
+              "key": "resolution",
+              "label": "分辨率",
+              "type": "select",
+              "default": "768P",
+              "options": [
+                "480P",
+                "768P"
+              ],
+              "labelKey": "catalog.label.cde9b52b23"
+            }
+          ],
+          "auth": {
+            "type": "bearer"
+          },
+          "requestTemplate": {
+            "model": "{{model}}",
+            "content": "{{content}}",
+            "resolution": "{{params.resolution}}",
+            "duration": "{{params.duration}}",
+            "ratio": "adaptive"
+          },
+          "contentTemplate": {
+            "text": {
+              "type": "text",
+              "text": "{{text}}"
+            },
+            "image": {
+              "type": "image_url",
+              "image_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            },
+            "video": {
+              "type": "video_url",
+              "video_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            },
+            "audio": {
+              "type": "audio_url",
+              "audio_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            }
+          },
+          "taskIdPath": "task_id",
+          "statusPath": "task.status",
+          "errorPath": "task.error.message",
+          "pollStatusMap": {
+            "queued": "running",
+            "running": "running",
+            "succeeded": "completed",
+            "failed": "failed",
+            "cancelled": "cancelled"
+          },
+          "resultUrlPath": "task.content.url",
+          "errorCodePath": "base_resp.status_code",
+          "errorMessagePath": "base_resp.status_msg",
+          "labelKey": "catalog.label.d5b5b1fde9"
+        },
+        {
+          "id": "omni-reference-to-video",
+          "label": "全模态参考生视频",
+          "endpoint": {
+            "method": "POST",
+            "path": "/v2/video_generation",
+            "scope": "root"
+          },
+          "taskEndpoint": {
+            "method": "GET",
+            "path": "/v2/query/video_generation/{taskId}",
+            "scope": "root"
+          },
+          "isAsync": true,
+          "inputConstraints": {
+            "images": {
+              "min": 0,
+              "max": 9,
+              "roles": [
+                "referenceImage"
+              ],
+              "formats": [
+                "jpg",
+                "jpeg",
+                "png",
+                "webp",
+                "heic",
+                "heif"
+              ]
+            },
+            "videos": {
+              "min": 0,
+              "max": 3,
+              "roles": [
+                "inputVideo"
+              ],
+              "formats": [
+                "mp4",
+                "mov"
+              ],
+              "maxBytes": 52428800
+            },
+            "audios": {
+              "min": 0,
+              "max": 3,
+              "roles": [
+                "referenceAudio"
+              ],
+              "formats": [
+                "wav",
+                "mp3"
+              ],
+              "maxBytes": 15728640,
+              "minDuration": 2,
+              "maxDuration": 15,
+              "maxTotalDuration": 15
+            }
+          },
+          "outputConstraints": {
+            "durations": [
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15
+            ],
+            "defaultDuration": 5,
+            "formats": [
+              "mp4"
+            ]
+          },
+          "params": [
+            {
+              "key": "prompt",
+              "label": "提示词",
+              "type": "text",
+              "required": true,
+              "labelKey": "catalog.label.2f0bb12387"
+            },
+            {
+              "key": "duration",
+              "label": "时长",
+              "type": "select",
+              "default": 5,
+              "numeric": true,
+              "options": [
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14,
+                15
+              ],
+              "labelKey": "catalog.label.29d0552d2e"
+            },
+            {
+              "key": "aspectRatio",
+              "label": "比例",
+              "type": "select",
+              "default": "adaptive",
+              "options": [
+                "adaptive",
+                "21:9",
+                "16:9",
+                "4:3",
+                "1:1",
+                "3:4",
+                "9:16"
+              ],
+              "labelKey": "catalog.label.c27f341ce5"
+            },
+            {
+              "key": "resolution",
+              "label": "分辨率",
+              "type": "select",
+              "default": "768P",
+              "options": [
+                "480P",
+                "768P"
+              ],
+              "labelKey": "catalog.label.cde9b52b23"
+            }
+          ],
+          "auth": {
+            "type": "bearer"
+          },
+          "requestTemplate": {
+            "model": "{{model}}",
+            "content": "{{content}}",
+            "resolution": "{{params.resolution}}",
+            "duration": "{{params.duration}}",
+            "ratio": "{{params.aspectRatio}}"
+          },
+          "contentTemplate": {
+            "text": {
+              "type": "text",
+              "text": "{{text}}"
+            },
+            "image": {
+              "type": "image_url",
+              "image_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            },
+            "video": {
+              "type": "video_url",
+              "video_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            },
+            "audio": {
+              "type": "audio_url",
+              "audio_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            }
+          },
+          "taskIdPath": "task_id",
+          "statusPath": "task.status",
+          "errorPath": "task.error.message",
+          "pollStatusMap": {
+            "queued": "running",
+            "running": "running",
+            "succeeded": "completed",
+            "failed": "failed",
+            "cancelled": "cancelled"
+          },
+          "resultUrlPath": "task.content.url",
+          "errorCodePath": "base_resp.status_code",
+          "errorMessagePath": "base_resp.status_msg",
+          "labelKey": "catalog.label.d108de51ea",
+          "inputMode": "reference",
+          "inputSlots": [
+            "reference",
+            "inputVideo",
+            "referenceAudio"
+          ],
+          "requestFields": {
+            "imageContentRole": "reference_image",
+            "videoContentRole": "reference_video",
+            "audioContentRole": "reference_audio"
+          }
+        }
+      ]
+    },
+    {
+      "id": "MiniMax-H3-Lite",
+      "name": "MiniMax H3 Lite",
+      "provider": "minimax",
+      "type": "videoGeneration",
+      "sortOrder": 4,
+      "enabled": true,
+      "defaultMode": "text-to-video",
+      "modes": [
+        {
+          "id": "text-to-video",
+          "label": "文生视频",
+          "endpoint": {
+            "method": "POST",
+            "path": "/v2/video_generation",
+            "scope": "root"
+          },
+          "taskEndpoint": {
+            "method": "GET",
+            "path": "/v2/query/video_generation/{taskId}",
+            "scope": "root"
+          },
+          "isAsync": true,
+          "inputConstraints": {
+            "images": {
+              "min": 0,
+              "max": 0
+            }
+          },
+          "outputConstraints": {
+            "durations": [
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15
+            ],
+            "defaultDuration": 5,
+            "formats": [
+              "mp4"
+            ]
+          },
+          "params": [
+            {
+              "key": "prompt",
+              "label": "提示词",
+              "type": "text",
+              "required": true,
+              "labelKey": "catalog.label.2f0bb12387"
+            },
+            {
+              "key": "duration",
+              "label": "时长",
+              "type": "select",
+              "default": 5,
+              "numeric": true,
+              "options": [
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14,
+                15
+              ],
+              "labelKey": "catalog.label.29d0552d2e"
+            },
+            {
+              "key": "aspectRatio",
+              "label": "比例",
+              "type": "select",
+              "default": "16:9",
+              "options": [
+                "21:9",
+                "16:9",
+                "4:3",
+                "1:1",
+                "3:4",
+                "9:16"
+              ],
+              "labelKey": "catalog.label.c27f341ce5"
+            },
+            {
+              "key": "resolution",
+              "label": "分辨率",
+              "type": "select",
+              "default": "768P",
+              "options": [
+                "480P",
+                "768P"
+              ],
+              "labelKey": "catalog.label.cde9b52b23"
+            }
+          ],
+          "auth": {
+            "type": "bearer"
+          },
+          "requestTemplate": {
+            "model": "{{model}}",
+            "content": "{{content}}",
+            "resolution": "{{params.resolution}}",
+            "duration": "{{params.duration}}",
+            "ratio": "{{params.aspectRatio}}"
+          },
+          "contentTemplate": {
+            "text": {
+              "type": "text",
+              "text": "{{text}}"
+            },
+            "image": {
+              "type": "image_url",
+              "image_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            },
+            "video": {
+              "type": "video_url",
+              "video_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            },
+            "audio": {
+              "type": "audio_url",
+              "audio_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            }
+          },
+          "taskIdPath": "task_id",
+          "statusPath": "task.status",
+          "errorPath": "task.error.message",
+          "pollStatusMap": {
+            "queued": "running",
+            "running": "running",
+            "succeeded": "completed",
+            "failed": "failed",
+            "cancelled": "cancelled"
+          },
+          "resultUrlPath": "task.content.url",
+          "errorCodePath": "base_resp.status_code",
+          "errorMessagePath": "base_resp.status_msg",
+          "labelKey": "catalog.label.dd6f194c41"
+        },
+        {
+          "id": "first-frame-to-video",
+          "label": "首帧图生视频",
+          "inputMode": "firstFrame",
+          "inputSlots": [
+            "firstFrame"
+          ],
+          "endpoint": {
+            "method": "POST",
+            "path": "/v2/video_generation",
+            "scope": "root"
+          },
+          "taskEndpoint": {
+            "method": "GET",
+            "path": "/v2/query/video_generation/{taskId}",
+            "scope": "root"
+          },
+          "isAsync": true,
+          "inputConstraints": {
+            "images": {
+              "min": 1,
+              "max": 1,
+              "roles": [
+                "referenceImage"
+              ],
+              "formats": [
+                "jpg",
+                "jpeg",
+                "png",
+                "webp",
+                "heic",
+                "heif"
+              ]
+            }
+          },
+          "outputConstraints": {
+            "durations": [
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15
+            ],
+            "defaultDuration": 5,
+            "formats": [
+              "mp4"
+            ]
+          },
+          "requestFields": {
+            "imageContentRole": "first_frame"
+          },
+          "params": [
+            {
+              "key": "prompt",
+              "label": "提示词",
+              "type": "text",
+              "required": true,
+              "labelKey": "catalog.label.2f0bb12387"
+            },
+            {
+              "key": "duration",
+              "label": "时长",
+              "type": "select",
+              "default": 5,
+              "numeric": true,
+              "options": [
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14,
+                15
+              ],
+              "labelKey": "catalog.label.29d0552d2e"
+            },
+            {
+              "key": "resolution",
+              "label": "分辨率",
+              "type": "select",
+              "default": "768P",
+              "options": [
+                "480P",
+                "768P"
+              ],
+              "labelKey": "catalog.label.cde9b52b23"
+            }
+          ],
+          "auth": {
+            "type": "bearer"
+          },
+          "requestTemplate": {
+            "model": "{{model}}",
+            "content": "{{content}}",
+            "resolution": "{{params.resolution}}",
+            "duration": "{{params.duration}}",
+            "ratio": "adaptive"
+          },
+          "contentTemplate": {
+            "text": {
+              "type": "text",
+              "text": "{{text}}"
+            },
+            "image": {
+              "type": "image_url",
+              "image_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            },
+            "video": {
+              "type": "video_url",
+              "video_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            },
+            "audio": {
+              "type": "audio_url",
+              "audio_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            }
+          },
+          "taskIdPath": "task_id",
+          "statusPath": "task.status",
+          "errorPath": "task.error.message",
+          "pollStatusMap": {
+            "queued": "running",
+            "running": "running",
+            "succeeded": "completed",
+            "failed": "failed",
+            "cancelled": "cancelled"
+          },
+          "resultUrlPath": "task.content.url",
+          "errorCodePath": "base_resp.status_code",
+          "errorMessagePath": "base_resp.status_msg",
+          "labelKey": "catalog.label.41d852e209"
+        },
+        {
+          "id": "first-last-frame-to-video",
+          "label": "首尾帧",
+          "inputMode": "firstLastFrame",
+          "inputSlots": [
+            "firstFrame",
+            "lastFrame"
+          ],
+          "endpoint": {
+            "method": "POST",
+            "path": "/v2/video_generation",
+            "scope": "root"
+          },
+          "taskEndpoint": {
+            "method": "GET",
+            "path": "/v2/query/video_generation/{taskId}",
+            "scope": "root"
+          },
+          "isAsync": true,
+          "inputConstraints": {
+            "images": {
+              "min": 2,
+              "max": 2,
+              "roles": [
+                "referenceImage"
+              ],
+              "formats": [
+                "jpg",
+                "jpeg",
+                "png",
+                "webp",
+                "heic",
+                "heif"
+              ]
+            }
+          },
+          "outputConstraints": {
+            "durations": [
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15
+            ],
+            "defaultDuration": 5,
+            "formats": [
+              "mp4"
+            ]
+          },
+          "requestFields": {
+            "firstFrameImageContentRole": "first_frame",
+            "lastFrameImageContentRole": "last_frame"
+          },
+          "params": [
+            {
+              "key": "prompt",
+              "label": "提示词",
+              "type": "text",
+              "required": true,
+              "labelKey": "catalog.label.2f0bb12387"
+            },
+            {
+              "key": "duration",
+              "label": "时长",
+              "type": "select",
+              "default": 5,
+              "numeric": true,
+              "options": [
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14,
+                15
+              ],
+              "labelKey": "catalog.label.29d0552d2e"
+            },
+            {
+              "key": "resolution",
+              "label": "分辨率",
+              "type": "select",
+              "default": "768P",
+              "options": [
+                "480P",
+                "768P"
+              ],
+              "labelKey": "catalog.label.cde9b52b23"
+            }
+          ],
+          "auth": {
+            "type": "bearer"
+          },
+          "requestTemplate": {
+            "model": "{{model}}",
+            "content": "{{content}}",
+            "resolution": "{{params.resolution}}",
+            "duration": "{{params.duration}}",
+            "ratio": "adaptive"
+          },
+          "contentTemplate": {
+            "text": {
+              "type": "text",
+              "text": "{{text}}"
+            },
+            "image": {
+              "type": "image_url",
+              "image_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            },
+            "video": {
+              "type": "video_url",
+              "video_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            },
+            "audio": {
+              "type": "audio_url",
+              "audio_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            }
+          },
+          "taskIdPath": "task_id",
+          "statusPath": "task.status",
+          "errorPath": "task.error.message",
+          "pollStatusMap": {
+            "queued": "running",
+            "running": "running",
+            "succeeded": "completed",
+            "failed": "failed",
+            "cancelled": "cancelled"
+          },
+          "resultUrlPath": "task.content.url",
+          "errorCodePath": "base_resp.status_code",
+          "errorMessagePath": "base_resp.status_msg",
+          "labelKey": "catalog.label.d5b5b1fde9"
+        },
+        {
+          "id": "omni-reference-to-video",
+          "label": "全模态参考生视频",
+          "endpoint": {
+            "method": "POST",
+            "path": "/v2/video_generation",
+            "scope": "root"
+          },
+          "taskEndpoint": {
+            "method": "GET",
+            "path": "/v2/query/video_generation/{taskId}",
+            "scope": "root"
+          },
+          "isAsync": true,
+          "inputConstraints": {
+            "images": {
+              "min": 0,
+              "max": 9,
+              "roles": [
+                "referenceImage"
+              ],
+              "formats": [
+                "jpg",
+                "jpeg",
+                "png",
+                "webp",
+                "heic",
+                "heif"
+              ]
+            },
+            "videos": {
+              "min": 0,
+              "max": 3,
+              "roles": [
+                "inputVideo"
+              ],
+              "formats": [
+                "mp4",
+                "mov"
+              ],
+              "maxBytes": 52428800
+            },
+            "audios": {
+              "min": 0,
+              "max": 3,
+              "roles": [
+                "referenceAudio"
+              ],
+              "formats": [
+                "wav",
+                "mp3"
+              ],
+              "maxBytes": 15728640,
+              "minDuration": 2,
+              "maxDuration": 15,
+              "maxTotalDuration": 15
+            }
+          },
+          "outputConstraints": {
+            "durations": [
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15
+            ],
+            "defaultDuration": 5,
+            "formats": [
+              "mp4"
+            ]
+          },
+          "params": [
+            {
+              "key": "prompt",
+              "label": "提示词",
+              "type": "text",
+              "required": true,
+              "labelKey": "catalog.label.2f0bb12387"
+            },
+            {
+              "key": "duration",
+              "label": "时长",
+              "type": "select",
+              "default": 5,
+              "numeric": true,
+              "options": [
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14,
+                15
+              ],
+              "labelKey": "catalog.label.29d0552d2e"
+            },
+            {
+              "key": "aspectRatio",
+              "label": "比例",
+              "type": "select",
+              "default": "adaptive",
+              "options": [
+                "adaptive",
+                "21:9",
+                "16:9",
+                "4:3",
+                "1:1",
+                "3:4",
+                "9:16"
+              ],
+              "labelKey": "catalog.label.c27f341ce5"
+            },
+            {
+              "key": "resolution",
+              "label": "分辨率",
+              "type": "select",
+              "default": "768P",
+              "options": [
+                "480P",
+                "768P"
+              ],
+              "labelKey": "catalog.label.cde9b52b23"
+            }
+          ],
+          "auth": {
+            "type": "bearer"
+          },
+          "requestTemplate": {
+            "model": "{{model}}",
+            "content": "{{content}}",
+            "resolution": "{{params.resolution}}",
+            "duration": "{{params.duration}}",
+            "ratio": "{{params.aspectRatio}}"
+          },
+          "contentTemplate": {
+            "text": {
+              "type": "text",
+              "text": "{{text}}"
+            },
+            "image": {
+              "type": "image_url",
+              "image_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            },
+            "video": {
+              "type": "video_url",
+              "video_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            },
+            "audio": {
+              "type": "audio_url",
+              "audio_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            }
+          },
+          "taskIdPath": "task_id",
+          "statusPath": "task.status",
+          "errorPath": "task.error.message",
+          "pollStatusMap": {
+            "queued": "running",
+            "running": "running",
+            "succeeded": "completed",
+            "failed": "failed",
+            "cancelled": "cancelled"
+          },
+          "resultUrlPath": "task.content.url",
+          "errorCodePath": "base_resp.status_code",
+          "errorMessagePath": "base_resp.status_msg",
+          "labelKey": "catalog.label.d108de51ea",
+          "inputMode": "reference",
+          "inputSlots": [
+            "reference",
+            "inputVideo",
+            "referenceAudio"
+          ],
+          "requestFields": {
+            "imageContentRole": "reference_image",
+            "videoContentRole": "reference_video",
+            "audioContentRole": "reference_audio"
+          }
+        }
+      ]
+    },
+    {
+      "id": "minimax-speech-2.8-hd",
+      "name": "MiniMax Speech 2.8 HD",
+      "provider": "minimax",
+      "upstreamModel": "speech-2.8-hd",
+      "type": "audioGeneration",
+      "sortOrder": 19,
+      "enabled": true,
+      "defaultMode": "text-to-speech",
+      "modes": [
+        {
+          "id": "text-to-speech",
+          "label": "文字转语音",
+          "endpoint": {
+            "method": "POST",
+            "path": "/v1/t2a_v2",
+            "scope": "root"
+          },
+          "inputConstraints": {
+            "text": {
+              "maxTokens": 10000
+            }
+          },
+          "outputConstraints": {
+            "maxCount": 1,
+            "formats": [
+              "mp3"
+            ]
+          },
+          "auth": {
+            "type": "bearer"
+          },
+          "requestTemplate": {
+            "model": "{{model}}",
+            "text": "{{prompt}}",
+            "stream": false,
+            "output_format": "url",
+            "language_boost": "{{params.languageBoost}}",
+            "voice_setting": {
+              "voice_id": "{{params.voice}}",
+              "speed": "{{params.speed}}",
+              "vol": "{{params.volume}}",
+              "pitch": "{{params.pitch}}"
+            },
+            "audio_setting": {
+              "sample_rate": "{{params.sampleRate}}",
+              "bitrate": "{{params.bitrate}}",
+              "format": "mp3",
+              "channel": 1
+            }
+          },
+          "errorCodePath": "base_resp.status_code",
+          "errorPath": "base_resp.status_msg",
+          "resultUrlPath": "data.audio",
+          "resultMimeType": "audio/mpeg",
+          "resultFileExtension": "mp3",
+          "params": [
+            {
+              "key": "prompt",
+              "label": "朗读文本",
+              "type": "text",
+              "required": true,
+              "labelKey": "catalog.label.a83ab1ba9a"
+            },
+            {
+              "key": "voice",
+              "label": "音色",
+              "type": "text",
+              "required": true,
+              "default": "female-shaonv",
+              "presentation": {
+                "control": "voice",
+                "group": "声音",
+                "summary": true
+              },
+              "labelKey": "catalog.label.c4301894a2"
+            },
+            {
+              "key": "speed",
+              "label": "语速",
+              "type": "number",
+              "numeric": true,
+              "default": 1,
+              "presentation": {
+                "control": "slider",
+                "min": 0.5,
+                "max": 2,
+                "step": 0.05,
+                "group": "声音",
+                "summary": true,
+                "scale": "log"
+              },
+              "labelKey": "catalog.label.747374775d"
+            },
+            {
+              "key": "volume",
+              "label": "音量",
+              "type": "number",
+              "numeric": true,
+              "default": 1,
+              "presentation": {
+                "control": "slider",
+                "min": 0.1,
+                "max": 10,
+                "step": 0.1,
+                "group": "声音",
+                "scale": "log"
+              },
+              "labelKey": "catalog.label.1aa999a596"
+            },
+            {
+              "key": "pitch",
+              "label": "音调",
+              "type": "number",
+              "numeric": true,
+              "default": 0,
+              "presentation": {
+                "control": "slider",
+                "min": -12,
+                "max": 12,
+                "step": 1,
+                "group": "声音"
+              },
+              "labelKey": "catalog.label.bf36f9d87a"
+            },
+            {
+              "key": "languageBoost",
+              "label": "语种增强",
+              "type": "select",
+              "default": "auto",
+              "options": [
+                "Chinese",
+                "Chinese,Yue",
+                "English",
+                "Arabic",
+                "Russian",
+                "Spanish",
+                "French",
+                "Portuguese",
+                "German",
+                "Turkish",
+                "Dutch",
+                "Ukrainian",
+                "Vietnamese",
+                "Indonesian",
+                "Japanese",
+                "Italian",
+                "Korean",
+                "Thai",
+                "Polish",
+                "Romanian",
+                "Greek",
+                "Czech",
+                "Finnish",
+                "Hindi",
+                "Bulgarian",
+                "Danish",
+                "Hebrew",
+                "Malay",
+                "Persian",
+                "Slovak",
+                "Swedish",
+                "Croatian",
+                "Filipino",
+                "Hungarian",
+                "Norwegian",
+                "Slovenian",
+                "Catalan",
+                "Nynorsk",
+                "Tamil",
+                "Afrikaans",
+                "auto"
+              ],
+              "optionLabels": {
+                "Chinese": "中文",
+                "Chinese,Yue": "中文 · 粤语",
+                "English": "英文",
+                "Arabic": "阿拉伯文",
+                "Russian": "俄文",
+                "Spanish": "西班牙文",
+                "French": "法文",
+                "Portuguese": "葡萄牙文",
+                "German": "德文",
+                "Turkish": "土耳其文",
+                "Dutch": "荷兰文",
+                "Ukrainian": "乌克兰文",
+                "Vietnamese": "越南文",
+                "Indonesian": "印尼文",
+                "Japanese": "日文",
+                "Italian": "意文",
+                "Korean": "韩文",
+                "Thai": "泰文",
+                "Polish": "波兰文",
+                "Romanian": "罗马尼亚文",
+                "Greek": "希腊文",
+                "Czech": "捷克文",
+                "Finnish": "芬兰文",
+                "Hindi": "印地文",
+                "Bulgarian": "保加利亚文",
+                "Danish": "丹麦文",
+                "Hebrew": "希伯来文",
+                "Malay": "马来文",
+                "Persian": "波斯文",
+                "Slovak": "斯洛伐克文",
+                "Swedish": "瑞典文",
+                "Croatian": "克罗地亚文",
+                "Filipino": "菲律宾文",
+                "Hungarian": "匈牙利文",
+                "Norwegian": "挪威文",
+                "Slovenian": "斯洛文尼亚文",
+                "Catalan": "加泰罗尼亚文",
+                "Nynorsk": "新挪威文",
+                "Tamil": "泰米尔文",
+                "Afrikaans": "南非荷兰文",
+                "auto": "自动识别"
+              },
+              "presentation": {
+                "control": "select",
+                "group": "语种",
+                "summary": true
+              },
+              "labelKey": "catalog.label.8fcdbb759d",
+              "optionLabelKeys": {
+                "Chinese": "catalog.label.7be2d2d20c",
+                "Chinese,Yue": "catalog.label.285ad200b8",
+                "English": "catalog.label.5d758b31a9",
+                "Arabic": "catalog.label.e295d8122b",
+                "Russian": "catalog.label.4ad50bc511",
+                "Spanish": "catalog.label.bbe2e2c6be",
+                "French": "catalog.label.493b1d20b3",
+                "Portuguese": "catalog.label.e4eeaf8835",
+                "German": "catalog.label.1054c31f93",
+                "Turkish": "catalog.label.2c2b85719a",
+                "Dutch": "catalog.label.7ab358c2dd",
+                "Ukrainian": "catalog.label.a6362cf206",
+                "Vietnamese": "catalog.label.4097ed0dd3",
+                "Indonesian": "catalog.label.a708a1ccbf",
+                "Japanese": "catalog.label.8e457b2eac",
+                "Italian": "catalog.label.877620e618",
+                "Korean": "catalog.label.c08b22ab6c",
+                "Thai": "catalog.label.5719dfc264",
+                "Polish": "catalog.label.27239e8939",
+                "Romanian": "catalog.label.fbcca5b9e3",
+                "Greek": "catalog.label.2cb022a323",
+                "Czech": "catalog.label.76ebd9aba9",
+                "Finnish": "catalog.label.1f8bfa0653",
+                "Hindi": "catalog.label.a0b37e54ce",
+                "Bulgarian": "catalog.label.961f2c13e2",
+                "Danish": "catalog.label.ff92a2318c",
+                "Hebrew": "catalog.label.002b03aa80",
+                "Malay": "catalog.label.a3653c9072",
+                "Persian": "catalog.label.0995dad786",
+                "Slovak": "catalog.label.0d314c119a",
+                "Swedish": "catalog.label.d058a7791a",
+                "Croatian": "catalog.label.e0ea418aa9",
+                "Filipino": "catalog.label.306be6d2b7",
+                "Hungarian": "catalog.label.852b0a4116",
+                "Norwegian": "catalog.label.3fc058abb0",
+                "Slovenian": "catalog.label.05e21a543a",
+                "Catalan": "catalog.label.517e9b89b1",
+                "Nynorsk": "catalog.label.1d8e26e8b6",
+                "Tamil": "catalog.label.14208d42d3",
+                "Afrikaans": "catalog.label.bafcf4d480",
+                "auto": "catalog.label.34f7dc93a8"
+              }
+            },
+            {
+              "key": "sampleRate",
+              "label": "采样率",
+              "type": "select",
+              "numeric": true,
+              "default": 32000,
+              "options": [
+                8000,
+                16000,
+                22050,
+                24000,
+                32000,
+                44100
+              ],
+              "optionLabels": {
+                "8000": "8 kHz",
+                "16000": "16 kHz",
+                "22050": "22.05 kHz",
+                "24000": "24 kHz",
+                "32000": "32 kHz",
+                "44100": "44.1 kHz"
+              },
+              "presentation": {
+                "control": "segmented",
+                "group": "输出"
+              },
+              "labelKey": "catalog.label.ab4dae189d",
+              "optionLabelKeys": {}
+            },
+            {
+              "key": "bitrate",
+              "label": "比特率",
+              "type": "select",
+              "numeric": true,
+              "default": 128000,
+              "options": [
+                32000,
+                64000,
+                128000,
+                256000
+              ],
+              "optionLabels": {
+                "32000": "32 kbps",
+                "64000": "64 kbps",
+                "128000": "128 kbps",
+                "256000": "256 kbps"
+              },
+              "presentation": {
+                "control": "segmented",
+                "group": "输出"
+              },
+              "labelKey": "catalog.label.160ce29b15",
+              "optionLabelKeys": {}
+            }
+          ],
+          "labelKey": "catalog.label.c4383c679a"
+        }
+      ]
+    },
+    {
+      "id": "minimax-speech-2.8-turbo",
+      "name": "MiniMax Speech 2.8 Turbo",
+      "provider": "minimax",
+      "upstreamModel": "speech-2.8-turbo",
+      "type": "audioGeneration",
+      "sortOrder": 20,
+      "enabled": true,
+      "defaultMode": "text-to-speech",
+      "modes": [
+        {
+          "id": "text-to-speech",
+          "label": "文字转语音",
+          "endpoint": {
+            "method": "POST",
+            "path": "/v1/t2a_v2",
+            "scope": "root"
+          },
+          "inputConstraints": {
+            "text": {
+              "maxTokens": 10000
+            }
+          },
+          "outputConstraints": {
+            "maxCount": 1,
+            "formats": [
+              "mp3"
+            ]
+          },
+          "auth": {
+            "type": "bearer"
+          },
+          "requestTemplate": {
+            "model": "{{model}}",
+            "text": "{{prompt}}",
+            "stream": false,
+            "output_format": "url",
+            "language_boost": "{{params.languageBoost}}",
+            "voice_setting": {
+              "voice_id": "{{params.voice}}",
+              "speed": "{{params.speed}}",
+              "vol": "{{params.volume}}",
+              "pitch": "{{params.pitch}}"
+            },
+            "audio_setting": {
+              "sample_rate": "{{params.sampleRate}}",
+              "bitrate": "{{params.bitrate}}",
+              "format": "mp3",
+              "channel": 1
+            }
+          },
+          "errorCodePath": "base_resp.status_code",
+          "errorPath": "base_resp.status_msg",
+          "resultUrlPath": "data.audio",
+          "resultMimeType": "audio/mpeg",
+          "resultFileExtension": "mp3",
+          "params": [
+            {
+              "key": "prompt",
+              "label": "朗读文本",
+              "type": "text",
+              "required": true,
+              "labelKey": "catalog.label.a83ab1ba9a"
+            },
+            {
+              "key": "voice",
+              "label": "音色",
+              "type": "text",
+              "required": true,
+              "default": "female-shaonv",
+              "presentation": {
+                "control": "voice",
+                "group": "声音",
+                "summary": true
+              },
+              "labelKey": "catalog.label.c4301894a2"
+            },
+            {
+              "key": "speed",
+              "label": "语速",
+              "type": "number",
+              "numeric": true,
+              "default": 1,
+              "presentation": {
+                "control": "slider",
+                "min": 0.5,
+                "max": 2,
+                "step": 0.05,
+                "group": "声音",
+                "summary": true,
+                "scale": "log"
+              },
+              "labelKey": "catalog.label.747374775d"
+            },
+            {
+              "key": "volume",
+              "label": "音量",
+              "type": "number",
+              "numeric": true,
+              "default": 1,
+              "presentation": {
+                "control": "slider",
+                "min": 0.1,
+                "max": 10,
+                "step": 0.1,
+                "group": "声音",
+                "scale": "log"
+              },
+              "labelKey": "catalog.label.1aa999a596"
+            },
+            {
+              "key": "pitch",
+              "label": "音调",
+              "type": "number",
+              "numeric": true,
+              "default": 0,
+              "presentation": {
+                "control": "slider",
+                "min": -12,
+                "max": 12,
+                "step": 1,
+                "group": "声音"
+              },
+              "labelKey": "catalog.label.bf36f9d87a"
+            },
+            {
+              "key": "languageBoost",
+              "label": "语种增强",
+              "type": "select",
+              "default": "auto",
+              "options": [
+                "Chinese",
+                "Chinese,Yue",
+                "English",
+                "Arabic",
+                "Russian",
+                "Spanish",
+                "French",
+                "Portuguese",
+                "German",
+                "Turkish",
+                "Dutch",
+                "Ukrainian",
+                "Vietnamese",
+                "Indonesian",
+                "Japanese",
+                "Italian",
+                "Korean",
+                "Thai",
+                "Polish",
+                "Romanian",
+                "Greek",
+                "Czech",
+                "Finnish",
+                "Hindi",
+                "Bulgarian",
+                "Danish",
+                "Hebrew",
+                "Malay",
+                "Persian",
+                "Slovak",
+                "Swedish",
+                "Croatian",
+                "Filipino",
+                "Hungarian",
+                "Norwegian",
+                "Slovenian",
+                "Catalan",
+                "Nynorsk",
+                "Tamil",
+                "Afrikaans",
+                "auto"
+              ],
+              "optionLabels": {
+                "Chinese": "中文",
+                "Chinese,Yue": "中文 · 粤语",
+                "English": "英文",
+                "Arabic": "阿拉伯文",
+                "Russian": "俄文",
+                "Spanish": "西班牙文",
+                "French": "法文",
+                "Portuguese": "葡萄牙文",
+                "German": "德文",
+                "Turkish": "土耳其文",
+                "Dutch": "荷兰文",
+                "Ukrainian": "乌克兰文",
+                "Vietnamese": "越南文",
+                "Indonesian": "印尼文",
+                "Japanese": "日文",
+                "Italian": "意文",
+                "Korean": "韩文",
+                "Thai": "泰文",
+                "Polish": "波兰文",
+                "Romanian": "罗马尼亚文",
+                "Greek": "希腊文",
+                "Czech": "捷克文",
+                "Finnish": "芬兰文",
+                "Hindi": "印地文",
+                "Bulgarian": "保加利亚文",
+                "Danish": "丹麦文",
+                "Hebrew": "希伯来文",
+                "Malay": "马来文",
+                "Persian": "波斯文",
+                "Slovak": "斯洛伐克文",
+                "Swedish": "瑞典文",
+                "Croatian": "克罗地亚文",
+                "Filipino": "菲律宾文",
+                "Hungarian": "匈牙利文",
+                "Norwegian": "挪威文",
+                "Slovenian": "斯洛文尼亚文",
+                "Catalan": "加泰罗尼亚文",
+                "Nynorsk": "新挪威文",
+                "Tamil": "泰米尔文",
+                "Afrikaans": "南非荷兰文",
+                "auto": "自动识别"
+              },
+              "presentation": {
+                "control": "select",
+                "group": "语种",
+                "summary": true
+              },
+              "labelKey": "catalog.label.8fcdbb759d",
+              "optionLabelKeys": {
+                "Chinese": "catalog.label.7be2d2d20c",
+                "Chinese,Yue": "catalog.label.285ad200b8",
+                "English": "catalog.label.5d758b31a9",
+                "Arabic": "catalog.label.e295d8122b",
+                "Russian": "catalog.label.4ad50bc511",
+                "Spanish": "catalog.label.bbe2e2c6be",
+                "French": "catalog.label.493b1d20b3",
+                "Portuguese": "catalog.label.e4eeaf8835",
+                "German": "catalog.label.1054c31f93",
+                "Turkish": "catalog.label.2c2b85719a",
+                "Dutch": "catalog.label.7ab358c2dd",
+                "Ukrainian": "catalog.label.a6362cf206",
+                "Vietnamese": "catalog.label.4097ed0dd3",
+                "Indonesian": "catalog.label.a708a1ccbf",
+                "Japanese": "catalog.label.8e457b2eac",
+                "Italian": "catalog.label.877620e618",
+                "Korean": "catalog.label.c08b22ab6c",
+                "Thai": "catalog.label.5719dfc264",
+                "Polish": "catalog.label.27239e8939",
+                "Romanian": "catalog.label.fbcca5b9e3",
+                "Greek": "catalog.label.2cb022a323",
+                "Czech": "catalog.label.76ebd9aba9",
+                "Finnish": "catalog.label.1f8bfa0653",
+                "Hindi": "catalog.label.a0b37e54ce",
+                "Bulgarian": "catalog.label.961f2c13e2",
+                "Danish": "catalog.label.ff92a2318c",
+                "Hebrew": "catalog.label.002b03aa80",
+                "Malay": "catalog.label.a3653c9072",
+                "Persian": "catalog.label.0995dad786",
+                "Slovak": "catalog.label.0d314c119a",
+                "Swedish": "catalog.label.d058a7791a",
+                "Croatian": "catalog.label.e0ea418aa9",
+                "Filipino": "catalog.label.306be6d2b7",
+                "Hungarian": "catalog.label.852b0a4116",
+                "Norwegian": "catalog.label.3fc058abb0",
+                "Slovenian": "catalog.label.05e21a543a",
+                "Catalan": "catalog.label.517e9b89b1",
+                "Nynorsk": "catalog.label.1d8e26e8b6",
+                "Tamil": "catalog.label.14208d42d3",
+                "Afrikaans": "catalog.label.bafcf4d480",
+                "auto": "catalog.label.34f7dc93a8"
+              }
+            },
+            {
+              "key": "sampleRate",
+              "label": "采样率",
+              "type": "select",
+              "numeric": true,
+              "default": 32000,
+              "options": [
+                8000,
+                16000,
+                22050,
+                24000,
+                32000,
+                44100
+              ],
+              "optionLabels": {
+                "8000": "8 kHz",
+                "16000": "16 kHz",
+                "22050": "22.05 kHz",
+                "24000": "24 kHz",
+                "32000": "32 kHz",
+                "44100": "44.1 kHz"
+              },
+              "presentation": {
+                "control": "segmented",
+                "group": "输出"
+              },
+              "labelKey": "catalog.label.ab4dae189d",
+              "optionLabelKeys": {}
+            },
+            {
+              "key": "bitrate",
+              "label": "比特率",
+              "type": "select",
+              "numeric": true,
+              "default": 128000,
+              "options": [
+                32000,
+                64000,
+                128000,
+                256000
+              ],
+              "optionLabels": {
+                "32000": "32 kbps",
+                "64000": "64 kbps",
+                "128000": "128 kbps",
+                "256000": "256 kbps"
+              },
+              "presentation": {
+                "control": "segmented",
+                "group": "输出"
+              },
+              "labelKey": "catalog.label.160ce29b15",
+              "optionLabelKeys": {}
+            }
+          ],
+          "labelKey": "catalog.label.c4383c679a"
+        }
+      ]
+    },
+    {
+      "id": "minimax-music-3.0",
+      "name": "MiniMax Music 3.0",
+      "provider": "minimax",
+      "upstreamModel": "music-3.0",
+      "type": "audioGeneration",
+      "sortOrder": 23,
+      "enabled": true,
+      "defaultMode": "text-to-music",
+      "modes": [
+        {
+          "id": "text-to-music",
+          "label": "描述生成音乐",
+          "endpoint": {
+            "method": "POST",
+            "path": "/v1/music_generation",
+            "scope": "root"
+          },
+          "inputConstraints": {
+            "text": {
+              "maxTokens": 2000
+            }
+          },
+          "outputConstraints": {
+            "maxCount": 1,
+            "formats": [
+              "mp3"
+            ]
+          },
+          "auth": {
+            "type": "bearer"
+          },
+          "requestTemplate": {
+            "model": "{{model}}",
+            "prompt": "{{prompt}}",
+            "lyrics": "{{params.lyrics}}",
+            "stream": false,
+            "output_format": "url",
+            "is_instrumental": "{{params.instrumental}}",
+            "lyrics_optimizer": "{{params.lyricsOptimizer}}",
+            "audio_setting": {
+              "sample_rate": "{{params.sampleRate}}",
+              "bitrate": "{{params.bitrate}}",
+              "format": "mp3"
+            }
+          },
+          "errorCodePath": "base_resp.status_code",
+          "errorPath": "base_resp.status_msg",
+          "resultUrlPath": "data.audio",
+          "resultMimeType": "audio/mpeg",
+          "resultFileExtension": "mp3",
+          "params": [
+            {
+              "key": "prompt",
+              "label": "音乐描述",
+              "type": "text",
+              "required": true,
+              "labelKey": "catalog.label.caff46ca86"
+            },
+            {
+              "key": "lyrics",
+              "label": "歌词",
+              "type": "text",
+              "presentation": {
+                "control": "text",
+                "group": "内容",
+                "summary": true
+              },
+              "labelKey": "catalog.label.315d810f5e"
+            },
+            {
+              "key": "instrumental",
+              "label": "纯音乐",
+              "type": "boolean",
+              "default": false,
+              "presentation": {
+                "control": "toggle",
+                "group": "内容",
+                "summary": true
+              },
+              "labelKey": "catalog.label.cffecbf766"
+            },
+            {
+              "key": "lyricsOptimizer",
+              "label": "按描述自动写歌词",
+              "type": "boolean",
+              "default": false,
+              "presentation": {
+                "control": "toggle",
+                "group": "内容"
+              },
+              "labelKey": "catalog.label.0ab5c84ea9"
+            },
+            {
+              "key": "sampleRate",
+              "label": "采样率",
+              "type": "select",
+              "numeric": true,
+              "default": 44100,
+              "options": [
+                16000,
+                24000,
+                32000,
+                44100
+              ],
+              "optionLabels": {
+                "16000": "16 kHz",
+                "24000": "24 kHz",
+                "32000": "32 kHz",
+                "44100": "44.1 kHz"
+              },
+              "presentation": {
+                "control": "segmented",
+                "group": "输出"
+              },
+              "labelKey": "catalog.label.ab4dae189d",
+              "optionLabelKeys": {}
+            },
+            {
+              "key": "bitrate",
+              "label": "比特率",
+              "type": "select",
+              "numeric": true,
+              "default": 256000,
+              "options": [
+                32000,
+                64000,
+                128000,
+                256000
+              ],
+              "optionLabels": {
+                "32000": "32 kbps",
+                "64000": "64 kbps",
+                "128000": "128 kbps",
+                "256000": "256 kbps"
+              },
+              "presentation": {
+                "control": "segmented",
+                "group": "输出"
+              },
+              "labelKey": "catalog.label.160ce29b15",
+              "optionLabelKeys": {}
+            }
+          ],
+          "labelKey": "catalog.label.c55dad375c"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,172 @@
+/* 创作视图：画布面板、React Flow 节点契约与提示词输入。 */
+
+.creation-canvas-shell {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 330px;
+  gap: 12px;
+}
+
+.creation-canvas-panel {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+}
+
+.creation-canvas {
+  width: 100%;
+  height: 100%;
+  border-color: var(--line-solid);
+  background-color: var(--surface-muted);
+  background-image: radial-gradient(circle at 1px 1px, var(--canvas-bg-dot) 1px, transparent 0);
+  background-size: 22px 22px;
+}
+
+/* React Flow node contract. Keep media previews bounded by the node instead
+   of allowing intrinsic image dimensions to resize the whole canvas graph. */
+.react-flow__node-panel {
+  width: 340px;
+  min-width: 340px;
+  font-size: var(--text-body-12);
+}
+.work-node-wrapper {
+  width: 340px;
+  min-width: 0;
+  color: var(--type-primary);
+}
+.work-visual-block,
+.work-node,
+.work-preview {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.work-preview {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  height: 190px;
+  border-radius: var(--radius);
+  background: var(--surface-muted);
+}
+.work-preview > img,
+.work-preview > video,
+.work-preview > audio {
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  object-fit: cover;
+}
+.work-preview > audio {
+  height: 42px;
+  margin-top: 74px;
+}
+.work-composer,
+.work-prompt-shell {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.work-composer input,
+.work-composer textarea,
+.work-composer select {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.work-node-kicker,
+.work-composer-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.creation-composer {
+  position: absolute;
+  left: 50%;
+  bottom: 22px;
+  z-index: 8;
+  width: min(680px, calc(100% - 52px));
+  transform: translateX(-50%);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+  background: var(--float-surface);
+  box-shadow: var(--shadow);
+}
+
+.creation-composer textarea {
+  width: 100%;
+  min-height: 70px;
+  max-height: 150px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  outline: none;
+  resize: vertical;
+  padding: 10px;
+  color: var(--type-primary);
+  background: var(--surface);
+  font-size: var(--text-body-13);
+  line-height: 1.5;
+}
+
+
+.creation-side-panel {
+  border-color: var(--line);
+  border-radius: var(--radius-md);
+}
+
+
+.tool-group.wrap {
+  flex-wrap: wrap;
+}
+
+.mini-task-list {
+  display: grid;
+  gap: 8px;
+}
+
+.mini-task-list button {
+  width: 100%;
+  min-height: 40px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--type-primary);
+  background: var(--surface);
+  text-align: left;
+}
+
+.mini-task-list span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-body-12);
+  font-weight: 600;
+}
+
+.mini-task-list em {
+  flex: 0 0 auto;
+  color: var(--faint);
+  font-size: var(--text-body-12);
+  font-style: normal;
+  font-weight: 600;
+}
+
+@media (max-width: 1100px) {
+  .creation-canvas-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .creation-side-panel {
+    display: none;
+  }
+}

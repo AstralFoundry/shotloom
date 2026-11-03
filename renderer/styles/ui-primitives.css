@@ -1,0 +1,460 @@
+/* 跨界面复用的基础控件：页头、工具条、输入、按钮、卡片、表格与空状态。 */
+
+.page-head {
+  min-height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.page-title {
+  margin: 0;
+  color: var(--type-primary);
+  font-size: var(--text-title-18);
+  line-height: var(--text-title-18--line-height);
+  font-weight: 600;
+}
+
+.page-subtitle {
+  margin-left: 10px;
+  color: var(--faint);
+  font-size: var(--text-body-12);
+  font-weight: 600;
+}
+
+.project-scope-head {
+  min-height: 62px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+  background: var(--surface-muted);
+}
+
+.project-scope-head.flat {
+  min-height: 42px;
+  margin-bottom: 10px;
+  border: 0;
+  border-bottom: 1px solid var(--line-soft);
+  border-radius: 0;
+  padding: 0 2px 10px;
+  background: transparent;
+}
+
+.project-scope-title {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.breadcrumb-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--faint);
+  font-size: var(--text-body-12);
+  font-weight: 600;
+}
+
+.breadcrumb-link {
+  border: 0;
+  padding: 0;
+  color: var(--muted);
+  background: transparent;
+  font: inherit;
+}
+
+.breadcrumb-link:hover {
+  color: var(--text);
+  text-decoration: underline;
+}
+
+.scope-description {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-body-12);
+}
+
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.tool-group,
+.left-tools,
+.right-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.search {
+  width: 260px;
+  height: 32px;
+  position: relative;
+}
+
+.search.compact {
+  width: 100%;
+}
+
+.search svg {
+  position: absolute;
+  left: 10px;
+  top: 8px;
+  width: var(--icon-md);
+  height: var(--icon-md);
+  color: var(--faint);
+}
+
+.search input,
+.field input,
+.field select,
+.field textarea,
+.inline-input {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  outline: none;
+  color: var(--type-primary);
+  background: var(--surface);
+}
+
+.search input {
+  width: 100%;
+  height: 100%;
+  padding: 0 10px 0 32px;
+  font-size: var(--text-body-13);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--faint);
+}
+
+.search input:focus,
+.field input:focus,
+.field select:focus,
+.field textarea:focus,
+.inline-input:focus {
+  border-color: var(--text);
+  box-shadow: none;
+}
+
+.field-hint {
+  margin: -2px 0 6px;
+  color: var(--muted);
+  font-size: var(--text-body-12);
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+.button {
+  min-height: var(--control-height);
+  border-radius: var(--radius-control);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 12px;
+  font-size: var(--text-body-13);
+  line-height: var(--text-body-13--line-height);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.button.primary {
+  border: 1px solid var(--brand);
+  color: var(--surface);
+  background: var(--brand);
+}
+
+.button.primary:hover {
+  border-color: var(--brand-hover);
+  background: var(--brand-hover);
+}
+
+.button.ghost {
+  border: 1px solid var(--line);
+  color: var(--muted);
+  background: var(--surface);
+}
+
+.button.ghost:hover {
+  border-color: var(--line-strong);
+  color: var(--type-primary);
+  background: var(--surface-2);
+}
+
+.button.soft {
+  border: 1px solid var(--line);
+  color: var(--brand-accent);
+  background: var(--brand-soft);
+}
+
+.button.danger {
+  border: 1px solid var(--surface-2);
+  color: var(--bad);
+  background: var(--surface-muted);
+}
+
+.button:disabled {
+  cursor: default;
+  opacity: 0.62;
+}
+
+.button-spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: button-spin .65s linear infinite;
+}
+
+@keyframes button-spin { to { transform: rotate(360deg); } }
+
+.segmented {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-muted);
+}
+
+.segmented .icon-btn {
+  width: 32px;
+  height: 26px;
+  border: 0;
+  color: var(--muted);
+}
+
+.segmented .icon-btn.active {
+  color: var(--type-primary);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+}
+
+.scroll-area {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+}
+
+.empty {
+  min-height: 360px;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  color: var(--faint);
+}
+
+.empty-inner {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  font-size: var(--text-body-13);
+}
+
+.empty svg {
+  width: var(--icon-2xl);
+  height: var(--icon-2xl);
+  color: var(--faint);
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  overflow: hidden;
+  box-shadow: var(--shadow-card);
+}
+
+.card-pad {
+  padding: 12px;
+}
+
+.thumb {
+  height: 124px;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  background:
+    linear-gradient(135deg, var(--brand-accent-tint), transparent),
+    var(--surface-muted);
+}
+
+.thumb svg {
+  width: 40px;
+  height: 40px;
+}
+
+.card-title {
+  margin: 0 0 7px;
+  font-size: var(--text-body-14);
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.card-meta {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  color: var(--faint);
+  font-size: var(--text-body-12);
+}
+
+.pill {
+  min-height: 22px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0 8px;
+  color: var(--muted);
+  background: var(--surface-2);
+}
+
+.pill.good {
+  color: var(--good);
+  background: var(--surface-2);
+}
+
+.pill.warn {
+  color: var(--warn);
+  background: var(--surface-muted);
+}
+
+.pill.info {
+  color: var(--brand-accent);
+  background: var(--surface-2);
+}
+
+.pill.bad {
+  color: var(--bad);
+  background: var(--surface-2);
+}
+
+.pill.muted {
+  color: var(--muted);
+  background: var(--surface-2);
+}
+
+.table-wrap {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-body-13);
+}
+
+th,
+td {
+  height: 42px;
+  border-bottom: 1px solid var(--line-soft);
+  padding: 0 14px;
+  text-align: left;
+  vertical-align: middle;
+}
+
+th {
+  color: var(--muted);
+  background: var(--surface-muted);
+  font-weight: 600;
+}
+
+tr:last-child td {
+  border-bottom: 0;
+}
+
+.table-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.icon-button {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  display: inline-grid;
+  place-items: center;
+  color: var(--muted);
+  background: var(--surface);
+}
+
+.icon-button:hover {
+  color: var(--text);
+  background: var(--surface-muted);
+}
+
+.icon-button svg {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+}
+
+.muted-text {
+  color: var(--faint);
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.input-with-icon {
+  height: 34px;
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.input-with-icon svg {
+  justify-self: center;
+  width: var(--icon-md);
+  height: var(--icon-md);
+  color: var(--faint);
+}
+
+.input-with-icon input {
+  width: 100%;
+  height: 32px;
+  border: 0;
+  padding: 0 10px 0 0;
+  background: transparent;
+}
+
+.input-with-icon:focus-within {
+  border-color: var(--text);
+  box-shadow: none;
+}
+
+.input-with-action {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}

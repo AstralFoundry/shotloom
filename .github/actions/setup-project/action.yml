@@ -1,0 +1,16 @@
+name: Set up Shotloom
+description: Install the product and isolated Harness dependencies from their lockfiles
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version-file: .node-version
+        cache: npm
+        cache-dependency-path: |
+          package-lock.json
+          harness/host/package-lock.json
+    - run: npm ci
+      shell: bash
+    - run: npm ci --prefix harness/host
+      shell: bash

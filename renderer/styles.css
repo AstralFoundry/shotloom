@@ -1,0 +1,54 @@
+/* 全局基础层：只保留 reset、滚动条与焦点环语言。组件样式一律放在 renderer/styles/<area>.css。 */
+
+* {
+  box-sizing: border-box;
+}
+
+/* Reference scrollbar language: a thin tinted thumb over a transparent track, so a
+   scrollable pane never reflows and never shows a platform-colored gutter.
+   Panes that must hide the bar declare scrollbar-width: none locally. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+
+html,
+body,
+#app {
+  width: 100%;
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  overflow: hidden;
+  color: var(--text);
+  background: var(--bg);
+  font-family: var(--font-ui);
+  letter-spacing: var(--tracking-normal);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button,
+label.button {
+  cursor: pointer;
+  user-select: none;
+}
+
+/* Reference focus contract: one ring token for every keyboard focus. */
+:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+
+.hidden {
+  display: none !important;
+}

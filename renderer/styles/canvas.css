@@ -1,0 +1,1904 @@
+/* React migration compatibility layer.
+   Vue's component-scoped rules do not survive a JSX rewrite, so component
+   boundaries and icon sizing are restored here without disturbing the legacy
+   application theme. */
+
+.react-workflow-canvas {
+  position: relative;
+  isolation: isolate;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  outline: none;
+  background-color: var(--canvas-bg);
+  background-image: radial-gradient(circle, var(--canvas-bg-dot) .65px, transparent .75px);
+  background-position: 0 0;
+  background-size: 20px 20px;
+}
+
+/* 节点视觉基准以 semanticZoom = 1 计量。
+   节点内容只由 .canvas-node-semantic-content 的 zoom 缩放；节点外名称使用同一
+   semanticZoom 逐项计算。NodeToolbar、编辑器和应用级窗口保持屏幕尺寸。 */
+.react-workflow-canvas {
+  /* 字号别名只按画布角色命名，值仍然来自 tokens.css 的阶梯，画布不另立一套字号。 */
+  --canvas-node-title-size: var(--text-body-14);
+  --canvas-node-body-size: var(--text-body-12);
+  --canvas-node-meta-size: var(--text-caption-11);
+  --canvas-node-hero-size: var(--text-body-13);
+  --canvas-node-icon-size: var(--icon-xs);
+  --canvas-node-action-size: var(--icon-lg);
+  --canvas-node-head-height: 24px;
+  --canvas-node-error-size: var(--text-body-12);
+  --canvas-node-state-icon-size: 34px;
+  /* 连线取色只通过 React Flow 的主题变量入口注入，节点数据里不再保存色值。 */
+  --xy-edge-stroke: var(--canvas-edge);
+  /* 线宽必须走语义缩放这条轨道：React Flow 的 viewport 固定为 1，节点尺寸已经乘过倍率，
+   * 线宽再留成固定 px 就会在缩小时比节点还粗；箭头按 markerUnits=strokeWidth 随线宽一起缩放。
+   * 下限保证鸟瞰时线仍然画得出来。 */
+  --xy-edge-stroke-width: max(0.6px, calc(var(--canvas-edge-width) * var(--canvas-semantic-zoom, 1)));
+  --xy-edge-stroke-selected: var(--canvas-edge-selected);
+  --xy-connectionline-stroke: var(--canvas-edge-flow);
+}
+
+.react-flow__node-panel {
+  min-width: 0;
+  font-size: var(--canvas-node-body-size);
+}
+
+.react-workflow-canvas :is(.react-flow, .react-flow__container, .react-flow__pane, .react-flow__viewport) {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.react-workflow-canvas .react-flow__pane { cursor: grab; }
+.react-workflow-canvas .react-flow__pane.dragging { cursor: grabbing; }
+.react-workflow-canvas .react-flow__pane.selection { cursor: crosshair; }
+.react-workflow-canvas :is(.react-flow__selection, .react-flow__nodesselection-rect) {
+  border: 1px solid var(--canvas-node-border-selected);
+  background: var(--canvas-selection-bg);
+}
+.react-workflow-canvas .react-flow__node {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.react-workflow-canvas .react-flow__node.selected { box-shadow: none; }
+.canvas-node-semantic-frame {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: visible;
+}
+.canvas-node-semantic-content {
+  --canvas-hairline: calc(1px / var(--canvas-node-zoom, 1));
+  position: relative;
+  display: block;
+  contain: layout style;
+  -webkit-text-size-adjust: none;
+  text-size-adjust: none;
+  box-sizing: border-box;
+}
+.canvas-node-label-anchor {
+  position: absolute;
+  left: 0;
+  z-index: 4;
+  overflow: visible;
+  pointer-events: none;
+}
+.canvas-node-label-anchor .work-node-kicker {
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0 calc(2px * var(--node-label-zoom, 1));
+  gap: calc(4px * var(--node-label-zoom, 1));
+}
+.canvas-node-label-anchor .work-node-kicker > span {
+  font-size: calc(var(--canvas-node-title-size) * var(--node-label-zoom, 1));
+}
+.canvas-node-label-anchor .work-node-kicker > svg {
+  width: calc(var(--canvas-node-icon-size) * var(--node-label-zoom, 1));
+  height: calc(var(--canvas-node-icon-size) * var(--node-label-zoom, 1));
+}
+.canvas-node-label-anchor .work-node-kicker button {
+  width: calc(var(--canvas-node-action-size) * max(1, var(--node-label-zoom, 1)));
+  height: calc(var(--canvas-node-action-size) * max(1, var(--node-label-zoom, 1)));
+  font-size: calc(var(--canvas-node-icon-size) * max(1, var(--node-label-zoom, 1)));
+  pointer-events: auto;
+}
+.canvas-node-label-anchor .work-node-kicker button svg {
+  width: calc(var(--canvas-node-icon-size) * max(1, var(--node-label-zoom, 1)));
+  height: calc(var(--canvas-node-icon-size) * max(1, var(--node-label-zoom, 1)));
+}
+.canvas-node-selection-toolbar {
+  z-index: var(--layer-canvas-control);
+  border: 1px solid var(--elevated-border);
+  border-radius: var(--radius);
+  padding: 2px;
+  gap: 2px;
+  background: var(--canvas-controls-bg);
+  box-shadow: var(--canvas-shadow-dropdown);
+  display: flex;
+  align-items: center;
+  translate: 0 0;
+  transition:
+    opacity var(--duration-fast) var(--ease-out),
+    translate var(--duration-enter) var(--ease-sheet);
+}
+.canvas-node-selection-toolbar--hidden {
+  opacity: 0;
+  translate: 0 8px;
+  transition: none;
+  pointer-events: none;
+}
+.canvas-node-selection-toolbar button {
+  height: var(--canvas-toolbar-action);
+  border: 0;
+  border-radius: var(--radius-md);
+  padding: 0 var(--action-item-padding);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--type-primary);
+  background: transparent;
+  font-size: var(--text-body-13);
+  font-weight: 400;
+  letter-spacing: var(--tracking-wide);
+}
+.canvas-node-selection-toolbar button:hover { background: var(--canvas-controls-hover); }
+.canvas-node-selection-toolbar button:disabled { cursor: default; opacity: .5; }
+.canvas-node-selection-toolbar svg { width: var(--icon-md); height: var(--icon-md); }
+.canvas-node-selection-toolbar .canvas-node-toolbar-icon { width: var(--canvas-toolbar-action); padding: 0; justify-content: center; }
+.canvas-node-selection-toolbar .canvas-node-toolbar-editor {
+  width: 44px;
+  height: var(--canvas-toolbar-action);
+  border-radius: var(--radius-md);
+}
+.canvas-node-selection-toolbar .canvas-node-toolbar-editor svg { width: var(--icon-md); height: var(--icon-md); }
+.canvas-node-toolbar-label { padding: 0 8px 0 7px; color: var(--type-primary); font-size: var(--text-body-13); font-weight: 400; letter-spacing: var(--tracking-wide); line-height: var(--canvas-toolbar-action); white-space: nowrap; }
+.canvas-node-toolbar-divider { width: var(--toolbar-divider-width); height: 20px; margin: 0 4px; background: var(--line-strong); }
+.canvas-node-asset-action { position: relative; display: flex; }
+.canvas-node-selection-toolbar .canvas-node-asset-chevron {
+  width: 10px;
+  height: 10px;
+  margin-left: -1px;
+  opacity: .55;
+}
+/* ⋮ 溢出清单与截帧取帧位置菜单共用这一种画布内浮层：与存为资产菜单同层、同一套墨阶。 */
+.canvas-node-toolbar-menu {
+  position: absolute;
+  z-index: calc(var(--layer-canvas-composer) + 1);
+  width: 196px;
+  padding: 4px;
+  display: grid;
+  gap: 2px;
+  border: 1px solid var(--elevated-border);
+  border-radius: var(--radius);
+  color: var(--type-primary);
+  background: var(--elevated-surface);
+  box-shadow: var(--canvas-shadow-menu);
+  translate: 0 0;
+  transition:
+    opacity var(--duration-base) var(--ease-out),
+    translate var(--duration-enter) var(--ease-sheet);
+}
+.canvas-node-toolbar-menu--hidden {
+  opacity: 0;
+  translate: 0 -7px;
+  transition: none;
+  pointer-events: none;
+}
+.canvas-node-toolbar-menu > button {
+  height: var(--control-height);
+  padding: 0 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  border-radius: var(--radius-md);
+  color: var(--type-primary);
+  background: transparent;
+  font-size: var(--text-body-13);
+  line-height: var(--text-body-13--line-height);
+  font-weight: 400;
+  letter-spacing: var(--tracking-wide);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-std), color var(--duration-fast) var(--ease-std);
+}
+.canvas-node-toolbar-menu > button:hover { background: var(--popup-item-hover); }
+.canvas-node-toolbar-menu > button:disabled { cursor: default; opacity: .5; }
+.canvas-node-toolbar-menu > button svg {
+  width: var(--action-icon-size);
+  height: var(--action-icon-size);
+  color: var(--muted);
+}
+.canvas-node-toolbar-menu > button span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.canvas-node-toolbar-menu-separator {
+  height: 1px;
+  margin: 4px;
+  background: var(--line);
+}
+.canvas-toolbar-customize-backdrop {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--overlay-dim);
+}
+.canvas-toolbar-customize {
+  width: min(760px, 100%);
+  max-height: min(640px, 100%);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  background: var(--elevated-surface);
+  box-shadow: var(--shadow-modal);
+  color: var(--type-primary);
+}
+.canvas-toolbar-customize-head {
+  min-height: 56px;
+  padding: 0 8px 0 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.canvas-toolbar-customize-head strong {
+  font-size: var(--text-body-15);
+  line-height: var(--text-body-15--line-height);
+  font-weight: 600;
+}
+.canvas-toolbar-customize-head button {
+  width: var(--control-height);
+  height: var(--control-height);
+  border: 0;
+  border-radius: var(--radius-md);
+  color: var(--muted);
+  background: transparent;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.canvas-toolbar-customize-head button:hover { color: var(--type-primary); background: var(--popup-item-hover); }
+.canvas-toolbar-customize-head button svg { width: var(--icon-md); height: var(--icon-md); }
+.canvas-toolbar-customize-body {
+  padding: 0 20px 8px;
+  display: grid;
+  gap: 14px;
+  overflow-y: auto;
+}
+.canvas-toolbar-scopes {
+  width: max-content;
+  padding: 4px;
+  display: flex;
+  gap: 2px;
+  border-radius: var(--radius-md);
+  background: var(--surface-muted);
+}
+.canvas-toolbar-scopes button {
+  height: var(--control-height-compact);
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+  background: transparent;
+  font-size: var(--text-body-13);
+  line-height: var(--text-body-13--line-height);
+  font-weight: 400;
+  letter-spacing: var(--tracking-wide);
+  cursor: pointer;
+}
+.canvas-toolbar-scopes button.active {
+  color: var(--text);
+  background: var(--elevated-surface);
+  box-shadow: var(--shadow-card);
+}
+.canvas-toolbar-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-body-12);
+  line-height: var(--text-body-12--line-height);
+}
+.canvas-toolbar-zone h3 {
+  margin: 0 0 6px;
+  color: var(--faint);
+  font-size: var(--text-caption-11);
+  line-height: var(--text-caption-11--line-height);
+  font-weight: 500;
+  letter-spacing: var(--tracking-widest);
+  text-transform: uppercase;
+}
+.canvas-toolbar-tiles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.canvas-toolbar-tile {
+  height: var(--control-height);
+  padding: 0 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--elevated-border);
+  border-radius: var(--radius-md);
+  color: var(--type-primary);
+  background: var(--button-subtle-bg);
+  font-size: var(--text-body-13);
+  line-height: var(--text-body-13--line-height);
+  font-weight: 400;
+  letter-spacing: var(--tracking-wide);
+  cursor: pointer;
+  touch-action: none;
+}
+.canvas-toolbar-tile:hover { background: var(--popup-item-hover); }
+.canvas-toolbar-tile > svg:first-child {
+  width: var(--action-icon-size);
+  height: var(--action-icon-size);
+  color: var(--muted);
+}
+.canvas-toolbar-tile > span {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+.canvas-toolbar-tile-mark {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+  color: var(--muted);
+}
+/* 已显示的一列就是工具条的真实顺序，所以它要看起来比"可添加"更实，并且能被拖动。 */
+.canvas-toolbar-tile.is-pinned {
+  border-color: var(--line-strong);
+  background: var(--elevated-surface);
+  box-shadow: var(--shadow-card);
+  cursor: grab;
+}
+.canvas-toolbar-tile.is-dragging {
+  opacity: .6;
+  cursor: grabbing;
+}
+.canvas-toolbar-empty {
+  color: var(--faint);
+  font-size: var(--text-body-12);
+  line-height: var(--text-body-12--line-height);
+}
+.canvas-toolbar-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--type-primary);
+  font-size: var(--text-body-13);
+  line-height: var(--text-body-13--line-height);
+  cursor: pointer;
+}
+.canvas-toolbar-customize-foot {
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  border-top: 1px solid var(--line);
+}
+.canvas-image-annotation-editor {
+  position: absolute;
+  z-index: 18;
+  overflow: visible;
+  pointer-events: auto;
+}
+.canvas-image-annotation-editor .screenshots { position: absolute; inset: 0; width: 100% !important; height: 100% !important; overflow: hidden; background: transparent; }
+.canvas-image-annotation-editor .screenshots-canvas { position: absolute; inset: 0; width: 100% !important; height: 100% !important; transform: none !important; overflow: hidden; }
+/* 编辑器是屏幕空间浮层，节点卡片靠自己的圆角裁掉图片，浮层不跟着裁就会在四个角上
+ * 露出方角画布。半径取卡片同一个 `--canvas-node-radius`，再按语义缩放换算成屏幕像素；
+ * 只裁图像层，外层容器保持 overflow: visible，操作条才还能浮到图片之外。 */
+.canvas-image-annotation-editor .screenshots,
+.canvas-image-annotation-editor .screenshots-canvas { border-radius: calc(var(--canvas-node-radius) * var(--canvas-annotation-zoom, 1)); }
+.canvas-image-annotation-editor .screenshots-canvas-image { opacity: 1 !important; }
+.canvas-image-annotation-editor .screenshots-canvas-border-top,
+.canvas-image-annotation-editor .screenshots-canvas-border-right,
+.canvas-image-annotation-editor .screenshots-canvas-border-bottom,
+.canvas-image-annotation-editor .screenshots-canvas-border-left,
+.canvas-image-annotation-editor .screenshots-canvas-point-top,
+.canvas-image-annotation-editor .screenshots-canvas-point-top-right,
+.canvas-image-annotation-editor .screenshots-canvas-point-right,
+.canvas-image-annotation-editor .screenshots-canvas-point-right-bottom,
+.canvas-image-annotation-editor .screenshots-canvas-point-bottom,
+.canvas-image-annotation-editor .screenshots-canvas-point-bottom-left,
+.canvas-image-annotation-editor .screenshots-canvas-point-left,
+.canvas-image-annotation-editor .screenshots-canvas-point-left-top { display: none !important; }
+.canvas-image-annotation-editor .screenshots-operations {
+  top: -112px;
+  left: 50%;
+  z-index: 4;
+  transform: translateX(-50%) !important;
+  transform-origin: top center;
+  scale: 1;
+}
+.canvas-image-annotation-editor .screenshots-operations-buttons {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 6px;
+  background: var(--elevated-surface);
+  border: 1px solid var(--elevated-border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--canvas-shadow-dropdown);
+}
+/* 第三方图标字体的字形比产品的线性图标粗一档，按字号缩放才会等比变细。
+ * 取 --icon-md 与画布节点选中工具栏的图标同一档，整条操作条才和画布其它浮层一致。 */
+.canvas-image-annotation-editor .screenshots-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--canvas-toolbar-action);
+  height: var(--canvas-toolbar-action);
+  margin: 0;
+  font-size: var(--icon-md);
+  border-radius: var(--radius-md);
+}
+/* 图标字体按 em 刻字，行高必须由字形自身决定，否则 40px 的行盒会把字形顶出居中位。 */
+.canvas-image-annotation-editor .screenshots-button > span {
+  line-height: 1;
+}
+.canvas-image-annotation-editor .screenshots-operations-divider {
+  width: var(--toolbar-divider-width);
+  height: 20px;
+  margin: 0 4px;
+}
+/* “生成新节点”用的是产品图标而不是第三方图标字体（它没有向上箭头这一枚字形）。 */
+.canvas-image-annotation-editor .canvas-annotation-node-button svg {
+  width: var(--icon-md);
+  height: var(--icon-md);
+}
+body .screenshots-option-container {
+  min-height: 44px;
+  padding: 6px 8px;
+  border: 1px solid var(--elevated-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--canvas-shadow-dropdown);
+}
+body .screenshots-option .screenshots-button {
+  width: var(--control-height-large);
+  height: var(--control-height-large);
+  margin: 0 2px;
+  line-height: var(--control-height-large);
+}
+body .screenshots-option .screenshots-size-item,
+body .screenshots-option .screenshots-color-item {
+  width: var(--control-height);
+  height: var(--control-height);
+  margin: 0 4px;
+}
+body.annotation-editor-open .screenshots-option {
+  z-index: 240 !important;
+  pointer-events: auto;
+  visibility: visible !important;
+  position: fixed !important;
+  transform: none !important;
+}
+body.annotation-editor-open .screenshots-option-arrow {
+  top: 100%;
+  bottom: auto;
+  border-top-color: var(--elevated-surface);
+  border-bottom-color: transparent;
+  transform: translate(-50%, -1px);
+}
+body.annotation-editor-open .screenshots-textarea {
+  z-index: 260 !important;
+  pointer-events: auto !important;
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  min-width: 120px;
+  min-height: 32px;
+  padding: 4px 6px;
+  background: var(--elevated-surface);
+  caret-color: currentColor;
+}
+.canvas-node-asset-scope-menu {
+  position: absolute;
+  width: 220px;
+  padding: 4px;
+  border: 1px solid var(--elevated-border);
+  border-radius: var(--radius);
+  color: var(--type-primary);
+  background: var(--elevated-surface);
+  box-shadow: var(--canvas-shadow-menu);
+  translate: 0 0;
+  transition:
+    opacity var(--duration-base) var(--ease-out),
+    translate var(--duration-enter) var(--ease-sheet);
+}
+.canvas-node-asset-scope-menu--portal {
+  z-index: calc(var(--layer-canvas-composer) + 1);
+}
+.canvas-node-asset-scope-menu--hidden {
+  opacity: 0;
+  translate: 0 -7px;
+  transition: none;
+  pointer-events: none;
+}
+.canvas-node-asset-menu-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 4px 8px;
+}
+.canvas-node-asset-menu-head > svg {
+  width: var(--action-icon-size);
+  height: var(--action-icon-size);
+  color: var(--muted);
+}
+.canvas-node-asset-menu-head > span { display: grid; gap: 1px; }
+.canvas-node-asset-menu-head strong {
+  font-size: var(--text-body-12);
+  font-weight: 500;
+  line-height: var(--text-body-12--line-height);
+}
+.canvas-node-asset-menu-head small {
+  color: var(--faint);
+  font-size: var(--text-caption-10);
+  line-height: var(--text-caption-10--line-height);
+}
+.canvas-node-asset-category-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2px;
+}
+.canvas-node-asset-category-grid > button,
+.canvas-node-asset-destinations > button {
+  border: 0;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  background: transparent;
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-std), color var(--duration-fast) var(--ease-std);
+}
+.canvas-node-asset-category-grid > button {
+  width: 100%;
+  height: var(--control-height);
+  padding: 0 8px;
+  justify-content: flex-start;
+  gap: 6px;
+  color: var(--muted);
+  font-size: var(--text-caption-11);
+  line-height: var(--text-caption-11--line-height);
+  font-weight: 400;
+}
+.canvas-node-asset-category-grid > button:hover { background: var(--popup-item-hover); }
+.canvas-node-asset-category-grid > button.active {
+  color: var(--text);
+  background: var(--popup-item-active);
+}
+.canvas-node-asset-category-grid svg {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+}
+.canvas-node-asset-destinations {
+  margin-top: 4px;
+  border-top: 1px solid var(--line);
+  padding-top: 4px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+}
+.canvas-node-asset-destinations > button {
+  height: var(--control-height);
+  padding: 0 8px;
+  justify-content: center;
+  gap: 6px;
+  color: var(--type-primary);
+  background: var(--button-subtle-bg);
+  font-size: var(--text-caption-11);
+  line-height: var(--text-caption-11--line-height);
+}
+.canvas-node-asset-destinations > button:hover:not(:disabled) { background: var(--button-subtle-hover); }
+.canvas-node-asset-destinations > button:disabled { cursor: default; opacity: .5; }
+.canvas-node-asset-destinations svg { width: var(--icon-xs); height: var(--icon-xs); }
+.canvas-node-asset-destinations strong { font-weight: 500; }
+.canvas-node-asset-category-grid > button:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}
+.canvas-node-selection-toolbar--subtle {
+  gap: 2px;
+  border: 0;
+  border-radius: var(--radius-md);
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+  opacity: .82;
+}
+.canvas-node-selection-toolbar--subtle:hover,
+.canvas-node-selection-toolbar--subtle:focus-within { opacity: 1; }
+.canvas-node-selection-toolbar--subtle button {
+  height: var(--canvas-toolbar-action-compact);
+  border-radius: var(--radius-md);
+  padding: 0 var(--action-item-padding);
+  gap: 6px;
+  color: var(--muted);
+  font-size: var(--text-body-12);
+  line-height: var(--text-body-12--line-height);
+  font-weight: 400;
+}
+.canvas-node-selection-toolbar--subtle button:hover { background: var(--canvas-controls-hover); }
+.canvas-node-selection-toolbar--subtle svg { width: var(--icon-sm); height: var(--icon-sm); }
+.canvas-node-selection-toolbar--subtle .canvas-node-toolbar-icon { width: var(--canvas-toolbar-action-compact); }
+.canvas-node-selection-toolbar--subtle .canvas-node-toolbar-divider {
+  height: 16px;
+  margin: 0 2px;
+  background: var(--line-strong);
+}
+.react-workflow-canvas .react-flow__edge-path,
+.react-workflow-canvas .react-flow__connection-path { stroke-linecap: round; }
+.react-workflow-canvas .react-flow__edge:not(.selected):hover .react-flow__edge-path { stroke: var(--canvas-edge-hover); }
+.react-flow__arrowhead polyline { stroke: var(--canvas-edge); }
+.react-flow__arrowhead polyline.arrowclosed { fill: var(--canvas-edge); }
+.react-workflow-canvas .react-flow__connection-path { stroke-width: max(0.8px, calc(2px * var(--canvas-semantic-zoom, 1))); }
+.react-workflow-canvas .react-flow__background { opacity: 0; }
+.react-workflow-canvas .react-flow__container { background: transparent; }
+
+.canvas-corner-controls {
+  position: absolute;
+  right: 12px;
+  top: 10px;
+  bottom: auto;
+  z-index: 18;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.forge-lite-main.agent-collapsed .canvas-corner-controls {
+  right: calc(22px + var(--agent-reopen-width));
+}
+.canvas-zoom-group {
+  height: var(--canvas-toolbar-height-compact);
+  border: .5px solid var(--elevated-border);
+  border-radius: var(--radius);
+  padding: 2px;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  background: var(--canvas-controls-bg);
+  box-shadow: var(--canvas-shadow-panel);
+  backdrop-filter: blur(12px);
+}
+.canvas-zoom-group button,
+.canvas-corner-map {
+  border: 0;
+  display: grid;
+  place-items: center;
+  /* 同一块悬浮白底上的墨色只有一种：节点工具条用 --type-primary，缩放条原来用 --muted，
+   * 10px 的百分比读数在 .5 α 上只有 3.98:1。hover 才升到满前景。 */
+  color: var(--type-primary);
+  background: transparent;
+}
+.canvas-zoom-group button {
+  /* 动作高度按条高派生：32 在 36 的条里没有余量（36 − 2×.5 描边 − 2×2 内边 = 31），
+   * 悬停药丸会贴上描边；30 才和紧凑节点工具条同轨。 */
+  width: var(--canvas-toolbar-action-compact);
+  height: var(--canvas-toolbar-action-compact);
+  border-radius: var(--radius-md);
+  font-size: var(--text-body-14);
+}
+.canvas-zoom-group button:hover,
+.canvas-corner-map:hover,
+.canvas-corner-map.active { color: var(--text); background: var(--canvas-controls-hover); }
+.canvas-zoom-group .canvas-zoom-value { width: 44px; font-size: var(--text-caption-10); line-height: var(--text-caption-10--line-height); font-weight: 500; font-variant-numeric: tabular-nums; }
+.canvas-zoom-group > span { width: var(--toolbar-divider-width); height: 20px; margin: 0 3px; background: var(--line-strong); }
+.canvas-zoom-group svg,
+.canvas-corner-map svg { width: var(--icon-sm); height: var(--icon-sm); }
+.canvas-corner-map {
+  width: var(--canvas-toolbar-height-compact);
+  height: var(--canvas-toolbar-height-compact);
+  border: .5px solid var(--elevated-border);
+  border-radius: var(--radius);
+  background: var(--canvas-controls-bg);
+  box-shadow: var(--canvas-shadow-panel);
+  backdrop-filter: blur(12px);
+}
+.react-workflow-canvas .react-flow__minimap.canvas-minimap {
+  right: 14px;
+  top: 62px;
+  bottom: auto;
+  /* 面板尺寸只由 <MiniMap style> 决定：内容盒必须正好等于 svg，
+     否则 overflow: hidden 会裁掉地图边缘的节点，那些节点既看不见也点不到。 */
+  border: 0;
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--canvas-controls-bg);
+  box-shadow: var(--canvas-shadow-panel), inset 0 0 0 1px var(--elevated-border);
+  /* 缩略图的颜色同样只走令牌：点和遮罩由前景/底色推导，暗色主题下自动反向。 */
+  --xy-minimap-node-background-color: color-mix(in srgb, var(--text) 30%, transparent);
+  --xy-minimap-mask-background-color: color-mix(in srgb, var(--canvas-controls-bg) 72%, transparent);
+}
+/* 小地图里的节点是定位入口：悬停加深、选中换成强调色，点一下把视野平移过去。
+   视口外的节点已经压了一层遮罩，所以只改填充，不再加描边。 */
+.react-workflow-canvas .react-flow__minimap.canvas-minimap .react-flow__minimap-node {
+  cursor: pointer;
+  transition: fill var(--duration-fast) var(--ease-std);
+}
+.react-workflow-canvas .react-flow__minimap.canvas-minimap .react-flow__minimap-node:hover {
+  fill: color-mix(in srgb, var(--text) 55%, transparent);
+}
+.react-workflow-canvas .react-flow__minimap.canvas-minimap .react-flow__minimap-node.selected {
+  fill: color-mix(in srgb, var(--brand-accent) 78%, transparent);
+}
+.canvas-empty-copy {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 12;
+  transform: translate(-50%, -50%);
+  display: grid;
+  min-width: 310px;
+  gap: 8px;
+  text-align: center;
+  pointer-events: none;
+}
+.canvas-empty-icon { width: 24px; height: 24px; margin: 0 auto 2px; display: grid; place-items: center; color: var(--brand-accent); filter: drop-shadow(0 3px 5px var(--brand-accent-wash)); transform: rotate(-10deg); }
+.canvas-empty-icon svg { width: var(--icon-lg); height: var(--icon-lg); fill: var(--brand-accent-wash); stroke-width: 1.8; }
+.canvas-empty-copy strong { color: var(--muted); font-size: var(--text-body-13); line-height: var(--text-body-13--line-height); font-weight: 400; letter-spacing: var(--tracking-tight); }
+.canvas-empty-copy strong b { color: var(--type-primary); font-weight: 500; }
+.canvas-empty-copy small { display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--faint); font-size: var(--text-caption-10); line-height: var(--text-caption-10--line-height); font-weight: 400; }
+.canvas-empty-copy small i { width: 3px; height: 3px; border-radius: 50%; background: var(--faint); }
+.work-node-wrapper,
+.work-visual-block {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+}
+
+.work-node-wrapper { z-index: 2; contain: layout style; }
+.react-flow__node-panel.canvas-node-image-generation { min-width: 0; }
+.canvas-node-resize-handle {
+  z-index: 30 !important;
+  width: 10px !important;
+  height: 10px !important;
+  border-color: transparent !important;
+  border-radius: 999px !important;
+  background: transparent !important;
+  box-shadow: none;
+}
+.canvas-node-resize-line {
+  z-index: 29 !important;
+  border-color: transparent !important;
+}
+.work-visual-block {
+  box-sizing: border-box;
+  padding-top: 0;
+}
+
+.work-node-kicker {
+  position: absolute;
+  inset: -28px 0 auto;
+  height: 24px;
+  box-sizing: border-box;
+  padding: 0 2px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--type-primary);
+}
+
+.work-node-kicker > span {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  color: var(--type-primary);
+  font-size: var(--canvas-node-title-size);
+  font-weight: 400;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.work-node-kicker > svg {
+  width: var(--canvas-node-icon-size);
+  height: var(--canvas-node-icon-size);
+  flex: 0 0 auto;
+}
+.work-node-kicker > .work-node-type-icon {
+  box-sizing: border-box;
+  border-radius: calc(3px * var(--node-label-zoom, 1));
+  padding: calc(2px * var(--node-label-zoom, 1));
+  color: var(--elevated-surface);
+  background: var(--muted);
+}
+
+.work-node-kicker-actions { display: flex; align-items: center; gap: 2px; }
+.work-node-kicker button {
+  width: var(--canvas-node-action-size);
+  height: var(--canvas-node-action-size);
+  border: 0;
+  border-radius: var(--radius-sm);
+  padding: 0;
+  display: grid;
+  place-items: center;
+  color: var(--type-primary);
+  background: transparent;
+}
+.work-node-kicker button:hover { color: var(--text); background: var(--canvas-controls-active); }
+.work-node-kicker svg { width: var(--canvas-node-icon-size); height: var(--canvas-node-icon-size); }
+.work-node-kicker.unlabeled {
+  z-index: 4;
+  width: max-content;
+  padding: 2px;
+}
+
+.work-node {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  border: var(--canvas-hairline) solid var(--canvas-node-border);
+  border-radius: var(--canvas-node-radius);
+  display: grid;
+  place-items: center;
+  background: var(--surface);
+  box-shadow: none;
+  overflow: visible;
+}
+.work-node.selected {
+  border-color: var(--canvas-node-border-selected);
+  box-shadow: 0 0 0 1px var(--canvas-selection-bg);
+}
+
+.work-preview {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  color: var(--faint);
+  background: var(--surface-2);
+}
+.work-preview > img,
+.work-preview > video { width: 100%; height: 100%; display: block; }
+.work-preview > img { object-fit: contain; }
+.work-preview > video { object-fit: cover; }
+.canvas-image-crop-layer { position: absolute; inset: 0; z-index: 10; overflow: hidden; touch-action: none; }
+.canvas-image-crop-shade { position: absolute; background: var(--overlay-shade); pointer-events: none; }
+.canvas-image-crop-shade.is-top { inset: 0 0 auto; }
+.canvas-image-crop-shade.is-bottom { inset: auto 0 0; }
+.canvas-image-crop-shade.is-left { left: 0; }
+.canvas-image-crop-shade.is-right { right: 0; }
+.canvas-image-crop-selection { position: absolute; border: 2px solid white; box-shadow: 0 0 0 1px var(--overlay-hairline); cursor: move; }
+.canvas-image-crop-handle { position: absolute; z-index: 2; width: 17px; height: 17px; border: 2px solid white; background: transparent; filter: drop-shadow(0 1px 2px var(--overlay-hairline)); }
+.canvas-image-crop-handle.is-nw { left: -2px; top: -2px; border-right: 0; border-bottom: 0; cursor: nwse-resize; }
+.canvas-image-crop-handle.is-ne { right: -2px; top: -2px; border-left: 0; border-bottom: 0; cursor: nesw-resize; }
+.canvas-image-crop-handle.is-sw { left: -2px; bottom: -2px; border-right: 0; border-top: 0; cursor: nesw-resize; }
+.canvas-image-crop-handle.is-se { right: -2px; bottom: -2px; border-left: 0; border-top: 0; cursor: nwse-resize; }
+.canvas-image-crop-grid { position: absolute; inset: 0; display: grid; }
+.canvas-image-crop-grid button { min-width: 0; min-height: 0; border: 1px solid var(--overlay-line); color: var(--overlay-ink); background: var(--overlay-shade-mid); cursor: move; touch-action: none; font-size: var(--text-caption-10); text-shadow: 0 1px 3px var(--overlay-stage); }
+.canvas-image-crop-grid button.is-selected { background: transparent; }
+.canvas-image-crop-grid button:hover { background: var(--overlay-fill-hover); }
+.canvas-image-crop-toolbar { position: absolute; z-index: var(--layer-canvas-composer); min-height: var(--canvas-toolbar-height); display: flex; align-items: center; justify-content: center; gap: 2px; padding: 4px; border: 1px solid var(--elevated-border); border-radius: var(--radius); color: var(--type-primary); background: var(--elevated-surface); box-shadow: var(--canvas-shadow-dropdown); pointer-events: auto; }
+.canvas-image-crop-toolbar button, .canvas-image-crop-toolbar select { height: var(--control-height); min-width: var(--control-height); border: 0; border-radius: var(--radius-md); padding: 0 8px; color: inherit; background: transparent; font-size: var(--text-body-12); line-height: var(--text-body-12--line-height); cursor: pointer; }
+.canvas-image-crop-toolbar button:hover, .canvas-image-crop-toolbar select:hover { background: var(--canvas-controls-hover); }
+.canvas-image-crop-toolbar .canvas-image-crop-confirm { color: var(--brand-accent-foreground); background: var(--brand); font-size: var(--text-body-13); line-height: var(--text-body-13--line-height); }
+.canvas-image-crop-toolbar .canvas-image-crop-confirm:hover { background: var(--brand-hover); }
+.canvas-image-crop-toolbar button:disabled { opacity: .5; cursor: default; }
+.canvas-image-crop-divider { width: .5px; height: 20px; background: var(--line-strong); }
+.canvas-image-crop-error { position: absolute; left: 0; right: 0; top: calc(100% + 5px); padding: 4px 8px; border-radius: var(--radius-sm); color: var(--bad); background: var(--elevated-surface); box-shadow: var(--canvas-shadow-panel); font-size: var(--text-caption-11); line-height: var(--text-caption-11--line-height); }
+.audio-waveform-player {
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 8px 8px 6px;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) 33px;
+  color: var(--muted);
+  background: var(--surface);
+}
+.audio-waveform {
+  min-width: 0;
+  border: 0;
+  border-radius: var(--canvas-node-inner-radius);
+  padding: 7px 8px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  overflow: hidden;
+  color: inherit;
+  background: var(--surface-2);
+  cursor: pointer;
+}
+.audio-waveform span {
+  width: 3px;
+  min-height: 4px;
+  flex: 1 1 3px;
+  border-radius: 99px;
+  background: var(--faint);
+  transition: background-color var(--duration-fast) var(--ease-std);
+}
+.audio-waveform span.played { background: var(--text); }
+.audio-waveform-controls {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 5px 0;
+  font-size: var(--canvas-node-meta-size);
+  font-variant-numeric: tabular-nums;
+}
+.audio-waveform-controls button {
+  border: 0;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  color: inherit;
+  background: transparent;
+}
+.audio-waveform-controls .audio-waveform-play {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: calc(var(--canvas-node-action-size) + 6px);
+  height: calc(var(--canvas-node-action-size) + 6px);
+  border-radius: 999px;
+  color: var(--overlay-ink);
+  background: var(--overlay-stage);
+  transform: translate(-50%, -42%);
+}
+.audio-play-glyph {
+  width: 0;
+  height: 0;
+  margin-left: 2px;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-left: 6px solid var(--overlay-ink);
+}
+.work-preview .audio-waveform-play svg {
+  width: var(--canvas-node-icon-size);
+  height: var(--canvas-node-icon-size);
+  fill: none;
+  stroke-width: 2.4;
+}
+.audio-waveform-controls .audio-waveform-download {
+  width: var(--canvas-node-action-size);
+  height: var(--canvas-node-action-size);
+  margin-left: auto;
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+}
+.audio-waveform-controls .audio-waveform-download:hover { color: var(--text); background: var(--surface-2); }
+.work-preview .audio-waveform-download svg { width: var(--canvas-node-icon-size); height: var(--canvas-node-icon-size); }
+.audio-waveform-native { display: none; }
+.work-preview-download {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 3;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  padding: 0;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  background: var(--elevated-surface);
+  box-shadow: var(--canvas-shadow-panel);
+  opacity: 0;
+  pointer-events: none;
+  backdrop-filter: blur(8px);
+  transition: opacity var(--duration-fast) var(--ease-std), color var(--duration-fast) var(--ease-std), background-color var(--duration-fast) var(--ease-std);
+}
+.work-node:hover .work-preview-download,
+.work-preview-download:focus-visible {
+  opacity: .88;
+  pointer-events: auto;
+}
+.work-preview-download:hover { color: var(--text); background: var(--surface); opacity: 1; }
+.work-preview .work-preview-download svg { width: var(--canvas-node-icon-size); height: var(--canvas-node-icon-size); }
+.work-video-status {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  z-index: 3;
+  min-height: 18px;
+  border-radius: var(--radius-sm);
+  padding: 0 3px 0 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--overlay-ink);
+  background: var(--overlay-chip);
+  box-shadow: var(--drop-shadow-sm);
+  backdrop-filter: blur(7px);
+  font-size: var(--text-caption-10);
+  font-variant-numeric: tabular-nums;
+  opacity: 1;
+  pointer-events: none;
+}
+.work-preview:hover .work-video-status {
+  opacity: 0;
+  visibility: hidden;
+}
+.work-video-controls {
+  position: absolute;
+  inset: auto 0 0;
+  z-index: 4;
+  min-height: 72px;
+  padding: 25px 10px 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--overlay-ink);
+  background: linear-gradient(180deg, transparent, var(--overlay-fade));
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--duration-fast) var(--ease-std);
+}
+.work-preview:hover .work-video-controls,
+.work-video-controls:focus-within {
+  opacity: 1;
+  pointer-events: auto;
+}
+.work-video-control-button {
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 999px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  flex: 0 0 22px;
+  color: var(--overlay-ink);
+  background: transparent;
+  cursor: pointer;
+}
+.work-video-control-button:hover,
+.work-video-control-button:focus-visible { color: var(--overlay-ink); background: var(--overlay-fill-hover); }
+.work-video-control-button svg { width: var(--icon-md); height: var(--icon-md); }
+.work-video-controls-time {
+  height: 22px;
+  line-height: 22px;
+  font-size: var(--text-body-12);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.work-video-controls-spacer { flex: 1 1 auto; }
+.work-video-progress {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 4px;
+  height: 4px;
+  border: 0;
+  border-radius: 999px;
+  padding: 0;
+  overflow: hidden;
+  background: var(--overlay-progress);
+  cursor: pointer;
+}
+.work-video-progress span { display: block; height: 100%; border-radius: inherit; background: var(--overlay-ink); }
+.work-preview .work-empty-type-icon { flex: 0 0 auto; }
+
+/* 空文本节点：图标占据上部空间，试试入口贴在卡片底部左侧。 */
+.text-result-empty {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 14px;
+  color: var(--muted);
+}
+.text-result-empty > .text-result-sheet {
+  width: 44px;
+  height: 44px;
+  margin: auto;
+  flex: 0 0 auto;
+  color: var(--faint);
+}
+.text-result-starters {
+  display: grid;
+  gap: 8px;
+}
+.text-result-starters > span {
+  color: var(--type-primary);
+  font-size: var(--canvas-node-body-size);
+}
+.text-result-starter {
+  min-height: 32px;
+  border: 0;
+  border-radius: var(--radius-md);
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--type-primary);
+  background: var(--surface-2);
+  font-size: var(--canvas-node-body-size);
+  font-weight: 500;
+  text-align: left;
+}
+.text-result-starter:hover { color: var(--text); background: var(--button-subtle-hover); }
+.text-result-starter svg {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+  flex: 0 0 auto;
+  color: var(--muted);
+}
+.work-empty-state {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+}
+.work-preview .work-empty-type-icon {
+  width: var(--canvas-node-state-icon-size);
+  height: var(--canvas-node-state-icon-size);
+  color: var(--faint);
+}
+.text-result-scroll { width: 100%; height: 100%; overflow: auto; }
+.text-result-scroll p { margin: 0; padding: 14px; color: var(--type-primary); font-family: var(--font-mono); font-size: var(--canvas-node-body-size); font-weight: normal; line-height: 1.55; white-space: pre-wrap; }
+
+.canvas-flow-port {
+  position: absolute;
+  top: 50%;
+  z-index: 3;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-50%);
+  transition: opacity var(--duration-fast) var(--ease-std);
+}
+.canvas-flow-port::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  border: 1px solid var(--canvas-node-border-selected);
+  border-radius: 999px;
+  background: var(--elevated-surface);
+  box-shadow: var(--canvas-shadow-panel);
+  transform: translate(-50%, -50%) scale(.72);
+  transition: transform var(--duration-slow) var(--ease-pop);
+}
+.react-flow__node-panel:hover > .canvas-flow-port,
+.react-flow__node-panel.selected > .canvas-flow-port {
+  opacity: 1;
+  pointer-events: auto;
+}
+.react-flow__node-panel:hover > .canvas-flow-port::before,
+.react-flow__node-panel.selected > .canvas-flow-port::before {
+  transform: translate(-50%, -50%) scale(1);
+}
+.canvas-flow-port-in { left: 0; width: 12px; height: 12px; }
+.canvas-flow-port-in::before { left: 0; width: 12px; height: 12px; }
+.canvas-flow-port-out { right: 0; width: 20px; height: 20px; }
+.canvas-flow-port-out::before { left: 100%; width: 20px; height: 20px; }
+.canvas-flow-port-out::after {
+  content: "+";
+  position: absolute;
+  top: 50%;
+  left: 100%;
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  font-size: var(--text-body-13);
+  font-weight: 600;
+  line-height: 1;
+  transform: translate(-50%, calc(-50% - .5px));
+}
+
+/* Measured by React Flow for direction-aware edge routing, but never exposed as
+   interactive ports. The visible left-input/right-output controls stay intact. */
+.edge-routing-port { opacity: 0 !important; pointer-events: none !important; }
+
+.work-progress { position: absolute; left: 12px; right: 12px; bottom: 10px; height: 4px; border-radius: 999px; overflow: hidden; background: var(--wash-inset); }
+.work-progress span { display: block; height: 100%; background: var(--brand); }
+.work-error {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 10px;
+  z-index: 4;
+  border-radius: var(--radius-sm);
+  padding: 6px 8px;
+  color: var(--bad);
+  background: var(--surface-2);
+  box-shadow: 0 1px 4px color-mix(in srgb, var(--bad) 14%, transparent);
+  font-size: var(--canvas-node-error-size);
+  font-weight: 600;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.generation-output-dots { position: absolute; left: 50%; bottom: 9px; transform: translateX(-50%); display: flex; gap: 4px; }
+.generation-output-dots button { width: 6px; height: 6px; border: 0; border-radius: 99px; padding: 0; background: var(--scrollbar-thumb); }
+.generation-output-dots button:hover { background: var(--scrollbar-thumb-hover); }
+.generation-output-dots button.active { background: var(--text); }
+
+.work-composer {
+  position: relative;
+  z-index: 10;
+  width: 100%;
+  height: 186px;
+  max-width: none;
+  box-sizing: border-box;
+  border: 1px solid var(--elevated-border);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--type-primary);
+  background: var(--elevated-surface);
+  box-shadow: var(--canvas-prompt-shadow);
+}
+.work-composer-anchor {
+  position: absolute;
+  z-index: var(--layer-canvas-composer);
+  transform: translateX(-50%);
+  pointer-events: auto;
+  translate: 0 0;
+  transition:
+    opacity var(--duration-fast) var(--ease-out),
+    translate var(--duration-enter) var(--ease-sheet);
+}
+.work-composer-anchor--hidden {
+  opacity: 0;
+  translate: 0 -10px;
+  transition: none;
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .canvas-node-selection-toolbar,
+  .canvas-node-asset-scope-menu,
+  .canvas-node-toolbar-menu,
+  .work-composer-anchor {
+    transition: none;
+  }
+}
+.work-composer-row,
+.work-param-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.work-composer-row {
+  position: absolute;
+  z-index: 3;
+  top: 8px;
+  right: 10px;
+  justify-content: flex-end;
+}
+.preset-picker { position: relative; flex: 0 0 auto; }
+.preset-trigger {
+  width: var(--canvas-preset-trigger-width); height: var(--control-height-compact); border: 1px solid transparent; border-radius: var(--radius-md); padding: 0 8px;
+  display: inline-grid; grid-template-columns: 18px minmax(0, 1fr) 10px; align-items: center; gap: 6px; color: var(--type-primary); background: transparent;
+  font-size: var(--text-body-12); line-height: var(--text-body-12--line-height); font-weight: 400;
+}
+.preset-trigger:hover { background: var(--popup-item-hover); }
+.preset-icon { width: 20px; height: 20px; border-radius: var(--radius-sm); display: grid; place-items: center; background: color-mix(in srgb, currentColor 10%, transparent); }
+.preset-icon svg { width: var(--icon-xs); height: var(--icon-xs); }
+.preset-trigger .preset-icon { width: 18px; height: 18px; }
+.preset-trigger .preset-icon svg { width: var(--icon-xs); height: var(--icon-xs); }
+.preset-trigger span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
+.preset-trigger > svg { width: var(--icon-xs); height: var(--icon-xs); color: var(--faint); }
+.preset-menu {
+  position: absolute; right: 0; bottom: calc(100% + 7px); z-index: 21; width: 248px; overflow: hidden;
+  border: 1px solid var(--elevated-border); border-radius: var(--radius-lg); background: var(--elevated-surface); box-shadow: var(--canvas-shadow-dropdown);
+}
+.preset-menu-scroll { max-height: min(430px, calc(100vh - 120px)); overflow-y: auto; padding: 4px; display: grid; gap: 2px; scrollbar-gutter: stable; }
+.preset-menu-scroll::-webkit-scrollbar { width: 6px; }
+.preset-menu-scroll::-webkit-scrollbar-track { background: transparent; }
+.preset-menu-scroll::-webkit-scrollbar-thumb { border-radius: 999px; background: var(--scrollbar-thumb); }
+.preset-option { min-height: 30px; border: 0; border-radius: var(--radius-md); padding: 5px 8px; display: grid; grid-template-columns: 20px minmax(0, 1fr) 12px; align-items: center; gap: 8px; color: var(--type-primary); background: transparent; font-size: var(--text-body-12); text-align: left; }
+.preset-option:hover { background: var(--popup-item-hover); }
+.preset-option.active { background: var(--popup-item-active); color: var(--text); }
+.preset-option > span:not(.preset-icon) { min-width: 0; display: grid; gap: 2px; }
+.preset-option strong { overflow: hidden; font-size: var(--text-body-12); line-height: var(--text-body-12--line-height); font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.preset-option em { overflow: hidden; color: var(--faint); font-size: var(--text-caption-10); line-height: var(--text-caption-10--line-height); font-style: normal; font-weight: 400; text-overflow: ellipsis; white-space: nowrap; }
+.preset-option > svg { width: var(--icon-xs); height: var(--icon-xs); color: var(--text); }
+.work-composer-row .preset-trigger {
+  border-color: transparent;
+  background: transparent;
+}
+.work-composer-row .preset-trigger:hover {
+  background: var(--wash-hover);
+}
+.work-prompt-shell { position: relative; flex: 1 1 auto; min-height: 0; border: 0; border-radius: var(--radius-md); display: flex; flex-direction: column; background: transparent; }
+.work-prompt-editor { display: block; width: 100%; min-height: 0; flex: 1 1 auto; border: 0; outline: none; overflow: auto; padding: 3px 6px 6px 1px; color: var(--text); background: transparent; font-size: var(--text-body-15); font-weight: 400; line-height: var(--text-body-15--line-height); white-space: pre-wrap; overflow-wrap: anywhere; }
+.work-prompt-editor:empty::before { content: attr(data-placeholder); color: var(--faint); pointer-events: none; }
+.work-reference-chip { display: inline-flex; align-items: center; gap: 5px; max-width: 130px; min-height: 23px; margin: 0 2px; padding: 2px 6px 2px 3px; vertical-align: middle; border: 1px solid var(--line); border-radius: var(--radius-md); color: var(--text); background: var(--surface-2); font-size: var(--text-body-12); line-height: 1; white-space: nowrap; user-select: all; }
+.work-reference-chip--missing { color: var(--muted); border-style: dashed; }
+.work-reference-chip-thumb { width: 18px; height: 18px; flex: 0 0 18px; display: grid; place-items: center; overflow: hidden; border-radius: var(--radius-sm); background: var(--wash-hover); font-size: var(--text-caption-11); }
+.work-reference-chip-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.work-composer-input::after { content: attr(data-ref-number); position: absolute; top: 2px; left: 2px; min-width: 17px; height: 17px; display: grid; place-items: center; border-radius: 50%; color: var(--overlay-ink); background: var(--overlay-surface); font-size: var(--text-caption-10); pointer-events: none; }
+.work-composer-input:not([data-ref-number])::after { content: none; }
+.work-reference-mention-menu { position: absolute; z-index: 24; left: 0; right: 0; bottom: calc(100% + 6px); max-height: 252px; overflow-y: auto; padding: 5px; border: 1px solid var(--elevated-border); border-radius: var(--radius-lg); color: var(--text); background: var(--elevated-surface); box-shadow: var(--canvas-shadow-dropdown); }
+.work-reference-mention-group + .work-reference-mention-group { margin-top: 4px; padding-top: 4px; border-top: 1px solid var(--elevated-border); }
+.work-reference-mention-title { margin: 0; padding: 5px 8px 4px; color: var(--faint); font-size: var(--text-caption-10); }
+.work-reference-mention-menu button { width: 100%; min-height: 38px; display: flex; align-items: center; gap: 8px; padding: 4px 8px; border: 0; border-radius: var(--radius-md); color: inherit; background: transparent; text-align: left; }
+.work-reference-mention-menu button:is(:hover, .active) { background: var(--popup-item-hover); }
+.work-reference-mention-name { min-width: 0; flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.work-reference-mention-thumb { width: 30px; height: 30px; flex: 0 0 30px; display: grid; place-items: center; overflow: hidden; border: 1px solid var(--elevated-border); border-radius: var(--radius-sm); color: var(--muted); background: var(--surface-muted); }
+.work-reference-mention-thumb > :is(img, video) { width: 100%; height: 100%; display: block; object-fit: cover; }
+.work-reference-mention-thumb svg { width: var(--icon-sm); height: var(--icon-sm); }
+.work-reference-mention-empty { margin: 0; padding: 8px; color: var(--faint); font-size: var(--text-body-12); }
+.work-composer-inputs {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  height: var(--canvas-slot-size);
+  flex: 0 0 var(--canvas-slot-size);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+/* 只有预设触发器真的在场时才让位，且让的是它的占位宽度。 */
+.work-composer:has(.preset-picker) .work-composer-inputs { width: calc(100% - var(--canvas-composer-trigger-reserve)); }
+.work-composer-inputs::-webkit-scrollbar { display: none; }
+/* 纯文本生成模型没有参考槽位，这一行既没有缩略图也没有添加位；* 固定行高会让输入区上方凭空多出 40px 空白，空行直接不占位。 */
+.work-composer-inputs:empty { display: none; }
+.work-composer-add {
+  width: var(--canvas-slot-size);
+  height: var(--canvas-slot-size);
+  flex: 0 0 var(--canvas-slot-size);
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-md);
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  background: transparent;
+}
+.work-composer-add:hover { border-color: var(--text); color: var(--text); background: var(--popup-item-hover); }
+.work-composer-add svg { width: var(--action-icon-size); height: var(--action-icon-size); }
+.work-composer-slot { display: flex; flex-direction: column; gap: 2px; font-size: var(--text-caption-10); }
+.work-composer-input {
+  position: relative;
+  width: var(--canvas-slot-size);
+  height: var(--canvas-slot-size);
+  flex: 0 0 var(--canvas-slot-size);
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  display: grid;
+  place-items: center;
+  color: var(--faint);
+  background: var(--surface-2);
+}
+.work-composer-input-preview {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border: 0;
+  border-radius: inherit;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  color: inherit;
+  background: transparent;
+  cursor: zoom-in;
+}
+.work-composer-input-preview:disabled { cursor: default; }
+.work-composer-input-preview > :is(img, video) { width: 100%; height: 100%; display: block; object-fit: cover; transition: transform var(--duration-base) var(--ease-sheet); }
+.work-composer-input:hover .work-composer-input-preview:not(:disabled) > :is(img, video) { transform: scale(1.06); }
+.work-composer-input-preview > svg { width: var(--action-icon-size); height: var(--action-icon-size); }
+.work-composer-input-preview:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+.work-composer-input-label { position: absolute; left: 3px; bottom: 3px; max-width: calc(100% - 6px); overflow: hidden; border-radius: var(--radius-sm); padding: 1px 3px; color: var(--overlay-ink); background: var(--overlay-surface); font-size: var(--text-caption-10); line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
+.work-composer-input-remove {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 16px;
+  height: 16px;
+  border: 0;
+  border-radius: 50%;
+  padding: 0;
+  display: none;
+  place-items: center;
+  color: var(--overlay-ink);
+  background: var(--overlay-surface);
+}
+.work-composer-input:hover .work-composer-input-remove,
+.work-composer-input:focus-within .work-composer-input-remove { display: grid; }
+.work-composer-input-remove svg { width: var(--icon-xs); height: var(--icon-xs); }
+.work-run-btn { width: var(--canvas-slot-size); height: var(--canvas-slot-size); margin-left: 0; flex: 0 0 var(--canvas-slot-size); border: 0; border-radius: 50%; display: grid; place-items: center; color: var(--brand-accent-foreground); background: var(--brand); }
+.work-run-btn:hover:not(:disabled) { background: var(--brand-hover); }
+.work-run-btn:disabled { opacity: var(--canvas-toolbar-disabled-opacity); }
+.work-run-btn svg { width: var(--icon-sm); height: var(--icon-sm); }
+.work-run-btn.running svg { animation: react-work-run-spin .8s linear infinite; }
+@keyframes react-work-run-spin { to { transform: rotate(360deg); } }
+.provider-brand-icon { width: 1em; height: 1em; display: block; object-fit: contain; }
+.work-param-row { display: flex; flex: 0 0 32px; align-items: center; flex-wrap: nowrap; gap: 5px; min-width: 0; overflow: visible; }
+.work-param-controls { min-width: 0; flex: 1 1 auto; display: flex; align-items: center; gap: 5px; overflow: visible; }
+.work-model-picker { position: relative; width: 124px; flex: 1 1 124px; min-width: 104px; max-width: 142px; }
+.work-model-trigger {
+  width: 100%; height: var(--control-height-compact); border: 1px solid transparent; border-radius: var(--radius-md); padding: 0 8px;
+  display: flex; align-items: center; gap: 8px; color: var(--type-primary); background: transparent;
+  font-size: var(--text-body-12); line-height: var(--text-body-12--line-height); font-weight: 400;
+}
+.work-model-trigger:hover,
+.work-model-trigger:focus-visible { background: var(--popup-item-hover); }
+.work-model-trigger svg { width: var(--icon-xs); height: var(--icon-xs); flex: 0 0 auto; color: var(--faint); }
+.work-model-trigger span:nth-child(2) { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--type-primary); font-size: var(--text-body-12); line-height: var(--text-body-12--line-height); font-weight: 400; text-align: left; }
+.model-menu {
+  position: absolute; left: 0; bottom: calc(100% + 8px); z-index: 20; width: 320px; max-height: 420px;
+  border: 1px solid var(--elevated-border); border-radius: var(--radius-lg);
+  padding: 4px; display: grid; gap: 2px; background: var(--elevated-surface); box-shadow: var(--canvas-shadow-menu);
+  overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; touch-action: pan-y;
+}
+.model-menu > p { margin: 0 0 4px; padding: 4px 8px 8px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: var(--text-body-12); line-height: var(--text-body-12--line-height); font-weight: 400; }
+.model-option { min-height: 44px; padding: 6px 8px; border: 0; border-radius: var(--radius-md); display: grid; grid-template-columns: 16px minmax(0,1fr) 12px; align-items: center; gap: 8px; text-align: left; color: var(--type-primary); background: transparent; font-size: var(--text-body-12); line-height: var(--text-body-12--line-height); font-weight: 400; }
+.model-option:hover { background: var(--popup-item-hover); }
+.model-option.active { background: var(--popup-item-active); color: var(--text); }
+.model-option > .model-logo { width: 16px; height: 16px; }
+.model-option > svg:last-child { width: var(--icon-xs); height: var(--icon-xs); color: var(--text); }
+.model-logo { width: 12px; height: 12px; flex: 0 0 12px; }
+.model-menu-empty { padding: 12px 10px; color: var(--warn); font-size: var(--text-body-12); line-height: var(--text-body-12--line-height); font-weight: 400; text-align: center; }
+.model-copy { min-width: 0; display: grid; gap: 1px; }
+.model-copy strong, .model-copy em { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.model-copy strong { color: var(--type-primary); font-size: var(--text-body-12); line-height: var(--text-body-12--line-height); font-weight: 400; }
+.model-copy em { color: var(--faint); font-size: var(--text-caption-10); line-height: var(--text-caption-10--line-height); font-style: normal; font-weight: 400; }
+.generation-settings-picker { position: relative; min-width: 0; flex: 1 1 auto; }
+.generation-settings-trigger {
+  width: 100%; height: var(--control-height-compact); min-width: 0; border: 0; border-radius: var(--radius-md); padding: 0 8px;
+  display: flex; align-items: center; gap: 0; overflow: hidden; color: var(--type-primary); background: transparent;
+  font-size: var(--text-caption-11); line-height: var(--text-caption-11--line-height); white-space: nowrap;
+}
+.generation-settings-trigger:hover, .generation-settings-trigger.active { background: var(--popup-item-hover); }
+.generation-settings-trigger > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.generation-settings-trigger > span + span::before { content: "·"; margin: 0 6px; color: var(--faint); }
+.generation-settings-trigger > svg { width: var(--icon-xs); height: var(--icon-xs); margin-left: 6px; flex: 0 0 auto; color: var(--faint); }
+.generation-settings-panel {
+  position: absolute; left: 0; bottom: calc(100% + 10px); z-index: 30; width: 384px; max-width: min(384px, calc(100vw - 32px)); max-height: min(560px, calc(100vh - 120px));
+  box-sizing: border-box; overflow: auto; border: 1px solid var(--elevated-border); border-radius: var(--radius); padding: 12px;
+  display: grid; gap: 12px; color: var(--type-primary); background: var(--elevated-surface); box-shadow: var(--canvas-shadow-menu);
+  overscroll-behavior: contain;
+}
+.generation-settings-panel section { display: grid; gap: 8px; }
+.generation-settings-panel section > p { margin: 0; color: var(--muted); font-size: var(--text-body-12); line-height: var(--text-body-12--line-height); }
+.generation-settings-param { display: contents; }
+.generation-settings-group-title {
+  margin: 4px 0 -4px; padding-top: 8px; border-top: 1px solid var(--line);
+  color: var(--text); font-size: var(--text-caption-11); line-height: var(--text-caption-11--line-height); font-weight: 600; letter-spacing: var(--tracking-wide);
+}
+.generation-settings-param:first-of-type .generation-settings-group-title { padding-top: 0; border-top: 0; }
+.generation-settings-segments { border-radius: var(--radius-md); padding: 2px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px; background: var(--surface-2); }
+.generation-settings-segments button { height: var(--control-height-compact); border: 0; border-radius: var(--radius-sm); color: var(--muted); background: transparent; font-size: var(--text-body-12); line-height: var(--text-body-12--line-height); font-weight: 400; }
+.generation-settings-segments button:hover { color: var(--type-primary); }
+.generation-settings-segments button.active { color: var(--text); background: var(--elevated-surface); box-shadow: var(--drop-shadow-sm); }
+.generation-settings-input {
+  width: 100%; height: var(--control-height); box-sizing: border-box; border: 1px solid var(--line); border-radius: var(--radius-md); padding: 0 10px;
+  outline: none; color: var(--text); background: var(--elevated-surface); font-size: var(--text-body-12); line-height: var(--text-body-12--line-height);
+}
+.generation-settings-input::placeholder { color: var(--faint); }
+.generation-settings-input:focus { border-color: var(--text); }
+/* 音色是目录里的自由 ID，用选择器而不是原生下拉，避免把 300+ 系统音色塞进一个弹层里。 */
+.generation-settings-voice { display: flex; align-items: center; justify-content: space-between; gap: 8px; text-align: left; font-family: inherit; cursor: pointer; }
+.generation-settings-voice > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.generation-settings-voice > svg { width: var(--icon-xs); height: var(--icon-xs); flex: 0 0 auto; color: var(--faint); }
+.generation-settings-voice:hover { border-color: var(--line-strong); }
+/* 原生 select 的上下双箭头是操作系统控件，和面板里的选项块、音色选择器不是同一套图形；
+ * 抹掉原生外观后复用音色选择器同一枚 chevron-down，选项多到来不及铺成块时才用它。 */
+.generation-settings-select { position: relative; display: block; min-width: 0; }
+.generation-settings-select > select { appearance: none; padding-right: 28px; cursor: pointer; }
+.generation-settings-select > svg { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); width: var(--icon-xs); height: var(--icon-xs); pointer-events: none; color: var(--faint); }
+.generation-settings-slider { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; }
+.generation-settings-slider input { width: 100%; accent-color: var(--text); }
+.generation-settings-slider output { min-width: 44px; color: var(--type-primary); font-size: var(--text-body-12); line-height: var(--text-body-12--line-height); font-variant-numeric: tabular-nums; text-align: right; }
+.generation-settings-options, .generation-settings-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.generation-settings-options button, .generation-settings-chips button {
+  min-width: 44px; height: var(--control-height-compact); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 0 10px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; color: var(--muted); background: var(--elevated-surface);
+  font-size: var(--text-body-12); line-height: var(--text-body-12--line-height); font-weight: 400;
+}
+.generation-settings-options button:hover, .generation-settings-chips button:hover { border-color: var(--line-strong); color: var(--type-primary); }
+.generation-settings-options button.active, .generation-settings-chips button.active { border-color: transparent; color: var(--text); background: var(--surface-2); }
+/* 比例卡按可用宽度排布：5 列时单卡只有 ~58px 文字宽，"16:9 · 超清" 会在中文词内断行。
+ * 76px 是最长标签的实测下限，列数由面板宽度决定，面板变窄时自动减列而不是压扁标签。 */
+.generation-settings-options.ratios { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); }
+.generation-settings-options.ratios button { min-height: 56px; padding: 5px 3px; flex-direction: column; }
+.generation-settings-ratio { width: 22px; height: 18px; display: grid; place-items: center; }
+.generation-settings-ratio > span { border: 1.5px solid var(--muted); border-radius: var(--radius-sm); display: block; }
+.work-camera-btn { height: var(--control-height-compact); border: 1px solid transparent; border-radius: var(--radius-md); padding: 0 8px; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; color: var(--type-primary); background: transparent; font-size: var(--text-body-12); line-height: var(--text-body-12--line-height); font-weight: 400; }
+.work-camera-btn:hover { background: var(--popup-item-hover); }
+.work-camera-btn svg { width: var(--action-icon-size); height: var(--action-icon-size); }
+.work-camera-btn.active { color: var(--text); background: var(--popup-item-active); }
+.work-composer > .camera-control-panel { position: absolute; z-index: 24; top: calc(100% + 8px); left: 50%; transform: translateX(-50%); }
+
+.camera-control-panel { width: 520px; padding: 16px; border: 1px solid var(--elevated-border); border-radius: var(--radius-xl); color: var(--type-primary); background: var(--elevated-surface); box-shadow: var(--canvas-shadow-menu); user-select: none; }
+.camera-control-head, .camera-control-head > div, .camera-control-panel footer { display: flex; align-items: center; }
+.camera-control-head { justify-content: space-between; margin-bottom: 12px; }
+.camera-control-head > div { gap: 8px; }
+.camera-control-head strong { font-size: var(--text-body-13); line-height: var(--text-body-13--line-height); font-weight: 600; }
+.camera-control-head span { color: var(--faint); font-size: var(--text-caption-11); line-height: var(--text-caption-11--line-height); font-weight: 500; }
+.camera-control-head button { width: 28px; height: 28px; border: 0; border-radius: 50%; display: grid; place-items: center; color: var(--brand-accent-foreground); background: var(--brand); }
+.camera-control-head button:hover { background: var(--brand-hover); }
+.camera-control-head svg { width: var(--action-icon-size); height: var(--action-icon-size); }
+.camera-wheel-grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 8px; }
+.camera-wheel { min-width: 0; outline: none; }
+.camera-wheel:focus-visible .camera-wheel-window { box-shadow: inset 0 0 0 1px var(--ring); }
+.camera-wheel-label { display: block; margin-bottom: 6px; color: var(--muted); text-align: center; font-size: var(--text-caption-11); line-height: var(--text-caption-11--line-height); font-weight: 500; }
+.camera-wheel-window { position: relative; height: 112px; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius-md); background: linear-gradient(to bottom, var(--elevated-surface), transparent 35%, transparent 65%, var(--elevated-surface)), var(--surface-2); cursor: ns-resize; }
+.camera-wheel-window::after { position: absolute; top: 38px; right: 5px; bottom: 38px; left: 5px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: var(--elevated-surface); content: ""; pointer-events: none; }
+.camera-wheel button { position: absolute; z-index: 1; left: 4px; width: calc(100% - 8px); height: 36px; overflow: hidden; border: 0; padding: 0 5px; color: var(--faint); background: transparent; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-caption-11); line-height: var(--text-caption-11--line-height); font-weight: 400; transition: transform var(--duration-base) var(--ease-std), color var(--duration-base) var(--ease-std), opacity var(--duration-base) var(--ease-std); }
+.camera-wheel button.offset--1 { top: 1px; transform: scale(.92); opacity: .52; }
+.camera-wheel button.offset-0 { top: 38px; }
+.camera-wheel button.offset-1 { top: 75px; transform: scale(.92); opacity: .52; }
+.camera-wheel button.active { color: var(--text); font-size: var(--text-body-12); line-height: var(--text-body-12--line-height); font-weight: 500; }
+.camera-control-panel footer { justify-content: space-between; margin-top: 8px; }
+.camera-apply-toggle { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.camera-apply-toggle input { width: 12px; height: 12px; margin: 0; accent-color: var(--text); }
+.camera-control-panel footer span { color: var(--faint); font-size: var(--text-caption-10); line-height: var(--text-caption-10--line-height); font-weight: 400; }
+.camera-control-panel footer button { border: 0; border-radius: var(--radius-sm); padding: 4px 8px; color: var(--muted); background: transparent; font-size: var(--text-caption-11); line-height: var(--text-caption-11--line-height); font-weight: 500; }
+.camera-control-panel footer button:hover { color: var(--text); background: var(--popup-item-hover); }
+
+.utility-node-wrapper { width: 100%; height: 100%; }
+.utility-node { position: relative; width: 100%; height: 100%; box-sizing: border-box; min-height: 120px; border: var(--canvas-hairline) dashed var(--line-strong); border-radius: var(--canvas-node-inner-radius); padding: 10px; display: grid; gap: 8px; background: var(--surface); box-shadow: var(--shadow-card); }
+.utility-node.selected { border-color: var(--canvas-node-border-selected); box-shadow: 0 0 0 1px var(--canvas-selection-bg); }
+.utility-head { display: flex; align-items: center; gap: 6px; color: var(--type-primary); }
+.utility-head svg { width: var(--canvas-node-icon-size); height: var(--canvas-node-icon-size); flex: 0 0 auto; }
+.utility-head input { min-width: 0; flex: 1; border: 0; outline: none; background: transparent; font-size: var(--canvas-node-title-size); font-weight: 600; color: var(--type-primary); }
+.utility-delete { width: var(--canvas-node-action-size); height: var(--canvas-node-action-size); border: 0; border-radius: var(--radius-sm); padding: 0; display: grid; place-items: center; background: transparent; color: var(--bad); }
+.utility-body { min-height: 0; overflow: auto; color: var(--muted); font-size: var(--canvas-node-body-size); line-height: 1.45; word-break: break-word; }
+
+.resource-preview { min-width: 0; display: grid; gap: 8px; }
+.resource-media { width: 100%; aspect-ratio: 4 / 3; min-height: 0; border: var(--canvas-hairline) solid var(--line); border-radius: var(--radius-sm); display: grid; place-items: center; overflow: hidden; background: radial-gradient(circle at 50% 50%, var(--wash-hover), transparent 58%), var(--surface-muted); }
+.resource-media img,
+.resource-media video { width: 100%; height: 100%; display: block; object-fit: contain; }
+.resource-media audio { width: calc(100% - 16px); }
+.resource-media pre { width: 100%; height: 100%; margin: 0; padding: 8px; overflow: hidden; color: var(--type-primary); font-family: inherit; font-size: var(--text-body-12); line-height: var(--text-body-12--line-height); white-space: pre-wrap; word-break: break-word; }
+.resource-placeholder { width: var(--canvas-node-state-icon-size); height: var(--canvas-node-state-icon-size); display: grid; place-items: center; color: var(--faint); }
+.resource-placeholder svg { width: var(--canvas-node-icon-size); height: var(--canvas-node-icon-size); }
+.resource-meta { min-width: 0; display: grid; gap: 2px; }
+.resource-meta span { overflow: hidden; color: var(--type-primary); font-size: var(--canvas-node-body-size); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.resource-meta em { color: var(--faint); font-size: var(--canvas-node-meta-size); font-style: normal; }
+.resource-actions { display: flex; gap: 4px; }
+.resource-actions button { width: var(--canvas-node-action-size); height: var(--canvas-node-action-size); border: var(--canvas-hairline) solid var(--line); border-radius: var(--radius-sm); padding: 0; display: grid; place-items: center; color: var(--muted); background: var(--surface); }
+.resource-actions svg { width: var(--canvas-node-icon-size); height: var(--canvas-node-icon-size); }
+
+.forge-workspace-divider { position: absolute; top: 0; bottom: 0; z-index: var(--layer-canvas-control); width: 9px; transform: translateX(50%); cursor: col-resize; touch-action: none; }
+.forge-workspace-divider::after { content: ""; position: absolute; top: 50%; left: 50%; width: 2px; height: 32px; border-radius: 999px; background: var(--grip-active); opacity: 0; transform: translate(-50%, -50%); transition: opacity var(--duration-fast) var(--ease-std); }
+.forge-workspace-divider:hover::after,
+.forge-workspace-divider:focus-visible::after { opacity: 1; }
+.forge-workspace-divider:focus-visible { outline: none; }
+
+.settings-native-select {
+  width: min(360px, 100%);
+  height: var(--control-height);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 0 10px;
+  color: var(--type-primary);
+  background: var(--surface);
+  font-size: var(--text-body-13);
+  line-height: var(--text-body-13--line-height);
+}
+.settings-native-select:focus { outline: none; border-color: var(--text); }
+.settings-native-select:disabled { color: var(--fg-disabled); background: var(--surface-2); }
+
+@media (max-width: 1100px) {
+  .forge-lite-main { grid-template-columns: minmax(0, 1fr) 340px; }
+}
+
+/* 水印编辑器：预览画布精确覆盖节点图片，面板挂在画布浮层根节点上，避免被媒体卡裁切。 */
+.canvas-image-watermark-preview {
+  position: absolute;
+  z-index: var(--layer-canvas-popover);
+  pointer-events: none;
+  overflow: hidden;
+}
+.canvas-image-watermark-panel {
+  position: absolute;
+  z-index: var(--layer-canvas-composer);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border: 1px solid var(--elevated-border);
+  border-radius: var(--radius);
+  color: var(--type-primary);
+  background: var(--elevated-surface);
+  box-shadow: var(--canvas-shadow-dropdown);
+  pointer-events: auto;
+}
+.canvas-image-watermark-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  height: 40px;
+  padding: 0 8px 0 12px;
+  border-bottom: 1px solid var(--line);
+}
+.canvas-image-watermark-head strong {
+  font-size: var(--text-body-13);
+  line-height: var(--text-body-13--line-height);
+  font-weight: 600;
+}
+.canvas-image-watermark-head button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-height-compact);
+  height: var(--control-height-compact);
+  margin-left: auto;
+  border: 0;
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+  background: transparent;
+  cursor: pointer;
+}
+.canvas-image-watermark-head button:hover { color: var(--type-primary); background: var(--wash-hover); }
+.canvas-image-watermark-head button:disabled { opacity: .5; cursor: default; }
+.canvas-image-watermark-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1;
+  min-height: 0;
+  padding: 12px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.canvas-image-watermark-field { display: flex; flex-direction: column; gap: 6px; }
+.canvas-image-watermark-field-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: var(--text-caption-11);
+  line-height: var(--text-caption-11--line-height);
+  color: var(--muted);
+}
+.canvas-image-watermark-value { color: var(--type-primary); font-variant-numeric: tabular-nums; }
+.canvas-image-watermark-field textarea,
+.canvas-image-watermark-row select {
+  min-height: var(--control-height);
+  padding: 6px 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  color: var(--type-primary);
+  background: transparent;
+  font-size: var(--text-body-12);
+  line-height: var(--text-body-12--line-height);
+  font-family: inherit;
+}
+.canvas-image-watermark-field textarea { resize: none; }
+.canvas-image-watermark-field textarea:focus-visible,
+.canvas-image-watermark-row select:focus-visible { outline: none; border-color: var(--line-strong); background: var(--wash-hover); }
+.canvas-image-watermark-row { display: flex; align-items: center; gap: 8px; }
+.canvas-image-watermark-row > * { min-width: 0; }
+.canvas-image-watermark-row select { flex: 1; }
+.canvas-image-watermark-row .canvas-image-watermark-field { flex: 1; }
+.canvas-image-watermark-color {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-caption-11);
+  line-height: var(--text-caption-11--line-height);
+  color: var(--muted);
+}
+.canvas-image-watermark-color input[type="color"] {
+  width: var(--control-height);
+  height: var(--control-height);
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  cursor: pointer;
+}
+.canvas-image-watermark-field input[type="range"] {
+  width: 100%;
+  height: var(--control-height-compact);
+  margin: 0;
+  accent-color: var(--text);
+  cursor: pointer;
+}
+.canvas-image-watermark-segments { display: flex; gap: 2px; padding: 2px; border-radius: var(--radius-sm); background: var(--wash-inset); }
+.canvas-image-watermark-segments button {
+  flex: 1;
+  height: var(--control-height-compact);
+  border: 0;
+  border-radius: calc(var(--radius-sm) - 1px);
+  color: var(--muted);
+  background: transparent;
+  font-size: var(--text-body-12);
+  line-height: var(--text-body-12--line-height);
+  cursor: pointer;
+}
+.canvas-image-watermark-segments button[aria-pressed="true"] { color: var(--type-primary); background: var(--elevated-surface); }
+.canvas-image-watermark-positions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; }
+.canvas-image-watermark-positions button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--control-height-compact);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  cursor: pointer;
+}
+.canvas-image-watermark-positions button:hover { background: var(--wash-hover); }
+.canvas-image-watermark-positions button[aria-pressed="true"] { border-color: transparent; background: var(--brand); }
+.canvas-image-watermark-positions button span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+.canvas-image-watermark-positions button[aria-pressed="true"] span { background: var(--brand-accent-foreground); }
+.canvas-image-watermark-error {
+  margin: 0;
+  color: var(--bad);
+  font-size: var(--text-caption-11);
+  line-height: var(--text-caption-11--line-height);
+}
+.canvas-image-watermark-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex: none;
+  padding: 10px 12px;
+  border-top: 1px solid var(--line);
+}
+
+
+.clip-studio-node {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  border: 1px solid var(--line-solid);
+  border-radius: var(--canvas-node-radius);
+  background: var(--surface);
+}
+.clip-studio-placeholder {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  color: var(--muted);
+  font-size: var(--text-body-12);
+}
+
+/* 初始化遮罩以整个工作区居中，避免 Agent 面板挂载时加载提示向左跳。 */
+.canvas-startup {
+  position: absolute;
+  inset: 0;
+  z-index: 14;
+  display: grid;
+  place-items: center;
+  pointer-events: auto;
+  background-color: var(--canvas-bg);
+  background-image: radial-gradient(circle, var(--canvas-bg-dot) .65px, transparent .75px);
+  background-size: 20px 20px;
+}
+/* 紫色点阵从徽章向外扩散成环（参考项目 .workspace-loading-dot-layer-wave）。
+ * 波纹必须和遮罩底纹共用 20px 网格与 0 0 起点，扩散时才像"同一批点亮起来"；
+ * 另起一张 18px 网格会在既有点阵上叠出错位重影。 */
+.canvas-startup-wave {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: radial-gradient(circle, var(--canvas-loading-dot-bright) 0 1.25px, transparent 1.8px);
+  background-size: 20px 20px;
+  opacity: 0;
+  -webkit-mask-image: radial-gradient(circle, transparent 54%, black 60%, transparent 66%);
+  mask-image: radial-gradient(circle, transparent 54%, black 60%, transparent 66%);
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: 130px 130px;
+  mask-size: 130px 130px;
+  animation: 3.6s ease-out infinite canvas-startup-dot-wave;
+}
+/* 130→922px 等于参考项目在 720px 场里从 18% 扩到 128%，只是把百分比换算成了绝对值。 */
+@keyframes canvas-startup-dot-wave {
+  0% { opacity: 0; -webkit-mask-size: 130px 130px; mask-size: 130px 130px; }
+  20% { opacity: .56; }
+  64% { opacity: .16; }
+  100% { opacity: 0; -webkit-mask-size: 922px 922px; mask-size: 922px 922px; }
+}
+.canvas-startup-badge {
+  display: grid;
+  justify-items: center;
+  gap: 16px;
+  color: var(--muted);
+  font-size: var(--text-body-12);
+  line-height: var(--text-body-12--line-height);
+}
+/* 56px 外壳比 48px 圆框多出的 8px 内边距，正好留给下方那枚接触阴影；
+ * 阴影周期 4.4s 与身体呼吸的 3.1s 错开，悬浮感才不会和呼吸同拍变成"整体抽动"。 */
+.canvas-startup-loader {
+  width: var(--canvas-loader-shell-size);
+  height: var(--canvas-loader-shell-size);
+  display: grid;
+  place-items: center;
+  padding-bottom: 8px;
+  position: relative;
+  overflow: visible;
+}
+.canvas-startup-loader::after {
+  content: "";
+  position: absolute;
+  bottom: -2px;
+  left: 4px;
+  right: 4px;
+  height: 8px;
+  background: radial-gradient(circle at center, var(--canvas-loader-shadow), transparent 72%);
+  border-radius: 999px;
+  opacity: .34;
+  filter: blur(3px);
+  transform-origin: center;
+  animation: 4.4s ease-in-out infinite canvas-startup-shadow-drift;
+}
+.canvas-startup-orb {
+  width: var(--canvas-loader-size);
+  height: var(--canvas-loader-size);
+  border-radius: 999px;
+  position: relative;
+  overflow: hidden;
+  background: var(--canvas-loader-orb);
+}
+/* 四层图来自 app icon 的同一张 1024 解包图，共享裁切坐标，所以叠在一起就是原构图，
+ * 不需要给任何一层单独写偏移。 */
+.canvas-startup-orb img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+/* 呼吸以脚为轴放大到 1.03，参考项目 body-float 的节拍与幅度。 */
+.canvas-startup-body {
+  transform-origin: 50% 88%;
+  animation: 3.1s ease-in-out infinite canvas-startup-breathe;
+}
+.canvas-startup-spark {
+  opacity: .3;
+  transform-origin: 30% 70%;
+  animation: 1.32s ease-in-out infinite canvas-startup-spark-pulse;
+}
+/* 三颗火花依次点亮，替代参考项目的 7 个白色图标轮换：角色脸上已经有一双眼睛，
+ * 再往同一块区域叠白色符号会互相打架，但"在干活"的 1.32s 节拍要留住。 */
+.canvas-startup-spark:nth-child(3) { animation-delay: .12s; }
+.canvas-startup-spark:nth-child(4) { animation-delay: .24s; }
+@keyframes canvas-startup-breathe {
+  0%, 100% { transform: scale(1); }
+  26% { transform: scale(1.014); }
+  52% { transform: scale(1.03); }
+  76% { transform: scale(1.018); }
+}
+@keyframes canvas-startup-shadow-drift {
+  0%, 100% { opacity: .34; transform: scaleX(1) scaleY(1); }
+  52% { opacity: .22; transform: scaleX(.87) scaleY(.92); }
+}
+@keyframes canvas-startup-spark-pulse {
+  0%, 100% { opacity: .3; transform: scale(.9); }
+  18% { opacity: 1; transform: scale(1.1); }
+  42% { opacity: .55; transform: scale(.98); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .canvas-startup-wave,
+  .canvas-startup-loader::after,
+  .canvas-startup-body,
+  .canvas-startup-spark { animation: none !important; }
+  /* 关停循环后火花会退回 .3 的静止态，在 48px 上几乎看不见；静态展示时直接点亮。 */
+  .canvas-startup-spark { opacity: 1; }
+}

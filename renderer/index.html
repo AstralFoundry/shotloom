@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: asset: http://asset.localhost file: http://127.0.0.1:*; media-src 'self' data: blob: asset: http://asset.localhost file: http://127.0.0.1:*; connect-src 'self' ipc://localhost http://ipc.localhost https://ipc.localhost tauri://localhost asset: http://asset.localhost blob: data: http://localhost:3080 https://mediashares.openreel.video; font-src 'self' data:; worker-src 'self' blob:; frame-src 'self' http://127.0.0.1:*; object-src 'none'; base-uri 'self';"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Shotloom</title>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

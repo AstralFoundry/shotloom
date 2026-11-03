@@ -1,0 +1,3 @@
+# prepare:harness 生成的官方 Agent Host 闭包：Node 二进制、node_modules 与 client-dist。
+# 打包时仍按 tauri.conf.json 的 resources 进安装包，但不该被 dev watcher 当成源码改动。
+resources/agent-host/

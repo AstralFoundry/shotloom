@@ -1,0 +1,81 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Shotloom",
+  "version": "0.1.6",
+  "identifier": "com.shotloom.app",
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/AstralFoundry/shotloom/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDdCQTE4NUY3QkM1QUM5OUQKUldTZHlWcTg5NFdoZTF1OXhhR2N5enQ0blQ0N3RUSXowOXhpb1hLSXdHN0hpVmpjRlRtN0tUYSsK"
+    }
+  },
+  "build": {
+    "beforeDevCommand": "npm run dev:web",
+    "devUrl": "http://127.0.0.1:5173",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist/renderer"
+  },
+  "app": {
+    "security": {
+      "csp": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: asset: http://asset.localhost file: http://127.0.0.1:*; media-src 'self' data: blob: asset: http://asset.localhost file: http://127.0.0.1:*; connect-src 'self' ipc://localhost http://ipc.localhost https://ipc.localhost tauri://localhost asset: http://asset.localhost blob: data: http://localhost:3080 https://mediashares.openreel.video; font-src 'self' data:; worker-src 'self' blob:; frame-src 'self' http://127.0.0.1:*; object-src 'none'; base-uri 'self';",
+      "assetProtocol": {
+        "enable": true,
+        "scope": [
+          "$APPDATA/**",
+          "$HOME/**"
+        ]
+      }
+    },
+    "windows": [
+      {
+        "label": "main",
+        "title": "Shotloom",
+        "width": 1440,
+        "height": 900,
+        "minWidth": 1080,
+        "minHeight": 720,
+        "decorations": true,
+        "titleBarStyle": "Overlay",
+        "trafficLightPosition": {
+          "x": 14,
+          "y": 21
+        },
+        "hiddenTitle": true,
+        "resizable": true
+      }
+    ]
+  },
+  "bundle": {
+    "active": true,
+    "externalBin": [
+      "binaries/ffmpeg"
+    ],
+    "resources": [
+      "resources/FFmpeg-GPL-3.0.txt",
+      "resources/FFmpeg-SOURCE.txt",
+      "zh-Hans.lproj/InfoPlist.strings",
+      "resources/agent-host/"
+    ],
+    "targets": "all",
+    "createUpdaterArtifacts": true,
+    "icon": [
+      "icons/app.png",
+      "icons/app.icns",
+      "icons/app.ico"
+    ],
+    "macOS": {
+      "minimumSystemVersion": "13.0"
+    },
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "languages": [
+          "English",
+          "SimpChinese"
+        ]
+      }
+    }
+  }
+}

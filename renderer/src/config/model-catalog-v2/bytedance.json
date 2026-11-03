@@ -1,0 +1,484 @@
+{
+  "provider": "bytedance",
+  "models": [
+    {
+      "id": "doubao-seedance-2-5-260628",
+      "name": "Doubao Seedance 2.5",
+      "provider": "bytedance",
+      "type": "videoGeneration",
+      "sortOrder": 1,
+      "enabled": true,
+      "defaultMode": "text-to-video",
+      "modes": [
+        {
+          "id": "text-to-video",
+          "label": "文生视频",
+          "endpoint": {
+            "method": "POST",
+            "path": "/contents/generations/tasks",
+            "scope": "root"
+          },
+          "taskEndpoint": {
+            "method": "GET",
+            "path": "/contents/generations/tasks/{taskId}",
+            "scope": "root"
+          },
+          "isAsync": true,
+          "inputConstraints": {
+            "images": {
+              "min": 0,
+              "max": 0
+            }
+          },
+          "outputConstraints": {
+            "durations": [
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15,
+              16,
+              17,
+              18,
+              19,
+              20,
+              21,
+              22,
+              23,
+              24,
+              25,
+              26,
+              27,
+              28,
+              29,
+              30
+            ],
+            "defaultDuration": 5,
+            "formats": [
+              "mp4",
+              "mov"
+            ]
+          },
+          "params": [
+            {
+              "key": "prompt",
+              "label": "提示词",
+              "type": "text",
+              "required": true,
+              "labelKey": "catalog.label.2f0bb12387"
+            },
+            {
+              "key": "duration",
+              "label": "时长",
+              "type": "select",
+              "default": 5,
+              "numeric": true,
+              "options": [
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14,
+                15,
+                16,
+                17,
+                18,
+                19,
+                20,
+                21,
+                22,
+                23,
+                24,
+                25,
+                26,
+                27,
+                28,
+                29,
+                30
+              ],
+              "labelKey": "catalog.label.29d0552d2e"
+            },
+            {
+              "key": "ratio",
+              "label": "比例",
+              "type": "select",
+              "default": "adaptive",
+              "options": [
+                "adaptive",
+                "16:9",
+                "4:3",
+                "1:1",
+                "3:4",
+                "9:16",
+                "21:9"
+              ],
+              "labelKey": "catalog.label.c27f341ce5"
+            },
+            {
+              "key": "resolution",
+              "label": "分辨率",
+              "type": "select",
+              "default": "720p",
+              "options": [
+                "480p",
+                "720p",
+                "1080p"
+              ],
+              "labelKey": "catalog.label.cde9b52b23"
+            },
+            {
+              "key": "generateAudio",
+              "label": "生成同步声音",
+              "type": "boolean",
+              "default": true,
+              "labelKey": "catalog.label.058dddf225"
+            },
+            {
+              "key": "watermark",
+              "label": "AI 水印",
+              "type": "boolean",
+              "default": false,
+              "labelKey": "catalog.label.f6bbf9b630"
+            }
+          ],
+          "auth": {
+            "type": "bearer"
+          },
+          "requestTemplate": {
+            "model": "{{model}}",
+            "content": "{{content}}",
+            "duration": "{{params.duration}}",
+            "ratio": "{{params.ratio}}",
+            "resolution": "{{params.resolution}}",
+            "generate_audio": "{{params.generateAudio}}",
+            "watermark": "{{params.watermark}}"
+          },
+          "contentTemplate": {
+            "text": {
+              "type": "text",
+              "text": "{{text}}"
+            },
+            "image": {
+              "type": "image_url",
+              "image_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            },
+            "video": {
+              "type": "video_url",
+              "video_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            },
+            "audio": {
+              "type": "audio_url",
+              "audio_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            }
+          },
+          "taskIdPath": "id",
+          "statusPath": "status",
+          "errorPath": "error.message",
+          "pollStatusMap": {
+            "queued": "running",
+            "running": "running",
+            "succeeded": "completed",
+            "failed": "failed",
+            "expired": "failed"
+          },
+          "resultUrlPath": "content.video_url",
+          "labelKey": "catalog.label.dd6f194c41"
+        },
+        {
+          "id": "omni-reference-to-video",
+          "label": "全模态参考生视频",
+          "inputMode": "reference",
+          "inputSlots": [
+            "reference",
+            "inputVideo",
+            "referenceAudio"
+          ],
+          "inputVariants": [
+            {
+              "inputMode": "firstLastFrame",
+              "label": "首尾帧",
+              "inputSlots": [
+                "firstFrame",
+                "lastFrame"
+              ],
+              "inputConstraints": {
+                "images": {
+                  "min": 1,
+                  "max": 2,
+                  "roles": [
+                    "referenceImage"
+                  ]
+                }
+              },
+              "requestFields": {
+                "firstFrameImageContentRole": "first_frame",
+                "lastFrameImageContentRole": "last_frame"
+              },
+              "labelKey": "catalog.label.d5b5b1fde9"
+            }
+          ],
+          "endpoint": {
+            "method": "POST",
+            "path": "/contents/generations/tasks",
+            "scope": "root"
+          },
+          "taskEndpoint": {
+            "method": "GET",
+            "path": "/contents/generations/tasks/{taskId}",
+            "scope": "root"
+          },
+          "isAsync": true,
+          "inputConstraints": {
+            "images": {
+              "min": 0,
+              "max": 30,
+              "roles": [
+                "referenceImage"
+              ],
+              "formats": [
+                "jpg",
+                "jpeg",
+                "png",
+                "webp",
+                "bmp",
+                "tiff",
+                "gif",
+                "heic",
+                "heif"
+              ]
+            },
+            "videos": {
+              "min": 0,
+              "max": 10,
+              "roles": [
+                "inputVideo"
+              ],
+              "formats": [
+                "mp4",
+                "mov"
+              ],
+              "maxBytes": 209715200
+            },
+            "audios": {
+              "min": 0,
+              "max": 10,
+              "roles": [
+                "referenceAudio"
+              ],
+              "formats": [
+                "wav",
+                "mp3"
+              ],
+              "minDuration": 2,
+              "maxDuration": 30,
+              "maxTotalDuration": 30,
+              "maxBytes": 15728640
+            }
+          },
+          "outputConstraints": {
+            "durations": [
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15,
+              16,
+              17,
+              18,
+              19,
+              20,
+              21,
+              22,
+              23,
+              24,
+              25,
+              26,
+              27,
+              28,
+              29,
+              30
+            ],
+            "defaultDuration": 5,
+            "formats": [
+              "mp4",
+              "mov"
+            ]
+          },
+          "requestFields": {
+            "imageContentRole": "reference_image",
+            "videoContentRole": "reference_video",
+            "audioContentRole": "reference_audio"
+          },
+          "params": [
+            {
+              "key": "prompt",
+              "label": "提示词",
+              "type": "text",
+              "required": false,
+              "labelKey": "catalog.label.2f0bb12387"
+            },
+            {
+              "key": "duration",
+              "label": "时长",
+              "type": "select",
+              "default": 5,
+              "numeric": true,
+              "options": [
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14,
+                15,
+                16,
+                17,
+                18,
+                19,
+                20,
+                21,
+                22,
+                23,
+                24,
+                25,
+                26,
+                27,
+                28,
+                29,
+                30
+              ],
+              "labelKey": "catalog.label.29d0552d2e"
+            },
+            {
+              "key": "ratio",
+              "label": "比例",
+              "type": "select",
+              "default": "adaptive",
+              "options": [
+                "adaptive",
+                "16:9",
+                "4:3",
+                "1:1",
+                "3:4",
+                "9:16",
+                "21:9"
+              ],
+              "labelKey": "catalog.label.c27f341ce5"
+            },
+            {
+              "key": "resolution",
+              "label": "分辨率",
+              "type": "select",
+              "default": "720p",
+              "options": [
+                "480p",
+                "720p",
+                "1080p"
+              ],
+              "labelKey": "catalog.label.cde9b52b23"
+            },
+            {
+              "key": "generateAudio",
+              "label": "生成同步声音",
+              "type": "boolean",
+              "default": true,
+              "labelKey": "catalog.label.058dddf225"
+            },
+            {
+              "key": "watermark",
+              "label": "AI 水印",
+              "type": "boolean",
+              "default": false,
+              "labelKey": "catalog.label.f6bbf9b630"
+            }
+          ],
+          "auth": {
+            "type": "bearer"
+          },
+          "requestTemplate": {
+            "model": "{{model}}",
+            "content": "{{content}}",
+            "duration": "{{params.duration}}",
+            "ratio": "{{params.ratio}}",
+            "resolution": "{{params.resolution}}",
+            "generate_audio": "{{params.generateAudio}}",
+            "watermark": "{{params.watermark}}"
+          },
+          "contentTemplate": {
+            "text": {
+              "type": "text",
+              "text": "{{text}}"
+            },
+            "image": {
+              "type": "image_url",
+              "image_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            },
+            "video": {
+              "type": "video_url",
+              "video_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            },
+            "audio": {
+              "type": "audio_url",
+              "audio_url": {
+                "url": "{{url}}"
+              },
+              "role": "{{role}}"
+            }
+          },
+          "taskIdPath": "id",
+          "statusPath": "status",
+          "errorPath": "error.message",
+          "pollStatusMap": {
+            "queued": "running",
+            "running": "running",
+            "succeeded": "completed",
+            "failed": "failed",
+            "expired": "failed"
+          },
+          "resultUrlPath": "content.video_url",
+          "labelKey": "catalog.label.d108de51ea"
+        }
+      ]
+    }
+  ]
+}

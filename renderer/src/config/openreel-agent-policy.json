@@ -1,0 +1,15 @@
+{
+  "excludedTools": {
+    "probe_rigging_backend": "Shotloom does not provide a Blender backend.",
+    "rig_humanoid_model": "Shotloom does not provide a Blender backend."
+  },
+  "desktopProjectTools": [
+    "import_media_from_url",
+    "export_video",
+    "export_audio",
+    "export_motion_video",
+    "queue_motion_render",
+    "run_motion_render_queue",
+    "export_creation_scene_gltf"
+  ]
+}

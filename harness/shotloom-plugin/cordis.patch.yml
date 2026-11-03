@@ -1,0 +1,10 @@
+- insert:
+    - id: shotloom-plugin
+      name: ./index.mjs
+
+# Harness owns skill discovery/loading. Point its filesystem provider at the
+# product's existing skill bundles without mirroring them into a renderer store.
+- id: skill-filesystem
+  config:
+    customSkillDirs:
+      - !!js process.env.SHOTLOOM_SKILL_DIR

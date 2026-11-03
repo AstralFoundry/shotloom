@@ -1,0 +1,369 @@
+/* Design tokens mirror the MiniMax Design 4.0 reference system:
+   semantic palette with .dark mirrors, paired font-size/line-height scale,
+   radius derived from a single --radius, purpose-based shadows and overlays. */
+:root {
+  color-scheme: light;
+
+  --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC",
+    "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  /* 正文编辑器与富文本工具条的衬线字体：Latin 用 Georgia，中文自动落到宋体。 */
+  --font-serif: Georgia, "Songti SC", "Noto Serif CJK SC", "Times New Roman", serif;
+
+  /* Surfaces */
+  --bg: #fafafa;
+  --surface: #ffffff;
+  --surface-2: #f5f5f5;
+  --surface-muted: #fafafa;
+  --elevated-surface: #ffffff;
+  --elevated-border: rgba(0, 0, 0, .08);
+  --window-shell: #f1f1f3;
+  --workbench-radius: var(--radius-xl);
+
+  /* Text — 四级墨色，一个名字对应一个角色：
+   * --text 是参考实测的主文字 #000（标题、强控件、满墨强调）；
+   * --type-primary 是内容墨（节点标签、工具条静止态这一类需要比纯黑柔和一档的正文）；
+   * --muted 次文字、--faint 三级/说明文字；--fg-disabled 只管禁用态，
+   * 深色主题下它比 --faint 更淡（.3 对 .42），所以不能并进色阶。 */
+  --text: #000000;
+  --muted: rgba(0, 0, 0, .5);
+  --faint: rgba(0, 0, 0, .32);
+  --fg-disabled: rgba(0, 0, 0, .35);
+  --type-primary: rgba(0, 0, 0, .82);
+
+  /* Lines */
+  --line: rgba(0, 0, 0, .08);
+  --line-soft: rgba(0, 0, 0, .05);
+  --line-strong: rgba(0, 0, 0, .12);
+  --line-solid: #e6e6e6;
+
+  /* Neutral washes — 界面灰底只允许这三档，按角色命名：
+   * hover 是鼠标落点，pressed 是按下/当前项，inset 是轨道、占位块这类凹下去的底。
+   * 组件里再写 rgba(0,0,0,.0x) 就是在私造第四、第五档。 */
+  --wash-hover: rgba(0, 0, 0, .045);
+  --wash-pressed: rgba(0, 0, 0, .055);
+  --wash-inset: rgba(0, 0, 0, .08);
+  /* Scrims 压在界面内容之上（不是素材之上），遮罩只分两档：轻遮罩留给可就地取消的弹层，
+   * modal 给真正打断操作的对话框。grip 是可拖拽细条的静止/强调两档，与滚动条拇指同族。 */
+  --scrim-soft: rgba(0, 0, 0, .16);
+  --scrim-modal: rgba(0, 0, 0, .38);
+  --grip: rgba(0, 0, 0, .15);
+  --grip-active: rgba(0, 0, 0, .24);
+
+  /* Floating surfaces — 半透明白底浮在内容之上，只允许这四档（越靠下越不透明）。
+   * 深色主题镜像成不透明深底：rgba(255,255,255,.94) 压在暗画布上不是"浮起"，而是一块脏白。 */
+  --float-surface-wash: rgba(255, 255, 255, .72);
+  --float-surface-soft: rgba(255, 255, 255, .86);
+  --float-surface: rgba(255, 255, 255, .94);
+  --float-surface-solid: rgba(255, 255, 255, .98);
+
+  /* Brand: black for primary actions, one accent for clickable/active */
+  --brand: #000000;
+  --brand-hover: rgba(0, 0, 0, .82);
+  --brand-soft: #f5f5f5;
+  --brand-accent: #6d6cff;
+  --brand-accent-foreground: #ffffff;
+  --brand-accent-wash: rgba(109, 108, 255, .08);
+  /* wash 是当前项底，tint 是给占位图这类大面积弱着色，border 是选中态描边。 */
+  --brand-accent-tint: rgba(109, 108, 255, .12);
+  --brand-accent-border: rgba(109, 108, 255, .22);
+  /* 音频波形的填充：canvas 里要用，所以它是一个可读的颜色值而不是 composite。 */
+  /* 压在画面素材上的波形带：属于素材而不是界面，暗色主题不镜像（同 --overlay-*）。 */
+  --accent: #202020;
+
+  /* Status: the only hues allowed outside the accent, and only for real
+     states (configured / incomplete / error). Low chroma so they stay quiet
+     next to black-and-white chrome; each has a wash for its tag background. */
+  --good: #1c7c5c;
+  --good-wash: rgba(28, 124, 92, .09);
+  --warn: #a3651f;
+  --warn-wash: rgba(163, 101, 31, .1);
+  --bad: #c8443c;
+  --bad-wash: rgba(200, 68, 60, .08);
+
+  /* Paired type scale (reference --text-* tokens) */
+  --text-caption-10: 10px;
+  --text-caption-10--line-height: 14px;
+  --text-caption-11: 11px;
+  --text-caption-11--line-height: 16px;
+  --text-body-12: 12px;
+  --text-body-12--line-height: 18px;
+  --text-body-13: 13px;
+  --text-body-13--line-height: 20px;
+  --text-body-14: 14px;
+  --text-body-14--line-height: 22px;
+  --text-body-15: 15px;
+  --text-body-15--line-height: 23px;
+  --text-title-16: 16px;
+  --text-title-16--line-height: 24px;
+  --text-title-18: 18px;
+  --text-title-18--line-height: 26px;
+  --text-title-20: 20px;
+  --text-title-20--line-height: 28px;
+  --text-display-24: 24px;
+  --text-display-24--line-height: 32px;
+
+  /* Tracking: em 基准，所以同一档在任何字号上视觉密度一致（阶梯取自参考实现）。
+   * normal 是产品作用域的唯一复位值；tight 归 13px 以上的标题与品牌名，
+   * wide 归 caption 级分组标签，widest 只给全大写/拉丁徽标（参考上限 .1em，不再往上铺）。
+   * 阶梯只保留有消费者的档位：-.05em 与 .05em 在本产品没有用例，所以不建。 */
+  --tracking-tight: -.025em;
+  --tracking-normal: 0em;
+  --tracking-wide: .025em;
+  --tracking-widest: .1em;
+
+  /* Radius: everything derives from --radius (reference 12px base) */
+  --radius: 12px;
+  --radius-xs: calc(var(--radius) * .35);
+  --radius-sm: calc(var(--radius) * .6);
+  --radius-md: calc(var(--radius) * .8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.7);
+  --radius-control: calc(var(--radius) * .85);
+
+  /* Controls */
+  --control-height-compact: 28px;
+  --control-height: 32px;
+  --control-height-large: 36px;
+  /* 浮动条里的分隔线一律 .5px（参考值）：1px 的线在白底条上像一道污渍。 */
+  --toolbar-divider-width: .5px;
+
+  /* Icon ladder (reference: 12 / 14 / 16 / 20 / 24 / 32; 16 is the baseline) */
+  --icon-xs: 12px;
+  --icon-sm: 14px;
+  --icon-md: 16px;
+  --icon-lg: 20px;
+  --icon-xl: 24px;
+  --icon-2xl: 32px;
+
+  /* Action list / menus (reference action-list tokens) */
+  --action-item-height: 36px;
+  --action-item-padding: 8px;
+  --action-icon-size: var(--icon-md);
+  --action-icon-gap: 8px;
+
+  /* Canvas chrome */
+  --canvas-bg: #fafafa;
+  --canvas-bg-dot: rgba(0, 0, 0, .12);
+  --canvas-node-radius: 10px;
+  --canvas-node-inner-radius: 8px;
+  --canvas-node-border: var(--line-solid);
+  --canvas-node-border-selected: #141414;
+  --canvas-edge: #c4c4c4;
+  --canvas-edge-hover: #919191;
+  --canvas-edge-selected: #525252;
+  --canvas-edge-flow: #8b72ff;
+  --canvas-edge-width: 1.5px;
+  --canvas-controls-bg: #ffffff;
+  --canvas-controls-hover: rgba(0, 0, 0, .05);
+  --canvas-controls-active: rgba(0, 0, 0, .08);
+  --canvas-selection-bg: rgba(0, 0, 0, .06);
+  --canvas-toolbar-height: 46px;
+  --canvas-toolbar-height-compact: 36px;
+  /* 条内动作高度由条高派生（参考：46 的条配 40 的动作，紧凑 36 配 30），
+   * 上下各留 3px（2 内边 + 1 描边）。写成减法，是为了让缩放条、节点工具条和
+   * 紧凑变体不可能各自再挑一个数字，把浮层撑成两套节奏。 */
+  --canvas-toolbar-action: calc(var(--canvas-toolbar-height) - 6px);
+  --canvas-toolbar-action-compact: calc(var(--canvas-toolbar-height-compact) - 6px);
+  --canvas-toolbar-disabled-opacity: .5;
+  /* 生成节点输入行的缩略图、添加位与发送钮是同一档（参考 file-chip 40×40）；
+   * 与条高派生的 40 动作只是数值相遇，语义不同，所以分名。 */
+  --canvas-slot-size: 40px;
+  /* 预设触发器浮在输入面板右上角，缩略图行按它的真实占位让位。行本身已经在 10px 内边距之内，
+   * 所以留位只需要"触发器宽 + 6 间距"；再加上内边距就会实测成 16px 的空档。
+   * 无条件扣掉一个 160 的魔法数更糟：没有触发器的节点会凭空少掉一整列宽度。 */
+  --canvas-preset-trigger-width: 118px;
+  --canvas-composer-trigger-reserve: calc(var(--canvas-preset-trigger-width) + 6px);
+
+  /* 画布初始化徽章（参考项目 MascotLoadingAnimation）：外壳比圆框高一截，
+   * 多出来的 8px 正好给徽章下方那枚接触阴影。orb 由品牌色与画布底色混合，
+   * 所以深色主题必须在下面重新声明一次——自定义属性在 :root 求值，
+   * 不会因为 .dark 改了 --brand-accent 就自动跟着变。 */
+  --canvas-loader-size: 48px;
+  --canvas-loader-shell-size: 56px;
+  --canvas-loader-orb: color-mix(in srgb, var(--brand-accent) 68%, var(--canvas-bg));
+  --canvas-loader-shadow: color-mix(in srgb, var(--text) 16%, transparent);
+  --canvas-loading-dot-bright: #7b76ff94;
+
+  /* Media overlays (reference neutral scrim alphas) */
+
+  /* Shadows by purpose (reference alpha discipline)
+   * 抬升只有这几档，面板不再自写数字：card 是贴在背景上的静止态，lift 是 hover 抬起，
+   * panel 给画布控件条，dropdown/menu 给浮层，prompt 给输入卡，modal 给遮罩之上的层，
+   * float 给画布内的屏幕空间浮层，cast-* 是停靠面板朝内容投的方向性投影（方向是语义，不是装饰）。 */
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, .05);
+  --shadow-lift: 0 8px 24px rgba(0, 0, 0, .08);
+  --canvas-shadow-panel: 0 2px 5px rgba(0, 0, 0, .08);
+  --canvas-shadow-dropdown: 0 4px 10px rgba(0, 0, 0, .12), 0 2px 4px rgba(0, 0, 0, .06);
+  --canvas-shadow-menu: 0 8px 32px rgba(0, 0, 0, .08), 0 2px 8px rgba(0, 0, 0, .04);
+  --canvas-prompt-shadow: 0 4px 20px rgba(0, 0, 0, .06);
+  --drop-shadow-sm: 0 1px 2px rgba(0, 0, 0, .15);
+  --shadow-float: 0 18px 44px rgba(0, 0, 0, .1);
+  --shadow-cast-right: 16px 0 40px rgba(0, 0, 0, .055);
+  --shadow-cast-up: 0 -14px 36px rgba(0, 0, 0, .035);
+  /* 模态框浮在暗色遮罩之上，需要比面板更深的抬升，否则会和遮罩一起塌成一层。 */
+  --shadow-modal: 0 24px 70px rgba(0, 0, 0, .18), 0 4px 14px rgba(0, 0, 0, .06);
+  --shadow: var(--canvas-shadow-panel);
+  --shadow-lg: var(--canvas-shadow-menu);
+
+  /* Overlays / focus ring / popup states */
+  --overlay-dim: rgba(0, 0, 0, .5);
+  --overlay-media: rgba(0, 0, 0, .85);
+  --overlay-blur: 16px;
+  /* 媒体层（灯箱/浮层）压在图片或视频上，只使用这三档白墨，不借用 UI 前景色。 */
+  --overlay-surface: rgba(0, 0, 0, .8);
+  --overlay-stage: #000;
+  --overlay-line: rgba(255, 255, 255, .14);
+  --overlay-ink: #fff;
+  --overlay-ink-muted: rgba(255, 255, 255, .72);
+  --overlay-ink-hint: rgba(255, 255, 255, .46);
+  /* 白墨控件压在素材上时，靠这一档黑 α 描边/落影把自己从画面里剥出来；深色主题同值，因为它属于素材不属于界面。 */
+  --overlay-hairline: rgba(0, 0, 0, .35);
+  /* 灯箱里浮在图片/视频上的控制条与按钮只用这一档落影（原先是 .2/.22/.2 三种手写变体）。 */
+  --overlay-cast: 0 8px 24px rgba(0, 0, 0, .25);
+  /* 浮层压在素材上时的着色分三族：
+   * shade 是暗化素材本身的重遮罩（裁剪、缩略图上的可读性渐变），
+   * control 是素材上的圆形钮与角标这类静止控件底，hover 加深一档；
+   * fill 是控件条自身的白底三档（静止、高亮、强调），line-strong 给按键下沿。
+   * 它们都不做深色镜像：颜色属于素材层，切换主题时素材还是那张图。 */
+  --overlay-shade: rgba(0, 0, 0, .58);
+  --overlay-shade-mid: rgba(0, 0, 0, .44);
+  --overlay-chip: rgba(78, 83, 90, .86);
+  --overlay-fade: rgba(10, 12, 15, .8);
+  --overlay-fill: rgba(255, 255, 255, .06);
+  --overlay-fill-hover: rgba(255, 255, 255, .14);
+  --overlay-progress: rgba(255, 255, 255, .38);
+  --overlay-hairline-soft: rgba(255, 255, 255, .035);
+  --overlay-line-strong: rgba(255, 255, 255, .25);
+  --ring: rgba(0, 0, 0, .3);
+  --popup-item-hover: rgba(0, 0, 0, .03);
+  --popup-item-active: rgba(0, 0, 0, .06);
+  --button-subtle-bg: #f0f0f0;
+  --button-subtle-hover: #e8e8e8;
+
+  /* Scrollbar three states (reference overlay thumb) */
+  --scrollbar-thumb: rgba(0, 0, 0, .22);
+  --scrollbar-thumb-hover: rgba(0, 0, 0, .35);
+
+  /* Stacking contract: canvas context keeps node < selected < control < composer;
+     app-level floats use the three top tiers only. */
+  --layer-canvas-control: 110;
+  --layer-canvas-popover: 115;
+  --layer-canvas-composer: 120;
+  --layer-overlay: 200;
+  --layer-modal: 400;
+  --layer-workspace: 500;
+  --layer-toast: 600;
+
+  /* Motion
+   * 时长四档、曲线三档，全部只在这里定义：fast 是 hover/变色这种微反馈，base 是进出与淡入，
+   * enter 是面板宽度/位移，slow 是要被看见的尺寸变化。裸写 `ease` 会让同一类动效在不同面板
+   * 一个快一个慢，所以产品 CSS 的 transition/一次性 animation 只引用这些档位（shimmer、marching
+   * ants、spinner 一类无限循环动画的周期和 `linear` 属于动画本身，不在档位内）。
+   * stagger 是编排用的错位延时：容器先动起来、内容随后落位。 */
+  --duration-fast: 125ms;
+  --duration-base: 180ms;
+  --duration-enter: 250ms;
+  --duration-slow: 300ms;
+  --duration-stagger: 45ms;
+  --ease-out: cubic-bezier(.2, .9, .2, 1);
+  --ease-std: cubic-bezier(.4, 0, .2, 1);
+  --ease-sheet: cubic-bezier(.22, 1, .36, 1);
+  --ease-pop: cubic-bezier(.34, 1.56, .64, 1);
+
+  /* Layout */
+  --workspace-sidebar-width: 260px;
+  --workspace-sidebar-rail-width: 64px;
+}
+
+/* Dark mirrors: same names, reference .dark values. Applied when a theme
+   owner sets `.dark` on a root element; components must consume tokens only. */
+.dark {
+  color-scheme: dark;
+
+  --bg: #181818;
+  --surface: #161616;
+  --surface-2: #1a1a1a;
+  --surface-muted: #1a1a1a;
+  --elevated-surface: #1f1f1f;
+  --elevated-border: rgba(255, 255, 255, .1);
+  --window-shell: #141414;
+
+  --text: #e0e0e0;
+  --muted: rgba(255, 255, 255, .6);
+  --faint: rgba(255, 255, 255, .42);
+  --fg-disabled: rgba(255, 255, 255, .3);
+  --type-primary: rgba(255, 255, 255, .88);
+
+  --line: rgba(255, 255, 255, .1);
+  --line-soft: rgba(255, 255, 255, .05);
+  --line-strong: rgba(255, 255, 255, .14);
+  --line-solid: #454545;
+
+  --wash-hover: rgba(255, 255, 255, .06);
+  --wash-pressed: rgba(255, 255, 255, .09);
+  --wash-inset: rgba(255, 255, 255, .12);
+  --scrim-soft: rgba(0, 0, 0, .5);
+  --scrim-modal: rgba(0, 0, 0, .6);
+  --grip: rgba(255, 255, 255, .24);
+  --grip-active: rgba(255, 255, 255, .4);
+
+  /* 深色浮层用不透明深底 + 高 α，保留"浮在内容上"的边界；纯白 α 在暗底上会变灰。 */
+  --float-surface-wash: rgba(31, 31, 31, .86);
+  --float-surface-soft: rgba(31, 31, 31, .94);
+  --float-surface: rgba(31, 31, 31, .97);
+  --float-surface-solid: rgba(31, 31, 31, .99);
+
+  --brand: #fafafa;
+  --brand-hover: #e2e2e2;
+  --brand-soft: #1a1a1a;
+  --brand-accent: #8b8aff;
+  --brand-accent-foreground: #161616;
+  --brand-accent-wash: rgba(139, 138, 255, .14);
+  --brand-accent-tint: rgba(139, 138, 255, .2);
+  --brand-accent-border: rgba(139, 138, 255, .3);
+  --accent: #d0d0d0;
+
+  --good: #57bd94;
+  --good-wash: rgba(87, 189, 148, .16);
+  --warn: #dfa05a;
+  --warn-wash: rgba(223, 160, 90, .16);
+  --bad: #ef7168;
+  --bad-wash: rgba(239, 113, 104, .16);
+
+  --canvas-bg: #0a0a0a;
+  --canvas-bg-dot: rgba(255, 255, 255, .102);
+  --canvas-node-border-selected: rgba(255, 255, 255, .93);
+  --canvas-edge: #525252;
+  --canvas-edge-hover: #86909c;
+  --canvas-edge-selected: #737373;
+  --canvas-edge-flow: #c4b5fd;
+  --canvas-controls-bg: #1a1a1a;
+  --canvas-controls-hover: rgba(255, 255, 255, .1);
+  --canvas-controls-active: rgba(255, 255, 255, .15);
+  --canvas-selection-bg: rgba(255, 255, 255, .06);
+  /* 与浅色同一套公式，重新从深色值派生；波纹点色改用深底上的亮紫。 */
+  --canvas-loader-orb: color-mix(in srgb, var(--brand-accent) 68%, var(--canvas-bg));
+  --canvas-loader-shadow: color-mix(in srgb, var(--text) 16%, transparent);
+  --canvas-loading-dot-bright: #e2ddff47;
+
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, .2);
+  --shadow-lift: 0 8px 24px rgba(0, 0, 0, .35);
+  --canvas-shadow-panel: 0 2px 5px rgba(0, 0, 0, .15);
+  --canvas-shadow-dropdown: 0 4px 10px rgba(0, 0, 0, .25), 0 2px 4px rgba(0, 0, 0, .3);
+  --canvas-shadow-menu: 0 8px 32px rgba(0, 0, 0, .15), 0 2px 8px rgba(0, 0, 0, .1);
+  --shadow-float: 0 18px 44px rgba(0, 0, 0, .45);
+  --shadow-cast-right: 16px 0 40px rgba(0, 0, 0, .1);
+  --shadow-cast-up: 0 -14px 36px rgba(0, 0, 0, .07);
+  --shadow-modal: 0 24px 70px rgba(0, 0, 0, .5), 0 4px 14px rgba(0, 0, 0, .35);
+
+  --ring: rgba(255, 255, 255, .3);
+  --popup-item-hover: rgba(255, 255, 255, .04);
+  --popup-item-active: rgba(255, 255, 255, .06);
+  --button-subtle-bg: #262626;
+  --button-subtle-hover: #303030;
+
+  --scrollbar-thumb: rgba(255, 255, 255, .22);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, .35);
+}

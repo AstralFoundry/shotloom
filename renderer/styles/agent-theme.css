@@ -1,0 +1,73 @@
+/* Agent 面板设计令牌。
+ *
+ * 令牌只有一层语义别名，值全部来自 tokens.css：同一个窗口里出现两套灰阶或两种黑，
+ * 会让对话区看起来像另一个应用。
+ *
+ * 这套令牌只有浅色一套值。应用整体还没有暗色，面板跟随应用保持浅色，不单独提供暗色开关。
+ */
+
+/* 文字用产品的三级墨阶（黑 / .5 / .32），描边用三级发丝线，hover 用三级底色，
+ * 状态底色用产品状态各自的 wash。 */
+body {
+  --slk-bg-base: var(--surface);
+  --slk-bg-sunken: var(--bg);
+  --slk-bg-raised: var(--elevated-surface);
+  --slk-bg-selector: var(--surface-2);
+  --slk-bg-code: var(--bg);
+  --slk-bg-inline-code: var(--surface-2);
+  --slk-bg-bubble: var(--brand-accent-wash);
+  --slk-label-primary: var(--text);
+  --slk-label-secondary: var(--muted);
+  --slk-label-tertiary: var(--faint);
+  --slk-label-caption: var(--faint);
+  --slk-label-inverted: var(--surface);
+  --slk-label-accent: var(--brand-accent);
+  /* 浅色 warn 底上的小字需要比 --warn 更深的墨，仍由同一个状态色推导。 */
+  --slk-label-warn: color-mix(in srgb, var(--warn) 72%, black);
+  --slk-border-l1: var(--line-soft);
+  --slk-border-l2: var(--line);
+  --slk-border-l3: var(--line-strong);
+  --slk-hover-wash: var(--popup-item-hover);
+  --slk-hover-wash-strong: var(--canvas-controls-hover);
+  --slk-active-wash: var(--button-subtle-hover);
+  --slk-button-accent: var(--brand-accent);
+  --slk-button-accent-hover: color-mix(in srgb, var(--brand-accent) 82%, black);
+  --slk-state-success: var(--good);
+  --slk-state-warn: var(--warn);
+  --slk-state-error: var(--bad);
+  --slk-state-idle: var(--faint);
+  --slk-scrollbar: var(--scrollbar-thumb);
+  --slk-scrollbar-hover: var(--scrollbar-thumb-hover);
+  --slk-menu-fill: rgba(255, 255, 255, 0.86);
+  --slk-menu-blur: blur(40px) saturate(150%);
+}
+
+/* 圆角不另立刻度，按用途映射到 tokens.css 的 --radius 派生阶：
+ * 面板级给输入卡片和对话框，卡片级、控件级、标签级依次降档。 */
+body {
+  --slk-radius-xs: var(--radius-xs);
+  --slk-radius-sm: var(--radius-sm);
+  --slk-radius-md: var(--radius-lg);
+  --slk-radius-lg: var(--radius-xl);
+  --slk-radius-xl: var(--radius-2xl);
+  --slk-radius-panel: var(--radius-2xl);
+}
+
+/* 高表面用 0.5px 发丝描边 + 产品抬升档，而不是 1px 实线边框：描边画进 box-shadow
+   所以不占布局，组件配 border:0。分离感主要由描边承担，落影只借 tokens.css 的 card / lift 两档。
+   派生值逐元素声明（而非从 body 继承），这样组件重绑 --slk-stroke-color 才有效。 */
+body {
+  /* 动效不另立刻度：对话面板只按快/常规/慢三个角色引用产品档位。 */
+  --slk-ease: var(--ease-std);
+  --slk-dur-fast: var(--duration-fast);
+  --slk-dur: var(--duration-base);
+  --slk-dur-slow: var(--duration-slow);
+}
+
+body * {
+  --slk-stroke-color: var(--slk-border-l3);
+  --slk-elevation-stroke: 0 0 0 0.5px var(--slk-stroke-color);
+  --slk-elevation-panel: var(--slk-elevation-stroke), var(--shadow-card);
+  --slk-elevation-prominent: var(--slk-elevation-stroke), var(--shadow-lift);
+}
+

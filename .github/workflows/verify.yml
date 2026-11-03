@@ -1,0 +1,32 @@
+name: Verify
+on:
+  workflow_call:
+permissions:
+  contents: read
+jobs:
+  product:
+    # Exercise the official Seatbelt-backed Agent tests on a supported desktop OS.
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-project
+      - run: npm run verify:product
+
+  native:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-project
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: npm run prepare:media
+      - run: npm run prepare:harness
+      - run: cargo test --locked --manifest-path src-tauri/Cargo.toml --lib

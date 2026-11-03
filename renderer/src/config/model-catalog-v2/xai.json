@@ -1,0 +1,451 @@
+{
+  "provider": "xai",
+  "models": [
+    {
+      "id": "grok-4.7",
+      "name": "Grok 4.7",
+      "provider": "xai",
+      "type": "textGeneration",
+      "sortOrder": 5,
+      "enabled": true,
+      "defaultMode": "text-generation",
+      "modes": [
+        {
+          "id": "text-generation",
+          "label": "文本生成",
+          "endpoint": {
+            "method": "POST",
+            "path": "/chat/completions",
+            "scope": "root"
+          },
+          "inputConstraints": {
+            "text": {
+              "maxTokens": 500000
+            }
+          },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
+          "outputConstraints": {
+            "supportsStreaming": true,
+            "supportsStructuredOutput": true,
+            "maxTokens": 16384
+          },
+          "capabilities": [
+            "reasoning"
+          ],
+          "params": [
+            {
+              "key": "maxTokens",
+              "label": "最大长度",
+              "type": "select",
+              "default": 8192,
+              "numeric": true,
+              "options": [
+                4096,
+                8192,
+                16384
+              ],
+              "labelKey": "catalog.label.c6f7a87b1e"
+            }
+          ],
+          "auth": {
+            "type": "bearer"
+          },
+          "requestTemplate": {
+            "model": "{{model}}",
+            "messages": "{{messages}}",
+            "max_tokens": "{{params.maxTokens}}",
+            "tools": "{{tools}}",
+            "tool_choice": "{{toolChoice}}"
+          },
+          "resultTextPath": "choices.0.message.content",
+          "labelKey": "catalog.label.9612898b53"
+        },
+        {
+          "id": "semantic-split",
+          "label": "语义拆分",
+          "endpoint": {
+            "method": "POST",
+            "path": "/chat/completions",
+            "scope": "root"
+          },
+          "inputConstraints": {
+            "text": {
+              "maxTokens": 500000
+            }
+          },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
+          "outputConstraints": {
+            "supportsStreaming": true,
+            "supportsStructuredOutput": true,
+            "maxTokens": 16384
+          },
+          "capabilities": [
+            "structured-output"
+          ],
+          "params": [
+            {
+              "key": "maxTokens",
+              "label": "最大长度",
+              "type": "select",
+              "default": 8192,
+              "numeric": true,
+              "options": [
+                4096,
+                8192,
+                16384
+              ],
+              "labelKey": "catalog.label.c6f7a87b1e"
+            }
+          ],
+          "auth": {
+            "type": "bearer"
+          },
+          "requestTemplate": {
+            "model": "{{model}}",
+            "messages": "{{messages}}",
+            "max_tokens": "{{params.maxTokens}}",
+            "tools": "{{tools}}",
+            "tool_choice": "{{toolChoice}}"
+          },
+          "resultTextPath": "choices.0.message.content",
+          "labelKey": "catalog.label.8f963ce0de"
+        },
+        {
+          "id": "storyboard-generation",
+          "label": "分镜生成",
+          "endpoint": {
+            "method": "POST",
+            "path": "/chat/completions",
+            "scope": "root"
+          },
+          "inputConstraints": {
+            "text": {
+              "maxTokens": 500000
+            }
+          },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
+          "outputConstraints": {
+            "supportsStreaming": true,
+            "supportsStructuredOutput": true,
+            "maxTokens": 16384
+          },
+          "capabilities": [
+            "structured-output"
+          ],
+          "params": [
+            {
+              "key": "maxTokens",
+              "label": "最大长度",
+              "type": "select",
+              "default": 8192,
+              "numeric": true,
+              "options": [
+                4096,
+                8192,
+                16384
+              ],
+              "labelKey": "catalog.label.c6f7a87b1e"
+            }
+          ],
+          "auth": {
+            "type": "bearer"
+          },
+          "requestTemplate": {
+            "model": "{{model}}",
+            "messages": "{{messages}}",
+            "max_tokens": "{{params.maxTokens}}",
+            "tools": "{{tools}}",
+            "tool_choice": "{{toolChoice}}"
+          },
+          "resultTextPath": "choices.0.message.content",
+          "labelKey": "catalog.label.8c31cdcb5d"
+        }
+      ]
+    },
+    {
+      "id": "grok-imagine-image-2.0",
+      "name": "Grok Imagine Image 2.0",
+      "provider": "xai",
+      "type": "imageGeneration",
+      "sortOrder": 3,
+      "enabled": true,
+      "defaultMode": "text-to-image",
+      "modes": [
+        {
+          "id": "text-to-image",
+          "label": "文生图",
+          "endpoint": {
+            "method": "POST",
+            "path": "/images/generations",
+            "scope": "root"
+          },
+          "inputConstraints": {
+            "images": {
+              "min": 0,
+              "max": 0
+            }
+          },
+          "outputConstraints": {
+            "maxCount": 4,
+            "formats": [
+              "png",
+              "jpg"
+            ]
+          },
+          "params": [
+            {
+              "key": "prompt",
+              "label": "提示词",
+              "type": "text",
+              "required": true,
+              "labelKey": "catalog.label.2f0bb12387"
+            },
+            {
+              "key": "aspectRatio",
+              "label": "比例",
+              "type": "select",
+              "default": "1:1",
+              "options": [
+                "1:1",
+                "16:9",
+                "9:16",
+                "4:3",
+                "3:4",
+                "3:2",
+                "2:3",
+                "21:9",
+                "5:2"
+              ],
+              "labelKey": "catalog.label.c27f341ce5"
+            },
+            {
+              "key": "imageSize",
+              "label": "清晰度",
+              "type": "select",
+              "default": "1k",
+              "options": [
+                "1k",
+                "2k"
+              ],
+              "labelKey": "catalog.label.5f6ab300dd"
+            },
+            {
+              "key": "quality",
+              "label": "质量",
+              "type": "select",
+              "default": "auto",
+              "options": [
+                "low",
+                "medium",
+                "auto"
+              ],
+              "optionLabels": {
+                "low": "低",
+                "medium": "中",
+                "auto": "自动"
+              },
+              "labelKey": "catalog.label.82f516820c",
+              "optionLabelKeys": {
+                "low": "catalog.label.b9ee259b7f",
+                "medium": "catalog.label.0869071c92",
+                "auto": "catalog.label.4afad87755"
+              }
+            },
+            {
+              "key": "generationCount",
+              "label": "张数",
+              "type": "select",
+              "default": 1,
+              "numeric": true,
+              "options": [
+                1,
+                2,
+                4
+              ],
+              "labelKey": "catalog.label.33abb92abd"
+            }
+          ],
+          "auth": {
+            "type": "bearer"
+          },
+          "requestTemplate": {
+            "model": "{{model}}",
+            "prompt": "{{prompt}}",
+            "aspect_ratio": "{{params.aspectRatio}}",
+            "n": "{{params.generationCount}}",
+            "resolution": "{{params.imageSize}}",
+            "quality": "{{params.quality}}"
+          },
+          "resultUrlPath": "data.*.url",
+          "resultBase64Path": "data.*.b64_json",
+          "labelKey": "catalog.label.0b835958b8"
+        }
+      ]
+    },
+    {
+      "id": "grok-imagine-video-1.5",
+      "name": "Grok Imagine Video 1.5",
+      "provider": "xai",
+      "type": "videoGeneration",
+      "sortOrder": 2,
+      "enabled": true,
+      "defaultMode": "text-or-image-to-video",
+      "modes": [
+        {
+          "id": "text-or-image-to-video",
+          "label": "文生/图生视频",
+          "inputMode": "firstFrame",
+          "inputSlots": [
+            "firstFrame"
+          ],
+          "endpoint": {
+            "method": "POST",
+            "path": "/videos/generations",
+            "scope": "root"
+          },
+          "taskEndpoint": {
+            "method": "GET",
+            "path": "/videos/{taskId}",
+            "scope": "root"
+          },
+          "isAsync": true,
+          "inputConstraints": {
+            "images": {
+              "min": 0,
+              "max": 1,
+              "roles": [
+                "referenceImage"
+              ]
+            }
+          },
+          "outputConstraints": {
+            "durations": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15
+            ],
+            "defaultDuration": 8,
+            "formats": [
+              "mp4"
+            ]
+          },
+          "params": [
+            {
+              "key": "prompt",
+              "label": "提示词",
+              "type": "text",
+              "required": true,
+              "labelKey": "catalog.label.2f0bb12387"
+            },
+            {
+              "key": "duration",
+              "label": "时长",
+              "type": "select",
+              "default": 8,
+              "numeric": true,
+              "options": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14,
+                15
+              ],
+              "labelKey": "catalog.label.29d0552d2e"
+            },
+            {
+              "key": "aspectRatio",
+              "label": "比例",
+              "type": "select",
+              "default": "16:9",
+              "options": [
+                "1:1",
+                "16:9",
+                "9:16",
+                "4:3",
+                "3:4",
+                "3:2",
+                "2:3",
+                "21:9",
+                "5:2"
+              ],
+              "labelKey": "catalog.label.c27f341ce5"
+            },
+            {
+              "key": "resolution",
+              "label": "分辨率",
+              "type": "select",
+              "default": "720p",
+              "options": [
+                "480p",
+                "720p",
+                "1080p"
+              ],
+              "labelKey": "catalog.label.cde9b52b23"
+            },
+            {
+              "key": "generateAudio",
+              "label": "生成同步声音",
+              "type": "boolean",
+              "default": true,
+              "labelKey": "catalog.label.058dddf225"
+            }
+          ],
+          "auth": {
+            "type": "bearer"
+          },
+          "requestTemplate": {
+            "model": "{{model}}",
+            "prompt": "{{prompt}}",
+            "image": "{{imageObject}}",
+            "duration": "{{duration}}",
+            "aspect_ratio": "{{aspectRatio}}",
+            "resolution": "{{resolution}}",
+            "generate_audio": "{{params.generateAudio}}"
+          },
+          "taskIdPath": "request_id",
+          "statusPath": "status",
+          "errorPath": "error.message",
+          "pollStatusMap": {
+            "pending": "running",
+            "done": "completed",
+            "expired": "failed",
+            "failed": "failed"
+          },
+          "resultUrlPath": "video.url",
+          "labelKey": "catalog.label.8546cca0b1"
+        }
+      ]
+    }
+  ]
+}

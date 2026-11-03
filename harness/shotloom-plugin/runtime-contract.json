@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "runtime": "@deepseek-ai/dsh-agent-loop",
+  "runtimeVersion": "0.2.1-alpha.2",
+  "client": "@deepseek-ai/dsh-client-ui-chat",
+  "clientVersion": "0.2.1-alpha.2",
+  "roles": {
+    "host": "agent-loop",
+    "chat": "client-ui-chat"
+  },
+  "note": "The web profile composes these official entry points through dsh-base and dsh-web-app. Keep this contract in sync with the pinned Harness release."
+}

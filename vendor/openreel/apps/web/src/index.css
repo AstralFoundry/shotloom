@@ -1,0 +1,266 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+   OpenReel Editor — Shotloom design tokens.
+   色阶/密度对齐 MiniMax Design 4.0 clip-studio（中性灰面 + 反相主操作 +
+   紫色 brand-accent 只给选中/片段/播放头），字体与 Shotloom 产品一致。
+   All values are CSS variables. Components use Tailwind utilities
+   that map to these via tailwind.config.js.
+   ============================================================ */
+@layer base {
+  :root {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text",
+      "PingFang SC", "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif;
+    line-height: 1.5;
+    font-weight: 400;
+    letter-spacing: -0.005em;
+
+    /* density */
+    --d-text: 12.5px;
+    --d-text-sm: 11px;
+
+    /* timeline */
+    --tl-height: 58vh;
+    --tl-track: 56px;
+    --tl-rail: 196px;
+
+    /* layout */
+    --media-w: 320px;
+    --inspector-w: 360px;
+    --topbar-h: 40px;
+    --toolnav-h: 64px;
+
+    color-scheme: light;
+  }
+
+  /* light theme — MiniMax clip-studio 色阶（oklch 中性灰，hue 280）
+     选择器必须限定在根元素：react-aria 的 Provider 容器会在子树里
+     自带 data-theme="light"，不限定会让整棵界面被重新点亮成浅色。 */
+  :root,
+  :root[data-theme="light"] {
+    --bg: #fafafb;            /* window / app background */
+    --bg-1: #ffffff;          /* cards & elevated surfaces */
+    --bg-2: #f5f5f6;          /* recessed insets, pills, search fields */
+    --bg-3: #ececed;          /* segmented-control track */
+    --bg-elev: #ffffff;
+    --border: rgba(0, 0, 0, 0.08);        /* card / input borders */
+    --border-strong: rgba(0, 0, 0, 0.12);
+    --fg: #000000;            /* primary text */
+    --fg-2: rgba(0, 0, 0, 0.82);          /* secondary text */
+    --fg-3: rgba(0, 0, 0, 0.5);           /* tertiary / labels */
+    --fg-muted: rgba(0, 0, 0, 0.32);      /* muted / placeholder */
+    --hover: #f5f5f6;
+    --selected: rgba(0, 0, 0, 0.06);      /* 参考实现的中性选中底 */
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
+    --shadow-md: 0 6px 20px rgba(0, 0, 0, 0.08);
+    --shadow-lg: 0 24px 60px rgba(0, 0, 0, 0.16);
+    --track-bg: #f5f5f6;      /* 参考：track/tl/stage 同为浅灰，卡片才是白 */
+    --tl-bg: #f5f5f6;
+    --waveform: rgba(109, 108, 255, 0.55);
+    /* 参考 light stage 是浅灰，屏幕保持白 */
+    --stage-bg: #f5f5f6;
+    --screen-bg: #ffffff;
+
+    /* accent = 反相近黑（MiniMax --accent），主操作按钮用它；
+       brand-accent = Shotloom 紫 #6d6cff，只给选中/片段/播放头/强调。 */
+    --accent: #000000;
+    --accent-strong: rgba(0, 0, 0, 0.82);
+    --accent-soft: rgba(0, 0, 0, 0.06);
+    --accent-fg: #ffffff;
+    --accent-glow: rgba(0, 0, 0, 0.25);
+    --brand-accent: #6d6cff;
+    --brand-accent-soft: rgba(109, 108, 255, 0.12);
+
+    /* clip palette — 视频/图片/音频统一紫底（参考 brand-accent/25） */
+    --c-video: #6d6cff;
+    --c-text: #e8a44a;
+    --c-audio: #6d6cff;
+    --c-music: #6d6cff;
+  }
+
+  /* dark theme — Shotloom 暗色镜像（与 renderer/styles/tokens.css 同值） */
+  :root[data-theme="dark"],
+  :root.dark {
+    --bg: #101012;
+    --bg-1: #161618;
+    --bg-2: #1d1d20;
+    --bg-3: #26262a;
+    --bg-elev: #1c1c1f;
+    --border: rgba(255, 255, 255, 0.1);
+    --border-strong: rgba(255, 255, 255, 0.16);
+    --fg: #f5f5f5;
+    --fg-2: rgba(255, 255, 255, 0.85);
+    --fg-3: rgba(255, 255, 255, 0.55);
+    --fg-muted: rgba(255, 255, 255, 0.38);
+    --hover: #1d1d20;
+    --selected: rgba(255, 255, 255, 0.08);
+    --shadow-sm: 0 1px 0 rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 1px 0 rgba(0, 0, 0, 0.5), 0 6px 24px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 1px 0 rgba(0, 0, 0, 0.6), 0 24px 60px rgba(0, 0, 0, 0.5);
+    --track-bg: #101012;
+    --tl-bg: #101012;
+    --waveform: rgba(139, 138, 255, 0.72);
+    --stage-bg: #101012;
+    --screen-bg: #000000;
+
+    --accent: #f5f5f5;
+    --accent-strong: rgba(255, 255, 255, 0.85);
+    --accent-soft: rgba(255, 255, 255, 0.1);
+    --accent-fg: #161618;
+    --accent-glow: rgba(255, 255, 255, 0.3);
+    --brand-accent: #8b8aff;
+    --brand-accent-soft: rgba(139, 138, 255, 0.16);
+
+    --c-video: #8b8aff;
+    --c-text: #e8a44a;
+    --c-audio: #8b8aff;
+    --c-music: #8b8aff;
+    color-scheme: dark;
+  }
+
+  [data-density="compact"] {
+    --d-text: 12px;
+    --d-text-sm: 10.5px;
+    --tl-track: 46px;
+    --tl-rail: 168px;
+    --toolnav-h: 56px;
+    --topbar-h: 36px;
+  }
+
+  /* Legacy shadcn/ui hsl tokens — kept so existing primitives
+     (DropdownMenu, Tooltip, Dialog, etc.) keep working until they
+     migrate to the new tokens. Values mirror the MiniMax light scale. */
+  :root,
+  :root[data-theme="light"] {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 0%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 0%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 0%;
+    --primary: 0 0% 0%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 0 0% 96%;
+    --secondary-foreground: 0 0% 8%;
+    --muted: 0 0% 96%;
+    --muted-foreground: 0 0% 46%;
+    --accent-hsl: 0 0% 96%;
+    --accent-foreground: 0 0% 8%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+    --input: 0 0% 90%;
+    --ring: 240 100% 55%;
+    --radius: 0.5rem;
+  }
+
+  :root[data-theme="dark"],
+  :root.dark {
+    --background: 240 4% 10%;
+    --foreground: 0 0% 96%;
+    --card: 240 4% 13%;
+    --card-foreground: 0 0% 96%;
+    --popover: 240 4% 13%;
+    --popover-foreground: 0 0% 96%;
+    --primary: 0 0% 96%;
+    --primary-foreground: 240 4% 10%;
+    --secondary: 240 4% 18%;
+    --secondary-foreground: 0 0% 96%;
+    --muted: 240 4% 18%;
+    --muted-foreground: 240 4% 65%;
+    --accent-hsl: 240 4% 22%;
+    --accent-foreground: 0 0% 96%;
+    --destructive: 0 62% 50%;
+    --destructive-foreground: 0 0% 95%;
+    --input: 240 4% 24%;
+    --ring: 241 100% 65%;
+  }
+
+  html,
+  body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text",
+      "PingFang SC", "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif;
+    font-size: var(--d-text);
+    color: var(--fg);
+    background: var(--bg);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    letter-spacing: -0.005em;
+  }
+
+  button { cursor: pointer; }
+}
+
+/* ---------- helper utility classes (small, layout-only) ---------- */
+.scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+/* ---------- scrollbar ---------- */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 99px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--fg-muted);
+  background-clip: padding-box;
+  border: 3px solid transparent;
+}
+
+/* ---------- hover tooltip via [data-tip] ---------- */
+[data-tip] { position: relative; }
+[data-tip]:hover::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--fg);
+  color: var(--bg-1);
+  padding: 3px 7px;
+  border-radius: 4px;
+  font-size: 10.5px;
+  white-space: nowrap;
+  z-index: 100;
+  pointer-events: none;
+  font-weight: 500;
+}
+
+/* Downward variant — for tools at a container's top edge where an upward
+   tooltip would be clipped by the panel's overflow. */
+[data-tip-bottom] { position: relative; }
+[data-tip-bottom]:hover::after {
+  content: attr(data-tip-bottom);
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--fg);
+  color: var(--bg-1);
+  padding: 3px 7px;
+  border-radius: 4px;
+  font-size: 10.5px;
+  white-space: nowrap;
+  z-index: 100;
+  pointer-events: none;
+  font-weight: 500;
+}

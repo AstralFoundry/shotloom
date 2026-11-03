@@ -1,0 +1,10 @@
+Shotloom distributes FFmpeg as a separate command-line sidecar.
+
+FFmpeg version: 6.1.1 static build
+FFmpeg source: https://github.com/FFmpeg/FFmpeg/tree/n6.1.1
+Static build packaging: https://github.com/eugeneware/ffmpeg-static/tree/b6.1.1
+
+The bundled FFmpeg executable is licensed under GPL-3.0-or-later. Its license
+text is included as FFmpeg-GPL-3.0.txt in the application resources directory.
+Shotloom invokes the executable as an independent process and does not link
+against FFmpeg libraries.

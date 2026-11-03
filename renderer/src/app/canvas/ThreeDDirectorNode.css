@@ -1,0 +1,293 @@
+.director-node {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+  border: 1px solid var(--line-solid);
+  border-radius: var(--radius);
+  background: var(--elevated-surface);
+  box-shadow: var(--shadow);
+}
+
+.director-node-label {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: calc(4px * var(--node-label-zoom, 1));
+  padding: 0 calc(2px * var(--node-label-zoom, 1));
+  color: var(--muted);
+  pointer-events: none;
+}
+
+.director-node-label > svg {
+  width: calc(var(--canvas-node-icon-size) * var(--node-label-zoom, 1));
+  height: calc(var(--canvas-node-icon-size) * var(--node-label-zoom, 1));
+  flex: 0 0 auto;
+}
+
+.director-node-label > .director-node-drag-handle {
+  width: calc(var(--canvas-node-action-size) * var(--node-label-zoom, 1));
+  height: calc(var(--canvas-node-action-size) * var(--node-label-zoom, 1));
+  flex: 0 0 auto;
+  pointer-events: auto;
+}
+
+.director-node-label input {
+  min-width: 0;
+  flex: 1;
+  height: calc(var(--canvas-node-action-size) * var(--node-label-zoom, 1));
+  padding: 0;
+  border: 0;
+  outline: 0;
+  color: inherit;
+  background: transparent;
+  font-size: calc(var(--canvas-node-title-size) * var(--node-label-zoom, 1));
+  font-weight: 600;
+  pointer-events: auto;
+}
+
+.director-node-label button {
+  width: calc(var(--canvas-node-action-size) * var(--node-label-zoom, 1));
+  height: calc(var(--canvas-node-action-size) * var(--node-label-zoom, 1));
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: calc(6px * var(--node-label-zoom, 1));
+  padding: 0;
+  color: var(--muted);
+  background: transparent;
+  pointer-events: auto;
+}
+
+.director-node-label button:hover { color: var(--bad); background: var(--bad-wash); }
+.director-node-label button svg {
+  width: calc(var(--canvas-node-icon-size) * var(--node-label-zoom, 1));
+  height: calc(var(--canvas-node-icon-size) * var(--node-label-zoom, 1));
+}
+
+.director-node-label > .director-node-drag-handle::before {
+  width: calc(3px * var(--node-label-zoom, 1));
+  height: calc(3px * var(--node-label-zoom, 1));
+  box-shadow:
+    0 calc(5px * var(--node-label-zoom, 1)) currentColor,
+    calc(5px * var(--node-label-zoom, 1)) 0 currentColor,
+    calc(5px * var(--node-label-zoom, 1)) calc(5px * var(--node-label-zoom, 1)) currentColor;
+}
+
+.director-node-head {
+  position: relative;
+  z-index: 1;
+  height: var(--canvas-node-head-height);
+  flex: 0 0 var(--canvas-node-head-height);
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  padding: 0 6px 0 4px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg);
+}
+
+.director-node-drag-handle {
+  width: var(--canvas-node-action-size);
+  height: var(--canvas-node-action-size);
+  flex: none;
+  display: grid;
+  place-items: center;
+  color: var(--faint);
+  cursor: grab;
+  touch-action: none;
+}
+
+.director-node-drag-handle::before {
+  content: "";
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow:
+    0 5px currentColor,
+    5px 0 currentColor,
+    5px 5px currentColor;
+}
+
+.director-node-drag-handle:hover {
+  color: var(--muted);
+}
+
+.director-node-drag-handle:active {
+  cursor: grabbing;
+}
+
+.director-node-kind {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--muted);
+}
+
+.director-node-kind svg {
+  width: var(--canvas-node-icon-size);
+  height: var(--canvas-node-icon-size);
+}
+
+.director-node-kind input {
+  min-width: 0;
+  flex: 1;
+  height: var(--canvas-node-action-size);
+  padding: 0;
+  border: 0;
+  outline: 0;
+  color: var(--muted);
+  background: transparent;
+  font-size: var(--canvas-node-title-size);
+  font-weight: 600;
+}
+
+.director-node-head button {
+  width: var(--canvas-node-action-size);
+  height: var(--canvas-node-action-size);
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+  background: transparent;
+}
+
+.director-node-head button:hover {
+  color: var(--bad);
+  background: var(--bad-wash);
+}
+
+.director-node-head button svg {
+  width: var(--canvas-node-icon-size);
+  height: var(--canvas-node-icon-size);
+}
+
+.director-node-workspace {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  flex: 1 1 auto;
+  box-sizing: border-box;
+  margin: 0;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: var(--surface);
+}
+
+.director-node.selected {
+  border-color: var(--canvas-node-border-selected);
+  box-shadow: 0 0 0 1px var(--line);
+}
+
+.director-node-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 24px;
+  text-align: center;
+  color: var(--muted);
+}
+
+.director-node-placeholder > svg {
+  width: var(--canvas-node-state-icon-size);
+  height: var(--canvas-node-state-icon-size);
+  margin-bottom: 12px;
+  color: var(--line-solid);
+  stroke-width: 1.4;
+}
+
+.director-node-placeholder strong {
+  color: var(--type-primary);
+  font-size: var(--canvas-node-hero-size);
+  font-weight: 600;
+}
+
+.director-node-placeholder p {
+  margin: 10px 0 18px;
+  color: var(--muted);
+  font-size: var(--canvas-node-body-size);
+}
+
+.director-node-open-button {
+  min-width: 128px;
+  height: 34px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: var(--radius-md);
+  color: var(--type-primary);
+  background: var(--button-subtle-bg);
+  font-size: var(--canvas-node-body-size);
+  cursor: pointer;
+}
+
+.director-node-open-button:hover,
+.director-node-open-button:focus-visible {
+  background: var(--button-subtle-hover);
+}
+
+.director-node-head button.director-node-done-button {
+  width: auto;
+  min-width: 34px;
+  height: var(--canvas-node-action-size);
+  padding: 0 6px;
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+  background: var(--surface-2);
+  font-size: var(--canvas-node-title-size);
+  cursor: pointer;
+}
+
+.director-node-head button.director-node-done-button:hover {
+  color: var(--type-primary);
+  background: var(--button-subtle-hover);
+}
+
+/* An iframe owns a separate pointer event surface. Disable it during an outer
+   node resize so the React Flow resizer always receives mouseup and can leave
+   the horizontal/vertical resize cursor state cleanly. */
+.director-node.resizing .director-node-workspace iframe {
+  pointer-events: none;
+}
+.director-detail-backdrop {
+  /* 导演台详情和剪辑台一样是内容区里的工作面：铺满、不压暗、不画悬浮卡片。 */
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  background: var(--surface);
+}
+.director-detail-window {
+  /* 导演台自带顶栏（标题、视角切换、导出、关闭），这里不再叠一层宿主标题栏。 */
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+  overflow: hidden;
+  background: var(--surface);
+}
+.director-detail-frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  border: 0;
+  background: var(--surface-2);
+}

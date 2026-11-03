@@ -1,0 +1,199 @@
+name: Release
+run-name: Release ${{ inputs.version || github.ref_name }}
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "版本号或标签；留空使用 package.json 版本。无需修改工作流。"
+        required: false
+        type: string
+  push:
+    tags: ["v*"]
+permissions:
+  contents: read
+concurrency:
+  group: desktop-release
+  cancel-in-progress: false
+jobs:
+  metadata:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+      version: ${{ steps.release.outputs.version }}
+      matrix: ${{ steps.release.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+      - name: Validate signing key
+        env:
+          SIGNING_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          if [[ -z "$SIGNING_KEY" ]]; then
+            echo "::error::Configure TAURI_SIGNING_PRIVATE_KEY once in repository secrets."
+            exit 1
+          fi
+      - name: Resolve release and platform matrix
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event_name == 'push' && github.ref_name || inputs.version }}
+        run: node scripts/desktop-release.mjs metadata
+
+  verify:
+    needs: metadata
+    uses: ./.github/workflows/verify.yml
+
+  build:
+    name: Package ${{ matrix.platform }}
+    needs: [metadata, verify]
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.metadata.outputs.matrix) }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+      - name: Apply tag version to build workspace
+        env:
+          RELEASE_TAG: ${{ needs.metadata.outputs.tag }}
+        run: node scripts/desktop-release.mjs version
+      - uses: ./.github/actions/setup-project
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          key: ${{ matrix.target }}
+      - run: npm run prepare:media
+
+      - name: Detect Apple signing credentials
+        id: apple_signing
+        if: runner.os == 'macOS'
+        shell: bash
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          missing=()
+          for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
+            if [[ -z "${!name}" ]]; then
+              missing+=("$name")
+            fi
+          done
+
+          if (( ${#missing[@]} == 0 )); then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Publishing unsigned and unnotarized macOS artifacts; missing Apple credentials: ${missing[*]}"
+          fi
+
+      - name: Import Apple Developer ID certificate
+        if: runner.os == 'macOS' && steps.apple_signing.outputs.enabled == 'true'
+        shell: bash
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          certificate_path="$RUNNER_TEMP/apple-certificate.p12"
+          keychain_path="$RUNNER_TEMP/shotloom-signing.keychain-db"
+          keychain_password="$(uuidgen)"
+
+          printf '%s' "$APPLE_CERTIFICATE" | base64 --decode > "$certificate_path"
+          security create-keychain -p "$keychain_password" "$keychain_path"
+          security set-keychain-settings -lut 21600 "$keychain_path"
+          security unlock-keychain -p "$keychain_password" "$keychain_path"
+          security import "$certificate_path" \
+            -k "$keychain_path" \
+            -P "$APPLE_CERTIFICATE_PASSWORD" \
+            -T /usr/bin/codesign \
+            -T /usr/bin/security
+          security set-key-partition-list \
+            -S apple-tool:,apple:,codesign: \
+            -s \
+            -k "$keychain_password" \
+            "$keychain_path"
+          security list-keychains -d user -s "$keychain_path"
+          security default-keychain -d user -s "$keychain_path"
+          security find-identity -v -p codesigning "$keychain_path"
+          {
+            echo "APPLE_SIGNING_IDENTITY=$APPLE_SIGNING_IDENTITY"
+            echo "APPLE_ID=$APPLE_ID"
+            echo "APPLE_PASSWORD=$APPLE_PASSWORD"
+            echo "APPLE_TEAM_ID=$APPLE_TEAM_ID"
+          } >> "$GITHUB_ENV"
+
+      - name: Build desktop application
+        uses: tauri-apps/tauri-action@v1
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          retryAttempts: 2
+          tauriScript: npm run tauri
+          args: --target ${{ matrix.target }} --bundles ${{ matrix.bundles }} -- --locked
+          uploadUpdaterJson: false
+          uploadUpdaterSignatures: false
+
+      - name: Smoke test the packaged Agent runtime
+        run: npm run harness:verify-package
+
+      - name: Stage signed release assets
+        env:
+          RELEASE_TAG: ${{ needs.metadata.outputs.tag }}
+          RELEASE_PLATFORM: ${{ matrix.platform }}
+          BUNDLE_DIR: src-tauri/target/${{ matrix.target }}/release/bundle
+          ASSET_DIR: release-assets
+        run: node scripts/desktop-release.mjs stage
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.platform }}
+          path: release-assets/
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+
+      - name: Remove Apple signing material
+        if: always() && runner.os == 'macOS' && steps.apple_signing.outputs.enabled == 'true'
+        shell: bash
+        run: |
+          security delete-keychain "$RUNNER_TEMP/shotloom-signing.keychain-db"
+          rm -f "$RUNNER_TEMP/apple-certificate.p12"
+
+  publish:
+    name: Verify assets and publish
+    needs: [metadata, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: release-assets
+          merge-multiple: true
+      - name: Publish complete release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.metadata.outputs.tag }}
+          ASSET_DIR: release-assets
+        run: node scripts/desktop-release.mjs publish

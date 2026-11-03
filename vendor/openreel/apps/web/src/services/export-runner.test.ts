@@ -1,0 +1,739 @@
+import { configureShotloomLocale } from "../shotloom-mode";
+import { describe, it, expect, vi, beforeEach, afterEach, type MockInstance } from "vitest";
+import { renderHook, act } from "@testing-library/react";
+import type { Project, VideoExportSettings, ExportResult } from "@openreel/core";
+import {
+  useExportRunner,
+  mimeForExt,
+  extForFormat,
+  exportFilename,
+  sanitizeFilenameBase,
+  writeBlobToWritable,
+  progressPhaseLabel,
+  createDownloadWritable,
+  runAudioExportToWritable,
+} from "./export-runner";
+
+const { mockEngine, getExportEngineMock } = vi.hoisted(() => {
+  const engine = {
+    initialize: vi.fn().mockResolvedValue(undefined),
+    exportVideo: vi.fn(),
+    exportAudio: vi.fn(),
+    cancel: vi.fn(),
+  };
+  return {
+    mockEngine: engine,
+    getExportEngineMock: vi.fn(() => engine),
+  };
+});
+
+vi.mock("@openreel/core", () => ({
+  getExportEngine: getExportEngineMock,
+}));
+
+function fakeProject(): Project {
+  return {
+    name: "My Movie",
+    settings: { width: 1920, height: 1080, frameRate: 30 },
+    timeline: { duration: 10 },
+  } as unknown as Project;
+}
+
+async function* successGenerator(): AsyncGenerator<
+  { phase: ExportResult extends never ? never : "rendering" | "encoding" | "complete"; progress: number },
+  ExportResult
+> {
+  yield { phase: "rendering", progress: 0.25 };
+  yield { phase: "encoding", progress: 0.75 };
+  yield { phase: "complete", progress: 1 };
+  return { success: true } as ExportResult;
+}
+
+async function* failureGenerator(): AsyncGenerator<
+  { phase: "rendering"; progress: number },
+  ExportResult
+> {
+  yield { phase: "rendering", progress: 0.5 };
+  return { success: false, error: { message: "boom" } } as unknown as ExportResult;
+}
+
+function fakeBlob(chunks: Uint8Array[]): Blob {
+  return {
+    stream() {
+      let index = 0;
+      return new ReadableStream<Uint8Array>({
+        pull(controller) {
+          if (index < chunks.length) {
+            controller.enqueue(chunks[index]);
+            index += 1;
+          } else {
+            controller.close();
+          }
+        },
+      });
+    },
+  } as unknown as Blob;
+}
+
+function fakeStream(): FileSystemWritableFileStream {
+  return {
+    seek: vi.fn().mockResolvedValue(undefined),
+    write: vi.fn().mockResolvedValue(undefined),
+    close: vi.fn().mockResolvedValue(undefined),
+    abort: vi.fn().mockResolvedValue(undefined),
+    truncate: vi.fn().mockResolvedValue(undefined),
+  } as unknown as FileSystemWritableFileStream;
+}
+
+describe("export-runner pure helpers", () => {
+  it("maps extension to mime", () => {
+    expect(mimeForExt("mp4")).toBe("video/mp4");
+    expect(mimeForExt("mov")).toBe("video/quicktime");
+    expect(mimeForExt("webm")).toBe("video/webm");
+    expect(mimeForExt("wav")).toBe("audio/wav");
+    expect(mimeForExt("xyz")).toBe("application/octet-stream");
+  });
+
+  it("resolves container ext from format", () => {
+    expect(extForFormat("mov")).toBe("mov");
+    expect(extForFormat("webm")).toBe("webm");
+    expect(extForFormat("wav")).toBe("wav");
+    expect(extForFormat("mp4")).toBe("mp4");
+    expect(extForFormat("unknown")).toBe("mp4");
+  });
+
+  it("builds export filename with fallback", () => {
+    expect(exportFilename("Vacation", "mp4")).toBe("Vacation.mp4");
+    expect(exportFilename("", "mov")).toBe("export.mov");
+    expect(exportFilename(undefined, "webm")).toBe("export.webm");
+    expect(exportFilename("   ", "mp4")).toBe("export.mp4");
+  });
+
+  it("strips filesystem-illegal characters from the suggested filename", () => {
+    expect(exportFilename("Vlog: Ep 1", "mp4")).toBe("Vlog Ep 1.mp4");
+    expect(exportFilename("6/14/2026", "mov")).toBe("6 14 2026.mov");
+    expect(exportFilename('a<b>c:"d"|e?f*g\\h', "webm")).toBe("a b c d e f g h.webm");
+    expect(exportFilename("...hidden", "mp4")).toBe("hidden.mp4");
+    expect(exportFilename("///", "mp4")).toBe("export.mp4");
+  });
+
+  it("keeps legal filename characters intact", () => {
+    expect(exportFilename("My-Video_v2 (final)", "mp4")).toBe("My-Video_v2 (final).mp4");
+    expect(sanitizeFilenameBase("café déjà-vu")).toBe("café déjà-vu");
+  });
+
+  it("labels progress phase", () => {
+    expect(progressPhaseLabel("rendering")).toBe("rendering...");
+    expect(progressPhaseLabel("encoding")).toBe("encoding...");
+    expect(progressPhaseLabel("complete")).toBe("Complete!");
+  });
+});
+
+describe("extForFormat codec-awareness", () => {
+  it("forces mov for prores regardless of format", () => {
+    expect(extForFormat("mp4", "prores")).toBe("mov");
+  });
+  it("keeps format-based extension otherwise", () => {
+    expect(extForFormat("mp4", "h264")).toBe("mp4");
+    expect(extForFormat("mov")).toBe("mov");
+  });
+});
+
+describe("useExportRunner", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockEngine.initialize.mockResolvedValue(undefined);
+  });
+
+  it("advances progress and completes on success", async () => {
+    mockEngine.exportVideo.mockImplementation(() => successGenerator());
+    const onExported = vi.fn();
+    const { result } = renderHook(() =>
+      useExportRunner({ project: fakeProject(), onExported }),
+    );
+
+    expect(result.current.state.isExporting).toBe(false);
+
+    await act(async () => {
+      result.current.beginExport();
+    });
+    expect(result.current.state.isExporting).toBe(true);
+    expect(result.current.state.phase).toBe("Initializing...");
+
+    const settings: Partial<VideoExportSettings> = { format: "mp4", codec: "h264" };
+    await act(async () => {
+      await result.current.runExport(settings, "mp4", fakeStream());
+    });
+
+    expect(mockEngine.initialize).toHaveBeenCalledTimes(1);
+    expect(result.current.state.complete).toBe(true);
+    expect(result.current.state.phase).toBe("Saved!");
+    expect(result.current.state.progress).toBe(100);
+    expect(onExported).toHaveBeenCalledWith(settings);
+  });
+
+  it("preserves missing filenames in Chinese export errors", async () => {
+    configureShotloomLocale("zh-CN");
+    try {
+      const name = "Media 用户 {files} $&.mp4";
+      mockEngine.exportVideo.mockImplementation(async function* () {
+        return { success: false, error: { code: "INVALID_SETTINGS", message: "English fallback", preflightIssue: { code: "missing-media", names: [name] }, phase: "preparing", recoverable: false } } as ExportResult;
+      });
+      const { result } = renderHook(() => useExportRunner({ project: fakeProject() }));
+      act(() => { result.current.beginExport(); });
+      expect(result.current.state.phase).toBe("正在初始化…");
+      await act(async () => {
+        await expect(result.current.runExport({}, "mp4", fakeStream())).rejects.toThrow(`请先重新关联原始素材，再导出：${name}`);
+      });
+      expect(result.current.state.complete).toBe(false);
+    } finally {
+      configureShotloomLocale("en-US");
+    }
+  });
+
+  it("translates structured failures returned by the real export boundary and aborts the destination", async () => {
+    configureShotloomLocale("zh-CN");
+    try {
+      mockEngine.exportVideo.mockImplementation(async function* () {
+        return { success: false, error: { code: "INVALID_SETTINGS", message: "English fallback", preflightIssue: { code: "dimensions" }, phase: "preparing", recoverable: false } } as ExportResult;
+      });
+      const { result } = renderHook(() => useExportRunner({ project: fakeProject() }));
+      const writable = fakeStream();
+      await act(async () => {
+        await expect(result.current.runExport({ format: "mp4" }, "mp4", writable)).rejects.toThrow("请为视频选择有效的宽度和高度。");
+      });
+      expect(writable.abort).toHaveBeenCalled();
+    } finally {
+      configureShotloomLocale("en-US");
+    }
+  });
+
+  it("throws and surfaces error on failed result", async () => {
+    mockEngine.exportVideo.mockImplementation(() => failureGenerator());
+    const { result } = renderHook(() => useExportRunner({ project: fakeProject() }));
+
+    await act(async () => {
+      result.current.beginExport();
+    });
+
+    let caught: unknown;
+    await act(async () => {
+      try {
+        await result.current.runExport({ format: "mp4" }, "mp4", fakeStream());
+      } catch (error) {
+        caught = error;
+      }
+    });
+
+    expect(caught).toBeInstanceOf(Error);
+    expect((caught as Error).message).toBe("boom");
+
+    act(() => {
+      result.current.failExport(caught);
+    });
+    expect(result.current.state.isExporting).toBe(false);
+    expect(result.current.state.error).toBe("boom");
+  });
+
+  it("swallows AbortError without surfacing an error", () => {
+    const { result } = renderHook(() => useExportRunner({ project: fakeProject() }));
+    act(() => {
+      result.current.beginExport();
+    });
+    const abort = new Error("User cancelled");
+    abort.name = "AbortError";
+    act(() => {
+      result.current.failExport(abort);
+    });
+    expect(result.current.state.isExporting).toBe(false);
+    expect(result.current.state.error).toBeNull();
+  });
+
+  it("cancel calls engine.cancel and resets state", () => {
+    const { result } = renderHook(() => useExportRunner({ project: fakeProject() }));
+    act(() => {
+      result.current.beginExport();
+    });
+    act(() => {
+      result.current.cancel();
+    });
+    expect(mockEngine.cancel).toHaveBeenCalledTimes(1);
+    expect(result.current.state.isExporting).toBe(false);
+    expect(result.current.state.progress).toBe(0);
+  });
+
+  it("aborts an initialization failure and permits a successful retry", async () => {
+    mockEngine.initialize.mockRejectedValueOnce(new Error("GPU unavailable"));
+    mockEngine.exportVideo.mockImplementation(() => successGenerator());
+    const { result } = renderHook(() => useExportRunner({ project: fakeProject() }));
+    const first = fakeStream();
+    await act(async () => { await expect(result.current.runExport({}, "mp4", first)).rejects.toThrow("GPU unavailable"); });
+    expect(first.abort).toHaveBeenCalledOnce();
+    await act(async () => { result.current.beginExport(); await result.current.runExport({}, "mp4", fakeStream()); });
+    expect(result.current.state.complete).toBe(true);
+  });
+
+  it("does not report success or revive progress after a cancelled delayed export", async () => {
+    let finish!: () => void;
+    const waiting = new Promise<void>((resolve) => { finish = resolve; });
+    let started!: () => void;
+    const hasStarted = new Promise<void>((resolve) => { started = resolve; });
+    const cleaned = vi.fn();
+    mockEngine.exportVideo.mockImplementation(async function* () {
+      try { started(); await waiting; yield { phase: "rendering", progress: 0.8 }; return { success: true }; }
+      finally { cleaned(); }
+    });
+    const onExported = vi.fn();
+    const { result } = renderHook(() => useExportRunner({ project: fakeProject(), onExported }));
+    const writable = fakeStream();
+    let run!: Promise<void>;
+    act(() => { result.current.beginExport(writable); run = result.current.runExport({}, "mp4", writable); });
+    await act(async () => { await hasStarted; result.current.cancel(); finish(); await expect(run).rejects.toMatchObject({ name: "AbortError" }); });
+    expect(result.current.state.complete).toBe(false);
+    expect(result.current.state.progress).toBe(0);
+    expect(onExported).not.toHaveBeenCalled();
+    expect(writable.abort).toHaveBeenCalled();
+    expect(cleaned).toHaveBeenCalledOnce();
+  });
+
+  it("keeps an earlier export cancelled when a new export begins", () => {
+    const { result } = renderHook(() => useExportRunner({ project: fakeProject() }));
+    let checkFirst!: () => void;
+    let checkSecond!: () => void;
+    act(() => { checkFirst = result.current.beginExport(); result.current.cancel(); checkSecond = result.current.beginExport(); });
+    expect(checkFirst).toThrow("Export cancelled");
+    expect(checkSecond).not.toThrow();
+  });
+
+  it("keeps the audio operation locked until cancellation settles before retrying", async () => {
+    let initialize!: () => void;
+    mockEngine.initialize.mockImplementationOnce(() => new Promise<void>((resolve) => { initialize = resolve; }));
+    mockEngine.exportAudio.mockImplementation(async function* () { yield { phase: "preparing", progress: 0 }; return { success: true, blob: fakeBlob([new Uint8Array([1])]) }; });
+    const { result } = renderHook(() => useExportRunner({ project: fakeProject() }));
+    const first = fakeStream();
+    let run!: Promise<void>;
+    act(() => { result.current.beginExport(first); run = result.current.runAudioExport({ format: "wav" }, first); result.current.cancel(); });
+    const tooSoon = fakeStream();
+    expect(() => result.current.beginExport(tooSoon)).toThrow("still finishing");
+    expect(tooSoon.abort).toHaveBeenCalled();
+    await act(async () => { initialize(); await expect(run).rejects.toMatchObject({ name: "AbortError" }); });
+    expect(mockEngine.exportAudio).not.toHaveBeenCalled();
+    const retry = fakeStream();
+    await act(async () => { result.current.beginExport(retry); await result.current.runAudioExport({ format: "wav" }, retry); result.current.markComplete(); });
+    expect(retry.close).toHaveBeenCalledOnce();
+    expect(result.current.state.complete).toBe(true);
+  });
+});
+
+describe("audio export cancellation and recovery", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockEngine.initialize.mockResolvedValue(undefined);
+  });
+
+  const audioSuccess = async function* () {
+    yield { phase: "preparing", progress: 0 };
+    return { success: true, blob: fakeBlob([new Uint8Array([1, 2, 3])]) };
+  };
+
+  it("does not start a cancelled WAV export after initialization, and allows retry", async () => {
+    let initialize!: () => void;
+    mockEngine.initialize.mockImplementationOnce(() => new Promise<void>((resolve) => { initialize = resolve; }));
+    mockEngine.exportAudio.mockImplementation(audioSuccess);
+    const { result } = renderHook(() => useExportRunner({ project: fakeProject() }));
+    const first = fakeStream();
+    let assertNotCancelled!: () => void;
+    act(() => { assertNotCancelled = result.current.beginExport(first); });
+    const run = runAudioExportToWritable(fakeProject(), { format: "wav" }, first, { assertNotCancelled, reportProgress: vi.fn() });
+    act(() => { result.current.cancel(); });
+    initialize();
+    await expect(run).rejects.toMatchObject({ name: "AbortError" });
+    expect(mockEngine.exportAudio).not.toHaveBeenCalled();
+    expect(first.abort).toHaveBeenCalled();
+    expect(first.write).not.toHaveBeenCalled();
+    const second = fakeStream();
+    act(() => { assertNotCancelled = result.current.beginExport(second); });
+    await runAudioExportToWritable(fakeProject(), { format: "wav" }, second, { assertNotCancelled, reportProgress: vi.fn() });
+    expect(second.write).toHaveBeenCalledOnce();
+    expect(second.close).toHaveBeenCalledOnce();
+  });
+
+  it("closes a cancelled audio generator at a yield, releasing it for a retry", async () => {
+    let ready!: () => void;
+    const gate = new Promise<void>((resolve) => { ready = resolve; });
+    let started!: () => void;
+    const hasStarted = new Promise<void>((resolve) => { started = resolve; });
+    let locked = false;
+    const cleaned = vi.fn();
+    mockEngine.exportAudio.mockImplementation(async function* () {
+      if (locked) throw new Error("An export is already running");
+      locked = true;
+      try {
+        started(); await gate;
+        yield { phase: "preparing", progress: 0 };
+        return { success: true, blob: fakeBlob([new Uint8Array([1])]) };
+      } finally { locked = false; cleaned(); }
+    });
+    const { result } = renderHook(() => useExportRunner({ project: fakeProject() }));
+    const first = fakeStream();
+    let assertNotCancelled!: () => void;
+    act(() => { assertNotCancelled = result.current.beginExport(first); });
+    const run = runAudioExportToWritable(fakeProject(), { format: "wav" }, first, { assertNotCancelled, reportProgress: vi.fn() });
+    await hasStarted;
+    act(() => { result.current.cancel(); });
+    ready();
+    await expect(run).rejects.toMatchObject({ name: "AbortError" });
+    expect(cleaned).toHaveBeenCalledOnce();
+    expect(locked).toBe(false);
+    expect(first.close).not.toHaveBeenCalled();
+    const second = fakeStream();
+    act(() => { assertNotCancelled = result.current.beginExport(second); });
+    await runAudioExportToWritable(fakeProject(), { format: "wav" }, second, { assertNotCancelled, reportProgress: vi.fn() });
+    expect(second.close).toHaveBeenCalledOnce();
+  });
+
+  it("aborts a failed audio initialization and preserves the error", async () => {
+    mockEngine.initialize.mockRejectedValueOnce(new Error("Audio unavailable"));
+    const writable = fakeStream();
+    await expect(runAudioExportToWritable(fakeProject(), { format: "wav" }, writable, { assertNotCancelled: vi.fn(), reportProgress: vi.fn() })).rejects.toThrow("Audio unavailable");
+    expect(writable.abort).toHaveBeenCalledOnce();
+    expect(mockEngine.exportAudio).not.toHaveBeenCalled();
+  });
+
+  it("aborts output write failure without reporting successful completion", async () => {
+    mockEngine.exportAudio.mockImplementation(audioSuccess);
+    const writable = fakeStream();
+    vi.mocked(writable.write).mockRejectedValue(new Error("Disk full"));
+    await expect(runAudioExportToWritable(fakeProject(), { format: "wav" }, writable, { assertNotCancelled: vi.fn(), reportProgress: vi.fn() })).rejects.toThrow("Disk full");
+    expect(writable.abort).toHaveBeenCalled();
+    expect(writable.close).not.toHaveBeenCalled();
+  });
+});
+
+describe("writeBlobToWritable", () => {
+  it("streams blob bytes into a plain-object writable and closes it", async () => {
+    const chunks: number[] = [];
+    let closed = false;
+    const writable = {
+      seek: vi.fn().mockResolvedValue(undefined),
+      write: vi.fn(async (data: ArrayBufferView) => {
+        chunks.push(data.byteLength);
+      }),
+      close: vi.fn(async () => {
+        closed = true;
+      }),
+      abort: vi.fn().mockResolvedValue(undefined),
+      truncate: vi.fn().mockResolvedValue(undefined),
+    } as unknown as FileSystemWritableFileStream;
+
+    const blob = fakeBlob([new Uint8Array([1, 2, 3]), new Uint8Array([4, 5])]);
+    await writeBlobToWritable(blob, writable);
+
+    expect(closed).toBe(true);
+    expect(chunks.reduce((sum, n) => sum + n, 0)).toBe(5);
+  });
+
+  it("aborts and rethrows when a write fails", async () => {
+    const writable = {
+      seek: vi.fn().mockResolvedValue(undefined),
+      write: vi.fn(async () => {
+        throw new Error("disk full");
+      }),
+      close: vi.fn().mockResolvedValue(undefined),
+      abort: vi.fn().mockResolvedValue(undefined),
+      truncate: vi.fn().mockResolvedValue(undefined),
+    } as unknown as FileSystemWritableFileStream;
+
+    const blob = fakeBlob([new Uint8Array([1, 2, 3])]);
+    await expect(writeBlobToWritable(blob, writable)).rejects.toThrow("disk full");
+    expect(writable.abort).toHaveBeenCalledTimes(1);
+    expect(writable.close).not.toHaveBeenCalled();
+  });
+});
+
+describe("useExportRunner showSavePicker fallback", () => {
+  const win = window as unknown as Record<string, unknown>;
+  const urlApi = URL as unknown as {
+    createObjectURL?: unknown;
+    revokeObjectURL?: unknown;
+  };
+  const hadPicker = "showSaveFilePicker" in window;
+  const originalPicker = win.showSaveFilePicker;
+  const originalCreate = urlApi.createObjectURL;
+  const originalRevoke = urlApi.revokeObjectURL;
+  const originalStorage = Object.getOwnPropertyDescriptor(navigator, "storage");
+
+  let createObjectURL: ReturnType<typeof vi.fn>;
+  let click: MockInstance;
+
+  const setOpfs = (value: unknown) => {
+    Object.defineProperty(navigator, "storage", {
+      configurable: true,
+      value,
+    });
+  };
+
+  beforeEach(() => {
+    createObjectURL = vi.fn().mockReturnValue("blob:fake");
+    urlApi.createObjectURL = createObjectURL;
+    urlApi.revokeObjectURL = vi.fn();
+    click = vi
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(() => {});
+    setOpfs(undefined);
+  });
+
+  afterEach(() => {
+    window.dispatchEvent(new Event("pagehide"));
+    vi.restoreAllMocks();
+    urlApi.createObjectURL = originalCreate;
+    urlApi.revokeObjectURL = originalRevoke;
+    if (originalStorage) {
+      Object.defineProperty(navigator, "storage", originalStorage);
+    } else {
+      delete (navigator as unknown as Record<string, unknown>).storage;
+    }
+    if (hadPicker) {
+      win.showSaveFilePicker = originalPicker;
+    } else {
+      delete win.showSaveFilePicker;
+    }
+    delete win.openreel;
+    delete win.__openreelExportPath;
+  });
+
+  it("falls back to an in-memory download when OPFS is unavailable and the picker is blocked", async () => {
+    const picker = vi.fn().mockRejectedValue(
+      new DOMException(
+        "Failed to execute 'showSaveFilePicker' on 'Window': Cross origin sub frames aren't allowed to show a file picker.",
+        "SecurityError",
+      ),
+    );
+    win.showSaveFilePicker = picker;
+
+    const { result } = renderHook(() => useExportRunner({ project: fakeProject() }));
+
+    const writable = await result.current.showSavePicker("My Movie.mp4", "mp4");
+    expect(picker).toHaveBeenCalledTimes(1);
+
+    await writeBlobToWritable(fakeBlob([new Uint8Array([1, 2, 3, 4])]), writable);
+
+    expect(createObjectURL).toHaveBeenCalledTimes(1);
+    expect(click).toHaveBeenCalledTimes(1);
+  });
+
+  it("streams to an OPFS temp file (not memory) when the picker is blocked", async () => {
+    win.showSaveFilePicker = vi
+      .fn()
+      .mockRejectedValue(new DOMException("blocked", "SecurityError"));
+
+    const opfsWrites: number[] = [];
+    let opfsClosed = false;
+    const opfsWritable = {
+      seek: vi.fn().mockResolvedValue(undefined),
+      write: vi.fn(async (chunk: ArrayBufferView) => {
+        opfsWrites.push(chunk.byteLength);
+      }),
+      truncate: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn(async () => {
+        opfsClosed = true;
+      }),
+      abort: vi.fn().mockResolvedValue(undefined),
+    };
+    const fileHandle = {
+      createWritable: vi.fn().mockResolvedValue(opfsWritable),
+      getFile: vi.fn().mockResolvedValue(new Blob([new Uint8Array([9, 9, 9])])),
+    };
+    const getFileHandle = vi.fn().mockResolvedValue(fileHandle);
+    async function* noKeys(): AsyncGenerator<string> {}
+    const getDirectory = vi.fn().mockResolvedValue({
+      getFileHandle,
+      removeEntry: vi.fn().mockResolvedValue(undefined),
+      keys: noKeys,
+    });
+    setOpfs({ getDirectory });
+
+    const { result } = renderHook(() => useExportRunner({ project: fakeProject() }));
+    const writable = await result.current.showSavePicker("Clip.mp4", "mp4");
+
+    expect(getDirectory).toHaveBeenCalledTimes(1);
+    expect(fileHandle.createWritable).toHaveBeenCalledTimes(1);
+
+    await writeBlobToWritable(fakeBlob([new Uint8Array([1, 2, 3, 4, 5])]), writable);
+
+    expect(opfsWrites.reduce((sum, n) => sum + n, 0)).toBe(5);
+    expect(opfsClosed).toBe(true);
+    expect(fileHandle.getFile).toHaveBeenCalledTimes(1);
+    expect(createObjectURL).toHaveBeenCalledTimes(1);
+    expect(click).toHaveBeenCalledTimes(1);
+  });
+
+  it("rethrows AbortError so a user cancel is not turned into a download", async () => {
+    const picker = vi
+      .fn()
+      .mockRejectedValue(new DOMException("User cancelled", "AbortError"));
+    win.showSaveFilePicker = picker;
+
+    const { result } = renderHook(() => useExportRunner({ project: fakeProject() }));
+
+    await expect(
+      result.current.showSavePicker("My Movie.mp4", "mp4"),
+    ).rejects.toMatchObject({ name: "AbortError" });
+    expect(createObjectURL).not.toHaveBeenCalled();
+  });
+
+  it("reports Chinese buffered-write errors without creating a successful download", async () => {
+    configureShotloomLocale("zh-CN");
+    try {
+      const writable = await createDownloadWritable("文件.mp4", "video/mp4", { delivery: "download" });
+      await expect(writable.seek(-1)).rejects.toThrow("导出文件位置无效");
+      await writable.seek(128 * 1024 * 1024);
+      await expect(writable.write(new Uint8Array([1]))).rejects.toThrow("此导出文件过大，无法在内存中下载。");
+      await writable.abort();
+      await expect(writable.write(new Uint8Array([1]))).rejects.toThrow("导出目标已关闭");
+    } finally {
+      configureShotloomLocale("en-US");
+    }
+  });
+
+  it("createDownloadWritable uses the browser save picker when available", async () => {
+    const writable = fakeStream();
+    const handle = {
+      createWritable: vi.fn().mockResolvedValue(writable),
+    };
+    const picker = vi.fn().mockResolvedValue(handle);
+    win.showSaveFilePicker = picker;
+
+    await expect(
+      createDownloadWritable("Motion Scene.mp4", "video/mp4"),
+    ).resolves.toBe(writable);
+    expect(picker).toHaveBeenCalledWith({
+      suggestedName: "Motion Scene.mp4",
+      types: [
+        {
+          description: "Media file",
+          accept: { "video/mp4": [".mp4"] },
+        },
+      ],
+    });
+  });
+
+  it("explicit download bypasses browser and native pickers", async () => {
+    const picker = vi.fn();
+    win.showSaveFilePicker = picker;
+    const showSaveDialog = vi.fn();
+    win.openreel = { fs: { showSaveDialog } };
+    const writable = await createDownloadWritable("Clip.mp4", "video/mp4", { delivery: "download" });
+    await writable.write(new Uint8Array([1, 2]));
+    await writable.close();
+    expect(picker).not.toHaveBeenCalled();
+    expect(showSaveDialog).not.toHaveBeenCalled();
+    expect(click).toHaveBeenCalledOnce();
+  });
+
+  it("keeps a selected destination write-open failure visible", async () => {
+    win.showSaveFilePicker = vi.fn().mockResolvedValue({ createWritable: vi.fn().mockRejectedValue(new DOMException("Permission denied", "SecurityError")) });
+    await expect(createDownloadWritable("Clip.mp4", "video/mp4")).rejects.toMatchObject({ name: "SecurityError" });
+    expect(createObjectURL).not.toHaveBeenCalled();
+  });
+
+  it("implements seek and truncate faithfully for downloaded muxer output", async () => {
+    const writable = await createDownloadWritable("Clip.mp4", "video/mp4", { delivery: "download" });
+    await writable.write(new Uint8Array([1, 2, 3, 4]));
+    await writable.seek(1);
+    await writable.write(new Uint8Array([9]));
+    await writable.truncate(3);
+    await writable.truncate(5);
+    await writable.close();
+    const blob = createObjectURL.mock.calls[0][0] as Blob;
+    const bytes = await new Promise<ArrayBuffer>((resolve, reject) => {
+      const reader = new FileReader(); reader.onload = () => resolve(reader.result as ArrayBuffer); reader.onerror = reject; reader.readAsArrayBuffer(blob);
+    });
+    expect([...new Uint8Array(bytes)]).toEqual([1, 9, 3, 0, 0]);
+  });
+
+  it("aborted downloaded exports release buffers and cannot produce a file", async () => {
+    const writable = await createDownloadWritable("Clip.mp4", "video/mp4", { delivery: "download" });
+    await writable.write(new Uint8Array([1, 2, 3]));
+    await writable.abort();
+    await expect(writable.close()).rejects.toThrow("closed");
+    await expect(writable.write(new Uint8Array([4]))).rejects.toThrow("closed");
+    expect(createObjectURL).not.toHaveBeenCalled();
+  });
+
+  it("releases completed download URLs without waiting for navigation", async () => {
+    vi.useFakeTimers();
+    try {
+      const writable = await createDownloadWritable("Clip.mp4", "video/mp4", { delivery: "download" });
+      await writable.write(new Uint8Array([1])); await writable.close();
+      expect(urlApi.revokeObjectURL).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(60_000);
+      expect(urlApi.revokeObjectURL).toHaveBeenCalledWith("blob:fake");
+      window.dispatchEvent(new Event("pagehide"));
+      expect(urlApi.revokeObjectURL).toHaveBeenCalledOnce();
+    } finally { vi.useRealTimers(); }
+  });
+
+  it("createDownloadWritable resolves the native ffmpeg output path on desktop", async () => {
+    const showSaveDialog = vi
+      .fn()
+      .mockResolvedValue("/Users/me/Movies/Rubik.mp4");
+    win.openreel = {
+      platform: "desktop",
+      fs: {
+        showSaveDialog,
+        openWrite: vi.fn().mockResolvedValue("handle-1"),
+        writeChunk: vi.fn().mockResolvedValue(undefined),
+        closeWrite: vi.fn().mockResolvedValue(undefined),
+        abortWrite: vi.fn().mockResolvedValue(undefined),
+      },
+    };
+
+    const writable = await createDownloadWritable("Rubik.mp4", "video/mp4");
+
+    expect(showSaveDialog).toHaveBeenCalledTimes(1);
+    expect(win.__openreelExportPath).toBe("/Users/me/Movies/Rubik.mp4");
+    expect(writable).toBeDefined();
+  });
+
+  it("desktop stream writable forwards Uint8Array chunks without an ArrayBuffer copy", async () => {
+    const writeChunk = vi.fn().mockResolvedValue(undefined);
+    win.openreel = {
+      platform: "desktop",
+      fs: {
+        showSaveDialog: vi.fn().mockResolvedValue("/Users/me/Movies/Rubik.mp4"),
+        openWrite: vi.fn().mockResolvedValue("handle-1"),
+        writeChunk,
+        closeWrite: vi.fn().mockResolvedValue(undefined),
+        abortWrite: vi.fn().mockResolvedValue(undefined),
+      },
+    };
+
+    const { result } = renderHook(() => useExportRunner({ project: fakeProject() }));
+    const writable = await result.current.showSavePicker(
+      "Rubik.mp4",
+      "mp4",
+      { streamToFile: true },
+    );
+    const chunk = new Uint8Array([1, 2, 3]);
+
+    await writable.write(chunk);
+
+    expect(writeChunk).toHaveBeenCalledWith("handle-1", chunk, 0);
+  });
+
+  it("createDownloadWritable rethrows AbortError when the native save dialog is cancelled", async () => {
+    win.openreel = {
+      platform: "desktop",
+      fs: {
+        showSaveDialog: vi.fn().mockResolvedValue(null),
+        openWrite: vi.fn(),
+      },
+    };
+
+    await expect(
+      createDownloadWritable("Rubik.mp4", "video/mp4"),
+    ).rejects.toMatchObject({ name: "AbortError" });
+    expect(win.__openreelExportPath).toBeUndefined();
+  });
+});

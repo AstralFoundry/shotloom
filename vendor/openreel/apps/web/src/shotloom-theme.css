@@ -1,0 +1,194 @@
+/* Shotloom 宿主覆盖层：OpenReel 自身令牌（index.css）已对齐 MiniMax clip-studio，
+   这里只保留宿主专属收敛（隐藏 OpenReel 顶栏、紧凑模式细节、滚动条）。
+   构建产物 CSS 注入顺序在本文件之后，故覆盖需保持 !important。 */
+
+body.shotloom-mode {
+  font-size: var(--d-text);
+  line-height: 1.5;
+  letter-spacing: -0.005em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body.shotloom-mode [data-openreel-toolbar] {
+  display: none !important;
+}
+
+/* 顶部工具栏收起后，贴它的弹层（操作历史）不能再空出那一行。 */
+body.shotloom-mode .top-topbar {
+  top: 0;
+}
+
+/* 参考剪辑台：面板贴面板，1px 发丝线分隔，无圆角卡片、无阴影、无留白。 */
+body.shotloom-mode .editor-workspace {
+  padding: 0 !important;
+  gap: 1px !important;
+  background: var(--border) !important;
+}
+
+body.shotloom-mode .editor-panel,
+body.shotloom-mode .editor-stage {
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+body.shotloom-mode .editor-panel {
+  background: var(--bg-1) !important;
+}
+
+body.shotloom-mode .editor-resizer {
+  background: var(--border) !important;
+}
+
+body.shotloom-mode .editor-resizer:hover {
+  background: var(--brand-accent) !important;
+  opacity: 0.35;
+}
+
+/* 面板标题与标签按产品字号收敛（参考：13px medium + 负字距）。 */
+body.shotloom-mode .editor-panel .text-\[18px\] {
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  letter-spacing: -0.02em;
+}
+
+body.shotloom-mode .editor-panel .font-bold {
+  font-weight: 500 !important;
+}
+
+body.shotloom-mode .editor-panel .text-\[13px\] {
+  letter-spacing: -0.5px;
+}
+
+/* 预览屏幕：参考实现是浅灰舞台上的白色圆角屏 + 柔和投影。
+   舞台底色实测 #f7f7f7（面板才是纯白），所以这里必须用 --stage-bg，
+   刷成 --bg-1 会把整列变白、投影也没有可比对的底。 */
+body.shotloom-mode [data-tour="preview"] {
+  background: var(--stage-bg) !important;
+}
+
+/* 滚动条：10px 轨道 + 3px 透明内边距的细胶囊拇指（与参考一致）。 */
+body.shotloom-mode ::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+body.shotloom-mode ::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 99px;
+  background: var(--border-strong);
+  background-clip: padding-box;
+}
+
+body.shotloom-mode ::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* 画布模式复用真实 Preview / Timeline；仅改变展示，不复制编辑状态。 */
+body.shotloom-canvas .editor-workspace {
+  gap: 0 !important;
+  background: transparent !important;
+}
+body.shotloom-canvas .editor-workspace > :not(.editor-stage):not(#editor-panel-timeline) {
+  display: none !important;
+}
+body.shotloom-canvas .editor-shell,
+body.shotloom-canvas .editor-body {
+  background: transparent !important;
+}
+/* 宿主在节点顶边之上多让出「16:9 预览 + 12」这一段，预览面板正好填它，
+   下面的时间线卡片因此严丝合缝压在节点盒子上（缝隙实测参考 ≈12px）。 */
+body.shotloom-canvas .editor-stage {
+  margin-bottom: var(--clip-preview-gap, 8px);
+  border: 1px solid var(--border-strong) !important;
+  border-radius: 10px !important;
+  box-shadow: var(--shadow-md);
+}
+/* 参考实现的画布卡片预览就是一块贴边的 16:9 画面：没有“播放器”标题栏，
+   也不给屏幕留出 18px 内边距（留白会把画面缩成中间一小块）。 */
+body.shotloom-canvas [data-tour="preview"] > div:first-child {
+  display: none !important;
+}
+body.shotloom-canvas [data-tour="preview"] > div:nth-child(2) {
+  padding: 0 !important;
+}
+body.shotloom-canvas [data-preview-transport] {
+  display: none !important;
+}
+body.shotloom-canvas #editor-panel-timeline {
+  border: 1px solid var(--border-strong) !important;
+  border-radius: 10px !important;
+  box-shadow: var(--shadow-md);
+}
+.shotloom-canvas-tools {
+  height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  padding: 0 8px;
+  overflow-x: auto;
+  white-space: nowrap;
+  background: var(--bg-1);
+  color: var(--fg-2);
+  font-size: 12px;
+}
+.shotloom-canvas-tools > button {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+.shotloom-canvas-tools > button:first-child,
+.shotloom-canvas-tools > button:last-child {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 3px 6px;
+}
+.shotloom-canvas-tools input {
+  width: 60px;
+  flex-shrink: 0;
+  accent-color: var(--fg-2);
+}
+.shotloom-canvas-transport {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1 0 auto;
+  font-variant-numeric: tabular-nums;
+  gap: 4px;
+}
+/* 参考实现的画布卡片不露滚动条：轨道区仍可滚动，只是不占视口高度。 */
+.shotloom-canvas-tools::-webkit-scrollbar,
+body.shotloom-canvas #editor-panel-timeline ::-webkit-scrollbar {
+  display: none;
+}
+.shotloom-canvas-tools,
+body.shotloom-canvas #editor-panel-timeline,
+body.shotloom-canvas #editor-panel-timeline * {
+  scrollbar-width: none;
+}
+
+/* Selection does not participate in grid sizing. Only the preview fades. */
+body.shotloom-canvas .editor-stage {
+  margin-bottom: var(--clip-preview-gap, 8px);
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 150ms ease, transform 150ms ease;
+  pointer-events: none;
+}
+body.shotloom-canvas.shotloom-active .editor-stage {
+  opacity: 1;
+  transform: translateY(0);
+}
+body.shotloom-canvas:has([data-tour="timeline"]) .shotloom-canvas-tools { flex-shrink: 0; }
+/* WebKit suspends transition clocks in hidden documents. Size transitions on
+   the screen wrapper can otherwise freeze the first frame at 0 × 0. */
+body.shotloom-background .editor-stage,
+body.shotloom-background [data-tour="preview"],
+body.shotloom-background [data-tour="preview"] * { transition: none !important; }
+@media (prefers-reduced-motion: reduce) {
+  body.shotloom-canvas .editor-stage { transition: none; }
+}

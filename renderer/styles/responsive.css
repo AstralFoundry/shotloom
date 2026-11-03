@@ -1,0 +1,63 @@
+/* 窄视口下的外壳、工具条与画布降级布局。 */
+
+@media (max-width: 900px) {
+  .user-tools .icon-btn:not(.win-control) {
+    display: none;
+  }
+
+  .workspace,
+  .workspace.sidebar-collapsed {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar-shell.collapsed .sidebar { opacity: 1; transform: none; pointer-events: auto; }
+  .sidebar-toggle { display: none; }
+
+  .sidebar {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+    padding: 8px;
+  }
+
+  .side-list {
+    display: flex;
+    overflow-x: auto;
+  }
+
+  .side-item {
+    width: auto;
+    white-space: nowrap;
+  }
+
+  .toolbar,
+  .page-head,
+  .project-scope-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .tool-group,
+  .left-tools,
+  .right-tools {
+    flex-wrap: wrap;
+  }
+
+  .project-row {
+    grid-template-columns: 34px minmax(0, 1fr);
+  }
+
+  .project-row-time,
+  .project-row-type,
+  .project-row-actions {
+    grid-column: 2;
+  }
+
+  .project-row-actions {
+    justify-content: flex-start;
+  }
+
+  .canvas-shell {
+    grid-template-columns: 1fr;
+  }
+
+}

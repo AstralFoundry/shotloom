@@ -1,0 +1,863 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+
+const {
+  mockRenderFrame,
+  mockVideoEngine,
+  mockRenderAudio,
+  mockAudioEngine,
+  mockMediaEngine,
+  mockVideoSourceAdd,
+  mockAudioSourceAdd,
+  mockVideoSourceConfigs,
+  mockGetFirstEncodableVideoCodec,
+  mockOutputStart,
+  mockOutputFinalize,
+  mockCanEncodeVideo,
+  mockNativePacketAdd,
+} = vi.hoisted(() => {
+  const mockRenderFrame = vi.fn().mockResolvedValue({
+    image: { close: vi.fn() },
+    width: 1920,
+    height: 1080,
+  });
+
+  const mockVideoEngine = {
+    isInitialized: vi.fn().mockReturnValue(false),
+    initialize: vi.fn().mockResolvedValue(undefined),
+    initializeGPUCompositor: vi.fn().mockResolvedValue(undefined),
+    getGPUCompositor: vi.fn().mockReturnValue(null),
+    renderFrame: mockRenderFrame,
+    resetExportState: vi.fn(),
+    clearVideoElementCache: vi.fn(),
+    clearCache: vi.fn(),
+  };
+
+  const mockRenderAudio = vi.fn().mockResolvedValue({ buffer: null });
+  const mockAudioEngine = {
+    isInitialized: vi.fn().mockReturnValue(false),
+    initialize: vi.fn().mockResolvedValue(undefined),
+    renderAudio: mockRenderAudio,
+    clearCache: vi.fn(),
+  };
+
+  const mockMediaEngine = {
+    isAvailable: vi.fn().mockReturnValue(true),
+    initialize: vi.fn().mockResolvedValue(undefined),
+    getExportDecoder: vi.fn().mockReturnValue(null),
+    createExportDecoder: vi.fn().mockResolvedValue(null),
+    disposeAllExportDecoders: vi.fn(),
+    clearFrameCache: vi.fn(),
+  };
+
+  return {
+    mockRenderFrame,
+    mockVideoEngine,
+    mockRenderAudio,
+    mockAudioEngine,
+    mockMediaEngine,
+    mockVideoSourceAdd: vi.fn().mockResolvedValue(undefined),
+    mockAudioSourceAdd: vi.fn().mockResolvedValue(undefined),
+    mockVideoSourceConfigs: [] as Record<string, unknown>[],
+    mockGetFirstEncodableVideoCodec: vi.fn().mockResolvedValue("avc"),
+    mockOutputStart: vi.fn().mockResolvedValue(undefined),
+    mockOutputFinalize: vi.fn().mockResolvedValue(undefined),
+    mockCanEncodeVideo: vi.fn().mockResolvedValue(true),
+    mockNativePacketAdd: vi.fn().mockResolvedValue(undefined),
+  };
+});
+
+vi.mock("../video/video-engine", () => ({
+  VideoEngine: vi.fn(),
+  getVideoEngine: vi.fn().mockReturnValue(mockVideoEngine),
+}));
+
+vi.mock("../audio/audio-engine", () => ({
+  AudioEngine: vi.fn(),
+  getAudioEngine: vi.fn().mockReturnValue(mockAudioEngine),
+}));
+
+vi.mock("../text/title-engine", () => ({
+  titleEngine: {
+    getAllTextClips: vi.fn().mockReturnValue([]),
+  },
+}));
+
+vi.mock("../graphics/graphics-engine", () => ({
+  graphicsEngine: {
+    getAllShapeClips: vi.fn().mockReturnValue([]),
+    getAllSVGClips: vi.fn().mockReturnValue([]),
+    getAllStickerClips: vi.fn().mockReturnValue([]),
+  },
+}));
+
+vi.mock("../media/mediabunny-engine", () => ({
+  getMediaEngine: vi.fn().mockReturnValue(mockMediaEngine),
+}));
+
+vi.mock("./audio-priming", () => ({ getAacEncoderPriming: vi.fn().mockResolvedValue(2112) }));
+vi.mock("./mp4-audio-timing", () => ({ applyMp4AudioTiming: vi.fn((bytes) => bytes) }));
+
+vi.mock("mediabunny", () => {
+  class MockMp4OutputFormat {
+    constructor(public options?: { onMoov?: (bytes: Uint8Array, position: number) => void }) {}
+    getSupportedVideoCodecs() {
+      return ["avc", "hevc"];
+    }
+
+    getSupportedAudioCodecs() {
+      return ["aac"];
+    }
+  }
+
+  class MockWebMOutputFormat extends MockMp4OutputFormat {}
+  class MockMovOutputFormat extends MockMp4OutputFormat {}
+
+  class MockOutput {
+    constructor(private options: { format: MockMp4OutputFormat }) {}
+    addVideoTrack = vi.fn();
+    addAudioTrack = vi.fn();
+    setMetadataTags = vi.fn();
+    start = mockOutputStart;
+    finalize = async () => {
+      await mockOutputFinalize();
+      this.options.format.options?.onMoov?.(new Uint8Array(8), 1000);
+    };
+  }
+
+  class MockStreamTarget {
+    constructor(
+      _writable: WritableStream<{ data: Uint8Array; position: number }>,
+      _options?: Record<string, unknown>,
+    ) {}
+  }
+
+  class MockVideoSampleSource {
+    add = async (...args: unknown[]) => {
+      const automaticOutput = await mockVideoSourceAdd(...args);
+      if (automaticOutput !== false) (this.config.onEncodedPacket as (() => void) | undefined)?.();
+    };
+    close = vi.fn();
+
+    constructor(private config: Record<string, unknown>) {
+      mockVideoSourceConfigs.push(config);
+    }
+  }
+
+  class MockAudioBufferSource {
+    add = mockAudioSourceAdd;
+    close = vi.fn();
+
+    constructor(_config: Record<string, unknown>) {}
+  }
+
+  class MockVideoSample {
+    close = vi.fn();
+
+    constructor(
+      _data: unknown,
+      public init: { timestamp: number; duration: number },
+    ) {}
+  }
+
+  return {
+    Output: MockOutput,
+    StreamTarget: MockStreamTarget,
+    Mp4OutputFormat: MockMp4OutputFormat,
+    WebMOutputFormat: MockWebMOutputFormat,
+    MovOutputFormat: MockMovOutputFormat,
+    EncodedVideoPacketSource: class { add = mockNativePacketAdd; close = vi.fn(); },
+    EncodedPacket: { fromEncodedChunk: (chunk: unknown) => chunk },
+    VideoSampleSource: MockVideoSampleSource,
+    AudioBufferSource: MockAudioBufferSource,
+    VideoSample: MockVideoSample,
+    getFirstEncodableVideoCodec: mockGetFirstEncodableVideoCodec,
+    canEncodeVideo: mockCanEncodeVideo,
+    getFirstEncodableAudioCodec: vi.fn().mockResolvedValue("aac"),
+    QUALITY_MEDIUM: 1_000_000,
+  };
+});
+
+import { ExportEngine, getExportEngine } from "./export-engine";
+import {
+  DEFAULT_VIDEO_SETTINGS,
+  DEFAULT_AUDIO_SETTINGS,
+  DEFAULT_IMAGE_SETTINGS,
+  VIDEO_QUALITY_PRESETS,
+} from "./types";
+import type { Project, Timeline, Track, Clip } from "../types";
+import type { ExportResult } from "./types";
+
+const createMockProject = (overrides?: Partial<Project>): Project => ({
+  id: "test-project-id",
+  name: "Test Project",
+  createdAt: Date.now(),
+  modifiedAt: Date.now(),
+  settings: {
+    width: 1920,
+    height: 1080,
+    frameRate: 30,
+    sampleRate: 48000,
+    channels: 2,
+  },
+  mediaLibrary: {
+    items: [
+      {
+        id: "media-1",
+        name: "Mock video",
+        type: "video",
+        fileHandle: null,
+        blob: new Blob(["original media"]),
+        metadata: {
+          duration: 40,
+          width: 1920,
+          height: 1080,
+          frameRate: 30,
+          codec: "h264",
+          sampleRate: 48_000,
+          channels: 2,
+          fileSize: 0,
+          hasVideo: true,
+          hasAudio: true,
+        },
+        thumbnailUrl: null,
+        waveformData: null,
+      },
+    ],
+  },
+  timeline: {
+    tracks: [],
+    subtitles: [],
+    duration: 0,
+    markers: [],
+  },
+  ...overrides,
+});
+
+const createMockClip = (overrides?: Partial<Clip>): Clip => ({
+  id: "clip-1",
+  mediaId: "media-1",
+  trackId: "track-1",
+  startTime: 0,
+  duration: 5,
+  inPoint: 0,
+  outPoint: 5,
+  effects: [],
+  audioEffects: [],
+  transform: {
+    position: { x: 0.5, y: 0.5 },
+    scale: { x: 1, y: 1 },
+    rotation: 0,
+    anchor: { x: 0.5, y: 0.5 },
+    opacity: 1,
+  },
+  volume: 1,
+  keyframes: [],
+  ...overrides,
+});
+
+const createMockTrack = (overrides?: Partial<Track>): Track => ({
+  id: "track-1",
+  type: "video",
+  name: "Video 1",
+  clips: [createMockClip()],
+  transitions: [],
+  locked: false,
+  hidden: false,
+  muted: false,
+  solo: false,
+  ...overrides,
+});
+
+const createMockTimeline = (overrides?: Partial<Timeline>): Timeline => ({
+  tracks: [createMockTrack()],
+  subtitles: [],
+  duration: 5,
+  markers: [],
+  ...overrides,
+});
+
+describe("ExportEngine", () => {
+  let exportEngine: ExportEngine;
+
+  beforeEach(() => {
+    exportEngine = new ExportEngine();
+    vi.clearAllMocks();
+    mockVideoEngine.isInitialized.mockReturnValue(false);
+    mockAudioEngine.isInitialized.mockReturnValue(false);
+    mockMediaEngine.isAvailable.mockReturnValue(true);
+    mockMediaEngine.getExportDecoder.mockReturnValue(null);
+    mockVideoSourceConfigs.length = 0;
+    mockGetFirstEncodableVideoCodec.mockResolvedValue("avc");
+    mockCanEncodeVideo.mockResolvedValue(true);
+    mockRenderFrame.mockResolvedValue({
+      image: { close: vi.fn() },
+      width: 1920,
+      height: 1080,
+    });
+    mockRenderAudio.mockResolvedValue({ buffer: null });
+  });
+
+  afterEach(() => {
+    exportEngine.dispose();
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  describe("initialization", () => {
+    it("should start uninitialized", () => {
+      expect(exportEngine.isInitialized()).toBe(false);
+    });
+
+    it("should report MediaBunny unavailable before init", () => {
+      expect(exportEngine.isMediaBunnyAvailable()).toBe(false);
+    });
+  });
+
+  describe("singleton pattern", () => {
+    it("should return same instance from getExportEngine", () => {
+      const engine1 = getExportEngine();
+      const engine2 = getExportEngine();
+      expect(engine1).toBe(engine2);
+    });
+  });
+
+  describe("presets", () => {
+    it("should return export presets", () => {
+      const presets = exportEngine.getPresets();
+      expect(presets.length).toBeGreaterThan(0);
+    });
+
+    it("should have presets for all categories", () => {
+      const presets = exportEngine.getPresets();
+      const categories = new Set(presets.map((p) => p.category));
+      expect(categories.has("social")).toBe(true);
+      expect(categories.has("broadcast")).toBe(true);
+      expect(categories.has("web")).toBe(true);
+      expect(categories.has("archive")).toBe(true);
+    });
+
+    it("should have YouTube preset", () => {
+      const presets = exportEngine.getPresets();
+      const youtubePreset = presets.find((p) => p.id === "youtube-1080p");
+      expect(youtubePreset).toBeDefined();
+      expect(youtubePreset?.settings).toHaveProperty("codec", "h264");
+    });
+
+    it("should have TikTok preset with vertical dimensions", () => {
+      const presets = exportEngine.getPresets();
+      const tiktokPreset = presets.find((p) => p.id === "tiktok-1080p");
+      expect(tiktokPreset).toBeDefined();
+      if ("width" in tiktokPreset!.settings) {
+        expect(tiktokPreset!.settings.width).toBe(1080);
+        expect(tiktokPreset!.settings.height).toBe(1920);
+      }
+    });
+
+    it("should create custom preset", () => {
+      const customPreset = exportEngine.createPreset("My Preset", {
+        ...DEFAULT_VIDEO_SETTINGS,
+        bitrate: 15000,
+      });
+      expect(customPreset.name).toBe("My Preset");
+      expect(customPreset.category).toBe("custom");
+      expect(customPreset.id).toMatch(/^custom-/);
+    });
+  });
+
+  describe("file size estimation", () => {
+    it("should estimate video file size", () => {
+      const project = createMockProject({
+        timeline: createMockTimeline({ duration: 60 }),
+      });
+
+      const settings = { ...DEFAULT_VIDEO_SETTINGS, bitrate: 8000 };
+      const estimatedSize = exportEngine.estimateFileSize(project, settings);
+
+      const expectedSize = ((8000 * 1000 + 192 * 1000) * 60) / 8;
+      expect(estimatedSize).toBe(Math.ceil(expectedSize));
+    });
+
+    it("should estimate audio file size for WAV", () => {
+      const project = createMockProject({
+        timeline: createMockTimeline({ duration: 60 }),
+      });
+
+      const settings = { ...DEFAULT_AUDIO_SETTINGS, format: "wav" as const };
+      const estimatedSize = exportEngine.estimateFileSize(project, settings);
+
+      const expectedSize = 60 * 48000 * 2 * (16 / 8);
+      expect(estimatedSize).toBe(Math.ceil(expectedSize));
+    });
+
+    it("should estimate audio file size for MP3", () => {
+      const project = createMockProject({
+        timeline: createMockTimeline({ duration: 60 }),
+      });
+
+      const settings = { ...DEFAULT_AUDIO_SETTINGS, bitrate: 320 };
+      const estimatedSize = exportEngine.estimateFileSize(project, settings);
+
+      const expectedSize = (320 * 1000 * 60) / 8;
+      expect(estimatedSize).toBe(Math.ceil(expectedSize));
+    });
+  });
+
+  describe("export time estimation", () => {
+    it("should estimate video export time", () => {
+      const project = createMockProject({
+        timeline: createMockTimeline({ duration: 60 }),
+      });
+
+      const settings = DEFAULT_VIDEO_SETTINGS;
+      const estimatedTime = exportEngine.estimateExportTime(project, settings);
+
+      expect(estimatedTime).toBeGreaterThan(0);
+    });
+
+    it("should estimate longer time for H.265", () => {
+      const project = createMockProject({
+        timeline: createMockTimeline({ duration: 60 }),
+      });
+
+      const h264Settings = {
+        ...DEFAULT_VIDEO_SETTINGS,
+        codec: "h264" as const,
+      };
+      const h265Settings = {
+        ...DEFAULT_VIDEO_SETTINGS,
+        codec: "h265" as const,
+      };
+
+      const h264Time = exportEngine.estimateExportTime(project, h264Settings);
+      const h265Time = exportEngine.estimateExportTime(project, h265Settings);
+
+      expect(h265Time).toBeGreaterThan(h264Time);
+    });
+
+    it("should estimate longer time for 4K", () => {
+      const project = createMockProject({
+        timeline: createMockTimeline({ duration: 60 }),
+      });
+
+      const hd = { ...DEFAULT_VIDEO_SETTINGS, width: 1920, height: 1080 };
+      const fourK = { ...DEFAULT_VIDEO_SETTINGS, width: 3840, height: 2160 };
+
+      const hdTime = exportEngine.estimateExportTime(project, hd);
+      const fourKTime = exportEngine.estimateExportTime(project, fourK);
+
+      expect(fourKTime).toBeGreaterThan(hdTime);
+    });
+  });
+
+  describe("cancel", () => {
+    it("should not throw when canceling without active export", () => {
+      expect(() => exportEngine.cancel()).not.toThrow();
+    });
+  });
+
+  describe("video export", () => {
+    const writableStream = {
+      seek: vi.fn().mockResolvedValue(undefined),
+      write: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn().mockResolvedValue(undefined),
+      abort: vi.fn().mockResolvedValue(undefined),
+    } as unknown as FileSystemWritableFileStream;
+
+    async function drainVideoExport(
+      settings = { ...DEFAULT_VIDEO_SETTINGS, frameRate: 1, width: 640, height: 360 },
+      duration = 1,
+    ): Promise<ExportResult> {
+      const project = createMockProject({
+        timeline: createMockTimeline({
+          tracks: [
+            createMockTrack({
+              clips: [createMockClip({ duration, outPoint: duration })],
+            }),
+          ],
+          duration,
+        }),
+      });
+
+      await exportEngine.initialize();
+      const generator = exportEngine.exportVideo(project, settings, writableStream);
+
+      while (true) {
+        const { done, value } = await generator.next();
+        if (done) return value;
+      }
+    }
+
+    it("should render long export audio in chunks and clear cached audio", async () => {
+      const project = createMockProject({
+        timeline: createMockTimeline({
+          tracks: [
+            createMockTrack({
+              clips: [createMockClip({ duration: 40, outPoint: 40 })],
+            }),
+          ],
+          duration: 40,
+        }),
+      });
+
+      mockRenderAudio.mockImplementation(async (_project, _start, duration) => ({ buffer: { duration, length: duration * 48000 } }));
+
+      await exportEngine.initialize();
+
+      const writableStream = {
+        seek: vi.fn().mockResolvedValue(undefined),
+        write: vi.fn().mockResolvedValue(undefined),
+        close: vi.fn().mockResolvedValue(undefined),
+        abort: vi.fn().mockResolvedValue(undefined),
+      } as unknown as FileSystemWritableFileStream;
+
+      const generator = exportEngine.exportVideo(
+        project,
+        { ...DEFAULT_VIDEO_SETTINGS, frameRate: 1, width: 640, height: 360 },
+        writableStream,
+      );
+
+      while (true) {
+        const { done } = await generator.next();
+        if (done) break;
+      }
+
+      expect(mockRenderAudio).toHaveBeenCalledTimes(3);
+      expect(mockRenderAudio).toHaveBeenNthCalledWith(1, project, 0, 15);
+      expect(mockRenderAudio).toHaveBeenNthCalledWith(2, project, 15, 15);
+      expect(mockRenderAudio).toHaveBeenNthCalledWith(3, project, 30, 10);
+      expect(mockAudioSourceAdd).toHaveBeenCalledTimes(3);
+      expect(mockAudioEngine.clearCache).toHaveBeenCalled();
+    });
+
+    it("returns the exact missing source names before encoding", async () => {
+      const project = createMockProject({ timeline: createMockTimeline({ tracks: [createMockTrack({ clips: [createMockClip({ duration: 1, outPoint: 1 })] })], duration: 1 }) });
+      const name = "Media 用户 {files} $&.mp4";
+      project.mediaLibrary.items[0] = { ...project.mediaLibrary.items[0], name, blob: null };
+      await exportEngine.initialize();
+      const result = await exportEngine.exportVideo(project, DEFAULT_VIDEO_SETTINGS, writableStream).next();
+      expect(result.done).toBe(true);
+      expect(result.value).toMatchObject({ success: false, error: { preflightIssue: { code: "missing-media", names: [name] } } });
+      expect(mockRenderFrame).not.toHaveBeenCalled();
+    });
+
+    it("preserves structured validation facts in a failed export result", async () => {
+      expect(await drainVideoExport({ ...DEFAULT_VIDEO_SETTINGS, width: 0 })).toMatchObject({
+        success: false,
+        error: { code: "INVALID_SETTINGS", preflightIssue: { code: "dimensions" }, message: "Choose a valid width and height for your video." },
+      });
+      expect(mockRenderFrame).not.toHaveBeenCalled();
+    });
+
+    it("renders a selected range at original timeline times with output starting at zero", async () => {
+      const settings = { ...DEFAULT_VIDEO_SETTINGS, width: 640, height: 360, frameRate: 30, range: { startTime: 2, endTime: 4 } };
+      expect(await drainVideoExport(settings, 6)).toMatchObject({ success: true, stats: { framesRendered: 60 } });
+      expect(mockRenderFrame).toHaveBeenNthCalledWith(1, expect.anything(), 2, 640, 360, { transparentBackground: false });
+      expect(mockRenderFrame).toHaveBeenNthCalledWith(60, expect.anything(), 2 + 59 / 30, 640, 360, { transparentBackground: false });
+      expect(mockVideoSourceAdd).toHaveBeenNthCalledWith(1, expect.objectContaining({ init: { timestamp: 0, duration: 1 / 30 } }));
+      expect(mockRenderAudio).toHaveBeenCalledWith(expect.anything(), 2, 2);
+    });
+
+    it("chunks selected-range audio without including sound before In or after Out", async () => {
+      mockRenderAudio.mockImplementation(async (_project, _start, duration) => ({ buffer: { duration, length: duration * 48000 } }));
+      expect(await drainVideoExport({ ...DEFAULT_VIDEO_SETTINGS, width: 640, height: 360, frameRate: 1, range: { startTime: 2, endTime: 34 } }, 35)).toMatchObject({ success: true });
+      expect(mockRenderAudio.mock.calls.map(([, start, duration]) => [start, duration])).toEqual([[2, 15], [17, 15], [32, 2]]);
+    });
+
+    it.each([
+      { startTime: -1, endTime: 2 }, { startTime: 2, endTime: 2 },
+      { startTime: 4, endTime: 2 }, { startTime: 2, endTime: 7 },
+      { startTime: NaN, endTime: 4 },
+    ])("rejects invalid export ranges before rendering: %j", async (range) => {
+      expect(await drainVideoExport({ ...DEFAULT_VIDEO_SETTINGS, frameRate: 1, width: 640, height: 360, range }, 6)).toMatchObject({ success: false, error: { code: "INVALID_SETTINGS", preflightIssue: { code: "range" } } });
+      expect(mockRenderFrame).not.toHaveBeenCalled();
+    });
+
+    it("aborts GPU initialization failures, restores preview mode, and allows retry", async () => {
+      mockVideoEngine.initializeGPUCompositor.mockRejectedValueOnce(new Error("GPU initialization failed"));
+      expect(await drainVideoExport()).toMatchObject({ success: false, error: { message: expect.stringContaining("GPU initialization failed") } });
+      expect(writableStream.abort).toHaveBeenCalled();
+      expect(mockVideoEngine).toHaveProperty("exportMode", false);
+      expect(await drainVideoExport()).toMatchObject({ success: true });
+    });
+
+    it("reports an unsupported requested codec before rendering instead of substituting", async () => {
+      mockGetFirstEncodableVideoCodec.mockResolvedValue(null);
+      expect(await drainVideoExport()).toMatchObject({ success: false, error: { code: "UNSUPPORTED_CODEC" } });
+      expect(mockRenderFrame).not.toHaveBeenCalled();
+      expect(writableStream.abort).toHaveBeenCalled();
+      expect(mockVideoEngine).toHaveProperty("exportMode", false);
+    });
+
+    it("reports output commit failure and permits another export", async () => {
+      vi.mocked(writableStream.close).mockRejectedValueOnce(new Error("Disk full"));
+      expect(await drainVideoExport()).toMatchObject({ success: false, error: { message: "Disk full" } });
+      expect(writableStream.abort).toHaveBeenCalled();
+      expect(mockVideoEngine).toHaveProperty("exportMode", false);
+      expect(await drainVideoExport()).toMatchObject({ success: true });
+    });
+
+    it("checks cancellation after the last frame before committing output", async () => {
+      mockVideoSourceAdd.mockImplementationOnce(async () => { exportEngine.cancel(); });
+      expect(await drainVideoExport()).toMatchObject({ success: false, error: { code: "CANCELLED" } });
+      expect(writableStream.close).not.toHaveBeenCalled();
+      expect(writableStream.abort).toHaveBeenCalled();
+      expect(mockVideoEngine).toHaveProperty("exportMode", false);
+      expect(await drainVideoExport()).toMatchObject({ success: true });
+    });
+
+    it("cancels a stalled frame submission and releases the export for retry", async () => {
+      mockVideoSourceAdd.mockImplementationOnce(() => new Promise(() => {}));
+      const pending = drainVideoExport();
+      await vi.waitFor(() => expect(mockVideoSourceAdd).toHaveBeenCalled());
+      exportEngine.cancel();
+      expect(await pending).toMatchObject({ success: false, error: { code: "CANCELLED" } });
+      expect(writableStream.abort).toHaveBeenCalled();
+      expect(await drainVideoExport()).toMatchObject({ success: true });
+    });
+
+    it("closes a frame that arrives after its cancelled render", async () => {
+      const image = { close: vi.fn() };
+      let completeRender!: (frame: { image: typeof image; width: number; height: number }) => void;
+      mockRenderFrame.mockImplementationOnce(() => new Promise((resolve) => { completeRender = resolve; }));
+      const pending = drainVideoExport();
+      await vi.waitFor(() => expect(mockRenderFrame).toHaveBeenCalled());
+      exportEngine.cancel();
+      expect(await pending).toMatchObject({ success: false, error: { code: "CANCELLED" } });
+      completeRender({ image, width: 640, height: 360 });
+      await vi.waitFor(() => expect(image.close).toHaveBeenCalledOnce());
+    });
+
+    it("reports a stalled encoder and allows retry after its watchdog expires", async () => {
+      vi.useFakeTimers();
+      mockVideoSourceAdd.mockImplementationOnce(() => new Promise(() => {}));
+      const pending = drainVideoExport();
+      await vi.waitFor(() => expect(mockVideoSourceAdd).toHaveBeenCalled());
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(await pending).toMatchObject({ success: false, error: { message: expect.stringContaining("stopped responding") } });
+      expect(writableStream.abort).toHaveBeenCalled();
+      expect(await drainVideoExport()).toMatchObject({ success: true });
+    });
+
+    it("uses realtime encoding in WebKit and requires every output frame", async () => {
+      vi.stubGlobal("navigator", { userAgent: "AppleWebKit/605.1.15 Version/27.2 Safari/605.1.15" });
+      expect(await drainVideoExport()).toMatchObject({ success: true });
+      expect(mockVideoSourceConfigs[0]).toMatchObject({ latencyMode: "realtime" });
+      mockVideoSourceAdd.mockImplementationOnce(async () => {
+        mockVideoSourceConfigs.at(-1)!.onEncodedPacket = undefined;
+      });
+      expect(await drainVideoExport()).toMatchObject({ success: false, error: { message: expect.stringContaining("0 of 1 frames") } });
+      expect(writableStream.abort).toHaveBeenCalled();
+    });
+
+    it("flushes bounded quality-mode batches in WebKit without dropping frames", async () => {
+      vi.stubGlobal("navigator", { userAgent: "AppleWebKit/605.1.15 Version/27.2 Safari/605.1.15" });
+      const configs: VideoEncoderConfig[] = [];
+      let largestQueue = 0;
+      const flush = vi.fn();
+      vi.stubGlobal("VideoFrame", class { constructor(public image: unknown, public init: { timestamp: number; duration: number }) {} close() {} });
+      vi.stubGlobal("VideoEncoder", class {
+        state = "unconfigured";
+        queue: Array<{ init: { timestamp: number; duration: number } }> = [];
+        constructor(private init: { output: (chunk: unknown, metadata: unknown) => void }) {}
+        configure(config: VideoEncoderConfig) { configs.push(config); this.state = "configured"; }
+        encode(frame: { init: { timestamp: number; duration: number } }) {
+          this.queue.push(frame); largestQueue = Math.max(largestQueue, this.queue.length);
+        }
+        async flush() {
+          flush();
+          for (const frame of this.queue.splice(0)) this.init.output(frame.init, { decoderConfig: { codec: "avc1.420033", colorSpace: { primaries: "bt709", fullRange: true } } });
+        }
+        close() { this.state = "closed"; }
+      });
+      const result = await drainVideoExport({ ...DEFAULT_VIDEO_SETTINGS, width: 3840, height: 2160, frameRate: 10 }, 1);
+      expect(result).toMatchObject({ success: true, stats: { framesRendered: 10 } });
+      expect(configs[0]).toMatchObject({ latencyMode: "quality", codec: "avc1.420033", width: 3840, height: 2160 });
+      expect(largestQueue).toBe(4);
+      expect(flush).toHaveBeenCalledTimes(3);
+      expect(mockNativePacketAdd).toHaveBeenCalledTimes(10);
+      expect(mockNativePacketAdd.mock.calls[0][1].decoderConfig.colorSpace).toEqual({ primaries: "bt709", fullRange: false });
+      expect(mockNativePacketAdd.mock.calls.map(call => call[0].timestamp)).toEqual(Array.from({ length: 10 }, (_, i) => i * 100_000));
+    });
+
+    it("decodes the original video blob for export", async () => {
+      expect(await drainVideoExport()).toMatchObject({ success: true });
+      expect(mockMediaEngine.createExportDecoder).toHaveBeenCalledWith("media-1", expect.any(Blob), 640);
+    });
+
+    it("renders export audio at the selected sample rate and channel count", async () => {
+      expect(await drainVideoExport({ ...DEFAULT_VIDEO_SETTINGS, frameRate: 1, width: 640, height: 360, audioSettings: { ...DEFAULT_VIDEO_SETTINGS.audioSettings, sampleRate: 96000, channels: 1 } })).toMatchObject({ success: true });
+      expect(mockRenderAudio).toHaveBeenCalledWith(expect.objectContaining({ settings: expect.objectContaining({ sampleRate: 96000, channels: 1 }) }), 0, 1);
+    });
+
+    it("cleans up when a cancelled export generator is closed at a yield", async () => {
+      await exportEngine.initialize();
+      const project = createMockProject({ timeline: createMockTimeline({ tracks: [createMockTrack({ clips: [createMockClip({ duration: 1, outPoint: 1 })] })] }) });
+      const generator = exportEngine.exportVideo(project, DEFAULT_VIDEO_SETTINGS, writableStream);
+      await generator.next();
+      exportEngine.cancel();
+      await generator.return({ success: false });
+      expect(writableStream.abort).toHaveBeenCalled();
+      expect(mockVideoEngine).toHaveProperty("exportMode", false);
+      expect(await drainVideoExport()).toMatchObject({ success: true });
+    });
+
+    it("prefers hardware WebCodecs for the default browser backend", async () => {
+      mockGetFirstEncodableVideoCodec.mockImplementation(async (codecs) => codecs[0]);
+
+      await drainVideoExport();
+
+      expect(mockGetFirstEncodableVideoCodec).toHaveBeenCalledWith(
+        ["avc"],
+        expect.objectContaining({ hardwareAcceleration: "prefer-hardware" }),
+      );
+      expect(mockVideoSourceConfigs[0]).toMatchObject({
+        codec: "avc",
+        hardwareAcceleration: "prefer-hardware",
+      });
+    });
+
+    it("keeps decoder caches warm while throttling browser exports", async () => {
+      await drainVideoExport({
+        ...DEFAULT_VIDEO_SETTINGS,
+        frameRate: 5,
+        width: 640,
+        height: 360,
+      });
+
+      // Caches are released once before muxing and once by the final safety
+      // cleanup, but never in the middle of the five-frame render loop.
+      expect(mockVideoEngine.clearVideoElementCache).toHaveBeenCalledTimes(2);
+      expect(mockVideoEngine.clearCache).toHaveBeenCalledTimes(2);
+      expect(mockMediaEngine.clearFrameCache).toHaveBeenCalledTimes(2);
+    });
+
+    it("falls back to no-preference when hardware WebCodecs is unavailable", async () => {
+      mockGetFirstEncodableVideoCodec.mockImplementation(async (_codecs, options) =>
+        options.hardwareAcceleration === "prefer-hardware" ? null : "avc",
+      );
+
+      await drainVideoExport();
+
+      expect(mockGetFirstEncodableVideoCodec).toHaveBeenNthCalledWith(
+        2,
+        ["avc"],
+        expect.objectContaining({ hardwareAcceleration: "prefer-hardware" }),
+      );
+      expect(mockGetFirstEncodableVideoCodec).toHaveBeenNthCalledWith(
+        3,
+        ["avc"],
+        expect.objectContaining({ hardwareAcceleration: "no-preference" }),
+      );
+      expect(mockVideoSourceConfigs[0]).toMatchObject({
+        codec: "avc",
+        hardwareAcceleration: "no-preference",
+      });
+    });
+
+    it("tries the requested codec before other container codecs", async () => {
+      mockGetFirstEncodableVideoCodec.mockImplementation(async (codecs) => codecs[0]);
+
+      await drainVideoExport({
+        ...DEFAULT_VIDEO_SETTINGS,
+        codec: "h265",
+        frameRate: 1,
+        width: 640,
+        height: 360,
+      });
+
+      expect(mockGetFirstEncodableVideoCodec).toHaveBeenCalledWith(
+        ["hevc"],
+        expect.objectContaining({ hardwareAcceleration: "prefer-hardware" }),
+      );
+      expect(mockVideoSourceConfigs[0]).toMatchObject({
+        codec: "hevc",
+      });
+    });
+
+    it("validates the hardware hint and retries the same codec without it", async () => {
+      mockGetFirstEncodableVideoCodec.mockResolvedValue("avc");
+      mockCanEncodeVideo.mockImplementation(async (_codec, config) => config.hardwareAcceleration !== "prefer-hardware");
+      expect(await drainVideoExport()).toMatchObject({ success: true });
+      expect(mockCanEncodeVideo).toHaveBeenCalledWith("avc", expect.objectContaining({ hardwareAcceleration: "prefer-hardware", bitrateMode: "constant" }));
+      expect(mockVideoSourceConfigs[0]).toMatchObject({ codec: "avc", hardwareAcceleration: "no-preference", bitrateMode: "constant" });
+    });
+  });
+
+  describe("dispose", () => {
+    it("should reset state on dispose", () => {
+      exportEngine.dispose();
+      expect(exportEngine.isInitialized()).toBe(false);
+      expect(exportEngine.isMediaBunnyAvailable()).toBe(false);
+    });
+  });
+});
+
+describe("Export Types and Defaults", () => {
+  describe("DEFAULT_VIDEO_SETTINGS", () => {
+    it("should have correct default format", () => {
+      expect(DEFAULT_VIDEO_SETTINGS.format).toBe("mp4");
+    });
+
+    it("should have correct default codec", () => {
+      expect(DEFAULT_VIDEO_SETTINGS.codec).toBe("h264");
+    });
+
+    it("should have correct default resolution", () => {
+      expect(DEFAULT_VIDEO_SETTINGS.width).toBe(1920);
+      expect(DEFAULT_VIDEO_SETTINGS.height).toBe(1080);
+    });
+
+    it("should have correct default frame rate", () => {
+      expect(DEFAULT_VIDEO_SETTINGS.frameRate).toBe(30);
+    });
+
+    it("should have audio settings", () => {
+      expect(DEFAULT_VIDEO_SETTINGS.audioSettings).toBeDefined();
+      expect(DEFAULT_VIDEO_SETTINGS.audioSettings.sampleRate).toBe(48000);
+    });
+  });
+
+  describe("DEFAULT_AUDIO_SETTINGS", () => {
+    it("should have correct defaults", () => {
+      expect(DEFAULT_AUDIO_SETTINGS.format).toBe("mp3");
+      expect(DEFAULT_AUDIO_SETTINGS.sampleRate).toBe(48000);
+      expect(DEFAULT_AUDIO_SETTINGS.bitrate).toBe(320);
+      expect(DEFAULT_AUDIO_SETTINGS.channels).toBe(2);
+    });
+  });
+
+  describe("DEFAULT_IMAGE_SETTINGS", () => {
+    it("should have correct defaults", () => {
+      expect(DEFAULT_IMAGE_SETTINGS.format).toBe("jpg");
+      expect(DEFAULT_IMAGE_SETTINGS.quality).toBe(90);
+      expect(DEFAULT_IMAGE_SETTINGS.width).toBe(1920);
+      expect(DEFAULT_IMAGE_SETTINGS.height).toBe(1080);
+    });
+  });
+
+  describe("VIDEO_QUALITY_PRESETS", () => {
+    it("should have 4K preset", () => {
+      expect(VIDEO_QUALITY_PRESETS["4k"]).toBeDefined();
+      expect(VIDEO_QUALITY_PRESETS["4k"].width).toBe(3840);
+      expect(VIDEO_QUALITY_PRESETS["4k"].height).toBe(2160);
+    });
+
+    it("should have 1080p preset", () => {
+      expect(VIDEO_QUALITY_PRESETS["1080p"]).toBeDefined();
+      expect(VIDEO_QUALITY_PRESETS["1080p"].width).toBe(1920);
+      expect(VIDEO_QUALITY_PRESETS["1080p"].height).toBe(1080);
+    });
+
+    it("should have 720p preset", () => {
+      expect(VIDEO_QUALITY_PRESETS["720p"]).toBeDefined();
+      expect(VIDEO_QUALITY_PRESETS["720p"].width).toBe(1280);
+      expect(VIDEO_QUALITY_PRESETS["720p"].height).toBe(720);
+    });
+
+    it("should have higher bitrate for 4K than 1080p", () => {
+      expect(VIDEO_QUALITY_PRESETS["4k"].bitrate).toBeGreaterThan(
+        VIDEO_QUALITY_PRESETS["1080p"].bitrate,
+      );
+    });
+  });
+});

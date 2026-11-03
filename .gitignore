@@ -1,0 +1,26 @@
+node_modules/
+dist/
+.DS_Store
+npm-debug.log*
+.idea/
+.learnings/
+.claude/
+.playwright-cli/
+release/
+src-tauri/target/
+src-tauri/gen/
+src-tauri/browser/
+src-tauri/binaries/
+# 由 scripts/prepare-openreel.mjs 从 vendor/openreel 生成
+renderer/public/openreel/
+vendor/openreel/packages/core/src/wasm/*/build/
+
+# OpenReel 临时构建目录
+vendor/openreel/apps/web/dist-embedded/
+
+# Generated official Agent Host and bundled Node runtime
+src-tauri/resources/agent-host/
+
+# 本地调试产物：日志、截图与验证输出
+/output/
+*.tsbuildinfo

@@ -1,0 +1,789 @@
+.ov-openreel {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: grid;
+  grid-template-rows: 52px minmax(0, 1fr);
+  color: var(--type-primary);
+  background: var(--surface);
+}
+
+.ov-openreel-head {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 12px 0 14px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.ov-openreel-title {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* 参考剪辑台的页头：返回入口是一枚带发丝描边的胶囊，右侧操作是无边框幽灵键。 */
+.ov-openreel-back {
+  height: var(--control-height);
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  border: 1px solid var(--line-solid);
+  border-radius: 999px;
+  color: var(--type-primary);
+  background: var(--surface);
+  font-size: var(--text-body-13);
+  cursor: pointer;
+}
+
+.ov-openreel-back:hover:not(:disabled) {
+  background: var(--surface-2);
+}
+
+.ov-openreel-back svg {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+}
+
+.ov-openreel-title strong {
+  max-width: 34vw;
+  overflow: hidden;
+  color: var(--text);
+  font-size: var(--text-body-13);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ov-openreel-title span,
+.ov-openreel-error {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: var(--text-caption-11);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ov-openreel-error {
+  max-width: 30vw;
+  color: var(--bad);
+}
+
+.ov-openreel-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ov-openreel-actions button {
+  height: var(--control-height);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--type-primary);
+  background: transparent;
+  font-size: var(--text-body-13);
+  cursor: pointer;
+}
+
+.ov-openreel-actions button:hover:not(:disabled) {
+  background: var(--surface-2);
+}
+
+.ov-openreel-actions button.ov-openreel-icon {
+  width: var(--control-height);
+  padding: 0;
+  justify-content: center;
+}
+
+.ov-openreel-actions button.primary {
+  border-color: var(--brand);
+  border-radius: 999px;
+  color: var(--brand-accent-foreground);
+  background: var(--brand);
+}
+
+.ov-openreel-actions button.primary:hover:not(:disabled) {
+  background: var(--brand-hover);
+}
+
+.ov-openreel-actions button:disabled {
+  opacity: .5;
+  cursor: default;
+}
+
+.ov-openreel-actions button svg {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+}
+
+.ov-openreel-divider {
+  width: 1px;
+  height: 18px;
+  margin: 0 2px;
+  background: var(--line);
+}
+
+.ov-openreel-stage {
+  position: relative;
+  min-height: 0;
+  display: flex;
+  background: var(--surface-2);
+}
+
+/* Keep editor gestures idle while resizing the adjacent assistant. */
+.ov-openreel-stage[data-resizing] .clip-studio-runtime-host {
+  pointer-events: none;
+}
+
+.clip-studio-runtime-host {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  display: block;
+  background: var(--surface);
+}
+
+/* 剪辑台与助手列之间的拖动条：与画布侧 .forge-workspace-divider、媒体侧 .text-agent-divider
+   同一套交互契约（9px 命中区、悬停/聚焦才显形、col-resize）。 */
+.ov-openreel-agent-divider {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 2;
+  width: 9px;
+  transform: translateX(50%);
+  border: 0;
+  background: transparent;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.ov-openreel-agent-divider::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 2px;
+  height: 32px;
+  border-radius: 999px;
+  background: var(--grip-active);
+  opacity: 0;
+  transform: translate(-50%, -50%);
+  transition: opacity var(--duration-fast) var(--ease-std);
+}
+
+.ov-openreel-agent-divider:hover::after,
+.ov-openreel-agent-divider:focus-visible::after {
+  opacity: 1;
+}
+
+.ov-openreel-agent-divider:focus-visible {
+  outline: none;
+}
+
+.ov-openreel-agent {
+  flex: 0 0 auto;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  border-left: 1px solid var(--line);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+/* 宿主资源选择器（对齐参考实现）：剪辑台里点“添加媒体”开的是宿主自己的
+   资源挑选窗，而不是操作系统文件框。它 portal 进内容区共享挂载点，铺满内容区，
+   遮罩层叠在剪辑台（10）、导演台（20）、媒体预览（30）之上。 */
+.ov-picker-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--overlay-dim);
+}
+
+.ov-picker {
+  width: min(920px, 100%);
+  height: min(680px, 100%);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  border: 1px solid var(--line-solid);
+  border-radius: var(--radius-lg);
+  color: var(--type-primary);
+  background: var(--surface);
+  box-shadow: var(--shadow-modal);
+  overflow: hidden;
+}
+
+/* IconSymbol 只画 viewBox，不带宽高：未显式约束的 <svg> 会按替换元素默认的
+   300×150 参与布局，把侧栏、磁贴和角标全部撑破。这里给选择器内所有图标定基准。 */
+.ov-picker-backdrop svg {
+  width: var(--icon-md);
+  height: var(--icon-md);
+  flex: 0 0 auto;
+}
+
+.ov-picker.has-failures {
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
+}
+
+.ov-picker-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 8px 0 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.ov-picker-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.ov-picker-tabs button {
+  height: 52px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  background: none;
+  font-size: var(--text-body-13);
+  line-height: var(--text-body-13--line-height);
+  white-space: nowrap;
+}
+
+.ov-picker-tabs button span {
+  color: var(--faint);
+  font-size: var(--text-caption-10);
+}
+
+.ov-picker-tabs button.active {
+  color: var(--text);
+  border-bottom-color: var(--text);
+}
+
+.ov-picker-close {
+  margin-left: auto;
+  width: var(--control-height);
+  height: var(--control-height);
+  display: inline-grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+  background: none;
+}
+
+.ov-picker-close:hover {
+  color: var(--text);
+  background: var(--wash-hover);
+}
+
+.ov-picker-body {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 176px minmax(0, 1fr);
+}
+
+.ov-picker-aside {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px 12px;
+  border-right: 1px solid var(--line);
+  background: var(--surface-muted);
+  overflow: auto;
+}
+
+.ov-picker-search {
+  height: var(--control-height);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  border: 1px solid var(--line-solid);
+  border-radius: var(--radius-sm);
+  color: var(--faint);
+  background: var(--surface);
+}
+
+.ov-picker-search input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  color: var(--text);
+  background: none;
+  font-size: var(--text-body-12);
+}
+
+.ov-picker-search input:focus { outline: none; }
+
+.ov-picker-search svg { width: var(--icon-sm); height: var(--icon-sm); }
+
+.ov-picker-types {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ov-picker-types button,
+.ov-picker-tags button {
+  height: 28px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+  background: none;
+  font-size: var(--text-caption-11);
+  text-align: left;
+}
+
+.ov-picker-types button:hover,
+.ov-picker-tags button:hover {
+  color: var(--text);
+  background: var(--wash-hover);
+}
+
+.ov-picker-types button.active,
+.ov-picker-tags button.active {
+  color: var(--text);
+  background: var(--wash-pressed);
+}
+
+.ov-picker-count {
+  margin-left: auto;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.ov-picker-section-label {
+  color: var(--faint);
+  font-size: var(--text-caption-10);
+  letter-spacing: var(--tracking-wide);
+}
+
+.ov-picker-tags {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ov-picker-tags button {
+  justify-content: flex-start;
+}
+
+.ov-picker-main {
+  min-width: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.ov-picker-bar {
+  height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.ov-picker-view {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--radius-sm);
+  background: var(--wash-inset);
+}
+
+.ov-picker-view button {
+  width: 26px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-xs);
+  color: var(--muted);
+  background: none;
+}
+
+.ov-picker-view button[aria-pressed="true"] {
+  color: var(--text);
+  background: var(--surface);
+}
+
+.ov-picker-view button svg { width: var(--icon-sm); height: var(--icon-sm); }
+
+.ov-picker-available {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: var(--text-caption-11);
+}
+
+.ov-picker-tag-chip {
+  height: 26px;
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px 0 10px;
+  border: 1px solid var(--line-solid);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  background: var(--surface-2);
+  font-size: var(--text-caption-11);
+}
+
+.ov-picker-tag-chip svg { width: var(--icon-xs); height: var(--icon-xs); }
+
+.ov-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  padding: 8px 12px 16px 8px;
+  align-content: start;
+  overflow: auto;
+}
+
+.ov-picker-grid.list {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 1000px) {
+  .ov-picker-grid:not(.list) {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+.ov-picker-tile,
+.ov-picker-upload {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  color: var(--type-primary);
+  background: var(--surface);
+  text-align: left;
+}
+
+.ov-picker-tile:hover:not(:disabled) {
+  border-color: var(--line-strong);
+  background: var(--wash-hover);
+}
+
+.ov-picker-tile.selected {
+  border-color: var(--text);
+  background: var(--wash-pressed);
+}
+
+.ov-picker-tile:disabled {
+  color: var(--fg-disabled);
+  cursor: default;
+}
+
+.ov-picker-upload {
+  align-items: center;
+  justify-content: center;
+  border-style: dashed;
+  border-color: var(--line-strong);
+  color: var(--muted);
+  background: var(--surface-muted);
+  font-size: var(--text-caption-11);
+}
+
+.ov-picker-upload svg { width: var(--icon-lg); height: var(--icon-lg); }
+
+.ov-picker-thumb {
+  position: relative;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 3 / 2;
+  border-radius: var(--radius-sm);
+  color: var(--faint);
+  background: var(--wash-inset);
+  overflow: hidden;
+}
+
+.ov-picker-tile[data-view="list"] .ov-picker-thumb,
+.ov-picker-grid.list .ov-picker-thumb {
+  aspect-ratio: auto;
+  width: 56px;
+  height: 36px;
+  flex: 0 0 auto;
+}
+
+.ov-picker-grid.list .ov-picker-tile {
+  flex-direction: row;
+  align-items: center;
+}
+
+/* 列表视图下本地上传也是一行，不要占满整块网格高度。 */
+.ov-picker-grid.list .ov-picker-upload {
+  flex-direction: row;
+  justify-content: flex-start;
+  gap: 8px;
+  height: 48px;
+  padding: 0 12px;
+}
+
+.ov-picker-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.ov-picker-thumb svg { width: var(--icon-xl); height: var(--icon-xl); }
+
+.ov-picker-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-caption-11);
+}
+
+.ov-picker-duration {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  padding: 0 4px;
+  border-radius: var(--radius-xs);
+  color: var(--brand-accent-foreground);
+  background: var(--overlay-dim);
+  font-size: var(--text-caption-10);
+}
+
+/* 列表视图的时长是行内一列，不是压在缩略图上的角标。 */
+.ov-picker-duration.list {
+  position: static;
+  margin-left: auto;
+  color: var(--muted);
+  background: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.ov-picker-added {
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 5px;
+  border-radius: var(--radius-xs);
+  color: var(--muted);
+  background: var(--surface-2);
+  font-size: var(--text-caption-10);
+  white-space: nowrap;
+}
+
+.ov-picker-added svg { width: var(--icon-xs); height: var(--icon-xs); }
+
+.ov-picker-order {
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  color: var(--surface);
+  background: var(--text);
+  font-size: var(--text-caption-10);
+}
+
+.ov-picker-empty {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 48px 0;
+  color: var(--faint);
+  font-size: var(--text-body-12);
+}
+
+.ov-picker-empty button {
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--line-solid);
+  border-radius: 999px;
+  color: var(--text);
+  background: var(--surface);
+  font-size: var(--text-caption-11);
+}
+
+.clip-persistence-error {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 100;
+  max-width: min(480px, calc(100% - 32px));
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border: 1px solid var(--line-solid);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-modal);
+  font-size: var(--text-caption-11);
+}
+
+.clip-persistence-error button { flex: 0 0 auto; }
+.clip-operation-error span { min-width: 0; overflow-wrap: anywhere; }
+
+.clip-export-recovery {
+  position: absolute;
+  bottom: 16px;
+  right: 16px;
+  z-index: 100;
+  max-width: min(480px, calc(100% - 32px));
+  padding: 12px 16px;
+  border: 1px solid var(--line-solid);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-modal);
+  font-size: var(--text-caption-11);
+}
+
+.clip-export-recovery > div { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.clip-export-recovery button { flex: 0 0 auto; }
+.clip-export-recovery small { flex-basis: 100%; overflow-wrap: anywhere; }
+
+.clip-offline-media {
+  position: absolute;
+  left: 24px;
+  bottom: 24px;
+  z-index: 91;
+  max-width: min(480px, calc(100vw - 48px));
+  max-height: 40vh;
+  overflow: auto;
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--line-solid);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-md);
+  font-size: var(--text-body-12);
+}
+.clip-offline-media > div { display: flex; align-items: center; gap: 12px; }
+.clip-offline-media span { min-width: 0; overflow-wrap: anywhere; }
+.clip-offline-media button { flex: 0 0 auto; }
+
+.ov-picker-failures {
+  flex: 0 0 auto;
+  max-height: 120px;
+  overflow: auto;
+  padding: 10px 18px;
+  border-top: 1px solid var(--line-solid);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: var(--text-caption-11);
+}
+
+.ov-picker-failures ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  overflow-wrap: anywhere;
+}
+
+.ov-picker-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--line);
+}
+
+.ov-picker-selected {
+  color: var(--text);
+  font-size: var(--text-body-12);
+}
+
+.ov-picker-foot div {
+  display: flex;
+  gap: 8px;
+}
+
+.ov-picker-foot button {
+  height: var(--control-height);
+  padding: 0 14px;
+  border: 1px solid var(--line-solid);
+  border-radius: var(--radius-control);
+  color: var(--text);
+  background: var(--surface);
+  font-size: var(--text-body-12);
+}
+
+.ov-picker-foot button.primary {
+  border-color: var(--text);
+  color: var(--surface);
+  background: var(--text);
+}
+
+.ov-picker-foot button:disabled {
+  opacity: .5;
+  cursor: default;
+}
+
+.ov-editor-mount.is-expanded {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+}
+
+
+.ov-editor-mount.is-canvas { position: absolute; z-index: 2; }
+.ov-openreel.is-canvas { position: relative; inset: auto; display: block; background: transparent; }
+.ov-openreel.is-canvas > .ov-openreel-head { display: none; }
+.ov-openreel.is-canvas > .ov-openreel-stage { height: 100%; background: transparent; }
+.ov-openreel.is-canvas .clip-studio-runtime-host { background: transparent; }
+
+.clip-export-backdrop { position: absolute; inset: 0; z-index: 90; }
+.clip-export-menu { position: absolute; box-sizing: border-box; display: flex; flex-wrap: wrap; width: 432px; max-width: calc(100% - 16px); max-height: calc(100% - 16px); overflow-y: auto; padding: 6px; gap: 6px; border: 1px solid var(--line-solid); border-radius: var(--radius-md); background: var(--surface); color: var(--text); box-shadow: var(--shadow-lift); font-family: inherit; font-size: var(--text-body-12); line-height: var(--text-body-12--line-height); outline: none; }
+.clip-export-destinations { flex: 1; min-width: 128px; }
+.clip-export-presets { flex: 2; min-width: 200px; border-left: 1px solid var(--line-solid); padding-left: 6px; }
+.clip-export-menu button { display: flex; flex-direction: column; justify-content: center; width: 100%; min-height: 34px; gap: 3px; padding: 9px 10px; text-align: left; border: 0; border-radius: var(--radius-sm); color: var(--text); background: transparent; box-shadow: none; font: inherit; cursor: pointer; }
+.clip-export-destinations button { flex-direction: row; align-items: center; justify-content: space-between; }
+.clip-export-menu button:hover, .clip-export-menu button[aria-pressed="true"] { background: var(--wash-hover); }
+.clip-export-menu button:focus-visible { outline-offset: -2px; }
+.clip-export-presets strong { font-weight: 500; }
+.clip-export-presets span, .clip-export-menu p { color: var(--muted); font-size: var(--text-caption-11); line-height: var(--text-caption-11--line-height); }
+.clip-export-menu p { width: 100%; margin: 0; padding: 8px; }
+.clip-export-progress { position: absolute; right: 24px; bottom: 24px; z-index: 91; display: flex; align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--line-solid); border-radius: var(--radius-control); background: var(--surface); color: var(--text); font-size: var(--text-body-12); }
+.clip-export-progress button { color: var(--text); background: var(--surface); border: 1px solid var(--line-solid); border-radius: var(--radius-control); }
