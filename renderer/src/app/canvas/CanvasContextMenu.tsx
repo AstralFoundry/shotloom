@@ -24,6 +24,11 @@ export function CanvasContextMenu(
           <span>{t("ui.CanvasContextMenu.text.a977650d")}</span>
         </button>
       </div>
+      <div className="canvas-context-menu-section" role="group" aria-label={t('canvas.section.create')}>
+        <button type="button" role="menuitem" onClick={() => void onCreate('canvasSection')}>
+          <i><IconSymbol name="layers" /></i><span>{t('canvas.section.create')}</span>
+        </button>
+      </div>
       <div className="canvas-context-menu-section" role="group" aria-labelledby="canvas-menu-nodes">
         <span id="canvas-menu-nodes" className="canvas-context-menu-label">{t("ui.CanvasContextMenu.text.7976e0d9")}</span>
         {nodeTypes.map((item) => (

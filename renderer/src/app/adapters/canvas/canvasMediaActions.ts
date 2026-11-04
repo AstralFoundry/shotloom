@@ -8,13 +8,15 @@ import {
 } from "../../../store/assetStore.ts";
 import { addCanvasEdge } from "../../../store/canvasGraphStore.ts";
 import { recordCanvasHistory } from "../../../store/canvasHistoryStore.ts";
-import { promoteMaterialToLocalLibrary } from "../../../store/localAssetLibraryStore.ts";
+import { localAssetLibrary, loadLocalAssetLibrary, updateLocalAssetCategory, promoteMaterialToLocalLibrary } from "../../../store/localAssetLibraryStore.ts";
 import { addNode, setSelectedNodeIds } from "../../../store/nodeStore.ts";
 import { store as rawStore, touchProject } from "../../../store/projectStore.ts";
 import { showSuccessToast, showToast } from "../../../store/notificationStore";
 import type { ImageCropRect } from "../../components/ImageCropEditor";
 import { imageGridCellRect } from "../../../utils/imageGridCrop.ts";
-import { selectedNodeLocalMedia } from "./canvasMediaSelection";
+import { assetCategoryFor } from '../../../domain/asset/assetCategories';
+import { textNodeContent } from '../../../utils/textNodeContent';
+import { selectedNodeLocalMedia, nodeAssetCollections } from "./canvasMediaSelection";
 
 const store: any = rawStore;
 
@@ -24,10 +26,31 @@ export async function saveToAssets(
   category: string,
 ) {
     const node = (store.project.nodes || []).find((item: any) => item.id === id && !item.archived);
-    const { path, material, asset } = selectedNodeLocalMedia(store.project, node);
-    if (!node || !path || !material) return showToast(t("ui.canvasMediaActions.text.8d180ef3"));
-    if (!category) return showToast(t("ui.canvasMediaActions.text.d037d913"));
+    if (!node) return showToast(t("ui.canvasMediaActions.text.8d180ef3"));
+    const selectedText = node.type === 'textGeneration' ? textNodeContent(node) : '';
+    category = assetCategoryFor(category || node.artifactType).id;
+    let { path, material, asset } = selectedNodeLocalMedia(store.project, node);
     try {
+      if (scope === 'global') await loadLocalAssetLibrary();
+      const existing = nodeAssetCollections(store.project, node, localAssetLibrary.catalog)[scope];
+      if (existing) {
+        if (scope === 'global') await updateLocalAssetCategory(existing.id, category);
+        else { existing.category = category; touchProject(); }
+        showToast(t('assets.collection.updated'));
+        return;
+      }
+      if (!material && node.type === 'textGeneration' && selectedText) {
+        const text = selectedText;
+        const encoded = btoa(Array.from(new TextEncoder().encode(text), byte => String.fromCharCode(byte)).join(''));
+        const saved = await desktopApi.file.saveDataUrlToProject(`data:text/plain;base64,${encoded}`, `${node.title || 'text'}.txt`);
+        if (!saved?.path && !saved?.filePath) return showToast(t("ui.canvasMediaActions.text.8d180ef3"));
+        const registered = registerImportedMaterial({ ...saved, name: `${node.title || 'text'}.txt`, resourceType: 'text', mimeType: 'text/plain', content: text }, { resourceType: 'text', nodeType: 'textGeneration' });
+        material = registered.material;
+        Object.assign(material, { sourceNodeId: node.id, sourceText: text, content: text });
+        path = registered.material.path || registered.material.filePath;
+      }
+      if (!path || !material) return showToast(t("ui.canvasMediaActions.text.8d180ef3"));
+      const selectedMaterial = material;
       const assetDetails = {
         ...asset,
         category,
@@ -37,7 +60,7 @@ export async function saveToAssets(
       };
       if (scope === "project") {
         let projectMaterial = (store.project.materials || []).find((item: any) =>
-          item.id === material.id || String(item.path || item.filePath || "") === path
+          item.id === selectedMaterial.id || String(item.path || item.filePath || "") === path
         );
         if (!projectMaterial) {
           const archived = await ensureMaterialStoredInProjectAssets(material);

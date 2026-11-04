@@ -14,6 +14,7 @@ export const CANVAS_NODE_SIZING_VERSION = 5;
 const scaled = (value: number) => Math.round(value * CANVAS_NODE_SIZE_SCALE);
 
 export function defaultCanvasNodeDimensions(type: string) {
+  if (type === "canvasSection") return { width: 800, height: 560 };
   if (type === "imageGeneration") return { width: scaled(350), height: scaled(350) };
   if (type === "videoGeneration") return { width: scaled(350), height: scaled(280) };
   if (type === "audioGeneration") return { width: scaled(350), height: scaled(125) };

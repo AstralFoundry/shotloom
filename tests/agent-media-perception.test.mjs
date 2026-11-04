@@ -150,7 +150,7 @@ test('inspect_assets 返回素材库真实条目与可引用标识，库外文�
   assert.equal(hero.path, '/proj/assets/hero.png');
   assert.equal(hero.inProjectAssets, true);
   assert.equal(hero.hasLocalFile, true);
-  assert.equal(hero.categoryLabel, '角色设定');
+  assert.equal(hero.categoryLabel, '角色');
   assert.deepEqual(hero.tags, ['主角']);
   assert.equal(result.assets.find((item) => item.assetId === 'a-voice').inProjectAssets, false, '库外文件必须如实标出');
 });

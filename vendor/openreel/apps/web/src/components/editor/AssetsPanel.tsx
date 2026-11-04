@@ -441,7 +441,7 @@ const MediaThumbnail: React.FC<{
         onDoubleClick={(e) => { e.stopPropagation(); onAddToTimeline(); }}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-        className={`flex items-center gap-3 px-2.5 py-2 rounded-xl border cursor-pointer transition-all group ${borderClass}`}
+        className={`relative flex items-center gap-3 px-2.5 py-2 rounded-xl border cursor-pointer transition-all group ${borderClass}`}
       >
         {/* Small thumbnail — 参考实测 48×32（3:2），与"添加媒体"行同一枚图块 */}
         <div className="w-[48px] h-[32px] rounded-[8px] bg-bg-2 relative overflow-hidden flex-shrink-0">
@@ -486,9 +486,14 @@ const MediaThumbnail: React.FC<{
           </div>
         </div>
 
-        {/* Hover actions */}
-        {isHovered && (
-          <div className="flex items-center gap-1 flex-shrink-0">
+        {/* Hover actions：绝对定位浮在右侧，不参与信息列布局。
+            条件挂载会挤窄信息列导致文字换行形变；常驻占位又会长期截断长名字。
+            浮层 + 面板底色遮罩：idle 时整行满宽，hover 时按钮浮现且不重排。 */}
+        <div
+          className={`absolute inset-y-0 right-0 flex items-center gap-1 rounded-r-xl bg-bg-1 pl-3 pr-2.5 transition-opacity ${
+            isHovered ? "opacity-100" : "pointer-events-none opacity-0"
+          }`}
+        >
             {item.kieaiError ? (
               <PanelIconButton
                 label={editorMessage("editor.assets.retry")}
@@ -539,8 +544,7 @@ const MediaThumbnail: React.FC<{
                 />
               </>
             )}
-          </div>
-        )}
+        </div>
 
         {isSelected && (
           <div className="w-2 h-2 bg-brand-accent rounded-full shadow-sm flex-shrink-0" />

@@ -14,7 +14,7 @@
   --dsh-composer-model-text-display:block;
   --dsh-composer-model-icon-display:none;
 }
-[data-composer-card] > div > div:has(> [data-slot="conversation.input.left"]) { flex:none;gap:4px; }
+[data-composer-card] > div > div:has(> [data-slot="conversation.input.left"]) { flex:none;gap:10px; }
 [data-composer-card] > div > div:has([data-slot="conversation.input.model"]) { flex:1;min-width:0;gap:6px;justify-content:flex-end; }
 [data-slot="conversation.input.model"],
 [data-slot="conversation.input.model"] > div { min-width:0;max-width:100%; }

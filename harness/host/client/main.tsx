@@ -187,10 +187,15 @@ function installEmbeddedChat(ctx: ClientContext) {
       mentionNode: (nodeId, span) => [...surfaces].find(surface => surface.host.sessionId === id)?.mentionNode(nodeId, span),
       useBlank: () => {
         const reference = [...surfaces].find(surface => surface.host.sessionId === id)!.reference;
-        return useSyncExternalStore(reference.binding.session.subscribe.bind(reference.binding.session), () => {
-        const state = reference.binding.session.getSnapshot();
-        return state.openState === 'open' && state.blank && !state.running && !state.promptAttempted && !state.pendingSubmissions.length;
-      }); },
+        const session = reference.binding.session;
+        const chat = ctx.uiConversation.binding(id).target('chat');
+        const state = useSyncExternalStore(session.subscribe.bind(session), () => session.getSnapshot());
+        const transcript = useSyncExternalStore(chat.subscribe.bind(chat), () => chat.getSnapshot());
+        // Activation and failed submissions can mark a Session as engaged even
+        // while its visible transcript is empty. The welcome belongs to the
+        // actual Chat view, not to that persistent lifecycle bit.
+        return state.openState === 'open' && !transcript?.order.length && !state.running && !state.pendingSubmissions.length;
+      },
     }),
   }, EmbeddedChat);
   // Relocate the official components and their injected hooks/locales. Their

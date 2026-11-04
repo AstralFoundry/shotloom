@@ -86,6 +86,11 @@ body.shotloom-mode ::-webkit-scrollbar-track {
 }
 
 /* 画布模式复用真实 Preview / Timeline；仅改变展示，不复制编辑状态。 */
+/* 嵌入构建会把 body 映射为 ShadowRoot 内的 .clip-studio-root。
+   根容器沿用 body 底色会在两张圆角卡片外露出方角，画布模式只由卡片绘制背景。 */
+body.shotloom-canvas {
+  background: transparent !important;
+}
 body.shotloom-canvas .editor-workspace {
   gap: 0 !important;
   background: transparent !important;
@@ -102,8 +107,14 @@ body.shotloom-canvas .editor-body {
 body.shotloom-canvas .editor-stage {
   margin-bottom: var(--clip-preview-gap, 8px);
   border: 1px solid var(--border-strong) !important;
+  /* 预览块是独立圆角卡片：四角全圆，内部黑色画面由 overflow 统一裁切。 */
   border-radius: 10px !important;
+  overflow: hidden;
   box-shadow: var(--shadow-md);
+}
+/* 黑色画面自带 rounded-[10px]，交给 stage 的 overflow 统一裁切，避免双层半径错位。 */
+body.shotloom-mode .editor-stage canvas {
+  border-radius: 0 !important;
 }
 /* 参考实现的画布卡片预览就是一块贴边的 16:9 画面：没有“播放器”标题栏，
    也不给屏幕留出 18px 内边距（留白会把画面缩成中间一小块）。 */
@@ -118,7 +129,9 @@ body.shotloom-canvas [data-preview-transport] {
 }
 body.shotloom-canvas #editor-panel-timeline {
   border: 1px solid var(--border-strong) !important;
+  /* 时间线卡片也是独立圆角卡片：四角全圆，overflow 裁掉内部轨道内容避免顶出方角。 */
   border-radius: 10px !important;
+  overflow: hidden;
   box-shadow: var(--shadow-md);
 }
 .shotloom-canvas-tools {

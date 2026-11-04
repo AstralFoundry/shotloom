@@ -3,6 +3,7 @@ import { getLocale, normalizeLocale } from '@/i18n';
 import { reactive, toRaw } from '@/store/domainReactivity';
 import { desktopApi } from '@/services/desktopApi';
 import { normalizeCanvasActionShortcuts } from '@/utils/canvasActionShortcuts';
+import { normalizeCanvasAppearance } from '@/utils/canvasAppearance';
 import {
   defaultCanvasToolbarCustomization,
   normalizeCanvasToolbarCustomization,
@@ -58,6 +59,7 @@ export const settingsStore = reactive({
   agentPreferredVideoModel: defaultGenerationModel('videoGeneration'),
   canvasActionShortcuts: normalizeCanvasActionShortcuts(),
   canvasToolbarCustomization: defaultCanvasToolbarCustomization(),
+  canvasAppearance: normalizeCanvasAppearance(),
   layoutAlgorithm: 'grid-aligned', updatedAt: '',
   runtimeProtection: {
     healthIntervalMs: 10000, failureThreshold: 3, failureWindowMs: 300000,
@@ -136,11 +138,13 @@ function toPlainSettings(patch: AnyRecord = {}) {
     agentPreferredVideoModel: rawStore.agentPreferredVideoModel,
     canvasActionShortcuts: normalizeCanvasActionShortcuts(rawStore.canvasActionShortcuts),
     canvasToolbarCustomization: normalizeCanvasToolbarCustomization(rawStore.canvasToolbarCustomization),
+    canvasAppearance: normalizeCanvasAppearance(rawStore.canvasAppearance),
     layoutAlgorithm: rawStore.layoutAlgorithm === 'elk-layered' ? 'elk-layered' : 'grid-aligned',
     runtimeProtection: { ...rawStore.runtimeProtection },
     ...rawPatch,
   };
   next.tokenGroups = normalizeTokenGroups(next.tokenGroups);
+  next.canvasAppearance = normalizeCanvasAppearance(next.canvasAppearance);
   next.providerConfigs = normalizeProviderConfigs(next.providerConfigs);
   return clonePlainData(next);
 }
@@ -171,6 +175,7 @@ function applySettings(settings: AnyRecord) {
   settingsStore.agentPreferredVideoModel = normalizePreferredVideoModel(settings.agentPreferredVideoModel);
   settingsStore.canvasActionShortcuts = normalizeCanvasActionShortcuts(settings.canvasActionShortcuts);
   settingsStore.canvasToolbarCustomization = normalizeCanvasToolbarCustomization(settings.canvasToolbarCustomization);
+  settingsStore.canvasAppearance = normalizeCanvasAppearance(settings.canvasAppearance);
   settingsStore.layoutAlgorithm = settings.layoutAlgorithm === 'elk-layered' ? 'elk-layered' : 'grid-aligned';
   settingsStore.runtimeProtection = {
     ...settingsStore.runtimeProtection,

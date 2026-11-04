@@ -1182,4 +1182,5 @@ export interface MessageParameters {
   "editor.welcome.create.maxDuration": Record<"seconds", string | number>;
   "editor.welcome.create.recommended": Record<"seconds", string | number>;
   "editor.welcome.create.safeZone": Record<"top" | "bottom", string | number>;
+  "assets.collection.purposeItem": Record<"label" | "mark", string | number>;
 }

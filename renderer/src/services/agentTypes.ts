@@ -1,3 +1,4 @@
+import { ASSET_PURPOSE_TYPES } from '../domain/asset/assetCategories.ts';
 import type { NodeType } from '../domain/graph/NodeType';
 
 export type JsonPrimitive = string | number | boolean | null;
@@ -9,7 +10,7 @@ export interface JsonObject {
 
 export type AgentNodeType = Exclude<NodeType, 'clipStudio'>;
 
-export const CANVAS_ARTIFACT_TYPES = ['character', 'scene', 'storyboard', 'prop', 'other'] as const;
+export const CANVAS_ARTIFACT_TYPES = ASSET_PURPOSE_TYPES;
 export type CanvasArtifactType = typeof CANVAS_ARTIFACT_TYPES[number];
 
 /** 旧项目没有用途标注；保留为 other，不从标题或提示词猜。 */

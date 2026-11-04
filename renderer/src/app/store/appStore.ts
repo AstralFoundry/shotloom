@@ -17,6 +17,9 @@ export interface ProjectSummary {
 }
 
 interface AppState {
+  assetBrowserRequest: { scope: 'library' | 'local'; category: string; name: string; assetId: string } | null;
+  revealAsset: (scope: 'library' | 'local', category: string, name: string, assetId: string) => void;
+  clearAssetBrowserRequest: () => void;
   route: AppRoute;
   openingProjectPath: string | null;
   setOpeningProjectPath: (path: string | null) => void;
@@ -38,6 +41,9 @@ function initialSidebarState() {
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
+  assetBrowserRequest: null,
+  revealAsset: (scope, category, name, assetId) => set({ assetBrowserRequest: { scope, category, name, assetId } }),
+  clearAssetBrowserRequest: () => set({ assetBrowserRequest: null }),
   route: "projects",
   openingProjectPath: null,
   setOpeningProjectPath: (openingProjectPath) => set({ openingProjectPath }),

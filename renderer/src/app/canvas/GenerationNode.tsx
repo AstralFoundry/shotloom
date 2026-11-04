@@ -101,6 +101,16 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({
   const labelRoot = useContext(CanvasNodeLabelRootContext);
   const state = generationNodeState(node, selected, incomingInputs);
   const { busy, displayTitle, metaIcon } = state;
+  const [titleDraft, setTitleDraft] = useState<string | null>(null);
+  const titleEditCancelled = useRef(false);
+
+  function commitTitle() {
+    if (!titleEditCancelled.current && titleDraft?.trim() && titleDraft.trim() !== displayTitle) {
+      const title = titleDraft.trim();
+      actions.update(node.id, { title, titleOverride: title });
+    }
+    setTitleDraft(null);
+  }
 
   function startFromStarter(prompt: string) {
     actions.select(node.id);
@@ -121,7 +131,45 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({
       {displayTitle && (
         <IconSymbol className="work-node-type-icon" name={metaIcon} aria-hidden="true" />
       )}
-      {displayTitle && <span title={displayTitle}>{displayTitle}</span>}
+      {titleDraft !== null ? (
+        <input
+          className="work-node-title-input nodrag nopan"
+          autoFocus
+          aria-label={t("ui.ProjectsView.text.1cd80fd7")}
+          value={titleDraft}
+          onFocus={(event) => event.currentTarget.select()}
+          onChange={(event) => setTitleDraft(event.target.value)}
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={(event) => event.stopPropagation()}
+          onDoubleClick={(event) => event.stopPropagation()}
+          onBlur={commitTitle}
+          onKeyDown={(event) => {
+            event.stopPropagation();
+            if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
+            if (event.key === "Enter") {
+              event.preventDefault();
+              event.currentTarget.blur();
+            }
+            if (event.key === "Escape") {
+              event.preventDefault();
+              titleEditCancelled.current = true;
+              setTitleDraft(null);
+            }
+          }}
+        />
+      ) : displayTitle && (
+        <span
+          className="work-node-title nodrag nopan"
+          title={displayTitle}
+          onPointerDown={(event) => event.stopPropagation()}
+          onDoubleClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            titleEditCancelled.current = false;
+            setTitleDraft(displayTitle);
+          }}
+        >{displayTitle}</span>
+      )}
       {selected && node.type === "imageGeneration" && state.activeKind === "image" && (
         <div className="work-node-kicker-actions">
           <button

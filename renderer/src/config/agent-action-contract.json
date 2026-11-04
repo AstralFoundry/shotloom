@@ -42,8 +42,8 @@
     },
     "artifactType": {
       "type": "string",
-      "enum": ["character", "scene", "storyboard", "prop", "other"],
-      "description": "内容用途：character 人物身份资产，scene 场景参考，storyboard 分镜图，prop 道具参考，other 其他。独立于图片/视频等技术节点类型；不从标题或提示词猜测。"
+      "enum": ["character", "scene", "prop", "storyboard", "voice", "music", "soundEffect", "other"],
+      "description": "内容用途：character 人物身份资产，scene 场景参考，storyboard 分镜图，prop 道具参考，voice 配音，music 音乐，soundEffect 音效，other 其他。独立于图片/视频等技术节点类型；不从标题或提示词猜测。"
     },
     "title": {
       "type": "string",

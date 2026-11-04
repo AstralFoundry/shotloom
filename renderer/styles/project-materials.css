@@ -525,6 +525,7 @@
 .material-node-wrap.selectable {
   cursor: pointer;
 }
+.material-node-wrap.is-located .material-node,
 .material-node-wrap.is-batch-selected .material-node { outline: 2px solid var(--canvas-node-border-selected); outline-offset: 1px; }
 .material-batch-check { position: absolute; z-index: 3; top: 9px; left: 9px; width: 25px; height: 25px; display: grid; place-items: center; border: 0; border-radius: var(--radius-sm); background: var(--elevated-surface); color: var(--type-primary); box-shadow: var(--canvas-shadow-panel); opacity: 0; cursor: pointer; }
 .material-node-wrap:hover .material-batch-check, .material-batch-check:focus-visible, .material-batch-check[aria-pressed="true"] { opacity: 1; }

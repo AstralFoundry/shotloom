@@ -69,6 +69,18 @@ const registrationFiles = [];
 for (const [id] of entries) {
   const relative = `plugins/${id}/native.js`;
   let source = await readFile(join(dist, 'plugins', id, 'client.js'), 'utf8');
+  if (id === '@deepseek-ai/dsh-client-ui-model-selection') {
+    // The official controller has a deployment default even when the native
+    // product has no configured providers. Keep its picker, but never advertise
+    // that unroutable fallback as the user's selected model.
+    for (const [before, after] of [
+      ['const modelLabel = waiting ?', 'const emptyCatalog = state.status === "ready" && choices.length === 0 && state.failures.length === 0; const modelLabel = emptyCatalog ? t("trigger.fallback") : waiting ?'],
+      ['state.current === null ? t("trigger.selectAria")', '(emptyCatalog || state.current === null) ? t("trigger.selectAria")'],
+    ]) {
+      if (source.split(before).length !== 2) throw new Error('Official model label seam changed; review the empty catalog presentation');
+      source = source.replace(before, after);
+    }
+  }
   // The standalone carrier has one product reference source. A shared native
   // runtime needs the same named codec scoped to its actual owning Session.
   if (id === '@deepseek-ai/dsh-client-ui-input-trigger') {

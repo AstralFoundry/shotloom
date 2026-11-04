@@ -60,6 +60,7 @@ export const selectedNodes = computed(() => {
 // ── Node type helpers ───────────────────────────────────────────────────────
 
 const NODE_TYPE_LABELS: Record<string, string> = {
+  canvasSection: t('canvas.section.default'),
   imageGeneration: t("ui.taskAdapter.imageGeneration.1f6a9dab"),
   videoGeneration: t("ui.taskAdapter.videoGeneration.19978a8d"),
   audioGeneration: t("ui.taskAdapter.audioGeneration.d371481a"),
@@ -170,7 +171,7 @@ export function selectNode(nodeId: string, options: { additive?: boolean } = {})
     );
     const result = validation.valid ? addCanvasEdge(store.project as CanvasProjectLike, store.connectFromId, nodeId, {
       touch: false,
-      edge: { kind: 'typed-input', data: { inputRole: validation.role, ...(inputSlot ? { inputSlot } : {}), required: true } },
+      edge: { kind: 'typed-input', data: { inputRole: validation.role, ...(inputSlot ? { inputSlot } : {}), required: true, creationSource: 'manual' } },
     }) : { ok: false, error: validation.error };
     if (!result.ok) showToast(result.error || t("ui.nodeStore.text.7c25cd80"));
     store.connectFromId = null;

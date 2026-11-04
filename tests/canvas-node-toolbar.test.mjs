@@ -69,16 +69,17 @@ test('文本节点工具栏提供复制、加入对话与完整文本编辑', ()
 test('媒体节点工具栏提供真实入库与音频分离', () => {
   assert.match(toolbar, /label: audioSplitRunning \? "拆分中…"[\s\S]*?disabled: !canExtractAudio \|\| audioSplitRunning,[\s\S]*?actions\.extractAudio\(node\.id\)/);
   assert.match(canvas, /desktopApi\.file\.hasAudio\(localMediaPath\)[\s\S]*?"present"\s*:\s*"absent"/);
-  assert.match(canvas, /canSaveToAssets[\s\S]*?存为资产[\s\S]*?openMenu === "asset"/);
+  assert.match(canvas, /canSaveToAssets[\s\S]*?收藏到资产库[\s\S]*?openMenu === "asset"/);
   assert.match(canvas, /assetCategories\.map[\s\S]*?setAssetCategory\(category\.id\)/);
   assert.match(canvas, /createPortal\([\s\S]*?canvas-node-asset-scope-menu--portal[\s\S]*?canvasOverlayRoot/);
   assert.match(canvas, /assetPlacementRevision = useStore[\s\S]*?positionAbsolute[\s\S]*?state\.transform/);
-  assert.match(canvas, /actions\.saveToAssets\(node\.id, "project", assetCategory\)[\s\S]*?<strong>存到项目<\/strong>/);
-  assert.match(canvas, /actions\.saveToAssets\(node\.id, "global", assetCategory\)[\s\S]*?<strong>存到全局<\/strong>/);
+  assert.match(canvas, /actions\.saveToAssets\(node\.id, scope, assetCategory\)/);
+  assert.match(canvas, /collections\[scope\][\s\S]*?查看资产[\s\S]*?assets.collection.update/);
+
   assert.match(adapter, /async function saveToAssets\([\s\S]*?scope === "project"[\s\S]*?addMaterialToAssetLibrary[\s\S]*?promoteMaterialToLocalLibrary/);
   assert.match(adapter, /assetDetails = \{[\s\S]*?category,[\s\S]*?promoteMaterialToLocalLibrary/);
   assert.match(adapter, /scope === "project"[\s\S]*?ensureMaterialStoredInProjectAssets\(projectMaterial\)[\s\S]*?addMaterialToAssetLibrary/);
-  assert.match(styles, /\.canvas-node-asset-scope-menu \{[\s\S]*?width:\s*220px/);
+  assert.match(styles, /\.canvas-node-asset-scope-menu \{[\s\S]*?width:\s*300px/);
   assert.match(styles, /\.canvas-node-asset-scope-menu--portal \{[\s\S]*?z-index:\s*calc\(var\(--layer-canvas-composer\) \+ 1\)/);
   assert.match(styles, /\.react-workflow-canvas \{[\s\S]*?isolation:\s*isolate/);
   assert.match(adapter, /async function extractAudio\(id: string\)[\s\S]*?separateAudioToProject[\s\S]*?addNode\("videoGeneration"\)[\s\S]*?addNode\("audioGeneration"\)/);

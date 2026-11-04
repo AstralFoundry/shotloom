@@ -378,8 +378,8 @@ export function ReactWorkbench() {
         controller={{
           canvas: canvasController,
           nodes: nodeActions,
-          async applyMaterial(item) {
-            await canvasCommands.applyMaterial(item);
+          async applyMaterial(item, scope) {
+            await canvasCommands.applyMaterial(item, scope);
           },
           previewMaterial: assetsController.preview,
           showMaterialInFolder: assetsController.showFile,
@@ -419,7 +419,6 @@ export function ReactWorkbench() {
         }
         onSettings={() => setSettingsOpen(true)}
         onUpdate={() => void updateDialogController.check()}
-        onSearch={() => setSearchOpen(true)}
         onNavigationBlocked={() => showToast(t("project.openFirst"))}
       />
       {searchOpen && <ProjectSearch onClose={() => setSearchOpen(false)} />}

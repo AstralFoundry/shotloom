@@ -52,7 +52,8 @@ test('三个大工作区都挂进内容区挂载点而不是 document.body', () 
   }
   const mount = read('renderer/src/app/editor/openReel/useEditorMount.ts');
   assert.match(editorSource, /useEditorMount\(surface, canvasNode/);
-  assert.match(mount, /const parent = expanded \? surface : canvas/);
+  assert.match(mount, /const parent = expanded \? surface : nodeRoot/);
+  assert.match(mount, /const nodeRoot = anchor\?\.closest<HTMLElement>\("\.react-flow__node"\)/);
   assert.doesNotMatch(mount, /document\.body/);
   // 导演台的节点标题仍属于画布内部层叠，只有详情面板进内容区。
   assert.match(directorSource, /\{labelRoot && createPortal\(/);

@@ -9,10 +9,10 @@ interface BottomModeBarProps {
   shortcutLabels: { fitView: string; autoLayout: string };
   onUndo: () => void;
   onRedo: () => void;
-  onFitView: () => void;
   onMaterialPicker: () => void;
   onAutoLayout: (options?: { mode?: AgentLayoutMode; includeConnected?: boolean }) => boolean;
   onMergeVideos: () => void;
+  onCreateSection?: () => void;
 }
 export function BottomModeBar(
   {
@@ -21,10 +21,10 @@ export function BottomModeBar(
     shortcutLabels,
     onUndo,
     onRedo,
-    onFitView,
     onMaterialPicker,
     onAutoLayout,
     onMergeVideos,
+    onCreateSection,
   }: BottomModeBarProps,
 ) {
   const [help, setHelp] = useState(false);
@@ -57,8 +57,8 @@ export function BottomModeBar(
       </div>
       <div className="bottom-mode-divider" />
       <div className="bottom-mode-group">
-        <button title={t("ui.BottomModeBar.label.a187522f")} onClick={onFitView}>
-          <IconSymbol name="maximize" />
+        <button title={t('canvas.section.createHint')} aria-label={t('canvas.section.create')} onClick={onCreateSection}>
+          <IconSymbol name="layers" />
         </button>
         <button
           className="bottom-material-trigger"

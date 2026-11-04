@@ -1,22 +1,28 @@
 import { t } from '../../i18n/index.ts';
-// 素材分类是产品数据模型的一部分：store 在归一化和写入资产时就要按分类查找，
-// 因此这份表不能留在界面常量里，否则数据层会反向依赖界面层。
 import type { IconName } from '@/app/components/IconSymbol';
 
+// Shared by node purpose annotations, Agent contracts and asset catalog filters.
+export const ASSET_PURPOSE_TYPES = ['character', 'scene', 'prop', 'storyboard', 'voice', 'music', 'soundEffect', 'other'] as const;
+export type AssetPurpose = typeof ASSET_PURPOSE_TYPES[number];
 export interface AssetCategory {
   id: string;
+  purpose: AssetPurpose;
   label: string;
   icon: IconName;
   aliases: string[];
 }
 
-const characters: AssetCategory = { id: 'characters', label: t("ui.imageStylePresets.label.338affe3"), icon: 'user', aliases: ['actors'] };
-const scenes: AssetCategory = { id: 'scenes', label: t("ui.assetCategories.text.afb68c6a"), icon: 'pin', aliases: ['locations'] };
-const props: AssetCategory = { id: 'props', label: t("ui.assetCategories.text.a7a72140"), icon: 'box', aliases: [] };
-const styles: AssetCategory = { id: 'styles', label: t("ui.assetCategories.text.3df4669b"), icon: 'image', aliases: ['costumes'] };
-const shots: AssetCategory = { id: 'shots', label: t("ui.assetCategories.text.986acf39"), icon: 'grid', aliases: [] };
-
-export const assetCategories: AssetCategory[] = [characters, scenes, props, styles, shots];
-
-// 未匹配到分类时回落到第一个分类；显式导出常量，避免各处用数组下标猜测默认值。
-export const defaultAssetCategory = characters;
+export const assetCategories: AssetCategory[] = [
+  { id: 'characters', purpose: 'character', label: t('assets.purpose.character'), icon: 'user', aliases: ['actors', 'character'] },
+  { id: 'scenes', purpose: 'scene', label: t('assets.purpose.scene'), icon: 'pin', aliases: ['locations', 'scene'] },
+  { id: 'props', purpose: 'prop', label: t('assets.purpose.prop'), icon: 'box', aliases: ['prop'] },
+  { id: 'shots', purpose: 'storyboard', label: t('assets.purpose.storyboard'), icon: 'grid', aliases: ['storyboard'] },
+  { id: 'voice', purpose: 'voice', label: t('assets.purpose.voice'), icon: 'mic', aliases: [] },
+  { id: 'music', purpose: 'music', label: t('assets.purpose.music'), icon: 'music', aliases: [] },
+  { id: 'soundEffects', purpose: 'soundEffect', label: t('assets.purpose.soundEffect'), icon: 'volume', aliases: ['soundEffect'] },
+  { id: 'other', purpose: 'other', label: t('assets.purpose.other'), icon: 'box', aliases: ['styles', 'style', 'costumes'] },
+];
+export const defaultAssetCategory = assetCategories.find(category => category.purpose === 'other')!;
+export function assetCategoryFor(value: unknown): AssetCategory {
+  return assetCategories.find(category => category.id === value || category.purpose === value || category.aliases.includes(String(value))) || defaultAssetCategory;
+}

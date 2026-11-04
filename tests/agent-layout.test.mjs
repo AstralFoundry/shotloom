@@ -324,3 +324,64 @@ test('大量分段统一形成全局横向依赖列且上下游逐行对齐', ()
     assert.equal(videoCenter, frameCenter, '不同高度的关键帧与视频应逐行居中对齐');
   }
 });
+
+test('互不相连的工作流各自成块，不挤进同一套依赖网格', () => {
+  const long = [
+    node('long-1', 'textGeneration'),
+    node('long-2', 'imageGeneration'),
+    node('long-3', 'videoGeneration'),
+  ];
+  const short = [node('short-1', 'textGeneration'), node('short-2', 'imageGeneration')];
+  const graph = project([...long, ...short], [
+    { source: long[0].id, target: long[1].id },
+    { source: long[1].id, target: long[2].id },
+    { source: short[0].id, target: short[1].id },
+  ]);
+
+  layoutAgentNodes(graph, graph.nodes.map((item) => item.id), { scope: 'all', x: 0, y: 0, gapX: 160, gapY: 120 });
+
+  assert.equal(short[1].x, short[0].x + canvasNodeDimensions(short[0]).width + 160, '短链的层间距只由自身决定');
+  assert.equal(long[2].x, long[1].x + canvasNodeDimensions(long[1]).width + 160);
+  const longBottom = Math.max(...long.map((item) => item.y + canvasNodeDimensions(item).height));
+  assert.ok(short[0].y >= longBottom, '深链先铺，短链整体落在下方');
+});
+
+test('扇出层超过每列上限时折成小网格并把下游右移避让', () => {
+  const root = node('root', 'textGeneration');
+  const frames = Array.from({ length: 8 }, (_value, index) => node(`frame-${index}`, 'imageGeneration'));
+  const sink = node('sink', 'videoGeneration');
+  const graph = project([root, ...frames, sink], [
+    ...frames.map((frame) => ({ source: root.id, target: frame.id })),
+    ...frames.map((frame) => ({ source: frame.id, target: sink.id })),
+  ]);
+
+  layoutAgentNodes(graph, graph.nodes.map((item) => item.id), { scope: 'all', x: 0, y: 0 });
+
+  assert.equal(new Set(frames.map((frame) => frame.x)).size, 2, '八个扇出应折成两列');
+  const frameRight = Math.max(...frames.map((frame) => frame.x + canvasNodeDimensions(frame).width));
+  assert.ok(sink.x >= frameRight, '下游节点必须让开折叠出来的列');
+  for (let left = 0; left < frames.length; left += 1) {
+    for (let right = left + 1; right < frames.length; right += 1) {
+      const a = frames[left];
+      const b = frames[right];
+      const overlap = a.x < b.x + canvasNodeDimensions(b).width &&
+        b.x < a.x + canvasNodeDimensions(a).width &&
+        a.y < b.y + canvasNodeDimensions(b).height &&
+        b.y < a.y + canvasNodeDimensions(a).height;
+      assert.ok(!overlap, '折叠后的扇出节点不得互相覆盖');
+    }
+  }
+});
+
+test('选区整理把结果放回原质心，不再以飘在角落的节点为起点', () => {
+  const top = node('top', 'textGeneration', { x: 0, y: 0 });
+  const bottom = node('bottom', 'imageGeneration', { x: 0, y: 4000 });
+  const graph = project([top, bottom]);
+  const oldCenterY = (0 + 4000 + canvasNodeDimensions(bottom).height) / 2;
+
+  layoutAgentNodes(graph, [top.id, bottom.id], { scope: 'selection', gapX: 160, gapY: 120 });
+
+  const newCenterY = (Math.min(top.y, bottom.y) + Math.max(top.y + canvasNodeDimensions(top).height, bottom.y + canvasNodeDimensions(bottom).height)) / 2;
+  assert.ok(Math.abs(newCenterY - oldCenterY) <= 1, '整理结果应围绕原来的重心');
+  assert.ok(top.y > 1000, '不应把整块结果钉回散点左上角');
+});

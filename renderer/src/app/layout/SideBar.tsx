@@ -9,7 +9,6 @@ interface SideBarProps {
   onNotify: () => void;
   onSettings: () => void;
   onUpdate: () => void;
-  onSearch: () => void;
   onToggleSidebar: () => void;
   onNavigationBlocked?: (() => void) | undefined;
   previewOpen: boolean;
@@ -23,7 +22,6 @@ export function SideBar(
     onNotify,
     onSettings,
     onUpdate,
-    onSearch,
     onToggleSidebar,
     onNavigationBlocked,
     previewOpen,
@@ -133,10 +131,6 @@ export function SideBar(
             )}
         </div>
         <footer className="sidebar-footer">
-          <button type="button" title={t("ui.SideBar.title.a336104c")} onClick={onSearch}>
-            <IconSymbol name="search" />
-            <span>{t("ui.SideBar.text.f0409080")}</span>
-          </button>
           <button type="button" title={t("ui.SideBar.title.a6df3858")} onClick={onUpdate}>
             <IconSymbol name="package" />
             <span>{t("ui.SideBar.title.a6df3858")}</span>

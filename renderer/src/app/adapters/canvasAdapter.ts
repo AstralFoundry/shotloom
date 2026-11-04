@@ -1,6 +1,7 @@
 import { t } from '@/i18n';
 import { editorCanvasCandidate } from "../../services/editorMediaCatalog";
 import { localMediaPath, selectedNodeMedia } from "../../utils/nodeMedia.ts";
+import { findMaterialCanvasTarget } from "./canvas/canvasMediaSelection";
 import type { Connection } from "@xyflow/react";
 import { canvasNodeDimensions, layoutAgentNodes } from "../../services/agentLayoutService";
 import { createColoredPencilImageNode } from "../../services/coloredPencilNodeService";
@@ -52,6 +53,7 @@ import {
 import { runNode } from "../../store/taskStore.ts";
 import { uid } from "../../utils/format.ts";
 import { updatedTextVersions } from "../../utils/textNodeVersions.ts";
+import { canvasSectionBounds, canvasSectionMembers } from "../../domain/graph/CanvasSections.ts";
 import { showSuccessToast, showToast } from "../../store/notificationStore";
 import type {
   WorkflowCanvasController,
@@ -214,6 +216,17 @@ export function canvasViewData() {
 }
 
 export const canvasController: WorkflowCanvasController = {
+  createSection(position) {
+    const viewport = store.project.canvasViewport || { x: 0, y: 0, zoom: 1 };
+    const fallback = position || { x: (120 - viewport.x) / viewport.zoom, y: (100 - viewport.y) / viewport.zoom };
+    const selected = position ? [] : store.project.nodes.filter((node: WorkflowNodeData) => store.selectedNodeIds.includes(node.id));
+    const bounds = canvasSectionBounds(selected, fallback);
+    recordCanvasHistory(t('canvas.section.create'));
+    const count = store.project.nodes.filter((node: WorkflowNodeData) => node.type === 'canvasSection').length;
+    const node = addNode('canvasSection');
+    Object.assign(node, bounds, { title: `${t('canvas.section.default')} ${count + 1}` });
+    touchProject();
+  },
   moveNodes(positions, options = {}) {
     if (!positions.length) return;
     if (options.recordHistory !== false) {
@@ -246,7 +259,7 @@ export const canvasController: WorkflowCanvasController = {
       if (!candidate) { showToast(t("ui.canvasAdapter.text.d210e170")); return false; }
       const result = addCanvasEdge(store.project, connection.source, connection.target, {
         edge: { sourceHandle: connection.sourceHandle, targetHandle: connection.targetHandle,
-          data: { skipTaskInput: true, derivation: "clip-source", assetId: candidate.key } },
+          data: { skipTaskInput: true, derivation: "clip-source", assetId: candidate.key, creationSource: "manual" } },
       });
       if (!result.ok) showToast(result.error);
       return result.ok;
@@ -277,7 +290,7 @@ export const canvasController: WorkflowCanvasController = {
         sourceHandle: connection.sourceHandle,
         targetHandle: connection.targetHandle,
         kind: "typed-input",
-        data: { inputRole: validation.role, ...(inputSlot ? { inputSlot } : {}), required: true },
+        data: { inputRole: validation.role, ...(inputSlot ? { inputSlot } : {}), required: true, creationSource: "manual" },
       },
     });
     if (!result.ok) showToast(result.error || t("ui.canvasAdapter.text.2c056f18"));
@@ -287,6 +300,7 @@ export const canvasController: WorkflowCanvasController = {
     persistCanvasViewport(viewport);
   },
   async createNodeAt(type, position) {
+    if (type === 'canvasSection') { this.createSection?.(position); return; }
     if (type === "__upload__") {
       const file = await desktopApi.file.pickResource();
       if (file) {
@@ -413,6 +427,7 @@ export const nodeActions: WorkflowNodeActions = {
   update(id, patch) {
     const node = store.project.nodes.find((item: WorkflowNodeData) => item.id === id);
     if (node) {
+      if (node.type === 'canvasSection' && Object.keys(patch).some(key => node[key] !== patch[key])) recordCanvasHistory(t('canvas.section.edit'));
       if (node.type === "textGeneration" && Object.hasOwn(patch, "textContent")) {
         const versions = updatedTextVersions(node, patch.textContent);
         if (versions.length !== (Array.isArray(node.textVersions) ? node.textVersions.length : 0)) {
@@ -426,6 +441,10 @@ export const nodeActions: WorkflowNodeActions = {
   select(id) {
     store.selectedEdgeId = null;
     selectNode(id);
+  },
+  selectSectionContents(id) {
+    const section = store.project.nodes.find((node: WorkflowNodeData) => node.id === id && node.type === 'canvasSection');
+    if (section) setSelectedNodeIds(canvasSectionMembers(section, store.project.nodes as WorkflowNodeData[]).map(node => node.id));
   },
   delete(id) {
     recordCanvasHistory(t("ui.canvasAdapter.text.ff37dc39"));
@@ -879,13 +898,23 @@ export const canvasCommands = {
     else showToast(t("ui.canvasAdapter.text.8354ee30"));
     return false;
   },
-  async applyMaterial(item: any) {
+  async applyMaterial(item: any, scope?: "library" | "local" | "files") {
+    if (scope === "files") {
+      const target = findMaterialCanvasTarget(store.project, item);
+      if (target) {
+        if (target.outputId) nodeActions.update(target.nodeId, { selectedOutputNodeId: target.outputId });
+        focusCanvasNodes([target.nodeId]);
+        return;
+      }
+    }
     let material = item;
     if (item.storageScope === "library" && item.localLibraryAssetId) {
       const referenced = await useLocalAssetInProject(item, { copy: false });
       material = { ...referenced.material, assetId: referenced.asset.id };
     }
-    return applyMaterialToCanvas(material);
+    const node = applyMaterialToCanvas(material);
+    if (scope === "files" && node) focusCanvasNodes([node.id]);
+    return node;
   },
   openBlankVideoEditor() {
     openWorkspaceVideoEditor();

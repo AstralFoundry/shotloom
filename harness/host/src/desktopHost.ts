@@ -60,6 +60,14 @@ export async function startDesktopHost(options: {
     let modelConfig = '';
     const providerConfigs = new Map<string, string>();
     const skillVersions = new Map<string, string>();
+    async function seedDefaultModel(owner: Awaited<ReturnType<typeof host.create>>, model?: { provider: string; model: string; reasoningEffort?: string }) {
+      const selection = host.ctx.sessionProjections.stateOf(owner.agent.session, 'modelSelection');
+      // A previously unconfigured, empty Session must acquire the product
+      // default too. Preserve explicit choices and models used by past turns.
+      if (model && !owner.agent.session.requestHeader() && !selection?.pending) {
+        await host.ctx.sessionController.selectModel({ sessionId: owner.agent.session.id, ...model });
+      }
+    }
     async function bind(request: Catalog & { sessionId?: string; defaultModel?: { provider: string; model: string; reasoningEffort?: string }; providers?: Record<string, ProviderConfig> }) {
         const work = composition.then(async () => {
           const { binding } = request;
@@ -125,6 +133,7 @@ export async function startDesktopHost(options: {
             catalogs.set(catalogKey, { binding, tools, skills: request.skills ?? catalogs.get(catalogKey)?.skills });
             hostCrud.saveCatalog(catalogKey, catalogs.get(catalogKey)! as unknown as Record<string, unknown>);
             if (skillVersion) skillVersions.set(catalogKey, skillVersion);
+            await seedDefaultModel(existing, request.defaultModel);
             return existing;
           }
           catalogs.set(catalogKey, { binding, tools, skills: request.skills });
@@ -136,10 +145,7 @@ export async function startDesktopHost(options: {
           // The official browser controller installs its own model selection.
           // Seed that selection through its public API: AgentOptions alone are
           // otherwise overridden by the controller's deployment default.
-          const selection = host.ctx.sessionProjections.stateOf(owner.agent.session, 'modelSelection');
-          if (request.defaultModel && !owner.agent.session.requestHeader() && !selection?.pending) {
-            await host.ctx.sessionController.selectModel({ sessionId: owner.agent.session.id, ...request.defaultModel });
-          }
+          await seedDefaultModel(owner, request.defaultModel);
           owners.set(owner.binding.sessionId, owner);
           if (skillVersion) skillVersions.set(catalogKey, skillVersion);
           return owner;

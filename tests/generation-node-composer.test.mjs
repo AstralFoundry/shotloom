@@ -33,7 +33,7 @@ test('画布节点优先显示可辨识名称且空节点回退到简短类型�
   assert.doesNotMatch(styles, /\.work-visual-block\.has-kicker-label/);
   assert.match(source, /CanvasNodeLabelRootContext/);
   assert.match(source, /labelRoot && createPortal\(nodeLabel, labelRoot\)/);
-  assert.match(source, /className="work-node-type-icon" name=\{metaIcon\}[\s\S]*?<span title=\{displayTitle\}>\{displayTitle\}<\/span>[\s\S]*?className="work-node-kicker-actions"/);
+  assert.match(source, /className="work-node-type-icon" name=\{metaIcon\}[\s\S]*?<span[\s\S]*?title=\{displayTitle\}[\s\S]*?>\{displayTitle\}<\/span>[\s\S]*?className="work-node-kicker-actions"/);
   assert.match(styles, /\.canvas-node-label-anchor \.work-node-kicker \{[\s\S]*?inset: 0;[\s\S]*?height: 100%/);
   assert.match(styles, /\.canvas-node-label-anchor \.work-node-kicker > svg \{[\s\S]*?var\(--node-label-zoom, 1\)/);
   assert.match(styles, /\.work-node-kicker > \.work-node-type-icon \{[\s\S]*?background: var\(--muted\)/);

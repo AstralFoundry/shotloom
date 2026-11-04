@@ -26,6 +26,7 @@ export interface MaterialItem {
 }
 
 interface MaterialGridProps {
+  focusedAssetId?: string;
   materials: MaterialItem[];
   selectedKeys?: Set<string>;
   onToggleSelected?: (item: MaterialItem) => void;
@@ -271,6 +272,7 @@ const MaterialPreview = memo(function MaterialPreview({
 });
 
 export function MaterialGrid({
+  focusedAssetId,
   materials,
   selectedKeys,
   onToggleSelected,
@@ -297,7 +299,8 @@ export function MaterialGrid({
         return (
           <article
             key={key}
-            className={`material-node-wrap${clickToApply ? " selectable" : ""}${selectedKeys?.has(key) ? " is-batch-selected" : ""}`}
+            data-asset-id={file.assetId}
+            className={`material-node-wrap${clickToApply ? " selectable" : ""}${selectedKeys?.has(key) ? " is-batch-selected" : ""}${focusedAssetId && file.assetId === focusedAssetId ? " is-located" : ""}`}
             onClick={() => clickToApply && action("apply-to-canvas")}
           >
             <div className="material-node">

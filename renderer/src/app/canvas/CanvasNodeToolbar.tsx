@@ -1,7 +1,11 @@
+import { localAssetLibrary, loadLocalAssetLibrary } from '../../store/localAssetLibraryStore';
+import { nodeAssetCollections } from '../adapters/canvas/canvasMediaSelection';
+import { useAppStore } from '../store/appStore';
 import { t } from '@/i18n';
 import {
   type CSSProperties,
   type RefObject,
+  type ReactNode,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -10,8 +14,6 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import {
-  NodeToolbar,
-  Position,
   type ReactFlowState,
   useStore,
 } from "@xyflow/react";
@@ -29,13 +31,37 @@ import {
 } from "../../utils/canvasNodeToolbar.ts";
 import { IconSymbol, type IconName } from "../components/IconSymbol";
 import { recordCanvasHistory } from "../../store/canvasHistoryStore";
-import { CANVAS_ARTIFACT_TYPES } from "../../services/agentTypes";
-import { assetCategories } from "../../domain/asset/assetCategories";
+import { assetCategories, assetCategoryFor } from "../../domain/asset/assetCategories";
 import { openMediaViewer } from "../store/overlayStore";
 import { localMediaPath as mediaFilePath, selectedNodeMedia } from "../../utils/nodeMedia.ts";
 import { copyTextNodeVersion, renameTextNodeVersion } from "../adapters/canvasAdapter";
 import { CanvasToolbarCustomizeDialog } from "./CanvasToolbarCustomizeDialog";
 import type { WorkflowNodeActions, WorkflowNodeData } from "./WorkflowCanvas";
+
+/** Share the canvas stacking context with the detached clip editor and menus. */
+function NodeToolbar({ nodeId, root, children, className, isVisible, offset }: {
+  nodeId: string;
+  root: HTMLElement | null;
+  children: ReactNode;
+  className: string;
+  isVisible: boolean;
+  offset: number;
+}) {
+  const transform = useStore((state) => {
+    const node = state.nodeLookup.get(nodeId);
+    if (!node) return null;
+    const [x, y, zoom] = state.transform;
+    const position = node.internals.positionAbsolute;
+    const width = node.measured.width ?? node.width ?? 0;
+    return `translate(${(position.x + width / 2) * zoom + x}px, ${position.y * zoom + y - offset}px) translate(-50%, -100%)`;
+  });
+  if (!root || !isVisible || !transform) return null;
+  return createPortal(<div
+    className={`react-flow__node-toolbar ${className}`}
+    data-id={nodeId}
+    style={{ position: "absolute", top: 0, left: 0, transform }}
+  >{children}</div>, root);
+}
 
 type ToolbarMenuAction = {
   id: string;
@@ -212,7 +238,23 @@ export function CanvasNodeToolbar({
   onImageWatermarkOpen: () => void;
 }) {
   const [openMenu, setOpenMenu] = useState<OpenMenu>(null);
-  const [assetCategory, setAssetCategory] = useState("");
+  const [assetCategory, setAssetCategory] = useState('other');
+  const [collectionBusy, setCollectionBusy] = useState(false);
+  const collectionSnapshot = useSyncExternalStore(subscribeDomain,
+    () => selected ? JSON.stringify(nodeAssetCollections(store.project, node, localAssetLibrary.catalog)) : '{}',
+    () => '{}');
+  const collections = JSON.parse(collectionSnapshot);
+  const collect = async (scope: 'project' | 'global') => {
+    setCollectionBusy(true);
+    try { await actions.saveToAssets(node.id, scope, assetCategory); }
+    finally { setCollectionBusy(false); }
+  };
+  const reveal = (scope: 'project' | 'global') => {
+    const asset = collections[scope];
+    if (!asset) return;
+    useAppStore.getState().revealAsset(scope === 'project' ? 'library' : 'local', assetCategoryFor(asset.category).id, asset.name || '', asset.id);
+    setOpenMenu(null);
+  };
   const [audioTrackState, setAudioTrackState] = useState<
     "idle" | "checking" | "present" | "absent"
   >("idle");
@@ -238,7 +280,7 @@ export function CanvasNodeToolbar({
     ].join(":");
   });
   const localMediaPath = mediaFilePath(selectedNodeMedia(node));
-  const canSaveToAssets = Boolean(localMediaPath);
+  const canSaveToAssets = Boolean(localMediaPath || (node.type === "textGeneration" && textNodeContent(node)));
   const isLocalVideo = node.type === "videoGeneration" && Boolean(localMediaPath);
   const isLocalImage = node.type === "imageGeneration" && Boolean(localMediaPath);
   const canExtractAudio = isLocalVideo && audioTrackState === "present";
@@ -490,13 +532,14 @@ export function CanvasNodeToolbar({
     disabled: resolved.disabled,
     onSelect: resolved.onClick,
   }));
-  const categoryLabels = { character: t("ui.CanvasNodeToolbar.character.6b26695e"), storyboard: t("ui.CanvasNodeToolbar.storyboard.fcad7fe3"), scene: t("ui.CanvasNodeToolbar.scene.625b392c"), prop: t("ui.CanvasNodeToolbar.prop.51fd93fb"), other: t("ui.CanvasNodeToolbar.other.1a26edf9") };
-  const categoryItems: ToolbarMenuItem[] = CANVAS_ARTIFACT_TYPES.map((type) => ({
-    id: `category-${type}`, label: t("ui.CanvasNodeToolbar.text.31f5cc92", { value0: categoryLabels[type], value1: (node.artifactType || 'other') === type ? ' ✓' : '' }),
-    icon: 'box', onSelect: () => {
-      if ((node.artifactType || 'other') === type) return;
+  const categoryItems: ToolbarMenuItem[] = assetCategories.map(category => ({
+    id: `category-${category.purpose}`,
+    label: t('assets.collection.purposeItem', { label: category.label, mark: assetCategoryFor(node.artifactType).id === category.id ? ' ✓' : '' }),
+    icon: category.icon,
+    onSelect: () => {
+      if (assetCategoryFor(node.artifactType).id === category.id) return;
       recordCanvasHistory(t("ui.CanvasNodeToolbar.text.24bc593f"));
-      actions.update(node.id, { artifactType: type });
+      actions.update(node.id, { artifactType: category.purpose });
     },
   }));
   const moreItems: ToolbarMenuItem[] = scope
@@ -543,9 +586,10 @@ export function CanvasNodeToolbar({
     <>
       {hasToolbar && (
         <NodeToolbar
+          nodeId={node.id}
+          root={canvasOverlayRoot}
           className={`canvas-node-selection-toolbar${useSubtleUploadToolbar ? " canvas-node-selection-toolbar--subtle" : ""}${nodeChromeHidden ? " canvas-node-selection-toolbar--hidden" : ""} nodrag nopan`}
           isVisible={selected && !imageAnnotationOpen}
-          position={Position.Top}
           offset={toolbarOffset}
         >
           {isTextNode && (
@@ -610,20 +654,23 @@ export function CanvasNodeToolbar({
               <button
                 ref={assetTriggerRef}
                 type="button"
-                title={t("ui.CanvasNodeToolbar.title.d578b347")}
+                title={t("assets.collection.collect")}
                 aria-haspopup="menu"
                 aria-expanded={openMenu === "asset"}
                 onPointerDown={(event) => event.stopPropagation()}
                 onClick={(event) => {
                   event.stopPropagation();
                   setOpenMenu((current) => {
-                    if (current === "asset") setAssetCategory("");
+                    if (current !== "asset") {
+                      setAssetCategory(assetCategoryFor(node.artifactType).id);
+                      void loadLocalAssetLibrary().catch(error => console.warn('Asset catalog unavailable', error));
+                    }
                     return current === "asset" ? null : "asset";
                   });
                 }}
               >
                 <IconSymbol name="archive" />
-                <span>{t("ui.CanvasNodeToolbar.text.3cb10da9")}</span>
+                <span>{t("assets.collection.collect")}</span>
                 <IconSymbol className="canvas-node-asset-chevron" name="chevron-down" />
               </button>
               {openMenu === "asset" && canvasOverlayRoot && createPortal(
@@ -636,7 +683,7 @@ export function CanvasNodeToolbar({
                 >
                   <header className="canvas-node-asset-menu-head">
                     <IconSymbol name="archive" />
-                    <span><strong>{t("ui.CanvasNodeToolbar.text.3cb10da9")}</strong><small>{t("ui.CanvasNodeToolbar.text.a247bab4")}</small></span>
+                    <span><strong>{t("assets.collection.collect")}</strong><small>{t("assets.collection.hint")}</small></span>
                   </header>
                   <div className="canvas-node-asset-category-grid">
                     {assetCategories.map((category) => (
@@ -656,34 +703,19 @@ export function CanvasNodeToolbar({
                     ))}
                   </div>
                   <div className="canvas-node-asset-destinations">
-                    <button
-                      type="button"
-                      role="menuitem"
-                      disabled={!assetCategory}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        setOpenMenu(null);
-                        void actions.saveToAssets(node.id, "project", assetCategory);
-                        setAssetCategory("");
-                      }}
-                    >
-                      <IconSymbol name="folder" />
-                      <strong>{t("ui.CanvasNodeToolbar.text.e91ca4db")}</strong>
-                    </button>
-                    <button
-                      type="button"
-                      role="menuitem"
-                      disabled={!assetCategory}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        setOpenMenu(null);
-                        void actions.saveToAssets(node.id, "global", assetCategory);
-                        setAssetCategory("");
-                      }}
-                    >
-                      <IconSymbol name="archive" />
-                      <strong>{t("ui.CanvasNodeToolbar.text.0775521f")}</strong>
-                    </button>
+                    {(['project', 'global'] as const).map(scope => {
+                      const saved = collections[scope];
+                      const categoryChanged = saved && assetCategoryFor(saved.category).id !== assetCategory;
+                      return <div key={scope} className="canvas-node-asset-destination">
+                        <strong>{t(scope === 'project' ? 'assets.collection.project' : 'assets.collection.global')}</strong>
+                        {saved && <small>{t(scope === 'project' ? 'assets.collection.savedProject' : 'assets.collection.savedGlobal')}</small>}
+                        <div>
+                          {saved && <button type="button" role="menuitem" onClick={() => reveal(scope)}>{t('assets.collection.view')}</button>}
+                          {(!saved || categoryChanged) && <button type="button" role="menuitem" disabled={collectionBusy}
+                            onClick={() => void collect(scope)}>{t(saved ? 'assets.collection.update' : 'assets.collection.collect')}</button>}
+                        </div>
+                      </div>;
+                    })}
                   </div>
                 </div>,
                 canvasOverlayRoot,

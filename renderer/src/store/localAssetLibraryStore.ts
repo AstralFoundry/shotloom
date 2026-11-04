@@ -2,6 +2,7 @@ import { t } from '../i18n/index.ts';
 import { computed, reactive } from '@/store/domainReactivity';
 import { desktopApi } from '@/services/desktopApi';
 import { store, touchProject } from '@/store/projectStore';
+import { assetCategoryFor } from '@/domain/asset/assetCategories';
 import { uid } from '@/utils/format';
 import { joinAssetPath, projectAssetRoot } from '@/utils/assetPaths.ts';
 
@@ -75,7 +76,7 @@ function cardFor(asset: AnyRecord, material: AnyRecord) {
     localLibraryAssetId: asset.id,
     localLibraryMaterialId: material.id,
     name: asset.name || material.name || t("ui.canvasMediaSelection.text.b61b7f74"),
-    category: asset.category || 'styles',
+    category: assetCategoryFor(asset.category).id,
     note: asset.note || '',
     tags: asset.tags || [],
     storageScope: 'library',
@@ -113,6 +114,7 @@ export async function promoteMaterialToLocalLibrary(material: AnyRecord, asset: 
       checksum: checked.checksum,
       checksumAlgorithm: 'sha256',
       size: checked.size || material.size || 0,
+      sourceFilePath: material.path,
       storageScope: 'library',
       sourceProjectName: store.project?.name || '',
       importedAt: new Date().toISOString(),
@@ -125,7 +127,7 @@ export async function promoteMaterialToLocalLibrary(material: AnyRecord, asset: 
       id: uid(),
       materialId: libraryMaterial.id,
       name: asset.name || material.name || t("ui.canvasMediaSelection.text.b61b7f74"),
-      category: asset.category || 'styles',
+      category: assetCategoryFor(asset.category).id,
       note: asset.note || '',
       tags: Array.isArray(asset.tags) ? [...asset.tags] : [],
       resourceType: asset.resourceType || material.resourceType || 'file',
@@ -268,4 +270,13 @@ export async function deleteLocalLibraryAsset(assetId: string) {
   }
   await persistCatalog();
   return { ok: true };
+}
+
+/** An explicit asset edit never changes the source canvas node. */
+export async function updateLocalAssetCategory(assetId: string, category: string) {
+  await loadLocalAssetLibrary(true);
+  const asset = localAssetLibrary.catalog.assets.find((item: AnyRecord) => item.id === assetId);
+  if (!asset) throw new Error(t('assets.collection.missing'));
+  asset.category = assetCategoryFor(category).id;
+  await persistCatalog();
 }

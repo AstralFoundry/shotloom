@@ -358,9 +358,15 @@ test('native composition validates bindings, caches configuration, scopes Skills
     return text('native scoped response');
   }]);
   desktop.host.ctx.llm.registerAdapter(['test'], adapter);
-  let response = await bind(payload);
+  let response = await bind({ ...payload, defaultModel: undefined });
   assert.equal(response.status, 200, await response.clone().text());
   const created = await response.json();
+  assert.equal(desktop.host.ctx.sessionProjections.stateOf(desktop.host.ctx.agents.get(created.sessionId).session, 'modelSelection').pending, null);
+  // Adding the first configured model must update this same empty Session,
+  // rather than leaving it on the controller's deployment fallback.
+  response = await bind({ ...payload, sessionId: created.sessionId });
+  assert.equal(response.status, 200, await response.clone().text());
+  assert.equal((await response.json()).sessionId, created.sessionId);
   assert.equal(desktop.host.ctx.get('webServer'), undefined, 'desktop has no browser HTTP or Cookie authentication endpoint');
   const skillRoot = join(dataRoot, 'product-skills');
   const { stat, readdir } = await import('node:fs/promises');

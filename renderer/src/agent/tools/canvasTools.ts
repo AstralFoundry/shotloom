@@ -1,3 +1,4 @@
+import { CANVAS_ARTIFACT_TYPES } from '@/services/agentTypes';
 import { formatToolCount } from '@/utils/format';
 import { t } from '@/i18n/index';
 import { inferMediaType } from '../../utils/mediaType.ts';
@@ -153,13 +154,13 @@ export function registerCanvasTools(): void {
     id: 'canvas_list_nodes',
     icon: 'grid',
     title: t('tool.title.canvas_list_nodes'),
-    description: '浏览画布节点索引、连线摘要、任务状态和稳定别名；artifactType 可只看 character 人物、scene 场景、storyboard 分镜、prop 道具或 other 未分类/其他节点。过滤时返回该类当前视图并省略无关素材库及历史记录，不使用 sinceRevision 差量；timeline 按显式分段组织。需要完整素材库 assets/materials 时用不带 artifactType 的 full 视图。写操作前先建立当前 revision 基线。',
+    description: '浏览画布节点索引、连线摘要、任务状态和稳定别名；artifactType 可只看 character 人物、scene 场景、storyboard 分镜、prop 道具、voice 配音、music 音乐、soundEffect 音效或 other 未分类/其他节点。过滤时返回该类当前视图并省略无关素材库及历史记录，不使用 sinceRevision 差量；timeline 按显式分段组织。需要完整素材库 assets/materials 时用不带 artifactType 的 full 视图。写操作前先建立当前 revision 基线。',
     effect: 'read',
     inputSchema: {
       type: 'object',
       properties: {
         view: { type: 'string', enum: ['summary', 'timeline', 'selection', 'full'] },
-        artifactType: { type: 'string', enum: ['character', 'scene', 'storyboard', 'prop', 'other'] },
+        artifactType: { type: 'string', enum: [...CANVAS_ARTIFACT_TYPES] },
         sinceRevision: { type: 'number' },
       },
       additionalProperties: false,
@@ -414,7 +415,7 @@ export function registerCanvasTools(): void {
     id: 'canvas_update_node',
     icon: 'pencil',
     title: t('tool.title.canvas_update_node'),
-    description: '更新生成配置、移动节点，或用 set_artifact_type 为任意已有节点标注 character/scene/storyboard/prop/other。只提交需要变化的字段。',
+    description: '更新生成配置、移动节点，或用 set_artifact_type 为任意已有节点标注 character/scene/prop/storyboard/voice/music/soundEffect/other。只提交需要变化的字段。',
     effect: 'canvas_write',
     inputSchema: focusedActionSchema(['update_gen_config', 'set_artifact_type', 'move_node']),
     summarizeInput: (input) => nodeSummaryLabel(input.nodeId),

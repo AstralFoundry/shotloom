@@ -1,3 +1,4 @@
+import { useAppStore } from '../store/appStore';
 import { t } from '@/i18n';
 import { formatItemCount } from '../../utils/format.ts';
 import { CANVAS_AGENT_ID } from '../../agent/agents/definitions';
@@ -29,7 +30,7 @@ import { HarnessChatPanel } from "../agent-chat/HarnessChatPanel";
 import type { VideoEditorController } from "../editor/VideoEditorWorkspace";
 import type { VideoEditorWorkspaceProps } from "../editor/openReel/types";
 import type { AgentLayoutMode } from "../../services/agentLayoutService";
-import { assetCategories } from "../../domain/asset/assetCategories";
+import { assetCategories, assetCategoryFor } from "../../domain/asset/assetCategories";
 
 const VideoEditorWorkspace = lazy(() =>
   import("../editor/VideoEditorWorkspace").then((module) => ({
@@ -102,6 +103,7 @@ export function CreationView({
   }, [picker]);
   const [materialKeyword, setMaterialKeyword] = useState("");
   const [assetType, setAssetType] = useState("all");
+  const [focusedAssetId, setFocusedAssetId] = useState('');
   const [assetCategory, setAssetCategory] = useState("all");
   const [assetSort, setAssetSort] = useState<"newest" | "oldest" | "name">("newest");
   const [assetView, setAssetView] = useState<"grid" | "list">("grid");
@@ -129,7 +131,7 @@ export function CreationView({
     const filtered = materials[scope].filter((item) => {
       const type = String(item.resourceType || "file").toLocaleLowerCase();
       if (assetType !== "all" && type !== assetType) return false;
-      const itemCategory = String(item.category || "");
+      const itemCategory = assetCategoryFor(item.category).id;
       if (
         category &&
         itemCategory !== category.id &&
@@ -168,6 +170,7 @@ export function CreationView({
       setPicker(false);
       return;
     }
+    setFocusedAssetId('');
     const next = refreshMaterials();
     setScope(next.library.length ? "library" : next.local.length ? "local" : "files");
     setMaterialKeyword("");
@@ -176,6 +179,25 @@ export function CreationView({
     setAssetSort("newest");
     setPicker(true);
   }
+  const assetBrowserRequest = useAppStore(state => state.assetBrowserRequest);
+  useEffect(() => {
+    if (!assetBrowserRequest) return;
+    refreshMaterials(assetBrowserRequest.scope);
+    setAssetType('all');
+    setAssetCategory(assetBrowserRequest.category);
+    setMaterialKeyword(assetBrowserRequest.name);
+    setFocusedAssetId(assetBrowserRequest.assetId);
+    setPicker(true);
+    useAppStore.getState().clearAssetBrowserRequest();
+  }, [assetBrowserRequest]);
+  useEffect(() => {
+    if (!picker || !focusedAssetId) return;
+    const frame = requestAnimationFrame(() => {
+      const card = [...(assetPickerRef.current?.querySelectorAll<HTMLElement>('[data-asset-id]') || [])].find(element => element.dataset.assetId === focusedAssetId);
+      card?.scrollIntoView({ block: 'nearest' });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [picker, focusedAssetId, items]);
   async function importMaterials() {
     await controller.importMaterials();
     refreshMaterials("files");
@@ -258,6 +280,7 @@ export function CreationView({
           renderers={workflowNodeRenderers}
           nodeActions={controller.nodes}
           controller={controller.canvas}
+          onAutoLayout={controller.autoLayout}
           addNodeMention={(nodeId) => {
             window.dispatchEvent(new CustomEvent("shotloom:mention-node", { detail: nodeId }));
           }}
@@ -269,10 +292,10 @@ export function CreationView({
               shortcutLabels={data.shortcutLabels}
               onUndo={controller.undo}
               onRedo={controller.redo}
-              onFitView={controller.fitView}
               onMaterialPicker={openPicker}
               onAutoLayout={controller.autoLayout}
               onMergeVideos={controller.mergeVideos}
+              onCreateSection={() => controller.canvas.createSection?.()}
             />
             </>
           }
@@ -395,14 +418,13 @@ export function CreationView({
                   <option value="file">{t("ui.CreationView.text.803b3b26")}</option>
                 </select>
               </label>
-              <label aria-label={t("ui.CreationView.arialabel.74af0122")}>
-                <select value={assetCategory} onChange={(event) => setAssetCategory(event.target.value)}>
-                  <option value="all">{t("ui.CreationView.text.a8e369c4")}</option>
-                  {assetCategories.map((category) => (
-                    <option key={category.id} value={category.id}>{category.label}</option>
-                  ))}
-                </select>
-              </label>
+              <div className="canvas-asset-categories" role="group" aria-label={t('assets.collection.label')}>
+                <button type="button" aria-pressed={assetCategory === 'all'} onClick={() => setAssetCategory('all')}>{t("ui.CreationView.text.a8e369c4")}</button>
+                {assetCategories.map(category => (
+                  <button key={category.id} type="button" aria-pressed={assetCategory === category.id}
+                    onClick={() => setAssetCategory(category.id)}>{category.label}</button>
+                ))}
+              </div>
               <label className="canvas-asset-sort" aria-label={t("ui.CreationView.arialabel.e545c64b")}>
                 <select
                   value={assetSort}
@@ -432,6 +454,7 @@ export function CreationView({
               {items.length ? (
                 <MaterialGrid
                   materials={items}
+                  focusedAssetId={focusedAssetId}
                   showLibraryAction={false}
                   showFileAction
                   showRenameAction={false}

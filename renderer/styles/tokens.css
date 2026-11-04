@@ -144,12 +144,23 @@
   --action-icon-gap: 8px;
 
   /* Canvas chrome */
+  --canvas-tint-warm: #9d8c78;
+  --canvas-tint-cool: #7b94a6;
+  --canvas-tint-paper: #c6af78;
+  --canvas-tint-sage: #79a78c;
+  --canvas-tint-blue: #78a9ca;
+  --canvas-tint-lavender: #ac8ec7;
+  --canvas-tint-pink: #cc929f;
+  --canvas-tint-sand: #c6a16b;
+  --canvas-default-bg: #fafafa;
   --canvas-bg: #fafafa;
+  --canvas-section-bg: rgba(0, 0, 0, .045);
   --canvas-bg-dot: rgba(0, 0, 0, .12);
   --canvas-node-radius: 10px;
   --canvas-node-inner-radius: 8px;
   --canvas-node-border: var(--line-solid);
   --canvas-node-border-selected: #141414;
+  --canvas-clip-node-border-selected: #000;
   --canvas-edge: #c4c4c4;
   --canvas-edge-hover: #919191;
   --canvas-edge-selected: #525252;
@@ -332,9 +343,12 @@
   --bad: #ef7168;
   --bad-wash: rgba(239, 113, 104, .16);
 
+  --canvas-default-bg: #0a0a0a;
   --canvas-bg: #0a0a0a;
+  --canvas-section-bg: rgba(255, 255, 255, .065);
   --canvas-bg-dot: rgba(255, 255, 255, .102);
   --canvas-node-border-selected: rgba(255, 255, 255, .93);
+  --canvas-clip-node-border-selected: rgba(255, 255, 255, .93);
   --canvas-edge: #525252;
   --canvas-edge-hover: #86909c;
   --canvas-edge-selected: #737373;

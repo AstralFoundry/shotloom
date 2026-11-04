@@ -2,7 +2,7 @@ import { t } from '../i18n/index.ts';
 import { inferMediaType, mediaExtension } from '../utils/mediaType.ts';
 // 素材库读写的是持久化的松散 JSON：文件、素材与设定条目都按 AnyRecord 进出，
 // 只有分类表和文案映射有静态类型。
-import { assetCategories, defaultAssetCategory } from '@/domain/asset/assetCategories';
+import { assetCategories, defaultAssetCategory, assetCategoryFor } from '@/domain/asset/assetCategories';
 import { desktopApi } from '@/services/desktopApi';
 import { store, touchProject } from '@/store/projectStore';
 import { showToast, showErrorMessage } from '@/store/notificationStore';
@@ -111,7 +111,9 @@ export function applyMaterialToCanvas(material: AnyRecord = {}): AnyRecord | nul
   node.content = material.note || material.content || filePath || title;
   node.materialId = material.materialId || material.id || '';
   node.assetId = material.assetId || '';
+  node.artifactType = assetCategoryFor(material.category || material.artifactType).purpose;
   node.resourceType = resourceType;
+  if (resourceType === 'text') node.textContent = material.content || '';
   node.sourceType = material.sourceType || material.source || 'material-library';
   node.uploadedFile = {
     name: title,
@@ -177,7 +179,7 @@ export function registerImportedMaterial(file: AnyRecord = {}, options: AnyRecor
       name: material.name,
       code: assetNodeTypeLabel(nodeType) || resourceTypeLabel(resourceType),
       phone: '',
-      category: options.category || store.assetCategory,
+      category: options.category || defaultAssetCategoryForMaterial(material),
       note: t("ui.assetStore.text.fd2b1a04", { value0: String(resourceTypeLabel(resourceType)) }),
       tags: [
         options.assetTag || t("ui.assetStore.text.a44f2749"),
@@ -370,9 +372,7 @@ function sourceTypeLabel(sourceType: string) {
 }
 
 function defaultAssetCategoryForMaterial(material: AnyRecord = {}) {
-  if (material.nodeType === 'imageGeneration' || material.nodeType === 'videoGeneration') return 'styles';
-  if (material.nodeType === 'textGeneration') return 'shots';
-  return store.assetCategory || 'styles';
+  return assetCategoryFor(material.artifactType || material.category).id;
 }
 
 /**

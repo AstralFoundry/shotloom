@@ -1,5 +1,6 @@
+import { graphlib, layout as dagreLayout } from '@dagrejs/dagre';
 import type { AgentNode, AgentProject } from './agentTypes';
-import { canvasNodeDimensions, defaultCanvasNodeDimensions } from '../domain/graph/CanvasNodeDimensions.ts';
+import { canvasNodeDimensions } from '../domain/graph/CanvasNodeDimensions.ts';
 
 export { canvasNodeDimensions, defaultCanvasNodeDimensions } from '../domain/graph/CanvasNodeDimensions.ts';
 
@@ -116,70 +117,97 @@ function connectedNodeIds(project: AgentProject, seedIds: Set<string>): Set<stri
   return result;
 }
 
-function layoutFlat(
+function flatRects(
   items: LayoutItem[],
-  startX: number,
-  startY: number,
   columnGap: number,
   rowGap: number,
   mode: Exclude<AgentLayoutMode, 'workflow'>,
-) {
+): LayoutRects {
+  const rects: LayoutRects = new Map();
   const ordered = [...items].sort(stableItemSort);
+  const sizeOf = (item: LayoutItem) => canvasNodeDimensions(item.node);
   if (mode === 'horizontal') {
-    let x = startX;
-    let height = 0;
+    let x = 0;
     for (const item of ordered) {
-      const size = canvasNodeDimensions(item.node);
-      item.node.x = Math.round(x);
-      item.node.y = Math.round(startY);
+      const size = sizeOf(item);
+      rects.set(item.node.id, { x, y: 0, ...size });
       x += size.width + columnGap;
-      height = Math.max(height, size.height);
     }
-    return { width: Math.max(0, x - startX - columnGap), height };
+    return rects;
   }
   if (mode === 'vertical') {
-    let y = startY;
-    let width = 0;
+    let y = 0;
     for (const item of ordered) {
-      const size = canvasNodeDimensions(item.node);
-      item.node.x = Math.round(startX);
-      item.node.y = Math.round(y);
+      const size = sizeOf(item);
+      rects.set(item.node.id, { x: 0, y, ...size });
       y += size.height + rowGap;
-      width = Math.max(width, size.width);
     }
-    return { width, height: Math.max(0, y - startY - rowGap) };
+    return rects;
   }
   const columns = Math.max(1, Math.ceil(Math.sqrt(ordered.length)));
   const columnWidths = Array.from({ length: columns }, () => 0);
   const rows = Math.ceil(ordered.length / columns);
   const rowHeights = Array.from({ length: rows }, () => 0);
   ordered.forEach((item, index) => {
-    const size = canvasNodeDimensions(item.node);
+    const size = sizeOf(item);
     columnWidths[index % columns] = Math.max(columnWidths[index % columns] ?? 0, size.width);
     rowHeights[Math.floor(index / columns)] = Math.max(
       rowHeights[Math.floor(index / columns)] ?? 0,
       size.height,
     );
   });
-  const columnX = [startX];
-  const rowY = [startY];
+  const columnX = [0];
+  const rowY = [0];
   for (let index = 1; index < columns; index += 1) {
-    columnX[index] = (columnX[index - 1] ?? startX) + (columnWidths[index - 1] ?? 0) + columnGap;
+    columnX[index] = (columnX[index - 1] ?? 0) + (columnWidths[index - 1] ?? 0) + columnGap;
   }
   for (let index = 1; index < rows; index += 1) {
-    rowY[index] = (rowY[index - 1] ?? startY) + (rowHeights[index - 1] ?? 0) + rowGap;
+    rowY[index] = (rowY[index - 1] ?? 0) + (rowHeights[index - 1] ?? 0) + rowGap;
   }
   ordered.forEach((item, index) => {
-    item.node.x = Math.round(columnX[index % columns] ?? startX);
-    item.node.y = Math.round(rowY[Math.floor(index / columns)] ?? startY);
+    rects.set(item.node.id, {
+      x: columnX[index % columns] ?? 0,
+      y: rowY[Math.floor(index / columns)] ?? 0,
+      ...sizeOf(item),
+    });
   });
-  return {
-    width: columnWidths.reduce((sum, width) => sum + width, 0) + columnGap * (columns - 1),
-    height: rowHeights.reduce((sum, height) => sum + height, 0) + rowGap * (rows - 1),
-  };
+  return rects;
+}
+
+function applyRects(items: LayoutItem[], rects: LayoutRects, originX: number, originY: number): void {
+  for (const item of items) {
+    const rect = rects.get(item.node.id);
+    if (!rect) continue;
+    item.node.x = Math.round(rect.x + originX);
+    item.node.y = Math.round(rect.y + originY);
+  }
+}
+
+function rectsBounds(rects: LayoutRects): { width: number; height: number } {
+  let minX = Number.POSITIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+  rects.forEach((rect) => {
+    minX = Math.min(minX, rect.x);
+    minY = Math.min(minY, rect.y);
+    maxX = Math.max(maxX, rect.x + rect.width);
+    maxY = Math.max(maxY, rect.y + rect.height);
+  });
+  if (!Number.isFinite(minX)) return { width: 0, height: 0 };
+  return { width: maxX - minX, height: maxY - minY };
+}
+
+function translateRects(rects: LayoutRects, dx: number, dy: number): void {
+  rects.forEach((rect) => {
+    rect.x += dx;
+    rect.y += dy;
+  });
 }
 
 type LayoutRect = { x: number; y: number; width: number; height: number };
+type LayoutRects = Map<string, LayoutRect>;
+
 function nodeRect(node: AgentNode): LayoutRect {
   const size = canvasNodeDimensions(node);
   return { x: Number(node.x) || 0, y: Number(node.y) || 0, ...size };
@@ -225,170 +253,338 @@ function shiftAwayFromObstacles(nodes: AgentNode[], obstacles: AgentNode[], marg
   return free;
 }
 
-function layoutGroup(
-  items: LayoutItem[],
-  edges: AgentProject['edges'],
-  startX: number,
-  startY: number,
-  columnGap: number,
-  rowGap: number,
-) {
-  const ids = new Set(items.map((item) => item.node.id));
-  const parents = new Map(items.map((item) => [item.node.id, [] as string[]]));
-  const children = new Map(items.map((item) => [item.node.id, [] as string[]]));
-  for (const edge of edges || []) {
-    if (ids.has(edge.source) && ids.has(edge.target)) {
-      parents.get(edge.target)?.push(edge.source);
-      children.get(edge.source)?.push(edge.target);
-    }
-  }
+interface LayoutAdjacency {
+  parents: Map<string, string[]>;
+  children: Map<string, string[]>;
+}
 
+const MAX_ITEMS_PER_RANK = 5;
+const RANK_ALIGN_TOLERANCE = 2;
+
+function buildAdjacency(ids: Set<string>, edges: AgentProject['edges']): LayoutAdjacency {
+  const parents = new Map<string, string[]>();
+  const children = new Map<string, string[]>();
+  ids.forEach((id) => {
+    parents.set(id, []);
+    children.set(id, []);
+  });
+  const seen = new Set<string>();
+  for (const edge of edges || []) {
+    if (edge.source === edge.target) continue;
+    if (!ids.has(edge.source) || !ids.has(edge.target)) continue;
+    const key = `${edge.source}\u0000${edge.target}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    children.get(edge.source)?.push(edge.target);
+    parents.get(edge.target)?.push(edge.source);
+  }
+  return { parents, children };
+}
+
+function splitComponents(items: LayoutItem[], adjacency: LayoutAdjacency): LayoutItem[][] {
+  const byId = new Map(items.map((item) => [item.node.id, item]));
+  const visited = new Set<string>();
+  const groups: LayoutItem[][] = [];
+  for (const item of [...items].sort(stableItemSort)) {
+    if (visited.has(item.node.id)) continue;
+    visited.add(item.node.id);
+    const queue = [item.node.id];
+    const group: LayoutItem[] = [];
+    while (queue.length) {
+      const id = queue.shift() as string;
+      const member = byId.get(id);
+      if (member) group.push(member);
+      for (const neighbor of [...(adjacency.children.get(id) || []), ...(adjacency.parents.get(id) || [])]) {
+        if (visited.has(neighbor)) continue;
+        visited.add(neighbor);
+        queue.push(neighbor);
+      }
+    }
+    groups.push(group.sort(stableItemSort));
+  }
+  return groups;
+}
+
+// 拓扑深度只用于给互不相连的工作流排序（深的先铺），不参与任何语义判断。
+function componentDepth(component: LayoutItem[], adjacency: LayoutAdjacency): number {
+  const ids = new Set(component.map((item) => item.node.id));
   const depths = new Map<string, number>();
-  const depthFor = (id: string, visiting = new Set<string>()): number => {
-    if (depths.has(id)) return depths.get(id) || 0;
-    const item = itemByIdForGroup.get(id);
-    if (!item) return 0;
-    // Malformed cycles stay compact instead of expanding one column per relaxation pass.
+  const depthFor = (id: string, visiting: Set<string>): number => {
+    const known = depths.get(id);
+    if (known != null) return known;
     if (visiting.has(id)) return 0;
     const nextVisiting = new Set(visiting).add(id);
-    const parentDepths = (parents.get(id) || []).map((parentId) => depthFor(parentId, nextVisiting));
+    const parentDepths = (adjacency.parents.get(id) || [])
+      .filter((parentId) => ids.has(parentId))
+      .map((parentId) => depthFor(parentId, nextVisiting));
     const depth = parentDepths.length ? Math.max(...parentDepths) + 1 : 0;
     depths.set(id, depth);
     return depth;
   };
-  const itemByIdForGroup = new Map(items.map((item) => [item.node.id, item]));
-  items.forEach((item) => depthFor(item.node.id));
+  return Math.max(0, ...component.map((item) => depthFor(item.node.id, new Set())));
+}
 
-  const columns = new Map<number, LayoutItem[]>();
-  for (const item of items) {
-    const depth = depths.get(item.node.id) || 0;
-    if (!columns.has(depth)) columns.set(depth, []);
-    columns.get(depth)?.push(item);
-  }
-
-  const orderedColumns = [...columns.entries()].sort(([a], [b]) => a - b);
-  orderedColumns.forEach(([, columnItems]) => columnItems.sort(stableItemSort));
-  const itemOrder = new Map<string, number>();
-  const refreshOrder = () => orderedColumns.forEach(([, columnItems]) => {
-    columnItems.forEach((item, index) => itemOrder.set(item.node.id, index));
+function dagreRects(
+  component: LayoutItem[],
+  adjacency: LayoutAdjacency,
+  columnGap: number,
+  rowGap: number,
+): LayoutRects {
+  const graph = new graphlib.Graph({ directed: true, multigraph: false });
+  graph.setGraph({
+    rankdir: 'LR',
+    nodesep: rowGap,
+    ranksep: columnGap,
+    ranker: 'network-simplex',
+    marginx: 0,
+    marginy: 0,
   });
-  const neighborRank = (item: LayoutItem, direction: 'parents' | 'children') => {
-    const idsForRank = direction === 'parents' ? parents.get(item.node.id) : children.get(item.node.id);
-    const ranks = (idsForRank || []).map((id) => itemOrder.get(id)).filter((rank): rank is number => rank != null);
-    if (!ranks.length) return Number.POSITIVE_INFINITY;
-    return ranks.reduce((sum, rank) => sum + rank, 0) / ranks.length;
+  graph.setDefaultEdgeLabel(() => ({}));
+  for (const item of [...component].sort(stableItemSort)) {
+    const size = canvasNodeDimensions(item.node);
+    graph.setNode(item.node.id, { width: size.width, height: size.height });
+  }
+  for (const item of component) {
+    for (const child of adjacency.children.get(item.node.id) || []) {
+      graph.setEdge(item.node.id, child);
+    }
+  }
+  dagreLayout(graph);
+  const rects: LayoutRects = new Map();
+  for (const item of component) {
+    const placed = graph.node(item.node.id) as { x?: number; y?: number } | undefined;
+    const size = canvasNodeDimensions(item.node);
+    rects.set(item.node.id, {
+      x: (placed?.x ?? 0) - size.width / 2,
+      y: (placed?.y ?? 0) - size.height / 2,
+      ...size,
+    });
+  }
+  return rects;
+}
+
+interface RankEntry {
+  id: string;
+  rect: LayoutRect;
+  lead: number;
+  center: number;
+}
+
+// 同一依赖层的判据是层轴（LR 下即 x）对齐，而不是 dagre 的内部 rank 编号。
+function rankClusters(rects: LayoutRects): RankEntry[][] {
+  const entries: RankEntry[] = [...rects.entries()].map(([id, rect]) => ({
+    id,
+    rect,
+    lead: rect.x,
+    center: rect.x + rect.width / 2,
+  }));
+  const parent = entries.map((_entry, index) => index);
+  const find = (index: number): number => {
+    let cursor = index;
+    while (parent[cursor] !== cursor) cursor = parent[cursor] as number;
+    return cursor;
   };
-  refreshOrder();
-  // Alternating downward/upward barycentric sweeps are the small-graph version
-  // of Sugiyama crossing reduction. They keep corresponding segment nodes aligned.
+  const union = (left: number, right: number) => {
+    const rootLeft = find(left);
+    const rootRight = find(right);
+    if (rootLeft === rootRight) return;
+    parent[Math.max(rootLeft, rootRight)] = Math.min(rootLeft, rootRight);
+  };
+  entries.forEach((left, index) => {
+    for (let other = index + 1; other < entries.length; other += 1) {
+      const right = entries[other];
+      if (!right) continue;
+      if (
+        Math.abs(left.lead - right.lead) <= RANK_ALIGN_TOLERANCE ||
+        Math.abs(left.center - right.center) <= RANK_ALIGN_TOLERANCE
+      ) union(index, other);
+    }
+  });
+  const groups = new Map<number, RankEntry[]>();
+  entries.forEach((entry, index) => {
+    const root = find(index);
+    const bucket = groups.get(root);
+    if (bucket) bucket.push(entry);
+    else groups.set(root, [entry]);
+  });
+  return [...groups.values()].sort((left, right) =>
+    Math.min(...left.map((entry) => entry.lead)) - Math.min(...right.map((entry) => entry.lead)));
+}
+
+// dagre 的 priority 定位在混合高度下会给出忽大忽小的层内间距，这里按固定 rowGap 重排并保留层中心。
+// keyOf 缺省时沿用当前纵向顺序；提供时按重心排序，无参照的节点由 fallback 决定落点。
+function stackRankClusters(
+  clusters: RankEntry[][],
+  rects: LayoutRects,
+  rowGap: number,
+  keyOf: ((entry: RankEntry) => number | null) | null,
+  fallbackByIndex: boolean,
+  indexById: Map<string, number>,
+): void {
+  for (const cluster of clusters) {
+    if (cluster.length < 2) continue;
+    const centerOf = (entry: RankEntry) => entry.rect.y + entry.rect.height / 2;
+    const ordered = [...cluster].sort((left, right) => {
+      const leftKey = keyOf ? keyOf(left) : null;
+      const rightKey = keyOf ? keyOf(right) : null;
+      if (leftKey != null && rightKey != null) {
+        return leftKey - rightKey || (fallbackByIndex
+          ? (indexById.get(left.id) ?? 0) - (indexById.get(right.id) ?? 0)
+          : centerOf(left) - centerOf(right));
+      }
+      if (leftKey == null && rightKey == null) {
+        return fallbackByIndex
+          ? (indexById.get(left.id) ?? 0) - (indexById.get(right.id) ?? 0)
+          : centerOf(left) - centerOf(right);
+      }
+      return leftKey == null ? -1 : 1;
+    });
+    const center = ordered.reduce((sum, entry) => sum + centerOf(entry), 0) / ordered.length;
+    const span = ordered.reduce((sum, entry) => sum + entry.rect.height, 0) + rowGap * (ordered.length - 1);
+    let cursor = center - span / 2;
+    for (const entry of ordered) {
+      const rect = rects.get(entry.id);
+      if (rect) rect.y = cursor;
+      cursor += entry.rect.height + rowGap;
+    }
+  }
+}
+
+// dagre 只保证拓扑分层，层内顺序会随边插入顺序整体翻转；这里用重心扫一遍，
+// 首列没有上游时退回创建顺序，保证同样的图每次整理结果一致。
+function orderRanksByBarycenter(
+  rects: LayoutRects,
+  adjacency: LayoutAdjacency,
+  rowGap: number,
+  indexById: Map<string, number>,
+): void {
   for (let pass = 0; pass < 4; pass += 1) {
-    for (let index = 1; index < orderedColumns.length; index += 1) {
-      const parentsColumn = orderedColumns[index];
-      if (!parentsColumn) continue;
-      parentsColumn[1].sort((a, b) =>
-        neighborRank(a, 'parents') - neighborRank(b, 'parents') || stableItemSort(a, b));
-      refreshOrder();
-    }
-    for (let index = orderedColumns.length - 2; index >= 0; index -= 1) {
-      const childrenColumn = orderedColumns[index];
-      if (!childrenColumn) continue;
-      childrenColumn[1].sort((a, b) =>
-        neighborRank(a, 'children') - neighborRank(b, 'children') || stableItemSort(a, b));
-      refreshOrder();
-    }
+    const downward = pass % 2 === 0;
+    const clusters = rankClusters(rects);
+    if (!downward) clusters.reverse();
+    const neighborKey = (entry: RankEntry): number | null => {
+      const neighbors = (downward ? adjacency.parents : adjacency.children).get(entry.id) || [];
+      const centers = neighbors
+        .map((id) => rects.get(id))
+        .filter((rect): rect is LayoutRect => Boolean(rect))
+        .map((rect) => rect.y + rect.height / 2);
+      if (!centers.length) return null;
+      return centers.reduce((sum, center) => sum + center, 0) / centers.length;
+    };
+    stackRankClusters(clusters, rects, rowGap, neighborKey, downward, indexById);
   }
+}
 
-  const maxDepth = Math.max(...orderedColumns.map(([depth]) => depth));
-  const widths = Array.from(
-    { length: maxDepth + 1 },
-    () => defaultCanvasNodeDimensions('imageGeneration').width,
-  );
-  for (const [depth, columnItems] of orderedColumns) {
-    widths[depth] = Math.max(...columnItems.map((item) => canvasNodeDimensions(item.node).width));
-  }
-  const columnX = [startX];
-  for (let depth = 1; depth <= maxDepth; depth += 1) {
-    columnX[depth] = (columnX[depth - 1] ?? startX) + (widths[depth - 1] ?? 0) + columnGap;
-  }
-
-  // Columns share row tracks, but each node keeps its own dimensions. This
-  // centers corresponding workflow items without forcing image, video, audio,
-  // and text cards into one generic size.
-  const rowCount = Math.max(...orderedColumns.map(([, columnItems]) => columnItems.length));
-  const rowHeights = Array.from({ length: rowCount }, (_, rowIndex) =>
-    Math.max(...orderedColumns.map(([, columnItems]) => {
-      const item = columnItems[rowIndex];
-      return item ? canvasNodeDimensions(item.node).height : 0;
-    })),
-  );
-  const rowTops: number[] = [];
-  let rowCursor = 0;
-  for (let rowIndex = 0; rowIndex < rowCount; rowIndex += 1) {
-    rowTops[rowIndex] = rowCursor;
-    rowCursor += (rowHeights[rowIndex] ?? 0) + rowGap;
-  }
-  const relativeY = new Map<string, number>();
-  const columnHeights = new Map<number, number>();
-  for (const [depth, columnItems] of orderedColumns) {
-    for (let rowIndex = 0; rowIndex < columnItems.length; rowIndex += 1) {
-      const item = columnItems[rowIndex];
-      if (!item) continue;
-      const height = canvasNodeDimensions(item.node).height;
-      relativeY.set(
-        item.node.id,
-        (rowTops[rowIndex] ?? 0) + ((rowHeights[rowIndex] ?? 0) - height) / 2,
-      );
-    }
-    const lastRowIndex = columnItems.length - 1;
-    columnHeights.set(
-      depth,
-      lastRowIndex < 0
-        ? 1
-        : (rowTops[lastRowIndex] ?? 0) + (rowHeights[lastRowIndex] ?? 0),
-    );
-  }
-  const anchorDepth = orderedColumns.reduce((best, [depth]) =>
-    (columnHeights.get(depth) || 0) > (columnHeights.get(best) || 0) ? depth : best,
-  orderedColumns[0]?.[0] ?? 0);
-  const offsets = new Map<number, number>([[anchorDepth, 0]]);
-  const median = (values: number[]) => {
-    const sorted = [...values].sort((a, b) => a - b);
-    return sorted[Math.floor(sorted.length / 2)] || 0;
-  };
-  const alignedOffset = (depth: number, direction: 'parents' | 'children') => {
-    const columnItems = columns.get(depth) || [];
-    const candidates: number[] = [];
-    for (const item of columnItems) {
-      const dimensions = canvasNodeDimensions(item.node);
-      const neighbors = direction === 'parents' ? parents.get(item.node.id) : children.get(item.node.id);
-      for (const neighborId of neighbors || []) {
-        const neighborItem = itemByIdForGroup.get(neighborId);
-        const neighborDepth = depths.get(neighborId) || 0;
-        if (!neighborItem || !offsets.has(neighborDepth)) continue;
-        const neighborCenter = (offsets.get(neighborDepth) || 0)
-          + (relativeY.get(neighborId) || 0)
-          + canvasNodeDimensions(neighborItem.node).height / 2;
-        candidates.push(neighborCenter - (relativeY.get(item.node.id) || 0) - dimensions.height / 2);
+// 一层里节点过多会拖出巨高列：折成每列 MAX_ITEMS_PER_RANK 的小网格，并把后续层整体右移避让。
+function wrapOverfilledRanks(
+  rects: LayoutRects,
+  columnGap: number,
+  rowGap: number,
+): void {
+  let cumulativeShift = 0;
+  for (const cluster of rankClusters(rects)) {
+    if (cumulativeShift !== 0) {
+      for (const entry of cluster) {
+        const rect = rects.get(entry.id);
+        if (rect) rect.x += cumulativeShift;
       }
     }
-    return Math.max(0, median(candidates));
-  };
-  for (let depth = anchorDepth - 1; depth >= 0; depth -= 1) offsets.set(depth, alignedOffset(depth, 'children'));
-  for (let depth = anchorDepth + 1; depth <= maxDepth; depth += 1) offsets.set(depth, alignedOffset(depth, 'parents'));
-
-  let width = 0;
-  let height = 0;
-  for (const [depth, columnItems] of orderedColumns) {
-    const offsetY = offsets.get(depth) || 0;
-    const left = columnX[depth] ?? startX;
-    for (const item of columnItems) {
-      item.node.x = Math.round(left);
-      item.node.y = Math.round(startY + offsetY + (relativeY.get(item.node.id) || 0));
-    }
-    width = Math.max(width, left - startX + (widths[depth] ?? 0));
-    height = Math.max(height, offsetY + (columnHeights.get(depth) || 0));
+    if (cluster.length <= MAX_ITEMS_PER_RANK) continue;
+    const ordered = [...cluster].sort((left, right) =>
+      left.rect.y - right.rect.y || left.rect.x - right.rect.x);
+    const colLeft = Math.min(...ordered.map((entry) => entry.rect.x));
+    const oldRight = Math.max(...ordered.map((entry) => entry.rect.x + entry.rect.width));
+    const cellWidth = Math.max(...ordered.map((entry) => entry.rect.width));
+    const cellHeight = Math.max(...ordered.map((entry) => entry.rect.height));
+    const rows = Math.min(ordered.length, MAX_ITEMS_PER_RANK);
+    const columns = Math.ceil(ordered.length / MAX_ITEMS_PER_RANK);
+    const blockHeight = rows * cellHeight + (rows - 1) * rowGap;
+    const center = ordered.reduce((sum, entry) => sum + entry.rect.y + entry.rect.height / 2, 0) / ordered.length;
+    const top = center - blockHeight / 2;
+    ordered.forEach((entry, slot) => {
+      const rect = rects.get(entry.id);
+      if (!rect) return;
+      rect.x = colLeft + Math.floor(slot / MAX_ITEMS_PER_RANK) * (cellWidth + columnGap);
+      rect.y = top + (slot % MAX_ITEMS_PER_RANK) * (cellHeight + rowGap) + (cellHeight - rect.height) / 2;
+    });
+    const newRight = colLeft + columns * cellWidth + (columns - 1) * columnGap;
+    cumulativeShift += Math.max(0, newRight - oldRight);
   }
-  return { width, height: Math.max(height, 1) };
+}
+
+function rectExtents(rects: LayoutRects): { minX: number; minY: number } {
+  let minX = 0;
+  let minY = 0;
+  let first = true;
+  rects.forEach((rect) => {
+    if (first) {
+      minX = rect.x;
+      minY = rect.y;
+      first = false;
+      return;
+    }
+    minX = Math.min(minX, rect.x);
+    minY = Math.min(minY, rect.y);
+  });
+  return { minX, minY };
+}
+
+function layoutWorkflowRects(
+  items: LayoutItem[],
+  edges: AgentProject['edges'],
+  columnGap: number,
+  rowGap: number,
+): LayoutRects {
+  const ids = new Set(items.map((item) => item.node.id));
+  const adjacency = buildAdjacency(ids, edges);
+  const rects: LayoutRects = new Map();
+  const workflows: { rects: LayoutRects; depth: number; count: number; index: number }[] = [];
+  const discrete: LayoutItem[] = [];
+
+  for (const component of splitComponents(items, adjacency)) {
+    const connected = component.some((item) =>
+      (adjacency.children.get(item.node.id)?.length || 0) + (adjacency.parents.get(item.node.id)?.length || 0) > 0);
+    if (!connected) {
+      discrete.push(...component);
+      continue;
+    }
+    const componentRects = dagreRects(component, adjacency, columnGap, rowGap);
+    orderRanksByBarycenter(
+      componentRects,
+      adjacency,
+      rowGap,
+      new Map(component.map((item) => [item.node.id, item.index])),
+    );
+    wrapOverfilledRanks(componentRects, columnGap, rowGap);
+    const origin = rectExtents(componentRects);
+    translateRects(componentRects, -origin.minX, -origin.minY);
+    workflows.push({
+      rects: componentRects,
+      depth: componentDepth(component, adjacency),
+      count: component.length,
+      index: Math.min(...component.map((item) => item.index)),
+    });
+  }
+
+  // 深链路先铺、同深度按规模，剩下无连线的散素材统一铺在末尾。
+  workflows.sort((left, right) => right.depth - left.depth || right.count - left.count || left.index - right.index);
+  let cursorY = 0;
+  for (const workflow of workflows) {
+    translateRects(workflow.rects, 0, cursorY);
+    workflow.rects.forEach((rect, id) => rects.set(id, rect));
+    cursorY += rectsBounds(workflow.rects).height + rowGap;
+  }
+  if (discrete.length) {
+    const discreteRects = flatRects(discrete, columnGap, rowGap, 'grid');
+    translateRects(discreteRects, 0, cursorY);
+    discreteRects.forEach((rect, id) => rects.set(id, rect));
+  }
+  // 中心取整后同层对齐的节点才不会因为各自取整左上角而错开半行。
+  rects.forEach((rect) => {
+    rect.x = Math.round(rect.x + rect.width / 2) - rect.width / 2;
+    rect.y = Math.round(rect.y + rect.height / 2) - rect.height / 2;
+  });
+  return rects;
 }
 
 export function layoutAgentNodes(
@@ -409,19 +605,23 @@ export function layoutAgentNodes(
 
   const oldPositions = new Map(nodes.map((node) => [node.id, { x: node.x, y: node.y }]));
   const previousBounds = layoutBounds(nodes);
-  const startX = Number.isFinite(Number(options.x))
-    ? Number(options.x)
-    : scope === 'all' ? 120 : previousBounds.x;
-  const startY = Number.isFinite(Number(options.y))
-    ? Number(options.y)
-    : scope === 'all' ? 90 : previousBounds.y;
   const columnGap = Number.isFinite(Number(options.gapX)) ? Math.max(32, Number(options.gapX)) : 160;
   const rowGap = Number.isFinite(Number(options.gapY)) ? Math.max(20, Number(options.gapY)) : 120;
   const items = nodes.map((node, index) => ({ node, index }));
   const mode = options.mode || 'workflow';
-  const plan = mode === 'workflow'
-    ? layoutGroup(items, project.edges, startX, startY, columnGap, rowGap)
-    : layoutFlat(items, startX, startY, columnGap, rowGap, mode);
+  const rects = mode === 'workflow'
+    ? layoutWorkflowRects(items, project.edges, columnGap, rowGap)
+    : flatRects(items, columnGap, rowGap, mode);
+  const plan = rectsBounds(rects);
+  // 显式坐标按左上角锚定；整画布从默认原点铺开；选区和工作流回到原质心，
+  // 免得某个飘在角落的节点把整块结果拖到画布边上。
+  const anchorX = Math.round(Number.isFinite(Number(options.x))
+    ? Number(options.x)
+    : scope === 'all' ? 120 : previousBounds.x + previousBounds.width / 2 - plan.width / 2);
+  const anchorY = Math.round(Number.isFinite(Number(options.y))
+    ? Number(options.y)
+    : scope === 'all' ? 90 : previousBounds.y + previousBounds.height / 2 - plan.height / 2);
+  applyRects(items, rects, anchorX, anchorY);
   const nodeIdSet = new Set(nodes.map((node) => node.id));
   if (options.avoidCollisions !== false && scope !== 'all') {
     shiftAwayFromObstacles(

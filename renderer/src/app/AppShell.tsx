@@ -11,7 +11,6 @@ interface AppShellProps {
   onNotify: () => void;
   onSettings: () => void;
   onUpdate: () => void;
-  onSearch: () => void;
   onNavigationBlocked?: () => void;
 }
 
@@ -22,7 +21,6 @@ export function AppShell({
   onNotify,
   onSettings,
   onUpdate,
-  onSearch,
   onNavigationBlocked,
 }: AppShellProps) {
   const route = useAppStore((state) => state.route);
@@ -114,7 +112,6 @@ export function AppShell({
           onNotify={onNotify}
           onSettings={onSettings}
           onUpdate={onUpdate}
-          onSearch={onSearch}
           onToggleSidebar={toggleSidebarWithTransition}
           onNavigationBlocked={onNavigationBlocked}
           previewOpen={previewActive}

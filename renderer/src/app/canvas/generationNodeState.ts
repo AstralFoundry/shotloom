@@ -91,6 +91,8 @@ export function generationNodeDisplayTitle(
   uploaded: Record<string, unknown> | null,
   typeLabel: string,
 ) {
+  const titleOverride = String(node.titleOverride || "").trim();
+  if (titleOverride) return titleOverride;
   const genericNames = new Set([
     typeLabel.toLowerCase(),
     String(node.type || "").toLowerCase(),

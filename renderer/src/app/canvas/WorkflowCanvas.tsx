@@ -1,3 +1,8 @@
+import { CanvasDisplaySettings } from "./CanvasDisplaySettings";
+import { canvasEdgeVisible, type CanvasAppearance } from "../../utils/canvasAppearance";
+import { settingsStore, saveAppSettings } from "../../store/settingsStore";
+import { subscribeDomain } from "../../store/domainReactivity";
+import type { AgentLayoutMode } from "../../services/agentLayoutService";
 import { t } from '@/i18n';
 import {
   type CSSProperties,
@@ -15,6 +20,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
 } from "react";
 import { flushSync } from "react-dom";
 import {
@@ -54,6 +60,8 @@ import {
 } from "../../utils/canvasNodeChrome.ts";
 import { CanvasNodeToolbar } from "./CanvasNodeToolbar";
 import { CanvasContextMenu } from "./CanvasContextMenu";
+import { CanvasSectionNode } from "./CanvasSectionNode";
+import { canvasSectionMembers } from "../../domain/graph/CanvasSections.ts";
 import { ARTIFACT_DRAG_TYPE } from "../agent-chat/artifactHelpers";
 import {
   canvasMenuPosition,
@@ -99,6 +107,7 @@ export type WorkflowReferenceCandidate = {
   media: Record<string, unknown>;
 };
 export interface WorkflowNodeActions {
+  selectSectionContents?: (id: string) => void;
   createClipNode: (id: string) => void | Promise<void>;
   update: (id: string, patch: Record<string, unknown>) => void;
   select: (id: string) => void;
@@ -154,6 +163,7 @@ export type WorkflowNodeRenderer = ComponentType<{
   onImageWatermarkClose?: () => void;
 }>;
 export interface WorkflowCanvasController {
+  createSection?: (position?: { x: number; y: number }) => void;
   moveNodes: (
     positions: Array<{ id: string; x: number; y: number }>,
     options?: { recordHistory?: boolean },
@@ -357,7 +367,11 @@ function toFlowNodes(
       const output: FlowNode = {
         id: node.id,
         type: "panel",
+        zIndex: node.type === 'canvasSection' ? -1 : 0,
+        ...(node.type === 'canvasSection' ? { dragHandle: '.canvas-section-heading' } : {}),
+        connectable: node.type !== 'canvasSection',
         className: [
+          node.type === 'canvasSection' ? 'canvas-section-node' : '',
           MEDIA_NODE_TYPES.has(node.type) ? "canvas-media-node" : "",
           node.type === "imageGeneration" ? "canvas-node-image-generation" : "",
         ]
@@ -372,7 +386,7 @@ function toFlowNodes(
         // React Flow otherwise keeps the previous DOM measurement for handle
         // bounds while semantic zoom is changing. Supplying the screen-space
         // bounds makes the edge and node geometry enter the store together.
-        handles: canvasNodePortBounds(screenWidth, screenHeight).map((handle) => ({
+        handles: canvasNodePortBounds(screenWidth, screenHeight).filter(() => node.type !== 'canvasSection').map((handle) => ({
           ...handle,
           type: "source" as const,
           position: handle.id === "port-left" ? Position.Left : Position.Right,
@@ -385,6 +399,8 @@ function toFlowNodes(
         // 小地图只认节点对象上的尺寸，所以显式带上与 style 同一套屏幕空间值。
         width: screenWidth,
         height: screenHeight,
+        // The resizer reads measured directly, including after an external sync.
+        ...(node.type === 'canvasSection' ? { measured: { width: screenWidth, height: screenHeight } } : {}),
       };
       cache?.set(node.id, { input: node, selected, semanticZoom, inputRevision, output });
       return output;
@@ -434,6 +450,7 @@ function CanvasNode({ data, selected, dragging }: NodeProps<FlowNode>) {
       : { width: 195, height: 135 };
   const dimensions = nodeDimensions(item);
   const semanticZoom = data.semanticZoom;
+  if (item.type === 'canvasSection') return <CanvasSectionNode node={item} selected={Boolean(selected)} zoom={semanticZoom} actions={actions} />;
   return (
     <>
       <CanvasNodeToolbar
@@ -603,6 +620,7 @@ export function WorkflowCanvas({
   overlay,
   addNodeMention,
   onReady,
+  onAutoLayout,
 }: {
   nodes: WorkflowNodeData[];
   edges: WorkflowEdge[];
@@ -613,6 +631,7 @@ export function WorkflowCanvas({
   overlay?: ReactNode;
   addNodeMention?: (nodeId: string) => void;
   onReady?: () => void;
+  onAutoLayout?: (options?: { mode?: AgentLayoutMode; includeConnected?: boolean }) => boolean;
 }) {
   const initialZoom = Math.min(
     MAX_CANVAS_ZOOM,
@@ -630,10 +649,15 @@ export function WorkflowCanvas({
     FlowNode,
     Edge<WorkflowEdgeData>
   > | null>(null);
-  const [edgesVisible, setEdgesVisible] = useState(true);
+  const appearance = useSyncExternalStore(subscribeDomain, () => settingsStore.canvasAppearance);
+  const updateAppearance = async (patch: Partial<CanvasAppearance>) => {
+    try { await saveAppSettings({ canvasAppearance: { ...settingsStore.canvasAppearance, ...patch } }); }
+    catch (cause) { nodeActions.notify(cause instanceof Error ? cause.message : String(cause)); }
+  };
   const [minimapVisible, setMinimapVisible] = useState(false);
   const [liveViewport, setLiveViewport] = useState({ ...viewport, zoom: initialZoom });
   const draggingNodeIds = useRef(new Set<string>());
+  const sectionDrag = useRef<{ origin: { x: number; y: number }; members: Map<string, { x: number; y: number }> } | null>(null);
   const movementEndTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const viewportAnimationFrame = useRef<number | null>(null);
   const canvasRoot = useRef<HTMLElement>(null);
@@ -703,6 +727,10 @@ export function WorkflowCanvas({
     },
     [edges, ids, visibleById],
   );
+  const displayedEdges = useMemo(
+    () => flowEdges.filter(edge => canvasEdgeVisible(edge, appearance.edges)),
+    [flowEdges, appearance.edges],
+  );
 
   const onNodesChange = useCallback(
     (changes: NodeChange<FlowNode>[]) => {
@@ -736,14 +764,45 @@ export function WorkflowCanvas({
     (_event, node, draggedNodes) => {
       const activeNodes = draggedNodes.length ? draggedNodes : [node];
       activeNodes.forEach((item) => draggingNodeIds.current.add(item.id));
+      const activeIds = new Set(activeNodes.map(item => item.id));
+      const members = new Map<string, { x: number; y: number }>();
+      for (const section of activeNodes.filter(item => item.data.node.type === 'canvasSection')) {
+        for (const member of canvasSectionMembers(section.data.node, visible)) {
+          if (activeIds.has(member.id)) continue;
+          const flow = renderedNodes.find(item => item.id === member.id);
+          if (flow) members.set(member.id, { ...flow.position });
+        }
+      }
+      members.forEach((_position, id) => draggingNodeIds.current.add(id));
+      sectionDrag.current = { origin: { ...node.position }, members };
     },
-    [],
+    [renderedNodes, visible],
   );
+  const onNodeDrag: OnNodeDrag<FlowNode> = useCallback((_event, node) => {
+    const drag = sectionDrag.current;
+    if (!drag?.members.size) return;
+    const dx = node.position.x - drag.origin.x;
+    const dy = node.position.y - drag.origin.y;
+    setFlowNodes(current => current.map(item => {
+      const origin = drag.members.get(item.id);
+      return origin ? { ...item, position: { x: origin.x + dx, y: origin.y + dy } } : item;
+    }));
+  }, [setFlowNodes]);
   const onNodeDragStop: OnNodeDrag<FlowNode> = useCallback(
     (_event, node, draggedNodes) => {
       const stoppedNodes = draggedNodes.length ? draggedNodes : [node];
       stoppedNodes.forEach((item) => draggingNodeIds.current.delete(item.id));
       const moved = draggedCanvasPositions(node, draggedNodes, semanticZoomRef.current);
+      const drag = sectionDrag.current;
+      if (drag) {
+        const dx = node.position.x - drag.origin.x;
+        const dy = node.position.y - drag.origin.y;
+        for (const [id, origin] of drag.members) {
+          moved.push({ id, x: Math.round((origin.x + dx) / semanticZoomRef.current), y: Math.round((origin.y + dy) / semanticZoomRef.current) });
+          draggingNodeIds.current.delete(id);
+        }
+      }
+      sectionDrag.current = null;
       const movedById = new Map(moved.map((item) => [item.id, item]));
       setFlowNodes((current) => current.map((item) => {
         const position = movedById.get(item.id);
@@ -1013,6 +1072,8 @@ export function WorkflowCanvas({
           ref={bindCanvasRoot}
           onDragOver={onArtifactDragOver}
           onDrop={onArtifactDrop}
+          data-pattern={appearance.pattern}
+          data-color={appearance.color}
           className="react-workflow-canvas"
           // 连线粗细与箭头按同一倍率缩放，样式侧只读这一个变量。
           style={{ "--canvas-semantic-zoom": semanticZoom } as CSSProperties}
@@ -1061,6 +1122,10 @@ export function WorkflowCanvas({
               event.preventDefault();
               void controller.pasteSelection?.();
             }
+            if (!editable && command && key === 'g') {
+              event.preventDefault();
+              controller.createSection?.();
+            }
             if (!editable && command && key === "a") {
               event.preventDefault();
               const selectedType = event.shiftKey
@@ -1074,7 +1139,7 @@ export function WorkflowCanvas({
             }
             if (!editable && command && key === "l") {
               event.preventDefault();
-              setEdgesVisible((value) => !value);
+              void updateAppearance({ edges: appearance.edges === "hidden" ? "all" : "hidden" });
             }
             if (!editable && command && key === "z") {
               event.preventDefault();
@@ -1129,7 +1194,7 @@ export function WorkflowCanvas({
         >
           <ReactFlow
             nodes={renderedNodes}
-            edges={edgesVisible ? flowEdges : []}
+            edges={displayedEdges}
             nodeTypes={nodeTypes}
             proOptions={{ hideAttribution: true }}
             // 空字符串让箭头不写行内 stroke/fill，颜色由 canvas.css 的 --canvas-edge 统一决定。
@@ -1153,7 +1218,9 @@ export function WorkflowCanvas({
             onInit={setInstance}
             onNodesChange={onNodesChange}
             onNodeDragStart={onNodeDragStart}
+            onNodeDrag={onNodeDrag}
             onNodeDragStop={onNodeDragStop}
+            elevateNodesOnSelect={false}
             onConnect={(connection) => void controller.connect(connection)}
             onEdgeClick={(_event, edge) => controller.selectEdge(edge.id)}
             onPaneClick={() => {
@@ -1215,13 +1282,16 @@ export function WorkflowCanvas({
                 <IconSymbol name="maximize" />
               </button>
             </div>
+            <span className="canvas-corner-divider" aria-hidden="true" />
+            <CanvasDisplaySettings appearance={appearance} onChange={updateAppearance} onAutoLayout={onAutoLayout} />
+            <span className="canvas-corner-divider" aria-hidden="true" />
             <button
               className={`canvas-corner-map${minimapVisible ? " active" : ""}`}
               type="button"
               title={t("ui.WorkflowCanvas.title.088baf55")}
               onClick={() => setMinimapVisible((visible) => !visible)}
             >
-              <IconSymbol name="grid" />
+              <IconSymbol name="map" />
             </button>
           </div>
           {overlay}

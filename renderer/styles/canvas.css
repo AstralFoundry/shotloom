@@ -6,6 +6,7 @@
 .react-workflow-canvas {
   position: relative;
   isolation: isolate;
+  container-type: inline-size;
   width: 100%;
   height: 100%;
   min-width: 0;
@@ -67,6 +68,68 @@
   box-shadow: none;
 }
 .react-workflow-canvas .react-flow__node.selected { box-shadow: none; }
+/* Interaction order is temporary; sections remain behind their contents. */
+.react-workflow-canvas .react-flow__node.selected:not(.canvas-section-node) { z-index: 10 !important; }
+.react-workflow-canvas .react-flow__node.dragging:not(.canvas-section-node) { z-index: 20 !important; }
+.react-workflow-canvas .canvas-section-node { pointer-events: none !important; }
+.canvas-section {
+  --section-zoom: 1;
+  position: absolute;
+  inset: 0;
+  box-sizing: border-box;
+  border: 1px solid var(--line-soft);
+  border-radius: calc(var(--radius-sm) * var(--section-zoom));
+  background: var(--canvas-section-bg);
+}
+.canvas-section.is-selected { border-color: var(--canvas-node-border-selected); }
+.canvas-section-heading {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 10px * var(--section-zoom));
+  display: flex;
+  align-items: center;
+  gap: calc(12px * var(--section-zoom));
+  width: 100%;
+  min-height: calc(28px * var(--section-zoom));
+  color: var(--muted);
+  font-size: calc(var(--text-title-20) * var(--section-zoom));
+  line-height: 1.4;
+  font-weight: 500;
+  cursor: grab;
+  pointer-events: auto;
+}
+.canvas-section-heading:active { cursor: grabbing; }
+.canvas-section-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.canvas-section-heading input {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  outline: none;
+}
+.canvas-section-actions { display: flex; flex: none; gap: calc(4px * var(--section-zoom)); opacity: 0; }
+.canvas-section.is-selected .canvas-section-actions, .canvas-section-heading:hover .canvas-section-actions,
+.canvas-section-heading:focus-within .canvas-section-actions { opacity: 1; }
+.canvas-section-actions button {
+  display: grid;
+  place-items: center;
+  width: calc(26px * var(--section-zoom));
+  height: calc(26px * var(--section-zoom));
+  padding: 0;
+  border: 0;
+  border-radius: calc(var(--radius-xs) * var(--section-zoom));
+  background: var(--canvas-bg);
+  color: var(--muted);
+  cursor: pointer;
+}
+.canvas-section-actions button:hover { color: var(--text); background: var(--surface-2); }
+.canvas-section-actions svg { width: calc(14px * var(--section-zoom)); height: calc(14px * var(--section-zoom)); }
+.canvas-section-resize, .canvas-section-resize-line { pointer-events: auto; border-color: var(--canvas-node-border-selected); }
+.canvas-section-resize { background: var(--surface); }
 .canvas-node-semantic-frame {
   width: 100%;
   height: 100%;
@@ -97,7 +160,8 @@
   padding: 0 calc(2px * var(--node-label-zoom, 1));
   gap: calc(4px * var(--node-label-zoom, 1));
 }
-.canvas-node-label-anchor .work-node-kicker > span {
+.canvas-node-label-anchor .work-node-kicker > span,
+.canvas-node-label-anchor .work-node-title-input {
   font-size: calc(var(--canvas-node-title-size) * var(--node-label-zoom, 1));
 }
 .canvas-node-label-anchor .work-node-kicker > svg {
@@ -509,8 +573,10 @@ body.annotation-editor-open .screenshots-textarea {
 }
 .canvas-node-asset-scope-menu {
   position: absolute;
-  width: 220px;
-  padding: 4px;
+  width: 300px;
+  max-height: min(560px, calc(100vh - 24px));
+  overflow-y: auto;
+  padding: 8px;
   border: 1px solid var(--elevated-border);
   border-radius: var(--radius);
   color: var(--type-primary);
@@ -557,8 +623,7 @@ body.annotation-editor-open .screenshots-textarea {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 2px;
 }
-.canvas-node-asset-category-grid > button,
-.canvas-node-asset-destinations > button {
+.canvas-node-asset-category-grid > button {
   border: 0;
   border-radius: var(--radius-sm);
   display: flex;
@@ -588,27 +653,29 @@ body.annotation-editor-open .screenshots-textarea {
   height: var(--icon-sm);
 }
 .canvas-node-asset-destinations {
-  margin-top: 4px;
+  margin-top: 8px;
   border-top: 1px solid var(--line);
-  padding-top: 4px;
+  padding-top: 8px;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 4px;
+  gap: 10px;
 }
-.canvas-node-asset-destinations > button {
-  height: var(--control-height);
-  padding: 0 8px;
-  justify-content: center;
-  gap: 6px;
+.canvas-node-asset-destination { display: grid; gap: 4px; padding: 0 4px; }
+.canvas-node-asset-destination > strong { font-size: var(--text-body-12); font-weight: 500; }
+.canvas-node-asset-destination > small { color: var(--muted); font-size: var(--text-caption-10); }
+.canvas-node-asset-destination > div { display: flex; gap: 6px; }
+.canvas-node-asset-destination button {
+  flex: 1;
+  min-height: var(--control-height);
+  padding: 4px 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
   color: var(--type-primary);
   background: var(--button-subtle-bg);
   font-size: var(--text-caption-11);
-  line-height: var(--text-caption-11--line-height);
+  cursor: pointer;
 }
-.canvas-node-asset-destinations > button:hover:not(:disabled) { background: var(--button-subtle-hover); }
-.canvas-node-asset-destinations > button:disabled { cursor: default; opacity: .5; }
-.canvas-node-asset-destinations svg { width: var(--icon-xs); height: var(--icon-xs); }
-.canvas-node-asset-destinations strong { font-weight: 500; }
+.canvas-node-asset-destination button:hover:not(:disabled) { background: var(--button-subtle-hover); }
+.canvas-node-asset-destination button:disabled { cursor: default; opacity: .5; }
 .canvas-node-asset-category-grid > button:last-child:nth-child(odd) {
   grid-column: 1 / -1;
 }
@@ -650,30 +717,44 @@ body.annotation-editor-open .screenshots-textarea {
 .react-workflow-canvas .react-flow__background { opacity: 0; }
 .react-workflow-canvas .react-flow__container { background: transparent; }
 
+/* 右上角只有一条工具栏：缩放、显示设置、缩略图开关共用同一块白底，
+ * 分组之间用描边分隔，不再各自带边框和投影。 */
 .canvas-corner-controls {
   position: absolute;
   right: 12px;
   top: 10px;
   bottom: auto;
-  z-index: 18;
+  z-index: var(--layer-canvas-popover);
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 2px;
+  box-sizing: border-box;
+  height: var(--canvas-toolbar-height-compact);
+  padding: 2px;
+  border: .5px solid var(--elevated-border);
+  border-radius: var(--radius);
+  background: var(--canvas-controls-bg);
+  box-shadow: var(--canvas-shadow-panel);
+  backdrop-filter: blur(12px);
 }
 .forge-lite-main.agent-collapsed .canvas-corner-controls {
   right: calc(22px + var(--agent-reopen-width));
 }
+.forge-lite-main.agent-collapsed .react-workflow-canvas .react-flow__minimap.canvas-minimap {
+  right: calc(22px + var(--agent-reopen-width));
+}
+.canvas-corner-divider {
+  flex: none;
+  width: var(--toolbar-divider-width);
+  height: 20px;
+  margin: 0 3px;
+  background: var(--line-strong);
+}
 .canvas-zoom-group {
-  height: var(--canvas-toolbar-height-compact);
-  border: .5px solid var(--elevated-border);
-  border-radius: var(--radius);
-  padding: 2px;
   display: flex;
   align-items: center;
   gap: 1px;
-  background: var(--canvas-controls-bg);
-  box-shadow: var(--canvas-shadow-panel);
-  backdrop-filter: blur(12px);
+  height: 100%;
 }
 .canvas-zoom-group button,
 .canvas-corner-map {
@@ -701,17 +782,16 @@ body.annotation-editor-open .screenshots-textarea {
 .canvas-zoom-group svg,
 .canvas-corner-map svg { width: var(--icon-sm); height: var(--icon-sm); }
 .canvas-corner-map {
-  width: var(--canvas-toolbar-height-compact);
-  height: var(--canvas-toolbar-height-compact);
-  border: .5px solid var(--elevated-border);
-  border-radius: var(--radius);
-  background: var(--canvas-controls-bg);
-  box-shadow: var(--canvas-shadow-panel);
-  backdrop-filter: blur(12px);
+  width: var(--canvas-toolbar-action-compact);
+  height: var(--canvas-toolbar-action-compact);
+  border-radius: var(--radius-md);
 }
 .react-workflow-canvas .react-flow__minimap.canvas-minimap {
-  right: 14px;
-  top: 62px;
+  right: 12px;
+  /* 与右上角工具栏同一条竖线：紧贴在工具栏下方 8px。React Flow 默认给小地图 15px 外边距，
+   * 不清零的话工具栏与地图之间会叠出 30px 的空隙。 */
+  margin: 0;
+  top: calc(18px + var(--canvas-toolbar-height-compact));
   bottom: auto;
   /* 面板尺寸只由 <MiniMap style> 决定：内容盒必须正好等于 svg，
      否则 overflow: hidden 会裁掉地图边缘的节点，那些节点既看不见也点不到。 */
@@ -808,6 +888,26 @@ body.annotation-editor-open .screenshots-textarea {
   width: var(--canvas-node-icon-size);
   height: var(--canvas-node-icon-size);
   flex: 0 0 auto;
+}
+.work-node-title,
+.work-node-title-input {
+  pointer-events: auto;
+  cursor: text;
+}
+.work-node-title-input {
+  min-width: 0;
+  width: 0;
+  flex: 1;
+  box-sizing: border-box;
+  border: 0;
+  border-bottom: 1px solid var(--muted);
+  outline: none;
+  border-radius: 0;
+  padding: 0 2px;
+  color: var(--type-primary);
+  background: transparent;
+  font: inherit;
+  font-size: var(--canvas-node-title-size);
 }
 .work-node-kicker > .work-node-type-icon {
   box-sizing: border-box;
@@ -1768,6 +1868,19 @@ body.annotation-editor-open .screenshots-textarea {
   border-radius: var(--canvas-node-radius);
   background: var(--surface);
 }
+/* 时间线 mount 是语义内容层的兄弟，内容层内部的描边无法越过它。
+   选中描边放在共同的节点根层，与其他节点一样保持屏幕 1px。 */
+.clip-studio-node.selected { border-color: var(--canvas-node-border-selected); }
+.react-flow__node.selected:has(.clip-studio-node)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  border: 1px solid var(--canvas-node-border-selected);
+  border-radius: calc(var(--canvas-node-radius) * var(--canvas-semantic-zoom, 1));
+  box-shadow: 0 0 0 1px var(--canvas-selection-bg);
+}
 .clip-studio-placeholder {
   display: grid;
   place-items: center;
@@ -1902,3 +2015,51 @@ body.annotation-editor-open .screenshots-textarea {
   /* 关停循环后火花会退回 .3 的静止态，在 48px 上几乎看不见；静态展示时直接点亮。 */
   .canvas-startup-spark { opacity: 1; }
 }
+
+/* Canvas preferences share the same background recipes as their swatches. */
+.react-workflow-canvas[data-color="warm"], .canvas-display-sample[data-color="warm"] { --canvas-bg: color-mix(in srgb, var(--surface) 90%, var(--canvas-tint-warm)); }
+.react-workflow-canvas[data-color="cool"], .canvas-display-sample[data-color="cool"] { --canvas-bg: color-mix(in srgb, var(--surface) 88%, var(--canvas-tint-cool)); }
+.react-workflow-canvas[data-color="paper"], .canvas-display-sample[data-color="paper"] { --canvas-bg: color-mix(in srgb, var(--surface) 88%, var(--canvas-tint-paper)); }
+.react-workflow-canvas[data-color="sage"], .canvas-display-sample[data-color="sage"] { --canvas-bg: color-mix(in srgb, var(--surface) 88%, var(--canvas-tint-sage)); }
+.react-workflow-canvas[data-color="blue"], .canvas-display-sample[data-color="blue"] { --canvas-bg: color-mix(in srgb, var(--surface) 88%, var(--canvas-tint-blue)); }
+.react-workflow-canvas[data-color="lavender"], .canvas-display-sample[data-color="lavender"] { --canvas-bg: color-mix(in srgb, var(--surface) 88%, var(--canvas-tint-lavender)); }
+.react-workflow-canvas[data-color="pink"], .canvas-display-sample[data-color="pink"] { --canvas-bg: color-mix(in srgb, var(--surface) 88%, var(--canvas-tint-pink)); }
+.react-workflow-canvas[data-color="sand"], .canvas-display-sample[data-color="sand"] { --canvas-bg: color-mix(in srgb, var(--surface) 82%, var(--canvas-tint-sand)); }
+.react-workflow-canvas[data-pattern="grid"], .canvas-display-sample[data-pattern="grid"] {
+  background-image: linear-gradient(var(--canvas-bg-dot) 1px, transparent 1px), linear-gradient(90deg, var(--canvas-bg-dot) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+.react-workflow-canvas[data-pattern="solid"], .canvas-display-sample[data-pattern="solid"] { background-image: none; }
+.canvas-display-settings { display: flex; align-items: center; height: 100%; }
+.canvas-display-triggers { display: flex; align-items: center; gap: 1px; height: 100%; }
+.canvas-display-triggers button, .canvas-display-panel header button { display: grid; place-items: center; width: var(--canvas-toolbar-action-compact); height: var(--canvas-toolbar-action-compact); border: 0; border-radius: var(--radius-md); color: var(--type-primary); background: transparent; cursor: pointer; }
+.canvas-display-triggers button:hover, .canvas-display-triggers button.active, .canvas-display-panel header button:hover { background: var(--canvas-controls-hover); }
+.canvas-display-triggers svg, .canvas-display-panel svg { width: var(--icon-sm); height: var(--icon-sm); flex-shrink: 0; }
+/* 弹层挂在合并后的右上角工具栏上：宽度、内边距和行高都按紧凑菜单计量，
+   面板只覆盖工具栏附近的一小块区域，不再撑到画布中部。 */
+.canvas-display-panel { position: absolute; top: 100%; margin-top: 8px; right: 0; width: min(252px, calc(100cqw - 80px)); max-height: min(520px, calc(100dvh - 150px)); box-sizing: border-box; overflow: auto; padding: 10px; border: 1px solid var(--elevated-border); border-radius: var(--radius-lg); background: var(--elevated-surface); color: var(--text); box-shadow: var(--canvas-shadow-menu); font-size: var(--text-body-12); line-height: var(--text-body-12--line-height); }
+.canvas-display-panel header { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.canvas-display-panel header strong { font-size: var(--text-body-13); font-weight: 600; }
+.canvas-display-panel header button { width: 24px; height: 24px; }
+.canvas-display-panel fieldset { min-width: 0; padding: 0; margin: 0; border: 0; }
+.canvas-display-panel h4 { margin: 10px 0 6px; color: var(--muted); font-size: var(--text-caption-11); line-height: var(--text-caption-11--line-height); font-weight: 500; }
+.canvas-display-panel h4:first-of-type { margin-top: 0; }
+.canvas-display-swatches { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.canvas-display-swatches button { position: relative; overflow: hidden; padding: 0; border: 1px solid var(--line); border-radius: var(--radius-md); color: var(--text); background: var(--surface); cursor: pointer; }
+.canvas-display-swatches button[aria-pressed="true"] { border-color: var(--text); box-shadow: inset 0 0 0 1px var(--text); }
+.canvas-display-swatches button > span:last-of-type { display: block; padding: 3px 2px; font-size: var(--text-caption-11); line-height: var(--text-caption-11--line-height); }
+.canvas-display-sample { display: block; height: 26px; background-color: var(--canvas-bg); }
+.canvas-display-sample[data-pattern="dots"] { background-image: radial-gradient(circle, var(--canvas-bg-dot) 1px, transparent 1px); background-size: 12px 12px; }
+.canvas-display-swatches button > svg { position: absolute; right: 3px; top: 3px; width: var(--icon-xs); height: var(--icon-xs); padding: 2px; border-radius: 50%; background: var(--surface); }
+.canvas-display-more { display: flex; align-items: center; justify-content: center; gap: 4px; width: 100%; padding: 8px 0 0; border: 0; background: transparent; color: var(--muted); cursor: pointer; }
+.canvas-display-more svg { width: var(--icon-xs); height: var(--icon-xs); }
+.canvas-display-edge-options > button, .canvas-display-layout-options > button { display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px; border: 0; border-radius: var(--radius-md); background: transparent; color: var(--text); text-align: left; cursor: pointer; }
+.canvas-display-edge-options > button:hover, .canvas-display-layout-options > button:hover { background: var(--canvas-controls-hover); }
+.canvas-display-edge-options > button > span { flex: 1; }
+.canvas-display-edge-options small { display: block; padding: 6px 6px 0; color: var(--muted); font-size: var(--text-caption-11); line-height: var(--text-caption-11--line-height); }
+.canvas-display-layout-options p { margin: 0 0 6px; color: var(--muted); font-size: var(--text-caption-11); line-height: var(--text-caption-11--line-height); }
+.canvas-display-layout-options label { display: flex; gap: 6px; align-items: center; margin-top: 8px; color: var(--muted); }
+.canvas-display-panel button:disabled { opacity: .5; cursor: default; }
+
+.canvas-display-sample[data-color="default"] { --canvas-bg: var(--canvas-default-bg); }
+.canvas-display-more[aria-expanded="true"] svg { transform: rotate(180deg); }

@@ -186,8 +186,8 @@ test('素材分类与生成输入提示随语言变化，分类标识与模型�
     const instance = await createRendererEnv({ storage: new Map([['shotloom:locale', locale]]) });
     try {
       const { assetCategories } = await instance.load('domain/asset/assetCategories');
-      assert.deepEqual(assetCategories.map(item => item.id), ['characters', 'scenes', 'props', 'styles', 'shots']);
-      assert.equal(assetCategories.find(item => item.id === 'props').label, locale === 'en-US' ? 'Props' : '道具元素');
+      assert.deepEqual(assetCategories.map(item => item.id), ['characters', 'scenes', 'props', 'shots', 'voice', 'music', 'soundEffects', 'other']);
+      assert.equal(assetCategories.find(item => item.id === 'props').label, locale === 'en-US' ? 'Prop' : '道具');
       const { generationUpstreamReadiness, buildGenerationPayload } = await instance.load('domain/graph/generationPayload');
       const source = { id: 'source', type: 'imageGeneration', title: '用户原始名称 {value0}', status: 'idle' };
       const target = { id: 'target', type: 'imageGeneration', title: '目标', model: 'gpt-image-2.5-sunburst', prompt: '用户提示词', config: {} };

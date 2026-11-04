@@ -13,7 +13,7 @@ export function useEditorMount(surface: HTMLElement | null, nodeId?: string, exp
       const path = event.composedPath().filter((item): item is HTMLElement => item instanceof HTMLElement);
       // Shadow DOM retargets event.target to the editor host; inspect the real
       // path so timeline gestures and controls keep their existing behavior.
-      if (path.some(item => item.matches('button, input, textarea, select, a, [role="button"], [role="slider"], [role="menu"], [role="menuitem"], [contenteditable="true"], .nodrag'))) return false;
+      if (path.some(item => item !== mount && item.matches('button, input, textarea, select, a, [role="button"], [role="slider"], [role="menu"], [role="menuitem"], [contenteditable="true"], .nodrag'))) return false;
       const toolbar = path.some(item => item.matches('.shotloom-canvas-tools'));
       if (!toolbar && path.some(item => item.matches('#editor-panel-timeline, [data-tour="timeline"]'))) return false;
       const node = anchor();
@@ -62,18 +62,23 @@ export function useEditorMount(surface: HTMLElement | null, nodeId?: string, exp
     const update = () => {
       const anchor = nodeId ? document.querySelector<HTMLElement>(`[data-clip-node-id="${CSS.escape(nodeId)}"]`) : null;
       const canvas = anchor?.closest<HTMLElement>(".react-workflow-canvas");
-      const parent = expanded ? surface : canvas;
+      // Keep the detached runtime inside its node's stacking context so it
+      // follows the same selection/drag order as every other canvas node.
+      const nodeRoot = anchor?.closest<HTMLElement>(".react-flow__node");
+      const parent = expanded ? surface : nodeRoot;
       if (parent && mount.parentElement !== parent) {
         parent.appendChild(mount);
       }
-      mount.className = expanded ? "ov-editor-mount is-expanded" : "ov-editor-mount is-canvas";
+      // Timeline gestures stay inside the editor; draggable chrome explicitly
+      // forwards its gesture to the node label in the listener above.
+      mount.className = expanded ? "ov-editor-mount is-expanded" : "ov-editor-mount is-canvas nodrag nopan";
       if (expanded) {
         mount.removeAttribute("style");
         mount.firstElementChild?.removeAttribute("style");
         setActive(true);
-      } else if (anchor && canvas) {
+      } else if (anchor && canvas && nodeRoot) {
         const box = anchor.getBoundingClientRect();
-        const bounds = canvas.getBoundingClientRect();
+        const bounds = nodeRoot.getBoundingClientRect();
         const zoom = box.width / (anchor.offsetWidth || 1);
         const floating = clipNodePreviewHeight(anchor.offsetWidth);
         const geometry = `${box.x},${box.y},${box.width},${box.height},${bounds.x},${bounds.y},${zoom},${selected},${Boolean(mount.firstElementChild)}`;
@@ -82,12 +87,12 @@ export function useEditorMount(surface: HTMLElement | null, nodeId?: string, exp
           Object.assign(mount.style, {
             left: `${box.left - bounds.left}px`, top: `${box.top - bounds.top - floating * zoom}px`,
             width: `${box.width}px`, height: `${box.height + floating * zoom}px`,
-            // The editor is outside React Flow's DOM. Leave the title band
-            // unpainted and unhittable so native node dragging reaches it.
+            // Leave the title band unpainted and unhittable so native node
+            // dragging reaches it, even while the preview is visible.
             clipPath: selected
               ? `polygon(0 0, 100% 0, 100% ${(floating - CLIP_NODE_LAYOUT.previewGap) * zoom}px, 0 ${(floating - CLIP_NODE_LAYOUT.previewGap) * zoom}px, 0 ${floating * zoom}px, 100% ${floating * zoom}px, 100% 100%, 0 100%)`
               : `inset(${floating * zoom}px 0 0 0)`,
-            zIndex: selected ? "80" : "2",
+            zIndex: "2",
           });
           const section = mount.firstElementChild as HTMLElement | null;
           if (section) Object.assign(section.style, {

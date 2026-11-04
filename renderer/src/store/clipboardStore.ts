@@ -9,6 +9,7 @@ import { selectedNodes, nodeTypeLabel } from '@/store/nodeStore';
 import { addCanvasEdge, remapImportedNodeReferences } from '@/store/canvasGraphStore';
 import { recordCanvasHistory } from '@/store/canvasHistoryStore';
 import { captureClipWorkflowNodes, copyClipWorkflowResources, restoreClipWorkflowNodes } from '@/services/clipWorkflowTransfer';
+import { canvasSectionMembers } from '@/domain/graph/CanvasSections.ts';
 
 type AnyRecord = Record<string, any>;
 
@@ -365,6 +366,9 @@ function collectSelectedWorkflowNodes({ withUpstream = false }: { withUpstream?:
   const byId = new Map<string, AnyRecord>();
   for (const node of selectedNodes.value as AnyRecord[]) {
     byId.set(node.id, node);
+    if (node.type === 'canvasSection') {
+      for (const member of canvasSectionMembers(node as any, store.project.nodes as any[])) byId.set(member.id, member);
+    }
   }
   if (withUpstream) {
     const nodeById = new Map<string, AnyRecord>((store.project.nodes || []).map((node: AnyRecord) => [node.id, node]));

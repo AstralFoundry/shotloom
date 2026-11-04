@@ -34,6 +34,8 @@ const paths = {
     '<rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/>',
   link:
     '<path d="M10 13a5 5 0 0 0 7.1 0l2-2a5 5 0 0 0-7.1-7.1l-1.1 1.1"/><path d="M14 11a5 5 0 0 0-7.1 0l-2 2A5 5 0 0 0 12 20.1l1.1-1.1"/>',
+  map:
+    '<path d="M3 6.5 9 3l6 3.5L21 3v14.5L15 21l-6-3.5L3 21Z"/><path d="M9 3v14.5"/><path d="M15 6.5V21"/>',
   layers:
     '<path d="m12 2 9 5-9 5-9-5Z"/><path d="m3 12 9 5 9-5"/><path d="m3 17 9 5 9-5"/>',
   lock:
@@ -129,6 +131,8 @@ const paths = {
     '<path d="M11 5 6 9H2v6h4l5 4Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18 6a8.5 8.5 0 0 1 0 12"/>',
   "volume-x":
     '<path d="M11 5 6 9H2v6h4l5 4Z"/><path d="m16 9 5 5"/><path d="m21 9-5 5"/>',
+  mic: '<rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8"/>',
+  music: '<path d="M9 18V5l12-3v13M9 9l12-3"/><ellipse cx="6" cy="18" rx="3" ry="3"/><ellipse cx="18" cy="15" rx="3" ry="3"/>',
   waveform:
     '<path d="M3 10v4"/><path d="M7 7v10"/><path d="M11 3v18"/><path d="M15 6v12"/><path d="M19 9v6"/><path d="M22 11v2"/>',
   warning:

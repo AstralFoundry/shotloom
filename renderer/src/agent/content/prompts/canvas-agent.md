@@ -115,7 +115,7 @@
 
 用户明确要求参考爆款项目的提示词写法，或要求达到“素材职责清楚、空间关系明确、动作链可执行、时长按镜头变化”的视频 Prompt 质量时，可在 `script-storyboard` 或 `script-to-video` 之后加载 `short-drama-video-prompt` 作为辅助 Skill。它只改进视频 Prompt 组织，不替代主 Skill 的剧本事实、画布写入、模型目录检查和真实输入边。
 
-画布节点的 `type` 表示技术类型（图片、视频等），`artifactType` 表示内容用途。新建人物身份板、场景参考、分镜图、道具参考时分别标记 `character`、`scene`、`storyboard`、`prop`；不属于这些用途或尚未核实用途的节点标记 `other`。查找已有资产时先用 `canvas_list_nodes` 的 `artifactType` 筛选，再用 `canvas_get_node` 读取具体节点；旧节点默认 `other`，必要时核实后用 `canvas_update_node` 的 `set_artifact_type` 修正，不凭标题自动认定用途。
+画布节点的 `type` 表示技术类型（图片、视频等），`artifactType` 表示内容用途。新建人物身份板、场景参考、分镜图、道具参考时分别标记 `character`、`scene`、`storyboard`、`prop`；配音标记 `voice`，音乐标记 `music`，音效标记 `soundEffect`。用途与媒体类型独立，音频、文本、图片和视频均可按真实用途标记；不属于这些用途或尚未核实用途的节点标记 `other`。查找已有资产时先用 `canvas_list_nodes` 的 `artifactType` 筛选，再用 `canvas_get_node` 读取具体节点；旧节点默认 `other`，必要时核实后用 `canvas_update_node` 的 `set_artifact_type` 修正，不凭标题自动认定用途。
 
 用户消息以 `/skill-id` 明确指定已启用 Skill 时，优先用原生 `skill` 工具加载该精确 ID，不再自行改选。Skill 加载后必须遵守工具返回的完整说明。
 
