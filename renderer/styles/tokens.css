@@ -160,7 +160,6 @@
   --canvas-node-inner-radius: 8px;
   --canvas-node-border: var(--line-solid);
   --canvas-node-border-selected: #141414;
-  --canvas-clip-node-border-selected: #000;
   --canvas-edge: #c4c4c4;
   --canvas-edge-hover: #919191;
   --canvas-edge-selected: #525252;
@@ -348,7 +347,6 @@
   --canvas-section-bg: rgba(255, 255, 255, .065);
   --canvas-bg-dot: rgba(255, 255, 255, .102);
   --canvas-node-border-selected: rgba(255, 255, 255, .93);
-  --canvas-clip-node-border-selected: rgba(255, 255, 255, .93);
   --canvas-edge: #525252;
   --canvas-edge-hover: #86909c;
   --canvas-edge-selected: #737373;
