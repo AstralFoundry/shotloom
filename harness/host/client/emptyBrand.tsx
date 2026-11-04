@@ -1,7 +1,7 @@
 import { t } from './i18n';
 import { useEffect, useRef } from 'react';
 
-/** Brand-only empty state; no product store imports enter the isolated iframe. */
+/** Brand-only empty state; no product store imports enter the isolated UI runtime. */
 export function EmptyBrand() {
   const mark = useRef<HTMLDivElement>(null);
   const pupils = useRef<SVGGElement>(null);
@@ -35,7 +35,7 @@ export function EmptyBrand() {
     };
   }, []);
   return <section className="shotloom-empty-state" aria-label={t("ui.emptyBrand.arialabel.b7121556")}><div className="shotloom-empty-brand" ref={mark} role="img" aria-label="Shotloom">
-    <img src="./shotloom-logo.png" alt="" />
+    <img src={new URL('./shotloom-logo.png', import.meta.url).href} alt="" />
     <svg viewBox="0 0 256 256" aria-hidden="true">
       <ellipse cx="56.3" cy="143.2" rx="33.1" ry="30.2" fill="#fff" transform="rotate(-37 56.3 143.2)" />
       <ellipse cx="134.4" cy="176.4" rx="30.6" ry="32.9" fill="#fff" transform="rotate(-8.3 134.4 176.4)" />

@@ -6,8 +6,8 @@ import { readSource } from './helpers/sourceContract.mjs';
 
 const root = new URL('..', import.meta.url).pathname;
 
-// vendored 3D 导演台与生成的 OpenReel 产物自带整套样式，不参与产品规范。
-const EXCLUDED = ['/vendor/', '/public/openreel/'];
+// 第三方导演台、OpenReel 与官方 Harness 的隔离 UI 自带样式；public 下是构建产物。
+const EXCLUDED = ['/vendor/', '/public/openreel/', '/public/harness/'];
 
 function collectCss(dir) {
   const out = [];

@@ -5,7 +5,17 @@ import Loader from '@deepseek-ai/cordis-plugin-loader';
 import { createContext, useContext, useEffect, useState, useSyncExternalStore, type ComponentType } from 'react';
 import { MarkdownText } from '@deepseek-ai/dsh-client-ui-primitives';
 import { getStaticModules } from '@deepseek-ai/dsh-client-web';
-import type { DshWindow } from '@deepseek-ai/dsh-client-modules/client';
+import type { ClientBundleRegistration } from '@deepseek-ai/dsh-client-modules/client';
+import { createPortal } from 'react-dom';
+import { nativeFetch, nativeStream, setNativeHost, ProductContext, type NativeHost, type ProductHost } from './nativeBridge';
+import { registerSurface, setOverlayRoot, scopedDocument, scopedEvents } from './domScope';
+import registrations from '../client-dist/native-modules';
+import boot from '../client-dist/boot.json';
+import productStyles from './style.css?inline';
+import upstreamStyles from '../client-dist/upstream.css?inline';
+// Inline font URLs resolve relative to this bundle, independent of the product route.
+const styles = (upstreamStyles + productStyles).replace(/url\((["']?)([^"')]+\.(?:woff2?|ttf))\1\)/g,
+  (_match, _quote, path: string) => `url("${new URL(path, import.meta.url).href}")`);
 import type { Context as ClientContext } from '@deepseek-ai/cordis';
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client';
 import type {} from '@deepseek-ai/dsh-client-ui-workspace/client';
@@ -26,7 +36,7 @@ import { installCanvasReferences } from './canvasReferences';
 import { EmptyBrand } from './emptyBrand';
 import { installComposerControls } from './composerControls';
 import type { TokenSpan } from '@deepseek-ai/dsh-client-ui-input-trigger/client';
-import './style.css';
+
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface SlotMap {
@@ -36,30 +46,12 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 }
 
 const SelectedView = createContext('chat');
-// Authenticated embed URLs carry the product origin because the Host's
-// no-referrer policy also removes document.referrer after its login redirect.
-function embeddedParentOrigin() {
-  if (parent === window) return undefined;
-  const origin = new URLSearchParams(location.hash.slice(1)).get('shotloomParentOrigin');
-  if (origin && /^(https?:\/\/|tauri:\/\/)[^/?#]+$/.test(origin)) return origin;
-  return document.referrer ? new URL(document.referrer).origin : undefined;
-}
-let embeddedChatPhase: 'loading' | 'ready' | 'error' = 'loading';
-let embeddedChatError: string | undefined;
-function publishChatStatus(phase = embeddedChatPhase, error = embeddedChatError) {
-  embeddedChatPhase = phase;
-  embeddedChatError = error;
-  document.documentElement.dataset.shotloomChat = phase;
-  const origin = embeddedParentOrigin();
-  if (origin) parent.postMessage({ type: 'shotloom:chat-status', phase, error,
-    sessionId: new URLSearchParams(location.hash.slice(1)).get('sessionId') }, origin);
-}
-window.addEventListener('message', event => {
-  if (event.source !== parent || event.origin !== embeddedParentOrigin() || event.data?.type !== 'shotloom:chat-status-request'
-    || event.data.sessionId !== new URLSearchParams(location.hash.slice(1)).get('sessionId')) return;
-  publishChatStatus();
-});
-
+interface Surface { root: HTMLElement; host: ProductHost; reference: SessionReference; mentionNode: ChatActions['mentionNode'] }
+const surfaces = new Set<Surface>();
+const updates = new Set<() => void>();
+let revision = 0;
+let surfacePriority = 0;
+const refresh = () => { revision++; for (const update of updates) update(); };
 function OfficialView({ renderSlot }: ConversationViewsProps) {
   const view = useContext(SelectedView);
   return renderSlot('conversation.session', { view });
@@ -71,31 +63,9 @@ function EmbeddedChat({ activateView, renderFactorySlot, renderSlot, inputAction
   const blank = useBlank();
   // The embedded panel opens directly in the official conversation view.
   useEffect(() => { activateView('chat'); }, [activateView]);
-  useEffect(() => {
-    const origin = embeddedParentOrigin();
-    if (!origin) return;
-    const receive = (event: MessageEvent) => {
-      if (event.source !== parent || event.origin !== origin || event.data?.sessionId !== new URLSearchParams(location.hash.slice(1)).get('sessionId')) return;
-      if (event.data.type === 'shotloom:header-layout') {
-        for (const key of ['left', 'right', 'height'] as const) {
-          const value = event.data[key];
-          if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) return;
-        }
-        const style = document.documentElement.style;
-        style.setProperty('--shotloom-header-left', `${event.data.left}px`);
-        style.setProperty('--shotloom-header-right', `${event.data.right}px`);
-        style.setProperty('--shotloom-header-height', `${event.data.height}px`);
-        return;
-      }
-      if (event.data.type !== 'shotloom:mention-node') return;
-      if (typeof event.data.nodeId !== 'string') return;
-      mentionNode(event.data.nodeId, inputActions.captureInsertion());
-    };
-    window.addEventListener('message', receive);
-    publishChatStatus('ready');
-    parent.postMessage({ type: 'shotloom:header-ready', sessionId: new URLSearchParams(location.hash.slice(1)).get('sessionId') }, origin);
-    return () => window.removeEventListener('message', receive);
-  }, [inputActions, mentionNode]);
+  const host = useContext(ProductContext);
+  useEffect(() => host.subscribeMention(nodeId => mentionNode(nodeId, inputActions.captureInsertion())), [host, inputActions, mentionNode]);
+  useEffect(() => { host.status('ready'); }, [host]);
   return <SelectedView.Provider value="chat"><div className="shotloom-chat-body">
     <aside className="shotloom-session-stats" aria-label={t("ui.main.arialabel.d703e30e")}>{renderSlot('shotloom.stats', {})}</aside>
     <div id="shotloom-context-meter" className="shotloom-context-meter" />
@@ -104,7 +74,9 @@ function EmbeddedChat({ activateView, renderFactorySlot, renderSlot, inputAction
   </div></SelectedView.Provider>;
 }
 
-function ProductToolCard({ toolName, phase, block, inspect, label }: ToolCallViewProps & { label: string }) {
+function ProductToolCard({ toolName, phase, block, inspect }: ToolCallViewProps) {
+  const host = useContext(ProductContext);
+  const label = host.toolTitles[toolName] || toolName;
   let receipt: Record<string, unknown> | undefined;
   let payload: Record<string, unknown> | undefined;
   let raw = '';
@@ -121,9 +93,7 @@ function ProductToolCard({ toolName, phase, block, inspect, label }: ToolCallVie
   const message = [payload?.error, receipt?.error, result?.error, result?.message, result?.summary].find(value => typeof value === 'string') as string | undefined;
   const references = receipt?.references as { nodeIds?: string[]; taskIds?: string[] } | undefined;
   const navigate = (kind: 'nodes' | 'tasks', ids: string[]) => {
-    const origin = embeddedParentOrigin();
-    if (!origin) return;
-    parent.postMessage({ type: 'shotloom:tool-navigation', sessionId: new URLSearchParams(location.hash.slice(1)).get('sessionId'), kind, ids }, origin);
+    host.navigate(kind, ids);
   };
   return <details className="shotloom-tool-card" data-state={failed ? 'error' : phase === 'result' ? 'done' : 'running'}>
     <summary><span className="shotloom-tool-indicator" aria-hidden="true" /><span className="shotloom-tool-name" title={toolName}>{label}</span>
@@ -147,6 +117,7 @@ function installCanvasReferenceCards(ctx: ClientContext) {
   if (!entry) throw new Error(t('agent.client.userMessageMissing'));
   const Official = entry.component as ComponentType<ChatNodeViewProps<'user'>>;
   function ReferencedMessage(props: ChatNodeViewProps<'user'>) {
+    const host = useContext(ProductContext);
     const references: Array<{ id: string; label: string }> = [];
     const content = props.node.data.content.map(block => {
       if (block.type !== 'text') return block;
@@ -163,8 +134,7 @@ function installCanvasReferenceCards(ctx: ClientContext) {
     return <Official {...props} node={{ ...props.node, data: { ...props.node.data, content } }} openFile={(path, options) => {
       const reference = references.find(item => item.label.replaceAll('"', '’') === path);
       if (!reference) { props.openFile(path, options); return; }
-      const origin = embeddedParentOrigin();
-      if (origin) parent.postMessage({ type: 'shotloom:tool-navigation', sessionId: new URLSearchParams(location.hash.slice(1)).get('sessionId'), kind: 'nodes', ids: [reference.id] }, origin);
+      host.navigate('nodes', [reference.id]);
     }} />;
   }
   ctx.slots.register({ name: 'conversation.chat.node', key: 'user', priority: -100, locale: entry.locale } as never, ReferencedMessage as never);
@@ -200,20 +170,27 @@ function installEmbeddedPlans(ctx: ClientContext) {
 }
 
 /** Compose the public embedded Conversation Factory, without Harness chrome. */
-function installEmbeddedChat(ctx: ClientContext, reference: SessionReference, mentionNode: ChatActions['mentionNode']) {
-  const subscribeSession = reference.binding.session.subscribe.bind(reference.binding.session);
+function installEmbeddedChat(ctx: ClientContext) {
+  function SurfaceViews({ renderSlot, SessionProvider }: PropsRenderSlots<'shotloom.chat'>) {
+    useSyncExternalStore(listener => { updates.add(listener); return () => { updates.delete(listener); }; }, () => revision);
+    return <>{[...surfaces].map(surface => createPortal(<ProductContext.Provider value={surface.host}>
+      <SessionProvider session={surface.reference}>{renderSlot('shotloom.chat', {})}</SessionProvider>
+    </ProductContext.Provider>, surface.root))}</>;
+  }
   ctx.slots.register({ name: 'main', key: 'conversation', priority: -100,
     children: { 'shotloom.chat': { kind: 'single', scope: 'session' } },
-  }, ({ renderSlot, SessionProvider }: PropsRenderSlots<'shotloom.chat'>) =>
-    <SessionProvider session={reference}>{renderSlot('shotloom.chat', {})}</SessionProvider>);
+  }, SurfaceViews);
   ctx.slots.register({ name: 'shotloom.chat',
     children: { 'shotloom.stats': { kind: 'list', scope: 'session' } },
     inject: (id: SessionId): ChatActions => ({
-      activateView: view => ctx.uiConversation.binding(id).activate(view), mentionNode,
-      useBlank: () => useSyncExternalStore(subscribeSession, () => {
+      activateView: view => ctx.uiConversation.binding(id).activate(view),
+      mentionNode: (nodeId, span) => [...surfaces].find(surface => surface.host.sessionId === id)?.mentionNode(nodeId, span),
+      useBlank: () => {
+        const reference = [...surfaces].find(surface => surface.host.sessionId === id)!.reference;
+        return useSyncExternalStore(reference.binding.session.subscribe.bind(reference.binding.session), () => {
         const state = reference.binding.session.getSnapshot();
         return state.openState === 'open' && state.blank && !state.running && !state.promptAttempted && !state.pendingSubmissions.length;
-      }),
+      }); },
     }),
   }, EmbeddedChat);
   // Relocate the official components and their injected hooks/locales. Their
@@ -245,7 +222,7 @@ function chatLayout(ctx: ClientContext) {
     main: { kind: 'keyed', scope: 'root' },
     'shell.overlay': { kind: 'list', scope: 'root' },
   } }, ({ renderSlot }: PropsRenderSlots<'main' | 'shell.overlay'>) => (
-    <div className="shotloom-agent-chat">{renderSlot('main', {}, { entryKey: 'conversation' })}{renderSlot('shell.overlay', {})}</div>
+    <div className="shotloom-agent-overlays">{renderSlot('main', {}, { entryKey: 'conversation' })}{renderSlot('shell.overlay', {})}</div>
   ));
   ctx.effect(() => () => navigation.abort(), 'shotloom: layout navigation');
   ctx.inject(['theme'], scope => {
@@ -261,61 +238,97 @@ function chatLayout(ctx: ClientContext) {
   });
 }
 
-const root = document.querySelector<HTMLElement>('#root')!;
-document.documentElement.dataset.shotloomEmbedded = String(parent !== window);
-const ctx = new Context();
-let unmount: (() => void) | undefined;
-try {
-  const facade = (globalThis as DshWindow).__ModuleLoader__;
-  if (!facade) throw new Error(t('agent.client.bootstrapMissing'));
-  const modules = facade.create({ boot: (globalThis as DshWindow).__DSH_BOOT__, staticModules: getStaticModules() });
-  await ctx.plugin(Loader);
-  ctx.loader.internal = modules as never;
-  await ctx.inject(['slots'], chatLayout);
-  const manifest = { ...modules.manifest, plugins: modules.manifest.plugins.filter(row =>
-    !['@deepseek-ai/dsh-client-ui-layout', '@deepseek-ai/dsh-client-ui-sidebar'].includes(row.id)) };
-  await modules.entries.start(ctx.loader, manifest);
-  // 官方 locale 服务继续拥有聊天组件的语言投影，产品只传入已选语言。
-  const officialLocale = ctx.get('locale') as { setLocale(id: string): void } | undefined;
-  officialLocale?.setLocale(productLocale === 'en-US' ? 'en' : 'zh');
-  const failures = [...ctx.loader.entries()].filter(entry => entry.fiber?.state !== 2);
-  if (failures.length) throw new Error(t('agent.client.pluginsInactive', { details: failures.map(entry => `${entry.options.name}: ${modules.importError(entry.options.name)?.message ?? t('agent.client.serviceMissing')}`).join('\n') }));
-  const sessionId = new URLSearchParams(location.hash.slice(1)).get('sessionId');
-  if (!sessionId) throw new Error(t('agent.client.sessionRequired'));
-  // Wait for the official connection baseline before selecting a Session.
-  await new Promise<void>((resolve, reject) => {
-    const source = (ctx.get('connection') as ConnectionHandle).generation;
-    const timer = setTimeout(() => { off(); reject(new Error(t('agent.client.connectionNotReady'))); }, 20_000);
-    const ready = () => { if (source.getSnapshot()) { clearTimeout(timer); off(); resolve(); } };
-    const off = source.subscribe(ready);
-    ready();
-  });
-  await ctx.sessions.refresh();
-  const baseline = ctx.sessions.list.getSnapshot();
-  if (!baseline.byId[sessionId as SessionId]) throw new Error(t('agent.client.sessionUnavailable', { phase: baseline.phase }));
-  const reference = ctx.sessions.retain(sessionId as SessionId, { source: 'mainView' });
-  ctx.effect(() => () => reference.release(), 'shotloom: bound Session reference');
-  await reference.ready;
-  const toolNames = (globalThis as typeof globalThis & { __SHOTLOOM_TOOL_NAMES__?: string[] }).__SHOTLOOM_TOOL_NAMES__ ?? [];
-  const toolTitles = (globalThis as typeof globalThis & { __SHOTLOOM_TOOL_TITLES__?: Record<string, string> }).__SHOTLOOM_TOOL_TITLES__ ?? {};
-  for (const name of toolNames) ctx.slots.register({ name: 'tool.call.toolview', key: name }, props => <ProductToolCard {...props} label={toolTitles[name] || name} />);
-  installEmbeddedPlans(ctx);
-  installComposerControls(ctx);
-  installCanvasReferenceCards(ctx);
-  const parentOrigin = embeddedParentOrigin();
-  const mentionNode = parentOrigin && ['canvas-primary', 'editor-primary'].includes(new URLSearchParams(location.hash.slice(1)).get('shotloomAgentId') || '') ? installCanvasReferences(ctx, sessionId as SessionId, parentOrigin) : () => {};
-  installEmbeddedChat(ctx, reference, mentionNode);
-  installEmbeddedSubagents(ctx);
-  ctx.slots.onEntryError((key, _entry, error) => console.error('Shotloom chat slot failed', key, error));
-  unmount = ctx.uiRenderer.mount(root);
-  // The mounted chat layout reports ready after the retained official Session is ready.
-} catch (error) {
-  root.textContent = error instanceof Error ? error.message : String(error);
-  publishChatStatus('error', error instanceof Error ? error.message : String(error));
-  console.error(error);
+let singleton: Promise<ClientContext> | undefined;
+export async function initialize(native: NativeHost): Promise<void> { await runtime(native); }
+async function runtime(native: NativeHost): Promise<ClientContext> {
+  if (singleton) return singleton;
+  singleton = (async () => {
+    setNativeHost(native);
+    const overlayHost = globalThis.document.createElement('div');
+    overlayHost.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:1000;background:transparent';
+    globalThis.document.body.append(overlayHost);
+    const overlayShadow = overlayHost.attachShadow({ mode: 'open' });
+    const unregister = registerSurface(overlayShadow);
+    const style = globalThis.document.createElement('style'); style.textContent = styles; overlayShadow.append(style);
+    const overlay = globalThis.document.createElement('div'); overlay.style.pointerEvents = 'auto'; overlayShadow.append(overlay);
+    const stopObserving = setOverlayRoot(overlay);
+    const ctx = new Context();
+    try {
+    const records: ClientBundleRegistration[] = [];
+    const target = { mode: 'queue' as const, pendingQueue: records, load(row: ClientBundleRegistration) { records.push(row); }, create: null as any };
+    const transport = { fetch: nativeFetch, openStream: nativeStream, ownsHost: true };
+    const windowEvents = scopedEvents(globalThis.window);
+    const scopeWindow = new Proxy(window, { get(object, key) {
+      if (key === 'addEventListener' || key === 'removeEventListener') return windowEvents[key];
+      if (key === '__ModuleLoader__') return target;
+      if (key === '__DSH_TRANSPORT__') return transport;
+      if (key === 'document') return scopedDocument;
+      const value = Reflect.get(object, key, object);
+      return typeof value === 'function' && !/^[A-Z]/.test(String(key)) ? value.bind(object) : value;
+    } });
+    for (const register of registrations) register(scopeWindow as never, scopedDocument);
+    const bootstrap = records.find(row => row.id === '@deepseek-ai/dsh-client-modules')!;
+    records.splice(records.indexOf(bootstrap), 1);
+    const exports = bootstrap.factory((() => { throw new Error('Unexpected bootstrap dependency'); }) as never);
+    const modules = (exports.createClientModuleSystem as any)(target, { id: bootstrap.id, exports }, { boot, staticModules: getStaticModules(), loadBundle: async () => {} });
+    ctx.logger.exporter({ export: record => { if (record.level === 0 || record.level === 2) console.error('Harness client', ...record.args.map(value => value instanceof Error ? value.stack : value)); } });
+    await ctx.plugin(Loader);
+    ctx.loader.internal = modules as never;
+    await ctx.inject(['slots'], chatLayout);
+    const manifest = { ...modules.manifest, plugins: modules.manifest.plugins.filter((row: { id: string }) => !['@deepseek-ai/dsh-client-ui-layout', '@deepseek-ai/dsh-client-ui-sidebar'].includes(row.id)) };
+    await modules.entries.start(ctx.loader, manifest);
+    await new Promise<void>((resolve, reject) => {
+      const source = (ctx.get('connection') as ConnectionHandle).generation;
+      const timer = setTimeout(() => { off(); reject(new Error(t('agent.client.connectionNotReady'))); }, 20_000);
+      const ready = () => { if (source.getSnapshot()) { clearTimeout(timer); off(); resolve(); } };
+      const off = source.subscribe(ready);
+      ready();
+    });
+    await ctx.loader.await();
+    const failures = [...ctx.loader.entries()].filter(entry => entry.fiber?.state !== 2);
+    if (failures.length) throw new Error(failures.map(entry => `Harness client module failed to initialize: ${entry.options.name} (state ${entry.fiber?.state}; missing ${Object.keys(entry.fiber?.inject ?? {}).filter(name => ctx.get(name) === undefined).join(', ')})`).join('\n'));
+    const officialLocale = ctx.get('locale') as { setLocale(id: string): void } | undefined;
+    officialLocale?.setLocale(productLocale === 'en-US' ? 'en' : 'zh');
+    installEmbeddedPlans(ctx); installComposerControls(ctx); installCanvasReferenceCards(ctx);
+    installEmbeddedChat(ctx); installEmbeddedSubagents(ctx);
+    const root = globalThis.document.createElement('div'); overlay.append(root); ctx.uiRenderer.mount(root);
+    return ctx;
+    } catch (error) {
+      await ctx.fiber.dispose();
+      stopObserving(); unregister(); overlayHost.remove();
+      throw error;
+    }
+  })().catch(error => { singleton = undefined; throw error; });
+  return singleton;
 }
-window.addEventListener('pagehide', () => {
-  // Release React subscriptions while the official Session services still exist.
-  unmount?.();
-  void ctx.fiber.dispose();
-}, { once: true });
+
+export async function mount(container: HTMLElement, native: NativeHost, host: ProductHost) {
+  const ctx = await runtime(native);
+  const shadow = container.shadowRoot ?? container.attachShadow({ mode: 'open' });
+  const unregister = registerSurface(shadow);
+  const style = globalThis.document.createElement('style'); style.textContent = styles; shadow.append(style);
+  const root = globalThis.document.createElement('div'); root.className = 'shotloom-agent-chat'; root.dataset.shotloomEmbedded = 'true'; shadow.append(root);
+  root.style.cssText = 'height:100%;min-height:0;position:relative';
+  let release = () => {};
+  let disposeScope = async () => {};
+  try {
+  if (!ctx.sessions.list.getSnapshot().byId[host.sessionId as SessionId]) await ctx.sessions.refresh();
+  const reference = ctx.sessions.retain(host.sessionId as SessionId, { source: 'mainView' });
+  release = () => reference.release();
+  await reference.ready;
+  let mentionNode: ChatActions['mentionNode'] = () => {};
+  await ctx.inject(['slots', 'inputTriggers', 'sessions'], scope => {
+  disposeScope = () => scope.fiber.dispose();
+  mentionNode = ['canvas-primary', 'editor-primary'].includes(host.agentId) ? installCanvasReferences(scope, host.sessionId as SessionId, host) : () => {};
+  const priority = --surfacePriority;
+  for (const name of host.tools) scope.slots.register({ name: 'tool.call.toolview', key: name, priority }, props => <ProductToolCard {...props} />);
+  });
+  const surface = { root, host, reference, mentionNode };
+  surfaces.add(surface); refresh();
+  let disposed = false;
+  return { dispose() { if (disposed) return; disposed = true; surfaces.delete(surface); refresh(); release(); void disposeScope(); unregister(); root.remove(); style.remove(); } };
+  } catch (error) {
+    release(); await disposeScope(); unregister(); root.remove(); style.remove();
+    throw error;
+  }
+}

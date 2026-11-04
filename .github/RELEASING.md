@@ -67,7 +67,7 @@ Configure all of the following to sign and notarize macOS artifacts:
 - `APPLE_PASSWORD`: App-specific password for that Apple ID.
 - `APPLE_TEAM_ID`: Apple Developer Team ID.
 
-The Apple account must be a paid Apple Developer Program account. Without all six values, the workflow still publishes macOS artifacts, but they are unsigned and unnotarized and macOS Gatekeeper warns users before first launch.
+The Apple account must be a paid Apple Developer Program account. Without all six values, the workflow uses an ad-hoc signature (`APPLE_SIGNING_IDENTITY=-`) and verifies the complete app bundle before publishing. This signature preserves bundle integrity but does not establish an Apple-trusted developer identity or notarization; Gatekeeper can still block first launch.
 
 Encode the exported certificate without line breaks:
 
@@ -79,6 +79,19 @@ Use the contents of `certificate-base64.txt` as `APPLE_CERTIFICATE`.
 
 ## 首次运行
 
-只需一次配置上面的 updater 签名密钥；GitHub Actions 使用仓库自动提供的 GITHUB_TOKEN，无需额外 PAT。Apple 签名证书可选，未配置时会明确提示并构建未公证的 macOS 安装包。
+只需一次配置上面的 updater 签名密钥；GitHub Actions 使用仓库自动提供的 GITHUB_TOKEN，无需额外 PAT。Apple 签名证书可选，未配置时使用 ad-hoc 签名并校验整个应用包，安装包仍未公证。Updater 签名只用于应用更新校验，不能替代 Apple 代码签名和公证。
+
+### 0.8.1 macOS 提示“已损坏，无法打开”
+
+0.8.1 的 Mac 包只有可执行文件的链接器签名，缺少完整应用包的资源签名。对于确认从本仓库 Release 下载的 0.8.1，安装到 `/Applications` 后，可在终端修复本机副本：
+
+```sh
+codesign --force --deep --sign - /Applications/Shotloom.app
+codesign --verify --deep --strict --verbose=2 /Applications/Shotloom.app
+xattr -dr com.apple.quarantine /Applications/Shotloom.app
+open /Applications/Shotloom.app
+```
+
+该操作只修改本机 Shotloom 副本，不关闭系统 Gatekeeper。后续版本在生成 DMG 和更新包前由 Tauri 完成签名，并在 CI 校验；要让普通用户直接打开而无需手动处理，仍需配置上面的 Apple Developer ID 签名和公证凭据。
 
 本地检查可以运行 `npm run verify:product`；CI 与 Release 的共享验收工作流位于 `.github/workflows/verify.yml`。

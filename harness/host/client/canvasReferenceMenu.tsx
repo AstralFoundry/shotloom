@@ -1,5 +1,6 @@
 import { t } from './i18n';
-import { useEffect, useRef, useState, useSyncExternalStore, type ComponentType } from 'react';
+import { useContext, useEffect, useRef, useState, useSyncExternalStore, type ComponentType } from 'react';
+import { ProductContext } from './nativeBridge';
 import type { Context } from '@deepseek-ai/cordis';
 import { MenuSurface, useAnchoredMaxHeight } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { MenuViewProps } from '@deepseek-ai/dsh-client-ui-input-trigger/client';
@@ -11,6 +12,7 @@ export type ReferenceCategory = typeof referenceCategories[number][0];
 
 /** Presentation only: picks, highlight, keyboard navigation and fetches remain in the official controller. */
 export function installCanvasReferenceMenu(ctx: Context, categories: {
+  sessionId: string;
   current(): ReferenceCategory;
   counts(): Record<string, number>;
   select(value: ReferenceCategory): void;
@@ -41,7 +43,8 @@ export function installCanvasReferenceMenu(ctx: Context, categories: {
     const state = useSyncExternalStore(fn => props.menu.subscribe(fn), () => props.menu.getSnapshot());
     const root = useRef<HTMLDivElement>(null);
     const maxHeight = useAnchoredMaxHeight(root, 400, state, 84);
-    const canvas = state.hit?.trigger === '@' && state.groups.some(group => group.source === t("ui.ProjectSearch.kind.95b2102f"));
+    const ownSession = useContext(ProductContext).sessionId === categories.sessionId;
+    const canvas = ownSession && state.hit?.trigger === '@' && state.groups.some(group => group.source === t("ui.ProjectSearch.kind.95b2102f"));
     useEffect(() => {
       if (!canvas || !state.open) return;
       const dismiss = (event: PointerEvent) => {
@@ -79,7 +82,7 @@ export function installCanvasReferenceMenu(ctx: Context, categories: {
       </div>
     </MenuSurface>;
   }
-  ctx.slots.register({ name: 'conversation.input.overlay', id: 'slash-menu', priority: -100,
+  ctx.slots.register({ name: 'conversation.input.overlay', id: 'slash-menu', priority: (entry.options.priority ?? 0) - 1,
     inject: entry.inject, store: entry.store, locale: entry.locale,
   } as never, Menu as never);
 }

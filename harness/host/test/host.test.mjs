@@ -341,17 +341,16 @@ test('official authenticated HTTP transport exposes bound Sessions and real hist
   assert.match(JSON.stringify(history), /HTTP history evidence/);
 });
 
-test('native composition authenticates bindings, scopes Skills and restores official sessions', { timeout: 15000 }, async t => {
+test('native composition validates bindings, caches configuration, scopes Skills and restores official sessions', { timeout: 15000 }, async t => {
   const { startDesktopHost } = await import('../dist/desktopHost.js');
   const dataRoot = await mkdtemp(join(tmpdir(), 'shotloom-desktop-'));
   const config = { ...options(dataRoot), distIndex: join(root, 'harness/host/client-dist/index.html'), bridge: { url: 'http://127.0.0.1:1', token: 'native-composition-secret' } };
   let desktop = await startDesktopHost(config);
   t.after(async () => { await desktop.host.dispose(); await rm(dataRoot, { recursive: true, force: true }); });
-  async function bind(payload, token = config.bridge.token) {
-    return fetch(`${desktop.origin}/shotloom/session`, { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify(payload) });
+  async function bind(payload) {
+    try { return Response.json(await desktop.bind(payload)); } catch (error) { return Response.json({ error: String(error) }, { status: 400 }); }
   }
   const payload = { binding, tools: [], skills: [{ id: 'video-editing', builtIn: true, instructions: 'Only the authorized editing skill.' }], defaultModel: route };
-  assert.equal((await bind(payload, 'wrong-secret')).status, 403);
   const adapter = new ScriptedAdapter([request => {
     const source = JSON.stringify(request);
     assert.match(source, /video-editing/);
@@ -362,7 +361,14 @@ test('native composition authenticates bindings, scopes Skills and restores offi
   let response = await bind(payload);
   assert.equal(response.status, 200, await response.clone().text());
   const created = await response.json();
-  assert.equal(new URL(created.url).hash, `#sessionId=${created.sessionId}`);
+  assert.equal(desktop.host.ctx.get('webServer'), undefined, 'desktop has no browser HTTP or Cookie authentication endpoint');
+  const skillRoot = join(dataRoot, 'product-skills');
+  const { stat, readdir } = await import('node:fs/promises');
+  const directory = (await readdir(skillRoot))[0];
+  const skillFile = join(skillRoot, directory, 'video-editing/SKILL.md');
+  const before = (await stat(skillFile)).mtimeMs;
+  await bind(payload);
+  assert.equal((await stat(skillFile)).mtimeMs, before, 'identical composition must not rewrite Skill files');
   const agent = desktop.host.ctx.agents.get(created.sessionId);
   assert.ok(agent);
   const selection = desktop.host.ctx.sessionProjections.stateOf(agent.session, 'modelSelection');
@@ -428,6 +434,42 @@ test('native composition authenticates bindings, scopes Skills and restores offi
   assert.match(JSON.stringify(resumedAdapter.requests[0].messages), /native scoped response/);
 });
 
+test('native IPC routes official RPC and streams, rejects external routes and preserves project binding', { timeout: 15000 }, async t => {
+  const { startDesktopHost } = await import('../dist/desktopHost.js');
+  const { nativeTransport } = await import('../dist/nativeTransport.js');
+  const dataRoot = await mkdtemp(join(tmpdir(), 'shotloom-native-wire-'));
+  const desktop = await startDesktopHost({ ...options(dataRoot), distIndex: join(root, 'harness/host/client-dist/index.html'), bridge: { url: 'http://127.0.0.1:1', token: 'test-private-channel' } });
+  t.after(async () => { await desktop.host.dispose(); await rm(dataRoot, { recursive: true, force: true }); });
+  const events = [];
+  let firstItem;
+  const item = new Promise(resolve => { firstItem = resolve; });
+  const receive = nativeTransport(desktop, event => { events.push(event); if (event.kind === 'item') firstItem(event); });
+  await receive({ requestId: 'bind', kind: 'bind', payload: { binding, tools: [], skills: [] } });
+  const { sessionId } = events.at(-1).value;
+  assert.ok(sessionId);
+  await receive({ requestId: 'rpc', kind: 'fetch', payload: { path: '/api/session/list', method: 'POST', headers: { 'content-type': 'application/json' }, body: Buffer.from(JSON.stringify({ type: 'client-request', rpcId: 'test-rpc', method: 'session/list', payload: { args: { _request: {} } } })).toString('base64') } });
+  const response = events.at(-1).value;
+  assert.equal(response.status, 200);
+  const catalog = JSON.parse(Buffer.from(response.body, 'base64').toString()).result;
+  assert.equal(catalog.ok, true);
+  assert.ok(catalog.value.items.some(row => row.sessionId === sessionId));
+  for (const path of ['https://example.com/api/session/list', '/outside']) {
+    await receive({ requestId: 'denied', kind: 'fetch', payload: { path } });
+    assert.equal(events.at(-1).kind, 'error');
+    assert.match(events.at(-1).error, /Invalid native API route/);
+  }
+  await receive({ requestId: 'mismatch', kind: 'bind', payload: { binding: { ...binding, projectKey: 'other' }, sessionId, tools: [] } });
+  assert.equal(events.at(-1).kind, 'error');
+  assert.match(events.at(-1).error, /binding mismatch/);
+  const stream = receive({ requestId: 'stream', kind: 'stream', payload: { endpoint: 'workspace/follow', payload: { args: {} } } });
+  const timer = setTimeout(() => firstItem({ kind: 'timeout' }), 5000);
+  assert.equal((await item).kind, 'item');
+  clearTimeout(timer);
+  await receive({ requestId: 'stream', kind: 'cancel' });
+  await stream;
+  assert.ok(events.some(event => event.requestId === 'stream' && ['end', 'error'].includes(event.kind)));
+});
+
 test('official pi-ai adapter receives a configured product route and real wire tool schemas', { timeout: 15000 }, async t => {
   const { startDesktopHost } = await import('../dist/desktopHost.js');
   const requests = [];
@@ -446,9 +488,8 @@ test('official pi-ai adapter receives a configured product route and real wire t
   const dataRoot = await mkdtemp(join(tmpdir(), 'shotloom-wire-'));
   const desktop = await startDesktopHost({ ...options(dataRoot), distIndex: join(root, 'harness/host/client-dist/index.html'), bridge: { url: 'http://127.0.0.1:1', token: 'wire-secret' } });
   t.after(async () => { await desktop.host.dispose(); await rm(dataRoot, { recursive: true, force: true }); });
-  const response = await fetch(`${desktop.origin}/shotloom/session`, { method: 'POST', headers: { authorization: 'Bearer wire-secret', 'content-type': 'application/json' }, body: JSON.stringify({ binding, tools: [{ name: 'canvas_test_read', description: 'Read a real scoped node', parameters: { type: 'object', properties: { nodeId: { type: 'string' } }, required: ['nodeId'], additionalProperties: false }, roles: ['canvas-primary'], effect: 'read' }], skills: [], providers: { 'shotloom-wire': { key: 'test-product-key', profile: { api: 'openai-completions', baseURL: `http://127.0.0.1:${modelServer.address().port}/v1`, models: [{ id: 'wire-model', name: 'Wire model', input: ['text'], reasoningEfforts: { off: 'none', medium: 'medium', max: 'ultra' }, compat: { supportsReasoningEffort: true } }] } } }, defaultModel: { provider: 'shotloom-wire', model: 'wire-model', reasoningEffort: 'medium' } }) });
-  assert.equal(response.status, 200, await response.clone().text());
-  const { sessionId } = await response.json();
+  const created = await desktop.bind({ binding, tools: [{ name: 'canvas_test_read', description: 'Read a real scoped node', parameters: { type: 'object', properties: { nodeId: { type: 'string' } }, required: ['nodeId'], additionalProperties: false }, roles: ['canvas-primary'], effect: 'read' }], skills: [], providers: { 'shotloom-wire': { key: 'test-product-key', profile: { api: 'openai-completions', baseURL: `http://127.0.0.1:${modelServer.address().port}/v1`, models: [{ id: 'wire-model', name: 'Wire model', input: ['text'], reasoningEfforts: { off: 'none', medium: 'medium', max: 'ultra' }, compat: { supportsReasoningEffort: true } }] } } }, defaultModel: { provider: 'shotloom-wire', model: 'wire-model', reasoningEffort: 'medium' } });
+  const { sessionId } = created;
   await send(desktop.host.ctx.agents.get(sessionId), 'verify native provider configuration');
   assert.equal(requests.length, 1);
   assert.equal(requests[0].reasoning_effort, 'medium');
@@ -756,9 +797,7 @@ test('canvas delegates a real editor child with live canvas tools, parent approv
   t.after(async () => { await desktop.host.dispose(); await new Promise(resolve => server.close(resolve)); await rm(dataRoot, { recursive: true, force: true }); });
   const tool = (name, roles, effect = 'read') => ({ name, description: name, roles, effect, parameters: { type: 'object', additionalProperties: true } });
   async function bind(bound, tools) {
-    const response = await fetch(`${desktop.origin}/shotloom/session`, { method: 'POST', headers: { authorization: 'Bearer delegation-secret', 'content-type': 'application/json' }, body: JSON.stringify({ binding: bound, tools, defaultModel: route, skills: [] }) });
-    assert.equal(response.status, 200, await response.clone().text());
-    return response.json();
+    return desktop.bind({ binding: bound, tools, defaultModel: route, skills: [] });
   }
   class EditorDelegationAdapter extends LlmAdapter {
     parentCalls = 0; childCalls = 0;

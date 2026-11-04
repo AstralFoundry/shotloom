@@ -31,14 +31,21 @@ while (pending.length) {
   // hooks and dialog, but portal it out of the composer's scrolling layer.
   // WKWebView can leave fixed descendants of that layer invisible until clicked.
   if (id === '@deepseek-ai/dsh-client-ui-conversation') {
-    const source = bytes.toString('utf8');
+    let source = bytes.toString('utf8');
+    // The official draft runtime preserves selections outside its editor. In a
+    // ShadowRoot ownerDocument.activeElement is the host, so that check would
+    // incorrectly suppress every caret update and reverse typed characters.
+    const focusCheck = 'root.contains(root.ownerDocument.activeElement)';
+    if (source.split(focusCheck).length !== 2) throw new Error('Official draft focus seam changed; review ShadowRoot selection handling');
+    source = source.replace(focusCheck, 'root.contains(root.getRootNode().activeElement)');
     const marker = 'function ContextMeter({ useProjection, t }) {';
     if (source.split(marker).length !== 2) throw new Error('Official ContextMeter layout seam changed; review the portal adapter');
     bytes = Buffer.from(source.replace(marker, `function ContextMeter(props) {
       const [target, setTarget] = (0, react.useState)(null);
-      (0, react.useLayoutEffect)(() => { setTarget(document.getElementById('shotloom-context-meter')); }, []);
+      const marker = (0, react.useRef)(null);
+      (0, react.useLayoutEffect)(() => { setTarget(marker.current?.getRootNode().querySelector('#shotloom-context-meter')); }, []);
       const component = (0, react_jsx_runtime.jsx)(ShotloomOfficialContextMeter, props);
-      return target ? (0, react_dom.createPortal)(component, target) : null;
+      return (0, react_jsx_runtime.jsxs)(react.Fragment, {children:[(0, react_jsx_runtime.jsx)('span',{ref:marker,style:{display:'contents'}}),target ? (0, react_dom.createPortal)(component, target) : null]});
     }
     function ShotloomOfficialContextMeter({ useProjection, t }) {`));
   }
@@ -58,16 +65,49 @@ await writeFile(join(dist, 'boot.json'), JSON.stringify(graph, null, 2));
 const injections = bootInjections(graph);
 const html = '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Shotloom Agent</title><link rel="stylesheet" href="./client.css"></head><body><div id="root"></div><script type="module" src="./client.js"></script></body></html>';
 await writeFile(join(dist, 'index.html'), renderIndexInjections(html, injections));
-await build({
+const registrationFiles = [];
+for (const [id] of entries) {
+  const relative = `plugins/${id}/native.js`;
+  let source = await readFile(join(dist, 'plugins', id, 'client.js'), 'utf8');
+  // The standalone carrier has one product reference source. A shared native
+  // runtime needs the same named codec scoped to its actual owning Session.
+  if (id === '@deepseek-ai/dsh-client-ui-input-trigger') {
+    for (const [before, after, count] of [
+      ['s.trigger === src.trigger && s.name === src.name', 's.trigger === src.trigger && s.name === src.name && s.shotloomSessionId === src.shotloomSessionId', 1],
+      ['live.sources.filter((s) => s.trigger === trigger)', 'live.sources.filter((s) => s.trigger === trigger && (s.shotloomSessionId === undefined || s.shotloomSessionId === id))', 1],
+      ['all: () => live.sources', 'all: () => live.sources.filter(s => s.shotloomSessionId === undefined || s.shotloomSessionId === id)', 1],
+      ['for (const controller of live.controllers.values)', 'for (const controller of [...live.controllers.values].filter(c => src.shotloomSessionId === undefined || c.project().sessionId === src.shotloomSessionId))', 2],
+    ]) {
+      if (source.split(before).length !== count + 1) throw new Error('Official input source session seam changed; review the native session adapter');
+      source = source.replaceAll(before, after);
+    }
+  }
+  await writeFile(join(dist, relative), `export default function register(window, document, globalThis = window) {\n${source}\n}`);
+  registrationFiles.push(relative);
+}
+await writeFile(join(dist, 'native-modules.js'), registrationFiles.map((file, index) => `import r${index} from './${file}';`).join('\n') + `\nexport default [${registrationFiles.map((_, index) => `r${index}`).join(',')}];`);
+await writeFile(join(dist, 'native-modules.d.ts'), 'import type { ClientBundleRegistration } from "@deepseek-ai/dsh-client-modules/client";\ndeclare const registrations: Array<(window: Window & {__ModuleLoader__: {load(row: ClientBundleRegistration):void}}, document: Document) => void>;\nexport default registrations;\n');
+// A placeholder is replaced after esbuild extracts the upstream and product CSS.
+await writeFile(join(dist, 'upstream.css'), '');
+const buildOptions = {
   absWorkingDir: root, entryPoints: ['client/main.tsx'], outfile: join(dist, 'client.js'),
+  inject: [join(root, 'client/scopedGlobals.ts')],
   bundle: true, format: 'esm', platform: 'browser', target: 'es2022', jsx: 'automatic',
-  loader: { '.woff2': 'file', '.woff': 'file', '.ttf': 'file' },
+  loader: { '.txt': 'text', '.woff2': 'file', '.woff': 'file', '.ttf': 'file' },
   define: { 'process.env.NODE_ENV': '"production"', 'process.versions.node': '"0.0.0"', 'process.execArgv': '[]', 'process.env.CORDIS_SHARED': 'undefined' },
   plugins: [{ name: 'official-css-modules', setup(builder) {
     // Same browser seam used by the official Web carrier; Node loading is unreachable.
+    builder.onResolve({ filter: /\.css\?inline$/ }, args => ({ path: resolve(dirname(args.importer), args.path.replace('?inline', '')), namespace: 'inline-css' }));
+    builder.onLoad({ filter: /.*/, namespace: 'inline-css' }, async args => ({ contents: `export default ${JSON.stringify(await readFile(args.path, 'utf8'))}`, loader: 'js' }));
     builder.onResolve({ filter: /^node:module$/ }, () => ({ path: 'node-module', namespace: 'browser-seam' }));
     builder.onLoad({ filter: /.*/, namespace: 'browser-seam' }, () => ({ contents: 'export function createRequire() { throw new Error("Node module loading is unavailable in chat"); }', loader: 'js' }));
     builder.onLoad({ filter: /\.module\.css$/ }, async args => ({ contents: await readFile(args.path, 'utf8'), loader: 'local-css' }));
   } }],
-});
+};
+await build(buildOptions);
+await writeFile(join(dist, 'upstream.css'), await readFile(join(dist, 'client.css'), 'utf8'));
+await build(buildOptions);
+await cp(join(root, 'client/style.css'), join(dist, 'product.css'));
+await mkdir(join(root, '../../renderer/public/harness'), { recursive: true });
+await cp(dist, join(root, '../../renderer/public/harness'), { recursive: true });
 console.log(`Built official chat carrier: ${rows.length} client modules`);

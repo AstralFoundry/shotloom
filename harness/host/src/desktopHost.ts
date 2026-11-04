@@ -1,11 +1,11 @@
 import { openDatabase } from './db/connection.js';
 import { HostCrud } from './crud/hostCrud.js';
 import { readFile, writeFile, mkdir, cp, rm } from 'node:fs/promises';
-import { timingSafeEqual, createHash } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import { createHost, type SessionBinding } from './createHost.js';
 import { registerProductTools, type ProductTool, type ProductBridge } from './productTools.js';
-import { startWebHost } from './webHost.js';
+import { startClientServices } from './webHost.js';
 import * as SkillFiles from '@deepseek-ai/dsh-skill-filesystem';
 import * as PiAi from '@deepseek-ai/dsh-llm-pi-ai';
 import { ReasoningEffortId } from '@deepseek-ai/dsh-llm';
@@ -18,7 +18,7 @@ interface Catalog { binding: BindingInput; tools: ProductTool[]; skills?: Produc
 interface ProviderConfig { key: string; profile: PiAi.PiAiProviderProfile }
 const key = (binding: BindingInput) => JSON.stringify([binding.projectKey, binding.conversationId, binding.agentId, binding.nodeId ?? '']);
 
-/** Private desktop composition endpoint. Only the native shell holds its secret. */
+/** Desktop composition is reachable only through the inherited native pipe. */
 export async function startDesktopHost(options: {
   dataRoot: string; contentRoot: string; rulesPath: string; distIndex: string;
   bridge: ProductBridge;
@@ -52,32 +52,15 @@ export async function startDesktopHost(options: {
   } });
   host.ctx.effect(() => () => database.close());
   try {
-    const web = await startWebHost(host, options);
-    host.ctx.on('webserver/index-inject', table => {
-      table.push({ kind: 'global', name: '__SHOTLOOM_TOOL_NAMES__', value: [...new Set([...catalogs.values()].flatMap(row => row.tools.map(tool => tool.name)))] });
-      table.push({ kind: 'global', name: '__SHOTLOOM_TOOL_TITLES__', value: Object.fromEntries([...catalogs.values()].flatMap(row => row.tools.map(tool => [tool.name, tool.title || tool.name]))) });
-    });
-    const origin = new URL(web.url).origin;
+    await startClientServices(host, options);
     const owners = new Map<string, Awaited<ReturnType<typeof host.create>>>();
     // This queue serializes composition and catalog writes, never model turns.
     let composition = Promise.resolve();
     let modelPlugin: Awaited<ReturnType<Context['plugin']>> | undefined;
     let modelConfig = '';
-    host.ctx.webServer.register({ kind: 'exact', path: '/shotloom/session', async handler(req, res) {
-      const supplied = Buffer.from(req.headers.authorization ?? '');
-      const expected = Buffer.from(`Bearer ${options.bridge.token}`);
-      if (req.method !== 'POST' || supplied.length !== expected.length || !timingSafeEqual(supplied, expected)) {
-        res.writeHead(403).end(); return;
-      }
-      try {
-        let size = 0;
-        const chunks: Buffer[] = [];
-        for await (const chunk of req) {
-          size += chunk.length;
-          if (size > 4 * 1024 * 1024) throw new Error('Product session configuration too large');
-          chunks.push(chunk);
-        }
-        const request = JSON.parse(Buffer.concat(chunks).toString('utf8')) as Catalog & { sessionId?: string; defaultModel?: { provider: string; model: string; reasoningEffort?: string }; providers?: Record<string, ProviderConfig> };
+    const providerConfigs = new Map<string, string>();
+    const skillVersions = new Map<string, string>();
+    async function bind(request: Catalog & { sessionId?: string; defaultModel?: { provider: string; model: string; reasoningEffort?: string }; providers?: Record<string, ProviderConfig> }) {
         const work = composition.then(async () => {
           const { binding } = request;
           if (!binding || !Array.isArray(request.tools)) throw new Error('Binding and named product tools are required');
@@ -92,7 +75,11 @@ export async function startDesktopHost(options: {
             for (const [route, entry] of Object.entries(request.providers)) {
               if (!/^[a-z][a-z0-9-]+$/.test(route)) throw new Error('Invalid product provider route');
               const ref = `SHOTLOOM_${route.replaceAll('-', '_').toUpperCase()}`;
-              await host.ctx.credentials.set(credentialRef(ref), entry.key);
+              const version = createHash('sha256').update(JSON.stringify(entry)).digest('hex');
+              if (providerConfigs.get(route) !== version) {
+                await host.ctx.credentials.set(credentialRef(ref), entry.key);
+                providerConfigs.set(route, version);
+              }
               providers[route] = { ...entry.profile, apiKeyEnv: ref };
             }
             const next = JSON.stringify(providers);
@@ -102,7 +89,9 @@ export async function startDesktopHost(options: {
               modelConfig = next;
             }
           }
-          if (request.skills) {
+          const skillVersion = request.skills && createHash('sha256').update(JSON.stringify(request.skills)).digest('hex');
+          const skillsChanged = skillVersion !== undefined && skillVersions.get(catalogKey) !== skillVersion;
+          if (skillsChanged && request.skills) {
             const root = skillPath(binding);
             // Product packaging only; the official provider discovers and loads it.
             await rm(root, { recursive: true, force: true });
@@ -125,7 +114,7 @@ export async function startDesktopHost(options: {
               registration.dispose();
               registration.dispose = registerProductTools(registration.scope, existing.binding, tools, { ...options.bridge, receiptRoot: options.dataRoot });
             }
-            if (request.skills) {
+            if (skillsChanged) {
               // Re-mount the official provider to synchronously invalidate its
               // catalog, without waiting for Chokidar's stability window.
               const provider = skillProviders.get(catalogKey);
@@ -135,6 +124,7 @@ export async function startDesktopHost(options: {
             }
             catalogs.set(catalogKey, { binding, tools, skills: request.skills ?? catalogs.get(catalogKey)?.skills });
             hostCrud.saveCatalog(catalogKey, catalogs.get(catalogKey)! as unknown as Record<string, unknown>);
+            if (skillVersion) skillVersions.set(catalogKey, skillVersion);
             return existing;
           }
           catalogs.set(catalogKey, { binding, tools, skills: request.skills });
@@ -151,19 +141,14 @@ export async function startDesktopHost(options: {
             await host.ctx.sessionController.selectModel({ sessionId: owner.agent.session.id, ...request.defaultModel });
           }
           owners.set(owner.binding.sessionId, owner);
+          if (skillVersion) skillVersions.set(catalogKey, skillVersion);
           return owner;
         });
         composition = work.then(() => {}, () => {});
         const owner = await work;
-        const url = new URL(host.ctx.connection.authenticatedUrl(`${origin}/`));
-        url.hash = new URLSearchParams({ sessionId: owner.binding.sessionId }).toString();
-        res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
-        res.end(JSON.stringify({ sessionId: owner.binding.sessionId, url: url.toString() }));
-      } catch (error) {
-        res.writeHead(400, { 'content-type': 'application/json' });
-        res.end(JSON.stringify({ error: error instanceof Error ? error.message : String(error) }));
-      }
-    } });
-    return { host, origin };
+        return { sessionId: owner.binding.sessionId, tools: [...new Set([...catalogs.values()].flatMap(row => row.tools.map(tool => tool.name)))],
+          toolTitles: Object.fromEntries([...catalogs.values()].flatMap(row => row.tools.map(tool => [tool.name, tool.title || tool.name]))) };
+    }
+    return { host, bind };
   } catch (error) { await host.dispose(); throw error; }
 }

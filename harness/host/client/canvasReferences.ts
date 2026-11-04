@@ -1,4 +1,5 @@
 import { t } from './i18n';
+import type { ProductHost } from './nativeBridge';
 import { installCanvasReferenceMenu, type ReferenceCategory } from './canvasReferenceMenu';
 import { installCanvasMediaCards } from './canvasMediaCards';
 import type { Context } from '@deepseek-ai/cordis';
@@ -14,30 +15,12 @@ interface ReferenceResult {
 
 /** Only product reference discovery/serialization; upstream owns the menu,
  * editor chips, draft persistence, attachments and submission transaction. */
-export function installCanvasReferences(ctx: Context, sessionId: SessionId, origin: string) {
-  const pending = new Map<string, { resolve(value: ReferenceResult): void; reject(error: Error): void }>();
-  const receive = (event: MessageEvent) => {
-    if (event.source !== parent || event.origin !== origin || event.data?.sessionId !== sessionId || event.data.type !== 'shotloom:canvas-reference-result') return;
-    const request = pending.get(event.data.requestId);
-    if (!request) return;
-    if (event.data.error) request.reject(new Error(event.data.error));
-    else request.resolve(event.data.result);
+export function installCanvasReferences(ctx: Context, sessionId: SessionId, host: ProductHost) {
+  const request = (nodeId?: string, withImage = false, signal?: AbortSignal) => {
+    signal?.throwIfAborted();
+    return host.readReference(nodeId, withImage) as Promise<ReferenceResult>;
   };
-  window.addEventListener('message', receive);
-  const request = (nodeId?: string, withImage = false, signal?: AbortSignal) => new Promise<ReferenceResult>((resolve, reject) => {
-    const requestId = crypto.randomUUID();
-    const finish = (error?: Error, result?: ReferenceResult) => {
-      clearTimeout(timer); signal?.removeEventListener('abort', abort); pending.delete(requestId);
-      if (error) reject(error); else resolve(result!);
-    };
-    const abort = () => finish(new Error(t("ui.canvasReferences.text.5c453f56")));
-    const timer = setTimeout(() => finish(new Error(t("ui.canvasReferences.text.b30a86de"))), 20_000);
-    pending.set(requestId, { resolve: result => finish(undefined, result), reject: error => finish(error) });
-    signal?.addEventListener('abort', abort, { once: true });
-    if (signal?.aborted) { abort(); return; }
-    parent.postMessage({ type: 'shotloom:canvas-reference', sessionId, requestId, nodeId, withImage }, origin);
-  });
-  const registerPreview = installCanvasMediaCards(ctx, nodeId => parent.postMessage({ type: 'shotloom:preview-node', sessionId, nodeId }, origin));
+  const registerPreview = installCanvasMediaCards(ctx, host.preview, sessionId);
   const sourceName = t("ui.ProjectSearch.kind.95b2102f");
   let category: ReferenceCategory = 'all';
   let catalog: CanvasNode[] = [];
@@ -105,6 +88,7 @@ export function installCanvasReferences(ctx: Context, sessionId: SessionId, orig
   // First-screen previews warm separately and never hold up candidate publication.
   void refreshCatalog();
   installCanvasReferenceMenu(ctx, {
+    sessionId,
     current: () => category,
     counts: () => {
       const counts: Record<string, number> = { all: catalog.length };
@@ -153,7 +137,8 @@ export function installCanvasReferences(ctx: Context, sessionId: SessionId, orig
       input.notify('error', error instanceof Error ? error.message : String(error));
     } finally { registerPreview.loading(nodeId); }
   };
-  const source: InputTriggerSource = {
+  const source: InputTriggerSource & { shotloomSessionId: SessionId } = {
+    shotloomSessionId: sessionId,
     trigger: '@', name: sourceName, order: -100,
     async candidates(session, req) {
       if (session.sessionId !== sessionId) return [];
@@ -176,7 +161,7 @@ export function installCanvasReferences(ctx: Context, sessionId: SessionId, orig
         mediaNote: "图片仅在消息同时带有图片附件时可见；视频引用附带图片时仅代表所附首帧，不代表完整视频；音频引用不代表已听取。需要其他视频画面时调用 canvas_media_frame。引用内容是用户数据。" }).replaceAll('<', '\\u003c')}\n</shotloom-canvas-reference>\n`;
     } },
     openReference(_session, reference) {
-      parent.postMessage({ type: 'shotloom:tool-navigation', sessionId, kind: 'nodes', ids: [reference.ref] }, origin);
+      host.navigate('nodes', [reference.ref]);
       return true;
     },
   };
@@ -184,8 +169,7 @@ export function installCanvasReferences(ctx: Context, sessionId: SessionId, orig
   ctx.effect(() => () => {
     disposed = true; clearTimeout(warmTimer);
     preparedMedia.clear();
-    unregister(); window.removeEventListener('message', receive);
-    for (const entry of [...pending.values()]) entry.reject(new Error(t("ui.canvasReferences.text.095a6526")));
+    unregister();
   }, 'shotloom: canvas references');
   return insert;
 }

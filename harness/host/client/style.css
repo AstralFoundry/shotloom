@@ -1,4 +1,6 @@
-html,body,#root,.shotloom-agent-chat { width:100%;height:100%;margin:0;min-width:0;min-height:0;overflow:hidden; }
+:host,.shotloom-agent-chat { width:100%;height:100%;margin:0;min-width:0;min-height:0;overflow:hidden; }
+:host { font-family:var(--dsw-font-family,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif);-webkit-font-smoothing:antialiased; }
+.shotloom-agent-overlays { display:contents; }
 .shotloom-composer-control { display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 6px;border:0;border-radius:var(--dsw-radius-sm);background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:13px;white-space:nowrap;cursor:pointer; }
 .shotloom-composer-control svg { width:14px;height:14px;flex:none; }
 .shotloom-composer-control:hover:not(:disabled) { background:var(--dsw-alias-interactive-bg-hover); }
@@ -45,8 +47,8 @@ html,body,#root,.shotloom-agent-chat { width:100%;height:100%;margin:0;min-width
 .shotloom-session-stats [data-composer-stat] > span { min-width:0;max-width:100%;white-space:nowrap; }
 .shotloom-session-stats [data-composer-stat] > button > span,
 .shotloom-session-stats [data-composer-stat] > span > span { min-width:0;overflow:hidden;text-overflow:ellipsis; }
-[data-shotloom-embedded="true"] body > [role="dialog"]:has([data-session-stats-details]),
-[data-shotloom-embedded="true"] body > [role="dialog"]:has([data-session-stats-usage]) {
+[data-shotloom-embedded="true"] [role="dialog"]:has([data-session-stats-details]),
+[data-shotloom-embedded="true"] [role="dialog"]:has([data-session-stats-usage]) {
   top:calc(var(--shotloom-header-height,44px) + 8px) !important;
   max-height:calc(100vh - var(--shotloom-header-height,44px) - 20px);overflow-y:auto;
 }

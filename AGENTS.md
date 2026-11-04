@@ -61,4 +61,4 @@ Shotloom 的 Agent 以模型为决策主体。不要在应用代码中用关键�
 
 ## 官方 Harness 客户端隔离
 
-`harness/host/client/` 使用官方 Harness 自有的状态、投影与 React 依赖，只在独立 iframe 文档内运行。它不接管 Shotloom 领域状态，不导入 renderer/store，不将官方状态引擎扩散到产品模块。产品只通过受认证的 Host、Tool Bridge 和来源校验的工作台导航消息与其协作；renderer 内仍严格遵守以上两类状态引擎约定。
+`harness/host/client/` 直接复用官方 Harness 的 UI、状态、投影与 React 依赖，以 App 级单例运行时在 Shotloom 页面内挂载，使用 ShadowRoot 隔离样式，不使用 iframe。它不接管 Shotloom 领域状态，不导入 renderer/store，不将官方状态引擎扩散到产品模块。桌面客户端通过原生 IPC 与父进程私有管道连接 Host，不使用 Cookie 登录或浏览器认证跳转；原生调用边界、项目绑定、Tool Bridge 和工具权限校验继续生效。切换项目只切换会话，工具、Skill、模型配置内容未变时不得重复复制或挂载。产品导航和画布引用通过显式适配接口协作；renderer 内仍严格遵守以上两类状态引擎约定。

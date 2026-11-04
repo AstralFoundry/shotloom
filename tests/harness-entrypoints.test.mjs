@@ -10,7 +10,7 @@ test('Shotloom pins the official Harness loop and chat entry points together', a
   assert.equal(manifest.dependencies['@deepseek-ai/dsh-client-ui-chat'], manifest.dependencies['@deepseek-ai/dsh-agent-loop']);
 });
 
-test('embedded chat initializes translations and document language from the host URL, independent of iframe storage', async () => {
+test('embedded chat uses the product locale without changing the containing document', async () => {
   const { build } = await import('esbuild');
   const { fileURLToPath } = await import('node:url');
   const result = await build({
@@ -18,19 +18,18 @@ test('embedded chat initializes translations and document language from the host
     bundle: true, write: false, format: 'esm', platform: 'browser', target: 'es2023',
   });
   const moduleUrl = `data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString('base64')}`;
-  const descriptors = Object.fromEntries(['document', 'location', 'localStorage'].map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
+  const descriptors = Object.fromEntries(['document', 'localStorage'].map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
   try {
     for (const [index, input] of ['en-US', 'zh-CN', 'unknown', null].entries()) {
       const expected = input === 'en-US' ? 'en-US' : 'zh-CN';
       const rootElement = { lang: 'uninitialized' };
       Object.defineProperties(globalThis, {
         document: { configurable: true, value: { documentElement: rootElement } },
-        location: { configurable: true, value: { hash: input === null ? '#sessionId=bound' : `#sessionId=bound&shotloomLocale=${input}` } },
-        localStorage: { configurable: true, value: { getItem: () => expected === 'en-US' ? 'zh-CN' : 'en-US' } },
+        localStorage: { configurable: true, value: { getItem: key => key === 'shotloom:locale' ? input : null } },
       });
       const client = await import(`${moduleUrl}#case-${index}`);
       assert.equal(client.locale, expected);
-      assert.equal(rootElement.lang, expected);
+      assert.equal(rootElement.lang, 'uninitialized');
       assert.equal(client.t('agent.client.connectionNotReady'), expected === 'en-US'
         ? 'The Agent connection is not ready. Please retry.' : 'Agent 连接未就绪，请重试');
     }

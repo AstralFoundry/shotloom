@@ -24,6 +24,28 @@ export async function startWebHost(host: Awaited<ReturnType<typeof createHost>>,
   port?: number;
   defaultModel?: { provider: string; model: string };
 }) {
+  await startClientServices(host, options);
+  const { ctx } = host;
+  await ctx.plugin(WebServer, { host: '127.0.0.1', port: options.port ?? 0 });
+  const frontendRoot = dirname(options.distIndex);
+  const graph = JSON.parse(await readFile(join(frontendRoot, 'boot.json'), 'utf8')) as {
+    entries: { id: string; rev: string }[];
+  };
+  const bundles = new Map(graph.entries.map(row => [`/plugins/??${row.id}/client.js&rev=${row.rev}`, join(frontendRoot, 'plugins', row.id, 'client.js')]));
+  ctx.webServer.register({ kind: 'prefix', path: '/plugins', handler: async (req, res) => {
+    const file = bundles.get(req.url ?? '');
+    if (!file || (req.method !== 'GET' && req.method !== 'HEAD')) { res.writeHead(404); res.end(); return; }
+    res.writeHead(200, { 'content-type': 'text/javascript; charset=utf-8' });
+    res.end(req.method === 'HEAD' ? undefined : await readFile(file));
+  } });
+  await ctx.plugin(Frontend, { distIndex: options.distIndex });
+  return { url: ctx.connection.authenticatedUrl(`http://127.0.0.1:${ctx.webServer.port}/`) };
+}
+
+/** Carrier-independent official services shared by native IPC and browser tests. */
+export async function startClientServices(host: Awaited<ReturnType<typeof createHost>>, options: {
+  dataRoot: string; defaultModel?: { provider: string; model: string };
+}) {
   const { ctx } = host;
   await ctx.plugin(Registry);
   for (const pkg of [
@@ -46,18 +68,4 @@ export async function startWebHost(host: Awaited<ReturnType<typeof createHost>>,
   await ctx.plugin(SettingsController);
   await ctx.plugin(Gateway);
   await ctx.plugin(Remotes);
-  await ctx.plugin(WebServer, { host: '127.0.0.1', port: options.port ?? 0 });
-  const frontendRoot = dirname(options.distIndex);
-  const graph = JSON.parse(await readFile(join(frontendRoot, 'boot.json'), 'utf8')) as {
-    entries: { id: string; rev: string }[];
-  };
-  const bundles = new Map(graph.entries.map(row => [`/plugins/??${row.id}/client.js&rev=${row.rev}`, join(frontendRoot, 'plugins', row.id, 'client.js')]));
-  ctx.webServer.register({ kind: 'prefix', path: '/plugins', handler: async (req, res) => {
-    const file = bundles.get(req.url ?? '');
-    if (!file || (req.method !== 'GET' && req.method !== 'HEAD')) { res.writeHead(404); res.end(); return; }
-    res.writeHead(200, { 'content-type': 'text/javascript; charset=utf-8' });
-    res.end(req.method === 'HEAD' ? undefined : await readFile(file));
-  } });
-  await ctx.plugin(Frontend, { distIndex: options.distIndex });
-  return { url: ctx.connection.authenticatedUrl(`http://127.0.0.1:${ctx.webServer.port}/`) };
 }

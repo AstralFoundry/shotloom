@@ -9,6 +9,7 @@ import { productToolCatalog, bindProductSession, registerEditorSessionBinder, ex
 import { canvasHarnessSession, editorHarnessSession, textHarnessSession } from '../../services/harnessSessionStore';
 import { getAgentProjectIdentity, assertAgentProject } from '../../services/agentProjectIdentity';
 import { store, touchProject } from '../../store/projectStore';
+import { initializeHarnessClient } from './harnessClient';
 
 // This integration owns native Harness calls, which bypass desktopApi's IPC boundary.
 async function invoke<T>(command: string, args?: InvokeArgs): Promise<T> {
@@ -59,13 +60,14 @@ export function startHarnessIntegration(): Promise<void> {
       }
     });
     bridgeListening = true;
-    let status = await invoke<{ running: boolean; url?: string; error?: string }>('start_harness_runtime', { options: {} });
+    let status = await invoke<{ running: boolean; ready: boolean; error?: string }>('start_harness_runtime', { options: {} });
     const deadline = Date.now() + 30_000;
-    while (!status.url) {
+    while (!status.ready) {
       if (!status.running || Date.now() >= deadline) throw new Error(localizeNativeError(status.error) ?? status.error ?? t('agent.hostNotReady'));
       await new Promise(resolve => setTimeout(resolve, 100));
       status = await invoke('harness_runtime_status');
     }
+    await initializeHarnessClient();
   })().catch(error => { startup = undefined; throw error; });
   return startup;
 }
@@ -77,7 +79,7 @@ export async function openHarnessPanel(role: ProductBinding['agentId'], nodeId?:
   const conversation = selected ?? (role === CANVAS_AGENT_ID ? canvasHarnessSession(store.project)
     : role === EDITOR_AGENT_ID ? editorHarnessSession(store.project, nodeId!) : textHarnessSession(store.project, nodeId!));
   const binding = { projectKey: identity.projectKey, conversationId: conversation.id!, agentId: role, ...(nodeId ? { nodeId } : {}) };
-  const result = await invoke<{ sessionId: string; url: string }>('harness_bind_session', { config: {
+  const result = await invoke<{ sessionId: string; tools: string[]; toolTitles: Record<string, string> }>('harness_bind_session', { config: {
     binding, tools: productToolCatalog(binding), skills: availableAgentSkills(role).map(skill => ({ id: skill.id, description: skill.description, instructions: skill.instructions || '', metadata: skill.metadata, builtIn: skill.builtIn === true })),
     ...harnessModelConfig(),
     ...(conversation.harnessSessionId ? { sessionId: conversation.harnessSessionId } : {}),

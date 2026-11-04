@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "tsc -p tsconfig.json && tsc -p client/tsconfig.json && node scripts/build-client.mjs",
+    "build": "tsc -p tsconfig.json && node scripts/build-client.mjs && tsc -p client/tsconfig.json",
     "test": "node --test test/*.test.mjs"
   },
   "engines": {

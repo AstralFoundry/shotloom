@@ -758,11 +758,11 @@ export function createTauriApi(browserFallback: BrowserFallback): BrowserFallbac
       loadStagedPayload: (snapshotId: string) => command('clipboard:load-staged-payload', snapshotId),
     },
     harness: {
-      status: () => commandJson<{ running: boolean; url?: string | null; error?: string | null }>('harness:runtime-status'),
-      start: (options: { sourceRoot?: string; dataRoot?: string } = {}) => commandJson<{ running: boolean; url?: string | null; error?: string | null }>('harness:start-runtime', options),
-      stop: () => commandJson<{ running: boolean; url?: string | null; error?: string | null }>('harness:stop-runtime'),
-      restart: (options: { sourceRoot?: string; dataRoot?: string } = {}) => commandJson<{ running: boolean; url?: string | null; error?: string | null }>('harness:restart-runtime', options),
-      onReady: (callback: (url: string) => void) => subscribe<string>((handler) => listen<string>('harness://ready', (event) => handler(event.payload)), callback),
+      status: () => commandJson<{ running: boolean; ready: boolean; error?: string | null }>('harness:runtime-status'),
+      start: (options: { sourceRoot?: string; dataRoot?: string } = {}) => commandJson<{ running: boolean; ready: boolean; error?: string | null }>('harness:start-runtime', options),
+      stop: () => commandJson<{ running: boolean; ready: boolean; error?: string | null }>('harness:stop-runtime'),
+      restart: (options: { sourceRoot?: string; dataRoot?: string } = {}) => commandJson<{ running: boolean; ready: boolean; error?: string | null }>('harness:restart-runtime', options),
+      onReady: (callback: () => void) => subscribe<void>((handler) => listen<void>('harness://ready', () => handler()), callback),
     },
     window: {
       minimize: () => currentWindow.minimize(),

@@ -1,12 +1,13 @@
 import { t } from './i18n';
-import { useEffect, useState, type ComponentType } from 'react';
+import { useContext, useEffect, useState, type ComponentType } from 'react';
+import { ProductContext } from './nativeBridge';
 import type { Context } from '@deepseek-ai/cordis';
 import type { ComposerAttachmentsProps } from '@deepseek-ai/dsh-client-ui-conversation/client';
 
 export interface CanvasMediaPreview { nodeId: string; label: string; mediaType: string; duration?: number; thumbnail: string }
 
 /** Presentation metadata only; the official Conversation owns files and ids. */
-export function installCanvasMediaCards(ctx: Context, openPreview: (nodeId: string) => void) {
+export function installCanvasMediaCards(ctx: Context, openPreview: (nodeId: string) => void, sessionId: string) {
   const previews = new Map<string, CanvasMediaPreview>();
   const loading = new Map<string, string>();
   const listeners = new Set<() => void>();
@@ -16,6 +17,7 @@ export function installCanvasMediaCards(ctx: Context, openPreview: (nodeId: stri
   function MediaAttachments(props: ComposerAttachmentsProps) {
     const [, refresh] = useState(0);
     useEffect(() => { const update = () => refresh(value => value + 1); listeners.add(update); return () => { listeners.delete(update); }; }, []);
+    if (useContext(ProductContext).sessionId !== sessionId) return <Official {...props} />;
     const selected = props.attachments.filter(item => previews.has(item.id));
     const styles = selected.filter(item => selected.filter(other => previews.get(other.id)!.label === previews.get(item.id)!.label).length === 1).map(item => {
       const meta = previews.get(item.id)!;
@@ -41,7 +43,7 @@ export function installCanvasMediaCards(ctx: Context, openPreview: (nodeId: stri
       <Official {...props} attachments={props.attachments.filter(item => !previews.has(item.id))} />
     </>;
   }
-  ctx.slots.register({ name: 'conversation.input.attachments', priority: -100, locale: entry.locale, inject: entry.inject, store: entry.store } as never, MediaAttachments as never);
+  ctx.slots.register({ name: 'conversation.input.attachments', priority: (entry.options.priority ?? 0) - 1, locale: entry.locale, inject: entry.inject, store: entry.store } as never, MediaAttachments as never);
   ctx.effect(() => () => { previews.clear(); loading.clear(); listeners.clear(); }, 'shotloom: media presentation');
   return Object.assign((id: string, preview: CanvasMediaPreview) => {
     previews.set(id, preview);

@@ -40,5 +40,5 @@ pub use video_concat::*;
 pub use video_export::*;
 pub use video_frame::*;
 
-mod harness_session;
+pub(super) mod harness_session;
 pub use harness_session::*;

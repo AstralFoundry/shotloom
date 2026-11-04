@@ -15,9 +15,10 @@ use super::harness_bridge::{bridge_env, start_harness_bridge, HarnessBridgeState
 #[derive(Default, Clone)]
 pub struct HarnessRuntimeState {
     startup: Arc<tokio::sync::Mutex<()>>,
-    child: Arc<Mutex<Option<Child>>>,
-    pub(super) url: Arc<Mutex<Option<String>>>,
+    pub(super) child: Arc<Mutex<Option<Child>>>,
+    pub(super) ready: Arc<Mutex<bool>>,
     last_error: Arc<Mutex<Option<String>>>,
+    pub(super) replies: Arc<Mutex<std::collections::HashMap<String, super::harness_session::NativeReply>>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -31,7 +32,7 @@ pub struct HarnessRuntimeOptions {
 #[serde(rename_all = "camelCase")]
 pub struct HarnessRuntimeStatus {
     pub running: bool,
-    pub url: Option<String>,
+    pub ready: bool,
     pub error: Option<String>,
 }
 
@@ -51,11 +52,11 @@ fn status_inner(state: &HarnessRuntimeState) -> HarnessRuntimeStatus {
     };
     if !running {
         child.take();
-        *state.url.lock().unwrap_or_else(|error| error.into_inner()) = None;
+        *state.ready.lock().unwrap_or_else(|error| error.into_inner()) = false;
     }
     HarnessRuntimeStatus {
         running,
-        url: state.url.lock().unwrap_or_else(|error| error.into_inner()).clone(),
+        ready: *state.ready.lock().unwrap_or_else(|error| error.into_inner()),
         error: state.last_error.lock().unwrap_or_else(|error| error.into_inner()).clone(),
     }
 }
@@ -75,26 +76,6 @@ pub async fn start_harness_runtime(
     let _startup = state.startup.lock().await;
     if status_inner(&state).running {
         return Ok(status_inner(&state));
-    }
-    // No Host from this runtime is alive, so its old browser credentials are
-    // obsolete. Remove only Harness cookies in this app's loopback store.
-    // Cookie APIs must run off the event thread (WebView2 otherwise deadlocks).
-    if let Some(window) = app.get_webview_window("main") {
-        let cleanup = tauri::async_runtime::spawn_blocking(move || -> Result<(), String> {
-            // WKWebView's URL-filtered API compares Url::domain(), which is
-            // absent for IP literals. Filter the full store by exact host.
-            for cookie in window.cookies().map_err(|error| error.to_string())? {
-                if cookie.domain() == Some("127.0.0.1") && cookie.name().starts_with("dsh-auth-") {
-                    window.delete_cookie(cookie).map_err(|error| error.to_string())?;
-                }
-            }
-            Ok(())
-        }).await;
-        match cleanup {
-            Ok(Ok(())) => {}
-            Ok(Err(error)) => eprintln!("Harness cookie cleanup failed: {error}"),
-            Err(error) => eprintln!("Harness cookie cleanup task failed: {error}"),
-        }
     }
     let root = host_root(&app, &options)?;
     if !root.join("dist/main.js").exists() {
@@ -118,9 +99,6 @@ pub async fn start_harness_runtime(
     let mut command = Command::new(executable);
     command
         .current_dir(&root)
-        // Host authentication uses port-scoped cookies on a shared loopback
-        // hostname. Match the Vite limit after repeated development restarts.
-        .arg("--max-http-header-size=65536")
         .arg(root.join("dist/main.js"))
         .env("SHOTLOOM_DATA_ROOT", &data_root)
         .env("SHOTLOOM_BRIDGE_URL", format!("http://127.0.0.1:{bridge_port}"))
@@ -137,7 +115,7 @@ pub async fn start_harness_runtime(
         let mut slot = state.child.lock().unwrap_or_else(|error| error.into_inner());
         *slot = Some(child);
     }
-    *state.url.lock().unwrap_or_else(|error| error.into_inner()) = None;
+    *state.ready.lock().unwrap_or_else(|error| error.into_inner()) = false;
     *state.last_error.lock().unwrap_or_else(|error| error.into_inner()) = None;
 
     if let Some(stdout) = stdout {
@@ -145,9 +123,13 @@ pub async fn start_harness_runtime(
         let state_handle = state.inner().clone();
         thread::spawn(move || {
             for line in BufReader::new(stdout).lines().map_while(Result::ok) {
-                if let Some(url) = line.strip_prefix("shotloom host: ") {
-                    *state_handle.url.lock().unwrap_or_else(|error| error.into_inner()) = Some(url.to_string());
-                    let _ = app_handle.emit("harness://ready", url.to_string());
+                if let Some(payload) = line.strip_prefix("shotloom transport: ") {
+                    super::harness_session::deliver_native(&state_handle, payload);
+                    continue;
+                }
+                if line == "shotloom host: native" {
+                    *state_handle.ready.lock().unwrap_or_else(|error| error.into_inner()) = true;
+                    let _ = app_handle.emit("harness://ready", ());
                 }
                 let _ = app_handle.emit("harness://stdout", line);
             }
@@ -175,7 +157,8 @@ pub fn shutdown_harness_runtime(state: &HarnessRuntimeState) {
         if child.try_wait().ok().flatten().is_none() { let _ = child.kill(); }
         let _ = child.wait();
     }
-    *state.url.lock().unwrap_or_else(|error| error.into_inner()) = None;
+    *state.ready.lock().unwrap_or_else(|error| error.into_inner()) = false;
+    state.replies.lock().unwrap_or_else(|error| error.into_inner()).clear();
 }
 
 #[tauri::command]

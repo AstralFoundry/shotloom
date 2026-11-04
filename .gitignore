@@ -24,3 +24,6 @@ src-tauri/resources/agent-host/
 # 本地调试产物：日志、截图与验证输出
 /output/
 *.tsbuildinfo
+
+# Generated same-document official Harness client
+renderer/public/harness/

@@ -95,7 +95,8 @@ jobs:
             echo "enabled=true" >> "$GITHUB_OUTPUT"
           else
             echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::Publishing unsigned and unnotarized macOS artifacts; missing Apple credentials: ${missing[*]}"
+            echo "APPLE_SIGNING_IDENTITY=-" >> "$GITHUB_ENV"
+            echo "::warning::Publishing ad-hoc signed, unnotarized macOS artifacts; missing Apple credentials: ${missing[*]}"
           fi
 
       - name: Import Apple Developer ID certificate
@@ -149,6 +150,13 @@ jobs:
           args: --target ${{ matrix.target }} --bundles ${{ matrix.bundles }} -- --locked
           uploadUpdaterJson: false
           uploadUpdaterSignatures: false
+
+      - name: Verify macOS application signature
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          app="src-tauri/target/${{ matrix.target }}/release/bundle/macos/Shotloom.app"
+          codesign --verify --deep --strict --verbose=2 "$app"
 
       - name: Smoke test the packaged Agent runtime
         run: npm run harness:verify-package
