@@ -96,6 +96,15 @@ const buildOptions = {
   loader: { '.txt': 'text', '.woff2': 'file', '.woff': 'file', '.ttf': 'file' },
   define: { 'process.env.NODE_ENV': '"production"', 'process.versions.node': '"0.0.0"', 'process.execArgv': '[]', 'process.env.CORDIS_SHARED': 'undefined' },
   plugins: [{ name: 'official-css-modules', setup(builder) {
+    // The native client supplies static plugin configurations. The loader's
+    // unused YAML !!js evaluator otherwise runs new Function at import time,
+    // which violates the product CSP before the official UI can initialize.
+    builder.onLoad({ filter: /@deepseek-ai\/cordis-plugin-loader\/lib\/index\.js$/ }, async args => {
+      const source = await readFile(args.path, 'utf8');
+      const evaluator = /const evaluate = new Function\("ctx", "expr", `[^`]*`\);/g;
+      if ([...source.matchAll(evaluator)].length !== 1) throw new Error('Official loader expression seam changed; review CSP compatibility');
+      return { contents: source.replace(evaluator, 'const evaluate = () => { throw new Error("Dynamic YAML expressions are unavailable in the native Harness client; use static plugin configuration"); };'), loader: 'js' };
+    });
     // Same browser seam used by the official Web carrier; Node loading is unreachable.
     builder.onResolve({ filter: /\.css\?inline$/ }, args => ({ path: resolve(dirname(args.importer), args.path.replace('?inline', '')), namespace: 'inline-css' }));
     builder.onLoad({ filter: /.*/, namespace: 'inline-css' }, async args => ({ contents: `export default ${JSON.stringify(await readFile(args.path, 'utf8'))}`, loader: 'js' }));
