@@ -70,6 +70,24 @@ for (const [id] of entries) {
   const relative = `plugins/${id}/native.js`;
   let source = await readFile(join(dist, 'plugins', id, 'client.js'), 'utf8');
   if (id === '@deepseek-ai/dsh-client-ui-model-selection') {
+    // The composer and its body-portaled menu live in separate ShadowRoots.
+    // React receives the other shadow host as relatedTarget when the official
+    // picker focuses a drilled pane. During focusout the new shadow's
+    // activeElement is still null; wait for the focus transfer to finish, then
+    // read the scoped document's actual focused element before dismissing.
+    const focusBoundary = `const onBlur = (event) => {
+\t\t\t\tif (event.relatedTarget instanceof Node && (rootRef.current?.contains(event.relatedTarget) === true || menuRef.current?.contains(event.relatedTarget) === true)) return;
+\t\t\t\tclose();
+\t\t\t};`;
+    if (source.split(focusBoundary).length !== 2) throw new Error('Official model picker focus seam changed; review cross-surface focus handling');
+    source = source.replace(focusBoundary, `const onBlur = (event) => {
+      if (event.relatedTarget instanceof Node && (rootRef.current?.contains(event.relatedTarget) === true || menuRef.current?.contains(event.relatedTarget) === true)) return;
+      queueMicrotask(() => {
+        const target = document.activeElement;
+        if (target instanceof Node && (rootRef.current?.contains(target) === true || menuRef.current?.contains(target) === true)) return;
+        close();
+      });
+    };`);
     // The official controller has a deployment default even when the native
     // product has no configured providers. Keep its picker, but never advertise
     // that unroutable fallback as the user's selected model.
