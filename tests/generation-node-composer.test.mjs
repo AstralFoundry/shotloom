@@ -109,7 +109,6 @@ test('生成参数收纳到分组面板且发送按钮保持在底栏', () => {
   assert.match(source, /<p>生成方式<\/p>/);
   assert.match(source, /generation-settings-options/);
   assert.match(source, /paramPresentation\(param\)\.control !== "hidden"/);
-  assert.match(source, /hasExplicitPresentation \? explicitSummaryParams : params\.slice\(0, 4\)/);
   assert.match(source, /control === "slider"/);
   assert.match(source, /control === "select"/);
   assert.match(source, /className="generation-settings-group-title"/);

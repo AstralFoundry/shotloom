@@ -1,18 +1,12 @@
 import { t } from '@/i18n';
 import {
-  type ChangeEvent,
-  type ReactNode,
   useEffect,
-  useMemo,
   useRef,
   useState,
 } from "react";
 import { type IconName, IconSymbol } from "../components/IconSymbol";
 import { ProviderBrandIcon } from "../components/ProviderBrandIcon";
 import type { ProviderModelRow } from "../../domain/provider/ModelAvailability";
-import { skillAgentLabels } from "../../agent/core/skillAssignments";
-import { skillDisplayDescription, skillDisplayCategory } from "../../services/builtInSkills";
-import { sortEnabledFirst } from "../../services/catalogOrder";
 
 export interface SettingsModel {
   id: string;
@@ -34,18 +28,6 @@ export interface ProviderConfigPatch {
   apiKey?: string;
   baseUrl?: string;
 }
-export interface CatalogItem {
-  id: string;
-  name: string;
-  description?: string;
-  enabled?: boolean;
-  builtIn?: boolean;
-  version?: number;
-  category?: string;
-  tags?: string[];
-  type?: string;
-  agentIds?: string[];
-}
 export interface SettingsData {
   locale?: string;
   projectRootDir: string;
@@ -56,7 +38,6 @@ export interface SettingsData {
   availableModels: Record<string, SettingsModel[]>;
   agentToggles: Record<string, boolean | string>;
   providers: ProviderItem[];
-  skills: CatalogItem[];
   shortcutLabels: Record<string, string>;
 }
 export interface SettingsController {
@@ -74,23 +55,9 @@ export interface SettingsController {
     id: string,
     patch: ProviderConfigPatch,
   ) => void | Promise<void>;
-  createSkill: () => void;
-  editSkill: (id: string) => void;
-  deleteSkill: (id: string) => void | Promise<void>;
-  resetSkill: (id: string) => void | Promise<void>;
-  toggleSkill: (id: string) => void | Promise<void>;
-
-  importCatalog: (
-    kind: "skills",
-    files: File[],
-  ) => void | Promise<void>;
-  exportCatalog: (
-    kind: "skills",
-    ids: string[],
-  ) => void | Promise<void>;
 }
 
-type Tab = "general" | "canvas" | "providers" | "agent" | "skills";
+type Tab = "general" | "canvas" | "providers" | "agent";
 const groups: Array<
   {
     label: string;
@@ -125,15 +92,6 @@ const groups: Array<
       label: "Agent",
       icon: "spark",
       description: t("ui.SettingsPanel.description.9583bbd0"),
-    }],
-  },
-  {
-    label: t("ui.SettingsPanel.label.9188dd51"),
-    items: [{
-      id: "skills",
-      label: t("ui.SettingsPanel.label.53da139b"),
-      icon: "box",
-      description: t("ui.SettingsPanel.description.c3ec75a7"),
     }],
   },
 ];
@@ -364,152 +322,18 @@ function ProviderCard(
 }
 
 export function SettingsPanel(
-  { data, controller, overlays }: {
+  { data, controller }: {
     data: SettingsData;
     controller: SettingsController;
-    overlays?: ReactNode;
   },
 ) {
   const [tab, setTab] = useState<Tab>("general");
-  const [query, setQuery] = useState("");
-  const [selected, setSelected] = useState<Set<string>>(new Set());
   const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null);
   const selectedProvider = data.providers.find((item) => item.id === selectedProviderId);
   const contentScroll = useRef<HTMLDivElement>(null);
-  const importInput = useRef<HTMLInputElement>(null);
   const meta = groups.flatMap((group) => group.items).find((item) =>
     item.id === tab
   )!;
-  const catalog = data.skills;
-  const filtered = useMemo(() => {
-    const items = catalog.filter((item) =>
-      !query.trim() ||
-      [
-        item.id,
-        item.name,
-        item.description,
-        skillDisplayDescription(item),
-        item.category,
-        skillDisplayCategory(item),
-        ...(item.tags || []),
-      ].join(" ").toLowerCase().includes(query.trim().toLowerCase())
-    );
-    return sortEnabledFirst(items);
-  }, [catalog, query, tab]);
-  function toggleSelection(id: string) {
-    setSelected((items) => {
-      const next = new Set(items);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
-  }
-  function importFiles(event: ChangeEvent<HTMLInputElement>) {
-    const files = [...(event.target.files || [])];
-    event.target.value = "";
-    if (files.length && tab === "skills") {
-      void controller.importCatalog("skills", files);
-    }
-  }
-  const catalogView = () => (
-    <section className="settings-section settings-list-section">
-      <div className="settings-catalog-intro">
-        <IconSymbol name="puzzle" />
-        <div>
-          <strong>{t("ui.SettingsPanel.text.6a802e97")}</strong>
-          <p>{t("ui.SettingsPanel.text.0d36078e")}</p>
-        </div>
-        <span>{t("ui.SettingsPanel.text.fc80254b")}</span>
-      </div>
-      <label className="settings-search">
-        <IconSymbol name="search" />
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          type="search"
-          placeholder={t("ui.SettingsPanel.placeholder.15dfafe9")}
-        />
-      </label>
-      <div className="settings-list-summary">
-        <label className="settings-select-all">
-          <input
-            type="checkbox"
-            checked={filtered.length > 0 &&
-              filtered.every((item) => selected.has(item.id))}
-            onChange={() =>
-              setSelected(
-                filtered.every((item) => selected.has(item.id))
-                  ? new Set()
-                  : new Set(filtered.map((item) => item.id)),
-              )}
-          />
-          <span>{t("ui.SettingsPanel.text.3e44b2a9")}</span>
-        </label>
-        <span>
-          {t(filtered.length === 1 ? 'skill.summary.one' : 'skill.summary.other', {
-            count: filtered.length, enabled: filtered.filter((item) => item.enabled !== false).length,
-          })}</span>
-      </div>
-      {filtered.map((item) => (
-        <div
-          key={item.id}
-          className={`settings-skill-row${
-            item.enabled === false ? " disabled" : ""
-          }`}
-        >
-          <input
-            className="settings-list-select"
-            type="checkbox"
-            checked={selected.has(item.id)}
-            aria-label={t("ui.SettingsPanel.text.6cf2f565", { value0: item.name })}
-            onChange={() => toggleSelection(item.id)}
-          />
-          <div>
-            <div className="settings-skill-name">
-              <strong>{item.name}</strong>
-              {item.builtIn && <span>{t("ui.SettingsPanel.text.09ceea76")}</span>}
-              <span>v{item.version || 1}</span>
-              {item.category && <span>{skillDisplayCategory(item)}</span>}
-            </div>
-            <div className="settings-skill-agents" aria-label={t("ui.SettingsPanel.arialabel.f3249e29")}>
-              {skillAgentLabels(item.id, item.agentIds).map((agent) => (
-                <span key={agent}>{agent}</span>
-              ))}
-              {!skillAgentLabels(item.id, item.agentIds).length && <span>{t("ui.SettingsPanel.text.1700cbab")}</span>}
-            </div>
-            <p>{skillDisplayDescription(item) || t("ui.SettingsPanel.text.6dd28f40")}</p>
-            <small>{item.id}</small>
-          </div>
-          <input
-            className="settings-enable-toggle"
-            type="checkbox"
-            checked={item.enabled !== false}
-            aria-label={t("ui.promptReferenceEditor.text.dca59cc0", { value0: item.enabled === false ? t("ui.SettingsPanel.text.d4e9ca3d") : t("ui.SettingsPanel.text.d989e551"), value1: item.name })}
-            onChange={() =>
-              void controller.toggleSkill(item.id)}
-          />
-          <button
-            className="icon-action"
-            title={t("ui.SettingsPanel.title.a7f814c0")}
-            onClick={() =>
-              controller.editSkill(item.id)}
-          >
-            <IconSymbol name="pencil" />
-          </button>
-          <button
-            className={`icon-action${item.builtIn ? "" : " danger"}`}
-            title={item.builtIn ? t("ui.CameraControlPanel.text.a191935b") : t("ui.MaterialGrid.title.3755f56f")}
-            onClick={() =>
-              void (item.builtIn
-                ? controller.resetSkill(item.id)
-                : controller.deleteSkill(item.id))}
-          >
-            <IconSymbol name={item.builtIn ? "refresh" : "trash"} />
-          </button>
-        </div>
-      ))}
-      {!filtered.length && <div className="settings-empty">{t("ui.SettingsPanel.text.51c77281")}</div>}
-    </section>
-  );
 
   return (
     <div className="settings-panel">
@@ -524,15 +348,12 @@ export function SettingsPanel(
                 className={tab === item.id ? "active" : ""}
                 onClick={() => {
                   setTab(item.id);
-                  setQuery("");
-                  setSelected(new Set());
                   setSelectedProviderId(null);
                 }}
               >
                 <IconSymbol name={item.icon} />
                 <span>{item.label}</span>
                 {item.id === "providers" && <em>{data.providers.length}</em>}
-                {item.id === "skills" && <em>{data.skills.length}</em>}
               </button>
             ))}
           </div>
@@ -554,36 +375,6 @@ export function SettingsPanel(
               onClick={() => void controller.resetShortcuts()}
             >
               {t("ui.CameraControlPanel.text.a191935b")}</button>
-          )}
-          {tab === "skills" && (
-            <div className="settings-head-actions">
-              <button
-                className="button ghost compact"
-                onClick={() => importInput.current?.click()}
-              >
-                <IconSymbol name="upload" />{t("ui.CreationView.text.60e2bcad")}</button>
-              <button
-                className="button ghost compact"
-                disabled={!selected.size}
-                onClick={() =>
-                  void controller.exportCatalog("skills", [...selected])}
-              >
-                <IconSymbol name="download" />{t("ui.SettingsPanel.text.b1a497ad")}{selected.size})
-              </button>
-              <button
-                className="button primary compact"
-                onClick={controller.createSkill}
-              >
-                {t("ui.SettingsPanel.text.8918a182")}</button>
-              <input
-                ref={importInput}
-                className="settings-hidden-input"
-                type="file"
-                accept=".json,application/json"
-                multiple
-                onChange={importFiles}
-              />
-            </div>
           )}
         </header>
         <div className="settings-content-scroll" ref={contentScroll}>
@@ -789,10 +580,8 @@ export function SettingsPanel(
               </section>
             </>
           )}
-          {tab === "skills" && catalogView()}
         </div>
       </main>
-      {overlays}
     </div>
   );
 }

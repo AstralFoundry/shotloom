@@ -63,7 +63,10 @@ export async function acquireMediaPreview(input: {
     load: async () => {
       let buffer: ArrayBuffer | undefined;
       let mime = input.mimeType || extensionMime(input.path, input.kind);
-      if (input.kind === "image" && !input.buffered && desktopApi.file.readImagePreview) {
+      // The thumbnail command flattens images to JPEG. Keep GIF frames and loop timing intact.
+      const animatedGif = mime === "image/gif" || extensionMime(input.path, input.kind) === "image/gif";
+      if (animatedGif) mime = "image/gif";
+      if (input.kind === "image" && !animatedGif && !input.buffered && desktopApi.file.readImagePreview) {
         try {
           buffer = await desktopApi.file.readImagePreview(input.path, input.maxSize || 960);
           mime = "image/jpeg";

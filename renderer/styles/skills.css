@@ -1,0 +1,288 @@
+/* 技能库：清单占满内容区，创建与编辑从右侧抽屉覆盖在清单之上，列表仍作为上下文可见。 */
+
+.skills-workspace {
+  min-height: 0;
+  /* 基准必须是 0：否则清单的自然高度会把页头压回 42px，说明文字会被清单盖住。 */
+  flex: 1 1 0;
+  display: flex;
+}
+
+.skills-tools { display: flex; align-items: center; gap: 7px; }
+.skills-tools .button { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.skills-tools .button svg { width: var(--icon-sm); height: var(--icon-sm); }
+.skills-hidden-input { display: none; }
+
+/* 清单直接住在内容区里：内容区已经有一层边框，这里不再套卡片。 */
+.skills-list-pane {
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+}
+
+.skills-list-summary {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 9px 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  background: var(--bg);
+  font-size: var(--text-caption-10);
+}
+.skills-select-all { display: inline-flex; align-items: center; gap: 7px; color: var(--muted); cursor: pointer; }
+.skills-select-all input,
+.skills-row-select { width: var(--icon-sm); height: var(--icon-sm); margin: 0; accent-color: var(--brand); cursor: pointer; }
+
+/* 启用开关沿用设置页 Agent 开关的胶囊形态，行内不需要再解释勾选含义。 */
+.skills-enable-toggle {
+  width: 30px;
+  height: 17px;
+  position: relative;
+  appearance: none;
+  margin: 0;
+  border: 0;
+  border-radius: var(--radius);
+  outline: none;
+  justify-self: end;
+  background: var(--button-subtle-hover);
+  transition: background var(--duration-fast) var(--ease-std);
+  cursor: pointer;
+}
+.skills-enable-toggle::after {
+  content: '';
+  width: 13px;
+  height: 13px;
+  position: absolute;
+  left: 2px;
+  top: 2px;
+  border-radius: 50%;
+  background: var(--surface);
+  box-shadow: var(--drop-shadow-sm);
+  transition: transform var(--duration-fast) var(--ease-std);
+}
+.skills-enable-toggle:checked { background: var(--brand); }
+.skills-enable-toggle:checked::after { transform: translateX(13px); }
+
+.skills-row {
+  padding: 10px 0;
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) 38px 28px;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid var(--line);
+  transition: background var(--duration-fast) var(--ease-std);
+}
+.skills-row:last-of-type { border-bottom: 0; }
+.skills-row:hover { background: var(--wash-hover); }
+.skills-row.active { background: var(--brand-soft); box-shadow: inset 2px 0 var(--brand); }
+.skills-row.disabled .skills-row-main { opacity: .54; }
+.skills-row-select { justify-self: center; }
+
+.skills-row-main {
+  min-width: 0;
+  padding: 0;
+  display: grid;
+  gap: 3px;
+  border: 0;
+  background: transparent;
+  color: var(--type-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.skills-row-name { display: flex; align-items: center; gap: 7px; }
+.skills-row-name strong { color: var(--type-primary); font-size: var(--text-body-12); }
+.skills-row-name span { padding: 1px 5px; border: 1px solid var(--line); border-radius: var(--radius-sm); color: var(--muted); background: var(--bg); font-size: var(--text-caption-10); font-weight: 600; }
+.skills-row-agents { display: flex; flex-wrap: wrap; gap: 4px; }
+.skills-row-agents span { padding: 1px 5px; border: 1px solid var(--line); border-radius: var(--radius-sm); color: var(--good); background: var(--good-wash); font-size: var(--text-caption-10); line-height: 1.3; }
+.skills-row-description { overflow: hidden; color: var(--muted); font-size: var(--text-caption-10); line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
+.skills-row-id { color: var(--faint); font-size: var(--text-caption-10); }
+
+.skills-empty { padding: 26px 0; color: var(--faint); font-size: var(--text-caption-11); text-align: center; }
+
+.icon-action {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+  background: var(--surface);
+  cursor: pointer;
+}
+.icon-action:hover { color: var(--type-primary); background: var(--surface-2); }
+.icon-action.danger:hover { color: var(--bad); background: var(--bad-wash); }
+.icon-action svg { width: var(--icon-sm); height: var(--icon-sm); }
+
+/* 抽屉里的编辑表单：正文随窗口高度滚动，页头页脚保持固定。 */
+.skill-editor-panel {
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+}
+.skill-editor-head {
+  min-height: 56px;
+  flex: 0 0 auto;
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid var(--line);
+}
+.skill-editor-heading { min-width: 0; }
+.skill-editor-head h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--type-primary);
+  font-size: var(--text-title-16);
+  line-height: var(--text-title-16--line-height);
+  font-weight: 600;
+}
+.skill-editor-head h3 em {
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  color: var(--bad);
+  background: var(--bad-wash);
+  font-size: var(--text-caption-10);
+  font-style: normal;
+  font-weight: 600;
+}
+.skill-editor-change-summary { margin: 3px 0 0; color: var(--muted); font-size: var(--text-caption-10); }
+.skill-editor-actions { flex: none; display: flex; align-items: center; gap: 8px; }
+.skill-editor-enabled { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: var(--text-caption-11); cursor: pointer; }
+.skill-editor-enabled input { width: var(--icon-sm); height: var(--icon-sm); margin: 0; accent-color: var(--brand); }
+
+.skill-editor-body {
+  min-height: 0;
+  flex: 1 1 auto;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  overflow-y: auto;
+}
+.skill-editor-body > * { flex-shrink: 0; }
+.skill-editor-guidance { margin: 0; color: var(--muted); font-size: var(--text-body-12); line-height: 1.7; }
+.skill-editor-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.skill-instruction-field { flex: 1 1 auto; }
+.skill-instruction-field textarea { min-height: 220px; }
+
+.skill-field {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  color: var(--type-primary);
+  font-size: var(--text-caption-10);
+  font-weight: 600;
+}
+.skill-field :is(input, select, textarea) {
+  width: 100%;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  outline: none;
+  color: var(--type-primary);
+  background: var(--surface);
+  font: inherit;
+  font-size: var(--text-body-13);
+  font-weight: 400;
+}
+.skill-field :is(input, select) { height: 34px; padding: 0 10px; }
+.skill-field textarea { min-height: 148px; padding: 10px; resize: vertical; line-height: 1.55; }
+.skill-field :is(input, select, textarea):focus { border-color: var(--text); }
+.skill-field :is(input, select, textarea):disabled { color: var(--muted); background: var(--surface-2); }
+.skill-field small { color: var(--faint); font-size: var(--text-caption-10); font-weight: 500; line-height: 1.45; }
+.skill-field em { margin-left: 6px; color: var(--faint); font-style: normal; font-weight: 500; }
+
+.skill-agent-field { border: 0; padding: 0; }
+.skill-agent-field legend { padding: 0; color: var(--muted); font-size: var(--text-caption-11); font-weight: 600; }
+.skill-agent-options { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 7px; }
+.skill-agent-options label { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); font-size: var(--text-caption-11); }
+.skill-agent-options input[type="checkbox"] { flex: 0 0 16px; width: 16px; height: 16px; margin: 0; padding: 0; accent-color: var(--brand); }
+
+.skill-editor-note {
+  padding: 9px 10px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--type-primary);
+  background: var(--bg);
+  font-size: var(--text-caption-10);
+}
+.skill-editor-note span { flex: 1; }
+.skill-editor-note button { border: 0; color: var(--type-primary); background: transparent; font-size: var(--text-caption-10); font-weight: 600; cursor: pointer; }
+.skill-editor-note svg { width: var(--icon-sm); height: var(--icon-sm); }
+.skill-editor-error { margin: 0; padding: 8px 10px; border-radius: var(--radius-sm); color: var(--bad); background: var(--bad-wash); font-size: var(--text-caption-10); }
+
+/* 抽屉挂到 document.body：盖住整个窗口，包括侧栏和顶栏，只留提示条在更上层。
+   间距沿用窗体自己的 4px 边框（.workspace 的 padding），抽屉贴在这层框里；
+   不再加阴影：留白 + 阴影会把它读成一张浮起来的卡片。 */
+.skills-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--layer-overlay);
+  padding: 4px 4px 4px 0;
+  display: flex;
+  justify-content: flex-end;
+  background: var(--scrim-modal);
+  backdrop-filter: blur(3px);
+  animation: skills-scrim-in var(--duration-base) var(--ease-std);
+}
+.skills-drawer {
+  min-width: 0;
+  width: min(720px, 92%);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: var(--workbench-radius);
+  background: var(--surface);
+  animation: skills-drawer-in var(--duration-slow) var(--ease-sheet);
+}
+/* 抽屉必须整块滑出屏外再推回来：只挪 24px 加淡入读起来像弹窗跳出。 */
+@keyframes skills-drawer-in {
+  from { transform: translateX(calc(100% + 4px)); }
+  to { transform: translateX(0); }
+}
+/* 退出帧：与入场同一条行程，时长必须短于 SkillsView 的 DRAWER_EXIT_MS，否则动画被卸载拦腰截断。 */
+.skills-drawer.closing { animation: skills-drawer-out var(--duration-slow) var(--ease-std) forwards; }
+.skills-drawer-backdrop.closing { animation: skills-scrim-out var(--duration-slow) var(--ease-std) forwards; }
+@keyframes skills-drawer-out {
+  from { transform: translateX(0); }
+  to { transform: translateX(calc(100% + 4px)); }
+}
+@keyframes skills-scrim-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes skills-scrim-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skills-drawer,
+  .skills-drawer.closing,
+  .skills-drawer-backdrop,
+  .skills-drawer-backdrop.closing { animation: none; }
+}
+
+@media (max-width: 900px) {
+  .skill-editor-grid { grid-template-columns: minmax(0, 1fr); }
+}

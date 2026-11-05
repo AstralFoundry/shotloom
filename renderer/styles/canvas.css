@@ -1592,6 +1592,9 @@ body.annotation-editor-open .screenshots-textarea {
 }
 .generation-settings-panel section { display: grid; gap: 8px; }
 .generation-settings-panel section > p { margin: 0; color: var(--muted); font-size: var(--text-body-12); line-height: var(--text-body-12--line-height); }
+.generation-settings-panel section > p:has(.generation-settings-range) { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.generation-settings-range { color: var(--faint); font-size: var(--text-caption-10); font-weight: 400; white-space: nowrap; }
+.generation-settings-limit-hint { color: var(--faint); font-size: var(--text-caption-10); line-height: var(--text-body-12--line-height); }
 .generation-settings-param { display: contents; }
 .generation-settings-group-title {
   margin: 4px 0 -4px; padding-top: 8px; border-top: 1px solid var(--line);

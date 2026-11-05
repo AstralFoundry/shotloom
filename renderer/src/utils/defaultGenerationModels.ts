@@ -2,7 +2,7 @@
 // 设置、工程规范化、原生设置兜底与类型元数据消费同一份结果。
 export const DEFAULT_GENERATION_MODELS = Object.freeze({
   textGeneration: 'gpt-6-astra',
-  imageGeneration: 'gpt-image-2.5-sunburst',
+  imageGeneration: 'gpt-image-2.6-sunburst',
   videoGeneration: 'grok-imagine-video-1.5',
 });
 

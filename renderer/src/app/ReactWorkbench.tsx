@@ -25,6 +25,7 @@ import {
   subscribeDomain,
 } from "../store/domainReactivity.ts";
 import { canvasActionShortcutLabel } from "../utils/canvasActionShortcuts.ts";
+import { APPLICATION_ROUTES } from "../utils/projectNavigation.ts";
 import { AppShell } from "./AppShell";
 import {
   canvasCommands,
@@ -66,6 +67,7 @@ import { AssetsView } from "./views/AssetsView";
 import { MaterialsView } from "./views/MaterialsView";
 import { ProjectsView } from "./views/ProjectsView";
 import { SettingsFeature } from "./views/SettingsFeature";
+import { SkillsFeature } from "./views/SkillsFeature";
 import { TasksView } from "./views/TasksView";
 import { showToast, showErrorMessage } from "../store/notificationStore";
 import { registerVideoEditorLauncher } from '../services/videoEditorSession';
@@ -207,9 +209,7 @@ export function ReactWorkbench() {
     navigateToRoute(store.route, { notify: false });
     const route = store.route as AppRoute;
     if (
-      ["projects", "creation", "tasks", "assets", "materials"].includes(
-        route,
-      ) &&
+      APPLICATION_ROUTES.has(route) &&
       useAppStore.getState().route !== route
     ) {
       useAppStore.setState({ route });
@@ -317,6 +317,8 @@ export function ReactWorkbench() {
     activeView = (
       <ProjectsView {...projects!} controller={projectLibraryController} />
     );
+  } else if (appRoute === "skills") {
+    activeView = <SkillsFeature />;
   } else if (appRoute === "tasks") {
     activeView = (
       <TasksView

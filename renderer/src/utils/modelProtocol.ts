@@ -1,5 +1,6 @@
 import { t } from '../i18n/index.ts';
 import { isRecord } from './typeGuards.ts';
+import { inlineImageMimeType, MEDIA_MIME_BY_EXTENSION } from './mediaType.ts';
 // 供应商协议是目录里的松散 JSON；本模块只按声明的路径模板读写，不做语义猜测。
 type AnyRecord = Record<string, any>;
 
@@ -128,8 +129,11 @@ export function protocolInlineImage(value: unknown) {
 }
 
 export function normalizeProtocolResponse(data: any, protocol: AnyRecord = {}) {
-  const configuredMimeType = String(protocol.resultMimeType || '').trim();
-  const configuredExtension = String(protocol.resultFileExtension || '').trim().replace(/^\./, '');
+  const responseFormat = protocol.resultFormatPath
+    ? String(firstProtocolValue(data, protocol.resultFormatPath) || '').trim().toLowerCase() : '';
+  const formatMimeType = MEDIA_MIME_BY_EXTENSION[responseFormat] || '';
+  const configuredMimeType = String(protocol.resultMimeType || formatMimeType).trim();
+  const configuredExtension = String(protocol.resultFileExtension || (formatMimeType ? responseFormat : '')).trim().replace(/^\./, '');
   const fileMetadata: AnyRecord = {
     ...(configuredMimeType ? { mimeType: configuredMimeType } : {}),
     ...(configuredExtension ? { name: `result.${configuredExtension}` } : {}),
@@ -170,7 +174,10 @@ export function normalizeProtocolResponse(data: any, protocol: AnyRecord = {}) {
     ...(urls.length || base64Values.length || hexValues.length || responseBodyFile ? {
       files: [
         ...urls.map(url => ({ url, ...fileMetadata, ...(downloadMetadata ? { metadata: downloadMetadata } : {}) })),
-        ...base64Values.map(b64Json => ({ b64Json, ...fileMetadata })),
+        ...base64Values.map(b64Json => {
+          const mimeType = inlineImageMimeType(String(b64Json));
+          return { b64Json, ...fileMetadata, ...(mimeType ? { mimeType } : {}) };
+        }),
         ...hexValues.map(b64Json => ({ b64Json, ...fileMetadata })),
         ...(responseBodyFile ? [responseBodyFile] : []),
       ],

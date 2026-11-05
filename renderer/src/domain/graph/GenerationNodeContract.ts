@@ -10,6 +10,7 @@ export interface GenerationConfigParam {
   numeric?: boolean;
   default?: unknown;
   options?: unknown[];
+  valueDefaults?: Record<string, Record<string, unknown>>;
   presentation?: string | { min?: number; max?: number; step?: number } | undefined;
 }
 
@@ -88,7 +89,9 @@ export function compileGenerationNodeConfig(
   params: GenerationConfigParam[] = [],
   outputSpecValue: unknown = {},
 ): UnknownRecord {
-  const source = generationNodeConfig(value);
+  const original = generationNodeConfig(value);
+  const presets = Object.assign({}, ...params.map(param => param.valueDefaults?.[String(original[param.key] ?? param.default)] || {}));
+  const source = { ...presets, ...original };
   const outputSpec = isRecord(outputSpecValue)
     ? outputSpecValue
     : {};

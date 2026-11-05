@@ -38,6 +38,9 @@ export function parseModelResponseText(text = ''): any {
 
 export function modelResponseError(data: any, status: number): string {
   const message = errorMessage(data?.error) || errorMessage(data) || data?.message;
+  if (/GIF frames exceed the total request pixel budget/i.test(String(message || ''))) {
+    return t('model.response.gifPixelBudget');
+  }
   if (/country,?\s*region,?\s*or\s*territory\s*not\s*supported|user\s+location\s+is\s+not\s+supported/i.test(String(message || ''))) {
     return t("model.response.unsupportedRegion");
   }

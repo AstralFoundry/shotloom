@@ -2,10 +2,14 @@ import { create } from "zustand";
 
 export type AppRoute =
   | "projects"
+  | "skills"
   | "creation"
   | "tasks"
   | "assets"
   | "materials";
+
+// 技能是全局目录，不隶属任何工程，因此进入它不要求先打开工程。
+const PROJECT_FREE_ROUTES = new Set<AppRoute>(["projects", "skills"]);
 
 export interface ProjectSummary {
   id: string;
@@ -52,7 +56,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   sidebarCollapsed: initialSidebarState(),
   currentProject: null,
   setRoute: (route) => {
-    if (route !== "projects" && !get().currentProject) return false;
+    if (!PROJECT_FREE_ROUTES.has(route) && !get().currentProject) return false;
     set({ route });
     return true;
   },

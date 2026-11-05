@@ -154,12 +154,6 @@ test('助手折叠按钮为画布右上角工具组预留空间', () => {
 // 图片要能悬停放大，视频要能在原地播出去，不能只是"看起来像"。
 
 
-test('策略编辑弹窗由正文滚动且测试台不会被 Flex 压缩裁切', () => {
-  assert.match(settingsStyles, /\.recipe-dialog-body \{[^}]*flex:\s*1 1 auto[^}]*overflow-y:\s*auto/);
-  assert.match(settingsStyles, /\.recipe-dialog-body > \* \{ flex-shrink: 0; \}/);
-  assert.match(settingsStyles, /\.recipe-dialog > header,[\s\S]*?\.recipe-dialog > footer \{[\s\S]*?flex:\s*0 0 auto/);
-});
-
 test('API 厂商页先展示内置厂商列表，点击后进入详情', () => {
   assert.match(settingsFeature, /const providers = getProviderAdapters\(\)\.map/);
   assert.match(settingsPanel, /data\.providers\.map\(\(item\) => \(\n\s+<button className="provider-list-row"/);

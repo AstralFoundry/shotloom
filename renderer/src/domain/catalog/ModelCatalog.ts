@@ -47,11 +47,13 @@ export interface CatalogParam {
   options?: unknown[] | undefined;
   conflictsWith?: string[] | undefined;
   visibleWhen?: Record<string, unknown> | undefined;
+  valueDefaults?: Record<string, Record<string, unknown>>;
   presentation?: string | {
     control: 'segmented' | 'select' | 'ratio' | 'resolution' | 'slider' | 'number' | 'toggle' | 'text' | 'voice' | 'hidden';
     group?: string;
     summary?: boolean;
     unit?: string;
+    limitNoteKey?: string;
     min?: number;
     max?: number;
     step?: number;
@@ -137,6 +139,7 @@ export interface CatalogMode {
   resultUrlPath?: string;
   resultBase64Path?: string;
   resultHexPath?: string;
+  resultFormatPath?: string;
   resultMimeType?: string;
   resultFileExtension?: string;
   resultBody?: CatalogResultBody;
@@ -414,6 +417,7 @@ export interface ModelRuntimeContract {
   resultUrlPath?: string | undefined;
   resultBase64Path?: string | undefined;
   resultHexPath?: string | undefined;
+  resultFormatPath?: string | undefined;
   resultMimeType?: string | undefined;
   resultFileExtension?: string | undefined;
   resultBody?: CatalogResultBody | undefined;
@@ -432,6 +436,7 @@ export interface ModelSchema {
     default: unknown;
     options: unknown[];
     visibleWhen?: Record<string, unknown>;
+    valueDefaults?: Record<string, Record<string, unknown>>;
     presentation?: CatalogParam['presentation'];
     optionLabelKeys?: Record<string, string>;
   optionLabels?: Record<string, string>;
@@ -495,6 +500,7 @@ export interface ModelInputCapability {
   resultUrlPath?: string | undefined;
   resultBase64Path?: string | undefined;
   resultHexPath?: string | undefined;
+  resultFormatPath?: string | undefined;
   resultMimeType?: string | undefined;
   resultFileExtension?: string | undefined;
   resultBody?: CatalogResultBody | undefined;
@@ -774,6 +780,7 @@ class ModelCatalog {
       resultUrlPath: mode.resultUrlPath,
       resultBase64Path: mode.resultBase64Path,
       resultHexPath: mode.resultHexPath,
+      resultFormatPath: mode.resultFormatPath,
       resultMimeType: mode.resultMimeType,
       resultFileExtension: mode.resultFileExtension,
       resultBody: mode.resultBody ? { ...mode.resultBody } : undefined,
@@ -811,6 +818,7 @@ class ModelCatalog {
           default: p.default,
           options: (p.options || []).map((o) => (o && typeof o === 'object' ? (o as Record<string, unknown>).value : o)),
           ...(p.visibleWhen ? { visibleWhen: { ...p.visibleWhen } } : {}),
+          ...(p.valueDefaults ? { valueDefaults: structuredClone(p.valueDefaults) } : {}),
           ...(p.presentation ? { presentation: p.presentation } : {}),
           // 音色参数只声明 control=voice，具体清单属于系统音色库，不在每个厂商模式里重复一遍。
           ...(isVoiceParam(p) && !p.optionLabels ? { optionLabels: systemVoiceOptionLabels } : {}),

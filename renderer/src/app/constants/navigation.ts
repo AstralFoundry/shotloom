@@ -24,6 +24,16 @@ export const projectWorkspaceItems: NavigationItem[] = [
   },
 ];
 
+// 应用级入口：目录数据不属于当前工程，任何路由下都保持在侧栏里。
+export const applicationItems: NavigationItem[] = [
+  {
+    id: "skills",
+    label: t("ui.navigation.label.53da139b"),
+    icon: "puzzle",
+    description: t("ui.navigation.description.c3ec75a7"),
+  },
+];
+
 export const nodeTypes = [
   { id: "imageGeneration", label: t("ui.taskAdapter.imageGeneration.1f6a9dab"), icon: "image" as const },
   { id: "videoGeneration", label: t("ui.taskAdapter.videoGeneration.19978a8d"), icon: "film" as const },

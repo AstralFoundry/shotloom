@@ -1,7 +1,7 @@
 import { t } from '@/i18n';
 import { IconSymbol } from "../components/IconSymbol";
 import { InteractiveLogo } from "../components/InteractiveLogo";
-import { projectWorkspaceItems } from "../constants/navigation";
+import { type NavigationItem, applicationItems, projectWorkspaceItems } from "../constants/navigation";
 import { type AppRoute, useAppStore } from "../store/appStore";
 
 interface SideBarProps {
@@ -40,19 +40,23 @@ export function SideBar(
     if (!setRoute(nextRoute)) onNavigationBlocked?.();
   }
 
+  function navItem(item: NavigationItem) {
+    return (
+      <button
+        key={item.id}
+        className={`side-item${route === item.id ? " active" : ""}`}
+        title={iconRail ? item.label : undefined}
+        onClick={() => navigate(item.id)}
+      >
+        <IconSymbol name={item.icon} />
+        <span>{item.label}</span>
+      </button>
+    );
+  }
+
   const workspaceNavigation = (
     <div className="side-list">
-        {projectWorkspaceItems.map((item) => (
-          <button
-            key={item.id}
-            className={`side-item${route === item.id ? " active" : ""}`}
-            title={iconRail ? item.label : undefined}
-            onClick={() => navigate(item.id)}
-          >
-            <IconSymbol name={item.icon} />
-            <span>{item.label}</span>
-          </button>
-        ))}
+        {projectWorkspaceItems.map((item) => navItem(item))}
         {route === "creation" && (
           <button
             className="side-item"
@@ -65,6 +69,50 @@ export function SideBar(
         )}
     </div>
   );
+
+  const applicationNavigation = (
+    <div className="side-list">{applicationItems.map((item) => navItem(item))}</div>
+  );
+
+  // 技能库和项目库都不依赖已打开的工程，两者共用同一组顶层入口。
+  const projectScopedNavigation = route === "projects" || route === "skills"
+    ? (
+      <div className="side-list">
+        <button
+          className={`side-item${route === "projects" ? " active" : ""}`}
+          onClick={() => navigate("projects")}
+        >
+          <IconSymbol name="folder" />
+          <span>{t("ui.ProjectScopeHeader.text.79b705bd")}</span>
+        </button>
+        <button
+          className="side-item"
+          disabled={!project}
+          title={project
+            ? t("ui.SideBar.text.d5475e65")
+            : t("ui.SideBar.text.b245e5b7")}
+          onClick={() => navigate("creation")}
+        >
+          <IconSymbol name="grid" />
+          <span>{t("ui.SideBar.text.01886415")}</span>
+        </button>
+      </div>
+    )
+    : (
+      <>
+        <div className="side-list sidebar-back-list">
+          <button
+            className="side-item sidebar-back-item"
+            title={iconRail ? t("ui.SideBar.text.94c32741") : undefined}
+            onClick={() => navigate("projects")}
+          >
+            <IconSymbol name="chevron-left" />
+            <span>{t("ui.SideBar.text.94c32741")}</span>
+          </button>
+        </div>
+        {workspaceNavigation}
+      </>
+    );
 
   return (
     <div
@@ -89,46 +137,8 @@ export function SideBar(
           </span>
         </div>
         <div className="sidebar-content">
-          {route === "projects"
-            ? (
-              <>
-              <div className="side-list">
-                <button
-                  className="side-item active"
-                  onClick={() => navigate("projects")}
-                >
-                  <IconSymbol name="folder" />
-                  <span>{t("ui.ProjectScopeHeader.text.79b705bd")}</span>
-                </button>
-                <button
-                  className="side-item"
-                  disabled={!project}
-                  title={project
-                    ? t("ui.SideBar.text.d5475e65")
-                    : t("ui.SideBar.text.b245e5b7")}
-                  onClick={() => navigate("creation")}
-                >
-                  <IconSymbol name="grid" />
-                  <span>{t("ui.SideBar.text.01886415")}</span>
-                </button>
-              </div>
-              </>
-            )
-            : (
-              <>
-              <div className="side-list sidebar-back-list">
-                <button
-                  className="side-item sidebar-back-item"
-                  title={iconRail ? t("ui.SideBar.text.94c32741") : undefined}
-                  onClick={() => navigate("projects")}
-                >
-                  <IconSymbol name="chevron-left" />
-                  <span>{t("ui.SideBar.text.94c32741")}</span>
-                </button>
-              </div>
-              {workspaceNavigation}
-              </>
-            )}
+          {projectScopedNavigation}
+          {applicationNavigation}
         </div>
         <footer className="sidebar-footer">
           <button type="button" title={t("ui.SideBar.title.a6df3858")} onClick={onUpdate}>

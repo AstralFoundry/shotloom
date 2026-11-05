@@ -13,6 +13,18 @@ export const MEDIA_MIME_BY_EXTENSION: Readonly<Record<string, string>> = {
   csv: 'text/csv', log: 'text/plain',
 };
 
+/** Read only a short header; never decode or re-encode animation frames. */
+export function inlineImageMimeType(base64: string): string {
+  let header: string;
+  try { header = atob(base64.slice(0, 512)); } catch { return ''; }
+  if (header.startsWith('GIF87a') || header.startsWith('GIF89a')) return 'image/gif';
+  if (header.startsWith('\x89PNG\r\n\x1a\n')) return 'image/png';
+  if (header.startsWith('\xff\xd8\xff')) return 'image/jpeg';
+  if (header.startsWith('RIFF') && header.slice(8, 12) === 'WEBP') return 'image/webp';
+  if (/^\s*(?:<\?xml[^>]*>\s*)?<svg[\s>]/i.test(header)) return 'image/svg+xml';
+  return '';
+}
+
 type MediaFile = { [key: string]: unknown };
 
 export function mediaExtension(file: MediaFile | string): string {

@@ -148,7 +148,8 @@ export function GenerationNodeComposer({
   }, [node.prompt, referencesKey]);
 
   function setConfig(key: string, value: unknown) {
-    actions.update(node.id, { config: { ...config, [key]: value } });
+    const preset = state.params.find(param => param.key === key)?.valueDefaults?.[String(value)];
+    actions.update(node.id, { config: { ...config, ...preset, [key]: value } });
   }
 
   function updateMention(value: string, caret: number) {

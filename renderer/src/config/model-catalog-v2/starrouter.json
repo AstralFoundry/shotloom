@@ -2,6 +2,1082 @@
   "provider": "starrouter",
   "models": [
     {
+      "id": "starrouter-gpt-image-2.6-sunburst",
+      "name": "GPT Image 2.6 Sunburst（StarRouter）",
+      "provider": "starrouter",
+      "upstreamModel": "gpt-image-2.6-sunburst",
+      "type": "imageGeneration",
+      "sortOrder": 20,
+      "enabled": true,
+      "defaultMode": "text-to-image",
+      "modes": [
+        {
+          "id": "text-to-image",
+          "label": "文生图",
+          "endpoint": {
+            "method": "POST",
+            "path": "/images/generations",
+            "scope": "root"
+          },
+          "inputConstraints": {
+            "images": {
+              "min": 0,
+              "max": 0
+            }
+          },
+          "outputConstraints": {
+            "maxCount": 4,
+            "formats": [
+              "png",
+              "jpeg",
+              "webp",
+              "gif",
+              "svg"
+            ]
+          },
+          "params": [
+            {
+              "key": "prompt",
+              "label": "提示词",
+              "type": "text",
+              "required": true,
+              "labelKey": "catalog.label.2f0bb12387"
+            },
+            {
+              "key": "size",
+              "label": "比例与尺寸",
+              "type": "select",
+              "default": "1024x1024",
+              "presentation": "aspectRatio",
+              "options": [
+                "512x768",
+                "768x512",
+                "512x512",
+                "1024x1024",
+                "1536x1024",
+                "1024x1536",
+                "2048x2048",
+                "2048x1152",
+                "1152x2048",
+                "3840x2160",
+                "2160x3840"
+              ],
+              "optionLabels": {
+                "1024x1024": "1:1 · 标准",
+                "1536x1024": "3:2 · 标准",
+                "1024x1536": "2:3 · 标准",
+                "2048x2048": "1:1 · 高清",
+                "2048x1152": "16:9 · 高清",
+                "1152x2048": "9:16 · 高清",
+                "3840x2160": "16:9 · 超清",
+                "2160x3840": "9:16 · 超清",
+                "512x512": "1:1 · 512",
+                "768x512": "3:2 · 512",
+                "512x768": "2:3 · 512"
+              },
+              "labelKey": "catalog.label.cee10fbe9e",
+              "optionLabelKeys": {
+                "1024x1024": "catalog.label.e03465a88c",
+                "1536x1024": "catalog.label.a5af28ae2e",
+                "1024x1536": "catalog.label.54f5e84544",
+                "2048x2048": "catalog.label.d8bcddf343",
+                "2048x1152": "catalog.label.8c63912e99",
+                "1152x2048": "catalog.label.e6be6649b2",
+                "3840x2160": "catalog.label.2d741a3b0d",
+                "2160x3840": "catalog.label.aa5e702416"
+              }
+            },
+            {
+              "key": "quality",
+              "label": "质量",
+              "type": "select",
+              "default": "auto",
+              "options": [
+                "auto",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ],
+              "optionLabels": {
+                "auto": "自动",
+                "low": "低",
+                "medium": "中",
+                "high": "高",
+                "xhigh": "极高",
+                "max": "最高"
+              },
+              "labelKey": "catalog.label.82f516820c",
+              "optionLabelKeys": {
+                "auto": "catalog.label.4afad87755",
+                "low": "catalog.label.b9ee259b7f",
+                "medium": "catalog.label.0869071c92",
+                "high": "catalog.label.b096b3f5ac",
+                "xhigh": "catalog.label.c34687da2b",
+                "max": "catalog.label.2cd489b0a5"
+              }
+            },
+            {
+              "key": "background",
+              "label": "背景",
+              "type": "select",
+              "default": "auto",
+              "options": [
+                "auto",
+                "opaque",
+                "transparent"
+              ],
+              "optionLabels": {
+                "auto": "自动",
+                "opaque": "不透明",
+                "transparent": "透明"
+              },
+              "labelKey": "catalog.label.b13d33a528",
+              "optionLabelKeys": {
+                "auto": "catalog.label.4afad87755",
+                "opaque": "catalog.label.af49d9ad08",
+                "transparent": "catalog.label.b1a302e2c2"
+              }
+            },
+            {
+              "key": "outputFormat",
+              "label": "输出格式",
+              "type": "select",
+              "default": "png",
+              "options": [
+                "png",
+                "jpeg",
+                "webp",
+                "gif",
+                "svg"
+              ],
+              "optionLabels": {
+                "png": "无损格式",
+                "jpeg": "照片格式",
+                "webp": "网页格式",
+                "gif": "GIF 动画",
+                "svg": "SVG 矢量图"
+              },
+              "labelKey": "catalog.label.b015409988",
+              "optionLabelKeys": {
+                "png": "catalog.label.f5cc289b91",
+                "jpeg": "catalog.label.ee42268138",
+                "webp": "catalog.label.38e7dac53d",
+                "gif": "catalog.image.gif",
+                "svg": "catalog.image.svg"
+              },
+              "valueDefaults": {
+                "gif": {
+                  "size": "512x512",
+                  "generationCount": 1
+                }
+              }
+            },
+            {
+              "key": "generationCount",
+              "label": "张数",
+              "type": "select",
+              "default": 1,
+              "options": [
+                1,
+                2,
+                4
+              ],
+              "numeric": true,
+              "labelKey": "catalog.label.33abb92abd"
+            },
+            {
+              "key": "complexity",
+              "label": "规划计算量",
+              "labelKey": "catalog.image.complexity",
+              "type": "select",
+              "default": "low",
+              "options": [
+                "low",
+                "medium",
+                "high"
+              ],
+              "optionLabels": {
+                "low": "低",
+                "medium": "中",
+                "high": "高"
+              },
+              "optionLabelKeys": {
+                "low": "catalog.label.b9ee259b7f",
+                "medium": "catalog.label.0869071c92",
+                "high": "catalog.label.b096b3f5ac"
+              }
+            },
+            {
+              "key": "frameCount",
+              "label": "GIF 帧数",
+              "labelKey": "catalog.image.frameCount",
+              "type": "number",
+              "numeric": true,
+              "default": 9,
+              "visibleWhen": {
+                "outputFormat": "gif"
+              },
+              "presentation": {
+                "control": "number",
+                "min": 2,
+                "max": 16,
+                "step": 1
+              }
+            },
+            {
+              "key": "frameDurationMs",
+              "label": "每帧时长",
+              "labelKey": "catalog.image.frameDuration",
+              "type": "number",
+              "numeric": true,
+              "default": 200,
+              "visibleWhen": {
+                "outputFormat": "gif"
+              },
+              "presentation": {
+                "control": "number",
+                "min": 20,
+                "step": 10,
+                "unit": "ms",
+                "max": 655350,
+                "limitNoteKey": "catalog.image.frameDurationLimitNote"
+              }
+            }
+          ],
+          "auth": {
+            "type": "bearer"
+          },
+          "requestTemplate": {
+            "model": "{{model}}",
+            "prompt": "{{prompt}}",
+            "size": "{{params.size}}",
+            "quality": "{{params.quality}}",
+            "background": "{{params.background}}",
+            "output_format": "{{params.outputFormat}}",
+            "n": "{{params.generationCount}}",
+            "complexity": "{{params.complexity}}",
+            "frame_count": "{{params.frameCount}}",
+            "frame_duration_ms": "{{params.frameDurationMs}}"
+          },
+          "resultBase64Path": "data.*.b64_json",
+          "resultUrlPath": "data.*.url",
+          "labelKey": "catalog.label.0b835958b8",
+          "resultFormatPath": "output_format"
+        },
+        {
+          "id": "image-to-image",
+          "label": "图片编辑",
+          "endpoint": {
+            "method": "POST",
+            "path": "/images/edits",
+            "scope": "root"
+          },
+          "inputMode": "reference",
+          "inputSlots": [
+            "reference"
+          ],
+          "inputFormat": "multipart",
+          "requestFields": {
+            "multipartImage": "image"
+          },
+          "inputConstraints": {
+            "images": {
+              "min": 1,
+              "max": 16,
+              "roles": [
+                "referenceImage"
+              ],
+              "formats": [
+                "png",
+                "jpeg",
+                "webp"
+              ]
+            }
+          },
+          "outputConstraints": {
+            "maxCount": 4,
+            "formats": [
+              "png",
+              "jpeg",
+              "webp",
+              "gif",
+              "svg"
+            ]
+          },
+          "params": [
+            {
+              "key": "prompt",
+              "label": "提示词",
+              "type": "text",
+              "required": true,
+              "labelKey": "catalog.label.2f0bb12387"
+            },
+            {
+              "key": "size",
+              "label": "比例与尺寸",
+              "type": "select",
+              "default": "1024x1024",
+              "presentation": "aspectRatio",
+              "options": [
+                "512x768",
+                "768x512",
+                "512x512",
+                "1024x1024",
+                "1536x1024",
+                "1024x1536",
+                "2048x2048",
+                "2048x1152",
+                "1152x2048",
+                "3840x2160",
+                "2160x3840"
+              ],
+              "optionLabels": {
+                "1024x1024": "1:1 · 标准",
+                "1536x1024": "3:2 · 标准",
+                "1024x1536": "2:3 · 标准",
+                "2048x2048": "1:1 · 高清",
+                "2048x1152": "16:9 · 高清",
+                "1152x2048": "9:16 · 高清",
+                "3840x2160": "16:9 · 超清",
+                "2160x3840": "9:16 · 超清",
+                "512x512": "1:1 · 512",
+                "768x512": "3:2 · 512",
+                "512x768": "2:3 · 512"
+              },
+              "labelKey": "catalog.label.cee10fbe9e",
+              "optionLabelKeys": {
+                "1024x1024": "catalog.label.e03465a88c",
+                "1536x1024": "catalog.label.a5af28ae2e",
+                "1024x1536": "catalog.label.54f5e84544",
+                "2048x2048": "catalog.label.d8bcddf343",
+                "2048x1152": "catalog.label.8c63912e99",
+                "1152x2048": "catalog.label.e6be6649b2",
+                "3840x2160": "catalog.label.2d741a3b0d",
+                "2160x3840": "catalog.label.aa5e702416"
+              }
+            },
+            {
+              "key": "quality",
+              "label": "质量",
+              "type": "select",
+              "default": "auto",
+              "options": [
+                "auto",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ],
+              "optionLabels": {
+                "auto": "自动",
+                "low": "低",
+                "medium": "中",
+                "high": "高",
+                "xhigh": "极高",
+                "max": "最高"
+              },
+              "labelKey": "catalog.label.82f516820c",
+              "optionLabelKeys": {
+                "auto": "catalog.label.4afad87755",
+                "low": "catalog.label.b9ee259b7f",
+                "medium": "catalog.label.0869071c92",
+                "high": "catalog.label.b096b3f5ac",
+                "xhigh": "catalog.label.c34687da2b",
+                "max": "catalog.label.2cd489b0a5"
+              }
+            },
+            {
+              "key": "background",
+              "label": "背景",
+              "type": "select",
+              "default": "auto",
+              "options": [
+                "auto",
+                "opaque",
+                "transparent"
+              ],
+              "optionLabels": {
+                "auto": "自动",
+                "opaque": "不透明",
+                "transparent": "透明"
+              },
+              "labelKey": "catalog.label.b13d33a528",
+              "optionLabelKeys": {
+                "auto": "catalog.label.4afad87755",
+                "opaque": "catalog.label.af49d9ad08",
+                "transparent": "catalog.label.b1a302e2c2"
+              }
+            },
+            {
+              "key": "outputFormat",
+              "label": "输出格式",
+              "type": "select",
+              "default": "png",
+              "options": [
+                "png",
+                "jpeg",
+                "webp",
+                "gif",
+                "svg"
+              ],
+              "optionLabels": {
+                "png": "无损格式",
+                "jpeg": "照片格式",
+                "webp": "网页格式",
+                "gif": "GIF 动画",
+                "svg": "SVG 矢量图"
+              },
+              "labelKey": "catalog.label.b015409988",
+              "optionLabelKeys": {
+                "png": "catalog.label.f5cc289b91",
+                "jpeg": "catalog.label.ee42268138",
+                "webp": "catalog.label.38e7dac53d",
+                "gif": "catalog.image.gif",
+                "svg": "catalog.image.svg"
+              },
+              "valueDefaults": {
+                "gif": {
+                  "size": "512x512",
+                  "generationCount": 1
+                }
+              }
+            },
+            {
+              "key": "generationCount",
+              "label": "张数",
+              "type": "select",
+              "default": 1,
+              "options": [
+                1,
+                2,
+                4
+              ],
+              "numeric": true,
+              "labelKey": "catalog.label.33abb92abd"
+            },
+            {
+              "key": "complexity",
+              "label": "规划计算量",
+              "labelKey": "catalog.image.complexity",
+              "type": "select",
+              "default": "low",
+              "options": [
+                "low",
+                "medium",
+                "high"
+              ],
+              "optionLabels": {
+                "low": "低",
+                "medium": "中",
+                "high": "高"
+              },
+              "optionLabelKeys": {
+                "low": "catalog.label.b9ee259b7f",
+                "medium": "catalog.label.0869071c92",
+                "high": "catalog.label.b096b3f5ac"
+              }
+            },
+            {
+              "key": "frameCount",
+              "label": "GIF 帧数",
+              "labelKey": "catalog.image.frameCount",
+              "type": "number",
+              "numeric": true,
+              "default": 9,
+              "visibleWhen": {
+                "outputFormat": "gif"
+              },
+              "presentation": {
+                "control": "number",
+                "min": 2,
+                "max": 16,
+                "step": 1
+              }
+            },
+            {
+              "key": "frameDurationMs",
+              "label": "每帧时长",
+              "labelKey": "catalog.image.frameDuration",
+              "type": "number",
+              "numeric": true,
+              "default": 200,
+              "visibleWhen": {
+                "outputFormat": "gif"
+              },
+              "presentation": {
+                "control": "number",
+                "min": 20,
+                "step": 10,
+                "unit": "ms",
+                "max": 655350,
+                "limitNoteKey": "catalog.image.frameDurationLimitNote"
+              }
+            }
+          ],
+          "auth": {
+            "type": "bearer"
+          },
+          "requestTemplate": {
+            "model": "{{model}}",
+            "prompt": "{{prompt}}",
+            "size": "{{params.size}}",
+            "quality": "{{params.quality}}",
+            "background": "{{params.background}}",
+            "output_format": "{{params.outputFormat}}",
+            "n": "{{params.generationCount}}",
+            "complexity": "{{params.complexity}}",
+            "frame_count": "{{params.frameCount}}",
+            "frame_duration_ms": "{{params.frameDurationMs}}"
+          },
+          "resultBase64Path": "data.*.b64_json",
+          "resultUrlPath": "data.*.url",
+          "labelKey": "catalog.label.a038dfa6cd",
+          "resultFormatPath": "output_format"
+        }
+      ]
+    },
+    {
+      "id": "starrouter-gpt-image-2.6-flare",
+      "name": "GPT Image 2.6 Flare（StarRouter）",
+      "provider": "starrouter",
+      "upstreamModel": "gpt-image-2.6-flare",
+      "type": "imageGeneration",
+      "sortOrder": 21,
+      "enabled": true,
+      "defaultMode": "text-to-image",
+      "modes": [
+        {
+          "id": "text-to-image",
+          "label": "文生图",
+          "endpoint": {
+            "method": "POST",
+            "path": "/images/generations",
+            "scope": "root"
+          },
+          "inputConstraints": {
+            "images": {
+              "min": 0,
+              "max": 0
+            }
+          },
+          "outputConstraints": {
+            "maxCount": 4,
+            "formats": [
+              "png",
+              "jpeg",
+              "webp",
+              "gif",
+              "svg"
+            ]
+          },
+          "params": [
+            {
+              "key": "prompt",
+              "label": "提示词",
+              "type": "text",
+              "required": true,
+              "labelKey": "catalog.label.2f0bb12387"
+            },
+            {
+              "key": "size",
+              "label": "比例与尺寸",
+              "type": "select",
+              "default": "1024x1024",
+              "presentation": "aspectRatio",
+              "options": [
+                "512x768",
+                "768x512",
+                "512x512",
+                "1024x1024",
+                "1536x1024",
+                "1024x1536",
+                "2048x2048",
+                "2048x1152",
+                "1152x2048",
+                "3840x2160",
+                "2160x3840"
+              ],
+              "optionLabels": {
+                "1024x1024": "1:1 · 标准",
+                "1536x1024": "3:2 · 标准",
+                "1024x1536": "2:3 · 标准",
+                "2048x2048": "1:1 · 高清",
+                "2048x1152": "16:9 · 高清",
+                "1152x2048": "9:16 · 高清",
+                "3840x2160": "16:9 · 超清",
+                "2160x3840": "9:16 · 超清",
+                "512x512": "1:1 · 512",
+                "768x512": "3:2 · 512",
+                "512x768": "2:3 · 512"
+              },
+              "labelKey": "catalog.label.cee10fbe9e",
+              "optionLabelKeys": {
+                "1024x1024": "catalog.label.e03465a88c",
+                "1536x1024": "catalog.label.a5af28ae2e",
+                "1024x1536": "catalog.label.54f5e84544",
+                "2048x2048": "catalog.label.d8bcddf343",
+                "2048x1152": "catalog.label.8c63912e99",
+                "1152x2048": "catalog.label.e6be6649b2",
+                "3840x2160": "catalog.label.2d741a3b0d",
+                "2160x3840": "catalog.label.aa5e702416"
+              }
+            },
+            {
+              "key": "quality",
+              "label": "质量",
+              "type": "select",
+              "default": "auto",
+              "options": [
+                "auto",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ],
+              "optionLabels": {
+                "auto": "自动",
+                "low": "低",
+                "medium": "中",
+                "high": "高",
+                "xhigh": "极高",
+                "max": "最高"
+              },
+              "labelKey": "catalog.label.82f516820c",
+              "optionLabelKeys": {
+                "auto": "catalog.label.4afad87755",
+                "low": "catalog.label.b9ee259b7f",
+                "medium": "catalog.label.0869071c92",
+                "high": "catalog.label.b096b3f5ac",
+                "xhigh": "catalog.label.c34687da2b",
+                "max": "catalog.label.2cd489b0a5"
+              }
+            },
+            {
+              "key": "background",
+              "label": "背景",
+              "type": "select",
+              "default": "auto",
+              "options": [
+                "auto",
+                "opaque",
+                "transparent"
+              ],
+              "optionLabels": {
+                "auto": "自动",
+                "opaque": "不透明",
+                "transparent": "透明"
+              },
+              "labelKey": "catalog.label.b13d33a528",
+              "optionLabelKeys": {
+                "auto": "catalog.label.4afad87755",
+                "opaque": "catalog.label.af49d9ad08",
+                "transparent": "catalog.label.b1a302e2c2"
+              }
+            },
+            {
+              "key": "outputFormat",
+              "label": "输出格式",
+              "type": "select",
+              "default": "png",
+              "options": [
+                "png",
+                "jpeg",
+                "webp",
+                "gif",
+                "svg"
+              ],
+              "optionLabels": {
+                "png": "无损格式",
+                "jpeg": "照片格式",
+                "webp": "网页格式",
+                "gif": "GIF 动画",
+                "svg": "SVG 矢量图"
+              },
+              "labelKey": "catalog.label.b015409988",
+              "optionLabelKeys": {
+                "png": "catalog.label.f5cc289b91",
+                "jpeg": "catalog.label.ee42268138",
+                "webp": "catalog.label.38e7dac53d",
+                "gif": "catalog.image.gif",
+                "svg": "catalog.image.svg"
+              },
+              "valueDefaults": {
+                "gif": {
+                  "size": "512x512",
+                  "generationCount": 1
+                }
+              }
+            },
+            {
+              "key": "generationCount",
+              "label": "张数",
+              "type": "select",
+              "default": 1,
+              "options": [
+                1,
+                2,
+                4
+              ],
+              "numeric": true,
+              "labelKey": "catalog.label.33abb92abd"
+            },
+            {
+              "key": "complexity",
+              "label": "规划计算量",
+              "labelKey": "catalog.image.complexity",
+              "type": "select",
+              "default": "low",
+              "options": [
+                "low",
+                "medium",
+                "high"
+              ],
+              "optionLabels": {
+                "low": "低",
+                "medium": "中",
+                "high": "高"
+              },
+              "optionLabelKeys": {
+                "low": "catalog.label.b9ee259b7f",
+                "medium": "catalog.label.0869071c92",
+                "high": "catalog.label.b096b3f5ac"
+              }
+            },
+            {
+              "key": "frameCount",
+              "label": "GIF 帧数",
+              "labelKey": "catalog.image.frameCount",
+              "type": "number",
+              "numeric": true,
+              "default": 9,
+              "visibleWhen": {
+                "outputFormat": "gif"
+              },
+              "presentation": {
+                "control": "number",
+                "min": 2,
+                "max": 16,
+                "step": 1
+              }
+            },
+            {
+              "key": "frameDurationMs",
+              "label": "每帧时长",
+              "labelKey": "catalog.image.frameDuration",
+              "type": "number",
+              "numeric": true,
+              "default": 200,
+              "visibleWhen": {
+                "outputFormat": "gif"
+              },
+              "presentation": {
+                "control": "number",
+                "min": 20,
+                "step": 10,
+                "unit": "ms",
+                "max": 655350,
+                "limitNoteKey": "catalog.image.frameDurationLimitNote"
+              }
+            }
+          ],
+          "auth": {
+            "type": "bearer"
+          },
+          "requestTemplate": {
+            "model": "{{model}}",
+            "prompt": "{{prompt}}",
+            "size": "{{params.size}}",
+            "quality": "{{params.quality}}",
+            "background": "{{params.background}}",
+            "output_format": "{{params.outputFormat}}",
+            "n": "{{params.generationCount}}",
+            "complexity": "{{params.complexity}}",
+            "frame_count": "{{params.frameCount}}",
+            "frame_duration_ms": "{{params.frameDurationMs}}"
+          },
+          "resultBase64Path": "data.*.b64_json",
+          "resultUrlPath": "data.*.url",
+          "labelKey": "catalog.label.0b835958b8",
+          "resultFormatPath": "output_format"
+        },
+        {
+          "id": "image-to-image",
+          "label": "图片编辑",
+          "endpoint": {
+            "method": "POST",
+            "path": "/images/edits",
+            "scope": "root"
+          },
+          "inputMode": "reference",
+          "inputSlots": [
+            "reference"
+          ],
+          "inputFormat": "multipart",
+          "requestFields": {
+            "multipartImage": "image"
+          },
+          "inputConstraints": {
+            "images": {
+              "min": 1,
+              "max": 16,
+              "roles": [
+                "referenceImage"
+              ],
+              "formats": [
+                "png",
+                "jpeg",
+                "webp"
+              ]
+            }
+          },
+          "outputConstraints": {
+            "maxCount": 4,
+            "formats": [
+              "png",
+              "jpeg",
+              "webp",
+              "gif",
+              "svg"
+            ]
+          },
+          "params": [
+            {
+              "key": "prompt",
+              "label": "提示词",
+              "type": "text",
+              "required": true,
+              "labelKey": "catalog.label.2f0bb12387"
+            },
+            {
+              "key": "size",
+              "label": "比例与尺寸",
+              "type": "select",
+              "default": "1024x1024",
+              "presentation": "aspectRatio",
+              "options": [
+                "512x768",
+                "768x512",
+                "512x512",
+                "1024x1024",
+                "1536x1024",
+                "1024x1536",
+                "2048x2048",
+                "2048x1152",
+                "1152x2048",
+                "3840x2160",
+                "2160x3840"
+              ],
+              "optionLabels": {
+                "1024x1024": "1:1 · 标准",
+                "1536x1024": "3:2 · 标准",
+                "1024x1536": "2:3 · 标准",
+                "2048x2048": "1:1 · 高清",
+                "2048x1152": "16:9 · 高清",
+                "1152x2048": "9:16 · 高清",
+                "3840x2160": "16:9 · 超清",
+                "2160x3840": "9:16 · 超清",
+                "512x512": "1:1 · 512",
+                "768x512": "3:2 · 512",
+                "512x768": "2:3 · 512"
+              },
+              "labelKey": "catalog.label.cee10fbe9e",
+              "optionLabelKeys": {
+                "1024x1024": "catalog.label.e03465a88c",
+                "1536x1024": "catalog.label.a5af28ae2e",
+                "1024x1536": "catalog.label.54f5e84544",
+                "2048x2048": "catalog.label.d8bcddf343",
+                "2048x1152": "catalog.label.8c63912e99",
+                "1152x2048": "catalog.label.e6be6649b2",
+                "3840x2160": "catalog.label.2d741a3b0d",
+                "2160x3840": "catalog.label.aa5e702416"
+              }
+            },
+            {
+              "key": "quality",
+              "label": "质量",
+              "type": "select",
+              "default": "auto",
+              "options": [
+                "auto",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ],
+              "optionLabels": {
+                "auto": "自动",
+                "low": "低",
+                "medium": "中",
+                "high": "高",
+                "xhigh": "极高",
+                "max": "最高"
+              },
+              "labelKey": "catalog.label.82f516820c",
+              "optionLabelKeys": {
+                "auto": "catalog.label.4afad87755",
+                "low": "catalog.label.b9ee259b7f",
+                "medium": "catalog.label.0869071c92",
+                "high": "catalog.label.b096b3f5ac",
+                "xhigh": "catalog.label.c34687da2b",
+                "max": "catalog.label.2cd489b0a5"
+              }
+            },
+            {
+              "key": "background",
+              "label": "背景",
+              "type": "select",
+              "default": "auto",
+              "options": [
+                "auto",
+                "opaque",
+                "transparent"
+              ],
+              "optionLabels": {
+                "auto": "自动",
+                "opaque": "不透明",
+                "transparent": "透明"
+              },
+              "labelKey": "catalog.label.b13d33a528",
+              "optionLabelKeys": {
+                "auto": "catalog.label.4afad87755",
+                "opaque": "catalog.label.af49d9ad08",
+                "transparent": "catalog.label.b1a302e2c2"
+              }
+            },
+            {
+              "key": "outputFormat",
+              "label": "输出格式",
+              "type": "select",
+              "default": "png",
+              "options": [
+                "png",
+                "jpeg",
+                "webp",
+                "gif",
+                "svg"
+              ],
+              "optionLabels": {
+                "png": "无损格式",
+                "jpeg": "照片格式",
+                "webp": "网页格式",
+                "gif": "GIF 动画",
+                "svg": "SVG 矢量图"
+              },
+              "labelKey": "catalog.label.b015409988",
+              "optionLabelKeys": {
+                "png": "catalog.label.f5cc289b91",
+                "jpeg": "catalog.label.ee42268138",
+                "webp": "catalog.label.38e7dac53d",
+                "gif": "catalog.image.gif",
+                "svg": "catalog.image.svg"
+              },
+              "valueDefaults": {
+                "gif": {
+                  "size": "512x512",
+                  "generationCount": 1
+                }
+              }
+            },
+            {
+              "key": "generationCount",
+              "label": "张数",
+              "type": "select",
+              "default": 1,
+              "options": [
+                1,
+                2,
+                4
+              ],
+              "numeric": true,
+              "labelKey": "catalog.label.33abb92abd"
+            },
+            {
+              "key": "complexity",
+              "label": "规划计算量",
+              "labelKey": "catalog.image.complexity",
+              "type": "select",
+              "default": "low",
+              "options": [
+                "low",
+                "medium",
+                "high"
+              ],
+              "optionLabels": {
+                "low": "低",
+                "medium": "中",
+                "high": "高"
+              },
+              "optionLabelKeys": {
+                "low": "catalog.label.b9ee259b7f",
+                "medium": "catalog.label.0869071c92",
+                "high": "catalog.label.b096b3f5ac"
+              }
+            },
+            {
+              "key": "frameCount",
+              "label": "GIF 帧数",
+              "labelKey": "catalog.image.frameCount",
+              "type": "number",
+              "numeric": true,
+              "default": 9,
+              "visibleWhen": {
+                "outputFormat": "gif"
+              },
+              "presentation": {
+                "control": "number",
+                "min": 2,
+                "max": 16,
+                "step": 1
+              }
+            },
+            {
+              "key": "frameDurationMs",
+              "label": "每帧时长",
+              "labelKey": "catalog.image.frameDuration",
+              "type": "number",
+              "numeric": true,
+              "default": 200,
+              "visibleWhen": {
+                "outputFormat": "gif"
+              },
+              "presentation": {
+                "control": "number",
+                "min": 20,
+                "step": 10,
+                "unit": "ms",
+                "max": 655350,
+                "limitNoteKey": "catalog.image.frameDurationLimitNote"
+              }
+            }
+          ],
+          "auth": {
+            "type": "bearer"
+          },
+          "requestTemplate": {
+            "model": "{{model}}",
+            "prompt": "{{prompt}}",
+            "size": "{{params.size}}",
+            "quality": "{{params.quality}}",
+            "background": "{{params.background}}",
+            "output_format": "{{params.outputFormat}}",
+            "n": "{{params.generationCount}}",
+            "complexity": "{{params.complexity}}",
+            "frame_count": "{{params.frameCount}}",
+            "frame_duration_ms": "{{params.frameDurationMs}}"
+          },
+          "resultBase64Path": "data.*.b64_json",
+          "resultUrlPath": "data.*.url",
+          "labelKey": "catalog.label.a038dfa6cd",
+          "resultFormatPath": "output_format"
+        }
+      ]
+    },
+    {
       "id": "starrouter-gpt-5.4",
       "name": "GPT 5.4（StarRouter）",
       "provider": "starrouter",

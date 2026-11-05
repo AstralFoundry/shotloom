@@ -140,18 +140,6 @@
   box-shadow: inset 2px 0 var(--brand);
 }
 
-.settings-empty {
-  height: 48px;
-  display: grid;
-  place-items: center;
-  border: 1px dashed var(--line);
-  border-radius: var(--radius-md);
-  color: var(--faint);
-  background: var(--surface);
-  font-size: var(--text-body-13);
-  font-weight: 600;
-}
-
 @media (max-width: 900px) {
   .canvas-shortcut-setting { grid-template-columns: 1fr; }
   .canvas-shortcut-setting > select { width: 100%; justify-self: stretch; }
@@ -297,10 +285,7 @@
   border-bottom: 1px solid var(--line);
 }
 .settings-content-head > :first-child { min-width: 0; }
-.settings-head-actions { flex: none; display: flex; align-items: center; gap: 7px; }
-.settings-head-actions .button { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
-.settings-head-actions .button svg { width: var(--icon-sm); height: var(--icon-sm); }
-.settings-hidden-input { display: none; }
+
 .settings-content-scroll { min-height: 0; overflow: auto; padding: 16px 20px 22px; background: var(--surface); }
 
 .settings-section {
@@ -375,10 +360,8 @@
 .provider-incomplete i { background: var(--line-strong); box-shadow: none; }
 
 .settings-toggle-row { cursor: pointer; }
-.settings-toggle-row > input,
-.settings-skill-row > .settings-enable-toggle { width: 30px; height: 17px; justify-self: end; accent-color: var(--brand); cursor: pointer; }
-.settings-toggle-row > input,
-.settings-skill-row > .settings-enable-toggle {
+.settings-toggle-row > input { width: 30px; height: 17px; justify-self: end; accent-color: var(--brand); cursor: pointer; }
+.settings-toggle-row > input {
   position: relative;
   appearance: none;
   border: 0;
@@ -387,8 +370,7 @@
   background: var(--button-subtle-hover);
   transition: background var(--duration-fast) var(--ease-std);
 }
-.settings-toggle-row > input::after,
-.settings-skill-row > .settings-enable-toggle::after {
+.settings-toggle-row > input::after {
   content: '';
   width: 13px;
   height: 13px;
@@ -400,10 +382,8 @@
   box-shadow: var(--drop-shadow-sm);
   transition: transform var(--duration-fast) var(--ease-std);
 }
-.settings-toggle-row > input:checked,
-.settings-skill-row > .settings-enable-toggle:checked { background: var(--brand); }
-.settings-toggle-row > input:checked::after,
-.settings-skill-row > .settings-enable-toggle:checked::after { transform: translateX(13px); }
+.settings-toggle-row > input:checked { background: var(--brand); }
+.settings-toggle-row > input:checked::after { transform: translateX(13px); }
 
 .settings-section .canvas-shortcut-settings { gap: 0; }
 .settings-section .canvas-shortcut-setting {
@@ -415,7 +395,6 @@
 }
 .settings-section .canvas-shortcut-setting:first-child { border-top: 0; }
 
-.settings-list-section { padding: 0; border-top: 1px solid var(--line); }
 .provider-list-intro {
   display: flex;
   justify-content: space-between;
@@ -535,127 +514,14 @@
   .provider-model-card { align-items: flex-start; flex-direction: column; gap: 8px; }
   .provider-model-card-meta { flex-wrap: wrap; }
 }
-.icon-action {
-  width: 28px;
-  height: 28px;
-  display: inline-grid;
-  place-items: center;
-  border: 0;
-  border-radius: var(--radius-sm);
-  color: var(--muted);
-  background: transparent;
-  cursor: pointer;
-}
-.icon-action:hover { color: var(--type-primary); background: var(--surface-2); }
-.icon-action.danger:hover { color: var(--bad); background: var(--bad-wash); }
-.icon-action svg { width: var(--icon-sm); height: var(--icon-sm); }
 
-.settings-search { height: 34px; position: relative; display: block; margin-bottom: 8px; }
-.settings-search svg { width: var(--icon-sm); height: var(--icon-sm); position: absolute; left: 10px; top: 10px; color: var(--faint); }
-.settings-search input { width: 100%; height: 34px; padding: 0 10px 0 32px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); outline: none; font-size: var(--text-caption-11); }
-.settings-search input:focus { border-color: var(--text); }
-.settings-list-summary {
-  min-height: 34px;
-  margin: 0;
-  padding: 0 2px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  border-bottom: 1px solid var(--line);
-  color: var(--muted);
-  background: var(--surface);
-  font-size: var(--text-caption-10);
-}
-.settings-select-all { display: inline-flex; align-items: center; gap: 7px; color: var(--muted); cursor: pointer; }
-.settings-select-all input,
-.settings-list-select { width: var(--icon-sm); height: var(--icon-sm); margin: 0; accent-color: var(--brand); cursor: pointer; }
-.settings-skill-row {
-  min-height: 64px;
-  padding: 9px 2px;
-  display: grid;
-  grid-template-columns: 22px minmax(0, 1fr) 38px 28px 28px;
-  align-items: center;
-  gap: 8px;
-  border: 0;
-  border-bottom: 1px solid var(--line);
-  margin: 0;
-  background: var(--surface);
-  transition: background var(--duration-fast) var(--ease-std);
-}
-.settings-skill-row:last-of-type { border-bottom: 0; }
-.settings-skill-row:hover { background: var(--button-subtle-bg); }
-.settings-skill-row > input { justify-self: center; }
-.settings-skill-name { display: flex; align-items: center; gap: 7px; }
-.settings-skill-name strong { color: var(--type-primary); font-size: var(--text-body-12); }
-.settings-skill-name span { padding: 1px 5px; border: 1px solid var(--line); border-radius: var(--radius-sm); color: var(--muted); background: var(--bg); font-size: var(--text-caption-10); font-weight: 600; }
-.settings-skill-name span.modified { color: var(--type-primary); border-color: var(--line-strong); background: var(--surface-2); }
-.settings-skill-agents { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
-.settings-skill-agents span { padding: 1px 5px; border: 1px solid var(--line); border-radius: var(--radius-sm); color: var(--good); background: var(--good-wash); font-size: var(--text-caption-10); line-height: 1.3; }
-.skill-agent-field { border: 0; padding: 0; }
-.skill-agent-field legend { padding: 0; color: var(--muted); font-size: var(--text-caption-11); font-weight: 600; }
-.skill-agent-options { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 7px; }
-.skill-agent-options label { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); font-size: var(--text-caption-11); }
-.recipe-field .skill-agent-options input[type="checkbox"] { flex: 0 0 16px; width: 16px; height: 16px; margin: 0; padding: 0; accent-color: var(--brand); }
-.settings-skill-row p { margin: 3px 0 0; overflow: hidden; color: var(--muted); font-size: var(--text-caption-10); line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
-.settings-skill-row small { display: block; margin-top: 3px; color: var(--faint); font-size: var(--text-caption-10); }
 .settings-recipe-row { transition: opacity var(--duration-fast) var(--ease-std), border-color var(--duration-fast) var(--ease-std); }
 .settings-recipe-row.disabled { opacity: .54; }
 .recipe-type-badge[data-type] { color: var(--muted); background: var(--bg); }
 
 /* Recipe editor deliberately lives above the settings workspace, so the list remains visible as context. */
-.recipe-dialog-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 40;
-  display: grid;
-  place-items: center;
-  padding: 24px;
-  background: var(--scrim-modal);
-  backdrop-filter: blur(3px);
-}
 
-.recipe-dialog {
-  width: min(880px, calc(100% - 24px));
-  max-height: calc(100% - 24px);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius);
-  background: var(--surface);
-  box-shadow: var(--shadow-modal);
-}
-
-.recipe-dialog > header,
-.recipe-dialog > footer {
-  flex: 0 0 auto;
-  padding: 14px 18px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  border-bottom: 1px solid var(--line);
-}
-.recipe-dialog > footer { justify-content: flex-end; border-top: 1px solid var(--line); border-bottom: 0; }
-.recipe-dialog h3 { margin: 2px 0 0; color: var(--type-primary); font-size: var(--text-body-15); font-weight: 600; }
-.recipe-dialog-change-summary { margin: 3px 0 0; color: var(--muted); font-size: var(--text-caption-10); }
-.recipe-dialog-body { min-height: 0; flex: 1 1 auto; padding: 16px 18px 18px; display: flex; flex-direction: column; gap: 13px; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; background: var(--surface); }
-.recipe-dialog-body > * { flex-shrink: 0; }
 .recipe-form-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) 130px 80px; gap: 10px; }
-.recipe-field { min-width: 0; display: flex; flex-direction: column; gap: 5px; color: var(--type-primary); font-size: var(--text-caption-10); font-weight: 600; }
-.recipe-field input,
-.recipe-field select,
-.recipe-field textarea { width: 100%; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); outline: none; color: var(--type-primary); background: var(--surface); font: inherit; font-weight: 500; }
-.recipe-field input, .recipe-field select { height: 34px; padding: 0 10px; }
-.recipe-field textarea { min-height: 148px; padding: 10px; resize: vertical; line-height: 1.55; }
-.recipe-field input:focus, .recipe-field select:focus, .recipe-field textarea:focus { border-color: var(--text); }
-.recipe-field input:disabled, .recipe-field select:disabled, .recipe-field textarea:disabled { color: var(--muted); background: var(--surface-2); }
-.recipe-field small { color: var(--faint); font-size: var(--text-caption-10); font-weight: 500; line-height: 1.45; }
-.recipe-readonly-note { padding: 9px 10px; display: flex; align-items: center; gap: 7px; border: 1px solid var(--line); border-radius: var(--radius-sm); color: var(--type-primary); background: var(--bg); font-size: var(--text-caption-10); }
-.recipe-readonly-note span { flex: 1; }
-.recipe-readonly-note button { border: 0; color: var(--type-primary); background: transparent; font-size: var(--text-caption-10); font-weight: 600; cursor: pointer; }
-.recipe-readonly-note svg { width: var(--icon-sm); height: var(--icon-sm); }
-.recipe-dialog-error { margin: 0; padding: 8px 10px; border-radius: var(--radius-sm); color: var(--bad); background: var(--bad-wash); font-size: var(--text-caption-10); }
 
 .recipe-test-lab { display: grid; gap: 10px; }
 .recipe-test-lab > header { min-height: 31px; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
@@ -681,14 +547,6 @@
 .recipe-test-coverage .covered { color: var(--good); background: var(--good-wash); }
 .recipe-test-coverage .missing { color: var(--warn); background: var(--warn-wash); }
 
-.skill-dialog > header { justify-content: flex-start; }
-.skill-dialog > header > div { min-width: 0; flex: 1; }
-.skill-dialog-enabled { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: var(--text-caption-10); font-weight: 600; white-space: nowrap; }
-.skill-dialog-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) 130px 80px; gap: 10px; }
-.skill-instruction-field > span { display: flex; align-items: center; justify-content: space-between; }
-.skill-instruction-field > span em { color: var(--faint); font-size: var(--text-caption-10); font-style: normal; font-weight: 500; }
-.skill-instruction-field textarea { min-height: 210px; font-family: var(--font-mono); font-size: var(--text-caption-10); }
-
 @keyframes recipe-spin { to { transform: rotate(360deg); } }
 
 @media (max-width: 760px) {
@@ -700,14 +558,12 @@
   .settings-row { grid-template-columns: 1fr; gap: 8px; padding: 12px 0; }
   .settings-row > select, .settings-row > .settings-number-control, .settings-row > .settings-control-wide { max-width: none; justify-self: stretch; }
   .recipe-form-grid { grid-template-columns: 1fr 1fr; }
-  .skill-dialog-grid { grid-template-columns: 1fr 1fr; }
   .recipe-test-input-row { grid-template-columns: 1fr; }
 }
 
 /* Settings uses the same calm 12px desktop type scale as the canvas. */
 .modal:has(.settings-panel) .modal-title,
-.settings-panel :is(strong, b, button, input, select, textarea),
-.recipe-dialog :is(strong, b, button, input, select, textarea) {
+.settings-panel :is(strong, b, button, input, select, textarea) {
   font-weight: 400;
 }
 
@@ -721,38 +577,23 @@
 .settings-heading { color: var(--type-primary); font-size: var(--text-body-13); font-weight: 500; }
 .settings-row strong,
 .canvas-shortcut-setting strong,
-.provider-card-title strong,
-.settings-skill-name strong { color: var(--type-primary); font-size: var(--text-body-13); font-weight: 500; }
+.provider-card-title strong { color: var(--type-primary); font-size: var(--text-body-13); font-weight: 500; }
 .settings-row > div:first-child > span,
 .canvas-shortcut-setting span,
 .provider-card-title small,
-.settings-skill-row p,
 .settings-meta { color: var(--muted); font-size: var(--text-body-12); font-weight: 400; }
 .settings-row select,
 .settings-control-wide input,
 .settings-number-control input,
-.settings-search input,
 .shortcut-recorder,
 .canvas-shortcut-actions select,
 .canvas-shortcut-setting > select { color: var(--type-primary); font-size: var(--text-body-13); font-weight: 400; }
 .settings-number-control span,
 .settings-status-pill,
 .provider-configured,
-.provider-incomplete,
-.settings-list-summary,
-.settings-skill-name span,
-.settings-skill-row small { font-size: var(--text-caption-11); font-weight: 400; }
-.settings-search input::placeholder { color: var(--faint); }
+.provider-incomplete { font-size: var(--text-caption-11); font-weight: 400; }
 
-.recipe-dialog h3 { color: var(--type-primary); font-size: var(--text-title-16); font-weight: 500; }
-.recipe-field { color: var(--type-primary); font-size: var(--text-body-12); font-weight: 500; }
-.recipe-field :is(input, select, textarea) { color: var(--type-primary); font-size: var(--text-body-13); font-weight: 400; }
-.recipe-field small,
-.recipe-dialog-change-summary,
-.recipe-test-lab > header div > span,
-.skill-instruction-field > span em { font-size: var(--text-caption-11); font-weight: 400; }
-.recipe-readonly-note,
-.recipe-dialog-error,
+.recipe-test-lab > header div > span { font-size: var(--text-caption-11); font-weight: 400; }
 .recipe-test-result-head strong { color: var(--type-primary); font-size: var(--text-body-12); font-weight: 500; }
 .recipe-test-result-head span,
 .recipe-test-coverage span { font-size: var(--text-caption-11); font-weight: 400; }
@@ -840,19 +681,3 @@
   .settings-nav-group > button { grid-template-columns: 16px minmax(0, 1fr); }
   .settings-model-select { max-width: none; justify-self: stretch; }
 }
-
-.settings-catalog-intro {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 18px 0 22px;
-  margin-bottom: 18px;
-  border-bottom: 1px solid var(--line);
-}
-.settings-catalog-intro > svg { width: var(--icon-lg); height: var(--icon-lg); flex-shrink: 0; margin-top: 2px; }
-.settings-catalog-intro > div { flex: 1; min-width: 0; }
-.settings-catalog-intro strong { font-size: var(--text-body-14); font-weight: 600; }
-.settings-catalog-intro p, .catalog-editor-guidance { font-size: var(--text-body-12); line-height: 1.8; color: var(--muted); }
-.settings-catalog-intro p { margin: 7px 0 0; max-width: 540px; }
-.settings-catalog-intro > span { font-size: var(--text-caption-11); white-space: nowrap; color: var(--muted); border: 1px solid var(--line); padding: 3px 8px; border-radius: var(--radius-sm); }
-.catalog-editor-guidance { margin: 0 0 18px; }

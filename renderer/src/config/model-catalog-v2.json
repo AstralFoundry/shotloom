@@ -19,6 +19,10 @@
     "runninghub"
   ],
   "modelOrder": [
+    "gpt-image-2.6-sunburst",
+    "gpt-image-2.6-flare",
+    "starrouter-gpt-image-2.6-sunburst",
+    "starrouter-gpt-image-2.6-flare",
     "gpt-6-astra",
     "gemini-3.8-flash",
     "gemini-3.1-pro-preview",

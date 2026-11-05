@@ -20,6 +20,7 @@ import '../styles/canvas.css';
 import '../styles/project-materials.css';
 import '../styles/media-overlays.css';
 import '../styles/creation-view.css';
+import '../styles/skills.css';
 
 const container = document.getElementById('app');
 if (!container) throw new Error('Shotloom renderer root is missing');

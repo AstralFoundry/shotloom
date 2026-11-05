@@ -154,7 +154,14 @@ export function GenerationSettingsPanel({
             <div className="generation-settings-param" key={param.key}>
               {groupHeading}
               <section>
-                <p>{param.label}</p>
+                <p>
+                  <span>{param.label}</span>
+                  {numeric && (Number.isFinite(Number(presentation.min)) || Number.isFinite(Number(presentation.max))) && (
+                    <small className="generation-settings-range" title={t("ui.GenerationSettingsPanel.text.9c0f4b2a")}>
+                      {t("ui.GenerationSettingsPanel.text.9c0f4b2a")} {Number.isFinite(Number(presentation.min)) ? presentation.min : "…"}–{Number.isFinite(Number(presentation.max)) ? presentation.max : "…"}{presentation.unit || ""}
+                    </small>
+                  )}
+                </p>
                 <input
                   className="generation-settings-input nodrag nopan"
                   type={numeric ? "number" : "text"}
@@ -167,6 +174,7 @@ export function GenerationSettingsPanel({
                     onConfigChange(param.key, numeric ? (value === "" ? undefined : Number(value)) : value);
                   }}
                 />
+                {presentation.limitNoteKey && <small className="generation-settings-limit-hint">{t(presentation.limitNoteKey)}</small>}
               </section>
             </div>
           );

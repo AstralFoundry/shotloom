@@ -169,10 +169,9 @@ export function generationNodeState(
         Object.entries(param.visibleWhen).every(([key, value]) => config[key] === value)),
   );
   const explicitSummaryParams = params.filter((param) => paramPresentation(param).summary === true);
-  const hasExplicitPresentation = params.some((param) => (
-    Boolean(param.presentation) && typeof param.presentation === "object"
-  ));
-  const summaryParams = hasExplicitPresentation ? explicitSummaryParams : params.slice(0, 4);
+  // A numeric control's bounds do not opt the model out of the default summary.
+  const hasExplicitSummary = params.some((param) => typeof paramPresentation(param).summary === "boolean");
+  const summaryParams = hasExplicitSummary ? explicitSummaryParams : params.slice(0, 4);
   const selectedModel = String(node.model || models[0] || "");
   const inputModes = getGenerationInputModes(selectedModel);
   const activeInputMode = inputModes.find((item) => item.value === node.inputMode) || inputModes[0] || null;
