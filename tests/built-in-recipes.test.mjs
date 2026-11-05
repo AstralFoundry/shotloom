@@ -49,11 +49,13 @@ test('角色板保留左侧正脸大特写并保持三视图身份一致', () =>
   for (const recipeId of ['video-character-turnaround', 'drama-character-turnaround']) {
     const recipe = byId.get(recipeId);
     const prompt = recipe?.systemPrompt || '';
-    assert.equal(recipe?.version, 5);
+    assert.equal(recipe?.version, 6);
     assert.match(prompt, /左侧最大正脸人像特写/);
     assert.match(prompt, /右侧正面\/侧面\/背面全身视图/);
     assert.match(prompt, /背景使用干净的浅灰|背景干净纯色/);
     assert.match(prompt, /三视图同尺度、脚底对齐/);
+    assert.match(prompt, /正面与左侧面采用中性灰无五官处理/);
+    assert.match(prompt, /本集风格、角色锁、比例锁、体型锁、人体锁、风格、负向/);
     assert.match(prompt, /不加入额外头部角度、表情头像/);
   }
 });

@@ -61,6 +61,9 @@ test('角色板合同拥有四区域布局，其他 Skill 引用该合同', () =
   assert.match(body, /左侧.*正面.*侧面.*背面/);
   assert.match(body, /右侧.*正脸/);
   assert.match(body, /只保留这四个主要区域/);
+  assert.match(body, /全身三视图的正面与严格左侧面采用中性灰无五官面部处理/);
+  assert.match(body, /本集风格、角色锁、比例锁、体型锁、人体锁、风格、负向/);
+  assert.match(body, /不因下面的提示词写法重新排版/);
   assert.match(body, /明确写出“扩展角色板”并确认/);
   assert.match(parseSkill('script-storyboard').body, /character-board/);
   assert.match(parseSkill('script-to-video').body, /character-board/);
