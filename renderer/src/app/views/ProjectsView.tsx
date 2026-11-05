@@ -27,10 +27,7 @@ export type LibraryEntry = ProjectLibraryEntry | ProjectFolderEntry;
 export interface ProjectsController {
   importPackage: () => Promise<void>;
   createFolder: (parentDir: string | null, name: string) => Promise<void>;
-  createProject: (
-    name: string,
-    folder?: ProjectFolderEntry | null,
-  ) => Promise<void>;
+  createProject: (name: string, folder: ProjectFolderEntry) => Promise<void>;
   rename: (entry: LibraryEntry, name: string) => Promise<void>;
   openProject: (filePath: string) => Promise<void>;
   showInFolder: (entry: LibraryEntry) => Promise<void>;
@@ -104,6 +101,7 @@ export function ProjectsView(
   const [entryMenu, setEntryMenu] = useState<MenuState>(null);
   const [pending, setPending] = useState(false);
   const [query, setQuery] = useState('');
+  const [entryFilter, setEntryFilter] = useState<"all" | "project" | "folder">("all");
   const [sortOrder, setSortOrder] = useState<SortOrder>('updated');
   const [sortOpen, setSortOpen] = useState(false);
   const sortRoot = useRef<HTMLDivElement>(null);
@@ -118,13 +116,14 @@ export function ProjectsView(
   const visibleEntries = useMemo(() => {
     const keyword = query.trim().toLocaleLowerCase();
     return (currentFolder?.children || entries)
+      .filter(entry => entryFilter === "all" || entry.kind === entryFilter)
       .filter(entry => (entry.name || '').toLocaleLowerCase().includes(keyword))
       .slice().sort((a, b) => {
         if (sortOrder === 'name') return (a.name || '').localeCompare(b.name || '', 'zh-CN', { numeric: true, sensitivity: 'base' });
         return entryTime(sortOrder === 'created' ? b.createdAt : b.updatedAt || b.lastOpenedAt)
           - entryTime(sortOrder === 'created' ? a.createdAt : a.updatedAt || a.lastOpenedAt);
       });
-  }, [currentFolder, entries, query, sortOrder]);
+  }, [currentFolder, entries, query, sortOrder, entryFilter]);
   useEffect(() => {
     if (!sortOpen) return;
     const close = (event: PointerEvent) => { if (!sortRoot.current?.contains(event.target as Node)) setSortOpen(false); };
@@ -156,11 +155,13 @@ export function ProjectsView(
   function enterFolder(folder: ProjectFolderEntry) {
     closeMenus();
     setQuery('');
+    setEntryFilter('all');
     setFolderPath((path) => [...path, folder.folderDir]);
   }
   function goToLevel(index: number) {
     closeMenus();
     setQuery('');
+    setEntryFilter('all');
     setDraft(null);
     setRename(null);
     setFolderPath((path) => index < 0 ? [] : path.slice(0, index + 1));
@@ -200,6 +201,8 @@ export function ProjectsView(
 
   function beginCreate(type: Draft["type"]) {
     closeMenus();
+    if (type === "canvas" && !currentFolder) return;
+    setEntryFilter("all");
     setDraft({
       type,
       name: type === "folder" ? t("ui.ProjectsView.text.95cf3cd4") : t("ui.ProjectsView.text.afb7afc7"),
@@ -217,7 +220,7 @@ export function ProjectsView(
     try {
       if (value.type === "folder") {
         await controller.createFolder(value.context?.folderDir || null, name);
-      } else await controller.createProject(name, value.context);
+      } else if (value.context) await controller.createProject(name, value.context);
     } catch (error) {
       showErrorMessage(error instanceof Error ? error.message : String(error), value.type === "folder" ? t("ui.ProjectsView.text.91ab3905") : t("project.createFailed"));
     } finally {
@@ -289,19 +292,8 @@ export function ProjectsView(
     <>
       <div className="page-head project-page-head">
         <div>
-          <h1 className="page-title">{t("ui.ProjectScopeHeader.text.79b705bd")}</h1>
-          {!currentFolder && <p className="project-page-description">{t("ui.ProjectsView.text.f5b63ec3")}</p>}
           {currentFolder && (
             <nav className="project-breadcrumb" aria-label={t("ui.ProjectsView.arialabel.1471a504")}>
-              <button
-                className="project-breadcrumb-back"
-                type="button"
-                title={t("ui.SideBar.text.94c32741")}
-                onClick={() =>
-                  goToLevel(folderPath.length - 2)}
-              >
-                <IconSymbol name="chevron-left" />
-              </button>
               <button
                 type="button"
                 onClick={() =>
@@ -327,16 +319,15 @@ export function ProjectsView(
               ))}
             </nav>
           )}
+          <h1 className="page-title">{currentFolder?.name || t("ui.ProjectScopeHeader.text.79b705bd")}</h1>
+          {!currentFolder && <p className="project-page-description">{t("ui.ProjectsView.text.f5b63ec3")}</p>}
         </div>
         <div className="project-page-actions">
+          {currentFolder && <button className="button primary" type="button" onClick={() => beginCreate("canvas")}>
+            <IconSymbol name="grid" />{t("ui.ProjectsView.text.afb7afc7")}
+          </button>}
           <button
-            className="button primary"
-            type="button"
-            onClick={() => beginCreate("canvas")}
-          >
-            <IconSymbol name="grid" />{t("ui.ProjectsView.text.afb7afc7")}</button>
-          <button
-            className="button ghost"
+            className={`button ${currentFolder ? "ghost" : "primary"}`}
             type="button"
             onClick={() => beginCreate("folder")}
           >
@@ -365,6 +356,14 @@ export function ProjectsView(
                 <IconSymbol name="search" />
                 <input type="search" aria-label={t("ui.ProjectSearch.text.b617f05c")} placeholder={t("ui.ProjectSearch.text.b617f05c")} value={query} onChange={event => setQuery(event.target.value)} />
               </label>
+              {currentFolder && <label className="project-library-filter">
+                <select aria-label={t("ui.CreationView.text.fa6968d9")} value={entryFilter} onChange={event => setEntryFilter(event.target.value as typeof entryFilter)}>
+                  <option value="all">{t("ui.taskAdapter.label.778fc8f9")}</option>
+                  <option value="project">{t("ui.ProjectSearch.kind.95b2102f")}</option>
+                  <option value="folder">{t("ui.ProjectsView.text.46ecac29")}</option>
+                </select>
+                <IconSymbol name="chevron-down" />
+              </label>}
               <div className="project-library-sort" ref={sortRoot} onKeyDown={event => {
                 if (event.key === 'Escape') { setSortOpen(false); sortRoot.current?.querySelector('button')?.focus(); }
               }}>
@@ -509,12 +508,12 @@ export function ProjectsView(
               <div className="project-library-empty">
                 <img
                   className="project-library-empty-art"
-                  src="./projects-empty.png"
+                  src="./noproject.svg"
                   alt=""
                   aria-hidden="true"
                 />
-                <strong>{query.trim() ? t("ui.ProjectsView.text.ede67948") : t("ui.ProjectsView.text.a3dba20f")}</strong>
-                {!query.trim() && <span>{t("ui.ProjectsView.text.f4ca1241")}</span>}
+                <strong>{(query.trim() || entryFilter !== "all") ? t("ui.ProjectsView.text.ede67948") : t("ui.ProjectsView.text.a3dba20f")}</strong>
+                {!query.trim() && entryFilter === "all" && <span>{t("ui.ProjectsView.text.f4ca1241")}</span>}
               </div>
             )}
         </div>
@@ -528,10 +527,10 @@ export function ProjectsView(
               <IconSymbol name="folder" />
               <span>{t("ui.ProjectsView.text.95cf3cd4")}</span>
             </button>
-            <button type="button" onClick={() => beginCreate("canvas")}>
+            {currentFolder && <button type="button" onClick={() => beginCreate("canvas")}>
               <IconSymbol name="grid" />
               <span>{t("ui.ProjectsView.text.afb7afc7")}</span>
-            </button>
+            </button>}
           </div>
         )}
         {entryMenu?.entry && (

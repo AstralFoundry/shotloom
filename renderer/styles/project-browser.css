@@ -97,12 +97,26 @@
 }
 
 .project-breadcrumb {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 5px;
-  margin-top: 6px;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 12px;
+  min-height: 20px;
+  line-height: 20px;
   color: var(--faint);
   font-size: var(--text-body-12);
+}
+
+.project-breadcrumb-segment {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.project-breadcrumb-segment i {
+  font-style: normal;
 }
 
 .project-breadcrumb button {
@@ -120,21 +134,6 @@
 
 .project-breadcrumb button.current {
   font-weight: 600;
-}
-
-.project-breadcrumb .project-breadcrumb-back {
-  width: 22px;
-  height: 22px;
-  display: inline-grid;
-  place-items: center;
-  margin-right: 2px;
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
-}
-
-.project-breadcrumb-back svg {
-  width: var(--icon-sm);
-  height: var(--icon-sm);
 }
 
 .project-browser {

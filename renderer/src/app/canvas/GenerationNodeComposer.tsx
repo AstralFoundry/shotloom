@@ -175,8 +175,8 @@ export function GenerationNodeComposer({
     requestAnimationFrame(() => {
       const element = promptRef.current;
       if (!element) return;
-      const updated = Array.isArray(node.promptReferences) ? node.promptReferences as Array<{ alias: string; nodeId: string }> : [];
-      renderPromptEditor(element, result.prompt, updated, mediaInputs);
+      // The layout effect renders the updated references and media inputs. This
+      // callback captures the old canvas view data, so only restore focus and caret.
       element.focus();
       setEditorCaret(element, result.caret);
     });

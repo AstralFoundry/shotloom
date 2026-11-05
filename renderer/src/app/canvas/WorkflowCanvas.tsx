@@ -246,6 +246,12 @@ const MAX_CANVAS_ZOOM = 4;
 /** 小地图的 svg 尺寸：面板盒由它决定，画布样式不得再用另一套数字裁它。 */
 const MINIMAP_SIZE = { width: 168, height: 106 };
 const MEDIA_PREVIEW_ZOOM_SETTLE_MS = 220;
+/** 空画布示意图的三张幽灵节点：portX 决定连接桩落在卡片左边还是右边。 */
+const CANVAS_EMPTY_NODES = [
+  { x: 4, y: 40, portX: 52 },
+  { x: 132, y: 8, portX: 0 },
+  { x: 132, y: 72, portX: 0 },
+];
 const MEDIA_NODE_TYPES = new Set([
   "imageGeneration",
   "videoGeneration",
@@ -1245,12 +1251,33 @@ export function WorkflowCanvas({
           </ReactFlow>
           {!visible.length && (
             <div className="canvas-empty-copy">
-              <span className="canvas-empty-icon" aria-hidden="true">
-                <IconSymbol name="cursor" />
+              <span className="canvas-empty-graph" aria-hidden="true">
+                <svg viewBox="0 0 188 112" fill="none">
+                  <path className="canvas-empty-edge" d="M 56 56 C 92 56 96 24 132 24" />
+                  <path className="canvas-empty-edge" d="M 56 56 C 92 56 96 88 132 88" />
+                  {CANVAS_EMPTY_NODES.map((node) => (
+                    <g key={`${node.x}-${node.y}`} className="canvas-empty-node">
+                      <rect
+                        className="canvas-empty-card"
+                        x={node.x}
+                        y={node.y}
+                        width="52"
+                        height="32"
+                        rx="7"
+                      />
+                      <rect x={node.x + 8} y={node.y + 9} width="22" height="4" rx="2" className="canvas-empty-bar" />
+                      <rect x={node.x + 8} y={node.y + 19} width="34" height="4" rx="2" className="canvas-empty-bar canvas-empty-bar-soft" />
+                      <circle className="canvas-empty-port" cx={node.x + node.portX} cy={node.y + 16} r="2.4" />
+                    </g>
+                  ))}
+                </svg>
               </span>
-              <strong><b>{t("ui.WorkflowCanvas.text.cc0866d6")}</b>{t("ui.WorkflowCanvas.text.a360c413")}</strong>
-              <small>
-                {t("ui.WorkflowCanvas.text.eb168abe")}<i /> {t("ui.WorkflowCanvas.text.e29468f5")}<i /> {t("ui.WorkflowCanvas.text.1351cfc7")}</small>
+              <div className="canvas-empty-text">
+                <strong>{t("ui.WorkflowCanvas.text.cc0866d6")}{t("ui.WorkflowCanvas.text.a360c413")}</strong>
+                <small>
+                  {t("ui.WorkflowCanvas.text.eb168abe")}<i /> {t("ui.WorkflowCanvas.text.e29468f5")}<i /> {t("ui.WorkflowCanvas.text.1351cfc7")}
+                </small>
+              </div>
             </div>
           )}
           <CanvasMenuLayer ref={menuLayer} controller={controller} />

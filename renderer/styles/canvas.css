@@ -823,17 +823,35 @@ body.annotation-editor-open .screenshots-textarea {
   z-index: 12;
   transform: translate(-50%, -50%);
   display: grid;
-  min-width: 310px;
-  gap: 8px;
-  text-align: center;
+  justify-items: center;
+  gap: 20px;
+  width: max-content;
+  max-width: calc(100% - 48px);
   pointer-events: none;
 }
-.canvas-empty-icon { width: 24px; height: 24px; margin: 0 auto 2px; display: grid; place-items: center; color: var(--brand-accent); filter: drop-shadow(0 3px 5px var(--brand-accent-wash)); transform: rotate(-10deg); }
-.canvas-empty-icon svg { width: var(--icon-lg); height: var(--icon-lg); fill: var(--brand-accent-wash); stroke-width: 1.8; }
-.canvas-empty-copy strong { color: var(--muted); font-size: var(--text-body-13); line-height: var(--text-body-13--line-height); font-weight: 400; letter-spacing: var(--tracking-tight); }
-.canvas-empty-copy strong b { color: var(--type-primary); font-weight: 500; }
-.canvas-empty-copy small { display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--faint); font-size: var(--text-caption-10); line-height: var(--text-caption-10--line-height); font-weight: 400; }
-.canvas-empty-copy small i { width: 3px; height: 3px; border-radius: 50%; background: var(--faint); }
+/* 空画布用一张幽灵节点图说话：卡片、连接桩和流动虚线全部复用画布真实节点的色阶，
+ * 首节点只是把描边和骨架条换成 accent 档，提示“从这里开始”。 */
+.canvas-empty-graph { width:188px;height:112px;filter:drop-shadow(var(--shadow-card));animation:canvas-empty-in var(--duration-slow) var(--ease-std) backwards; }
+.canvas-empty-graph svg { width:100%;height:100%;overflow:visible; }
+.canvas-empty-card { fill:var(--elevated-surface);stroke:var(--line-solid);stroke-width:1.2; }
+.canvas-empty-bar { fill:var(--wash-inset); }
+.canvas-empty-bar-soft { fill:var(--wash-hover); }
+.canvas-empty-port { fill:var(--canvas-edge); }
+.canvas-empty-edge { stroke:var(--canvas-edge);stroke-width:1.2;stroke-linecap:round;stroke-dasharray:4 6;animation:canvas-empty-flow 2.6s linear infinite; }
+.canvas-empty-node { animation:canvas-empty-rise var(--duration-enter) var(--ease-std) backwards; }
+.canvas-empty-node:nth-of-type(2) { animation-delay:var(--duration-stagger); }
+.canvas-empty-node:nth-of-type(3) { animation-delay:calc(var(--duration-stagger) * 2); }
+.canvas-empty-node:first-of-type .canvas-empty-card { stroke:var(--brand-accent-border); }
+.canvas-empty-node:first-of-type .canvas-empty-bar { fill:var(--brand-accent-tint); }
+.canvas-empty-node:first-of-type .canvas-empty-port { fill:var(--brand-accent); }
+.canvas-empty-text { display:grid;justify-items:center;gap:6px;text-align:center; }
+.canvas-empty-copy strong { color: var(--type-primary); font-size: var(--text-body-15); line-height: var(--text-body-15--line-height); font-weight: 500; letter-spacing: var(--tracking-tight); }
+.canvas-empty-copy small { display:flex;align-items:center;justify-content:center;gap:8px;color:var(--faint);font-size:var(--text-caption-10);line-height:var(--text-caption-10--line-height);font-weight:400; }
+.canvas-empty-copy small i { width:3px;height:3px;border-radius:50%;background:var(--faint); }
+@keyframes canvas-empty-in { from { opacity:0;transform:translateY(4px); } }
+@keyframes canvas-empty-rise { from { opacity:0;transform:translateY(6px); } }
+@keyframes canvas-empty-flow { to { stroke-dashoffset:-20; } }
+@media (prefers-reduced-motion: reduce) { .canvas-empty-graph, .canvas-empty-node, .canvas-empty-edge { animation:none; } }
 .work-node-wrapper,
 .work-visual-block {
   position: relative;

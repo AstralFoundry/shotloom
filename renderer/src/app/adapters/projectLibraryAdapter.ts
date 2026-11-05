@@ -19,7 +19,6 @@ import { hasActiveGenerationTasks } from "../../store/taskStore.ts";
 import { showToast } from "../../store/notificationStore";
 import type {
   LibraryEntry,
-  ProjectFolderEntry,
   ProjectsController,
 } from "../views/ProjectsView";
 
@@ -101,16 +100,12 @@ export const projectLibraryController: ProjectsController = {
     );
     await loadRecentProjects();
   },
-  async createProject(name, folder: ProjectFolderEntry | null = null) {
+  async createProject(name, folder) {
     await createNewProject(name, {
       openAfterCreate: false,
-      ...(folder?.folderDir
-        ? {
-          parentDir: folder.folderDir,
-          sharedRootDir: folder.sharedRootDir || folder.folderDir,
-          sharedName: folder.name,
-        }
-        : {}),
+      parentDir: folder.folderDir,
+      sharedRootDir: folder.sharedRootDir || folder.folderDir,
+      sharedName: folder.name,
     });
   },
   async rename(entry, name) {
