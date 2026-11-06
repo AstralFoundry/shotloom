@@ -1,11 +1,14 @@
 import { t } from '@/i18n';
-import { type MouseEvent, useMemo, useState } from "react";
+import { type MouseEvent, useMemo, useRef, useState } from "react";
+import { App, Input, Modal, type InputRef, type MenuProps } from "antd";
 import { assetCategories, defaultAssetCategory } from "../../domain/asset/assetCategories";
+import { ContextMenu } from "../components/ContextMenu";
 import { EmptyState } from "../components/EmptyState";
 import { IconSymbol } from "../components/IconSymbol";
 import { MaterialGrid, type MaterialItem } from "../components/MaterialGrid";
 import { ProjectScopeHeader } from "../components/ProjectScopeHeader";
 import { useAppStore } from "../store/appStore";
+import { SearchInput } from "../components/SearchInput";
 
 export interface MaterialsController {
   preview: (item: MaterialItem, src: string, kind: "image" | "video") => void;
@@ -32,12 +35,14 @@ export function MaterialsView(
     controller: MaterialsController;
   },
 ) {
+  const { modal } = App.useApp();
   const [keyword, setKeyword] = useState("");
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const [libraryItem, setLibraryItem] = useState<MaterialItem | null>(null);
   const [category, setCategory] = useState(defaultAssetCategory.id);
   const [renameItem, setRenameItem] = useState<MaterialItem | null>(null);
   const [renameDraft, setRenameDraft] = useState("");
+  const renameInput = useRef<InputRef>(null);
   const currentCategory = useAppStore((state) => state.assetCategory);
   const setRoute = useAppStore((state) => state.setRoute);
   const filtered = useMemo(() => {
@@ -60,19 +65,10 @@ export function MaterialsView(
     event.preventDefault();
     if (
       (event.target as Element).closest(
-        ".material-node-wrap, .resource-context-menu",
+        ".material-node-wrap, .ant-dropdown",
       )
     ) return;
-    setMenu({
-      x: Math.min(event.clientX, window.innerWidth - 202),
-      y: Math.min(event.clientY, window.innerHeight - 194),
-    });
-  }
-  async function menuAction(
-    action: "openStorage" | "importPackage" | "exportPackage" | "importFiles",
-  ) {
-    setMenu(null);
-    await controller[action]();
+    setMenu({ x: event.clientX, y: event.clientY });
   }
   async function confirmLibrary() {
     if (!libraryItem) return;
@@ -97,12 +93,31 @@ export function MaterialsView(
       setRenameItem(item);
       setRenameDraft(String(item.name || ""));
     }
-    if (
-      action === "delete-item" &&
-      window.confirm(
-        t("ui.MaterialsView.text.e49e7e06", { value0: item.name || t("ui.canvasMediaSelection.text.b61b7f74") }),
-      )
-    ) void controller.delete(item);
+    if (action === "delete-item") {
+      modal.confirm({
+        title: t("ui.MaterialsView.text.e49e7e06", { value0: item.name || t("ui.canvasMediaSelection.text.b61b7f74") }),
+        okButtonProps: { danger: true },
+        onOk: () => void controller.delete(item),
+      });
+    }
+  }
+
+  const menuItems: MenuProps["items"] = [
+    { key: "open-storage", icon: <IconSymbol name="folder" />, label: t("ui.MaterialsView.text.b8c473de") },
+    { key: "assets", icon: <IconSymbol name="box" />, label: t("ui.AssetsView.title.885200aa") },
+    { type: "divider" },
+    { key: "import-package", icon: <IconSymbol name="upload" />, label: t("ui.AssetsView.text.3f035ce8") },
+    { key: "export-package", icon: <IconSymbol name="download" />, label: t("ui.AssetsView.text.ca8c07de") },
+    { key: "import-files", icon: <IconSymbol name="plus" />, label: t("ui.MaterialsView.text.ddd18922") },
+  ];
+
+  function onMenuClick(key: string) {
+    setMenu(null);
+    if (key === "open-storage") void controller.openStorage();
+    if (key === "assets") setRoute("assets");
+    if (key === "import-package") void controller.importPackage();
+    if (key === "export-package") void controller.exportPackage();
+    if (key === "import-files") void controller.importFiles();
   }
 
   return (
@@ -113,10 +128,9 @@ export function MaterialsView(
         flat
       >
         <div className="search">
-          <IconSymbol name="search" />
-          <input
+          <SearchInput
             value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
+            onChange={setKeyword}
             placeholder={t("ui.MaterialsView.placeholder.ac334e59")}
           />
         </div>
@@ -143,44 +157,31 @@ export function MaterialsView(
               onAction={handleAction}
             />
           )}
-        {menu && (
-          <div
-            className="resource-context-menu"
-            style={{ left: menu.x, top: menu.y }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button onClick={() => void menuAction("openStorage")}>
-              <IconSymbol name="folder" />{t("ui.MaterialsView.text.b8c473de")}</button>
-            <button
-              onClick={() => {
-                setMenu(null);
-                setRoute("assets");
-              }}
-            >
-              <IconSymbol name="box" />{t("ui.AssetsView.title.885200aa")}</button>
-            <div className="resource-context-separator" />
-            <button onClick={() => void menuAction("importPackage")}>
-              <IconSymbol name="upload" />{t("ui.AssetsView.text.3f035ce8")}</button>
-            <button onClick={() => void menuAction("exportPackage")}>
-              <IconSymbol name="download" />{t("ui.AssetsView.text.ca8c07de")}</button>
-            <button onClick={() => void menuAction("importFiles")}>
-              <IconSymbol name="plus" />{t("ui.MaterialsView.text.ddd18922")}</button>
-          </div>
-        )}
+        <ContextMenu
+          point={menu}
+          items={menuItems}
+          onSelect={onMenuClick}
+          onClose={() => setMenu(null)}
+        />
       </div>
-      {libraryItem && (
-        <div
-          className="library-picker-backdrop"
-          onMouseDown={(e) =>
-            e.target === e.currentTarget && setLibraryItem(null)}
-        >
-          <section className="library-picker">
-            <p>{t("ui.MaterialGrid.text.0b5398b6")}</p>
-            <h3>{libraryItem.name || t("ui.canvasMediaSelection.text.b61b7f74")}</h3>
+      <Modal
+        open={Boolean(libraryItem)}
+        centered
+        width={430}
+        title={t("ui.MaterialGrid.text.0b5398b6")}
+        okText={t("ui.MaterialsView.text.b7db4426")}
+        cancelText={t("ui.ImageWatermarkEditor.text.4d0b4688")}
+        onCancel={() => setLibraryItem(null)}
+        onOk={() => void confirmLibrary()}
+      >
+        {libraryItem && (
+          <div className="library-picker-body">
+            <p className="library-picker-current">{libraryItem.name || t("ui.canvasMediaSelection.text.b61b7f74")}</p>
             <div className="library-picker-grid">
               {assetCategories.map((item) => (
                 <button
                   key={item.id}
+                  type="button"
                   className={category === item.id ? "active" : ""}
                   onClick={() => setCategory(item.id)}
                 >
@@ -189,52 +190,38 @@ export function MaterialsView(
                 </button>
               ))}
             </div>
-            <footer>
-              <button
-                className="button ghost"
-                onClick={() => setLibraryItem(null)}
-              >
-                {t("ui.ImageWatermarkEditor.text.4d0b4688")}</button>
-              <button
-                className="button primary"
-                onClick={() => void confirmLibrary()}
-              >
-                {t("ui.MaterialsView.text.b7db4426")}</button>
-            </footer>
-          </section>
-        </div>
-      )}
-      {renameItem && (
-        <div
-          className="library-picker-backdrop"
-          onMouseDown={(e) =>
-            e.target === e.currentTarget && setRenameItem(null)}
-        >
-          <section className="library-picker rename-dialog">
-            <p>{t("ui.AssetsView.text.29e63aed")}</p>
-            <h3>{renameItem.name || t("ui.canvasMediaSelection.text.b61b7f74")}</h3>
-            <input
+          </div>
+        )}
+      </Modal>
+      <Modal
+        open={Boolean(renameItem)}
+        centered
+        width={430}
+        title={t("ui.AssetsView.text.29e63aed")}
+        okText={t("ui.MediaViewer.text.fadf24db")}
+        cancelText={t("ui.ImageWatermarkEditor.text.4d0b4688")}
+        onCancel={() => {
+          setRenameItem(null);
+          setRenameDraft("");
+        }}
+        onOk={() => void confirmRename()}
+        afterOpenChange={(open) => {
+          if (open) renameInput.current?.focus();
+        }}
+      >
+        {renameItem && (
+          <div className="rename-dialog-body">
+            <p className="rename-dialog-current">{renameItem.name || t("ui.canvasMediaSelection.text.b61b7f74")}</p>
+            <Input
+              ref={renameInput}
               value={renameDraft}
-              onChange={(e) => setRenameDraft(e.target.value)}
+              onChange={(event) => setRenameDraft(event.target.value)}
               placeholder={t("ui.AssetsView.placeholder.a7426356")}
-              autoFocus
-              onKeyDown={(e) => e.key === "Enter" && void confirmRename()}
+              onPressEnter={() => void confirmRename()}
             />
-            <footer>
-              <button
-                className="button ghost"
-                onClick={() => setRenameItem(null)}
-              >
-                {t("ui.ImageWatermarkEditor.text.4d0b4688")}</button>
-              <button
-                className="button primary"
-                onClick={() => void confirmRename()}
-              >
-                {t("ui.MediaViewer.text.fadf24db")}</button>
-            </footer>
-          </section>
-        </div>
-      )}
+          </div>
+        )}
+      </Modal>
     </>
   );
 }

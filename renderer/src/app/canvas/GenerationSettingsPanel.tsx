@@ -1,4 +1,5 @@
 import { t } from '@/i18n';
+import { InputNumber, Segmented, Select, Slider } from "antd";
 import { useState } from "react";
 import {
   aspectRatioStyle,
@@ -42,18 +43,12 @@ export function GenerationSettingsPanel({
       {inputModes.length > 1 && (
         <section>
           <p>{t("ui.GenerationSettingsPanel.text.9d48527d")}</p>
-          <div className="generation-settings-segments">
-            {inputModes.map((mode) => (
-              <button
-                key={mode.value}
-                type="button"
-                className={mode.value === activeInputMode?.value ? "active" : ""}
-                onClick={() => actions.setInputMode(nodeId, mode.value)}
-              >
-                {mode.label}
-              </button>
-            ))}
-          </div>
+          <Segmented
+            size="small"
+            value={activeInputMode?.value}
+            onChange={(value) => actions.setInputMode(nodeId, String(value))}
+            options={inputModes.map((mode) => ({ value: mode.value, label: mode.label }))}
+          />
         </section>
       )}
       {params.map((param, paramIndex) => {
@@ -72,8 +67,15 @@ export function GenerationSettingsPanel({
               <section>
                 <p>{param.label}</p>
                 <div className="generation-settings-chips">
-                  <button type="button" className={Boolean(current) ? "active" : ""} onClick={() => onConfigChange(param.key, true)}>{t("ui.GenerationSettingsPanel.text.256783b7")}</button>
-                  <button type="button" className={!Boolean(current) ? "active" : ""} onClick={() => onConfigChange(param.key, false)}>{t("ui.CanvasToolbarCustomizeDialog.arialabel.6c14bd7f")}</button>
+                  <Segmented
+                    size="small"
+                    value={Boolean(current) ? "on" : "off"}
+                    onChange={(value) => onConfigChange(param.key, value === "on")}
+                    options={[
+                      { value: "on", label: t("ui.GenerationSettingsPanel.text.256783b7") },
+                      { value: "off", label: t("ui.CanvasToolbarCustomizeDialog.arialabel.6c14bd7f") },
+                    ]}
+                  />
                 </div>
               </section>
             </div>
@@ -88,14 +90,14 @@ export function GenerationSettingsPanel({
               <section>
                 <p>{param.label}</p>
                 <div className="generation-settings-slider">
-                  <input
+                  <Slider
                     className="nodrag nopan"
-                    type="range"
                     min={domain.min}
                     max={domain.max}
                     step={domain.step}
                     value={sliderTrackPosition(param, value)}
-                    onChange={(event) => onConfigChange(param.key, sliderValueFromTrack(param, Number(event.target.value)))}
+                    onChange={(next) => onConfigChange(param.key, sliderValueFromTrack(param, next))}
+                    tooltip={{ open: false }}
                   />
                   <output>{value}{presentation.unit || ""}</output>
                 </div>
@@ -127,23 +129,19 @@ export function GenerationSettingsPanel({
               {groupHeading}
               <section>
                 <p>{param.label}</p>
-                <label className="generation-settings-select">
-                  <select
-                    className="generation-settings-input nodrag nopan"
-                    aria-label={param.label}
-                    value={String(current ?? "")}
-                    onChange={(event) => {
-                      const matched = (param.options || []).find((option) => String(optionValue(option)) === event.target.value);
-                      onConfigChange(param.key, matched === undefined ? event.target.value : optionValue(matched));
-                    }}
-                  >
-                    {(param.options || []).map((option) => {
-                      const value = optionValue(option);
-                      return <option key={String(value)} value={String(value)}>{optionLabel(param, value)}</option>;
-                    })}
-                  </select>
-                  <IconSymbol name="chevron-down" />
-                </label>
+                <Select
+                  className="generation-settings-input nodrag nopan"
+                  aria-label={param.label}
+                  value={String(current ?? "")}
+                  onChange={(next) => {
+                    const matched = (param.options || []).find((option) => String(optionValue(option)) === next);
+                    onConfigChange(param.key, matched === undefined ? next : optionValue(matched));
+                  }}
+                  options={(param.options || []).map((option) => {
+                    const value = optionValue(option);
+                    return { value: String(value), label: optionLabel(param, value) };
+                  })}
+                />
               </section>
             </div>
           );
@@ -162,18 +160,23 @@ export function GenerationSettingsPanel({
                     </small>
                   )}
                 </p>
-                <input
-                  className="generation-settings-input nodrag nopan"
-                  type={numeric ? "number" : "text"}
-                  min={numeric && Number.isFinite(Number(presentation.min)) ? Number(presentation.min) : undefined}
-                  max={numeric && Number.isFinite(Number(presentation.max)) ? Number(presentation.max) : undefined}
-                  step={numeric && Number.isFinite(Number(presentation.step)) ? Number(presentation.step) : undefined}
-                  value={String(current ?? "")}
-                  onChange={(event) => {
-                    const value = event.target.value;
-                    onConfigChange(param.key, numeric ? (value === "" ? undefined : Number(value)) : value);
-                  }}
-                />
+                {numeric ? (
+                  <InputNumber
+                    className="generation-settings-input nodrag nopan"
+                    {...(Number.isFinite(Number(presentation.min)) ? { min: Number(presentation.min) } : {})}
+                    {...(Number.isFinite(Number(presentation.max)) ? { max: Number(presentation.max) } : {})}
+                    {...(Number.isFinite(Number(presentation.step)) ? { step: Number(presentation.step) } : {})}
+                    value={current === undefined || current === "" ? null : Number(current)}
+                    onChange={(value) => onConfigChange(param.key, value === null ? undefined : value)}
+                  />
+                ) : (
+                  <input
+                    className="generation-settings-input nodrag nopan"
+                    type="text"
+                    value={String(current ?? "")}
+                    onChange={(event) => onConfigChange(param.key, event.target.value)}
+                  />
+                )}
                 {presentation.limitNoteKey && <small className="generation-settings-limit-hint">{t(presentation.limitNoteKey)}</small>}
               </section>
             </div>

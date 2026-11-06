@@ -1,5 +1,6 @@
 import { t } from '@/i18n';
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Modal } from "antd";
+import { useEffect, useState } from "react";
 import { CircleCheck, CircleAlert, Info, X } from "lucide-react";
 import { useNotificationStore, type MessageDialog, type ToastMessage, type ToastTone } from "../../store/notificationStore";
 
@@ -28,47 +29,40 @@ function ToastCard({ item }: { item: ToastMessage }) {
   );
 }
 
+/**
+ * 重要结果用 antd Modal 承载：焦点陷阱、Esc、遮罩关闭和焦点返回触发元素都由它负责，
+ * 这里只保留消息队列语义（标题、正文、可展开详情、待处理条数）。
+ */
 function MessagePopup({ item, pending }: { item: MessageDialog; pending: number }) {
-  const dialog = useRef<HTMLDialogElement>(null);
-  const acknowledge = useRef<HTMLButtonElement>(null);
   const dismiss = useNotificationStore(state => state.dismissMessage);
-  useLayoutEffect(() => {
-    const previousFocus = document.activeElement as HTMLElement | null;
-    const element = dialog.current;
-    element?.showModal();
-    acknowledge.current?.focus();
-    return () => {
-      element?.close();
-      if (previousFocus?.isConnected) previousFocus.focus();
-    };
-  }, []);
   const close = () => dismiss(item.id);
   return (
-    <dialog ref={dialog} className="message-dialog" aria-labelledby={`message-title-${item.id}`}
-      aria-describedby={`message-body-${item.id}`} onCancel={event => { event.preventDefault(); close(); }}
-      onKeyDown={event => {
-        event.stopPropagation();
-        if (event.key !== "Tab") return;
-        const controls = Array.from(event.currentTarget.querySelectorAll<HTMLElement>("button, summary"));
-        const first = controls[0];
-        const last = controls.at(-1);
-        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
-        if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
-      }} onKeyUp={event => event.stopPropagation()}>
-      <button type="button" className="message-close message-dialog-close" aria-label={t('notification.closeMessage')} onClick={close}><X size={16} strokeWidth={1.7} /></button>
+    <Modal
+      open
+      centered
+      width={420}
+      className="message-dialog-modal"
+      title={(
+        <span className="message-dialog-title">
+          <MessageMark tone={item.tone} />
+          <span>{item.title}</span>
+        </span>
+      )}
+      onCancel={close}
+      footer={(
+        <div className="message-dialog-footer">
+          <span>{pending > 0 ? t('notification.pendingMessages', { count: pending }) : ""}</span>
+          <button type="button" className="button primary" autoFocus onClick={close}>{t('notification.acknowledge')}</button>
+        </div>
+      )}
+    >
       <div className="message-dialog-content">
-        <MessageMark tone={item.tone} />
         <div className="message-dialog-copy">
-          <h2 id={`message-title-${item.id}`}>{item.title}</h2>
-          <p id={`message-body-${item.id}`}>{item.message}</p>
+          <p>{item.message}</p>
           {item.details && <details className="message-details"><summary>{t('notification.details')}</summary><pre>{item.details}</pre></details>}
         </div>
       </div>
-      <footer className="message-dialog-footer">
-        <span>{pending > 0 ? t('notification.pendingMessages', { count: pending }) : ""}</span>
-        <button type="button" className="button primary" ref={acknowledge} onClick={close}>{t('notification.acknowledge')}</button>
-      </footer>
-    </dialog>
+    </Modal>
   );
 }
 

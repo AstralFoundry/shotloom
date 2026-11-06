@@ -1,4 +1,5 @@
 import { t } from '@/i18n';
+import { App } from 'antd';
 import { useMemo, useState, useSyncExternalStore } from "react";
 import { CANVAS_AGENT_ID } from "../../agent/agents/definitions.ts";
 import {
@@ -51,6 +52,7 @@ function toDraft(item: SkillRecord): SkillDraft {
 }
 
 export function SkillsFeature() {
+  const { modal } = App.useApp();
   const revision = useSyncExternalStore(subscribeDomain, getDomainRevision);
   const [query, setQuery] = useState("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -72,7 +74,16 @@ export function SkillsFeature() {
   }, [revision, query]);
 
   const dirty = Boolean(open && JSON.stringify(open.draft) !== open.baseline);
-  const discardGuard = () => !dirty || window.confirm(t("ui.SkillsFeature.text.b9acb156"));
+  function confirmDiscard(action: () => void) {
+    if (!dirty) {
+      action();
+      return;
+    }
+    modal.confirm({
+      title: t("ui.SkillsFeature.text.b9acb156"),
+      onOk: action,
+    });
+  }
 
   async function run(action: () => void | Promise<void>, success?: string) {
     try {
@@ -84,31 +95,36 @@ export function SkillsFeature() {
   }
 
   function openSkill(id: string) {
-    if (open?.draft.id === id || !discardGuard()) return;
-    const item = readSkills().find((skill) => skill.id === id);
-    if (!item) return;
-    const draft = toDraft(item);
-    setOpen({ draft, isNew: false, baseline: JSON.stringify(draft) });
+    if (open?.draft.id === id) return;
+    confirmDiscard(() => {
+      const item = readSkills().find((skill) => skill.id === id);
+      if (!item) return;
+      const draft = toDraft(item);
+      setOpen({ draft, isNew: false, baseline: JSON.stringify(draft) });
+    });
   }
 
   function createSkill() {
-    if (!discardGuard()) return;
-    const draft = createSkillDraft([CANVAS_AGENT_ID]) as SkillDraft;
-    setOpen({ draft, isNew: true, baseline: JSON.stringify(draft) });
+    confirmDiscard(() => {
+      const draft = createSkillDraft([CANVAS_AGENT_ID]) as SkillDraft;
+      setOpen({ draft, isNew: true, baseline: JSON.stringify(draft) });
+    });
   }
 
   /** 面板里的「恢复默认」只作用于当前打开的技能，确认放在 run 之外以免取消后仍提示成功。 */
   function resetOpenSkill() {
     const skillId = open?.draft.id;
     if (!skillId) return;
-    if (!window.confirm(t("ui.SkillsFeature.text.79325288", { value0: open!.draft.name }))) return;
-    void run(async () => {
-      await resetSkillToBuiltIn(skillId);
-      const item = readSkills().find((skill) => skill.id === skillId);
-      if (!item) return;
-      const draft = toDraft(item);
-      setOpen({ draft, isNew: false, baseline: JSON.stringify(draft) });
-    }, t("ui.SkillsFeature.text.c5ee08da"));
+    modal.confirm({
+      title: t("ui.SkillsFeature.text.79325288", { value0: open!.draft.name }),
+      onOk: () => run(async () => {
+        await resetSkillToBuiltIn(skillId);
+        const item = readSkills().find((skill) => skill.id === skillId);
+        if (!item) return;
+        const draft = toDraft(item);
+        setOpen({ draft, isNew: false, baseline: JSON.stringify(draft) });
+      }, t("ui.SkillsFeature.text.c5ee08da")),
+    });
   }
 
   async function importFiles(files: File[]) {
@@ -174,7 +190,7 @@ export function SkillsFeature() {
       const saved = toDraft(await upsertSkill(draft));
       setOpen({ draft: saved, isNew: false, baseline: JSON.stringify(saved) });
     }, t("ui.SkillsFeature.text.e1f0b15b")),
-    close: () => discardGuard() && setOpen(null),
+    close: () => confirmDiscard(() => setOpen(null)),
     reset: resetOpenSkill,
   };
 

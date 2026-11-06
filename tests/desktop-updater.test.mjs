@@ -33,13 +33,20 @@ test('desktop updater keeps the checked update for download and installation', (
   assert.match(dialog, /button-spinner/);
   assert.match(dialog, /formatReleaseNotes/);
   assert.match(dialog, /update-current-state/);
-  assert.match(dialog, /role="progressbar"/);
+  // 进度条改由 antd Progress 提供，仍必须受控于下载百分比并保留下载态语义。
+  assert.match(dialog, /<Progress[\s\S]*?percent=\{percent\}[\s\S]*?status="active"/);
   assert.match(dialog, /data\.phase !== "downloading"/);
   assert.doesNotMatch(dialog, />\s*下载中\s*<\/button>/);
   assert.doesNotMatch(dialog, /SHOTLOOM DESKTOP/);
-  // 更新对话框只是 .modal 的一个宽度变体，圆角/底色/抬升沿用应用级模态框契约。
-  assert.match(styles, /\.update-modal \{\s*width: min\(456px[^}]*\}/);
-  assert.match(styles, /\.modal \{[\s\S]*?border-radius: var\(--radius-lg\)[\s\S]*?box-shadow: var\(--shadow-modal\)/);
-  assert.match(styles, /\.update-modal-head \.icon-btn \{[^}]*border-radius: var\(--radius-control\)/);
-  assert.match(styles, /\.progress-track span \{[\s\S]*background: var\(--brand\)/);
+  // 更新对话框由 antd Modal 承载：宽度、可关闭性与遮罩行为必须跟随下载/强制更新状态。
+  assert.match(dialog, /<Modal[\s\S]*?width=\{456\}/);
+  assert.match(dialog, /closable=\{closeAllowed\}/);
+  assert.match(dialog, /mask=\{\{ closable: closeAllowed, blur: true \}\}/);
+  assert.match(styles, /\.update-progress \{/);
+  assert.match(styles, /\.update-current-state \{/);
+  // 主题桥必须把 antd 容器、圆角和抬升接到应用令牌上，而不是另起一套视觉语言。
+  const antdTheme = read('renderer/styles/antd-theme.css');
+  assert.match(antdTheme, /--ant-color-bg-container: var\(--surface\)/);
+  assert.match(antdTheme, /--ant-border-radius: var\(--radius\)/);
+  assert.match(antdTheme, /--ant-box-shadow-secondary: var\(--shadow-card\)/);
 });

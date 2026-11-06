@@ -1,7 +1,7 @@
 import { t } from '@/i18n';
 import { store } from "../../store/projectStore";
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { createPortal } from "react-dom";
+import { Checkbox, Empty, Modal, Spin, Tabs } from "antd";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { useWorkbenchSurfaceRoot } from "../layout/workbenchSurface";
 import { IconSymbol } from "../components/IconSymbol";
 import { getDomainRevision, subscribeDomain } from "../../store/domainReactivity";
@@ -94,7 +94,6 @@ export function AssetPickerDialog({
   const [view, setView] = useState<"grid" | "list">("grid");
   const [selected, setSelected] = useState<string[]>([]);
   const [failures, setFailures] = useState<MediaImportFailure[]>([]);
-  const dialogRef = useRef<HTMLDivElement | null>(null);
 
   const usage = editorMediaUsage(project);
   const allCandidates = listEditorMediaCandidates();
@@ -138,16 +137,6 @@ export function AssetPickerDialog({
     }
     setTab(connected.size ? "connected" : "canvas");
   }, [open, nodeId]);
-
-  useEffect(() => {
-    if (!open) return;
-    const key = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      event.preventDefault(); event.stopImmediatePropagation(); onClose();
-    };
-    document.addEventListener("keydown", key, true);
-    return () => document.removeEventListener("keydown", key, true);
-  }, [open, onClose]);
 
   const toggle = (candidate: EditorMediaCandidate) => {
     setSelected((current) => {
@@ -203,40 +192,41 @@ export function AssetPickerDialog({
   if (!open || !surface) return null;
   // 挂进工作区内容区而不是剪辑台容器：剪辑器是独立 iframe，遮罩留在里面
   // 盖不住宿主侧，也会被容器裁剪成一小块。
-  return createPortal(
-    <div
-      className="ov-picker-backdrop"
-      role="dialog"
-      aria-modal="true"
-      aria-label={t("ui.AssetPickerDialog.arialabel.9d557f2a")}
-      onPointerDown={(event) => event.target === event.currentTarget && onClose()}
+  return (
+    <Modal
+      open
+      centered
+      width={920}
+      title={t("ui.AssetPickerDialog.arialabel.9d557f2a")}
+      footer={null}
+      onCancel={onClose}
+      maskClosable={!busy}
+      keyboard={!busy}
+      closable={!busy}
+      getContainer={() => surface}
+      className="ov-picker-modal"
+      styles={{ body: { padding: 0 } }}
     >
-      <div className={`ov-picker${failures.length ? " has-failures" : ""}`} ref={dialogRef} onPointerDown={(event) => event.stopPropagation()}>
-        <header className="ov-picker-head">
-          <div className="ov-picker-tabs" role="tablist">
-            {TABS.map((item) => {
-              const count = allCandidates.filter((c) => item.id === "connected"
-                ? c.origin === "canvas" && connected.has(c.nodeId)
-                : c.origin === (item.id === "canvas" ? "canvas" : "material")).length;
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={tab === item.id}
-                  className={tab === item.id ? "active" : ""}
-                  onClick={() => setTab(item.id)}
-                >
+      <div className={`ov-picker${failures.length ? " has-failures" : ""}`}>
+        <Tabs
+          className="ov-picker-tabs"
+          activeKey={tab}
+          onChange={(key) => setTab(key as Tab)}
+          items={TABS.map((item) => {
+            const count = allCandidates.filter((c) => item.id === "connected"
+              ? c.origin === "canvas" && connected.has(c.nodeId)
+              : c.origin === (item.id === "canvas" ? "canvas" : "material")).length;
+            return {
+              key: item.id,
+              label: (
+                <span className="ov-picker-tab-label">
                   {item.label}
                   <span>{count}</span>
-                </button>
-              );
-            })}
-          </div>
-          <button type="button" className="ov-picker-close" aria-label={t("ui.CanvasToolbarCustomizeDialog.arialabel.6c14bd7f")} onClick={onClose} disabled={busy}>
-            <IconSymbol name="x" />
-          </button>
-        </header>
+                </span>
+              ),
+            };
+          })}
+        />
         <div className="ov-picker-body">
           <aside className="ov-picker-aside">
             <label className="ov-picker-search">
@@ -297,13 +287,13 @@ export function AssetPickerDialog({
                   <IconSymbol name="list" />
                 </button>
               </div>
-              <label className="ov-picker-available">
-                <input
-                  type="checkbox"
-                  checked={availableOnly}
-                  onChange={(event) => setAvailableOnly(event.target.checked)}
-                />
-                {t("ui.AssetPickerDialog.text.7c27d9e2")}</label>
+              <Checkbox
+                className="ov-picker-available"
+                checked={availableOnly}
+                onChange={(event) => setAvailableOnly(event.target.checked)}
+              >
+                {t("ui.AssetPickerDialog.text.7c27d9e2")}
+              </Checkbox>
               {tag && (
                 <button type="button" className="ov-picker-tag-chip" onClick={() => setTag("")}>
                   {tag}
@@ -311,27 +301,32 @@ export function AssetPickerDialog({
                 </button>
               )}
             </div>
-            <div className={`ov-picker-grid${view === "list" ? " list" : ""}`}>
-              <button
-                type="button"
-                className="ov-picker-upload"
-                data-view={view}
-                disabled={busy}
-                onClick={() => void onLocalUpload()}
-              >
-                <IconSymbol name="upload" />
-                {t("ui.AssetPickerDialog.text.16367f3d")}</button>
-              {visible.map(renderTile)}
-              {/* 空态在滚动区里排在上传入口之后：筛选没命中时本地上传依然可用。 */}
-              {!visible.length && (
-                <div className="ov-picker-empty">
-                  <p>{filtered || availableOnly ? t("ui.AssetPickerDialog.text.eaab7302") : TABS.find((t) => t.id === tab)?.empty}</p>
-                  {filtersActive && (
-                    <button type="button" onClick={clearFilters}>{t("ui.AssetPickerDialog.text.4bbc4e5f")}</button>
-                  )}
-                </div>
-              )}
-            </div>
+            <Spin spinning={busy}>
+              <div className={`ov-picker-grid${view === "list" ? " list" : ""}`}>
+                <button
+                  type="button"
+                  className="ov-picker-upload"
+                  data-view={view}
+                  disabled={busy}
+                  onClick={() => void onLocalUpload()}
+                >
+                  <IconSymbol name="upload" />
+                  {t("ui.AssetPickerDialog.text.16367f3d")}</button>
+                {visible.map(renderTile)}
+                {/* 空态在滚动区里排在上传入口之后：筛选没命中时本地上传依然可用。 */}
+                {!visible.length && (
+                  <div className="ov-picker-empty">
+                    <Empty
+                      image={Empty.PRESENTED_IMAGE_SIMPLE}
+                      description={filtered || availableOnly ? t("ui.AssetPickerDialog.text.eaab7302") : TABS.find((item) => item.id === tab)?.empty}
+                    />
+                    {filtersActive && (
+                      <button type="button" onClick={clearFilters}>{t("ui.AssetPickerDialog.text.4bbc4e5f")}</button>
+                    )}
+                  </div>
+                )}
+              </div>
+            </Spin>
           </div>
         </div>
         {failures.length > 0 && <div className="ov-picker-failures" role="alert">
@@ -358,7 +353,6 @@ export function AssetPickerDialog({
           </div>
         </footer>
       </div>
-    </div>,
-    surface,
+    </Modal>
   );
 }

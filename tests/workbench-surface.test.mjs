@@ -19,6 +19,9 @@ const editorSource = read('../renderer/src/app/editor/VideoEditorWorkspace.tsx')
 const editorLayout = read('../renderer/src/app/editor/OpenReelWorkspace.css');
 const viewerSource = read('../renderer/src/app/components/MediaViewer.tsx');
 const viewerStyles = read('../renderer/styles/media-overlays.css');
+const searchSource = read('../renderer/src/app/components/ProjectSearch.tsx');
+const antdProvider = read('../renderer/src/app/ui/antd/AntdProvider.tsx');
+const antdThemeCss = read('../renderer/styles/antd-theme.css');
 const directorSource = read('../renderer/src/app/canvas/ThreeDDirectorNode.tsx');
 const directorStyles = read('../renderer/src/app/canvas/ThreeDDirectorNode.css');
 
@@ -89,7 +92,20 @@ test('文本界面与导演台详情铺满内容区，不是压暗背景上的�
 test('应用级巨层级只留给真正的窗口浮层', () => {
   assert.doesNotMatch(editorLayout, /z-index:\s*(1[0-9]{3,}|[2-9][0-9]{3,})/);
   assert.doesNotMatch(viewerStyles, /\.media-viewer-backdrop \{[\s\S]*?z-index:\s*240/);
-  assert.match(viewerStyles, /\.project-search-backdrop \{[\s\S]*?position: fixed;\n  inset: 0;\n  z-index: var\(--layer-modal\);/);
+  // 全局搜索改由 antd Modal 承载：层级统一在 Provider 的 zIndexPopupBase，
+  // 不再为每个弹窗各自写一套 fixed 遮罩与 400+ 的 z-index。
+  assert.match(searchSource, /<Modal[\s\S]*?className="project-search-modal"/);
+  assert.doesNotMatch(viewerStyles, /\.project-search-backdrop/, '旧搜索遮罩样式应随迁移删除');
+  assert.match(antdProvider, /zIndexPopupBase: 560/);
+  assert.doesNotMatch(antdProvider, /zIndexPopupBase:\s*(1[0-9]{3,}|[2-9][0-9]{3,})/);
+});
+
+test('暗色由 antd 算法跟随 .dark，而不是只改根节点别名', () => {
+  // antd 6 会在组件作用域重新生成 --ant-*；只覆盖 :root 的变量盖不住 Select / InputNumber。
+  assert.match(antdProvider, /antdTheme\.darkAlgorithm/);
+  assert.match(antdProvider, /new MutationObserver\(sync\)/);
+  assert.match(antdProvider, /classList\.contains\("dark"\)/);
+  assert.doesNotMatch(antdThemeCss, /\.dark\s*\{[^}]*--ant-color/, '暗色组件变量必须由 darkAlgorithm 生成，不能靠根节点覆盖');
 });
 
 // 文本界面把编辑器和 Agent 面板放在同一个舞台里：舞台的媒体规则一旦写成后代选择器，

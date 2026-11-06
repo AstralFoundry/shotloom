@@ -1,11 +1,14 @@
 import { t } from '@/i18n';
-import { type MouseEvent, useMemo, useState } from "react";
+import { type MouseEvent, useMemo, useRef, useState } from "react";
+import { App, Input, Modal, Segmented, type InputRef, type MenuProps } from "antd";
+import { ContextMenu } from "../components/ContextMenu";
 import { EmptyState } from "../components/EmptyState";
 import { IconSymbol } from "../components/IconSymbol";
 import { MaterialGrid, type MaterialItem } from "../components/MaterialGrid";
 import { ProjectScopeHeader } from "../components/ProjectScopeHeader";
 import { useAppStore } from "../store/appStore";
 import { assetCategories, defaultAssetCategory } from "../../domain/asset/assetCategories";
+import { SearchInput } from "../components/SearchInput";
 
 export interface AssetsController {
   preview: (item: MaterialItem, src: string, kind: "image" | "video") => void;
@@ -40,10 +43,12 @@ export function AssetsView({
   assetMaterialIds: Set<string>;
   controller: AssetsController;
 }) {
+  const { modal } = App.useApp();
   const [scope, setScope] = useState<"project" | "local">("project");
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const [renameItem, setRenameItem] = useState<MaterialItem | null>(null);
   const [renameDraft, setRenameDraft] = useState("");
+  const renameInput = useRef<InputRef>(null);
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
   const [moving, setMoving] = useState(false);
   const category = useAppStore((state) => state.assetCategory);
@@ -75,31 +80,34 @@ export function AssetsView({
     const key = String(item.id || item.path || item.name || "");
     setSelectedKeys((current) => { const next = new Set(current); if (next.has(key)) next.delete(key); else next.add(key); return next; });
   }
-  async function batchDelete() {
-    if (!selectedItems.length || !window.confirm(t("ui.AssetsView.text.cf156401", { value0: selectedItems.length }))) return;
-    const failed = new Set<string>();
-    for (const item of selectedItems) {
-      try {
-        const removed = scope === "project"
-          ? await controller.deleteProjectAsset(item)
-          : await controller.deleteLocalAsset(item);
-        if (removed === false) failed.add(String(item.id || item.path || item.name || ""));
-      } catch { failed.add(String(item.id || item.path || item.name || "")); }
-    }
-    setSelectedKeys(failed);
+  function batchDelete() {
+    if (!selectedItems.length) return;
+    modal.confirm({
+      title: t("ui.AssetsView.text.cf156401", { value0: selectedItems.length }),
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        const failed = new Set<string>();
+        for (const item of selectedItems) {
+          try {
+            const removed = scope === "project"
+              ? await controller.deleteProjectAsset(item)
+              : await controller.deleteLocalAsset(item);
+            if (removed === false) failed.add(String(item.id || item.path || item.name || ""));
+          } catch { failed.add(String(item.id || item.path || item.name || "")); }
+        }
+        setSelectedKeys(failed);
+      },
+    });
   }
 
   function openMenu(event: MouseEvent<HTMLDivElement>) {
     event.preventDefault();
     if (
       (event.target as Element).closest(
-        ".material-node-wrap, .resource-context-menu",
+        ".material-node-wrap, .ant-dropdown",
       )
     ) return;
-    setMenu({
-      x: Math.min(event.clientX, window.innerWidth - 202),
-      y: Math.min(event.clientY, window.innerHeight - 194),
-    });
+    setMenu({ x: event.clientX, y: event.clientY });
   }
   async function confirmRename() {
     if (!renameItem) return;
@@ -119,12 +127,37 @@ export function AssetsView({
       const message = scope === "project"
         ? t("ui.AssetsView.text.a71e0b79", { value0: item.name || t("ui.canvasMediaSelection.text.b61b7f74") })
         : t("ui.AssetsView.text.d6c61153", { value0: item.name || t("ui.canvasMediaSelection.text.b61b7f74") });
-      if (window.confirm(message)) {
-        void (scope === "project"
-          ? controller.deleteProjectAsset(item)
-          : controller.deleteLocalAsset(item));
-      }
+      modal.confirm({
+        title: message,
+        okButtonProps: { danger: true },
+        onOk: () => {
+          void (scope === "project"
+            ? controller.deleteProjectAsset(item)
+            : controller.deleteLocalAsset(item));
+        },
+      });
     }
+  }
+
+  const menuItems: MenuProps["items"] = scope === "project"
+    ? [
+      { key: "materials", icon: <IconSymbol name="image" />, label: t("ui.AssetsView.text.bab3c9ce") },
+      { type: "divider" },
+      { key: "import-package", icon: <IconSymbol name="upload" />, label: t("ui.AssetsView.text.3f035ce8") },
+      { key: "export-package", icon: <IconSymbol name="download" />, label: t("ui.AssetsView.text.ca8c07de") },
+      { key: "import-files", icon: <IconSymbol name="plus" />, label: t("ui.AssetsView.text.f1d24597") },
+    ]
+    : [
+      { key: "open-local", icon: <IconSymbol name="folder" />, label: t("ui.AssetsView.text.6521c13f") },
+    ];
+
+  function onMenuClick(key: string) {
+    setMenu(null);
+    if (key === "materials") setRoute("materials");
+    if (key === "import-package") void controller.importPackage();
+    if (key === "export-package") void controller.exportPackage();
+    if (key === "import-files") void controller.importFiles();
+    if (key === "open-local") void controller.openLocalStorage();
   }
 
   return (
@@ -135,10 +168,9 @@ export function AssetsView({
         flat
       >
         <div className="search">
-          <IconSymbol name="search" />
-          <input
+          <SearchInput
             value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
+            onChange={setKeyword}
             placeholder={t("ui.AssetsView.text.00b421b2", { value0: categoryInfo.label })}
           />
         </div>
@@ -156,23 +188,34 @@ export function AssetsView({
           <button type="button" onClick={() => { setSelectedKeys(new Set()); setMoving(false); }}>{t("ui.MaterialGrid.text.f02e9439")}</button>
           {moving && <div className="material-batch-categories">{assetCategories.map((item) => <button key={item.id} type="button" onClick={() => { void controller.moveProjectAssets(selectedItems, item.id); setSelectedKeys(new Set()); setMoving(false); }}>{item.label}</button>)}</div>}
         </div>}
-        <div
-          className="asset-scope-switch"
-          role="tablist"
-          aria-label={t("ui.AssetsView.arialabel.df2bc29a")}
-        >
-          <button
-            className={scope === "project" ? "active" : ""}
-            onClick={() => { setScope("project"); setSelectedKeys(new Set()); }}
-          >
-            {t("ui.ProjectSearch.text.96cb64ae")}<span>{projectAssets.length}</span>
-          </button>
-          <button
-            className={scope === "local" ? "active" : ""}
-            onClick={() => { setScope("local"); setSelectedKeys(new Set()); }}
-          >
-            {t("ui.AssetsView.text.e1003961")}<span>{localAssets.length}</span>
-          </button>
+        <div className="asset-scope-switch">
+          <Segmented
+            className="asset-scope-tabs"
+            aria-label={t("ui.AssetsView.arialabel.df2bc29a")}
+            value={scope}
+            onChange={(value) => {
+              setScope(value as "project" | "local");
+              setSelectedKeys(new Set());
+            }}
+            options={[
+              {
+                value: "project",
+                label: (
+                  <span className="asset-scope-tab">
+                    {t("ui.ProjectSearch.text.96cb64ae")}<span>{projectAssets.length}</span>
+                  </span>
+                ),
+              },
+              {
+                value: "local",
+                label: (
+                  <span className="asset-scope-tab">
+                    {t("ui.AssetsView.text.e1003961")}<span>{localAssets.length}</span>
+                  </span>
+                ),
+              },
+            ]}
+          />
           <p>
             {scope === "local"
               ? t("ui.AssetsView.text.488e53ed")
@@ -204,69 +247,42 @@ export function AssetsView({
               onAction={action}
             />
           )}
-        {menu && (
-          <div
-            className="resource-context-menu"
-            style={{ left: menu.x, top: menu.y }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {scope === "project"
-              ? (
-                <>
-                  <button
-                    onClick={() => {
-                      setMenu(null);
-                      setRoute("materials");
-                    }}
-                  >
-                    <IconSymbol name="image" />{t("ui.AssetsView.text.bab3c9ce")}</button>
-                  <div className="resource-context-separator" />
-                  <button onClick={() => void controller.importPackage()}>
-                    <IconSymbol name="upload" />{t("ui.AssetsView.text.3f035ce8")}</button>
-                  <button onClick={() => void controller.exportPackage()}>
-                    <IconSymbol name="download" />{t("ui.AssetsView.text.ca8c07de")}</button>
-                  <button onClick={() => void controller.importFiles()}>
-                    <IconSymbol name="plus" />{t("ui.AssetsView.text.f1d24597")}</button>
-                </>
-              )
-              : (
-                <button onClick={() => void controller.openLocalStorage()}>
-                  <IconSymbol name="folder" />{t("ui.AssetsView.text.6521c13f")}</button>
-              )}
+        <ContextMenu
+          point={menu}
+          items={menuItems}
+          onSelect={onMenuClick}
+          onClose={() => setMenu(null)}
+        />
+      </div>
+      <Modal
+        open={Boolean(renameItem)}
+        centered
+        width={430}
+        title={t("ui.AssetsView.text.29e63aed")}
+        okText={t("ui.MediaViewer.text.fadf24db")}
+        cancelText={t("ui.ImageWatermarkEditor.text.4d0b4688")}
+        onCancel={() => {
+          setRenameItem(null);
+          setRenameDraft("");
+        }}
+        onOk={() => void confirmRename()}
+        afterOpenChange={(open) => {
+          if (open) renameInput.current?.focus();
+        }}
+      >
+        {renameItem && (
+          <div className="rename-dialog-body">
+            <p className="rename-dialog-current">{renameItem.name || t("ui.canvasMediaSelection.text.b61b7f74")}</p>
+            <Input
+              ref={renameInput}
+              value={renameDraft}
+              onChange={(event) => setRenameDraft(event.target.value)}
+              placeholder={t("ui.AssetsView.placeholder.a7426356")}
+              onPressEnter={() => void confirmRename()}
+            />
           </div>
         )}
-      </div>
-      {renameItem && (
-        <div
-          className="rename-backdrop"
-          onMouseDown={(e) =>
-            e.target === e.currentTarget && setRenameItem(null)}
-        >
-          <section className="rename-dialog">
-            <p>{t("ui.AssetsView.text.29e63aed")}</p>
-            <h3>{renameItem.name || t("ui.canvasMediaSelection.text.b61b7f74")}</h3>
-            <input
-              value={renameDraft}
-              onChange={(e) => setRenameDraft(e.target.value)}
-              placeholder={t("ui.AssetsView.placeholder.a7426356")}
-              autoFocus
-              onKeyDown={(e) => e.key === "Enter" && void confirmRename()}
-            />
-            <footer>
-              <button
-                className="button ghost"
-                onClick={() => setRenameItem(null)}
-              >
-                {t("ui.ImageWatermarkEditor.text.4d0b4688")}</button>
-              <button
-                className="button primary"
-                onClick={() => void confirmRename()}
-              >
-                {t("ui.MediaViewer.text.fadf24db")}</button>
-            </footer>
-          </section>
-        </div>
-      )}
+      </Modal>
     </>
   );
 }

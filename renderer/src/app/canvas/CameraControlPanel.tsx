@@ -1,4 +1,6 @@
 import { t } from '@/i18n';
+import { Select, Switch } from "antd";
+import { useRef } from "react";
 import { IconSymbol } from "../components/IconSymbol";
 import {
   APERTURE_OPTIONS,
@@ -31,65 +33,41 @@ export function CameraControlPanel({
   onToggle,
   onClose,
 }: CameraControlPanelProps) {
+  const root = useRef<HTMLElement>(null);
   const normalized = normalizeCameraConfig(config) as Record<string, string>;
-  function indexOfOption(options: readonly string[], value: string | undefined) {
-    return Math.max(0, value === undefined ? -1 : options.indexOf(value));
-  }
   function select(key: string, value: string | undefined) {
     if (value && normalized[key] !== value) onChange({ ...normalized, [key]: value });
   }
-  function step(key: string, options: readonly string[], amount: number) {
-    const current = indexOfOption(options, normalized[key]);
-    const next = Math.max(0, Math.min(options.length - 1, current + amount));
-    select(key, options[next]);
-  }
   return (
-    <section className="camera-control-panel nodrag nopan nowheel" aria-label={t("ui.CameraControlPanel.arialabel.5b628c80")} onClick={(event) => event.stopPropagation()}>
+    <section
+      ref={root}
+      className="camera-control-panel nodrag nopan nowheel"
+      aria-label={t("ui.CameraControlPanel.arialabel.5b628c80")}
+      onClick={(event) => event.stopPropagation()}
+    >
       <header className="camera-control-head">
         <div><strong>{t("ui.CameraControlPanel.arialabel.5b628c80")}</strong><span>{normalized.focalLength} · {normalized.aperture}</span></div>
         <button type="button" title={t("ui.CameraControlPanel.title.d0c1c6f9")} onClick={onClose}><IconSymbol name="check" /></button>
       </header>
-      <div className="camera-wheel-grid">
-        {definitions.map((definition) => {
-          const index = indexOfOption(definition.options, normalized[definition.key]);
-          return (
-            <div
-              key={definition.key}
-              className="camera-wheel"
-              tabIndex={0}
-              role="listbox"
+      <div className="camera-select-grid">
+        {definitions.map((definition) => (
+          <label key={definition.key} className="camera-select-field">
+            <span>{definition.label}</span>
+            <Select
+              value={normalized[definition.key] ?? null}
               aria-label={definition.label}
-              onWheel={(event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                step(definition.key, definition.options, event.deltaY > 0 ? 1 : -1);
-              }}
-              onKeyDown={(event) => {
-                if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
-                event.preventDefault();
-                step(definition.key, definition.options, event.key === "ArrowDown" ? 1 : -1);
-              }}
-            >
-              <span className="camera-wheel-label">{definition.label}</span>
-              <div className="camera-wheel-window">
-                {[-1, 0, 1].map((offset) => ({ offset, value: definition.options[index + offset] })).filter((item) => item.value).map((item) => (
-                  <button
-                    key={item.value}
-                    type="button"
-                    role="option"
-                    aria-selected={item.offset === 0}
-                    className={`offset-${item.offset}${item.offset === 0 ? " active" : ""}`}
-                    onClick={() => select(definition.key, item.value)}
-                  >{item.value}</button>
-                ))}
-              </div>
-            </div>
-          );
-        })}
+              onChange={(value) => select(definition.key, value ?? undefined)}
+              options={definition.options.map((option) => ({ value: option, label: option }))}
+              popupMatchSelectWidth={false}
+              // 面板住在画布里：弹层挂回面板，避免随画布缩放/平移漂移。
+              getPopupContainer={() => root.current || document.body}
+            />
+          </label>
+        ))}
       </div>
       <footer>
         <label className="camera-apply-toggle">
-          <input type="checkbox" checked={enabled} onChange={(event) => onToggle(event.target.checked)} />
+          <Switch size="small" checked={enabled} onChange={onToggle} />
           <span>{enabled ? t("ui.CameraControlPanel.text.a020d3f6") : t("ui.CameraControlPanel.text.f2ed5f47")}</span>
         </label>
         <button type="button" onClick={() => onChange(normalizeCameraConfig(DEFAULT_CAMERA_CONFIG))}>{t("ui.CameraControlPanel.text.a191935b")}</button>

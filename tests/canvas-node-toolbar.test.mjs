@@ -321,8 +321,8 @@ test('编辑工具栏弹窗即时落盘并用 dnd-kit 排序', () => {
   assert.match(customizeDialog, /defaultCanvasToolbarCustomization\(\)\.pinned\[scope\]/);
   // 弹窗是应用级浮层，挂工作台表面而不是画布层叠上下文。
   assert.match(customizeDialog, /useWorkbenchSurfaceRoot\(\)/);
-  assert.match(customizeDialog, /className="canvas-toolbar-customize-backdrop"[\s\S]*?surface,/);
-  assert.match(styles, /\.canvas-toolbar-customize-backdrop \{[^}]*background: var\(--overlay-dim\)/);
+  assert.match(customizeDialog, /getContainer=\{\(\) => surface\}/);
+  assert.match(customizeDialog, /<Modal[\s\S]*?open=\{open\}/);
 });
 
 test('排布偏好落盘后工具条与弹窗实时跟随，不靠节点重渲染', () => {

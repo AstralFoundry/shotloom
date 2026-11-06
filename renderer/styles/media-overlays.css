@@ -384,27 +384,8 @@
 .text-version-empty { margin: 0; padding: 18px 16px; color: var(--faint); font-size: var(--text-caption-11); }
 .media-viewer-backdrop.is-text .media-viewer-hint { display: none; }
 
-.project-search-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: var(--layer-modal);
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  padding: min(17vh, 130px) 20px 20px;
-  background: var(--overlay-dim);
-  backdrop-filter: blur(5px);
-}
-.project-search-dialog {
-  width: min(620px, 100%);
-  max-height: min(70vh, 620px);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  border-radius: var(--radius-xl);
-  color: var(--type-primary);
-  background: var(--surface);
-  box-shadow: var(--shadow-lg);
+.project-search-modal .ant-modal-body {
+  padding: 0;
 }
 .project-search-input-row { display: flex; align-items: center; gap: 14px; padding: 16px 18px; border-bottom: 1px solid var(--line-solid); }
 .project-search-input-row > svg { width: var(--icon-lg); height: var(--icon-lg); color: var(--faint); flex: none; }
@@ -413,7 +394,7 @@
 .project-search-input-row button { display: grid; place-items: center; flex: none; width: 25px; height: 25px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--faint); cursor: pointer; }
 .project-search-input-row button:hover { background: var(--button-subtle-bg); color: var(--type-primary); }
 .project-search-input-row button svg { width: var(--icon-md); height: var(--icon-md); }
-.project-search-results { overflow: auto; padding: 8px; min-height: 74px; }
+.project-search-results { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 8px; }
 .project-search-results button { display: flex; align-items: center; gap: 14px; width: 100%; min-height: 58px; padding: 9px 12px; border: 0; border-radius: var(--radius-md); text-align: left; color: inherit; background: transparent; cursor: pointer; }
 .project-search-results button.is-selected, .project-search-results button:hover { background: var(--button-subtle-bg); }
 .project-search-kind { flex: none; width: 36px; font-size: var(--text-caption-11); color: var(--muted); }

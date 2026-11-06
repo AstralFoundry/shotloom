@@ -1,4 +1,5 @@
 import { t } from '@/i18n';
+import { confirmAction } from "./ui/confirm/confirmService";
 // 关闭确认守卫：桌面窗口请求关闭时，先把"有没有未保存改动"和"有没有仍在运行的 Agent"
 // 变成一次明确的确认，再放行原生层。它属于应用生命周期，不是 React Hook——
 // 根组件挂载时注册一次，卸载时执行返回的清理函数。
@@ -40,7 +41,7 @@ export function registerWindowCloseGuard() {
       const autoSaved = await flushAutoSave();
       if (autoSaved) markProjectClean();
       if (hasUnsavedProjectChanges()) {
-        const shouldSave = window.confirm(t("ui.windowCloseGuard.text.8b41a3a0"));
+        const shouldSave = await confirmAction({ title: t("ui.windowCloseGuard.text.8b41a3a0") });
         if (shouldSave) {
           const saved = await saveProject();
           if (saved) markProjectClean();
@@ -49,7 +50,7 @@ export function registerWindowCloseGuard() {
             return;
           }
         } else {
-          const shouldDiscard = window.confirm(t("ui.windowCloseGuard.text.0aff0649"));
+          const shouldDiscard = await confirmAction({ title: t("ui.windowCloseGuard.text.0aff0649"), danger: true });
           if (!shouldDiscard) {
             await desktopApi.window.cancelClose?.();
             return;

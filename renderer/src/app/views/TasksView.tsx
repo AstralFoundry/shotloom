@@ -1,7 +1,9 @@
 import { t } from '@/i18n';
 import { isActiveTaskStatus } from '../../domain/tasks/TaskStatus';
 import { type MouseEvent, type ReactNode, useMemo, useState } from "react";
+import { App, Segmented, type MenuProps } from "antd";
 import { formatTime } from "../../utils/format.ts";
+import { ContextMenu } from "../components/ContextMenu";
 import { EmptyState } from "../components/EmptyState";
 import { type IconName, IconSymbol } from "../components/IconSymbol";
 import { ProjectScopeHeader } from "../components/ProjectScopeHeader";
@@ -12,6 +14,7 @@ import {
   taskStatusFilters,
   taskTypeLabel,
 } from "../adapters/taskAdapter";
+import { SearchInput } from "../components/SearchInput";
 
 export interface GenerationTask {
   id: string;
@@ -50,6 +53,7 @@ const typeIcons: Record<string, IconName> = {
 export function TasksView(
   { tasks, evaluationDetails, onCancel, onRetry, onAdoptRemote, onClear, onLocate }: TasksViewProps,
 ) {
+  const { modal } = App.useApp();
   const [keyword, setKeyword] = useState("");
   const [filterKey, setFilterKey] = useState("all");
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
@@ -91,20 +95,20 @@ export function TasksView(
     event.preventDefault();
     if (
       (event.target as Element).closest(
-        ".task-record, .task-context-menu, .agent-evaluation-list",
+        ".task-record, .ant-dropdown, .agent-evaluation-list",
       )
     ) return;
-    setMenu({
-      x: Math.min(event.clientX, window.innerWidth - 202),
-      y: Math.min(event.clientY, window.innerHeight - 54),
-    });
+    setMenu({ x: event.clientX, y: event.clientY });
   }
 
-  async function clear() {
+  function clear() {
     setMenu(null);
-    if (sorted.length && window.confirm(t("ui.TasksView.text.b24f6c47"))) {
-      await onClear();
-    }
+    if (!sorted.length) return;
+    modal.confirm({
+      title: t("ui.TasksView.text.b24f6c47"),
+      okButtonProps: { danger: true },
+      onOk: () => onClear(),
+    });
   }
 
   async function submitAdopt(taskId: string) {
@@ -127,6 +131,16 @@ export function TasksView(
     }
   }
 
+  const taskMenuItems: MenuProps["items"] = [
+    {
+      key: "clear",
+      danger: true,
+      disabled: !sorted.length,
+      icon: <IconSymbol name="trash" />,
+      label: t("ui.TasksView.text.2f798109"),
+    },
+  ];
+
   return (
     <>
       <ProjectScopeHeader
@@ -140,29 +154,30 @@ export function TasksView(
         onContextMenu={openMenu}
       >
         <label className="task-search">
-          <IconSymbol name="search" />
-          <input
+          <SearchInput
             value={keyword}
-            onChange={(event) => setKeyword(event.target.value)}
+            onChange={setKeyword}
             placeholder={t("ui.TasksView.placeholder.365b1b3e")}
           />
         </label>
         <div className="task-list-summary">
           <span>{t("ui.taskAdapter.text.cafe3d5c")}</span>
-          <div className="task-filter">
-            {filters.map((filter) => (
-              <button
-                key={filter.key}
-                type="button"
-                aria-pressed={filterKey === filter.key}
-                disabled={!filter.count && filterKey !== filter.key}
-                onClick={() => setFilterKey(filter.key)}
-              >
-                {filter.label}
-                <b>{filter.count}</b>
-              </button>
-            ))}
-          </div>
+          <Segmented
+            className="task-filter"
+            aria-label={t("ui.taskAdapter.text.cafe3d5c")}
+            value={filterKey}
+            onChange={(value) => setFilterKey(String(value))}
+            options={filters.map((filter) => ({
+              value: filter.key,
+              disabled: !filter.count && filterKey !== filter.key,
+              label: (
+                <span className="task-filter-option">
+                  {filter.label}
+                  <b>{filter.count}</b>
+                </span>
+              ),
+            }))}
+          />
         </div>
         {!filtered.length
           ? (
@@ -324,10 +339,11 @@ export function TasksView(
                           onClick={() => {
                             // 提交阶段超时时，厂商可能已经受理并生成；盲目重试会重复计费。
                             if (task.canAdoptRemote && /网络请求失败|error sending request|超时|timeout/i.test(task.error || "")) {
-                              const confirmed = window.confirm(
-                                t("ui.TasksView.text.60dd9008"),
-                              );
-                              if (!confirmed) return;
+                              modal.confirm({
+                                title: t("ui.TasksView.text.60dd9008"),
+                                onOk: () => onRetry(task.id),
+                              });
+                              return;
                             }
                             void onRetry(task.id);
                           }}
@@ -342,20 +358,14 @@ export function TasksView(
             </section>
           )}
         <div className="task-agent-details">{evaluationDetails}</div>
-        {menu && (
-          <div
-            className="task-context-menu"
-            style={{ left: menu.x, top: menu.y }}
-            onClick={(event) => event.stopPropagation()}
-          >
-            <button
-              type="button"
-              disabled={!sorted.length}
-              onClick={() => void clear()}
-            >
-              <IconSymbol name="trash" />{t("ui.TasksView.text.2f798109")}</button>
-          </div>
-        )}
+        <ContextMenu
+          point={menu}
+          items={taskMenuItems}
+          onSelect={(key) => {
+            if (key === "clear") void clear();
+          }}
+          onClose={() => setMenu(null)}
+        />
       </div>
     </>
   );

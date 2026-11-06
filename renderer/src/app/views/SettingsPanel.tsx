@@ -1,4 +1,5 @@
 import { t } from '@/i18n';
+import { Input, InputNumber, Select, Switch } from "antd";
 import {
   useEffect,
   useRef,
@@ -160,46 +161,36 @@ function ModelSelect(
     onChange: (value: string) => void;
   },
 ) {
-  const [open, setOpen] = useState(false);
-  const root = useRef<HTMLDivElement>(null);
   const selected = models.find((model) => model.id === value);
-  useEffect(() => {
-    const close = (event: PointerEvent) => {
-      if (!root.current?.contains(event.target as Node)) setOpen(false);
-    };
-    document.addEventListener("pointerdown", close);
-    return () => document.removeEventListener("pointerdown", close);
-  }, []);
   return (
-    <div ref={root} className="settings-model-select">
-      <button
-        type="button"
-        className="settings-model-trigger"
-        disabled={!models.length}
-        aria-expanded={open}
-        onClick={() => setOpen(!open)}
-      >
-        {selected && <ProviderBrandIcon className="settings-model-icon" icon={selected.iconId} />}
-        <span>{selected?.label || t("ui.SettingsPanel.text.5fd36376")}</span>
-        <IconSymbol name="chevron-down" />
-      </button>
-      {open && (
-        <div className="settings-model-menu">
-          {models.map((model) => (
-            <button
-              key={model.id}
-              type="button"
-              className={model.id === value ? "active" : ""}
-              onClick={() => { onChange(model.id); setOpen(false); }}
-            >
-              <ProviderBrandIcon className="settings-model-icon" icon={model.iconId} />
-              <span><strong>{model.label}</strong></span>
-              {model.id === value && <IconSymbol name="check" />}
-            </button>
-          ))}
-        </div>
+    <Select
+      className="settings-model-select"
+      aria-label={t("ui.SettingsPanel.text.5fd36376")}
+      value={value || null}
+      disabled={!models.length}
+      placeholder={t("ui.SettingsPanel.text.5fd36376")}
+      onChange={onChange}
+      popupMatchSelectWidth
+      options={models.map((model) => ({
+        value: model.id,
+        label: model.label,
+        iconId: model.iconId,
+      }))}
+      labelRender={() =>
+        selected ? (
+          <span className="settings-model-value">
+            <ProviderBrandIcon className="settings-model-icon" icon={selected.iconId} />
+            <span>{selected.label}</span>
+          </span>
+        ) : null}
+      optionRender={(option) => (
+        <span className="settings-model-option">
+          <ProviderBrandIcon className="settings-model-icon" icon={option.data.iconId as string} />
+          <strong>{option.data.label}</strong>
+          {option.value === value && <IconSymbol name="check" />}
+        </span>
       )}
-    </div>
+    />
   );
 }
 
@@ -262,27 +253,22 @@ function ProviderCard(
       <div className="provider-card-fields">
         <label className="provider-field">
           <span>API Key</span>
-          <input
-            type="password"
+          <Input.Password
             value={draft.apiKey}
             placeholder={item.configured ? t("ui.SettingsPanel.text.16813761") : t("ui.SettingsPanel.text.a37e9033")}
             onChange={(e) => setDraft((d) => ({ ...d, apiKey: e.target.value }))}
             onBlur={() => commit("apiKey")}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-            }}
+            onPressEnter={(e) => e.currentTarget.blur()}
           />
         </label>
         <label className="provider-field">
           <span>{t("ui.SettingsPanel.text.29f5babe")}</span>
-          <input
+          <Input
             value={draft.baseUrl}
             placeholder={urlMissing ? t("ui.SettingsPanel.text.8d0f2606") : t("ui.SettingsPanel.text.b6047c89")}
             onChange={(e) => setDraft((d) => ({ ...d, baseUrl: e.target.value }))}
             onBlur={() => commit("baseUrl")}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-            }}
+            onPressEnter={(e) => e.currentTarget.blur()}
           />
         </label>
       </div>
@@ -383,10 +369,15 @@ export function SettingsPanel(
               <section className="settings-section">
                 <div className="settings-row">
                   <div><strong>{t('settings.language')}</strong><span>{t('settings.languageReload')}</span></div>
-                  <select aria-label={t('settings.language')} value={data.locale || 'zh-CN'}
-                    onChange={event => void controller.setLocale?.(event.target.value)}>
-                    <option value="zh-CN">简体中文</option><option value="en-US">English</option>
-                  </select>
+                  <Select
+                    aria-label={t('settings.language')}
+                    value={data.locale || 'zh-CN'}
+                    onChange={event => void controller.setLocale?.(event)}
+                    options={[
+                      { value: "zh-CN", label: "简体中文" },
+                      { value: "en-US", label: "English" },
+                    ]}
+                  />
                 </div>
                 <h4>{t("ui.SettingsPanel.text.93ded934")}</h4>
                 <div className="settings-row">
@@ -458,17 +449,16 @@ export function SettingsPanel(
                     <span>{t("ui.SettingsPanel.text.b3b0f1f2")}</span>
                   </div>
                   <div className="settings-number-control">
-                    <input
+                    <InputNumber
                       value={data.pollInterval}
-                      type="number"
-                      min="500"
-                      step="100"
-                      onChange={(e) =>
+                      min={500}
+                      step={100}
+                      suffix={t("ui.SettingsPanel.text.f3c3d569")}
+                      onChange={(next) =>
                         void controller.setPollInterval(
-                          Math.max(500, Number(e.target.value) || 1500),
+                          Math.max(500, Number(next) || 1500),
                         )}
                     />
-                    <span>{t("ui.SettingsPanel.text.f3c3d569")}</span>
                   </div>
                 </div>
               </section>
@@ -564,18 +554,18 @@ export function SettingsPanel(
               <section className="settings-section">
                 <h4>{t("ui.SettingsPanel.text.6408e9f9")}</h4>
                 {toggleRows.map(([key, label, description]) => (
-                  <label key={key} className="settings-row settings-toggle-row">
+                  <div key={key} className="settings-row settings-toggle-row">
                     <div>
                       <strong>{label}</strong>
                       <span>{description}</span>
                     </div>
-                    <input
-                      type="checkbox"
+                    <Switch
+                      aria-label={label}
                       checked={Boolean(data.agentToggles[key])}
-                      onChange={(e) =>
-                        void controller.setAgentToggle(key, e.target.checked)}
+                      onChange={(checked) =>
+                        void controller.setAgentToggle(key, checked)}
                     />
-                  </label>
+                  </div>
                 ))}
               </section>
             </>

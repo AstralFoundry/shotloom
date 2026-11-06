@@ -205,100 +205,33 @@
 }
 
 /* 宿主资源选择器（对齐参考实现）：剪辑台里点“添加媒体”开的是宿主自己的
-   资源挑选窗，而不是操作系统文件框。它 portal 进内容区共享挂载点，铺满内容区，
-   遮罩层叠在剪辑台（10）、导演台（20）、媒体预览（30）之上。 */
-.ov-picker-backdrop {
-  position: absolute;
-  inset: 0;
-  z-index: 40;
-  display: grid;
-  place-items: center;
-  padding: 24px;
-  background: var(--overlay-dim);
-}
-
-.ov-picker {
-  width: min(920px, 100%);
-  height: min(680px, 100%);
+   资源挑选窗，而不是操作系统文件框。外壳用 antd Modal 挂进工作区内容区，
+   内部仍是自定义网格，因为磁贴选择、已添加标记和 50 条上限是产品语义。 */
+.ov-picker-modal .ov-picker {
+  width: 100%;
+  height: min(640px, calc(100vh - 200px));
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
-  border: 1px solid var(--line-solid);
-  border-radius: var(--radius-lg);
   color: var(--type-primary);
   background: var(--surface);
-  box-shadow: var(--shadow-modal);
-  overflow: hidden;
 }
 
 /* IconSymbol 只画 viewBox，不带宽高：未显式约束的 <svg> 会按替换元素默认的
    300×150 参与布局，把侧栏、磁贴和角标全部撑破。这里给选择器内所有图标定基准。 */
-.ov-picker-backdrop svg {
+.ov-picker-modal .ov-picker svg {
   width: var(--icon-md);
   height: var(--icon-md);
   flex: 0 0 auto;
 }
 
-.ov-picker.has-failures {
+.ov-picker-modal .ov-picker.has-failures {
   grid-template-rows: auto minmax(0, 1fr) auto auto;
 }
 
-.ov-picker-head {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 0 8px 0 16px;
-  border-bottom: 1px solid var(--line);
-}
-
-.ov-picker-tabs {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  min-width: 0;
-  overflow-x: auto;
-}
-
-.ov-picker-tabs button {
-  height: 52px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0 10px;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  color: var(--muted);
-  background: none;
-  font-size: var(--text-body-13);
-  line-height: var(--text-body-13--line-height);
-  white-space: nowrap;
-}
-
-.ov-picker-tabs button span {
-  color: var(--faint);
-  font-size: var(--text-caption-10);
-}
-
-.ov-picker-tabs button.active {
-  color: var(--text);
-  border-bottom-color: var(--text);
-}
-
-.ov-picker-close {
-  margin-left: auto;
-  width: var(--control-height);
-  height: var(--control-height);
-  display: inline-grid;
-  place-items: center;
-  border: 0;
-  border-radius: var(--radius-sm);
-  color: var(--muted);
-  background: none;
-}
-
-.ov-picker-close:hover {
-  color: var(--text);
-  background: var(--wash-hover);
-}
+.ov-picker-tabs .ant-tabs-nav { margin: 0; padding: 0 8px; }
+.ov-picker-tabs .ant-tabs-content-holder { display: none; }
+.ov-picker-tab-label { display: inline-flex; align-items: center; gap: 6px; }
+.ov-picker-tab-label > span { color: var(--faint); font-size: var(--text-caption-10); }
 
 .ov-picker-body {
   min-height: 0;
@@ -461,7 +394,15 @@
 
 .ov-picker-tag-chip svg { width: var(--icon-xs); height: var(--icon-xs); }
 
+.ov-picker-main > .ant-spin-nested-loading,
+.ov-picker-main > .ant-spin-nested-loading > .ant-spin-container {
+  min-height: 0;
+  height: 100%;
+}
+
 .ov-picker-grid {
+  height: 100%;
+  box-sizing: border-box;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
@@ -641,6 +582,7 @@
   background: var(--surface);
   font-size: var(--text-caption-11);
 }
+.ov-picker-empty .ant-empty { margin: 0; }
 
 .clip-persistence-error {
   position: absolute;
@@ -774,16 +716,9 @@
 .ov-openreel.is-canvas > .ov-openreel-stage { height: 100%; background: transparent; }
 .ov-openreel.is-canvas .clip-studio-runtime-host { background: transparent; }
 
-.clip-export-backdrop { position: absolute; inset: 0; z-index: 90; }
-.clip-export-menu { position: absolute; box-sizing: border-box; display: flex; flex-wrap: wrap; width: 432px; max-width: calc(100% - 16px); max-height: calc(100% - 16px); overflow-y: auto; padding: 6px; gap: 6px; border: 1px solid var(--line-solid); border-radius: var(--radius-md); background: var(--surface); color: var(--text); box-shadow: var(--shadow-lift); font-family: inherit; font-size: var(--text-body-12); line-height: var(--text-body-12--line-height); outline: none; }
-.clip-export-destinations { flex: 1; min-width: 128px; }
-.clip-export-presets { flex: 2; min-width: 200px; border-left: 1px solid var(--line-solid); padding-left: 6px; }
-.clip-export-menu button { display: flex; flex-direction: column; justify-content: center; width: 100%; min-height: 34px; gap: 3px; padding: 9px 10px; text-align: left; border: 0; border-radius: var(--radius-sm); color: var(--text); background: transparent; box-shadow: none; font: inherit; cursor: pointer; }
-.clip-export-destinations button { flex-direction: row; align-items: center; justify-content: space-between; }
-.clip-export-menu button:hover, .clip-export-menu button[aria-pressed="true"] { background: var(--wash-hover); }
-.clip-export-menu button:focus-visible { outline-offset: -2px; }
-.clip-export-presets strong { font-weight: 500; }
-.clip-export-presets span, .clip-export-menu p { color: var(--muted); font-size: var(--text-caption-11); line-height: var(--text-caption-11--line-height); }
-.clip-export-menu p { width: 100%; margin: 0; padding: 8px; }
+.clip-export-anchor { width: 0; height: 0; pointer-events: none; }
+.clip-export-item { display: flex; flex-direction: column; gap: 2px; }
+.clip-export-item strong { font-weight: 500; }
+.clip-export-item span { color: var(--muted); font-size: var(--text-caption-11); line-height: var(--text-caption-11--line-height); }
 .clip-export-progress { position: absolute; right: 24px; bottom: 24px; z-index: 91; display: flex; align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--line-solid); border-radius: var(--radius-control); background: var(--surface); color: var(--text); font-size: var(--text-body-12); }
 .clip-export-progress button { color: var(--text); background: var(--surface); border: 1px solid var(--line-solid); border-radius: var(--radius-control); }

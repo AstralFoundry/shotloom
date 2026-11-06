@@ -2,6 +2,8 @@ import { getLocale, LOCALE_STORAGE_KEY } from '@/i18n';
 import { t } from '@/i18n';
 import { editorLocalMedia } from "./editor/editorLocalMedia";
 import type { VideoEditorIntent } from "./editor/openReel/types";
+import { Modal } from "antd";
+import { ConfirmHost } from "./ui/confirm/ConfirmHost";
 import { useEffect, useReducer, useState, useSyncExternalStore } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
@@ -425,29 +427,40 @@ export function ReactWorkbench() {
       />
       {searchOpen && <ProjectSearch onClose={() => setSearchOpen(false)} />}
       {settingsOpen && (
-        <div
-          className="modal-backdrop open settings-workbench-backdrop"
-          onMouseDown={(event) =>
-            event.target === event.currentTarget && setSettingsOpen(false)
-          }
+        <Modal
+          open
+          centered
+          width={1120}
+          footer={null}
+          closable={false}
+          aria-label={t("ui.SideBar.title.7debf9cb")}
+          onCancel={() => setSettingsOpen(false)}
+          className="settings-workbench-dialog"
+          styles={{
+            body: {
+              padding: 0,
+              height: "min(760px, calc(100vh - 52px))",
+              display: "grid",
+              gridTemplateRows: "minmax(0, 1fr) 56px",
+            },
+          }}
         >
-          <section className="settings-workbench-modal">
-            <SettingsFeature />
-            <footer className="settings-workbench-footer">
-              <button
-                className="button primary settings-workbench-close"
-                onClick={() => setSettingsOpen(false)}
-              >
-                {t("ui.ReactWorkbench.text.33246f6a")}</button>
-            </footer>
-          </section>
-        </div>
+          <SettingsFeature />
+          <footer className="settings-workbench-footer">
+            <button
+              className="button primary settings-workbench-close"
+              onClick={() => setSettingsOpen(false)}
+            >
+              {t("ui.ReactWorkbench.text.33246f6a")}</button>
+          </footer>
+        </Modal>
       )}
       {update.open && (
         <UpdateDialog data={update} controller={updateDialogController} />
       )}
       <MediaViewer />
       <ToastHost />
+      <ConfirmHost />
     </>
   );
 }

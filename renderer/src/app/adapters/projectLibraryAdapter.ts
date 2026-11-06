@@ -21,6 +21,7 @@ import type {
   LibraryEntry,
   ProjectsController,
 } from "../views/ProjectsView";
+import { confirmAction } from "../ui/confirm/confirmService";
 
 function replacePathPrefix(value: unknown, oldDir: string, newDir: string) {
   if (typeof value !== "string") return value;
@@ -195,18 +196,18 @@ export const projectLibraryController: ProjectsController = {
   },
   async trash(entry) {
     if (entry.kind === "project") {
-      if (
-        window.confirm(
-          t("ui.projectLibraryAdapter.text.bade510b", { value0: entry.name || t("ui.ProjectCard.text.060f1435") }),
-        )
-      ) await trashRecentProject(entry);
+      const confirmed = await confirmAction({
+        title: t("ui.projectLibraryAdapter.text.bade510b", { value0: entry.name || t("ui.ProjectCard.text.060f1435") }),
+        danger: true,
+      });
+      if (confirmed) await trashRecentProject(entry);
       return;
     }
-    if (
-      !window.confirm(
-        t("ui.projectLibraryAdapter.text.7c9ffe46", { value0: entry.name }),
-      )
-    ) return;
+    const confirmed = await confirmAction({
+      title: t("ui.projectLibraryAdapter.text.7c9ffe46", { value0: entry.name }),
+      danger: true,
+    });
+    if (!confirmed) return;
     const result = await desktopApi.project.trashLibraryFolder(entry.folderDir);
     if (result?.ok) {
       await loadRecentProjects();

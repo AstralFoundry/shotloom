@@ -1,0 +1,82 @@
+/*
+ * Ant Design 6 → Shotloom 设计令牌桥。
+ *
+ * antd 的 seed token（colorPrimary 等）在 AntdProvider 里给出字面量，因为色彩
+ * 推导算法无法解析 `var(...)`；这里只覆盖不需要算法推导的 alias token，
+ * 让背景、文字、边框、圆角和字体继续跟随 tokens.css（包括 .dark 镜像）。
+ * 暗色的组件级变量由 AntdProvider 切换 darkAlgorithm 生成；这里不重复声明，
+ * 否则根节点的别名会被组件作用域的同名变量覆盖，形成"看起来生效"的死规则。
+ *
+ * 选择器写成 `:root:root` 是刻意的：antd 会把 CSS 变量样式以 priority -999
+ * 插入样式表队列，普通 `:root` 规则可能被它覆盖，双写一层提高优先级。
+ */
+:root:root {
+  /* Brand */
+  --ant-color-primary: var(--brand-accent);
+  --ant-color-link: var(--brand-accent);
+  --ant-color-primary-bg: var(--brand-accent-wash);
+  --ant-color-primary-border: var(--brand-accent-border);
+
+  /* Surfaces */
+  --ant-color-bg-container: var(--surface);
+  --ant-color-bg-elevated: var(--elevated-surface);
+  --ant-color-bg-layout: var(--bg);
+  --ant-color-bg-layout-elevated: var(--surface);
+  --ant-color-bg-mask: var(--scrim-modal);
+  --ant-color-bg-spotlight: var(--text);
+  --ant-color-fill-secondary: var(--surface-2);
+  --ant-color-fill-tertiary: var(--wash-hover);
+  --ant-color-fill-quaternary: var(--wash-hover);
+  --ant-color-fill-content: var(--surface-muted);
+
+  /* Text */
+  --ant-color-text: var(--type-primary);
+  --ant-color-text-heading: var(--text);
+  --ant-color-text-secondary: var(--muted);
+  --ant-color-text-tertiary: var(--faint);
+  --ant-color-text-quaternary: var(--faint);
+  --ant-color-text-light-solid: var(--surface);
+
+  /* Lines */
+  --ant-color-border: var(--line);
+  --ant-color-border-secondary: var(--line-soft);
+  --ant-color-split: var(--line-soft);
+
+  /* Shape & type */
+  --ant-border-radius-xs: var(--radius-xs);
+  --ant-border-radius-sm: var(--radius-sm);
+  --ant-border-radius: var(--radius);
+  --ant-border-radius-lg: var(--radius-lg);
+  --ant-font-family: var(--font-ui);
+  --ant-font-size-sm: var(--text-body-12);
+  --ant-font-size: var(--text-body-13);
+  --ant-font-size-lg: var(--text-body-14);
+
+  /* Elevation */
+  --ant-box-shadow: var(--shadow-lift);
+  --ant-box-shadow-secondary: var(--shadow-card);
+}
+
+/*
+ * antd 自己管理弹层的焦点；全局 :focus-visible 的描边会套在整个对话框外框上，
+ * 看起来像第二层边框。这里只关掉弹层容器自身的焦点环，内部按钮仍保留键盘焦点提示。
+ */
+.ant-modal-wrap:focus-visible,
+.ant-modal:focus-visible,
+.ant-modal-container:focus-visible {
+  outline: none;
+}
+
+/*
+ * IconSymbol 通过 antd 的 icon 插槽渲染时，SVG 没有内建宽高，会按 viewBox 的
+ * 默认替换元素尺寸撑到 49px，把菜单文字挤成两行。这里统一回产品图标刻度。
+ */
+.ant-dropdown-menu .ant-dropdown-menu-item-icon {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+  flex: 0 0 auto;
+}
+
+.ant-dropdown-menu .ant-dropdown-menu-title-content {
+  white-space: nowrap;
+}

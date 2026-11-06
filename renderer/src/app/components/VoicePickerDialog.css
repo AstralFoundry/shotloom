@@ -1,108 +1,9 @@
-/* 音色选择器：挂在 .workbench-surface-root 里，层级由该根节点统一决定。 */
-
-.voice-picker-backdrop {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  padding: 24px;
-  background: var(--overlay-dim);
-}
-
-/* 参考形态是宽而高的选择器：一行一个音色，靠留白而不是分栏来承载信息。 */
-.voice-picker-modal {
-  width: min(680px, 100%);
-  height: min(600px, 100%);
-  display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
-  overflow: hidden;
-  border-radius: var(--radius-lg);
-  background: var(--elevated-surface);
-  box-shadow: var(--shadow-modal);
-  color: var(--type-primary);
-}
-
-.voice-picker-head {
-  min-height: 56px;
-  padding: 0 8px 0 20px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.voice-picker-head strong {
-  font-size: var(--text-body-15);
-  line-height: var(--text-body-15--line-height);
-  font-weight: 600;
-}
-
-.voice-picker-head button {
-  width: var(--control-height);
-  height: var(--control-height);
-  display: grid;
-  place-items: center;
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--muted);
-}
-
-.voice-picker-head button:hover {
-  background: var(--wash-hover);
-  color: var(--text);
-}
+/* 音色选择器：内容区样式；弹窗外壳、遮罩和焦点管理由 antd Modal 负责。 */
 
 .voice-picker-toolbar {
-  padding: 4px 20px 14px;
+  padding: 0 0 14px;
   display: grid;
   gap: 10px;
-}
-
-.voice-picker-search {
-  height: var(--control-height-large);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 12px;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-control);
-  color: var(--faint);
-}
-
-.voice-picker-search:focus-within {
-  border-color: var(--text);
-  color: var(--type-primary);
-}
-
-.voice-picker-search svg {
-  width: var(--icon-sm);
-  height: var(--icon-sm);
-  flex: 0 0 auto;
-}
-
-.voice-picker-search input {
-  flex: 1 1 auto;
-  min-width: 0;
-  border: 0;
-  background: transparent;
-  color: var(--text);
-  font-family: inherit;
-  font-size: var(--text-body-13);
-  line-height: var(--text-body-13--line-height);
-}
-
-.voice-picker-search input::placeholder {
-  color: var(--faint);
-}
-
-/* 焦点由整条搜索框表达；全局 :focus-visible 与 input 规则同为 (0,1,0)，
-   dev 下模块样式表先注入，必须用类加伪类才压得住里面的第二个方框。 */
-.voice-picker-search input:focus-visible {
-  outline: none;
-}
-
-.voice-picker-search input::-webkit-search-cancel-button {
-  display: none;
 }
 
 .voice-picker-filters {
@@ -111,28 +12,19 @@
   gap: 8px;
 }
 
-.voice-picker-chip {
-  height: var(--control-height-compact);
-  max-width: 200px;
-  padding: 0 8px;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-control);
-  background: var(--surface);
-  color: var(--muted);
-  font-family: inherit;
-  font-size: var(--text-body-12);
-  line-height: var(--text-body-12--line-height);
-}
-
-.voice-picker-chip.active {
-  border-color: var(--text);
-  color: var(--text);
+.voice-picker-filters .ant-select {
+  min-width: 180px;
 }
 
 .voice-picker-list {
-  padding: 0 8px 8px;
+  max-height: min(460px, 60vh);
   overflow-y: auto;
   overscroll-behavior: contain;
+}
+
+.voice-picker-list .ant-list-items {
+  display: grid;
+  gap: 2px;
 }
 
 /* 一行一条：名称是粗体主信息，未收录以外的 ID 只作为可核对的次要信息。 */
@@ -197,13 +89,4 @@
 .voice-picker-row-custom strong {
   color: var(--muted);
   font-weight: 400;
-}
-
-.voice-picker-empty {
-  padding: 32px 12px;
-  margin: 0;
-  color: var(--muted);
-  font-size: var(--text-body-13);
-  line-height: var(--text-body-13--line-height);
-  text-align: center;
 }

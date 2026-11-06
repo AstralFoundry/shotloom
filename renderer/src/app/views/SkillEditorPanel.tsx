@@ -1,4 +1,5 @@
 import { t } from '@/i18n';
+import { Checkbox, Input, InputNumber, Switch } from "antd";
 import { useState } from "react";
 import { IconSymbol } from "../components/IconSymbol";
 import { configurableSkillAgents } from "../../agent/core/skillAssignments";
@@ -68,10 +69,10 @@ export function SkillEditorPanel(
         </div>
         <div className="skill-editor-actions">
           <label className="skill-editor-enabled">
-            <input
+            <Switch
+              size="small"
               checked={draft.enabled}
-              type="checkbox"
-              onChange={(event) => patch({ enabled: event.target.checked })}
+              onChange={(checked) => patch({ enabled: checked })}
             />
             {draft.enabled ? t("ui.SkillEditorPanel.text.25d28431") : t("ui.SkillEditorPanel.text.0fe5a98e")}
           </label>
@@ -105,7 +106,7 @@ export function SkillEditorPanel(
         <div className="skill-editor-grid">
           <label className="skill-field">
             <span>ID</span>
-            <input
+            <Input
               value={draft.id}
               disabled={!isNew}
               placeholder="video-production"
@@ -114,7 +115,7 @@ export function SkillEditorPanel(
           </label>
           <label className="skill-field">
             <span>{t("ui.CatalogEditorDialogs.text.1be7ae4f")}</span>
-            <input
+            <Input
               value={draft.name}
               placeholder={t("ui.SkillEditorPanel.placeholder.8aef59aa")}
               onChange={(event) => patch({ name: event.target.value })}
@@ -122,7 +123,7 @@ export function SkillEditorPanel(
           </label>
           <label className="skill-field">
             <span>{t("ui.SkillEditorPanel.text.435c5259")}</span>
-            <input
+            <Input
               value={draft.category}
               placeholder="general / video / image"
               onChange={(event) => patch({ category: event.target.value })}
@@ -130,20 +131,20 @@ export function SkillEditorPanel(
           </label>
           <label className="skill-field">
             <span>{t("ui.SkillEditorPanel.text.989d1aff")}</span>
-            <input
+            <InputNumber
+              className="skill-number-input"
               value={draft.version}
-              type="number"
-              min="1"
-              onChange={(event) =>
+              min={1}
+              onChange={(value) =>
                 controller.patch({
-                  version: Math.max(1, Number(event.target.value) || 1),
+                  version: Math.max(1, Number(value) || 1),
                 })}
             />
           </label>
         </div>
         <label className="skill-field">
           <span>{t("ui.SkillEditorPanel.text.daed78ea")}</span>
-          <input
+          <Input
             value={draft.description}
             placeholder={t("ui.SkillEditorPanel.placeholder.0d487900")}
             onChange={(event) => patch({ description: event.target.value })}
@@ -157,18 +158,17 @@ export function SkillEditorPanel(
             {configurableSkillAgents.map((agent) => {
               const checked = (draft.agentIds || []).includes(agent.id);
               return (
-                <label key={agent.id}>
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={() => patch({
-                      agentIds: checked
-                        ? (draft.agentIds || []).filter((id) => id !== agent.id)
-                        : [...(draft.agentIds || []), agent.id],
-                    })}
-                  />
+                <Checkbox
+                  key={agent.id}
+                  checked={checked}
+                  onChange={() => patch({
+                    agentIds: checked
+                      ? (draft.agentIds || []).filter((id) => id !== agent.id)
+                      : [...(draft.agentIds || []), agent.id],
+                  })}
+                >
                   {agent.label}
-                </label>
+                </Checkbox>
               );
             })}
           </div>
@@ -177,7 +177,7 @@ export function SkillEditorPanel(
           <span>
             {t("ui.SkillEditorPanel.text.a448699a")}<em>{draft.instructions.length} {t("ui.SkillEditorPanel.text.582c5006")}</em>
           </span>
-          <textarea
+          <Input.TextArea
             value={draft.instructions}
             rows={16}
             spellCheck={false}

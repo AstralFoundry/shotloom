@@ -45,7 +45,7 @@ test('界面色阶成组且成对提供深色镜像', () => {
   const dark = tokens.slice(tokens.indexOf('.dark {'));
   // 中性灰底、遮罩、可拖拽条与浮层白底各自成组，组件不再私造新档。
   for (const name of ['--wash-hover', '--wash-pressed', '--wash-inset',
-    '--scrim-soft', '--scrim-modal', '--grip', '--grip-active',
+    '--scrim-modal', '--grip', '--grip-active',
     '--float-surface-wash', '--float-surface-soft', '--float-surface', '--float-surface-solid',
     '--brand-accent-wash', '--brand-accent-tint', '--brand-accent-border']) {
     assert.ok(light.includes(`${name}:`), `${name} 必须在浅色主题里定义`);

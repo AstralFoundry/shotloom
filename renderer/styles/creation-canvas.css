@@ -69,8 +69,7 @@
   box-sizing: border-box;
 }
 .work-composer input,
-.work-composer textarea,
-.work-composer select {
+.work-composer textarea {
   max-width: 100%;
   box-sizing: border-box;
 }

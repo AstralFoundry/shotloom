@@ -140,42 +140,13 @@
   position: relative;
 }
 
-.project-create-menu {
+/* 右键/更多菜单的定位锚点：只提供坐标，弹层与键盘交互由 antd Dropdown 负责。 */
+.project-menu-anchor {
   position: absolute;
-  z-index: 30;
-  width: 196px;
+  width: 0;
+  height: 0;
   overflow: hidden;
-  border: 1px solid var(--line-solid);
-  border-radius: var(--radius-sm);
-  padding: 4px;
-  background: var(--surface);
-  box-shadow: var(--canvas-shadow-menu);
-}
-
-.project-create-menu button {
-  width: 100%;
-  height: 34px;
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  border: 0;
-  border-radius: var(--radius-sm);
-  padding: 0 10px;
-  color: var(--type-primary);
-  background: transparent;
-  font-size: var(--text-body-13);
-  font-weight: 500;
-  text-align: left;
-}
-
-.project-create-menu button:hover {
-  background: var(--surface-2);
-}
-
-.project-create-menu svg {
-  width: var(--icon-md);
-  height: var(--icon-md);
-  color: var(--muted);
+  pointer-events: none;
 }
 
 .project-row-title {
@@ -255,10 +226,6 @@
   opacity: 1;
   pointer-events: auto;
 }
-
-.project-menu-separator { height: 1px; margin: 4px 6px; background: var(--surface-2); }
-.project-create-menu button.danger { color: var(--bad); }
-.project-create-menu button.danger:hover { background: var(--surface-muted); }
 
 .project-action {
   width: 24px;

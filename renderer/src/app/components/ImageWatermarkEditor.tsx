@@ -1,4 +1,5 @@
 import { t } from '@/i18n';
+import { ColorPicker, Segmented, Select, Slider } from "antd";
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { IconSymbol } from "./IconSymbol";
@@ -50,12 +51,13 @@ function SliderField({ label, value, min, max, suffix, onChange }: {
         <span>{label}</span>
         <span className="canvas-image-watermark-value">{value}{suffix || ""}</span>
       </span>
-      <input
-        type="range"
+      <Slider
+        aria-label={label}
         min={min}
         max={max}
         value={value}
-        onChange={(event) => onChange(Number(event.currentTarget.value))}
+        onChange={onChange}
+        tooltip={{ open: false }}
       />
     </label>
   );
@@ -203,42 +205,36 @@ export function ImageWatermarkEditor({
           </label>
 
           <div className="canvas-image-watermark-row">
-            <select
+            <Select
               aria-label={t("ui.ImageWatermarkEditor.arialabel.b50d4d83")}
+              size="small"
               value={settings.fontFamily}
-              onChange={(event) => update({ fontFamily: event.currentTarget.value })}
-            >
-              {WATERMARK_FONT_OPTIONS.map((option) => (
-                <option key={option.label} value={option.value}>{option.label}</option>
-              ))}
-            </select>
-            <select
+              onChange={(value) => update({ fontFamily: value })}
+              options={WATERMARK_FONT_OPTIONS.map((option) => ({ value: option.value, label: option.label }))}
+            />
+            <Select
               aria-label={t("ui.ImageWatermarkEditor.arialabel.b361526f")}
+              size="small"
               value={String(settings.fontWeight)}
-              onChange={(event) => update({ fontWeight: Number(event.currentTarget.value) })}
-            >
-              {WATERMARK_WEIGHT_OPTIONS.map((option) => (
-                <option key={option.value} value={String(option.value)}>{option.label}</option>
-              ))}
-            </select>
-            <select
+              onChange={(value) => update({ fontWeight: Number(value) })}
+              options={WATERMARK_WEIGHT_OPTIONS.map((option) => ({ value: String(option.value), label: option.label }))}
+            />
+            <Select
               aria-label={t("ui.ImageWatermarkEditor.arialabel.576ccdb1")}
+              size="small"
               value={String(settings.fontSize)}
-              onChange={(event) => update({ fontSize: Number(event.currentTarget.value) })}
-            >
-              {WATERMARK_FONT_SIZE_OPTIONS.map((size) => (
-                <option key={size} value={String(size)}>{size}px</option>
-              ))}
-            </select>
+              onChange={(value) => update({ fontSize: Number(value) })}
+              options={WATERMARK_FONT_SIZE_OPTIONS.map((size) => ({ value: String(size), label: `${size}px` }))}
+            />
           </div>
 
           <div className="canvas-image-watermark-row">
             <label className="canvas-image-watermark-color">
               <span>{t("ui.ImageWatermarkEditor.text.8ef48860")}</span>
-              <input
-                type="color"
+              <ColorPicker
+                size="small"
                 value={settings.color}
-                onChange={(event) => update({ color: event.currentTarget.value })}
+                onChange={(color) => update({ color: color.toHexString() })}
               />
             </label>
             <SliderField
@@ -262,18 +258,17 @@ export function ImageWatermarkEditor({
 
           <div className="canvas-image-watermark-field">
             <span className="canvas-image-watermark-field-head"><span>{t("ui.ImageWatermarkEditor.text.596ba37b")}</span></span>
-            <div className="canvas-image-watermark-segments" role="group" aria-label={t("ui.ImageWatermarkEditor.text.596ba37b")}>
-              {(["single", "tile"] as WatermarkMode[]).map((mode) => (
-                <button
-                  key={mode}
-                  type="button"
-                  aria-pressed={settings.mode === mode}
-                  onClick={() => update({ mode })}
-                >
-                  {mode === "single" ? t("ui.ImageWatermarkEditor.text.a1fb8e7c") : t("ui.ImageWatermarkEditor.text.30c39af4")}
-                </button>
-              ))}
-            </div>
+            <Segmented
+              block
+              size="small"
+              aria-label={t("ui.ImageWatermarkEditor.text.596ba37b")}
+              value={settings.mode}
+              onChange={(value) => update({ mode: value as WatermarkMode })}
+              options={[
+                { value: "single", label: t("ui.ImageWatermarkEditor.text.a1fb8e7c") },
+                { value: "tile", label: t("ui.ImageWatermarkEditor.text.30c39af4") },
+              ]}
+            />
           </div>
 
           {single ? (
@@ -313,18 +308,17 @@ export function ImageWatermarkEditor({
 
           <div className="canvas-image-watermark-field">
             <span className="canvas-image-watermark-field-head"><span>{t("ui.ImageWatermarkEditor.text.7cfeac8f")}</span></span>
-            <div className="canvas-image-watermark-segments" role="group" aria-label={t("ui.ImageWatermarkEditor.text.7cfeac8f")}>
-              {[false, true].map((shadow) => (
-                <button
-                  key={String(shadow)}
-                  type="button"
-                  aria-pressed={settings.shadow === shadow}
-                  onClick={() => update({ shadow })}
-                >
-                  {shadow ? t("ui.ImageWatermarkEditor.text.b4217093") : t("ui.ImageWatermarkEditor.text.a3332f1c")}
-                </button>
-              ))}
-            </div>
+            <Segmented
+              block
+              size="small"
+              aria-label={t("ui.ImageWatermarkEditor.text.7cfeac8f")}
+              value={settings.shadow ? "on" : "off"}
+              onChange={(value) => update({ shadow: value === "on" })}
+              options={[
+                { value: "off", label: t("ui.ImageWatermarkEditor.text.a3332f1c") },
+                { value: "on", label: t("ui.ImageWatermarkEditor.text.b4217093") },
+              ]}
+            />
           </div>
           {settings.shadow && (
             <SliderField

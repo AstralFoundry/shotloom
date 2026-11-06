@@ -129,13 +129,13 @@
   padding: 0 12px;
   border-bottom: 1px solid var(--line-soft);
 }
-.harness-session-history { min-width: 0; max-width: min(40%, calc(100% - 224px)); pointer-events: auto; }
 .harness-session-trigger,
 .harness-session-icon {
   display: flex;
   align-items: center;
   justify-content: center;
   height: 28px;
+  pointer-events: auto;
   margin: 0;
   padding: 0;
   border: 0;
@@ -145,13 +145,13 @@
   cursor: pointer;
 }
 .harness-session-trigger {
+  min-width: 0;
+  max-width: min(40%, calc(100% - 224px));
   gap: 8px;
   padding: 0 6px;
-  list-style: none;
   font-size: var(--text-body-13);
   font-weight: 500;
 }
-.harness-session-trigger::-webkit-details-marker { display: none; }
 .harness-session-trigger > span {
   min-width: 0;
   overflow: hidden;
@@ -162,57 +162,50 @@
 .harness-session-trigger svg,
 .harness-session-icon svg { width: 15px; height: 15px; flex: none; stroke-width: 1.6; }
 .harness-session-trigger .harness-session-chevron { width: 12px; height: 12px; color: var(--faint); }
-.harness-session-history[open] .harness-session-chevron { transform: rotate(180deg); }
 .harness-session-actions { display: flex; flex: none; align-items: center; gap: 4px; pointer-events: auto; }
 .harness-session-icon { width: 28px; }
 .harness-session-trigger:hover,
-.harness-session-history[open] .harness-session-trigger,
+.harness-session-trigger[aria-expanded="true"],
 .harness-session-icon:hover { background: var(--surface-2); color: var(--text); }
-.harness-session-menu {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 12px;
-  z-index: 3;
-  width: min(288px, calc(100% - 24px));
+.harness-session-dropdown .ant-dropdown-menu {
+  width: 288px;
+  max-width: min(288px, calc(100vw - 24px));
+  max-height: min(360px, 50vh);
+  overflow-y: auto;
   padding: 6px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  background: var(--surface);
-  box-shadow: var(--shadow-lift);
 }
-.harness-session-menu > header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 6px 8px 8px;
-  color: var(--muted);
-  font-size: var(--text-caption-11);
-  font-weight: 500;
-}
-.harness-session-menu > header > span { color: var(--faint); font-variant-numeric: tabular-nums; }
-.harness-session-list { max-height: min(320px, 50vh); overflow-y: auto; }
-.harness-session-item {
+
+.harness-session-menu-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  width: 100%;
-  min-height: 50px;
-  margin: 0;
-  padding: 8px;
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--text);
-  text-align: left;
-  cursor: pointer;
+  color: var(--muted);
+  font-size: var(--text-caption-11);
+  font-weight: 500;
 }
-.harness-session-item[aria-pressed="true"] { background: var(--surface-muted); }
-.harness-session-item:hover { background: var(--surface-2); }
+
+.harness-session-menu-head > span { color: var(--faint); font-variant-numeric: tabular-nums; }
+
+.harness-session-menu-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.harness-session-menu-row > svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  color: var(--muted);
+}
+
 .harness-session-item-copy { display: grid; gap: 3px; min-width: 0; }
-.harness-session-item strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-body-12); font-weight: 500; }
-.harness-session-item time { color: var(--muted); font-size: var(--text-caption-10); font-variant-numeric: tabular-nums; }
-.harness-session-item > svg { width: 14px; height: 14px; flex: none; color: var(--muted); }
+.harness-session-item-copy strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-body-12); font-weight: 500; }
+.harness-session-item-copy time { color: var(--muted); font-size: var(--text-caption-10); font-variant-numeric: tabular-nums; }
+
 .harness-chat-frame {
   position: absolute;
   inset: 0;

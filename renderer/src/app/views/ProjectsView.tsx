@@ -1,4 +1,5 @@
 import { t } from '@/i18n';
+import { Dropdown, Select, type MenuProps } from "antd";
 import { type MouseEvent, useEffect, useMemo, useRef, useState } from "react";
 import { formatTime, formatItemCount } from "../../utils/format.ts";
 import { showErrorMessage } from "../../store/notificationStore";
@@ -9,6 +10,7 @@ import {
   ProjectCard,
   type ProjectLibraryEntry,
 } from "../components/ProjectCard";
+import { SearchInput } from "../components/SearchInput";
 
 export interface ProjectFolderEntry {
   kind: "folder";
@@ -97,14 +99,11 @@ export function ProjectsView(
   const [rename, setRename] = useState<
     { entry: LibraryEntry; name: string } | null
   >(null);
-  const [createMenu, setCreateMenu] = useState<MenuState>(null);
-  const [entryMenu, setEntryMenu] = useState<MenuState>(null);
+  const [menu, setMenu] = useState<MenuState>(null);
   const [pending, setPending] = useState(false);
   const [query, setQuery] = useState('');
   const [entryFilter, setEntryFilter] = useState<"all" | "project" | "folder">("all");
   const [sortOrder, setSortOrder] = useState<SortOrder>('updated');
-  const [sortOpen, setSortOpen] = useState(false);
-  const sortRoot = useRef<HTMLDivElement>(null);
   const [openingPath, setOpeningPath] = useState<string | null>(null);
   const opening = useRef(false);
   const createInput = useRef<HTMLInputElement>(null);
@@ -124,12 +123,6 @@ export function ProjectsView(
           - entryTime(sortOrder === 'created' ? a.createdAt : a.updatedAt || a.lastOpenedAt);
       });
   }, [currentFolder, entries, query, sortOrder, entryFilter]);
-  useEffect(() => {
-    if (!sortOpen) return;
-    const close = (event: PointerEvent) => { if (!sortRoot.current?.contains(event.target as Node)) setSortOpen(false); };
-    window.addEventListener('pointerdown', close);
-    return () => window.removeEventListener('pointerdown', close);
-  }, [sortOpen]);
 
   useEffect(() => {
     createInput.current?.focus();
@@ -149,8 +142,7 @@ export function ProjectsView(
   }, [entries]);
 
   function closeMenus() {
-    setCreateMenu(null);
-    setEntryMenu(null);
+    setMenu(null);
   }
   function enterFolder(folder: ProjectFolderEntry) {
     closeMenus();
@@ -167,36 +159,30 @@ export function ProjectsView(
     setFolderPath((path) => index < 0 ? [] : path.slice(0, index + 1));
   }
 
-  function menuPosition(event: MouseEvent<HTMLElement>, height: number) {
+  // 只记录指针在滚动内容里的坐标；翻转与边缘避让交给 Dropdown 自己算。
+  function menuPosition(event: MouseEvent<HTMLElement>) {
     const browser = event.currentTarget.closest(
       ".project-browser",
     ) as HTMLElement;
     const bounds = browser.getBoundingClientRect();
     return {
-      x: browser.scrollLeft +
-        Math.min(event.clientX - bounds.left, Math.max(8, bounds.width - 210)),
-      y: browser.scrollTop +
-        Math.min(
-          event.clientY - bounds.top,
-          Math.max(8, bounds.height - height),
-        ),
+      x: browser.scrollLeft + event.clientX - bounds.left,
+      y: browser.scrollTop + event.clientY - bounds.top,
     };
   }
 
   function openCreateMenu(event: MouseEvent<HTMLDivElement>) {
     event.preventDefault();
     if (
-      (event.target as Element).closest(".project-tile, .project-create-menu")
+      (event.target as Element).closest(".project-tile, .ant-dropdown")
     ) return;
-    setEntryMenu(null);
-    setCreateMenu(menuPosition(event, 96));
+    setMenu(menuPosition(event));
   }
 
   function openEntryMenu(event: MouseEvent<HTMLElement>, entry: LibraryEntry) {
     event.preventDefault();
     event.stopPropagation();
-    setCreateMenu(null);
-    setEntryMenu({ ...menuPosition(event, 276), entry });
+    setMenu({ ...menuPosition(event), entry });
   }
 
   function beginCreate(type: Draft["type"]) {
@@ -249,10 +235,9 @@ export function ProjectsView(
       ProjectsController,
       "showInFolder" | "copy" | "export" | "trash"
     >,
+    entry: LibraryEntry,
   ) {
-    const entry = entryMenu?.entry;
     closeMenus();
-    if (!entry) return;
     try {
       await controller[action](entry);
     } catch (error) {
@@ -277,13 +262,46 @@ export function ProjectsView(
     }
   }
 
-  function openMenuEntry() {
-    const entry = entryMenu?.entry;
-    closeMenus();
-    if (!entry) return;
-    if (entry.kind === "folder") enterFolder(entry);
-    else void openProject(entry.filePath);
+  function onMenuClick({ key }: { key: string }) {
+    const entry = menu?.entry;
+    if (!entry) {
+      if (key === "create-folder") beginCreate("folder");
+      if (key === "create-canvas") beginCreate("canvas");
+      return;
+    }
+    if (key === "open") {
+      closeMenus();
+      if (entry.kind === "folder") enterFolder(entry);
+      else void openProject(entry.filePath);
+    } else if (key === "rename") {
+      closeMenus();
+      setRename({ entry, name: entry.name || t("ui.ProjectsView.text.21964bda") });
+    } else if (key === "showInFolder") {
+      void runMenuAction("showInFolder", entry);
+    } else if (key === "copy") {
+      void runMenuAction("copy", entry);
+    } else if (key === "export") {
+      void runMenuAction("export", entry);
+    } else if (key === "trash") {
+      void runMenuAction("trash", entry);
+    }
   }
+
+  const menuItems: MenuProps["items"] = menu?.entry
+    ? [
+      { key: "open", icon: <IconSymbol name="cursor" />, label: t("ui.ProjectSearch.text.65fc81e1") },
+      { key: "showInFolder", icon: <IconSymbol name="folder" />, label: t("ui.ProjectsView.text.0d6e116b") },
+      { type: "divider" },
+      { key: "rename", icon: <IconSymbol name="pencil" />, label: t("ui.ProjectsView.text.1cd80fd7") },
+      { key: "copy", icon: <IconSymbol name="copy" />, label: t("ui.ProjectsView.text.4edd1d00") },
+      { key: "export", icon: <IconSymbol name="download" />, label: t("ui.ProjectsView.text.18889679") },
+      { type: "divider" },
+      { key: "trash", icon: <IconSymbol name="trash" />, label: t("ui.MaterialGrid.title.3755f56f"), danger: true },
+    ]
+    : [
+      { key: "create-folder", icon: <IconSymbol name="folder" />, label: t("ui.ProjectsView.text.95cf3cd4") },
+      ...(currentFolder ? [{ key: "create-canvas", icon: <IconSymbol name="grid" />, label: t("ui.ProjectsView.text.afb7afc7") }] : []),
+    ];
 
   const breadcrumbs = folderPath.map((key) => findFolder(entries, key)).filter(
     Boolean,
@@ -353,36 +371,40 @@ export function ProjectsView(
             </div>
             <div className="project-library-controls" onContextMenu={event => event.stopPropagation()}>
               <label className="project-library-search">
-                <IconSymbol name="search" />
-                <input type="search" aria-label={t("ui.ProjectSearch.text.b617f05c")} placeholder={t("ui.ProjectSearch.text.b617f05c")} value={query} onChange={event => setQuery(event.target.value)} />
+                <SearchInput
+                  value={query}
+                  onChange={setQuery}
+                  placeholder={t("ui.ProjectSearch.text.b617f05c")}
+                />
               </label>
-              {currentFolder && <label className="project-library-filter">
-                <select aria-label={t("ui.CreationView.text.fa6968d9")} value={entryFilter} onChange={event => setEntryFilter(event.target.value as typeof entryFilter)}>
-                  <option value="all">{t("ui.taskAdapter.label.778fc8f9")}</option>
-                  <option value="project">{t("ui.ProjectSearch.kind.95b2102f")}</option>
-                  <option value="folder">{t("ui.ProjectsView.text.46ecac29")}</option>
-                </select>
-                <IconSymbol name="chevron-down" />
-              </label>}
-              <div className="project-library-sort" ref={sortRoot} onKeyDown={event => {
-                if (event.key === 'Escape') { setSortOpen(false); sortRoot.current?.querySelector('button')?.focus(); }
-              }}>
-                <button className="project-library-sort-trigger" type="button" aria-haspopup="menu" aria-expanded={sortOpen}
-                  onClick={() => setSortOpen(!sortOpen)}>{sortOptions[sortOrder]}<IconSymbol name="chevron-down" /></button>
-                {sortOpen && <div className="project-library-sort-menu" role="menu" aria-label={t("ui.ProjectsView.arialabel.08f059ce")} onKeyDown={event => {
-                  if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
-                  event.preventDefault();
-                  const buttons = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('button')];
-                  const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
-                  buttons[event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 : (index + (event.key === 'ArrowDown' ? 1 : -1) + buttons.length) % buttons.length]?.focus();
-                }}>
-                  <p>{t("ui.ProjectsView.arialabel.08f059ce")}</p>
-                  {(Object.keys(sortOptions) as SortOrder[]).map(option => <button key={option} type="button" role="menuitemradio"
-                    aria-checked={sortOrder === option} onClick={() => { setSortOrder(option); setSortOpen(false); sortRoot.current?.querySelector('button')?.focus(); }}>
-                    {sortOptions[option]}{sortOrder === option && <IconSymbol name="check" />}
-                  </button>)}
-                </div>}
-              </div>
+              {currentFolder && <Select
+                className="project-library-filter"
+                aria-label={t("ui.CreationView.text.fa6968d9")}
+                value={entryFilter}
+                onChange={(value) => setEntryFilter(value)}
+                options={[
+                  { value: "all", label: t("ui.taskAdapter.label.778fc8f9") },
+                  { value: "project", label: t("ui.ProjectSearch.kind.95b2102f") },
+                  { value: "folder", label: t("ui.ProjectsView.text.46ecac29") },
+                ]}
+              />}
+              <Dropdown
+                trigger={["click"]}
+                placement="bottomRight"
+                menu={{
+                  selectable: true,
+                  selectedKeys: [sortOrder],
+                  items: (Object.keys(sortOptions) as SortOrder[]).map(option => ({
+                    key: option,
+                    label: sortOptions[option],
+                  })),
+                  onClick: ({ key }) => setSortOrder(key as SortOrder),
+                }}
+              >
+                <button className="project-library-sort-trigger" type="button">
+                  {sortOptions[sortOrder]}<IconSymbol name="chevron-down" />
+                </button>
+              </Dropdown>
             </div>
           </header>
           {(visibleEntries.length > 0 || draft)
@@ -517,70 +539,18 @@ export function ProjectsView(
               </div>
             )}
         </div>
-        {createMenu && (
-          <div
-            className="project-create-menu"
-            style={{ left: createMenu.x, top: createMenu.y }}
-            onClick={(event) => event.stopPropagation()}
-          >
-            <button type="button" onClick={() => beginCreate("folder")}>
-              <IconSymbol name="folder" />
-              <span>{t("ui.ProjectsView.text.95cf3cd4")}</span>
-            </button>
-            {currentFolder && <button type="button" onClick={() => beginCreate("canvas")}>
-              <IconSymbol name="grid" />
-              <span>{t("ui.ProjectsView.text.afb7afc7")}</span>
-            </button>}
-          </div>
-        )}
-        {entryMenu?.entry && (
-          <div
-            className="project-create-menu project-entry-menu"
-            style={{ left: entryMenu.x, top: entryMenu.y }}
-            onClick={(event) => event.stopPropagation()}
-          >
-            <button type="button" onClick={openMenuEntry}>
-              <IconSymbol name="cursor" />
-              <span>{t("ui.ProjectSearch.text.65fc81e1")}</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => void runMenuAction("showInFolder")}
-            >
-              <IconSymbol name="folder" />
-              <span>{t("ui.ProjectsView.text.0d6e116b")}</span>
-            </button>
-            <div className="project-menu-separator" />
-            <button
-              type="button"
-              onClick={() => {
-                const entry = entryMenu.entry!;
-                closeMenus();
-                setRename({ entry, name: entry.name || t("ui.ProjectsView.text.21964bda") });
-              }}
-            >
-              <IconSymbol name="pencil" />
-              <span>{t("ui.ProjectsView.text.1cd80fd7")}</span>
-            </button>
-            <button type="button" onClick={() => void runMenuAction("copy")}>
-              <IconSymbol name="copy" />
-              <span>{t("ui.ProjectsView.text.4edd1d00")}</span>
-            </button>
-            <button type="button" onClick={() => void runMenuAction("export")}>
-              <IconSymbol name="download" />
-              <span>{t("ui.ProjectsView.text.18889679")}</span>
-            </button>
-            <div className="project-menu-separator" />
-            <button
-              type="button"
-              className="danger"
-              onClick={() => void runMenuAction("trash")}
-            >
-              <IconSymbol name="trash" />
-              <span>{t("ui.MaterialGrid.title.3755f56f")}</span>
-            </button>
-          </div>
-        )}
+        <Dropdown
+          open={Boolean(menu)}
+          onOpenChange={(open) => { if (!open) closeMenus(); }}
+          trigger={[]}
+          placement="bottomLeft"
+          menu={{ items: menuItems, onClick: onMenuClick }}
+        >
+          <span
+            className="project-menu-anchor"
+            style={{ left: menu?.x ?? 0, top: menu?.y ?? 0 }}
+          />
+        </Dropdown>
       </div>
     </>
   );

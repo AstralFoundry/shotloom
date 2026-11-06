@@ -1,6 +1,6 @@
 import { t } from '@/i18n';
+import { Empty, Input, List, Modal, Select, type InputRef } from "antd";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import {
   systemVoiceLanguages,
   systemVoices,
@@ -8,6 +8,8 @@ import {
 import { useWorkbenchSurfaceRoot } from "../layout/workbenchSurface";
 import { IconSymbol } from "./IconSymbol";
 import "./VoicePickerDialog.css";
+
+const ALL_LANGUAGES = "__all__";
 
 /**
  * 音色选择器。目录只声明参数是 voice，清单来自系统音色库；
@@ -19,25 +21,13 @@ export function VoicePickerDialog({ open, value, onSelect, onClose }: {
   const surface = useWorkbenchSurfaceRoot();
   const [query, setQuery] = useState("");
   const [language, setLanguage] = useState("");
-  const searchRef = useRef<HTMLInputElement>(null);
+  const searchRef = useRef<InputRef>(null);
 
   useEffect(() => {
     if (!open) return;
     setQuery("");
     setLanguage("");
-    searchRef.current?.focus();
   }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key !== "Escape") return;
-      event.stopPropagation();
-      onClose();
-    }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [open, onClose]);
 
   const needle = query.trim().toLowerCase();
   const matched = useMemo(() => systemVoices.filter((voice) => (
@@ -49,46 +39,55 @@ export function VoicePickerDialog({ open, value, onSelect, onClose }: {
   const showCustomId = Boolean(customId)
     && !systemVoices.some((voice) => voice.value.toLowerCase() === customId.toLowerCase());
 
-  if (!open || !surface) return null;
+  if (!surface) return null;
 
-  return createPortal(
-    <div
-      className="voice-picker-backdrop"
-      role="dialog"
-      aria-modal="true"
-      aria-label={t("ui.VoicePickerDialog.arialabel.509f1be0")}
-      tabIndex={-1}
-      onPointerDown={(event) => event.target === event.currentTarget && onClose()}
+  return (
+    <Modal
+      open={open}
+      centered
+      width={680}
+      title={t("ui.VoicePickerDialog.arialabel.509f1be0")}
+      footer={null}
+      onCancel={onClose}
+      afterOpenChange={(visible) => {
+        if (visible) searchRef.current?.focus();
+      }}
+      getContainer={() => surface}
+      className="voice-picker-dialog"
+      styles={{ body: { padding: "4px 20px 20px" } }}
     >
-      <section className="voice-picker-modal">
-        <header className="voice-picker-head">
-          <strong>{t("ui.VoicePickerDialog.arialabel.509f1be0")}</strong>
-          <button type="button" aria-label={t("ui.CanvasToolbarCustomizeDialog.arialabel.6c14bd7f")} onClick={onClose}><IconSymbol name="x" /></button>
-        </header>
-        <div className="voice-picker-toolbar">
-          <label className="voice-picker-search">
-            <IconSymbol name="search" />
-            <input
-              ref={searchRef}
-              type="search"
-              placeholder={t("ui.VoicePickerDialog.placeholder.e426b4b2")}
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-            />
-          </label>
-          <div className="voice-picker-filters">
-            <select
-              className={`voice-picker-chip${language ? " active" : ""}`}
-              value={language}
-              onChange={(event) => setLanguage(event.target.value)}
-            >
-              <option value="">{t("ui.VoicePickerDialog.text.cd99b225")}</option>
-              {systemVoiceLanguages.map((item) => <option key={item.name} value={item.name}>{item.label}</option>)}
-            </select>
-          </div>
+      <div className="voice-picker-toolbar">
+        <Input
+          ref={searchRef}
+          allowClear
+          prefix={<IconSymbol name="search" />}
+          placeholder={t("ui.VoicePickerDialog.placeholder.e426b4b2")}
+          aria-label={t("ui.VoicePickerDialog.placeholder.e426b4b2")}
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+        />
+        <div className="voice-picker-filters">
+          <Select
+            aria-label={t("ui.VoicePickerDialog.text.cd99b225")}
+            value={language || ALL_LANGUAGES}
+            onChange={(next) => setLanguage(next === ALL_LANGUAGES ? "" : next)}
+            options={[
+              { value: ALL_LANGUAGES, label: t("ui.VoicePickerDialog.text.cd99b225") },
+              ...systemVoiceLanguages.map((item) => ({ value: item.name, label: item.label })),
+            ]}
+          />
         </div>
-        <div className="voice-picker-list">
-          {matched.map((voice) => (
+      </div>
+      <div className="voice-picker-list">
+        <List
+          split={false}
+          dataSource={matched}
+          locale={{
+            emptyText: !matched.length && !showCustomId
+              ? <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t("ui.VoicePickerDialog.text.0f9ec3de")} />
+              : null,
+          }}
+          renderItem={(voice) => (
             <button
               key={voice.value}
               type="button"
@@ -99,17 +98,15 @@ export function VoicePickerDialog({ open, value, onSelect, onClose }: {
               {voice.label !== voice.value && <em>{voice.value}</em>}
               {voice.value === value && <IconSymbol name="check" />}
             </button>
-          ))}
-          {showCustomId && (
-            <button type="button" className="voice-picker-row voice-picker-row-custom" onClick={() => onSelect(customId)}>
-              <strong>{t("ui.VoicePickerDialog.text.dc1ce5b6")}</strong>
-              <em>{customId}</em>
-            </button>
           )}
-          {!matched.length && !showCustomId && <p className="voice-picker-empty">{t("ui.VoicePickerDialog.text.0f9ec3de")}</p>}
-        </div>
-      </section>
-    </div>,
-    surface,
+        />
+        {showCustomId && (
+          <button type="button" className="voice-picker-row voice-picker-row-custom" onClick={() => onSelect(customId)}>
+            <strong>{t("ui.VoicePickerDialog.text.dc1ce5b6")}</strong>
+            <em>{customId}</em>
+          </button>
+        )}
+      </div>
+    </Modal>
   );
 }

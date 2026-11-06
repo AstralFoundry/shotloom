@@ -1,6 +1,6 @@
 import { t } from '@/i18n';
-import { type ChangeEvent, useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { Checkbox, Drawer, Empty, Switch, Upload } from "antd";
+import { useEffect, useState } from "react";
 import { IconSymbol } from "../components/IconSymbol";
 import { ProjectScopeHeader } from "../components/ProjectScopeHeader";
 import { skillAgentLabels } from "../../agent/core/skillAssignments";
@@ -10,6 +10,7 @@ import {
   type SkillEditorController,
   SkillEditorPanel,
 } from "./SkillEditorPanel";
+import { SearchInput } from "../components/SearchInput";
 
 export interface SkillListItem {
   id: string;
@@ -54,54 +55,18 @@ interface SkillsViewProps {
   controller: SkillsController;
 }
 
-// 关闭时保留抽屉的时长；必须盖过 skills.css 里 .skills-drawer.closing 的动画时长。
-const DRAWER_EXIT_MS = 340;
-
 export function SkillsView({ data, controller }: SkillsViewProps) {
-  const importInput = useRef<HTMLInputElement>(null);
   const selectedIds = new Set(data.selectedIds);
   const allSelected = data.items.length > 0
     && data.items.every((item) => selectedIds.has(item.id));
   const enabledCount = data.items.filter((item) => item.enabled !== false).length;
-  function onImport(event: ChangeEvent<HTMLInputElement>) {
-    const files = [...(event.target.files || [])];
-    event.target.value = "";
-    if (files.length) controller.importFiles(files);
-  }
-  // controller 必须进依赖：close 读的是当次渲染算出的未保存状态，缓存住旧的那份会让 Esc 静默丢掉草稿。
+  // 关闭动画期间 antd 仍持有 DOM，但 data.editor 已经变空；用最后一份草稿撑住内容，
+  // 等 afterOpenChange(false) 再清掉，避免关闭瞬间闪一帧空白。
+  const [cachedEditor, setCachedEditor] = useState<SkillsEditorState | null>(null);
   useEffect(() => {
-    if (!data.editor) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      event.stopPropagation();
-      controller.close();
-    };
-    window.addEventListener("keydown", onKeyDown, true);
-    return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [data.editor, controller]);
-
-  // CSS 只在挂载时播入场帧，直接卸载就是"啪"地消失；关闭时先留 DRAWER_EXIT_MS 播完退出动画再拔掉。
-  // 这个窗口必须比 skills.css 里 .skills-drawer.closing 的时长长，否则动画会被拦腰截断。
-  // 退出中渲染哪份草稿：用 ref 留住最后一次内容，并在同一次渲染里算出退出状态。
-  // 用 state 记退出会先卸载一帧再挂回来，那帧就是界面上的闪烁。
-  const lastEditor = useRef<SkillsEditorState | null>(null);
-  const [, resetExit] = useState(0);
-  if (data.editor) lastEditor.current = data.editor;
-  const drawer = data.editor ?? lastEditor.current;
-  const drawerExiting = Boolean(drawer) && !data.editor;
-  useEffect(() => {
-    if (!drawerExiting) return;
-    const finish = () => {
-      lastEditor.current = null;
-      resetExit((value) => value + 1);
-    };
-    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
-      finish();
-      return;
-    }
-    const timer = window.setTimeout(finish, DRAWER_EXIT_MS);
-    return () => window.clearTimeout(timer);
-  }, [drawerExiting]);
+    if (data.editor) setCachedEditor(data.editor);
+  }, [data.editor]);
+  const editor = data.editor ?? cachedEditor;
   return (
     <>
       <ProjectScopeHeader
@@ -111,20 +76,26 @@ export function SkillsView({ data, controller }: SkillsViewProps) {
         flat
       >
         <label className="search">
-          <IconSymbol name="search" />
-          <input
+          <SearchInput
             value={data.query}
-            type="search"
-            onChange={(event) => controller.setQuery(event.target.value)}
+            onChange={controller.setQuery}
             placeholder={t("ui.SkillsView.placeholder.15dfafe9")}
           />
         </label>
         <div className="skills-tools">
-          <button
-            className="button ghost compact"
-            onClick={() => importInput.current?.click()}
+          <Upload
+            accept=".json,application/json"
+            multiple
+            showUploadList={false}
+            beforeUpload={(file, fileList) => {
+              // antd 对每个文件各调一次，只在第一批里导入一次整组文件。
+              if (file === fileList[0]) controller.importFiles([...fileList]);
+              return false;
+            }}
           >
-            <IconSymbol name="upload" />{t("ui.CreationView.text.60e2bcad")}</button>
+            <button className="button ghost compact">
+              <IconSymbol name="upload" />{t("ui.CreationView.text.60e2bcad")}</button>
+          </Upload>
           <button
             className="button ghost compact"
             disabled={!data.selectedIds.length}
@@ -137,29 +108,20 @@ export function SkillsView({ data, controller }: SkillsViewProps) {
             onClick={controller.createSkill}
           >
             {t("ui.SkillsView.text.8918a182")}</button>
-          <input
-            ref={importInput}
-            className="skills-hidden-input"
-            type="file"
-            accept=".json,application/json"
-            multiple
-            onChange={onImport}
-          />
         </div>
       </ProjectScopeHeader>
       <div className="skills-workspace">
         <section className="skills-list-pane" aria-label={t("ui.SkillsView.arialabel.c0e4b0f5")}>
           <div className="skills-list-summary">
-            <label className="skills-select-all">
-              <input
-                type="checkbox"
-                checked={allSelected}
-                onChange={() => controller.setSelection(
-                  allSelected ? [] : data.items.map((item) => item.id),
-                )}
-              />
-              <span>{t("ui.SkillsView.text.3e44b2a9")}</span>
-            </label>
+            <Checkbox
+              className="skills-select-all"
+              checked={allSelected}
+              onChange={() => controller.setSelection(
+                allSelected ? [] : data.items.map((item) => item.id),
+              )}
+            >
+              {t("ui.SkillsView.text.3e44b2a9")}
+            </Checkbox>
             <span>
               {t(data.items.length === 1 ? 'skill.summary.one' : 'skill.summary.other', {
                 count: data.items.length, enabled: enabledCount,
@@ -172,9 +134,8 @@ export function SkillsView({ data, controller }: SkillsViewProps) {
                 data.editor?.draft.id === item.id ? " active" : ""
               }`}
             >
-              <input
+              <Checkbox
                 className="skills-row-select"
-                type="checkbox"
                 checked={selectedIds.has(item.id)}
                 aria-label={t("ui.SkillsView.text.6cf2f565", { value0: item.name })}
                 onChange={() => controller.toggleSelection(item.id)}
@@ -199,9 +160,9 @@ export function SkillsView({ data, controller }: SkillsViewProps) {
                 <span className="skills-row-description">{skillDisplayDescription(item) || t("ui.SkillsView.text.6dd28f40")}</span>
                 <span className="skills-row-id">{item.id}</span>
               </button>
-              <input
+              <Switch
                 className="skills-enable-toggle"
-                type="checkbox"
+                size="small"
                 checked={item.enabled !== false}
                 aria-label={t("ui.promptReferenceEditor.text.dca59cc0", { value0: item.enabled === false ? t("ui.SkillsView.text.d4e9ca3d") : t("ui.SkillsView.text.d989e551"), value1: item.name })}
                 onChange={() => controller.toggleSkill(item.id)}
@@ -217,25 +178,39 @@ export function SkillsView({ data, controller }: SkillsViewProps) {
               </button>
             </div>
           ))}
-          {!data.items.length && <div className="skills-empty">{t("ui.SkillsView.text.51c77281")}</div>}
+          {!data.items.length && (
+            <Empty
+              className="skills-empty"
+              image={Empty.PRESENTED_IMAGE_SIMPLE}
+              description={t("ui.SkillsView.text.51c77281")}
+            />
+          )}
         </section>
-        {drawer && createPortal(
-          <div
-            className={`skills-drawer-backdrop${drawerExiting ? " closing" : ""}`}
-            onMouseDown={(event) => event.target === event.currentTarget && controller.close()}
-          >
-            <aside className={`skills-drawer${drawerExiting ? " closing" : ""}`}>
-              <SkillEditorPanel
-                draft={drawer.draft}
-                isNew={drawer.isNew}
-                modifiedFields={drawer.modifiedFields}
-                dirty={drawer.dirty}
-                controller={controller}
-              />
-            </aside>
-          </div>,
-          document.body,
-        )}
+        <Drawer
+          open={Boolean(data.editor)}
+          placement="right"
+          size={720}
+          closable={false}
+          onClose={() => controller.close()}
+          rootClassName="skills-drawer"
+          styles={{
+            body: { padding: 0, display: "flex", flexDirection: "column" },
+            mask: { background: "var(--scrim-modal)", backdropFilter: "blur(3px)" },
+          }}
+          afterOpenChange={(open) => {
+            if (!open) setCachedEditor(null);
+          }}
+        >
+          {editor && (
+            <SkillEditorPanel
+              draft={editor.draft}
+              isNew={editor.isNew}
+              modifiedFields={editor.modifiedFields}
+              dirty={editor.dirty}
+              controller={controller}
+            />
+          )}
+        </Drawer>
       </div>
     </>
   );

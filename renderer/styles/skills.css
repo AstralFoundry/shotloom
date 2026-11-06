@@ -10,7 +10,6 @@
 .skills-tools { display: flex; align-items: center; gap: 7px; }
 .skills-tools .button { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
 .skills-tools .button svg { width: var(--icon-sm); height: var(--icon-sm); }
-.skills-hidden-input { display: none; }
 
 /* 清单直接住在内容区里：内容区已经有一层边框，这里不再套卡片。 */
 .skills-list-pane {
@@ -36,39 +35,10 @@
   background: var(--bg);
   font-size: var(--text-caption-10);
 }
-.skills-select-all { display: inline-flex; align-items: center; gap: 7px; color: var(--muted); cursor: pointer; }
-.skills-select-all input,
-.skills-row-select { width: var(--icon-sm); height: var(--icon-sm); margin: 0; accent-color: var(--brand); cursor: pointer; }
+.skills-select-all { color: var(--muted); font-size: var(--text-caption-10); }
 
 /* 启用开关沿用设置页 Agent 开关的胶囊形态，行内不需要再解释勾选含义。 */
-.skills-enable-toggle {
-  width: 30px;
-  height: 17px;
-  position: relative;
-  appearance: none;
-  margin: 0;
-  border: 0;
-  border-radius: var(--radius);
-  outline: none;
-  justify-self: end;
-  background: var(--button-subtle-hover);
-  transition: background var(--duration-fast) var(--ease-std);
-  cursor: pointer;
-}
-.skills-enable-toggle::after {
-  content: '';
-  width: 13px;
-  height: 13px;
-  position: absolute;
-  left: 2px;
-  top: 2px;
-  border-radius: 50%;
-  background: var(--surface);
-  box-shadow: var(--drop-shadow-sm);
-  transition: transform var(--duration-fast) var(--ease-std);
-}
-.skills-enable-toggle:checked { background: var(--brand); }
-.skills-enable-toggle:checked::after { transform: translateX(13px); }
+.skills-enable-toggle { justify-self: end; }
 
 .skills-row {
   padding: 10px 0;
@@ -105,7 +75,7 @@
 .skills-row-description { overflow: hidden; color: var(--muted); font-size: var(--text-caption-10); line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
 .skills-row-id { color: var(--faint); font-size: var(--text-caption-10); }
 
-.skills-empty { padding: 26px 0; color: var(--faint); font-size: var(--text-caption-11); text-align: center; }
+.skills-empty { padding: 26px 0; color: var(--faint); font-size: var(--text-caption-11); }
 
 .icon-action {
   width: 28px;
@@ -164,7 +134,7 @@
 .skill-editor-change-summary { margin: 3px 0 0; color: var(--muted); font-size: var(--text-caption-10); }
 .skill-editor-actions { flex: none; display: flex; align-items: center; gap: 8px; }
 .skill-editor-enabled { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: var(--text-caption-11); cursor: pointer; }
-.skill-editor-enabled input { width: var(--icon-sm); height: var(--icon-sm); margin: 0; accent-color: var(--brand); }
+.skill-editor-enabled .ant-switch { margin: 0; }
 
 .skill-editor-body {
   min-height: 0;
@@ -190,7 +160,9 @@
   font-size: var(--text-caption-10);
   font-weight: 600;
 }
-.skill-field :is(input, select, textarea) {
+.skill-field .ant-input,
+.skill-field .ant-input-textarea,
+.skill-field .ant-input-textarea textarea {
   width: 100%;
   border: 1px solid var(--line-strong);
   border-radius: var(--radius-sm);
@@ -201,18 +173,19 @@
   font-size: var(--text-body-13);
   font-weight: 400;
 }
-.skill-field :is(input, select) { height: 34px; padding: 0 10px; }
-.skill-field textarea { min-height: 148px; padding: 10px; resize: vertical; line-height: 1.55; }
-.skill-field :is(input, select, textarea):focus { border-color: var(--text); }
-.skill-field :is(input, select, textarea):disabled { color: var(--muted); background: var(--surface-2); }
+.skill-field .ant-input { height: 34px; padding: 0 10px; }
+.skill-field .ant-input-textarea textarea { min-height: 148px; padding: 10px; line-height: 1.55; resize: vertical; }
+.skill-field .ant-input:focus { border-color: var(--text); box-shadow: none; }
+.skill-field .ant-input-textarea textarea:focus { border-color: var(--text); box-shadow: none; }
+.skill-field .ant-input:disabled { color: var(--muted); background: var(--surface-2); }
+.skill-field .ant-input-number { width: 100%; }
 .skill-field small { color: var(--faint); font-size: var(--text-caption-10); font-weight: 500; line-height: 1.45; }
 .skill-field em { margin-left: 6px; color: var(--faint); font-style: normal; font-weight: 500; }
 
 .skill-agent-field { border: 0; padding: 0; }
 .skill-agent-field legend { padding: 0; color: var(--muted); font-size: var(--text-caption-11); font-weight: 600; }
 .skill-agent-options { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 7px; }
-.skill-agent-options label { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); font-size: var(--text-caption-11); }
-.skill-agent-options input[type="checkbox"] { flex: 0 0 16px; width: 16px; height: 16px; margin: 0; padding: 0; accent-color: var(--brand); }
+.skill-agent-options .ant-checkbox-wrapper { color: var(--muted); font-size: var(--text-caption-11); }
 
 .skill-editor-note {
   padding: 9px 10px;
@@ -230,57 +203,20 @@
 .skill-editor-note svg { width: var(--icon-sm); height: var(--icon-sm); }
 .skill-editor-error { margin: 0; padding: 8px 10px; border-radius: var(--radius-sm); color: var(--bad); background: var(--bad-wash); font-size: var(--text-caption-10); }
 
-/* 抽屉挂到 document.body：盖住整个窗口，包括侧栏和顶栏，只留提示条在更上层。
-   间距沿用窗体自己的 4px 边框（.workspace 的 padding），抽屉贴在这层框里；
-   不再加阴影：留白 + 阴影会把它读成一张浮起来的卡片。 */
-.skills-drawer-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: var(--layer-overlay);
-  padding: 4px 4px 4px 0;
-  display: flex;
-  justify-content: flex-end;
-  background: var(--scrim-modal);
-  backdrop-filter: blur(3px);
-  animation: skills-scrim-in var(--duration-base) var(--ease-std);
+/* 技能编辑抽屉：弹层、遮罩、焦点和进出场由 antd Drawer 负责，这里只保留产品外壳。 */
+.skills-drawer .ant-drawer-content-wrapper {
+  box-sizing: border-box;
+  max-width: 92vw;
+  padding: 4px 0 4px 4px;
 }
-.skills-drawer {
-  min-width: 0;
-  width: min(720px, 92%);
+
+/* v6 的 Drawer 面板类名是 section，不是 content。 */
+.skills-drawer .ant-drawer-section {
   height: 100%;
-  display: flex;
-  flex-direction: column;
+  overflow: hidden;
   border: 1px solid var(--line);
   border-radius: var(--workbench-radius);
   background: var(--surface);
-  animation: skills-drawer-in var(--duration-slow) var(--ease-sheet);
-}
-/* 抽屉必须整块滑出屏外再推回来：只挪 24px 加淡入读起来像弹窗跳出。 */
-@keyframes skills-drawer-in {
-  from { transform: translateX(calc(100% + 4px)); }
-  to { transform: translateX(0); }
-}
-/* 退出帧：与入场同一条行程，时长必须短于 SkillsView 的 DRAWER_EXIT_MS，否则动画被卸载拦腰截断。 */
-.skills-drawer.closing { animation: skills-drawer-out var(--duration-slow) var(--ease-std) forwards; }
-.skills-drawer-backdrop.closing { animation: skills-scrim-out var(--duration-slow) var(--ease-std) forwards; }
-@keyframes skills-drawer-out {
-  from { transform: translateX(0); }
-  to { transform: translateX(calc(100% + 4px)); }
-}
-@keyframes skills-scrim-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-@keyframes skills-scrim-out {
-  from { opacity: 1; }
-  to { opacity: 0; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .skills-drawer,
-  .skills-drawer.closing,
-  .skills-drawer-backdrop,
-  .skills-drawer-backdrop.closing { animation: none; }
 }
 
 @media (max-width: 900px) {

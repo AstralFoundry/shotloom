@@ -1,4 +1,5 @@
 import { t } from '@/i18n';
+import { Empty, Input, List, Modal, type InputRef } from "antd";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { focusCanvasNodes } from "../adapters/canvasAdapter";
 import { IconSymbol } from "./IconSymbol";
@@ -62,7 +63,7 @@ export function ProjectSearch({ onClose }: { onClose: () => void }) {
   const [selected, setSelected] = useState(0);
   const [otherItems, setOtherItems] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
-  const input = useRef<HTMLInputElement>(null);
+  const input = useRef<InputRef>(null);
   const projectName = hasOpenProject() ? String(store.project?.name || t("ui.ProjectSearch.text.96cb64ae")) : "";
   const results = useMemo(() => {
     const currentPath = hasOpenProject() ? String(store.filePath || "") : "";
@@ -120,36 +121,64 @@ export function ProjectSearch({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <div className="project-search-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-      <section className="project-search-dialog" role="dialog" aria-modal="true" aria-label={t("ui.ProjectSearch.arialabel.f005a767")}>
-        <div className="project-search-input-row">
-          <IconSymbol name="search" />
-          <input
-            ref={input}
-            value={query}
-            placeholder={projectName ? t("ui.ProjectSearch.text.58f3440e") : t("ui.ProjectSearch.text.b617f05c")}
-            aria-label={t("ui.ProjectSearch.arialabel.f005a767")}
-            onChange={(event) => { setQuery(event.target.value); setSelected(0); }}
-            onKeyDown={(event) => {
-              if (event.key === "Escape") onClose();
-              if (event.key === "ArrowDown") { event.preventDefault(); setSelected((value) => Math.min(value + 1, results.length - 1)); }
-              if (event.key === "ArrowUp") { event.preventDefault(); setSelected((value) => Math.max(value - 1, 0)); }
-              if (event.key === "Enter" && results[selected]) void open(results[selected]);
-            }}
+    <Modal
+      open
+      centered
+      width={640}
+      footer={null}
+      closable={false}
+      onCancel={onClose}
+      afterOpenChange={(visible) => {
+        if (visible) input.current?.focus();
+      }}
+      className="project-search-modal"
+      styles={{
+        body: {
+          padding: 0,
+          display: "flex",
+          flexDirection: "column",
+          maxHeight: "min(70vh, 620px)",
+        },
+      }}
+    >
+      <div className="project-search-input-row">
+        <IconSymbol name="search" />
+        <Input
+          ref={input}
+          variant="borderless"
+          value={query}
+          placeholder={projectName ? t("ui.ProjectSearch.text.58f3440e") : t("ui.ProjectSearch.text.b617f05c")}
+          aria-label={t("ui.ProjectSearch.arialabel.f005a767")}
+          onChange={(event) => { setQuery(event.target.value); setSelected(0); }}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") onClose();
+            if (event.key === "ArrowDown") { event.preventDefault(); setSelected((value) => Math.min(value + 1, results.length - 1)); }
+            if (event.key === "ArrowUp") { event.preventDefault(); setSelected((value) => Math.max(value - 1, 0)); }
+            if (event.key === "Enter" && results[selected]) void open(results[selected]);
+          }}
+        />
+        <button type="button" onClick={onClose} aria-label={t("ui.ProjectSearch.arialabel.e40a06c8")}><IconSymbol name="x" /></button>
+      </div>
+      <div className="project-search-results">
+        {results.length ? (
+          <List
+            split={false}
+            dataSource={results}
+            renderItem={(item, index) => (
+              <button key={`${item.projectPath}:${item.id}`} type="button" className={index === selected ? "is-selected" : ""} onMouseEnter={() => setSelected(index)} onClick={() => void open(item)}>
+                <span className="project-search-kind">{item.kind}</span>
+                <span className="project-search-result-copy"><strong>{item.title}</strong><small>{item.detail.slice(0, 110) || t("ui.ProjectSearch.text.65fc81e1")}</small></span>
+                <span className="project-search-enter">↵</span>
+              </button>
+            )}
           />
-          <button type="button" onClick={onClose} aria-label={t("ui.ProjectSearch.arialabel.e40a06c8")}><IconSymbol name="x" /></button>
-        </div>
-        <div className="project-search-results">
-          {results.length ? results.map((item, index) => (
-            <button key={`${item.projectPath}:${item.id}`} type="button" className={index === selected ? "is-selected" : ""} onMouseEnter={() => setSelected(index)} onClick={() => void open(item)}>
-              <span className="project-search-kind">{item.kind}</span>
-              <span className="project-search-result-copy"><strong>{item.title}</strong><small>{item.detail.slice(0, 110) || t("ui.ProjectSearch.text.65fc81e1")}</small></span>
-              <span className="project-search-enter">↵</span>
-            </button>
-          )) : <p className="project-search-empty">{loading ? t("ui.ProjectSearch.text.75aa5226") : t("ui.ProjectSearch.text.d5eddc71")}</p>}
-        </div>
-        <footer className="project-search-footer">{t("ui.ProjectSearch.text.528869a0")}<span>{t("ui.ProjectSearch.text.a29b060f")}</span> <span>{t("ui.ProjectSearch.text.bca2fcab")}</span></footer>
-      </section>
-    </div>
+        ) : loading ? (
+          <p className="project-search-empty">{t("ui.ProjectSearch.text.75aa5226")}</p>
+        ) : (
+          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t("ui.ProjectSearch.text.d5eddc71")} />
+        )}
+      </div>
+      <footer className="project-search-footer">{t("ui.ProjectSearch.text.528869a0")}<span>{t("ui.ProjectSearch.text.a29b060f")}</span> <span>{t("ui.ProjectSearch.text.bca2fcab")}</span></footer>
+    </Modal>
   );
 }

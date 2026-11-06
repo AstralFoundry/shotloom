@@ -36,27 +36,18 @@ test('技能入口常驻侧栏且与工程入口分开成组', () => {
 test('技能清单占满内容区，编辑与新建从右侧抽屉覆盖', () => {
   assert.match(skillsView, /className="skills-workspace"/);
   assert.match(skillsView, /className="skills-list-pane"/);
-  assert.match(skillsView, /className=\{`skills-drawer-backdrop/);
+  assert.match(skillsView, /<Drawer[\s\S]*?placement="right"/);
+  assert.match(skillsView, /rootClassName="skills-drawer"/);
+  assert.match(skillsView, /size=\{720\}/);
   assert.match(skillsView, /<SkillEditorPanel/);
   assert.match(skillsStyles, /\.skills-list-pane \{[^}]*flex: 1 1 auto/);
   // 内容区自己已经有一层边框，清单不再套第二张卡片。
   assert.doesNotMatch(skillsStyles, /\.skills-list-pane \{[^}]*border:/);
-  assert.doesNotMatch(skillsStyles, /\.skills-drawer-backdrop \{[^}]*border-radius/);
-  // 抽屉挂到 body 并盖住整个窗口：内容区自己有 isolation，绝对定位盖不到侧栏。
-  assert.match(skillsView, /createPortal\(/);
-  assert.match(skillsView, /document\.body,/);
-  assert.match(skillsStyles, /\.skills-drawer-backdrop \{[^}]*position: fixed;[^}]*inset: 0/);
-  assert.match(skillsStyles, /z-index: var\(--layer-overlay\)/);
-  // 抽屉不贴死窗口边框，但间距只沿用窗体自己的 4px 边框，且不带阴影。
-  assert.match(skillsStyles, /\.skills-drawer-backdrop \{[^}]*padding: 4px 4px 4px 0/);
-  assert.doesNotMatch(skillsStyles, /\.skills-drawer \{[^}]*box-shadow/);
-  assert.match(skillsStyles, /\.skills-drawer \{[^}]*border-radius: var\(--workbench-radius\)/);
-  // 抽屉要整块从屏外推回来；只挪一点再淡入会被读成弹窗跳出。
-  assert.match(skillsStyles, /@keyframes skills-drawer-in \{\s*from \{ transform: translateX\(calc\(100% \+ 4px\)\); \}/);
-  const drawerKeyframes = skillsStyles.match(/@keyframes skills-drawer-in \{[\s\S]*?\n\}/)?.[0] || '';
-  assert.doesNotMatch(drawerKeyframes, /opacity/);
-  assert.match(skillsStyles, /background: var\(--scrim-modal\)/);
-  assert.match(skillsStyles, /\.skills-drawer \{[^}]*height: 100%/);
+  // 抽屉外壳交给 antd，只保留产品自己的边框、圆角和 4px 窗框间距。
+  assert.match(skillsStyles, /\.skills-drawer \.ant-drawer-section \{[\s\S]*?border-radius: var\(--workbench-radius\)/);
+  assert.match(skillsStyles, /\.skills-drawer \.ant-drawer-content-wrapper \{[\s\S]*?padding: 4px 0 4px 4px/);
+  assert.doesNotMatch(skillsStyles, /\.skills-drawer \.ant-drawer-section \{[^}]*box-shadow/);
+  assert.match(skillsView, /mask: \{ background: "var\(--scrim-modal\)"/);
   // 抽屉正文随窗口高度滚动，字段本身不能被 Flex 压缩裁切。
   assert.match(skillsStyles, /\.skill-editor-body \{[^}]*flex: 1 1 auto[^}]*overflow-y: auto/);
   assert.match(skillsStyles, /\.skill-editor-body > \* \{ flex-shrink: 0; \}/);
@@ -79,42 +70,32 @@ test('编辑面板保存前校验必填字段，内置技能只提示覆盖范�
 
 test('切换或新建技能前先保住未保存的草稿', () => {
   assert.match(skillsFeature, /const dirty = Boolean\(open && JSON\.stringify\(open\.draft\) !== open\.baseline\)/);
-  assert.match(skillsFeature, /const discardGuard = \(\) => !dirty \|\| window\.confirm/);
-  assert.match(skillsFeature, /if \(open\?\.draft\.id === id \|\| !discardGuard\(\)\) return;/);
-  assert.match(skillsFeature, /if \(!discardGuard\(\)\) return;/);
+  assert.match(skillsFeature, /function confirmDiscard\(action: \(\) => void\)/);
+  assert.match(skillsFeature, /modal\.confirm\(\{\s*title:/);
+  assert.match(skillsFeature, /confirmDiscard\(\(\) => \{\s*const item = readSkills\(\)/);
+  assert.match(skillsFeature, /confirmDiscard\(\(\) => \{\s*const draft = createSkillDraft/);
   // 确认对话框不能放在 run 的成功分支里，否则用户取消也会提示已恢复默认。
   const resetBody = skillsFeature.split('function resetOpenSkill()')[1].split('\n  }')[0];
-  assert.ok(resetBody.includes('window.confirm'), resetBody);
-  assert.ok(resetBody.indexOf('window.confirm') < resetBody.indexOf('void run('), resetBody);
+  assert.ok(resetBody.includes('modal.confirm'), resetBody);
+  assert.ok(resetBody.indexOf('modal.confirm') < resetBody.indexOf('run('), resetBody);
 });
 
 test('抽屉三条关闭路径都在，且 Esc 不会静默丢掉草稿', () => {
-  assert.match(skillsView, /if \(event\.key !== "Escape"\) return;/);
-  assert.match(skillsView, /controller\.close\(\)/);
-  // 监听器必须跟着当次渲染的 controller 走，否则脏状态是旧值。
-  assert.match(skillsView, /\[data\.editor, controller\]/);
+  // Drawer 本身负责 Esc、遮罩点击和焦点陷阱，统一走 onClose → controller.close()；
+  // close() 在 SkillsFeature 里先过 confirmDiscard，不会静默丢草稿。
+  assert.match(skillsView, /onClose=\{\(\) => controller\.close\(\)\}/);
+  assert.doesNotMatch(skillsView, /keyboard=\{false\}|maskClosable=\{false\}/);
   assert.match(editorPanel, /onClick=\{controller\.close\}/);
-  assert.match(skillsView, /event\.target === event\.currentTarget && controller\.close\(\)/);
+  assert.match(skillsFeature, /function confirmDiscard\(action: \(\) => void\)/);
+  assert.match(skillsFeature, /modal\.confirm\(\{/);
 });
 
-test('抽屉关闭要先播退出帧再卸载，且退出中不能有一帧空档', () => {
-  // CSS 的 animation 只在挂载时跑入场帧，直接卸载就是"啪"地消失。
-  assert.match(skillsView, /const DRAWER_EXIT_MS = (\d+);/);
-  // 退出状态必须在同一次渲染里算出来：用 state 记会先卸载一帧再挂回来，那一帧就是闪烁。
-  assert.match(skillsView, /const drawer = data\.editor \?\? lastEditor\.current;/);
-  assert.match(skillsView, /const drawerExiting = Boolean\(drawer\) && !data\.editor;/);
-  assert.doesNotMatch(skillsView, /setDrawerExiting/);
-  assert.match(skillsView, /skills-drawer-backdrop\$\{drawerExiting \? " closing" : ""\}/);
-  assert.match(skillsView, /skills-drawer\$\{drawerExiting \? " closing" : ""\}/);
-  assert.match(skillsStyles, /\.skills-drawer\.closing \{ animation: skills-drawer-out var\(--duration-slow\)[^}]*forwards/);
-  assert.match(skillsStyles, /\.skills-drawer-backdrop\.closing \{ animation: skills-scrim-out var\(--duration-slow\)[^}]*forwards/);
-  assert.match(skillsStyles, /@keyframes skills-drawer-out \{\s*from \{ transform: translateX\(0\); \}\s*to \{ transform: translateX\(calc\(100% \+ 4px\)\); \}/);
-  // 保留窗口必须盖过退出动画，否则动画被卸载拦腰截断。
-  const exitMs = Number(skillsView.match(/const DRAWER_EXIT_MS = (\d+);/)[1]);
-  const slowMs = Number(tokenStyles.match(/--duration-slow: (\d+)ms/)[1]);
-  assert.ok(exitMs > slowMs, `DRAWER_EXIT_MS ${exitMs} 必须大于退出动画 ${slowMs}ms`);
-  // 关掉动效时不能白等这段保留时间。
-  assert.match(skillsView, /prefers-reduced-motion: reduce/);
+test('抽屉关闭交给 antd 动画，退出期间保留最后一份草稿', () => {
+  assert.match(skillsView, /afterOpenChange=\{\(open\) => \{\s*if \(!open\) setCachedEditor\(null\);/);
+  assert.match(skillsView, /const editor = data\.editor \?\? cachedEditor;/);
+  assert.doesNotMatch(skillsView, /DRAWER_EXIT_MS/);
+  assert.doesNotMatch(skillsView, /skills-drawer-backdrop/);
+  assert.doesNotMatch(skillsStyles, /@keyframes skills-drawer-in/);
 });
 
 test('技能不再住在设置弹窗里', () => {

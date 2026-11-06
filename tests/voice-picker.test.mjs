@@ -75,7 +75,8 @@ test('音色清单由目录层注入参数，厂商模式不各自复制一份',
 
 test('音色选择器挂在应用级浮层根节点且不逃逸层级', () => {
   assert.match(dialogSource, /useWorkbenchSurfaceRoot\(\)/);
-  assert.match(dialogSource, /return createPortal\(/);
+  // 弹窗外壳交给 antd Modal，但容器必须仍是工作台表面，不能落到 document.body。
+  assert.match(dialogSource, /getContainer=\{\(\) => surface\}/);
   assert.doesNotMatch(dialogSource, /document\.body/);
   assert.doesNotMatch(dialogStyles, /z-index:/);
 });

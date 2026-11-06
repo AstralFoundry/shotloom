@@ -45,7 +45,6 @@
   --wash-inset: rgba(0, 0, 0, .08);
   /* Scrims 压在界面内容之上（不是素材之上），遮罩只分两档：轻遮罩留给可就地取消的弹层，
    * modal 给真正打断操作的对话框。grip 是可拖拽细条的静止/强调两档，与滚动条拇指同族。 */
-  --scrim-soft: rgba(0, 0, 0, .16);
   --scrim-modal: rgba(0, 0, 0, .38);
   --grip: rgba(0, 0, 0, .15);
   --grip-active: rgba(0, 0, 0, .24);
@@ -141,7 +140,6 @@
   --action-item-height: 36px;
   --action-item-padding: 8px;
   --action-icon-size: var(--icon-md);
-  --action-icon-gap: 8px;
 
   /* Canvas chrome */
   --canvas-tint-warm: #9d8c78;
@@ -215,7 +213,6 @@
   /* 模态框浮在暗色遮罩之上，需要比面板更深的抬升，否则会和遮罩一起塌成一层。 */
   --shadow-modal: 0 24px 70px rgba(0, 0, 0, .18), 0 4px 14px rgba(0, 0, 0, .06);
   --shadow: var(--canvas-shadow-panel);
-  --shadow-lg: var(--canvas-shadow-menu);
 
   /* Overlays / focus ring / popup states */
   --overlay-dim: rgba(0, 0, 0, .5);
@@ -257,13 +254,11 @@
   --scrollbar-thumb-hover: rgba(0, 0, 0, .35);
 
   /* Stacking contract: canvas context keeps node < selected < control < composer;
-     app-level floats use the three top tiers only. */
+     app-level floats sit below the toast tier. AntD popups use zIndexPopupBase 560,
+     so they stay under --layer-toast: 600. */
   --layer-canvas-control: 110;
   --layer-canvas-popover: 115;
   --layer-canvas-composer: 120;
-  --layer-overlay: 200;
-  --layer-modal: 400;
-  --layer-workspace: 500;
   --layer-toast: 600;
 
   /* Motion
@@ -314,7 +309,6 @@
   --wash-hover: rgba(255, 255, 255, .06);
   --wash-pressed: rgba(255, 255, 255, .09);
   --wash-inset: rgba(255, 255, 255, .12);
-  --scrim-soft: rgba(0, 0, 0, .5);
   --scrim-modal: rgba(0, 0, 0, .6);
   --grip: rgba(255, 255, 255, .24);
   --grip-active: rgba(255, 255, 255, .4);

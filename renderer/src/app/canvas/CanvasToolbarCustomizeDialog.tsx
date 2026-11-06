@@ -1,6 +1,6 @@
 import { t } from '@/i18n';
-import { useEffect, useState } from "react";
-import { createPortal } from "react-dom";
+import { Button, Checkbox, Modal, Tabs } from "antd";
+import { useState } from "react";
 import {
   DndContext,
   KeyboardSensor,
@@ -95,18 +95,7 @@ export function CanvasToolbarCustomizeDialog({ open, onClose, customization }: {
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
-  useEffect(() => {
-    if (!open) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      event.stopPropagation();
-      onClose();
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [open, onClose]);
-
-  if (!open || !surface) return null;
+  if (!surface) return null;
 
   const tools = NODE_TOOLBAR_TOOLS[scope];
   const pinned = customization.pinned[scope];
@@ -143,87 +132,77 @@ export function CanvasToolbarCustomizeDialog({ open, onClose, customization }: {
     });
   }
 
-  return createPortal(
-    <div
-      className="canvas-toolbar-customize-backdrop"
-      role="dialog"
-      aria-modal="true"
-      aria-label={t("ui.CanvasToolbarCustomizeDialog.arialabel.4e2c69f0")}
-      tabIndex={-1}
-      onPointerDown={(event) => event.target === event.currentTarget && onClose()}
+  return (
+    <Modal
+      open={open}
+      centered
+      width={760}
+      title={t("ui.CanvasNodeToolbar.label.17e589f3")}
+      onCancel={onClose}
+      getContainer={() => surface}
+      className="canvas-toolbar-customize-modal"
+      styles={{ body: { paddingTop: 0 } }}
+      footer={[
+        <Button
+          key="reset"
+          onClick={() => void writeCustomization({
+            ...customization,
+            pinned: {
+              ...customization.pinned,
+              [scope]: defaultCanvasToolbarCustomization().pinned[scope],
+            },
+          })}
+        >
+          {t("ui.CameraControlPanel.text.a191935b")}
+        </Button>,
+        <Button key="done" type="primary" onClick={onClose}>
+          {t("ui.ReactWorkbench.text.33246f6a")}
+        </Button>,
+      ]}
     >
-      <section className="canvas-toolbar-customize">
-        <header className="canvas-toolbar-customize-head">
-          <strong>{t("ui.CanvasNodeToolbar.label.17e589f3")}</strong>
-          <button type="button" aria-label={t("ui.CanvasToolbarCustomizeDialog.arialabel.6c14bd7f")} onClick={onClose}><IconSymbol name="x" /></button>
-        </header>
-        <div className="canvas-toolbar-customize-body">
-          <div className="canvas-toolbar-scopes" role="tablist">
-            {nodeToolbarScopes().map((item) => (
-              <button
-                key={item}
-                type="button"
-                role="tab"
-                aria-selected={scope === item}
-                className={scope === item ? "active" : ""}
-                onClick={() => setScope(item)}
-              >
-                {SCOPE_TAB_LABELS[item]}
-              </button>
-            ))}
-          </div>
-          <p className="canvas-toolbar-hint">{t("ui.CanvasToolbarCustomizeDialog.text.9d69ed28")}</p>
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-            <SortableContext items={pinned} strategy={rectSortingStrategy}>
-              <div className="canvas-toolbar-zone">
-                <h3>{t("ui.CanvasToolbarCustomizeDialog.text.6bf018da")}</h3>
-                <div className="canvas-toolbar-tiles">
-                  {pinnedTools.map((tool) => (
-                    <PinnedToolTile key={tool.id} tool={tool} onToggle={() => toggle(tool.id)} />
-                  ))}
-                  {!pinnedTools.length && <span className="canvas-toolbar-empty">{t("ui.CanvasToolbarCustomizeDialog.text.3376c519")}</span>}
-                </div>
-              </div>
-            </SortableContext>
+      <div className="canvas-toolbar-customize-body">
+        <Tabs
+          activeKey={scope}
+          onChange={(key) => setScope(key as NodeToolbarScope)}
+          items={nodeToolbarScopes().map((item) => ({
+            key: item,
+            label: SCOPE_TAB_LABELS[item],
+          }))}
+        />
+        <p className="canvas-toolbar-hint">{t("ui.CanvasToolbarCustomizeDialog.text.9d69ed28")}</p>
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+          <SortableContext items={pinned} strategy={rectSortingStrategy}>
             <div className="canvas-toolbar-zone">
-              <h3>{t("ui.CanvasToolbarCustomizeDialog.text.7c4be2e3")}</h3>
+              <h3>{t("ui.CanvasToolbarCustomizeDialog.text.6bf018da")}</h3>
               <div className="canvas-toolbar-tiles">
-                {availableTools.map((tool) => (
-                  <AvailableToolTile key={tool.id} tool={tool} onToggle={() => toggle(tool.id)} />
+                {pinnedTools.map((tool) => (
+                  <PinnedToolTile key={tool.id} tool={tool} onToggle={() => toggle(tool.id)} />
                 ))}
-                {!availableTools.length && <span className="canvas-toolbar-empty">{t("ui.CanvasToolbarCustomizeDialog.text.14dba8a9")}</span>}
+                {!pinnedTools.length && <span className="canvas-toolbar-empty">{t("ui.CanvasToolbarCustomizeDialog.text.3376c519")}</span>}
               </div>
             </div>
-          </DndContext>
-          <label className="canvas-toolbar-option">
-            <input
-              type="checkbox"
-              checked={customization.showLabels}
-              onChange={(event) => void writeCustomization({
-                ...customization,
-                showLabels: event.target.checked,
-              })}
-            />
-            <span>{t("ui.CanvasToolbarCustomizeDialog.text.430f2fcf")}</span>
-          </label>
-        </div>
-        <footer className="canvas-toolbar-customize-foot">
-          <button
-            type="button"
-            className="button ghost"
-            onClick={() => void writeCustomization({
-              ...customization,
-              pinned: {
-                ...customization.pinned,
-                [scope]: defaultCanvasToolbarCustomization().pinned[scope],
-              },
-            })}
-          >
-            {t("ui.CameraControlPanel.text.a191935b")}</button>
-          <button type="button" className="button primary" onClick={onClose}>{t("ui.ReactWorkbench.text.33246f6a")}</button>
-        </footer>
-      </section>
-    </div>,
-    surface,
+          </SortableContext>
+          <div className="canvas-toolbar-zone">
+            <h3>{t("ui.CanvasToolbarCustomizeDialog.text.7c4be2e3")}</h3>
+            <div className="canvas-toolbar-tiles">
+              {availableTools.map((tool) => (
+                <AvailableToolTile key={tool.id} tool={tool} onToggle={() => toggle(tool.id)} />
+              ))}
+              {!availableTools.length && <span className="canvas-toolbar-empty">{t("ui.CanvasToolbarCustomizeDialog.text.14dba8a9")}</span>}
+            </div>
+          </div>
+        </DndContext>
+        <Checkbox
+          className="canvas-toolbar-option"
+          checked={customization.showLabels}
+          onChange={(event) => void writeCustomization({
+            ...customization,
+            showLabels: event.target.checked,
+          })}
+        >
+          {t("ui.CanvasToolbarCustomizeDialog.text.430f2fcf")}
+        </Checkbox>
+      </div>
+    </Modal>
   );
 }

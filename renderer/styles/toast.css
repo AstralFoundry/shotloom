@@ -54,31 +54,14 @@
 }
 .message-close:hover { color: var(--text); background: var(--wash-hover); }
 .message-close:focus-visible { outline: 2px solid var(--brand-accent); outline-offset: 2px; }
-.message-dialog {
-  position: fixed;
-  inset: 0;
-  margin: auto;
-  box-sizing: border-box;
-  width: min(420px, calc(100vw - 32px));
-  max-height: calc(100dvh - 48px);
-  padding: 0;
-  overflow: hidden;
-  border: 1px solid var(--elevated-border);
-  border-radius: var(--radius-lg);
-  color: var(--text);
-  background: var(--elevated-surface);
-  box-shadow: var(--shadow-modal);
-}
-.message-dialog[open] { display: flex; flex-direction: column; }
-.message-dialog::backdrop { background: var(--overlay-dim); backdrop-filter: blur(3px); }
-.message-dialog-close { position: absolute; top: 12px; right: 12px; }
-.message-dialog-content { min-height: 0; overflow: auto; display: flex; align-items: flex-start; gap: 12px; padding: 28px 36px 24px 24px; }
-.message-dialog .message-mark { width: 24px; height: 24px; flex-basis: 24px; margin-top: 2px; }
-.message-dialog .message-mark svg { width: 22px; height: 22px; }
+/* 重要结果用 antd Modal 承载，只保留标题排布、正文滚动和详情折叠这些产品规则。 */
+.message-dialog-title { display: flex; align-items: center; gap: 10px; }
+.message-dialog-title .message-mark { width: 22px; height: 22px; flex-basis: 22px; }
+.message-dialog-title .message-mark svg { width: 20px; height: 20px; }
+.message-dialog-content { min-height: 0; overflow: auto; }
 .message-dialog-copy { flex: 1; min-width: 0; }
-.message-dialog h2 { margin: 2px 0 10px; font-size: var(--text-title-16); line-height: var(--text-title-16--line-height); font-weight: 600; }
-.message-dialog p { margin: 0; color: var(--muted); font-size: var(--text-body-13); line-height: var(--text-body-13--line-height); white-space: pre-wrap; overflow-wrap: anywhere; }
-.message-dialog-footer { flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 20px; border-top: 1px solid var(--line); }
+.message-dialog-copy p { margin: 0; color: var(--muted); font-size: var(--text-body-13); line-height: var(--text-body-13--line-height); white-space: pre-wrap; overflow-wrap: anywhere; }
+.message-dialog-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .message-dialog-footer > span { color: var(--faint); font-size: var(--text-body-12); }
 .message-details { margin-top: 16px; font-size: var(--text-body-12); color: var(--muted); }
 .message-details summary { cursor: pointer; }

@@ -100,23 +100,32 @@
 .search {
   width: 260px;
   height: 32px;
-  position: relative;
+  display: block;
 }
 
 .search.compact {
   width: 100%;
 }
 
-.search svg {
-  position: absolute;
-  left: 10px;
-  top: 8px;
-  width: var(--icon-md);
-  height: var(--icon-md);
-  color: var(--faint);
+/* 搜索框由 antd Input 承载：外层只给尺寸，边框与内边距落在 affix wrapper 上。 */
+.search .ant-input-affix-wrapper {
+  height: 100%;
+  padding: 0 8px 0 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
 }
+.search .ant-input-affix-wrapper:hover { border-color: var(--line-strong); }
+.search .ant-input-affix-wrapper:focus-within { border-color: var(--text); box-shadow: none; }
+.search .ant-input-affix-wrapper > input.ant-input {
+  height: 100%;
+  padding: 0;
+  font-size: var(--text-body-13);
+  background: transparent;
+}
+.search .ant-input-prefix { margin-inline-end: 8px; color: var(--faint); }
+.search .ant-input-prefix svg { width: var(--icon-md); height: var(--icon-md); }
 
-.search input,
 .field input,
 .field select,
 .field textarea,
@@ -128,19 +137,12 @@
   background: var(--surface);
 }
 
-.search input {
-  width: 100%;
-  height: 100%;
-  padding: 0 10px 0 32px;
-  font-size: var(--text-body-13);
-}
 
 input::placeholder,
 textarea::placeholder {
   color: var(--faint);
 }
 
-.search input:focus,
 .field input:focus,
 .field select:focus,
 .field textarea:focus,
@@ -457,4 +459,12 @@ tr:last-child td {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px;
+}
+
+/* 右键菜单的零尺寸锚点：坐标由 contextmenu 事件给出，弹层定位由 antd 负责。 */
+.context-menu-anchor {
+  position: fixed;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
 }

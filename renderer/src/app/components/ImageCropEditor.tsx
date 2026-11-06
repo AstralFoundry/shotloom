@@ -1,4 +1,5 @@
 import { t } from '@/i18n';
+import { InputNumber, Segmented, Select } from "antd";
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { createPortal } from "react-dom";
 import { type ReactFlowState, useStore } from "@xyflow/react";
@@ -141,10 +142,51 @@ export function ImageCropEditor({ nodeId, root, imageWidth, imageHeight, initial
     {root && placement.visible && createPortal(<div className="canvas-image-crop-toolbar nodrag nopan nowheel" style={{ left: placement.left, top: placement.top, width: placement.width }} onPointerDown={(event) => event.stopPropagation()} onClick={(event) => event.stopPropagation()}>
       <button type="button" title={t("ui.ImageCropEditor.title.8cf49542")} onClick={onCancel}>×</button>
       <span className="canvas-image-crop-divider" />
-      <select aria-label={t("ui.ImageCropEditor.arialabel.8085ebce")} value={mode} onChange={(event) => setMode(event.target.value as "crop" | "grid")}> <option value="crop">{t("ui.ImageCropEditor.text.f06f360f")}</option><option value="grid">{t("ui.ImageCropEditor.text.5cd32361")}</option></select>
-      {mode === "crop" ? <select aria-label={t("ui.ImageCropEditor.arialabel.99603ae1")} value={ratio === null ? "free" : String(ratio)} onChange={(event) => chooseRatio(event.target.value === "free" ? null : Number(event.target.value))}>{ratios.map((item) => <option key={item.label} value={item.value === null ? "free" : String(item.value)}>{item.label}</option>)}</select> : <>
-        <select aria-label={t("ui.ImageCropEditor.arialabel.471fec16")} value={rows} onChange={(event) => { const value = Number(event.target.value); setRows(value); setSelected(Array.from({ length: value * cols }, (_, index) => index)); }}>{[1, 2, 3, 4, 5].map((value) => <option key={value} value={value}>{value} {t("ui.ImageCropEditor.text.2a2b777a")}</option>)}</select>
-        <select aria-label={t("ui.ImageCropEditor.arialabel.50b33f11")} value={cols} onChange={(event) => { const value = Number(event.target.value); setCols(value); setSelected(Array.from({ length: rows * value }, (_, index) => index)); }}>{[1, 2, 3, 4, 5].map((value) => <option key={value} value={value}>{value} {t("ui.ImageCropEditor.text.ad3ee648")}</option>)}</select>
+      <Segmented
+        size="small"
+        aria-label={t("ui.ImageCropEditor.arialabel.8085ebce")}
+        value={mode}
+        onChange={(value) => setMode(value as "crop" | "grid")}
+        options={[
+          { value: "crop", label: t("ui.ImageCropEditor.text.f06f360f") },
+          { value: "grid", label: t("ui.ImageCropEditor.text.5cd32361") },
+        ]}
+      />
+      {mode === "crop" ? <Select
+        aria-label={t("ui.ImageCropEditor.arialabel.99603ae1")}
+        size="small"
+        variant="borderless"
+        popupMatchSelectWidth={false}
+        value={ratio === null ? "free" : String(ratio)}
+        onChange={(value) => chooseRatio(value === "free" ? null : Number(value))}
+        options={ratios.map((item) => ({ value: item.value === null ? "free" : String(item.value), label: item.label }))}
+      /> : <>
+        <InputNumber
+          aria-label={t("ui.ImageCropEditor.arialabel.471fec16")}
+          size="small"
+          min={1}
+          max={5}
+          value={rows}
+          suffix={t("ui.ImageCropEditor.text.2a2b777a")}
+          onChange={(value) => {
+            const next = Math.max(1, Math.min(5, Number(value) || 1));
+            setRows(next);
+            setSelected(Array.from({ length: next * cols }, (_, index) => index));
+          }}
+        />
+        <InputNumber
+          aria-label={t("ui.ImageCropEditor.arialabel.50b33f11")}
+          size="small"
+          min={1}
+          max={5}
+          value={cols}
+          suffix={t("ui.ImageCropEditor.text.ad3ee648")}
+          onChange={(value) => {
+            const next = Math.max(1, Math.min(5, Number(value) || 1));
+            setCols(next);
+            setSelected(Array.from({ length: rows * next }, (_, index) => index));
+          }}
+        />
       </>}
       <button className="canvas-image-crop-confirm" type="button" disabled={saving || (mode === "grid" && !selected.length)} title={mode === "grid" ? t("ui.ImageCropEditor.text.5a4ce4cb", { value0: selected.length }) : t("ui.ImageCropEditor.text.5ba2e652")} onClick={() => void submit()}>{saving ? "…" : "↑"}</button>
       {error && <span className="canvas-image-crop-error" role="alert">{error}</span>}

@@ -1,64 +1,4 @@
-/* 模态框与更新对话框。 */
-
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  display: none;
-  place-items: center;
-  z-index: var(--layer-overlay);
-  background: var(--overlay-dim);
-}
-
-.modal-backdrop.open {
-  display: grid;
-}
-.modal-backdrop:has(.update-modal) {
-  background: var(--overlay-dim);
-  backdrop-filter: blur(5px);
-}
-
-.modal {
-  width: min(500px, calc(100vw - 32px));
-  max-height: calc(100vh - 64px);
-  border-radius: var(--radius-lg);
-  background: var(--elevated-surface);
-  box-shadow: var(--shadow-modal);
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
-.update-modal {
-  width: min(456px, calc(100vw - 32px));
-}
-
-.modal-head,
-.modal-foot {
-  min-height: 52px;
-  padding: 0 16px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  border-bottom: 1px solid var(--line);
-}
-
-.modal-foot {
-  border-top: 1px solid var(--line);
-  border-bottom: 0;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-.modal-title {
-  margin: 0;
-  font-size: var(--text-body-15);
-  font-weight: 600;
-}
-
-.modal-body {
-  padding: 16px;
-  overflow: auto;
-}
+/* 模板发布与更新对话框的内容样式；弹窗外壳统一由 antd Modal 承载。 */
 
 .template-publish-grid {
   display: grid;
@@ -110,26 +50,6 @@
   object-fit: cover;
 }
 
-
-.update-modal-head {
-  min-height: 66px;
-  padding: 0 22px;
-  border-bottom: 0;
-}
-
-.update-modal .modal-title {
-  color: var(--type-primary);
-  font-size: var(--text-title-16);
-  font-weight: 600;
-  letter-spacing: var(--tracking-tight);
-}
-.update-modal-head .icon-btn { width: 32px; height: 32px; border: 0; border-radius: var(--radius-control); color: var(--faint); background: transparent; }
-.update-modal-head .icon-btn:hover { color: var(--type-primary); background: var(--canvas-controls-hover); }
-.update-modal-head .icon-btn svg { width: var(--icon-md); height: var(--icon-md); }
-
-.update-modal .modal-body {
-  padding: 2px 22px 20px;
-}
 
 .update-checking-copy {
   min-height: 82px;
@@ -276,21 +196,6 @@
   font-weight: 600;
 }
 
-.progress-track {
-  height: 4px;
-  overflow: hidden;
-  border-radius: 999px;
-  background: var(--surface-2);
-}
-
-.progress-track span {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  background: var(--brand);
-  transition: width var(--duration-base) var(--ease-std);
-}
-
 .progress-meta {
   margin-top: 7px;
   display: flex;
@@ -337,24 +242,6 @@
 .update-current-state > div { min-width: 0; display: grid; gap: 5px; }
 .update-current-state strong { color: var(--good); font-size: var(--text-body-14); font-weight: 600; letter-spacing: var(--tracking-tight); }
 .update-current-state > div > span { color: var(--muted); font-size: var(--text-caption-11); line-height: 1.55; }
-
-.update-modal-foot {
-  min-height: 0;
-  padding: 0 22px 22px;
-  border: 0;
-  gap: 10px;
-  background: transparent;
-}
-
-.update-modal-foot .button {
-  min-width: 78px;
-  height: 36px;
-  border-radius: var(--radius);
-  font-weight: 600;
-}
-.update-modal-foot .button.ghost { border-color: transparent; color: var(--muted); background: var(--surface-muted); }
-.update-modal-foot .button.primary { border-color: var(--text); color: var(--surface); background: var(--text); }
-.update-modal-foot .button:hover { filter: brightness(.97); }
 
 .update-error {
   margin: 12px 0 0;

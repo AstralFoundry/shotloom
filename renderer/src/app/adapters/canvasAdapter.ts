@@ -1,4 +1,5 @@
 import { t } from '@/i18n';
+import { confirmAction } from "../ui/confirm/confirmService";
 import { editorCanvasCandidate } from "../../services/editorMediaCatalog";
 import { localMediaPath, selectedNodeMedia } from "../../utils/nodeMedia.ts";
 import { findMaterialCanvasTarget } from "./canvas/canvasMediaSelection";
@@ -372,19 +373,31 @@ export const canvasController: WorkflowCanvasController = {
   },
   deleteSelection() {
     if (!(store.selectedNodeIds?.length || store.selectedNodeId || store.selectedEdgeId)) return;
-    if (store.selectedEdgeId) {
-      const edge = store.project.edges.find((item: any) => item.id === store.selectedEdgeId);
-      const clip = edge && store.project.nodes.find((item: any) => item.id === edge.target && item.type === "clipStudio");
-      if (clip && !window.confirm(t("ui.canvasAdapter.text.03eb83ea", { value0: edge?.data?.clipIds?.length || 0 }))) return;
+    const edgeId = store.selectedEdgeId;
+    const edge = edgeId
+      ? store.project.edges.find((item: any) => item.id === edgeId)
+      : undefined;
+    const clip = edge && store.project.nodes.find((item: any) => item.id === edge.target && item.type === "clipStudio");
+    const remove = () => {
+      recordCanvasHistory(t("ui.canvasAdapter.text.e89139b8"));
+      if (edgeId) {
+        store.project.edges = store.project.edges.filter(
+          (item: { id: string }) => item.id !== edgeId,
+        );
+        store.selectedEdgeId = null;
+        touchProject();
+      } else deleteSelectedNodes();
+    };
+    if (!clip) {
+      remove();
+      return;
     }
-    recordCanvasHistory(t("ui.canvasAdapter.text.e89139b8"));
-    if (store.selectedEdgeId) {
-      store.project.edges = store.project.edges.filter(
-        (edge: { id: string }) => edge.id !== store.selectedEdgeId,
-      );
-      store.selectedEdgeId = null;
-      touchProject();
-    } else deleteSelectedNodes();
+    void confirmAction({
+      title: t("ui.canvasAdapter.text.03eb83ea", { value0: edge?.data?.clipIds?.length || 0 }),
+      danger: true,
+    }).then((confirmed) => {
+      if (confirmed) remove();
+    });
   },
   async copySelection(withUpstream = false) {
     try { await stageSelectedWorkflow({ withUpstream }); }
@@ -655,11 +668,22 @@ export const nodeActions: WorkflowNodeActions = {
     );
     if (!edge) return;
     const target = store.project.nodes.find((item: any) => item.id === id);
-    if (target?.type === "clipStudio" && !window.confirm(t("ui.canvasAdapter.text.03eb83ea", { value0: edge.data?.clipIds?.length || 0 }))) return;
-    recordCanvasHistory(t("ui.canvasAdapter.text.806747d8"));
-    store.project.edges = store.project.edges.filter((item: any) => item.id !== edgeId);
-    store.selectedEdgeId = null;
-    touchProject();
+    const remove = () => {
+      recordCanvasHistory(t("ui.canvasAdapter.text.806747d8"));
+      store.project.edges = store.project.edges.filter((item: any) => item.id !== edgeId);
+      store.selectedEdgeId = null;
+      touchProject();
+    };
+    if (target?.type === "clipStudio") {
+      void confirmAction({
+        title: t("ui.canvasAdapter.text.03eb83ea", { value0: edge.data?.clipIds?.length || 0 }),
+        danger: true,
+      }).then((confirmed) => {
+        if (confirmed) remove();
+      });
+      return;
+    }
+    remove();
   },
   run(id) {
     const node = store.project.nodes.find((item: WorkflowNodeData) => item.id === id);

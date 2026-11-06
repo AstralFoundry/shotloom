@@ -14,6 +14,7 @@ import {
   useState,
 } from "react";
 import type { Viewport } from "@xyflow/react";
+import { App, Segmented, Select } from "antd";
 import { CanvasStartup } from "../canvas/CanvasStartup";
 import { BottomModeBar } from "../canvas/BottomModeBar";
 import {
@@ -31,6 +32,7 @@ import type { VideoEditorController } from "../editor/VideoEditorWorkspace";
 import type { VideoEditorWorkspaceProps } from "../editor/openReel/types";
 import type { AgentLayoutMode } from "../../services/agentLayoutService";
 import { assetCategories, assetCategoryFor } from "../../domain/asset/assetCategories";
+import { SearchInput } from "../components/SearchInput";
 
 const VideoEditorWorkspace = lazy(() =>
   import("../editor/VideoEditorWorkspace").then((module) => ({
@@ -76,6 +78,7 @@ export function CreationView({
   data: CreationViewData;
   controller: CreationViewController;
 }) {
+  const { modal } = App.useApp();
   const [canvasReady, setCanvasReady] = useState(false);
   const [agentStatus, setAgentStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const markCanvasReady = useCallback(() => setCanvasReady(true), []);
@@ -377,47 +380,66 @@ export function CreationView({
               </div>
             </header>
             <div className="canvas-material-browser-bar">
-              <div className="canvas-material-tabs" role="tablist" aria-label={t("ui.CreationView.arialabel.60849240")}>
-                <button
-                  className={scope === "library" ? "active" : ""}
-                  onClick={() => setScope("library")}
-                >
-                  {t("ui.ProjectSearch.text.96cb64ae")}<span>{materials.library.length}</span>
-                </button>
-                <button
-                  className={scope === "local" ? "active" : ""}
-                  onClick={() => setScope("local")}
-                >
-                  {t("ui.CreationView.text.d2199cbf")}<span>{materials.local.length}</span>
-                </button>
-                <button
-                  className={scope === "files" ? "active" : ""}
-                  onClick={() => setScope("files")}
-                >
-                  {t("ui.CreationView.text.2b6b5d89")}<span>{materials.files.length}</span>
-                </button>
-              </div>
+              <Segmented
+                className="canvas-material-tabs"
+                aria-label={t("ui.CreationView.arialabel.60849240")}
+                value={scope}
+                onChange={(value) => setScope(value as "library" | "local" | "files")}
+                options={[
+                  {
+                    value: "library",
+                    label: (
+                      <span className="canvas-material-tab">
+                        {t("ui.ProjectSearch.text.96cb64ae")}<span>{materials.library.length}</span>
+                      </span>
+                    ),
+                  },
+                  {
+                    value: "local",
+                    label: (
+                      <span className="canvas-material-tab">
+                        {t("ui.CreationView.text.d2199cbf")}<span>{materials.local.length}</span>
+                      </span>
+                    ),
+                  },
+                  {
+                    value: "files",
+                    label: (
+                      <span className="canvas-material-tab">
+                        {t("ui.CreationView.text.2b6b5d89")}<span>{materials.files.length}</span>
+                      </span>
+                    ),
+                  },
+                ]}
+              />
               <label className="canvas-material-search">
-                <IconSymbol name="search" />
-                <input
+                <SearchInput
                   value={materialKeyword}
-                  onChange={(event) => setMaterialKeyword(event.target.value)}
+                  onChange={setMaterialKeyword}
                   placeholder={t("ui.CreationView.placeholder.f7e88754")}
                   autoFocus
                 />
               </label>
             </div>
             <div className="canvas-asset-filters">
-              <label aria-label={t("ui.CreationView.arialabel.74e3df5b")}>
-                <select value={assetType} onChange={(event) => setAssetType(event.target.value)}>
-                  <option value="all">{t("ui.CreationView.text.fa6968d9")}</option>
-                  <option value="image">{t("ui.CreationView.text.604dfedb")}</option>
-                  <option value="video">{t("ui.CreationView.text.42baf234")}</option>
-                  <option value="audio">{t("ui.CreationView.text.0c2d8d74")}</option>
-                  <option value="text">{t("ui.CreationView.text.e77f069b")}</option>
-                  <option value="file">{t("ui.CreationView.text.803b3b26")}</option>
-                </select>
-              </label>
+              <div className="canvas-asset-filter-field" aria-label={t("ui.CreationView.arialabel.74e3df5b")}>
+                <Select
+                  aria-label={t("ui.CreationView.arialabel.74e3df5b")}
+                  value={assetType}
+                  onChange={setAssetType}
+                  size="small"
+                  variant="borderless"
+                  popupMatchSelectWidth={false}
+                  options={[
+                    { value: "all", label: t("ui.CreationView.text.fa6968d9") },
+                    { value: "image", label: t("ui.CreationView.text.604dfedb") },
+                    { value: "video", label: t("ui.CreationView.text.42baf234") },
+                    { value: "audio", label: t("ui.CreationView.text.0c2d8d74") },
+                    { value: "text", label: t("ui.CreationView.text.e77f069b") },
+                    { value: "file", label: t("ui.CreationView.text.803b3b26") },
+                  ]}
+                />
+              </div>
               <div className="canvas-asset-categories" role="group" aria-label={t('assets.collection.label')}>
                 <button type="button" aria-pressed={assetCategory === 'all'} onClick={() => setAssetCategory('all')}>{t("ui.CreationView.text.a8e369c4")}</button>
                 {assetCategories.map(category => (
@@ -425,16 +447,21 @@ export function CreationView({
                     onClick={() => setAssetCategory(category.id)}>{category.label}</button>
                 ))}
               </div>
-              <label className="canvas-asset-sort" aria-label={t("ui.CreationView.arialabel.e545c64b")}>
-                <select
+              <div className="canvas-asset-sort" aria-label={t("ui.CreationView.arialabel.e545c64b")}>
+                <Select
+                  aria-label={t("ui.CreationView.arialabel.e545c64b")}
                   value={assetSort}
-                  onChange={(event) => setAssetSort(event.target.value as "newest" | "oldest" | "name")}
-                >
-                  <option value="newest">{t("ui.CreationView.text.44ceb013")}</option>
-                  <option value="oldest">{t("ui.CreationView.text.4e2f1163")}</option>
-                  <option value="name">{t("ui.CreationView.text.0ea96767")}</option>
-                </select>
-              </label>
+                  onChange={(value) => setAssetSort(value as "newest" | "oldest" | "name")}
+                  size="small"
+                  variant="borderless"
+                  popupMatchSelectWidth={false}
+                  options={[
+                    { value: "newest", label: t("ui.CreationView.text.44ceb013") },
+                    { value: "oldest", label: t("ui.CreationView.text.4e2f1163") },
+                    { value: "name", label: t("ui.CreationView.text.0ea96767") },
+                  ]}
+                />
+              </div>
               <output>{formatItemCount(items.length)}</output>
               {assetFiltersActive && (
                 <button
@@ -473,9 +500,12 @@ export function CreationView({
                         : scope === "local"
                           ? t("ui.CreationView.text.491bda48")
                           : t("ui.CreationView.text.3dc880c1");
-                      if (!window.confirm(t("ui.CreationView.text.f8b843fc", { value0: label, value1: item.name || t("ui.canvasMediaSelection.text.b61b7f74") }))) return;
-                      void Promise.resolve(controller.deleteMaterial(item, scope)).then((result) => {
-                        if (result !== false) refreshMaterials(scope);
+                      modal.confirm({
+                        title: t("ui.CreationView.text.f8b843fc", { value0: label, value1: item.name || t("ui.canvasMediaSelection.text.b61b7f74") }),
+                        okButtonProps: { danger: true },
+                        onOk: () => Promise.resolve(controller.deleteMaterial(item, scope)).then((result) => {
+                          if (result !== false) refreshMaterials(scope);
+                        }),
                       });
                     }
                   }}

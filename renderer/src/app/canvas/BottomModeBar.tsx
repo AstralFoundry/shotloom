@@ -1,4 +1,5 @@
 import { t } from '@/i18n';
+import { Checkbox } from "antd";
 import { useState } from "react";
 import type { AgentLayoutMode } from "../../services/agentLayoutService";
 import { IconSymbol } from "../components/IconSymbol";
@@ -116,13 +117,14 @@ export function BottomModeBar(
               </button>
             ))}
           </div>
-          <label>
-            <input
-              type="checkbox"
+          <div className="canvas-layout-connected">
+            <Checkbox
               checked={includeConnected}
               onChange={(event) => setIncludeConnected(event.target.checked)}
-            />
-            {t("ui.BottomModeBar.text.df42ff54")}</label>
+            >
+              {t("ui.BottomModeBar.text.df42ff54")}
+            </Checkbox>
+          </div>
         </div>
       )}
       {layoutConfirmation && (

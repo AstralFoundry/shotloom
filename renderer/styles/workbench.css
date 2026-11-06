@@ -376,8 +376,8 @@
   font-size: var(--text-caption-11);
 }
 .canvas-layout-options button svg { width: var(--icon-sm); height: var(--icon-sm); }
-.canvas-layout-menu > label { margin-top: 9px; display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: var(--text-caption-10); }
-.canvas-layout-menu > label input { width: 13px; height: 13px; margin: 0; accent-color: var(--brand); }
+.canvas-layout-connected { margin-top: 9px; color: var(--muted); font-size: var(--text-caption-10); }
+.canvas-layout-connected .ant-checkbox-wrapper { color: inherit; font-size: inherit; }
 .canvas-layout-confirm { padding: 8px 9px; display: flex; align-items: center; gap: 5px; white-space: nowrap; }
 .canvas-layout-confirm span { margin-right: 3px; color: var(--muted); font-size: var(--text-caption-11); }
 .bottom-mode-switch .canvas-layout-confirm button { width: auto; height: 27px; border-radius: var(--radius-sm); padding: 0 8px; font-size: var(--text-caption-10); }

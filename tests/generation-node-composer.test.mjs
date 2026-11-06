@@ -90,7 +90,8 @@ test('参考素材入口创建真实上游节点和连线，缩略图可放大�
   assert.match(source, /actions\.addReference\(node\.id(?:, slot)?\)/);
   assert.match(source, /actions\.removeIncomingEdge\(node\.id, input\.edgeId\)/);
   assert.match(source, /getGenerationInputModes\(selectedModel\)/);
-  assert.match(source, /actions\.setInputMode\(nodeId, mode\.value\)/);
+  // 输入方式由 antd Segmented 承载，回调值仍是目录里的 mode.value。
+  assert.match(source, /actions\.setInputMode\(nodeId, String\(value\)\)/);
   assert.match(source, /actions\.setInputMode\(node\.id, nextMode\.value\)/);
   assert.match(source, /className="work-composer-input-preview"/);
   assert.match(source, /openMediaViewer\(\{[\s\S]*?src: url,[\s\S]*?filePath: String\(input\.filePath \|\| input\.path/);
@@ -121,14 +122,15 @@ test('生成参数收纳到分组面板且发送按钮保持在底栏', () => {
   assert.match(styles, /\.ratios button \{[^}]*min-height:\s*56px/);
   assert.doesNotMatch(styles, /\.ratios button \{[^}]*[^-]height:/, '固定高度会让两行标签溢出卡片');
   assert.match(styles, /\.generation-settings-group-title \{/);
-  // 原生 select 的上下双箭头是操作系统控件，和面板里的选项块、音色选择器不是同一套图形。
-  assert.match(source, /className="generation-settings-select"/);
-  assert.match(source, /<select[\s\S]{0,140}aria-label=\{param\.label\}/);
-  assert.match(styles, /\.generation-settings-select > select \{[^}]*appearance: none/);
-  assert.match(styles, /\.generation-settings-select > svg \{[^}]*position: absolute/);
+  // 下拉参数由 antd Select 承载，选项值到业务值的转换仍留在 onConfigChange 里。
+  assert.match(source, /<Select[\s\S]{0,180}?aria-label=\{param\.label\}/);
+  assert.match(source, /matched === undefined \? next : optionValue\(matched\)/);
+  assert.doesNotMatch(source, /<select/, '生成参数面板不得再回退到原生 select');
+  assert.doesNotMatch(styles, /\.generation-settings-select/, '原生 select 的样式已随控件一起移除');
+  assert.match(styles, /\.generation-settings-param \.ant-select,/);
   // 倍率型滑杆的轨道映射只读目录声明，界面不再自己算 min/max。
   assert.match(source, /sliderTrackDomain\(param\)/);
-  assert.match(source, /sliderValueFromTrack\(param, Number\(event\.target\.value\)\)/);
+  assert.match(source, /sliderValueFromTrack\(param, next\)/);
   assert.doesNotMatch(source, /const min = Number\(presentation\.min\)/, '滑杆轨道域只能由 modelPresentation 一处计算');
   // 滑杆的值是裸数字，摘要里必须带参数名，否则"· 1 ·"读不出是哪项参数。
   assert.match(source, /paramSummary\(param, config\[param\.key\] \?\? param\.default\)/);
@@ -142,8 +144,11 @@ test('生成参数收纳到分组面板且发送按钮保持在底栏', () => {
 
 test('切换模型时按新协议重编译配置，空数字不写成零、自由文本可写回', () => {
   assert.match(source, /model,[\s\S]*?config: compileGenerationNodeConfig\([\s\S]*?getModelSchema\(node\.type, model\)\.params/);
-  assert.match(source, /onConfigChange\(param\.key, numeric \? \(value === "" \? undefined : Number\(value\)\) : value\)/);
+  // InputNumber 用 null 表示清空；清空必须回写 undefined，而不是 0。
+  assert.match(source, /onChange=\{\(value\) => onConfigChange\(param\.key, value === null \? undefined : value\)\}/);
   assert.doesNotMatch(source, /numeric && value !== "" \? Number\(value\) : undefined/, '自由文本参数不得被写成 undefined');
-  assert.match(source, /min=\{numeric && Number\.isFinite\(Number\(presentation\.min\)\)/);
-  assert.match(source, /max=\{numeric && Number\.isFinite\(Number\(presentation\.max\)\)/);
+  assert.match(source, /onChange=\{\(event\) => onConfigChange\(param\.key, event\.target\.value\)\}/);
+  // 目录没声明边界时不传 min/max，避免 antd 用默认值覆盖参数语义。
+  assert.match(source, /\.\.\.\(Number\.isFinite\(Number\(presentation\.min\)\) \? \{ min: Number\(presentation\.min\) \} : \{\}\)/);
+  assert.match(source, /\.\.\.\(Number\.isFinite\(Number\(presentation\.max\)\) \? \{ max: Number\(presentation\.max\) \} : \{\}\)/);
 });
