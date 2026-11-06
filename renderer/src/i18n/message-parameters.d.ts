@@ -1200,4 +1200,8 @@ export interface MessageParameters {
   "workflow.error.unknownOutput": Record<"name", string | number>;
   "workflow.error.unsupportedNode": Record<"name", string | number>;
   "workflow.bind.missing": Record<"count", string | number>;
+  "workflows.meta": Record<"steps" | "inputs", string | number>;
+  "workflows.deleteConfirm": Record<"name", string | number>;
+  "workflows.duplicated": Record<"name", string | number>;
+  "workflows.exported": Record<"name", string | number>;
 }

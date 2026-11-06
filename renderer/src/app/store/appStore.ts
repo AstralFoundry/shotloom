@@ -3,13 +3,14 @@ import { create } from "zustand";
 export type AppRoute =
   | "projects"
   | "skills"
+  | "workflows"
   | "creation"
   | "tasks"
   | "assets"
   | "materials";
 
 // 技能是全局目录，不隶属任何工程，因此进入它不要求先打开工程。
-const PROJECT_FREE_ROUTES = new Set<AppRoute>(["projects", "skills"]);
+const PROJECT_FREE_ROUTES = new Set<AppRoute>(["projects", "skills", "workflows"]);
 
 export interface ProjectSummary {
   id: string;

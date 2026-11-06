@@ -131,3 +131,19 @@ test('未成功运行的步骤无法生成模板', () => {
     (error) => error.code === 'not-run',
   );
 });
+
+test('重命名走版本规则，复制得到独立的新模板', async () => {
+  const template = service.buildWorkflowTemplate(fixture());
+  await store.saveWorkflowTemplate(template);
+
+  const renamed = await store.renameWorkflowTemplate(template.id, '新名字');
+  assert.equal(renamed.name, '新名字');
+  assert.equal(renamed.revision, 2);
+
+  const copy = await store.duplicateWorkflowTemplate(template.id, '副本');
+  assert.notEqual(copy.id, template.id);
+  assert.equal(copy.revision, 1);
+  assert.equal(copy.name, '副本');
+  assert.equal(copy.recipe.shot.prompt, template.recipe.shot.prompt);
+  assert.equal(store.workflowTemplateStore.templates.length, 2);
+});

@@ -7,6 +7,7 @@
 
 import { reactive } from '@/store/domainReactivity';
 import { desktopApi } from '@/services/desktopApi';
+import { uid } from '@/utils/format';
 import {
   nextTemplateRevision,
   normalizeStoredTemplate,
@@ -88,6 +89,32 @@ export async function saveWorkflowTemplate(template: WorkflowTemplate): Promise<
   ));
   await persist();
   return next;
+}
+
+/** 重命名：走 revision 规则（名称也是模板内容的一部分）。 */
+export async function renameWorkflowTemplate(templateId: string, name: string) {
+  const template = findWorkflowTemplate(templateId);
+  const nextName = String(name || '').trim();
+  if (!template || !nextName) return null;
+  return saveWorkflowTemplate({ ...template, name: nextName });
+}
+
+/** 复制成新模板：新 id、revision 回到 1，配方与结构原样保留。 */
+export async function duplicateWorkflowTemplate(templateId: string, name?: string) {
+  const template = findWorkflowTemplate(templateId);
+  if (!template) return null;
+  const now = new Date().toISOString();
+  const copy: WorkflowTemplate = {
+    ...template,
+    id: `wf-${uid()}`,
+    name: String(name || '').trim() || `${template.name} · 副本`,
+    revision: 1,
+    createdAt: now,
+    updatedAt: now,
+  };
+  workflowTemplateStore.templates = [copy, ...workflowTemplateStore.templates];
+  await persist();
+  return copy;
 }
 
 export async function deleteWorkflowTemplate(templateId: string) {

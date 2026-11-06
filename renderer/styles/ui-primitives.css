@@ -552,3 +552,19 @@ tr:last-child td {
   gap: 12px;
   padding-block: 6px;
 }
+
+/* 工作流管理页 */
+.workflows-search {
+  min-width: 260px;
+}
+
+.workflows-body {
+  padding: 8px 24px 24px;
+}
+
+.workflows-hint {
+  margin-top: 16px;
+  color: var(--muted);
+  font-size: var(--text-body-12);
+  line-height: var(--text-body-12--line-height);
+}

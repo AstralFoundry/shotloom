@@ -19,7 +19,7 @@ test('技能是应用级路由，未打开工程也能进入且能被恢复', ()
   assert.match(projectNavigation, /APPLICATION_ROUTES = new Set\(\['projects', 'skills', \.\.\.PROJECT_WORKSPACE_ROUTES\]\)/);
   // 技能目录不隶属工程，因此不能进工作区路由集合，否则恢复路由时会被弹回项目库。
   assert.doesNotMatch(projectNavigation, /PROJECT_WORKSPACE_ROUTES = new Set\(\[[^\]]*'skills'/);
-  assert.match(appStore, /PROJECT_FREE_ROUTES = new Set<AppRoute>\(\["projects", "skills"\]\)/);
+  assert.match(appStore, /PROJECT_FREE_ROUTES = new Set<AppRoute>\(\["projects", "skills", "workflows"\]\)/);
   assert.match(appStore, /if \(!PROJECT_FREE_ROUTES\.has\(route\) && !get\(\)\.currentProject\) return false;/);
   assert.match(workbench, /APPLICATION_ROUTES\.has\(route\)/);
   assert.doesNotMatch(workbench, /\["projects", "creation", "tasks", "assets", "materials"\]/);

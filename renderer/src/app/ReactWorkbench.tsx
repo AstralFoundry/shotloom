@@ -71,6 +71,7 @@ import { MaterialsView } from "./views/MaterialsView";
 import { ProjectsView } from "./views/ProjectsView";
 import { SettingsFeature } from "./views/SettingsFeature";
 import { SkillsFeature } from "./views/SkillsFeature";
+import { WorkflowsView } from "./views/WorkflowsView";
 import { TasksView } from "./views/TasksView";
 import { showToast, showErrorMessage } from "../store/notificationStore";
 import { registerVideoEditorLauncher } from '../services/videoEditorSession';
@@ -329,6 +330,8 @@ export function ReactWorkbench() {
     );
   } else if (appRoute === "skills") {
     activeView = <SkillsFeature />;
+  } else if (appRoute === "workflows") {
+    activeView = <WorkflowsView />;
   } else if (appRoute === "tasks") {
     activeView = (
       <TasksView
