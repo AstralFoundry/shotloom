@@ -1,4 +1,4 @@
-import { t } from '@/i18n';
+import { t, type MessageKey } from '@/i18n';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type RefObject } from "react";
 import { getDomainRevision, subscribeDomain } from "../../store/domainReactivity";
 import { getGenerationInputModes, getModelInfo, getModelSchema } from "../../domain/catalog/ModelCatalog";
@@ -15,8 +15,21 @@ import { GenerationSettingsPanel } from "./GenerationSettingsPanel";
 import { isImeKeyEvent } from "./imeComposition";
 import { generationMediaKind, useGenerationLocalPreview } from "./generationNodeMedia";
 import { editorCaretOffset, editorPrompt, referenceLabels, renderPromptEditor, setEditorCaret } from "./promptReferenceEditor";
+import { findSmartReferences } from "@/utils/smartPromptReference";
+import { Modal, Segmented, Input as AntInput } from "antd";
+import { OPTIMIZER_MODES, type OptimizerMode, type OptimizerResult } from "@/domain/prompt/optimizer";
+import { optimizePrompt } from "@/services/promptOptimizerService";
+import { recordCanvasHistory } from "@/store/canvasHistoryStore";
 import { generationModelDescription, generationModelIcon, toGenerationConfigParam, type GenerationNodeState } from "./generationNodeState";
 import type { WorkflowIncomingInput, WorkflowNodeActions, WorkflowNodeData, WorkflowReferenceCandidate } from "./WorkflowCanvas";
+
+const OPTIMIZER_MODE_LABELS: Record<OptimizerMode, MessageKey> = {
+  expand: "canvas.optimizer.mode.expand",
+  polish: "canvas.optimizer.mode.polish",
+  style: "canvas.optimizer.mode.style",
+  model: "canvas.optimizer.mode.model",
+  reference: "canvas.optimizer.mode.reference",
+};
 
 function generationInputLabel(input: WorkflowIncomingInput) {
   return input.inputSlot === "firstFrame"
@@ -165,6 +178,86 @@ export function GenerationNodeComposer({
     setMention({ query, start, end: caret, index: 0 });
   }
 
+  const smartTargets = inputLabels
+    .filter((item) => item.number > 0)
+    .map((item) => ({
+      nodeId: item.nodeId,
+      kind: item.kind,
+      number: item.number,
+      alias: references.find((reference) => reference.nodeId === item.nodeId)?.alias || "",
+    }));
+  const smartMatches = findSmartReferences(String(node.prompt || ""), smartTargets);
+
+  async function applySmartReferences() {
+    const element = promptRef.current;
+    if (!element || !smartMatches.length) return;
+    // 转换是一次成批改写，记一步撤销；逐字输入本来就不进历史，这里单独补上。
+    recordCanvasHistory(t("canvas.composer.smartReference"));
+    let text = editorPrompt(element);
+    for (const match of [...smartMatches].sort((left, right) => right.start - left.start)) {
+      const result = await actions.insertReferenceMention(node.id, match.nodeId, text, match.start, match.end);
+      if (result) text = result.prompt;
+    }
+    requestAnimationFrame(() => {
+      const current = promptRef.current;
+      if (!current) return;
+      current.focus();
+      setEditorCaret(current, text.length);
+    });
+  }
+
+  const [optimizer, setOptimizer] = useState<{
+    open: boolean;
+    mode: OptimizerMode;
+    busy: boolean;
+    draft: string;
+    result: OptimizerResult | null;
+    error: string;
+  }>({ open: false, mode: "expand", busy: false, draft: "", result: null, error: "" });
+  const optimizerAbort = useRef<AbortController | null>(null);
+
+  async function runOptimizer(mode: OptimizerMode) {
+    optimizerAbort.current?.abort();
+    const controller = new AbortController();
+    optimizerAbort.current = controller;
+    setOptimizer((current) => ({ ...current, mode, busy: true, error: "" }));
+    try {
+      const result = await optimizePrompt({
+        prompt: String(node.prompt || ""),
+        mode,
+        signal: controller.signal,
+        targetModel: String(node.model || ""),
+        generationType: (["image", "video", "audio", "text"].includes(kind) ? kind : "image") as "image" | "video" | "audio" | "text",
+        references: inputLabels
+          .filter((item) => item.number > 0)
+          .map((item) => ({ kind: item.kind, name: String(item.input.name || "") })),
+      });
+      if (controller.signal.aborted) return;
+      setOptimizer((current) => ({ ...current, busy: false, result, draft: result.prompt }));
+    } catch (error) {
+      if (controller.signal.aborted) return;
+      setOptimizer((current) => ({ ...current, busy: false, error: (error as Error)?.message || "" }));
+    }
+  }
+
+  function openOptimizer() {
+    setOptimizer((current) => ({ ...current, open: true, error: "", result: null, draft: String(node.prompt || "") }));
+    void runOptimizer("expand");
+  }
+
+  function closeOptimizer() {
+    optimizerAbort.current?.abort();
+    optimizerAbort.current = null;
+    setOptimizer((current) => ({ ...current, open: false, busy: false }));
+  }
+
+  function adoptOptimizerResult() {
+    if (!optimizer.draft.trim()) return;
+    recordCanvasHistory(t("canvas.optimizer.title"));
+    actions.update(node.id, { prompt: optimizer.draft });
+    closeOptimizer();
+  }
+
   async function chooseMention(sourceId: string) {
     const element = promptRef.current;
     if (!mention || !element) return;
@@ -233,6 +326,27 @@ export function GenerationNodeComposer({
               </div>
             )}
           </div>
+        )}
+        <button
+          type="button"
+          className="work-smart-reference"
+          disabled={!String(node.prompt || "").trim()}
+          title={t("canvas.optimizer.title")}
+          onClick={openOptimizer}
+        >
+          {t("canvas.optimizer.action")}
+        </button>
+        {smartTargets.length > 0 && (
+          <button
+            type="button"
+            className="work-smart-reference"
+            disabled={!smartMatches.length}
+            title={t("canvas.composer.smartReferenceHint")}
+            onClick={() => void applySmartReferences()}
+          >
+            {t("canvas.composer.smartReference")}
+            {smartMatches.length ? ` (${smartMatches.length})` : ""}
+          </button>
         )}
       </div>
       <div className="work-prompt-shell">
@@ -495,6 +609,47 @@ export function GenerationNodeComposer({
           onClose={() => setOpenMenu("")}
         />
       )}
+
+      <Modal
+        title={t("canvas.optimizer.title")}
+        open={optimizer.open}
+        onCancel={closeOptimizer}
+        width={640}
+        footer={[
+          <button key="cancel" type="button" className="button ghost" onClick={closeOptimizer}>
+            {t("canvas.optimizer.cancel")}
+          </button>,
+          <button key="retry" type="button" className="button ghost" disabled={optimizer.busy} onClick={() => void runOptimizer(optimizer.mode)}>
+            {t("canvas.optimizer.retry")}
+          </button>,
+          <button key="adopt" type="button" className="button primary" disabled={optimizer.busy || !optimizer.draft.trim()} onClick={adoptOptimizerResult}>
+            {t("canvas.optimizer.adopt")}
+          </button>,
+        ]}
+      >
+        <Segmented
+          value={optimizer.mode}
+          onChange={(value) => void runOptimizer(value as OptimizerMode)}
+          options={OPTIMIZER_MODES.map((mode) => ({ value: mode, label: t(OPTIMIZER_MODE_LABELS[mode]) }))}
+        />
+        {optimizer.busy && <p className="optimizer-hint">{t("canvas.optimizer.running")}</p>}
+        {optimizer.error && <p className="optimizer-hint">{t("canvas.optimizer.failed")}</p>}
+        {optimizer.result && (
+          <>
+            {!optimizer.result.structured && <p className="optimizer-hint">{t("canvas.optimizer.unstructured")}</p>}
+            <AntInput.TextArea
+              value={optimizer.draft}
+              onChange={(event) => setOptimizer((current) => ({ ...current, draft: event.target.value }))}
+              autoSize={{ minRows: 4, maxRows: 10 }}
+              aria-label={t("canvas.optimizer.title")}
+            />
+            {optimizer.result.avoid.length > 0 && <p className="optimizer-hint">{t("canvas.optimizer.avoid")}：{optimizer.result.avoid.join("；")}</p>}
+            {optimizer.result.notes.length > 0 && <p className="optimizer-hint">{t("canvas.optimizer.notes")}：{optimizer.result.notes.join("；")}</p>}
+            {optimizer.result.assumptions.length > 0 && <p className="optimizer-hint">{t("canvas.optimizer.assumptions")}：{optimizer.result.assumptions.join("；")}</p>}
+            {optimizer.result.alternatives.length > 0 && <p className="optimizer-hint">{t("canvas.optimizer.alternatives")}：{optimizer.result.alternatives.join("；")}</p>}
+          </>
+        )}
+      </Modal>
     </div>
   );
 }

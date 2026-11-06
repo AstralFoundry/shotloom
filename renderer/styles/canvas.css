@@ -1975,3 +1975,31 @@ body.annotation-editor-open .screenshots-textarea {
 
 .canvas-display-sample[data-color="default"] { --canvas-bg: var(--canvas-default-bg); }
 .canvas-display-more[aria-expanded="true"] svg { transform: rotate(180deg); }
+
+/* 提示词自然指代转换入口：与预设按钮同高，放在输入区右上角。 */
+.work-smart-reference {
+  height: var(--control-height-compact);
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  color: var(--type-primary);
+  background: transparent;
+  font-size: var(--text-body-12);
+  line-height: var(--text-body-12--line-height);
+}
+
+.work-smart-reference:hover {
+  background: var(--wash-hover);
+}
+
+.work-smart-reference:disabled {
+  color: var(--faint);
+}
+
+/* 提示词优化结果里的说明行：弱化展示，不与正文抢注意力。 */
+.optimizer-hint {
+  margin: 6px 0;
+  color: var(--muted);
+  font-size: var(--text-body-12);
+  line-height: var(--text-body-12--line-height);
+}
