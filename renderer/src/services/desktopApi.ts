@@ -18,6 +18,7 @@ function createBrowserFallback() {
   const recentKey = 'shotloom-recent';
   const browserProjectsKey = 'shotloom-browser-projects';
   const browserFoldersKey = 'shotloom-browser-folders';
+  const browserSnapshotsKey = (directory: string) => `shotloom-browser-snapshots:${normalizeBrowserPath(directory)}`;
 
   const normalizeBrowserPath = (value: unknown) => String(value || '').replace(/\\/g, '/').replace(/\/+$/, '');
   const parentBrowserPath = (value: unknown) => normalizeBrowserPath(value).replace(/\/[^/]+$/, '');
@@ -133,6 +134,27 @@ function createBrowserFallback() {
         if (value == null) delete records[key]; else records[key] = value;
         writeBrowserProjects(projects);
       },
+      // 浏览器预览没有 SQLite：快照按项目目录存在 localStorage，结构保持与桌面一致。
+      snapshotList: async (directory: string) => {
+        try {
+          const rows = JSON.parse(localStorage.getItem(browserSnapshotsKey(directory)) || '[]');
+          return (Array.isArray(rows) ? rows : []).map(({ payload: _payload, ...meta }: AnyRecord) => meta);
+        } catch { return []; }
+      },
+      snapshotCreate: async (directory: string, record: AnyRecord) => {
+        const key = browserSnapshotsKey(directory);
+        let rows: AnyRecord[] = [];
+        try { rows = JSON.parse(localStorage.getItem(key) || '[]'); } catch { rows = []; }
+        const next = [record, ...(Array.isArray(rows) ? rows : [])].slice(0, 20);
+        localStorage.setItem(key, JSON.stringify(next));
+        return { saved: true };
+      },
+      snapshotRead: async (directory: string, id: string) => {
+        try {
+          const rows = JSON.parse(localStorage.getItem(browserSnapshotsKey(directory)) || '[]');
+          return (Array.isArray(rows) ? rows : []).find((row: AnyRecord) => row.id === id)?.payload ?? null;
+        } catch { return null; }
+      },
       createFolder: async (parentDir: string, folderName: string) => uniqueBrowserFolder(parentDir, folderName),
       createLibraryFolder: async (parentDir: string, folderName: string) => {
         const folderDir = uniqueBrowserFolder(parentDir, folderName);
@@ -239,6 +261,16 @@ function createBrowserFallback() {
         URL.revokeObjectURL(url);
         return { fileName: defaultName };
       },
+      saveBinary: async (defaultName: string, bytes: Uint8Array) => {
+        const blob = new Blob([bytes as unknown as BlobPart], { type: 'application/zip' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = defaultName;
+        link.click();
+        URL.revokeObjectURL(url);
+        return { fileName: defaultName };
+      },
       exportResourcePackage: async () => ({ ok: false }),
       importResourcePackage: async () => null,
       exportFile: async () => ({ ok: false }),
@@ -335,6 +367,19 @@ function createBrowserFallback() {
       getGlobal: async () => withBuiltInRecipes(JSON.parse(localStorage.getItem('shotloom-global-recipes') || 'null') || { storageVersion: 1, recipes: [] }),
       setGlobal: async (storage: AnyRecord) => { localStorage.setItem('shotloom-global-recipes', JSON.stringify(withoutBuiltInRecipes(storage))); return withBuiltInRecipes(storage); },
     },
+    workflowTemplates: {
+      getGlobal: async () => {
+        try {
+          return JSON.parse(localStorage.getItem('shotloom:workflow-templates') || 'null') || { storageVersion: 1, templates: [] };
+        } catch {
+          return { storageVersion: 1, templates: [] };
+        }
+      },
+      setGlobal: async (storage: AnyRecord) => {
+        localStorage.setItem('shotloom:workflow-templates', JSON.stringify(storage));
+        return storage;
+      },
+    },
     settings: {
       get: async () => JSON.parse(localStorage.getItem('shotloom-settings') || 'null') || {
         storageVersion: 7,
@@ -421,6 +466,11 @@ function createBrowserFallback() {
       },
       videoTask: async () => {
         throw new Error(t("errors.c53bc7311f"));
+      },
+    },
+    diagnostics: {
+      build: async () => {
+        throw new Error(t("browser.unsupported.diagnostics"));
       },
     },
     update: {

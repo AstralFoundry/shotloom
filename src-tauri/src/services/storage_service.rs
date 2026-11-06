@@ -172,3 +172,25 @@ pub fn download_directory(path: &Path) -> Result<Value, String> {
 pub fn set_download_directory(path: &Path, directory: String) -> Result<(), String> {
     with_database!(path, db, { settings_crud::set_field(&db, "downloadDirectory", serde_json::json!(directory)).await })
 }
+
+/// 画布快照只存结构与媒体引用，不复制媒体文件。
+pub fn list_project_snapshots(path: &Path) -> Result<Value, String> {
+    if !path.is_file() { return Ok(Value::Array(Vec::new())); }
+    with_database!(path, db, { Ok(project_crud::project_snapshots(&db).await?) })
+}
+
+pub fn create_project_snapshot(path: &Path, record: &Value) -> Result<Value, String> {
+    let record = record.clone();
+    with_database!(path, db, {
+        let tx = db.begin().await?;
+        let result = project_crud::save_project_snapshot(&tx, record).await?;
+        tx.commit().await?;
+        Ok(result)
+    })
+}
+
+pub fn read_project_snapshot(path: &Path, id: &str) -> Result<Value, String> {
+    if !path.is_file() { return Ok(Value::Null); }
+    let id = id.to_owned();
+    with_database!(path, db, { Ok(project_crud::project_snapshot_payload(&db, &id).await?) })
+}

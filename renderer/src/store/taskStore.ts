@@ -1,5 +1,11 @@
 import { t } from '../i18n/index.ts';
+import { recordDiagnosticEvent } from '@/services/diagnosticsService';
 import { isActiveTaskStatus } from '@/domain/tasks/TaskStatus';
+import {
+  createSubmissionId,
+  resolveSubmission,
+  submissionFingerprint,
+} from '@/domain/tasks/Submission';
 // task/node/remote 回执保留扩展字段；任务状态的公共定义由领域模块维护。
 import { store, touchProject } from '@/store/projectStore';
 import { desktopApi } from '@/services/desktopApi';
@@ -179,6 +185,19 @@ function finishTaskFailure(node: AnyRecord, task: AnyRecord, status: string, err
     error,
     status,
   };
+  recordDiagnosticEvent({
+    level: 'error',
+    category: 'task',
+    name: 'task-failed',
+    data: {
+      taskId: task.id,
+      nodeId: task.nodeId,
+      type: task.type,
+      model: task.model,
+      status,
+      attempt: task.attempt,
+    },
+  });
   touchProject();
 }
 
@@ -509,6 +528,15 @@ export function runNode(node: AnyRecord | null | undefined, options: AnyRecord =
     return findLatestTaskForNode(node.id);
   }
 
+  // 同一次提交被重复触发（双击、Agent 重放、恢复流程）时先认领已在跑的任务。
+  // 这一步不编译请求，所以即使凭据缺失也能安全地短路，不会再发出第二个任务。
+  const submissionId = createSubmissionId(options.submissionId || uid());
+  const replay = resolveSubmission(store.project.tasks as AnyRecord[], { submissionId });
+  if (replay.action === 'reuse') {
+    showToast(t("ui.taskStore.submission.reused"));
+    return replay.task;
+  }
+
   const credentialStatus = getModelCredentialStatus(node.model);
   if (!credentialStatus.available) {
     const error = t("errors.1c827b494a", { value0: credentialStatus.message });
@@ -546,6 +574,18 @@ export function runNode(node: AnyRecord | null | undefined, options: AnyRecord =
     touchProject();
     return null;
   }
+  // 参数编译完成后才能判定「同一编号是否换了内容」：同编号不同指纹说明调用方
+  // 复用了一个已经发过别的内容的编号，直接拒绝，避免拿旧身份发出新请求。
+  const requestFingerprint = submissionFingerprint(requestPayload);
+  const submission = resolveSubmission(store.project.tasks as AnyRecord[], { submissionId, fingerprint: requestFingerprint });
+  if (submission.action === 'conflict') {
+    const message = t("ui.taskStore.submission.conflict");
+    node.error = message;
+    showToast(message);
+    touchProject();
+    return null;
+  }
+  const attempt = submission.action === 'retry' ? submission.attempt : 1;
   const task: AnyRecord = {
     id: uid(),
     nodeId: node.id,
@@ -553,6 +593,9 @@ export function runNode(node: AnyRecord | null | undefined, options: AnyRecord =
     type: node.type,
     model: requestPayload.model,
     requestPayload,
+    submissionId,
+    requestFingerprint,
+    attempt,
     status: 'running',
     progress: 0,
     retryCount,
@@ -631,7 +674,7 @@ export function retryTask(taskId: string): AnyRecord | null {
     showToast(t("ui.taskStore.text.6a4eab5f"));
     return null;
   }
-  return runNode(node, { retryCount: nextRetryCount });
+  return runNode(node, { retryCount: nextRetryCount, submissionId: task.submissionId });
 }
 
 /**

@@ -1185,4 +1185,13 @@ export interface MessageParameters {
   "assets.collection.purposeItem": Record<"label" | "mark", string | number>;
   "imageRecipe.angle.derivedTitle": Record<"name", string | number>;
   "imageRecipe.lighting.derivedTitle": Record<"name", string | number>;
+  "project.version.counts": Record<"nodes" | "edges", string | number>;
+  "project.version.restoreFailed": Record<"reason", string | number>;
+  "settings.diagnostics.confirm": Record<"count" | "kb", string | number>;
+  "settings.diagnostics.done": Record<"name", string | number>;
+  "workflow.meta": Record<"steps" | "inputs", string | number>;
+  "workflow.save.action": Record<"count", string | number>;
+  "workflow.save.done": Record<"name", string | number>;
+  "workflow.apply.failed": Record<"reason", string | number>;
+  "workflow.delete.confirm": Record<"name", string | number>;
 }

@@ -55,6 +55,14 @@ mod migrations {
             tx.execute(backend.build(&statement)).await?;
         } }; }
         table!(catalog_metadata::Entity);
+        // 版本 3 的库可能已经建过快照表但没有 media_refs 列：补列，已存在时忽略错误。
+        // 这条 ALTER 必须早于版本短路，否则旧库永远补不上列。
+        let _ = tx
+            .execute(sea_orm::Statement::from_string(
+                backend,
+                "ALTER TABLE project_snapshots ADD COLUMN media_refs TEXT NOT NULL DEFAULT '[]'",
+            ))
+            .await;
         let version = crate::crud::catalog_crud::metadata(&tx, "database-version").await?;
         if version == Some(serde_json::json!(3)) {
             indexes(&tx).await?;
@@ -79,7 +87,7 @@ mod migrations {
             }
         }
         table!(canvas_history::Entity); table!(production_plan::Entity); table!(agent_batch::Entity); table!(agent_evaluation::Entity);
-        table!(project::Entity); table!(node::Entity); table!(edge::Entity); table!(task::Entity);
+        table!(project::Entity); table!(project_snapshot::Entity); table!(node::Entity); table!(edge::Entity); table!(task::Entity);
         table!(asset::Entity); table!(material::Entity); table!(conversation::Entity);
         table!(workspace_session::Entity);
         table!(editor_snapshot::Entity); table!(setting::Entity); table!(skill::Entity); table!(recipe::Entity);

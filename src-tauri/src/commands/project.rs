@@ -1015,3 +1015,36 @@ pub async fn editor_snapshot_set(directory: String, node_id: String, snapshot: V
         Ok(json!({"saved": true}))
     }).await.map_err(|e| e.to_string())?
 }
+
+// ── 画布快照 ────────────────────────────────────────────────────────────────
+
+fn snapshot_database_path(directory: &str) -> std::path::PathBuf {
+    PathBuf::from(directory).join(PROJECT_FILE)
+}
+
+#[tauri::command]
+pub async fn project_snapshot_list(directory: String) -> Result<Value, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        storage_service::list_project_snapshots(&snapshot_database_path(&directory))
+    })
+    .await
+    .map_err(|error| localized_error("native.error.fc29894f70", json!({"error": error.to_string()}), format!("快照列表任务异常：{error}")))?
+}
+
+#[tauri::command]
+pub async fn project_snapshot_create(directory: String, record: Value) -> Result<Value, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        storage_service::create_project_snapshot(&snapshot_database_path(&directory), &record)
+    })
+    .await
+    .map_err(|error| localized_error("native.error.fc29894f70", json!({"error": error.to_string()}), format!("快照写入任务异常：{error}")))?
+}
+
+#[tauri::command]
+pub async fn project_snapshot_read(directory: String, id: String) -> Result<Value, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        storage_service::read_project_snapshot(&snapshot_database_path(&directory), &id)
+    })
+    .await
+    .map_err(|error| localized_error("native.error.fc29894f70", json!({"error": error.to_string()}), format!("快照读取任务异常：{error}")))?
+}

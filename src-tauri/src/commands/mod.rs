@@ -10,6 +10,7 @@ mod media_tool;
 mod generation_gateway;
 mod harness_runtime;
 mod harness_bridge;
+mod diagnostics;
 mod project;
 mod recent;
 mod recovery;
@@ -19,6 +20,7 @@ mod video_concat;
 mod video_export;
 mod video_frame;
 mod openreel_export;
+pub use diagnostics::*;
 pub use openreel_export::*;
 
 pub use audio::*;

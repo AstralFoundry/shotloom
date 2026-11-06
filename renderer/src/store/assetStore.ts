@@ -11,6 +11,7 @@ import { recordCanvasHistory } from '@/store/canvasHistoryStore';
 import { addNode } from '@/store/nodeStore';
 import { isPathInsideAssetRoot, projectAssetRoot } from '@/utils/assetPaths.ts';
 import { releaseLocalAssetReference } from '@/store/localAssetLibraryStore';
+import { materialReferencedBySnapshots } from '@/services/projectSnapshotService';
 
 type AnyRecord = Record<string, any>;
 
@@ -444,6 +445,10 @@ export async function deleteMaterialFile(materialId: string): Promise<{ ok: bool
   ).some((file: AnyRecord) => file.id === materialId));
   if (usedByNode || usedByTask) {
     return { ok: false, error: t("ui.assetStore.text.4a8fff22") };
+  }
+  // 历史版本只是引用素材，但恢复旧版本时需要文件还在；删除前必须先拦住。
+  if (await materialReferencedBySnapshots(store.projectDir, materialId)) {
+    return { ok: false, error: t("ui.assetStore.text.snapshotReference") };
   }
   const before = store.project.materials.length;
   store.project.materials = (store.project.materials as AnyRecord[]).filter((material: AnyRecord) => material.id !== materialId);

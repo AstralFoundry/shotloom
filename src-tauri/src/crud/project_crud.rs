@@ -121,3 +121,71 @@ async fn save_history(db: &impl ConnectionTrait, stack: &str, entries: Option<&V
     canvas_history::Entity::delete_many().filter(canvas_history::Column::Stack.eq(stack)).filter(canvas_history::Column::Position.gte(rows.len() as i32)).exec(db).await?;
     Ok(())
 }
+
+// ── 画布快照 ────────────────────────────────────────────────────────────────
+
+/// 列表只返回元数据：payload 可能有几 MB，列表页不该把它们全部读进内存。
+pub async fn project_snapshots(db: &impl ConnectionTrait) -> Result<Value, DbErr> {
+    use crate::models::project_snapshot;
+    let rows = project_snapshot::Entity::find()
+        .order_by_desc(project_snapshot::Column::CreatedAt)
+        .all(db)
+        .await?;
+    Ok(Value::Array(rows.into_iter().map(|row| json!({
+        "id": row.id,
+        "createdAt": row.created_at,
+        "reason": row.reason,
+        "contentHash": row.content_hash,
+        "payloadBytes": row.payload_bytes,
+        "mediaRefs": row.media_refs,
+        "degraded": row.degraded,
+    })).collect()))
+}
+
+pub async fn save_project_snapshot(db: &impl ConnectionTrait, record: Value) -> Result<Value, DbErr> {
+    use crate::models::project_snapshot;
+    let id = record.get("id").and_then(Value::as_str).filter(|id| !id.is_empty())
+        .ok_or_else(|| DbErr::Custom("snapshot record is missing id".to_owned()))?
+        .to_owned();
+    let created_at = record.get("createdAt").and_then(Value::as_str).unwrap_or_default().to_owned();
+    let reason = record.get("reason").and_then(Value::as_str).unwrap_or("auto").to_owned();
+    let content_hash = record.get("contentHash").and_then(Value::as_str).unwrap_or_default().to_owned();
+    let payload_bytes = record.get("payloadBytes").and_then(Value::as_i64).unwrap_or(0);
+    let media_refs = record.get("mediaRefs").cloned().filter(Value::is_array).unwrap_or_else(|| json!([]));
+    let degraded = record.get("degraded").and_then(Value::as_bool).unwrap_or(false);
+    let payload = record.get("payload").cloned().filter(|value| !value.is_null());
+    project_snapshot::ActiveModel::record(id, created_at, reason, content_hash, payload_bytes, media_refs, degraded, payload)
+        .insert(db)
+        .await?;
+    prune_project_snapshots(db, SNAPSHOT_LIMIT).await?;
+    Ok(json!({"saved": true}))
+}
+
+pub async fn project_snapshot_payload(db: &impl ConnectionTrait, id: &str) -> Result<Value, DbErr> {
+    use crate::models::project_snapshot;
+    Ok(project_snapshot::Entity::find_by_id(id.to_owned())
+        .one(db)
+        .await?
+        .and_then(|row| row.payload)
+        .unwrap_or(Value::Null))
+}
+
+/// 只保留最近 `limit` 份。快照表按时间排序，删除顺序与展示顺序一致。
+pub async fn prune_project_snapshots(db: &impl ConnectionTrait, limit: usize) -> Result<(), DbErr> {
+    use crate::models::project_snapshot;
+    let stale = project_snapshot::Entity::find()
+        .order_by_desc(project_snapshot::Column::CreatedAt)
+        .all(db)
+        .await?
+        .into_iter()
+        .skip(limit)
+        .map(|row| row.id)
+        .collect::<Vec<_>>();
+    for id in stale {
+        project_snapshot::Entity::delete_by_id(id).exec(db).await?;
+    }
+    Ok(())
+}
+
+/// 每个项目保留的快照数量。与前端 `SNAPSHOT_LIMIT` 保持一致。
+pub const SNAPSHOT_LIMIT: usize = 20;

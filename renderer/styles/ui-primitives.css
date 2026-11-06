@@ -468,3 +468,87 @@ tr:last-child td {
   height: 1px;
   pointer-events: none;
 }
+
+/* 版本记录抽屉：左侧列表、右侧只读预览。 */
+.version-history-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  gap: 16px;
+}
+
+.version-history-hint {
+  margin-top: 0;
+  color: var(--muted);
+  font-size: var(--text-body-12);
+  line-height: var(--text-body-12--line-height);
+}
+
+.version-history-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+}
+
+.version-history-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+}
+
+.version-history-nodes {
+  max-height: 320px;
+  overflow: auto;
+  padding-left: 18px;
+}
+
+.version-history-preview {
+  min-width: 0;
+}
+
+.version-history-grid .ant-list-item {
+  cursor: pointer;
+  padding-inline: 8px;
+  border-radius: var(--radius-sm);
+}
+
+.version-history-grid .ant-list-item.is-selected {
+  background: var(--surface-2);
+}
+
+@media (max-width: 720px) {
+  .version-history-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* 工作流模板库 */
+.workflow-library-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.workflow-library-actions small {
+  color: var(--muted);
+  font-size: var(--text-body-12);
+  line-height: var(--text-body-12--line-height);
+}
+
+.workflow-instance-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.workflow-bind-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-block: 6px;
+}

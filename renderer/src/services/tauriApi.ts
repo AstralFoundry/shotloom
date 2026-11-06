@@ -59,6 +59,10 @@ type CommandChannel =
   | 'project:clone-library-folder'
   | 'project:list-root'
   | 'project:save'
+  | 'project:snapshot-list'
+  | 'project:snapshot-create'
+  | 'project:snapshot-read'
+  | 'diagnostics:build'
   | 'project:read-file'
   | 'project:open-folder'
   | 'project:export-package'
@@ -314,6 +318,10 @@ const command = (channel: CommandChannel, ...args: unknown[]): Promise<unknown> 
     case 'project:clone-library-folder': return invoke('project_clone_entry', { path: args[0], name: args[1] || null });
     case 'project:list-root': return invoke('project_list_root', { root: args[0] });
     case 'project:save': return invoke('project_save', { directory: args[0], project: args[1] });
+    case 'project:snapshot-list': return invoke('project_snapshot_list', { directory: args[0] });
+    case 'project:snapshot-create': return invoke('project_snapshot_create', { directory: args[0], record: args[1] });
+    case 'project:snapshot-read': return invoke('project_snapshot_read', { directory: args[0], id: args[1] });
+    case 'diagnostics:build': return invoke('diagnostics_build', { files: args[0] });
     case 'project:read-file': return invoke('project_read_file', { path: args[0] });
     case 'project:open-folder': return invoke('project_open_folder', { directory: args[0] });
     case 'project:export-package': return invoke('project_export_package', { source: args[0], target: args[1] });
@@ -786,6 +794,9 @@ export function createTauriApi(browserFallback: BrowserFallback): BrowserFallbac
       trashLibraryFolder: (path: string) => command('project:trash-library-folder', path),
       createEpisodeFolder: (parent: string, shared: unknown, name: string) => command('project:create-episode-folder', parent, shared, name),
       save: (directory: string, project: unknown) => command('project:save', directory, project),
+      snapshotList: (directory: string) => command('project:snapshot-list', directory),
+      snapshotCreate: (directory: string, record: unknown) => command('project:snapshot-create', directory, record),
+      snapshotRead: (directory: string, id: string) => command('project:snapshot-read', directory, id),
       getDefaultRoot: () => command('project:get-default-root'),
       ensureRoot: (root: string) => command('project:ensure-root', root),
       selectRoot: () => openDialog({ title: t("ui.tauriApi.text.15bcf5e5"), directory: true, recursive: true }),
@@ -845,6 +856,15 @@ export function createTauriApi(browserFallback: BrowserFallback): BrowserFallbac
         if (!path) return null;
         await writeBytes(path, new TextEncoder().encode(JSON.stringify(data, null, 2)));
         return { path };
+      },
+      saveBinary: async (defaultName: string, bytes: Uint8Array) => {
+        const path = await saveDialog({
+          defaultPath: defaultName,
+          filters: [{ name: 'ZIP', extensions: ['zip'] }],
+        });
+        if (!path) return null;
+        await writeBytes(path, bytes);
+        return { path, fileName: String(path).split(/[\\/]/).pop() || defaultName };
       },
       readArrayBuffer: async (path: string) => base64ToBuffer(await command('file:read-array-buffer', path)),
       readImagePreview,
@@ -1022,6 +1042,11 @@ export function createTauriApi(browserFallback: BrowserFallback): BrowserFallbac
       getGlobal: async () => withBuiltInRecipes(await commandJson<GlobalStorageRecord>('storage:get', 'recipes', { storageVersion: 1, recipes: [] })),
       setGlobal: async (storage: GlobalStorageRecord) => withBuiltInRecipes(await commandJson<GlobalStorageRecord>('storage:set', 'recipes', withoutBuiltInRecipes(storage))),
     },
+    workflowTemplates: {
+      // 模板跨项目复用，与 skills/recipes 一样存应用级 JSON；不含媒体文件。
+      getGlobal: () => commandJson<GlobalStorageRecord>('storage:get', 'workflow-templates', { storageVersion: 1, templates: [] }),
+      setGlobal: (storage: GlobalStorageRecord) => commandJson<GlobalStorageRecord>('storage:set', 'workflow-templates', storage),
+    },
     settings: {
       // Tauri settings must be sourced exclusively from the native store. Merging the
       // browser fallback here used to leak values such as `browser/projects` into the
@@ -1045,6 +1070,9 @@ export function createTauriApi(browserFallback: BrowserFallback): BrowserFallbac
         const value: VideoTaskRequest = typeof request === 'object' ? request : { taskId: request };
         return modelRequest(String(value.endpointPath || '/contents/generations/tasks/{taskId}').replace('{taskId}', encodeURIComponent(String(value.taskId))), value.body, { method: value.endpointMethod || 'GET', scope: value.endpointScope || 'root', signal: value.signal, timeoutMs: value.timeoutMs || 60000, providerId: value.providerId || '', headers: value.headers, auth: asAuth(value.auth) });
       },
+    },
+    diagnostics: {
+      build: (files: Record<string, string>) => command('diagnostics:build', files) as Promise<string>,
     },
     update: {
       check: async () => {

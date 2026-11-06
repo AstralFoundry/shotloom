@@ -26,6 +26,11 @@ import {
   normalizeProject,
   removeLegacyAgentState,
 } from '@/store/projectNormalization';
+import {
+  captureProjectSnapshot,
+  readProjectSnapshot,
+  resetProjectSnapshotCache,
+} from '@/services/projectSnapshotService';
 
 type AnyRecord = Record<string, any>;
 
@@ -70,6 +75,8 @@ const projectSaveQueue = new LatestSaveQueue(
     };
     const result = await desktopApi.project.save(directory, outgoing);
     if (Number.isInteger(result.project?.storageRevision)) savedRevisions.set(directory, result.project.storageRevision);
+    // 快照是保存的旁路产物：失败不影响这次保存，也不阻塞后续写入。
+    if (directory && result?.project) void captureProjectSnapshot(directory, outgoing);
     return result;
   },
   {
@@ -697,6 +704,40 @@ export async function loadBoundWindowProject() {
     if (timer) window.clearTimeout(timer);
   }
   return applyOpenedProject({ project, filePath, projectDir });
+}
+
+/**
+ * 恢复到指定快照。
+ *
+ * 顺序固定：先给「当前内容」写一份 before_restore 备份，再读取目标快照并替换，
+ * 最后按正常保存链路落盘。任何一步失败都不替换当前内容，避免把用户卡在半途。
+ */
+export async function restoreProjectSnapshot(snapshotId: string) {
+  const directory = store.projectDir;
+  if (!directory) return { ok: false, reason: 'no-project-dir' as const };
+  if (!canChangeProjectContext()) return { ok: false, reason: 'busy' as const };
+  await captureProjectSnapshot(directory, projectPersistenceSnapshot(), {
+    reason: 'before_restore',
+    force: true,
+  });
+  const payload = await readProjectSnapshot(directory, snapshotId);
+  if (!payload) return { ok: false, reason: 'missing' as const };
+  let next: AnyRecord;
+  try {
+    next = normalizeProject(payload);
+  } catch {
+    // 快照内容不合法（旧格式或人工改坏）时保持当前项目不动。
+    return { ok: false, reason: 'invalid' as const };
+  }
+  stopActiveTaskPolling();
+  store.project = next;
+  store.selectedNodeId = null;
+  store.selectedNodeIds = [];
+  store.selectedEdgeId = null;
+  store.connectFromId = null;
+  await writeProjectFile({ updateRecent: true });
+  resetProjectSnapshotCache(directory);
+  return { ok: true as const };
 }
 
 async function applyOpenedProject(result: AnyRecord) {
