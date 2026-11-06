@@ -1,7 +1,7 @@
 export const PROJECT_WORKSPACE_ROUTES = new Set(['creation', 'tasks', 'assets', 'materials']);
 // skills 是应用级目录视图：不隶属工程，恢复路由时不要求存在已持久化的工程。
-// skills / workflows 是应用级目录视图：不隶属工程，恢复路由时不要求存在已持久化的工程。
-export const APPLICATION_ROUTES = new Set(['projects', 'skills', 'workflows', ...PROJECT_WORKSPACE_ROUTES]);
+// skills 是应用级目录视图：不隶属工程，恢复路由时不要求存在已持久化的工程。
+export const APPLICATION_ROUTES = new Set(['projects', 'skills', ...PROJECT_WORKSPACE_ROUTES]);
 
 export function hasPersistedProject(projectState: any = {}) {
   return Boolean(

@@ -20,7 +20,6 @@ import {
 } from "../store/projectStore.ts";
 import { loadAppSettings, settingsStore } from "../store/settingsStore.ts";
 import { loadGlobalRecipes } from "../store/recipesStore.ts";
-import { loadWorkflowTemplates } from "../store/workflowTemplateStore.ts";
 import { loadGlobalSkills } from "../store/skillsStore.ts";
 import { resumeRemoteTasks } from "../store/taskStore.ts";
 import {
@@ -71,7 +70,6 @@ import { MaterialsView } from "./views/MaterialsView";
 import { ProjectsView } from "./views/ProjectsView";
 import { SettingsFeature } from "./views/SettingsFeature";
 import { SkillsFeature } from "./views/SkillsFeature";
-import { WorkflowsView } from "./views/WorkflowsView";
 import { TasksView } from "./views/TasksView";
 import { showToast, showErrorMessage } from "../store/notificationStore";
 import { registerVideoEditorLauncher } from '../services/videoEditorSession';
@@ -137,7 +135,6 @@ export function ReactWorkbench() {
       await Promise.all([
         loadGlobalSkills(),
         loadGlobalRecipes(),
-        loadWorkflowTemplates(),
         loadRecentProjects(),
         initializeResourceLibraries(),
       ]);
@@ -330,8 +327,7 @@ export function ReactWorkbench() {
     );
   } else if (appRoute === "skills") {
     activeView = <SkillsFeature />;
-  } else if (appRoute === "workflows") {
-    activeView = <WorkflowsView />;
+
   } else if (appRoute === "tasks") {
     activeView = (
       <TasksView

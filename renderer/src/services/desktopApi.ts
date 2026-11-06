@@ -367,19 +367,6 @@ function createBrowserFallback() {
       getGlobal: async () => withBuiltInRecipes(JSON.parse(localStorage.getItem('shotloom-global-recipes') || 'null') || { storageVersion: 1, recipes: [] }),
       setGlobal: async (storage: AnyRecord) => { localStorage.setItem('shotloom-global-recipes', JSON.stringify(withoutBuiltInRecipes(storage))); return withBuiltInRecipes(storage); },
     },
-    workflowTemplates: {
-      getGlobal: async () => {
-        try {
-          return JSON.parse(localStorage.getItem('shotloom:workflow-templates') || 'null') || { storageVersion: 1, templates: [] };
-        } catch {
-          return { storageVersion: 1, templates: [] };
-        }
-      },
-      setGlobal: async (storage: AnyRecord) => {
-        localStorage.setItem('shotloom:workflow-templates', JSON.stringify(storage));
-        return storage;
-      },
-    },
     settings: {
       get: async () => JSON.parse(localStorage.getItem('shotloom-settings') || 'null') || {
         storageVersion: 7,

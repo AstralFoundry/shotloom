@@ -75,7 +75,7 @@ export function SideBar(
   );
 
   // 技能库和项目库都不依赖已打开的工程，两者共用同一组顶层入口。
-  const projectScopedNavigation = route === "projects" || route === "skills" || route === "workflows"
+  const projectScopedNavigation = route === "projects" || route === "skills"
     ? (
       <div className="side-list">
         <button

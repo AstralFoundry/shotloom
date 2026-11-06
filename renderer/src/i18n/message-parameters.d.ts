@@ -1189,22 +1189,6 @@ export interface MessageParameters {
   "project.version.restoreFailed": Record<"reason", string | number>;
   "settings.diagnostics.confirm": Record<"count" | "kb", string | number>;
   "settings.diagnostics.done": Record<"name", string | number>;
-  "workflow.meta": Record<"steps" | "inputs", string | number>;
-  "workflow.save.action": Record<"count", string | number>;
-  "workflow.save.done": Record<"name", string | number>;
-  "workflow.apply.failed": Record<"reason", string | number>;
-  "workflow.delete.confirm": Record<"name", string | number>;
   "imageRecipe.notice.modelFallback": Record<"value0", string | number>;
   "settings.repairNodeModels.done": Record<"count", string | number>;
-  "workflow.error.notRun": Record<"name", string | number>;
-  "workflow.error.unknownOutput": Record<"name", string | number>;
-  "workflow.error.unsupportedNode": Record<"name", string | number>;
-  "workflow.bind.missing": Record<"count", string | number>;
-  "workflows.meta": Record<"steps" | "inputs", string | number>;
-  "workflows.deleteConfirm": Record<"name", string | number>;
-  "workflows.duplicated": Record<"name", string | number>;
-  "workflows.exported": Record<"name", string | number>;
-  "workflow.import.done": Record<"nodes" | "materials", string | number>;
-  "workflow.import.missing": Record<"count", string | number>;
-  "workflows.legacyNotice": Record<"count", string | number>;
 }

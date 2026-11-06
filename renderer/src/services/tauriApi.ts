@@ -1042,11 +1042,6 @@ export function createTauriApi(browserFallback: BrowserFallback): BrowserFallbac
       getGlobal: async () => withBuiltInRecipes(await commandJson<GlobalStorageRecord>('storage:get', 'recipes', { storageVersion: 1, recipes: [] })),
       setGlobal: async (storage: GlobalStorageRecord) => withBuiltInRecipes(await commandJson<GlobalStorageRecord>('storage:set', 'recipes', withoutBuiltInRecipes(storage))),
     },
-    workflowTemplates: {
-      // 模板跨项目复用，与 skills/recipes 一样存应用级 JSON；不含媒体文件。
-      getGlobal: () => commandJson<GlobalStorageRecord>('storage:get', 'workflow-templates', { storageVersion: 1, templates: [] }),
-      setGlobal: (storage: GlobalStorageRecord) => commandJson<GlobalStorageRecord>('storage:set', 'workflow-templates', storage),
-    },
     settings: {
       // Tauri settings must be sourced exclusively from the native store. Merging the
       // browser fallback here used to leak values such as `browser/projects` into the

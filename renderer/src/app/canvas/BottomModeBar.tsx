@@ -15,7 +15,6 @@ interface BottomModeBarProps {
   onMergeVideos: () => void;
   onCreateSection?: () => void;
   onOpenHistory?: () => void;
-  onOpenWorkflows?: () => void;
 }
 export function BottomModeBar(
   {
@@ -29,7 +28,6 @@ export function BottomModeBar(
     onMergeVideos,
     onCreateSection,
     onOpenHistory,
-    onOpenWorkflows,
   }: BottomModeBarProps,
 ) {
   const [help, setHelp] = useState(false);
@@ -89,15 +87,6 @@ export function BottomModeBar(
         <button title={t("ui.BottomModeBar.title.18ba6fed")} onClick={onMergeVideos}>
           <IconSymbol name="link" />
         </button>
-        {onOpenWorkflows && (
-          <button
-            title={t('workflow.title')}
-            aria-label={t('workflow.title')}
-            onClick={onOpenWorkflows}
-          >
-            <IconSymbol name="shapes" />
-          </button>
-        )}
         {onOpenHistory && (
           <button
             title={t('project.version.title')}
