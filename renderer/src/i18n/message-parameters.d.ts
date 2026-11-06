@@ -1204,4 +1204,7 @@ export interface MessageParameters {
   "workflows.deleteConfirm": Record<"name", string | number>;
   "workflows.duplicated": Record<"name", string | number>;
   "workflows.exported": Record<"name", string | number>;
+  "workflow.import.done": Record<"nodes" | "materials", string | number>;
+  "workflow.import.missing": Record<"count", string | number>;
+  "workflows.legacyNotice": Record<"count", string | number>;
 }

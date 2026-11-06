@@ -1,8 +1,7 @@
 /**
- * 工作流模板的领域状态。
+ * 工作流模板的领域状态（应用级，跨项目复用）。
  *
- * 模板跨项目复用，存应用级 JSON；这里只维护列表、持久化与水合，
- * 编译与版本规则在 domain/workflow 与 services/workflowTemplateService。
+ * 模板是整段流程快照（节点 + 连线 + 素材引用），这里只管列表、持久化与版本规则。
  */
 
 import { reactive } from '@/store/domainReactivity';
@@ -12,9 +11,7 @@ import {
   nextTemplateRevision,
   normalizeStoredTemplate,
 } from '@/services/workflowTemplateService';
-import type { WorkflowTemplate } from '@/domain/workflow/types';
-
-type AnyRecord = Record<string, any>;
+import type { WorkflowTemplate } from '@/domain/workflow/snapshot';
 
 export const workflowTemplateStore = reactive({
   storageVersion: 1,
@@ -24,10 +21,7 @@ export const workflowTemplateStore = reactive({
 });
 
 function storageSnapshot() {
-  return {
-    storageVersion: workflowTemplateStore.storageVersion,
-    templates: workflowTemplateStore.templates,
-  };
+  return { storageVersion: workflowTemplateStore.storageVersion, templates: workflowTemplateStore.templates };
 }
 
 async function persist() {
@@ -65,10 +59,7 @@ export function findWorkflowTemplate(id: string): WorkflowTemplate | null {
   return workflowTemplateStore.templates.find((template) => template.id === id) || null;
 }
 
-/**
- * 保存模板：新模板直接加入；已存在的走 revision 规则。
- * 内容没变化时返回同一个对象，不写盘也不递增版本。
- */
+/** 保存：新模板直接加入；已有模板按内容比较，变了才 +1。 */
 export async function saveWorkflowTemplate(template: WorkflowTemplate): Promise<WorkflowTemplate> {
   const index = workflowTemplateStore.templates.findIndex((item) => item.id === template.id);
   if (index < 0) {
@@ -80,8 +71,9 @@ export async function saveWorkflowTemplate(template: WorkflowTemplate): Promise<
   const next = nextTemplateRevision(previous, {
     name: template.name,
     description: template.description,
-    definition: template.definition,
-    recipe: template.recipe,
+    nodes: template.nodes,
+    edges: template.edges,
+    materials: template.materials,
   });
   if (next === previous) return previous;
   workflowTemplateStore.templates = workflowTemplateStore.templates.map((item, itemIndex) => (
@@ -91,7 +83,6 @@ export async function saveWorkflowTemplate(template: WorkflowTemplate): Promise<
   return next;
 }
 
-/** 重命名：走 revision 规则（名称也是模板内容的一部分）。 */
 export async function renameWorkflowTemplate(templateId: string, name: string) {
   const template = findWorkflowTemplate(templateId);
   const nextName = String(name || '').trim();
@@ -99,7 +90,6 @@ export async function renameWorkflowTemplate(templateId: string, name: string) {
   return saveWorkflowTemplate({ ...template, name: nextName });
 }
 
-/** 复制成新模板：新 id、revision 回到 1，配方与结构原样保留。 */
 export async function duplicateWorkflowTemplate(templateId: string, name?: string) {
   const template = findWorkflowTemplate(templateId);
   if (!template) return null;
@@ -125,11 +115,8 @@ export async function deleteWorkflowTemplate(templateId: string) {
   return true;
 }
 
-/** 测试与项目切换时清空内存视图。 */
 export function resetWorkflowTemplateStore() {
   workflowTemplateStore.templates = [];
   workflowTemplateStore.storageVersion = 1;
   workflowTemplateStore.error = '';
 }
-
-export type { WorkflowTemplate, AnyRecord };

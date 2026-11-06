@@ -1,177 +1,129 @@
 /**
- * 可复用工作流的模板服务。
+ * 工作流快照服务：保存选区、递增 revision、读入校验。
  *
- * 领域层的编译器只负责"选区能不能变成模板"；这里补上命名、槽位文案、
- * revision 递增与可运行性校验。模板跨项目复用，随应用级 JSON 持久化。
+ * 这里不再判断节点是否运行过，也不拆槽位/配方：选中的整段流程就是模板内容。
  */
 
-import { t, type MessageKey } from '@/i18n';
+import { t } from '@/i18n';
 import { uid } from '@/utils/format';
 import {
-  WorkflowCompileError,
-  compileWorkflowTemplate,
-  shareableWorkflowTemplate,
-  validateWorkflowDefinition,
-  workflowReadiness,
-  type CanvasEdgeLike,
-  type CanvasNodeLike,
-  type CanvasTaskLike,
-} from '@/domain/workflow/compile';
-import type {
-  WorkflowDefinition,
-  WorkflowMediaType,
-  WorkflowRecipeNode,
-  WorkflowRole,
-  WorkflowTemplate,
-} from '@/domain/workflow/types';
+  snapshotWorkflowSelection,
+  workflowDisplayOrder,
+  type WorkflowSnapshotEdge,
+  type WorkflowSnapshotMaterial,
+  type WorkflowSnapshotNode,
+  type WorkflowTemplate,
+} from '@/domain/workflow/snapshot';
+import type { WorkflowNodePreview } from '@/domain/workflow/types';
 
-const SLOT_LABELS: Record<string, MessageKey> = {
-  'input.image': 'workflow.slot.input.image',
-  'input.video': 'workflow.slot.input.video',
-  'input.audio': 'workflow.slot.input.audio',
-  'input.text': 'workflow.slot.input.text',
-  'generation.image': 'workflow.slot.generation.image',
-  'generation.video': 'workflow.slot.generation.video',
-  'generation.audio': 'workflow.slot.generation.audio',
-  'generation.text': 'workflow.slot.generation.text',
-  'constant.text': 'workflow.slot.constant.text',
-};
-
-export function workflowSlotLabel({
-  role,
-  mediaType,
-}: {
-  role: WorkflowRole;
-  mediaType: WorkflowMediaType;
-  index?: number;
-}): string {
-  const key = SLOT_LABELS[`${role}.${mediaType}`];
-  return key ? t(key) : `${role}:${mediaType}`;
-}
+type AnyRecord = Record<string, any>;
 
 export interface BuildWorkflowTemplateInput {
   name?: string;
   description?: string;
-  nodes: CanvasNodeLike[];
-  edges: CanvasEdgeLike[];
+  nodes: AnyRecord[];
+  edges: AnyRecord[];
   selection: string[];
-  tasks?: CanvasTaskLike[];
+  materials: AnyRecord[];
+  previews?: Record<string, WorkflowNodePreview>;
   now?: string;
 }
 
-function assertRunnable(template: Pick<WorkflowTemplate, 'definition' | 'recipe'>) {
-  validateWorkflowDefinition(template.definition);
-  // 绑定在运行时才确定；这里只要求每个生成步骤都有配方。
-  const issues = workflowReadiness(template.definition, template.recipe, {}).issues
-    .filter((issue) => issue.startsWith('missing-recipe:') || issue === 'missing-output');
-  if (issues.length) {
-    throw new WorkflowCompileError('no-generation-step', `workflow.missingRecipe:${issues.join('|')}`);
-  }
-}
-
 export function buildWorkflowTemplate(input: BuildWorkflowTemplateInput): WorkflowTemplate {
-  const compiled = compileWorkflowTemplate({
+  const snapshot = snapshotWorkflowSelection({
     nodes: input.nodes,
     edges: input.edges,
     selection: input.selection,
-    ...(input.tasks ? { tasks: input.tasks } : {}),
-    genericTitle: workflowSlotLabel,
+    materials: input.materials,
+    ...(input.previews ? { previews: input.previews } : {}),
+    ...(input.now ? { now: input.now } : {}),
   });
   const createdAt = input.now || new Date().toISOString();
-  const template: WorkflowTemplate = {
+  return {
     id: `wf-${uid()}`,
     name: String(input.name || '').trim() || t('workflow.template.defaultName'),
     description: String(input.description || '').trim(),
     revision: 1,
-    definition: compiled.definition,
-    recipe: compiled.recipe,
+    formatVersion: 2,
+    nodes: snapshot.nodes,
+    edges: snapshot.edges,
+    materials: snapshot.materials,
     createdAt,
     updatedAt: createdAt,
   };
-  assertRunnable(template);
-  return template;
 }
 
-/** 模板内容是否真的变了；没变就不递增 revision，避免版本号空转。 */
-function definitionChanged(previous: WorkflowTemplate, next: WorkflowTemplate): boolean {
+function contentSignature(template: WorkflowTemplate): string {
   return JSON.stringify({
-    name: previous.name,
-    description: previous.description,
-    definition: previous.definition,
-    recipe: previous.recipe,
-  }) !== JSON.stringify({
-    name: next.name,
-    description: next.description,
-    definition: next.definition,
-    recipe: next.recipe,
+    name: template.name,
+    description: template.description,
+    nodes: template.nodes,
+    edges: template.edges,
+    materials: template.materials,
   });
 }
 
-/** 把改动应用到模板；内容有变化时 revision +1，createdAt 保持不变。 */
+/** 内容变化才递增 revision；没变就返回原对象，避免版本号空转。 */
 export function nextTemplateRevision(
   previous: WorkflowTemplate,
-  patch: Partial<Pick<WorkflowTemplate, 'name' | 'description' | 'definition' | 'recipe'>>,
+  patch: Partial<Pick<WorkflowTemplate, 'name' | 'description' | 'nodes' | 'edges' | 'materials'>>,
   now = new Date().toISOString(),
 ): WorkflowTemplate {
-  const next: WorkflowTemplate = {
-    ...previous,
-    ...patch,
-    revision: previous.revision,
-    updatedAt: previous.updatedAt,
+  const next: WorkflowTemplate = { ...previous, ...patch, formatVersion: 2 };
+  if (contentSignature(next) === contentSignature(previous)) return previous;
+  return { ...next, revision: previous.revision + 1, updatedAt: now };
+}
+
+export function templateShareableCopy(template: WorkflowTemplate, now = new Date().toISOString()) {
+  return {
+    format: 'shotloom.workflow-template',
+    formatVersion: 2,
+    id: template.id,
+    name: template.name,
+    description: template.description,
+    revision: template.revision,
+    nodes: template.nodes,
+    edges: template.edges,
+    materials: template.materials,
+    exportedAt: now,
   };
-  if (!definitionChanged(previous, next)) return previous;
-  next.revision = previous.revision + 1;
-  next.updatedAt = now;
-  assertRunnable(next);
-  return next;
 }
 
-export function templateShareableCopy(template: WorkflowTemplate, now?: string) {
-  return shareableWorkflowTemplate(template, now);
-}
-
-const ERROR_KEYS: Record<string, MessageKey> = {
-  'empty-selection': 'workflow.error.emptySelection',
-  'not-run': 'workflow.error.notRun',
-  'no-generation-step': 'workflow.error.noGenerationStep',
-  cycle: 'workflow.error.cycle',
-  'missing-output': 'workflow.error.missingOutput',
-  'unknown-output': 'workflow.error.unknownOutput',
-  'unsupported-node': 'workflow.error.unsupportedNode',
-};
-
-/** 把编译错误转成可操作的中文提示；未知错误保留原文，不吞掉。 */
-export function workflowErrorMessage(error: unknown): string {
-  const code = String((error as { code?: unknown })?.code || '');
-  const detail = String((error as { detail?: unknown })?.detail || '');
-  const key = ERROR_KEYS[code];
-  if (key) {
-    return detail ? t(key, { name: detail } as never) : t(key);
-  }
-  return detail || String((error as Error)?.message || '');
-}
-
-/** 从磁盘/导入读到的模板可能缺字段或结构损坏，读入时统一规范化。 */
+/** 读入磁盘模板：只接受 v2 快照，旧版槽位模板会被剔除并计数。 */
 export function normalizeStoredTemplate(value: unknown): WorkflowTemplate | null {
   if (!value || typeof value !== 'object') return null;
-  const record = value as Record<string, unknown>;
-  const definition = record.definition as WorkflowDefinition | undefined;
-  if (!definition || typeof definition !== 'object') return null;
-  const template: WorkflowTemplate = {
-    id: String(record.id || ''),
-    name: String(record.name || ''),
+  const record = value as AnyRecord;
+  if (record.formatVersion !== 2 || !Array.isArray(record.nodes) || !Array.isArray(record.edges)) return null;
+  const id = String(record.id || '');
+  const name = String(record.name || '');
+  if (!id || !name || !record.nodes.length) return null;
+  const nodes = record.nodes as WorkflowSnapshotNode[];
+  const ids = new Set(nodes.map((node) => String(node.id)));
+  if (ids.size !== nodes.length) return null;
+  const edges = (record.edges as WorkflowSnapshotEdge[]).filter((edge) => ids.has(String(edge.source)) && ids.has(String(edge.target)));
+  return {
+    id,
+    name,
     description: String(record.description || ''),
     revision: Math.max(1, Number(record.revision) || 1),
-    definition,
-    recipe: (record.recipe && typeof record.recipe === 'object' ? record.recipe : {}) as Record<string, WorkflowRecipeNode>,
+    formatVersion: 2,
+    nodes,
+    edges,
+    materials: Array.isArray(record.materials) ? (record.materials as WorkflowSnapshotMaterial[]) : [],
     createdAt: String(record.createdAt || ''),
     updatedAt: String(record.updatedAt || ''),
   };
-  if (!template.id || !template.name) return null;
-  try {
-    validateWorkflowDefinition(template.definition);
-  } catch {
-    return null;
-  }
-  return template;
+}
+
+export { workflowDisplayOrder };
+
+const ERROR_KEYS: Record<string, 'workflow.error.emptySelection'> = {
+  'workflow.emptySelection': 'workflow.error.emptySelection',
+};
+
+export function workflowErrorMessage(error: unknown): string {
+  const message = String((error as Error)?.message || '');
+  const key = ERROR_KEYS[message];
+  if (key) return t(key);
+  return message || t('workflow.error.emptySelection');
 }
