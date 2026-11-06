@@ -13,6 +13,7 @@ import { defaultInputSlot, type GenerationInputSlot } from '@/domain/graph/Gener
 import { validateAgentInputRole } from '@/services/agentInputRole';
 import type { AgentNode, AgentProject } from '@/services/agentTypes';
 import { resolveProjectDefaultModel } from '@/utils/projectModelDefaults.ts';
+import { getAvailableModelIdsByType, getModelCredentialStatus } from '@/store/settingsStore';
 import { defaultCanvasNodeDimensions } from '@/domain/graph/CanvasNodeDimensions.ts';
 
 // projectStore → taskStore → 本模块 → projectStore 是循环引用：本模块求值时它的 `store`
@@ -119,7 +120,14 @@ export function addNode(type = 'imageGeneration'): NodeLike {
   };
   if (isGenerationNode) {
     node.prompt = '';
-    node.model = resolveProjectDefaultModel(store.project.settings, type);
+    const preferred = resolveProjectDefaultModel(store.project.settings, type);
+    // 默认模型可能来自尚未配置凭据的厂商（目录默认值就是 OpenAI 系）。
+    // 优先用工程默认；它不可用时退到同类型第一个已配置模型，避免新建节点
+    // 直接落在一个没有 Key 的模型上。
+    const preferredAvailable = Boolean(preferred) && getModelCredentialStatus(preferred).available;
+    node.model = preferredAvailable
+      ? preferred
+      : (getAvailableModelIdsByType(type)[0] || preferred);
     const defaultInputMode = getGenerationInputModes(node.model || '')[0]?.value;
     if (defaultInputMode) node.inputMode = defaultInputMode;
     node.config = defaultGenerationConfig(type, node.model);

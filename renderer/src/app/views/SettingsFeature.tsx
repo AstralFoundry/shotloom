@@ -17,8 +17,8 @@ import {
 import { toRaw } from "../../store/domainReactivity";
 import {
   migrateProjectRoot,
-  persistSession,
   store,
+  touchProject,
 } from "../../store/projectStore";
 import {
   getAvailableModelIdsByType,
@@ -205,7 +205,9 @@ export function SettingsFeature() {
       }),
     setProjectModel: (key, value) => {
       store.project.settings[key] = value;
-      persistSession();
+      // 默认模型属于工程设置：必须走 touchProject 才会排队自动保存，
+      // 只写 persistSession 会在重开项目后丢回旧值（并回落到硬编码默认模型）。
+      touchProject();
       refresh();
     },
     exportDiagnostics: () =>
