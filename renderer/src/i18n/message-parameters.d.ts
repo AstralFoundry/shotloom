@@ -1194,4 +1194,5 @@ export interface MessageParameters {
   "workflow.save.done": Record<"name", string | number>;
   "workflow.apply.failed": Record<"reason", string | number>;
   "workflow.delete.confirm": Record<"name", string | number>;
+  "imageRecipe.notice.modelFallback": Record<"value0", string | number>;
 }

@@ -15,6 +15,7 @@ import { recordCanvasHistory } from '@/store/canvasHistoryStore';
 import { addNode, ensureGenerationConfig, setSelectedNodeIds } from '@/store/nodeStore';
 import { showToast } from '@/store/notificationStore';
 import { store, touchProject } from '@/store/projectStore';
+import { getAvailableModelIdsByType } from '@/store/settingsStore';
 import { runNode } from '@/store/taskStore';
 
 type AnyNode = Record<string, any>;
@@ -50,6 +51,16 @@ function referenceModeFor(model: string) {
   return getGenerationInputModes(model).find((mode) => mode.maxImages > 0) ?? null;
 }
 
+/**
+ * 已配置厂商里第一个能收参考图的图片模型。
+ * 源图模型只支持文生图时（例如阿里的 qwen-image 系列），派生节点改用它，
+ * 而不是强行要求用户去配一个 OpenAI 模型。
+ */
+function referenceCapableModel(): string {
+  return getAvailableModelIdsByType('imageGeneration')
+    .find((model) => referenceModeFor(model)) || '';
+}
+
 function storedRecipe(recipe: ImageRecipe): Record<string, unknown> {
   return { version: IMAGE_RECIPE_VERSION, kind: recipe.kind, params: recipe.params };
 }
@@ -68,15 +79,16 @@ export function applyImageRecipe(nodeId: string, kind: ImageRecipeKind, params: 
     return false;
   }
   const recipe = createImageRecipe(kind, params);
-  const mode = referenceModeFor(String(source.model || ''));
-  if (!mode) {
-    showToast(t('imageRecipe.error.referenceModel'));
-    return false;
-  }
   const prompt = composeImageRecipePrompt(recipe);
   const existing = readImageRecipe(source.imageRecipe);
+  const sourceModel = String(source.model || '');
+  const sourceMode = referenceModeFor(sourceModel);
 
   if (existing?.kind === kind) {
+    if (!sourceMode) {
+      showToast(t('imageRecipe.error.referenceModel'));
+      return false;
+    }
     recordCanvasHistory(t(historyKey[kind]));
     source.prompt = prompt;
     source.imageRecipe = storedRecipe(recipe);
@@ -86,12 +98,21 @@ export function applyImageRecipe(nodeId: string, kind: ImageRecipeKind, params: 
     return true;
   }
 
+  // 新派生节点可以用另一个模型：源图不能收参考图时，换到已配置且支持参考图的模型。
+  const derivedModel = sourceMode ? sourceModel : referenceCapableModel();
+  const mode = derivedModel ? referenceModeFor(derivedModel) : null;
+  if (!mode || !derivedModel) {
+    showToast(t('imageRecipe.error.referenceModel'));
+    return false;
+  }
+
   recordCanvasHistory(t(historyKey[kind]));
   const derived = addNode('imageGeneration');
   const dimensions = canvasNodeDimensions(source as CanvasSizedNode);
   const sourceName = String(source.title || '').trim() || t('imageRecipe.fallbackName');
   derived.title = t(derivedTitleKey[kind], { name: sourceName });
-  derived.model = String(source.model || derived.model || '');
+  derived.model = derivedModel;
+  if (derivedModel !== sourceModel) showToast(t('imageRecipe.notice.modelFallback', { value0: derivedModel }));
   ensureGenerationConfig(derived);
   derived.prompt = prompt;
   derived.imageRecipe = storedRecipe(recipe);

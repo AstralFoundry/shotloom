@@ -9794,5 +9794,6 @@
   "canvas.optimizer.mode.polish": "精修",
   "canvas.optimizer.mode.style": "强化风格",
   "canvas.optimizer.mode.model": "适配模型",
-  "canvas.optimizer.mode.reference": "结合参考"
+  "canvas.optimizer.mode.reference": "结合参考",
+  "imageRecipe.notice.modelFallback": "源图模型不支持参考图，已改用 {value0}"
 }

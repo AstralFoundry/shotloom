@@ -9794,5 +9794,6 @@
   "canvas.optimizer.mode.polish": "Polish",
   "canvas.optimizer.mode.style": "Style",
   "canvas.optimizer.mode.model": "Model fit",
-  "canvas.optimizer.mode.reference": "Use references"
+  "canvas.optimizer.mode.reference": "Use references",
+  "imageRecipe.notice.modelFallback": "The source model cannot take reference images; using {value0} instead."
 }
