@@ -9806,5 +9806,6 @@
   "workflow.error.cycle": "选中的节点存在循环依赖，请断开回路后再保存。",
   "workflow.error.missingOutput": "请至少选择一个输出结果。",
   "workflow.error.unknownOutput": "输出节点「{name}」不在选区内，或是未绑定的输入。",
-  "workflow.error.unsupportedNode": "暂不支持封装该节点：{name}"
+  "workflow.error.unsupportedNode": "暂不支持封装该节点：{name}",
+  "workflow.bind.missing": "还有 {count} 个输入没有绑定当前项目的素材；模板跨项目复用时需要重新选择。"
 }

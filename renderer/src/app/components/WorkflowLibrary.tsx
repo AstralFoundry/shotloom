@@ -60,6 +60,7 @@ export function WorkflowLibrary({ open, onClose }: { open: boolean; onClose: () 
     () => (applying ? applying.definition.nodes.filter((node) => node.role === 'input') : []),
     [applying],
   );
+  const missingBindings = slots.filter((node) => !bindings[node.id]);
 
   function saveSelection() {
     if (!selection.length) {
@@ -98,8 +99,12 @@ export function WorkflowLibrary({ open, onClose }: { open: boolean; onClose: () 
 
   function startApply(template: WorkflowTemplate) {
     const defaults: Record<string, string> = {};
+    const projectMaterialIds = new Set(materials.map((material) => String(material.id)));
     for (const node of template.definition.nodes) {
-      if (node.role === 'input' && node.resourceId) defaults[node.id] = String(node.resourceId);
+      // 模板来自其他项目时，旧素材 id 在本项目里不存在，不能当作默认值。
+      if (node.role === 'input' && node.resourceId && projectMaterialIds.has(String(node.resourceId))) {
+        defaults[node.id] = String(node.resourceId);
+      }
     }
     setBindings(defaults);
     setApplying(template);
@@ -245,15 +250,18 @@ export function WorkflowLibrary({ open, onClose }: { open: boolean; onClose: () 
         onCancel={() => setApplying(null)}
         footer={[
           <Button key="cancel" onClick={() => setApplying(null)}>{t('workflow.cancel')}</Button>,
-          <Button key="apply" onClick={() => void applyTemplate('apply')} loading={busy}>
+          <Button key="apply" disabled={missingBindings.length > 0} onClick={() => void applyTemplate('apply')} loading={busy}>
             {t('workflow.apply.action')}
           </Button>,
-          <Button key="run" type="primary" onClick={() => void applyTemplate('apply-run')} loading={busy}>
+          <Button key="run" type="primary" disabled={missingBindings.length > 0} onClick={() => void applyTemplate('apply-run')} loading={busy}>
             {t('workflow.apply.run')}
           </Button>,
         ]}
       >
         {!slots.length && <p>{t('workflow.bind.none')}</p>}
+        {missingBindings.length > 0 && (
+          <p>{t('workflow.bind.missing', { count: missingBindings.length })}</p>
+        )}
         {slots.map((node) => (
           <div key={node.id} className="workflow-bind-row">
             <span>{node.title}</span>

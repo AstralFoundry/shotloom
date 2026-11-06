@@ -9806,5 +9806,6 @@
   "workflow.error.cycle": "The selection contains a dependency cycle. Break the loop before saving.",
   "workflow.error.missingOutput": "Pick at least one output.",
   "workflow.error.unknownOutput": "Output \"{name}\" is outside the selection or is an unbound input.",
-  "workflow.error.unsupportedNode": "This node cannot be wrapped yet: {name}"
+  "workflow.error.unsupportedNode": "This node cannot be wrapped yet: {name}",
+  "workflow.bind.missing": "{count} inputs still need a material from this project; templates reused across projects must be rebound."
 }

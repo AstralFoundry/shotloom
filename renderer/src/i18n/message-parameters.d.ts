@@ -1199,4 +1199,5 @@ export interface MessageParameters {
   "workflow.error.notRun": Record<"name", string | number>;
   "workflow.error.unknownOutput": Record<"name", string | number>;
   "workflow.error.unsupportedNode": Record<"name", string | number>;
+  "workflow.bind.missing": Record<"count", string | number>;
 }

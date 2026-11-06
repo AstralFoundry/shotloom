@@ -102,7 +102,9 @@ export function planWorkflowInstance({
 
   for (const node of definition.nodes) {
     if (node.role === 'input') {
-      const resourceId = String(bindings[node.id] || node.resourceId || '').trim();
+      // 显式传入空串表示「用户清掉了绑定」，不能回落到模板里旧项目的素材 id。
+      const bound = bindings[node.id];
+      const resourceId = String((bound === undefined ? node.resourceId : bound) || '').trim();
       if (!resourceId) issues.push(`missing-input:${node.id}`);
       nodes.push({
         sourceId: node.id,

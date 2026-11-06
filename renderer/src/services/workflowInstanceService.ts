@@ -90,10 +90,22 @@ export function instantiateWorkflowTemplate(
   template: WorkflowTemplate,
   { bindings = {} }: { bindings?: Record<string, string | undefined> } = {},
 ): InstantiateResult {
+  // 模板是全局的，素材是项目局的：旧项目保存的素材 id 在当前项目里通常不存在。
+  // 这类绑定必须当作「未绑定」，让界面要求重新选择，而不是建出空引用节点。
+  const availableMaterialIds = new Set(
+    ((store.project.materials || []) as AnyRecord[]).map((material) => String(material.id)),
+  );
+  const resolvedBindings: Record<string, string | undefined> = { ...bindings };
+  for (const node of template.definition.nodes) {
+    if (node.role !== 'input') continue;
+    const bound = resolvedBindings[node.id];
+    const id = String((bound === undefined ? node.resourceId : bound) || '').trim();
+    if (id && !availableMaterialIds.has(id)) resolvedBindings[node.id] = '';
+  }
   const plan = planWorkflowInstance({
     definition: template.definition,
     recipe: template.recipe,
-    bindings,
+    bindings: resolvedBindings,
   });
   if (plan.issues.length) {
     throw new Error(`workflow.notReady:${plan.issues.join(',')}`);
