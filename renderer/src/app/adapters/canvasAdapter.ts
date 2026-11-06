@@ -73,6 +73,7 @@ import {
 } from "./canvas/canvasMediaActions";
 import { buildCanvasViewData } from "./canvas/canvasViewData";
 import { createUploadedNode } from "./canvas/canvasUploadActions";
+import { applyImageRecipe } from "./canvas/imageRecipeActions";
 import {
   openWorkspaceVideoEditor,
   createClipNode,
@@ -708,6 +709,7 @@ export const nodeActions: WorkflowNodeActions = {
   splitImageGrid,
   captureVideoFrame,
   extractAudio,
+  applyImageRecipe,
   async replaceResource(id) {
     const picked = await desktopApi.file.pickResource();
     if (!picked) return;

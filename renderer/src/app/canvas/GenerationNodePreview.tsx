@@ -49,6 +49,10 @@ export function GenerationNodePreview({
   onImageAnnotationClose,
   imageWatermarkOpen,
   onImageWatermarkClose,
+  imageAngleOpen,
+  onImageAngleClose,
+  imageLightingOpen,
+  onImageLightingClose,
   semanticZoom,
   onStarter,
 }: {
@@ -62,6 +66,10 @@ export function GenerationNodePreview({
   onImageAnnotationClose: (() => void) | undefined;
   imageWatermarkOpen: boolean;
   onImageWatermarkClose: (() => void) | undefined;
+  imageAngleOpen: boolean;
+  onImageAngleClose: (() => void) | undefined;
+  imageLightingOpen: boolean;
+  onImageLightingClose: (() => void) | undefined;
   semanticZoom: number;
   onStarter: (prompt: string) => void;
 }) {
@@ -281,6 +289,10 @@ export function GenerationNodePreview({
             onImageAnnotationClose={onImageAnnotationClose}
             imageWatermarkOpen={imageWatermarkOpen}
             onImageWatermarkClose={onImageWatermarkClose}
+            imageAngleOpen={imageAngleOpen}
+            onImageAngleClose={onImageAngleClose}
+            imageLightingOpen={imageLightingOpen}
+            onImageLightingClose={onImageLightingClose}
           />
           {activeKind === "video" && previewUrl && (
             <div className="work-video-status">

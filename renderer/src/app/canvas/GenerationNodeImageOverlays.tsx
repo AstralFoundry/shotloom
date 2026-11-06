@@ -4,6 +4,9 @@ import { desktopApi } from "../../services/desktopApi.ts";
 import { ImageCropEditor } from "../components/ImageCropEditor";
 import { ImageAnnotationEditor, ImageAnnotationOverlay, type ImageAnnotation } from "../components/ImageAnnotationEditor";
 import { ImageWatermarkEditor } from "../components/ImageWatermarkEditor";
+import { readImageRecipe } from '@/domain/graph/imageRecipe';
+import { ImageAnglePanel } from "./ImageAnglePanel";
+import { ImageLightingPanel } from "./ImageLightingPanel";
 import { CanvasOverlayRootContext, type WorkflowNodeActions, type WorkflowNodeData } from "./WorkflowCanvas";
 
 /**
@@ -27,6 +30,10 @@ export function GenerationNodeImageOverlays({
   onImageAnnotationClose,
   imageWatermarkOpen,
   onImageWatermarkClose,
+  imageAngleOpen,
+  onImageAngleClose,
+  imageLightingOpen,
+  onImageLightingClose,
 }: {
   node: WorkflowNodeData;
   actions: WorkflowNodeActions;
@@ -43,9 +50,14 @@ export function GenerationNodeImageOverlays({
   onImageAnnotationClose: (() => void) | undefined;
   imageWatermarkOpen: boolean;
   onImageWatermarkClose: (() => void) | undefined;
+  imageAngleOpen: boolean;
+  onImageAngleClose: (() => void) | undefined;
+  imageLightingOpen: boolean;
+  onImageLightingClose: (() => void) | undefined;
 }) {
   const root = useContext(CanvasOverlayRootContext);
   const isImagePreview = activeKind === "image" && Boolean(previewUrl);
+  const recipe = readImageRecipe(node.imageRecipe);
   return (
     <>
       {imageCropMode && isImagePreview && activeFilePath && (
@@ -74,6 +86,32 @@ export function GenerationNodeImageOverlays({
           onCancel={() => onImageWatermarkClose?.()}
           onApply={async (blob) => {
             if (await actions.createWatermarkNode(node.id, blob)) onImageWatermarkClose?.();
+          }}
+        />
+      )}
+      {imageAngleOpen && isImagePreview && (
+        <ImageAnglePanel
+          key={`${node.id}-angle`}
+          root={root}
+          anchorRef={anchorRef}
+          imageUrl={previewUrl}
+          {...(recipe?.kind === "angle" ? { initialParams: recipe.params } : {})}
+          onClose={() => onImageAngleClose?.()}
+          onConfirm={(params) => {
+            if (actions.applyImageRecipe(node.id, "angle", params)) onImageAngleClose?.();
+          }}
+        />
+      )}
+      {imageLightingOpen && isImagePreview && (
+        <ImageLightingPanel
+          key={`${node.id}-lighting`}
+          root={root}
+          anchorRef={anchorRef}
+          imageUrl={previewUrl}
+          {...(recipe?.kind === "lighting" ? { initialOptions: recipe.params } : {})}
+          onClose={() => onImageLightingClose?.()}
+          onConfirm={(options) => {
+            if (actions.applyImageRecipe(node.id, "lighting", options)) onImageLightingClose?.();
           }}
         />
       )}

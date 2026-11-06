@@ -95,6 +95,10 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({
   onImageAnnotationClose,
   imageWatermarkOpen = false,
   onImageWatermarkClose,
+  imageAngleOpen = false,
+  onImageAngleClose,
+  imageLightingOpen = false,
+  onImageLightingClose,
   semanticZoom = 1,
 }) => {
   const promptRef = useRef<HTMLDivElement>(null);
@@ -207,6 +211,10 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({
         onImageAnnotationClose={onImageAnnotationClose}
         imageWatermarkOpen={imageWatermarkOpen}
         onImageWatermarkClose={onImageWatermarkClose}
+        imageAngleOpen={imageAngleOpen}
+        onImageAngleClose={onImageAngleClose}
+        imageLightingOpen={imageLightingOpen}
+        onImageLightingClose={onImageLightingClose}
         semanticZoom={semanticZoom}
         onStarter={startFromStarter}
       />

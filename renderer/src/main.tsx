@@ -19,6 +19,7 @@ import '../styles/toast.css';
 import '../styles/responsive.css';
 import '../styles/settings.css';
 import '../styles/canvas.css';
+import '../styles/image-recipes.css';
 import '../styles/project-materials.css';
 import '../styles/media-overlays.css';
 import '../styles/creation-view.css';

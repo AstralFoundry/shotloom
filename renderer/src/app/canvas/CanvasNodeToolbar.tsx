@@ -222,6 +222,10 @@ export function CanvasNodeToolbar({
   onImageAnnotationOpen,
   imageWatermarkOpen,
   onImageWatermarkOpen,
+  imageAngleOpen,
+  onImageAngleOpen,
+  imageLightingOpen,
+  onImageLightingOpen,
 }: {
   node: WorkflowNodeData;
   selected: boolean;
@@ -236,6 +240,10 @@ export function CanvasNodeToolbar({
   onImageAnnotationOpen: () => void;
   imageWatermarkOpen: boolean;
   onImageWatermarkOpen: () => void;
+  imageAngleOpen: boolean;
+  onImageAngleOpen: () => void;
+  imageLightingOpen: boolean;
+  onImageLightingOpen: () => void;
 }) {
   const [openMenu, setOpenMenu] = useState<OpenMenu>(null);
   const [assetCategory, setAssetCategory] = useState('other');
@@ -470,6 +478,18 @@ export function CanvasNodeToolbar({
           title: t("ui.CanvasNodeToolbar.title.779c0c42"),
           pressed: imageWatermarkOpen,
           onClick: onImageWatermarkOpen,
+        };
+      case "angle":
+        return {
+          title: t("imageRecipe.tool.angle.title"),
+          pressed: imageAngleOpen,
+          onClick: onImageAngleOpen,
+        };
+      case "lighting":
+        return {
+          title: t("imageRecipe.tool.lighting.title"),
+          pressed: imageLightingOpen,
+          onClick: onImageLightingOpen,
         };
       case "clip":
         return { title: t("ui.videoEditorActions.text.7a0935e7"), onClick: () => void actions.createClipNode(node.id) };

@@ -14,6 +14,8 @@ const SOURCE_EXTENSION = /\.(tsx|ts)$/;
 const HANDWRITTEN_DIALOG_EXCEPTIONS = new Set([
   'canvas/CanvasDisplaySettings.tsx',
   'canvas/ThreeDDirectorNode.tsx',
+  // 机位/打光面板跟着节点屏幕矩形走，宽度也比节点大得多，Modal 的居中与遮罩都不适用。
+  'canvas/ImageRecipePanelFrame.tsx',
   'components/ImageWatermarkEditor.tsx',
   'components/MediaViewer.tsx',
 ]);

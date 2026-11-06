@@ -146,6 +146,7 @@ export interface WorkflowNodeActions {
   ) => Promise<{ nodeId: string } | null>;
   notify: (message: string) => void;
   applyColoredPencil: (id: string) => void | Promise<void>;
+  applyImageRecipe: (id: string, kind: "angle" | "lighting", params: unknown) => boolean;
 }
 export type WorkflowNodeRenderer = ComponentType<{
   node: WorkflowNodeData;
@@ -161,6 +162,10 @@ export type WorkflowNodeRenderer = ComponentType<{
   onImageAnnotationClose?: () => void;
   imageWatermarkOpen?: boolean;
   onImageWatermarkClose?: () => void;
+  imageAngleOpen?: boolean;
+  onImageAngleClose?: () => void;
+  imageLightingOpen?: boolean;
+  onImageLightingClose?: () => void;
 }>;
 export interface WorkflowCanvasController {
   createSection?: (position?: { x: number; y: number }) => void;
@@ -441,7 +446,16 @@ function CanvasNode({ data, selected, dragging }: NodeProps<FlowNode>) {
   const [imageCropMode, setImageCropMode] = useState<"crop" | "grid" | null>(null);
   const [imageAnnotationOpen, setImageAnnotationOpen] = useState(false);
   const [imageWatermarkOpen, setImageWatermarkOpen] = useState(false);
-  useEffect(() => { if (!selected) { setImageCropMode(null); setImageAnnotationOpen(false); setImageWatermarkOpen(false); } }, [selected]);
+  const [imageAngleOpen, setImageAngleOpen] = useState(false);
+  const [imageLightingOpen, setImageLightingOpen] = useState(false);
+  useEffect(() => {
+    if (selected) return;
+    setImageCropMode(null);
+    setImageAnnotationOpen(false);
+    setImageWatermarkOpen(false);
+    setImageAngleOpen(false);
+    setImageLightingOpen(false);
+  }, [selected]);
   const canvasOverlayRoot = useContext(CanvasOverlayRootContext);
   const focusCanvasNodes = useContext(CanvasFocusNodesContext);
   const [labelRoot, setLabelRoot] = useState<HTMLElement | null>(null);
@@ -487,7 +501,27 @@ function CanvasNode({ data, selected, dragging }: NodeProps<FlowNode>) {
           focusCanvasNodes?.([item.id]);
           setImageCropMode(null);
           setImageAnnotationOpen(false);
+          setImageAngleOpen(false);
+          setImageLightingOpen(false);
           setImageWatermarkOpen(true);
+        }}
+        imageAngleOpen={imageAngleOpen}
+        onImageAngleOpen={() => {
+          focusCanvasNodes?.([item.id]);
+          setImageCropMode(null);
+          setImageAnnotationOpen(false);
+          setImageWatermarkOpen(false);
+          setImageLightingOpen(false);
+          setImageAngleOpen((current) => !current);
+        }}
+        imageLightingOpen={imageLightingOpen}
+        onImageLightingOpen={() => {
+          focusCanvasNodes?.([item.id]);
+          setImageCropMode(null);
+          setImageAnnotationOpen(false);
+          setImageWatermarkOpen(false);
+          setImageAngleOpen(false);
+          setImageLightingOpen((current) => !current);
         }}
       />
       {selected && resizable && (
@@ -551,6 +585,10 @@ function CanvasNode({ data, selected, dragging }: NodeProps<FlowNode>) {
           onImageAnnotationClose={() => setImageAnnotationOpen(false)}
           imageWatermarkOpen={imageWatermarkOpen}
           onImageWatermarkClose={() => setImageWatermarkOpen(false)}
+          imageAngleOpen={imageAngleOpen}
+          onImageAngleClose={() => setImageAngleOpen(false)}
+          imageLightingOpen={imageLightingOpen}
+          onImageLightingClose={() => setImageLightingOpen(false)}
         />
       </CanvasNodeSemanticContent>
       </CanvasNodeLabelRootContext.Provider>

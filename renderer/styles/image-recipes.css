@@ -1,0 +1,495 @@
+/* 图片节点的「多角度 / 打光」面板。
+ * 面板挂在画布浮层根节点上，跟随节点屏幕位置；内部控件沿用 antd，
+ * 这里只负责外壳、两栏布局和机位/光照预览这类自绘舞台。 */
+
+.image-recipe-panel {
+  position: absolute;
+  z-index: var(--layer-canvas-composer);
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--elevated-border);
+  border-radius: var(--radius-lg);
+  color: var(--type-primary);
+  background: var(--elevated-surface);
+  box-shadow: var(--shadow-float);
+  overflow: hidden;
+}
+.image-recipe-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  height: 44px;
+  padding: 0 8px 0 12px;
+  border-bottom: 1px solid var(--line);
+}
+.image-recipe-head-icon {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-sm);
+  color: var(--type-primary);
+  background: var(--wash-hover);
+}
+.image-recipe-head-icon svg { width: var(--icon-sm); height: var(--icon-sm); }
+.image-recipe-head strong {
+  font-size: var(--text-body-13);
+  line-height: var(--text-body-13--line-height);
+  font-weight: 600;
+  letter-spacing: var(--tracking-normal);
+}
+.image-recipe-close {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin-left: auto;
+  border: 0;
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+  background: transparent;
+  cursor: pointer;
+}
+.image-recipe-close:hover { color: var(--type-primary); background: var(--wash-hover); }
+.image-recipe-close svg { width: var(--icon-sm); height: var(--icon-sm); }
+
+.image-recipe-chips {
+  display: flex;
+  gap: 4px;
+  flex: none;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.image-recipe-chips::-webkit-scrollbar { display: none; }
+.image-recipe-chip {
+  flex: none;
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+  background: transparent;
+  font-size: var(--text-body-12);
+  cursor: pointer;
+  transition: color var(--duration-fast) var(--ease-std), background var(--duration-fast) var(--ease-std);
+}
+.image-recipe-chip:hover { color: var(--type-primary); background: var(--wash-hover); }
+.image-recipe-chip[aria-pressed="true"],
+.image-recipe-chip--state.is-active {
+  border-color: var(--line-strong);
+  color: var(--text);
+  background: var(--surface);
+  font-weight: 600;
+}
+.image-recipe-chip--state { display: inline-flex; align-items: center; cursor: default; }
+.image-recipe-chip--state:not(.is-active):hover { color: var(--muted); background: transparent; }
+
+.image-recipe-label {
+  font-size: var(--text-caption-11);
+  line-height: var(--text-caption-11--line-height);
+  font-weight: 500;
+  color: var(--muted);
+}
+.image-recipe-value {
+  color: var(--type-primary);
+  font-size: var(--text-caption-11);
+  font-variant-numeric: tabular-nums;
+}
+.image-recipe-field { display: flex; flex-direction: column; gap: 2px; }
+.image-recipe-field-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--muted);
+  font-size: var(--text-caption-11);
+}
+.image-recipe-field .ant-slider { margin: 6px 4px; }
+.image-recipe-field-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 28px;
+}
+.image-recipe-choice {
+  height: 30px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--type-primary);
+  background: var(--surface);
+  font-size: var(--text-body-12);
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-std), color var(--duration-fast) var(--ease-std);
+}
+.image-recipe-choice:hover { background: var(--wash-hover); }
+.image-recipe-choice[aria-pressed="true"] {
+  border-color: var(--text);
+  color: var(--surface);
+  background: var(--text);
+  font-weight: 600;
+}
+.image-recipe-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: var(--text-caption-11);
+}
+.image-recipe-value-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xs);
+  color: var(--muted);
+  background: var(--surface);
+  font-size: var(--text-caption-11);
+  font-variant-numeric: tabular-nums;
+}
+.image-recipe-value-chip svg { width: var(--icon-xs); height: var(--icon-xs); }
+
+.image-recipe-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  padding: 8px 12px;
+  border-top: 1px solid var(--line);
+}
+.image-recipe-foot-label { color: var(--muted); font-size: var(--text-caption-11); }
+.image-recipe-foot strong { font-size: var(--text-body-12); font-weight: 600; }
+.image-recipe-foot-meta {
+  color: var(--muted);
+  font-size: var(--text-caption-11);
+  font-variant-numeric: tabular-nums;
+}
+.image-recipe-foot-spacer { flex: 1; }
+
+/* 多角度：左舞台右控件。舞台固定暗底，因为它是一块取景器而不是普通内容区。 */
+.image-angle-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 286px;
+  gap: 12px;
+  flex: 1;
+  min-height: 0;
+  padding: 12px;
+}
+.image-angle-stage {
+  position: relative;
+  min-height: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background:
+    radial-gradient(circle at 50% 44%, color-mix(in srgb, var(--brand-accent) 10%, transparent), transparent 62%),
+    var(--overlay-stage);
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+}
+.image-angle-stage.is-dragging { cursor: grabbing; }
+.image-angle-viewport {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  perspective: 900px;
+}
+.image-angle-orbit {
+  position: relative;
+  display: grid;
+  place-items: center;
+  transform-style: preserve-3d;
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+.image-angle-stage.is-dragging .image-angle-orbit { transition: none; }
+/* 两种预览各说一件事：摄像头看平面主体，天空盒看贴着环境的立方体。
+ * 轨道球在两种模式下都保留，只是摄像头模式退到主体后面当方位参考。 */
+.image-angle-stage.is-camera .image-angle-sphere > .image-angle-meridian,
+.image-angle-stage.is-camera .image-angle-sphere > .image-angle-parallel { opacity: .82; }
+.image-angle-stage.is-skybox .image-angle-sphere > .image-angle-meridian,
+.image-angle-stage.is-skybox .image-angle-sphere > .image-angle-parallel { opacity: 1; }
+.image-angle-sphere { position: relative; transform-style: preserve-3d; }
+.image-angle-meridian {
+  position: absolute;
+  inset: 0;
+  border: 1px solid color-mix(in srgb, var(--overlay-ink) 30%, transparent);
+  border-radius: 50%;
+}
+.image-angle-parallel {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  border: 1px solid color-mix(in srgb, var(--overlay-ink) 22%, transparent);
+  border-radius: 50%;
+}
+.image-angle-cube {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 104px;
+  height: 104px;
+  margin: -52px 0 0 -52px;
+  transform-style: preserve-3d;
+}
+.image-angle-face {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--overlay-ink) 22%, transparent);
+  color: var(--overlay-ink-muted);
+  background: color-mix(in srgb, var(--overlay-stage) 74%, transparent);
+  font-size: var(--text-caption-11);
+}
+.image-angle-face.is-front { overflow: hidden; transform: translateZ(52px); background: transparent; }
+.image-angle-face.is-front img { width: 100%; height: 100%; object-fit: cover; }
+.image-angle-face.is-back { transform: rotateY(180deg) translateZ(52px); }
+.image-angle-face.is-right { transform: rotateY(90deg) translateZ(52px); }
+.image-angle-face.is-left { transform: rotateY(-90deg) translateZ(52px); }
+.image-angle-face.is-top { transform: rotateX(90deg) translateZ(52px); }
+.image-angle-face.is-bottom { transform: rotateX(-90deg) translateZ(52px); }
+.image-angle-face-empty { color: var(--overlay-ink-hint); }
+/* 机位标记做成一台小相机（机身 + 镜头 + 热靴）并带一条指向主体的虚线，
+ * 不再是一个会被误读成开关的胶囊。 */
+.image-angle-subject {
+  position: absolute;
+  z-index: 2;
+  left: 50%;
+  top: 50%;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--overlay-ink) 26%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--overlay-stage) 84%, transparent);
+  box-shadow: 0 18px 34px var(--overlay-hairline);
+  pointer-events: none;
+}
+.image-angle-subject img { width: 100%; height: 100%; object-fit: cover; }
+.image-angle-subject-empty { color: var(--overlay-ink-hint); font-size: var(--text-caption-11); }
+.image-angle-camera {
+  position: absolute;
+  z-index: 3;
+  width: 34px;
+  height: 24px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.image-angle-camera-sight {
+  position: absolute;
+  z-index: 1;
+  height: 0;
+  border-top: 1px dashed color-mix(in srgb, var(--overlay-ink) 46%, transparent);
+  transform-origin: 0 50%;
+}
+.image-angle-camera-body {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--overlay-line-strong);
+  border-radius: var(--radius-xs);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--overlay-chip) 66%, var(--overlay-ink)),
+    color-mix(in srgb, var(--overlay-chip) 88%, var(--overlay-stage))
+  );
+  box-shadow: 0 6px 14px var(--overlay-hairline);
+}
+.image-angle-camera-lens {
+  width: 13px;
+  height: 13px;
+  border: 1px solid color-mix(in srgb, var(--overlay-ink) 38%, transparent);
+  border-radius: 50%;
+  background: radial-gradient(circle at 38% 34%, var(--overlay-ink) 0 12%, var(--overlay-ink-hint) 26%, var(--overlay-stage) 74%);
+}
+.image-angle-camera-shoe {
+  position: absolute;
+  left: 50%;
+  top: -5px;
+  z-index: 1;
+  width: 12px;
+  height: 7px;
+  border: 1px solid var(--overlay-line);
+  border-bottom: 0;
+  border-radius: var(--radius-xs) var(--radius-xs) 0 0;
+  background: var(--overlay-chip);
+  transform: translateX(-50%);
+}
+.image-angle-arrow {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 50%;
+  color: color-mix(in srgb, var(--overlay-ink) 45%, transparent);
+  background: transparent;
+  cursor: pointer;
+  transition: color var(--duration-fast) var(--ease-std), background var(--duration-fast) var(--ease-std);
+}
+.image-angle-arrow:hover { color: var(--overlay-ink); background: var(--overlay-fill-hover); }
+.image-angle-arrow svg { width: var(--icon-sm); height: var(--icon-sm); }
+.image-angle-arrow.is-up { top: 8px; left: 50%; transform: translateX(-50%); }
+.image-angle-arrow.is-down { bottom: 8px; left: 50%; transform: translateX(-50%); }
+.image-angle-arrow.is-left { left: 8px; top: 50%; transform: translateY(-50%); }
+.image-angle-arrow.is-right { right: 8px; top: 50%; transform: translateY(-50%); }
+.image-angle-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  overflow-y: auto;
+}
+.image-angle-preset-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+/* 打光：左光照球右参数，下方是智能描述与预设。 */
+.image-lighting-body {
+  display: grid;
+  grid-template-columns: 264px minmax(0, 1fr);
+  gap: 12px;
+  flex: none;
+  padding: 12px;
+}
+.image-lighting-preview { display: flex; flex-direction: column; gap: 8px; }
+.image-lighting-stage {
+  width: 236px;
+  height: 236px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--overlay-stage);
+  cursor: grab;
+  touch-action: none;
+}
+.image-lighting-stage:active { cursor: grabbing; }
+.image-lighting-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+.image-lighting-row { display: flex; align-items: center; gap: 8px; }
+.image-lighting-slider { flex: 1; min-width: 0; }
+.image-lighting-slider .ant-slider { margin: 6px 4px; }
+.image-lighting-color-row { display: flex; align-items: center; gap: 12px; }
+.image-lighting-positions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+.image-lighting-note {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+  min-height: 0;
+  padding: 0 12px 12px;
+  overflow-y: auto;
+}
+.image-lighting-presets {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+.image-lighting-preset {
+  position: relative;
+  height: 56px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background-color: var(--overlay-stage);
+  overflow: hidden;
+  cursor: pointer;
+  text-align: left;
+}
+.image-lighting-preset::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, var(--overlay-shade-mid), transparent 64%);
+}
+.image-lighting-preset::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 72% 26%, color-mix(in srgb, var(--overlay-ink) 22%, transparent), transparent 44%);
+}
+.image-lighting-preset span {
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  bottom: 5px;
+  z-index: 1;
+  color: var(--overlay-ink);
+  font-size: var(--text-caption-10);
+  line-height: var(--text-caption-10--line-height);
+  text-shadow: 0 1px 2px var(--overlay-hairline);
+}
+.image-lighting-preset[aria-pressed="true"] {
+  outline: 2px solid var(--text);
+  outline-offset: 1px;
+}
+.image-lighting-preset-check {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  color: var(--surface);
+  background: var(--text);
+}
+.image-lighting-preset-check svg { width: var(--icon-xs); height: var(--icon-xs); }
+.image-lighting-template-description {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: var(--text-caption-11);
+  line-height: 1.6;
+}
+.image-lighting-placeholders {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 6px 0 12px;
+}
+.image-lighting-placeholders code {
+  padding: 2px 6px;
+  border-radius: var(--radius-xs);
+  color: var(--type-primary);
+  background: var(--wash-hover);
+  font-family: var(--font-mono);
+  font-size: var(--text-caption-10);
+}
+.image-lighting-template-default {
+  margin: 6px 0 0;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+  background: var(--surface-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-caption-10);
+  line-height: 1.6;
+  white-space: pre-wrap;
+}

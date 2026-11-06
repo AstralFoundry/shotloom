@@ -46,6 +46,8 @@ export const NODE_TOOLBAR_TOOLS: Record<NodeToolbarScope, NodeToolDefinition[]> 
     { id: "annotate", label: t("ui.canvasMediaActions.suffix.c57f2cf0"), icon: "pencil", interaction: "opens_mode" },
     { id: "split-grid", label: t("ui.canvasMediaActions.text.08b65689"), icon: "grid", interaction: "opens_mode" },
     { id: "watermark", label: t("ui.canvasMediaActions.suffix.d52f4ea8"), icon: "stamp", interaction: "opens_panel" },
+    { id: "angle", label: t("imageRecipe.tool.angle.label"), icon: "camera", interaction: "opens_panel" },
+    { id: "lighting", label: t("imageRecipe.tool.lighting.label"), icon: "sun", interaction: "opens_panel" },
   ],
   video: [
     { id: "clip", label: t("ui.videoEditorActions.text.801f1d23"), icon: "scissors", interaction: "side_effect" },
@@ -55,7 +57,7 @@ export const NODE_TOOLBAR_TOOLS: Record<NodeToolbarScope, NodeToolDefinition[]> 
 };
 
 export const NODE_TOOLBAR_DEFAULT_PINNED: Record<NodeToolbarScope, string[]> = {
-  image: ["crop", "annotate", "split-grid", "watermark"],
+  image: ["crop", "annotate", "split-grid", "watermark", "angle", "lighting"],
   video: ["clip", "extract-frame", "extract-audio"],
 };
 
