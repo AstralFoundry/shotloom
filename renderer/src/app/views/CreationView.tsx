@@ -17,6 +17,8 @@ import type { Viewport } from "@xyflow/react";
 import { App, Segmented, Select } from "antd";
 import { CanvasStartup } from "../canvas/CanvasStartup";
 import { BottomModeBar } from "../canvas/BottomModeBar";
+import { ProjectVersionHistory } from "../components/ProjectVersionHistory";
+import { WorkflowLibrary } from "../components/WorkflowLibrary";
 import {
   WorkflowCanvas,
   type WorkflowCanvasController,
@@ -84,6 +86,8 @@ export function CreationView({
   const markCanvasReady = useCallback(() => setCanvasReady(true), []);
   const [agentPanelVisible, setAgentPanelVisible] = useState(true);
   const starting = !canvasReady || (agentPanelVisible && agentStatus === 'loading');
+  const [versionHistoryOpen, setVersionHistoryOpen] = useState(false);
+  const [workflowLibraryOpen, setWorkflowLibraryOpen] = useState(false);
   const [agentPanelWidth, setAgentPanelWidth] = useState(() => {
     const saved = Number(window.localStorage.getItem("shotloom:agent-panel-width-v4"));
     const preferred = Math.round(window.innerWidth * 0.4);
@@ -299,6 +303,8 @@ export function CreationView({
               onAutoLayout={controller.autoLayout}
               onMergeVideos={controller.mergeVideos}
               onCreateSection={() => controller.canvas.createSection?.()}
+              onOpenHistory={() => setVersionHistoryOpen(true)}
+              onOpenWorkflows={() => setWorkflowLibraryOpen(true)}
             />
             </>
           }
@@ -324,6 +330,14 @@ export function CreationView({
           <button className="forge-agent-reopen" onClick={() => setAgentPanelVisible(true)}>
             {t("ui.CreationView.text.e178fa71")}</button>
         )}
+      <ProjectVersionHistory
+        open={versionHistoryOpen}
+        onClose={() => setVersionHistoryOpen(false)}
+      />
+      <WorkflowLibrary
+        open={workflowLibraryOpen}
+        onClose={() => setWorkflowLibraryOpen(false)}
+      />
       {picker && (
         <div
           className="canvas-asset-popover-layer"

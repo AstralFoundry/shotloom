@@ -20,6 +20,7 @@ import {
 } from "../store/projectStore.ts";
 import { loadAppSettings, settingsStore } from "../store/settingsStore.ts";
 import { loadGlobalRecipes } from "../store/recipesStore.ts";
+import { loadWorkflowTemplates } from "../store/workflowTemplateStore.ts";
 import { loadGlobalSkills } from "../store/skillsStore.ts";
 import { resumeRemoteTasks } from "../store/taskStore.ts";
 import {
@@ -77,6 +78,7 @@ import { startHarnessIntegration } from "./agent-session/harnessIntegration";
 import { type AppRoute, useAppStore } from "./store/appStore";
 import { installMediaPreviewCacheMemoryPressureListener } from "../services/mediaPreviewCache";
 import { installAgentE2eHook } from "./agent-session/agentE2eHook";
+import { recordDiagnosticEvent } from "../services/diagnosticsService";
 
 /**
  * React 主工作台根；领域状态通过框架无关订阅同步到视图。
@@ -116,6 +118,11 @@ export function ReactWorkbench() {
     let disposeMediaCachePressure: undefined | (() => void);
     let cancelled = false;
     void (async () => {
+      recordDiagnosticEvent({
+        category: 'runtime',
+        name: 'app-start',
+        data: { platform: desktopApi.platform, desktop: desktopApi.platform !== "browser" },
+      });
       if (desktopApi.platform !== "browser") {
         void startHarnessIntegration().catch(error => showToast(String(error)));
       }
@@ -129,6 +136,7 @@ export function ReactWorkbench() {
       await Promise.all([
         loadGlobalSkills(),
         loadGlobalRecipes(),
+        loadWorkflowTemplates(),
         loadRecentProjects(),
         initializeResourceLibraries(),
       ]);
