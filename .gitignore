@@ -27,3 +27,6 @@ src-tauri/resources/agent-host/
 
 # Generated same-document official Harness client
 renderer/public/harness/
+
+# 本地调研与执行文档：只保留在工作区，不随代码入库
+docs/beef-tv-*.md
