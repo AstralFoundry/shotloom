@@ -9826,5 +9826,9 @@
   "workflows.duplicated": "Duplicated as \"{name}\"",
   "workflows.exported": "Exported {name}",
   "workflows.exportFailed": "Could not export the workflow",
-  "workflows.applyHint": "Apply from the canvas bottom bar (\"Workflow templates\"); it needs the current canvas and slot bindings."
+  "workflows.applyHint": "Apply from the canvas bottom bar (\"Workflow templates\"); it needs the current canvas and slot bindings.",
+  "workflows.flow": "Flow preview",
+  "workflows.role.input": "Input",
+  "workflows.role.generation": "Generate",
+  "workflows.role.output": "Output"
 }

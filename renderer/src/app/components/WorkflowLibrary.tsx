@@ -16,6 +16,8 @@ import {
   workflowTemplateStore,
 } from '@/store/workflowTemplateStore';
 import { buildWorkflowTemplate, workflowErrorMessage } from '@/services/workflowTemplateService';
+import { captureNodePreview, previewSourceForNode } from '@/services/workflowPreviewService';
+import { trimNodePreviews } from '@/domain/workflow/flow';
 import {
   instantiateWorkflowTemplate,
   type WorkflowInstanceRecord,
@@ -87,7 +89,26 @@ export function WorkflowLibrary({ open, onClose }: { open: boolean; onClose: () 
           ...(task.createdAt ? { createdAt: String(task.createdAt) } : {}),
         })),
       });
-      await saveWorkflowTemplate(template);
+      // 保存时补一张轻量缩略图，管理页才能把流程画出来；失败不影响保存。
+      const canvasNodes = ((store.project.nodes || []) as AnyRecord[]).filter((node) => selection.includes(String(node.id)));
+      const materials = ((store.project.materials || []) as AnyRecord[]);
+      const previews: Record<string, Awaited<ReturnType<typeof captureNodePreview>>> = {};
+      for (const canvasNode of canvasNodes) {
+        const definitionNode = template.definition.nodes.find((node) => node.id === canvasNode.id);
+        if (!definitionNode) continue;
+        const source = previewSourceForNode(canvasNode, materials);
+        const kind = definitionNode.mediaType === 'video' ? 'video'
+          : definitionNode.mediaType === 'audio' ? 'audio'
+            : definitionNode.mediaType === 'text' ? 'text' : 'image';
+        previews[canvasNode.id] = await captureNodePreview({ ...source, kind });
+      }
+      const defined = trimNodePreviews({
+        ...template.definition,
+        nodes: template.definition.nodes.map((node) => (
+          previews[node.id] ? { ...node, preview: previews[node.id] } : node
+        )),
+      });
+      await saveWorkflowTemplate({ ...template, definition: defined });
       setNaming(false);
       showToast(t('workflow.save.done', { name: template.name }), 'success');
     } catch (error) {

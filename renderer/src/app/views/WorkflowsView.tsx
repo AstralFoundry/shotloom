@@ -19,7 +19,39 @@ import { templateShareableCopy } from '@/services/workflowTemplateService';
 import { desktopApi } from '@/services/desktopApi';
 import { showErrorMessage, showToast } from '@/store/notificationStore';
 import { ProjectScopeHeader } from '../components/ProjectScopeHeader';
-import type { WorkflowTemplate } from '@/domain/workflow/types';
+import type { WorkflowNodePreview, WorkflowTemplate } from '@/domain/workflow/types';
+import { workflowFlowStages } from '@/domain/workflow/flow';
+
+function StageThumb({ preview }: { preview?: WorkflowNodePreview | undefined }) {
+  if (preview?.dataUrl) {
+    return <img className="workflow-flow-thumb" src={preview.dataUrl} alt="" />;
+  }
+  return <span className="workflow-flow-thumb workflow-flow-thumb--empty">{preview?.kind === 'video' ? '▶' : preview?.kind === 'audio' ? '♫' : preview?.kind === 'text' ? 'T' : '▧'}</span>;
+}
+
+function WorkflowFlowStrip({ template }: { template: WorkflowTemplate }) {
+  const stages = workflowFlowStages(template.definition);
+  if (!stages.length) return null;
+  const outputs = new Set(template.definition.outputNodeIds);
+  return (
+    <div className="workflow-flow" role="list" aria-label={t('workflows.flow')}>
+      {stages.map((stage, index) => (
+        <span className="workflow-flow-item" role="listitem" key={`${stage.role}:${stage.node.id}`}>
+          {index > 0 && <span className="workflow-flow-arrow" aria-hidden="true">→</span>}
+          <span className="workflow-flow-card">
+            <StageThumb preview={stage.node.preview} />
+            <span className="workflow-flow-label">{stage.node.preview?.label || stage.node.title}</span>
+            <span className="workflow-flow-role">
+              {stage.role === 'generation'
+                ? (outputs.has(stage.node.id) ? t('workflows.role.output') : t('workflows.role.generation'))
+                : t('workflows.role.input')}
+            </span>
+          </span>
+        </span>
+      ))}
+    </div>
+  );
+}
 
 export function WorkflowsView() {
   useSyncExternalStore(subscribeDomain, getDomainRevision);
@@ -116,10 +148,13 @@ export function WorkflowsView() {
                   </Button>,
                 ]}
               >
-                <List.Item.Meta
-                  title={<span>{template.name} <Tag>v{template.revision}</Tag></span>}
-                  description={t('workflows.meta', { steps, inputs })}
-                />
+                <div className="workflow-entry">
+                  <List.Item.Meta
+                    title={<span>{template.name} <Tag>v{template.revision}</Tag></span>}
+                    description={t('workflows.meta', { steps, inputs })}
+                  />
+                  <WorkflowFlowStrip template={template} />
+                </div>
               </List.Item>
             );
           }}

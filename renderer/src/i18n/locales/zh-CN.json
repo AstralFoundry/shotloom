@@ -9826,5 +9826,9 @@
   "workflows.duplicated": "已复制为「{name}」",
   "workflows.exported": "已导出 {name}",
   "workflows.exportFailed": "导出工作流失败",
-  "workflows.applyHint": "应用入口在画布底栏的「工作流模板」里：需要当前画布与槽位绑定。"
+  "workflows.applyHint": "应用入口在画布底栏的「工作流模板」里：需要当前画布与槽位绑定。",
+  "workflows.flow": "流程预览",
+  "workflows.role.input": "输入",
+  "workflows.role.generation": "生成",
+  "workflows.role.output": "输出"
 }

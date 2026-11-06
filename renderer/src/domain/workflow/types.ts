@@ -11,6 +11,17 @@
 export type WorkflowRole = 'input' | 'constant' | 'generation';
 export type WorkflowMediaType = 'image' | 'video' | 'audio' | 'text';
 
+/** 模板里的轻量缩略图：只用于展示流程，不参与运行。 */
+export interface WorkflowNodePreview {
+  kind: 'image' | 'video' | 'audio' | 'text';
+  /** 小尺寸 JPEG data URL；视频取首帧胶片带。可能缺省（解码失败/超限）。 */
+  dataUrl?: string | undefined;
+  width?: number | undefined;
+  height?: number | undefined;
+  /** 素材名或节点标题，展示在缩略图下方。 */
+  label?: string | undefined;
+}
+
 export interface WorkflowDefinitionNode {
   id: string;
   /** 槽位名称（通用名，如「图片输入」「生成步骤」），由编译方生成，用户可改。 */
@@ -21,6 +32,8 @@ export interface WorkflowDefinitionNode {
   resourceId?: string;
   /** 固定文本内容。 */
   text?: string;
+  /** 保存时截取的缩略图，跨项目仍可展示；实例化时忽略。 */
+  preview?: WorkflowNodePreview | undefined;
 }
 
 export interface WorkflowDefinitionEdge {

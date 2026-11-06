@@ -20,7 +20,7 @@ test('画布底栏提供工作流入口，CreationView 挂载模板库', () => {
 
 test('保存走真实编译与持久化，且没有选区时禁用', () => {
   assert.match(library, /buildWorkflowTemplate\(\{/);
-  assert.match(library, /saveWorkflowTemplate\(template\)/);
+  assert.match(library, /saveWorkflowTemplate\(\{ \.\.\.template, definition: defined \}\)/);
   assert.match(library, /selection/);
   assert.match(library, /disabled=\{!selection\.length\}/);
 });
