@@ -217,13 +217,16 @@ export function GenerationNodeComposer({
   const optimizerAbort = useRef<AbortController | null>(null);
 
   async function runOptimizer(mode: OptimizerMode) {
+    // 只有用户点「开始优化」才会走到这里：打开弹窗、切换方式都不发请求。
+    const promptText = optimizer.draft.trim() || String(node.prompt || "").trim();
+    if (!promptText) return;
     optimizerAbort.current?.abort();
     const controller = new AbortController();
     optimizerAbort.current = controller;
     setOptimizer((current) => ({ ...current, mode, busy: true, error: "" }));
     try {
       const result = await optimizePrompt({
-        prompt: String(node.prompt || ""),
+        prompt: promptText,
         mode,
         signal: controller.signal,
         targetModel: String(node.model || ""),
@@ -241,8 +244,17 @@ export function GenerationNodeComposer({
   }
 
   function openOptimizer() {
-    setOptimizer((current) => ({ ...current, open: true, error: "", result: null, draft: String(node.prompt || "") }));
-    void runOptimizer("expand");
+    // 打开只是准备：把当前提示词放进可编辑区，等用户主动点「开始优化」。
+    optimizerAbort.current?.abort();
+    optimizerAbort.current = null;
+    setOptimizer({
+      open: true,
+      mode: "expand",
+      busy: false,
+      draft: String(node.prompt || ""),
+      result: null,
+      error: "",
+    });
   }
 
   function closeOptimizer() {
@@ -619,30 +631,46 @@ export function GenerationNodeComposer({
           <button key="cancel" type="button" className="button ghost" onClick={closeOptimizer}>
             {t("canvas.optimizer.cancel")}
           </button>,
-          <button key="retry" type="button" className="button ghost" disabled={optimizer.busy} onClick={() => void runOptimizer(optimizer.mode)}>
-            {t("canvas.optimizer.retry")}
-          </button>,
-          <button key="adopt" type="button" className="button primary" disabled={optimizer.busy || !optimizer.draft.trim()} onClick={adoptOptimizerResult}>
-            {t("canvas.optimizer.adopt")}
-          </button>,
+          ...(optimizer.result
+            ? [
+                <button key="retry" type="button" className="button ghost" disabled={optimizer.busy} onClick={() => void runOptimizer(optimizer.mode)}>
+                  {t("canvas.optimizer.retry")}
+                </button>,
+                <button key="adopt" type="button" className="button primary" disabled={optimizer.busy || !optimizer.draft.trim()} onClick={adoptOptimizerResult}>
+                  {t("canvas.optimizer.adopt")}
+                </button>,
+              ]
+            : [
+                <button
+                  key="start"
+                  type="button"
+                  className="button primary"
+                  disabled={optimizer.busy || !optimizer.draft.trim()}
+                  onClick={() => void runOptimizer(optimizer.mode)}
+                >
+                  {t("canvas.optimizer.start")}
+                </button>,
+              ]),
         ]}
       >
         <Segmented
           value={optimizer.mode}
-          onChange={(value) => void runOptimizer(value as OptimizerMode)}
+          disabled={optimizer.busy}
+          onChange={(value) => setOptimizer((current) => ({ ...current, mode: value as OptimizerMode }))}
           options={OPTIMIZER_MODES.map((mode) => ({ value: mode, label: t(OPTIMIZER_MODE_LABELS[mode]) }))}
         />
+        <AntInput.TextArea
+          value={optimizer.draft}
+          onChange={(event) => setOptimizer((current) => ({ ...current, draft: event.target.value }))}
+          autoSize={{ minRows: 4, maxRows: 10 }}
+          aria-label={t("canvas.optimizer.title")}
+        />
+        {!optimizer.result && !optimizer.busy && <p className="optimizer-hint">{t("canvas.optimizer.requestHint")}</p>}
         {optimizer.busy && <p className="optimizer-hint">{t("canvas.optimizer.running")}</p>}
         {optimizer.error && <p className="optimizer-hint">{t("canvas.optimizer.failed")}</p>}
         {optimizer.result && (
           <>
             {!optimizer.result.structured && <p className="optimizer-hint">{t("canvas.optimizer.unstructured")}</p>}
-            <AntInput.TextArea
-              value={optimizer.draft}
-              onChange={(event) => setOptimizer((current) => ({ ...current, draft: event.target.value }))}
-              autoSize={{ minRows: 4, maxRows: 10 }}
-              aria-label={t("canvas.optimizer.title")}
-            />
             {optimizer.result.avoid.length > 0 && <p className="optimizer-hint">{t("canvas.optimizer.avoid")}：{optimizer.result.avoid.join("；")}</p>}
             {optimizer.result.notes.length > 0 && <p className="optimizer-hint">{t("canvas.optimizer.notes")}：{optimizer.result.notes.join("；")}</p>}
             {optimizer.result.assumptions.length > 0 && <p className="optimizer-hint">{t("canvas.optimizer.assumptions")}：{optimizer.result.assumptions.join("；")}</p>}

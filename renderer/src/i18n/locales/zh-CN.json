@@ -9757,5 +9757,7 @@
   "settings.repairNodeModels.action": "修复未配置的节点模型",
   "settings.repairNodeModels.hint": "把项目里没有凭据的生成节点切换到同类型的可用模型，并保留参考图输入方式；操作会记一步撤销。",
   "settings.repairNodeModels.done": "已修复 {count} 个节点的模型",
-  "settings.repairNodeModels.none": "没有需要修复的节点"
+  "settings.repairNodeModels.none": "没有需要修复的节点",
+  "canvas.optimizer.start": "开始优化",
+  "canvas.optimizer.requestHint": "这里只是准备：点「开始优化」才会发送请求，可能产生文本模型费用。"
 }

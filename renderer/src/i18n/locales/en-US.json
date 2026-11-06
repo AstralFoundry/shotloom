@@ -9757,5 +9757,7 @@
   "settings.repairNodeModels.action": "Repair node models",
   "settings.repairNodeModels.hint": "Switch generation nodes whose model has no credentials to an available model of the same type, keeping reference-image input. Undoable.",
   "settings.repairNodeModels.done": "Repaired {count} nodes",
-  "settings.repairNodeModels.none": "No nodes need repairing"
+  "settings.repairNodeModels.none": "No nodes need repairing",
+  "canvas.optimizer.start": "Start optimizing",
+  "canvas.optimizer.requestHint": "Nothing is sent yet — \"Start optimizing\" sends the request and may incur text-model cost."
 }

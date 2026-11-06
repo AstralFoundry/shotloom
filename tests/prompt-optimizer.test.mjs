@@ -118,3 +118,21 @@ test('编辑器入口：优化结果只有「采用」才回填，并记录一�
   assert.ok(keys.length >= 12, `优化器文案过少：${keys.length}`);
   for (const key of keys) assert.ok(key in en, `英文缺少 ${key}`);
 });
+
+test('打开或切换方式都不发请求，必须点「开始优化」才发送', async () => {
+  const { readSource } = await import('./helpers/sourceContract.mjs');
+  const composer = readSource('renderer/src/app/canvas/GenerationNodeComposer.tsx');
+
+  // 打开弹窗只准备草稿，不触发请求。
+  const openBody = composer.match(/function openOptimizer\(\)[\s\S]*?\n  \}/)?.[0] || '';
+  assert.ok(openBody, '找不到 openOptimizer');
+  assert.doesNotMatch(openBody, /runOptimizer\(/);
+
+  // 切换优化方式只改状态。
+  assert.match(composer, /onChange=\{\(value\) => setOptimizer\(\(current\) => \(\{ \.\.\.current, mode: value as OptimizerMode \}\)\)\}/);
+  assert.doesNotMatch(composer, /onChange=\{\(value\) => void runOptimizer/);
+
+  // 显式的开始按钮才发送请求。
+  assert.match(composer, /canvas\.optimizer\.start/);
+  assert.match(composer, /onClick=\{\(\) => void runOptimizer\(optimizer\.mode\)\}/);
+});
