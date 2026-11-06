@@ -9795,5 +9795,9 @@
   "canvas.optimizer.mode.style": "Style",
   "canvas.optimizer.mode.model": "Model fit",
   "canvas.optimizer.mode.reference": "Use references",
-  "imageRecipe.notice.modelFallback": "The source model cannot take reference images; using {value0} instead."
+  "imageRecipe.notice.modelFallback": "The source model cannot take reference images; using {value0} instead.",
+  "settings.repairNodeModels.action": "Repair node models",
+  "settings.repairNodeModels.hint": "Switch generation nodes whose model has no credentials to an available model of the same type, keeping reference-image input. Undoable.",
+  "settings.repairNodeModels.done": "Repaired {count} nodes",
+  "settings.repairNodeModels.none": "No nodes need repairing"
 }

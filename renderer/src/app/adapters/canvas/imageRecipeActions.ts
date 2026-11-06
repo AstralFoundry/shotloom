@@ -15,7 +15,7 @@ import { recordCanvasHistory } from '@/store/canvasHistoryStore';
 import { addNode, ensureGenerationConfig, setSelectedNodeIds } from '@/store/nodeStore';
 import { showToast } from '@/store/notificationStore';
 import { store, touchProject } from '@/store/projectStore';
-import { getAvailableModelIdsByType } from '@/store/settingsStore';
+import { getAvailableModelIdsByType, getModelCredentialStatus } from '@/store/settingsStore';
 import { runNode } from '@/store/taskStore';
 
 type AnyNode = Record<string, any>;
@@ -83,6 +83,15 @@ export function applyImageRecipe(nodeId: string, kind: ImageRecipeKind, params: 
   const existing = readImageRecipe(source.imageRecipe);
   const sourceModel = String(source.model || '');
   const sourceMode = referenceModeFor(sourceModel);
+  // 源模型能收参考图但没配凭据时，优先换到已配置且能收参考图的模型；
+  // 若一个可用模型都没有，仍沿用源模型建节点（用户可能稍后配置 Key），
+  // 由 runNode 的凭据校验给出可操作提示，而不是在这里拒绝派生。
+  const sourceUsable = Boolean(sourceMode) && Boolean(sourceModel)
+    && getModelCredentialStatus(sourceModel).available;
+  const alternativeModel = referenceCapableModel();
+  const derivedModel = sourceUsable
+    ? sourceModel
+    : (alternativeModel || (sourceMode ? sourceModel : ''));
 
   if (existing?.kind === kind) {
     if (!sourceMode) {
@@ -98,8 +107,7 @@ export function applyImageRecipe(nodeId: string, kind: ImageRecipeKind, params: 
     return true;
   }
 
-  // 新派生节点可以用另一个模型：源图不能收参考图时，换到已配置且支持参考图的模型。
-  const derivedModel = sourceMode ? sourceModel : referenceCapableModel();
+  // 新派生节点可以用另一个模型：源图不能收参考图、或没有凭据但有可用替代时换模型。
   const mode = derivedModel ? referenceModeFor(derivedModel) : null;
   if (!mode || !derivedModel) {
     showToast(t('imageRecipe.error.referenceModel'));

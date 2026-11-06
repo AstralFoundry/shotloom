@@ -82,3 +82,15 @@ test('就地重跑时源模型不支持参考图则拒绝，不静默改模型',
   assert.equal(applyImageRecipe('source-image', 'angle', ANGLE_PARAMS), false);
   assert.equal(store.project.nodes[0].model, 'qwen-image-3.0-pro');
 });
+
+test('源模型有参考图能力但没有凭据、同时存在可用替代时，派生节点换到可用模型', () => {
+  // 用户实际场景：源图是 OpenAI/其他未配置凭据的模型，但已经配好了 StarRouter。
+  store.project.nodes[0].model = 'gpt-image-2.6-sunburst';
+  settingsStore.providerConfigs = {
+    starrouter: { apiKey: 'k', baseUrl: 'https://api.starrouter.ai' },
+  };
+
+  assert.equal(applyImageRecipe('source-image', 'angle', ANGLE_PARAMS), true);
+  const derived = store.project.nodes[1];
+  assert.ok(String(derived.model).startsWith('starrouter-'), `实际：${derived.model}`);
+});

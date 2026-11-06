@@ -38,6 +38,7 @@ import {
   exportDiagnosticsBundle,
   previewDiagnostics,
 } from "../../services/diagnosticsService";
+import { repairUnconfiguredNodeModels } from "../../services/nodeModelRepairService";
 import {
   type SettingsController,
   type SettingsData,
@@ -202,6 +203,16 @@ export function SettingsFeature() {
     setPollInterval: (value) =>
       run(async () => {
         await saveAppSettings({ modelPollIntervalMs: Math.max(500, value) });
+      }),
+    repairNodeModels: () =>
+      run(async () => {
+        const result = repairUnconfiguredNodeModels();
+        refresh();
+        if (result.repaired.length) {
+          showToast(t('settings.repairNodeModels.done', { count: result.repaired.length }), 'success');
+        } else {
+          showToast(t('settings.repairNodeModels.none'));
+        }
       }),
     setProjectModel: (key, value) => {
       store.project.settings[key] = value;

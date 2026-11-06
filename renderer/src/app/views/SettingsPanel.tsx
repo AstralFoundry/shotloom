@@ -48,6 +48,7 @@ export interface SettingsController {
   clearDownloadDir: () => void | Promise<void>;
   setPollInterval: (value: number) => void | Promise<void>;
   setProjectModel: (key: string, value: string) => void;
+  repairNodeModels: () => void | Promise<void>;
   exportDiagnostics: () => void | Promise<void>;
   setAgentModel: (key: string, value: string) => void | Promise<void>;
   setAgentToggle: (key: string, value: boolean | string) => void | Promise<void>;
@@ -441,6 +442,18 @@ export function SettingsPanel(
                     />
                   </div>
                 ))}
+                <div className="settings-row">
+                  <div>
+                    <strong>{t('settings.repairNodeModels.action')}</strong>
+                    <span>{t('settings.repairNodeModels.hint')}</span>
+                  </div>
+                  <button
+                    className="button ghost compact"
+                    onClick={() => void controller.repairNodeModels()}
+                  >
+                    {t('settings.repairNodeModels.action')}
+                  </button>
+                </div>
               </section>
               <section className="settings-section">
                 <h4>{t('settings.diagnostics.title')}</h4>
