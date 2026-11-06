@@ -30,9 +30,8 @@ test('导入 = 复制节点与素材，不触发运行', () => {
   assert.doesNotMatch(clone, /runNode|cancelNode/);
 });
 
-test('管理页保留流程条与目录操作，并校验已打开项目', () => {
-  assert.match(view, /workflowDisplayOrder\(template\.nodes\)/);
-  assert.match(view, /preview\?\.dataUrl/);
+test('管理页使用画布式预览与目录操作，并校验已打开项目', () => {
+  assert.match(view, /<WorkflowMiniPreview/);
   assert.match(view, /hasOpenProject\(\)/);
   assert.match(view, /templateShareableCopy\(template\)/);
   assert.match(view, /modal\.confirm\(\{/);

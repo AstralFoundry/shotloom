@@ -643,3 +643,70 @@ tr:last-child td {
 .workflow-entry .ant-list-item-meta {
   width: 100%;
 }
+
+/* 工作流微型画布预览 */
+.workflow-mini {
+  position: relative;
+  margin-top: 8px;
+  overflow: hidden;
+  border: 1px solid var(--elevated-border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-muted);
+}
+
+.workflow-mini--clickable {
+  cursor: zoom-in;
+}
+
+.workflow-mini--clickable:hover {
+  border-color: var(--brand-accent-border);
+}
+
+.workflow-mini-edges {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.workflow-mini-edges path {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 1.5;
+}
+
+.workflow-mini-node {
+  position: absolute;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+  padding: 3px;
+  border: 1px solid var(--elevated-border);
+  border-radius: var(--radius-xs);
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: var(--text-caption-10);
+  line-height: var(--text-caption-10--line-height);
+}
+
+.workflow-mini-thumb {
+  width: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
+  object-fit: cover;
+  border-radius: var(--radius-xs);
+}
+
+.workflow-mini-glyph {
+  display: grid;
+  flex: 1 1 auto;
+  place-items: center;
+  font-size: var(--text-body-13);
+}
+
+.workflow-mini-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

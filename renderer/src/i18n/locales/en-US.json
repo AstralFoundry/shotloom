@@ -9837,5 +9837,6 @@
   "workflow.import.noProject": "Open a project before importing a workflow",
   "workflows.role.media": "Media",
   "workflows.role.text": "Text",
-  "workflows.legacyNotice": "{count} legacy workflow templates (slot/run model) are no longer compatible; re-save them from the canvas."
+  "workflows.legacyNotice": "{count} legacy workflow templates (slot/run model) are no longer compatible; re-save them from the canvas.",
+  "workflows.previewExpand": "Click to enlarge the flow preview"
 }

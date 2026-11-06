@@ -14,48 +14,14 @@ import {
   renameWorkflowTemplate,
   workflowTemplateStore,
 } from '@/store/workflowTemplateStore';
-import { templateShareableCopy, workflowDisplayOrder, workflowErrorMessage } from '@/services/workflowTemplateService';
+import { templateShareableCopy, workflowErrorMessage } from '@/services/workflowTemplateService';
 import { cloneWorkflowTemplate } from '@/services/workflowCloneService';
 import { desktopApi } from '@/services/desktopApi';
 import { hasOpenProject } from '@/store/projectStore';
 import { showErrorMessage, showToast } from '@/store/notificationStore';
 import { ProjectScopeHeader } from '../components/ProjectScopeHeader';
-import type { WorkflowNodePreview } from '@/domain/workflow/types';
-import type { WorkflowSnapshotNode, WorkflowTemplate } from '@/domain/workflow/snapshot';
-
-function StageThumb({ preview }: { preview?: WorkflowNodePreview | undefined }) {
-  if (preview?.dataUrl) return <img className="workflow-flow-thumb" src={preview.dataUrl} alt="" />;
-  const glyph = preview?.kind === 'video' ? '▶' : preview?.kind === 'audio' ? '♫' : preview?.kind === 'text' ? 'T' : '▧';
-  return <span className="workflow-flow-thumb workflow-flow-thumb--empty">{glyph}</span>;
-}
-
-function roleLabel(node: WorkflowSnapshotNode): string {
-  if (node.type === 'resource' || node.type === 'canvasSection') return t('workflows.role.media');
-  if (node.type === 'textGeneration') return t('workflows.role.text');
-  return t('workflows.role.generation');
-}
-
-function WorkflowFlowStrip({ template }: { template: WorkflowTemplate }) {
-  const nodes = workflowDisplayOrder(template.nodes).slice(0, 8);
-  if (!nodes.length) return null;
-  return (
-    <div className="workflow-flow" role="list" aria-label={t('workflows.flow')}>
-      {nodes.map((node, index) => (
-        <span className="workflow-flow-item" role="listitem" key={node.id}>
-          {index > 0 && <span className="workflow-flow-arrow" aria-hidden="true">→</span>}
-          <span className="workflow-flow-card">
-            <StageThumb preview={node.preview} />
-            <span className="workflow-flow-label">{node.preview?.label || node.title || node.id}</span>
-            <span className="workflow-flow-role">{roleLabel(node)}</span>
-          </span>
-        </span>
-      ))}
-      {template.nodes.length > nodes.length && (
-        <span className="workflow-flow-more">+{template.nodes.length - nodes.length}</span>
-      )}
-    </div>
-  );
-}
+import type { WorkflowTemplate } from '@/domain/workflow/snapshot';
+import { WorkflowMiniPreview } from '../components/WorkflowMiniPreview';
 
 export function WorkflowsView() {
   useSyncExternalStore(subscribeDomain, getDomainRevision);
@@ -63,6 +29,7 @@ export function WorkflowsView() {
   const [keyword, setKeyword] = useState('');
   const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [previewing, setPreviewing] = useState<WorkflowTemplate | null>(null);
 
   useEffect(() => {
     void loadWorkflowTemplates();
@@ -178,13 +145,34 @@ export function WorkflowsView() {
                   title={<span>{template.name} <Tag>v{template.revision}</Tag></span>}
                   description={t('workflows.meta', { steps: template.nodes.length, inputs: template.materials.length })}
                 />
-                <WorkflowFlowStrip template={template} />
+                <WorkflowMiniPreview
+                  nodes={template.nodes}
+                  edges={template.edges}
+                  onExpand={() => setPreviewing(template)}
+                />
               </div>
             </List.Item>
           )}
         />
         <p className="workflows-hint">{t('workflows.applyHint')}</p>
       </div>
+      <Modal
+        title={previewing ? `${previewing.name} · v${previewing.revision}` : ''}
+        open={Boolean(previewing)}
+        onCancel={() => setPreviewing(null)}
+        footer={null}
+        width={820}
+        destroyOnHidden
+      >
+        {previewing && (
+          <WorkflowMiniPreview
+            nodes={previewing.nodes}
+            edges={previewing.edges}
+            width={760}
+            height={420}
+          />
+        )}
+      </Modal>
       <Modal
         title={t('workflows.renameTitle')}
         open={Boolean(renaming)}
