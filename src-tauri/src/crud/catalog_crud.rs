@@ -32,5 +32,12 @@ macro_rules! catalog {
 }
 catalog!(skills, save_skills, skill, "skills", "skills");
 catalog!(recipes, save_recipes, recipe, "recipes", "recipes");
+/// 工作流模板是整份 JSON（结构 + 私有配方），沿用 catalog_metadata 的 scope 存储。
+pub async fn workflow_templates(db: &impl ConnectionTrait) -> Result<Option<Value>, DbErr> {
+    metadata(db, "workflow-templates").await
+}
+pub async fn save_workflow_templates(db: &impl ConnectionTrait, value: &Value) -> Result<(), DbErr> {
+    set_metadata(db, "workflow-templates", value.clone()).await
+}
 catalog!(assets, save_assets, asset, "assets", "assets");
 catalog!(materials, save_materials, material, "materials", "materials");

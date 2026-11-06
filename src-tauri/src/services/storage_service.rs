@@ -96,6 +96,7 @@ pub fn catalog(path: &Path, kind: &str, fallback: Value) -> Result<Value, String
         let value = match kind.as_str() {
             "skills" => catalog_crud::skills(&tx).await?,
             "recipes" => catalog_crud::recipes(&tx).await?,
+            "workflow-templates" => catalog_crud::workflow_templates(&tx).await?,
             "assets" => {
                 let assets = catalog_crud::assets(&tx).await?;
                 if let Some(mut value) = assets {
@@ -116,6 +117,7 @@ pub fn save_catalog(path: &Path, kind: &str, value: &Value) -> Result<(), String
         match kind.as_str() {
             "skills" => catalog_crud::save_skills(&tx, value).await?,
             "recipes" => catalog_crud::save_recipes(&tx, value).await?,
+            "workflow-templates" => catalog_crud::save_workflow_templates(&tx, &value).await?,
             "assets" => {
                 let mut assets = value.clone(); assets.as_object_mut().ok_or_else(|| DbErr::Custom(localized_error("native.storage.d5455edb54", json!({}), "素材目录必须是对象".into())))?.remove("materials");
                 let materials = serde_json::json!({ "materials": value.get("materials").cloned().unwrap_or(serde_json::json!([])) });
@@ -193,4 +195,32 @@ pub fn read_project_snapshot(path: &Path, id: &str) -> Result<Value, String> {
     if !path.is_file() { return Ok(Value::Null); }
     let id = id.to_owned();
     with_database!(path, db, { Ok(project_crud::project_snapshot_payload(&db, &id).await?) })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 前端用 `storage:get/set` 的 `workflow-templates` 命名空间存模板；
+    /// 之前没在白名单里，保存会报「未知目录」。
+    #[test]
+    fn workflow_templates_catalog_round_trips() {
+        let dir = std::env::temp_dir().join(format!(
+            "shotloom-storage-test-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join(APP_DATABASE);
+        let fallback = json!({"storageVersion": 1, "templates": []});
+
+        let initial = catalog(&path, "workflow-templates", fallback.clone()).unwrap();
+        assert_eq!(initial, fallback);
+
+        let value = json!({"storageVersion": 1, "templates": [{"id": "wf-1", "name": "跨项目模板"}]});
+        save_catalog(&path, "workflow-templates", &value).unwrap();
+        assert_eq!(catalog(&path, "workflow-templates", fallback).unwrap(), value);
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }
