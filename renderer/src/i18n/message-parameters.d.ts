@@ -1196,4 +1196,7 @@ export interface MessageParameters {
   "workflow.delete.confirm": Record<"name", string | number>;
   "imageRecipe.notice.modelFallback": Record<"value0", string | number>;
   "settings.repairNodeModels.done": Record<"count", string | number>;
+  "workflow.error.notRun": Record<"name", string | number>;
+  "workflow.error.unknownOutput": Record<"name", string | number>;
+  "workflow.error.unsupportedNode": Record<"name", string | number>;
 }

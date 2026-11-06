@@ -15,7 +15,7 @@ import {
   deleteWorkflowTemplate,
   workflowTemplateStore,
 } from '@/store/workflowTemplateStore';
-import { buildWorkflowTemplate } from '@/services/workflowTemplateService';
+import { buildWorkflowTemplate, workflowErrorMessage } from '@/services/workflowTemplateService';
 import {
   instantiateWorkflowTemplate,
   type WorkflowInstanceRecord,
@@ -90,7 +90,7 @@ export function WorkflowLibrary({ open, onClose }: { open: boolean; onClose: () 
       setNaming(false);
       showToast(t('workflow.save.done', { name: template.name }), 'success');
     } catch (error) {
-      showErrorMessage((error as Error)?.message || '', t('workflow.save.failed'));
+      showErrorMessage(workflowErrorMessage(error), t('workflow.save.failed'));
     } finally {
       setBusy(false);
     }
@@ -118,7 +118,7 @@ export function WorkflowLibrary({ open, onClose }: { open: boolean; onClose: () 
         showToast(t('workflow.apply.done'), 'success');
       }
     } catch (error) {
-      showErrorMessage(t('workflow.apply.failed', { reason: String((error as Error)?.message || '') }), t('workflow.apply.failedTitle'));
+      showErrorMessage(t('workflow.apply.failed', { reason: workflowErrorMessage(error) }), t('workflow.apply.failedTitle'));
     } finally {
       setBusy(false);
     }

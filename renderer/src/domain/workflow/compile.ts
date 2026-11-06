@@ -27,11 +27,14 @@ export type WorkflowCompileCode =
 
 export class WorkflowCompileError extends Error {
   public readonly code: WorkflowCompileCode;
+  /** 具体到节点/端口时带出可读上下文，界面用它告诉用户是哪一颗节点不满足。 */
+  public readonly detail: string;
 
-  constructor(code: WorkflowCompileCode, message: string) {
+  constructor(code: WorkflowCompileCode, message: string, detail = '') {
     super(message);
     this.name = 'WorkflowCompileError';
     this.code = code;
+    this.detail = detail;
   }
 }
 
@@ -46,6 +49,8 @@ export interface CanvasNodeLike {
   config?: Record<string, unknown>;
   outputSpec?: unknown;
   materialId?: string;
+  uploadedFile?: unknown;
+  artifactType?: string;
   resourceType?: string;
   mediaType?: string;
   mimeType?: string;
@@ -203,7 +208,22 @@ export function compileWorkflowTemplate(input: CompileWorkflowInput): CompiledWo
     }
     const generationMedia = GENERATION_TYPES[node.type];
     if (generationMedia) {
-      if (node.status !== 'completed') throw new WorkflowCompileError('not-run', 'workflow.notRun');
+      // 用户拖进来的参考图/视频通常也是生成节点，只是从未运行过：
+      // 它们不是「待执行的步骤」，而是可替换输入，否则整段选区都存不了。
+      const isUploadedReference = node.status !== 'completed' && Boolean(node.uploadedFile || node.materialId);
+      if (isUploadedReference) {
+        nodes.push({
+          id: node.id,
+          title: input.genericTitle({ role: 'input', mediaType: generationMedia, index: index++ }),
+          role: 'input',
+          mediaType: generationMedia,
+          ...(node.materialId ? { resourceId: String(node.materialId) } : {}),
+        });
+        continue;
+      }
+      if (node.status !== 'completed') {
+        throw new WorkflowCompileError('not-run', 'workflow.notRun', String(node.title || node.id));
+      }
       const role: WorkflowRole = 'generation';
       nodes.push({
         id: node.id,

@@ -69,12 +69,27 @@ test('编译：三个角色、输出推断、配方只保留生成步骤', () =>
   assert.equal(refNode.mediaType, 'image');
 });
 
+test('编译：上传的参考图节点即使没运行过，也作为可替换输入', () => {
+  const nodes = [
+    { id: 'ref', type: 'imageGeneration', title: '参考图', status: 'idle', uploadedFile: { name: 'a.png', path: '/tmp/a.png' }, materialId: 'm1' },
+    { id: 'shot', type: 'imageGeneration', title: '首帧', status: 'completed', prompt: '雨夜' },
+  ];
+  const compiled = compile.compileWorkflowTemplate({
+    nodes, edges: [{ source: 'ref', target: 'shot' }], selection: ['ref', 'shot'], genericTitle,
+  });
+  const ref = compiled.definition.nodes.find((node) => node.id === 'ref');
+  assert.equal(ref.role, 'input');
+  assert.equal(ref.mediaType, 'image');
+  assert.equal(ref.resourceId, 'm1');
+  assert.equal(compiled.definition.nodes.find((node) => node.id === 'shot').role, 'generation');
+});
+
 test('编译：未成功运行的生成节点不能封装', () => {
   const nodes = baseNodes();
   nodes[1].status = 'running';
   assert.throws(
     () => compile.compileWorkflowTemplate({ nodes, edges: baseEdges(), selection: ['shot', 'clip'], tasks: baseTasks(), genericTitle }),
-    (error) => error.code === 'not-run',
+    (error) => error.code === 'not-run' && error.detail === '首帧',
   );
 });
 

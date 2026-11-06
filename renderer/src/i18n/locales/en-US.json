@@ -9799,5 +9799,12 @@
   "settings.repairNodeModels.action": "Repair node models",
   "settings.repairNodeModels.hint": "Switch generation nodes whose model has no credentials to an available model of the same type, keeping reference-image input. Undoable.",
   "settings.repairNodeModels.done": "Repaired {count} nodes",
-  "settings.repairNodeModels.none": "No nodes need repairing"
+  "settings.repairNodeModels.none": "No nodes need repairing",
+  "workflow.error.emptySelection": "Select nodes on the canvas first.",
+  "workflow.error.notRun": "\"{name}\" has not completed successfully yet. Run it once, or unselect it.",
+  "workflow.error.noGenerationStep": "The selection has no generation step; a workflow needs at least one completed generation.",
+  "workflow.error.cycle": "The selection contains a dependency cycle. Break the loop before saving.",
+  "workflow.error.missingOutput": "Pick at least one output.",
+  "workflow.error.unknownOutput": "Output \"{name}\" is outside the selection or is an unbound input.",
+  "workflow.error.unsupportedNode": "This node cannot be wrapped yet: {name}"
 }

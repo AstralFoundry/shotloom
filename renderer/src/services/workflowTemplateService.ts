@@ -130,6 +130,27 @@ export function templateShareableCopy(template: WorkflowTemplate, now?: string) 
   return shareableWorkflowTemplate(template, now);
 }
 
+const ERROR_KEYS: Record<string, MessageKey> = {
+  'empty-selection': 'workflow.error.emptySelection',
+  'not-run': 'workflow.error.notRun',
+  'no-generation-step': 'workflow.error.noGenerationStep',
+  cycle: 'workflow.error.cycle',
+  'missing-output': 'workflow.error.missingOutput',
+  'unknown-output': 'workflow.error.unknownOutput',
+  'unsupported-node': 'workflow.error.unsupportedNode',
+};
+
+/** 把编译错误转成可操作的中文提示；未知错误保留原文，不吞掉。 */
+export function workflowErrorMessage(error: unknown): string {
+  const code = String((error as { code?: unknown })?.code || '');
+  const detail = String((error as { detail?: unknown })?.detail || '');
+  const key = ERROR_KEYS[code];
+  if (key) {
+    return detail ? t(key, { name: detail } as never) : t(key);
+  }
+  return detail || String((error as Error)?.message || '');
+}
+
 /** 从磁盘/导入读到的模板可能缺字段或结构损坏，读入时统一规范化。 */
 export function normalizeStoredTemplate(value: unknown): WorkflowTemplate | null {
   if (!value || typeof value !== 'object') return null;

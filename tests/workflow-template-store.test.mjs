@@ -111,6 +111,18 @@ test('读入时剔除损坏模板并报告数量', async () => {
   assert.equal(store.workflowTemplateStore.error, 'invalid-templates:1');
 });
 
+test('编译错误转成可操作的界面文案，并带出节点名', () => {
+  const notRun = service.workflowErrorMessage({ code: 'not-run', detail: '没跑过的镜头' });
+  assert.match(notRun, /没跑过的镜头/);
+  assert.match(notRun, /还没有成功运行过/);
+
+  const cycle = service.workflowErrorMessage({ code: 'cycle' });
+  assert.match(cycle, /循环依赖/);
+
+  const unknown = service.workflowErrorMessage(new Error('boom'));
+  assert.equal(unknown, 'boom');
+});
+
 test('未成功运行的步骤无法生成模板', () => {
   const input = fixture();
   input.nodes[1].status = 'running';
