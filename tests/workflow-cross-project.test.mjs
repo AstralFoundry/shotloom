@@ -10,6 +10,7 @@ let templateService;
 let instanceService;
 let instancePlanner;
 let store;
+let settingsStore;
 let normalization;
 
 before(async () => {
@@ -18,10 +19,12 @@ before(async () => {
   instanceService = await env.load('services/workflowInstanceService');
   instancePlanner = await env.load('domain/workflow/instance');
   ({ store } = await env.load('store/projectStore'));
+  ({ settingsStore } = await env.load('store/settingsStore'));
   normalization = await env.load('store/projectNormalization');
 });
 
 beforeEach(() => {
+  settingsStore.providerConfigs = {};
   // 项目 A：模板在这里创建，绑定素材 m1。
   store.project = {
     ...normalization.createProject(),
@@ -100,4 +103,25 @@ test('显式空绑定覆盖模板里保存的旧素材 id', () => {
     bindings: { ref: '' },
   });
   assert.ok(plan.issues.includes('missing-input:ref'));
+});
+
+test('跨项目应用：配方模型没有凭据时换成本项目可用模型', () => {
+  const template = buildTemplate();
+  // 模板里的模型是 gpt-image（OpenAI）；项目 B 只配置了 StarRouter。
+  settingsStore.providerConfigs = {
+    starrouter: { apiKey: 'k', baseUrl: 'https://api.starrouter.ai' },
+  };
+  store.project = {
+    ...normalization.createProject(),
+    id: 'project-b',
+    name: '项目 B',
+    materials: [{ id: 'm2', name: '新参考图', path: '/b/m2.png', resourceType: 'image' }],
+    nodes: [],
+    edges: [],
+    tasks: [],
+  };
+
+  const { instance } = instanceService.instantiateWorkflowTemplate(template, { bindings: { ref: 'm2' } });
+  const node = store.project.nodes.find((item) => item.id === instance.nodeIds.shot);
+  assert.ok(String(node.model).startsWith('starrouter-'), `实际：${node.model}`);
 });

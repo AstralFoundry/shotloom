@@ -35,6 +35,7 @@ export interface PlannedInstanceEdge {
   from: string;
   to: string;
   toPort?: string;
+  inputRole?: string;
 }
 
 export interface WorkflowInstancePlan {
@@ -148,6 +149,7 @@ export function planWorkflowInstance({
       from: edge.fromNodeId,
       to: edge.toNodeId,
       ...(edge.toPort ? { toPort: edge.toPort } : {}),
+      ...(edge.inputRole ? { inputRole: edge.inputRole } : {}),
     }));
 
   const { order, missing } = generationExecutionOrder(definition);

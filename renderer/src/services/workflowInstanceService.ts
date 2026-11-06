@@ -5,7 +5,9 @@
  */
 
 import { store, touchProject } from '@/store/projectStore';
-import { addNode } from '@/store/nodeStore';
+import { addNode, ensureGenerationConfig } from '@/store/nodeStore';
+import { getGenerationInputModes } from '@/domain/catalog/ModelCatalog';
+import { getAvailableModelIdsByType, getModelCredentialStatus } from '@/store/settingsStore';
 import { addCanvasEdge } from '@/store/canvasGraphStore';
 import { defaultCanvasNodeDimensions } from '@/domain/graph/CanvasNodeDimensions';
 import { uid } from '@/utils/format';
@@ -111,6 +113,21 @@ export function instantiateWorkflowTemplate(
     throw new Error(`workflow.notReady:${plan.issues.join(',')}`);
   }
 
+  // 配方里的模型同样属于旧项目：没配凭据时换成本项目可用的同类模型，
+  // 需要参考图的节点还必须换到能收参考图的模型。
+  const referenceTargets = new Set(
+    plan.edges.filter((edge) => edge.inputRole === 'referenceImage').map((edge) => edge.to),
+  );
+  const resolveModel = (sourceId: string, nodeType: string, recipeModel: string | undefined) => {
+    if (recipeModel && getModelCredentialStatus(recipeModel).available) return recipeModel;
+    const pool = getAvailableModelIdsByType(nodeType).filter((model) => {
+      const modes = getGenerationInputModes(model);
+      if (!modes.length) return false;
+      return !referenceTargets.has(sourceId) || modes.some((mode) => mode.maxImages > 0);
+    });
+    return pool[0] || recipeModel || '';
+  };
+
   const materials = new Map<string, AnyRecord>(
     ((store.project.materials || []) as AnyRecord[]).map((material) => [String(material.id), material]),
   );
@@ -126,7 +143,15 @@ export function instantiateWorkflowTemplate(
     node.title = planned.title;
     if (planned.role === 'generation') {
       if (planned.prompt !== undefined) node.prompt = planned.prompt;
-      if (planned.model) node.model = planned.model;
+      const model = resolveModel(planned.sourceId, planned.type, planned.model);
+      if (model) {
+        node.model = model;
+        const modes = getGenerationInputModes(model);
+        if (modes.length && !modes.some((mode) => mode.value === node.inputMode)) {
+          node.inputMode = modes[0]?.value || node.inputMode;
+        }
+        if (model !== planned.model) ensureGenerationConfig(node);
+      }
       if (planned.config) node.config = { ...(node.config || {}), ...planned.config };
       if (planned.outputSpec !== undefined) node.outputSpec = planned.outputSpec;
     }
@@ -154,9 +179,22 @@ export function instantiateWorkflowTemplate(
       edgeFailures.push(`${edge.from}->${edge.to}:missing-node`);
       continue;
     }
+    const typed = Boolean(edge.toPort || edge.inputRole);
     const result = addCanvasEdge(store.project as unknown as Parameters<typeof addCanvasEdge>[0], fromId, toId, {
-      kind: 'workflow',
-      ...(edge.toPort ? { edge: { targetHandle: edge.toPort } } : {}),
+      kind: typed ? 'typed-input' : 'workflow',
+      ...(typed
+        ? {
+            edge: {
+              ...(edge.toPort ? { targetHandle: edge.toPort } : {}),
+              data: {
+                ...(edge.inputRole ? { inputRole: edge.inputRole } : {}),
+                ...(edge.toPort ? { inputSlot: edge.toPort } : {}),
+                required: true,
+                creationSource: 'workflow-template',
+              },
+            },
+          }
+        : {}),
       touch: false,
     });
     if (!result.ok) edgeFailures.push(`${edge.from}->${edge.to}:${result.error || 'failed'}`);

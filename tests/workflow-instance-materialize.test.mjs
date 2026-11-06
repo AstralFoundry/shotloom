@@ -89,6 +89,25 @@ test('实例化：输入槽位绑定素材后创建资源节点并连线', () =>
   assert.equal(edge.kind, 'workflow');
 });
 
+test('实例化：重建 typed-input 连线时带上 inputSlot 与 inputRole', () => {
+  const template = templateService.buildWorkflowTemplate({
+    name: '带参考槽位',
+    nodes: [
+      { id: 'ref', type: 'resource', title: '参考', materialId: 'm1', resourceType: 'image' },
+      { id: 'shot', type: 'imageGeneration', title: '首帧', status: 'completed', prompt: '雨夜', model: 'gpt-image-2.6-sunburst' },
+    ],
+    edges: [{ source: 'ref', target: 'shot', data: { inputSlot: 'reference', inputRole: 'referenceImage' } }],
+    selection: ['ref', 'shot'],
+    tasks: [{ id: 't1', nodeId: 'shot', status: 'completed', completedAt: '2026-11-06T10:00:00Z' }],
+  });
+  const { instance } = instanceService.instantiateWorkflowTemplate(template, { bindings: { ref: 'm1' } });
+  const edge = store.project.edges.find((item) => item.source === instance.nodeIds.ref && item.target === instance.nodeIds.shot);
+  assert.equal(edge.kind, 'typed-input');
+  assert.equal(edge.data.inputSlot, 'reference');
+  assert.equal(edge.data.inputRole, 'referenceImage');
+  assert.equal(edge.data.required, true);
+});
+
 test('实例化：缺绑定在写画布前失败，节点数量不变', () => {
   const template = templateService.buildWorkflowTemplate({
     name: '缺绑定',

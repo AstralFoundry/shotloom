@@ -62,6 +62,13 @@ export interface CanvasEdgeLike {
   source: string;
   target: string;
   targetHandle?: string | null;
+  /** 画布的参考图槽位存在 edge.data 里，而不是 targetHandle（后者只是视觉端口）。 */
+  data?: {
+    inputSlot?: string;
+    inputRole?: string;
+    kind?: string;
+    skipTaskInput?: boolean;
+  };
 }
 
 export interface CanvasTaskLike {
@@ -259,11 +266,17 @@ export function compileWorkflowTemplate(input: CompileWorkflowInput): CompiledWo
   const edges: WorkflowDefinitionEdge[] = [];
   for (const edge of input.edges) {
     if (!nodeIds.has(edge.source) || !nodeIds.has(edge.target)) continue;
-    if (edges.some((item) => item.fromNodeId === edge.source && item.toNodeId === edge.target && item.toPort === (edge.targetHandle || undefined))) continue;
+    if (edge.data?.skipTaskInput === true) continue;
+    // 槽位优先取 edge.data.inputSlot；targetHandle 只在旧数据里才当作槽位兜底。
+    const legacyPort = edge.targetHandle && !edge.targetHandle.startsWith('port-') ? edge.targetHandle : '';
+    const toPort = edge.data?.inputSlot || legacyPort || undefined;
+    const inputRole = edge.data?.inputRole || undefined;
+    if (edges.some((item) => item.fromNodeId === edge.source && item.toNodeId === edge.target && item.toPort === toPort)) continue;
     edges.push({
       fromNodeId: edge.source,
       toNodeId: edge.target,
-      ...(edge.targetHandle ? { toPort: edge.targetHandle } : {}),
+      ...(toPort ? { toPort } : {}),
+      ...(inputRole ? { inputRole } : {}),
     });
   }
 

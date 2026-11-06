@@ -26,7 +26,10 @@ export interface WorkflowDefinitionNode {
 export interface WorkflowDefinitionEdge {
   fromNodeId: string;
   toNodeId: string;
+  /** 目标节点的输入槽位（如 reference / firstFrame），对应画布 edge.data.inputSlot。 */
   toPort?: string;
+  /** 输入用途（如 referenceImage），用于重建 typed-input 连线。 */
+  inputRole?: string;
 }
 
 export interface WorkflowDefinition {

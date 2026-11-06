@@ -131,6 +131,28 @@ test('编译：不在输出祖先链上的节点被丢弃并列出', () => {
   assert.equal(compiled.definition.nodes.some((node) => node.id === 'orphan'), false);
 });
 
+test('编译：参考图槽位与用途来自 edge.data，而不是视觉端口', () => {
+  const nodes = [
+    { id: 'ref', type: 'resource', title: '参考', materialId: 'm1', resourceType: 'image' },
+    { id: 'shot', type: 'imageGeneration', title: '首帧', status: 'completed', prompt: '雨夜' },
+  ];
+  const compiled = compile.compileWorkflowTemplate({
+    nodes,
+    edges: [{
+      source: 'ref',
+      target: 'shot',
+      targetHandle: 'port-left',
+      data: { inputSlot: 'reference', inputRole: 'referenceImage' },
+    }],
+    selection: ['ref', 'shot'],
+    genericTitle,
+  });
+  assert.equal(compiled.definition.edges[0].toPort, 'reference');
+  assert.equal(compiled.definition.edges[0].inputRole, 'referenceImage');
+  // 视觉端口（port-left）不能被当成输入槽位。
+  assert.notEqual(compiled.definition.edges[0].toPort, 'port-left');
+});
+
 test('编译：未运行的文本节点作为固定文本输入', () => {
   const nodes = baseNodes();
   nodes[0] = { id: 'script', type: 'textGeneration', title: '脚本', status: 'idle', content: '一个雨夜' };

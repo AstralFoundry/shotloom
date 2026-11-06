@@ -53,3 +53,11 @@ test('工作流管理文案中英文齐全且参数一致', () => {
     }
   }
 });
+
+test('路由解析：workflows 是应用级路由，不会被回退到项目库', async () => {
+  const { APPLICATION_ROUTES, resolveProjectRoute } = await import('../renderer/src/utils/projectNavigation.ts');
+  assert.equal(APPLICATION_ROUTES.has('workflows'), true);
+  assert.equal(resolveProjectRoute('workflows', {}), 'workflows');
+  // 工作区路由仍然要求已打开工程。
+  assert.equal(resolveProjectRoute('creation', {}), 'projects');
+});
