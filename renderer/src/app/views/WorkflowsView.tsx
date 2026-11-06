@@ -5,7 +5,7 @@
  */
 import { t } from '@/i18n';
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
-import { App, Button, Empty, Input, List, Modal, Tag } from 'antd';
+import { App, Button, Dropdown, Empty, Input, Modal } from 'antd';
 import { getDomainRevision, subscribeDomain } from '@/store/domainReactivity';
 import {
   deleteWorkflowTemplate,
@@ -116,45 +116,58 @@ export function WorkflowsView() {
             {t('workflows.legacyNotice', { count: Number(workflowTemplateStore.error.split(':')[1]) || 0 })}
           </p>
         )}
-        {!templates.length && <Empty description={t('workflows.empty')} />}
-        <List
-          dataSource={templates}
-          renderItem={(template) => (
-            <List.Item
-              key={template.id}
-              actions={[
-                <Button key="import" size="small" type="primary" loading={busy} onClick={() => void importTemplate(template)}>
-                  {t('workflow.apply.action')}
-                </Button>,
-                <Button key="rename" size="small" onClick={() => setRenaming({ id: template.id, name: template.name })}>
-                  {t('workflows.rename')}
-                </Button>,
-                <Button key="duplicate" size="small" onClick={() => void duplicate(template)}>
-                  {t('workflows.duplicate')}
-                </Button>,
-                <Button key="export" size="small" onClick={() => void exportTemplate(template)}>
-                  {t('workflows.export')}
-                </Button>,
-                <Button key="delete" size="small" danger onClick={() => confirmDelete(template)}>
-                  {t('workflows.delete')}
-                </Button>,
-              ]}
-            >
-              <div className="workflow-entry">
-                <List.Item.Meta
-                  title={<span>{template.name} <Tag>v{template.revision}</Tag></span>}
-                  description={t('workflows.meta', { steps: template.nodes.length, inputs: template.materials.length })}
-                />
+        {!templates.length ? (
+          <Empty description={t('workflows.empty')} />
+        ) : (
+          <div className="workflows-grid">
+            {templates.map((template) => (
+              <article className="workflow-card" key={template.id}>
+                <header className="workflow-card-head">
+                  <div className="workflow-card-title">
+                    <strong title={template.name}>{template.name}</strong>
+                    <span className="workflow-card-version">v{template.revision}</span>
+                  </div>
+                  <Dropdown
+                    trigger={['click']}
+                    menu={{
+                      items: [
+                        { key: 'rename', label: t('workflows.rename') },
+                        { key: 'duplicate', label: t('workflows.duplicate') },
+                        { key: 'export', label: t('workflows.export') },
+                        { type: 'divider' },
+                        { key: 'delete', label: t('workflows.delete'), danger: true },
+                      ],
+                      onClick: ({ key }) => {
+                        if (key === 'rename') setRenaming({ id: template.id, name: template.name });
+                        if (key === 'duplicate') void duplicate(template);
+                        if (key === 'export') void exportTemplate(template);
+                        if (key === 'delete') confirmDelete(template);
+                      },
+                    }}
+                  >
+                    <Button size="small" type="text" aria-label={t('workflows.more')}>⋯</Button>
+                  </Dropdown>
+                </header>
+                <p className="workflow-card-meta">
+                  {t('workflows.meta', { steps: template.nodes.length, inputs: template.materials.length })}
+                </p>
                 <WorkflowMiniPreview
                   nodes={template.nodes}
                   edges={template.edges}
+                  width={360}
+                  height={190}
                   onExpand={() => setPreviewing(template)}
                 />
-              </div>
-            </List.Item>
-          )}
-        />
-        <p className="workflows-hint">{t('workflows.applyHint')}</p>
+                <footer className="workflow-card-actions">
+                  <Button type="primary" size="small" loading={busy} onClick={() => void importTemplate(template)}>
+                    {t('workflow.apply.action')}
+                  </Button>
+                  <span className="workflow-card-hint">{t('workflows.cardHint')}</span>
+                </footer>
+              </article>
+            ))}
+          </div>
+        )}
       </div>
       <Modal
         title={previewing ? `${previewing.name} · v${previewing.revision}` : ''}

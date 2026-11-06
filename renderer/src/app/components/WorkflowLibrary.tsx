@@ -18,6 +18,7 @@ import {
 import { buildWorkflowTemplate, workflowErrorMessage } from '@/services/workflowTemplateService';
 import { captureNodePreview, previewSourceForNode } from '@/services/workflowPreviewService';
 import { cloneWorkflowTemplate } from '@/services/workflowCloneService';
+import { WorkflowMiniPreview } from './WorkflowMiniPreview';
 import type { WorkflowTemplate } from '@/domain/workflow/snapshot';
 
 type AnyRecord = Record<string, any>;
@@ -121,13 +122,16 @@ export function WorkflowLibrary({ open, onClose }: { open: boolean; onClose: () 
                 </Button>,
               ]}
             >
-              <List.Item.Meta
-                title={<span>{template.name} <Tag>v{template.revision}</Tag></span>}
-                description={t('workflow.meta', {
-                  steps: template.nodes.filter((node) => !['resource'].includes(String(node.type))).length,
-                  inputs: template.materials.length,
-                })}
-              />
+              <div className="workflow-entry">
+                <List.Item.Meta
+                  title={<span>{template.name} <Tag>v{template.revision}</Tag></span>}
+                  description={t('workflow.meta', {
+                    steps: template.nodes.filter((node) => !['resource'].includes(String(node.type))).length,
+                    inputs: template.materials.length,
+                  })}
+                />
+                <WorkflowMiniPreview nodes={template.nodes} edges={template.edges} width={280} height={140} />
+              </div>
             </List.Item>
           )}
         />

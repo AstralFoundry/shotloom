@@ -58,13 +58,16 @@ export function layoutWorkflowPreview(
   const spanX = Math.max(1, maxX - minX);
   const spanY = Math.max(1, maxY - minY);
   const scale = Math.min((width - padding * 2) / spanX, (height - padding * 2) / spanY, 1);
+  // 等比缩放后把整组内容在盒子里居中，避免上下留出大片空白。
+  const offsetX = padding + Math.max(0, (width - padding * 2 - spanX * scale) / 2);
+  const offsetY = padding + Math.max(0, (height - padding * 2 - spanY * scale) / 2);
 
   const placed = new Map<string, { x: number; y: number; w: number; h: number }>();
   const layoutNodes: MiniPreviewNode[] = sized.map((item) => {
     const w = Math.max(8, Math.round(item.width * scale));
     const h = Math.max(8, Math.round(item.height * scale));
-    const x = Math.round(padding + (item.x - minX) * scale);
-    const y = Math.round(padding + (item.y - minY) * scale);
+    const x = Math.round(offsetX + (item.x - minX) * scale);
+    const y = Math.round(offsetY + (item.y - minY) * scale);
     placed.set(String(item.node.id), { x, y, w, h });
     return {
       id: String(item.node.id),

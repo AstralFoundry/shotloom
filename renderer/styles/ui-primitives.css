@@ -710,3 +710,82 @@ tr:last-child td {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* 工作流卡片网格 */
+.workflows-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(392px, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+.workflow-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid var(--elevated-border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.workflow-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.workflow-card-title {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.workflow-card-title strong {
+  overflow: hidden;
+  font-size: var(--text-body-14);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workflow-card-version {
+  flex: 0 0 auto;
+  color: var(--faint);
+  font-size: var(--text-caption-10);
+}
+
+.workflow-card-meta {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-body-12);
+  line-height: var(--text-body-12--line-height);
+}
+
+.workflow-card .workflow-mini {
+  width: 100% !important;
+  height: 190px !important;
+  margin-top: 0;
+}
+
+.workflow-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.workflow-card-hint {
+  color: var(--faint);
+  font-size: var(--text-caption-10);
+}
+
+.workflow-card:hover {
+  border-color: var(--brand-accent-border);
+  box-shadow: var(--canvas-shadow-dropdown, none);
+}
+
+.workflow-card .workflow-mini {
+  border-radius: var(--radius-md);
+}

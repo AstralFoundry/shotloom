@@ -56,7 +56,9 @@ export function WorkflowMiniPreview({
           {node.preview?.dataUrl
             ? <img src={node.preview.dataUrl} alt="" className="workflow-mini-thumb" />
             : <NodeGlyph kind={node.kind} />}
-          {node.width >= 72 && <span className="workflow-mini-label">{node.preview?.label || node.title}</span>}
+          {node.width >= 104 && node.height >= 62 && (
+            <span className="workflow-mini-label">{node.preview?.label || node.title}</span>
+          )}
         </div>
       ))}
     </div>

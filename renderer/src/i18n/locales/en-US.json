@@ -9838,5 +9838,7 @@
   "workflows.role.media": "Media",
   "workflows.role.text": "Text",
   "workflows.legacyNotice": "{count} legacy workflow templates (slot/run model) are no longer compatible; re-save them from the canvas.",
-  "workflows.previewExpand": "Click to enlarge the flow preview"
+  "workflows.previewExpand": "Click to enlarge the flow preview",
+  "workflows.more": "More actions",
+  "workflows.cardHint": "Media is copied into the current project"
 }
