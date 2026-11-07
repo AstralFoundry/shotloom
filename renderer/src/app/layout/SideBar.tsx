@@ -2,6 +2,7 @@ import { t } from '@/i18n';
 import { IconSymbol } from "../components/IconSymbol";
 import { InteractiveLogo } from "../components/InteractiveLogo";
 import { type NavigationItem, applicationItems, projectWorkspaceItems } from "../constants/navigation";
+import { useDirectorWorkspaceStore } from "../store/directorWorkspaceStore";
 import { type AppRoute, useAppStore } from "../store/appStore";
 
 interface SideBarProps {
@@ -33,6 +34,8 @@ export function SideBar(
   const project = useAppStore((state) => state.currentProject);
   const collapsed = useAppStore((state) => state.sidebarCollapsed);
   const setRoute = useAppStore((state) => state.setRoute);
+  const directorWorkspaceOpen = useDirectorWorkspaceStore((state) => state.open);
+  const setDirectorWorkspaceOpen = useDirectorWorkspaceStore((state) => state.setOpen);
   const iconRail = collapsed && !previewOpen;
   const pinnedOpen = !collapsed;
 
@@ -58,6 +61,7 @@ export function SideBar(
     <div className="side-list">
         {projectWorkspaceItems.map((item) => navItem(item))}
         {route === "creation" && (
+          <>
           <button
             className="side-item"
             title={iconRail ? t("ui.ReactWorkbench.text.3d65ff77") : undefined}
@@ -66,6 +70,17 @@ export function SideBar(
             <IconSymbol name="scissors" />
             <span>{t("ui.ReactWorkbench.text.3d65ff77")}</span>
           </button>
+          <button
+            type="button"
+            className={`side-item${directorWorkspaceOpen ? " active" : ""}`}
+            aria-pressed={directorWorkspaceOpen}
+            title={iconRail ? t("ds.topbar.title") : t("ds.workbench.description")}
+            onClick={() => setDirectorWorkspaceOpen(true)}
+          >
+            <IconSymbol name="box" />
+            <span>{t("ds.topbar.title")}</span>
+          </button>
+          </>
         )}
     </div>
   );

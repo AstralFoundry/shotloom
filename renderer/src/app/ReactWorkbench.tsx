@@ -74,6 +74,7 @@ import { TasksView } from "./views/TasksView";
 import { showToast, showErrorMessage } from "../store/notificationStore";
 import { registerVideoEditorLauncher } from '../services/videoEditorSession';
 import { startHarnessIntegration } from "./agent-session/harnessIntegration";
+import { useDirectorWorkspaceStore } from "./store/directorWorkspaceStore";
 import { type AppRoute, useAppStore } from "./store/appStore";
 import { installMediaPreviewCacheMemoryPressureListener } from "../services/mediaPreviewCache";
 import { installAgentE2eHook } from "./agent-session/agentE2eHook";
@@ -93,6 +94,8 @@ export function ReactWorkbench() {
   >();
   const openingProjectPath = useAppStore(state => state.openingProjectPath);
   const appRoute = useAppStore((state) => state.route);
+  const directorWorkspaceOpen = useDirectorWorkspaceStore((state) => state.open);
+  const setDirectorWorkspaceOpen = useDirectorWorkspaceStore((state) => state.setOpen);
   const domainRevision = useSyncExternalStore(
     subscribeDomain,
     getDomainRevision,
@@ -370,6 +373,8 @@ export function ReactWorkbench() {
         key={`${store.project.id}:${store.filePath || ""}`}
         data={{
           ...canvas!,
+          fullDirectorWorkspace: directorWorkspaceOpen,
+          onLeaveFullDirectorWorkspace: () => setDirectorWorkspaceOpen(false),
           artifactNodes: [
             ...canvas!.nodes,
             ...store.project.nodes.filter(

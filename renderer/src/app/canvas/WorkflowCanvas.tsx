@@ -59,6 +59,7 @@ import {
   canvasNodePortBounds,
 } from "../../utils/canvasNodeChrome.ts";
 import { CanvasNodeToolbar } from "./CanvasNodeToolbar";
+import { GenerationHistoryDialog } from "./GenerationHistoryDialog";
 import { CanvasContextMenu } from "./CanvasContextMenu";
 import { CanvasSectionNode } from "./CanvasSectionNode";
 import { canvasSectionMembers } from "../../domain/graph/CanvasSections.ts";
@@ -147,6 +148,19 @@ export interface WorkflowNodeActions {
   notify: (message: string) => void;
   applyColoredPencil: (id: string) => void | Promise<void>;
   applyImageRecipe: (id: string, kind: "angle" | "lighting", params: unknown) => boolean;
+  applyMaskEdit: (id: string, input: {
+    prompt: string;
+    maskFilePath: string;
+    model?: string;
+    config?: Record<string, unknown>;
+  }) => boolean;
+  applyEmotionEdit: (id: string, input: {
+    maskFilePath: string;
+    presetId: string;
+    extraPrompt?: string;
+    faceRect: { x: number; y: number; width: number; height: number };
+  }) => boolean;
+  createReversePromptNode: (id: string) => boolean;
 }
 export type WorkflowNodeRenderer = ComponentType<{
   node: WorkflowNodeData;
@@ -166,6 +180,10 @@ export type WorkflowNodeRenderer = ComponentType<{
   onImageAngleClose?: () => void;
   imageLightingOpen?: boolean;
   onImageLightingClose?: () => void;
+  imageMaskOpen?: boolean;
+  onImageMaskClose?: () => void;
+  imageEmotionOpen?: boolean;
+  onImageEmotionClose?: () => void;
 }>;
 export interface WorkflowCanvasController {
   createSection?: (position?: { x: number; y: number }) => void;
@@ -195,6 +213,7 @@ const RendererContext = createContext<Record<string, WorkflowNodeRenderer>>({});
 const ActionContext = createContext<WorkflowNodeActions | null>(null);
 export const MentionContext = createContext<((nodeId: string) => void) | null>(null);
 export const CanvasOverlayRootContext = createContext<HTMLElement | null>(null);
+export const CanvasHistoryContext = createContext<((nodeId: string) => void) | null>(null);
 export const CanvasNodeLabelRootContext = createContext<HTMLElement | null>(null);
 export const CanvasPreviewZoomContext = createContext(1);
 const CanvasFocusNodesContext = createContext<((nodeIds: string[]) => void) | null>(null);
@@ -448,6 +467,9 @@ function CanvasNode({ data, selected, dragging }: NodeProps<FlowNode>) {
   const [imageWatermarkOpen, setImageWatermarkOpen] = useState(false);
   const [imageAngleOpen, setImageAngleOpen] = useState(false);
   const [imageLightingOpen, setImageLightingOpen] = useState(false);
+  const [imageMaskOpen, setImageMaskOpen] = useState(false);
+  const [imageEmotionOpen, setImageEmotionOpen] = useState(false);
+  const openGenerationHistory = useContext(CanvasHistoryContext);
   useEffect(() => {
     if (selected) return;
     setImageCropMode(null);
@@ -455,6 +477,8 @@ function CanvasNode({ data, selected, dragging }: NodeProps<FlowNode>) {
     setImageWatermarkOpen(false);
     setImageAngleOpen(false);
     setImageLightingOpen(false);
+    setImageMaskOpen(false);
+    setImageEmotionOpen(false);
   }, [selected]);
   const canvasOverlayRoot = useContext(CanvasOverlayRootContext);
   const focusCanvasNodes = useContext(CanvasFocusNodesContext);
@@ -473,7 +497,7 @@ function CanvasNode({ data, selected, dragging }: NodeProps<FlowNode>) {
   if (item.type === 'canvasSection') return <CanvasSectionNode node={item} selected={Boolean(selected)} zoom={semanticZoom} actions={actions} />;
   return (
     <>
-      <CanvasNodeToolbar
+      {!imageMaskOpen && !imageEmotionOpen && <CanvasNodeToolbar
         node={item}
         selected={selected}
         dragging={dragging}
@@ -487,6 +511,10 @@ function CanvasNode({ data, selected, dragging }: NodeProps<FlowNode>) {
           // 裁剪和标注都要占满整张媒体卡片，二者不能同时打开。
           setImageAnnotationOpen(false);
           setImageWatermarkOpen(false);
+          setImageAngleOpen(false);
+          setImageLightingOpen(false);
+          setImageMaskOpen(false);
+          setImageEmotionOpen(false);
           setImageCropMode(mode);
         }}
         imageAnnotationOpen={imageAnnotationOpen}
@@ -494,6 +522,10 @@ function CanvasNode({ data, selected, dragging }: NodeProps<FlowNode>) {
           focusCanvasNodes?.([item.id]);
           setImageCropMode(null);
           setImageWatermarkOpen(false);
+          setImageAngleOpen(false);
+          setImageLightingOpen(false);
+          setImageMaskOpen(false);
+          setImageEmotionOpen(false);
           setImageAnnotationOpen(true);
         }}
         imageWatermarkOpen={imageWatermarkOpen}
@@ -503,6 +535,8 @@ function CanvasNode({ data, selected, dragging }: NodeProps<FlowNode>) {
           setImageAnnotationOpen(false);
           setImageAngleOpen(false);
           setImageLightingOpen(false);
+          setImageMaskOpen(false);
+          setImageEmotionOpen(false);
           setImageWatermarkOpen(true);
         }}
         imageAngleOpen={imageAngleOpen}
@@ -512,6 +546,8 @@ function CanvasNode({ data, selected, dragging }: NodeProps<FlowNode>) {
           setImageAnnotationOpen(false);
           setImageWatermarkOpen(false);
           setImageLightingOpen(false);
+          setImageMaskOpen(false);
+          setImageEmotionOpen(false);
           setImageAngleOpen((current) => !current);
         }}
         imageLightingOpen={imageLightingOpen}
@@ -521,9 +557,34 @@ function CanvasNode({ data, selected, dragging }: NodeProps<FlowNode>) {
           setImageAnnotationOpen(false);
           setImageWatermarkOpen(false);
           setImageAngleOpen(false);
+          setImageMaskOpen(false);
+          setImageEmotionOpen(false);
           setImageLightingOpen((current) => !current);
         }}
-      />
+        imageMaskOpen={imageMaskOpen}
+        onImageMaskOpen={() => {
+          focusCanvasNodes?.([item.id]);
+          setImageCropMode(null);
+          setImageAnnotationOpen(false);
+          setImageWatermarkOpen(false);
+          setImageAngleOpen(false);
+          setImageLightingOpen(false);
+          setImageEmotionOpen(false);
+          setImageMaskOpen((current) => !current);
+        }}
+        onOpenGenerationHistory={openGenerationHistory ?? undefined}
+        imageEmotionOpen={imageEmotionOpen}
+        onImageEmotionOpen={() => {
+          focusCanvasNodes?.([item.id]);
+          setImageCropMode(null);
+          setImageAnnotationOpen(false);
+          setImageWatermarkOpen(false);
+          setImageAngleOpen(false);
+          setImageLightingOpen(false);
+          setImageMaskOpen(false);
+          setImageEmotionOpen((current) => !current);
+        }}
+      />}
       {selected && resizable && (
         <NodeResizer
           color="#171717"
@@ -589,6 +650,10 @@ function CanvasNode({ data, selected, dragging }: NodeProps<FlowNode>) {
           onImageAngleClose={() => setImageAngleOpen(false)}
           imageLightingOpen={imageLightingOpen}
           onImageLightingClose={() => setImageLightingOpen(false)}
+          imageMaskOpen={imageMaskOpen}
+          onImageMaskClose={() => setImageMaskOpen(false)}
+          imageEmotionOpen={imageEmotionOpen}
+          onImageEmotionClose={() => setImageEmotionOpen(false)}
         />
       </CanvasNodeSemanticContent>
       </CanvasNodeLabelRootContext.Provider>
@@ -699,6 +764,7 @@ export function WorkflowCanvas({
     catch (cause) { nodeActions.notify(cause instanceof Error ? cause.message : String(cause)); }
   };
   const [minimapVisible, setMinimapVisible] = useState(false);
+  const [historyNodeId, setHistoryNodeId] = useState<string | null>(null);
   const [liveViewport, setLiveViewport] = useState({ ...viewport, zoom: initialZoom });
   const draggingNodeIds = useRef(new Set<string>());
   const sectionDrag = useRef<{ origin: { x: number; y: number }; members: Map<string, { x: number; y: number }> } | null>(null);
@@ -1112,6 +1178,7 @@ export function WorkflowCanvas({
         <CanvasPreviewZoomContext.Provider value={previewZoom}>
         <CanvasOverlayRootContext.Provider value={canvasOverlayRoot}>
         <CanvasFocusNodesContext.Provider value={focusCanvasNodes}>
+        <CanvasHistoryContext.Provider value={setHistoryNodeId}>
         <section
           ref={bindCanvasRoot}
           onDragOver={onArtifactDragOver}
@@ -1361,6 +1428,12 @@ export function WorkflowCanvas({
           </div>
           {overlay}
         </section>
+        <GenerationHistoryDialog
+          open={Boolean(historyNodeId)}
+          nodeId={historyNodeId || ''}
+          onClose={() => setHistoryNodeId(null)}
+        />
+        </CanvasHistoryContext.Provider>
         </CanvasFocusNodesContext.Provider>
         </CanvasOverlayRootContext.Provider>
         </CanvasPreviewZoomContext.Provider>

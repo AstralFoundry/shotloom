@@ -99,6 +99,10 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({
   onImageAngleClose,
   imageLightingOpen = false,
   onImageLightingClose,
+  imageMaskOpen = false,
+  onImageMaskClose,
+  imageEmotionOpen = false,
+  onImageEmotionClose,
   semanticZoom = 1,
 }) => {
   const promptRef = useRef<HTMLDivElement>(null);
@@ -215,11 +219,15 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({
         onImageAngleClose={onImageAngleClose}
         imageLightingOpen={imageLightingOpen}
         onImageLightingClose={onImageLightingClose}
+        imageMaskOpen={imageMaskOpen}
+        onImageMaskClose={onImageMaskClose}
+        imageEmotionOpen={imageEmotionOpen}
+        onImageEmotionClose={onImageEmotionClose}
         semanticZoom={semanticZoom}
         onStarter={startFromStarter}
       />
       {/* 纯上传资源节点的内容就是那个文件本身，没有可再生成的提示词语义，不显示下方输入面板。 */}
-      {selected && !imageCropMode && !state.uploadedResource && (
+      {selected && !imageCropMode && !imageMaskOpen && !imageEmotionOpen && !state.uploadedResource && (
         <ScreenSpaceComposer nodeId={node.id}>
           <GenerationNodeComposer
             node={node}

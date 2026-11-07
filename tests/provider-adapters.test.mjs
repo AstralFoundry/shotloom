@@ -118,10 +118,10 @@ test('厂商模型清单逐条来自目录声明，输入模态不靠模型名�
       ['imageGeneration', 'gemini-nano-banana-2.1', ['image']],
       ['imageGeneration', 'gemini-3.1-flash-lite-image', ['image']],
       ['imageGeneration', 'gemini-3-pro-image', ['image']],
-      ['textGeneration', 'gemini-3.8-flash', []],
+      ['textGeneration', 'gemini-3.8-flash', ['image']],
       ['textGeneration', 'gemini-3.1-pro-preview', []],
     ],
-    '只有目录声明了媒体输入的模型才能有多模态徽标，纯文本模型不得虚报',
+    '只有目录声明了媒体输入的模型才能有多模态徽标；Gemini Flash 文本模式现在声明了图片输入',
   );
 
   const anthropic = getProviderModelRows('anthropic');

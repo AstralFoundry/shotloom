@@ -16,6 +16,8 @@ import {
 import type { Viewport } from "@xyflow/react";
 import { App, Segmented, Select } from "antd";
 import { CanvasStartup } from "../canvas/CanvasStartup";
+import { DirectorWorkspace } from "./DirectorWorkspace";
+import { directorDeskWorkspaceSrc } from "../adapters/directorDeskBridge";
 import { BottomModeBar } from "../canvas/BottomModeBar";
 import { ProjectVersionHistory } from "../components/ProjectVersionHistory";
 import {
@@ -63,6 +65,9 @@ export interface CreationViewController {
   editor?: VideoEditorController;
 }
 export interface CreationViewData {
+  /** 顶层「导演台」入口：整页交给导演台，关闭后回到同一个画布。 */
+  fullDirectorWorkspace?: boolean;
+  onLeaveFullDirectorWorkspace?: () => void;
   nodes: WorkflowNodeData[];
   artifactNodes: WorkflowNodeData[];
   edges: WorkflowEdge[];
@@ -80,6 +85,15 @@ export function CreationView({
   controller: CreationViewController;
 }) {
   const { modal } = App.useApp();
+  if (data.fullDirectorWorkspace) {
+    const closeWorkspace = () => data.onLeaveFullDirectorWorkspace?.();
+    return (
+      <div className="director-workspace-host" data-canvas-no-zoom>
+        <button type="button" className="director-workspace-back" onClick={closeWorkspace}>{t("ds.topbar.back")}</button>
+        <DirectorWorkspace src={directorDeskWorkspaceSrc} />
+      </div>
+    );
+  }
   const [canvasReady, setCanvasReady] = useState(false);
   const [agentStatus, setAgentStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const markCanvasReady = useCallback(() => setCanvasReady(true), []);

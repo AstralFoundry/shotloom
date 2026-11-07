@@ -48,6 +48,10 @@ export const NODE_TOOLBAR_TOOLS: Record<NodeToolbarScope, NodeToolDefinition[]> 
     { id: "watermark", label: t("ui.canvasMediaActions.suffix.d52f4ea8"), icon: "stamp", interaction: "opens_panel" },
     { id: "angle", label: t("imageRecipe.tool.angle.label"), icon: "camera", interaction: "opens_panel" },
     { id: "lighting", label: t("imageRecipe.tool.lighting.label"), icon: "sun", interaction: "opens_panel" },
+    { id: "mask-edit", label: t("imageMask.tool.label"), icon: "brush", interaction: "opens_mode" },
+    { id: "emotion", label: t("imageEmotion.tool.label"), icon: "smile", interaction: "opens_mode" },
+    { id: "reverse-prompt", label: t("imageReverse.tool.label"), icon: "scan-text", interaction: "instant" },
+    { id: "history", label: t("imageHistory.tool.label"), icon: "clock", interaction: "opens_dialog" },
   ],
   video: [
     { id: "clip", label: t("ui.videoEditorActions.text.801f1d23"), icon: "scissors", interaction: "side_effect" },
@@ -57,7 +61,7 @@ export const NODE_TOOLBAR_TOOLS: Record<NodeToolbarScope, NodeToolDefinition[]> 
 };
 
 export const NODE_TOOLBAR_DEFAULT_PINNED: Record<NodeToolbarScope, string[]> = {
-  image: ["crop", "annotate", "split-grid", "watermark", "angle", "lighting"],
+  image: ["crop", "annotate", "split-grid", "watermark", "angle", "lighting", "mask-edit", "emotion", "reverse-prompt", "history"],
   video: ["clip", "extract-frame", "extract-audio"],
 };
 

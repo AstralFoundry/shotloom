@@ -226,6 +226,11 @@ export function CanvasNodeToolbar({
   onImageAngleOpen,
   imageLightingOpen,
   onImageLightingOpen,
+  imageMaskOpen,
+  onImageMaskOpen,
+  imageEmotionOpen,
+  onImageEmotionOpen,
+  onOpenGenerationHistory,
 }: {
   node: WorkflowNodeData;
   selected: boolean;
@@ -244,6 +249,11 @@ export function CanvasNodeToolbar({
   onImageAngleOpen: () => void;
   imageLightingOpen: boolean;
   onImageLightingOpen: () => void;
+  imageMaskOpen: boolean;
+  onImageMaskOpen: () => void;
+  imageEmotionOpen: boolean;
+  onImageEmotionOpen: () => void;
+  onOpenGenerationHistory?: ((nodeId: string) => void) | undefined;
 }) {
   const [openMenu, setOpenMenu] = useState<OpenMenu>(null);
   const [assetCategory, setAssetCategory] = useState('other');
@@ -490,6 +500,28 @@ export function CanvasNodeToolbar({
           title: t("imageRecipe.tool.lighting.title"),
           pressed: imageLightingOpen,
           onClick: onImageLightingOpen,
+        };
+      case "mask-edit":
+        return {
+          title: t("imageMask.tool.title"),
+          pressed: imageMaskOpen,
+          onClick: onImageMaskOpen,
+        };
+      case "emotion":
+        return {
+          title: t("imageEmotion.tool.title"),
+          pressed: imageEmotionOpen,
+          onClick: onImageEmotionOpen,
+        };
+      case "reverse-prompt":
+        return {
+          title: t("imageReverse.tool.title"),
+          onClick: () => actions.createReversePromptNode(node.id),
+        };
+      case "history":
+        return {
+          title: t("imageHistory.tool.title"),
+          onClick: () => onOpenGenerationHistory?.(node.id),
         };
       case "clip":
         return { title: t("ui.videoEditorActions.text.7a0935e7"), onClick: () => void actions.createClipNode(node.id) };

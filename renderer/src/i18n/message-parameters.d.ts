@@ -1191,4 +1191,22 @@ export interface MessageParameters {
   "settings.diagnostics.done": Record<"name", string | number>;
   "imageRecipe.notice.modelFallback": Record<"value0", string | number>;
   "settings.repairNodeModels.done": Record<"count", string | number>;
+  "imageMask.derivedTitle": Record<"name", string | number>;
+  "imageEmotion.derivedTitle": Record<"name", string | number>;
+  "imageEmotion.livePreview": Record<"label", string | number>;
+  "imageHistory.nodeTitle": Record<"name", string | number>;
+  "director.workbench.cameraCount": Record<"count", string | number>;
+  "director.group.selected": Record<"count", string | number>;
+  "director.group.members": Record<"count", string | number>;
+  "director.ai.success": Record<"count", string | number>;
+  "director.composer.success": Record<"count", string | number>;
+  "ds.add.crowd": Record<"rows" | "columns", string | number>;
+  "ds.add.crowdCount": Record<"count", string | number>;
+  "ds.inspector.multi": Record<"count", string | number>;
+  "ds.inspector.recordKeyframe": Record<"time", string | number>;
+  "ds.inspector.keyframeCount": Record<"transform" | "bones", string | number>;
+  "ds.coach.step": Record<"step" | "total", string | number>;
+  "ds.notice.captureFailed": Record<"error", string | number>;
+  "ds.notice.applyFailed": Record<"error", string | number>;
+  "ds.notice.uploadFailed": Record<"error", string | number>;
 }

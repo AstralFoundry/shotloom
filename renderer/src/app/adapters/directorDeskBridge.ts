@@ -43,6 +43,11 @@ export function directorDeskFrameSrc(instanceId: string, theme: DirectorDeskThem
   return `./director-desk.html?instanceId=${encodeURIComponent(instanceId)}&theme=${theme}`;
 }
 
+/** 整页工作区入口（侧栏「3D导演台」）：和画布节点共用同一个导演台文档。 */
+export function directorDeskWorkspaceSrc(instanceId = ''): string {
+  return `./director-desk.html?theme=light&workspace=${encodeURIComponent(instanceId)}`;
+}
+
 function post(frame: HTMLIFrameElement | null, message: { type: string; payload?: unknown }) {
   frame?.contentWindow?.postMessage(message, window.location.origin);
 }
@@ -72,6 +77,11 @@ export function sendDirectorDeskPanorama(
       fileName: panorama.name,
     },
   });
+}
+
+/** 宿主已把项目写回节点/草稿，回执给导演台，让它把「同步中」恢复成「已保存」。 */
+export function sendDirectorDeskProjectSaved(frame: HTMLIFrameElement | null) {
+  post(frame, { type: "storyai:director-desk-project-saved" });
 }
 
 // 详情窗口会随开合挂载和卸载，所以按取值器读取当前 frame，注册期间换窗口也不会漏消息。

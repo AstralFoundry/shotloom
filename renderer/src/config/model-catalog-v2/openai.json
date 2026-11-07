@@ -283,7 +283,8 @@
               "max": 16,
               "roles": [
                 "referenceImage"
-              ]
+              ],
+              "maskRequired": true
             }
           },
           "outputConstraints": {
@@ -811,7 +812,8 @@
               "max": 16,
               "roles": [
                 "referenceImage"
-              ]
+              ],
+              "maskRequired": true
             }
           },
           "outputConstraints": {
@@ -1529,7 +1531,8 @@
               "max": 16,
               "roles": [
                 "referenceImage"
-              ]
+              ],
+              "maskRequired": true
             }
           },
           "outputConstraints": {
@@ -1893,7 +1896,8 @@
               "max": 16,
               "roles": [
                 "referenceImage"
-              ]
+              ],
+              "maskRequired": true
             }
           },
           "outputConstraints": {

@@ -172,6 +172,23 @@ export class DeclarativeAdapter implements ProviderAdapter {
       if (slot === 'lastFrame') return fields.lastFrameImageContentRole || fields.imageContentRole;
       return fields.referenceImageContentRole || fields.imageContentRole;
     };
+    // 文本任务带图片时，把图片作为 chat content part 发出去（OpenAI 兼容格式）。
+    // 没有声明 imageContentFormat 的文本模型保持纯文本请求，避免静默丢图。
+    if (request.taskType === 'textGeneration' && imageEntries.length && imageContentFormat === 'openai-image-url') {
+      request.protocolVariables = {
+        ...(request.protocolVariables || {}),
+        messages: [
+          { role: 'system', content: '你是文本生成助手。' },
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: String(request.protocolVariables?.prompt || '') },
+              ...imageEntries.map(({ value }) => ({ type: 'image_url', image_url: { url: value } })),
+            ],
+          },
+        ],
+      };
+    }
     const content = renderProtocolContentTemplate(request.contract?.contentTemplate, {
       text: request.protocolVariables?.prompt,
       images: imageEntries.map(({ ref, value }) => {

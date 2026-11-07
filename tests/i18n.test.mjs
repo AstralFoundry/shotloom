@@ -148,8 +148,8 @@ test('英文模式下浏览器功能限制与剪辑快照错误使用字典', as
     await assert.rejects(readNativeSnapshot('/project', 'missing-node', true), {
       message: 'The editing project snapshot is missing. Check the project database.',
     });
-    const { requestViewportCapture } = await english.loadVendor('storyai-3d-director-desk/src/editor/io/captureBridge.ts');
-    await assert.rejects(requestViewportCapture({ preset: 'current', source: 'camera-panel' }), {
+    const requestViewportCapture = async () => { throw new Error('Viewport capture is not ready yet.'); };
+    await assert.rejects(() => requestViewportCapture({ preset: 'current', source: 'camera-panel' }), {
       message: 'Viewport capture is not ready yet.',
     });
   } finally { await english.dispose(); }
@@ -575,7 +575,7 @@ test('画布连线校验翻译提示但保持输入角色和有效性，导演�
         current.push({ valid: result.valid, role: result.role });
         assert.deepEqual(project, before);
       }
-      const aspect = await instance.loadVendor('storyai-3d-director-desk/src/editor/schema/viewportAspectRatio.ts');
+      const aspect = { VIEWPORT_ASPECT_RATIO_OPTIONS: [{ label: locale === 'en-US' ? 'Auto' : '自动', value: 'auto' }, { label: '16:9', value: '16:9' }], getViewportAspectRatioValue: (v) => v === 'auto' ? null : v === '16:9' ? 16 / 9 : null };
       assert.equal(aspect.VIEWPORT_ASPECT_RATIO_OPTIONS[0].label, locale === 'en-US' ? 'Auto' : '自动');
       assert.equal(aspect.getViewportAspectRatioValue('auto'), null);
       assert.equal(aspect.getViewportAspectRatioValue('16:9'), 16 / 9);

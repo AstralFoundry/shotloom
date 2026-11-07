@@ -53,7 +53,7 @@ test('纯上传资源节点不显示下方输入面板', () => {
   assert.match(source, /const uploadedResourceSourceTypes = new Set\(\["canvas-upload", "node-upload", "material-library"\]\)/);
   // 生成结果优先：节点有模型产物时面板照常出现，隐藏只看当前选中的那一份输出。
   assert.match(source, /const uploadedResource = !selectedOutput && Boolean\(uploaded\)/);
-  assert.match(source, /\{selected && !imageCropMode && !state\.uploadedResource && \(\s*\n\s*<ScreenSpaceComposer nodeId=\{node\.id\}>\s*\n\s*<GenerationNodeComposer/);
+  assert.match(source, /\{selected && !imageCropMode && !imageMaskOpen && !imageEmotionOpen && !state\.uploadedResource && \(\s*\n\s*<ScreenSpaceComposer nodeId=\{node\.id\}>\s*\n\s*<GenerationNodeComposer/);
   // 生成型 starter 把提示词写进这个面板，面板不在时不能留下无效入口。
   assert.match(source, /\{!uploadedResource && TEXT_NODE_STARTERS\.map/);
 });

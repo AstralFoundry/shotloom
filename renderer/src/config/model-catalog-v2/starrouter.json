@@ -293,7 +293,8 @@
                 "png",
                 "jpeg",
                 "webp"
-              ]
+              ],
+              "maskRequired": true
             }
           },
           "outputConstraints": {
@@ -831,7 +832,8 @@
                 "png",
                 "jpeg",
                 "webp"
-              ]
+              ],
+              "maskRequired": true
             }
           },
           "outputConstraints": {
@@ -1378,7 +1380,8 @@
                 "png",
                 "jpeg",
                 "webp"
-              ]
+              ],
+              "maskRequired": true
             }
           },
           "outputConstraints": {
@@ -2114,7 +2117,8 @@
                 "png",
                 "jpeg",
                 "webp"
-              ]
+              ],
+              "maskRequired": true
             }
           },
           "outputConstraints": {

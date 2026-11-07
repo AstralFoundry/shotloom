@@ -131,7 +131,7 @@ test('节点工具条注册了机位与打光，并且两枚按钮都有真实 w
   assert.match(canvas, /setImageAngleOpen\(\(current\) => !current\)/);
   assert.match(canvas, /setImageLightingOpen\(\(current\) => !current\)/);
   // 面板与裁剪、标注、水印互斥，否则两个浮层会同时压在节点上。
-  assert.match(canvas, /setImageWatermarkOpen\(false\);\s*setImageLightingOpen\(false\);\s*setImageAngleOpen/);
+  assert.match(canvas, /setImageWatermarkOpen\(false\);\s*setImageLightingOpen\(false\);\s*setImageMaskOpen\(false\);\s*setImageEmotionOpen\(false\);\s*setImageAngleOpen/);
 
   assert.match(adapter, /import \{ applyImageRecipe \} from "\.\/canvas\/imageRecipeActions"/);
   assert.match(adapter, /^  applyImageRecipe,$/m);

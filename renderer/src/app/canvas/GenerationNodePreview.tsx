@@ -53,6 +53,10 @@ export function GenerationNodePreview({
   onImageAngleClose,
   imageLightingOpen,
   onImageLightingClose,
+  imageMaskOpen,
+  onImageMaskClose,
+  imageEmotionOpen,
+  onImageEmotionClose,
   semanticZoom,
   onStarter,
 }: {
@@ -70,6 +74,10 @@ export function GenerationNodePreview({
   onImageAngleClose: (() => void) | undefined;
   imageLightingOpen: boolean;
   onImageLightingClose: (() => void) | undefined;
+  imageMaskOpen: boolean;
+  onImageMaskClose: (() => void) | undefined;
+  imageEmotionOpen: boolean;
+  onImageEmotionClose: (() => void) | undefined;
   semanticZoom: number;
   onStarter: (prompt: string) => void;
 }) {
@@ -293,6 +301,10 @@ export function GenerationNodePreview({
             onImageAngleClose={onImageAngleClose}
             imageLightingOpen={imageLightingOpen}
             onImageLightingClose={onImageLightingClose}
+            imageMaskOpen={imageMaskOpen}
+            onImageMaskClose={onImageMaskClose}
+            imageEmotionOpen={imageEmotionOpen}
+            onImageEmotionClose={onImageEmotionClose}
           />
           {activeKind === "video" && previewUrl && (
             <div className="work-video-status">

@@ -1,0 +1,1 @@
+facecap-mannequin.glb derives from the face-cap example model distributed with three.js (MIT License, Copyright © 2010-2024 three.js authors). The texture was removed so the preview can render as a neutral mannequin.

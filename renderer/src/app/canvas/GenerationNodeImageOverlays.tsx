@@ -5,8 +5,12 @@ import { ImageCropEditor } from "../components/ImageCropEditor";
 import { ImageAnnotationEditor, ImageAnnotationOverlay, type ImageAnnotation } from "../components/ImageAnnotationEditor";
 import { ImageWatermarkEditor } from "../components/ImageWatermarkEditor";
 import { readImageRecipe } from '@/domain/graph/imageRecipe';
+import { listMaskEditModels } from '@/domain/graph/imageMask';
+import { showToast } from '@/store/notificationStore';
 import { ImageAnglePanel } from "./ImageAnglePanel";
 import { ImageLightingPanel } from "./ImageLightingPanel";
+import { ImageMaskEditor } from "./ImageMaskEditor";
+import { ImageEmotionEditor } from "./ImageEmotionEditor";
 import { CanvasOverlayRootContext, type WorkflowNodeActions, type WorkflowNodeData } from "./WorkflowCanvas";
 
 /**
@@ -34,6 +38,10 @@ export function GenerationNodeImageOverlays({
   onImageAngleClose,
   imageLightingOpen,
   onImageLightingClose,
+  imageMaskOpen,
+  onImageMaskClose,
+  imageEmotionOpen,
+  onImageEmotionClose,
 }: {
   node: WorkflowNodeData;
   actions: WorkflowNodeActions;
@@ -54,10 +62,15 @@ export function GenerationNodeImageOverlays({
   onImageAngleClose: (() => void) | undefined;
   imageLightingOpen: boolean;
   onImageLightingClose: (() => void) | undefined;
+  imageMaskOpen: boolean;
+  onImageMaskClose: (() => void) | undefined;
+  imageEmotionOpen: boolean;
+  onImageEmotionClose: (() => void) | undefined;
 }) {
   const root = useContext(CanvasOverlayRootContext);
   const isImagePreview = activeKind === "image" && Boolean(previewUrl);
   const recipe = readImageRecipe(node.imageRecipe);
+  const maskModels = listMaskEditModels();
   return (
     <>
       {imageCropMode && isImagePreview && activeFilePath && (
@@ -112,6 +125,57 @@ export function GenerationNodeImageOverlays({
           onClose={() => onImageLightingClose?.()}
           onConfirm={(options) => {
             if (actions.applyImageRecipe(node.id, "lighting", options)) onImageLightingClose?.();
+          }}
+        />
+      )}
+      {imageMaskOpen && isImagePreview && imageWidth > 0 && imageHeight > 0 && (
+        <ImageMaskEditor
+          key={`${node.id}-mask`}
+          imageWidth={imageWidth}
+          imageHeight={imageHeight}
+          semanticZoom={semanticZoom}
+          root={root}
+          anchorRef={anchorRef}
+          models={maskModels}
+          initialModel={String(node.model || '')}
+          nodeId={node.id}
+          actions={actions}
+          onCancel={() => onImageMaskClose?.()}
+          onApply={async ({ prompt, maskDataUrl, model, config }) => {
+            const preferredName = `${String(node.title || "image").replace(/[\\/:*?"<>|]/g, "_")}-mask.png`;
+            const saved = await desktopApi.file.saveDataUrlToProject(maskDataUrl, preferredName);
+            const maskFilePath = String(saved?.filePath || saved?.path || "");
+            if (!maskFilePath) {
+              showToast(t("imageMask.error.saveMask"), "error");
+              return false;
+            }
+            if (!actions.applyMaskEdit(node.id, { prompt, maskFilePath, model, config })) return false;
+            onImageMaskClose?.();
+            return true;
+          }}
+        />
+      )}
+      {imageEmotionOpen && isImagePreview && imageWidth > 0 && imageHeight > 0 && (
+        <ImageEmotionEditor
+          key={`${node.id}-emotion`}
+          imageWidth={imageWidth}
+          imageHeight={imageHeight}
+          root={root}
+          anchorRef={anchorRef}
+          model={String(node.model || "")}
+          modelSupported={maskModels.includes(String(node.model || ""))}
+          onCancel={() => onImageEmotionClose?.()}
+          onApply={async ({ maskDataUrl, presetId, extraPrompt, faceRect }) => {
+            const preferredName = `${String(node.title || "image").replace(/[\\/:*?"<>|]/g, "_")}-emotion-mask.png`;
+            const saved = await desktopApi.file.saveDataUrlToProject(maskDataUrl, preferredName);
+            const maskFilePath = String(saved?.filePath || saved?.path || "");
+            if (!maskFilePath) {
+              showToast(t("imageEmotion.error.saveMask"), "error");
+              return false;
+            }
+            if (!actions.applyEmotionEdit(node.id, { maskFilePath, presetId, extraPrompt, faceRect })) return false;
+            onImageEmotionClose?.();
+            return true;
           }}
         />
       )}

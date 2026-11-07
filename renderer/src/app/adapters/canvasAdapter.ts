@@ -74,6 +74,9 @@ import {
 import { buildCanvasViewData } from "./canvas/canvasViewData";
 import { createUploadedNode } from "./canvas/canvasUploadActions";
 import { applyImageRecipe } from "./canvas/imageRecipeActions";
+import { applyMaskEdit } from "./canvas/imageMaskActions";
+import { applyEmotionEdit } from "./canvas/imageEmotionActions";
+import { createImageReversePromptNode } from "./canvas/imageReversePromptActions";
 import {
   openWorkspaceVideoEditor,
   createClipNode,
@@ -710,6 +713,9 @@ export const nodeActions: WorkflowNodeActions = {
   captureVideoFrame,
   extractAudio,
   applyImageRecipe,
+  applyMaskEdit,
+  applyEmotionEdit,
+  createReversePromptNode: createImageReversePromptNode,
   async replaceResource(id) {
     const picked = await desktopApi.file.pickResource();
     if (!picked) return;
