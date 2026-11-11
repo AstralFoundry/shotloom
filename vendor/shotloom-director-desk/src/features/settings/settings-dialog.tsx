@@ -122,7 +122,7 @@ export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () =
                             {toggle('viewDamping', t('视角惯性'))}
                             {toggle('showNavigationHint', t('布景操作提示'))}
                             <Divider plain />
-                            <p className="settings-section-title">{t('界面语言')}</p>
+                            <p className="settings-section-title">{t('预览与主题')}</p>
                             {choose('previewQuality', t('预览质量'), [
                                 { value: 'full', label: t('完整') },
                                 { value: 'draft', label: t('草稿 · 更流畅') },

@@ -117,7 +117,7 @@ test('导演台命令表里每条命令都有参数契约，且分级只取三�
  * 导演台 Agent 必须能"看见"画面，且封闭枚举必须可发现。
  *
  * 这两点各对应一次真实缺陷：84 条命令里没有任何一条把像素交回给模型，Agent 只能盲改
- * 场景、无法核验构图遮挡穿模；而 apply_framing、set_entity_option、new_project 的合法
+ * 场景、无法核验构图遮挡穿模；而 apply_framing、set_entity_option 的合法
  * 取值从来没进过 catalog，模型只能靠猜中文构图名，猜错就直接失败。
  */
 test('导演台提供画面回传，且封闭枚举在 catalog 中可发现', () => {
@@ -134,7 +134,7 @@ test('导演台提供画面回传，且封闭枚举在 catalog 中可发现', ()
   assert.match(bridge, /export_image: \{ kind: 'export' \}/, 'export_image 不得按只读执行');
 
   // 3. catalog 必须暴露所有封闭枚举，模型不能靠猜。
-  for (const key of ['framings', 'sceneTemplates', 'entityOptions']) {
+  for (const key of ['framings', 'entityOptions']) {
     assert.match(bridge, new RegExp(`${key}:`), `catalog 必须暴露 ${key}`);
   }
   assert.match(bridge, /entityOptions: \{ build: BUILDS, gender: GENDERS \}/, 'build/gender 取值必须来自唯一来源');

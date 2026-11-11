@@ -297,7 +297,8 @@ try {
     assert.deepEqual(imported.formats, ['obj'], 'project stores the packed OBJ resource');
 
     // Dialogs: project settings, help reference, and room controls.
-    await page.getByRole('button', { name: '项目设置' }).click();
+    await page.getByRole('button', { name: '更多' }).click();
+    await page.getByRole('menuitem', { name: '项目设置' }).click();
     await page.locator('input[aria-label="项目名称"]').fill('冒烟场景');
     await page.getByRole('button', { name: /应\s*用/ }).click();
     assert.equal(
@@ -343,18 +344,19 @@ try {
         'framing preset moves the camera',
     );
 
-    // New project: starts from the template and remains undoable.
+    // Reset project: restores the default scene and remains undoable.
     const beforeNew = (await state()).entities;
-    await page.getByRole('button', { name: '新建工程' }).click();
-    await page.locator('.ant-modal-footer .ant-btn-primary').click();
+    await page.getByRole('button', { name: '更多' }).click();
+    await page.getByRole('menuitem', { name: '重置项目' }).click();
+    await page.getByRole('dialog', { name: '重置项目' }).getByRole('button', { name: '重置项目' }).click();
     const created = await page.evaluate(() => {
         const project = window.__editorDebug.store.getState().project;
         return { name: project.name, entities: project.entities.length };
     });
-    assert.equal(created.name, '空白场地', 'new project uses the template');
-    assert.ok(created.entities >= 2, 'template has a ground and a camera');
+    assert.equal(created.name, '冒烟场景', 'reset project keeps the current project name');
+    assert.equal(created.entities, 3, 'default scene restores the ground, actor and camera');
     await page.getByRole('button', { name: '撤销' }).click();
-    assert.equal((await state()).entities, beforeNew, 'new project is undoable');
+    assert.equal((await state()).entities, beforeNew, 'reset project is undoable');
 
     // Playback advances the shared clock.
     await page.evaluate(() => window.__editorDebug.session.togglePlay());
@@ -398,7 +400,7 @@ try {
 
     assert.deepEqual(errors, [], 'browser console stays clean');
     console.log(
-        'Smoke passed: engine mount, view switch, selection, committed edit, undo, asset placement, cut insertion, path drawing, clip drag, action clips, pose edit, video export, model import, dialogs, camera framing, new project, shortcuts, viewpoint navigation, playback and autosave recovery.',
+        'Smoke passed: engine mount, view switch, selection, committed edit, undo, asset placement, cut insertion, path drawing, clip drag, action clips, pose edit, video export, model import, dialogs, camera framing, project reset, shortcuts, viewpoint navigation, playback and autosave recovery.',
     );
 } finally {
     await browser.close();

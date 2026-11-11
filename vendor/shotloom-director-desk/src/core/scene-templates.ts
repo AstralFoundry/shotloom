@@ -1,10 +1,6 @@
 import { demoProject, entity, type Project } from './model.ts';
-export type SceneTemplate = 'blank';
-export const SCENE_TEMPLATES = [
-    { id: 'blank', name: '空白场地', type: '基础', detail: '深色地面、一个人物和一个机位' },
-] as const;
 /** The lite editor starts from one dark stage with a mannequin and a camera. */
-export function createScene(_template: SceneTemplate = 'blank'): Project {
+export function createScene(): Project {
     const p = demoProject();
     p.name = '空白场地';
     p.entities = [];

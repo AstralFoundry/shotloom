@@ -87,7 +87,7 @@ function post(frame: HTMLIFrameElement | null, message: { type: string; payload?
 
 export function sendDirectorDeskSession(
   frame: HTMLIFrameElement | null,
-  session: { instanceId: string; theme: DirectorDeskTheme; project: unknown },
+  session: { instanceId: string; theme: DirectorDeskTheme; locale: 'zh-CN' | 'en-US'; project: unknown },
 ) {
   post(frame, { type: messageType.session, payload: session });
 }

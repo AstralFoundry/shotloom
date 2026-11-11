@@ -6,7 +6,7 @@ import { createScene } from '@/core/scene-templates.ts';
  * mannequin, a camera and a single cut. Mirrors the legacy `createMiniStage` bootstrap.
  */
 export function createStarterProject(): Project {
-    const project = createScene('blank');
+    const project = createScene();
     project.name = '未命名场景';
     project.lighting = {
         defaultLights: true,

@@ -332,7 +332,7 @@
   font-size: var(--text-caption-10);
 }
 
-/* Scene hand-off between this node and the full-page workspace. */
+/* Optional import of the full-page workspace scene into this node. */
 .director-node-handoff {
   display: flex;
   flex-wrap: wrap;

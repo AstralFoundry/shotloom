@@ -10,12 +10,13 @@ import { download } from '@/core/storage.ts';
 import { deliverMedia } from '@/core/host-delivery.ts';
 import { videoFilename } from '@/core/exporting/plan.ts';
 import { safeFilename } from '@/core/exporting/filename.ts';
-import { SCENE_TEMPLATES, createScene } from '@/core/scene-templates.ts';
+import { createScene } from '@/core/scene-templates.ts';
 import { FRAMING_NAMES } from '@/state/commands/scene.ts';
 import { patchFieldCatalog } from '@/core/editor/patch-fields.ts';
 import * as THREE from 'three';
 import { setEditorTheme } from '@/core/editor/theme-state.ts';
 import { setReferenceBackdrop } from '@/state/reference-backdrop.ts';
+import { setLanguage } from '@/shared/i18n/locale.ts';
 
 type Input = Record<string, unknown>;
 const origin = window.location.origin;
@@ -68,7 +69,7 @@ interface CommandSpec {
 const commandSpecs: Record<string, CommandSpec> = {
     undo: { kind: 'edit' },
     redo: { kind: 'edit' },
-    new_project: { kind: 'edit', args: { template: 'string，取自 catalog.sceneTemplates[].id' } },
+    reset_project: { kind: 'edit' },
     // 导出当前画面会渲染全分辨率并写入宿主画布，属于 export 而不是 view。
     export_image: { kind: 'export' },
     render_preview: { kind: 'view', args: {
@@ -235,7 +236,7 @@ const commands: Record<string, (input: Input) => unknown> = {
         ...(i.includeObstacles === undefined ? {} : { includeObstacles: i.includeObstacles !== false }),
         ...(i.includeFraming === undefined ? {} : { includeFraming: i.includeFraming !== false }),
     }),
-    new_project: i => session.newProject((i.template || 'blank') as Parameters<typeof session.newProject>[0]),
+    reset_project: () => session.resetProject(),
     export_image: () => session.snapshot(),
     render_preview: i => session.renderPreview({
         ...(i.seconds === undefined ? {} : { seconds: number(i.seconds) }),
@@ -323,7 +324,7 @@ const commands: Record<string, (input: Input) => unknown> = {
             const name = string(i.name || `第 ${document.scenes.length + 1} 场`).trim();
             const state = i.copyCurrent === true
                 ? structuredClone(document.scenes.find(scene => scene.id === document.activeSceneId)!.state)
-                : readSceneDocument(createScene('blank')).scenes[0].state;
+                : readSceneDocument(createScene()).scenes[0].state;
             document.scenes.push({ id, name, state });
             document.activeSceneId = id;
         });
@@ -462,6 +463,7 @@ export function initializeHostBridge() {
         const payload = message.payload ?? {};
         if (message.type === 'storyai:director-desk-session') {
             connected = true;
+            setLanguage(payload.locale === 'en-US' ? 'en' : 'zh-CN');
             // The host decides how the desk is embedded, so its theme wins over the URL and
             // over whatever this browser stored from a previous standalone run.
             const theme = string(payload.theme);
@@ -515,7 +517,6 @@ export function initializeHostBridge() {
                     result = {
                         assets: searchAssets('', '全部').map(asset => ({ id: asset.id, name: asset.name, kind: asset.kind })),
                         actions: ACTIONS, cameraPresets: CAMERA_PRESETS, aspects: ASPECTS, frameRates: FRAME_RATES,
-                        sceneTemplates: SCENE_TEMPLATES.map(template => ({ id: template.id, name: template.name, detail: template.detail })),
                         framings: FRAMING_NAMES,
                         entityOptions: { build: BUILDS, gender: GENDERS },
                         // 每次新增封闭枚举都必须登记在这里，否则对应命令只能靠猜。

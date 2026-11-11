@@ -17,7 +17,7 @@ import { setJointRotation } from '@/core/editor/joint-editing.ts';
 import { RecoveryAutosave } from '@/core/editor/recovery-autosave.ts';
 import { autosave, recoverSession } from '@/core/storage.ts';
 import { prepareDocumentModels } from '@/core/scenes/document-models.ts';
-import { createScene, type SceneTemplate } from '@/core/scene-templates.ts';
+import { createStarterProject } from './starter-project.ts';
 import { readSceneDocument } from '@/core/scenes/sequence-project.ts';
 import { type LightConfig, type LightingConfig } from '@/core/lighting/model.ts';
 import { notifyError, notifySuccess } from '@/shared/ui/feedback.ts';
@@ -558,8 +558,8 @@ export class EditorSession {
     /* Entity & scene commands                                             */
     /* ------------------------------------------------------------------ */
 
-    /** Replace the current scene with a fresh template (undoable, keeps autosave state). */
-    newProject(template: SceneTemplate = 'blank'): boolean {
+    /** Reset this document to its default scene; history keeps the prior document undoable. */
+    resetProject(): boolean {
         const state = useEditorStore.getState();
         const engine = this.engineRef;
         if (!engine) return false;
@@ -568,8 +568,10 @@ export class EditorSession {
             return false;
         }
         try {
-            const document = readSceneDocument(createScene(template));
-            const project = this.history.replace(document, this.history.context, '新建工程', true);
+            const document = readSceneDocument(createStarterProject());
+            document.projectId = this.history.projectId;
+            document.name = this.history.document().name;
+            const project = this.history.replace(document, this.history.context, '重置项目', true);
             const selected =
                 project.entities.find((entity) => entity.kind === 'actor')?.id ?? project.entities[0]?.id ?? '';
             this.clock = 0;
@@ -590,7 +592,7 @@ export class EditorSession {
             engine.selected = selected;
             this.changed(true);
             engine.viewHome();
-            notifySuccess('已新建工程');
+            notifySuccess('项目已重置');
             return true;
         } catch (error) {
             notifyError((error as Error).message);

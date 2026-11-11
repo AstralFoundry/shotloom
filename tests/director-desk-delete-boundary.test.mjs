@@ -1,6 +1,22 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { subscribeDirectorDesk } from '../renderer/src/app/adapters/directorDeskBridge.ts';
+import { sendDirectorDeskSession, subscribeDirectorDesk } from '../renderer/src/app/adapters/directorDeskBridge.ts';
+
+test('导演台会话携带宿主语言，不创建独立语言设置', () => {
+  const previousWindow = globalThis.window;
+  const messages = [];
+  globalThis.window = { location: { origin: 'https://shotloom.test' } };
+  try {
+    sendDirectorDeskSession({ contentWindow: { postMessage(message) { messages.push(message); } } }, {
+      instanceId: 'director-1', theme: 'light', locale: 'en-US', project: null,
+    });
+    assert.deepEqual(messages, [{ type: 'storyai:director-desk-session', payload: {
+      instanceId: 'director-1', theme: 'light', locale: 'en-US', project: null,
+    } }]);
+  } finally {
+    globalThis.window = previousWindow;
+  }
+});
 
 test('导演台内部删除消息不能删除画布节点，其他同源消息仍可处理', () => {
   const previousWindow = globalThis.window;

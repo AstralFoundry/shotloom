@@ -1,13 +1,12 @@
-import { t } from '@/i18n';
+import { getLocale, t } from '@/i18n';
 import { memo, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { IconSymbol } from "../components/IconSymbol";
+import { directorProjectSummary } from './directorProjectSummary';
 import { DirectorAgentPane } from '../agent-chat/DirectorAgentPane';
 import { registerDirectorDeskFrame } from "../../services/directorDeskAgentRuntime";
 import { useWorkbenchSurfaceRoot } from "../layout/workbenchSurface";
-import { useDirectorSceneHandoffStore } from "../store/directorSceneHandoffStore";
 import { useDirectorWorkspaceExport } from "../views/DirectorWorkspace";
-import { useDirectorWorkspaceStore } from "../store/directorWorkspaceStore";
 import {
   CanvasNodeLabelRootContext,
   type WorkflowNodeData,
@@ -21,7 +20,6 @@ import {
   sendDirectorDeskSceneLoad,
   subscribeDirectorDesk,
   type DirectorDeskPanorama,
-  type DirectorDeskSummary,
 } from "../adapters/directorDeskBridge";
 import "./ThreeDDirectorNode.css";
 
@@ -49,10 +47,9 @@ export const ThreeDDirectorNode: WorkflowNodeRenderer = memo(
     const [interacting, setInteracting] = useState(false);
     const [detailOpen, setDetailOpen] = useState(false);
     const [agentCollapsed, setAgentCollapsed] = useState(false);
-    const [summary, setSummary] = useState<DirectorDeskSummary | null>(null);
+    const summary = directorProjectSummary(readDirectorProject(node));
     const [selection, setSelection] = useState('');
     const detailIframeRef = useRef<HTMLIFrameElement>(null);
-    const latestSceneRef = useRef<unknown>(null);
     // The workspace runs in its own iframe, so its scene can only be read on demand. Subscribe
     // to the reader's existence (not its result) so the button appears once a workspace is live.
     const hasWorkspace = useDirectorWorkspaceExport((state) => state.request !== null);
@@ -68,6 +65,7 @@ export const ThreeDDirectorNode: WorkflowNodeRenderer = memo(
       sendDirectorDeskSession(detailIframeRef.current, {
         instanceId: node.id,
         theme: "light",
+        locale: getLocale(),
         project: readDirectorProject(node),
       });
     }, [node]);
@@ -123,7 +121,6 @@ export const ThreeDDirectorNode: WorkflowNodeRenderer = memo(
           if (edgeId) actions.removeDirectorIncomingEdge(node.id, edgeId);
         },
         onProjectChanged: (project) => {
-          latestSceneRef.current = project;
           const directorData = node.directorData as { project?: unknown; legacyProject?: unknown } | undefined;
           const legacyProject = directorData?.legacyProject ?? (directorData?.project && !readDirectorProject(node) ? directorData.project : null);
           actions.update(node.id, {
@@ -137,9 +134,6 @@ export const ThreeDDirectorNode: WorkflowNodeRenderer = memo(
             if (!result) throw new Error('未能创建导出节点');
           }
         },
-        // The card describes the scene without the user opening the desk: an empty box says
-        // nothing about whether this node is still untouched or already carries a shoot.
-        onSceneSummary: (value) => setSummary(value),
         onSelectionChanged: (value) => setSelection(value.name),
       });
       return unsubscribe;
@@ -214,26 +208,6 @@ export const ThreeDDirectorNode: WorkflowNodeRenderer = memo(
               <p className="director-node-warning">仅使用最后一张参考图，另有 {incomingImages.length - 1} 张未使用</p>
             ) : null}
             <div className="director-node-handoff nodrag">
-              {summary ? (
-                <button
-                  type="button"
-                  title="把本节点的场景送入侧栏「3D导演台」继续制作"
-                  onPointerDown={(event) => event.stopPropagation()}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    const scene = latestSceneRef.current ?? readDirectorProject(node);
-                    if (!scene) return;
-                    useDirectorSceneHandoffStore.getState().setHandoff({
-                      document: scene,
-                      sourceNodeId: node.id,
-                      label: "节点场景",
-                    });
-                    useDirectorWorkspaceStore.getState().setOpen(true);
-                  }}
-                >
-                  送到工作区
-                </button>
-              ) : null}
               {hasWorkspace ? (
                 <button
                   type="button"

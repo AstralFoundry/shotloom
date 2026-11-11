@@ -1,12 +1,11 @@
 import { english } from './en.ts';
 
 export type Language = 'zh-CN' | 'en';
-const key = 'director-ui-language';
 let language: Language = 'zh-CN';
 try {
-    if (globalThis.localStorage?.getItem(key) === 'en') language = 'en';
+    if (globalThis.localStorage?.getItem('shotloom:locale') === 'en-US') language = 'en';
 } catch {
-    /* Session-only preference. */
+    /* Fall back to Chinese until the host supplies its locale. */
 }
 const listeners = new Set<() => void>();
 export const getLanguage = () => language;
@@ -14,11 +13,6 @@ export function setLanguage(value: string) {
     if (value !== 'en' && value !== 'zh-CN') return;
     if (language === value) return;
     language = value;
-    try {
-        globalThis.localStorage?.setItem(key, value);
-    } catch {
-        /* Keep the session choice. */
-    }
     listeners.forEach((listener) => listener());
 }
 export function onLanguageChange(listener: () => void) {

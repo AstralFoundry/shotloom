@@ -1,14 +1,13 @@
 import { useCallback, useEffect, useRef } from 'react';
+import { getLocale } from '@/i18n';
 import { create } from 'zustand';
 import {
   directorDeskAgentProtocol,
   sendDirectorDeskProjectSaved,
-  sendDirectorDeskSceneLoad,
   sendDirectorDeskSession,
   subscribeDirectorDesk,
 } from '../adapters/directorDeskBridge';
 import { useAppStore } from '../store/appStore';
-import { useDirectorSceneHandoffStore } from '../store/directorSceneHandoffStore';
 import { registerDirectorDeskFrame } from '../../services/directorDeskAgentRuntime';
 import { store, touchProject } from '../../store/projectStore';
 import { nodeActions } from '../adapters/canvasAdapter';
@@ -18,8 +17,7 @@ import { nodeActions } from '../adapters/canvasAdapter';
  * 与画布节点共用同一份 postMessage 协议，只是宿主换成整页容器。
  * 场景按工程存本地草稿，导演台运行时本身不碰产品存储。
  *
- * 与画布节点是两份独立文档，所以「从节点带入 / 发送到节点」走
- * directorSceneHandoffStore 中转，而不是假装它们共享状态。
+ * 与画布节点保持独立文档；工作区场景只有用户显式选择时才会载入节点。
  */
 const STORAGE_PREFIX = 'shotloom:director-workspace:';
 
@@ -64,26 +62,13 @@ export function DirectorWorkspace({ src, onReady, onExit, onOpenAgent }: { src: 
     } catch {
       project = null;
     }
-    sendDirectorDeskSession(frameRef.current, { instanceId: `workspace-${projectId}`, theme: 'light', project });
+    sendDirectorDeskSession(frameRef.current, { instanceId: `workspace-${projectId}`, theme: 'light', locale: getLocale(), project });
   }, [projectId, storageKey]);
-
-  /**
-   * Push a scene handed over from a canvas node into this workspace.
-   *
-   * Applied after the desk reports ready: sending before the bridge is listening would drop
-   * the message, and the hand-off is consumed once so a remount cannot replay it.
-   */
-  const applyHandoff = useCallback(() => {
-    const handoff = useDirectorSceneHandoffStore.getState().takeHandoff();
-    if (!handoff) return;
-    sendDirectorDeskSceneLoad(frameRef.current, handoff.document, handoff.label);
-  }, []);
 
   useEffect(() => {
     const unsubscribe = subscribeDirectorDesk(() => frameRef.current, {
       onReady: () => {
         sendSession();
-        applyHandoff();
         onReady?.();
       },
       onInteraction: () => undefined,
@@ -106,7 +91,7 @@ export function DirectorWorkspace({ src, onReady, onExit, onOpenAgent }: { src: 
       },
     });
     return unsubscribe;
-  }, [applyHandoff, onExit, onOpenAgent, onReady, sendSession, storageKey]);
+  }, [onExit, onOpenAgent, onReady, sendSession, storageKey]);
 
   return (
     <section className="director-workspace" aria-label="3D导演台" data-director-workspace="true">
