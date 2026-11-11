@@ -10263,5 +10263,6 @@
   "ds.add.multiHint": "可以重复添加多个角色与体型；新角色会自动在场景里找空位摆放。",
   "ds.add.femaleHint": "女性素体使用独立模型文件。",
   "null": "整页打开 3D 导演台：搭场景、摆机位、做动画并截图。",
-  "ds.topbar.back": "返回画布"
+  "ds.topbar.back": "返回画布",
+  "ds.topbar.agent": "助手"
 }

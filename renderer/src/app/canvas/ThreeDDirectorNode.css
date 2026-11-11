@@ -315,18 +315,6 @@
   border: 0;
   background: var(--surface-2);
 }
-.director-agent-resize {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: -5px;
-  z-index: 3;
-  width: 10px;
-  cursor: col-resize;
-  touch-action: none;
-}
-.director-agent-resize:hover,
-.director-agent-resize:focus-visible { background: var(--overlay-dim); }
 
 /* Card summary: tells the difference between an untouched node and a built scene. */
 .director-node-summary {

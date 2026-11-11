@@ -91,7 +91,7 @@ export function CreationView({
       <div className="director-workspace-host" data-canvas-no-zoom>
         <button type="button" className="director-workspace-back" onClick={closeWorkspace}>{t("ds.topbar.back")}</button>
         <DirectorWorkspace src={directorDeskWorkspaceSrc} />
-        <DirectorAgentPane className="director-workspace-agent" />
+        <DirectorAgentPane className="director-workspace-agent" collapsible reopenLabel={t("ds.topbar.agent")} />
       </div>
     );
   }

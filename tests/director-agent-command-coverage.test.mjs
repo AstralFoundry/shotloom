@@ -77,3 +77,48 @@ test('iframe 启动时会装配宿主桥，否则所有命令都会超时', () =
   assert.match(main, /^\s*initializeHostBridge\(\);/m,
     'main.tsx 必须实际调用 initializeHostBridge()，只 import 不调用等于没接上');
 });
+
+test('导演台助手栏可拉伸且只在整页工作区可折叠', () => {
+  const pane = fs.readFileSync(path.join(root, 'renderer/src/app/agent-chat/DirectorAgentPane.tsx'), 'utf8');
+  const view = fs.readFileSync(path.join(root, 'renderer/src/app/views/CreationView.tsx'), 'utf8');
+  const node = fs.readFileSync(path.join(root, 'renderer/src/app/canvas/ThreeDDirectorNode.tsx'), 'utf8');
+
+  // Width must be adjustable and remembered; a fixed column was the original complaint.
+  assert.match(pane, /role="separator"/, '助手栏缺少拖动分隔条');
+  assert.match(pane, /localStorage\.setItem\(WIDTH_KEY/, '助手栏宽度必须持久化');
+  assert.match(pane, /ArrowLeft/, '分隔条必须支持键盘调整');
+
+  // Collapsing is opt-in: the canvas detail window already has its own close button, and a
+  // second collapse control there would be two different "hide" gestures in one dialog.
+  assert.match(pane, /collapsible/, '助手栏必须支持折叠');
+  assert.match(view, /collapsible/, '整页工作区必须开启折叠');
+  assert.ok(!/collapsible/.test(node), '画布节点的详情窗不应再叠加折叠');
+});
+
+test('助手栏分隔条的样式在全局层，两个调用方都能加载到', () => {
+  // 真实缺陷：.director-agent-resize 只写在画布节点的局部样式表里，
+  // 而整页工作区（CreationView）从不 import 那份文件。DOM 在、样式不在，
+  // 分隔条宽度为 auto、cursor 不生效，用户看到的就是"拉不动"。
+  const global = fs.readFileSync(path.join(root, 'renderer/styles/creation-view.css'), 'utf8');
+  const local = fs.readFileSync(path.join(root, 'renderer/src/app/canvas/ThreeDDirectorNode.css'), 'utf8');
+
+  assert.match(global, /\.director-agent-resize\s*\{/, '分隔条样式必须在全局样式层');
+  assert.match(global, /cursor:\s*col-resize/, '分隔条必须声明 col-resize');
+  assert.ok(!/\.director-agent-resize\s*\{/.test(local), '不应在局部样式表重复定义，否则两处会漂移');
+
+  // 面板 overflow: hidden 会裁掉负偏移，命中区必须完全落在面板内。
+  const rule = global.slice(global.indexOf('.director-agent-resize {'), global.indexOf('}', global.indexOf('.director-agent-resize {')));
+  assert.match(rule, /left:\s*0;/, '分隔条不得用负偏移，否则命中区被 overflow 裁掉');
+});
+
+test('助手栏宽度按面板父级计算，不能拿分隔条的父级当可用空间', () => {
+  // 真实缺陷：resize() 用 container.parentElement 量可用宽度，而 container 是分隔条本身，
+  // 它的 parentElement 就是助手栏自己。于是 available = 宽度 - 480 恒为负，
+  // 每次拖动都被钳到最小值 280，表现就是"拖了没反应"。
+  const pane = fs.readFileSync(path.join(root, 'renderer/src/app/agent-chat/DirectorAgentPane.tsx'), 'utf8');
+
+  assert.ok(!/container\?\.parentElement/.test(pane),
+    '不能从分隔条取 parentElement 量可用宽度');
+  assert.match(pane, /asideRef/, '必须通过 ref 引用助手栏自身');
+  assert.match(pane, /asideRef\.current\?\.parentElement/, '可用宽度必须取自助手栏的父级');
+});

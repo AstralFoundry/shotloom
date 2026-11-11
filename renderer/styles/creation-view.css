@@ -480,6 +480,7 @@
    导演台运行时是 vendored 的独立文档；这里只负责让 iframe 铺满画布内容区。 */
 
 .director-workspace-host {
+  position: relative;
   display: flex;
   flex: 1 0 auto;
   height: 100vh;
@@ -542,4 +543,68 @@
   /* Match the desk's own stage so the iframe's first paint does not flash a light
      rectangle inside an otherwise dark workspace. */
   background: var(--overlay-stage);
+}
+
+/* Collapsed assistant column: a floating pill over the stage, matching the canvas one so the
+   same gesture reads identically in both workspaces. Sits below the desk's own top bar so it
+   never covers its toolbar buttons. */
+.director-agent-reopen {
+  position: absolute;
+  top: 60px;
+  right: 16px;
+  z-index: 5;
+  height: 32px;
+  padding: 0 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--float-surface);
+  box-shadow: var(--shadow-float);
+  color: var(--type-primary);
+  font-size: var(--text-body-12);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.director-agent-reopen:hover {
+  background: var(--button-subtle-bg);
+}
+
+/* 助手栏拖动分隔条。整页工作区与画布节点详情窗共用同一个 DirectorAgentPane，
+   而此前这段样式只写在画布节点的局部样式表里，整页工作区从未加载它——
+   分隔条没有宽度、没有 col-resize、也抓不到，表现为"拉不动"。
+
+   命中区必须完全落在面板内部：面板本身 overflow: hidden，负偏移的部分会被裁掉，
+   抓得到的只剩几个像素。 */
+.director-agent-resize {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 3;
+  width: 10px;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.director-agent-resize::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 2px;
+  height: 32px;
+  border-radius: 999px;
+  background: var(--grip-active);
+  opacity: 0;
+  transform: translate(-25%, -50%);
+  transition: opacity var(--duration-fast) var(--ease-std);
+}
+
+.director-agent-resize:hover::after,
+.director-agent-resize:focus-visible::after {
+  opacity: 1;
+}
+
+.director-agent-resize:focus-visible {
+  outline: none;
 }
