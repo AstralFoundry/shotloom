@@ -61,39 +61,6 @@
 .shotloom-agent-chat { position:relative; }
 .shotloom-plan-document { position:absolute;inset:8px;z-index:20;overflow:auto;padding:16px;border:1px solid var(--dsw-alias-border-main);border-radius:8px;background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary); }
 .shotloom-plan-document > button { position:sticky;top:0;float:right; }
-.shotloom-tool-card {
-  box-sizing:border-box;width:100%;min-width:0;max-width:100%;margin:8px 0;
-  border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-md);
-  background:var(--dsw-alias-bg-base);overflow:hidden;font-size:12px;
-}
-.shotloom-tool-card > summary {
-  display:flex;align-items:center;gap:8px;min-width:0;padding:10px 12px;
-  cursor:pointer;list-style:none;color:var(--dsw-alias-label-primary);
-}
-.shotloom-tool-card > summary::-webkit-details-marker { display:none; }
-.shotloom-tool-indicator { width:6px;height:6px;flex:none;border-radius:50%;background:var(--dsw-alias-label-tertiary); }
-.shotloom-tool-name { min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500; }
-.shotloom-tool-status { flex:none;font-size:11px;color:var(--dsw-alias-label-tertiary); }
-.shotloom-tool-chevron { flex:none;color:var(--dsw-alias-label-tertiary); }
-.shotloom-tool-card[open] > summary .shotloom-tool-chevron { transform:rotate(180deg); }
-.shotloom-tool-body { min-width:0;padding:0 12px 10px;border-top:1px solid var(--dsw-alias-border-l1); }
-.shotloom-tool-body p { margin:10px 0;white-space:pre-wrap;overflow-wrap:anywhere; }
-.shotloom-tool-actions { display:flex;flex-wrap:wrap;gap:6px; }
-.shotloom-tool-actions:empty { display:none; }
-.shotloom-tool-actions button {
-  max-width:100%;margin:8px 0 0;border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-sm);
-  padding:4px 8px;background:transparent;color:var(--dsw-alias-label-primary);font:inherit;cursor:pointer;
-}
-.shotloom-tool-actions button:hover { background:var(--dsw-alias-interactive-bg-hover); }
-.shotloom-tool-data { min-width:0;max-width:100%;margin-top:8px;color:var(--dsw-alias-label-tertiary); }
-.shotloom-tool-data > summary { cursor:pointer;font-size:11px; }
-.shotloom-tool-data pre {
-  box-sizing:border-box;max-width:100%;max-height:240px;margin:8px 0 0;padding:10px;
-  border-radius:var(--dsw-radius-sm);background:var(--dsw-alias-interactive-bg-hover);
-  color:var(--dsw-alias-label-primary);font:11px/1.6 monospace;
-  white-space:pre-wrap;overflow-wrap:anywhere;overflow:auto;
-}
-
 /* The official meter portals here, outside the composer scroll layer. */
 .shotloom-context-meter {
   position:absolute;top:0;right:8px;height:44px;

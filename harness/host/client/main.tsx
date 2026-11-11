@@ -30,7 +30,6 @@ import type { InjectFace, PropsRenderFactories, PropsRenderSlots, PropsRuntime }
 import type { ConversationViewsProps } from '@deepseek-ai/dsh-client-ui-conversation/client';
 import type { ThemeSnapshot } from '@deepseek-ai/dsh-client-ui-theme/client';
 import type { ChatNodeViewProps } from '@deepseek-ai/dsh-client-ui-chat/client';
-import type { ToolCallViewProps } from '@deepseek-ai/dsh-client-ui-tool/client';
 import { installEmbeddedSubagents } from './embeddedSubagents';
 import { installCanvasReferences } from './canvasReferences';
 import { EmptyBrand } from './emptyBrand';
@@ -50,7 +49,6 @@ interface Surface { root: HTMLElement; host: ProductHost; reference: SessionRefe
 const surfaces = new Set<Surface>();
 const updates = new Set<() => void>();
 let revision = 0;
-let surfacePriority = 0;
 const refresh = () => { revision++; for (const update of updates) update(); };
 function OfficialView({ renderSlot }: ConversationViewsProps) {
   const view = useContext(SelectedView);
@@ -72,42 +70,6 @@ function EmbeddedChat({ activateView, renderFactorySlot, renderSlot, inputAction
     {blank && <EmptyBrand />}
     {renderFactorySlot('conversation.content', { variant: 'embedded', phase: 'active', hero: false }, { slots: CONTENT_SLOTS })}
   </div></SelectedView.Provider>;
-}
-
-function ProductToolCard({ toolName, phase, block, inspect }: ToolCallViewProps) {
-  const host = useContext(ProductContext);
-  const label = host.toolTitles[toolName] || toolName;
-  let receipt: Record<string, unknown> | undefined;
-  let payload: Record<string, unknown> | undefined;
-  let raw = '';
-  if (phase === 'result') {
-    raw = block.content.filter(row => row.type === 'text').map(row => row.text).join('\n');
-    try {
-      payload = JSON.parse(raw);
-      receipt = payload?.result as Record<string, unknown> | undefined;
-      raw = JSON.stringify(payload, null, 2);
-    } catch { /* Non-JSON recorded output remains inspectable as text. */ }
-  }
-  const result = receipt?.result as Record<string, unknown> | undefined;
-  const failed = phase === 'result' && (block.isError || payload?.success === false || receipt?.success === false || result?.success === false);
-  const message = [payload?.error, receipt?.error, result?.error, result?.message, result?.summary].find(value => typeof value === 'string') as string | undefined;
-  const references = receipt?.references as { nodeIds?: string[]; taskIds?: string[] } | undefined;
-  const navigate = (kind: 'nodes' | 'tasks', ids: string[]) => {
-    host.navigate(kind, ids);
-  };
-  return <details className="shotloom-tool-card" data-state={failed ? 'error' : phase === 'result' ? 'done' : 'running'}>
-    <summary><span className="shotloom-tool-indicator" aria-hidden="true" /><span className="shotloom-tool-name" title={toolName}>{label}</span>
-      <span className="shotloom-tool-status">{phase === 'result' ? (failed ? t("ui.main.text.b61b08ae") : t("ui.taskAdapter.label.e99b48a2")) : t("ui.StatusPill.running.59424970")}</span><span className="shotloom-tool-chevron" aria-hidden="true">⌄</span></summary>
-    <div className="shotloom-tool-body">
-      {message && <p>{message}</p>}
-      <div className="shotloom-tool-actions">
-        {!!references?.nodeIds?.length && <button onClick={() => navigate('nodes', references.nodeIds!)}>{t("ui.main.text.7d7b2d9e")}</button>}
-        {!!references?.taskIds?.length && <button onClick={() => navigate('tasks', references.taskIds!)}>{t("ui.main.text.ec20beb2")}</button>}
-        {inspect && <button onClick={inspect}>{t("ui.main.text.86ff6f36")}</button>}
-      </div>
-      {phase === 'result' && <details className="shotloom-tool-data"><summary>{t("ui.main.text.667422e4")}</summary><pre tabIndex={0} aria-label={t("ui.main.text.816f1556", { value0: label })}>{raw}</pre></details>}
-    </div>
-  </details>;
 }
 
 /** Presentation adapter for our own reference envelope. Official user nodes,
@@ -327,8 +289,6 @@ export async function mount(container: HTMLElement, native: NativeHost, host: Pr
   await ctx.inject(['slots', 'inputTriggers', 'sessions'], scope => {
   disposeScope = () => scope.fiber.dispose();
   mentionNode = ['canvas-primary', 'editor-primary', 'director-primary'].includes(host.agentId) ? installCanvasReferences(scope, host.sessionId as SessionId, host) : () => {};
-  const priority = --surfacePriority;
-  for (const name of host.tools) scope.slots.register({ name: 'tool.call.toolview', key: name, priority }, props => <ProductToolCard {...props} />);
   });
   const surface = { root, host, reference, mentionNode };
   surfaces.add(surface); refresh();
