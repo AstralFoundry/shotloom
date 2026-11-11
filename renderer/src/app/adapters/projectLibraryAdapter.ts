@@ -13,12 +13,14 @@ import {
   showProjectInFolder,
   store,
   trashRecentProject,
+  trashProjectLibraryFolder,
 } from "../../store/projectStore.ts";
 import { settingsStore } from "../../store/settingsStore.ts";
 import { hasActiveGenerationTasks } from "../../store/taskStore.ts";
 import { showToast } from "../../store/notificationStore";
 import type {
   LibraryEntry,
+  ProjectFolderEntry,
   ProjectsController,
 } from "../views/ProjectsView";
 import { confirmAction } from "../ui/confirm/confirmService";
@@ -208,10 +210,8 @@ export const projectLibraryController: ProjectsController = {
       danger: true,
     });
     if (!confirmed) return;
-    const result = await desktopApi.project.trashLibraryFolder(entry.folderDir);
-    if (result?.ok) {
-      await loadRecentProjects();
-      showToast(t("ui.projectLibraryAdapter.text.465a30d7"));
-    } else showToast(result?.error || t("ui.projectLibraryAdapter.text.09daea6f"));
+    const collectProjects = (folder: ProjectFolderEntry): Array<{ filePath?: string }> =>
+      (folder.children || []).flatMap((child) => child.kind === 'project' ? [{ filePath: child.filePath }] : collectProjects(child));
+    await trashProjectLibraryFolder(entry.folderDir, collectProjects(entry));
   },
 };

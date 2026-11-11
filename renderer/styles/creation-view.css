@@ -524,8 +524,8 @@
 }
 
 .director-workspace-agent {
-  width: min(400px, 36vw);
-  min-width: 320px;
+  position: relative;
+  min-width: 280px;
   height: 100%;
   overflow: hidden;
   border-left: 1px solid var(--line);

@@ -4,14 +4,14 @@ const SCOPE_AGENT_IDS = { canvas: CANVAS_AGENT_ID, editor: EDITOR_AGENT_ID, text
 export type ConversationScope = 'canvas' | 'editor' | 'text' | 'director';
 /** Product association metadata only. SQLite session persistence owns conversation content. */
 export interface HarnessSession {
-  id?: string; title?: string; agentId?: string; editorNodeId?: string; textNodeId?: string;
+  id?: string; title?: string; agentId?: string; editorNodeId?: string; textNodeId?: string; directorNodeId?: string;
   harnessSessionId?: string; updatedAt?: string; [key: string]: unknown;
 }
 export interface HarnessProject {
   id?: string; harnessSessions?: HarnessSession[]; activeHarnessSessionId?: string | undefined;
   [key: string]: unknown;
 }
-export interface CreateConversationOptions { title?: string; agentId?: string; editorNodeId?: string; textNodeId?: string }
+export interface CreateConversationOptions { title?: string; agentId?: string; editorNodeId?: string; textNodeId?: string; directorNodeId?: string }
 function uid() { return crypto.randomUUID(); }
 export function ensureHarnessSessions(project: HarnessProject | null | undefined): HarnessSession[] {
   if (!project || typeof project !== 'object') return [];
@@ -75,15 +75,15 @@ export function scopedHarnessSessions(
     if (!nodeId) return [];
     return conversations.filter((item) => String(item.textNodeId || '') === nodeId);
   }
-  if (scope === 'director') return conversations.filter(item => item.agentId === DIRECTOR_AGENT_ID);
+  if (scope === 'director') return conversations.filter(item => item.agentId === DIRECTOR_AGENT_ID && String(item.directorNodeId || '') === nodeId);
   // 工作区会话（剪辑、文本）不属于画布列表，否则会在画布历史抽屉里互相污染。
   return conversations
     .filter((item) => !item.editorNodeId && !item.textNodeId && item.agentId !== DIRECTOR_AGENT_ID)
     .sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')));
 }
 
-export function directorHarnessSession(project: HarnessProject): HarnessSession {
-  return scopedHarnessSessions(project, 'director')[0] || createHarnessSession(project, { agentId: DIRECTOR_AGENT_ID, title: '3D 导演台 Agent' });
+export function directorHarnessSession(project: HarnessProject, directorNodeId = ''): HarnessSession {
+  return scopedHarnessSessions(project, 'director', directorNodeId)[0] || createHarnessSession(project, { agentId: DIRECTOR_AGENT_ID, title: '3D 导演台 Agent', ...(directorNodeId ? { directorNodeId } : {}) });
 }
 
 // 画布作用域的活动会话。画布面板必须始终落在画布会话上：即使项目级指针指向剪辑会话，
@@ -133,6 +133,7 @@ export function createHarnessSession(project: HarnessProject, options: CreateCon
     // 工作区会话在建立时就绑定所属节点，避免先落成画布会话再改作用域。
     ...(options.editorNodeId ? { editorNodeId: String(options.editorNodeId) } : {}),
     ...(options.textNodeId ? { textNodeId: String(options.textNodeId) } : {}),
+    ...(options.directorNodeId ? { directorNodeId: String(options.directorNodeId) } : {}),
     createdAt: now,
     updatedAt: now,
   };

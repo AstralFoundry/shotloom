@@ -6,7 +6,7 @@ import { exportVideo } from '@/core/export.ts';
 import { estimatedVideoBytes, jobFrames, planVideoExports, type ExportJob } from '@/core/exporting/plan.ts';
 import { readExportPreferences, saveExportPreferences } from '@/core/exporting/preferences.ts';
 import { exportErrorMessage } from '@/core/exporting/errors.ts';
-import { download } from '@/core/storage.ts';
+import { deliverMedia } from '@/core/host-delivery.ts';
 import { useTranslation } from '@/shared/i18n/use-translation.ts';
 import { NumberField } from '@/shared/ui/number-field.tsx';
 import { notify, notifyError, notifySuccess } from '@/shared/ui/feedback.ts';
@@ -171,7 +171,7 @@ export function ExportDialog({ open, onClose }: { open: boolean; onClose: () => 
 
     /** Ask for one destination file; `undefined` means "fall back to a browser download". */
     async function pickFile(job: ExportJob) {
-        if (form.save !== 'disk') return undefined;
+        if (window.parent !== window || form.save !== 'disk') return undefined;
         const picker = (window as unknown as FilePickerWindow).showSaveFilePicker;
         if (!picker) throw new Error('当前浏览器不支持另存为，请选择下载');
         return picker({
@@ -211,7 +211,7 @@ export function ExportDialog({ open, onClose }: { open: boolean; onClose: () => 
                     (value) => setProgress((done + value) / jobs.length),
                     handle,
                 );
-                if (blob) download(blob, job.filename);
+                if (blob) await deliverMedia(blob, job.filename, 'video');
                 done += 1;
             }
             setProgress(1);
@@ -426,7 +426,7 @@ export function ExportDialog({ open, onClose }: { open: boolean; onClose: () => 
                         </Col>
                     </Row>
 
-                    <label className="export-field">
+                    {window.parent === window && <label className="export-field">
                         <span>{t('保存到')}</span>
                         <Select
                             value={form.save}
@@ -438,7 +438,7 @@ export function ExportDialog({ open, onClose }: { open: boolean; onClose: () => 
                                 { value: 'download', label: t('下载') },
                             ]}
                         />
-                    </label>
+                    </label>}
 
                     {plan.error ? <p className="export-error">{plan.error}</p> : null}
                 </div>

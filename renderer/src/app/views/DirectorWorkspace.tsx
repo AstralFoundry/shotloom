@@ -10,6 +10,8 @@ import {
 import { useAppStore } from '../store/appStore';
 import { useDirectorSceneHandoffStore } from '../store/directorSceneHandoffStore';
 import { registerDirectorDeskFrame } from '../../services/directorDeskAgentRuntime';
+import { store, touchProject } from '../../store/projectStore';
+import { nodeActions } from '../adapters/canvasAdapter';
 
 /**
  * 整页 3D 导演台工作区（侧栏「3D导演台」入口）：iframe 运行 vendored 导演台，
@@ -52,12 +54,11 @@ export function DirectorWorkspace({ src, onReady }: { src: (instanceId: string) 
 
   // 会话：导演台就绪后把本工程的草稿灌进去（没有草稿时用空项目，由导演台自己建默认场景）。
   const sendSession = useCallback(() => {
-    let project: unknown = null;
+    let project: unknown = store.project.directorWorkspaceProject ?? null;
     try {
-      const raw = window.localStorage.getItem(storageKey);
-      project = raw ? JSON.parse(raw) : null;
+      const raw = project ? null : window.localStorage.getItem(storageKey);
+      if (raw) project = JSON.parse(raw);
       if (project && (project as { format?: string; version?: number }).format !== 'director-desk') {
-        window.localStorage.setItem(`${storageKey}:legacy-storyai`, raw!);
         project = null;
       }
     } catch {
@@ -91,20 +92,16 @@ export function DirectorWorkspace({ src, onReady }: { src: (instanceId: string) 
       onPanoramaRemoved: () => undefined,
       onProjectChanged: (project) => {
         latestDocument.current = project;
-        try {
-          window.localStorage.setItem(storageKey, JSON.stringify(project));
-        } catch {
-          // 草稿写不进去不影响本次编辑，画布节点那条链路仍会持久化。
-        }
+        store.project.directorWorkspaceProject = project;
+        touchProject();
+        try { window.localStorage.removeItem(storageKey); } catch { /* browser storage unavailable */ }
         // 回执「已保存」，导演台顶栏的同步状态才能落回稳定态。
         sendDirectorDeskProjectSaved(frameRef.current);
       },
-      onCaptures: (captures) => {
+      onCaptures: async (captures) => {
         for (const capture of captures) {
-          const link = document.createElement('a');
-          link.href = capture.dataUrl;
-          link.download = capture.fileName;
-          link.click();
+          const result = await nodeActions.exportDirectorAsset('', capture.dataUrl, capture.fileName, capture.kind);
+          if (!result) throw new Error('未能创建导出节点');
         }
       },
     });

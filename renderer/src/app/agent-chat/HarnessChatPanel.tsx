@@ -101,7 +101,7 @@ export function HarnessChatPanel({ agentId, nodeId, onClose, onStatusChange }: {
   }, [panel, key, agentId, onStatusChange]);
   return <section ref={container} className="harness-chat-panel">
     <HarnessSessionToolbar sessions={sessions} selectedId={selected?.id} onSelect={setSelectedId} onClose={onClose}
-      onCreate={() => { const created = createHarnessSession(store.project, { agentId, ...(agentId === TEXT_AGENT_ID ? { textNodeId: nodeId! } : agentId === EDITOR_AGENT_ID ? { editorNodeId: nodeId! } : {}) }); setSelectedId(created.id!); touchProject(); }} />
+      onCreate={() => { const created = createHarnessSession(store.project, { agentId, ...(agentId === TEXT_AGENT_ID ? { textNodeId: nodeId! } : agentId === EDITOR_AGENT_ID ? { editorNodeId: nodeId! } : agentId === DIRECTOR_AGENT_ID && nodeId ? { directorNodeId: nodeId } : {}) }); setSelectedId(created.id!); touchProject(); }} />
     <div ref={surface} className="harness-chat-frame" />
     {panel?.key === key && !panel.sessionId && !panel.error && <p role="status">{t('agent.connecting')}</p>}
     {panel?.key === key && panel.error && <p role="alert">{panel.error}</p>}

@@ -8,7 +8,7 @@ import { entityPosition } from '@/core/timeline.ts';
 import { ASPECTS, FRAME_RATES, COLORS, clip, entity, outputSize, type Project, type Vec3 } from '@/core/model.ts';
 import type { CameraConfig } from '@/core/model.ts';
 import { defaultLighting, type LightingConfig } from '@/core/lighting/model.ts';
-import { download } from '@/core/storage.ts';
+import { deliverMedia } from '@/core/host-delivery.ts';
 import { notifyError, notifySuccess } from '@/shared/ui/feedback.ts';
 import { useEditorStore } from '../editor-store.ts';
 import type { EditorCommandHost } from './host.ts';
@@ -90,7 +90,7 @@ export class SceneCommands {
             const canvas = engine.renderOutput(at, width, height, useEditorStore.getState().preview);
             const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
             if (!blob) throw new Error('未能生成截图');
-            download(blob, `${this.host.project.name}-${at.toFixed(2)}s.png`);
+            await deliverMedia(blob, `${this.host.project.name}-${at.toFixed(2)}s.png`, 'image');
             notifySuccess('已导出当前画面');
         } catch (error) {
             notifyError((error as Error).message);
@@ -157,7 +157,7 @@ export class SceneCommands {
             const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
             if (!blob) throw new Error('未能生成画面');
             const cameraName = this.host.project.entities.find((entity) => entity.id === span.cameraId)?.name ?? '';
-            download(blob, `${this.host.project.name}-镜头${span.index + 1}${cameraName ? '-' + cameraName : ''}.png`);
+            await deliverMedia(blob, `${this.host.project.name}-镜头${span.index + 1}${cameraName ? '-' + cameraName : ''}.png`, 'image');
             notifySuccess('已导出镜头画面');
         } catch (error) {
             notifyError((error as Error).message);

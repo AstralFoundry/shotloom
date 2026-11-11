@@ -631,6 +631,7 @@ export async function trashRecentProject(project: AnyRecord) {
     if (deletedProjectId) {
       const { releaseAllLocalAssetReferences } = await import('@/store/localAssetLibraryStore');
       await releaseAllLocalAssetReferences(deletedProjectId);
+      try { window.localStorage.removeItem(`shotloom:director-workspace:${deletedProjectId}`); } catch { /* browser storage unavailable */ }
     }
     if (deletingCurrentProject) {
       stopActiveTaskPolling();
@@ -652,6 +653,71 @@ export async function trashRecentProject(project: AnyRecord) {
       persistSession();
     }
     showErrorMessage((error as AnyRecord)?.message || t('project.cannotTrash'), t('project.deleteFailed'));
+    return false;
+  }
+}
+
+/** Move a library folder and all its projects together, releasing their external references. */
+export async function trashProjectLibraryFolder(folderDir: string, projects: Array<{ filePath?: string; id?: string }>): Promise<boolean> {
+  const withinFolder = (path: string | null) => Boolean(path && (path === folderDir || path.startsWith(`${folderDir}/`) || path.startsWith(`${folderDir}\\`)));
+  const deletingCurrent = withinFolder(store.projectDir);
+  if (deletingCurrent && !canChangeProjectContext()) return false;
+  const identities = await Promise.all(projects.map(async (project) => {
+    if (project.id) return { ...project, id: project.id };
+    try { return { ...project, id: project.filePath ? (await desktopApi.project.readFile(project.filePath))?.id : '' }; }
+    catch { return { ...project, id: '' }; }
+  }));
+  const previous = deletingCurrent ? { projectDir: store.projectDir, filePath: store.filePath } : null;
+  if (deletingCurrent) {
+    if (autoSaveTimer) window.clearTimeout(autoSaveTimer);
+    autoSaveTimer = null;
+    projectSaveQueue.discardPending();
+    await projectSaveQueue.waitForIdle();
+    for (const task of store.project.tasks || []) if (isActiveTaskStatus(task.status)) cancelTask(task.id);
+    if (autoSaveTimer) window.clearTimeout(autoSaveTimer);
+    autoSaveTimer = null;
+    projectSaveQueue.discardPending();
+    store.projectDir = null;
+    store.filePath = null;
+  }
+  let moved = false;
+  try {
+    const result = await desktopApi.project.trashLibraryFolder(folderDir);
+    if (!result?.ok) {
+      if (previous) {
+        store.projectDir = previous.projectDir;
+        store.filePath = previous.filePath;
+        persistSession();
+      }
+      showToast(result?.error || t('project.cannotTrash'));
+      return false;
+    }
+    moved = true;
+    const { releaseAllLocalAssetReferences } = await import('@/store/localAssetLibraryStore');
+    for (const project of identities) {
+      if (project.filePath) await desktopApi.recent.remove(project.filePath).catch(() => {});
+      if (project.id) {
+        await releaseAllLocalAssetReferences(project.id).catch(() => {});
+        try { window.localStorage.removeItem(`shotloom:director-workspace:${project.id}`); } catch { /* browser storage unavailable */ }
+      }
+    }
+    if (deletingCurrent) clearActiveProjectSession();
+    await loadRecentProjects();
+    showToast(t('project.trashed'), 'success');
+    return true;
+  } catch (error) {
+    if (previous && !moved) {
+      store.projectDir = previous.projectDir;
+      store.filePath = previous.filePath;
+      persistSession();
+    }
+    if (moved) {
+      if (deletingCurrent) clearActiveProjectSession();
+      await loadRecentProjects();
+      showToast(`文件夹已移入废纸篓，但清理部分关联数据失败：${String(error)}`);
+      return true;
+    }
+    showToast(String(error));
     return false;
   }
 }

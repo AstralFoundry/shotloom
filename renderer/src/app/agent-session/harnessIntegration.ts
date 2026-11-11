@@ -84,9 +84,9 @@ export function startHarnessIntegration(): Promise<void> {
 export async function openHarnessPanel(role: ProductBinding['agentId'], nodeId?: string, conversationId?: string) {
   await startHarnessIntegration();
   const identity = getAgentProjectIdentity();
-  const selected = store.project.harnessSessions?.find((item: { id?: string; agentId?: string; textNodeId?: string; editorNodeId?: string }) => item.id === conversationId && item.agentId === role && (item.textNodeId || item.editorNodeId) === nodeId);
+  const selected = store.project.harnessSessions?.find((item: { id?: string; agentId?: string; textNodeId?: string; editorNodeId?: string; directorNodeId?: string }) => item.id === conversationId && item.agentId === role && (item.textNodeId || item.editorNodeId || item.directorNodeId) === nodeId);
   const conversation = selected ?? (role === CANVAS_AGENT_ID ? canvasHarnessSession(store.project)
-    : role === DIRECTOR_AGENT_ID ? directorHarnessSession(store.project)
+    : role === DIRECTOR_AGENT_ID ? directorHarnessSession(store.project, nodeId)
     : role === EDITOR_AGENT_ID ? editorHarnessSession(store.project, nodeId!) : textHarnessSession(store.project, nodeId!));
   const binding = { projectKey: identity.projectKey, conversationId: conversation.id!, agentId: role, ...(nodeId ? { nodeId } : {}) };
   const result = await invoke<{ sessionId: string; tools: string[]; toolTitles: Record<string, string> }>('harness_bind_session', { config: {

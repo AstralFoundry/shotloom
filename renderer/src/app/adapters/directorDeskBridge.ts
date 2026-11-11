@@ -12,7 +12,7 @@ export type DirectorDeskPanorama = {
   url: string;
 };
 
-export type DirectorDeskCapture = { dataUrl: string; fileName: string };
+export type DirectorDeskCapture = { dataUrl: string; fileName: string; kind: 'image' | 'video' };
 
 /** Compact description the canvas card can render without opening the desk. */
 export type DirectorDeskSummary = {
@@ -32,7 +32,7 @@ export type DirectorDeskHandlers = {
   onExitInteraction(): void;
   onPanoramaRemoved(edgeId: string): void;
   onProjectChanged(project: Record<string, unknown>): void;
-  onCaptures(captures: DirectorDeskCapture[]): void;
+  onCaptures(captures: DirectorDeskCapture[]): void | Promise<void>;
   /** Scene totals, sent on ready and after every edit. */
   onSceneSummary?(summary: DirectorDeskSummary): void;
   /** What the director currently has selected, for card and chat context. */
@@ -139,7 +139,18 @@ export function subscribeDirectorDesk(
       if (isRecord(payload.project)) handlers.onProjectChanged(payload.project);
       return;
     }
-    if (message.type === messageType.capturesSent) handlers.onCaptures(readCaptures(payload.captures));
+    if (message.type === messageType.capturesSent) {
+      const requestId = typeof payload.requestId === 'string' ? payload.requestId : '';
+      const source = event.source as Window | null;
+      void Promise.resolve().then(() => handlers.onCaptures(readCaptures(payload.captures)))
+        .then(() => {
+          if (requestId) source?.postMessage({ type: 'storyai:director-desk-captures-saved', payload: { requestId, success: true } }, window.location.origin);
+        })
+        .catch((error) => {
+          if (requestId) source?.postMessage({ type: 'storyai:director-desk-captures-saved', payload: { requestId, success: false, error: String(error) } }, window.location.origin);
+        });
+      return;
+    }
     if (message.type === messageType.sceneSummary) {
       const summary = readSummary(payload.summary);
       if (summary) handlers.onSceneSummary?.(summary);
@@ -184,7 +195,7 @@ function readCaptures(value: unknown): DirectorDeskCapture[] {
       typeof entry.fileName === "string" && entry.fileName
         ? entry.fileName
         : `director-desk-capture-${index + 1}.png`;
-    captures.push({ dataUrl, fileName });
+    captures.push({ dataUrl, fileName, kind: entry.kind === 'video' ? 'video' : 'image' });
   });
   return captures;
 }

@@ -7,6 +7,7 @@ import { CAMERA_PRESETS } from '@/core/cinematography/camera-presets.ts';
 import { exportVideo, type ExportOptions } from '@/core/export.ts';
 import { outputSize } from '@/core/model.ts';
 import { download } from '@/core/storage.ts';
+import { deliverMedia } from '@/core/host-delivery.ts';
 import { videoFilename } from '@/core/exporting/plan.ts';
 import { safeFilename } from '@/core/exporting/filename.ts';
 import { SCENE_TEMPLATES, createScene } from '@/core/scene-templates.ts';
@@ -62,7 +63,7 @@ const commandSpecs: Record<string, CommandSpec> = {
     undo: { kind: 'edit' },
     redo: { kind: 'edit' },
     new_project: { kind: 'edit', args: { template: 'string，取自 catalog.sceneTemplates[].id' } },
-    // 导出当前画面会渲染全分辨率并触发浏览器下载，属于 export 而不是 view。
+    // 导出当前画面会渲染全分辨率并写入宿主画布，属于 export 而不是 view。
     export_image: { kind: 'export' },
     render_preview: { kind: 'view', args: {
         seconds: 'number，可选，默认当前播放头；须在场景时长内',
@@ -393,9 +394,9 @@ function startVideoExport(input: Input) {
     exportJobs.set(jobId, job);
     session.beginBusy();
     void exportVideo(engine, options, job.controller.signal, progress => { job.progress = progress; })
-        .then(blob => {
+        .then(async blob => {
             if (!blob) throw Error('视频编码未返回文件');
-            download(blob, filename);
+            await deliverMedia(blob, filename, 'video');
             job.bytes = blob.size;
             job.progress = 1;
             job.status = 'completed';
@@ -405,7 +406,7 @@ function startVideoExport(input: Input) {
             job.error = String(error);
         })
         .finally(() => session.endBusy());
-    return { jobId, filename, status: job.status, note: '通过 export_video_job 查询完成状态；仅 completed 表示已触发浏览器下载。' };
+    return { jobId, filename, status: job.status, note: '通过 export_video_job 查询完成状态；completed 表示已生成画布视频节点。' };
 }
 
 function loadProject(project: unknown) {
@@ -459,7 +460,12 @@ export function initializeHostBridge() {
             // over whatever this browser stored from a previous standalone run.
             const theme = string(payload.theme);
             if (theme === 'light' || theme === 'dark') setEditorTheme(theme, false);
-            try { loadProject(payload.project); } catch (error) { send('error', { error: String(error) }); }
+            try {
+                loadProject(payload.project);
+                // A fresh canvas node owns its own starter document from the first opening,
+                // even if the user closes it without making an edit.
+                if (!payload.project) send('project-changed', { project: session.history.document() });
+            } catch (error) { send('error', { error: String(error) }); }
             return;
         }
         if (message.type === 'storyai:director-desk-panorama') {

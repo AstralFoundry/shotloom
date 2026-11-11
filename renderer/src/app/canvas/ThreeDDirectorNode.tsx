@@ -2,8 +2,7 @@ import { t } from '@/i18n';
 import { memo, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { IconSymbol } from "../components/IconSymbol";
-import { HarnessChatPanel } from "../agent-chat/HarnessChatPanel";
-import { DIRECTOR_AGENT_ID } from "../../agent/agents/definitions";
+import { DirectorAgentPane } from '../agent-chat/DirectorAgentPane';
 import { registerDirectorDeskFrame } from "../../services/directorDeskAgentRuntime";
 import { useWorkbenchSurfaceRoot } from "../layout/workbenchSurface";
 import { useDirectorSceneHandoffStore } from "../store/directorSceneHandoffStore";
@@ -126,9 +125,10 @@ export const ThreeDDirectorNode: WorkflowNodeRenderer = memo(
             updatedAt: new Date().toISOString(),
           });
         },
-        onCaptures: (captures) => {
+        onCaptures: async (captures) => {
           for (const capture of captures) {
-            void actions.exportDirectorAsset(node.id, capture.dataUrl, capture.fileName, "image");
+            const result = await actions.exportDirectorAsset(node.id, capture.dataUrl, capture.fileName, capture.kind);
+            if (!result) throw new Error('未能创建导出节点');
           }
         },
         // The card describes the scene without the user opening the desk: an empty box says
@@ -275,7 +275,7 @@ export const ThreeDDirectorNode: WorkflowNodeRenderer = memo(
               className="director-detail-frame"
               onLoad={() => { sendSession(); sendPanorama(); }}
             />
-            <aside className="director-detail-agent"><HarnessChatPanel agentId={DIRECTOR_AGENT_ID} /></aside>
+            <DirectorAgentPane className="director-detail-agent" nodeId={node.id} />
           </div>
         </div>,
         surface,

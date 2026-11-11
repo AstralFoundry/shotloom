@@ -821,7 +821,7 @@ export const nodeActions: WorkflowNodeActions = {
     const director: any = (store.project.nodes || []).find(
       (item: any) => item.id === id && item.type === "threeDDirector",
     );
-    if (!director || !dataUrl.startsWith("data:")) {
+    if ((!director && id) || !dataUrl.startsWith("data:")) {
       showToast(t("ui.canvasAdapter.text.3bcc4e1a"));
       return null;
     }
@@ -851,12 +851,12 @@ export const nodeActions: WorkflowNodeActions = {
       },
     );
     if (!registered.material) return null;
-    registered.material.nodeId = id;
+    if (director) registered.material.nodeId = id;
     const output: any = addNode(kind === "video" ? "videoGeneration" : "imageGeneration");
     output.title = preferredName;
     output.prompt = "";
-    output.x = Math.round((Number(director.x) || 0) + 430);
-    output.y = Math.round(Number(director.y) || 0);
+    output.x = director ? Math.round((Number(director.x) || 0) + 430) : Math.round((120 - (store.project.canvasViewport?.x || 0)) / (store.project.canvasViewport?.zoom || 1));
+    output.y = director ? Math.round(Number(director.y) || 0) : Math.round((100 - (store.project.canvasViewport?.y || 0)) / (store.project.canvasViewport?.zoom || 1));
     output.materialId = registered.material.id;
     output.resourceType = kind;
     output.sourceType = "3d-director";
@@ -870,12 +870,14 @@ export const nodeActions: WorkflowNodeActions = {
       resourceType: kind,
       source: "3d-director",
     };
-    output.generatedFrom = { nodeId: id, type: "3d-director" };
+    if (director) output.generatedFrom = { nodeId: id, type: "3d-director" };
     registered.material.nodeId = output.id;
     registered.material.nodeType = output.type;
-    director.selectedOutputNodeId = `material:${registered.material.id}`;
-    director.updatedAt = new Date().toISOString();
-    addCanvasEdge(store.project, id, output.id, { touch: false });
+    if (director) {
+      director.selectedOutputNodeId = `material:${registered.material.id}`;
+      director.updatedAt = new Date().toISOString();
+      addCanvasEdge(store.project, id, output.id, { touch: false });
+    }
     setSelectedNodeIds([output.id]);
     touchProject();
     showToast(kind === "video" ? t("ui.canvasAdapter.text.07952638") : t("ui.canvasAdapter.text.2b29d01f"));

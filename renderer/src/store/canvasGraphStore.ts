@@ -33,6 +33,13 @@ export function deleteCanvasNodeData(nodeId: string, { touch = true }: { touch?:
   assertProjectOperationIdle(current.project, [nodeId]);
   const node = current.project.nodes.find((item) => item.id === nodeId);
   if (!node) return false;
+  if (node.type === 'threeDDirector' && Array.isArray(current.project.harnessSessions)) {
+    const removed = current.project.harnessSessions.filter((session: { directorNodeId?: string }) => session.directorNodeId === nodeId);
+    current.project.harnessSessions = current.project.harnessSessions.filter((session: { directorNodeId?: string }) => session.directorNodeId !== nodeId);
+    if (removed.some((session: { id?: string }) => session.id === current.project.activeHarnessSessionId)) {
+      current.project.activeHarnessSessionId = current.project.harnessSessions[0]?.id;
+    }
+  }
   current.project.nodes = current.project.nodes.filter((item) => item.id !== nodeId);
   current.project.edges = current.project.edges.filter(
     (edge) => edge.source !== nodeId && edge.target !== nodeId,

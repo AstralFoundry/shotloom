@@ -1,7 +1,7 @@
 import { useAppStore } from '../store/appStore';
 import { t } from '@/i18n';
 import { formatItemCount } from '../../utils/format.ts';
-import { CANVAS_AGENT_ID, DIRECTOR_AGENT_ID } from '../../agent/agents/definitions';
+import { CANVAS_AGENT_ID } from '../../agent/agents/definitions';
 import {
   lazy,
   Suspense,
@@ -17,6 +17,7 @@ import type { Viewport } from "@xyflow/react";
 import { App, Segmented, Select } from "antd";
 import { CanvasStartup } from "../canvas/CanvasStartup";
 import { DirectorWorkspace } from "./DirectorWorkspace";
+import { DirectorAgentPane } from '../agent-chat/DirectorAgentPane';
 import { directorDeskWorkspaceSrc } from "../adapters/directorDeskBridge";
 import { BottomModeBar } from "../canvas/BottomModeBar";
 import { ProjectVersionHistory } from "../components/ProjectVersionHistory";
@@ -90,7 +91,7 @@ export function CreationView({
       <div className="director-workspace-host" data-canvas-no-zoom>
         <button type="button" className="director-workspace-back" onClick={closeWorkspace}>{t("ds.topbar.back")}</button>
         <DirectorWorkspace src={directorDeskWorkspaceSrc} />
-        <aside className="director-workspace-agent"><HarnessChatPanel agentId={DIRECTOR_AGENT_ID} /></aside>
+        <DirectorAgentPane className="director-workspace-agent" />
       </div>
     );
   }

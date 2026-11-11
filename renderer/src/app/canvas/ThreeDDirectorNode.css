@@ -277,17 +277,15 @@
   /* 导演台自带顶栏（标题、视角切换、导出、关闭），这里不再叠一层宿主标题栏。 */
   min-width: 0;
   min-height: 0;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) min(400px, 36vw);
-  grid-template-rows: minmax(0, 1fr);
+  display: flex;
   overflow: hidden;
   background: var(--surface);
   position: relative;
 }
 .director-detail-close {
   position: absolute;
-  top: 9px;
-  right: calc(min(400px, 36vw) + 8px);
+  bottom: 22px;
+  left: 16px;
   z-index: 2;
   width: 30px;
   height: 30px;
@@ -300,7 +298,8 @@
   cursor: pointer;
 }
 .director-detail-agent {
-  min-width: 320px;
+  position: relative;
+  min-width: 280px;
   height: 100%;
   overflow: hidden;
   border-left: 1px solid var(--line);
@@ -308,13 +307,26 @@
 .director-detail-agent .harness-chat-panel { height: 100%; }
 .director-detail-frame {
   display: block;
-  width: 100%;
+  flex: 1;
+  width: 0;
   height: 100%;
   min-width: 0;
   min-height: 0;
   border: 0;
   background: var(--surface-2);
 }
+.director-agent-resize {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -5px;
+  z-index: 3;
+  width: 10px;
+  cursor: col-resize;
+  touch-action: none;
+}
+.director-agent-resize:hover,
+.director-agent-resize:focus-visible { background: var(--overlay-dim); }
 
 /* Card summary: tells the difference between an untouched node and a built scene. */
 .director-node-summary {

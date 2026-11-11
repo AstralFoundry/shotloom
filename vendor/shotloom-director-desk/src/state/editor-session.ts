@@ -139,6 +139,7 @@ export class EditorSession {
      * read is in flight wins: recovery only applies when the revision is untouched.
      */
     async restoreRecovery(): Promise<void> {
+        if (window.parent !== window) return;
         if (this.recoveryStarted || !this.engineRef) return;
         this.recoveryStarted = true;
         const engine = this.engineRef;
@@ -466,7 +467,7 @@ export class EditorSession {
             engine.select(selected, engine.selectedPoint);
             engine.externalModels.retain([project, ...this.history.undoStack, ...this.history.redoStack]);
         }
-        this.autosave.request();
+        if (window.parent === window) this.autosave.request();
     }
 
     undo(): void {
