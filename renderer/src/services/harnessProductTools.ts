@@ -19,6 +19,8 @@ import { inferMediaType } from '../utils/mediaType';
 import { prepareVideoEditor, WORKSPACE_VIDEO_EDITOR_ID } from './videoEditorSession';
 import { settingsStore } from '../store/settingsStore';
 import { registerDirectorTools } from '../agent/tools/directorTools';
+import { directorDeskAvailable, runDirectorDeskCommand } from './directorDeskAgentRuntime';
+import { directorReferenceCatalog, resolveDirectorReference } from './agent/directorReferences';
 
 export interface ProductBinding {
   sessionId: string; projectKey: string; conversationId: string;
@@ -97,7 +99,7 @@ export function bindProductSession(binding: ProductBinding) {
 /** Native credential and binding are checked before this product boundary. */
 export async function executeProductRequest(request: {
   requestId: string; binding: ProductBinding; toolName: string; input: JsonObject;
-  phase?: string; approvedByHarness?: boolean;
+  phase?: string; approvedByHarness?: boolean; authorizedByFullAccess?: boolean;
 }): Promise<unknown> {
   const registered = bindings.get(request.binding?.sessionId);
   if (!registered || (['sessionId', 'projectKey', 'conversationId', 'agentId', 'nodeId'] as const).some(key => registered.binding[key] !== request.binding[key])) throw new Error(t('agent.bindingUnknown'));
@@ -109,7 +111,9 @@ export async function executeProductRequest(request: {
   if (binding.nodeId) {
     const node = binding.agentId === EDITOR_AGENT_ID && binding.nodeId === WORKSPACE_VIDEO_EDITOR_ID
       ? store.project.videoEditorSession : store.project.nodes.find((item: { id: string }) => item.id === binding.nodeId);
-    if (!node || (binding.agentId === EDITOR_AGENT_ID ? conversation.editorNodeId : conversation.textNodeId) !== binding.nodeId) throw new Error(t('agent.bindingNodeMissing'));
+    const boundNodeId = binding.agentId === EDITOR_AGENT_ID ? conversation.editorNodeId
+      : binding.agentId === DIRECTOR_AGENT_ID ? conversation.directorNodeId : conversation.textNodeId;
+    if (!node || boundNodeId !== binding.nodeId) throw new Error(t('agent.bindingNodeMissing'));
   }
   context.capabilities.nodeExecution = settingsStore.agentCanRunNodes === true;
   if (!supportsEditorTool(request.toolName, desktopApi.platform !== 'browser' && Boolean(store.projectDir))) {
@@ -121,7 +125,7 @@ export async function executeProductRequest(request: {
   const approvalRequired = prepared.definition.approvalRequired === true ||
     (settingsStore.agentApprovalPolicy !== 'never' && ['project_write', 'canvas_write', 'media_generation'].includes(effect));
   if (request.phase === 'authorize') return { success: true, approvalRequired };
-  if (approvalRequired && request.approvedByHarness !== true) return { success: false, code: 'APPROVAL_REQUIRED', applied: false };
+  if (approvalRequired && request.approvedByHarness !== true && request.authorizedByFullAccess !== true) return { success: false, code: 'APPROVAL_REQUIRED', applied: false };
   const existing = calls.get(request.requestId);
   if (existing) return existing;
   const operation = (async () => {
@@ -148,6 +152,19 @@ export async function readHarnessCanvasReference(sessionId: string, nodeId?: str
   assertAgentProject(context.projectKey, context.projectInstanceId, context.projectGeneration);
   const conversation = store.project.harnessSessions?.find((item: { id: string; agentId: string }) => item.id === binding.conversationId);
   if (!conversation || conversation.agentId !== binding.agentId) throw new Error(t('agent.reference.expired'));
+  const director = binding.agentId === DIRECTOR_AGENT_ID;
+  const directorState = async () => {
+    if (!directorDeskAvailable()) throw new Error('当前导演台场景不可用');
+    const [snapshot, catalog] = await Promise.all([
+      runDirectorDeskCommand('snapshot'), runDirectorDeskCommand('catalog'),
+    ]);
+    assertAgentProject(context.projectKey, context.projectInstanceId, context.projectGeneration);
+    return { snapshot, catalog };
+  };
+  if (director && nodeId?.startsWith('director:')) {
+    const { snapshot, catalog } = await directorState();
+    return resolveDirectorReference(nodeId, snapshot, catalog);
+  }
   const nodes: AgentNode[] = store.project.nodes.filter((node: AgentNode) => !node.archived);
   const mediaCatalog = createNodeMediaCatalog(store.project);
   const describe = (node: typeof nodes[number]) => {
@@ -159,7 +176,17 @@ export async function readHarnessCanvasReference(sessionId: string, nodeId?: str
       mediaType: ({ imageGeneration: 'image', videoGeneration: 'video', audioGeneration: 'audio', textGeneration: 'text' } as Record<string, string>)[node.type] || inferMediaType(media), artifactType: canvasArtifactType(node.artifactType),
       mediaRevision: `${identity.length}:${(revision >>> 0).toString(16)}` };
   };
-  if (nodeId === undefined) return { nodes: nodes.map(describe) };
+  if (nodeId === undefined) {
+    const canvasNodes = nodes.map(node => ({ ...describe(node), referenceScope: 'canvas' as const }));
+    if (!director) return { nodes: canvasNodes };
+    try {
+      const { snapshot, catalog } = await directorState();
+      return { nodes: [...directorReferenceCatalog(snapshot, catalog), ...canvasNodes] };
+    } catch {
+      assertAgentProject(context.projectKey, context.projectInstanceId, context.projectGeneration);
+      return { nodes: canvasNodes };
+    }
+  }
   const node = nodes.find(item => item.id === nodeId);
   if (!node) throw new Error(t('agent.reference.unavailable'));
   const invoke = async (toolName: string, input: JsonObject) => {

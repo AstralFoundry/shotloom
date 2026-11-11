@@ -95,6 +95,15 @@ function createBrowserFallback() {
   return {
     platform: 'browser',
 
+    harness: {
+      status: async () => ({ running: false, ready: false }),
+      start: async () => ({ running: false, ready: false }),
+      stop: async () => ({ running: false, ready: false }),
+      restart: async () => ({ running: false, ready: false }),
+      archiveSessions: async (_projectKey: string, _sessionIds: string[] | undefined, _archived: boolean): Promise<unknown> => undefined,
+      onReady: (_callback: () => void) => () => {},
+    },
+
     window: {
       minimize: async () => false,
       maximize: async () => false,

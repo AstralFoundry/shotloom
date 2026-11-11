@@ -25,6 +25,7 @@ import {
   canvasWriteFenceFingerprint,
 } from '@/utils/canvasMutationFingerprint.ts';
 import { desktopApi } from '@/services/desktopApi';
+import { videoContactSheet } from './videoContactSheet';
 
 function imageDataUrl(bytes: ArrayBuffer) {
   const data = new Uint8Array(bytes);
@@ -204,54 +205,89 @@ export function registerCanvasTools(): void {
     id: 'canvas_media_frame',
     icon: 'film',
     title: t('tool.title.canvas_media_frame'),
-    description: '读取画布节点的真实视频文件，在指定时间点用 FFmpeg 抽取源视频帧并以图片附件返回给模型。用于判断视频画面内容；不修改画布，不用文件名或路径猜测内容。一次最多读取 8 个明确时间点。',
+    description: '读取画布视频节点或本地视频文件路径，在指定时间点用 FFmpeg 抽帧。nodeId 与 filePath 二选一；一次最多 24 个时间点。多时间点概览优先传 outputMode=contact_sheet，将帧拼成一张紧凑图片并逐格标秒数；需要检查单帧细节时用 frames（省略时的默认值）逐张返回。仅根据实际返回的画面判断内容。',
     effect: 'read',
     inputSchema: {
       type: 'object',
-      required: ['nodeId', 'timesSec'],
+      required: ['timesSec'],
       properties: {
-        nodeId: { type: 'string' },
-        timesSec: { type: 'array', minItems: 1, maxItems: 8, items: { type: 'number', minimum: 0 } },
+        nodeId: { type: 'string', description: '画布视频节点 ID；与 filePath 二选一。' },
+        filePath: { type: 'string', description: '本地视频文件的绝对路径；与 nodeId 二选一。' },
+        timesSec: { type: 'array', description: '要查看的秒数，1 至 24 个非负时间点。', minItems: 1, maxItems: 24, items: { type: 'number', minimum: 0 } },
+        outputMode: { type: 'string', enum: ['frames', 'contact_sheet'], description: '多时间点概览优先选 contact_sheet：拼接成一张紧凑图片，每格标注秒数。需要辨认单帧细节时选 frames，逐张返回；省略时默认 frames。' },
       },
       additionalProperties: false,
     },
-    summarizeInput: (input) => `${nodeSummaryLabel(input.nodeId)} @ ${Array.isArray(input.timesSec) ? input.timesSec.join(', ') : ''}s`,
+    summarizeInput: (input) => `${input.filePath ? String(input.filePath).split(/[\\/]/).at(-1) : nodeSummaryLabel(input.nodeId)} @ ${Array.isArray(input.timesSec) ? input.timesSec.join(', ') : ''}s`,
     execute: async (input, context) => {
       assertContextProject(context);
       const rawNodeId = String(input.nodeId || '').trim();
-      const aliasMap = agentNodeAliasMaps(projectStore.project.nodes || []).aliasMap;
-      const nodeId = String(aliasMap[rawNodeId.toUpperCase()] || rawNodeId);
-      const node = (projectStore.project.nodes || []).find((item: any) => String(item.id) === nodeId) as Record<string, any> | undefined;
-      if (!node || node.archived) return { success: false, error: t('tool.feedback.canvas.missingVideoNode') };
-      const candidate = selectedNodeMedia(node, projectStore.project) || node;
-      const source = localMediaPath(candidate);
-      if (!source) return { success: false, error: t('tool.feedback.canvas.noVideoFile') };
-      if (inferMediaType(candidate) !== 'video') return { success: false, error: t('tool.feedback.canvas.notVideo') };
+      const filePath = String(input.filePath || '').trim();
+      if (Boolean(rawNodeId) === Boolean(filePath)) return { success: false, error: t('tool.feedback.canvas.videoSourceRequired') };
+      let nodeId = '';
+      let source = filePath;
+      let displayName = filePath.split(/[\\/]/).at(-1) || 'video';
+      if (filePath) {
+        if (!/^(?:\/|[a-zA-Z]:[\\/]|\\\\)/.test(filePath) || /^(?:https?:|blob:|data:)/i.test(filePath)) {
+          return { success: false, error: t('tool.feedback.canvas.invalidVideoPath') };
+        }
+        if (inferMediaType(filePath) !== 'video') return { success: false, error: t('tool.feedback.canvas.notVideo') };
+      } else {
+        const aliasMap = agentNodeAliasMaps(projectStore.project.nodes || []).aliasMap;
+        nodeId = String(aliasMap[rawNodeId.toUpperCase()] || rawNodeId);
+        const node = (projectStore.project.nodes || []).find((item: any) => String(item.id) === nodeId) as Record<string, any> | undefined;
+        if (!node || node.archived) return { success: false, error: t('tool.feedback.canvas.missingVideoNode') };
+        const candidate = selectedNodeMedia(node, projectStore.project) || node;
+        source = localMediaPath(candidate);
+        if (!source) return { success: false, error: t('tool.feedback.canvas.noVideoFile') };
+        if (inferMediaType(candidate) !== 'video') return { success: false, error: t('tool.feedback.canvas.notVideo') };
+        displayName = String(node.title || node.fileName || nodeId);
+      }
       const times = [...new Set((Array.isArray(input.timesSec) ? input.timesSec : [])
         .map((value) => Number(value)).filter((value) => Number.isFinite(value) && value >= 0))];
       if (!times.length) return { success: false, error: t('tool.feedback.canvas.noTimes') };
       const attachments: JsonObject[] = [];
       const frames: JsonObject[] = [];
+      const previews: Array<{ seconds: number; dataUrl: string }> = [];
       for (const seconds of times) {
         try {
-          const frame = await desktopApi.file.captureVideoFrameToProject(source, seconds, `agent-frame-${nodeId}-${seconds.toFixed(3)}.jpg`);
+          const frame = await desktopApi.file.captureVideoFrameToProject(source, seconds, `agent-frame-${crypto.randomUUID()}-${seconds.toFixed(3)}.jpg`);
           const path = String(frame?.filePath || frame?.path || '');
           if (!path) throw new Error(t('tool.feedback.frame.noFile'));
           const bytes = await desktopApi.file.readImagePreview(path, 1280);
           if (!bytes?.byteLength) throw new Error(t('tool.feedback.frame.unreadable'));
-          const filename = `${String(node.title || node.fileName || nodeId)}-${seconds.toFixed(3)}s.jpg`;
-          attachments.push({ type: 'file', mime: 'image/jpeg', filename, url: imageDataUrl(bytes) });
+          const filename = `${displayName}-${seconds.toFixed(3)}s.jpg`;
+          const dataUrl = imageDataUrl(bytes);
+          previews.push({ seconds, dataUrl });
+          if (input.outputMode !== 'contact_sheet') attachments.push({ type: 'file', mime: 'image/jpeg', filename, url: dataUrl });
           frames.push({ seconds, filename, path });
         } catch (error) {
           frames.push({ seconds, error: error instanceof Error ? error.message : String(error) });
         }
       }
-      if (!attachments.length) return { success: false, nodeId, frames, error: t('tool.feedback.canvas.noFrames') };
+      if (!previews.length) return { success: false, nodeId, frames, error: t('tool.feedback.canvas.noFrames') };
+      let contactSheetPath = '';
+      if (input.outputMode === 'contact_sheet') {
+        try {
+          const dataUrl = await videoContactSheet(previews);
+          attachments.push({ type: 'file', mime: 'image/jpeg', filename: `${displayName}-contact-sheet.jpg`, url: dataUrl });
+          try {
+            const sheet = await desktopApi.file.saveDataUrlToProject(dataUrl, `agent-contact-sheet-${crypto.randomUUID()}.jpg`);
+            contactSheetPath = String(sheet?.filePath || sheet?.path || '');
+          } catch {
+            // The model still receives the assembled image; existing source-frame previews remain available to the user.
+          }
+        } catch (error) {
+          return { success: false, nodeId, frames, error: error instanceof Error ? error.message : String(error) };
+        }
+      }
       return {
         success: true,
         nodeId,
         sourceFile: source,
         frames,
+        outputMode: input.outputMode === 'contact_sheet' ? 'contact_sheet' : 'frames',
+        ...(contactSheetPath ? { contactSheetPath } : {}),
         evidence: '源视频帧；不含画布叠层或剪辑合成效果',
         __toolAttachments: attachments,
       };
@@ -262,7 +298,7 @@ export function registerCanvasTools(): void {
       if (!frames.length) return undefined;
       return {
         summary: formatToolCount('frames', frames.length),
-        previews: frames.map((frame: any) => ({
+        previews: result?.contactSheetPath ? [{ path: String(result.contactSheetPath), label: `${frames.length} frames` }] : frames.map((frame: any) => ({
           path: String(frame.path),
           label: `${Number(frame.seconds).toFixed(1)}s`,
         })),

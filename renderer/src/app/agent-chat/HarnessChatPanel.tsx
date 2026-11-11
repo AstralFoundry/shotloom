@@ -7,10 +7,10 @@ import { openMediaViewer } from '../store/overlayStore';
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { subscribeDomain, getDomainRevision } from '../../store/domainReactivity';
 import { getAgentProjectIdentity } from '../../services/agentProjectIdentity';
-import { openHarnessPanel } from '../agent-session/harnessIntegration';
+import { openHarnessPanel, setHarnessSessionsArchived } from '../agent-session/harnessIntegration';
 import { readHarnessCanvasReference, type ProductBinding } from '../../services/harnessProductTools';
 import { store, touchProject } from '../../store/projectStore';
-import { createHarnessSession, scopedHarnessSessions } from '../../services/harnessSessionStore';
+import { createHarnessSession, deleteHarnessSession, scopedHarnessSessions } from '../../services/harnessSessionStore';
 import { focusCanvasNodes } from '../adapters/canvasAdapter';
 import { useAppStore } from '../store/appStore';
 import { mountHarnessClient } from '../agent-session/harnessClient';
@@ -101,6 +101,18 @@ export function HarnessChatPanel({ agentId, nodeId, onClose, onStatusChange }: {
   }, [panel, key, agentId, onStatusChange]);
   return <section ref={container} className="harness-chat-panel">
     <HarnessSessionToolbar sessions={sessions} selectedId={selected?.id} onSelect={setSelectedId} onClose={onClose}
+      onDelete={async id => {
+        const target = sessions.find(session => session.id === id);
+        if (!target) return;
+        if (target.harnessSessionId) await setHarnessSessionsArchived(identity.projectKey, [target.harnessSessionId], true);
+        if (getAgentProjectIdentity().fenceKey !== identity.fenceKey) return;
+        deleteHarnessSession(store.project, id);
+        const remaining = store.project.harnessSessions?.length
+          ? scopedHarnessSessions(store.project, agentId === CANVAS_AGENT_ID ? 'canvas' : agentId === DIRECTOR_AGENT_ID ? 'director' : agentId === EDITOR_AGENT_ID ? 'editor' : 'text', nodeId) : [];
+        const next = remaining.find(session => session.id === selected?.id) || remaining[0] || createHarnessSession(store.project, { agentId, ...(agentId === TEXT_AGENT_ID ? { textNodeId: nodeId! } : agentId === EDITOR_AGENT_ID ? { editorNodeId: nodeId! } : agentId === DIRECTOR_AGENT_ID && nodeId ? { directorNodeId: nodeId } : {}) });
+        setSelectedId(next.id!);
+        touchProject({ sessionDelay: 0, coalesceSession: false });
+      }}
       onCreate={() => { const created = createHarnessSession(store.project, { agentId, ...(agentId === TEXT_AGENT_ID ? { textNodeId: nodeId! } : agentId === EDITOR_AGENT_ID ? { editorNodeId: nodeId! } : agentId === DIRECTOR_AGENT_ID && nodeId ? { directorNodeId: nodeId } : {}) }); setSelectedId(created.id!); touchProject(); }} />
     <div ref={surface} className="harness-chat-frame" />
     {panel?.key === key && !panel.sessionId && !panel.error && <p role="status">{t('agent.connecting')}</p>}

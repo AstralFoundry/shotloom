@@ -94,6 +94,7 @@ for (const [id] of entries) {
     for (const [before, after] of [
       ['const modelLabel = waiting ?', 'const emptyCatalog = state.status === "ready" && choices.length === 0 && state.failures.length === 0; const modelLabel = emptyCatalog ? t("trigger.fallback") : waiting ?'],
       ['state.current === null ? t("trigger.selectAria")', '(emptyCatalog || state.current === null) ? t("trigger.selectAria")'],
+      ['currentChoice?.model.name ?? (state.current === null ? t("trigger.fallback") : `${state.current.provider}/${state.current.model}`)', 'currentChoice?.model.name ?? t("trigger.fallback")'],
     ]) {
       if (source.split(before).length !== 2) throw new Error('Official model label seam changed; review the empty catalog presentation');
       source = source.replace(before, after);

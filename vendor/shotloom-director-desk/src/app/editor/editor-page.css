@@ -44,6 +44,15 @@
 .editor--sidebar-closed .sidebar {
     display: none;
 }
+.editor--inspector-closed {
+    grid-template-columns: 0 minmax(0, 1fr) 0;
+}
+.editor--sidebar-open.editor--inspector-closed {
+    grid-template-columns: var(--sidebar-width, 296px) minmax(0, 1fr) 0;
+}
+.editor--inspector-closed .inspector {
+    display: none;
+}
 
 /* Drag handles sit on the panel seam, outside the panel's own padding. */
 .panel-resize {
@@ -103,6 +112,12 @@
     }
     .editor--sidebar-closed {
         grid-template-columns: 0 minmax(0, 1fr) var(--inspector-width, 280px);
+    }
+    .editor--inspector-closed {
+        grid-template-columns: 0 minmax(0, 1fr) 0;
+    }
+    .editor--sidebar-open.editor--inspector-closed {
+        grid-template-columns: var(--sidebar-width, 248px) minmax(0, 1fr) 0;
     }
 }
 
@@ -894,7 +909,10 @@
     white-space: nowrap;
 }
 
-.inspector__scene-button {
+.inspector__header-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
     margin-left: auto;
     flex: none;
 }

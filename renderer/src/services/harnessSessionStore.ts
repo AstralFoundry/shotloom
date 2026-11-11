@@ -8,7 +8,7 @@ export interface HarnessSession {
   harnessSessionId?: string; updatedAt?: string; [key: string]: unknown;
 }
 export interface HarnessProject {
-  id?: string; harnessSessions?: HarnessSession[]; activeHarnessSessionId?: string | undefined;
+  id?: string; harnessSessions?: HarnessSession[]; trashedHarnessSessions?: HarnessSession[]; activeHarnessSessionId?: string | undefined;
   [key: string]: unknown;
 }
 export interface CreateConversationOptions { title?: string; agentId?: string; editorNodeId?: string; textNodeId?: string; directorNodeId?: string }
@@ -55,6 +55,41 @@ export function ensureHarnessSessions(project: HarnessProject | null | undefined
 export function getActiveHarnessSession(project: HarnessProject): HarnessSession | null {
   const conversations = ensureHarnessSessions(project);
   return conversations.find((item) => item.id === project.activeHarnessSessionId) || conversations[0] || null;
+}
+
+function boundNodeId(session: HarnessSession): string {
+  return String(session.textNodeId || session.editorNodeId || session.directorNodeId || '');
+}
+
+/** Move node-owned conversations out of the active index while retaining their Host history for undo. */
+export function trashBoundHarnessSessions(project: HarnessProject, nodeId: string): void {
+  const active = ensureHarnessSessions(project);
+  const removed = active.filter(session => boundNodeId(session) === nodeId);
+  if (!removed.length) return;
+  project.harnessSessions = active.filter(session => boundNodeId(session) !== nodeId);
+  project.trashedHarnessSessions = [...(project.trashedHarnessSessions || []), ...removed];
+  if (removed.some(session => session.id === project.activeHarnessSessionId)) {
+    project.activeHarnessSessionId = project.harnessSessions[0]?.id;
+  }
+}
+
+/** Canvas undo/redo restores or trashes only conversations whose node presence changed. */
+export function reconcileBoundHarnessSessions(project: HarnessProject & { nodes?: Array<{ id: string }> }): void {
+  const nodeIds = new Set((project.nodes || []).map(node => node.id));
+  const active = ensureHarnessSessions(project);
+  const trashed = project.trashedHarnessSessions || [];
+  const isMissing = (session: HarnessSession) => {
+    const id = boundNodeId(session);
+    return id && id !== 'workspace-video-editor' && !nodeIds.has(id);
+  };
+  const restored = trashed.filter(session => !isMissing(session));
+  const removed = active.filter(isMissing);
+  if (!restored.length && !removed.length) return;
+  project.harnessSessions = [...active.filter(session => !isMissing(session)), ...restored];
+  project.trashedHarnessSessions = [...trashed.filter(isMissing), ...removed];
+  if (removed.some(session => session.id === project.activeHarnessSessionId)) {
+    project.activeHarnessSessionId = project.harnessSessions[0]?.id;
+  }
 }
 
 // 画布、每个剪辑工作区和每个文本编辑器各自拥有独立会话，互不可见。project.activeHarnessSessionId
@@ -124,7 +159,9 @@ export function textHarnessSession(project: HarnessProject, textNodeId: string):
 }
 
 export function createHarnessSession(project: HarnessProject, options: CreateConversationOptions = {}): HarnessSession {
-  const canonical = ensureHarnessSessions(project);
+  // Creating the first scoped conversation must not also bootstrap an unrelated canvas conversation.
+  const canonical = Array.isArray(project.harnessSessions) && project.harnessSessions.length
+    ? ensureHarnessSessions(project) : (project.harnessSessions = []);
   const now = new Date().toISOString();
   const conversation: HarnessSession = {
     id: uid(),
@@ -140,5 +177,15 @@ export function createHarnessSession(project: HarnessProject, options: CreateCon
   canonical.unshift(conversation);
   project.activeHarnessSessionId = conversation.id;
   return conversation;
+}
+
+/** Remove one explicit conversation; node undo only restores node-owned trash, never a manually deleted chat. */
+export function deleteHarnessSession(project: HarnessProject, id: string): HarnessSession | null {
+  const sessions = ensureHarnessSessions(project);
+  const deleted = sessions.find(session => session.id === id);
+  if (!deleted) return null;
+  project.harnessSessions = sessions.filter(session => session.id !== id);
+  if (project.activeHarnessSessionId === id) project.activeHarnessSessionId = project.harnessSessions[0]?.id;
+  return deleted;
 }
 

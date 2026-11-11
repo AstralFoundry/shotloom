@@ -128,6 +128,81 @@ test('canvas_media_image 对非图片、无文件和已消失节点分别返回�
   }
 });
 
+test('canvas_media_frame 可从本地文件路径逐张读取，并保留原有节点方式', async () => {
+  const project = resetProject();
+  project.nodes = [{ id: 'video-1', type: 'videoGeneration', title: '镜头', generatedOutputs: [
+    { filePath: '/proj/assets/shot.mp4', resourceType: 'video', selected: true },
+  ] }];
+  const captures = [];
+  const previousCapture = desktopApi.file.captureVideoFrameToProject;
+  const previousRead = desktopApi.file.readImagePreview;
+  desktopApi.file.captureVideoFrameToProject = async (source, seconds) => {
+    captures.push({ source, seconds });
+    return { filePath: `/proj/assets/frame-${seconds}.jpg` };
+  };
+  desktopApi.file.readImagePreview = async () => new Uint8Array([255, 216, 255, 217]).buffer;
+  try {
+    const fromFile = await call('director-primary', 'canvas_media_frame', {
+      filePath: '/tmp/uploaded.mp4', timesSec: [0, 2.5], outputMode: 'frames',
+    });
+    assert.equal(fromFile.result.success, true);
+    assert.equal(fromFile.result.__toolAttachments.length, 2);
+    assert.deepEqual(captures, [{ source: '/tmp/uploaded.mp4', seconds: 0 }, { source: '/tmp/uploaded.mp4', seconds: 2.5 }]);
+    const fromNode = await call('director-primary', 'canvas_media_frame', { nodeId: 'video-1', timesSec: [1] });
+    assert.equal(fromNode.result.success, true);
+    assert.equal(captures.at(-1).source, '/proj/assets/shot.mp4');
+    const ambiguous = await call('director-primary', 'canvas_media_frame', { nodeId: 'video-1', filePath: '/tmp/uploaded.mp4', timesSec: [0] });
+    assert.equal(ambiguous.result.success, false);
+    assert.equal(captures.length, 3);
+  } finally {
+    desktopApi.file.captureVideoFrameToProject = previousCapture;
+    desktopApi.file.readImagePreview = previousRead;
+  }
+});
+
+test('canvas_media_frame 拼图模式只返回一张带逐帧秒数的图', async () => {
+  resetProject();
+  const previousCapture = desktopApi.file.captureVideoFrameToProject;
+  const previousRead = desktopApi.file.readImagePreview;
+  const previousSave = desktopApi.file.saveDataUrlToProject;
+  const previousImage = globalThis.Image;
+  const previousDocument = globalThis.document;
+  const labels = [];
+  const timesSec = Array.from({ length: 24 }, (_, index) => index);
+  const contactSheet = {
+    getContext: () => ({ fillRect() {}, drawImage() {}, measureText(value) { return { width: value.length * 7 }; }, fillText(value) { labels.push(value); } }),
+    toDataURL: () => 'data:image/jpeg;base64,/9j/',
+  };
+  desktopApi.file.captureVideoFrameToProject = async (_source, seconds) => ({ filePath: `/proj/assets/frame-${seconds}.jpg` });
+  desktopApi.file.readImagePreview = async () => new Uint8Array([255, 216, 255, 217]).buffer;
+  desktopApi.file.saveDataUrlToProject = async () => ({ filePath: '/proj/assets/contact-sheet.jpg' });
+  globalThis.Image = class {
+    naturalWidth = 640;
+    naturalHeight = 360;
+    set src(_value) { queueMicrotask(() => this.onload?.()); }
+  };
+  globalThis.document = { createElement: () => contactSheet };
+  try {
+    const { result, prepared } = await call('director-primary', 'canvas_media_frame', {
+      filePath: '/tmp/uploaded.mp4', timesSec, outputMode: 'contact_sheet',
+    });
+    assert.equal(result.success, true, JSON.stringify(result));
+    assert.equal(result.__toolAttachments.length, 1);
+    assert.deepEqual(labels, timesSec.map(seconds => `${seconds}s`));
+    assert.equal(result.frames.length, 24);
+    assert.equal(contactSheet.width, 1324);
+    assert.equal(contactSheet.height, 508);
+    assert.equal(result.contactSheetPath, '/proj/assets/contact-sheet.jpg');
+    assert.deepEqual(prepared.definition.summarizeResult(result).previews, [{ path: '/proj/assets/contact-sheet.jpg', label: '24 frames' }]);
+  } finally {
+    desktopApi.file.captureVideoFrameToProject = previousCapture;
+    desktopApi.file.readImagePreview = previousRead;
+    desktopApi.file.saveDataUrlToProject = previousSave;
+    if (previousImage === undefined) delete globalThis.Image; else globalThis.Image = previousImage;
+    if (previousDocument === undefined) delete globalThis.document; else globalThis.document = previousDocument;
+  }
+});
+
 test('inspect_assets 返回素材库真实条目与可引用标识，库外文件如实标出', async () => {
   const project = resetProject();
   project.materials = [

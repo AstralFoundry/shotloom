@@ -107,7 +107,7 @@ export function registerDirectorTools(): void {
     description: `调用 3D 导演台的真实编辑命令。operation 必须是 director_desk_snapshot 返回的 commands 中的 name，args 按该命令的 args 说明填写。覆盖实体与机位、戏段时间线与动作、姿态与路径、灯光与环境、撤销重做、工程 JSON 下载以及视频导出任务的启动与取消。
 
 三组值得注意的能力：
-- 核验：render_preview 返回当前帧像素（会作为图片交给你），spatial_check 返回区间内的重叠、过近、出画问题列表；两者都不改工程，是判断"这样拍对不对"的依据。
+- 核验：render_preview_sheet 一次返回最多 8 个真实时间点的带时码拼图，优先用于检查动作、运镜和切镜连续性；render_preview 返回单帧画面；inspect_model 返回建筑或道具的多视角拼图、局部部件尺寸和包围盒；spatial_check 返回区间内的重叠、过近、出画问题列表。这些命令都不改工程。
 - 关键帧：record_position_key / record_focal_key 在播放头记录，remove_focal_key 删除。
 - 交付：export_shot 按切镜序号导出单镜静帧；export_video_start 支持指定区间与机位。
 
@@ -143,19 +143,27 @@ export function registerDirectorTools(): void {
       }
       try {
         const result = await runDirectorDeskCommand(operation, (input.args ?? {}) as Record<string, unknown>);
-        // render_preview 把像素交回来，而不是下载文件。转成图片附件，模型才能像人一样
-        // 看到构图、遮挡与光影——只看场景 JSON 无法核验这些。
-        const preview = result as { dataUrl?: unknown; seconds?: unknown; cameraId?: unknown } | null;
-        if (typeof preview?.dataUrl === 'string' && preview.dataUrl.startsWith('data:image/png;base64,')) {
+        // Preview pixels are evidence for the model and user, not a delivered media node.
+        const preview = result as { dataUrl?: unknown; seconds?: unknown; timesSec?: unknown; cameraId?: unknown; entityId?: unknown; cells?: unknown; name?: unknown } | null;
+        const previewMime = typeof preview?.dataUrl === 'string'
+          ? /^data:(image\/(?:png|jpeg));base64,/.exec(preview.dataUrl)?.[1]
+          : undefined;
+        if (previewMime) {
           const { dataUrl, ...facts } = preview as { dataUrl: string };
+          const sheet = Array.isArray(preview?.timesSec);
+          const modelSheet = typeof preview?.entityId === 'string' && Array.isArray(preview.cells);
           return {
             success: true,
             applied: false,
             ...facts,
-            evidence: '导演台当前帧渲染结果；仅代表该时间点与该机位的画面，不含浏览器侧叠加的编辑器 UI',
+            evidence: modelSheet
+              ? '当前建筑或道具的独立多视角渲染；尺寸来自模型几何，不能替代完整场景中的遮挡、光影和空间核验'
+              : sheet
+                ? '导演台时间线真实渲染帧拼图；每格标注秒数，不含编辑器 UI，需逐格检查连续性'
+                : '导演台当前帧渲染结果；仅代表该时间点与该机位的画面，不含浏览器侧叠加的编辑器 UI',
             __toolAttachments: [{
-              type: 'file', mime: 'image/png',
-              filename: `director-${Number(preview.seconds || 0).toFixed(2)}s.png`,
+              type: 'file', mime: previewMime,
+              filename: modelSheet ? `director-model-${preview.entityId}.jpg` : sheet ? 'director-timeline-sheet.jpg' : `director-${Number(preview?.seconds || 0).toFixed(2)}s.png`,
               url: dataUrl,
             }],
           };
@@ -170,8 +178,14 @@ export function registerDirectorTools(): void {
     summarizeResult: (result: unknown) => {
       const frames = (result as { __toolAttachments?: Array<{ url?: string }> } | null)?.__toolAttachments;
       if (!frames?.length) return undefined;
+      const timesSec = (result as { timesSec?: unknown }).timesSec;
+      const cells = (result as { cells?: unknown }).cells;
       const seconds = Number((result as { seconds?: number }).seconds);
-      const label = Number.isFinite(seconds) ? `${seconds.toFixed(1)}s` : t('tool.feedback.director.preview');
+      const label = Array.isArray(cells)
+        ? `${String((result as { name?: unknown }).name || 'model')} · ${cells.length} views`
+        : Array.isArray(timesSec)
+        ? `${timesSec.length} frames`
+        : Number.isFinite(seconds) ? `${seconds.toFixed(1)}s` : t('tool.feedback.director.preview');
       return {
         summary: label,
         previews: frames.flatMap(frame => typeof frame.url === 'string' ? [{ path: frame.url, label }] : []),

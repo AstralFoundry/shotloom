@@ -38,6 +38,18 @@ test('随包 Skill 与磁盘目录一一对应，身份、说明和启用状态�
   }
 });
 
+test('导演台创作 Skill 只授予导演台 Agent', async () => {
+  const { agentDefinition } = await env.load('agent/agents/definitions');
+  const { selectAgentSkills } = await env.load('agent/core/visibility');
+  const skill = parseSkill('director-desk-staging').metadata;
+  assert.equal(skill.enabled, true);
+  assert.deepEqual(
+    selectAgentSkills(agentDefinition('director-primary'), [skill]).map((entry) => entry.id),
+    ['director-desk-staging'],
+  );
+  assert.deepEqual(selectAgentSkills(agentDefinition('canvas-primary'), [skill]), []);
+});
+
 test('Skill 正文引用的随包资料真实存在，包括跨 Skill 引用', () => {
   for (const skill of skills) {
     const cited = new Set([...skill.instructions.matchAll(/(?:[A-Za-z0-9_-]+\/)?references\/[A-Za-z0-9_./-]+\.(?:md|txt|json)/g)].map((match) => match[0]));

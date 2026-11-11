@@ -9,6 +9,8 @@ import { ASPECTS, FRAME_RATES, COLORS, clip, entity, outputSize, type Project, t
 import type { CameraConfig } from '@/core/model.ts';
 import { defaultLighting, type LightingConfig } from '@/core/lighting/model.ts';
 import { deliverMedia } from '@/core/host-delivery.ts';
+import { assetParameters, validateAssetParameters } from '@/core/assets/parameters.ts';
+import { captureModelViews, inspectModel, MODEL_INSPECTION_VIEWS, type ModelInspectionView } from '@/core/editor/model-inspection.ts';
 import { notifyError, notifySuccess } from '@/shared/ui/feedback.ts';
 import { useEditorStore } from '../editor-store.ts';
 import type { EditorCommandHost } from './host.ts';
@@ -134,6 +136,125 @@ export class SceneCommands {
         } finally {
             this.host.patch({ busy: false });
             engine.restorePreview(at);
+        }
+    }
+
+    /** Inspect several real timeline frames as one labeled image without exporting media. */
+    async renderPreviewSheet(input: { timesSec: number[]; cameraId?: string }) {
+        const engine = this.host.engine;
+        if (!engine) throw new Error('导演台画布尚未准备好');
+        if (useEditorStore.getState().busy || engine.exporting) throw new Error('导演台正在执行其他任务，请稍后重试');
+        if (!Array.isArray(input.timesSec) || input.timesSec.length < 1 || input.timesSec.length > 8 ||
+            input.timesSec.some(seconds => !Number.isFinite(seconds) || seconds < 0 || seconds > this.host.project.duration)) {
+            throw new Error('timesSec 需要 1 至 8 个场景时长内的秒数');
+        }
+        const timesSec = [...input.timesSec].sort((a, b) => a - b);
+        const cameraId = input.cameraId ?? useEditorStore.getState().preview;
+        const [frameWidth, frameHeight] = outputSize(this.host.project.aspect, 640);
+        const cellWidth = 320;
+        const cellHeight = Math.round(cellWidth * frameHeight / frameWidth);
+        const columns = Math.min(4, timesSec.length);
+        const rows = Math.ceil(timesSec.length / columns);
+        const gap = 6;
+        const sheet = document.createElement('canvas');
+        sheet.width = columns * cellWidth + (columns + 1) * gap;
+        sheet.height = rows * cellHeight + (rows + 1) * gap;
+        const context = sheet.getContext('2d');
+        if (!context) throw new Error('无法创建导演台预览拼图');
+        context.fillStyle = '#17191d';
+        context.fillRect(0, 0, sheet.width, sheet.height);
+        const at = this.host.clock;
+        this.host.patch({ playing: false, busy: true });
+        engine.exporting = true;
+        try {
+            for (const [index, seconds] of timesSec.entries()) {
+                await engine.prepareOutput(seconds);
+                const frame = engine.renderOutput(seconds, frameWidth, frameHeight, cameraId);
+                const x = gap + index % columns * (cellWidth + gap);
+                const y = gap + Math.floor(index / columns) * (cellHeight + gap);
+                context.drawImage(frame, x, y, cellWidth, cellHeight);
+                const label = `${Number(seconds.toFixed(3))}s`;
+                context.font = '600 13px sans-serif';
+                const badgeWidth = Math.ceil(context.measureText(label).width) + 14;
+                context.fillStyle = 'rgba(0, 0, 0, 0.78)';
+                context.fillRect(x, y + cellHeight - 24, badgeWidth, 24);
+                context.fillStyle = '#fff';
+                context.textBaseline = 'middle';
+                context.fillText(label, x + 7, y + cellHeight - 12);
+            }
+            return { dataUrl: sheet.toDataURL('image/jpeg', 0.88), timesSec, cameraId,
+                width: sheet.width, height: sheet.height, columns, rows };
+        } finally {
+            this.host.patch({ busy: false });
+            engine.restorePreview(at);
+        }
+    }
+
+    /** Inspect the current sampled prop in neutral studio views without changing the project or viewport. */
+    inspectModel(input: { id?: string; views?: string[] }) {
+        const engine = this.host.engine;
+        if (!engine) throw new Error('导演台画布尚未准备好');
+        if (useEditorStore.getState().busy || engine.exporting) throw new Error('导演台正在执行其他任务，请稍后重试');
+        const id = input.id || useEditorStore.getState().selected;
+        const entity = this.host.project.entities.find(item => item.id === id);
+        if (!entity) throw new Error('请提供场景中真实存在的对象 ID，或先选中一个道具');
+        if (entity.kind !== 'prop') throw new Error('多视角模型核验目前支持建筑和道具；人物请使用场景预览');
+        const views = input.views ?? ['front', 'left', 'top', 'three_quarter'];
+        if (!Array.isArray(views) || views.length < 1 || views.length > 6 ||
+            views.some(view => !MODEL_INSPECTION_VIEWS.includes(view as ModelInspectionView))) {
+            throw new Error(`views 需要 1 至 6 个视角：${MODEL_INSPECTION_VIEWS.join('、')}`);
+        }
+        const root = engine.models.get(id);
+        if (!root) throw new Error('模型尚未加载到导演台场景');
+        this.host.patch({ busy: true });
+        try {
+            const inspected = inspectModel(root, views as ModelInspectionView[]);
+            const image = captureModelViews(inspected.model, inspected.box, views as ModelInspectionView[]);
+            const world = engine.worldBounds(id);
+            const { model: _model, box: _box, ...geometry } = inspected;
+            root.updateWorldMatrix(true, true);
+            const worldPosition = new THREE.Vector3();
+            const worldRotation = new THREE.Quaternion();
+            root.matrixWorld.decompose(worldPosition, worldRotation, new THREE.Vector3());
+            const worldFromScaledLocal = new THREE.Matrix4().compose(worldPosition, worldRotation, new THREE.Vector3(1, 1, 1));
+            let assetValidation: { ok: true } | { ok: false; error: string } | null = entity.external ? null : { ok: true };
+            if (!entity.external) {
+                try { validateAssetParameters(entity); }
+                catch (error) { assetValidation = { ok: false, error: error instanceof Error ? error.message : String(error) }; }
+            }
+            const source = entity.external
+                ? this.host.project.resources?.find(item => item.id === entity.external?.resourceId)
+                : undefined;
+            const sourceInspection = source ? engine.externalModels.inspection(source) : null;
+            return {
+                ...geometry,
+                parts: inspected.parts.map(part => ({
+                    ...part,
+                    worldCenter: new THREE.Vector3(...part.center).applyMatrix4(worldFromScaledLocal).toArray(),
+                })),
+                ...image,
+                entityId: id,
+                name: entity.name,
+                assetId: entity.asset,
+                visible: entity.visible,
+                timeSec: engine.time,
+                coordinates: 'bounds 和 parts 为对象朝向归零后的局部米制坐标，包含当前缩放；parts.worldCenter 和 worldBounds 为场景世界坐标',
+                worldBounds: world ? {
+                    min: world.min.toArray(), max: world.max.toArray(),
+                    size: world.getSize(new THREE.Vector3()).toArray(),
+                } : null,
+                assetParameters: entity.external ? null : assetParameters(entity),
+                assetValidation,
+                sourceModel: sourceInspection ? {
+                    meshes: sourceInspection.meshes,
+                    triangles: sourceInspection.triangles,
+                    nodes: sourceInspection.nodes.length,
+                    warnings: sourceInspection.warnings,
+                } : null,
+                hint: '逐格查看正面、侧面、顶部等视角；参数与包围盒只证明几何事实，建筑组合、遮挡和视觉效果仍要用场景预览核验。',
+            };
+        } finally {
+            this.host.patch({ busy: false });
         }
     }
 

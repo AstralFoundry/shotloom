@@ -11,6 +11,7 @@ import { useAppStore } from '../store/appStore';
 import { registerDirectorDeskFrame } from '../../services/directorDeskAgentRuntime';
 import { store, touchProject } from '../../store/projectStore';
 import { nodeActions } from '../adapters/canvasAdapter';
+import { recordDiagnosticEvent } from '../../services/diagnosticsService';
 
 /**
  * 整页 3D 导演台工作区（侧栏「3D导演台」入口）：iframe 运行 vendored 导演台，
@@ -20,6 +21,15 @@ import { nodeActions } from '../adapters/canvasAdapter';
  * 与画布节点保持独立文档；工作区场景只有用户显式选择时才会载入节点。
  */
 const STORAGE_PREFIX = 'shotloom:director-workspace:';
+type WorkspaceBackup = { savedAt: number; project: Record<string, unknown> };
+
+function readWorkspaceBackup(key: string): WorkspaceBackup | null {
+  try {
+    const value = JSON.parse(window.localStorage.getItem(key) || 'null');
+    if (value && Number.isFinite(value.savedAt) && value.project?.format === 'director-desk') return value;
+  } catch { /* browser storage unavailable or corrupt */ }
+  return null;
+}
 
 /**
  * Lets the workspace's own toolbar ask this iframe for its current document.
@@ -43,6 +53,10 @@ export function DirectorWorkspace({ src, onReady, onExit, onOpenAgent }: { src: 
   const latestDocument = useRef<unknown>(null);
   const storageKey = `${STORAGE_PREFIX}${projectId}`;
   useEffect(() => registerDirectorDeskFrame(frameRef.current, directorDeskAgentProtocol), []);
+  useEffect(() => {
+    recordDiagnosticEvent({ category: 'runtime', name: 'director-workspace-mounted', data: { projectId } });
+    return () => { recordDiagnosticEvent({ category: 'runtime', name: 'director-workspace-unmounted', data: { projectId } }); };
+  }, [projectId]);
 
   // Publish a reader so the surrounding shell can move this scene onto a canvas node.
   useEffect(() => {
@@ -53,15 +67,14 @@ export function DirectorWorkspace({ src, onReady, onExit, onOpenAgent }: { src: 
   // 会话：导演台就绪后把本工程的草稿灌进去（没有草稿时用空项目，由导演台自己建默认场景）。
   const sendSession = useCallback(() => {
     let project: unknown = store.project.directorWorkspaceProject ?? null;
-    try {
-      const raw = project ? null : window.localStorage.getItem(storageKey);
-      if (raw) project = JSON.parse(raw);
-      if (project && (project as { format?: string; version?: number }).format !== 'director-desk') {
-        project = null;
-      }
-    } catch {
-      project = null;
+    const backup = readWorkspaceBackup(storageKey);
+    if (backup && backup.savedAt > Number(store.project.directorWorkspaceSavedAt || 0)) {
+      project = backup.project;
+      store.project.directorWorkspaceProject = backup.project;
+      store.project.directorWorkspaceSavedAt = backup.savedAt;
+      touchProject();
     }
+    if (project && (project as { format?: string }).format !== 'director-desk') project = null;
     sendDirectorDeskSession(frameRef.current, { instanceId: `workspace-${projectId}`, theme: 'light', locale: getLocale(), project });
   }, [projectId, storageKey]);
 
@@ -77,9 +90,11 @@ export function DirectorWorkspace({ src, onReady, onExit, onOpenAgent }: { src: 
       onPanoramaRemoved: () => undefined,
       onProjectChanged: (project) => {
         latestDocument.current = project;
+        const savedAt = Date.now();
+        try { window.localStorage.setItem(storageKey, JSON.stringify({ savedAt, project })); } catch { /* browser storage unavailable */ }
         store.project.directorWorkspaceProject = project;
+        store.project.directorWorkspaceSavedAt = savedAt;
         touchProject();
-        try { window.localStorage.removeItem(storageKey); } catch { /* browser storage unavailable */ }
         // 回执「已保存」，导演台顶栏的同步状态才能落回稳定态。
         sendDirectorDeskProjectSaved(frameRef.current);
       },

@@ -63,7 +63,7 @@ interface Callbacks {
     cameraViewChange: (rotation: Vec3) => void;
     cameraViewEnd: (cancel?: boolean) => void;
 }
-/** Director viewport colours follow the editor theme; shot output follows scene lighting. */
+/** The viewport and exported shot use the same theme colours for the default scene. */
 const vpToken = (name: string) => themeColor(name);
 
 export class Engine {
@@ -989,7 +989,7 @@ export class Engine {
         this.helpers.traverse((o) => o.layers.set(1));
         this.pathHelpers.traverse((o) => o.layers.set(1));
     }
-    private prepareView(editor: boolean, id = this.previewId, output = false) {
+    private prepareView(editor: boolean, id = this.previewId) {
         const rig = this.rigs.get(this.selected),
             selected = this.project.entities.find((e) => e.id === this.selected);
         this.jointNodes.bind(
@@ -1010,9 +1010,9 @@ export class Engine {
             root.visible = editor
                 ? editorEntityVisible(this.project, e) && !(this.lightGroundPreview && e.asset === 'ground')
                 : shotEntityVisible(this.project, e, cameraEntity.camera) &&
-                  !(this.lightGroundPreview && !output && e.asset === 'ground');
+                  !(this.lightGroundPreview && e.asset === 'ground');
         }
-        if (this.lightShotFloor) this.lightShotFloor.visible = !editor && !output;
+        if (this.lightShotFloor) this.lightShotFloor.visible = !editor;
         this.contactMarker.update(this.project.entities, this.models);
         const room = this.project.room;
         this.roomGroup.visible = room.enabled;
@@ -1036,8 +1036,7 @@ export class Engine {
                 : new T.Color(
                       editor
                           ? vpToken('vp-stage-bg')
-                          : !output &&
-                              getEditorTheme() === 'light' &&
+                          : getEditorTheme() === 'light' &&
                               (this.project.lighting?.background ?? DEFAULT_SHOT_BACKGROUND) === DEFAULT_SHOT_BACKGROUND
                             ? vpToken('vp-shot-bg')
                             : (this.project.lighting?.background ?? DEFAULT_SHOT_BACKGROUND),
@@ -1087,8 +1086,8 @@ export class Engine {
         this.sample(time);
         this.shotRenderer.setPixelRatio(1);
         this.shotRenderer.setSize(width, height, false);
-        // Same physical gate as preview. Integer output pixels only affect resolution, never camera framing.
-        this.prepareView(false, cameraId, true);
+        // Match the live shot, including its default background and floor treatment.
+        this.prepareView(false, cameraId);
         this.renderShot(cameraId);
         return this.shotRenderer.domElement;
     }

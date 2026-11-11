@@ -12,6 +12,9 @@ export function nativeTransport(desktop: Awaited<ReturnType<typeof startDesktopH
       if (kind === 'bind') {
         send({ requestId, kind: 'result', value: await desktop.bind(payload) }); return;
       }
+      if (kind === 'set-sessions-archived') {
+        send({ requestId, kind: 'result', value: await desktop.setSessionsArchived(payload.projectKey, payload.sessionIds, payload.archived) }); return;
+      }
       if (kind === 'fetch') {
         const path = new URL(payload.path, 'http://native.invalid');
         if (path.origin !== 'http://native.invalid' || !path.pathname.startsWith('/api/')) throw new Error('Invalid native API route');

@@ -38,6 +38,7 @@ export function createProject(name = t('ui.ProjectCard.text.060f1435')): any {
     edges: [],
     tasks: [],
     harnessSessions: [],
+    trashedHarnessSessions: [],
     activeHarnessSessionId: '',
     canvasViewport: { x: 0, y: 0, zoom: 1 },
     canvasNodeSizeScale: CANVAS_NODE_SIZE_SCALE,
@@ -204,6 +205,8 @@ export function normalizeProject(input: unknown): any {
     harnessSessions: Array.isArray(project?.harnessSessions)
       ? project?.harnessSessions
       : [],
+    trashedHarnessSessions: Array.isArray(project?.trashedHarnessSessions)
+      ? project.trashedHarnessSessions : [],
     activeHarnessSessionId: String(project?.activeHarnessSessionId || ''),
     canvasViewport: normalizeCanvasViewport(project?.canvasViewport),
     canvasNodeSizeScale: CANVAS_NODE_SIZE_SCALE,

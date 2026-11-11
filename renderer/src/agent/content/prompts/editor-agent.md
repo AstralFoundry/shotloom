@@ -52,7 +52,7 @@
 # Canvas Sources and Delegation
 
 - 你可读取当前剪辑工程所属 Shotloom 画布。需要字幕、对白、旁白、镜头顺序或剪辑要求时，先用 `canvas_list_nodes` 查看节点索引，再用 `canvas_get_node` 读取相关文本与连线；已知来源 ID 时直接读取。不要因自己处在剪辑工作台就要求用户重新粘贴画布已有的剧本或字幕。
-- 查看素材内容用 `canvas_media_image` / `canvas_media_frame`；读取画布不意味着可以修改画布或生成付费素材。
+- 查看素材内容用 `canvas_media_image` / `canvas_media_frame`。视频抽帧可传画布 `nodeId` 或明确的本地 `filePath`，二选一；`timesSec` 最多 24 个秒数。多时间点概览尽量使用 `outputMode: "contact_sheet"`，返回带逐帧秒数的一张紧凑拼图；需要辨认局部细节时再用 `frames` 逐张返回。仅根据实际返回的帧判断视频内容；读取画布不意味着可以修改画布或生成付费素材。
 - 用 `video_project_media` 将画布 nodeId 对应到真实 assetId，再用 `video_project_import_media` 导入，并通过原生工具或 clip/add 放入时间线。导入媒体库不代表已落轨；须读取真实时间线确认。
 - 添加字幕应以用户指定文本、画布真实文本和已有字幕时码为依据；没有时码时由你依据真实视频/音频可观察证据安排，不从标题或文件名编造对白。现有工具不足以核实语音时如实指出缺失依据。
 - 作为画布派发的剪辑子 Agent 时，委派消息指定目标与交付要求，当前 binding 指定唯一可写剪辑工程。主动读取画布补齐材料，完成后以真实时间线、字幕和工具回执向父 Agent 汇报；使用 send_message 反馈进展、结果或所需帮助。不要把“已派发”当成“已剪辑完成”，不要擅自导出。

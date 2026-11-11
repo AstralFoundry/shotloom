@@ -84,15 +84,19 @@ test('反推工具的工具栏、动作与适配器接线完整', () => {
   assert.match(provider, /type: 'text'/);
 });
 
-test('带图片的文本任务把图片塞进 chat content parts，而不是静默丢掉', async () => {
+for (const { provider, model } of [
+  { provider: 'google', model: 'gemini-3.8-flash' },
+  { provider: 'starrouter', model: 'starrouter-deepseek-flash' },
+]) test(`${model} 带图片的文本任务把图片放进 chat content parts`, async () => {
   const env2 = await createRendererEnv();
   try {
     const { desktopApi } = await env2.load('services/desktopApi');
     const { findProviderAdapter } = await env2.load('domain/provider/adapters/index');
     const { resolveModelRuntimeContract } = await env2.load('domain/catalog/ModelCatalog');
-    const adapter = findProviderAdapter('google');
-    const contract = resolveModelRuntimeContract('textGeneration', 'gemini-3.8-flash', ['referenceImage']);
+    const adapter = findProviderAdapter(provider);
+    const contract = resolveModelRuntimeContract('textGeneration', model, ['referenceImage']);
     assert.equal(contract.modeId, 'text-generation');
+    assert.equal(contract.maxInputImages, 1);
     const previousChat = desktopApi.model.chatCompletion;
     const previousRead = desktopApi.file.readArrayBuffer;
     let captured = null;
@@ -104,7 +108,7 @@ test('带图片的文本任务把图片塞进 chat content parts，而不是静�
       };
       const task = await adapter.submit(adapter.compileRequest({
         taskType: 'textGeneration',
-        model: 'gemini-3.8-flash',
+        model,
         prompt: '请反推提示词',
         modelContract: contract,
         params: {},

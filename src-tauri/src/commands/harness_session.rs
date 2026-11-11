@@ -20,6 +20,18 @@ pub async fn harness_bind_session(
     Ok(result)
 }
 
+#[tauri::command]
+pub async fn harness_set_sessions_archived(
+    window: tauri::WebviewWindow,
+    runtime: State<'_, HarnessRuntimeState>,
+    project_key: String,
+    session_ids: Option<Vec<String>>,
+    archived: bool,
+) -> Result<Value, String> {
+    if window.label() != "main" { return Err("Untrusted Harness archive caller".into()); }
+    native_request(&runtime, "set-sessions-archived", json!({"projectKey":project_key,"sessionIds":session_ids,"archived":archived})).await
+}
+
 
 pub(super) enum NativeReply {
     Request(tokio::sync::oneshot::Sender<Result<Value, String>>),

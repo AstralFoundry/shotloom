@@ -9,6 +9,7 @@ import {
     SettingOutlined,
     MenuFoldOutlined,
     MenuUnfoldOutlined,
+    LeftOutlined,
     MoonOutlined,
     SunOutlined,
     UndoOutlined,
@@ -29,7 +30,12 @@ import { requestHostAgentOpen, requestHostClose } from '@/app/host-bridge.ts';
 
 const VIEW_MODES: ViewMode[] = ['stage', 'split', 'shot'];
 
-export function TopBar({ sidebarOpen, onToggleSidebar }: { sidebarOpen: boolean; onToggleSidebar: () => void }) {
+export function TopBar({ sidebarOpen, onToggleSidebar, inspectorOpen, onToggleInspector }: {
+    sidebarOpen: boolean;
+    onToggleSidebar: () => void;
+    inspectorOpen: boolean;
+    onToggleInspector: () => void;
+}) {
     const t = useTranslation();
     const [exportOpen, setExportOpen] = useState(false);
     const [projectOpen, setProjectOpen] = useState(false);
@@ -163,6 +169,19 @@ export function TopBar({ sidebarOpen, onToggleSidebar }: { sidebarOpen: boolean;
                 <Dropdown menu={moreMenu} placement="bottomRight" trigger={['click']}>
                     <Button type="text" size="small" icon={<MoreOutlined />} aria-label={t('更多')} />
                 </Dropdown>
+                {!inspectorOpen ? (
+                    <Tooltip title={t('显示属性面板')}>
+                        <Button
+                            type="text"
+                            size="small"
+                            icon={<LeftOutlined />}
+                            aria-label={t('显示属性面板')}
+                            aria-expanded={false}
+                            aria-controls="director-inspector"
+                            onClick={onToggleInspector}
+                        />
+                    </Tooltip>
+                ) : null}
                 {window.parent !== window ? (
                     <>
                         <Tooltip title={t('导演助手')}>

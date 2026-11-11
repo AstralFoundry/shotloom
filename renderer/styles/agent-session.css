@@ -201,6 +201,12 @@
   flex: none;
   color: var(--muted);
 }
+.harness-session-menu-controls { display: flex; align-items: center; gap: 8px; flex: none; }
+.harness-session-menu-controls > svg { width: 14px; height: 14px; color: var(--muted); }
+.harness-session-delete { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--muted); cursor: pointer; opacity: 0; }
+.harness-session-delete svg { width: 14px; height: 14px; }
+.ant-dropdown-menu-item:hover .harness-session-delete, .harness-session-delete:focus-visible { opacity: 1; }
+.harness-session-delete:hover { background: var(--surface-2); color: var(--bad); }
 
 .harness-session-item-copy { display: grid; gap: 3px; min-width: 0; }
 .harness-session-item-copy strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-body-12); font-weight: 500; }

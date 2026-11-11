@@ -815,6 +815,14 @@ export class EditorSession {
         return this.scene.renderPreview(input);
     }
 
+    renderPreviewSheet(input: { timesSec: number[]; cameraId?: string }) {
+        return this.scene.renderPreviewSheet(input);
+    }
+
+    inspectModel(input: { id?: string; views?: string[] }) {
+        return this.scene.inspectModel(input);
+    }
+
     exportShot(span: { index: number; cameraId: string; start: number; end: number }): Promise<void> {
         return this.scene.exportShot(span);
     }

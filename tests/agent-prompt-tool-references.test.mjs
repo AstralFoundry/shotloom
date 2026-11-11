@@ -127,8 +127,12 @@ test('导演台提供画面回传，且封闭枚举在 catalog 中可发现', ()
   // 1. 有一条只读命令把渲染帧交回宿主，而不是像 export_image 那样只触发下载。
   assert.match(bridge, /render_preview: \{ kind: 'view'/, 'render_preview 必须存在且按只读执行');
   assert.match(bridge, /render_preview: i => session\.renderPreview\(/, 'render_preview 必须真的调用渲染');
+  assert.match(bridge, /render_preview_sheet: \{ kind: 'view'/, '多时间点拼图预览必须按只读执行');
+  assert.match(bridge, /render_preview_sheet: i => session\.renderPreviewSheet\(/, '拼图预览必须真的调用渲染');
+  assert.match(bridge, /inspect_model: \{ kind: 'view'/, '模型多视角检查必须按只读执行');
+  assert.match(bridge, /inspect_model: i => session\.inspectModel\(/, '模型多视角检查必须调用真实模型');
   assert.match(tools, /__toolAttachments/, '画面必须以图片附件交给模型，否则模型看不到');
-  assert.match(tools, /data:image\/png;base64,/, '附件必须是宿主可校验的 PNG data URL');
+  assert.match(tools, /image\\\/\(\?:png\|jpeg\)/, '附件必须校验 PNG 或 JPEG data URL');
 
   // 2. export_image 会全分辨率渲染并触发下载，属于 export；标成 view 会绕过写操作审批。
   assert.match(bridge, /export_image: \{ kind: 'export' \}/, 'export_image 不得按只读执行');

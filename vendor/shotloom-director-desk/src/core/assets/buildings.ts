@@ -37,11 +37,11 @@ export function makeBuilding(e: Entity) {
         }
     };
     if (style === 'fortwall') {
-        b(w, height, d);
+        b(w, height, d).name = 'wall_body';
         anchors.push({ id: 'wall-walk', role: 'surface', position: [0, height, 0], normal: [0, 1, 0] });
     } else {
         for (let level = 0; level < p.levels; level++) {
-            b(w, slab, d, 0, level * fh + slab / 2);
+            b(w, slab, d, 0, level * fh + slab / 2).name = `floor_${level + 1}`;
             anchors.push({
                 id: 'floor-' + level,
                 role: 'surface',
@@ -55,6 +55,7 @@ export function makeBuilding(e: Entity) {
         else
             for (const side of ['front', 'back', 'left', 'right']) {
                 const wall = new T.Group();
+                wall.name = `wall_${side}`;
                 root.add(wall);
                 const across = side === 'front' || side === 'back';
                 if (across) wall.position.z = (side === 'front' ? 1 : -1) * (d / 2 - t / 2);
@@ -68,7 +69,7 @@ export function makeBuilding(e: Entity) {
     }
     if (p.roofStyle === 3) {
         if (style !== 'fortwall') {
-            b(w, slab, d, 0, height - slab / 2);
+            b(w, slab, d, 0, height - slab / 2).name = 'roof_slab';
             anchors.push({ id: 'roof', role: 'surface', position: [0, height, 0], normal: [0, 1, 0] });
         }
         if (p.roofHeight > 0) {
@@ -82,21 +83,23 @@ export function makeBuilding(e: Entity) {
                         -w / 2 + ((i + 0.5) * w) / count,
                         height + p.roofHeight / 2,
                         z,
-                    );
+                    ).name = `parapet_${i + 1}_${z < 0 ? 'back' : 'front'}`;
             if (style !== 'fortwall')
                 for (const x of [-w / 2 + t / 2, w / 2 - t / 2])
-                    b(t, p.roofHeight * 0.5, d, x, height + p.roofHeight * 0.25);
+                    b(t, p.roofHeight * 0.5, d, x, height + p.roofHeight * 0.25).name = x < 0 ? 'parapet_left' : 'parapet_right';
         }
     } else if (p.roofStyle === 0 || p.roofHeight === 0) {
-        b(w + 0.2, slab, d + 0.2, 0, height + slab / 2);
+        b(w + 0.2, slab, d + 0.2, 0, height + slab / 2).name = 'roof_slab';
         if (p.roofHeight > 0)
-            for (const z of [-d / 2, d / 2]) b(w, p.roofHeight, t, 0, height + slab + p.roofHeight / 2, z);
+            for (const z of [-d / 2, d / 2])
+                b(w, p.roofHeight, t, 0, height + slab + p.roofHeight / 2, z).name = z < 0 ? 'roof_back' : 'roof_front';
         if (style === 'fortwall') anchors[0].position[1] = height + slab;
         else anchors.push({ id: 'roof', role: 'surface', position: [0, height + slab, 0], normal: [0, 1, 0] });
     } else if (p.roofStyle === 2) {
         const roof = new T.ConeGeometry(1, p.roofHeight, 4);
         roof.rotateY(Math.PI / 4);
         const part = mesh(root, roof, m, 0, height + p.roofHeight / 2);
+        part.name = 'roof';
         part.scale.set((w + 0.4) / Math.SQRT2, 1, (d + 0.4) / Math.SQRT2);
     } else {
         const shape = new T.Shape([
@@ -106,7 +109,7 @@ export function makeBuilding(e: Entity) {
         ]);
         const roof = new T.ExtrudeGeometry(shape, { depth: d + 0.3, bevelEnabled: false });
         roof.translate(0, height, -d / 2 - 0.15);
-        mesh(root, roof, m);
+        mesh(root, roof, m).name = 'roof';
     }
     return root;
 }

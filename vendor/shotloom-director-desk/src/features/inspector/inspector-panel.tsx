@@ -1,4 +1,5 @@
-import { Button, Col, Divider, Empty, Input, Row, Select, Switch, Tabs } from 'antd';
+import { RightOutlined } from '@ant-design/icons';
+import { Button, Col, Divider, Empty, Input, Row, Select, Switch, Tabs, Tooltip } from 'antd';
 import { useState } from 'react';
 import type { Joint } from '@/core/model.ts';
 import { numberAt } from '@/core/animation/channels.ts';
@@ -18,7 +19,7 @@ import { KeyframePanel } from './keyframe-panel.tsx';
 import { SpatialCheckPanel } from '@/features/spatial/spatial-check-panel.tsx';
 import { ReferenceBackdropSection } from './reference-backdrop.tsx';
 
-export function InspectorPanel({ resize }: { resize?: React.ReactNode }) {
+export function InspectorPanel({ resize, onHide }: { resize?: React.ReactNode; onHide: () => void }) {
     const t = useTranslation();
     const entity = useSelectedEntity();
     const tab = useEditorStore((state) => state.inspectorTab);
@@ -39,7 +40,7 @@ export function InspectorPanel({ resize }: { resize?: React.ReactNode }) {
     const activeTab = visibleTabs.some((item) => item.key === tab) ? tab : visibleTabs[0].key;
 
     return (
-        <aside className={`inspector inspector--${entity?.kind ?? 'scene'}`} aria-label={t('属性面板')}>
+        <aside id="director-inspector" className={`inspector inspector--${entity?.kind ?? 'scene'}`} aria-label={t('属性面板')}>
             {resize}
             <header className="inspector__header">
                 {entity ? (
@@ -56,9 +57,6 @@ export function InspectorPanel({ resize }: { resize?: React.ReactNode }) {
                             )}
                         </h2>
                         <span className="inspector__kind">{entity.name}</span>
-                        <Button size="small" className="inspector__scene-button" onClick={() => session.selectScene()}>
-                            {t('环境')}
-                        </Button>
                     </>
                 ) : (
                     <>
@@ -66,6 +64,18 @@ export function InspectorPanel({ resize }: { resize?: React.ReactNode }) {
                         <span className="inspector__kind">{t('天空、地面与环境光')}</span>
                     </>
                 )}
+                <div className="inspector__header-actions">
+                    {entity ? <Button size="small" onClick={() => session.selectScene()}>{t('环境')}</Button> : null}
+                    <Tooltip title={t('隐藏属性面板')}>
+                        <Button
+                            type="text"
+                            size="small"
+                            icon={<RightOutlined />}
+                            aria-label={t('隐藏属性面板')}
+                            onClick={onHide}
+                        />
+                    </Tooltip>
+                </div>
             </header>
 
             <Tabs

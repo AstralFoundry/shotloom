@@ -627,6 +627,14 @@ export async function trashRecentProject(project: AnyRecord) {
       return false;
     }
 
+    const projectKey = deletingCurrentProject ? (previousIdentity?.filePath || previousIdentity?.projectDir || deletedProjectId) : (project.filePath || project.projectDir || deletedProjectId);
+    if (desktopApi.platform !== 'browser' && projectKey) {
+      try {
+        const { setHarnessSessionsArchived } = await import('@/services/harnessArchive');
+        await setHarnessSessionsArchived(String(projectKey), undefined, true);
+      } catch (error) { console.error('Failed to archive trashed project sessions', error); }
+    }
+
     if (project.filePath) await desktopApi.recent.remove(project.filePath);
     if (deletedProjectId) {
       const { releaseAllLocalAssetReferences } = await import('@/store/localAssetLibraryStore');
@@ -693,6 +701,14 @@ export async function trashProjectLibraryFolder(folderDir: string, projects: Arr
       return false;
     }
     moved = true;
+    if (desktopApi.platform !== 'browser') {
+      try {
+        const { setHarnessSessionsArchived } = await import('@/services/harnessArchive');
+        for (const project of identities) {
+          if (project.filePath || project.id) await setHarnessSessionsArchived(String(project.filePath || project.id), undefined, true);
+        }
+      } catch (error) { console.error('Failed to archive trashed folder sessions', error); }
+    }
     const { releaseAllLocalAssetReferences } = await import('@/store/localAssetLibraryStore');
     for (const project of identities) {
       if (project.filePath) await desktopApi.recent.remove(project.filePath).catch(() => {});

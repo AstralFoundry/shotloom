@@ -1,19 +1,21 @@
 import { getLocale } from '../../i18n/index.ts';
 import { t } from '@/i18n';
 import { useState } from 'react';
-import { Dropdown, type MenuProps } from 'antd';
+import { App, Dropdown, type MenuProps } from 'antd';
 import type { HarnessSession } from '../../services/harnessSessionStore';
 import { IconSymbol } from '../components/IconSymbol';
 
 /** Product conversation navigation; official Harness owns the conversation itself. */
-export function HarnessSessionToolbar({ sessions, selectedId, onSelect, onCreate, onClose }: {
+export function HarnessSessionToolbar({ sessions, selectedId, onSelect, onCreate, onDelete, onClose }: {
   sessions: HarnessSession[];
   selectedId: string | undefined;
   onSelect: (id: string) => void;
   onCreate: () => void;
+  onDelete: (id: string) => Promise<void>;
   onClose: (() => void) | undefined;
 }) {
   const [open, setOpen] = useState(false);
+  const { modal, message } = App.useApp();
   const selected = sessions.find(session => session.id === selectedId);
   const menuItems: MenuProps["items"] = sessions.length
     ? [{
@@ -32,7 +34,24 @@ export function HarnessSessionToolbar({ sessions, selectedId, onSelect, onCreate
               <strong>{session.title || t("ui.HarnessSessionToolbar.text.1b7abf96")}</strong>
               <time>{sessionDate(session.updatedAt || session.createdAt)}</time>
             </span>
-            {session.id === selectedId && <IconSymbol name="check" />}
+            <span className="harness-session-menu-controls">
+              {session.id === selectedId && <IconSymbol name="check" />}
+              <button type="button" className="harness-session-delete" aria-label={t('agent.deleteConversation')} title={t('agent.deleteConversation')}
+                onClick={event => {
+                  event.stopPropagation();
+                  setOpen(false);
+                  modal.confirm({
+                    title: t('agent.deleteConversation'),
+                    content: t('agent.deleteConversationConfirm'),
+                    okText: t('agent.deleteConversation'),
+                    okButtonProps: { danger: true },
+                    onOk: async () => {
+                      try { await onDelete(String(session.id)); }
+                      catch (error) { message.error(t('agent.deleteConversationFailed', { error: String(error) })); throw error; }
+                    },
+                  });
+                }}><IconSymbol name="trash" /></button>
+            </span>
           </span>
         ),
       })),

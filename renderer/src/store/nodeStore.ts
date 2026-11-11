@@ -98,7 +98,7 @@ export function ensureGenerationConfig(node: NodeLike | null | undefined): Recor
 // ── Node CRUD ───────────────────────────────────────────────────────────────
 
 /** 在画布上创建一个新节点。 */
-export function addNode(type = 'imageGeneration'): NodeLike {
+export function addNode(type = 'imageGeneration', options: { select?: boolean } = {}): NodeLike {
   if (!canvasNodeTypes.includes(type)) type = 'imageGeneration';
   const isGenerationNode = generationNodeTypes.includes(type);
   const isDirector = type === 'threeDDirector';
@@ -136,8 +136,10 @@ export function addNode(type = 'imageGeneration'): NodeLike {
     node.directorData = {};
   }
   store.project.nodes.push(node);
-  store.selectedNodeId = node.id || '';
-  store.selectedNodeIds = [node.id || ''];
+  if (options.select !== false) {
+    store.selectedNodeId = node.id || '';
+    store.selectedNodeIds = [node.id || ''];
+  }
   store.route = 'creation';
   touchProject();
   return node;

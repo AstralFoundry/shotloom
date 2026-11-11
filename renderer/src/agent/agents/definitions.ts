@@ -92,7 +92,7 @@ export const AGENT_DEFINITIONS: AgentDefinition[] = [
     description: '3D director desk agent with access to the open scene and canvas',
     effects: ['read', 'agent_state_write', 'project_write', 'canvas_write'],
     tools: [...directorTools, ...canvasReadTools, 'project_snapshot', 'canvas_prepare_editor', 'director_workspace_view'],
-    skills: [],
+    skills: ['director-desk-staging'],
   },
   {
     id: TEXT_AGENT_ID,

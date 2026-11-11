@@ -1359,6 +1359,8 @@ Object.assign(english, {
     导出运镜视频: 'Export Move Video',
     展开场景面板: 'Expand scene panel',
     收起场景面板: 'Collapse scene panel',
+    显示属性面板: 'Show inspector panel',
+    隐藏属性面板: 'Hide inspector panel',
     自动保存: 'Autosave',
     自动备份失败: 'Autosave failed',
     场景面板: 'Scene panel',

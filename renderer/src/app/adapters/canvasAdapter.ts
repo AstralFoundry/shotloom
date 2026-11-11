@@ -852,7 +852,9 @@ export const nodeActions: WorkflowNodeActions = {
     );
     if (!registered.material) return null;
     if (director) registered.material.nodeId = id;
-    const output: any = addNode(kind === "video" ? "videoGeneration" : "imageGeneration");
+    // Keep the source director selected while its iframe finishes the export job.
+    // Selecting the new output closes the director detail and destroys that job.
+    const output: any = addNode(kind === "video" ? "videoGeneration" : "imageGeneration", { select: !director });
     output.title = preferredName;
     output.prompt = "";
     output.x = director ? Math.round((Number(director.x) || 0) + 430) : Math.round((120 - (store.project.canvasViewport?.x || 0)) / (store.project.canvasViewport?.zoom || 1));
@@ -878,7 +880,7 @@ export const nodeActions: WorkflowNodeActions = {
       director.updatedAt = new Date().toISOString();
       addCanvasEdge(store.project, id, output.id, { touch: false });
     }
-    setSelectedNodeIds([output.id]);
+    if (!director) setSelectedNodeIds([output.id]);
     touchProject();
     showToast(kind === "video" ? t("ui.canvasAdapter.text.07952638") : t("ui.canvasAdapter.text.2b29d01f"));
     return { nodeId: output.id };

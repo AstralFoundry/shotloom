@@ -24,6 +24,7 @@ function fixture(agentId = 'canvas-primary', nodeId) {
   const conversation = sessions.createHarnessSession(projects.store.project, {
     agentId, ...(nodeId && agentId === 'text-primary' ? { textNodeId: nodeId } : {}),
     ...(nodeId && agentId === 'editor-primary' ? { editorNodeId: nodeId } : {}),
+    ...(nodeId && agentId === 'director-primary' ? { directorNodeId: nodeId } : {}),
   });
   const binding = { sessionId: crypto.randomUUID(), projectKey: identity.getAgentProjectKey(), conversationId: conversation.id, agentId, ...(nodeId ? { nodeId } : {}) };
   const catalog = tools.productToolCatalog(binding);
@@ -43,6 +44,8 @@ test('skill authoring requires approval, persists readback, detects stale edits 
   const denied = await tools.executeProductRequest(request(binding, 'save_skill', input));
   assert.equal(denied.code, 'APPROVAL_REQUIRED');
   assert.equal(library.skillsStore.skills.some(skill => skill.id === input.id), false);
+  const fullAccess = await tools.executeProductRequest(request(binding, 'save_skill', { ...input, id: 'test-prop-method-full-access' }, { authorizedByFullAccess: true }));
+  assert.equal(fullAccess.result.success, true);
   const saved = await tools.executeProductRequest(request(binding, 'save_skill', input, { approvedByHarness: true }));
   assert.equal(saved.result.success, true);
   await library.loadGlobalSkills();
@@ -82,6 +85,21 @@ test('named product catalog covers workbenches and excludes generic forwarding a
   const clip = fixture('editor-primary', 'clip-a').catalog;
   assert.ok(clip.some(tool => tool.name === 'video_project_actions'));
   assert.ok(!clip.some(tool => tool.name === 'canvas_create_node'));
+});
+
+test('canvas, editor and director all receive video frame tool with file path and contact sheet options', () => {
+  for (const agentId of ['canvas-primary', 'editor-primary', 'director-primary']) {
+    const { catalog } = fixture(agentId);
+    const frame = catalog.find(tool => tool.name === 'canvas_media_frame');
+    assert.ok(frame, `${agentId} should receive canvas_media_frame`);
+    assert.equal(frame.effect, 'read');
+    assert.ok(frame.parameters.properties.nodeId);
+    assert.ok(frame.parameters.properties.filePath);
+    assert.deepEqual(frame.parameters.properties.outputMode.enum, ['frames', 'contact_sheet']);
+    assert.match(frame.parameters.properties.outputMode.description, /多时间点概览优先选 contact_sheet/);
+    assert.equal(frame.parameters.properties.timesSec.maxItems, 24);
+  }
+  assert.equal(fixture('text-primary').catalog.some(tool => tool.name === 'canvas_media_frame'), false);
 });
 
 test('editor receives supported OpenReel schemas and retains approval and node boundaries', async () => {
@@ -216,20 +234,20 @@ test('Harness model limits come from the product catalog', async () => {
   assert.equal(model.maxTokens, 16384);
 });
 
-test('Harness advertises reasoning levels and retains catalog wire values and Agent defaults', async () => {
+test('Harness advertises StarRouter DeepSeek Flash reasoning levels and Agent defaults', async () => {
   settings.providerConfigs.starrouter = { apiKey: 'isolated-test', baseUrl: 'https://example.invalid/v1' };
   const previous = settings.agentPreferredTextModel;
   try {
-    settings.agentPreferredTextModel = 'starrouter-deepseek-v4-pro';
+    settings.agentPreferredTextModel = 'starrouter-deepseek-flash';
     const build = (await env.load('services/harnessModelConfig')).harnessModelConfig;
     const config = build();
     const models = config.providers['shotloom-starrouter-openai-completions'].profile.models;
-    const deepseek = models.find(row => row.id === 'deepseek-v4-pro');
-    assert.deepEqual(deepseek.reasoningEfforts, { off: 'none', minimal: 'minimal', low: 'low', medium: 'medium', high: 'high', xhigh: 'xhigh', max: 'max' });
-    assert.equal(deepseek.compat.supportsReasoningEffort, true);
-    assert.equal(config.defaultModel.reasoningEffort, 'medium');
-    settings.agentPreferredTextModel = 'starrouter-gpt-5.5';
-    assert.equal(build().defaultModel.reasoningEffort, 'off');
+    assert.equal(models.some(row => row.id === 'deepseek-v4-pro'), false);
+    assert.equal(config.defaultModel.reasoningEffort, 'high');
+    const flash = models.find(row => row.id === 'deepseek-flash');
+    assert.deepEqual(flash.input, ['text', 'image']);
+    assert.deepEqual(flash.reasoningEfforts, { off: 'none', low: 'low', high: 'high', max: 'max' });
+    assert.equal(flash.compat.supportsReasoningEffort, true);
   } finally { settings.agentPreferredTextModel = previous; }
 });
 
@@ -240,6 +258,17 @@ test('product boundary rejects forged bindings, switched project instances and d
   // The same path and project id with a new mounted instance is still a different owner.
   projects.store.project = { ...projects.store.project };
   await assert.rejects(tools.executeProductRequest(request(binding, 'canvas_list_nodes')), /项目已经切换/);
+});
+
+test('director session reads its bound scene and rejects a changed node binding', async () => {
+  const { binding } = fixture('director-primary', 'director-scene');
+  projects.store.project.nodes.push({ id: 'director-scene', type: 'threeDDirector', title: 'Director scene' });
+  const snapshot = await tools.executeProductRequest(request(binding, 'project_snapshot'));
+  assert.ok(snapshot.result);
+  const canvas = await tools.executeProductRequest(request(binding, 'canvas_list_nodes'));
+  assert.ok(canvas.result);
+  projects.store.project.harnessSessions.find(item => item.id === binding.conversationId).directorNodeId = 'another-scene';
+  await assert.rejects(tools.executeProductRequest(request(binding, 'project_snapshot')), { message: translate('agent.bindingNodeMissing') });
 });
 
 test('real text draft writes use native bound node and replay one call without repeating the write', async () => {

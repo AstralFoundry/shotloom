@@ -10,6 +10,7 @@ import { canvasHarnessSession, directorHarnessSession, editorHarnessSession, tex
 import { getAgentProjectIdentity, assertAgentProject } from '../../services/agentProjectIdentity';
 import { store, touchProject } from '../../store/projectStore';
 import { initializeHarnessClient } from './harnessClient';
+export { setHarnessSessionsArchived } from '../../services/harnessArchive';
 
 // This integration owns native Harness calls, which bypass desktopApi's IPC boundary.
 async function invoke<T>(command: string, args?: InvokeArgs): Promise<T> {

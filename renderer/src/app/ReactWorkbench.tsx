@@ -95,8 +95,12 @@ export function ReactWorkbench() {
   >();
   const openingProjectPath = useAppStore(state => state.openingProjectPath);
   const appRoute = useAppStore((state) => state.route);
+  const currentProjectId = useAppStore((state) => state.currentProject?.id);
   const directorWorkspaceOpen = useDirectorWorkspaceStore((state) => state.open);
   const setDirectorWorkspaceOpen = useDirectorWorkspaceStore((state) => state.setOpen);
+  useEffect(() => {
+    if (currentProjectId) useDirectorWorkspaceStore.getState().restoreForProject(currentProjectId);
+  }, [currentProjectId]);
   const domainRevision = useSyncExternalStore(
     subscribeDomain,
     getDomainRevision,

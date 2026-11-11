@@ -12,6 +12,11 @@ const end = source.indexOf('const settleSelection =', start);
 assert.ok(start >= 0 && end > start, 'Official picker blur handler must exist');
 const handler = source.slice(start, end);
 
+test('unavailable selection never exposes an internal provider route in the composer', () => {
+  assert.match(source, /currentChoice\?\.model\.name \?\? t\("trigger\.fallback"\)/);
+  assert.doesNotMatch(source, /\$\{state\.current\.provider\}\/\$\{state\.current\.model\}/);
+});
+
 function fixture() {
   class Node {}
   const trigger = new Node(), option = new Node(), shadowHost = new Node(), outside = new Node();

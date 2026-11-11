@@ -8,11 +8,19 @@ import type { MenuViewProps } from '@deepseek-ai/dsh-client-ui-input-trigger/cli
 export const referenceCategories = [
   ['all', t("ui.taskAdapter.label.778fc8f9")], ['character', t("ui.CanvasNodeToolbar.character.6b26695e")], ['storyboard', t("ui.CanvasNodeToolbar.storyboard.fcad7fe3")], ['scene', t("ui.CanvasNodeToolbar.scene.625b392c")], ['prop', t("ui.CanvasNodeToolbar.prop.51fd93fb")], ['video', t("ui.canvasMediaActions.text.fa4e33b6")], ['other', t("ui.CanvasNodeToolbar.other.1a26edf9")],
 ] as const;
-export type ReferenceCategory = typeof referenceCategories[number][0];
+export const directorReferenceCategories = [
+  ['all', t("ui.taskAdapter.label.778fc8f9")],
+  ['director-entity', t("ui.ObjectTreePanel.text.62eb582c")],
+  ['director-asset', t("ui.ProjectSearch.kind.713fd96f")],
+  ['canvas', t("ui.ProjectSearch.kind.95b2102f")],
+] as const;
+export type ReferenceCategory = typeof referenceCategories[number][0] | typeof directorReferenceCategories[number][0];
 
 /** Presentation only: picks, highlight, keyboard navigation and fetches remain in the official controller. */
 export function installCanvasReferenceMenu(ctx: Context, categories: {
   sessionId: string;
+  sourceName: string;
+  tabs: readonly (readonly [ReferenceCategory, string])[];
   current(): ReferenceCategory;
   counts(): Record<string, number>;
   select(value: ReferenceCategory): void;
@@ -44,7 +52,7 @@ export function installCanvasReferenceMenu(ctx: Context, categories: {
     const root = useRef<HTMLDivElement>(null);
     const maxHeight = useAnchoredMaxHeight(root, 400, state, 84);
     const ownSession = useContext(ProductContext).sessionId === categories.sessionId;
-    const canvas = ownSession && state.hit?.trigger === '@' && state.groups.some(group => group.source === t("ui.ProjectSearch.kind.95b2102f"));
+    const canvas = ownSession && state.hit?.trigger === '@' && state.groups.some(group => group.source === categories.sourceName);
     useEffect(() => {
       if (!canvas || !state.open) return;
       const dismiss = (event: PointerEvent) => {
@@ -61,20 +69,20 @@ export function installCanvasReferenceMenu(ctx: Context, categories: {
     const counts = categories.counts();
     return <MenuSurface ref={root} className="shotloom-reference-menu" style={{ maxHeight }} data-trigger-menu="">
       <nav aria-label={t("ui.canvasReferenceMenu.arialabel.0b1ccc81")} className="shotloom-reference-tabs">
-        {referenceCategories.map(([id, label]) => <button key={id} type="button" aria-pressed={categories.current() === id}
+        {categories.tabs.map(([id, label]) => <button key={id} type="button" aria-pressed={categories.current() === id}
           onMouseDown={event => event.preventDefault()} onClick={() => categories.select(id)}>
           {label}<span>{counts[id] || 0}</span>
         </button>)}
       </nav>
-      {state.groups.some(group => group.source === t("ui.ProjectSearch.kind.95b2102f") && group.status === 'pending') && <div className="shotloom-reference-loading" role="status">{t("ui.canvasReferenceMenu.text.64769628")}</div>}
-      <div role="listbox" aria-label={t("ui.canvasReferenceMenu.arialabel.b5f59c08")} className="shotloom-reference-list">
+      {state.groups.some(group => group.source === categories.sourceName && group.status === 'pending') && <div className="shotloom-reference-loading" role="status">{t("ui.canvasReferenceMenu.text.64769628")}</div>}
+      <div role="listbox" aria-label={categories.sourceName} className="shotloom-reference-list">
         {state.groups.map(group => group.items.map((item, index) => {
           const active = state.highlight?.source === group.source && state.highlight.index === index;
-          return <button type="button" role="option" aria-selected={active} disabled={!item.value && group.source === t("ui.ProjectSearch.kind.95b2102f")}
+          return <button type="button" role="option" aria-selected={active} disabled={!item.value && group.source === categories.sourceName}
             id={`dsh-slash-option-${group.source}-${index}`} key={`${group.source}-${item.value || index}`}
             className="shotloom-reference-row" onMouseDown={event => event.preventDefault()}
             onMouseEnter={() => props.onHover(group.source, index)} onClick={() => props.onPick(group.source, index)}>
-            {group.source === t("ui.ProjectSearch.kind.95b2102f") && item.value ? <Thumbnail key={categories.thumbnailKey(item.value)} nodeId={item.value} /> : <span className="shotloom-reference-icon" aria-hidden="true">@</span>}
+            {group.source === categories.sourceName && item.value ? <Thumbnail key={categories.thumbnailKey(item.value)} nodeId={item.value} /> : <span className="shotloom-reference-icon" aria-hidden="true">@</span>}
             <span className="shotloom-reference-name" title={item.name}>{item.label || item.name}</span>
             <span className="shotloom-reference-kind">{item.description}</span>
           </button>;

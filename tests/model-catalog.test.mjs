@@ -22,6 +22,37 @@ test('模型能力按厂商文件登记，索引不复制模型定义', () => {
   }
 });
 
+test('StarRouter 不再提供 GPT 5.4 和 GPT 5.5', () => {
+  const ids = new Set(catalog.models.map((model) => model.id));
+  assert.equal(ids.has('starrouter-gpt-5.4'), false);
+  assert.equal(ids.has('starrouter-gpt-5.5'), false);
+});
+
+test('StarRouter DeepSeek Flash 使用上游模型 ID 和完整文本模式', () => {
+  const model = catalog.models.find((item) => item.id === 'starrouter-deepseek-flash');
+  assert.equal(model.provider, 'starrouter');
+  assert.equal(model.upstreamModel, 'deepseek-flash');
+  assert.deepEqual(model.modes.map((mode) => mode.id), [
+    'text-generation', 'semantic-split', 'storyboard-generation',
+  ]);
+  for (const mode of model.modes) {
+    assert.equal(mode.endpoint.path, '/chat/completions');
+    assert.equal(mode.requestTemplate.model, '{{model}}');
+    assert.equal(mode.agent.supportsTools, true);
+    assert.deepEqual(mode.inputConstraints.images, { max: 1, roles: ['referenceImage'] });
+    assert.equal(mode.requestFields.imageContentFormat, 'openai-image-url');
+    const effort = mode.params.find((item) => item.key === 'reasoningEffort');
+    assert.deepEqual(effort.options, ['none', 'low', 'high', 'max']);
+    assert.equal(effort.default, 'high');
+    assert.equal(mode.requestTemplate.reasoning_effort, '{{params.reasoningEffort}}');
+  }
+});
+
+test('StarRouter 不再提供 DeepSeek V4 Pro，仍保留 DeepSeek Flash', () => {
+  assert.equal(catalog.models.some((item) => item.id === 'starrouter-deepseek-v4-pro'), false);
+  assert.equal(catalog.models.some((item) => item.id === 'starrouter-deepseek-flash'), true);
+});
+
 test('内置模型使用统一模型定义结构', () => {
   assert.equal(catalog.schema, 'shotloom.model-catalog');
   assert.equal(catalog.modelDefinitionVersion, 2);
@@ -170,12 +201,7 @@ test('StarRouter 图片参数显示中文，接口仍使用原始枚举值', () 
   }
 });
 
-test('StarRouter 内置模型使用上游真实模型 ID 和已声明的图片编辑能力', () => {
-  const text = catalog.models.find((item) => item.id === 'starrouter-gpt-5.4');
-  assert.equal(text.provider, 'starrouter');
-  assert.equal(text.upstreamModel, 'gpt-5.4');
-  assert.equal(text.modes[0].endpoint.path, '/chat/completions');
-
+test('StarRouter 图片模型使用上游真实模型 ID 和已声明的图片编辑能力', () => {
   // 中转站实测的 gpt-image-2.5 与官方同参数，档位直接对齐 openai.json。
   const image = catalog.models.find((item) => item.id === 'starrouter-gpt-image-2.5-sunburst');
   assert.equal(image.provider, 'starrouter');

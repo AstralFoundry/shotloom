@@ -231,6 +231,43 @@ test('product scope filters tools and official approval refuses a mutation befor
   assert.equal(host.binding(textSession.binding.sessionId).nodeId, 'text-node');
 });
 
+test('Full access runs director writes without per-tool approval', { timeout: 10000 }, async t => {
+  const requests = [];
+  const server = createServer(async (request, response) => {
+    const chunks = [];
+    for await (const chunk of request) chunks.push(chunk);
+    const payload = JSON.parse(Buffer.concat(chunks).toString());
+    requests.push(payload);
+    response.setHeader('content-type', 'application/json');
+    response.end(JSON.stringify(payload.phase === 'authorize'
+      ? { success: true, result: { success: true, approvalRequired: true } }
+      : { success: true, result: { success: true, applied: true } }));
+  });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => new Promise(resolve => server.close(resolve)));
+  const makeTool = (name, approvalRequired = false) => ({ name, description: name, roles: ['director-primary'], effect: 'write', approvalRequired,
+    parameters: { type: 'object', properties: {}, additionalProperties: false } });
+  const { host } = await fixture(t, { registerTools: (scope, bound) => registerProductTools(scope, bound,
+    [makeTool('director_ordinary_write'), makeTool('director_explicit_delete', true)],
+    { url: `http://127.0.0.1:${server.address().port}`, token: 'test-credential', authorize: true }) });
+  const adapter = new ScriptedAdapter([
+    call('director_ordinary_write', {}), text('ordinary write completed'),
+    call('director_explicit_delete', {}), text('explicit approval rejected'),
+  ]);
+  host.ctx.llm.registerAdapter(['test'], adapter);
+  const owner = await host.create({ ...binding, agentId: 'director-primary', conversationId: 'director-full-access' }, route);
+  host.ctx.permissionPresets.set(owner.agent.session, 'danger-full-access');
+  await send(owner.agent, 'Perform the ordinary write');
+  assert.equal(requests.filter(item => item.phase !== 'authorize').length, 1);
+  assert.equal(requests.find(item => item.phase !== 'authorize').authorizedByFullAccess, true);
+  assert.equal(requests.find(item => item.phase !== 'authorize').approvedByHarness, false);
+  assert.equal(owner.agent.session.snapshotEvents().filter(event => event.type === 'approval/asked').length, 0);
+  await send(owner.agent, 'Perform the explicitly guarded write under Full access');
+  assert.equal(requests.filter(item => item.phase !== 'authorize').length, 2);
+  assert.ok(requests.filter(item => item.phase !== 'authorize').every(item => item.authorizedByFullAccess === true));
+  assert.equal(owner.agent.session.snapshotEvents().filter(event => event.type === 'approval/asked').length, 0);
+});
+
 test('named product tool calls the authenticated bridge and official SQLite persistence restores the next turn', { timeout: 15000 }, async t => {
   const token = randomBytes(32).toString('hex');
   const received = [];
@@ -497,6 +534,21 @@ test('native IPC routes official RPC and streams, rejects external routes and pr
   assert.ok(events.some(event => event.requestId === 'stream' && ['end', 'error'].includes(event.kind)));
 });
 
+test('node sessions archive by project and restore through their original binding', { timeout: 15000 }, async t => {
+  const { startDesktopHost } = await import('../dist/desktopHost.js');
+  const dataRoot = await mkdtemp(join(tmpdir(), 'shotloom-session-archive-'));
+  const desktop = await startDesktopHost({ ...options(dataRoot), distIndex: join(root, 'harness/host/client-dist/index.html'), bridge: { url: 'http://127.0.0.1:1', token: 'test-private-channel' } });
+  t.after(async () => { await desktop.host.dispose(); await rm(dataRoot, { recursive: true, force: true }); });
+  const nodeBinding = { ...binding, agentId: 'text-primary', nodeId: 'text-a' };
+  const created = await desktop.bind({ binding: nodeBinding, tools: [] });
+  assert.deepEqual((await desktop.setSessionsArchived('other-project', [created.sessionId])).sessionIds, []);
+  assert.deepEqual((await desktop.setSessionsArchived(binding.projectKey, [created.sessionId])).sessionIds, [created.sessionId]);
+  assert.deepEqual((await desktop.setSessionsArchived(binding.projectKey, [created.sessionId])).sessionIds, [created.sessionId]);
+  assert.ok(desktop.host.ctx.workspaceRegistry.archivedSessionIds.includes(created.sessionId));
+  await desktop.bind({ binding: nodeBinding, sessionId: created.sessionId, tools: [] });
+  assert.equal(desktop.host.ctx.workspaceRegistry.archivedSessionIds.includes(created.sessionId), false);
+});
+
 test('official pi-ai adapter receives a configured product route and real wire tool schemas', { timeout: 15000 }, async t => {
   const { startDesktopHost } = await import('../dist/desktopHost.js');
   const requests = [];
@@ -515,7 +567,12 @@ test('official pi-ai adapter receives a configured product route and real wire t
   const dataRoot = await mkdtemp(join(tmpdir(), 'shotloom-wire-'));
   const desktop = await startDesktopHost({ ...options(dataRoot), distIndex: join(root, 'harness/host/client-dist/index.html'), bridge: { url: 'http://127.0.0.1:1', token: 'wire-secret' } });
   t.after(async () => { await desktop.host.dispose(); await rm(dataRoot, { recursive: true, force: true }); });
-  const created = await desktop.bind({ binding, tools: [{ name: 'canvas_test_read', description: 'Read a real scoped node', parameters: { type: 'object', properties: { nodeId: { type: 'string' } }, required: ['nodeId'], additionalProperties: false }, roles: ['canvas-primary'], effect: 'read' }], skills: [], providers: { 'shotloom-wire': { key: 'test-product-key', profile: { api: 'openai-completions', baseURL: `http://127.0.0.1:${modelServer.address().port}/v1`, models: [{ id: 'wire-model', name: 'Wire model', input: ['text'], reasoningEfforts: { off: 'none', medium: 'medium', max: 'ultra' }, compat: { supportsReasoningEffort: true } }] } } }, defaultModel: { provider: 'shotloom-wire', model: 'wire-model', reasoningEffort: 'medium' } });
+  const providers = { 'shotloom-wire': { key: 'test-product-key', profile: { api: 'openai-completions', baseURL: `http://127.0.0.1:${modelServer.address().port}/v1`, models: [
+    { id: 'wire-model', name: 'Wire model', input: ['text'], reasoningEfforts: { off: 'none', medium: 'medium', max: 'ultra' }, compat: { supportsReasoningEffort: true } },
+    { id: 'wire-retired', name: 'Retired wire model', input: ['text'] },
+  ] } } };
+  const defaultModel = { provider: 'shotloom-wire', model: 'wire-model', reasoningEffort: 'medium' };
+  const created = await desktop.bind({ binding, tools: [{ name: 'canvas_test_read', description: 'Read a real scoped node', parameters: { type: 'object', properties: { nodeId: { type: 'string' } }, required: ['nodeId'], additionalProperties: false }, roles: ['canvas-primary'], effect: 'read' }], skills: [], providers, defaultModel });
   const { sessionId } = created;
   await send(desktop.host.ctx.agents.get(sessionId), 'verify native provider configuration');
   assert.equal(requests.length, 1);
@@ -533,6 +590,13 @@ test('official pi-ai adapter receives a configured product route and real wire t
   assert.equal(tool.function.parameters.properties.nodeId.type, 'string');
   const log = desktop.host.ctx.agents.get(sessionId).session.snapshotEvents();
   assert.match(JSON.stringify(log), /official adapter wire response/);
+  await desktop.host.ctx.sessionController.selectModel({ sessionId, provider: 'shotloom-wire', model: 'wire-retired' });
+  assert.equal(desktop.host.ctx.sessionProjections.stateOf(desktop.host.ctx.agents.get(sessionId).session, 'modelSelection').pending.model, 'wire-retired');
+  await desktop.bind({ binding, sessionId, tools: [], skills: [], providers: {
+    'shotloom-wire': { ...providers['shotloom-wire'], profile: { ...providers['shotloom-wire'].profile,
+      models: providers['shotloom-wire'].profile.models.filter(model => model.id !== 'wire-retired') } },
+  }, defaultModel });
+  assert.equal(desktop.host.ctx.sessionProjections.stateOf(desktop.host.ctx.agents.get(sessionId).session, 'modelSelection').pending.model, 'wire-model');
 });
 
 test('durable mutation receipts survive Host restart and uncertain dispatches never replay', { timeout: 15000 }, async t => {

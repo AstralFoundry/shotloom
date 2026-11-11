@@ -8,6 +8,7 @@ export interface MessageParameters {
   "project.restoreFailed": Record<"count", string | number>;
   "notification.pendingMessages": Record<"count", string | number>;
   "notification.pendingToasts": Record<"count", string | number>;
+  "agent.deleteConversationFailed": Record<"error", string | number>;
   "ui.ReactWorkbench.text.fe5e706d": Record<"value0", string | number>;
   "ui.ReactWorkbench.text.5b2c49d9": Record<"value0", string | number>;
   "ui.ReactWorkbench.text.7d1d4e69": Record<"value0", string | number>;

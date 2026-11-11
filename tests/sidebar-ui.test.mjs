@@ -139,7 +139,7 @@ test('创作画布保留窄窗口操作边界且不恢复厚标题栏', () => {
 
 test('助手折叠按钮为画布右上角工具组预留空间', () => {
   assert.match(workbenchStyles, /--agent-reopen-width:\s*104px/);
-  assert.match(workbenchStyles, /\.forge-agent-reopen \{[^}]*width:\s*var\(--agent-reopen-width\)[^}]*height:\s*40px/);
+  assert.match(workbenchStyles, /\.forge-agent-reopen \{[^}]*width:\s*var\(--agent-reopen-width\)[^}]*height:\s*var\(--canvas-toolbar-height-compact\)/);
   assert.match(reactMigrationStyles, /\.forge-lite-main\.agent-collapsed \.canvas-corner-controls \{[^}]*right:\s*calc\(22px \+ var\(--agent-reopen-width\)\)/);
   assert.doesNotMatch(`${styles}${workbenchStyles}${reactMigrationStyles}${settingsStyles}`, /copilot/i);
 });

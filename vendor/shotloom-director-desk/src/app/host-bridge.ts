@@ -77,6 +77,14 @@ const commandSpecs: Record<string, CommandSpec> = {
         cameraId: 'string，可选，默认当前预览机位；program 为剪辑合成视角',
         size: '640 | 1280，默认 640',
     } },
+    render_preview_sheet: { kind: 'view', args: {
+        timesSec: 'number[]，必填，1 至 8 个场景时长内的秒数；返回逐格标秒数的拼图，用于检查时间线连续性',
+        cameraId: 'string，可选，默认当前预览机位；program 为剪辑合成视角',
+    } },
+    inspect_model: { kind: 'view', args: {
+        id: 'string，可选，默认当前选中的建筑或道具 ID；必须来自 snapshot.document.entities',
+        views: "string[]，可选，1 至 6 个视角：front、back、left、right、top、three_quarter；默认 front/left/top/three_quarter",
+    } },
 
     // 选择、播放头与视口：不影响工程文档
     select_entity: { kind: 'view', args: { id: 'string，实体 ID' } },
@@ -242,6 +250,14 @@ const commands: Record<string, (input: Input) => unknown> = {
         ...(i.seconds === undefined ? {} : { seconds: number(i.seconds) }),
         ...(i.cameraId === undefined ? {} : { cameraId: string(i.cameraId) }),
         ...(i.size === undefined ? {} : { size: number(i.size) }),
+    }),
+    render_preview_sheet: i => session.renderPreviewSheet({
+        timesSec: Array.isArray(i.timesSec) ? i.timesSec.map(number) : [],
+        ...(i.cameraId === undefined ? {} : { cameraId: string(i.cameraId) }),
+    }),
+    inspect_model: i => session.inspectModel({
+        ...(i.id === undefined ? {} : { id: string(i.id) }),
+        ...(i.views === undefined ? {} : { views: i.views as string[] }),
     }),
     select_entity: i => session.selectEntity(string(i.id)),
     select_scene: () => session.selectScene(),
@@ -531,6 +547,12 @@ export function initializeHostBridge() {
                     const command = commands[string(payload.operation)];
                     if (!command) throw Error(`未知导演台操作: ${string(payload.operation)}`);
                     result = await command((payload.args && typeof payload.args === 'object' && !Array.isArray(payload.args) ? payload.args : {}) as Input);
+                    // A successful edit must reach the host before its tool receipt. The
+                    // debounced subscription can be lost if an export or WebView reload follows.
+                    if (commandSpecs[string(payload.operation)]?.kind === 'edit' && result !== false) {
+                        window.clearTimeout(saveTimer);
+                        send('project-changed', { project: session.history.document() });
+                    }
                 }
                 send('agent-result', { requestId, success: true, result: result ?? null });
             } catch (error) { send('agent-result', { requestId, success: false, error: String(error) }); }

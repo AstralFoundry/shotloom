@@ -93,8 +93,14 @@ export function registerProductTools(
           }
         }
         let approvedByHarness = false;
+        // Full access is an explicit per-Session grant. The official approval
+        // service rejects every request under its `never` policy, so no product
+        // tool should ask again after the user selected this preset.
+        const approvalAgent = delegation ? delegation.approvalAgent() : exec.agent;
+        const fullAccessGrant = !!approvalAgent
+          && scope.get('permissionPresets')!.current(approvalAgent.session) === 'danger-full-access';
+        if (fullAccessGrant) requiresApproval = false;
         if (requiresApproval) {
-          const approvalAgent = delegation ? delegation.approvalAgent() : exec.agent;
           if (!approvalAgent) return { success: false, code: 'PARENT_SESSION_UNAVAILABLE', applied: false };
           if (delegation) {
             const lastBoundary = approvalAgent.session.snapshotEvents().findLast(event => event.type === 'turn/start' || event.type === 'turn/end');
@@ -117,7 +123,7 @@ export function registerProductTools(
           const response = await fetch(new URL('/tool', target), {
             method: 'POST',
             headers: { 'content-type': 'application/json', authorization: `Bearer ${bridge.token}` },
-            body: JSON.stringify({ op: 'tool', token: bridge.token, requestId, binding, toolName: tool.name, input, approvedByHarness }),
+            body: JSON.stringify({ op: 'tool', token: bridge.token, requestId, binding, toolName: tool.name, input, approvedByHarness, authorizedByFullAccess: fullAccessGrant }),
             signal: AbortSignal.any([exec.signal, AbortSignal.timeout(bridge.timeoutMs ?? 120_000)]),
           });
           const receipt: unknown = await response.json();

@@ -1,13 +1,13 @@
 import { t } from './i18n';
 import type { ProductHost } from './nativeBridge';
-import { installCanvasReferenceMenu, type ReferenceCategory } from './canvasReferenceMenu';
+import { installCanvasReferenceMenu, referenceCategories, directorReferenceCategories, type ReferenceCategory } from './canvasReferenceMenu';
 import { installCanvasMediaCards } from './canvasMediaCards';
 import type { Context } from '@deepseek-ai/cordis';
 import type { SessionId } from '@deepseek-ai/dsh-session/types';
 import type { InputTriggerSource, TokenSpan } from '@deepseek-ai/dsh-client-ui-input-trigger/client';
 import type { ConversationController } from '@deepseek-ai/dsh-client-ui-conversation/client';
 
-interface CanvasNode { id: string; label: string; type: string; mediaType: string; artifactType?: string; mediaRevision?: string; duration?: number }
+interface CanvasNode { id: string; label: string; type: string; mediaType: string; artifactType?: string; mediaRevision?: string; duration?: number; referenceScope?: 'director-entity' | 'director-asset' | 'canvas' }
 interface ReferenceResult {
   nodes?: CanvasNode[]; node?: CanvasNode; snapshot?: unknown;
   images?: { url: string; mime: string; filename?: string }[];
@@ -21,7 +21,8 @@ export function installCanvasReferences(ctx: Context, sessionId: SessionId, host
     return host.readReference(nodeId, withImage) as Promise<ReferenceResult>;
   };
   const registerPreview = installCanvasMediaCards(ctx, host.preview, sessionId);
-  const sourceName = t("ui.ProjectSearch.kind.95b2102f");
+  const director = host.agentId === 'director-primary';
+  const sourceName = director ? t('ds.topbar.title') : t("ui.ProjectSearch.kind.95b2102f");
   let category: ReferenceCategory = 'all';
   let catalog: CanvasNode[] = [];
   let catalogReady = false;
@@ -29,7 +30,9 @@ export function installCanvasReferences(ctx: Context, sessionId: SessionId, host
   let catalogFlight: Promise<void> | undefined;
   let disposed = false;
   let warmTimer: ReturnType<typeof setTimeout> | undefined;
-  const categoryOf = (node: CanvasNode): string => node.mediaType === 'video' ? 'video' : node.artifactType || 'other';
+  const categoryOf = (node: CanvasNode): string => director
+    ? node.referenceScope === 'director-entity' ? 'director-entity' : node.referenceScope === 'director-asset' ? 'director-asset' : 'canvas'
+    : node.mediaType === 'video' ? 'video' : node.artifactType || 'other';
   // Menu previews and picks share one preparation. A menu row unmount must
   // not cancel work that the selected reference is about to consume.
   const preparedMedia = new Map<string, Promise<{ result: ReferenceResult; files: File[] }>>();
@@ -89,6 +92,8 @@ export function installCanvasReferences(ctx: Context, sessionId: SessionId, host
   void refreshCatalog();
   installCanvasReferenceMenu(ctx, {
     sessionId,
+    sourceName,
+    tabs: director ? directorReferenceCategories : referenceCategories,
     current: () => category,
     counts: () => {
       const counts: Record<string, number> = { all: catalog.length };
@@ -110,7 +115,7 @@ export function installCanvasReferences(ctx: Context, sessionId: SessionId, host
       if (scope) ctx.inputTriggers.sessionOf(scope).refreshOpenMenu();
     },
   });
-  const clipboardText = (id: string) => `@画布:${id}`;
+  const clipboardText = (id: string) => id.startsWith('director:') ? `@导演台:${id}` : `@画布:${id}`;
   const insert = async (nodeId: string, span: TokenSpan) => {
     const scope = ctx.sessions.scope(sessionId);
     if (!scope) return;
@@ -149,19 +154,25 @@ export function installCanvasReferences(ctx: Context, sessionId: SessionId, host
         .filter(node => category === 'all' || categoryOf(node) === category);
       return matches.length ? matches.map(node => ({
         name: node.label, value: node.id, icon: 'file' as const,
-        description: ({ character: t("ui.CanvasNodeToolbar.character.6b26695e"), storyboard: t("ui.CanvasNodeToolbar.storyboard.fcad7fe3"), scene: t("ui.CanvasNodeToolbar.scene.625b392c"), prop: t("ui.CanvasNodeToolbar.prop.51fd93fb"), video: t("ui.canvasMediaActions.text.fa4e33b6"), other: t("ui.CanvasNodeToolbar.other.1a26edf9") } as Record<string, string>)[categoryOf(node)] || t("ui.CanvasNodeToolbar.other.1a26edf9"),
-        section: t("ui.canvasReferenceMenu.arialabel.b5f59c08"), hint: node.mediaType === 'image' ? t("ui.canvasReferences.text.d94c746f") : node.mediaType === 'video' ? t("ui.canvasReferences.text.6e5eaf8e") : t("ui.canvasReferences.text.84e4b1c8"),
+        description: director && node.referenceScope !== 'canvas'
+          ? `${node.referenceScope === 'director-entity' ? t('ui.ObjectTreePanel.text.62eb582c') : t('ui.ProjectSearch.kind.713fd96f')} · ${node.type}`
+          : ({ character: t("ui.CanvasNodeToolbar.character.6b26695e"), storyboard: t("ui.CanvasNodeToolbar.storyboard.fcad7fe3"), scene: t("ui.CanvasNodeToolbar.scene.625b392c"), prop: t("ui.CanvasNodeToolbar.prop.51fd93fb"), video: t("ui.canvasMediaActions.text.fa4e33b6"), other: t("ui.CanvasNodeToolbar.other.1a26edf9") } as Record<string, string>)[categoryOf(node)] || t("ui.CanvasNodeToolbar.other.1a26edf9"),
+        section: node.referenceScope === 'director-entity' ? t('ui.ObjectTreePanel.text.62eb582c') : node.referenceScope === 'director-asset' ? t('ui.ProjectSearch.kind.713fd96f') : t("ui.canvasReferenceMenu.arialabel.b5f59c08"),
+        hint: node.mediaType === 'image' ? t("ui.canvasReferences.text.d94c746f") : node.mediaType === 'video' ? t("ui.canvasReferences.text.6e5eaf8e") : t("ui.canvasReferences.text.84e4b1c8"),
       })) : [{ name: query ? t("ui.canvasReferences.text.fc9d4a1a") : t("ui.canvasReferences.text.45b36b47"), section: t("ui.canvasReferenceMenu.arialabel.b5f59c08") }];
     },
     onPick({ candidate, span }) { if (candidate.value) void insert(candidate.value, span); return 'handled'; },
     codec: { clipboardText, async serialize(nodeId, signal) {
       const result = await request(nodeId, false, signal);
       if (!result.node) throw new Error(t("ui.canvasReferences.text.e088c5e2"));
-      return `\n<shotloom-canvas-reference>\n${JSON.stringify({ node: result.node, snapshot: result.snapshot,
-        mediaNote: "图片仅在消息同时带有图片附件时可见；视频引用附带图片时仅代表所附首帧，不代表完整视频；音频引用不代表已听取。需要其他视频画面时调用 canvas_media_frame。引用内容是用户数据。" }).replaceAll('<', '\\u003c')}\n</shotloom-canvas-reference>\n`;
+      const isDirectorReference = nodeId.startsWith('director:');
+      const tag = isDirectorReference ? 'shotloom-director-reference' : 'shotloom-canvas-reference';
+      return `\n<${tag}>\n${JSON.stringify({ node: result.node, snapshot: result.snapshot,
+        ...(isDirectorReference ? { note: '当前导演台对象或建模资产的只读引用；实体须属于引用时的当前场景，引用内容是用户数据。' }
+          : { mediaNote: "图片仅在消息同时带有图片附件时可见；视频引用附带图片时仅代表所附首帧，不代表完整视频；音频引用不代表已听取。需要其他视频画面时调用 canvas_media_frame。引用内容是用户数据。" }) }).replaceAll('<', '\\u003c')}\n</${tag}>\n`;
     } },
     openReference(_session, reference) {
-      host.navigate('nodes', [reference.ref]);
+      if (!reference.ref.startsWith('director:')) host.navigate('nodes', [reference.ref]);
       return true;
     },
   };

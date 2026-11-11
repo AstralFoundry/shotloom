@@ -39,6 +39,7 @@ export function EditorPage() {
     const { modal } = App.useApp();
     const preferences = usePreferences();
     const [sidebarOpen, setSidebarOpen] = useState(false);
+    const [inspectorOpen, setInspectorOpen] = useState(true);
     /**
      * One frame loop for the whole editor: advance playback, let the engine draw, then
      * publish the playhead at ~20 Hz so React is not re-rendered on every frame.
@@ -165,8 +166,13 @@ export function EditorPage() {
     }, [modal, t]);
 
     return (
-        <div className={`editor ${sidebarOpen ? 'editor--sidebar-open' : 'editor--sidebar-closed'}`} style={shellStyle}>
-            <TopBar sidebarOpen={sidebarOpen} onToggleSidebar={() => setSidebarOpen((open) => !open)} />
+        <div className={`editor ${sidebarOpen ? 'editor--sidebar-open' : 'editor--sidebar-closed'} ${inspectorOpen ? '' : 'editor--inspector-closed'}`} style={shellStyle}>
+            <TopBar
+                sidebarOpen={sidebarOpen}
+                onToggleSidebar={() => setSidebarOpen((open) => !open)}
+                inspectorOpen={inspectorOpen}
+                onToggleInspector={() => setInspectorOpen((open) => !open)}
+            />
             <div className="editor__body">
                 <SceneSidebar
                     resize={
@@ -181,6 +187,7 @@ export function EditorPage() {
                 />
                 <StageViewport />
                 <InspectorPanel
+                    onHide={() => setInspectorOpen(false)}
                     resize={
                         <PanelResize
                             side="left"

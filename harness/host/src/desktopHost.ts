@@ -10,7 +10,9 @@ import * as SkillFiles from '@deepseek-ai/dsh-skill-filesystem';
 import * as PiAi from '@deepseek-ai/dsh-llm-pi-ai';
 import { ReasoningEffortId } from '@deepseek-ai/dsh-llm';
 import { credentialRef } from '@deepseek-ai/dsh-credentials';
+import { SessionId } from '@deepseek-ai/dsh-session';
 import type { Context } from '@deepseek-ai/cordis';
+import { SessionCrud } from './crud/sessionCrud.js';
 
 type BindingInput = Omit<SessionBinding, 'sessionId'>;
 interface ProductSkill { id: string; description?: string; instructions: string; metadata?: Record<string, unknown>; builtIn?: boolean }
@@ -58,13 +60,16 @@ export async function startDesktopHost(options: {
     let composition = Promise.resolve();
     let modelPlugin: Awaited<ReturnType<Context['plugin']>> | undefined;
     let modelConfig = '';
+    const sessionCrud = new SessionCrud(database);
     const providerConfigs = new Map<string, string>();
     const skillVersions = new Map<string, string>();
-    async function seedDefaultModel(owner: Awaited<ReturnType<typeof host.create>>, model?: { provider: string; model: string; reasoningEffort?: string }) {
+    async function seedDefaultModel(owner: Awaited<ReturnType<typeof host.create>>, model?: { provider: string; model: string; reasoningEffort?: string }, providers?: Record<string, ProviderConfig>) {
       const selection = host.ctx.sessionProjections.stateOf(owner.agent.session, 'modelSelection');
-      // A previously unconfigured, empty Session must acquire the product
-      // default too. Preserve explicit choices and models used by past turns.
-      if (model && !owner.agent.session.requestHeader() && !selection?.pending) {
+      const selected = selection?.pending ?? selection?.lastUsed;
+      const removed = selected && providers && !providers[selected.provider]?.profile.models?.some(item => item.id === selected.model);
+      // Seed empty sessions and replace selections removed from the configured
+      // catalog. Keep every explicit choice that remains available.
+      if (model && ((!owner.agent.session.requestHeader() && !selection?.pending) || removed)) {
         await host.ctx.sessionController.selectModel({ sessionId: owner.agent.session.id, ...model });
       }
     }
@@ -76,6 +81,9 @@ export async function startDesktopHost(options: {
           if (request.sessionId) {
             const saved = host.binding(request.sessionId);
             if (!saved || key(saved) !== key(binding)) throw new Error('Session binding mismatch');
+            if (host.ctx.workspaceRegistry.archivedSessionIds.includes(SessionId(request.sessionId))) {
+              await host.ctx.workspaceRegistry.unarchiveSession(SessionId(request.sessionId));
+            }
           }
           const catalogKey = key(binding);
           if (request.providers) {
@@ -133,7 +141,7 @@ export async function startDesktopHost(options: {
             catalogs.set(catalogKey, { binding, tools, skills: request.skills ?? catalogs.get(catalogKey)?.skills });
             hostCrud.saveCatalog(catalogKey, catalogs.get(catalogKey)! as unknown as Record<string, unknown>);
             if (skillVersion) skillVersions.set(catalogKey, skillVersion);
-            await seedDefaultModel(existing, request.defaultModel);
+            await seedDefaultModel(existing, request.defaultModel, request.providers);
             return existing;
           }
           catalogs.set(catalogKey, { binding, tools, skills: request.skills });
@@ -145,7 +153,7 @@ export async function startDesktopHost(options: {
           // The official browser controller installs its own model selection.
           // Seed that selection through its public API: AgentOptions alone are
           // otherwise overridden by the controller's deployment default.
-          await seedDefaultModel(owner, request.defaultModel);
+          await seedDefaultModel(owner, request.defaultModel, request.providers);
           owners.set(owner.binding.sessionId, owner);
           if (skillVersion) skillVersions.set(catalogKey, skillVersion);
           return owner;
@@ -155,6 +163,18 @@ export async function startDesktopHost(options: {
         return { sessionId: owner.binding.sessionId, tools: [...new Set([...catalogs.values()].flatMap(row => row.tools.map(tool => tool.name)))],
           toolTitles: Object.fromEntries([...catalogs.values()].flatMap(row => row.tools.map(tool => [tool.name, tool.title || tool.name]))) };
     }
-    return { host, bind };
+    async function setSessionsArchived(projectKey: string, sessionIds?: string[], archived = true) {
+      const requested = sessionIds ? new Set(sessionIds) : undefined;
+      const changed: string[] = [];
+      for (const binding of hostCrud.bindings() as Array<{ projectKey?: string; sessionId?: string }>) {
+        const id = binding.sessionId;
+        if (binding.projectKey !== projectKey || !id || (requested && !requested.has(id)) || !sessionCrud.find(id)) continue;
+        if (archived) await host.ctx.workspaceRegistry.archiveSession(SessionId(id), { stopActivity: true });
+        else await host.ctx.workspaceRegistry.unarchiveSession(SessionId(id));
+        changed.push(id);
+      }
+      return { sessionIds: changed };
+    }
+    return { host, bind, setSessionsArchived };
   } catch (error) { await host.dispose(); throw error; }
 }

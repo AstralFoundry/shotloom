@@ -65,6 +65,7 @@ pub fn run() {
             commands::restart_harness_runtime,
             commands::harness_bridge_status,
             commands::harness_bind_session,
+            commands::harness_set_sessions_archived,
             commands::harness_transport,
             commands::harness_tool_respond,
             commands::capture_agent_e2e_screen,

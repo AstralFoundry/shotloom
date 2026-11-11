@@ -110,7 +110,7 @@ async fn handle_connection(stream: &mut tokio::net::TcpStream, app: &AppHandle, 
         if pending.contains_key(&request_id) { return Err("call already pending".to_string()); }
         pending.insert(request_id.clone(), sender);
     }
-    let payload = serde_json::json!({ "requestId": request_id, "toolName": request.get("toolName"), "input": request.get("input"), "binding": binding, "phase": request.get("phase"), "approvedByHarness": request.get("approvedByHarness") });
+    let payload = serde_json::json!({ "requestId": request_id, "toolName": request.get("toolName"), "input": request.get("input"), "binding": binding, "phase": request.get("phase"), "approvedByHarness": request.get("approvedByHarness"), "authorizedByFullAccess": request.get("authorizedByFullAccess") });
     let emitted = app.emit("harness://tool-request", payload).map_err(|error| error.to_string());
     let result = match emitted {
         Ok(()) => timeout(Duration::from_secs(120), receiver).await.map_err(|_| "tool bridge timeout".to_string()).and_then(|value| value.map_err(|_| "tool bridge cancelled".to_string())),

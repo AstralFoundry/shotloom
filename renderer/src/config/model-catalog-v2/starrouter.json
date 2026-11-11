@@ -1080,97 +1080,6 @@
       ]
     },
     {
-      "id": "starrouter-gpt-5.4",
-      "name": "GPT 5.4（StarRouter）",
-      "provider": "starrouter",
-      "upstreamModel": "gpt-5.4",
-      "type": "textGeneration",
-      "sortOrder": 20,
-      "enabled": true,
-      "defaultMode": "text-generation",
-      "modes": [
-        {
-          "id": "text-generation",
-          "label": "文本生成",
-          "endpoint": {
-            "method": "POST",
-            "path": "/chat/completions",
-            "scope": "root"
-          },
-          "inputConstraints": {
-            "text": {
-              "maxTokens": 1000000
-            }
-          },
-          "agent": {
-            "transport": "provider-default",
-            "supportsTools": true
-          },
-          "outputConstraints": {
-            "supportsStreaming": true,
-            "supportsStructuredOutput": true,
-            "maxTokens": 16384
-          },
-          "capabilities": [
-            "reasoning"
-          ],
-          "params": [
-            {
-              "key": "maxTokens",
-              "label": "最大长度",
-              "type": "select",
-              "default": 8192,
-              "numeric": true,
-              "options": [
-                4096,
-                8192,
-                16384
-              ],
-              "labelKey": "catalog.label.c6f7a87b1e"
-            },
-            {
-              "key": "reasoningEffort",
-              "label": "推理强度",
-              "type": "select",
-              "default": "medium",
-              "options": [
-                "low",
-                "medium",
-                "high",
-                "xhigh"
-              ],
-              "optionLabels": {
-                "low": "低",
-                "medium": "中",
-                "high": "高",
-                "xhigh": "极高"
-              },
-              "labelKey": "catalog.label.66778fdee4",
-              "optionLabelKeys": {
-                "low": "catalog.label.b9ee259b7f",
-                "medium": "catalog.label.0869071c92",
-                "high": "catalog.label.b096b3f5ac",
-                "xhigh": "catalog.label.c34687da2b"
-              }
-            }
-          ],
-          "auth": {
-            "type": "bearer"
-          },
-          "requestTemplate": {
-            "model": "{{model}}",
-            "messages": "{{messages}}",
-            "max_completion_tokens": "{{params.maxTokens}}",
-            "reasoning_effort": "{{params.reasoningEffort}}",
-            "tools": "{{tools}}",
-            "tool_choice": "{{toolChoice}}"
-          },
-          "resultTextPath": "choices.0.message.content",
-          "labelKey": "catalog.label.9612898b53"
-        }
-      ]
-    },
-    {
       "id": "starrouter-gpt-image-2.5-sunburst",
       "name": "GPT Image 2.5 Sunburst（StarRouter）",
       "provider": "starrouter",
@@ -1546,10 +1455,9 @@
       ]
     },
     {
-      "id": "starrouter-deepseek-v4-pro",
-      "name": "DeepSeek V4 Pro（StarRouter）",
+      "id": "starrouter-deepseek-flash",
+      "name": "DeepSeek Flash（StarRouter）",
       "provider": "starrouter",
-      "upstreamModel": "deepseek-v4-pro",
       "type": "textGeneration",
       "sortOrder": 21,
       "enabled": true,
@@ -1565,7 +1473,13 @@
           },
           "inputConstraints": {
             "text": {
-              "maxTokens": 131072
+              "maxTokens": 1000000
+            },
+            "images": {
+              "max": 1,
+              "roles": [
+                "referenceImage"
+              ]
             }
           },
           "agent": {
@@ -1577,6 +1491,9 @@
             "supportsStructuredOutput": true,
             "maxTokens": 16384
           },
+          "capabilities": [
+            "reasoning"
+          ],
           "params": [
             {
               "key": "maxTokens",
@@ -1595,36 +1512,24 @@
               "key": "reasoningEffort",
               "label": "推理强度",
               "type": "select",
-              "default": "medium",
+              "default": "high",
               "options": [
                 "none",
-                "minimal",
                 "low",
-                "medium",
                 "high",
-                "xhigh",
-                "ultra",
                 "max"
               ],
               "optionLabels": {
                 "none": "关闭",
-                "minimal": "极简",
                 "low": "低",
-                "medium": "中",
                 "high": "高",
-                "xhigh": "极高",
-                "ultra": "超高",
                 "max": "最高"
               },
               "labelKey": "catalog.label.66778fdee4",
               "optionLabelKeys": {
                 "none": "catalog.label.6c14bd7f6f",
-                "minimal": "catalog.label.4d9492c5f8",
                 "low": "catalog.label.b9ee259b7f",
-                "medium": "catalog.label.0869071c92",
                 "high": "catalog.label.b096b3f5ac",
-                "xhigh": "catalog.label.c34687da2b",
-                "ultra": "catalog.label.e9b58f9ec4",
                 "max": "catalog.label.2cd489b0a5"
               }
             }
@@ -1636,17 +1541,196 @@
             "model": "{{model}}",
             "messages": "{{messages}}",
             "max_tokens": "{{params.maxTokens}}",
-            "reasoning_effort": "{{params.reasoningEffort}}",
             "tools": "{{tools}}",
-            "tool_choice": "{{toolChoice}}"
+            "tool_choice": "{{toolChoice}}",
+            "reasoning_effort": "{{params.reasoningEffort}}"
           },
           "resultTextPath": "choices.0.message.content",
+          "labelKey": "catalog.label.9612898b53",
+          "requestFields": {
+            "imageContentFormat": "openai-image-url"
+          }
+        },
+        {
+          "id": "semantic-split",
+          "label": "语义拆分",
+          "endpoint": {
+            "method": "POST",
+            "path": "/chat/completions",
+            "scope": "root"
+          },
+          "inputConstraints": {
+            "text": {
+              "maxTokens": 1000000
+            },
+            "images": {
+              "max": 1,
+              "roles": [
+                "referenceImage"
+              ]
+            }
+          },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
+          "outputConstraints": {
+            "supportsStreaming": true,
+            "supportsStructuredOutput": true,
+            "maxTokens": 16384
+          },
           "capabilities": [
+            "structured-output",
             "reasoning"
           ],
-          "labelKey": "catalog.label.9612898b53"
+          "params": [
+            {
+              "key": "maxTokens",
+              "label": "最大长度",
+              "type": "select",
+              "default": 8192,
+              "numeric": true,
+              "options": [
+                4096,
+                8192,
+                16384
+              ],
+              "labelKey": "catalog.label.c6f7a87b1e"
+            },
+            {
+              "key": "reasoningEffort",
+              "label": "推理强度",
+              "type": "select",
+              "default": "high",
+              "options": [
+                "none",
+                "low",
+                "high",
+                "max"
+              ],
+              "optionLabels": {
+                "none": "关闭",
+                "low": "低",
+                "high": "高",
+                "max": "最高"
+              },
+              "labelKey": "catalog.label.66778fdee4",
+              "optionLabelKeys": {
+                "none": "catalog.label.6c14bd7f6f",
+                "low": "catalog.label.b9ee259b7f",
+                "high": "catalog.label.b096b3f5ac",
+                "max": "catalog.label.2cd489b0a5"
+              }
+            }
+          ],
+          "auth": {
+            "type": "bearer"
+          },
+          "requestTemplate": {
+            "model": "{{model}}",
+            "messages": "{{messages}}",
+            "max_tokens": "{{params.maxTokens}}",
+            "tools": "{{tools}}",
+            "tool_choice": "{{toolChoice}}",
+            "reasoning_effort": "{{params.reasoningEffort}}"
+          },
+          "resultTextPath": "choices.0.message.content",
+          "labelKey": "catalog.label.8f963ce0de",
+          "requestFields": {
+            "imageContentFormat": "openai-image-url"
+          }
+        },
+        {
+          "id": "storyboard-generation",
+          "label": "分镜生成",
+          "endpoint": {
+            "method": "POST",
+            "path": "/chat/completions",
+            "scope": "root"
+          },
+          "inputConstraints": {
+            "text": {
+              "maxTokens": 1000000
+            },
+            "images": {
+              "max": 1,
+              "roles": [
+                "referenceImage"
+              ]
+            }
+          },
+          "agent": {
+            "transport": "provider-default",
+            "supportsTools": true
+          },
+          "outputConstraints": {
+            "supportsStreaming": true,
+            "supportsStructuredOutput": true,
+            "maxTokens": 16384
+          },
+          "capabilities": [
+            "structured-output",
+            "reasoning"
+          ],
+          "params": [
+            {
+              "key": "maxTokens",
+              "label": "最大长度",
+              "type": "select",
+              "default": 8192,
+              "numeric": true,
+              "options": [
+                4096,
+                8192,
+                16384
+              ],
+              "labelKey": "catalog.label.c6f7a87b1e"
+            },
+            {
+              "key": "reasoningEffort",
+              "label": "推理强度",
+              "type": "select",
+              "default": "high",
+              "options": [
+                "none",
+                "low",
+                "high",
+                "max"
+              ],
+              "optionLabels": {
+                "none": "关闭",
+                "low": "低",
+                "high": "高",
+                "max": "最高"
+              },
+              "labelKey": "catalog.label.66778fdee4",
+              "optionLabelKeys": {
+                "none": "catalog.label.6c14bd7f6f",
+                "low": "catalog.label.b9ee259b7f",
+                "high": "catalog.label.b096b3f5ac",
+                "max": "catalog.label.2cd489b0a5"
+              }
+            }
+          ],
+          "auth": {
+            "type": "bearer"
+          },
+          "requestTemplate": {
+            "model": "{{model}}",
+            "messages": "{{messages}}",
+            "max_tokens": "{{params.maxTokens}}",
+            "tools": "{{tools}}",
+            "tool_choice": "{{toolChoice}}",
+            "reasoning_effort": "{{params.reasoningEffort}}"
+          },
+          "resultTextPath": "choices.0.message.content",
+          "labelKey": "catalog.label.8c31cdcb5d",
+          "requestFields": {
+            "imageContentFormat": "openai-image-url"
+          }
         }
-      ]
+      ],
+      "upstreamModel": "deepseek-flash"
     },
     {
       "id": "starrouter-qwen3.6-plus",
@@ -2532,105 +2616,6 @@
             "fileExtension": "mp3"
           },
           "labelKey": "catalog.label.c4383c679a"
-        }
-      ]
-    },
-    {
-      "id": "starrouter-gpt-5.5",
-      "name": "GPT 5.5（StarRouter）",
-      "provider": "starrouter",
-      "upstreamModel": "gpt-5.5",
-      "type": "textGeneration",
-      "sortOrder": 19,
-      "enabled": true,
-      "defaultMode": "text-generation",
-      "modes": [
-        {
-          "id": "text-generation",
-          "label": "文本生成",
-          "endpoint": {
-            "method": "POST",
-            "path": "/chat/completions",
-            "scope": "root"
-          },
-          "inputConstraints": {
-            "text": {
-              "maxTokens": 1050000
-            }
-          },
-          "agent": {
-            "transport": "provider-default",
-            "supportsTools": true,
-            "requestOptions": {
-              "reasoningEffort": "none"
-            }
-          },
-          "outputConstraints": {
-            "supportsStreaming": true,
-            "supportsStructuredOutput": true,
-            "maxTokens": 128000
-          },
-          "capabilities": [
-            "reasoning"
-          ],
-          "params": [
-            {
-              "key": "maxTokens",
-              "label": "最大长度",
-              "type": "select",
-              "default": 16384,
-              "numeric": true,
-              "options": [
-                8192,
-                16384,
-                32768,
-                65536,
-                128000
-              ],
-              "labelKey": "catalog.label.c6f7a87b1e"
-            },
-            {
-              "key": "reasoningEffort",
-              "label": "推理强度",
-              "type": "select",
-              "default": "medium",
-              "options": [
-                "none",
-                "low",
-                "medium",
-                "high",
-                "xhigh"
-              ],
-              "optionLabels": {
-                "none": "关闭",
-                "low": "低",
-                "medium": "中",
-                "high": "高",
-                "xhigh": "极高"
-              },
-              "labelKey": "catalog.label.66778fdee4",
-              "optionLabelKeys": {
-                "none": "catalog.label.6c14bd7f6f",
-                "low": "catalog.label.b9ee259b7f",
-                "medium": "catalog.label.0869071c92",
-                "high": "catalog.label.b096b3f5ac",
-                "xhigh": "catalog.label.c34687da2b"
-              }
-            }
-          ],
-          "auth": {
-            "type": "bearer"
-          },
-          "requestTemplate": {
-            "model": "{{model}}",
-            "messages": "{{messages}}",
-            "max_completion_tokens": "{{params.maxTokens}}",
-            "reasoning_effort": "{{params.reasoningEffort}}",
-            "tools": "{{tools}}",
-            "tool_choice": "{{toolChoice}}"
-          },
-          "resultTextPath": "choices.0.message.content",
-          "labelKey": "catalog.label.9612898b53"
         }
       ]
     },

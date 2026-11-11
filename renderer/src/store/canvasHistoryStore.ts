@@ -1,6 +1,10 @@
 import { t } from '../i18n/index.ts';
 import { computed } from '@/store/domainReactivity';
 import { store, touchProject } from '@/store/projectStore';
+import { reconcileBoundHarnessSessions } from '@/services/harnessSessionStore';
+import { getAgentProjectKey } from '@/services/agentProjectIdentity';
+import { desktopApi } from '@/services/desktopApi';
+import { setHarnessSessionsArchived } from '@/services/harnessArchive';
 import {
   applyCanvasTransaction,
   captureCanvasTransaction,
@@ -42,8 +46,21 @@ export const canRedoCanvas = computed(
 );
 
 function restore(entry: { [key: string]: any }) {
+  const previous = new Set((store.project.harnessSessions || []).map((session: { harnessSessionId?: string }) => session.harnessSessionId).filter(Boolean));
+  const projectKey = getAgentProjectKey();
+  const syncSessions = () => {
+    const current = new Set((store.project.harnessSessions || []).map((session: { harnessSessionId?: string }) => session.harnessSessionId).filter(Boolean));
+    const restored = [...current].filter(id => !previous.has(id));
+    const trashed = [...previous].filter(id => !current.has(id));
+    if (desktopApi.platform !== 'browser' && (restored.length || trashed.length)) void (async () => {
+      if (trashed.length) await setHarnessSessionsArchived(projectKey, trashed as string[], true);
+      if (restored.length) await setHarnessSessionsArchived(projectKey, restored as string[], false);
+    })().catch(error => console.error('Failed to reconcile canvas sessions', error));
+  };
   if (entry?.kind === 'canvas-transaction') {
     applyCanvasTransaction(store.project, entry as CanvasTransaction);
+    reconcileBoundHarnessSessions(store.project);
+    syncSessions();
     store.selectedNodeId = entry.selectedNodeId || null;
     store.selectedNodeIds = [...(entry.selectedNodeIds || [])];
     touchProject();
@@ -67,6 +84,8 @@ function restore(entry: { [key: string]: any }) {
   store.project.nodes = clone(entry.nodes || []);
   store.project.edges = clone(entry.edges || []);
   store.project.materials = clone(entry.materials || []);
+  reconcileBoundHarnessSessions(store.project);
+  syncSessions();
   store.selectedNodeId = entry.selectedNodeId || null;
   store.selectedNodeIds = [...(entry.selectedNodeIds || [])];
   touchProject();
