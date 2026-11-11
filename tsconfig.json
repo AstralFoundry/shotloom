@@ -26,8 +26,6 @@
   },
   "include": [
     "renderer/src/**/*.ts",
-    "renderer/src/**/*.tsx",
-    "vendor/storyai-3d-director-desk/src/**/*.ts",
-    "vendor/storyai-3d-director-desk/src/**/*.tsx"
+    "renderer/src/**/*.tsx"
   ]
 }

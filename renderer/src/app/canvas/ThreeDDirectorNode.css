@@ -278,10 +278,34 @@
   min-width: 0;
   min-height: 0;
   display: grid;
+  grid-template-columns: minmax(0, 1fr) min(400px, 36vw);
   grid-template-rows: minmax(0, 1fr);
   overflow: hidden;
   background: var(--surface);
+  position: relative;
 }
+.director-detail-close {
+  position: absolute;
+  top: 9px;
+  right: calc(min(400px, 36vw) + 8px);
+  z-index: 2;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font-size: var(--text-title-20);
+  line-height: 1;
+  cursor: pointer;
+}
+.director-detail-agent {
+  min-width: 320px;
+  height: 100%;
+  overflow: hidden;
+  border-left: 1px solid var(--line);
+}
+.director-detail-agent .harness-chat-panel { height: 100%; }
 .director-detail-frame {
   display: block;
   width: 100%;
@@ -290,4 +314,61 @@
   min-height: 0;
   border: 0;
   background: var(--surface-2);
+}
+
+/* Card summary: tells the difference between an untouched node and a built scene. */
+.director-node-summary {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px 8px;
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-caption-10);
+  font-variant-numeric: tabular-nums;
+}
+
+.director-node-selection {
+  margin: 0;
+  color: var(--faint);
+  font-size: var(--text-caption-10);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.director-node-warning {
+  margin: 0;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--warn-wash);
+  color: var(--warn);
+  font-size: var(--text-caption-10);
+}
+
+/* Scene hand-off between this node and the full-page workspace. */
+.director-node-handoff {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.director-node-handoff button {
+  height: 22px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: var(--text-caption-10);
+  cursor: pointer;
+}
+
+.director-node-handoff button:hover {
+  border-color: var(--faint);
+  background: var(--button-subtle-bg);
+  color: var(--text);
 }

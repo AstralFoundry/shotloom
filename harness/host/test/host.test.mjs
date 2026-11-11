@@ -77,6 +77,16 @@ test('official Host starts, scopes prompts and rejects unbound editor sessions',
   assert.ok(skills.some(skill => skill.name === 'video-editing'));
 });
 
+test('director session binds without a node and can dispatch the editor agent', { timeout: 10000 }, async t => {
+  const { host } = await fixture(t);
+  const adapter = new ScriptedAdapter([text('ready')]);
+  host.ctx.llm.registerAdapter(['test'], adapter);
+  const { agent } = await host.create({ ...binding, agentId: 'director-primary', conversationId: 'director-conversation' }, route);
+  await send(agent, 'Inspect the open 3D scene');
+  assert.ok(adapter.requests[0].tools.some(tool => tool.name === 'delegate_editor'));
+  assert.match(JSON.stringify(agent.session.snapshotEvents().find(e => e.type === 'system/message')), /3D 导演台 Agent/);
+});
+
 test('official statistics and token usage projections are available to the embedded header', { timeout: 10000 }, async t => {
   const { host } = await fixture(t);
   host.ctx.llm.registerAdapter(['test'], new ScriptedAdapter([[
@@ -459,6 +469,17 @@ test('native IPC routes official RPC and streams, rejects external routes and pr
   const catalog = JSON.parse(Buffer.from(response.body, 'base64').toString()).result;
   assert.equal(catalog.ok, true);
   assert.ok(catalog.value.items.some(row => row.sessionId === sessionId));
+  const uploadBytes = Buffer.from('<html>真实上传正文</html>\n');
+  const uploadPath = `/api/session/uploadFileBinary?sessionId=${encodeURIComponent(sessionId)}&name=${encodeURIComponent('凡猫国产3A大作_V1.html')}`;
+  await receive({ requestId: 'upload', kind: 'fetch', payload: { path: uploadPath, method: 'POST', headers: { 'content-type': 'application/octet-stream' }, body: uploadBytes.toString('base64') } });
+  const uploadResponse = events.at(-1).value;
+  assert.equal(uploadResponse.status, 200);
+  const upload = JSON.parse(Buffer.from(uploadResponse.body, 'base64').toString());
+  assert.equal(upload.ok, true, JSON.stringify(upload));
+  assert.equal(upload.value.file.name, '凡猫国产3A大作_V1.html');
+  const storedBytes = [];
+  for await (const chunk of desktop.host.ctx.attachments.readFileStream(upload.value.file)) storedBytes.push(chunk);
+  assert.deepEqual(Buffer.concat(storedBytes), uploadBytes);
   for (const path of ['https://example.com/api/session/list', '/outside']) {
     await receive({ requestId: 'denied', kind: 'fetch', payload: { path } });
     assert.equal(events.at(-1).kind, 'error');

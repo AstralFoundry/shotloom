@@ -1,0 +1,11 @@
+node_modules/
+dist/
+tmp/
+.audit/
+release/
+.local/
+test-assets/
+docs/images/
+package-lock.json
+*.min.js
+*.min.css

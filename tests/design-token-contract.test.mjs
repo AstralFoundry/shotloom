@@ -7,7 +7,7 @@ import { readSource } from './helpers/sourceContract.mjs';
 const root = new URL('..', import.meta.url).pathname;
 
 // 第三方导演台、OpenReel 与官方 Harness 的隔离 UI 自带样式；public 下是构建产物。
-const EXCLUDED = ['/vendor/', '/public/openreel/', '/public/harness/'];
+const EXCLUDED = ['/vendor/', '/public/openreel/', '/public/harness/', '/public/director-desk-app/'];
 
 function collectCss(dir) {
   const out = [];

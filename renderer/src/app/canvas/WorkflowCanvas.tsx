@@ -59,6 +59,7 @@ import {
   canvasNodePortBounds,
 } from "../../utils/canvasNodeChrome.ts";
 import { CanvasNodeToolbar } from "./CanvasNodeToolbar";
+import { isCanvasDomEvent, isEditableCanvasEvent } from "./canvasEventScope";
 import { GenerationHistoryDialog } from "./GenerationHistoryDialog";
 import { CanvasContextMenu } from "./CanvasContextMenu";
 import { CanvasSectionNode } from "./CanvasSectionNode";
@@ -1190,12 +1191,14 @@ export function WorkflowCanvas({
           style={{ "--canvas-semantic-zoom": semanticZoom } as CSSProperties}
           tabIndex={0}
           onPointerDownCapture={(event) => {
+            if (!isCanvasDomEvent(event.nativeEvent, event.currentTarget)) return;
             const target = event.target as Element;
             if (!target.closest("input,textarea,select,button,iframe,[contenteditable=true]")) {
               event.currentTarget.focus({ preventScroll: true });
             }
           }}
           onWheelCapture={(event) => {
+            if (!isCanvasDomEvent(event.nativeEvent, event.currentTarget)) return;
             // Trackpad pinch gestures arrive as ctrlKey wheel events. They
             // must not change the semantic canvas zoom.
             if (event.ctrlKey) {
@@ -1215,9 +1218,8 @@ export function WorkflowCanvas({
             setCanvasZoomAt(nextZoom, { x: event.clientX, y: event.clientY });
           }}
           onKeyDown={(event) => {
-            const editable = (event.target as Element).matches(
-              "input,textarea,select,[contenteditable=true]",
-            );
+            if (!isCanvasDomEvent(event.nativeEvent, event.currentTarget)) return;
+            const editable = isEditableCanvasEvent(event.nativeEvent);
             const command = event.metaKey || event.ctrlKey;
             const key = event.key.toLowerCase();
             if ((event.key === "Backspace" || event.key === "Delete") && !editable) {

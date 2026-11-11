@@ -1,6 +1,6 @@
 import { t } from '../i18n/index.ts';
 import { registerCanvasTools } from '../agent/tools/canvasTools';
-import { agentDefinition, CANVAS_AGENT_ID, EDITOR_AGENT_ID, type AgentId } from '../agent/agents/definitions';
+import { agentDefinition, CANVAS_AGENT_ID, DIRECTOR_AGENT_ID, EDITOR_AGENT_ID, type AgentId } from '../agent/agents/definitions';
 import { registerCatalogTools } from '../agent/tools/catalogTools';
 import { registerProductionPlanTools } from '../agent/tools/productionPlanTools';
 import { registerTextDraftTools } from '../agent/tools/textTools';
@@ -13,11 +13,12 @@ import { getAgentCanvasSnapshot } from './agent/agentCanvasExecutor';
 import { activeProductionPlanSummary } from '../store/productionPlanStore';
 import { canvasArtifactType, type AgentNode } from './agentTypes';
 import { desktopApi } from './desktopApi';
-import { supportsEditorTool } from '../agent/core/openReelTools';
+import { supportsEditorTool, nativeToolUnlocked } from '../agent/core/openReelTools';
 import { createNodeMediaCatalog, selectedNodeMedia, localMediaPath } from '../utils/nodeMedia';
 import { inferMediaType } from '../utils/mediaType';
 import { prepareVideoEditor, WORKSPACE_VIDEO_EDITOR_ID } from './videoEditorSession';
 import { settingsStore } from '../store/settingsStore';
+import { registerDirectorTools } from '../agent/tools/directorTools';
 
 export interface ProductBinding {
   sessionId: string; projectKey: string; conversationId: string;
@@ -34,7 +35,7 @@ export function registerEditorSessionBinder(binder: (nodeId: string) => Promise<
 function register() {
   if (hasAgentTool('canvas_list_nodes')) return;
   registerCanvasTools(); registerCatalogTools(); registerProductionPlanTools();
-  registerTextDraftTools(); registerVideoEditorTools();
+  registerTextDraftTools(); registerVideoEditorTools(); registerDirectorTools();
   registerAgentTool({ id: 'canvas_prepare_editor', title: t('agent.role.editor'),
     description: '为剪辑委派打开并绑定真实剪辑工程。nodeId 指定现有剪辑节点；省略时打开独立剪辑工作台。不表示已完成剪辑；使用 delegate_editor 派发剪辑子 Agent。',
     effect: 'agent_state_write', inputSchema: { type: 'object', properties: { nodeId: { type: 'string' } }, additionalProperties: false },
@@ -80,7 +81,10 @@ export function productToolCatalog(binding: Omit<ProductBinding, 'sessionId'>) {
   const allowed = agentDefinition(binding.agentId);
   const context = contextFor(binding);
   return allAgentTools().filter(tool => allowed.tools.includes(tool.id) && allowed.effects.includes(tool.effect)
-    && supportsEditorTool(tool.id, desktopApi.platform !== 'browser' && Boolean(store.projectDir))).map(tool => ({
+    && supportsEditorTool(tool.id, desktopApi.platform !== 'browser' && Boolean(store.projectDir))
+    // 原生工具 309 个，只下发核心集；其余等 editor_find_tools 在本会话解锁后重新绑定。
+    // 只作用于 openreel_ 前缀，其他工具的可见性判定保持原样。
+    && (!tool.id.startsWith('openreel_') || nativeToolUnlocked(tool.id.slice('openreel_'.length), binding.conversationId))).map(tool => ({
     name: tool.id, title: tool.title, description: tool.description, parameters: tool.resolveInputSchema?.(context) || tool.inputSchema,
     roles: [binding.agentId], effect: tool.effect === 'read' ? 'read' : tool.effect === 'media_generation' ? 'generation' : 'write',
     approvalRequired: tool.approvalRequired === true,
@@ -139,7 +143,7 @@ export function productToolCount() { register(); return allAgentTools().length; 
 /** Composer references use the same live project/session/role fence as tools. */
 export async function readHarnessCanvasReference(sessionId: string, nodeId?: string, withImage = false) {
   const registered = bindings.get(sessionId);
-  if (!registered || ![CANVAS_AGENT_ID, EDITOR_AGENT_ID].includes(registered.binding.agentId)) throw new Error(t('agent.reference.forbidden'));
+  if (!registered || ![CANVAS_AGENT_ID, EDITOR_AGENT_ID, DIRECTOR_AGENT_ID].includes(registered.binding.agentId)) throw new Error(t('agent.reference.forbidden'));
   const { binding, context } = registered;
   assertAgentProject(context.projectKey, context.projectInstanceId, context.projectGeneration);
   const conversation = store.project.harnessSessions?.find((item: { id: string; agentId: string }) => item.id === binding.conversationId);

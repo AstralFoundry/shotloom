@@ -7,7 +7,7 @@ import type { GenerationInputModeDescriptor, GenerationInputMode, GenerationInpu
 import { applyCameraConfigToPrompt, normalizeCameraConfig } from '@/utils/cameraConfig';
 import { applyImageStylePreset } from '@/utils/imageStylePresets.ts';
 import { normalizeInputRole } from '@/utils/generationInputRole.ts';
-import { defaultGenerationModel } from '@/utils/defaultGenerationModels';
+import { defaultGenerationModel } from '@/config/defaultGenerationModels';
 import { compileGenerationNodeConfig } from '@/domain/graph/GenerationNodeContract';
 import { inputSlotOrder, isSlotValidForMode } from '@/domain/graph/GenerationInputContract';
 import { textNodeContent } from '@/utils/textNodeContent.ts';

@@ -102,11 +102,17 @@ test('editor receives supported OpenReel schemas and retains approval and node b
   });
   try {
     const registered = catalog.filter(tool => tool.name.startsWith('openreel_'));
-    assert.equal(registered.length, native.length);
+    const core = (await env.load('agent/core/openReelTools')).EDITOR_CORE_TOOL_NAMES;
+    // 默认只下发核心集，其余等 editor_find_tools 解锁，避免 309 个 schema 淹没提示词。
+    assert.equal(registered.length, core.length);
     for (const tool of native) {
       const exposed = registered.find(item => item.name === `openreel_${tool.name}`);
-      assert.deepEqual(exposed.parameters, tool.inputSchema, tool.name);
-      assert.equal(exposed.approvalRequired, tool.destructive || tool.expensive, tool.name);
+      if (core.includes(tool.name)) {
+        assert.deepEqual(exposed.parameters, tool.inputSchema, tool.name);
+        assert.equal(exposed.approvalRequired, tool.destructive || tool.expensive, tool.name);
+      } else {
+        assert.equal(exposed, undefined, `${tool.name} must stay hidden until unlocked`);
+      }
     }
     const read = await tools.executeProductRequest(request(binding, 'openreel_list_tracks'));
     assert.equal(read.result.data.id, 'track-real');
@@ -151,13 +157,18 @@ test('unsupported backends stay hidden and stale desktop calls cannot run after 
       executeNativeTool: async () => { dispatched++; return { ok: true }; }, refreshState: async () => {},
     });
     const names = catalog.map(tool => tool.name);
-    assert.equal(names.filter(name => name.startsWith('openreel_')).length, upstream.length - Object.keys(policy.excludedTools).length);
+    const openReel = await env.load('agent/core/openReelTools');
+    const core = openReel.EDITOR_CORE_TOOL_NAMES;
+    assert.equal(names.filter(name => name.startsWith('openreel_')).length, core.length);
     for (const name of Object.keys(policy.excludedTools)) {
       assert.equal(names.includes(`openreel_${name}`), false, name);
       assert.equal(registry.hasAgentTool(`openreel_${name}`), false, name);
       await assert.rejects(tools.executeProductRequest(request(binding, `openreel_${name}`, {}, { approvedByHarness: true })), { message: translate('agent.toolUnavailable', { name: `openreel_${name}` }) });
     }
     for (const name of policy.desktopProjectTools) assert.ok(names.includes(`openreel_${name}`), name);
+    // bake_creation_asset 不在核心集里：解锁前不下发。这条断言只能跑一次，
+    // 因为解锁是会话级状态，会在后续重复检查里残留。
+    assert.equal(catalog.some(tool => tool.name === 'openreel_bake_creation_asset'), false);
     const rejectDesktopCalls = async () => {
       const current = tools.productToolCatalog(binding);
       for (const name of [...policy.desktopProjectTools.map(name => `openreel_${name}`), 'video_project_export', 'video_project_frame']) {
@@ -166,8 +177,6 @@ test('unsupported backends stay hidden and stale desktop calls cannot run after 
       }
       assert.ok(current.some(tool => tool.name === 'openreel_add_track'));
       assert.ok(current.some(tool => tool.name === 'openreel_inspect_3d_model'));
-      assert.deepEqual(current.find(tool => tool.name === 'openreel_bake_creation_asset').parameters.properties.includeGltf.enum, [false]);
-      await assert.rejects(tools.executeProductRequest(request(binding, 'openreel_bake_creation_asset', { assetId: 'asset', includeGltf: true }, { approvedByHarness: true })), /includeGltf/);
     };
     projects.store.projectDir = '';
     await rejectDesktopCalls();
@@ -175,6 +184,11 @@ test('unsupported backends stay hidden and stale desktop calls cannot run after 
     api.platform = 'browser';
     await rejectDesktopCalls();
     assert.equal(dispatched, 0);
+    // 解锁后进入目录；非桌面运行时把 includeGltf 降级为只能传 false。
+    openReel.unlockNativeTools(['bake_creation_asset'], binding.conversationId);
+    const unlocked = tools.productToolCatalog(binding);
+    assert.deepEqual(unlocked.find(tool => tool.name === 'openreel_bake_creation_asset').parameters.properties.includeGltf.enum, [false]);
+    await assert.rejects(tools.executeProductRequest(request(binding, 'openreel_bake_creation_asset', { assetId: 'asset', includeGltf: true }, { approvedByHarness: true })), /includeGltf/);
     api.platform = 'tauri';
     assert.ok(tools.productToolCatalog(binding).some(tool => tool.name === 'openreel_export_video'));
   } finally { release?.(); api.platform = platform; }

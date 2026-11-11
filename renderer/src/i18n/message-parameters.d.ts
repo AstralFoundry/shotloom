@@ -393,6 +393,8 @@ export interface MessageParameters {
   "catalog.validation.resultSource": Record<"value0", string | number>;
   "catalog.validation.defaultMode": Record<"value0", string | number>;
   "catalog.validation.invalidVariant": Record<"value0" | "value1", string | number>;
+  "tool.feedback.director.unknownCommand": Record<"operation", string | number>;
+  "tool.feedback.editor.toolRefreshFailed": Record<"error", string | number>;
   "tool.draft.appended": Record<"added" | "count", string | number>;
   "tool.draft.written": Record<"count", string | number>;
   "tool.count.nodes.one": Record<"count", string | number>;

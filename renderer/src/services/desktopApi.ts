@@ -3,7 +3,8 @@ import { projectCoverSource } from '../utils/projectCover';
 import { createTauriApi } from './tauriApi';
 import { withBuiltInSkills, withoutBuiltInSkills } from './builtInSkills';
 import { withBuiltInRecipes, withoutBuiltInRecipes } from './builtInRecipes';
-import { defaultGenerationModel } from '@/utils/defaultGenerationModels';
+import { defaultGenerationModel } from '@/config/defaultGenerationModels';
+import shotloomDefaults from '@/config/shotloom-defaults.generated.json';
 
 // 浏览器替身把项目、素材和设置都存成 localStorage 里的 JSON，结构与桌面实现
 // 一样是松散记录；项目树节点按 kind 区分，形状不固定，只按键值记录传递。
@@ -379,22 +380,19 @@ function createBrowserFallback() {
         apiKeyValid: false,
         accountSyncError: '',
         projectRootDir: 'browser/projects',
-        modelPollIntervalMs: 1500,
-        agentAutoEval: true,
-        agentAutoLayout: true,
+        modelPollIntervalMs: shotloomDefaults.appSettings.modelPollIntervalMs,
+        agentAutoEval: shotloomDefaults.appSettings.agentAutoEval,
+        agentAutoLayout: shotloomDefaults.appSettings.agentAutoLayout,
         agentCanRunNodes: false,
         agentPreferredTextModel: defaultGenerationModel('textGeneration'),
         agentPreferredImageModel: defaultGenerationModel('imageGeneration'),
           agentPreferredVideoModel: defaultGenerationModel('videoGeneration'),
-          runtimeProtection: {
-            healthIntervalMs: 10000, failureThreshold: 3, failureWindowMs: 300000,
-            circuitCooldownMs: 120000, stallWarningMs: 180000, hardCapMs: 1800000,
-          },
+          runtimeProtection: { ...shotloomDefaults.appSettings.runtimeProtection },
         canvasActionShortcuts: {
           fitView: { type: 'mouse', button: 'middle', gesture: 'singleClick' },
           autoLayout: { type: 'mouse', button: 'middle', gesture: 'doubleClick' },
         },
-        layoutAlgorithm: 'grid-aligned',
+        layoutAlgorithm: shotloomDefaults.appSettings.layoutAlgorithm,
         updatedAt: new Date().toISOString(),
       },
       set: async (settings: AnyRecord) => {
@@ -415,17 +413,14 @@ function createBrowserFallback() {
           apiKeyValid: Object.values((current.providerConfigs || {}) as Record<string, AnyRecord>).some((c) => c?.apiKey?.trim()),
           accountSyncError: '',
           projectRootDir: current.projectRootDir || 'browser/projects',
-          modelPollIntervalMs: current.modelPollIntervalMs || 1500,
-          agentAutoEval: current.agentAutoEval !== false,
-          agentAutoLayout: current.agentAutoLayout !== false,
+          modelPollIntervalMs: current.modelPollIntervalMs ?? shotloomDefaults.appSettings.modelPollIntervalMs,
+          agentAutoEval: current.agentAutoEval ?? shotloomDefaults.appSettings.agentAutoEval,
+          agentAutoLayout: current.agentAutoLayout ?? shotloomDefaults.appSettings.agentAutoLayout,
           agentCanRunNodes: current.agentCanRunNodes === true,
           agentPreferredTextModel: current.agentPreferredTextModel || defaultGenerationModel('textGeneration'),
           agentPreferredImageModel: current.agentPreferredImageModel || defaultGenerationModel('imageGeneration'),
           agentPreferredVideoModel: current.agentPreferredVideoModel || defaultGenerationModel('videoGeneration'),
-          runtimeProtection: current.runtimeProtection || {
-            healthIntervalMs: 10000, failureThreshold: 3, failureWindowMs: 300000,
-            circuitCooldownMs: 120000, stallWarningMs: 180000, hardCapMs: 1800000,
-          },
+          runtimeProtection: current.runtimeProtection || { ...shotloomDefaults.appSettings.runtimeProtection },
           updatedAt: new Date().toISOString(),
         };
         localStorage.setItem('shotloom-settings', JSON.stringify(next));

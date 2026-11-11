@@ -48,11 +48,11 @@ import * as Checkpoints from '@deepseek-ai/dsh-session-checkpoint-policy';
 import Credentials from '@deepseek-ai/dsh-credentials-local';
 import AttachmentLocal from '@deepseek-ai/dsh-attachment-local';
 import type { FileAttachmentRef } from '@deepseek-ai/dsh-attachment';
-import { mkdir, readFile, realpath } from 'node:fs/promises';
+import { mkdir, readFile, readdir, realpath } from 'node:fs/promises';
 import { join, resolve, relative, isAbsolute } from 'node:path';
 import { randomUUID } from 'node:crypto';
 
-export const roles = ['canvas-primary', 'editor-primary', 'text-primary'] as const;
+export const roles = ['canvas-primary', 'editor-primary', 'text-primary', 'director-primary'] as const;
 export type ProductRole = typeof roles[number];
 
 /** Trusted desktop binding. This is product metadata, never model input. */
@@ -77,6 +77,34 @@ export interface HostOptions {
   registerTools?: (scope: Context, binding: Readonly<SessionBinding>) => void | Promise<void>;
 }
 
+/** 契约按自身 frontmatter 装配：appliesTo 决定归属，priority 决定顺序（越小越靠前）。 */
+interface Contract {
+  id: string;
+  appliesTo: string[];
+  priority: number;
+  text: string;
+}
+
+const DEFAULT_CONTRACT_PRIORITY = 100;
+
+export async function loadContracts(directory: string): Promise<Contract[]> {
+  const files = (await readdir(directory)).filter(name => name.endsWith('.md')).sort();
+  const contracts = await Promise.all(files.map(async file => {
+    const raw = await readFile(join(directory, file), 'utf8');
+    const match = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/.exec(raw);
+    if (!match) throw new Error(`Contract ${file} must start with a frontmatter block`);
+    const frontmatter = match[1];
+    const appliesTo = /^appliesTo:\s*\[(.*)\]\s*$/m.exec(frontmatter)?.[1]
+      ?.split(',').map(value => value.trim().replace(/^['"]|['"]$/g, '')).filter(Boolean) ?? [];
+    if (!appliesTo.length) throw new Error(`Contract ${file} declares no appliesTo`);
+    const priority = Number(/^priority:\s*(\d+)\s*$/m.exec(frontmatter)?.[1] ?? DEFAULT_CONTRACT_PRIORITY);
+    const id = /^id:\s*(\S+)\s*$/m.exec(frontmatter)?.[1] ?? file.replace(/\.md$/, '');
+    return { id, appliesTo, priority, text: raw.slice(match[0].length) };
+  }));
+  // 同优先级按文件名排序，装配结果稳定可复现。
+  return contracts.sort((a, b) => a.priority - b.priority);
+}
+
 /** Assembly only: official plugins own the loop, interactions, goals and logs. */
 export async function createHost(options: HostOptions) {
   const ctx = new Context();
@@ -90,15 +118,18 @@ export async function createHost(options: HostOptions) {
   const rules = await readFile(options.rulesPath, 'utf8');
   const planSection = await readFile(join(options.contentRoot, 'prompts', 'harness-plan-mode.md'), 'utf8');
   const runtimeContract = await readFile(join(options.contentRoot, 'prompts', 'harness-runtime.md'), 'utf8');
+  // 契约按自身 frontmatter 的 appliesTo 与 priority 装配：新增契约只要写对头部就会生效，
+  // 不必回到这里改角色分支。priority 越小越靠前，重要的收尾规则写在最后。
+  const contracts = await loadContracts(join(options.contentRoot, 'contracts'));
   for (const [role, file] of [
     ['canvas-primary', 'canvas-agent.md'],
     ['editor-primary', 'editor-agent.md'],
     ['text-primary', 'text-agent.md'],
+    ['director-primary', 'director-agent.md'],
   ] as const) {
-    const contracts = ['baseline', 'semantic-judgment', 'safety-rules', 'anti-loop',
-      ...(role === 'canvas-primary' ? ['canvas-discipline', 'production-governance'] : [])];
-    const sections = await Promise.all(contracts.map(async name =>
-      (await readFile(join(options.contentRoot, 'contracts', `${name}.md`), 'utf8')).replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, '')));
+    const sections = contracts
+      .filter(contract => contract.appliesTo.includes('*') || contract.appliesTo.includes(role))
+      .map(contract => contract.text);
     const nativeReference = role === 'editor-primary'
       ? await readFile(join(options.contentRoot, 'prompts', 'openreel-editor-reference.md'), 'utf8') : '';
     prompts.set(role, [rules, ...sections, nativeReference, await readFile(join(options.contentRoot, 'prompts', file), 'utf8')].join('\n\n'));
@@ -196,7 +227,7 @@ export async function createHost(options: HostOptions) {
         return { kind: 'ask', reason: '执行 Bash 命令（受当前会话文件权限限制）' };
       });
       await options.registerTools?.(scope, binding);
-      if (binding.agentId === 'canvas-primary') {
+      if (binding.agentId === 'canvas-primary' || binding.agentId === 'director-primary') {
         scope.tools.register({
           name: 'delegate_editor',
           description: '派发能实际剪辑的子 Agent。它绑定指定剪辑工程，可读取同一画布的剧本、字幕及真实媒体，导入视频并修改时间线。传递完整剪辑要求与已知节点 ID；nodeId 省略时使用独立剪辑工作台。等待子 Agent 执行结束并返回真实结果；运行期间写入审批显示在当前画布会话。',
@@ -327,7 +358,9 @@ export async function createHost(options: HostOptions) {
     async create(binding: Omit<SessionBinding, 'sessionId'>, agentOptions: AgentOptions = {}) {
       if (!roles.includes(binding.agentId)) throw new Error('Unknown Shotloom Agent role');
       if (!binding.projectKey || !binding.conversationId) throw new Error('Project and conversation are required');
-      if (binding.agentId !== 'canvas-primary' && !binding.nodeId) throw new Error('Editor/text session requires a bound node');
+      if (binding.agentId === 'editor-primary' || binding.agentId === 'text-primary') {
+        if (!binding.nodeId) throw new Error('Editor/text session requires a bound node');
+      }
       const trusted = Object.freeze({ ...binding, sessionId: randomUUID() });
       // Official browser Session discovery requires a durable cwd. Attachments
       // use this private workspace; product files stay behind Shotloom tools.

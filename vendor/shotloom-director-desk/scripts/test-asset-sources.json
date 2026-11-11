@@ -1,0 +1,88 @@
+[
+  {
+    "file": "CesiumMan/LICENSE.md",
+    "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/CesiumMan/LICENSE.md",
+    "sha256": "aea4463f0e423aa37464eb61b2e5015595c430447356145400d3dc2a4579139f"
+  },
+  {
+    "file": "CesiumMan/metadata.json",
+    "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/CesiumMan/metadata.json",
+    "sha256": "635ca496eafa7b82639b3b90f65e35beb9d0ac0d8721e6425a9471f08a9cc603"
+  },
+  {
+    "file": "CesiumMan/CesiumMan.glb",
+    "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/CesiumMan/glTF-Binary/CesiumMan.glb",
+    "sha256": "b7001eaeea8254bd44773bcd247e78696d94169388fbb2a1800fc69434e777d9"
+  },
+  {
+    "file": "RiggedFigure/LICENSE.md",
+    "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/RiggedFigure/LICENSE.md",
+    "sha256": "e289f67a979b36356e995b7cc4fbcfc83ec9941a3a017023cba499e9927de5ec"
+  },
+  {
+    "file": "RiggedFigure/metadata.json",
+    "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/RiggedFigure/metadata.json",
+    "sha256": "9ee417e4a2fd3710e3584abf96dfc7e6e6b770a7dc256c9b3cb994bda6584f1a"
+  },
+  {
+    "file": "RiggedFigure/RiggedFigure.glb",
+    "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/RiggedFigure/glTF-Binary/RiggedFigure.glb",
+    "sha256": "d6be85417d3e256861ee733eea6916093a7af7c79c16366181fd8abcaeb38cf5"
+  },
+  {
+    "file": "SheenChair/LICENSE.md",
+    "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/SheenChair/LICENSE.md",
+    "sha256": "f10fb43c24abce3c568492a76e95c47a40e09abd181e84958c4749d28fb3aa9f"
+  },
+  {
+    "file": "SheenChair/metadata.json",
+    "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/SheenChair/metadata.json",
+    "sha256": "a47e16c7cfaad0411769163dafcd4eeba8bd5327772d468e67d0e398a6965b65"
+  },
+  {
+    "file": "SheenChair/SheenChair.glb",
+    "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/SheenChair/glTF-Binary/SheenChair.glb",
+    "sha256": "f0af2a2b102d28d540236306ae19f8fb36842df76bd38cf76f063f9bd2853399"
+  },
+  {
+    "file": "licenses/CC-BY-4.0.txt",
+    "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/LICENSES/CC-BY-4.0.txt",
+    "sha256": "c8041334a99cb48852b2139253cbde5f8ac87e27f124aed51223e0d5bf0080eb"
+  },
+  {
+    "file": "licenses/CC0-1.0.txt",
+    "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/LICENSES/CC0-1.0.txt",
+    "sha256": "a43fc2004d1e073f1107a1f6146664d08dae6cea93cb828742a4bec6da828e91"
+  },
+  {
+    "file": "licenses/LicenseRef-LegalMark-Cesium.txt",
+    "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/LICENSES/LicenseRef-LegalMark-Cesium.txt",
+    "sha256": "7bafc8dbff0b9d04297bced53a47809e3ab6721cb35b4a2d780533476b28ebd4"
+  },
+  {
+    "file": "kenney_furniture-kit.zip",
+    "url": "https://kenney.nl/media/pages/assets/furniture-kit/440e0608a4-1677580847/kenney_furniture-kit.zip",
+    "sha256": "e67652d0932cee41683f74711c03d3e192a2af9979ef8e6b237711f5482d46b0",
+    "headers": { "Referer": "https://kenney.nl/assets/furniture-kit" }
+  },
+  {
+    "file": "three-fbx/Samba Dancing.fbx",
+    "url": "https://raw.githubusercontent.com/mrdoob/three.js/r185/examples/models/fbx/Samba%20Dancing.fbx",
+    "sha256": "b9003ee562c87bf03051c3a502411b0808d3513f1d74a2011f7530d9f067069f"
+  },
+  {
+    "file": "three-fbx/monkey_embedded_texture.fbx",
+    "url": "https://raw.githubusercontent.com/mrdoob/three.js/r185/examples/models/fbx/monkey_embedded_texture.fbx",
+    "sha256": "3294f519234496ef6db3f0ca4d8c43f2b6f54ca2083910d4b05b2a2f5d564973"
+  },
+  {
+    "file": "three-fbx/UPSTREAM-README.md",
+    "url": "https://raw.githubusercontent.com/mrdoob/three.js/r185/examples/models/fbx/README.md",
+    "sha256": "e5cb98d102b42c9a2e28ad885a3816c50a2ac377e55ec2170a1402e6d69940bb"
+  },
+  {
+    "file": "three-fbx/LICENSE",
+    "url": "https://raw.githubusercontent.com/mrdoob/three.js/r185/LICENSE",
+    "sha256": "8b378ebe60e2fe500158cb0ac71cb5e8b7d92953c2abcc63a0eb90499653b5bc"
+  }
+]

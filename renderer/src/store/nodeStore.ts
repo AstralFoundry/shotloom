@@ -12,7 +12,7 @@ import { getGenerationInputModes, getModelSchema } from '@/domain/catalog/ModelC
 import { defaultInputSlot, type GenerationInputSlot } from '@/domain/graph/GenerationInputContract';
 import { validateAgentInputRole } from '@/services/agentInputRole';
 import type { AgentNode, AgentProject } from '@/services/agentTypes';
-import { resolveProjectDefaultModel } from '@/utils/projectModelDefaults.ts';
+import { resolveProjectDefaultModel } from '@/config/projectModelDefaults.ts';
 import { getAvailableModelIdsByType, getModelCredentialStatus } from '@/store/settingsStore';
 import { defaultCanvasNodeDimensions } from '@/domain/graph/CanvasNodeDimensions.ts';
 

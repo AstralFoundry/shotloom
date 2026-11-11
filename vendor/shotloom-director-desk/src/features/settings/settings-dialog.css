@@ -1,0 +1,129 @@
+.settings-dialog .ant-modal-body {
+    max-height: min(72vh, 620px);
+    overflow: hidden;
+}
+
+.settings-split {
+    display: grid;
+    grid-template-columns: 156px minmax(0, 1fr);
+    gap: 18px;
+    min-height: 360px;
+}
+
+.settings-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding-right: 12px;
+    border-right: 1px solid var(--ed-line-soft);
+}
+
+.settings-nav button {
+    height: 32px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: 7px;
+    background: transparent;
+    color: var(--ed-text-a62);
+    font-size: 13px;
+    text-align: left;
+    cursor: pointer;
+}
+
+.settings-nav button:hover {
+    background: var(--ed-wash-2);
+    color: var(--ed-text-primary);
+}
+
+.settings-nav button.is-active {
+    background: var(--ed-gp-selected);
+    color: var(--ed-text-bright);
+    font-weight: 600;
+}
+
+.settings-body {
+    min-width: 0;
+    overflow-y: auto;
+    padding-right: 6px;
+}
+
+.settings-section-title {
+    margin: 0 0 10px;
+    color: var(--ed-text-a42);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.settings-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    margin-bottom: 10px;
+}
+
+.settings-row--inline {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    min-height: 34px;
+    margin-bottom: 8px;
+}
+
+.settings-row__label {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    color: var(--ed-text-a75);
+    font-size: 13px;
+}
+
+.settings-row__label small {
+    color: var(--ed-text-a42);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+}
+
+.settings-row .ant-slider {
+    margin: 6px 4px 2px;
+}
+
+.settings-hint {
+    margin: 0 0 12px;
+    color: var(--ed-text-a50);
+    font-size: 12px;
+    line-height: 1.55;
+}
+
+.settings-metrics {
+    margin-bottom: 14px;
+}
+
+.settings-metrics > .ant-col {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 10px 12px;
+    border: 1px solid var(--ed-line-soft);
+    border-radius: 9px;
+    background: var(--ed-gp-card);
+}
+
+.settings-metrics span {
+    color: var(--ed-text-a42);
+    font-size: 11px;
+}
+
+.settings-metrics strong {
+    color: var(--ed-text-primary);
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+}
+
+.settings-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}

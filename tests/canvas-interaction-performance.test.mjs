@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readGenerationNodeSource } from './helpers/generationNodeSource.mjs';
-import { readLocalizedSource as readSource } from './helpers/sourceContract.mjs';
+import { readLocalizedSource as readSource, readSource as readRawSource } from './helpers/sourceContract.mjs';
 const canvas = readSource('renderer/src/app/canvas/CanvasNodeToolbar.tsx') + readSource('renderer/src/app/canvas/WorkflowCanvas.tsx');
 const node = readGenerationNodeSource();
 const audioPreview = readSource('renderer/src/app/canvas/GenerationAudioPreview.tsx');
@@ -17,11 +17,8 @@ const fileCommands = readSource('src-tauri/src/commands/file.rs') + readSource('
 const director = readSource('renderer/src/app/canvas/ThreeDDirectorNode.tsx');
 const directorStyles = readSource('renderer/src/app/canvas/ThreeDDirectorNode.css');
 const directorHost = readSource('renderer/src/app/adapters/directorDeskBridge.ts');
-const directorApp = readSource('vendor/storyai-3d-director-desk/src/App.tsx');
-const directorBridge = readSource('vendor/storyai-3d-director-desk/src/editor/io/hostBridge.ts');
-const directorCanvas = readSource('vendor/storyai-3d-director-desk/src/editor/canvas/DirectorCanvas.tsx');
-const directorScene = readSource('vendor/storyai-3d-director-desk/src/editor/canvas/SceneRoot.tsx');
-const directorStore = readSource('vendor/storyai-3d-director-desk/src/editor/store/directorStore.ts');
+const directorEditor = readRawSource('vendor/shotloom-director-desk/src/app/editor/editor-page.tsx');
+const directorBridge = readRawSource('vendor/shotloom-director-desk/src/app/host-bridge.ts');
 const workbench = readSource('renderer/src/app/ReactWorkbench.tsx');
 const creationView = readSource('renderer/src/app/views/CreationView.tsx');
 const shell = readSource('renderer/src/app/AppShell.tsx');
@@ -381,6 +378,8 @@ test('3D 导演台随节点比例铺满，画布删除键删除当前节点选�
   assert.match(directorStyles, /\.director-node\.resizing[\s\S]*?pointer-events: none/);
   assert.match(canvas, /tabIndex=\{0\}/);
   assert.match(canvas, /event\.currentTarget\.focus\(\{ preventScroll: true \}\)/);
+  assert.equal(canvas.match(/if \(!isCanvasDomEvent\(event\.nativeEvent, event\.currentTarget\)\) return;/g)?.length, 3);
+  assert.match(canvas, /const editable = isEditableCanvasEvent\(event\.nativeEvent\)/);
   assert.match(
     canvas,
     /event\.key === "Backspace" \|\| event\.key === "Delete"[\s\S]*?event\.preventDefault\(\);[\s\S]*?controller\.deleteSelection\(\)/,
@@ -388,11 +387,13 @@ test('3D 导演台随节点比例铺满，画布删除键删除当前节点选�
   assert.match(adapter, /selectNodes\(ids\) \{\s*store\.selectedEdgeId = null/);
   assert.match(adapter, /select\(id\) \{\s*store\.selectedEdgeId = null/);
 });
-test('3D 导演台的删除键优先删除内部对象，否则交给画布删除节点', () => {
-  assert.match(directorApp, /event\.key === "Delete" \|\| event\.key === "Backspace"/);
-  assert.match(directorApp, /hasObjectSelection[\s\S]*?state\.deleteSelectedObject\(\)/);
-  assert.match(directorApp, /storyai:director-desk-delete-node/);
-  assert.match(director, /onDeleteNode:[\s\S]*?actions\.delete\(node\.id\)/);
+test('3D 导演台的删除键只删除内部对象，不删除画布节点', () => {
+  assert.match(directorEditor, /event\.key === 'Delete' \|\| event\.key === 'Backspace'/);
+  assert.match(directorEditor, /session\.deleteSelected\(\)/);
+  assert.doesNotMatch(directorBridge, /storyai:director-desk-delete-node/);
+  assert.doesNotMatch(directorHost, /storyai:director-desk-delete-node|onDeleteNode/);
+  assert.doesNotMatch(director, /onDeleteNode/);
+  assert.match(director, /title="删除 3D 导演台"[\s\S]*?actions\.delete\(node\.id\)/);
 });
 test('3D 导演台默认整块可移动，双击后进入场景交互', () => {
   assert.doesNotMatch(canvas, /dragHandle: node\.type === "threeDDirector"/);
@@ -400,10 +401,6 @@ test('3D 导演台默认整块可移动，双击后进入场景交互', () => {
   assert.match(director, /interacting \? " nodrag" : ""/);
   assert.match(director, /onDoubleClick=[\s\S]*?setInteracting\(true\)/);
   assert.match(director, /event\.key === "Escape"[\s\S]*?setInteracting\(false\)/);
-  assert.match(
-    directorApp,
-    /event\.key === "Escape"[\s\S]*?storyai:director-desk-exit-interaction/,
-  );
   assert.match(director, /onExitInteraction:[\s\S]*?setInteracting\(false\)/);
   assert.match(director, /className="director-node-open-button nodrag"[\s\S]*?打开导演台/);
   assert.match(directorStyles, /\.director-node-drag-handle[\s\S]*?cursor: grab/);
@@ -420,14 +417,14 @@ test('3D 导演台从真实上游连线同步当前图片输出', () => {
     director,
     /onPanoramaRemoved:[\s\S]*?removeDirectorIncomingEdge/,
   );
-  assert.match(directorBridge, /storyai:director-desk-panorama-clear[\s\S]*?clearHostPanorama/);
+  assert.match(directorBridge, /storyai:director-desk-panorama-clear'[\s\S]*?setPanorama\(''\)/);
 });
 
 test('vendored 导演台只通过宿主适配层通信', () => {
   // 上游私有协议在产品侧只有一个拥有者：消息名与 iframe 入口都写在宿主适配层里。
   assert.match(directorHost, /session: "storyai:director-desk-session"/);
   assert.match(directorHost, /capturesSent: "storyai:director-desk-captures-sent"/);
-  assert.match(directorHost, /director-desk\.html\?instanceId=\$\{encodeURIComponent\(instanceId\)\}&theme=\$\{theme\}/);
+  assert.match(directorHost, /director-desk-app\/index\.html\?instanceId=\$\{encodeURIComponent\(instanceId\)\}&theme=\$\{theme\}/);
   // 来源校验属于协议：别的窗口发来的同名消息不能被当成导演台回执。
   assert.match(
     directorHost,
@@ -438,22 +435,6 @@ test('vendored 导演台只通过宿主适配层通信', () => {
   assert.doesNotMatch(director, /director-desk\.html/);
   assert.match(director, /subscribeDirectorDesk\(getFrame, \{/);
   assert.match(director, /src=\{directorDeskFrameSrc\(node\.id, "light"\)\}/);
-});
-test('3D 导演台空闲时停止连续渲染且连续变换只持久化一次', () => {
-  assert.equal(directorCanvas.match(/frameloop="demand"/g)?.length, 2);
-  // 性能来自空闲停帧，不靠降低分辨率：两个视口都按设备像素比光栅化，Retina 下才不会被放大成糊图。
-  assert.equal(directorCanvas.match(/dpr=\{\[1, 2\]\}/g)?.length, 2);
-  assert.doesNotMatch(directorCanvas, /dpr=\{0?\.75\}|dpr=\{1\}/);
-  assert.match(
-    directorScene,
-    /onMouseUp=\{\(\) => \{[\s\S]*?onObjectChange\(\);[\s\S]*?endUndoBatch\(\)/,
-  );
-  assert.doesNotMatch(directorScene, /onObjectChange=\{onObjectChange\}/);
-  assert.match(directorStore, /batchingTransform[\s\S]*?persist && !batchingTransform/);
-  assert.match(
-    directorStore,
-    /if \(shouldPushUndoEntry\)[\s\S]*?writePersistedDirectorState\(currentSnapshot\)/,
-  );
 });
 test('并发任务轮询只在状态变化时触发合并持久化', () => {
   const update =

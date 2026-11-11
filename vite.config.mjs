@@ -2,17 +2,20 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readShotloomConfig } from './scripts/shotloom-config.mjs';
 
 const rootDir = path.dirname(fileURLToPath(import.meta.url));
+const { development } = readShotloomConfig();
 
 export default defineConfig({
   root: path.join(rootDir, 'renderer'),
   plugins: [react()],
   base: './',
   server: {
-    host: '127.0.0.1',
-    port: 5173,
+    host: development.webHost,
+    port: development.webPort,
     strictPort: true,
+    open: development.openBrowser,
     fs: { allow: [rootDir] },
     watch: {
       ignored: ['**/src-tauri/**'],
@@ -27,7 +30,6 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: path.join(rootDir, 'renderer', 'index.html'),
-        directorDesk: path.join(rootDir, 'renderer', 'director-desk.html'),
       },
       output: {
         // React 与 antd 各自独立：组件库升级不会让 React 缓存失效，反之亦然。
@@ -51,7 +53,6 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.join(rootDir, 'renderer', 'src'),
-      '/vendor/storyai-3d-director-desk': path.join(rootDir, 'vendor', 'storyai-3d-director-desk'),
     },
   },
 });

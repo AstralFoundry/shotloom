@@ -369,7 +369,7 @@ npx vite build
 | :-- | :-- | :-- |
 | 画布与节点 | `WorkflowCanvas`、`CanvasNodes`、`CanvasNodeToolbar` | React Flow 坐标系与缩放 |
 | 画布内联浮层 | `CanvasDisplaySettings`、`GenerationNodeComposer` mention 菜单 | 跟随节点/光标定位 |
-| 3D 导演台 | `ThreeDDirectorNode`、`vendor/storyai-3d-director-desk/` | iframe + postMessage 隔离 |
+| 3D 导演台 | `ThreeDDirectorNode`、`vendor/shotloom-director-desk/` | iframe + postMessage 隔离 |
 | 剪辑台 | `VideoEditorWorkspace`、时间轴/轨道 | 像素级拖拽与吸附 |
 | 媒体查看 | `MediaViewer` | 手势缩放、全屏、视频控制 |
 | 窗口控制 | `WindowControls` | 桌面端原生语义 |

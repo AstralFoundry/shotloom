@@ -1,4 +1,5 @@
-import { chmod, copyFile, mkdir, stat } from 'node:fs/promises';
+import { chmod, copyFile, mkdir, rename, rm, stat } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { dirname, resolve } from 'node:path';
 import { arch, platform } from 'node:process';
@@ -17,42 +18,54 @@ if (!triple) throw new Error(`FFmpeg sidecar is not available for ${platform}/${
 
 const packageSource = require('ffmpeg-static');
 // npm installs made with --ignore-scripts (and some pnpm/npm cache restores)
-// leave ffmpeg-static's downloaded file absent. Prefer it when present, then
-// reuse the already validated native sidecar produced by the desktop toolchain.
+// leave ffmpeg-static's downloaded file absent. An existing sidecar may also
+// have stopped working, so validate each local candidate before selecting it.
 const sourceCandidates = [
   packageSource,
   resolve('src-tauri', 'binaries', `ffmpeg-${triple}${platform === 'win32' ? '.exe' : ''}`),
   resolve('src-tauri', 'target', 'release', platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg'),
 ];
-let source = sourceCandidates[0];
-for (const candidate of sourceCandidates) {
-  try {
-    const info = await stat(candidate);
-    if (info.isFile() && info.size >= 1_000_000) {
-      source = candidate;
-      break;
-    }
-  } catch {
-    // Try the next locally available copy.
+async function validateBinary(candidate) {
+  const info = await stat(candidate);
+  if (!info.isFile() || info.size < 1_000_000) throw new Error('binary is incomplete');
+  if (platform !== 'win32') await chmod(candidate, 0o755);
+  const version = spawnSync(candidate, ['-version'], { encoding: 'utf8' });
+  if (version.status !== 0 || !String(version.stdout).startsWith('ffmpeg version')) {
+    throw new Error(version.error?.message || version.signal || version.stderr?.trim() || `exit status ${version.status}`);
   }
 }
-try {
-  const info = await stat(source);
-  if (!info.isFile() || info.size < 1_000_000) throw new Error('binary is incomplete');
-} catch (cause) {
-  throw new Error(`FFmpeg binary is unavailable. Run "npm rebuild ffmpeg-static --foreground-scripts" first. ${cause}`);
+
+let source;
+const failures = [];
+for (const candidate of sourceCandidates) {
+  try {
+    await validateBinary(candidate);
+    source = candidate;
+    break;
+  } catch (cause) {
+    failures.push(`${candidate}: ${cause instanceof Error ? cause.message : String(cause)}`);
+  }
 }
-if (platform !== 'win32') await chmod(source, 0o755);
-const version = spawnSync(source, ['-version'], { encoding: 'utf8' });
-if (version.status !== 0 || !String(version.stdout).startsWith('ffmpeg version')) {
-  throw new Error('FFmpeg binary failed its startup check');
+if (!source) {
+  throw new Error(`No working FFmpeg binary found. Run "npm rebuild ffmpeg-static --foreground-scripts" first.\n${failures.join('\n')}`);
 }
 
 const suffix = platform === 'win32' ? '.exe' : '';
 const target = resolve('src-tauri', 'binaries', `ffmpeg-${triple}${suffix}`);
 await mkdir(dirname(target), { recursive: true });
-await copyFile(source, target);
-if (platform !== 'win32') await chmod(target, 0o755);
+if (source !== target) {
+  // Replacing a macOS executable in place can leave a stale code-signing cache for its inode.
+  // Stage a fresh file, validate it, then atomically replace the sidecar path.
+  const staged = `${target}.${randomUUID()}.tmp`;
+  try {
+    await copyFile(source, staged);
+    await validateBinary(staged);
+    await rename(staged, target);
+  } finally {
+    await rm(staged, { force: true });
+  }
+  await validateBinary(target);
+}
 console.log(`Prepared FFmpeg sidecar at ${target}`);
 
 const packageJson = require.resolve('ffmpeg-static/package.json');

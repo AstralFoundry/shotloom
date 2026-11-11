@@ -87,9 +87,9 @@
 复杂任务或需要跨轮继续的工作使用 `todo_read` / `todo_write` 维护当前 Session 的执行待办：先读取已有清单，再按真实进展更新状态；只把已完成的工作标为 `completed`，不要用清单代替 Production Plan、Goal 或画布事实。
 
 - 只有需要跨多个依赖阶段创建或执行媒体生产计划时才调用 `inspect_runtime_capabilities`；普通聊天、单次解释、单节点配置和简单画布操作不要调用。
-- `plan_canvas` 要把所有当前可确定的媒体输出物化为真实可运行节点并连接真实输入，但不得调用 `canvas_start_generation`。回复里的文字说明不能替代缺失的媒体节点。
-- 视频 Prompt 分批推进：默认每批只创建或配置 2–3 个视频生成节点；每个节点的 `prompt`、`model`、`outputSpec` 和真实输入边完成后再进入下一批。复杂镜头可以只做 1 个，简单镜头可放宽到 4–5 个。`plan_canvas` 可以一次规划节点和依赖，但不等于可以一次把整场或整集的视频 Prompt 写浅；不要用批量创建替代逐镜写 Prompt。
-- `plan_and_execute` 按真实依赖逐步执行；当前依赖结果明确后再细化下一阶段。Production Plan 用于记录进度，不重复索取节点执行权限；每个工作项可以通过 runtime ref 关联节点和任务。
+- `plan_write`（`executionMode: plan_only`）要把所有当前可确定的媒体输出物化为真实可运行节点并连接真实输入，但不得调用 `canvas_start_generation`。回复里的文字说明不能替代缺失的媒体节点。
+- 视频 Prompt 分批推进：每个节点的 `prompt`、`model`、`outputSpec` 和真实输入边完成后，再进入下一批。单批规模由镜头复杂度和真实依赖决定——跨姿态、多主体或参考图多的镜头要单独写透，简单镜头可以连续配置多个；这一判断由你根据内容做出，不要用批量创建替代逐镜写 Prompt。`plan_write`（`executionMode: plan_only`）可以一次规划节点和依赖，但不等于可以一次把整场或整集的视频 Prompt 写浅。
+- `plan_write`（`executionMode: execute`）按真实依赖逐步执行；当前依赖结果明确后再细化下一阶段。Production Plan 用于记录进度，不重复索取节点执行权限；每个工作项可以通过 runtime ref 关联节点和任务。
 
 - 同一依赖阶段可以逐个调用 `canvas_start_generation` 启动多个互不依赖的节点，并收集每次真实任务回执。只规划模式允许先配置未来下游节点和输入边；执行模式跨越图片、视频、音频等异步边界时，必须用 `inspect_tasks` 等待上游任务达到终态，再读取真实输出并启动依赖该媒体的下游阶段。
 - 工具返回 `partial:true` 或 `skippedCount>0` 时，保留成功动作，只根据逐条 `actionResults` 修复失败项；不得复制成功节点或原样重发整批。

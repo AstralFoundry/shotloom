@@ -1,7 +1,7 @@
 import { catalogLabel, t } from '@/i18n/index';
 import { registerAgentTool } from '../core/toolRegistry';
 import type { AgentToolContext, JsonObject, JsonSchema } from '../core/types';
-import { openReelAgentTools as openReelTools, supportsEditorTool } from '../core/openReelTools';
+import { openReelAgentTools as openReelTools, supportsEditorTool, nativeToolUnlocked, unlockNativeTools, searchOpenReelTools } from '../core/openReelTools';
 import { assertAgentProject } from '@/services/agentProjectIdentity';
 import { videoEditorAgentDiagnostics } from '@/utils/videoEditorAgent.ts';
 import {
@@ -106,7 +106,10 @@ export function registerVideoEditorTools() {
       effect: tool.readOnly && !savesModelFile ? 'read' : 'project_write', activity: 'editor',
       ...(savesModelFile ? { resolveEffect: (input: JsonObject) => input.includeGltf === false ? 'read' as const : 'project_write' as const } : {}),
       approvalRequired: tool.destructive || tool.expensive,
-      isAvailable: context => editorAvailable(context) && supportsEditorTool(`openreel_${tool.name}`, desktopApi.platform !== 'browser' && Boolean(store.projectDir)),
+      isAvailable: context => editorAvailable(context)
+        && supportsEditorTool(`openreel_${tool.name}`, desktopApi.platform !== 'browser' && Boolean(store.projectDir))
+        // 核心集常驻；其余等 editor_find_tools 在本会话解锁后才进入请求与本地执行。
+        && nativeToolUnlocked(tool.name, context.conversationId),
       timeoutMs: tool.expensive ? 0 : 120_000,
       execute: async (input, context) => {
         const editor = editorFor(context);
@@ -406,6 +409,45 @@ export function registerVideoEditorTools() {
       if (!applied) return { success: false, applied: false, error: t('tool.feedback.editor.historyFailed') };
       await editor.refreshState();
       return { success: true, applied: true, action: input.action, summary: nativeProjectSnapshot(editor) };
+    },
+  });
+
+  // 原生工具共 309 个，全量注入约 4.8 万 token schema，模型无法可靠选型。
+  // 核心集常驻，其余按关键词检索后在本会话解锁，做法见 core/openReelTools.ts。
+  registerAgentTool<JsonObject>({
+    id: 'editor_find_tools',
+    icon: 'search',
+    title: t('tool.title.editor_find_tools'),
+    description: '在原生 OpenReel 工具目录中按关键词检索不在当前上下文里的专用工具（Motion 合成、Creation 三维场景、调色、变速曲线、多机位等），匹配到的工具会在本次会话内解锁并可立即调用。用能力或对象命名，例如 "motion composition"、"creation material"、"color correction"、"multicam"。返回为空表示当前接入目录没有该能力，不要凭历史记忆假定存在其他工具。',
+    effect: 'read',
+    activity: 'editor',
+    isAvailable: editorAvailable,
+    inputSchema: {
+      type: 'object',
+      required: ['query'],
+      properties: {
+        query: { type: 'string' },
+        limit: { type: 'integer', minimum: 1, maximum: 40 },
+      },
+      additionalProperties: false,
+    },
+    summarizeInput: (input) => String(input.query || ''),
+    execute: (input, context) => {
+      editorFor(context);
+      const limit = Math.min(Math.max(Number(input.limit) || 12, 1), 40);
+      const matched = searchOpenReelTools(String(input.query || ''), limit);
+      const available = matched.filter(tool => supportsEditorTool(
+        `openreel_${tool.name}`, desktopApi.platform !== 'browser' && Boolean(store.projectDir),
+      ));
+      unlockNativeTools(available.map(tool => tool.name), context.conversationId);
+      return {
+        success: true,
+        tools: available.map(tool => ({ name: `openreel_${tool.name}`, title: tool.title, description: tool.description })),
+        unlockedCount: available.length,
+        hint: available.length
+          ? '这些工具已在本会话解锁，可直接调用；参数以各自 schema 为准。'
+          : `目录中没有匹配「${String(input.query || '')}」的原生工具；改用已有工具或向用户说明该能力不可用。`,
+      };
     },
   });
 }

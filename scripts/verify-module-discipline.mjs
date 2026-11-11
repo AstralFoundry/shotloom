@@ -6,7 +6,7 @@ import path from 'node:path';
 import process from 'node:process';
 
 const root = path.resolve(import.meta.dirname, '../renderer/src');
-const directorVendorRoot = path.resolve(import.meta.dirname, '../vendor/storyai-3d-director-desk/src');
+const directorVendorRoot = path.resolve(import.meta.dirname, '../vendor/shotloom-director-desk/src');
 
 const LAYERS = {
   app: ['app', 'agent', 'services', 'store', 'domain', 'config', 'utils', 'i18n', 'assets'],
@@ -54,7 +54,7 @@ const TRANSPORT_ALLOWED_FROM = new Set(['domain']);
 // 通道是那份私有 postMessage 协议。协议名或入口地址散落到界面代码里，等于每个消费者
 // 各自维护一份上游契约，上游更新时不会有任何地方提醒；所以两者只允许出现在宿主适配层。
 const DIRECTOR_DESK_HOST = 'app/adapters/directorDeskBridge.ts';
-const DIRECTOR_DESK_CONTRACT = ['storyai:director-desk-', 'director-desk.html'];
+const DIRECTOR_DESK_CONTRACT = ['storyai:director-desk-', 'director-desk-app/index.html'];
 
 function isTransportBoundary(source, targetPath) {
   if (!TRANSPORT_ALLOWED_FROM.has(source)) return false;
@@ -90,7 +90,7 @@ function layerOf(file) {  const relative = path.relative(root, file);
 
 function specifierFile(from, specifier) {
   const base = specifier.startsWith('@/')
-    ? path.join(root, specifier.slice(2))
+    ? path.join(isDirectorSource(from) ? directorVendorRoot : root, specifier.slice(2))
     : path.resolve(path.dirname(from), specifier);
   for (const name of ['', '.ts', '.tsx', '.js', '.jsx', '.mjs',
     `${path.sep}index.ts`, `${path.sep}index.tsx`, `${path.sep}index.js`, `${path.sep}index.mjs`]) {
@@ -186,7 +186,7 @@ function resolvesInternalSpecifier(from, specifier) {
   // ?raw / ?no-inline 是构建工具的资产导入，只确认磁盘上真有这个文件。
   if (query !== undefined) {
     const base = pathPart.startsWith('@/')
-      ? path.join(root, pathPart.slice(2))
+      ? path.join(isDirectorSource(from) ? directorVendorRoot : root, pathPart.slice(2))
       : path.resolve(path.dirname(from), pathPart);
     try {
       return statSync(base).isFile();
@@ -244,7 +244,7 @@ for (const file of sourceFiles) {
     }
     let target = null;
     if (specifier.startsWith('@/')) {
-      target = path.join(root, specifier.slice(2));
+      target = path.join(isDirectorSource(file) ? directorVendorRoot : root, specifier.slice(2));
     } else if (specifier.startsWith('.')) {
       target = specifierFile(file, specifier) ?? path.resolve(path.dirname(file), specifier);
     }

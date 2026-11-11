@@ -3,8 +3,8 @@ import test from 'node:test';
 import {
   projectDefaultModelKey,
   resolveProjectDefaultModel,
-} from '../renderer/src/utils/projectModelDefaults.ts';
-import { DEFAULT_GENERATION_MODELS } from '../renderer/src/utils/defaultGenerationModels.ts';
+} from '../renderer/src/config/projectModelDefaults.ts';
+import { DEFAULT_GENERATION_MODELS } from '../renderer/src/config/defaultGenerationModels.ts';
 import { loadModelCatalog } from './helpers/modelCatalog.mjs';
 
 test('项目按文本、图片、视频分别解析默认模型', () => {

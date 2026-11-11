@@ -8,7 +8,8 @@ import {
   defaultCanvasToolbarCustomization,
   normalizeCanvasToolbarCustomization,
 } from '@/utils/canvasNodeToolbar';
-import { defaultGenerationModel } from '@/utils/defaultGenerationModels';
+import { defaultGenerationModel } from '@/config/defaultGenerationModels';
+import shotloomDefaults from '@/config/shotloom-defaults.generated.json';
 import { clonePlainData } from '@/utils/plainDataClone.ts';
 import { getModelIdsByType } from '@/domain/catalog/ModelCatalog';
 import { normalizeProviderConfigs } from '@/domain/provider/ProviderConfig';
@@ -46,8 +47,10 @@ export const settingsStore = reactive({
   tokenGroups: [] as TokenGroup[], activeTokenGroupId: '',
   apiKeyValid: false, accountSyncError: '',
   projectRootDir: '',
-  modelPollIntervalMs: 1500,
-  agentAutoEval: true, agentAutoLayout: true, agentCanRunNodes: false,
+  modelPollIntervalMs: shotloomDefaults.appSettings.modelPollIntervalMs,
+  agentAutoEval: shotloomDefaults.appSettings.agentAutoEval,
+  agentAutoLayout: shotloomDefaults.appSettings.agentAutoLayout,
+  agentCanRunNodes: false,
   agentShellApproval: 'full',
   // 审批策略（服务层唯一判定）：'ask' 可以请求用户裁决；'never' 无人值守，需要审批的操作一律自动拒绝。
   // 它独立于 agentShellApproval：后者是"哪些操作要问"，前者是"到底还问不问"。
@@ -60,11 +63,8 @@ export const settingsStore = reactive({
   canvasActionShortcuts: normalizeCanvasActionShortcuts(),
   canvasToolbarCustomization: defaultCanvasToolbarCustomization(),
   canvasAppearance: normalizeCanvasAppearance(),
-  layoutAlgorithm: 'grid-aligned', updatedAt: '',
-  runtimeProtection: {
-    healthIntervalMs: 10000, failureThreshold: 3, failureWindowMs: 300000,
-    circuitCooldownMs: 120000, stallWarningMs: 180000, hardCapMs: 1800000,
-  } as RuntimeProtection,
+  layoutAlgorithm: shotloomDefaults.appSettings.layoutAlgorithm, updatedAt: '',
+  runtimeProtection: { ...shotloomDefaults.appSettings.runtimeProtection } as RuntimeProtection,
   loading: false, syncing: false,
 });
 
@@ -161,9 +161,12 @@ function applySettings(settings: AnyRecord) {
   settingsStore.apiKeyValid = Boolean(settings.apiKeyValid);
   settingsStore.accountSyncError = settings.accountSyncError || '';
   settingsStore.projectRootDir = settings.projectRootDir || '';
-  settingsStore.modelPollIntervalMs = Number.isFinite(settings.modelPollIntervalMs) ? settings.modelPollIntervalMs : 1500;
-  settingsStore.agentAutoEval = settings.agentAutoEval !== false;
-  settingsStore.agentAutoLayout = settings.agentAutoLayout !== false;
+  settingsStore.modelPollIntervalMs = Number.isFinite(settings.modelPollIntervalMs)
+    ? settings.modelPollIntervalMs : shotloomDefaults.appSettings.modelPollIntervalMs;
+  settingsStore.agentAutoEval = typeof settings.agentAutoEval === 'boolean'
+    ? settings.agentAutoEval : shotloomDefaults.appSettings.agentAutoEval;
+  settingsStore.agentAutoLayout = typeof settings.agentAutoLayout === 'boolean'
+    ? settings.agentAutoLayout : shotloomDefaults.appSettings.agentAutoLayout;
   settingsStore.agentCanRunNodes = settings.agentCanRunNodes === true;
   settingsStore.agentShellApproval = settings.agentShellApproval === 'ask' ? 'ask' : 'full';
   settingsStore.agentApprovalPolicy = settings.agentApprovalPolicy === 'never' ? 'never' : 'ask';
@@ -176,9 +179,10 @@ function applySettings(settings: AnyRecord) {
   settingsStore.canvasActionShortcuts = normalizeCanvasActionShortcuts(settings.canvasActionShortcuts);
   settingsStore.canvasToolbarCustomization = normalizeCanvasToolbarCustomization(settings.canvasToolbarCustomization);
   settingsStore.canvasAppearance = normalizeCanvasAppearance(settings.canvasAppearance);
-  settingsStore.layoutAlgorithm = settings.layoutAlgorithm === 'elk-layered' ? 'elk-layered' : 'grid-aligned';
+  settingsStore.layoutAlgorithm = settings.layoutAlgorithm === 'elk-layered' || settings.layoutAlgorithm === 'grid-aligned'
+    ? settings.layoutAlgorithm : shotloomDefaults.appSettings.layoutAlgorithm;
   settingsStore.runtimeProtection = {
-    ...settingsStore.runtimeProtection,
+    ...shotloomDefaults.appSettings.runtimeProtection,
     ...(settings.runtimeProtection || {}),
   };
   settingsStore.updatedAt = settings.updatedAt || '';

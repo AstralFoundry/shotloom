@@ -1,0 +1,43 @@
+{
+  "name": "shotloom-director-desk",
+  "version": "0.5.2",
+  "shortVersion": "0.5.2",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc --noEmit && vite build",
+    "postbuild": "node scripts/check-release-privacy.mjs",
+    "check:privacy": "node scripts/check-release-privacy.mjs",
+    "preview": "vite preview --host 127.0.0.1",
+    "test:assets": "node scripts/test-assets.mjs prepare",
+    "pretest": "node scripts/test-assets.mjs check",
+    "test": "node --experimental-strip-types --test tests/*.test.ts tests/*.test.cjs",
+    "smoke": "node scripts/smoke.mjs",
+    "typecheck": "tsc --noEmit",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "dependencies": {
+    "@ant-design/icons": "6.3.4",
+    "@fontsource-variable/inter": "^5.3.0",
+    "antd": "6.7.0",
+    "mediabunny": "1.55.7",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "three": "0.185.1",
+    "zustand": "5.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "26.4.1",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@types/three": "0.185.4",
+    "@vitejs/plugin-react": "6.3.0",
+    "playwright-core": "1.63.0",
+    "prettier": "3.9.10",
+    "typescript": "5.9.3",
+    "vite": "8.2.2"
+  }
+}

@@ -20,7 +20,7 @@ contracts:
 - 进入一个阶段时先用 `canvas_list_nodes` 的 `timeline` 或 `summary` 掌握相关节点；已知剧本、规格、故事板、元素或镜头节点后改用 `canvas_get_node` 局部读取。只有需要从素材库取回资产时才使用 `full`。
 - 每个生成节点分别通过 `canvas_create_node` 创建；后续直接使用成功回执里的真实 `nodeIds`。配置修订使用 `canvas_update_node`，输入依赖使用 `canvas_connect_nodes`，并显式填写当前模型契约要求的 `role`、`slot` 和节点 `inputMode`。
 - 先由本 Skill 根据剧本确定阶段、`element_id`、`shot_id`、依赖和故事顺序，再调用 `canvas_layout_nodes` 整理明确的节点集合。布局工具不会从标题、节点类型或文案猜测故事结构，不能用无输入语义的连线表达先后顺序。
-- `plan_canvas` 到真实节点与输入边就停止。`plan_and_execute` 只用 `canvas_start_generation` 启动当前依赖已经满足的节点，保存每次 task 回执，再用 `inspect_tasks` 核验终态；不得把已提交、运行中或布局完成当成媒体完成。
+- `plan_write`（`executionMode: plan_only`）到真实节点与输入边就停止。`plan_write`（`executionMode: execute`）只用 `canvas_start_generation` 启动当前依赖已经满足的节点，保存每次 task 回执，再用 `inspect_tasks` 核验终态；不得把已提交、运行中或布局完成当成媒体完成。
 - 用户通过 `/script-to-video` 要求从剧本制作视频时，至少把已确定的视觉资产和逐镜视频落成可执行的画布节点。关闭“允许 Agent 运行节点”只阻止启动生成，不阻止创建、配置和连接节点；不要因此把已有制作计划的 `plan_only` 当成停止制作的理由。若用户这轮只要求分析或审阅方案，则按该明确范围处理。
 - 任一写入发生 revision 冲突时重新读取相关节点，只修复尚未成功的动作；已经返回成功 `nodeIds`、`edgeIds` 或 `taskIds` 的操作不得整批重放。
 
@@ -58,7 +58,7 @@ contracts:
 
 对用户未提供的元素创建图片生成节点，可按需参考 `script-element-reference` 提示词模板。读取单次模型能力快照：优先选择已配置、能接收本图必要参考且满足版式和清晰度需求的图片模式；只有所选模式真实提供清晰度参数时才请求 2K，否则使用目录声明的实际规格并在 Prompt Draft 中如实标注。如果该模型不可用，选择兼容图片模型，并向用户披露会影响身份、画风或规格的替代差异。模型与模式不得仅凭名称猜测能力，也不能把不受支持的参数写进 config。
 
-`plan_canvas` 建立已确定的真实节点、prompt、model、`outputSpec` 和输入边，不启动任务。`plan_and_execute` 在用户已开启节点运行权限时启动当前无依赖阻塞的元素节点，并使用 `inspect_tasks` 等待真实完成。全部元素完成后核验身份、服装、材质、场景结构和道具状态；失败项只修复回执指出的问题。记录本阶段真实结果并继续下游；仅在用户要求审图、结果有必须由用户决定的方向问题，或权限边界要求时暂停。
+`plan_write`（`executionMode: plan_only`）建立已确定的真实节点、prompt、model、`outputSpec` 和输入边，不启动任务。`plan_write`（`executionMode: execute`）在用户已开启节点运行权限时启动当前无依赖阻塞的元素节点，并使用 `inspect_tasks` 等待真实完成。全部元素完成后核验身份、服装、材质、场景结构和道具状态；失败项只修复回执指出的问题。记录本阶段真实结果并继续下游；仅在用户要求审图、结果有必须由用户决定的方向问题，或权限边界要求时暂停。
 
 ### 5. 镜头视频 Prompt Draft
 

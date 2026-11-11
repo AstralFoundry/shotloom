@@ -484,42 +484,62 @@
   flex: 1 0 auto;
   height: 100vh;
   min-height: 0;
-  flex-direction: column;
+  flex-direction: row;
   background: var(--bg);
 }
 
+/* The back button floats over the 3D stage rather than the assistant panel: a fixed
+   top-right position used to land on the assistant header and steal its clicks. Bottom-left
+   keeps it clear of the desk's own top bar (which owns the top-left corner) and of the
+   viewport toolbar (which is centred). */
 .director-workspace-back {
-  position: fixed;
-  top: 12px;
-  right: 16px;
-  z-index: 3;
-  height: 28px;
+  position: absolute;
+  bottom: 22px;
+  left: 16px;
+  z-index: 4;
+  height: 30px;
   padding: 0 12px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--overlay-line);
   border-radius: var(--radius-sm);
-  background: var(--surface);
-  color: var(--muted);
+  background: var(--overlay-surface);
+  color: var(--overlay-ink-muted);
   font-size: var(--text-body-12);
   cursor: pointer;
+  backdrop-filter: blur(10px);
 }
 
 .director-workspace-back:hover {
-  background: var(--wash-hover);
-  color: var(--text);
+  background: var(--overlay-dim);
+  color: var(--overlay-ink);
 }
 
 .director-workspace {
+  position: relative;
   display: flex;
   flex: 1;
   height: 100%;
   flex-direction: column;
   overflow: hidden;
+  min-width: 0;
 }
+
+.director-workspace-agent {
+  width: min(400px, 36vw);
+  min-width: 320px;
+  height: 100%;
+  overflow: hidden;
+  border-left: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.director-workspace-agent .harness-chat-panel { height: 100%; }
 
 .director-workspace-frame {
   flex: 1;
   width: 100%;
   height: 100%;
   border: 0;
-  background: var(--window-shell);
+  /* Match the desk's own stage so the iframe's first paint does not flash a light
+     rectangle inside an otherwise dark workspace. */
+  background: var(--overlay-stage);
 }

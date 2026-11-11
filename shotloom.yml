@@ -1,0 +1,35 @@
+# Shotloom startup and desktop build settings. Do not put credentials here.
+version: 1
+development:
+  webHost: 127.0.0.1
+  webPort: 5173
+  openBrowser: false
+  verbose: false
+desktop:
+  mainWindow:
+    title: Shotloom
+    width: 1440
+    height: 900
+    minWidth: 1080
+    minHeight: 720
+defaults:
+  models:
+    text: gpt-6-astra
+    image: gpt-image-2.6-sunburst
+    video: grok-imagine-video-1.5
+  project:
+    autoSave: true
+  agent:
+    autoEval: true
+    autoLayout: true
+  canvas:
+    layoutAlgorithm: grid-aligned
+  generation:
+    pollIntervalMs: 1500
+  runtimeProtection:
+    healthIntervalMs: 10000
+    failureThreshold: 3
+    failureWindowMs: 300000
+    circuitCooldownMs: 120000
+    stallWarningMs: 180000
+    hardCapMs: 1800000

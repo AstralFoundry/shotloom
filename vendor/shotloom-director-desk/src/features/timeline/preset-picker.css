@@ -1,0 +1,92 @@
+.preset-picker {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: min(440px, calc(100vw - 32px));
+    max-height: min(620px, calc(100vh - 90px));
+    color: var(--ed-text-primary);
+}
+
+.preset-picker--inline {
+    width: 100%;
+    max-height: none;
+}
+
+.preset-picker--inline .preset-picker__scroll {
+    overflow: visible;
+}
+
+.preset-picker--inline .preset-picker__grid {
+    gap: 8px;
+}
+
+.preset-picker__heading {
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.preset-picker__scroll {
+    min-height: 0;
+    overflow-y: auto;
+}
+
+.preset-picker__grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.preset-card {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+    padding: 5px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--ed-text-primary);
+    text-align: left;
+    cursor: pointer;
+}
+
+.preset-card:hover,
+.preset-card:focus-visible {
+    border-color: var(--ed-text-a35);
+    background: var(--ed-gp-field);
+}
+
+.preset-card:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.preset-card__image,
+.preset-card__diagram {
+    display: block;
+    width: 100%;
+    aspect-ratio: 1.35;
+    overflow: hidden;
+    border-radius: 4px;
+    background: var(--ed-vp-stage-bg);
+    object-fit: cover;
+}
+
+.preset-card__image img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.preset-card__name {
+    overflow: hidden;
+    font-size: 12px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.preset-card small {
+    color: var(--ed-text-a50);
+    font-size: 11px;
+}

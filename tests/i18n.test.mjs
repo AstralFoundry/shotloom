@@ -467,6 +467,7 @@ test('全部产品工具标题切换语言，工具协议与草稿正文保持�
       for (const [module, register] of [
         ['canvasTools', 'registerCanvasTools'], ['catalogTools', 'registerCatalogTools'],
         ['productionPlanTools', 'registerProductionPlanTools'], ['videoEditorTools', 'registerVideoEditorTools'],
+        ['directorTools', 'registerDirectorTools'],
         ['textTools', 'registerTextDraftTools'],
       ]) (await instance.load(`agent/tools/${module}`))[register]();
       const registry = await instance.load('agent/core/toolRegistry');
@@ -742,8 +743,8 @@ test('未知产品会话在两种语言下均拒绝执行，错误不泄露绑�
 test('技能分配角色和厂商图标名称随语言变化，执行身份、技能归属与图标资源保持一致', async () => {
   const snapshots = [];
   const labels = {
-    'zh-CN': { agents: ['画布 Agent', '剪辑 Agent', '文本 Agent'], icons: ['火山引擎', '豆包', '通义千问', '智谱 AI', '自定义'] },
-    'en-US': { agents: ['Canvas Agent', 'Editing Agent', 'Text Agent'], icons: ['Volcengine', 'Doubao', 'Qwen', 'Zhipu AI', 'Custom'] },
+    'zh-CN': { agents: ['画布 Agent', '剪辑 Agent', '3D 导演台 Agent', '文本 Agent'], icons: ['火山引擎', '豆包', '通义千问', '智谱 AI', '自定义'] },
+    'en-US': { agents: ['Canvas Agent', 'Editing Agent', '3D Director Agent', 'Text Agent'], icons: ['Volcengine', 'Doubao', 'Qwen', 'Zhipu AI', 'Custom'] },
   };
   for (const locale of ['zh-CN', 'en-US']) {
     const instance = await createRendererEnv({ storage: new Map([['shotloom:locale', locale]]) });
@@ -756,7 +757,7 @@ test('技能分配角色和厂商图标名称随语言变化，执行身份、�
       const chosenIcons = ['volcengine', 'doubao', 'qwen', 'zhipu', 'custom'].map(id => icons.PROVIDER_ICON_OPTIONS.find(icon => icon.id === id));
       assert.deepEqual(chosenIcons.map(icon => icon.label), labels[locale].icons);
       assert.deepEqual(assignments.skillAgentLabels('user-skill', ['editor-primary']), [labels[locale].agents[1]]);
-      assert.deepEqual(assignments.skillAgentLabels('user-skill', ['text-primary']), [labels[locale].agents[2]]);
+      assert.deepEqual(assignments.skillAgentLabels('user-skill', ['text-primary']), [labels[locale].agents[3]]);
       assert.deepEqual(assignments.skillAgentLabels('user-skill'), [labels[locale].agents[0]]);
       const unknownId = 'unregistered-{id}';
       assert.throws(() => definitions.agentDefinition(unknownId), {

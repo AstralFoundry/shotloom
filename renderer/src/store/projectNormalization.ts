@@ -2,7 +2,8 @@ import { t } from '../i18n/index.ts';
 import { isActiveTaskStatus } from '@/domain/tasks/TaskStatus';
 import { uid } from '@/utils/format';
 import { canvasArtifactType } from '@/services/agentTypes';
-import { defaultGenerationModel } from '@/utils/defaultGenerationModels';
+import { defaultGenerationModel } from '@/config/defaultGenerationModels';
+import shotloomDefaults from '@/config/shotloom-defaults.generated.json';
 import { generationOutputIssue } from '@/utils/generationResultValidation';
 import { summarizeGenerationPayload, type GenerationPayload } from '@/domain/graph/generationPayload';
 import { ensureHarnessSessions } from '@/services/harnessSessionStore.ts';
@@ -47,7 +48,7 @@ export function createProject(name = t('ui.ProjectCard.text.060f1435')): any {
     canvasHistory: [],
     canvasRedoStack: [],
     settings: {
-      autoSave: true,
+      autoSave: shotloomDefaults.project.autoSave,
       defaultTextModel: defaultGenerationModel('textGeneration'),
       defaultImageModel: defaultGenerationModel('imageGeneration'),
       defaultVideoModel: defaultGenerationModel('videoGeneration'),
@@ -238,7 +239,8 @@ export function normalizeProject(input: unknown): any {
         .slice(0, MAX_CANVAS_HISTORY)
       : [],
     settings: {
-      autoSave: project?.settings?.autoSave !== false,
+      autoSave: typeof project?.settings?.autoSave === 'boolean'
+        ? project.settings.autoSave : shotloomDefaults.project.autoSave,
       defaultTextModel: project?.settings?.defaultTextModel || base.settings.defaultTextModel,
       defaultImageModel: project?.settings?.defaultImageModel || base.settings.defaultImageModel,
       defaultVideoModel: project?.settings?.defaultVideoModel || base.settings.defaultVideoModel,

@@ -126,6 +126,8 @@ npm ci && npm run dev
 npm run dev:web
 ```
 
+仓库根目录的 `shotloom.yml` 管理开发服务的监听地址、端口、是否打开浏览器、详细日志，桌面主窗口的标题和尺寸，以及新项目的自动保存、默认模型、Agent 自动评估与布局、画布布局、任务轮询和运行保护默认值。`npm run dev` 会把同一开发地址传给 Vite 与 Tauri；`npm run build:desktop` 和发布流水线会应用窗口设置。构建时会从 YAML 生成前端与原生端共用的默认值；已有用户设置仍优先。修改后重启开发进程或重新打包。正式安装包使用打包的前端文件，不连接开发端口。
+
 浏览器模式不提供文件系统、原生导出、剪辑运行时与 Agent 助手，完整体验请用桌面版。开发服务允许最大 64 KiB 请求头以兼容本机共享 Cookie；若遇到 Vite 431 错误，重启开发进程，仍报错则清理对应站点不再使用的 Cookie（参见 [Vite 排查说明](https://vite.dev/guide/troubleshooting.html#_431-request-header-fields-too-large)）。
 
 **接上模型**：不接模型也能建项目和整理素材。要用生成节点或助手时，打开 **设置 → API 厂商**，添加厂商与凭据、配置模型协议，再为文本、图片、视频、音频分别指定默认模型。各厂商接口有差异，以官方 API 文档为准。
@@ -144,7 +146,7 @@ shotloom/
 ├─ harness/             # 官方 Harness Agent 运行时宿主与内嵌客户端
 ├─ vendor/
 │  ├─ openreel/                 # 剪辑引擎源码（内嵌运行时）
-│  └─ storyai-3d-director-desk/ # 3D 导演台源码
+│  └─ shotloom-director-desk/    # 3D 导演台源码
 ├─ scripts/             # 构建、发布与工程约束校验
 └─ tests/               # 回归测试
 ```
@@ -178,7 +180,7 @@ shotloom/
 | Agent 运行时 | 官方 Harness（ShadowRoot 隔离 + 原生 IPC + Tool Bridge） |
 | 3D 渲染 | React Three Fiber / Three.js |
 | 剪辑引擎 | OpenReel（vendored，ShadowRoot 内嵌运行时） |
-| 3D 导演台 | storyai-3d-director-desk（vendored，独立 HTML 入口 + iframe / postMessage 桥） |
+| 3D 导演台 | shotloom-director-desk（vendored，独立构建 + iframe / postMessage 桥） |
 | 文案 | 自研 i18n 字典（中 / 英） |
 
 ## 🏗 架构约定

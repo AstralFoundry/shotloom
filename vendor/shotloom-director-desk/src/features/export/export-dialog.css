@@ -1,0 +1,78 @@
+.export-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 280px;
+    gap: 16px;
+}
+
+.export-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-width: 0;
+}
+
+.export-field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+    color: var(--ed-text-a50);
+    font-size: 12px;
+}
+
+.export-field > .ant-select,
+.export-field > .ant-input {
+    width: 100%;
+}
+
+.export-preview {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+}
+
+.export-preview img,
+.export-preview__placeholder {
+    display: grid;
+    width: 100%;
+    max-height: 220px;
+    aspect-ratio: 16 / 9;
+    place-items: center;
+    border: 1px solid var(--ed-line-mid);
+    border-radius: 12px;
+    background: var(--ed-app-bg);
+    color: var(--ed-text-a42);
+    font-size: 12px;
+    object-fit: contain;
+}
+
+.export-summary {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    color: var(--ed-text-a50);
+    font-size: 12px;
+}
+
+.export-summary strong {
+    color: var(--ed-text-strong);
+    font-weight: 500;
+}
+
+.export-filename {
+    color: var(--ed-text-a75);
+    overflow-wrap: anywhere;
+}
+
+.export-error {
+    margin: 0;
+    color: var(--ed-danger-text);
+    font-size: 12px;
+}
+
+.export-progress {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}

@@ -1,12 +1,12 @@
 import { t, localizeNativeError } from '@/i18n';
-import { CANVAS_AGENT_ID, EDITOR_AGENT_ID } from '../../agent/agents/definitions';
+import { CANVAS_AGENT_ID, DIRECTOR_AGENT_ID, EDITOR_AGENT_ID } from '../../agent/agents/definitions';
 import { invoke as nativeInvoke, type InvokeArgs } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { harnessModelConfig } from '../../services/harnessModelConfig';
 import { availableAgentSkills } from '../../agent/tools/catalogTools';
 import { desktopApi } from '../../services/desktopApi';
 import { productToolCatalog, bindProductSession, registerEditorSessionBinder, executeProductRequest, type ProductBinding } from '../../services/harnessProductTools';
-import { canvasHarnessSession, editorHarnessSession, textHarnessSession } from '../../services/harnessSessionStore';
+import { canvasHarnessSession, directorHarnessSession, editorHarnessSession, textHarnessSession } from '../../services/harnessSessionStore';
 import { getAgentProjectIdentity, assertAgentProject } from '../../services/agentProjectIdentity';
 import { store, touchProject } from '../../store/projectStore';
 import { initializeHarnessClient } from './harnessClient';
@@ -35,9 +35,12 @@ export function startHarnessIntegration(): Promise<void> {
     if (!bridgeListening) await listen<Parameters<typeof executeProductRequest>[0]>('harness://tool-request', async event => {
       try {
         const result = await executeProductRequest(event.payload);
-        // A saved product record becomes an official bundle before this tool
-        // returns. Do not reopen the panel or create another conversation.
-        if (event.payload.toolName === 'save_skill' && event.payload.phase !== 'authorize') {
+        // 工具目录在绑定会话时一次性下发，所以两类工具必须在返回结果前重新下发，
+        // 否则模型按回执去调用时会发现工具不在本轮请求里：
+        // - save_skill 保存的新 Skill 要立刻可见；
+        // - editor_find_tools 解锁的原生工具要立刻可调用。
+        const refreshesCatalog = event.payload.toolName === 'save_skill' || event.payload.toolName === 'editor_find_tools';
+        if (refreshesCatalog && event.payload.phase !== 'authorize') {
           const receipt = result as { result?: { success?: boolean; activation?: string; warning?: string } };
           if (receipt.result?.success) {
             try {
@@ -47,10 +50,16 @@ export function startHarnessIntegration(): Promise<void> {
                   id: skill.id, description: skill.description, instructions: skill.instructions || '', metadata: skill.metadata, builtIn: skill.builtIn === true,
                 })),
               } });
-              receipt.result.activation = 'current-session-refreshed';
+              // Skill 保存路径对外暴露可观察的激活状态；工具解锁只用同一份刷新，不新增文案。
+              if (event.payload.toolName === 'save_skill') receipt.result.activation = 'current-session-refreshed';
             } catch (error) {
-              receipt.result.activation = 'refresh-failed';
-              receipt.result.warning = t('agent.skillRefreshFailed', { error: String(error) });
+              if (event.payload.toolName === 'save_skill') {
+                receipt.result.activation = 'refresh-failed';
+                receipt.result.warning = t('agent.skillRefreshFailed', { error: String(error) });
+              } else {
+                // 解锁已写入会话状态，下一轮重新打开面板即生效；这里如实降级，不谎称当轮可用。
+                receipt.result.warning = t('tool.feedback.editor.toolRefreshFailed', { error: String(error) });
+              }
             }
           }
         }
@@ -77,6 +86,7 @@ export async function openHarnessPanel(role: ProductBinding['agentId'], nodeId?:
   const identity = getAgentProjectIdentity();
   const selected = store.project.harnessSessions?.find((item: { id?: string; agentId?: string; textNodeId?: string; editorNodeId?: string }) => item.id === conversationId && item.agentId === role && (item.textNodeId || item.editorNodeId) === nodeId);
   const conversation = selected ?? (role === CANVAS_AGENT_ID ? canvasHarnessSession(store.project)
+    : role === DIRECTOR_AGENT_ID ? directorHarnessSession(store.project)
     : role === EDITOR_AGENT_ID ? editorHarnessSession(store.project, nodeId!) : textHarnessSession(store.project, nodeId!));
   const binding = { projectKey: identity.projectKey, conversationId: conversation.id!, agentId: role, ...(nodeId ? { nodeId } : {}) };
   const result = await invoke<{ sessionId: string; tools: string[]; toolTitles: Record<string, string> }>('harness_bind_session', { config: {

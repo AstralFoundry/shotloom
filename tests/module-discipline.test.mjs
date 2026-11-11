@@ -45,7 +45,7 @@ test('vendored 导演台的契约只属于宿主适配层', () => {
   // 私有协议名与入口地址只允许出现在一个产品文件里，否则上游改协议时不会有地方提醒。
   assert.match(script, /DIRECTOR_DESK_HOST = 'app\/adapters\/directorDeskBridge\.ts'/);
   assert.match(script, /'storyai:director-desk-'/);
-  assert.match(script, /'director-desk\.html'/);
+  assert.match(script, /'director-desk-app\/index\.html'/);
   assert.match(script, /vendored 导演台契约只允许写在/);
   execFileSync(process.execPath, ['scripts/verify-module-discipline.mjs'], {
     cwd: repoRoot,

@@ -1,5 +1,5 @@
 import { getLocale, t } from '@/i18n';
-import { CANVAS_AGENT_ID, EDITOR_AGENT_ID, TEXT_AGENT_ID } from '../../agent/agents/definitions';
+import { CANVAS_AGENT_ID, DIRECTOR_AGENT_ID, EDITOR_AGENT_ID, TEXT_AGENT_ID } from '../../agent/agents/definitions';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { selectedNodeMedia, localMediaPath } from '../../utils/nodeMedia';
 import { inferMediaType } from '../../utils/mediaType';
@@ -27,7 +27,7 @@ export function HarnessChatPanel({ agentId, nodeId, onClose, onStatusChange }: {
   const [selectedId, setSelectedId] = useState('');
   const [retry, setRetry] = useState(0);
   const [frameError, setFrameError] = useState('');
-  const sessions = scopedHarnessSessions(store.project, agentId === CANVAS_AGENT_ID ? 'canvas' : agentId === EDITOR_AGENT_ID ? 'editor' : 'text', nodeId);
+  const sessions = scopedHarnessSessions(store.project, agentId === CANVAS_AGENT_ID ? 'canvas' : agentId === DIRECTOR_AGENT_ID ? 'director' : agentId === EDITOR_AGENT_ID ? 'editor' : 'text', nodeId);
   const selected = sessions.find(item => item.id === selectedId) ?? sessions.find(item => item.id === store.project.activeHarnessSessionId) ?? sessions[0];
   const [panel, setPanel] = useState<{ key: string; sessionId?: string; tools?: string[]; toolTitles?: Record<string, string>; error?: string }>();
   const key = `${identity.fenceKey}:${agentId}:${nodeId ?? ''}:${selected?.id ?? ''}`;

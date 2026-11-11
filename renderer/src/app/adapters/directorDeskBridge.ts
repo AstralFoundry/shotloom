@@ -1,7 +1,7 @@
-// 3D 导演台是 vendored 第三方应用，只通过 renderer/director-desk.html 以 iframe 运行，
+// 3D 导演台从 vendor/shotloom-director-desk 独立构建，通过 iframe 运行，
 // 与产品之间唯一的通道就是 postMessage。这里拥有那份私有协议：消息名、消息构造、
 // 来源校验和回执整形都只写一次，画布组件只消费类型化的回调。
-// 上游对端见项目根目录 vendor/storyai-3d-director-desk/src/editor/io/hostBridge.ts。
+// 对端见 vendor/shotloom-director-desk/src/app/host-bridge.ts。
 
 export type DirectorDeskTheme = "light" | "dark";
 
@@ -14,14 +14,29 @@ export type DirectorDeskPanorama = {
 
 export type DirectorDeskCapture = { dataUrl: string; fileName: string };
 
+/** Compact description the canvas card can render without opening the desk. */
+export type DirectorDeskSummary = {
+  actors: number;
+  cameras: number;
+  shots: number;
+  duration: number;
+};
+export const directorDeskAgentProtocol = {
+  request: 'storyai:director-desk-agent-request',
+  result: 'storyai:director-desk-agent-result',
+};
+
 export type DirectorDeskHandlers = {
   onReady(): void;
   onInteraction(): void;
   onExitInteraction(): void;
-  onDeleteNode(): void;
   onPanoramaRemoved(edgeId: string): void;
   onProjectChanged(project: Record<string, unknown>): void;
   onCaptures(captures: DirectorDeskCapture[]): void;
+  /** Scene totals, sent on ready and after every edit. */
+  onSceneSummary?(summary: DirectorDeskSummary): void;
+  /** What the director currently has selected, for card and chat context. */
+  onSelectionChanged?(selection: { id: string; name: string; kind: string }): void;
 };
 
 const messageType = {
@@ -32,20 +47,36 @@ const messageType = {
   interaction: "storyai:director-desk-interaction",
   exitInteraction: "storyai:director-desk-exit-interaction",
   close: "storyai:director-desk-close",
-  deleteNode: "storyai:director-desk-delete-node",
   panoramaRemoved: "storyai:director-desk-panorama-removed",
   projectChanged: "storyai:director-desk-project-changed",
   capturesSent: "storyai:director-desk-captures-sent",
+  sceneSummary: "storyai:director-desk-scene-summary",
+  selectionChanged: "storyai:director-desk-selection-changed",
+  sceneLoad: "storyai:director-desk-scene-load",
 };
+
+/**
+ * Push a whole scene document into the desk.
+ *
+ * The full-page workspace and a canvas node keep separate copies of a scene, so moving work
+ * between them needs an explicit hand-off; there is no shared store to sync.
+ */
+export function sendDirectorDeskSceneLoad(
+  frame: HTMLIFrameElement | null,
+  document: unknown,
+  label?: string,
+) {
+  post(frame, { type: messageType.sceneLoad, payload: { document, ...(label ? { label } : {}) } });
+}
 
 export function directorDeskFrameSrc(instanceId: string, theme: DirectorDeskTheme) {
   // embedded 样式由导演台自己的 URL 参数决定，宿主只声明实例与主题。
-  return `./director-desk.html?instanceId=${encodeURIComponent(instanceId)}&theme=${theme}`;
+  return `./director-desk-app/index.html?instanceId=${encodeURIComponent(instanceId)}&theme=${theme}`;
 }
 
 /** 整页工作区入口（侧栏「3D导演台」）：和画布节点共用同一个导演台文档。 */
 export function directorDeskWorkspaceSrc(instanceId = ''): string {
-  return `./director-desk.html?theme=light&workspace=${encodeURIComponent(instanceId)}`;
+  return `./director-desk-app/index.html?theme=light&workspace=${encodeURIComponent(instanceId)}`;
 }
 
 function post(frame: HTMLIFrameElement | null, message: { type: string; payload?: unknown }) {
@@ -101,7 +132,6 @@ export function subscribeDirectorDesk(
     if (message.type === messageType.exitInteraction || message.type === messageType.close) {
       return handlers.onExitInteraction();
     }
-    if (message.type === messageType.deleteNode) return handlers.onDeleteNode();
     if (message.type === messageType.panoramaRemoved) {
       return handlers.onPanoramaRemoved(String(payload.edgeId ?? ""));
     }
@@ -110,9 +140,33 @@ export function subscribeDirectorDesk(
       return;
     }
     if (message.type === messageType.capturesSent) handlers.onCaptures(readCaptures(payload.captures));
+    if (message.type === messageType.sceneSummary) {
+      const summary = readSummary(payload.summary);
+      if (summary) handlers.onSceneSummary?.(summary);
+      return;
+    }
+    if (message.type === messageType.selectionChanged) {
+      handlers.onSelectionChanged?.({
+        id: String(payload.id ?? ""),
+        name: String(payload.name ?? ""),
+        kind: String(payload.kind ?? ""),
+      });
+      return;
+    }
   };
   window.addEventListener("message", handleMessage);
   return () => window.removeEventListener("message", handleMessage);
+}
+
+function readSummary(value: unknown): DirectorDeskSummary | null {
+  if (!isRecord(value)) return null;
+  const num = (input: unknown) => (typeof input === "number" && Number.isFinite(input) ? input : 0);
+  return {
+    actors: num(value.actors),
+    cameras: num(value.cameras),
+    shots: num(value.shots),
+    duration: num(value.duration),
+  };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

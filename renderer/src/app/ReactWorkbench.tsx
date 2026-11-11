@@ -79,6 +79,7 @@ import { type AppRoute, useAppStore } from "./store/appStore";
 import { installMediaPreviewCacheMemoryPressureListener } from "../services/mediaPreviewCache";
 import { installAgentE2eHook } from "./agent-session/agentE2eHook";
 import { recordDiagnosticEvent } from "../services/diagnosticsService";
+import { registerDirectorDeskNavigator } from "../services/directorDeskAgentRuntime";
 
 /**
  * React 主工作台根；领域状态通过框架无关订阅同步到视图。
@@ -101,6 +102,11 @@ export function ReactWorkbench() {
     getDomainRevision,
     getDomainRevision,
   );
+  useEffect(() => registerDirectorDeskNavigator(view => {
+    if (!useAppStore.getState().setRoute('creation')) return false;
+    useDirectorWorkspaceStore.getState().setOpen(view === 'director');
+    return true;
+  }), []);
   useEffect(() => {
     function onSearchKey(event: KeyboardEvent) {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {

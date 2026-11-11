@@ -1,7 +1,7 @@
 import { useAppStore } from '../store/appStore';
 import { t } from '@/i18n';
 import { formatItemCount } from '../../utils/format.ts';
-import { CANVAS_AGENT_ID } from '../../agent/agents/definitions';
+import { CANVAS_AGENT_ID, DIRECTOR_AGENT_ID } from '../../agent/agents/definitions';
 import {
   lazy,
   Suspense,
@@ -84,16 +84,21 @@ export function CreationView({
   data: CreationViewData;
   controller: CreationViewController;
 }) {
-  const { modal } = App.useApp();
   if (data.fullDirectorWorkspace) {
     const closeWorkspace = () => data.onLeaveFullDirectorWorkspace?.();
     return (
       <div className="director-workspace-host" data-canvas-no-zoom>
         <button type="button" className="director-workspace-back" onClick={closeWorkspace}>{t("ds.topbar.back")}</button>
         <DirectorWorkspace src={directorDeskWorkspaceSrc} />
+        <aside className="director-workspace-agent"><HarnessChatPanel agentId={DIRECTOR_AGENT_ID} /></aside>
       </div>
     );
   }
+  return <CreationCanvas data={data} controller={controller} />;
+}
+
+function CreationCanvas({ data, controller }: { data: CreationViewData; controller: CreationViewController }) {
+  const { modal } = App.useApp();
   const [canvasReady, setCanvasReady] = useState(false);
   const [agentStatus, setAgentStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const markCanvasReady = useCallback(() => setCanvasReady(true), []);

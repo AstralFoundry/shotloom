@@ -9,7 +9,7 @@ import { isRecord } from '../../utils/typeGuards';
 
 import { modelCatalogV2 } from '../../config/model-catalog-v2/index';
 import { systemVoiceOptionLabels } from '../../config/systemVoices';
-import { defaultGenerationModel } from '@/utils/defaultGenerationModels';
+import { defaultGenerationModel } from '@/config/defaultGenerationModels';
 import {
   GENERATION_INPUT_MODE_LABELS,
   slotsForInputMode,

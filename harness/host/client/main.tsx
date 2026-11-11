@@ -262,11 +262,13 @@ async function runtime(native: NativeHost): Promise<ClientContext> {
     const records: ClientBundleRegistration[] = [];
     const target = { mode: 'queue' as const, pendingQueue: records, load(row: ClientBundleRegistration) { records.push(row); }, create: null as any };
     const transport = { fetch: nativeFetch, openStream: nativeStream, ownsHost: true };
+    const fileUploadTransport = { fetch: nativeFetch };
     const windowEvents = scopedEvents(globalThis.window);
     const scopeWindow = new Proxy(window, { get(object, key) {
       if (key === 'addEventListener' || key === 'removeEventListener') return windowEvents[key];
       if (key === '__ModuleLoader__') return target;
       if (key === '__DSH_TRANSPORT__') return transport;
+      if (key === '__DSH_FILE_UPLOAD__') return fileUploadTransport;
       if (key === 'document') return scopedDocument;
       const value = Reflect.get(object, key, object);
       return typeof value === 'function' && !/^[A-Z]/.test(String(key)) ? value.bind(object) : value;
@@ -324,7 +326,7 @@ export async function mount(container: HTMLElement, native: NativeHost, host: Pr
   let mentionNode: ChatActions['mentionNode'] = () => {};
   await ctx.inject(['slots', 'inputTriggers', 'sessions'], scope => {
   disposeScope = () => scope.fiber.dispose();
-  mentionNode = ['canvas-primary', 'editor-primary'].includes(host.agentId) ? installCanvasReferences(scope, host.sessionId as SessionId, host) : () => {};
+  mentionNode = ['canvas-primary', 'editor-primary', 'director-primary'].includes(host.agentId) ? installCanvasReferences(scope, host.sessionId as SessionId, host) : () => {};
   const priority = --surfacePriority;
   for (const name of host.tools) scope.slots.register({ name: 'tool.call.toolview', key: name, priority }, props => <ProductToolCard {...props} />);
   });

@@ -1,18 +1,20 @@
 # Shotloom Agent Engineering Guide
 
+这份文件会被拼进每个 Agent 的系统提示词，所以只写方向模型行为的规则。工程实现约定（状态引擎、vendor 目录、Harness 客户端隔离等）在 [docs/engineering.md](./docs/engineering.md)，不要挪回来。
+
 ## 核心原则
 
 Shotloom 的 Agent 以模型为决策主体。不要在应用代码中用关键词、正则、文本长度、数量阈值或枚举穷举去猜测用户意图、制作范围、任务复杂度和内容质量。
 
 - 模型负责理解用户完整语义、选择工作流、拆分任务、规划依赖、判断是否需要追问，以及评估交付是否充分。
 - 用户表达明确时直接继续，不得因为缺少某个内部状态字段而重复询问。
-- 用户表达确实会导致多个显著不同结果时，由 Router 使用 question 工具集中澄清。
-- Prompt、Skill、Contract 和 AGENTS.md 用来约束 Agent 的工作方式；不要把开放式工作流要求改写成阻塞所有工具的代码门禁。
+- 用户表达确实会导致多个显著不同结果时，由主 Agent 用 `ask_user_question` 集中澄清。
+- Prompt、Skill、Contract 和本文件用来约束 Agent 的工作方式；不要把开放式工作流要求改写成阻塞所有工具的代码门禁。
 - 工具回执应把可恢复的问题返回给 Agent，让 Agent 修正后继续；不要因一个可修复的规划瑕疵让整轮运行失败。
 
 ## 代码应该强制的边界
 
-代码只强制执行无法安全交给模型自行保证的客观边界：
+:代码只强制执行无法安全交给模型自行保证的客观边界：
 
 - 权限与用户设置，例如关闭“允许 Agent 运行节点”后不得启动生成。
 - 付费、删除、覆盖、外部发送等不可逆或有成本的操作边界。
@@ -44,21 +46,3 @@ Shotloom 的 Agent 以模型为决策主体。不要在应用代码中用关键�
 - Runtime/Store：传递状态并保存事实，不替 Router 或 Planner 做语义判断。
 
 保持分层清晰，但不要为了分层创建只有几行转发逻辑的文件或函数。优先让一个模块完整拥有一项职责。
-
-## 状态引擎
-
-`renderer/src/store/domainReactivity.ts` 与 zustand 各自只服务一类状态，新增第三种引擎必须先改这份契约：
-
-- 领域与持久状态（工程、节点、任务、设置、Skill、模板、素材库）只用 domainReactivity：状态对象就地可变，改动合并成一次 revision 通知，界面用 `useSyncExternalStore(subscribeDomain, getDomainRevision)` 订阅。画布写入量密集，改成不可变快照会付出无收益的复制成本。
-- 界面状态（窗口、浮层、会话运行态）只用 zustand，并且只允许出现在 `app/` 与 `vendor/`。`store/`、`services/`、`agent/`、`domain/` 里出现 zustand 依赖即视为把领域状态搬进界面引擎。
-- 唯一登记例外：`store/notificationStore.ts`。提示条必须能被数据层触发，所以它住在 store 层，但仍然是界面状态。
-- `app/store/` 不得引入 domainReactivity；`store/` 下的纯函数模块（节点、边、步骤等图数据访问器）不携带引擎，只读写 projectStore 的同一份可变对象。
-- 以上边界由 `scripts/verify-module-discipline.mjs` 检查（`npm run check:layers`）。新增例外必须在该脚本的集合里显式登记并说明理由。
-
-## 第三方源码目录
-
-第三方源码统一放在项目根目录 `vendor/`：OpenReel 位于 `vendor/openreel/`，三维导演台位于 `vendor/storyai-3d-director-desk/`。不要在 `renderer/src` 下再建 vendor。导演台仍只通过独立 HTML 入口和 iframe 运行，产品通过 `app/adapters/directorDeskBridge.ts` 的 postMessage 协议交互，不直接导入其运行时状态。导演台源码继续纳入根 TypeScript 和模块分层检查。导演台可复用不持有状态的产品 i18n 字典；不得因此导入产品 Store 或服务。
-
-## 官方 Harness 客户端隔离
-
-`harness/host/client/` 直接复用官方 Harness 的 UI、状态、投影与 React 依赖，以 App 级单例运行时在 Shotloom 页面内挂载，使用 ShadowRoot 隔离样式，不使用 iframe。它不接管 Shotloom 领域状态，不导入 renderer/store，不将官方状态引擎扩散到产品模块。桌面客户端通过原生 IPC 与父进程私有管道连接 Host，不使用 Cookie 登录或浏览器认证跳转；原生调用边界、项目绑定、Tool Bridge 和工具权限校验继续生效。切换项目只切换会话，工具、Skill、模型配置内容未变时不得重复复制或挂载。产品导航和画布引用通过显式适配接口协作；renderer 内仍严格遵守以上两类状态引擎约定。

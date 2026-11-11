@@ -7,24 +7,19 @@ use tauri::AppHandle;
 const SETTINGS_STORAGE_VERSION: u64 = 7;
 
 fn current_settings_defaults() -> Value {
-    json!({
+    let mut settings = json!({
         "storageVersion": SETTINGS_STORAGE_VERSION,
         "providerConfigs": {},
         "tokenGroups": [],
-        "agentAutoEval": true,
-        "agentAutoLayout": true,
         "agentCanRunNodes": false,
         "canvasActionShortcuts": {},
-        "modelPollIntervalMs": 1500,
-        "runtimeProtection": {
-            "healthIntervalMs": 10_000,
-            "failureThreshold": 3,
-            "failureWindowMs": 300_000,
-            "circuitCooldownMs": 120_000,
-            "stallWarningMs": 180_000,
-            "hardCapMs": 1_800_000
-        }
-    })
+    });
+    let configured: Value = serde_json::from_str(include_str!("../../../renderer/src/config/shotloom-defaults.generated.json"))
+        .expect("generated Shotloom defaults must be valid JSON");
+    if let (Some(base), Some(fields)) = (settings.as_object_mut(), configured["appSettings"].as_object()) {
+        base.extend(fields.clone());
+    }
+    settings
 }
 
 fn validate_current_settings(settings: &Value) -> Result<(), String> {

@@ -1,0 +1,24 @@
+{
+  "models": {
+    "text": "gpt-6-astra",
+    "image": "gpt-image-2.6-sunburst",
+    "video": "grok-imagine-video-1.5"
+  },
+  "project": {
+    "autoSave": true
+  },
+  "appSettings": {
+    "agentAutoEval": true,
+    "agentAutoLayout": true,
+    "layoutAlgorithm": "grid-aligned",
+    "modelPollIntervalMs": 1500,
+    "runtimeProtection": {
+      "healthIntervalMs": 10000,
+      "failureThreshold": 3,
+      "failureWindowMs": 300000,
+      "circuitCooldownMs": 120000,
+      "stallWarningMs": 180000,
+      "hardCapMs": 1800000
+    }
+  }
+}
