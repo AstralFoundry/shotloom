@@ -193,6 +193,7 @@ export const english: Record<string, string> = {
     返回设置: 'Back to Settings',
     '请输入 {0}—{1} 之间的数值': 'Enter a value from {0} to {1}',
     返回: 'Back',
+    返回画布: 'Back to canvas',
     完成: 'Done',
     关闭: 'Close',
     取消: 'Cancel',

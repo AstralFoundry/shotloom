@@ -85,17 +85,20 @@ export function CreationView({
   data: CreationViewData;
   controller: CreationViewController;
 }) {
-  if (data.fullDirectorWorkspace) {
-    const closeWorkspace = () => data.onLeaveFullDirectorWorkspace?.();
-    return (
-      <div className="director-workspace-host" data-canvas-no-zoom>
-        <button type="button" className="director-workspace-back" onClick={closeWorkspace}>{t("ds.topbar.back")}</button>
-        <DirectorWorkspace src={directorDeskWorkspaceSrc} />
-        <DirectorAgentPane className="director-workspace-agent" collapsible reopenLabel={t("ds.topbar.agent")} />
-      </div>
-    );
-  }
+  if (data.fullDirectorWorkspace) return <FullDirectorWorkspace data={data} />;
   return <CreationCanvas data={data} controller={controller} />;
+}
+
+function FullDirectorWorkspace({ data }: { data: CreationViewData }) {
+  const [agentCollapsed, setAgentCollapsed] = useState(false);
+  return <div className="director-workspace-host" data-canvas-no-zoom>
+    <DirectorWorkspace
+      src={directorDeskWorkspaceSrc}
+      onExit={() => data.onLeaveFullDirectorWorkspace?.()}
+      onOpenAgent={() => setAgentCollapsed(false)}
+    />
+    <DirectorAgentPane className="director-workspace-agent" collapsed={agentCollapsed} onCollapsedChange={setAgentCollapsed} />
+  </div>;
 }
 
 function CreationCanvas({ data, controller }: { data: CreationViewData; controller: CreationViewController }) {

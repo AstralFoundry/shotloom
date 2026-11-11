@@ -489,31 +489,6 @@
   background: var(--bg);
 }
 
-/* The back button floats over the 3D stage rather than the assistant panel: a fixed
-   top-right position used to land on the assistant header and steal its clicks. Bottom-left
-   keeps it clear of the desk's own top bar (which owns the top-left corner) and of the
-   viewport toolbar (which is centred). */
-.director-workspace-back {
-  position: absolute;
-  bottom: 22px;
-  left: 16px;
-  z-index: 4;
-  height: 30px;
-  padding: 0 12px;
-  border: 1px solid var(--overlay-line);
-  border-radius: var(--radius-sm);
-  background: var(--overlay-surface);
-  color: var(--overlay-ink-muted);
-  font-size: var(--text-body-12);
-  cursor: pointer;
-  backdrop-filter: blur(10px);
-}
-
-.director-workspace-back:hover {
-  background: var(--overlay-dim);
-  color: var(--overlay-ink);
-}
-
 .director-workspace {
   position: relative;
   display: flex;
@@ -543,30 +518,6 @@
   /* Match the desk's own stage so the iframe's first paint does not flash a light
      rectangle inside an otherwise dark workspace. */
   background: var(--overlay-stage);
-}
-
-/* Collapsed assistant column: a floating pill over the stage, matching the canvas one so the
-   same gesture reads identically in both workspaces. Sits below the desk's own top bar so it
-   never covers its toolbar buttons. */
-.director-agent-reopen {
-  position: absolute;
-  top: 60px;
-  right: 16px;
-  z-index: 5;
-  height: 32px;
-  padding: 0 14px;
-  border: 1px solid var(--line-strong);
-  border-radius: 999px;
-  background: var(--float-surface);
-  box-shadow: var(--shadow-float);
-  color: var(--type-primary);
-  font-size: var(--text-body-12);
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.director-agent-reopen:hover {
-  background: var(--button-subtle-bg);
 }
 
 /* 助手栏拖动分隔条。整页工作区与画布节点详情窗共用同一个 DirectorAgentPane，

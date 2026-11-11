@@ -38,7 +38,7 @@ export const useDirectorWorkspaceExport = create<WorkspaceExportState>((set) => 
   setRequest: (handler) => set({ request: handler }),
 }));
 
-export function DirectorWorkspace({ src, onReady }: { src: (instanceId: string) => string; onReady?: () => void }) {
+export function DirectorWorkspace({ src, onReady, onExit, onOpenAgent }: { src: (instanceId: string) => string; onReady?: () => void; onExit?: () => void; onOpenAgent?: () => void }) {
   const projectId = useAppStore((state) => state.currentProject?.id ?? 'local');
   const frameRef = useRef<HTMLIFrameElement>(null);
   /** Latest document this instance reported, used when sending it to a canvas node. */
@@ -87,8 +87,8 @@ export function DirectorWorkspace({ src, onReady }: { src: (instanceId: string) 
         onReady?.();
       },
       onInteraction: () => undefined,
-      // 整页工作区里导演台自己的按钮就是工作区按钮：不需要额外转发。
-      onExitInteraction: () => undefined,
+      onExitInteraction: () => onExit?.(),
+      onOpenAgent: () => onOpenAgent?.(),
       onPanoramaRemoved: () => undefined,
       onProjectChanged: (project) => {
         latestDocument.current = project;
@@ -106,7 +106,7 @@ export function DirectorWorkspace({ src, onReady }: { src: (instanceId: string) 
       },
     });
     return unsubscribe;
-  }, [applyHandoff, onReady, sendSession, storageKey]);
+  }, [applyHandoff, onExit, onOpenAgent, onReady, sendSession, storageKey]);
 
   return (
     <section className="director-workspace" aria-label="3D导演台" data-director-workspace="true">

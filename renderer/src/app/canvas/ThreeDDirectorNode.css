@@ -282,21 +282,6 @@
   background: var(--surface);
   position: relative;
 }
-.director-detail-close {
-  position: absolute;
-  bottom: 22px;
-  left: 16px;
-  z-index: 2;
-  width: 30px;
-  height: 30px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  color: var(--text);
-  font-size: var(--text-title-20);
-  line-height: 1;
-  cursor: pointer;
-}
 .director-detail-agent {
   position: relative;
   min-width: 280px;

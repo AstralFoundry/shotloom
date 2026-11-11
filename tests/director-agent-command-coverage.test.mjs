@@ -78,7 +78,7 @@ test('iframe 启动时会装配宿主桥，否则所有命令都会超时', () =
     'main.tsx 必须实际调用 initializeHostBridge()，只 import 不调用等于没接上');
 });
 
-test('导演台助手栏可拉伸且只在整页工作区可折叠', () => {
+test('导演台助手栏可拉伸，整页工作区和节点详情都能收缩', () => {
   const pane = fs.readFileSync(path.join(root, 'renderer/src/app/agent-chat/DirectorAgentPane.tsx'), 'utf8');
   const view = fs.readFileSync(path.join(root, 'renderer/src/app/views/CreationView.tsx'), 'utf8');
   const node = fs.readFileSync(path.join(root, 'renderer/src/app/canvas/ThreeDDirectorNode.tsx'), 'utf8');
@@ -88,11 +88,27 @@ test('导演台助手栏可拉伸且只在整页工作区可折叠', () => {
   assert.match(pane, /localStorage\.setItem\(WIDTH_KEY/, '助手栏宽度必须持久化');
   assert.match(pane, /ArrowLeft/, '分隔条必须支持键盘调整');
 
-  // Collapsing is opt-in: the canvas detail window already has its own close button, and a
-  // second collapse control there would be two different "hide" gestures in one dialog.
-  assert.match(pane, /collapsible/, '助手栏必须支持折叠');
-  assert.match(view, /collapsible/, '整页工作区必须开启折叠');
-  assert.ok(!/collapsible/.test(node), '画布节点的详情窗不应再叠加折叠');
+  // Both entry points use the chat header's collapse button; the desk toolbar restores it.
+  assert.match(pane, /onClose=\{\(\) => onCollapsedChange\(true\)\}/, '助手栏标题应能收起 Agent');
+  assert.match(view, /className="director-workspace-agent" collapsed=\{agentCollapsed\}/, '整页工作区应传入收缩状态');
+  assert.match(node, /className="director-detail-agent"[^>]*collapsed=\{agentCollapsed\}/, '节点详情应传入收缩状态');
+});
+
+test('导演台退出入口在顶部工具栏，详情底部没有额外退出按钮', () => {
+  const topBar = fs.readFileSync(path.join(root, 'vendor/shotloom-director-desk/src/features/top-bar/top-bar.tsx'), 'utf8');
+  const node = fs.readFileSync(path.join(root, 'renderer/src/app/canvas/ThreeDDirectorNode.tsx'), 'utf8');
+  const workspace = fs.readFileSync(path.join(root, 'renderer/src/app/views/DirectorWorkspace.tsx'), 'utf8');
+  const view = fs.readFileSync(path.join(root, 'renderer/src/app/views/CreationView.tsx'), 'utf8');
+  const pane = fs.readFileSync(path.join(root, 'renderer/src/app/agent-chat/DirectorAgentPane.tsx'), 'utf8');
+  const bridgeAdapter = fs.readFileSync(path.join(root, 'renderer/src/app/adapters/directorDeskBridge.ts'), 'utf8');
+  assert.match(topBar, /onClick=\{requestHostClose\}/, '顶部工具栏应提供返回画布入口');
+  assert.match(topBar, /onClick=\{requestHostAgentOpen\}/, '顶部工具栏应提供 Agent 恢复入口');
+  assert.match(bridgeAdapter, /messageType\.openAgent.*onOpenAgent/, '顶部工具栏的消息应传到宿主 Agent 面板');
+  assert.doesNotMatch(topBar, /topbar__brand/, '顶部不应显示导演台与未命名场景标识');
+  assert.doesNotMatch(pane, /director-agent-reopen/, '收起的 Agent 不应悬浮在属性面板标题上');
+  assert.doesNotMatch(node, /director-detail-close/, '详情底部不应保留退出按钮');
+  assert.doesNotMatch(view, /director-workspace-back/, '整页工作区不应保留底部退出按钮');
+  assert.match(workspace, /onExitInteraction: \(\) => onExit\?\.\(\)/, '整页退出消息必须返回画布');
 });
 
 test('助手栏分隔条的样式在全局层，两个调用方都能加载到', () => {

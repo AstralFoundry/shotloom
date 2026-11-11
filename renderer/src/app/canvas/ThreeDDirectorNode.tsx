@@ -48,6 +48,7 @@ export const ThreeDDirectorNode: WorkflowNodeRenderer = memo(
     const [incomingImages, setIncomingImages] = useState<IncomingImage[]>([]);
     const [interacting, setInteracting] = useState(false);
     const [detailOpen, setDetailOpen] = useState(false);
+    const [agentCollapsed, setAgentCollapsed] = useState(false);
     const [summary, setSummary] = useState<DirectorDeskSummary | null>(null);
     const [selection, setSelection] = useState('');
     const detailIframeRef = useRef<HTMLIFrameElement>(null);
@@ -87,6 +88,10 @@ export const ThreeDDirectorNode: WorkflowNodeRenderer = memo(
     }, [selected]);
 
     useEffect(() => {
+      if (!detailOpen) setAgentCollapsed(false);
+    }, [detailOpen]);
+
+    useEffect(() => {
       if (!interacting) return;
       const handleEscape = (event: KeyboardEvent) => {
         if (event.key === "Escape") {
@@ -113,6 +118,7 @@ export const ThreeDDirectorNode: WorkflowNodeRenderer = memo(
           setInteracting(false);
           setDetailOpen(false);
         },
+        onOpenAgent: () => setAgentCollapsed(false),
         onPanoramaRemoved: (edgeId) => {
           if (edgeId) actions.removeDirectorIncomingEdge(node.id, edgeId);
         },
@@ -266,7 +272,6 @@ export const ThreeDDirectorNode: WorkflowNodeRenderer = memo(
       {detailOpen && surface && createPortal(
         <div className="director-detail-backdrop" role="dialog" aria-label={t("ui.ThreeDDirectorNode.arialabel.fad461cc")}>
           <div className="director-detail-window">
-            <button type="button" className="director-detail-close" aria-label="关闭 3D 导演台" onClick={() => { setInteracting(false); setDetailOpen(false); }}>×</button>
             <iframe
               ref={detailIframeRef}
               // 详情窗口使用独立布局；embedded=canvas 会触发导演台的缩略嵌入样式。
@@ -275,7 +280,7 @@ export const ThreeDDirectorNode: WorkflowNodeRenderer = memo(
               className="director-detail-frame"
               onLoad={() => { sendSession(); sendPanorama(); }}
             />
-            <DirectorAgentPane className="director-detail-agent" nodeId={node.id} />
+            <DirectorAgentPane className="director-detail-agent" nodeId={node.id} collapsed={agentCollapsed} onCollapsedChange={setAgentCollapsed} />
           </div>
         </div>,
         surface,

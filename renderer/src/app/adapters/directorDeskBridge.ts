@@ -30,6 +30,7 @@ export type DirectorDeskHandlers = {
   onReady(): void;
   onInteraction(): void;
   onExitInteraction(): void;
+  onOpenAgent?(): void;
   onPanoramaRemoved(edgeId: string): void;
   onProjectChanged(project: Record<string, unknown>): void;
   onCaptures(captures: DirectorDeskCapture[]): void | Promise<void>;
@@ -47,6 +48,7 @@ const messageType = {
   interaction: "storyai:director-desk-interaction",
   exitInteraction: "storyai:director-desk-exit-interaction",
   close: "storyai:director-desk-close",
+  openAgent: "storyai:director-desk-open-agent",
   panoramaRemoved: "storyai:director-desk-panorama-removed",
   projectChanged: "storyai:director-desk-project-changed",
   capturesSent: "storyai:director-desk-captures-sent",
@@ -132,6 +134,7 @@ export function subscribeDirectorDesk(
     if (message.type === messageType.exitInteraction || message.type === messageType.close) {
       return handlers.onExitInteraction();
     }
+    if (message.type === messageType.openAgent) return handlers.onOpenAgent?.();
     if (message.type === messageType.panoramaRemoved) {
       return handlers.onPanoramaRemoved(String(payload.edgeId ?? ""));
     }

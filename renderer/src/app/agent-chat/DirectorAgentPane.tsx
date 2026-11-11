@@ -11,36 +11,26 @@ const STAGE_RESERVE = 480;
 /**
  * Assistant column for the director desk.
  *
- * The width is a UI preference and the collapse state is session-local: collapsing is a
- * temporary "let me see the whole stage" action, not a setting worth restoring on reload —
- * a desk that reopens with the assistant hidden reads as broken.
+ * The width is a UI preference; the host owns the temporary collapse state because the
+ * director desk's top bar restores the panel through the iframe bridge.
  */
 export function DirectorAgentPane({
   className,
   nodeId,
-  collapsible = false,
-  reopenLabel,
+  collapsed,
   onCollapsedChange,
 }: {
   className: string;
   nodeId?: string;
-  /** Only the full-page workspace lets the column collapse; the canvas detail window needs it. */
-  collapsible?: boolean;
-  reopenLabel?: string;
-  onCollapsedChange?: (collapsed: boolean) => void;
+  collapsed: boolean;
+  onCollapsedChange: (collapsed: boolean) => void;
 }) {
   const [width, setWidth] = useState(() => {
     const stored = Number(window.localStorage.getItem(WIDTH_KEY));
     return Number.isFinite(stored) && stored >= MIN_WIDTH ? stored : DEFAULT_WIDTH;
   });
-  const [collapsed, setCollapsed] = useState(false);
   const drag = useRef<{ x: number; width: number } | null>(null);
   const asideRef = useRef<HTMLElement>(null);
-
-  const setCollapsedState = (next: boolean) => {
-    setCollapsed(next);
-    onCollapsedChange?.(next);
-  };
 
   /**
    * Clamp a requested width to what the layout can actually give.
@@ -58,18 +48,7 @@ export function DirectorAgentPane({
     window.localStorage.setItem(WIDTH_KEY, String(value));
   };
 
-  if (collapsed) {
-    return (
-      <button
-        type="button"
-        className="director-agent-reopen"
-        aria-label={reopenLabel ?? '打开助手'}
-        onClick={() => setCollapsedState(false)}
-      >
-        {reopenLabel ?? '助手'}
-      </button>
-    );
-  }
+  if (collapsed) return null;
 
   return (
     <aside ref={asideRef} className={className} style={{ width, flex: 'none' }}>
@@ -109,7 +88,7 @@ export function DirectorAgentPane({
       <HarnessChatPanel
         agentId={DIRECTOR_AGENT_ID}
         {...(nodeId ? { nodeId } : {})}
-        {...(collapsible ? { onClose: () => setCollapsedState(true) } : {})}
+        onClose={() => onCollapsedChange(true)}
       />
     </aside>
   );

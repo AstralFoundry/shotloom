@@ -1,5 +1,7 @@
 import {
     DownloadOutlined,
+    CloseOutlined,
+    MessageOutlined,
     FileAddOutlined,
     MoreOutlined,
     PictureOutlined,
@@ -18,13 +20,14 @@ import { useLanguage, useTranslation } from '@/shared/i18n/use-translation.ts';
 import { setLanguage } from '@/shared/i18n/locale.ts';
 import { session } from '@/state/editor-session.ts';
 import { useEditorStore, type ViewMode } from '@/state/editor-store.ts';
-import { useProject, useRevision } from '@/state/use-editor.ts';
+import { useRevision } from '@/state/use-editor.ts';
 import { ExportDialog } from '@/features/export/export-dialog.tsx';
 import { HelpPanel } from '@/features/dialogs/help-dialog.tsx';
 import { ProjectDialog } from '@/features/dialogs/project-dialog.tsx';
 import { NewProjectDialog } from '@/features/dialogs/new-project-dialog.tsx';
 import { SettingsDialog } from '@/features/settings/settings-dialog.tsx';
 import { getEditorTheme } from '@/app/providers/theme.ts';
+import { requestHostAgentOpen, requestHostClose } from '@/app/host-bridge.ts';
 
 const VIEW_MODES: ViewMode[] = ['stage', 'split', 'shot'];
 
@@ -37,7 +40,6 @@ export function TopBar({ sidebarOpen, onToggleSidebar }: { sidebarOpen: boolean;
     const [newProjectOpen, setNewProjectOpen] = useState(false);
     const [helpOpen, setHelpOpen] = useState(false);
     const [settingsOpen, setSettingsOpen] = useState(false);
-    const project = useProject();
     const view = useEditorStore((state) => state.view);
     const status = useEditorStore((state) => state.status);
     const dirty = useEditorStore((state) => state.dirty);
@@ -91,14 +93,6 @@ export function TopBar({ sidebarOpen, onToggleSidebar }: { sidebarOpen: boolean;
             >
                 {t('场景')}
             </Button>
-            <div className="topbar__brand">
-                <span className="topbar__logo">D</span>
-                <div className="topbar__title">
-                    <strong>{t('导演台')}</strong>
-                    <small title={project.name}>{project.name}</small>
-                </div>
-            </div>
-
             <Segmented<ViewMode>
                 value={view}
                 onChange={(value) => session.setView(value)}
@@ -175,6 +169,16 @@ export function TopBar({ sidebarOpen, onToggleSidebar }: { sidebarOpen: boolean;
                 <Dropdown menu={moreMenu} placement="bottomRight" trigger={['click']}>
                     <Button type="text" size="small" icon={<MoreOutlined />} aria-label={t('更多')} />
                 </Dropdown>
+                {window.parent !== window ? (
+                    <>
+                        <Tooltip title={t('导演助手')}>
+                            <Button type="text" size="small" icon={<MessageOutlined />} aria-label={t('导演助手')} onClick={requestHostAgentOpen} />
+                        </Tooltip>
+                        <Tooltip title={t('返回画布')}>
+                            <Button type="text" size="small" icon={<CloseOutlined />} aria-label={t('返回画布')} onClick={requestHostClose} />
+                        </Tooltip>
+                    </>
+                ) : null}
                 {newProjectOpen ? <NewProjectDialog open onClose={() => setNewProjectOpen(false)} /> : null}
                 {projectOpen ? <ProjectDialog open onClose={() => setProjectOpen(false)} /> : null}
                 <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />

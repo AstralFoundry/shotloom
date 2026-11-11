@@ -30,6 +30,12 @@ let panoramaEngine: object | null = null;
 type ExportJobState = { status: 'running' | 'completed' | 'failed' | 'canceled'; progress: number; filename: string; bytes?: number; error?: string; controller: AbortController };
 const exportJobs = new Map<string, ExportJobState>();
 const send = (type: string, payload: Input = {}) => parent.postMessage({ type: `storyai:director-desk-${type}`, payload }, origin);
+export function requestHostClose() {
+    if (parent !== window) send('close');
+}
+export function requestHostAgentOpen() {
+    if (parent !== window) send('open-agent');
+}
 const string = (value: unknown) => String(value ?? '');
 const number = (value: unknown) => {
     if (typeof value !== 'number' || !Number.isFinite(value)) throw Error('需要有限数值');
