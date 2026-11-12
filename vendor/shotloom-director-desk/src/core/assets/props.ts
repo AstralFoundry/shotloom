@@ -15,9 +15,12 @@ import { makeThemed } from './themed.ts';
 import { makeVehicle } from './vehicles.ts';
 import { makeRoomPart } from './room-part.ts';
 import { makeLight } from '../lighting/runtime.ts';
+import { makeComposite } from './composite.ts';
 
 export function makeProp(e: Entity) {
     if (e.light) return makeLight(e);
+    // 组合体优先：它由 parts 定义，与素材族的构建器无关。
+    if (e.parts?.length) return makeComposite(e);
     if (e.asset === 'room-part') return makeRoomPart(e);
     if (findAsset(e.asset)?.family === 'industrial-v1') return makeIndustrial(e);
     if (findAsset(e.asset)?.family === 'themed-v1') return makeThemed(e);

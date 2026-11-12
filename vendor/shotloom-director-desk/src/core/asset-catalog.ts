@@ -67,6 +67,18 @@ export const ASSETS: readonly AssetDefinition[] = [
 ];
 const LIBRARY_ASSETS = ASSETS.filter((asset) => !asset.libraryHidden && !asset.libraryRetired);
 export const ASSET_GROUPS = [...new Set(LIBRARY_ASSETS.map((a) => a.group))];
+/**
+ * 分组概览：每组的条目数与几个示例 id。
+ *
+ * 全量素材序列化后接近 28 KB，而一次会话通常只用十几条；默认先给这份概览（约 2 KB），
+ * 需要哪一组再用 `group` 取具体条目。示例 id 让"有哪些墙"不必先查一次就能接上话。
+ */
+export function assetGroups() {
+    return ASSET_GROUPS.map((group) => {
+        const members = LIBRARY_ASSETS.filter((asset) => asset.group === group);
+        return { group, count: members.length, examples: members.slice(0, 3).map((asset) => asset.id) };
+    });
+}
 const assetsById = new Map(ASSETS.map((asset) => [asset.id, asset]));
 export const findAsset = (id: string) => assetsById.get(id);
 export const isAnimalAsset = (id: string) =>

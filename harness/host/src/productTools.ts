@@ -55,8 +55,19 @@ export function registerProductTools(
       output: {
         schema: { type: 'object', additionalProperties: true },
         render: (_args, value) => {
-          const images = (value as { images?: ImageAttachmentRef[] }).images ?? [];
-          return [{ type: 'text', text: JSON.stringify(value) }, ...images.map(attachment => ({ type: 'image', attachment }))] as ContentBlock[];
+          // The model only needs the tool's own answer. requestId/sessionId/toolName are host
+          // bookkeeping that repeated on every call, and the inner `result` envelope made a
+          // failed write read as `success: true` one level too deep — flatten both here.
+          const envelope = value as { images?: ImageAttachmentRef[] };
+          const images = envelope.images ?? [];
+          const { requestId: _requestId, sessionId: _sessionId, toolName: _toolName, references, images: _images, result, ...rest } = value as Record<string, unknown>;
+          const linked = references as { nodeIds?: string[]; taskIds?: string[] } | undefined;
+          const payload = {
+            ...rest,
+            ...(result !== undefined && typeof result === 'object' && result !== null && !Array.isArray(result) ? result as Record<string, unknown> : { result }),
+            ...(linked?.nodeIds?.length || linked?.taskIds?.length ? { references: linked } : {}),
+          };
+          return [{ type: 'text', text: JSON.stringify(payload) }, ...images.map(attachment => ({ type: 'image', attachment }))] as ContentBlock[];
         },
       },
       isConcurrencySafe: () => tool.effect === 'read',

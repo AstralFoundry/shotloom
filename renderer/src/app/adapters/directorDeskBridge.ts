@@ -38,6 +38,12 @@ export type DirectorDeskHandlers = {
   onSceneSummary?(summary: DirectorDeskSummary): void;
   /** What the director currently has selected, for card and chat context. */
   onSelectionChanged?(selection: { id: string; name: string; kind: string }): void;
+  /**
+   * The desk could not apply what the host sent (most importantly, the saved scene). The desk
+   * keeps the host's data untouched in that case, so the user must hear about it rather than
+   * see an empty starter scene and assume the work is gone.
+   */
+  onError?(error: string): void;
 };
 
 const messageType = {
@@ -55,6 +61,7 @@ const messageType = {
   sceneSummary: "storyai:director-desk-scene-summary",
   selectionChanged: "storyai:director-desk-selection-changed",
   sceneLoad: "storyai:director-desk-scene-load",
+  error: "storyai:director-desk-error",
 };
 
 /**
@@ -82,7 +89,21 @@ export function directorDeskWorkspaceSrc(instanceId = ''): string {
 }
 
 function post(frame: HTMLIFrameElement | null, message: { type: string; payload?: unknown }) {
-  frame?.contentWindow?.postMessage(message, window.location.origin);
+  frame?.contentWindow?.postMessage(plainMessage(message), window.location.origin);
+}
+
+/**
+ * Only plain data may cross into the iframe.
+ *
+ * Project state lives in the domain store, whose reads hand back deep Proxies, and the
+ * structured clone behind postMessage cannot copy a Proxy: it throws DataCloneError
+ * synchronously. The session message carries the node's saved scene, so that throw meant
+ * the desk never received it and silently opened its starter scene after every reload —
+ * while the node still held the real one on disk. Everything sent here is persisted as
+ * JSON anyway, so a JSON round trip loses nothing.
+ */
+function plainMessage<T>(message: T): T {
+  return JSON.parse(JSON.stringify(message)) as T;
 }
 
 export function sendDirectorDeskSession(
@@ -165,6 +186,10 @@ export function subscribeDirectorDesk(
         name: String(payload.name ?? ""),
         kind: String(payload.kind ?? ""),
       });
+      return;
+    }
+    if (message.type === messageType.error) {
+      handlers.onError?.(String(payload.error ?? ""));
       return;
     }
   };

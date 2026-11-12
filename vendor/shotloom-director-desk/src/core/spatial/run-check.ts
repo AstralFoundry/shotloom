@@ -53,6 +53,13 @@ export async function runSpatialCheck(
     const occluders = new Set(
         project.entities.filter((entity) => entity.kind === 'prop' && !entity.light).map((entity) => entity.id),
     );
+    // Moving and hand-held props are expected to leave the floor; only standing pieces are judged
+    // for floating. Props join the sample only with obstacles enabled, so the check follows that switch.
+    const standingPropIds = request.includeObstacles
+        ? new Set(project.entities
+            .filter((entity) => occluders.has(entity.id) && !entity.path && !entity.handBinding)
+            .map((entity) => entity.id))
+        : undefined;
     // The whole sweep runs under one borrow: sampling repositions the engine on every frame, so
     // a concurrent thumbnail or export would otherwise sample a time this loop just moved to.
     return lease.borrow(async () => {
@@ -81,19 +88,29 @@ export async function runSpatialCheck(
                     ),
                 );
             }
-            const camera = request.includeFraming ? engine.shotCameraFor(cameraId) : undefined;
+            // 相机位置与取景矩阵分开传：机位卡在墙里、主体被挡住这两件事，
+            // 即使关掉"是否在画面内"也值得检查（它们只依赖机位位置和包围盒）。
+            const shotCamera = project.entities.some((entity) => entity.kind === 'camera')
+                ? engine.shotCameraFor(cameraId)
+                : null;
+            const cameraPosition = shotCamera?.position.toArray() as [number, number, number] | undefined;
+            // 每个切镜自己声明要看谁：没有目标时退回"所有人物"，避免把候场演员全报成出画。
+            const targetId = project.entities.find((entity) => entity.id === cameraId)?.camera?.targetId;
             collected.push(
                 ...checkSample(
                     {
                         boxes,
-                        ...(camera
+                        cameraPosition,
+                        ...(request.includeFraming && shotCamera
                             ? {
                                   camera: {
-                                      projectionMatrix: camera.projectionMatrix,
-                                      matrixWorldInverse: camera.matrixWorldInverse,
+                                      projectionMatrix: shotCamera.projectionMatrix,
+                                      matrixWorldInverse: shotCamera.matrixWorldInverse,
                                   },
                               }
                             : {}),
+                        ...(targetId && boxes.some((box) => box.id === targetId) ? { requiredIds: [targetId] } : {}),
+                        ...(standingPropIds ? { standingPropIds } : {}),
                     },
                     time,
                 ),

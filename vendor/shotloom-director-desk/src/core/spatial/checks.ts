@@ -23,7 +23,7 @@ export interface SpatialBox {
 }
 
 export interface SpatialIssue {
-    kind: 'overlap' | 'crowd' | 'outOfFrame' | 'occluded';
+    kind: 'overlap' | 'crowd' | 'outOfFrame' | 'occluded' | 'cameraInSolid' | 'unsupported';
     time: number;
     /** Ids of the entities involved, so the UI can locate them. */
     ids: string[];
@@ -116,6 +116,53 @@ export function checkCrowding(boxes: SpatialBox[], time: number): SpatialIssue[]
     return issues;
 }
 
+/** Bounds closer than this count as resting on each other; boxes are approximate anyway. */
+export const contactTolerance = 0.03;
+
+function touches(a: SpatialBox, b: SpatialBox) {
+    for (const axis of [0, 1, 2] as const) {
+        if (a.min[axis] > b.max[axis] + contactTolerance || a.max[axis] < b.min[axis] - contactTolerance) return false;
+    }
+    return true;
+}
+
+/**
+ * Standing props that rest on nothing.
+ *
+ * Every catalogue prop has its origin at the centre of its base, so `position.y` is where its
+ * underside sits. Read as a centre instead, a wall floats by half its height — and so does the
+ * whole building around it, which is why "touches something" cannot be the test: the floating
+ * walls touch each other. Support therefore spreads only from the ground. Whatever rests on the
+ * floor (or reaches below it) holds things up, so does anything touching a held-up piece, and a
+ * subject that support never reaches is floating. Lintels between walls, lamps on tables and
+ * hats on heads are all held up this way; a bird or a drone is not, and the message says so.
+ */
+export function checkUnsupported(
+    boxes: SpatialBox[],
+    subjects: ReadonlySet<string> | null,
+    time: number,
+): SpatialIssue[] {
+    const held = new Set<string>();
+    const queue = boxes.filter((box) => box.min[1] <= contactTolerance);
+    for (const box of queue) held.add(box.id);
+    for (let index = 0; index < queue.length; index += 1) {
+        for (const box of boxes) {
+            if (held.has(box.id) || !touches(queue[index], box)) continue;
+            held.add(box.id);
+            queue.push(box);
+        }
+    }
+    return boxes
+        .filter((box) => box.kind === 'prop' && !held.has(box.id) && (!subjects || subjects.has(box.id)))
+        .map((box) => ({
+            kind: 'unsupported' as const,
+            time,
+            ids: [box.id],
+            severity: 'warning' as const,
+            message: `「${box.name}」悬空：底面离地 ${box.min[1].toFixed(2)} 米，没有接触地面，也没有接触任何落地的物体`,
+        }));
+}
+
 /**
  * Whether an entity's centre projects inside the camera's frustum.
  *
@@ -145,6 +192,127 @@ export function isInFrame(
     return Math.abs(px / pw) <= 1 && Math.abs(py / pw) <= 1 && pz / pw >= -1 && pz / pw <= 1;
 }
 
+function containsPoint(box: SpatialBox, point: [number, number, number], slack = overlapTolerance) {
+    return (
+        point[0] > box.min[0] + slack &&
+        point[0] < box.max[0] - slack &&
+        point[1] > box.min[1] + slack &&
+        point[1] < box.max[1] - slack &&
+        point[2] > box.min[2] + slack &&
+        point[2] < box.max[2] - slack
+    );
+}
+
+/**
+ * Solids that swallow the camera itself.
+ *
+ * A rendered frame cannot report this: when the near plane sits inside a wall, the wall renders
+ * as one flat slab and the honest reading is "the preview is broken", not "the camera is inside
+ * a wall". The first follow-cam attempt in the warehouse recreation failed exactly this way and
+ * the sweep said nothing, because camera bodies never entered the box list.
+ */
+export function checkCameraInSolid(
+    cameraPosition: [number, number, number] | undefined,
+    boxes: SpatialBox[],
+    time: number,
+): SpatialIssue[] {
+    if (!cameraPosition) return [];
+    const issues: SpatialIssue[] = [];
+    for (const solid of boxes) {
+        if (!solid.occluder || solid.kind === 'camera') continue;
+        if (!containsPoint(solid, cameraPosition)) continue;
+        issues.push({
+            kind: 'cameraInSolid',
+            time,
+            ids: [solid.id],
+            severity: 'error',
+            message: `机位在「${solid.name}」内部，整屏会被这个物体挡住`,
+        });
+    }
+    return issues;
+}
+
+/**
+ * Whether any solid sits between the camera and a subject it is supposed to show.
+ *
+ * Sampled as a segment against each occluder's bounds: the nearest solid that starts before the
+ * subject is the one hiding it, which is what a person would say looking at the frame.
+ */
+export function checkOcclusion(
+    cameraPosition: [number, number, number] | undefined,
+    boxes: SpatialBox[],
+    requiredIds: string[] | undefined,
+    time: number,
+): SpatialIssue[] {
+    if (!cameraPosition) return [];
+    const wanted = new Set(requiredIds ?? []);
+    const subjects = boxes.filter(
+        (box) => (box.kind === 'actor' || box.kind === 'crowd') && (!wanted.size || wanted.has(box.id)),
+    );
+    if (!subjects.length) return [];
+    // A solid the camera sits inside is reported once as `cameraInSolid`; counting it again as an
+    // occluder would bury the real cause under one "who blocks whom" row per subject.
+    const solids = boxes.filter(
+        (box) => box.occluder && box.kind !== 'camera' && !containsPoint(box, cameraPosition),
+    );
+    if (!solids.length) return [];
+    const issues: SpatialIssue[] = [];
+    for (const subject of subjects) {
+        const hit = firstSolidAlong(cameraPosition, center(subject), solids, subject.id);
+        if (!hit) continue;
+        issues.push({
+            kind: 'occluded',
+            time,
+            ids: [subject.id, hit.id],
+            severity: 'warning',
+            message: `${subject.name} 被「${hit.name}」挡住`,
+        });
+    }
+    return issues;
+}
+
+/** Nearest occluder crossing the segment, ignoring hits that land behind the subject. */
+function firstSolidAlong(
+    from: [number, number, number],
+    to: [number, number, number],
+    solids: SpatialBox[],
+    subjectId: string,
+): SpatialBox | null {
+    const direction: [number, number, number] = [to[0] - from[0], to[1] - from[1], to[2] - from[2]];
+    let nearest: { box: SpatialBox; entry: number } | null = null;
+    for (const solid of solids) {
+        if (solid.id === subjectId) continue;
+        // Slab test against the unit segment [0,1]: entry is how far along the ray the solid starts.
+        let entry = 0,
+            exit = 1;
+        let misses = false;
+        for (const axis of [0, 1, 2] as const) {
+            const delta = direction[axis];
+            const low = solid.min[axis] - from[axis],
+                high = solid.max[axis] - from[axis];
+            if (Math.abs(delta) < 1e-9) {
+                if (low > 0 || high < 0) {
+                    misses = true;
+                    break;
+                }
+                continue;
+            }
+            const a = Math.min(low / delta, high / delta),
+                b = Math.max(low / delta, high / delta);
+            entry = Math.max(entry, a);
+            exit = Math.min(exit, b);
+            if (entry > exit) {
+                misses = true;
+                break;
+            }
+        }
+        // entry >= 1 means the solid only starts past the subject: it hides nothing.
+        if (misses || entry >= 1) continue;
+        if (!nearest || entry < nearest.entry) nearest = { box: solid, entry };
+    }
+    return nearest?.box ?? null;
+}
+
 /** Build a comparable box from an entity's world bounds. */
 export function toSpatialBox(
     id: string,
@@ -170,13 +338,22 @@ export interface SampleContext {
         projectionMatrix: { elements: ArrayLike<number> };
         matrixWorldInverse: { elements: ArrayLike<number> };
     };
+    /** Camera eye in world space; enables the inside-a-solid and occlusion checks. */
+    cameraPosition?: [number, number, number];
     /** Entities that must be on screen for this shot to make sense. */
     requiredIds?: string[];
+    /** Standing props (no path, not hand-held) to judge for floating; omitted skips the check. */
+    standingPropIds?: ReadonlySet<string>;
 }
 
 /** Run every check for a single sampled moment. */
 export function checkSample(context: SampleContext, time: number): SpatialIssue[] {
-    const issues = [...checkOverlaps(context.boxes, time), ...checkCrowding(context.boxes, time)];
+    const issues = [
+        ...checkOverlaps(context.boxes, time),
+        ...checkCrowding(context.boxes, time),
+        ...checkCameraInSolid(context.cameraPosition, context.boxes, time),
+        ...(context.standingPropIds ? checkUnsupported(context.boxes, context.standingPropIds, time) : []),
+    ];
     if (context.camera) {
         const wanted = new Set(context.requiredIds ?? []);
         for (const box of context.boxes) {
@@ -192,6 +369,7 @@ export function checkSample(context: SampleContext, time: number): SpatialIssue[
                 });
             }
         }
+        issues.push(...checkOcclusion(context.cameraPosition, context.boxes, context.requiredIds, time));
     }
     return issues;
 }

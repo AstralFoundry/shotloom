@@ -20,12 +20,20 @@ export function makeArchitecture(e: Entity) {
         if (bottom) b(width - thick * 2, thick, d, 0, thick / 2, 0, parent);
     };
     if (e.asset === 'structure-wall' && p.openingWidth > 0) {
-        const side = (w - p.openingWidth) / 2,
-            top = h - p.sill - p.openingHeight;
-        b(side, h, d, -(w + p.openingWidth) / 4);
-        b(side, h, d, (w + p.openingWidth) / 4);
-        if (p.sill > 0) b(p.openingWidth, p.sill, d);
-        if (top > 0) b(p.openingWidth, top, d, 0, h - top / 2);
+        // The opening sits at openingOffset along the wall (0 = centred); the two side panels therefore
+        // have different widths. Doors are rarely centred, and without this every off-centre door was
+        // built as two separate walls — which is what doubled the wall count in long layout sessions.
+        const offset = Math.max(-(w - p.openingWidth) / 2, Math.min((w - p.openingWidth) / 2, p.openingOffset ?? 0));
+        const openingCenter = offset,
+            openingLeft = openingCenter - p.openingWidth / 2,
+            openingRight = openingCenter + p.openingWidth / 2;
+        const leftWidth = openingLeft + w / 2,
+            rightWidth = w / 2 - openingRight;
+        const top = h - p.sill - p.openingHeight;
+        if (leftWidth > 1e-6) b(leftWidth, h, d, -w / 2 + leftWidth / 2);
+        if (rightWidth > 1e-6) b(rightWidth, h, d, w / 2 - rightWidth / 2);
+        if (p.sill > 0) b(p.openingWidth, p.sill, d, openingCenter);
+        if (top > 0) b(p.openingWidth, top, d, openingCenter, h - top / 2);
     } else if (
         ['structure-doorframe', 'structure-door', 'structure-windowframe', 'structure-window'].includes(e.asset)
     ) {

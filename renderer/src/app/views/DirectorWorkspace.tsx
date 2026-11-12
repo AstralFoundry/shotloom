@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
-import { getLocale } from '@/i18n';
+import { getLocale, t } from '@/i18n';
 import { create } from 'zustand';
 import {
   directorDeskAgentProtocol,
@@ -10,6 +10,7 @@ import {
 import { useAppStore } from '../store/appStore';
 import { registerDirectorDeskFrame } from '../../services/directorDeskAgentRuntime';
 import { store, touchProject } from '../../store/projectStore';
+import { showToast } from '../../store/notificationStore';
 import { nodeActions } from '../adapters/canvasAdapter';
 import { recordDiagnosticEvent } from '../../services/diagnosticsService';
 
@@ -104,6 +105,7 @@ export function DirectorWorkspace({ src, onReady, onExit, onOpenAgent }: { src: 
           if (!result) throw new Error('未能创建导出节点');
         }
       },
+      onError: (error) => showToast(t('director.loadFailed', { error }), 'error'),
     });
     return unsubscribe;
   }, [onExit, onOpenAgent, onReady, sendSession, storageKey]);

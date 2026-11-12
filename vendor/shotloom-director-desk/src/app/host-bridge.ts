@@ -2,7 +2,7 @@ import { session } from '@/state/editor-session.ts';
 import { useEditorStore } from '@/state/editor-store.ts';
 import { readSceneDocument } from '@/core/scenes/sequence-project.ts';
 import { ACTIONS, ASPECTS, BUILDS, FRAME_RATES, GENDERS, type Joint, type Vec3 } from '@/core/model.ts';
-import { searchAssets } from '@/core/asset-catalog.ts';
+import { assetGroups, searchAssets } from '@/core/asset-catalog.ts';
 import { CAMERA_PRESETS } from '@/core/cinematography/camera-presets.ts';
 import { exportVideo, type ExportOptions } from '@/core/export.ts';
 import { outputSize } from '@/core/model.ts';
@@ -17,8 +17,13 @@ import * as THREE from 'three';
 import { setEditorTheme } from '@/core/editor/theme-state.ts';
 import { setReferenceBackdrop } from '@/state/reference-backdrop.ts';
 import { setLanguage } from '@/shared/i18n/locale.ts';
+import type { BatchEdit } from '@/state/batch-edits.ts';
+import { ASSET_ORIGIN } from '@/state/batch-edits.ts';
+import { DirectorCommandError, classifyDirectorError } from '@/core/errors.ts';
 
 type Input = Record<string, unknown>;
+/** 一次筛选最多返回的素材条数：够覆盖"建筑构件"这类最大分组，又不至于把回执撑回几十 KB。 */
+const CATALOG_MATCH_LIMIT = 40;
 const origin = window.location.origin;
 const parent = window.parent;
 let connected = false;
@@ -64,6 +69,16 @@ interface CommandSpec {
     kind: CommandKind;
     /** 参数名 → 说明（含类型与可选值）。没有参数时省略。 */
     args?: Record<string, string>;
+    /**
+     * 编辑器内部命令：不进默认 snapshot，`director_desk_command` 也会拒绝它。
+     *
+     * 分档不是为了砍能力，而是收口。实测五次会话：batch 上线前模型把 51 次调用撒在细粒度
+     * 命令上（24 次逐轴设坐标、15 次先选中再改），上线后细粒度调用降到 0。这些命令仍然
+     * 服务界面和 undo 历史，只是不该再作为模型的写入口——一次选错路就是一整轮返工。
+     */
+    agentHidden?: boolean;
+    /** 被隐藏时告诉模型该改用哪条路径；只有 agentHidden 的写命令需要。 */
+    prefer?: string;
 }
 
 const commandSpecs: Record<string, CommandSpec> = {
@@ -81,6 +96,23 @@ const commandSpecs: Record<string, CommandSpec> = {
         timesSec: 'number[]，必填，1 至 8 个场景时长内的秒数；返回逐格标秒数的拼图，用于检查时间线连续性',
         cameraId: 'string，可选，默认当前预览机位；program 为剪辑合成视角',
     } },
+    // 俯视平面图：与俯视的布局参考图逐区域对比，不改工程。
+    render_plan: { kind: 'view', args: {
+        cutHeight: 'number，可选，剖切高度（米），默认 1.5；高于它的顶板、横梁、过梁被切掉，门洞显示为缺口',
+        area: '{ minX, maxX, minZ, maxZ }，可选，只看这一块（米）；默认框住整套布景、人物路径和机位',
+        seconds: 'number，可选，默认当前播放头；决定人物和跟随机位画在哪里',
+        size: '640 | 1024 | 1536，可选，长边像素，默认 1024',
+    } },
+    // 与参考图做确定性比对：给出"哪里像、哪里不像"，不构成画面验收。
+    compare_reference: { kind: 'view', args: {
+        referenceUrl: 'string，可选，参考图地址；省略时用宿主接入的参考图',
+        mode: 'plan | frame，可选，默认 plan：平面图与平面参考比；frame 用指定机位的画面比',
+        seconds: 'number，可选，默认当前播放头',
+        cameraId: 'string，可选，mode=frame 时的机位，默认当前预览机位；program 为剪辑合成视角',
+        size: '640 | 1024 | 1536，可选，默认 1024',
+        cutHeight: 'number，可选，mode=plan 时的剖切高度，默认 1.5',
+        area: '{ minX, maxX, minZ, maxZ }，可选，mode=plan 时只比这一块（米）',
+    } },
     inspect_model: { kind: 'view', args: {
         id: 'string，可选，默认当前选中的建筑或道具 ID；必须来自 snapshot.document.entities',
         views: "string[]，可选，1 至 6 个视角：front、back、left、right、top、three_quarter；默认 front/left/top/three_quarter",
@@ -88,46 +120,48 @@ const commandSpecs: Record<string, CommandSpec> = {
 
     // 选择、播放头与视口：不影响工程文档
     select_entity: { kind: 'view', args: { id: 'string，实体 ID' } },
-    select_scene: { kind: 'view' },
+    select_scene: { kind: 'view', agentHidden: true },
     seek: { kind: 'view', args: { seconds: 'number，项目时间（秒）' } },
-    toggle_play: { kind: 'view' },
-    step_frame: { kind: 'view', args: { direction: '1 或 -1' } },
-    set_view: { kind: 'view', args: { view: "'stage' | 'split' | 'shot'" } },
-    set_preview: { kind: 'view', args: { cameraId: 'string，机位 ID' } },
-    set_transform_mode: { kind: 'view', args: { mode: "'translate' | 'rotate' | 'scale'" } },
-    set_inspector_tab: { kind: 'view', args: { tab: 'string，检查器页签' } },
-    toggle_grid: { kind: 'view' },
-    view_home: { kind: 'view' },
-    view_top: { kind: 'view' },
-    focus_selected: { kind: 'view' },
-    set_loop: { kind: 'view', args: { value: 'boolean' } },
-    set_joint_nodes_visible: { kind: 'view', args: { visible: 'boolean' } },
+    toggle_play: { kind: 'view', agentHidden: true },
+    step_frame: { kind: 'view', agentHidden: true, args: { direction: '1 或 -1' } },
+    set_view: { kind: 'view', agentHidden: true, args: { view: "'stage' | 'split' | 'shot'" } },
+    set_preview: { kind: 'view', agentHidden: true, args: { cameraId: 'string，机位 ID' } },
+    set_transform_mode: { kind: 'view', agentHidden: true, args: { mode: "'translate' | 'rotate' | 'scale'" } },
+    set_inspector_tab: { kind: 'view', agentHidden: true, args: { tab: 'string，检查器页签' } },
+    toggle_grid: { kind: 'view', agentHidden: true },
+    view_home: { kind: 'view', agentHidden: true },
+    view_top: { kind: 'view', agentHidden: true },
+    focus_selected: { kind: 'view', agentHidden: true },
+    set_loop: { kind: 'view', agentHidden: true, args: { value: 'boolean' } },
+    set_joint_nodes_visible: { kind: 'view', agentHidden: true, args: { visible: 'boolean' } },
     select_joint: { kind: 'view', args: { joint: 'string，关节名' } },
-    select_clip: { kind: 'view', args: { id: 'string；传 null 取消选择' } },
-    select_path_section: { kind: 'view', args: { entityId: 'string', index: 'number' } },
-    select_path_point: { kind: 'view', args: { index: 'number' } },
+    select_clip: { kind: 'view', agentHidden: true, args: { id: 'string；传 null 取消选择' } },
+    select_path_section: { kind: 'view', agentHidden: true, args: { entityId: 'string', index: 'number' } },
+    select_path_point: { kind: 'view', agentHidden: true, args: { index: 'number' } },
 
     // 实体与场景编辑
-    add_asset: { kind: 'edit', args: { assetId: 'string，取自 catalog.assets[].id' } },
-    add_camera: { kind: 'edit', args: { fromView: 'boolean，true 表示从当前视角生成机位' } },
-    rename_entity: { kind: 'edit', args: { name: 'string' } },
-    duplicate_entity: { kind: 'edit' },
-    delete_entity: { kind: 'edit', args: { replacementCamera: 'string，可选；删除机位时的替补机位 ID' } },
-    ground_entity: { kind: 'edit' },
-    set_entity_color: { kind: 'edit', args: { color: 'string，颜色值' } },
-    set_entity_flag: { kind: 'edit', args: { key: "'visible' | 'locked'", value: 'boolean' } },
-    set_position_axis: { kind: 'edit', args: { axis: '0 | 1 | 2', value: 'number' } },
-    set_rotation_axis: { kind: 'edit', args: { axis: '0 | 1 | 2', degrees: 'number' } },
-    set_scale_axis: { kind: 'edit', args: { axis: '0 | 1 | 2', value: 'number' } },
-    set_height: { kind: 'edit', args: { value: 'number' } },
-    set_entity_option: { kind: 'edit', args: { key: "'build' | 'gender'", value: 'string' } },
-    set_camera_field: { kind: 'edit', args: { patch: 'object，机位字段补丁，键名见 snapshot.document' } },
-    set_light_field: { kind: 'edit', args: { patch: 'object，灯光字段补丁' } },
-    set_lighting_field: { kind: 'edit', args: { patch: 'object，环境光字段补丁' } },
-    update_room: { kind: 'edit', args: { patch: 'object，房间字段补丁' } },
-    update_project_settings: { kind: 'edit', args: { patch: 'object，工程设置补丁' } },
-    apply_framing: { kind: 'edit', args: { name: 'string，构图预设名' } },
-    apply_camera_preset: { kind: 'edit', args: { id: 'string，取自 catalog.cameraPresets[].id' } },
+    add_asset: { kind: 'edit', args: { assetId: 'string，取自 catalog.assets[].id；回执含新实体 entityId、position 与实测 bounds' } },
+    add_camera: { kind: 'edit', agentHidden: true, prefer: 'batch_edit 的 add_camera（可同时指定名称与位置）', args: { fromView: 'boolean，true 表示从当前视角生成机位' } },
+    rename_entity: { kind: 'edit', agentHidden: true, prefer: 'batch_edit 的 set_entity.name', args: { name: 'string' } },
+    duplicate_entity: { kind: 'edit', agentHidden: true, prefer: 'batch_edit 的 duplicate_entity' },
+    delete_entity: { kind: 'edit', agentHidden: true, prefer: 'batch_edit 的 delete_entity（会一并清理引用）', args: { replacementCamera: 'string，可选；删除机位时的替补机位 ID' } },
+    ground_entity: { kind: 'edit', agentHidden: true, prefer: 'batch_edit 的 set_entity.position（把 y 设成落地高度）' },
+    set_entity_color: { kind: 'edit', agentHidden: true, prefer: 'batch_edit 的 set_entity.color', args: { color: 'string，颜色值' } },
+    set_entity_flag: { kind: 'edit', agentHidden: true, prefer: 'batch_edit 的 set_entity.visible', args: { key: "'visible' | 'locked'", value: 'boolean' } },
+    // 逐轴命令只服务编辑器内的拖动手感；Agent 用 batch_edit 的 set_entity 向量补丁（position/rotationDegrees/scale）。
+    set_position_axis: { kind: 'edit', agentHidden: true, prefer: 'batch_edit 的 set_entity.position（向量）', args: { axis: '0 | 1 | 2（整轴值；Agent 请改用 batch_edit set_entity.position）', value: 'number' } },
+    set_rotation_axis: { kind: 'edit', agentHidden: true, prefer: 'batch_edit 的 set_entity.rotationDegrees（向量）', args: { axis: '0 | 1 | 2（整轴值；Agent 请改用 batch_edit set_entity.rotationDegrees）', degrees: 'number' } },
+    set_scale_axis: { kind: 'edit', agentHidden: true, prefer: 'batch_edit 的 set_entity.scale（向量）', args: { axis: '0 | 1 | 2（整轴值；Agent 请改用 batch_edit set_entity.scale）', value: 'number' } },
+    set_height: { kind: 'edit', agentHidden: true, prefer: 'batch_edit 的 set_entity.height', args: { value: 'number' } },
+    set_entity_option: { kind: 'edit', agentHidden: true, prefer: 'batch_edit 的 set_entity.build / gender', args: { key: "'build' | 'gender'", value: 'string' } },
+    // patch 类命令的合法键名一律来自 catalog.patchFields，不能从现有对象反推。
+    set_camera_field: { kind: 'edit', agentHidden: true, prefer: 'batch_edit 的 set_camera', args: { patch: 'object，机位字段补丁；合法键名与类型见 catalog.patchFields.set_camera_field' } },
+    set_light_field: { kind: 'edit', agentHidden: true, prefer: 'batch_edit 的 set_light', args: { patch: 'object，灯光字段补丁；合法键名见 catalog.patchFields.set_light_field' } },
+    set_lighting_field: { kind: 'edit', agentHidden: true, prefer: 'batch_edit 的 set_lighting', args: { patch: 'object，环境光字段补丁；合法键名见 catalog.patchFields.set_lighting_field' } },
+    update_room: { kind: 'edit', agentHidden: true, prefer: 'batch_edit 的 set_room', args: { patch: 'object，房间字段补丁；合法键名见 catalog.patchFields.update_room' } },
+    update_project_settings: { kind: 'edit', agentHidden: true, prefer: 'batch_edit 的 set_project', args: { patch: 'object，工程设置补丁；合法键名见 catalog.patchFields.update_project_settings' } },
+    apply_framing: { kind: 'edit', args: { name: 'string，构图预设名', cameraId: 'string，可选机位 ID；省略则用当前选中的机位' } },
+    apply_camera_preset: { kind: 'edit', args: { id: 'string，取自 catalog.cameraPresets[].id', cameraId: 'string，可选机位 ID；省略则用当前选中的机位' } },
 
     // 戏段时间线
     add_cut: { kind: 'edit' },
@@ -135,44 +169,61 @@ const commandSpecs: Record<string, CommandSpec> = {
     set_duration: { kind: 'edit', args: { seconds: 'number' } },
     // 把时长拉到现有内容末尾：set_duration 缩短后不会自动补回，超出部分会静默不可达。
     extend_duration: { kind: 'edit' },
-    add_action: { kind: 'edit', args: { action: 'string，取自 catalog.actions' } },
-    set_clip_field: { kind: 'edit', args: { id: 'string，片段 ID', patch: 'object，片段字段补丁' } },
-    remove_clip: { kind: 'edit', args: { id: 'string，片段 ID' } },
+    add_action: { kind: 'edit', agentHidden: true, prefer: 'batch_edit 的 add_action', args: { action: 'string，取自 catalog.actions' } },
+    // 声明式路径：时间点由调用方给出，不依赖当前选区和播放头。
+    set_entity_path: { kind: 'edit', args: {
+        entityId: 'string，实体 ID；跟随机位需先把 camera.mode 设为 free',
+        points: '[{ position: [x,y,z], timeSec: number }]，必填，至少 2 个；timeSec 严格递增',
+        smooth: 'boolean，可选，默认 true',
+    } },
+    // 声明式运镜：用 dolly / truck / crane / orbit / hold 描述，编译成机位关键帧。
+    set_campath: { kind: 'edit', args: {
+        source: 'string，必填，campath DSL 文本：首行 campath "名称"，然后 look target "id" | look at x y z | look ahead，from x y z [fov n]，再接若干段 move to / dolly in|out / truck left|right / crane up|down / orbit left|right / hold，每段时长写「3s」',
+        cameraId: 'string，可选机位 ID；省略则用当前选中的机位',
+        atSec: 'number，可选，起始秒，默认当前播放头',
+    } },
+    batch_edit: { kind: 'edit', args: {
+        expectedRevision: 'number，必填，取自最新 snapshot.revision；不匹配时整批拒绝，回执带 currentRevision 可直接重试',
+        edits: 'BatchEdit[]，必填，非空；建议每批 1–8 项，超过 8 项仍可提交，没有硬性数量上限。支持 set_entity、set_camera、set_light、set_lighting、set_room、set_project、set_path、add_asset、add_wall、add_room、add_camera、add_cut、add_action、set_clip、remove_clip、delete_entity、duplicate_entity；具体字段见 director_desk_batch 工具描述',
+        validateOnly: 'boolean，可选，默认 false。为 true 时只按真实规则校验、不写入任何东西，回执给出每一处问题；改完再用同一批、validateOnly:false 提交',
+    } },
+    set_clip_field: { kind: 'edit', agentHidden: true, prefer: 'batch_edit 的 set_clip', args: { id: 'string，片段 ID', patch: 'object，片段字段补丁' } },
+    remove_clip: { kind: 'edit', agentHidden: true, prefer: 'batch_edit 的 remove_clip', args: { id: 'string，片段 ID' } },
     remove_selected_path_section: { kind: 'edit' },
     split_clip: { kind: 'edit' },
-    set_action_blend: { kind: 'edit', args: { value: 'number' } },
-    set_foot_contact: { kind: 'edit', args: { value: 'boolean' } },
+    set_action_blend: { kind: 'edit', agentHidden: true, prefer: 'batch_edit 的 set_entity（无直接等价时改用 add_action 重新安排）', args: { value: 'number' } },
+    set_foot_contact: { kind: 'edit', agentHidden: true, prefer: 'batch_edit 的 set_entity 配合 position', args: { value: 'boolean' } },
     set_joint_angle: { kind: 'edit', args: { joint: 'string，关节名', axis: '0 | 1 | 2', degrees: 'number' } },
     reset_pose: { kind: 'edit' },
     mirror_pose: { kind: 'edit' },
     record_pose_key: { kind: 'edit' },
-    seek_pose_key: { kind: 'view', args: { index: 'number' } },
+    seek_pose_key: { kind: 'view', agentHidden: true, args: { index: 'number' } },
     delete_pose_key: { kind: 'edit', args: { index: 'number' } },
 
     // 路径
-    start_path: { kind: 'edit' },
-    set_path_draw_mode: { kind: 'view', args: { mode: "'points' | 'freehand'" } },
-    set_path_surface_mode: { kind: 'view', args: { mode: "'surface' | 'ground'" } },
-    set_path_draw_duration: { kind: 'edit', args: { seconds: 'number' } },
-    add_path_point: { kind: 'edit', args: { position: '[x, y, z] 三个数值' } },
-    add_freehand_stroke: { kind: 'edit', args: { points: '[[x, y, z], ...] 坐标数组' } },
-    finish_path: { kind: 'edit' },
+    start_path: { kind: 'edit', agentHidden: true, prefer: 'batch_edit 的 set_path（不依赖选区与播放头）' },
+    set_path_draw_mode: { kind: 'view', agentHidden: true, args: { mode: "'points' | 'freehand'" } },
+    set_path_surface_mode: { kind: 'view', agentHidden: true, args: { mode: "'surface' | 'ground'" } },
+    set_path_draw_duration: { kind: 'edit', agentHidden: true, prefer: 'batch_edit 的 set_path（时间点由你给出）', args: { seconds: 'number' } },
+    add_path_point: { kind: 'edit', agentHidden: true, prefer: 'batch_edit 的 set_path（一次给出全部关键时点）', args: { position: '[x, y, z] 三个数值' } },
+    add_freehand_stroke: { kind: 'edit', agentHidden: true, prefer: 'batch_edit 的 set_path', args: { points: '[[x, y, z], ...] 坐标数组' } },
+    finish_path: { kind: 'edit', agentHidden: true, prefer: 'batch_edit 的 set_path' },
     cancel_path: { kind: 'edit' },
-    clear_path: { kind: 'edit' },
-    append_path_point: { kind: 'edit' },
-    remove_path_point: { kind: 'edit', args: { index: 'number' } },
-    hold_path_point: { kind: 'edit' },
-    set_path_point_time: { kind: 'edit', args: { index: 'number', seconds: 'number' } },
-    set_path_point_position: { kind: 'edit', args: { index: 'number', axis: '0 | 1 | 2', value: 'number' } },
+    clear_path: { kind: 'edit', agentHidden: true, prefer: 'batch_edit 的 set_path（用新路径覆盖）' },
+    append_path_point: { kind: 'edit', agentHidden: true, prefer: 'batch_edit 的 set_path' },
+    remove_path_point: { kind: 'edit', agentHidden: true, prefer: 'batch_edit 的 set_path', args: { index: 'number' } },
+    hold_path_point: { kind: 'edit', agentHidden: true, prefer: 'batch_edit 的 set_path' },
+    set_path_point_time: { kind: 'edit', agentHidden: true, prefer: 'batch_edit 的 set_path', args: { index: 'number', seconds: 'number' } },
+    set_path_point_position: { kind: 'edit', agentHidden: true, prefer: 'batch_edit 的 set_path', args: { index: 'number', axis: '0 | 1 | 2', value: 'number' } },
 
     // 关键帧与编辑辅助：只改工程或视口呈现，不产出文件
-    record_position_key: { kind: 'edit' },
-    record_focal_key: { kind: 'edit' },
+    record_position_key: { kind: 'edit', agentHidden: true, prefer: 'batch_edit 的 set_path（显式关键时点）' },
+    record_focal_key: { kind: 'edit', agentHidden: true, prefer: 'set_campath（按节拍写焦距），或 batch_edit 的 set_camera.focalKeys' },
     remove_focal_key: { kind: 'edit', args: { index: 'number，焦距关键帧序号' } },
-    set_placement_snap: { kind: 'view', args: { step: 'number，米；0 关闭网格吸附。取自 catalog.snapSteps' } },
-    set_object_snap: { kind: 'view', args: { enabled: 'boolean，拖动道具时贴合附近表面与边界' } },
-    set_preview_quality: { kind: 'view', args: { quality: "'full' | 'draft'，取自 catalog.previewQualities" } },
-    set_label_mode: { kind: 'view', args: { mode: "'off' | 'selected' | 'all'，取自 catalog.labelModes" } },
+    set_placement_snap: { kind: 'view', agentHidden: true, args: { step: 'number，米；0 关闭网格吸附。取自 catalog.snapSteps' } },
+    set_object_snap: { kind: 'view', agentHidden: true, args: { enabled: 'boolean，拖动道具时贴合附近表面与边界' } },
+    set_preview_quality: { kind: 'view', agentHidden: true, args: { quality: "'full' | 'draft'，取自 catalog.previewQualities" } },
+    set_label_mode: { kind: 'view', agentHidden: true, args: { mode: "'off' | 'selected' | 'all'，取自 catalog.labelModes" } },
 
     // 镜头与空间核验
     export_shot: { kind: 'export', args: { index: 'number，切镜序号，从 0 开始；取自 scene_summary 或 document.cuts' } },
@@ -201,7 +252,7 @@ const commandSpecs: Record<string, CommandSpec> = {
     import_scene: { kind: 'edit', args: { document: 'object，由 export_scene 产出的完整文档', label: 'string，可选操作名' } },
     scene_summary: { kind: 'view' },
     // 只改界面呈现，不动工程文档；与 set_view 同类。
-    set_theme: { kind: 'view', args: { theme: "'light' | 'dark'" } },
+    set_theme: { kind: 'view', agentHidden: true, args: { theme: "'light' | 'dark'" } },
     export_video_start: { kind: 'export', args: {
         size: '640 | 1280 | 1920，默认 1280',
         format: "'mp4' | 'webm'，默认 mp4",
@@ -255,6 +306,27 @@ const commands: Record<string, (input: Input) => unknown> = {
         timesSec: Array.isArray(i.timesSec) ? i.timesSec.map(number) : [],
         ...(i.cameraId === undefined ? {} : { cameraId: string(i.cameraId) }),
     }),
+    render_plan: i => {
+        const area = i.area && typeof i.area === 'object' ? i.area as Input : undefined;
+        return session.renderPlan({
+            ...(i.cutHeight === undefined ? {} : { cutHeight: number(i.cutHeight) }),
+            ...(i.seconds === undefined ? {} : { seconds: number(i.seconds) }),
+            ...(i.size === undefined ? {} : { size: number(i.size) }),
+            ...(area ? { area: { minX: number(area.minX), maxX: number(area.maxX), minZ: number(area.minZ), maxZ: number(area.maxZ) } } : {}),
+        });
+    },
+    compare_reference: i => {
+        const area = i.area && typeof i.area === 'object' ? i.area as Input : undefined;
+        return session.compareReference({
+            ...(i.referenceUrl === undefined ? {} : { referenceUrl: string(i.referenceUrl) }),
+            ...(i.mode === 'frame' ? { mode: 'frame' as const } : {}),
+            ...(i.seconds === undefined ? {} : { seconds: number(i.seconds) }),
+            ...(i.cameraId === undefined ? {} : { cameraId: string(i.cameraId) }),
+            ...(i.size === undefined ? {} : { size: number(i.size) }),
+            ...(i.cutHeight === undefined ? {} : { cutHeight: number(i.cutHeight) }),
+            ...(area ? { area: { minX: number(area.minX), maxX: number(area.maxX), minZ: number(area.minZ), maxZ: number(area.maxZ) } } : {}),
+        });
+    },
     inspect_model: i => session.inspectModel({
         ...(i.id === undefined ? {} : { id: string(i.id) }),
         ...(i.views === undefined ? {} : { views: i.views as string[] }),
@@ -286,13 +358,23 @@ const commands: Record<string, (input: Input) => unknown> = {
     set_lighting_field: i => session.setLightingField(i.patch as Parameters<typeof session.setLightingField>[0]),
     update_room: i => session.updateRoom(i.patch as Parameters<typeof session.updateRoom>[0]),
     update_project_settings: i => session.updateProjectSettings(i.patch as Parameters<typeof session.updateProjectSettings>[0]),
-    apply_framing: i => session.applyFraming(i.name as Parameters<typeof session.applyFraming>[0]),
-    apply_camera_preset: i => session.applyCameraPreset(i.id as Parameters<typeof session.applyCameraPreset>[0]),
+    apply_framing: i => session.applyFraming(i.name as Parameters<typeof session.applyFraming>[0], i.cameraId ? string(i.cameraId) : undefined),
+    apply_camera_preset: i => session.applyCameraPreset(i.id as Parameters<typeof session.applyCameraPreset>[0], i.cameraId ? string(i.cameraId) : undefined),
     add_cut: () => session.addCutAtPlayhead(),
     remove_cut: i => session.removeCut(number(i.index)),
     set_duration: i => session.setDuration(number(i.seconds)),
     extend_duration: () => session.extendDuration(),
     add_action: i => session.addAction(string(i.action)),
+    set_entity_path: i => session.setEntityPath({
+        entityId: string(i.entityId),
+        points: Array.isArray(i.points) ? i.points as { position: unknown; timeSec: unknown }[] : [],
+        ...(i.smooth === undefined ? {} : { smooth: i.smooth === true }),
+    }),
+    set_campath: i => session.applyCampath(string(i.source), {
+        ...(i.cameraId === undefined ? {} : { cameraId: string(i.cameraId) }),
+        ...(i.atSec === undefined ? {} : { atSec: number(i.atSec) }),
+    }),
+    batch_edit: i => session.applyBatch(i.edits as BatchEdit[], number(i.expectedRevision), i.validateOnly === true),
     set_clip_field: i => session.setClipField(string(i.id), i.patch as Parameters<typeof session.setClipField>[1]),
     remove_clip: i => session.removeClip(string(i.id)),
     select_clip: i => session.selectClip(i.id == null ? null : string(i.id)),
@@ -360,7 +442,16 @@ const commands: Record<string, (input: Input) => unknown> = {
     }),
     history_status: () => ({ undo: session.history.undoLabel, redo: session.history.redoLabel }),
     export_scene: () => session.exportSceneDocument(),
-    import_scene: i => session.importSceneDocument(i.document, string(i.label) || '载入场景'),
+    // 导入失败必须说明原因：静默返回 false 会让调用方拿着同一份几十 KB 的文档盲重试。
+    import_scene: i => {
+        const applied = session.importSceneDocument(i.document, string(i.label) || '载入场景');
+        if (!applied) throw session.lastSceneLoadError ?? new DirectorCommandError('无法载入场景', {
+            hint: '先用 export_scene 取当前工程的真实结构再对照修改',
+        });
+        // 整份导入一次摆下几十件物体；把悬空的直接列出来，不等用户在画面里发现。
+        const warnings = session.groundingWarnings();
+        return { applied: true, ...(warnings.length ? { warnings } : {}) };
+    },
     scene_summary: () => session.sceneSummary(),
     set_theme: i => session.setTheme(i.theme === 'light' ? 'light' : 'dark', false),
     export_project: i => {
@@ -389,6 +480,80 @@ function editScenes(label: string, edit: (document: ReturnType<typeof session.hi
     const document = session.history.document();
     edit(document);
     return session.replaceSceneDocument(document, label);
+}
+
+/**
+ * 命令表的静态契约与版本号。
+ *
+ * 这张表只在构建时变化，却出现在每次 snapshot 里（约 8.6KB，占小场景快照的八成）。
+ * 宿主带上一次的 `commandsVersion`，未变时回执只给版本号，省掉整块静态文本。
+ */
+/**
+ * 命令表的两档视图。
+ *
+ * `descriptors` 是全部 106 条，服务编辑器与 `includeAll`；`agentDescriptors` 只留模型该用的那些，
+ * 默认快照回的就是它。隐藏项仍然能执行（界面、undo 历史、脚本都在用），只是不再出现在
+ * 默认能力面里——模型看到 106 条就会去挑最顺手的，而不是最稳的那条。
+ */
+const descriptors = Object.keys(commands).map(name => {
+    const spec = commandSpecs[name];
+    if (!spec) throw Error(`导演台命令缺少参数契约: ${name}`);
+    return spec.args ? { name, kind: spec.kind, args: spec.args } : { name, kind: spec.kind };
+});
+const agentDescriptors = Object.keys(commands)
+    .filter(name => !commandSpecs[name]?.agentHidden)
+    .map(name => descriptors.find(entry => entry.name === name)!);
+const commandsVersion = (() => {
+    const text = JSON.stringify(descriptors);
+    let hash = 0x811c9dc5;
+    for (let index = 0; index < text.length; index++) {
+        hash ^= text.charCodeAt(index);
+        hash = Math.imul(hash, 0x01000193) >>> 0;
+    }
+    return hash.toString(36);
+})();
+
+/**
+ * 大场景下完整文档会涨到几十 KB，而 Agent 多数时候只需要改一两个实体。
+ * `summary` 保留判断走位、构图和时长所需的字段，丢掉姿态、参数和模型细节。
+ */
+function summarizeDocument(document: ReturnType<typeof session.history.document>, only: Set<string> | null) {
+    return {
+        ...document,
+        scenes: document.scenes.map(scene => ({
+            ...scene,
+            state: {
+                ...scene.state,
+                entities: scene.state.entities
+                    .filter(entity => !only || only.has(entity.id))
+                    .map(entity => ({
+                        id: entity.id, kind: entity.kind, name: entity.name, asset: entity.asset,
+                        position: entity.position, rotation: entity.rotation, scale: entity.scale,
+                        visible: entity.visible, locked: entity.locked, height: entity.height,
+                        path: entity.path
+                            ? { points: entity.path.points.length, from: entity.path.points[0].time, to: entity.path.points[entity.path.points.length - 1].time }
+                            : null,
+                        clips: entity.clips.map(clip => ({ id: clip.id, action: clip.action, start: clip.start, end: clip.end, speed: clip.speed })),
+                        camera: entity.camera
+                            ? { mode: entity.camera.mode, aim: entity.camera.aim, focal: entity.camera.focal, targetId: entity.camera.targetId }
+                            : null,
+                        light: entity.light ? true : null,
+                    })),
+            },
+        })),
+    };
+}
+
+/** 完整文档，但只保留指定实体的明细；切镜、房间和灯光保持原样。 */
+function scopeDocument(document: ReturnType<typeof session.history.document>, only: Set<string> | null) {
+    if (!only) return document;
+    return {
+        ...document,
+        scenes: document.scenes.map(scene => ({
+            ...scene,
+            state: { ...scene.state, entities: scene.state.entities.filter(entity => only.has(entity.id)) },
+        })),
+    };
 }
 
 function startVideoExport(input: Input) {
@@ -478,7 +643,6 @@ export function initializeHostBridge() {
         const message = event.data as { type: string; payload?: Input };
         const payload = message.payload ?? {};
         if (message.type === 'storyai:director-desk-session') {
-            connected = true;
             setLanguage(payload.locale === 'en-US' ? 'en' : 'zh-CN');
             // The host decides how the desk is embedded, so its theme wins over the URL and
             // over whatever this browser stored from a previous standalone run.
@@ -486,6 +650,10 @@ export function initializeHostBridge() {
             if (theme === 'light' || theme === 'dark') setEditorTheme(theme, false);
             try {
                 loadProject(payload.project);
+                // Bound only once the host's document is the one on screen. A desk that failed
+                // to load still shows its starter scene, and writing that back would replace
+                // the scene the host saved; staying unbound keeps the saved scene recoverable.
+                connected = true;
                 // A fresh canvas node owns its own starter document from the first opening,
                 // even if the user closes it without making an edit.
                 if (!payload.project) send('project-changed', { project: session.history.document() });
@@ -503,8 +671,14 @@ export function initializeHostBridge() {
         if (message.type === 'storyai:director-desk-scene-load') {
             // Hand-over between the full-page workspace and a canvas node.
             const applied = session.importSceneDocument(payload.document, string(payload.label) || '载入场景');
-            send('scene-loaded', { ok: applied });
+            const failure = session.lastSceneLoadError;
+            send('scene-loaded', {
+                ok: applied,
+                ...(applied || !failure ? {} : { error: failure.message, ...(failure.hint ? { hint: failure.hint } : {}) }),
+            });
             if (applied) {
+                // The host handed over this document explicitly, so it is now the one on screen.
+                connected = true;
                 window.clearTimeout(saveTimer);
                 send('project-changed', { project: session.history.document() });
             }
@@ -517,21 +691,76 @@ export function initializeHostBridge() {
         if (message.type === 'storyai:director-desk-agent-request') {
             const requestId = string(payload.requestId);
             try {
+                // Embedded, the desk edits the host's document. Before that document has loaded,
+                // the scene here is the built-in starter: the Agent would read an empty stage,
+                // and its first edit would be written back over the node's real saved scene.
+                // This is exactly how earlier sessions lost their work after a reload.
+                if (parent !== window && !connected && payload.operation !== 'catalog')
+                    throw new DirectorCommandError('导演台还没有载入当前节点保存的场景，本次操作未执行', {
+                        hint: '稍等片刻后重试；如果一直如此，关闭并重新打开导演台。不要在默认场景上继续搭建，否则会覆盖节点里保存的场景。',
+                    });
                 let result: unknown;
                 if (payload.operation === 'snapshot') {
                     const state = useEditorStore.getState();
-                    // commands 带参数契约与 kind：宿主 Agent 不必猜参数名，也能按副作用分级。
-                    const descriptors = Object.keys(commands).map(name => {
-                        const spec = commandSpecs[name];
-                        if (!spec) throw Error(`导演台命令缺少参数契约: ${name}`);
-                        return spec.args ? { name, kind: spec.kind, args: spec.args } : { name, kind: spec.kind };
-                    });
-                    result = { document: session.history.document(), selected: state.selected, time: state.time, view: state.view, revision: state.revision, commands: descriptors };
+                    const args = (payload.args && typeof payload.args === 'object' && !Array.isArray(payload.args) ? payload.args : {}) as Input;
+                    const detail = args.detail === 'summary' ? 'summary' : 'full';
+                    const document = session.history.document();
+                    const requested = Array.isArray(args.entityIds)
+                        ? new Set(args.entityIds.map(string).filter(Boolean))
+                        : null;
+                    // 命令表只随代码变化：调用方带回上次版本号时不必再收静态契约。
+                    // 默认只给 Agent 档；includeAll 时才连同界面内部命令一起返回。
+                    const knownVersion = string(args.commandsVersion);
+                    const unchanged = Boolean(knownVersion) && knownVersion === commandsVersion;
+                    const all = args.includeAll === true;
+                    const table = all ? descriptors : agentDescriptors;
+                    result = {
+                        document: detail === 'summary' ? summarizeDocument(document, requested) : scopeDocument(document, requested),
+                        selected: state.selected, time: state.time, view: state.view,
+                        revision: state.revision, commandsVersion,
+                        hiddenCommands: all ? 0 : descriptors.length - agentDescriptors.length,
+                        ...(unchanged ? { commandsUnchanged: true } : { commands: table }),
+                    };
                 } else if (payload.operation === 'catalog') {
                     // 这里的每一项都是封闭枚举或真实 ID，Agent 只能从这里取合法值：
                     // 少了任何一项，对应命令就只能靠猜参数（例如 apply_framing 的中文构图名）。
+                    const args = (payload.args && typeof payload.args === 'object' && !Array.isArray(payload.args) ? payload.args : {}) as Input;
+                    const query = string(args.query).trim();
+                    const group = string(args.group).trim();
+                    const filtered = Boolean(query || group);
+                    const matches = filtered ? searchAssets(query, group || '全部').map(asset => ({
+                        id: asset.id, name: asset.name, kind: asset.kind, group: asset.group,
+                        // 默认尺寸和原点约定放在这里，模型不必先 add_asset 再 inspect_model 量一遍。
+                        defaultSize: asset.parameters && 'width' in asset.parameters && 'height' in asset.parameters
+                            ? {
+                                width: asset.parameters.width.default,
+                                height: asset.parameters.height.default,
+                                depth: asset.parameters.depth?.default ?? null,
+                            }
+                            : null,
+                        // 可直接按真实尺寸设置的参数名（batch 的 parameters），没有的素材只能用 scale。
+                        ...(asset.parameters ? { params: Object.keys(asset.parameters) } : {}),
+                    })) : [];
+                    // 全量素材序列化后接近 28 KB，而一次会话通常只用十几条：默认只给分组概览。
+                    const shown = matches.slice(0, CATALOG_MATCH_LIMIT);
                     result = {
-                        assets: searchAssets('', '全部').map(asset => ({ id: asset.id, name: asset.name, kind: asset.kind })),
+                        ...(filtered
+                            ? {
+                                assets: shown,
+                                matched: matches.length,
+                                ...(matches.length > shown.length ? { truncated: matches.length - shown.length } : {}),
+                                ...(matches.length ? {} : { hint: `没有匹配的素材；分组有：${assetGroups().map(entry => entry.group).join('、')}` }),
+                            }
+                            : {
+                                assetTotal: assetGroups().reduce((total, entry) => total + entry.count, 0),
+                                groups: assetGroups(),
+                                hint: 'assets 未返回：用 group（分组名）或 query（关键词，如 wall、墙、building）筛出具体素材；一次只取需要的那一组。',
+                            }),
+                        assetConventions: {
+                            unit: '米',
+                            origin: ASSET_ORIGIN,
+                            note: '素材原点在底面中心：position 就是物体底面中心的位置，y=0 时物体正好立在地面上；不要按"原点在中心"再抬高半个高度。用 scale 改高度时底面仍留在 position.y。地面、道路、房间构件的上表面在 y=0，厚度向下延伸；石头和桥有一部分故意埋在地下。人物身高默认 1.75 米。',
+                        },
                         actions: ACTIONS, cameraPresets: CAMERA_PRESETS, aspects: ASPECTS, frameRates: FRAME_RATES,
                         framings: FRAMING_NAMES,
                         entityOptions: { build: BUILDS, gender: GENDERS },
@@ -544,8 +773,17 @@ export function initializeHostBridge() {
                         patchFields: patchFieldCatalog,
                     };
                 } else {
-                    const command = commands[string(payload.operation)];
-                    if (!command) throw Error(`未知导演台操作: ${string(payload.operation)}`);
+                    const operation = string(payload.operation);
+                    const command = commands[operation];
+                    if (!command) throw Error(`未知导演台操作: ${operation}`);
+                    // 界面内部命令不进 Agent 档，也不接受通过单命令执行：它们依赖当前选区与播放头，
+                    // 用错一次就是一整轮返工。回执直接给出该改用的 batch 写法。
+                    const spec = commandSpecs[operation];
+                    if (spec?.agentHidden)
+                        throw new DirectorCommandError(`${operation} 是编辑器内部命令，不通过单命令执行`, {
+                            code: 'INVALID_PARAMS',
+                            hint: spec.prefer ? `改用 ${spec.prefer}；一次批量可完成多项相关修改` : '改用 director_desk_batch 里对应的操作',
+                        });
                     result = await command((payload.args && typeof payload.args === 'object' && !Array.isArray(payload.args) ? payload.args : {}) as Input);
                     // A successful edit must reach the host before its tool receipt. The
                     // debounced subscription can be lost if an export or WebView reload follows.
@@ -555,7 +793,18 @@ export function initializeHostBridge() {
                     }
                 }
                 send('agent-result', { requestId, success: true, result: result ?? null });
-            } catch (error) { send('agent-result', { requestId, success: false, error: String(error) }); }
+            } catch (error) {
+                // 结构化失败：code 给机器归类，hint 与 facts 让宿主不必解析 message 文本就能自愈
+                // （例如 revision 冲突时带回 currentRevision）。
+                const failure = error instanceof DirectorCommandError ? error : null;
+                send('agent-result', {
+                    requestId, success: false,
+                    code: failure ? failure.code : classifyDirectorError(String(error)),
+                    error: failure ? failure.message : String(error),
+                    ...(failure?.hint ? { hint: failure.hint } : {}),
+                    ...(failure?.facts ? { facts: failure.facts } : {}),
+                });
+            }
         }
     };
     window.addEventListener('message', onMessage);

@@ -47,6 +47,8 @@ const components: Array<{
             openingWidth: lengthField('洞宽 · 0 为封闭', 0, 0),
             openingHeight: lengthField('洞高', 2.1),
             sill: lengthField('洞底离地', 0, 0),
+            // 洞口沿墙段方向的偏移，0 为居中。门很少正好在墙中间，没有它就得把一面墙拆成两段。
+            openingOffset: lengthField('洞的偏移 · 0 居中', 0, -100, 100),
         },
     },
     {

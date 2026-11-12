@@ -88,7 +88,9 @@ export function makeProp(e: Entity): T.Group {
                 position: [x, 0.57, 0.08],
                 normal: [0, 1, 0],
             }));
-            b(2, 0.33, 0.86, 0, 0.255, 0, dark);
+            // The plinth reaches the floor: the model has no legs, and a 9 cm gap under it read as
+            // a levitating sofa (and as "floating" to the spatial check). Its top stays at 0.42 m.
+            b(2, 0.42, 0.86, 0, 0.21, 0, dark);
             b(1.76, 0.18, 0.72, 0, 0.48, 0.04, light);
             b(2, 0.55, 0.19, 0, 0.64, -0.36);
             for (const x of [-0.94, 0.94]) b(0.18, 0.48, 0.88, x, 0.52);

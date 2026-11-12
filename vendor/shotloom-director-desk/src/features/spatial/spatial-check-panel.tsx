@@ -100,7 +100,11 @@ export function SpatialCheckPanel() {
               ? t('距离过近')
               : kind === 'outOfFrame'
                 ? t('不在画面内')
-                : t('被遮挡');
+                : kind === 'cameraInSolid'
+                  ? t('机位在物体内部')
+                  : kind === 'unsupported'
+                    ? t('悬空')
+                    : t('被遮挡');
 
     return (
         <div className="spatial-check">

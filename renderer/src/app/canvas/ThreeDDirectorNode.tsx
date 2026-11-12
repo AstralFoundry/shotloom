@@ -5,6 +5,7 @@ import { IconSymbol } from "../components/IconSymbol";
 import { directorProjectSummary } from './directorProjectSummary';
 import { DirectorAgentPane } from '../agent-chat/DirectorAgentPane';
 import { registerDirectorDeskFrame } from "../../services/directorDeskAgentRuntime";
+import { showToast } from "../../store/notificationStore";
 import { useWorkbenchSurfaceRoot } from "../layout/workbenchSurface";
 import { useDirectorWorkspaceExport } from "../views/DirectorWorkspace";
 import {
@@ -135,6 +136,7 @@ export const ThreeDDirectorNode: WorkflowNodeRenderer = memo(
           }
         },
         onSelectionChanged: (value) => setSelection(value.name),
+        onError: (error) => showToast(t('director.loadFailed', { error }), 'error'),
       });
       return unsubscribe;
     }, [actions, getFrame, node.id, sendPanorama, sendSession]);

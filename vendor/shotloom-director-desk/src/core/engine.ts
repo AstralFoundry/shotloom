@@ -41,6 +41,7 @@ import { samplePose } from './timeline.ts';
 import { isAnimalAsset } from './asset-catalog.ts';
 import { getEditorTheme, themeColor } from './editor/theme-state.ts';
 import { editorPreferences } from './editor/preferences.ts';
+import type { PlanFraming } from './editor/plan-view.ts';
 export function configureCamera(camera: T.PerspectiveCamera, focal: number, aspect: number) {
     camera.aspect = aspect;
     camera.filmGauge = 36;
@@ -1089,6 +1090,52 @@ export class Engine {
         // Match the live shot, including its default background and floor treatment.
         this.prepareView(false, cameraId);
         this.renderShot(cameraId);
+        return this.shotRenderer.domElement;
+    }
+    /**
+     * Straight-down orthographic view of the set, cut horizontally like an architectural plan.
+     *
+     * Everything above `cutHeight` is clipped so ceiling slabs, beams and lintels do not hide the
+     * rooms and doorways show as gaps. A clipped wall is open on top, which single-sided materials
+     * would render as nothing, so materials are double-sided for this one frame and restored after.
+     * The camera keeps the default layer, so editor helpers (layer 1) stay out, as in a shot.
+     */
+    renderPlan(time: number, framing: PlanFraming, cutHeight: number) {
+        this.sample(time);
+        this.shotRenderer.setPixelRatio(1);
+        this.shotRenderer.setSize(framing.pixels.width, framing.pixels.height, false);
+        this.prepareView(false);
+        const top = cutHeight + 50;
+        const camera = new T.OrthographicCamera(
+            -framing.width / 2, framing.width / 2, framing.height / 2, -framing.height / 2, 0.1, top + 500,
+        );
+        camera.position.set(framing.centerX, top, framing.centerZ);
+        camera.up.set(0, 0, -1);
+        camera.lookAt(framing.centerX, 0, framing.centerZ);
+        camera.updateProjectionMatrix();
+        camera.updateMatrixWorld(true);
+        const sides: Array<[T.Material, T.Side]> = [];
+        this.scene.traverse((object) => {
+            const mesh = object as T.Mesh;
+            if (!mesh.isMesh) return;
+            for (const material of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
+                if (material.side === T.DoubleSide) continue;
+                sides.push([material, material.side]);
+                material.side = T.DoubleSide;
+                material.needsUpdate = true;
+            }
+        });
+        const clipping = this.shotRenderer.clippingPlanes;
+        this.shotRenderer.clippingPlanes = [new T.Plane(new T.Vector3(0, -1, 0), cutHeight)];
+        try {
+            this.shotRenderer.render(this.scene, camera);
+        } finally {
+            this.shotRenderer.clippingPlanes = clipping;
+            for (const [material, side] of sides) {
+                material.side = side;
+                material.needsUpdate = true;
+            }
+        }
         return this.shotRenderer.domElement;
     }
     restorePreview(time: number) {

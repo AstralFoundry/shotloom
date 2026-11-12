@@ -18,6 +18,8 @@ export const english: Record<string, string> = {
     距离过近: 'Too close',
     不在画面内: 'Out of frame',
     被遮挡: 'Occluded',
+    机位在物体内部: 'Camera inside solid',
+    悬空: 'Floating',
     '播放头前后 2 秒': '2 s around playhead',
     采样密度: 'Sample density',
     '稀疏 · 快': 'Sparse · fast',

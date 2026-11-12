@@ -108,6 +108,7 @@ export interface MessageParameters {
   "ui.composerControls.text.cd8701d5": Record<"value0", string | number>;
   "ui.main.text.816f1556": Record<"value0", string | number>;
   "director.crowdCount": Record<"count", string | number>;
+  "director.loadFailed": Record<"error", string | number>;
   "ui.CameraPanel.text.4b59fd44": Record<"value0", string | number>;
   "ui.CameraPanel.text.ca8a57fe": Record<"value0", string | number>;
   "ui.CameraPanel.text.2108dad9": Record<"value0", string | number>;

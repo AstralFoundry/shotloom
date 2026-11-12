@@ -130,3 +130,40 @@ test('删除父文件夹时清除导演台旧草稿并解除当前工程绑定',
     await env.dispose();
   }
 });
+
+test('重新打开导演台节点时，节点保存的场景能完整送进导演台', async () => {
+  // 真实缺陷：store 读出的嵌套对象是 Proxy，而 postMessage 的结构化克隆复制不了 Proxy，
+  // 会同步抛 DataCloneError。会话消息带着节点保存的场景，于是每次重启或重新打开后
+  // 导演台都收不到它，静默打开默认空场景；节点里的数据在磁盘上却完好无损。
+  const env = await createRendererEnv({ storage: new Map(), withWindow: true });
+  try {
+    globalThis.window.location = { origin: 'http://localhost' };
+    const { store } = await env.load('store/projectStore');
+    const { createProject } = await env.load('store/projectNormalization');
+    const { buildCanvasViewData } = await env.load('app/adapters/canvas/canvasViewData');
+    const { sendDirectorDeskSession } = await env.load('app/adapters/directorDeskBridge');
+    const saved = {
+      format: 'director-desk', version: 3, name: '灰模预演 · 进楼', projectId: 'p-1', activeSceneId: 'scene-main', resources: [],
+      scenes: [{ id: 'scene-main', name: '第一场', state: { entities: [{ id: 'actor-1', name: '主角' }, { id: 'wall-1', name: '仓储左墙' }], cuts: [] } }],
+    };
+    store.project = createProject('Director reload');
+    store.project.nodes.push({ id: 'director-a', type: 'threeDDirector', directorData: { project: saved } });
+
+    // 与 ThreeDDirectorNode 读到的完全一致：经画布视图层展开的 store 节点。
+    const node = buildCanvasViewData(store).nodes.find((item) => item.id === 'director-a');
+    const project = node.directorData.project;
+    // 前提：这里拿到的确实是 Proxy。如果视图层不再返回 Proxy，这条测试就没有覆盖到真实路径。
+    assert.throws(() => structuredClone(project), /could not be cloned/);
+
+    const delivered = [];
+    // 用与 postMessage 相同的结构化克隆模拟送达；克隆失败会像真实环境一样同步抛错。
+    const frame = { contentWindow: { postMessage: (message) => delivered.push(structuredClone(message)) } };
+    sendDirectorDeskSession(frame, { instanceId: node.id, theme: 'light', locale: 'zh-CN', project });
+    assert.equal(delivered.length, 1);
+    assert.equal(delivered[0].type, 'storyai:director-desk-session');
+    assert.equal(delivered[0].payload.project.name, '灰模预演 · 进楼');
+    assert.deepEqual(delivered[0].payload.project.scenes[0].state.entities.map((entity) => entity.id), ['actor-1', 'wall-1']);
+  } finally {
+    await env.dispose();
+  }
+});

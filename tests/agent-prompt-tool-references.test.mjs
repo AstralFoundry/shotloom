@@ -54,6 +54,16 @@ const DIRECTOR_OPERATIONS = new Set(
     .matchAll(/^\s{4}([a-z][a-z0-9_]*):\s*\{ kind:/gm)].map(match => match[1]),
 );
 
+/**
+ * 导演台批量操作的 `operation` 取值：`director_desk_batch` 的 `edits[].operation` 枚举。
+ * 它们是批量工具的参数取值而不是独立工具，所以从批量的操作表里取真实名单，
+ * 提示词提到 `set_path`、`add_cut` 时必须真的存在。
+ */
+const DIRECTOR_BATCH_OPERATIONS = new Set(
+  [...readFileSync(join(root, 'vendor/shotloom-director-desk/src/state/batch-edits.ts'), 'utf8')
+    .matchAll(/^\s{4}([a-z][a-z0-9_]*):\s*\[/gm)].map(match => match[1]),
+);
+
 function markdownFiles(dir) {
   return readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
     const path = join(dir, entry.name);
@@ -81,7 +91,7 @@ test('提示词、契约与 Skill 引用的工具名都真实存在', async () =
     const { openReelAgentTools } = await instance.load('agent/core/openReelTools');
     for (const tool of openReelAgentTools) productTools.add(`openreel_${tool.name}`);
 
-    const known = new Set([...productTools, ...HARNESS_TOOLS, ...DIRECTOR_OPERATIONS, ...NON_TOOL_IDENTIFIERS]);
+    const known = new Set([...productTools, ...HARNESS_TOOLS, ...DIRECTOR_OPERATIONS, ...DIRECTOR_BATCH_OPERATIONS, ...NON_TOOL_IDENTIFIERS]);
     const missing = [];
     for (const file of markdownFiles(contentRoot)) {
       const text = readFileSync(file, 'utf8');
@@ -100,7 +110,9 @@ test('导演台命令表里每条命令都有参数契约，且分级只取三�
   const commandBlock = source.slice(source.indexOf('const commands: Record<string, (input: Input) => unknown> = {'));
   // 命令表里有的条目与相邻命令写在同一行（例如 `undo: ..., redo: ...`），
   // 所以按「行首或逗号/花括号之后的标识符 + 冒号」提取，而不是只看行首。
+  // 条目之间允许写注释，注释内容不参与匹配。
   const implementations = [...commandBlock.slice(0, commandBlock.indexOf('\nfunction editScenes'))
+    .replace(/^\s*\/\/.*$/gm, '')
     .matchAll(/(?:^|[{,]\s*)([a-z][a-z0-9_]*):\s*(?:\(|i\s*=>|function)/gm)].map(match => match[1]);
   // 每条契约独占一行，但实现可以和其他命令同行，所以两边用不同的提取锚点：
   // 契约按行首匹配（前面的注释行不影响），实现按行首或逗号/花括号之后匹配。

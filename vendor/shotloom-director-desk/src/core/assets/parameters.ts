@@ -50,6 +50,11 @@ export function validateAssetParameters(e: Entity) {
             (values.openingWidth >= values.width || values.sill + values.openingHeight > values.height)
         )
             throw new Error('洞口必须容纳在墙体宽高以内');
+        if (
+            values.openingWidth > 0 &&
+            Math.abs(values.openingOffset ?? 0) > (values.width - values.openingWidth) / 2 + 1e-6
+        )
+            throw new Error('洞口的偏移超出了墙体范围：洞宽的一半加偏移量不能超过墙宽的一半');
     }
     if (findAsset(e.asset)?.family === 'circulation-v1') {
         if (e.asset === 'structure-stairs-spiral' && (values.width >= values.radius || values.turn / values.steps > 90))

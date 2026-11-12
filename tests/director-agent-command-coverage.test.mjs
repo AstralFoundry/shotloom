@@ -18,7 +18,8 @@ const session = fs.readFileSync(path.join(root, 'vendor/shotloom-director-desk/s
 
 const implementations = (() => {
   const start = bridge.indexOf('const commands: Record<string, (input: Input) => unknown> = {');
-  const block = bridge.slice(start, bridge.indexOf('\nfunction editScenes'));
+  // 条目之间允许写注释：注释里出现 `xxx:` 不该被当成命令，反过来也不该让一条真实命令漏掉。
+  const block = bridge.slice(start, bridge.indexOf('\nfunction editScenes')).replace(/^\s*\/\/.*$/gm, '');
   return [...block.matchAll(/(?:^|[{,]\s*)([a-z][a-z0-9_]*):\s*(?:\(|i\s*=>|function)/gm)].map(m => m[1]);
 })();
 
@@ -137,4 +138,97 @@ test('助手栏宽度按面板父级计算，不能拿分隔条的父级当可�
     '不能从分隔条取 parentElement 量可用宽度');
   assert.match(pane, /asideRef/, '必须通过 ref 引用助手栏自身');
   assert.match(pane, /asideRef\.current\?\.parentElement/, '可用宽度必须取自助手栏的父级');
+});
+
+test('导演台只在载入宿主文档之后才写回，未载入时拒绝 Agent 操作', () => {
+  // 真实缺陷：会话消息没有送达时，导演台显示自带的默认场景；Agent 的编辑照常发出
+  // project-changed，把节点里保存的整套场景替换成「默认场景 + 这次编辑」。
+  const sessionHandler = bridge.slice(
+    bridge.indexOf("message.type === 'storyai:director-desk-session'"),
+    bridge.indexOf("message.type === 'storyai:director-desk-panorama'"),
+  );
+  assert.ok(sessionHandler.includes('loadProject(payload.project)'), '会话消息必须载入宿主文档');
+  assert.ok(
+    sessionHandler.indexOf('connected = true') > sessionHandler.indexOf('loadProject(payload.project)'),
+    'connected 只能在 loadProject 成功之后置位，载入失败时不得写回',
+  );
+  const agent = bridge.slice(bridge.indexOf("message.type === 'storyai:director-desk-agent-request'"));
+  assert.match(agent.slice(0, 900), /parent !== window && !connected/, '嵌入模式下尚未绑定宿主文档时必须拒绝 Agent 请求');
+});
+
+test('命令表分档：模型该用的命令保留，编辑器内部命令被隐藏并指向 batch', () => {
+  const specs = [...bridge.matchAll(/^\s{4}([a-z][a-z0-9_]*): \{ kind: '(\w+)'([^}]*)/gm)]
+    .map(m => ({ name: m[1], kind: m[2], tail: m[3] }));
+  const hidden = specs.filter(spec => /agentHidden: true/.test(spec.tail));
+  const visible = specs.filter(spec => !/agentHidden: true/.test(spec.tail));
+
+  // 模型实际会用的核验与查询必须留在可见档，否则分档会把能力藏掉。
+  for (const name of ['render_preview', 'render_preview_sheet', 'render_plan', 'compare_reference',
+    'inspect_model', 'spatial_check', 'scene_list', 'scene_read', 'scene_summary', 'history_status',
+    'select_entity', 'seek', 'undo', 'redo', 'add_asset', 'batch_edit', 'set_entity_path', 'set_campath',
+    'apply_framing', 'apply_camera_preset', 'export_video_start', 'export_video_job', 'export_scene', 'import_scene']) {
+    assert.ok(visible.some(spec => spec.name === name), `${name} 应当对模型可见`);
+  }
+
+  // 逐轴、选区依赖、逐步画路径这类命令必须隐藏：它们正是返工的来源。
+  for (const name of ['set_position_axis', 'set_rotation_axis', 'set_scale_axis', 'set_height',
+    'select_clip', 'select_path_point', 'start_path', 'add_path_point', 'finish_path', 'append_path_point',
+    'set_clip_field', 'rename_entity', 'add_camera', 'set_camera_field', 'update_room']) {
+    assert.ok(hidden.some(spec => spec.name === name), `${name} 应当被隐藏`);
+  }
+
+  // 隐藏的写命令必须告诉模型该改用什么，否则拒绝之后就无处可去。
+  for (const spec of hidden.filter(spec => spec.kind === 'edit')) {
+    assert.match(spec.tail, /prefer: '/, `${spec.name} 被隐藏但没有给出替代路径`);
+  }
+  assert.ok(hidden.length > 40 && visible.length > 30, `分档比例异常：隐藏 ${hidden.length}，可见 ${visible.length}`);
+});
+
+test('命令分发会拒绝隐藏命令并给出 batch 替代写法', () => {
+  const dispatch = bridge.slice(bridge.indexOf("message.type === 'storyai:director-desk-agent-request'"));
+  assert.match(dispatch, /if \(spec\?\.agentHidden\)/, '分发前必须检查 agentHidden');
+  assert.match(dispatch, /spec\.prefer \? `改用 \$\{spec\.prefer\}/, '拒绝时要带上替代写法');
+  assert.match(dispatch, /code: 'INVALID_PARAMS'/, '拒绝要有稳定错误码');
+});
+
+test('snapshot 默认只回 Agent 档，includeAll 才给全表', () => {
+  assert.match(bridge, /const agentDescriptors = Object\.keys\(commands\)\s*\n?\s*\.filter\(name => !commandSpecs\[name\]\?\.agentHidden\)/,
+    '需要有过滤后的 Agent 档');
+  assert.match(bridge, /const table = all \? descriptors : agentDescriptors;/, 'snapshot 依据 includeAll 选择档位');
+  assert.match(bridge, /hiddenCommands: all \? 0 : descriptors\.length - agentDescriptors\.length/, '要如实报告隐藏了多少条');
+});
+
+test('batch 支持 validateOnly 预检，且预检与真实提交走同一套规则', () => {
+  const sessionSource = fs.readFileSync(path.join(root, 'vendor/shotloom-director-desk/src/state/editor-session.ts'), 'utf8');
+  assert.match(bridge, /session\.applyBatch\(i\.edits as BatchEdit\[\], number\(i\.expectedRevision\), i\.validateOnly === true\)/, 'batch_edit 必须把 validateOnly 传下去');
+  const apply = sessionSource.slice(sessionSource.indexOf('applyBatch(edits: BatchEdit[], expectedRevision: number, validateOnly = false)'));
+  const precheck = apply.indexOf('if (validateOnly)');
+  assert.ok(precheck > 0, 'applyBatch 需要有 validateOnly 分支');
+  const branch = apply.slice(precheck, apply.indexOf('applyBatchEdits(draft, edits);\n        assertProject(draft);\n        let receipts', precheck));
+  // 预检用同一个纯函数校验，才能保证报告的问题和真正提交时一致。
+  assert.ok(branch.includes('applyBatchEdits(draft, edits)'), '预检必须在副本上跑同一套 applyBatchEdits');
+  assert.ok(!branch.includes('this.change('), '预检绝不能进入写入事务');
+  assert.ok(branch.includes('validatedOnly: true'), '预检回执要标明这是预检、不是提交');
+});
+
+test('catalog 默认只给分组概览，素材按 group／query 筛出', () => {
+  const catalog = bridge.slice(
+    bridge.indexOf("message.type === 'storyai:director-desk-catalog'") > 0
+      ? "message.type === 'storyai:director-desk-catalog'"
+      : "payload.operation === 'catalog'",
+  );
+  // 全量返回会把回执撑到近 30 KB；默认必须是分组概览 + 总数。
+  assert.match(bridge, /const filtered = Boolean\(query \|\| group\)/, 'catalog 必须区分"是否筛选"');
+  assert.match(bridge, /assetTotal: assetGroups\(\)\.reduce/, '默认回执要给素材总数');
+  assert.match(bridge, /groups: assetGroups\(\)/, '默认回执要给分组概览');
+  assert.ok(
+    !/assets: searchAssets\('', '全部'\)/.test(bridge),
+    '不能再无条件全量返回所有素材',
+  );
+  assert.match(bridge, /const matches = filtered \? searchAssets\(query, group \|\| '全部'\)/, '筛选要走 searchAssets 的 query/group');
+  assert.match(bridge, /CATALOG_MATCH_LIMIT/, '筛选结果要有上限');
+
+  const catalogSource = fs.readFileSync(path.join(root, 'vendor/shotloom-director-desk/src/core/asset-catalog.ts'), 'utf8');
+  assert.match(catalogSource, /export function assetGroups\(\)/, '必须导出分组概览生成函数');
+  assert.match(catalogSource, /examples: members\.slice\(0, 3\)/, '分组示例 id 让"有哪些墙"能直接接上话');
 });
