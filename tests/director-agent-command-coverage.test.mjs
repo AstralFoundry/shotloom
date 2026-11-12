@@ -165,7 +165,7 @@ test('命令表分档：模型该用的命令保留，编辑器内部命令被�
   // 模型实际会用的核验与查询必须留在可见档，否则分档会把能力藏掉。
   for (const name of ['render_preview', 'render_preview_sheet', 'render_plan', 'compare_reference',
     'inspect_model', 'spatial_check', 'scene_list', 'scene_read', 'scene_summary', 'history_status',
-    'select_entity', 'seek', 'undo', 'redo', 'add_asset', 'batch_edit', 'set_entity_path', 'set_campath',
+    'select_entity', 'seek', 'undo', 'redo', 'batch_edit', 'set_campath',
     'apply_framing', 'apply_camera_preset', 'export_video_start', 'export_video_job', 'export_scene', 'import_scene']) {
     assert.ok(visible.some(spec => spec.name === name), `${name} 应当对模型可见`);
   }
@@ -173,7 +173,8 @@ test('命令表分档：模型该用的命令保留，编辑器内部命令被�
   // 逐轴、选区依赖、逐步画路径这类命令必须隐藏：它们正是返工的来源。
   for (const name of ['set_position_axis', 'set_rotation_axis', 'set_scale_axis', 'set_height',
     'select_clip', 'select_path_point', 'start_path', 'add_path_point', 'finish_path', 'append_path_point',
-    'set_clip_field', 'rename_entity', 'add_camera', 'set_camera_field', 'update_room']) {
+    'set_clip_field', 'rename_entity', 'add_asset', 'add_camera', 'add_cut', 'set_entity_path',
+    'set_camera_field', 'update_room']) {
     assert.ok(hidden.some(spec => spec.name === name), `${name} 应当被隐藏`);
   }
 
@@ -195,20 +196,34 @@ test('snapshot 默认只回 Agent 档，includeAll 才给全表', () => {
   assert.match(bridge, /const agentDescriptors = Object\.keys\(commands\)\s*\n?\s*\.filter\(name => !commandSpecs\[name\]\?\.agentHidden\)/,
     '需要有过滤后的 Agent 档');
   assert.match(bridge, /const table = all \? descriptors : agentDescriptors;/, 'snapshot 依据 includeAll 选择档位');
+  assert.match(bridge, /const unchanged = !all && Boolean\(knownVersion\) && knownVersion === commandsVersion;/,
+    'includeAll 必须无视默认档的版本缓存并返回全表');
   assert.match(bridge, /hiddenCommands: all \? 0 : descriptors\.length - agentDescriptors\.length/, '要如实报告隐藏了多少条');
+  const tool = fs.readFileSync(path.join(root, 'renderer/src/agent/tools/directorTools.ts'), 'utf8');
+  assert.match(tool, /const requestedVersion = input\.includeAll === true \|\| !directorCommandsKnown\(\) \? ''[\s\S]*typeof input\.commandsVersion === 'string'/,
+    '工具切换全表或尚无本地命令分类时不得传缓存版本，并应尊重调用方给的版本');
 });
 
-test('batch 支持 validateOnly 预检，且预检与真实提交走同一套规则', () => {
+test('batch 预检覆盖锁定与资源检查，提交错误保留真实原因', () => {
   const sessionSource = fs.readFileSync(path.join(root, 'vendor/shotloom-director-desk/src/state/editor-session.ts'), 'utf8');
   assert.match(bridge, /session\.applyBatch\(i\.edits as BatchEdit\[\], number\(i\.expectedRevision\), i\.validateOnly === true\)/, 'batch_edit 必须把 validateOnly 传下去');
   const apply = sessionSource.slice(sessionSource.indexOf('applyBatch(edits: BatchEdit[], expectedRevision: number, validateOnly = false)'));
   const precheck = apply.indexOf('if (validateOnly)');
-  assert.ok(precheck > 0, 'applyBatch 需要有 validateOnly 分支');
-  const branch = apply.slice(precheck, apply.indexOf('applyBatchEdits(draft, edits);\n        assertProject(draft);\n        let receipts', precheck));
-  // 预检用同一个纯函数校验，才能保证报告的问题和真正提交时一致。
-  assert.ok(branch.includes('applyBatchEdits(draft, edits)'), '预检必须在副本上跑同一套 applyBatchEdits');
-  assert.ok(!branch.includes('this.change('), '预检绝不能进入写入事务');
-  assert.ok(branch.includes('validatedOnly: true'), '预检回执要标明这是预检、不是提交');
+  const mutation = apply.indexOf('this.change(', precheck);
+  assert.ok(precheck > 0 && mutation > precheck, '预检必须先于真实提交');
+  const validation = apply.slice(0, precheck);
+  for (const check of ['applyBatchEdits(draft, edits)', 'assertLockedEntitiesUnchanged(this.project, draft)',
+    'assertProject(draft)', 'externalModels.assertReady(draft)', 'this.history.pending']) {
+    assert.ok(validation.includes(check), `预检缺少提交前检查：${check}`);
+  }
+  assert.ok(apply.slice(precheck, mutation).includes('validatedOnly: true'), '预检回执要标明未提交');
+  assert.match(apply.slice(mutation, mutation + 250), /this\.change\([^\n]+true, true\)/,
+    '提交错误应向工具层传播真实失败原因');
+  assert.match(sessionSource, /if \(throwOnError\) throw error;/, '事务回滚后应保留原始错误');
+  assert.match(apply, /code: 'REVISION_MISMATCH'/, 'revision 冲突应有稳定错误码');
+  assert.doesNotMatch(apply, /currentRevision 重新提交即可/, '不能指导模型盲目重放旧批次');
+  assert.match(bridge, /operation === 'batch_edit' && \(result as \{ applied\?: boolean \}\)\.applied === false/,
+    'validateOnly 回执不得触发 project-changed 写回宿主');
 });
 
 test('catalog 默认只给分组概览，素材按 group／query 筛出', () => {

@@ -410,7 +410,7 @@ export class EditorSession {
     /* Transactions                                                        */
     /* ------------------------------------------------------------------ */
 
-    change(fn: () => void, rebuild = true): boolean {
+    change(fn: () => void, rebuild = true, throwOnError = false): boolean {
         if (useEditorStore.getState().busy) return false;
         if (this.history.pending) {
             notifyError('请先完成或取消当前拖动操作');
@@ -438,44 +438,52 @@ export class EditorSession {
             }
             this.changed(true);
             notifyError((error as Error).message);
+            if (throwOnError) throw error;
             return false;
         }
     }
 
     /** Validate all edits against a copy, then commit them as one undoable project change. */
     /**
-     * @param validateOnly 只按真实规则校验一遍、不写入任何东西。回执给出每一处问题，
-     * 调用方改完再整批提交——省掉"整批失败→改一处→再整批失败"的往返。
+     * @param validateOnly 按提交时的规则预检、不写入。失败时指出首个问题，
+     * 调用方修正后可再次预检。
      */
     applyBatch(edits: BatchEdit[], expectedRevision: number, validateOnly = false) {
         const revision = useEditorStore.getState().revision;
-        // 带上当前 revision，调用方可以直接用它重试，不必再拉一次整份 snapshot。
+        // 回报当前 revision 供调用方识别冲突；必须重新检查受影响实体后才能决定是否重试。
         if (!Number.isInteger(expectedRevision) || expectedRevision !== revision)
             throw new DirectorCommandError(`场景已变化：期望 revision=${expectedRevision}，当前 revision=${revision}`, {
-                hint: '用回执里的 currentRevision 重新提交即可，不必重新读取 snapshot',
+                code: 'REVISION_MISMATCH',
+                hint: '重新读取 snapshot，检查受影响实体与片段的当前值，再决定是否调整或重新提交；不要仅替换 expectedRevision 后原样重放',
                 facts: { currentRevision: revision, expectedRevision },
             });
+        if (useEditorStore.getState().busy || this.history.pending)
+            throw new DirectorCommandError('批量修改未执行：导演台正在执行其他任务或有未完成的拖动', {
+                code: 'BUSY',
+                hint: '等待当前任务结束后重试；整批未写入',
+                facts: { currentRevision: revision },
+            });
         const draft = clone(this.project);
+        const receipts = applyBatchEdits(draft, edits);
+        assertLockedEntitiesUnchanged(this.project, draft);
+        assertProject(draft);
+        this.engineRef?.externalModels.assertReady(draft);
         if (validateOnly) {
-            // 预检走的是同一个纯函数，所以报告出来的问题与真正提交时会遇到的完全一致。
-            const receipts = applyBatchEdits(draft, edits);
-            assertProject(draft);
             return {
                 applied: false, valid: true, validatedOnly: true,
                 count: receipts.length, operations: receipts, revision,
             };
         }
-        applyBatchEdits(draft, edits);
-        assertProject(draft);
-        let receipts: ReturnType<typeof applyBatchEdits> = [];
-        const applied = this.change(() => { receipts = applyBatchEdits(this.project, edits); });
+        let committedReceipts: ReturnType<typeof applyBatchEdits> = [];
+        const applied = this.change(() => { committedReceipts = applyBatchEdits(this.project, edits); }, true, true);
         if (!applied) throw new DirectorCommandError('批量修改未提交：导演台正在执行其他任务或有未完成的拖动', {
+            code: 'BUSY',
             hint: '等待当前任务结束后重试；整批未写入，无需回滚',
             facts: { currentRevision: useEditorStore.getState().revision },
         });
-        const warnings = this.groundingWarnings(receipts.flatMap((receipt) => receipt.entityId ? [receipt.entityId] : []));
+        const warnings = this.groundingWarnings(committedReceipts.flatMap((receipt) => receipt.entityId ? [receipt.entityId] : []));
         return {
-            applied: true, count: receipts.length, operations: receipts, revision: useEditorStore.getState().revision,
+            applied: true, count: committedReceipts.length, operations: committedReceipts, revision: useEditorStore.getState().revision,
             ...(warnings.length ? { warnings } : {}),
         };
     }

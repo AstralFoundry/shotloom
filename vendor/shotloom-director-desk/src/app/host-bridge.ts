@@ -140,7 +140,7 @@ const commandSpecs: Record<string, CommandSpec> = {
     select_path_point: { kind: 'view', agentHidden: true, args: { index: 'number' } },
 
     // 实体与场景编辑
-    add_asset: { kind: 'edit', args: { assetId: 'string，取自 catalog.assets[].id；回执含新实体 entityId、position 与实测 bounds' } },
+    add_asset: { kind: 'edit', agentHidden: true, prefer: 'batch_edit 的 add_asset', args: { assetId: 'string，取自 catalog.assets[].id；回执含新实体 entityId、position 与实测 bounds' } },
     add_camera: { kind: 'edit', agentHidden: true, prefer: 'batch_edit 的 add_camera（可同时指定名称与位置）', args: { fromView: 'boolean，true 表示从当前视角生成机位' } },
     rename_entity: { kind: 'edit', agentHidden: true, prefer: 'batch_edit 的 set_entity.name', args: { name: 'string' } },
     duplicate_entity: { kind: 'edit', agentHidden: true, prefer: 'batch_edit 的 duplicate_entity' },
@@ -164,14 +164,14 @@ const commandSpecs: Record<string, CommandSpec> = {
     apply_camera_preset: { kind: 'edit', args: { id: 'string，取自 catalog.cameraPresets[].id', cameraId: 'string，可选机位 ID；省略则用当前选中的机位' } },
 
     // 戏段时间线
-    add_cut: { kind: 'edit' },
+    add_cut: { kind: 'edit', agentHidden: true, prefer: 'batch_edit 的 add_cut' },
     remove_cut: { kind: 'edit', args: { index: 'number' } },
     set_duration: { kind: 'edit', args: { seconds: 'number' } },
     // 把时长拉到现有内容末尾：set_duration 缩短后不会自动补回，超出部分会静默不可达。
     extend_duration: { kind: 'edit' },
     add_action: { kind: 'edit', agentHidden: true, prefer: 'batch_edit 的 add_action', args: { action: 'string，取自 catalog.actions' } },
     // 声明式路径：时间点由调用方给出，不依赖当前选区和播放头。
-    set_entity_path: { kind: 'edit', args: {
+    set_entity_path: { kind: 'edit', agentHidden: true, prefer: 'batch_edit 的 set_path', args: {
         entityId: 'string，实体 ID；跟随机位需先把 camera.mode 设为 free',
         points: '[{ position: [x,y,z], timeSec: number }]，必填，至少 2 个；timeSec 严格递增',
         smooth: 'boolean，可选，默认 true',
@@ -183,9 +183,9 @@ const commandSpecs: Record<string, CommandSpec> = {
         atSec: 'number，可选，起始秒，默认当前播放头',
     } },
     batch_edit: { kind: 'edit', args: {
-        expectedRevision: 'number，必填，取自最新 snapshot.revision；不匹配时整批拒绝，回执带 currentRevision 可直接重试',
-        edits: 'BatchEdit[]，必填，非空；建议每批 1–8 项，超过 8 项仍可提交，没有硬性数量上限。支持 set_entity、set_camera、set_light、set_lighting、set_room、set_project、set_path、add_asset、add_wall、add_room、add_camera、add_cut、add_action、set_clip、remove_clip、delete_entity、duplicate_entity；具体字段见 director_desk_batch 工具描述',
-        validateOnly: 'boolean，可选，默认 false。为 true 时只按真实规则校验、不写入任何东西，回执给出每一处问题；改完再用同一批、validateOnly:false 提交',
+        expectedRevision: 'number，必填，取自最新 snapshot.revision；不匹配时整批拒绝，须重新读取受影响实体后再决定如何提交',
+        edits: 'BatchEdit[]，必填，非空；建议每批 1–8 项，超过 8 项仍可提交，没有硬性数量上限。支持 set_entity、set_camera、set_light、set_lighting、set_room、set_project、set_path、add_asset、add_wall、add_room、add_prop、add_camera、add_cut、add_action、set_clip、remove_clip、delete_entity、duplicate_entity；具体字段见 director_desk_batch 工具描述',
+        validateOnly: 'boolean，可选，默认 false。为 true 时按真实规则预检、不写入任何东西；失败时指出首个问题，修正后可再次预检',
     } },
     set_clip_field: { kind: 'edit', agentHidden: true, prefer: 'batch_edit 的 set_clip', args: { id: 'string，片段 ID', patch: 'object，片段字段补丁' } },
     remove_clip: { kind: 'edit', agentHidden: true, prefer: 'batch_edit 的 remove_clip', args: { id: 'string，片段 ID' } },
@@ -711,8 +711,8 @@ export function initializeHostBridge() {
                     // 命令表只随代码变化：调用方带回上次版本号时不必再收静态契约。
                     // 默认只给 Agent 档；includeAll 时才连同界面内部命令一起返回。
                     const knownVersion = string(args.commandsVersion);
-                    const unchanged = Boolean(knownVersion) && knownVersion === commandsVersion;
                     const all = args.includeAll === true;
+                    const unchanged = !all && Boolean(knownVersion) && knownVersion === commandsVersion;
                     const table = all ? descriptors : agentDescriptors;
                     result = {
                         document: detail === 'summary' ? summarizeDocument(document, requested) : scopeDocument(document, requested),
@@ -787,7 +787,8 @@ export function initializeHostBridge() {
                     result = await command((payload.args && typeof payload.args === 'object' && !Array.isArray(payload.args) ? payload.args : {}) as Input);
                     // A successful edit must reach the host before its tool receipt. The
                     // debounced subscription can be lost if an export or WebView reload follows.
-                    if (commandSpecs[string(payload.operation)]?.kind === 'edit' && result !== false) {
+                    if (commandSpecs[operation]?.kind === 'edit' && result !== false &&
+                        !(operation === 'batch_edit' && (result as { applied?: boolean }).applied === false)) {
                         window.clearTimeout(saveTimer);
                         send('project-changed', { project: session.history.document() });
                     }

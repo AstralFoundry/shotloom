@@ -60,9 +60,9 @@ export function registerDirectorTools(): void {
 
 大场景请用 detail:"summary"：实体只返回 id、名称、类型、位置、朝向、缩放、路径点数与动作片段，足够判断走位和时长，体积约为完整文档的 1/6。需要完整字段（姿态、参数、模型细节）时省略 detail 或传 "full"。只想看某几个实体时传 entityIds 过滤。
 
-commands 只列出你应当使用的命令；编辑器内部命令（选区、视口、逐轴、逐步画路径等）默认不返回，hiddenCommands 是它们的数量。确实需要时可以传 includeAll:true 取全表，但它们不会通过 director_desk_command 执行——写操作请走 director_desk_batch。
+commands 只列出你应当使用的命令；已由 batch 覆盖的搭景命令和编辑器内部命令默认不返回，hiddenCommands 是它们的数量。确实需要排查命令表时可以传 includeAll:true 取全表，但隐藏命令不会通过 director_desk_command 执行。
 
-第一次调用返回 commands 表；回执里的 commandsVersion 可以直接带回来，未变化时只回 commandsUnchanged:true。`,
+第一次调用返回 commands 表；回执里的 commandsVersion 可以直接带回来，未变化时只回 commandsUnchanged:true。includeAll:true 始终返回全表。`,
     effect: 'read',
     activity: 'inspect',
     inputSchema: {
@@ -79,10 +79,12 @@ commands 只列出你应当使用的命令；编辑器内部命令（选区、�
     async execute(input) {
       if (!directorDeskAvailable()) return directorUnavailable();
       try {
+        const requestedVersion = input.includeAll === true || !directorCommandsKnown() ? ''
+          : typeof input.commandsVersion === 'string' && input.commandsVersion ? input.commandsVersion : knownCommandsVersion;
         const snapshot = await runDirectorDeskCommand('snapshot', {
           ...(input.detail ? { detail: input.detail } : {}),
           ...(Array.isArray(input.entityIds) && input.entityIds.length ? { entityIds: input.entityIds } : {}),
-          ...(knownCommandsVersion ? { commandsVersion: knownCommandsVersion } : {}),
+          ...(requestedVersion ? { commandsVersion: requestedVersion } : {}),
           ...(input.includeAll === true ? { includeAll: true } : {}),
         }) as Record<string, unknown>;
         if (snapshot.commandsUnchanged !== true) rememberDirectorCommandKinds(snapshot.commands);
@@ -188,7 +190,7 @@ edits 按顺序执行，支持：
 
 回执里如果有 warnings，说明这批放下或移动的物体悬空了（底面离地、也没有搭在任何落地的物体上），先按提示修正再继续搭建。
 
-拿不准整批能不能通过时传 validateOnly:true：它按真实规则校验一遍、不写入任何东西，回执列出每一处问题（含第几项）；改完再用同一批、不带 validateOnly 提交。大批量首次提交前值得先预检一次。`,
+拿不准整批能不能通过时传 validateOnly:true：它按真实规则校验一遍、不写入任何东西；失败时指出首个问题（含第几项），修正后可再次预检。通过后再用同一批、不带 validateOnly 提交。大批量首次提交前值得先预检一次。`,
     effect: 'project_write',
     activity: 'canvas',
     inputSchema: {
@@ -286,16 +288,16 @@ edits 按顺序执行，支持：
     id: 'director_desk_command',
     icon: 'workflow',
     title: t('tool.title.director_desk_command'),
-    description: `调用 3D 导演台的真实编辑命令。operation 必须是 director_desk_snapshot 返回的 commands 中的 name，args 按该命令的 args 说明填写。覆盖实体与机位、戏段时间线与动作、姿态与路径、灯光与环境、撤销重做、工程 JSON 下载以及视频导出任务的启动与取消。
+    description: `调用 3D 导演台中不属于批量搭景的专用命令。operation 必须是 director_desk_snapshot 返回的 commands 中的 name，args 按该命令的 args 说明填写。适用于姿态、声明式运镜、戏段管理、撤销重做、工程 JSON 下载以及视频导出任务的启动与取消。
 
 三组值得注意的能力：
 - 核验：render_preview_sheet 一次返回最多 8 个真实时间点的带时码拼图，优先用于检查动作、运镜和切镜连续性；render_preview 返回单帧画面；render_plan 返回整套布景的俯视平面图（剖切掉顶板，带米制坐标网格、人物路径和机位），用来对照俯视的布局参考图；inspect_model 只支持建筑和道具（人物请用场景预览），返回多视角拼图、局部部件尺寸和包围盒；spatial_check 返回区间内的重叠、过近、出画、机位卡墙、主体被遮挡与悬空列表。这些命令都不改工程。
-- 关键帧：record_position_key / record_focal_key 在播放头记录，remove_focal_key 删除。
+- 关键帧：remove_focal_key 删除焦距关键帧；新增位置路径用 director_desk_batch.set_path，运镜焦距可用 set_campath。
 - 交付：export_shot 按切镜序号导出单镜静帧；export_video_start 支持指定区间与机位。
 
 逐轴命令（set_position_axis / set_rotation_axis / set_scale_axis）只服务编辑器内交互；要改坐标、朝向或尺寸，用 director_desk_batch 的 set_entity 向量补丁（position、rotationDegrees、scale），不要逐轴拼。
 
-编辑器内部命令（选区、视口、逐轴、逐步画路径、录制关键帧等）不在 snapshot 的 commands 里，传它们会被拒绝并提示该改用的 batch 写法；不要用 includeAll 去找替代路径，写操作一律走 director_desk_batch。
+批量已覆盖的搭景命令（如 add_asset、add_cut、set_entity_path）和编辑器内部命令不在 snapshot 的 commands 里，传它们会被拒绝并提示 batch 写法；不要用 includeAll 去找替代路径。姿态、运镜和戏段等未纳入 batch 的专用命令仍通过这里执行。
 
 只读性质的查看命令请用 director_desk_query 或直接读 snapshot。`,
     effect: 'project_write',
