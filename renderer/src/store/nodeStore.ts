@@ -1,3 +1,4 @@
+import { createVideoEditorProject } from '@/utils/videoEditorProject';
 import { t } from '../i18n/index.ts';
 import { GENERATION_NODE_TYPES, UTILITY_NODE_TYPES, CANVAS_NODE_TYPES } from '@/domain/graph/NodeType';
 import { computed } from '@/store/domainReactivity';
@@ -131,6 +132,10 @@ export function addNode(type = 'imageGeneration', options: { select?: boolean } 
     const defaultInputMode = getGenerationInputModes(node.model || '')[0]?.value;
     if (defaultInputMode) node.inputMode = defaultInputMode;
     node.config = defaultGenerationConfig(type, node.model);
+  }
+  if (type === 'clipStudio') {
+    node.clipNodeVersion = 1;
+    node.videoEditProject = createVideoEditorProject();
   }
   if (isDirector) {
     node.directorData = {};

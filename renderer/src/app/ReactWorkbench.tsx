@@ -434,7 +434,6 @@ export function ReactWorkbench() {
       <AppShell
         platform={desktopApi.platform}
         view={activeView}
-        onVideoEdit={() => canvasCommands.openBlankVideoEditor()}
         onNotify={() =>
           void desktopApi
             .notifyTask({

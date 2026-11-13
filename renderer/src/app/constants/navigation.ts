@@ -35,6 +35,7 @@ export const applicationItems: NavigationItem[] = [
 ];
 
 export const nodeTypes = [
+  { id: "clipStudio", label: t("ui.videoEditorActions.text.801f1d23"), icon: "scissors" as const },
   { id: "imageGeneration", label: t("ui.taskAdapter.imageGeneration.1f6a9dab"), icon: "image" as const },
   { id: "videoGeneration", label: t("ui.taskAdapter.videoGeneration.19978a8d"), icon: "film" as const },
   { id: "threeDDirector", label: t("ui.navigation.label.1386e28f"), icon: "box" as const },
