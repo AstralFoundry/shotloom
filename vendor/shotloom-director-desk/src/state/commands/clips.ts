@@ -4,8 +4,10 @@ import {
     nextFreeStart,
     pathSections,
     splitClip,
-    type TimelineSelection,
+    type DraggableTimelineSelection,
 } from '@/core/clip-editing.ts';
+import { retimeRotationAnimation } from '@/core/animation/entity-rotation.ts';
+import { assertLockedEntitiesUnchanged } from '@/core/editor/invariants.ts';
 import { actionDuration } from '@/core/animation/action-timing.ts';
 import { assertProject, clone, type Cut, type Entity, type MotionPath } from '@/core/model.ts';
 import { notifyError } from '@/shared/ui/feedback.ts';
@@ -15,10 +17,11 @@ import type { EditorCommandHost } from './host.ts';
 /** Action clips: selection, editing, splitting and timeline drag transactions. */
 export class ClipCommands {
     private dragSnapshot: {
-        selection: TimelineSelection;
+        selection: DraggableTimelineSelection;
         resize: boolean;
         clips?: Entity['clips'];
         path?: MotionPath | null;
+        rotationAnimation?: Entity['rotationAnimation'];
         cuts?: Cut[];
         duration: number;
     } | null = null;
@@ -33,13 +36,13 @@ export class ClipCommands {
      * Start a horizontal timeline drag. Core's `dragClipRange` always applies a delta to
      * the original range, so each pointer move replays it from this snapshot.
      */
-    beginTimelineDrag(selection: TimelineSelection, resize: boolean): boolean {
+    beginTimelineDrag(selection: DraggableTimelineSelection, resize: boolean): boolean {
         const state = useEditorStore.getState();
         if (state.busy || state.pathDraft || this.host.history.pending) return false;
         let e: Entity | undefined;
         if (selection.kind !== 'cut') {
             e = this.host.project.entities.find((item) => item.id === selection.entityId);
-            if (!e) return false;
+            if (!e || e.locked || (selection.kind === 'rotation' && !e.rotationAnimation)) return false;
         }
         this.host.patch({ playing: false });
         this.host.history.begin(this.host.project);
@@ -48,6 +51,7 @@ export class ClipCommands {
             resize,
             clips: e ? clone(e.clips) : undefined,
             path: e ? clone(e.path) : undefined,
+            rotationAnimation: e?.rotationAnimation ? clone(e.rotationAnimation) : undefined,
             cuts: selection.kind === 'cut' ? clone(this.host.project.cuts) : undefined,
             duration: this.host.project.duration,
         };
@@ -67,12 +71,20 @@ export class ClipCommands {
         if (e) {
             if (snapshot.clips) e.clips = clone(snapshot.clips);
             if (snapshot.path !== undefined) e.path = clone(snapshot.path);
+            if (snapshot.rotationAnimation) e.rotationAnimation = clone(snapshot.rotationAnimation);
         }
         if (snapshot.cuts) project.cuts = clone(snapshot.cuts);
         project.duration = snapshot.duration;
         try {
-            // Cut drags can reorder shots; keep following the dragged shot's new index.
-            snapshot.selection = dragClipRange(project, snapshot.selection, deltaSeconds, snapshot.resize);
+            if (selection.kind === 'rotation') {
+                e!.rotationAnimation = retimeRotationAnimation(
+                    snapshot.rotationAnimation!, deltaSeconds, project.fps, selection.keyIndex,
+                );
+                project.duration = Math.max(project.duration, e!.rotationAnimation.keys.at(-1)!.time);
+            } else {
+                // Cut drags can reorder shots; keep following the dragged shot's new index.
+                snapshot.selection = dragClipRange(project, selection, deltaSeconds, snapshot.resize);
+            }
         } catch (error) {
             notifyError((error as Error).message);
             return;
@@ -88,10 +100,11 @@ export class ClipCommands {
 
     endTimelineDrag(): void {
         if (!this.dragSnapshot) return;
-        this.dragSnapshot = null;
         try {
+            assertLockedEntitiesUnchanged(this.host.history.pending!, this.host.project);
             assertProject(this.host.project);
             this.host.history.commit(this.host.project);
+            this.dragSnapshot = null;
             this.host.changed(false);
         } catch (error) {
             this.cancelTimelineDrag();

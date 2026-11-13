@@ -184,7 +184,7 @@ const commandSpecs: Record<string, CommandSpec> = {
     } },
     batch_edit: { kind: 'edit', args: {
         expectedRevision: 'number，必填，取自最新 snapshot.revision；不匹配时整批拒绝，须重新读取受影响实体后再决定如何提交',
-        edits: 'BatchEdit[]，必填，非空；建议每批 1–8 项，超过 8 项仍可提交，没有硬性数量上限。支持 set_entity、set_camera、set_light、set_lighting、set_room、set_project、set_path、add_asset、add_wall、add_room、add_prop、add_camera、add_cut、add_action、set_clip、remove_clip、delete_entity、duplicate_entity；具体字段见 director_desk_batch 工具描述',
+        edits: 'BatchEdit[]，必填，非空；建议每批 1–8 项，超过 8 项仍可提交，没有硬性数量上限。支持 set_entity、set_camera、set_light、set_lighting、set_room、set_project、set_path、set_rotation_animation、add_asset、add_wall、add_room、add_prop、add_camera、add_cut、add_action、set_clip、remove_clip、delete_entity、duplicate_entity；具体字段见 director_desk_batch 工具描述',
         validateOnly: 'boolean，可选，默认 false。为 true 时按真实规则预检、不写入任何东西；失败时指出首个问题，修正后可再次预检',
     } },
     set_clip_field: { kind: 'edit', agentHidden: true, prefer: 'batch_edit 的 set_clip', args: { id: 'string，片段 ID', patch: 'object，片段字段补丁' } },
@@ -532,6 +532,10 @@ function summarizeDocument(document: ReturnType<typeof session.history.document>
                         visible: entity.visible, locked: entity.locked, height: entity.height,
                         path: entity.path
                             ? { points: entity.path.points.length, from: entity.path.points[0].time, to: entity.path.points[entity.path.points.length - 1].time }
+                            : null,
+                        rotationAnimation: entity.rotationAnimation
+                            ? { pivot: entity.rotationAnimation.pivot, keys: entity.rotationAnimation.keys.length,
+                                from: entity.rotationAnimation.keys[0].time, to: entity.rotationAnimation.keys.at(-1)!.time }
                             : null,
                         clips: entity.clips.map(clip => ({ id: clip.id, action: clip.action, start: clip.start, end: clip.end, speed: clip.speed })),
                         camera: entity.camera

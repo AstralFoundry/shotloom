@@ -7,6 +7,7 @@ import { FreehandPathInput } from './editor/freehand-path-input.ts';
 import { memberSample } from './navigation/member-paths.ts';
 import { pathDrawingPosition } from './editor/path-drawing-position.ts';
 import { cameraLookAt } from './animation/camera-look.ts';
+import { applyEntityRotation } from './animation/entity-rotation.ts';
 import { numberAt } from './animation/channels.ts';
 import { InitialPoseRuntime } from './scenes/initial-pose-runtime.ts';
 import { inheritedPoseAt } from './scenes/initial-pose.ts';
@@ -22,7 +23,7 @@ import { isExternalModel } from './resources/project-resources.ts';
 import { makeCrowd } from './assets/crowd.ts';
 import { makeEditorCamera } from './assets/editor-camera.ts';
 import * as T from 'three';
-import { objectBounds, findObjectSnap, type SnapBounds } from './editor/object-snapping.ts';
+import { localObjectBounds, objectBounds, findObjectSnap, type SnapBounds } from './editor/object-snapping.ts';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
 import type { Rig } from './assets.ts';
@@ -496,6 +497,7 @@ export class Engine {
                         }
                     });
             }
+            if (!e.handBinding) applyEntityRotation(root, e, time);
         }
         this.scene.updateMatrixWorld(true);
         for (const e of this.project.entities)
@@ -525,6 +527,7 @@ export class Engine {
                             if (this.externalModels.sampleHuman(entity, at, id, phase)) applyHumanPose(rig, entity, at);
                             else animateHuman(rig, entity, at, phase);
                         }
+                        applyEntityRotation(root, entity, at);
                         root.updateWorldMatrix(true, true);
                         root.updateMatrixWorld(true);
                     };
@@ -568,6 +571,8 @@ export class Engine {
             if (e.handBinding) {
                 const root = this.models.get(e.id)!;
                 applyHandBinding(root, e.handBinding, this.handFrame(e.handBinding));
+                applyEntityRotation(root, e, time);
+                root.updateWorldMatrix(true, true);
                 root.visible =
                     e.visible && !!this.project.entities.find((a) => a.id === e.handBinding!.actorId)?.visible;
             }
@@ -603,6 +608,7 @@ export class Engine {
                 }
             } else if (c.aim === 'manual') camera.rotation.set(...e.rotation);
             else camera.lookAt(this.targetPosition(e));
+            applyEntityRotation(camera, e, time);
             configureCamera(
                 camera,
                 c.focalKeys ? numberAt({ keys: c.focalKeys }, time) : c.focal,
@@ -650,6 +656,10 @@ export class Engine {
         model.updateWorldMatrix(true, true);
         const box = new T.Box3().setFromObject(model);
         return box.isEmpty() ? null : box;
+    }
+    localBounds(id: string): T.Box3 | null {
+        const model = this.models.get(id);
+        return model ? localObjectBounds(model) : null;
     }
     /** Camera currently rendering the shot view for `id`. */
     shotCameraFor(id = this.previewId) {

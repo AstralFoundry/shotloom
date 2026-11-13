@@ -8,6 +8,7 @@ interface NumberFieldProps {
     max?: number;
     step?: number;
     precision?: number;
+    disabled?: boolean;
     'aria-label'?: string;
     title?: string;
 }

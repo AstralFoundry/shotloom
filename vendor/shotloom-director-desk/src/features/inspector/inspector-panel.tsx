@@ -1,6 +1,6 @@
 import { RightOutlined } from '@ant-design/icons';
 import { Button, Col, Divider, Empty, Input, Row, Select, Switch, Tabs, Tooltip } from 'antd';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { Joint } from '@/core/model.ts';
 import { numberAt } from '@/core/animation/channels.ts';
 import { defaultLighting } from '@/core/lighting/model.ts';
@@ -158,6 +158,9 @@ function AxisFields({
 
 function BasePanel({ entity }: { entity: Entity }) {
     const t = useTranslation();
+    const time = useEditorStore((state) => state.time);
+    const revision = useEditorStore((state) => state.revision);
+    const bounds = useMemo(() => session.entityBounds(entity.id), [entity.id, time, revision]);
 
     return (
         <div className="stack">
@@ -207,6 +210,35 @@ function BasePanel({ entity }: { entity: Entity }) {
                     />
                 </FieldRow>
             </div>
+
+            {bounds ? (
+                <div className="field-row">
+                    <span className="field-row__label">{t('外接尺寸 · 米')}</span>
+                    <Row gutter={6}>
+                        {(['X', 'Y', 'Z'] as const).map((axis, index) => (
+                            <Col span={8} key={axis}>
+                                <div className="axis-field">
+                                    <span aria-hidden="true">{axis.toLowerCase()}</span>
+                                    <NumberField
+                                        value={Number(bounds.size[index].toFixed(3))}
+                                        min={Math.max(0.001, (bounds.max[index] - bounds.min[index]) * 0.05)}
+                                        step={0.01}
+                                        precision={3}
+                                        disabled={entity.kind !== 'prop' || entity.locked || bounds.size[index] <= 0}
+                                        aria-label={`${t('外接尺寸 · 米')} ${axis}`}
+                                        onCommit={(value) => session.setDimensionAxis(index as 0 | 1 | 2, value)}
+                                    />
+                                </div>
+                            </Col>
+                        ))}
+                    </Row>
+                    <span className="muted small">{t('X 宽 · Y 高 · Z 深；外接尺寸不代表物体一定是长方体。')}</span>
+                    <span className="muted small">
+                        {t('局部左边界 X')} {bounds.min[0].toFixed(3)} · {t('局部右边界 X')} {bounds.max[0].toFixed(3)}
+                    </span>
+                    {entity.kind === 'prop' ? <span className="muted small">{t('修改外接尺寸会调整该轴缩放；旋转轴心使用未缩放的局部坐标。')}</span> : null}
+                </div>
+            ) : null}
 
             {entity.kind === 'actor' || entity.kind === 'crowd' ? (
                 <FieldRow label={t('身高')}>

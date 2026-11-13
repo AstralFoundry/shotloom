@@ -3,7 +3,7 @@ import { Engine } from '@/core/engine.ts';
 import { SceneWorkspace } from '@/core/scenes/scene-workspace.ts';
 import { assertProject, clone, type CameraConfig, type Entity, type Joint, type Project, type Vec3 } from '@/core/model.ts';
 import { entityPosition, shiftPath } from '@/core/timeline.ts';
-import type { TimelineSelection } from '@/core/clip-editing.ts';
+import type { DraggableTimelineSelection } from '@/core/clip-editing.ts';
 import { selectedEntities, setSelectedEntities } from '@/core/editor/timeline-selection.ts';
 import { assertLockedEntitiesUnchanged } from '@/core/editor/invariants.ts';
 import { recordPositionKey } from '@/core/editor/position-keys.ts';
@@ -194,6 +194,19 @@ export class EditorSession {
     get engine(): Engine {
         if (!this.engineRef) throw new Error('三维引擎尚未挂载');
         return this.engineRef;
+    }
+
+    entityBounds(id: string): { size: Vec3; min: Vec3; max: Vec3 } | null {
+        const box = this.engineRef?.localBounds(id);
+        const entity = this.project.entities.find((item) => item.id === id);
+        if (!box || !entity) return null;
+        const localSize = box.getSize(new THREE.Vector3()).toArray() as Vec3;
+        const rootScale = this.engineRef?.models.get(id)?.scale;
+        return {
+            size: localSize.map((value, axis) => value * (rootScale?.getComponent(axis) ?? 1)) as Vec3,
+            min: box.min.toArray() as Vec3,
+            max: box.max.toArray() as Vec3,
+        };
     }
 
     get engineOrNull(): Engine | null {
@@ -616,6 +629,7 @@ export class EditorSession {
                 ...e.clips.map((c) => c.end),
                 ...(e.path?.sections?.map((s) => s.end) ?? e.path?.points.map((p) => p.time) ?? []),
                 ...e.poseKeys.map((k) => k.time),
+                ...(e.rotationAnimation?.keys.map((k) => k.time) ?? []),
                 ...(e.camera?.targetPath?.points.map((p) => p.time) ?? []),
             );
         }
@@ -719,7 +733,7 @@ export class EditorSession {
         return this.clips.timelineDragging;
     }
 
-    beginTimelineDrag(selection: TimelineSelection, resize: boolean): boolean {
+    beginTimelineDrag(selection: DraggableTimelineSelection, resize: boolean): boolean {
         return this.clips.beginTimelineDrag(selection, resize);
     }
 
@@ -883,6 +897,26 @@ export class EditorSession {
     /** Record the selected entity's current position as a waypoint key at the playhead. */
     recordPositionKeyAtPlayhead(): boolean {
         return this.entity.recordPositionKeyAtPlayhead();
+    }
+
+    recordRotationKeyAtPlayhead(): boolean {
+        return this.entity.recordRotationKeyAtPlayhead();
+    }
+
+    setRotationKeyAxis(index: number, axis: 0 | 1 | 2, degrees: number): void {
+        this.entity.setRotationKeyAxis(index, axis, degrees);
+    }
+
+    setRotationPivotAxis(axis: 0 | 1 | 2, value: number): void {
+        this.entity.setRotationPivotAxis(axis, value);
+    }
+
+    removeRotationKey(index: number): void {
+        this.entity.removeRotationKey(index);
+    }
+
+    clearRotationAnimation(): void {
+        this.entity.clearRotationAnimation();
     }
 
     /** Record the selected camera's focal length at the playhead. */
@@ -1225,6 +1259,10 @@ export class EditorSession {
 
     setScaleAxis(axis: 0 | 1 | 2, value: number): void {
         this.entity.setScaleAxis(axis, value);
+    }
+
+    setDimensionAxis(axis: 0 | 1 | 2, metres: number): void {
+        this.entity.setDimensionAxis(axis, metres);
     }
 
     setHeight(value: number): void {

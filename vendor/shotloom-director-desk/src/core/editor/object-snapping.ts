@@ -13,8 +13,8 @@ export interface ObjectSnap {
     normal: Vector3;
 }
 
-/** Keep each object's orientation instead of snapping against an enlarged world AABB. */
-export function objectBounds(root: Object3D, id: string, name: string): SnapBounds | null {
+/** Axis-aligned bounds in the object's own coordinates, before its root transform. */
+export function localObjectBounds(root: Object3D): Box3 | null {
     root.updateWorldMatrix(true, true);
     const inverse = root.matrixWorld.clone().invert(),
         local = new Box3();
@@ -28,7 +28,13 @@ export function objectBounds(root: Object3D, id: string, name: string): SnapBoun
                     .applyMatrix4(new Matrix4().multiplyMatrices(inverse, node.matrixWorld)),
             );
     });
-    if (local.isEmpty()) return null;
+    return local.isEmpty() ? null : local;
+}
+
+/** Keep each object's orientation instead of snapping against an enlarged world AABB. */
+export function objectBounds(root: Object3D, id: string, name: string): SnapBounds | null {
+    const local = localObjectBounds(root);
+    if (!local) return null;
     const corners: Vector3[] = [];
     for (const x of [local.min.x, local.max.x])
         for (const y of [local.min.y, local.max.y])

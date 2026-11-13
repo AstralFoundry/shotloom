@@ -1,10 +1,10 @@
-import type { TimelineSelection } from '@/core/clip-editing.ts';
+import type { DraggableTimelineSelection } from '@/core/clip-editing.ts';
 import { session } from '@/state/editor-session.ts';
 
 const DRAG_THRESHOLD_PX = 3;
 
 /**
- * Pointer-driven timeline dragging for action/path clip bars.
+ * Pointer-driven timeline dragging for clips, paths, and rotation keys.
  *
  * Movement only starts a history transaction past a small threshold, so a plain click
  * remains a click. Each move replays core's `dragClipRange` from the drag-start snapshot,
@@ -12,7 +12,7 @@ const DRAG_THRESHOLD_PX = 3;
  */
 export function beginClipDrag(
     event: React.PointerEvent<HTMLElement>,
-    selection: TimelineSelection,
+    selection: DraggableTimelineSelection,
     options: { extent: number; fps: number; onTap: () => void },
 ): void {
     if (event.button !== 0) return;

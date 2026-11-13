@@ -1569,6 +1569,27 @@
     cursor: pointer;
 }
 
+.clip--rotation {
+    background: color-mix(in srgb, var(--track-accent) 16%, var(--ed-mix-base));
+    border-color: var(--track-accent);
+    color: var(--ed-text-primary);
+    overflow: visible;
+    cursor: grab;
+}
+
+.clip--rotation__key {
+    position: absolute;
+    top: 50%;
+    width: 8px;
+    height: 8px;
+    padding: 0;
+    border: 1px solid var(--ed-text-bright);
+    border-radius: 2px;
+    background: var(--track-accent);
+    transform: translate(-50%, -50%) rotate(45deg);
+    cursor: grab;
+}
+
 .clip--camera {
     background: var(--ed-line-soft);
     border-color: var(--ed-line-stronger);

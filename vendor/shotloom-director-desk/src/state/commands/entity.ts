@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { detachHandBinding } from '@/core/animation/hand-binding.ts';
 import { freezeCamera } from '@/core/editor/camera-editing.ts';
 import { recordPositionKey } from '@/core/editor/position-keys.ts';
+import { rotationDegreesAt } from '@/core/animation/entity-rotation.ts';
 import { removeCameraVisibilityReference } from '@/core/scenes/camera-visibility.ts';
 import { clone, uid, type Entity, type Vec3 } from '@/core/model.ts';
 import { entityPosition, shiftPath } from '@/core/timeline.ts';
@@ -27,6 +28,59 @@ export class EntityCommands {
         return this.host.change(() => {
             recordPositionKey(e, time, entityPosition(e, time).toArray() as Vec3, this.host.project.fps);
         });
+    }
+
+    recordRotationKeyAtPlayhead(): boolean {
+        const e = this.host.current();
+        if (!e || e.locked || e.handBinding) return false;
+        const fps = this.host.project.fps;
+        const time = Math.round(this.host.clock * fps) / fps;
+        const animation = e.rotationAnimation;
+        if (animation?.keys.some((key) => Math.abs(key.time - time) < 1 / fps / 2)) return false;
+        const added = this.host.change(() => {
+            if (!animation) {
+                e.rotationAnimation = {
+                    pivot: [0, 0, 0],
+                    keys: [
+                        { time, degrees: [0, 0, 0] },
+                        { time: time + 1, degrees: [0, 0, 0] },
+                    ],
+                };
+                this.host.extendDuration();
+            } else {
+                const degrees = rotationDegreesAt(animation, time);
+                animation.keys.push({ time, degrees });
+                animation.keys.sort((a, b) => a.time - b.time);
+                this.host.extendDuration();
+            }
+        }, false);
+        if (added && !animation) this.host.seek(time + 1);
+        return added;
+    }
+
+    setRotationKeyAxis(index: number, axis: 0 | 1 | 2, degrees: number): void {
+        const e = this.host.current();
+        const key = e?.rotationAnimation?.keys[index];
+        if (!e || e.locked || !key || !Number.isFinite(degrees)) return;
+        this.host.change(() => { key.degrees[axis] = degrees; }, false);
+    }
+
+    setRotationPivotAxis(axis: 0 | 1 | 2, value: number): void {
+        const e = this.host.current();
+        if (!e || e.locked || !e.rotationAnimation || !Number.isFinite(value)) return;
+        this.host.change(() => { e.rotationAnimation!.pivot[axis] = value; }, false);
+    }
+
+    removeRotationKey(index: number): void {
+        const e = this.host.current();
+        if (!e || e.locked || !e.rotationAnimation || e.rotationAnimation.keys.length <= 2) return;
+        this.host.change(() => { e.rotationAnimation!.keys.splice(index, 1); }, false);
+    }
+
+    clearRotationAnimation(): void {
+        const e = this.host.current();
+        if (!e || e.locked || !e.rotationAnimation) return;
+        this.host.change(() => { delete e.rotationAnimation; }, false);
     }
 
     renameEntity(name: string): void {
@@ -178,6 +232,22 @@ export class EntityCommands {
         this.host.change(() => {
             e.scale[axis] = Math.max(0.05, value);
         });
+    }
+
+    setDimensionAxis(axis: 0 | 1 | 2, metres: number): void {
+        const e = this.host.current();
+        if (!e || e.kind !== 'prop' || e.locked || !Number.isFinite(metres) || metres <= 0) return;
+        const localSize = this.host.engine?.localBounds(e.id)?.getSize(new THREE.Vector3()).getComponent(axis);
+        if (!localSize || !Number.isFinite(localSize)) {
+            notifyError('无法读取对象的局部尺寸');
+            return;
+        }
+        const scale = metres / localSize;
+        if (scale < 0.05) {
+            notifyError('目标尺寸过小，缩放不能低于 0.05');
+            return;
+        }
+        this.setScaleAxis(axis, scale);
     }
 
     setHeight(value: number): void {

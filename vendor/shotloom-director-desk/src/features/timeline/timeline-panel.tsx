@@ -59,7 +59,7 @@ export function TimelinePanel({
     const selected = useEditorStore((state) => state.selected);
     const selectedEntity = useSelectedEntity();
     const tracks = project.entities.filter(
-        (entity) => entity.kind !== 'prop' || entity.path !== null || entity.clips.length > 0,
+        (entity) => entity.kind !== 'prop' || entity.path !== null || entity.clips.length > 0 || Boolean(entity.rotationAnimation),
     );
     const extent = Math.max(
         project.duration,
@@ -68,6 +68,7 @@ export function TimelinePanel({
         ...tracks.flatMap((entity) => [
             ...entity.clips.map((clip) => clip.end),
             ...(entity.path ? pathSections(entity.path).map((section) => section.end) : []),
+            ...(entity.rotationAnimation ? entity.rotationAnimation.keys.map((key) => key.time) : []),
         ]),
     );
     const percent = (seconds: number) => `${(seconds / extent) * 100}%`;
@@ -461,6 +462,17 @@ export function TimelinePanel({
                                     </div>
                                 </div>
                             ) : null}
+                            {entity.rotationAnimation ? (
+                                <div
+                                    className="timeline__row"
+                                    style={{ '--track-accent': TRACK_COLORS[index % TRACK_COLORS.length] } as React.CSSProperties}
+                                >
+                                    <span className="track-label track-label--sub">{t('旋转')}</span>
+                                    <div className="lane" onPointerDown={seekFromPointer}>
+                                        <RotationLane entity={entity} extent={extent} fps={project.fps} />
+                                    </div>
+                                </div>
+                            ) : null}
                         </Fragment>
                     ))}
                     <div
@@ -574,6 +586,56 @@ function PathLane({ entity, extent, fps }: { entity: Entity; extent: number; fps
                 </button>
             ))}
         </>
+    );
+}
+
+function RotationLane({ entity, extent, fps }: { entity: Entity; extent: number; fps: number }) {
+    const t = useTranslation();
+    const animation = entity.rotationAnimation;
+    if (!animation) return null;
+    const first = animation.keys[0];
+    const last = animation.keys[animation.keys.length - 1];
+    const showKey = (at: number) => {
+        session.selectEntity(entity.id);
+        session.seek(at);
+        session.setInspectorTab('keys');
+    };
+    return (
+        <div
+            className="clip clip--rotation"
+            style={{ left: `${(first.time / extent) * 100}%`, width: `${((last.time - first.time) / extent) * 100}%` }}
+            title={`${t('旋转')} · ${first.time.toFixed(2)}s → ${last.time.toFixed(2)}s`}
+            onPointerDown={(event) => {
+                event.stopPropagation();
+                session.selectEntity(entity.id);
+                beginClipDrag(event, { kind: 'rotation', entityId: entity.id }, {
+                    extent, fps, onTap: () => showKey(first.time),
+                });
+            }}
+        >
+            <span>{t('旋转')} · {first.time.toFixed(1)}–{last.time.toFixed(1)}s</span>
+            {animation.keys.map((key, index) => (
+                <button
+                    type="button"
+                    key={`${key.time}-${index}`}
+                    className="clip--rotation__key"
+                    style={{ left: `${((key.time - first.time) / (last.time - first.time)) * 100}%` }}
+                    title={`${key.time.toFixed(2)}s · ${key.degrees.join(', ')}°`}
+                    aria-label={`${key.time.toFixed(2)}s · ${key.degrees.join(', ')}°`}
+                    onPointerDown={(event) => {
+                        event.stopPropagation();
+                        session.selectEntity(entity.id);
+                        beginClipDrag(event, { kind: 'rotation', entityId: entity.id, keyIndex: index }, {
+                            extent, fps, onTap: () => showKey(key.time),
+                        });
+                    }}
+                    onClick={(event) => {
+                        if (event.detail !== 0) return;
+                        showKey(key.time);
+                    }}
+                />
+            ))}
+        </div>
     );
 }
 

@@ -80,6 +80,11 @@ export interface PoseKey {
     time: number;
     pose: Pose;
 }
+/** Local pivot and additive Euler rotation, sampled independently of the entity's position path. */
+export interface RotationAnimation {
+    pivot: Vec3;
+    keys: { time: number; degrees: Vec3; easing?: Easing }[];
+}
 export interface CameraConfig {
     targetPath?: CameraLookPath | null;
     focalKeys?: NumberKey[];
@@ -119,6 +124,7 @@ export interface Entity {
     color: string;
     position: Vec3;
     rotation: Vec3;
+    rotationAnimation?: RotationAnimation;
     scale: Vec3;
     visible: boolean;
     locked: boolean;
@@ -418,6 +424,17 @@ export function assertProject(input: unknown): asserts input is Project {
         )
             fail('对象名称或颜色错误');
         if (!v3(e.position) || !v3(e.rotation) || !v3(e.scale) || e.scale.some((x) => x <= 0)) fail('对象坐标错误');
+        if (e.rotationAnimation !== undefined) {
+            const animation = e.rotationAnimation;
+            if (!animation || !v3(animation.pivot) || !Array.isArray(animation.keys) || animation.keys.length < 2)
+                fail('旋转动画需要局部轴心和至少两个关键帧');
+            animation.keys.forEach((key, index) => {
+                if (!key || !n(key.time) || key.time < 0 || !v3(key.degrees) ||
+                    (index > 0 && key.time <= animation.keys[index - 1].time))
+                    fail('旋转关键帧需要递增时间和三个角度');
+                assertEasing(key.easing);
+            });
+        }
         if (
             typeof e.visible !== 'boolean' ||
             typeof e.locked !== 'boolean' ||

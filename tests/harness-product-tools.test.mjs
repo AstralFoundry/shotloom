@@ -102,6 +102,32 @@ test('canvas, editor and director all receive video frame tool with file path an
   assert.equal(fixture('text-primary').catalog.some(tool => tool.name === 'canvas_media_frame'), false);
 });
 
+test('director batch exposes rotation animation with hinge pivot and time keys', async () => {
+  const { catalog } = fixture('director-primary', 'director-scene');
+  const batch = catalog.find(tool => tool.name === 'director_desk_batch');
+  assert.ok(batch);
+  const editSchema = batch.parameters.properties.edits.items;
+  assert.ok(editSchema.properties.operation.enum.includes('set_rotation_animation'));
+  assert.ok(editSchema.properties.pivot);
+  assert.ok(editSchema.properties.keys);
+
+  const { validateToolInput } = await env.load('agent/core/toolRegistry');
+  const edit = {
+    operation: 'set_rotation_animation', entityId: 'door-leaf', pivot: [0.75, 0, 0],
+    keys: [
+      { timeSec: 0, rotationDegrees: [0, 0, 0] },
+      { timeSec: 2, rotationDegrees: [0, 90, 0], easing: 'smooth' },
+    ],
+  };
+  assert.doesNotThrow(() => validateToolInput(batch.parameters, { expectedRevision: 1, edits: [edit] }));
+  assert.doesNotThrow(() => validateToolInput(batch.parameters, {
+    expectedRevision: 1, edits: [{ operation: 'set_rotation_animation', entityId: 'door-leaf', keys: null }],
+  }));
+  assert.throws(() => validateToolInput(batch.parameters, {
+    expectedRevision: 1, edits: [{ ...edit, pivot: [0, 0] }],
+  }), /pivot/);
+});
+
 test('editor receives supported OpenReel schemas and retains approval and node boundaries', async () => {
   const api = (await env.load('services/desktopApi')).desktopApi;
   const platform = api.platform;

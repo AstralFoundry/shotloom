@@ -62,4 +62,5 @@ export function detachHandBinding(e: Entity, root: Object3D) {
     e.rotation = [root.rotation.x, root.rotation.y, root.rotation.z];
     e.path = null;
     e.handBinding = null;
+    delete e.rotationAnimation;
 }

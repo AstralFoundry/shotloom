@@ -3,6 +3,8 @@ export type TimelineSelection =
     | { kind: 'action'; entityId: string; id: string }
     | { kind: 'path'; entityId: string; index: number }
     | { kind: 'cut'; index: number };
+export type RotationTimelineSelection = { kind: 'rotation'; entityId: string; keyIndex?: number };
+export type DraggableTimelineSelection = TimelineSelection | RotationTimelineSelection;
 export function pathSections(path: MotionPath) {
     return (
         path.sections ?? [

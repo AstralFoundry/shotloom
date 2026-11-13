@@ -14,7 +14,7 @@ import { validateAssetParameters } from '@/core/assets/parameters.ts';
 
 export type BatchEdit = {
     operation: 'set_entity' | 'set_camera' | 'set_light' | 'set_lighting' | 'set_room' | 'set_project' | 'add_action' | 'set_clip' | 'remove_clip'
-        | 'set_path' | 'add_asset' | 'add_wall' | 'add_room' | 'add_prop' | 'add_camera' | 'add_cut' | 'delete_entity' | 'duplicate_entity';
+        | 'set_path' | 'set_rotation_animation' | 'add_asset' | 'add_wall' | 'add_room' | 'add_prop' | 'add_camera' | 'add_cut' | 'delete_entity' | 'duplicate_entity';
     entityId?: string;
     clipId?: string;
     action?: string;
@@ -23,6 +23,9 @@ export type BatchEdit = {
     /** set_path: 关键时点；timeSec 严格递增。 */
     points?: { position: unknown; timeSec: unknown }[];
     smooth?: boolean;
+    /** set_rotation_animation: local pivot and additive Euler angles in degrees. */
+    pivot?: unknown;
+    keys?: unknown;
     /** add_asset / add_camera */
     assetId?: string;
     name?: string;
@@ -66,6 +69,7 @@ const operationFields: Record<BatchEdit['operation'], readonly string[]> = {
     set_clip: ['operation', 'entityId', 'clipId', 'patch'],
     remove_clip: ['operation', 'entityId', 'clipId'],
     set_path: ['operation', 'entityId', 'points', 'smooth'],
+    set_rotation_animation: ['operation', 'entityId', 'pivot', 'keys'],
     add_asset: ['operation', 'assetId', 'name', 'position', 'rotationDegrees', 'scale', 'parameters'],
     add_wall: ['operation', 'from', 'to', 'height', 'thickness', 'opening', 'y', 'name'],
     add_room: ['operation', 'minX', 'maxX', 'minZ', 'maxZ', 'height', 'thickness', 'y', 'openings', 'name', 'floor'],
@@ -349,6 +353,28 @@ export function applyBatchEdits(project: Project, edits: BatchEdit[]): BatchRece
                 project.duration = Math.max(project.duration, path.points[path.points.length - 1].time);
                 receipt.entityId = e.id;
                 receipt.points = path.points.length;
+            } else if (edit.operation === 'set_rotation_animation') {
+                const e = target(project, edit.entityId);
+                if (edit.keys === null) {
+                    delete e.rotationAnimation;
+                } else {
+                    const pivot = vec3(edit.pivot, 'pivot');
+                    if (!Array.isArray(edit.keys) || edit.keys.length < 2) throw Error('keys 需要至少两个旋转关键帧');
+                    let previousTime = -1;
+                    const keys = edit.keys.map((value, index) => {
+                        if (!isRecord(value) || Object.keys(value).some(key => !['timeSec', 'rotationDegrees', 'easing'].includes(key)))
+                            throw Error(`第 ${index + 1} 个旋转关键帧字段无效`);
+                        const time = finite(value.timeSec, 'timeSec');
+                        if (time < 0 || time <= previousTime)
+                            throw Error('旋转关键帧时间需要非负且严格递增');
+                        previousTime = time;
+                        const degrees = vec3(value.rotationDegrees, 'rotationDegrees');
+                        return { time, degrees, ...(value.easing === undefined ? {} : { easing: value.easing }) };
+                    });
+                    e.rotationAnimation = { pivot, keys } as Entity['rotationAnimation'];
+                    project.duration = Math.max(project.duration, keys[keys.length - 1].time);
+                }
+                receipt.entityId = e.id;
             } else if (edit.operation === 'add_asset') {
                 const asset = findAsset(String(edit.assetId ?? ''));
                 if (!asset) throw Error(`素材不存在：${String(edit.assetId)}；取自 catalog.assets[].id`);
