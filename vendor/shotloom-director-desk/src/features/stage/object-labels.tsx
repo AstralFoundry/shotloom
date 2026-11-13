@@ -1,4 +1,6 @@
-import { AimOutlined, BulbOutlined, CameraOutlined, TagOutlined, UserOutlined } from '@ant-design/icons';
+import { AimOutlined, BulbOutlined, CameraOutlined, MessageOutlined, TagOutlined, UserOutlined } from '@ant-design/icons';
+import { requestHostAgentOpen } from '@/app/host-bridge.ts';
+import { useTranslation } from '@/shared/i18n/use-translation.ts';
 import { session } from '@/state/editor-session.ts';
 import { useStageOverlayStore } from '@/state/stage-overlay-store.ts';
 
@@ -14,6 +16,7 @@ export function ObjectLabels({
 }: {
     onContextMenu?: (id: string, event: React.MouseEvent<HTMLElement>) => void;
 }) {
+    const t = useTranslation();
     const labels = useStageOverlayStore((state) => state.labels);
     const selected = useStageOverlayStore((state) => state.selected);
 
@@ -22,33 +25,42 @@ export function ObjectLabels({
             {labels
                 .filter((label) => label.visible)
                 .map((label) => (
-                    <button
-                        type="button"
+                    <div
                         key={label.id}
                         className={`object-label object-label--${label.light ? 'light' : label.kind} ${
                             label.id === selected ? 'is-selected' : ''
                         }`}
                         style={{ left: label.x, top: label.y }}
-                        onClick={() => session.selectEntity(label.id)}
                         onContextMenu={(event) => onContextMenu?.(label.id, event)}
                     >
-                        <i style={{ background: label.color }} />
-                        <span className="object-label__icon" aria-hidden="true">
-                            {label.light ? (
-                                <BulbOutlined />
-                            ) : label.kind === 'camera' ? (
-                                <CameraOutlined />
-                            ) : label.kind === 'actor' || label.kind === 'crowd' ? (
-                                <UserOutlined />
-                            ) : (
-                                <TagOutlined />
-                            )}
-                        </span>
-                        <span>{label.name}</span>
-                        {label.kind === 'camera' ? (
-                            <AimOutlined className="object-label__tail" aria-hidden="true" />
+                        <button type="button" className="object-label__select"
+                            onClick={() => session.selectEntity(label.id)}>
+                            <i style={{ background: label.color }} />
+                            <span className="object-label__icon" aria-hidden="true">
+                                {label.light ? (
+                                    <BulbOutlined />
+                                ) : label.kind === 'camera' ? (
+                                    <CameraOutlined />
+                                ) : label.kind === 'actor' || label.kind === 'crowd' ? (
+                                    <UserOutlined />
+                                ) : (
+                                    <TagOutlined />
+                                )}
+                            </span>
+                            <span>{label.name}</span>
+                            {label.kind === 'camera' ? (
+                                <AimOutlined className="object-label__tail" aria-hidden="true" />
+                            ) : null}
+                        </button>
+                        {label.id === selected && window.parent !== window ? (
+                            <button type="button" className="object-label__agent"
+                                aria-label={`${t('发送给导演助手')}：${label.name}`}
+                                title={t('发送给导演助手')}
+                                onClick={() => requestHostAgentOpen(label.id)}>
+                                <MessageOutlined aria-hidden="true" />
+                            </button>
                         ) : null}
-                    </button>
+                    </div>
                 ))}
         </div>
     );

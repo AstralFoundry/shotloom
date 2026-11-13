@@ -63,7 +63,7 @@ export function sampleHumanBody(r: Rig, e: Entity, time: number, phaseOffset = 0
     r.hips.position.lerpVectors(hipPosition, r.hips.position, u);
     r.hips.quaternion.slerp(hipRotation, 1 - u);
     for (const [key, joint] of Object.entries(r.joints)) joint.quaternion.slerp(rotations[key], 1 - u);
-    if (AUTHORED_HUMAN_ACTIONS[sampledAction(e, time).action as import('../model.ts').Action]?.contact !== 'body')
+    if (!['body', 'none'].includes(AUTHORED_HUMAN_ACTIONS[sampledAction(e, time).action as import('../model.ts').Action]?.contact ?? 'feet'))
         supportHumanFeet(r);
 }
 export function animateHuman(r: Rig, e: Entity, time: number, phaseOffset = 0) {

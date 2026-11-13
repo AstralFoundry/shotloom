@@ -220,6 +220,8 @@ export const AUTHORED_HUMAN_ACTIONS: Record<Action, Motion> = {
     run: {
         duration: 0.68,
         loop: true,
+        // Brief flight is natural in a run; planting a sole every frame makes the pelvis hop.
+        contact: 'none',
         keys: [
             key(
                 0,
@@ -246,7 +248,7 @@ export const AUTHORED_HUMAN_ACTIONS: Record<Action, Motion> = {
                     torso: 7,
                     head: -9,
                     leftHip: -12,
-                    leftKnee: 28,
+                    leftKnee: 10,
                     leftAnkle: -17,
                     rightHip: 0,
                     rightKnee: 112,
@@ -256,7 +258,7 @@ export const AUTHORED_HUMAN_ACTIONS: Record<Action, Motion> = {
                     leftElbow: -84,
                     rightElbow: -90,
                 },
-                -0.01,
+                -0.0025,
                 [5, -2.5, 1],
             ),
             key(
@@ -264,9 +266,9 @@ export const AUTHORED_HUMAN_ACTIONS: Record<Action, Motion> = {
                 {
                     torso: 6,
                     head: -8,
-                    leftHip: 20,
-                    leftKnee: 32,
-                    leftAnkle: -45,
+                    leftHip: 0,
+                    leftKnee: 5,
+                    leftAnkle: -5,
                     rightHip: -30,
                     rightKnee: 115,
                     rightAnkle: -25,
@@ -275,7 +277,7 @@ export const AUTHORED_HUMAN_ACTIONS: Record<Action, Motion> = {
                     leftElbow: -86,
                     rightElbow: -86,
                 },
-                0.045,
+                0.01125,
                 [5, 0, 0],
             ),
             key(
@@ -294,7 +296,7 @@ export const AUTHORED_HUMAN_ACTIONS: Record<Action, Motion> = {
                     leftElbow: -90,
                     rightElbow: -84,
                 },
-                0.065,
+                0.01625,
                 [5, 2.5, -1],
             ),
             key(
@@ -325,14 +327,14 @@ export const AUTHORED_HUMAN_ACTIONS: Record<Action, Motion> = {
                     leftKnee: 112,
                     leftAnkle: -20,
                     rightHip: -12,
-                    rightKnee: 28,
+                    rightKnee: 10,
                     rightAnkle: -17,
                     leftArm: -22,
                     rightArm: 15,
                     leftElbow: -90,
                     rightElbow: -84,
                 },
-                -0.01,
+                -0.0025,
                 [5, 2.5, -1],
             ),
             key(
@@ -343,15 +345,15 @@ export const AUTHORED_HUMAN_ACTIONS: Record<Action, Motion> = {
                     leftHip: -30,
                     leftKnee: 115,
                     leftAnkle: -25,
-                    rightHip: 20,
-                    rightKnee: 32,
-                    rightAnkle: -45,
+                    rightHip: 0,
+                    rightKnee: 5,
+                    rightAnkle: -5,
                     leftArm: -4,
                     rightArm: -4,
                     leftElbow: -86,
                     rightElbow: -86,
                 },
-                0.045,
+                0.01125,
                 [5, 0, 0],
             ),
             key(
@@ -370,7 +372,7 @@ export const AUTHORED_HUMAN_ACTIONS: Record<Action, Motion> = {
                     leftElbow: -84,
                     rightElbow: -90,
                 },
-                0.065,
+                0.01625,
                 [5, -2.5, 1],
             ),
             key(

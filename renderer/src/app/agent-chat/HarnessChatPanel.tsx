@@ -13,12 +13,15 @@ import { store, touchProject } from '../../store/projectStore';
 import { createHarnessSession, deleteHarnessSession, scopedHarnessSessions } from '../../services/harnessSessionStore';
 import { focusCanvasNodes } from '../adapters/canvasAdapter';
 import { useAppStore } from '../store/appStore';
+import { showToast } from '../../store/notificationStore';
 import { mountHarnessClient } from '../agent-session/harnessClient';
 import { HarnessSessionToolbar } from './HarnessSessionToolbar';
 
 /** Official chat keeps its own React and state engines inside a ShadowRoot. */
-export function HarnessChatPanel({ agentId, nodeId, onClose, onStatusChange }: {
+export function HarnessChatPanel({ agentId, nodeId, onClose, onStatusChange, directorEntityRequest, onDirectorEntityInserted }: {
   agentId: ProductBinding['agentId']; nodeId?: string; onClose?: () => void; onStatusChange?: (status: 'loading' | 'ready' | 'error') => void;
+  directorEntityRequest?: { id: string; nonce: number } | undefined;
+  onDirectorEntityInserted?: ((nonce: number) => void) | undefined;
 }) {
   useSyncExternalStore(subscribeDomain, getDomainRevision, getDomainRevision);
   const identity = getAgentProjectIdentity();
@@ -27,6 +30,14 @@ export function HarnessChatPanel({ agentId, nodeId, onClose, onStatusChange }: {
   const [selectedId, setSelectedId] = useState('');
   const [retry, setRetry] = useState(0);
   const [frameError, setFrameError] = useState('');
+  const entityRequestRef = useRef(directorEntityRequest);
+  const deliveredEntityRequest = useRef(0);
+  const deliveringEntityRequest = useRef(0);
+  const deliverEntityRef = useRef<(() => void) | null>(null);
+  const insertedRef = useRef(onDirectorEntityInserted);
+  entityRequestRef.current = directorEntityRequest;
+  insertedRef.current = onDirectorEntityInserted;
+  useEffect(() => { deliverEntityRef.current?.(); }, [directorEntityRequest]);
   const sessions = scopedHarnessSessions(store.project, agentId === CANVAS_AGENT_ID ? 'canvas' : agentId === DIRECTOR_AGENT_ID ? 'director' : agentId === EDITOR_AGENT_ID ? 'editor' : 'text', nodeId);
   const selected = sessions.find(item => item.id === selectedId) ?? sessions.find(item => item.id === store.project.activeHarnessSessionId) ?? sessions[0];
   const [panel, setPanel] = useState<{ key: string; sessionId?: string; tools?: string[]; toolTitles?: Record<string, string>; error?: string }>();
@@ -71,6 +82,28 @@ export function HarnessChatPanel({ agentId, nodeId, onClose, onStatusChange }: {
     let mounted: { dispose(): void } | undefined;
     const sessionId = panel.sessionId;
     const mentions = new Set<(nodeId: string) => void>();
+    const deliverEntity = async () => {
+      const request = entityRequestRef.current;
+      if (agentId !== DIRECTOR_AGENT_ID || !request || !mentions.size ||
+        request.nonce === deliveredEntityRequest.current || deliveringEntityRequest.current) return;
+      deliveringEntityRequest.current = request.nonce;
+      try {
+        const catalog = await readHarnessCanvasReference(sessionId);
+        const reference = ('nodes' in catalog ? catalog.nodes : undefined)?.find(item => item.referenceScope === 'director-entity' &&
+          item.id.endsWith(`:${encodeURIComponent(request.id)}`));
+        if (!reference) throw new Error('选中的导演台物体已不在当前场景中');
+        if (!active) return;
+        deliveredEntityRequest.current = request.nonce;
+        for (const listener of mentions) listener(reference.id);
+        insertedRef.current?.(request.nonce);
+      } catch (error) {
+        if (active) showToast(String(error), 'error');
+      } finally {
+        deliveringEntityRequest.current = 0;
+        if (active && entityRequestRef.current?.nonce !== request.nonce) void deliverEntity();
+      }
+    };
+    deliverEntityRef.current = () => { void deliverEntity(); };
     const mention = (event: Event) => {
       const nodeId = (event as CustomEvent<unknown>).detail;
       if (typeof nodeId === 'string' && store.project.nodes.some((node: { id: string }) => node.id === nodeId)) for (const listener of mentions) listener(nodeId);
@@ -93,11 +126,11 @@ export function HarnessChatPanel({ agentId, nodeId, onClose, onStatusChange }: {
         if (kind === 'tasks' && ids.some(id => store.project.tasks?.some((task: { id: string }) => task.id === id))) useAppStore.getState().setRoute('tasks');
       },
       status(phase, error) { if (active) { setFrameError(error ?? ''); onStatusChange?.(phase); } },
-      subscribeMention(listener) { mentions.add(listener); return () => { mentions.delete(listener); }; },
+      subscribeMention(listener) { mentions.add(listener); void deliverEntity(); return () => { mentions.delete(listener); }; },
     }).then(result => { if (active) mounted = result; else result.dispose(); }).catch(error => {
       if (active) { setFrameError(String(error)); onStatusChange?.('error'); }
     });
-    return () => { active = false; mounted?.dispose(); window.removeEventListener('shotloom:mention-node', mention); };
+    return () => { active = false; deliverEntityRef.current = null; mounted?.dispose(); window.removeEventListener('shotloom:mention-node', mention); };
   }, [panel, key, agentId, onStatusChange]);
   return <section ref={container} className="harness-chat-panel">
     <HarnessSessionToolbar sessions={sessions} selectedId={selected?.id} onSelect={setSelectedId} onClose={onClose}

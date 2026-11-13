@@ -30,7 +30,7 @@
           "outputConstraints": {
             "supportsStreaming": true,
             "supportsStructuredOutput": true,
-            "maxTokens": 16384
+            "maxTokens": 393216
           },
           "capabilities": [
             "reasoning"
@@ -45,7 +45,12 @@
               "options": [
                 4096,
                 8192,
-                16384
+                16384,
+                32768,
+                65536,
+                131072,
+                262144,
+                393216
               ],
               "labelKey": "catalog.label.c6f7a87b1e"
             }
@@ -83,7 +88,7 @@
           "outputConstraints": {
             "supportsStreaming": true,
             "supportsStructuredOutput": true,
-            "maxTokens": 16384
+            "maxTokens": 393216
           },
           "capabilities": [
             "structured-output"
@@ -98,7 +103,12 @@
               "options": [
                 4096,
                 8192,
-                16384
+                16384,
+                32768,
+                65536,
+                131072,
+                262144,
+                393216
               ],
               "labelKey": "catalog.label.c6f7a87b1e"
             }
@@ -136,7 +146,7 @@
           "outputConstraints": {
             "supportsStreaming": true,
             "supportsStructuredOutput": true,
-            "maxTokens": 16384
+            "maxTokens": 393216
           },
           "capabilities": [
             "structured-output"
@@ -151,7 +161,12 @@
               "options": [
                 4096,
                 8192,
-                16384
+                16384,
+                32768,
+                65536,
+                131072,
+                262144,
+                393216
               ],
               "labelKey": "catalog.label.c6f7a87b1e"
             }
@@ -200,7 +215,7 @@
           "outputConstraints": {
             "supportsStreaming": true,
             "supportsStructuredOutput": true,
-            "maxTokens": 16384
+            "maxTokens": 393216
           },
           "capabilities": [
             "reasoning"
@@ -215,7 +230,12 @@
               "options": [
                 4096,
                 8192,
-                16384
+                16384,
+                32768,
+                65536,
+                131072,
+                262144,
+                393216
               ],
               "labelKey": "catalog.label.c6f7a87b1e"
             }
@@ -253,7 +273,7 @@
           "outputConstraints": {
             "supportsStreaming": true,
             "supportsStructuredOutput": true,
-            "maxTokens": 16384
+            "maxTokens": 393216
           },
           "capabilities": [
             "structured-output"
@@ -268,7 +288,12 @@
               "options": [
                 4096,
                 8192,
-                16384
+                16384,
+                32768,
+                65536,
+                131072,
+                262144,
+                393216
               ],
               "labelKey": "catalog.label.c6f7a87b1e"
             }
@@ -306,7 +331,7 @@
           "outputConstraints": {
             "supportsStreaming": true,
             "supportsStructuredOutput": true,
-            "maxTokens": 16384
+            "maxTokens": 393216
           },
           "capabilities": [
             "structured-output"
@@ -321,7 +346,12 @@
               "options": [
                 4096,
                 8192,
-                16384
+                16384,
+                32768,
+                65536,
+                131072,
+                262144,
+                393216
               ],
               "labelKey": "catalog.label.c6f7a87b1e"
             }

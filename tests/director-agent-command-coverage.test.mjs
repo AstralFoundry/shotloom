@@ -103,8 +103,12 @@ test('导演台退出入口在顶部工具栏，详情底部没有额外退出�
   const pane = fs.readFileSync(path.join(root, 'renderer/src/app/agent-chat/DirectorAgentPane.tsx'), 'utf8');
   const bridgeAdapter = fs.readFileSync(path.join(root, 'renderer/src/app/adapters/directorDeskBridge.ts'), 'utf8');
   assert.match(topBar, /onClick=\{requestHostClose\}/, '顶部工具栏应提供返回画布入口');
-  assert.match(topBar, /onClick=\{requestHostAgentOpen\}/, '顶部工具栏应提供 Agent 恢复入口');
-  assert.match(bridgeAdapter, /messageType\.openAgent.*onOpenAgent/, '顶部工具栏的消息应传到宿主 Agent 面板');
+  assert.match(topBar, /onClick=\{\(\) => requestHostAgentOpen\(\)\}/, '顶部工具栏应提供 Agent 恢复入口');
+  const labels = fs.readFileSync(path.join(root, 'vendor/shotloom-director-desk/src/features/stage/object-labels.tsx'), 'utf8');
+  const menu = fs.readFileSync(path.join(root, 'vendor/shotloom-director-desk/src/features/stage/stage-context-menu.tsx'), 'utf8');
+  assert.match(labels, /label\.id === selected[\s\S]*?requestHostAgentOpen\(label\.id\)/, '选中对象的场景标签旁应能送入 Agent 输入框');
+  assert.match(menu, /requestHostAgentOpen\(entity\.id\)/, '舞台右键菜单应能把对象送入 Agent 输入框');
+  assert.match(bridgeAdapter, /messageType\.openAgent[\s\S]*?onOpenAgent/, '顶部工具栏的消息应传到宿主 Agent 面板');
   assert.doesNotMatch(topBar, /topbar__brand/, '顶部不应显示导演台与未命名场景标识');
   assert.doesNotMatch(pane, /director-agent-reopen/, '收起的 Agent 不应悬浮在属性面板标题上');
   assert.doesNotMatch(node, /director-detail-close/, '详情底部不应保留退出按钮');

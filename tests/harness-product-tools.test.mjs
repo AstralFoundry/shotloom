@@ -271,6 +271,7 @@ test('Harness advertises StarRouter DeepSeek Flash reasoning levels and Agent de
     assert.equal(models.some(row => row.id === 'deepseek-v4-pro'), false);
     assert.equal(config.defaultModel.reasoningEffort, 'high');
     const flash = models.find(row => row.id === 'deepseek-flash');
+    assert.equal(flash.maxTokens, 393216);
     assert.deepEqual(flash.input, ['text', 'image']);
     assert.deepEqual(flash.reasoningEfforts, { off: 'none', low: 'low', high: 'high', max: 'max' });
     assert.equal(flash.compat.supportsReasoningEffort, true);

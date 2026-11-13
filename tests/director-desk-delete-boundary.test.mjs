@@ -36,7 +36,7 @@ test('导演台内部删除消息不能删除画布节点，其他同源消息�
       onReady() { received.push('ready'); },
       onInteraction() {},
       onExitInteraction() {},
-      onOpenAgent() { received.push('open-agent'); },
+      onOpenAgent(entityId) { received.push(['open-agent', entityId]); },
       onPanoramaRemoved() {},
       onProjectChanged(project) { received.push(project); },
       onCaptures() {},
@@ -52,7 +52,8 @@ test('导演台内部删除消息不能删除画布节点，其他同源消息�
     dispatch('storyai:director-desk-project-changed', { project: { format: 'director-desk' } });
     assert.deepEqual(received, [{ format: 'director-desk' }]);
     dispatch('storyai:director-desk-open-agent');
-    assert.deepEqual(received, [{ format: 'director-desk' }, 'open-agent']);
+    dispatch('storyai:director-desk-open-agent', { entityId: 'building-1' });
+    assert.deepEqual(received, [{ format: 'director-desk' }, ['open-agent', undefined], ['open-agent', 'building-1']]);
     unsubscribe();
     assert.equal(listeners.has('message'), false);
   } finally {

@@ -19,11 +19,15 @@ export function DirectorAgentPane({
   nodeId,
   collapsed,
   onCollapsedChange,
+  entityRequest,
+  onEntityRequestHandled,
 }: {
   className: string;
   nodeId?: string;
   collapsed: boolean;
   onCollapsedChange: (collapsed: boolean) => void;
+  entityRequest?: { id: string; nonce: number } | undefined;
+  onEntityRequestHandled?: (nonce: number) => void;
 }) {
   const [width, setWidth] = useState(() => {
     const stored = Number(window.localStorage.getItem(WIDTH_KEY));
@@ -89,6 +93,8 @@ export function DirectorAgentPane({
         agentId={DIRECTOR_AGENT_ID}
         {...(nodeId ? { nodeId } : {})}
         onClose={() => onCollapsedChange(true)}
+        directorEntityRequest={entityRequest}
+        onDirectorEntityInserted={onEntityRequestHandled}
       />
     </aside>
   );

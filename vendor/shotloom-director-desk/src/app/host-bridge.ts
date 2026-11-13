@@ -39,8 +39,8 @@ const send = (type: string, payload: Input = {}) => parent.postMessage({ type: `
 export function requestHostClose() {
     if (parent !== window) send('close');
 }
-export function requestHostAgentOpen() {
-    if (parent !== window) send('open-agent');
+export function requestHostAgentOpen(entityId?: string) {
+    if (parent !== window) send('open-agent', entityId ? { entityId } : {});
 }
 const string = (value: unknown) => String(value ?? '');
 const number = (value: unknown) => {

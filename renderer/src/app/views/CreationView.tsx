@@ -91,13 +91,19 @@ export function CreationView({
 
 function FullDirectorWorkspace({ data }: { data: CreationViewData }) {
   const [agentCollapsed, setAgentCollapsed] = useState(false);
+  const [entityRequest, setEntityRequest] = useState<{ id: string; nonce: number }>();
+  const entityRequestSerial = useRef(0);
   return <div className="director-workspace-host" data-canvas-no-zoom>
     <DirectorWorkspace
       src={directorDeskWorkspaceSrc}
       onExit={() => data.onLeaveFullDirectorWorkspace?.()}
-      onOpenAgent={() => setAgentCollapsed(false)}
+      onOpenAgent={(entityId) => {
+        setAgentCollapsed(false);
+        if (entityId) setEntityRequest({ id: entityId, nonce: ++entityRequestSerial.current });
+      }}
     />
-    <DirectorAgentPane className="director-workspace-agent" collapsed={agentCollapsed} onCollapsedChange={setAgentCollapsed} />
+    <DirectorAgentPane className="director-workspace-agent" collapsed={agentCollapsed} onCollapsedChange={setAgentCollapsed}
+      entityRequest={entityRequest} onEntityRequestHandled={nonce => setEntityRequest(current => current?.nonce === nonce ? undefined : current)} />
   </div>;
 }
 

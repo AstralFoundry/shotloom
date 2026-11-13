@@ -185,7 +185,7 @@ export function TopBar({ sidebarOpen, onToggleSidebar, inspectorOpen, onToggleIn
                 {window.parent !== window ? (
                     <>
                         <Tooltip title={t('导演助手')}>
-                            <Button type="text" size="small" icon={<MessageOutlined />} aria-label={t('导演助手')} onClick={requestHostAgentOpen} />
+                            <Button type="text" size="small" icon={<MessageOutlined />} aria-label={t('导演助手')} onClick={() => requestHostAgentOpen()} />
                         </Tooltip>
                         <Tooltip title={t('返回画布')}>
                             <Button type="text" size="small" icon={<CloseOutlined />} aria-label={t('返回画布')} onClick={requestHostClose} />

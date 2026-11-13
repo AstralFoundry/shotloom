@@ -54,7 +54,8 @@ function segment(parent: T.Object3D, material: T.Material, width: number, length
 }
 
 function sculptColor(material: T.MeshStandardMaterial, color: string, shade = 0) {
-    material.color.set(shade ? '#d9d8d5' : '#f3f2ef').lerp(new T.Color(color), 0.08);
+    // Preserve entity identity colors, including costumes sharing this material.
+    material.color.set(color).multiplyScalar(shade ? 0.8 : 1);
     material.roughness = 0.68;
     material.metalness = 0;
 }

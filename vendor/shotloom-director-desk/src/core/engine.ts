@@ -378,7 +378,15 @@ export class Engine {
         this.rebuild(project);
     }
     private renderer() {
-        const r = new T.WebGLRenderer({ antialias: true, alpha: false, preserveDrawingBuffer: true });
+        // Centimetre-scale close-ups and kilometre-scale stage views share these
+        // renderers. Linear depth loses millimetre-separated floor surfaces when
+        // the camera pulls back, producing moving stripes / mosaic patches.
+        const r = new T.WebGLRenderer({
+            antialias: true,
+            alpha: false,
+            preserveDrawingBuffer: true,
+            logarithmicDepthBuffer: true,
+        });
         r.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
         r.shadowMap.enabled = true;
         r.shadowMap.type = T.PCFSoftShadowMap;
@@ -545,7 +553,8 @@ export class Engine {
                 e.kind === 'actor' &&
                 e.visible &&
                 !inheritedPoseAt(e, time) &&
-                e.footContact &&
+                (e.footContact === true ||
+                    (e.footContact !== false && !e.external && !isAnimalAsset(e.asset) && sampledAction(e, time).action === 'run')) &&
                 ['idle', 'walk', 'run', 'wave', 'point', 'turn'].includes(sampledAction(e, time).action),
         );
         if (contactActors.length) {

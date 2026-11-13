@@ -32,6 +32,7 @@ import type { ThemeSnapshot } from '@deepseek-ai/dsh-client-ui-theme/client';
 import type { ChatNodeViewProps } from '@deepseek-ai/dsh-client-ui-chat/client';
 import { installEmbeddedSubagents } from './embeddedSubagents';
 import { installCanvasReferences } from './canvasReferences';
+import { presentUserReferences } from './userReferencePresentation';
 import { EmptyBrand } from './emptyBrand';
 import { installComposerControls } from './composerControls';
 import type { TokenSpan } from '@deepseek-ai/dsh-client-ui-input-trigger/client';
@@ -83,14 +84,8 @@ function installCanvasReferenceCards(ctx: ClientContext) {
     const references: Array<{ id: string; label: string }> = [];
     const content = props.node.data.content.map(block => {
       if (block.type !== 'text') return block;
-      const text = block.text.replace(/<shotloom-canvas-reference>\s*([\s\S]*?)\s*<\/shotloom-canvas-reference>/g, (original, payload: string) => {
-        try {
-          const value = JSON.parse(payload);
-          if (typeof value.node?.id !== 'string' || typeof value.node?.label !== 'string' || !value.snapshot) return original;
-          references.push({ id: value.node.id, label: value.node.label });
-          return `@"${value.node.label.replaceAll('"', '’')}"`;
-        } catch { return original; }
-      });
+      const { text, canvasReferences } = presentUserReferences(block.text);
+      references.push(...canvasReferences);
       return { ...block, text };
     });
     return <Official {...props} node={{ ...props.node, data: { ...props.node.data, content } }} openFile={(path, options) => {

@@ -179,7 +179,7 @@ edits 按顺序执行，支持：
 - add_cut：timeSec（秒，须小于工程时长）+ cameraId；同一时刻已有切镜则替换机位。
 - set_path：entityId + points:[{ position:[x,y,z], timeSec }]（至少 2 个，timeSec 严格递增）+ 可选 smooth（默认 true）。一次写入整条运动路径，不依赖选区与播放头；路径首点位置即成为实体基座位置。跟随机位需先把 camera.mode 设为 free。
 - set_rotation_animation：entityId + pivot:[x,y,z]（物体局部坐标，单位米，随物体缩放）+ keys:[{ timeSec, rotationDegrees:[x,y,z], easing? }]（至少 2 个，时间严格递增；角度是相对实体基础朝向的增量）。它让任意实体围绕指定轴心随时间旋转，并可与位置路径同时使用。内置 prop door 的局部原点就在左侧门轴，可用 pivot:[0,0,0]、0 秒 [0,0,0]、2 秒 [0,90,0]；带框的 structure-door 是整件实体，旋转它会连门框一起转，应把门扇单独作为实体。要移除动画，传 keys:null（此时不需要 pivot）。先从 snapshot 查询实体尺寸与朝向，轴心不能凭空猜。提交后在开始、中间和结束时间预览核验。
-- set_entity：entityId + patch；字段 name、color、position:[x,y,z]（米，世界坐标，整条路径平移）、rotationDegrees:[x,y,z]（度）、scale:[x,y,z]、parameters、visible、height、build、gender。parameters 是素材的真实尺寸参数（米），键名取自 catalog.assets[].params，例如墙的 width/height/depth/openingWidth；有参数的素材优先改参数而不是 scale，scale 会把门洞和墙厚一起拉伸。跟随机位不能直接设位置或旋转，手持道具不能直接设位置。
+- set_entity：entityId + patch；字段 name、color、position:[x,y,z]（米，世界坐标，整条路径平移）、rotationDegrees:[x,y,z]（度）、scale:[x,y,z]、parameters、visible、height、build、gender。parameters 是素材的真实尺寸参数（米），键名取自 catalog.assets[].params，例如墙的 width/height/depth/openingWidth；有参数的素材优先改参数而不是 scale，scale 会把门洞和墙厚一起拉伸。内置人偶的 color 是身体及服装整体改色；服装款式用支持服装参数的 human-* 素材，先查 catalog.params，再设置 parameters.outfit / headwear / backpack（按目录 choices 取值）。person / woman 不支持这些换装参数。跟随机位不能直接设位置或旋转，手持道具不能直接设位置。
 - set_camera / set_light：entityId + patch；字段从 director_desk_catalog.patchFields.set_camera_field / set_light_field 取。
 - set_lighting / set_room / set_project：patch；字段分别从 catalog.patchFields.set_lighting_field / update_room / update_project_settings 取。
 - add_action：entityId + action（取 catalog.actions）+ 可选 atSec（秒，默认 0）；放在该时点之后第一个不重叠位置，返回新 clipId。已有待机片段可能把新动作推到其末尾。

@@ -4,6 +4,7 @@ import {
     DeleteOutlined,
     EyeInvisibleOutlined,
     EyeOutlined,
+    MessageOutlined,
     VerticalAlignBottomOutlined,
 } from '@ant-design/icons';
 import { App, Menu } from 'antd';
@@ -11,6 +12,7 @@ import { useEffect } from 'react';
 import type { Entity } from '@/core/model.ts';
 import { useTranslation } from '@/shared/i18n/use-translation.ts';
 import { session } from '@/state/editor-session.ts';
+import { requestHostAgentOpen } from '@/app/host-bridge.ts';
 import { useProject } from '@/state/use-editor.ts';
 
 export interface ContextMenuTarget {
@@ -86,6 +88,9 @@ export function StageContextMenu({ target, onClose }: Props) {
                         case 'focus':
                             session.focusSelected();
                             break;
+                        case 'send-to-agent':
+                            requestHostAgentOpen(entity.id);
+                            break;
                         case 'duplicate':
                             session.duplicateSelected();
                             break;
@@ -103,6 +108,7 @@ export function StageContextMenu({ target, onClose }: Props) {
                 }}
                 items={[
                     { key: 'focus', icon: <AimOutlined />, label: t('定位对象') },
+                    { key: 'send-to-agent', icon: <MessageOutlined />, label: t('发送给导演助手') },
                     { key: 'duplicate', icon: <CopyOutlined />, label: t('复制') },
                     {
                         key: 'visibility',

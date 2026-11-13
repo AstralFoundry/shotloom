@@ -48,6 +48,17 @@ test('StarRouter DeepSeek Flash 使用上游模型 ID 和完整文本模式', ()
   }
 });
 
+test('DeepSeek 直连和 StarRouter Flash 使用官方 384K 输出上限', () => {
+  for (const id of ['deepseek-v4-pro', 'deepseek-flash', 'starrouter-deepseek-flash']) {
+    const model = catalog.models.find((item) => item.id === id);
+    assert.ok(model, `${id} missing`);
+    for (const mode of model.modes) {
+      assert.equal(mode.outputConstraints.maxTokens, 393216, `${id}/${mode.id}`);
+      assert.ok(mode.params.find((param) => param.key === 'maxTokens').options.includes(393216), `${id}/${mode.id}`);
+    }
+  }
+});
+
 test('StarRouter 不再提供 DeepSeek V4 Pro，仍保留 DeepSeek Flash', () => {
   assert.equal(catalog.models.some((item) => item.id === 'starrouter-deepseek-v4-pro'), false);
   assert.equal(catalog.models.some((item) => item.id === 'starrouter-deepseek-flash'), true);

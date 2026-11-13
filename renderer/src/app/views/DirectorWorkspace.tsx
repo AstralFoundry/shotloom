@@ -47,7 +47,7 @@ export const useDirectorWorkspaceExport = create<WorkspaceExportState>((set) => 
   setRequest: (handler) => set({ request: handler }),
 }));
 
-export function DirectorWorkspace({ src, onReady, onExit, onOpenAgent }: { src: (instanceId: string) => string; onReady?: () => void; onExit?: () => void; onOpenAgent?: () => void }) {
+export function DirectorWorkspace({ src, onReady, onExit, onOpenAgent }: { src: (instanceId: string) => string; onReady?: () => void; onExit?: () => void; onOpenAgent?: (entityId?: string) => void }) {
   const projectId = useAppStore((state) => state.currentProject?.id ?? 'local');
   const frameRef = useRef<HTMLIFrameElement>(null);
   /** Latest document this instance reported, used when sending it to a canvas node. */
@@ -87,7 +87,7 @@ export function DirectorWorkspace({ src, onReady, onExit, onOpenAgent }: { src: 
       },
       onInteraction: () => undefined,
       onExitInteraction: () => onExit?.(),
-      onOpenAgent: () => onOpenAgent?.(),
+      onOpenAgent: (entityId) => onOpenAgent?.(entityId),
       onPanoramaRemoved: () => undefined,
       onProjectChanged: (project) => {
         latestDocument.current = project;
