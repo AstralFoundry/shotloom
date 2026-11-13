@@ -11,8 +11,8 @@
 .help-groups h2 {
     margin: 0;
     color: var(--ed-text-strong);
-    font-size: 14px;
-    font-weight: 600;
+    font-size: 13px;
+    font-weight: 500;
 }
 
 .help-group h3 {
@@ -98,8 +98,8 @@
 
 .template-card strong {
     color: var(--ed-text-strong);
-    font-size: 14px;
-    font-weight: 600;
+    font-size: 13px;
+    font-weight: 500;
 }
 
 .template-card span {

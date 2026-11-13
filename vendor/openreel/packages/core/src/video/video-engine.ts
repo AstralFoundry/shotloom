@@ -318,6 +318,7 @@ export class VideoEngine {
     width: number,
     _height: number,
     mediaId?: string,
+    realtime = false,
   ): Promise<ImageBitmap | null> {
     try {
       const mediaEngine = getMediaEngine();
@@ -325,6 +326,10 @@ export class VideoEngine {
         await mediaEngine.initialize();
       }
 
+      if (realtime) {
+        const canvas = await mediaEngine.getPlaybackFrame(blob, time, width);
+        return canvas ? createImageBitmap(canvas) : null;
+      }
       if (mediaId) {
         const exportDecoder = mediaEngine.getExportDecoder(mediaId);
         if (exportDecoder) {
@@ -465,9 +470,9 @@ export class VideoEngine {
   // Keep source decoding and its native fallback consistent for transitions
   // and ordinary clips, including interpolation samples.
   private async decodeClipFrame(
-    mediaId: string, blob: Blob, time: number, width: number, height: number,
+    mediaId: string, blob: Blob, time: number, width: number, height: number, realtime = false,
   ): Promise<ImageBitmap | null> {
-    const frame = await this.decodeFrameWithMediaBunny(blob, time, width, height, mediaId);
+    const frame = await this.decodeFrameWithMediaBunny(blob, time, width, height, mediaId, realtime);
     if (frame) return frame;
     return this.decodeFrameWithVideoElement(mediaId, blob, time, width, height);
   }
@@ -901,8 +906,9 @@ export class VideoEngine {
                 useStabilizedBlob ? `stabilized:${clip.id}` : clipInfo.mediaId,
                 decodeBlob,
                 decodeTime,
-                settings.width,
-                settings.height,
+                width,
+                height,
+                options.realtime ?? false,
               );
             }
           }
@@ -3913,6 +3919,7 @@ export class VideoEngine {
    * Call when the engine is no longer needed to free memory.
    */
   dispose(): void {
+    getMediaEngine().clearPlaybackDecoders();
     this.clearCache();
     this.clearVideoElementCache();
     for (const bitmap of this.staticImageCache.values()) {

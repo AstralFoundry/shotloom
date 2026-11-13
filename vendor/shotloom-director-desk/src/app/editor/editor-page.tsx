@@ -34,12 +34,36 @@ function deleteSelectedClip(onDeleted: () => void): boolean {
     return true;
 }
 
+/** Below this width the side panels become overlay drawers instead of grid columns. */
+const NARROW_QUERY = '(max-width: 860px)';
+
+function useNarrowLayout(): boolean {
+    const [narrow, setNarrow] = useState(() => window.matchMedia(NARROW_QUERY).matches);
+    useEffect(() => {
+        const query = window.matchMedia(NARROW_QUERY);
+        const onChange = (event: MediaQueryListEvent) => setNarrow(event.matches);
+        query.addEventListener('change', onChange);
+        return () => query.removeEventListener('change', onChange);
+    }, []);
+    return narrow;
+}
+
 export function EditorPage() {
     const t = useTranslation();
     const { modal } = App.useApp();
     const preferences = usePreferences();
+    const narrow = useNarrowLayout();
     const [sidebarOpen, setSidebarOpen] = useState(false);
-    const [inspectorOpen, setInspectorOpen] = useState(true);
+    const [inspectorOpen, setInspectorOpen] = useState(() => !window.matchMedia(NARROW_QUERY).matches);
+    // Drawers start closed; leaving the narrow range restores the docked inspector.
+    useEffect(() => {
+        if (narrow) {
+            setSidebarOpen(false);
+            setInspectorOpen(false);
+        } else {
+            setInspectorOpen(true);
+        }
+    }, [narrow]);
     /**
      * One frame loop for the whole editor: advance playback, let the engine draw, then
      * publish the playhead at ~20 Hz so React is not re-rendered on every frame.
@@ -59,13 +83,19 @@ export function EditorPage() {
 
     // Panel geometry lives in preferences so it survives a reload; the shell reads it as
     // CSS variables and falls back to the responsive defaults when a value is null.
+    // Fit small track lists, but keep the stage dominant when property groups expand.
+    // CSS viewport units also keep this limit responsive when the host iframe resizes.
+    const [autoTimelineHeight, setAutoTimelineHeight] = useState<number | null>(null);
     const shellStyle = useMemo(() => {
         const style: Record<string, string> = {};
         if (preferences.sidebarWidth !== null) style['--sidebar-width'] = `${preferences.sidebarWidth}px`;
         if (preferences.inspectorWidth !== null) style['--inspector-width'] = `${preferences.inspectorWidth}px`;
         if (preferences.timelineHeight !== null) style['--timeline-height'] = `${preferences.timelineHeight}px`;
+        else if (autoTimelineHeight !== null) {
+            style['--timeline-height'] = `min(${Math.max(180, autoTimelineHeight + 2)}px, clamp(180px, 30vh, 320px))`;
+        }
         return style as React.CSSProperties;
-    }, [preferences.sidebarWidth, preferences.inspectorWidth, preferences.timelineHeight]);
+    }, [preferences.sidebarWidth, preferences.inspectorWidth, preferences.timelineHeight, autoTimelineHeight]);
 
     useEffect(() => {
         const onKeyDown = (event: KeyboardEvent) => {
@@ -127,6 +157,7 @@ export function EditorPage() {
                 if (search) {
                     event.preventDefault();
                     setSidebarOpen(true);
+                    if (narrow) setInspectorOpen(false);
                     requestAnimationFrame(() => search.focus());
                     return;
                 }
@@ -163,15 +194,26 @@ export function EditorPage() {
         };
         window.addEventListener('keydown', onKeyDown);
         return () => window.removeEventListener('keydown', onKeyDown);
-    }, [modal, t]);
+    }, [modal, t, narrow]);
+
+    const toggleSidebar = () => {
+        const next = !sidebarOpen;
+        setSidebarOpen(next);
+        if (narrow && next) setInspectorOpen(false);
+    };
+    const toggleInspector = () => {
+        const next = !inspectorOpen;
+        setInspectorOpen(next);
+        if (narrow && next) setSidebarOpen(false);
+    };
 
     return (
-        <div className={`editor ${sidebarOpen ? 'editor--sidebar-open' : 'editor--sidebar-closed'} ${inspectorOpen ? '' : 'editor--inspector-closed'}`} style={shellStyle}>
+        <div className={`editor ${narrow ? 'editor--narrow' : ''} ${sidebarOpen ? 'editor--sidebar-open' : 'editor--sidebar-closed'} ${inspectorOpen ? '' : 'editor--inspector-closed'}`} style={shellStyle}>
             <TopBar
                 sidebarOpen={sidebarOpen}
-                onToggleSidebar={() => setSidebarOpen((open) => !open)}
+                onToggleSidebar={toggleSidebar}
                 inspectorOpen={inspectorOpen}
-                onToggleInspector={() => setInspectorOpen((open) => !open)}
+                onToggleInspector={toggleInspector}
             />
             <div className="editor__body">
                 <SceneSidebar
@@ -200,9 +242,21 @@ export function EditorPage() {
                     }
                 />
             </div>
+            {narrow && (sidebarOpen || inspectorOpen) && (
+                <button
+                    type="button"
+                    className="editor__scrim"
+                    aria-label={t('关闭面板')}
+                    onClick={() => {
+                        setSidebarOpen(false);
+                        setInspectorOpen(false);
+                    }}
+                />
+            )}
             <TimelinePanel
                 onHeightChange={(height) => editorPreferences.set('timelineHeight', height)}
                 onHeightReset={() => editorPreferences.set('timelineHeight', null)}
+                onNaturalHeight={setAutoTimelineHeight}
             />
         </div>
     );

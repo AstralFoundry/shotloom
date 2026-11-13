@@ -2,6 +2,9 @@ import { assetEnglish } from './en-assets.ts';
 import { panelEnglish } from './en-panels.ts';
 /** Product terminology: Scene = independent scene; Shot = a camera cut. */
 export const english: Record<string, string> = {
+    展开轨道: 'Expand tracks',
+    折叠轨道: 'Collapse tracks',
+    灯光参数: 'Light parameters',
     自适应: 'Auto',
     导出方式: 'Export as',
     在当前时间记录位置关键帧K: 'Key position at the playhead (K)',
@@ -77,6 +80,8 @@ export const english: Record<string, string> = {
     安全框: 'Safe area',
     中心十字: 'Center cross',
     预览质量: 'Preview quality',
+    视图选项: 'View options',
+    草稿预览: 'Draft preview',
     界面主题: 'Appearance',
     视角: 'Navigation',
     对象标签: 'Object labels',
@@ -1381,6 +1386,7 @@ Object.assign(english, {
     导出运镜视频: 'Export Move Video',
     展开场景面板: 'Expand scene panel',
     收起场景面板: 'Collapse scene panel',
+    关闭面板: 'Close panel',
     显示属性面板: 'Show inspector panel',
     隐藏属性面板: 'Hide inspector panel',
     自动保存: 'Autosave',

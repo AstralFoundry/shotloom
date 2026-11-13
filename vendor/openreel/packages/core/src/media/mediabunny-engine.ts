@@ -282,6 +282,44 @@ export class MediaBunnyEngine {
   private frameCache: Map<string, FrameCacheEntry> = new Map();
   private readonly MAX_CACHE_SIZE = 5;
   private exportDecoders: Map<string, ExportFrameDecoder> = new Map();
+  private playbackDecoders: Array<{
+    file: Blob; width?: number; decoder: ExportFrameDecoder; ready: Promise<boolean>;
+  }> = [];
+
+  /** Reuse the demuxer and sequential decoder across realtime frames. */
+  async getPlaybackFrame(file: Blob, timestamp: number, width?: number): Promise<OffscreenCanvas | null> {
+    this.ensureInitialized();
+    let entry = this.playbackDecoders.find(item => item.file === file && item.width === width);
+    if (!entry) {
+      const decoder = new ExportFrameDecoder(this.mediabunny!, file, width);
+      entry = { file, width, decoder, ready: decoder.initialize() };
+      this.playbackDecoders.push(entry);
+      // Bound native decoder and frame-pool storage as the playhead crosses clips.
+      if (this.playbackDecoders.length > 4) {
+        const removed = this.playbackDecoders.shift()!;
+        void removed.ready.catch(() => false).then(() => removed.decoder.dispose());
+      }
+    } else {
+      this.playbackDecoders.splice(this.playbackDecoders.indexOf(entry), 1);
+      this.playbackDecoders.push(entry);
+    }
+    try {
+      if (!await entry.ready || !this.playbackDecoders.includes(entry)) return null;
+      return await entry.decoder.getFrame(timestamp);
+    } catch (error) {
+      const index = this.playbackDecoders.indexOf(entry);
+      if (index >= 0) this.playbackDecoders.splice(index, 1);
+      entry.decoder.dispose();
+      throw error;
+    }
+  }
+
+  clearPlaybackDecoders(): void {
+    for (const entry of this.playbackDecoders) {
+      void entry.ready.catch(() => false).then(() => entry.decoder.dispose());
+    }
+    this.playbackDecoders = [];
+  }
 
   async initialize(): Promise<void> {
     if (this.initialized) return;
@@ -301,6 +339,7 @@ export class MediaBunnyEngine {
   }
 
   clearFrameCache(): void {
+    this.clearPlaybackDecoders();
     for (const entry of this.frameCache.values()) {
       if (entry.image instanceof OffscreenCanvas) {
         entry.image.width = 0;

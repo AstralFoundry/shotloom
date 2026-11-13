@@ -9,13 +9,16 @@ let renderer: T.WebGLRenderer | undefined;
 let queue: Promise<unknown> = Promise.resolve();
 
 function paint(action: Action): string {
-    renderer ??= new T.WebGLRenderer({ antialias: true });
+    if (!renderer) {
+        renderer = new T.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setClearColor(0x000000, 0);
+    }
     renderer.setSize(180, 150, false);
     renderer.setPixelRatio(1);
     const scene = new T.Scene();
-    scene.background = new T.Color('#111111');
     const model = entity('actor', 'human-adult', '预览');
-    model.color = '#dedede';
+    // Mid-grey reads on both the dark and the light tile backgrounds.
+    model.color = '#85858e';
     model.clips = [clip(action, 0, actionDuration(action))];
     const rig = makeActor(model);
     try {

@@ -19,13 +19,13 @@
 }
 
 .settings-nav button {
-    height: 32px;
-    padding: 0 10px;
+    height: 28px;
+    padding: 0 9px;
     border: 0;
-    border-radius: 7px;
+    border-radius: 6px;
     background: transparent;
     color: var(--ed-text-a62);
-    font-size: 13px;
+    font-size: 12px;
     text-align: left;
     cursor: pointer;
 }
@@ -38,7 +38,7 @@
 .settings-nav button.is-active {
     background: var(--ed-gp-selected);
     color: var(--ed-text-bright);
-    font-weight: 600;
+    font-weight: 500;
 }
 
 .settings-body {
@@ -51,7 +51,7 @@
     margin: 0 0 10px;
     color: var(--ed-text-a42);
     font-size: 11px;
-    font-weight: 600;
+    font-weight: 500;
     letter-spacing: 0.04em;
     text-transform: uppercase;
 }
@@ -77,7 +77,7 @@
     align-items: baseline;
     gap: 8px;
     color: var(--ed-text-a75);
-    font-size: 13px;
+    font-size: 12px;
 }
 
 .settings-row__label small {
@@ -118,7 +118,8 @@
 
 .settings-metrics strong {
     color: var(--ed-text-primary);
-    font-size: 13px;
+    font-size: 12px;
+    font-weight: 500;
     font-variant-numeric: tabular-nums;
 }
 

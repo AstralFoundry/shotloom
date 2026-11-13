@@ -72,15 +72,22 @@ export const editorThemeTokens: Record<EditorTheme, Record<string, string>> = {
         'danger-text': '#ec7777',
         'danger-soft': 'rgba(223, 79, 79, 0.14)',
         warning: '#d9b26a',
-        playhead: '#ffffff',
+        playhead: '#8b8aff',
+
+        /* Primary call to action ----------------------------------------- */
+        'cta-bg': '#303030',
+        'cta-bg-hover': '#3a3a3a',
+        'cta-bg-active': '#292929',
+        'cta-text': '#f4f4f4',
 
         /* Floats above the viewport --------------------------------------- */
         'overlay-bg': 'rgba(10, 10, 10, 0.72)',
         'overlay-bg-soft': 'rgba(12, 12, 12, 0.72)',
+        scrim: 'rgba(0, 0, 0, 0.55)',
         'toolbar-bg': 'rgba(21, 21, 21, 0.94)',
         'toolbar-btn': 'rgba(250, 250, 250, 0.68)',
-        'toolbar-active-bg': 'rgba(255, 255, 255, 0.14)',
-        'toolbar-active-border': 'rgba(255, 255, 255, 0.16)',
+        'toolbar-active-bg': '#303030',
+        'toolbar-active-border': 'transparent',
         'label-bg': 'rgba(26, 26, 26, 0.9)',
         'label-selected-bg': 'rgba(48, 48, 48, 0.95)',
         'label-selected-border': '#b9b9b9',
@@ -94,12 +101,12 @@ export const editorThemeTokens: Record<EditorTheme, Record<string, string>> = {
         'logo-text': '#0a0a0a',
 
         /* Director viewport ---------------------------------------------- */
-        'vp-stage': '#000000',
+        'vp-stage': '#303234',
         'vp-shot-bg': '#08090a',
-        'vp-stage-bg': '#080808',
-        'vp-floor': '#11151b',
-        'vp-grid-major': '#355262',
-        'vp-grid-minor': '#253844',
+        'vp-stage-bg': '#303234',
+        'vp-floor': '#303234',
+        'vp-grid-major': '#505458',
+        'vp-grid-minor': '#3c4044',
         'vp-selection': '#5a9bb8',
         'vp-path-point': '#87add9',
         'vp-text-a62': 'rgba(255, 255, 255, 0.62)',
@@ -117,6 +124,12 @@ export const editorThemeTokens: Record<EditorTheme, Record<string, string>> = {
         'clip-remove': '#8f8f8f',
         'muted-glyph': '#b8b8b8',
         'zoom-label': '#a5a5a5',
+
+        /* Thumbnails ----------------------------------------------------- */
+        'thumb-bg': '#26262b',
+        'thumb-grid': '#3a3f45',
+        'thumb-figure': '#aab1b1',
+        'thumb-route': '#d7759e',
     },
     light: {
         /* Surfaces ------------------------------------------------------ */
@@ -175,15 +188,22 @@ export const editorThemeTokens: Record<EditorTheme, Record<string, string>> = {
         'danger-text': '#b3352a',
         'danger-soft': 'rgba(192, 57, 43, 0.1)',
         warning: '#a86a10',
-        playhead: '#1f1f22',
+        playhead: '#5b57e8',
+
+        /* Primary call to action ----------------------------------------- */
+        'cta-bg': '#e8e8ec',
+        'cta-bg-hover': '#dedee4',
+        'cta-bg-active': '#d4d4dc',
+        'cta-text': '#111114',
 
         /* Floats above the viewport --------------------------------------- */
         'overlay-bg': 'rgba(255, 255, 255, 0.9)',
         'overlay-bg-soft': 'rgba(255, 255, 255, 0.9)',
+        scrim: 'rgba(24, 24, 27, 0.35)',
         'toolbar-bg': 'rgba(255, 255, 255, 0.96)',
         'toolbar-btn': 'rgba(24, 24, 27, 0.64)',
-        'toolbar-active-bg': '#111114',
-        'toolbar-active-border': '#111114',
+        'toolbar-active-bg': '#e8e8ec',
+        'toolbar-active-border': 'transparent',
         'label-bg': 'rgba(255, 255, 255, 0.94)',
         'label-selected-bg': 'rgba(255, 255, 255, 0.98)',
         'label-selected-border': '#aeb8c4',
@@ -200,9 +220,9 @@ export const editorThemeTokens: Record<EditorTheme, Record<string, string>> = {
         'vp-stage': '#fafafa',
         'vp-shot-bg': '#f3f4f6',
         'vp-stage-bg': '#fafafa',
-        'vp-floor': '#f3f4f6',
-        'vp-grid-major': '#aeb9c7',
-        'vp-grid-minor': '#cbd2da',
+        'vp-floor': '#e9ebee',
+        'vp-grid-major': '#8b9cae',
+        'vp-grid-minor': '#b4bec9',
         'vp-selection': '#5b83aa',
         'vp-path-point': '#4776a5',
         'vp-text-a62': 'rgba(24, 24, 27, 0.62)',
@@ -220,6 +240,12 @@ export const editorThemeTokens: Record<EditorTheme, Record<string, string>> = {
         'clip-remove': 'rgba(24, 24, 27, 0.42)',
         'muted-glyph': 'rgba(24, 24, 27, 0.55)',
         'zoom-label': 'rgba(24, 24, 27, 0.55)',
+
+        /* Thumbnails ----------------------------------------------------- */
+        'thumb-bg': '#d9dbdf',
+        'thumb-grid': '#b9bec4',
+        'thumb-figure': '#686d73',
+        'thumb-route': '#c2557f',
     },
 };
 

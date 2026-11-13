@@ -47,7 +47,11 @@ test('编辑器里新增的能力不会悄悄对 Agent 隐身', () => {
   const uiOnly = new Set([
     'attachEngine', 'detachEngine', 'frame',
     'beginTimelineDrag', 'updateTimelineDrag', 'endTimelineDrag', 'cancelTimelineDrag',
+    'beginContinuousEdit', 'endContinuousEdit', 'cancelContinuousEdit',
     'restoreRecovery', 'setBusy', 'change', 'current', 'jointState', 'requestBackdropRemoval',
+    'entityBounds', 'setDimensionAxis',
+    'recordRotationKeyAtPlayhead', 'setRotationKeyAxis', 'setRotationPivotAxis',
+    'removeRotationKey', 'clearRotationAnimation',
   ]);
   const methods = [...session.matchAll(/^ {4}(?!private |constructor)(?:async )?([a-zA-Z][a-zA-Z0-9]*)\(/gm)].map(m => m[1]);
   const referenced = new Set([...bridge.matchAll(/session\.([a-zA-Z0-9]+)\(/g)].map(m => m[1]));

@@ -127,6 +127,10 @@ body.shotloom-canvas [data-tour="preview"] > div:nth-child(2) {
 body.shotloom-canvas [data-preview-transport] {
   display: none !important;
 }
+/* 节点上的播放器只预览；画面缩放和移动手柄留在完整剪辑台。 */
+body.shotloom-canvas [data-preview-transform-overlay] {
+  display: none !important;
+}
 body.shotloom-canvas #editor-panel-timeline {
   border: 1px solid var(--border-strong) !important;
   /* 时间线卡片也是独立圆角卡片：四角全圆，overflow 裁掉内部轨道内容避免顶出方角。 */

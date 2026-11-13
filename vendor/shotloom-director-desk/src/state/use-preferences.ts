@@ -9,9 +9,11 @@ import { editorPreferences, type EditorPreferences } from '@/core/editor/prefere
  * instead of duplicating state.
  */
 export function usePreferences(): Readonly<EditorPreferences> {
-    return useSyncExternalStore(
+    // The preferences object is mutated in place; snapshot the version so React sees a change.
+    useSyncExternalStore(
         (listener) => editorPreferences.subscribe(listener),
-        () => editorPreferences.current,
-        () => editorPreferences.current,
+        () => editorPreferences.version,
+        () => editorPreferences.version,
     );
+    return editorPreferences.current;
 }

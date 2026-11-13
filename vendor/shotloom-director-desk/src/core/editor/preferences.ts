@@ -50,6 +50,8 @@ const enumKeys: Partial<Record<PreferenceKey, readonly string[]>> = {
 const storageKey = 'director-editor-preferences-v1';
 const values = { ...preferenceDefaults };
 const listeners = new Set<() => void>();
+// `values` is mutated in place, so subscribers need a changing snapshot to re-render.
+let version = 0;
 function valid(key: PreferenceKey, value: unknown) {
     if (nullableKeys.has(key) && value === null) return true;
     const allowed = enumKeys[key];
@@ -66,6 +68,7 @@ try {
     /* Missing or invalid local preferences retain defaults. */
 }
 function publish() {
+    version += 1;
     try {
         globalThis.localStorage?.setItem(storageKey, JSON.stringify(values));
     } catch {
@@ -76,6 +79,9 @@ function publish() {
 export const editorPreferences = {
     get current(): Readonly<EditorPreferences> {
         return values;
+    },
+    get version(): number {
+        return version;
     },
     set(key: PreferenceKey, value: unknown) {
         if (!Object.hasOwn(preferenceDefaults, key) || !valid(key, value)) return false;

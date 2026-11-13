@@ -21,8 +21,8 @@
 }
 
 .preset-picker__heading {
-    font-size: 14px;
-    font-weight: 600;
+    font-size: 13px;
+    font-weight: 500;
 }
 
 .preset-picker__scroll {
@@ -68,8 +68,28 @@
     aspect-ratio: 1.35;
     overflow: hidden;
     border-radius: 4px;
-    background: var(--ed-vp-stage-bg);
+    background: var(--ed-thumb-bg);
     object-fit: cover;
+}
+
+.preset-card__diagram .diagram-bg {
+    fill: var(--ed-thumb-bg);
+}
+
+.preset-card__diagram .diagram-grid {
+    stroke: var(--ed-thumb-grid);
+}
+
+.preset-card__diagram .diagram-figure {
+    stroke: var(--ed-thumb-figure);
+}
+
+.preset-card__diagram .diagram-route {
+    stroke: var(--ed-thumb-route);
+}
+
+.preset-card__diagram .diagram-start {
+    fill: var(--ed-text-strong);
 }
 
 .preset-card__image img {

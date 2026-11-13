@@ -17,6 +17,14 @@ async function fixture(renderFrame: (project: Project, time: number) => Promise<
   return { controller, drawImage };
 }
 describe("PlaybackController latest seek", () => {
+  it("uses preview dimensions instead of export resolution", async () => {
+    const render = vi.fn().mockResolvedValue(frame(0));
+    const { controller } = await fixture(render);
+    controller.setDisplayCanvas({ width: 960, height: 540, getContext: () => ({ drawImage: vi.fn() }) } as unknown as HTMLCanvasElement);
+    await controller.seek(0);
+    expect(render).toHaveBeenCalledWith(expect.anything(), 0, 960, 540, { realtime: true });
+  });
+
   it("discards an old decoded frame and renders the last seek instead of dropping it", async () => {
     let release!: (f: RenderedFrame) => void;
     const stale = frame(1), latest = frame(16);

@@ -8,7 +8,8 @@
 
 :root {
     font-family: 'Inter Variable', Inter, 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
-    font-size: 13px;
+    font-size: 12px;
+    line-height: 1.5;
     color: var(--ed-text-primary);
     background: var(--ed-app-bg);
     /* `color-scheme` is set from the theme runtime so native scrollbars and form
@@ -67,10 +68,11 @@ canvas {
 }
 
 .ant-select-dropdown .ant-select-item-option {
-    min-height: 32px;
+    min-height: 28px;
+    padding: 5px 9px;
     border-radius: 6px;
-    font-size: 13px;
-    line-height: 20px;
+    font-size: 12px;
+    line-height: 18px;
 }
 
 .ant-select-dropdown .ant-select-item-option-active:not(.ant-select-item-option-disabled) {

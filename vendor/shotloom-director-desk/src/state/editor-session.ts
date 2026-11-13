@@ -60,6 +60,8 @@ export class EditorSession {
     private lease: RenderLease | null = null;
     private transformError: Error | undefined;
     private cameraViewDragId: string | null = null;
+    /** True while a parameter slider holds one open history transaction for its whole drag. */
+    private continuousEdit = false;
     private clock = 0;
     /** 最近一次整体导入失败的原因；host-bridge 把它随回执一起交给宿主。 */
     lastSceneLoadError: DirectorCommandError | null = null;
@@ -425,6 +427,25 @@ export class EditorSession {
 
     change(fn: () => void, rebuild = true, throwOnError = false): boolean {
         if (useEditorStore.getState().busy) return false;
+        // A slider drag holds one open transaction: apply each step live and let
+        // endContinuousEdit commit a single undo entry for the whole gesture.
+        if (this.continuousEdit) {
+            try {
+                fn();
+                const engine = this.engineRef;
+                if (engine) {
+                    engine.project = this.project;
+                    engine.sample(this.clock);
+                    engine.refreshHelpers();
+                }
+                this.apply({ revision: useEditorStore.getState().revision + 1 });
+                return true;
+            } catch (error) {
+                notifyError((error as Error).message);
+                if (throwOnError) throw error;
+                return false;
+            }
+        }
         if (this.history.pending) {
             notifyError('请先完成或取消当前拖动操作');
             return false;
@@ -454,6 +475,50 @@ export class EditorSession {
             if (throwOnError) throw error;
             return false;
         }
+    }
+
+    /** Open one history transaction for a parameter-slider drag; each step applies live. */
+    beginContinuousEdit(): boolean {
+        const state = useEditorStore.getState();
+        if (state.busy || state.pathDraft || this.history.pending || this.continuousEdit) return false;
+        this.apply({ playing: false });
+        this.history.begin(this.project);
+        this.continuousEdit = true;
+        return true;
+    }
+
+    /** Commit the drag as a single undoable change (or roll back if the result is invalid). */
+    endContinuousEdit(): void {
+        if (!this.continuousEdit) return;
+        this.continuousEdit = false;
+        try {
+            assertLockedEntitiesUnchanged(this.history.pending!, this.project);
+            assertProject(this.project);
+            this.engineRef?.externalModels.assertReady(this.project);
+            this.history.commit(this.project);
+            this.changed(false);
+        } catch (error) {
+            this.rollbackContinuousEdit();
+            notifyError((error as Error).message);
+        }
+    }
+
+    cancelContinuousEdit(): void {
+        if (!this.continuousEdit) return;
+        this.continuousEdit = false;
+        this.rollbackContinuousEdit();
+    }
+
+    private rollbackContinuousEdit(): void {
+        const restored = this.history.rollback();
+        if (restored) this.apply({ project: restored });
+        const selected = this.history.restoredSelection ?? useEditorStore.getState().selected;
+        this.apply({ selected });
+        if (this.engineRef) {
+            this.engineRef.selected = selected;
+            this.engineRef.rebuild(this.project);
+        }
+        this.changed(true);
     }
 
     /** Validate all edits against a copy, then commit them as one undoable project change. */

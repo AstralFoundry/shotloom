@@ -121,30 +121,30 @@ function CameraDiagram({ id }: { id: CameraPresetId }) {
     const start = project(path.points[0].position);
     return (
         <svg className="preset-card__diagram" viewBox="0 0 160 100" preserveAspectRatio="none" aria-hidden="true">
-            <rect width="160" height="100" fill="#202425" />
+            <rect className="diagram-bg" width="160" height="100" />
             {[0, 1, 2, 3, 4, 5].map((i) => (
                 <path
                     key={i}
+                    className="diagram-grid"
                     d={`M0 ${38 + i * 13}L160 ${38 + i * 13} M${i * 33 - 15} 100L${i * 33 + 80} 24`}
-                    stroke="#343b3e"
                     strokeWidth="0.5"
                 />
             ))}
             <path
+                className="diagram-figure"
                 d="M69 51L80 45L91 51L80 57Z M69 51V68L80 74L91 68V51 M80 57V74"
                 fill="none"
-                stroke="#aab1b1"
                 strokeWidth="1"
             />
             <polyline
+                className="diagram-route"
                 points={route}
                 fill="none"
-                stroke="#d7759e"
                 strokeWidth="1.8"
                 strokeLinecap="round"
                 strokeLinejoin="round"
             />
-            <circle cx={start[0]} cy={start[1]} r="3" fill="#f2f2f2" />
+            <circle className="diagram-start" cx={start[0]} cy={start[1]} r="3" />
         </svg>
     );
 }

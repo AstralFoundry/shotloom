@@ -1,3 +1,4 @@
+import { createCanvasWheelZoom } from "./canvasWheelZoom";
 import { CanvasDisplaySettings } from "./CanvasDisplaySettings";
 import { canvasEdgeVisible, type CanvasAppearance } from "../../utils/canvasAppearance";
 import { settingsStore, saveAppSettings } from "../../store/settingsStore";
@@ -954,6 +955,22 @@ export function WorkflowCanvas({
       window.removeEventListener("keydown", finishInterruptedDrag, true);
     };
   }, []);
+  const pendingViewportSave = useRef<{ timer: ReturnType<typeof setTimeout>; viewport: Viewport } | null>(null);
+  const scheduleViewportSave = useCallback((viewport: Viewport) => {
+    if (pendingViewportSave.current) clearTimeout(pendingViewportSave.current.timer);
+    const timer = setTimeout(() => {
+      pendingViewportSave.current = null;
+      controller.saveViewport(viewport);
+    }, 160);
+    pendingViewportSave.current = { timer, viewport };
+  }, [controller]);
+  useEffect(() => () => {
+    if (pendingViewportSave.current) {
+      clearTimeout(pendingViewportSave.current.timer);
+      controller.saveViewport(pendingViewportSave.current.viewport);
+      pendingViewportSave.current = null;
+    }
+  }, [controller]);
   const onMoveEnd: OnMoveEnd = useCallback(
     (_event, next) => {
       if (movementEndTimer.current) clearTimeout(movementEndTimer.current);
@@ -962,13 +979,13 @@ export function WorkflowCanvas({
       }, 120);
       const publicViewport = { x: next.x, y: next.y, zoom: semanticZoomRef.current };
       setLiveViewport(publicViewport);
-      controller.saveViewport({
+      scheduleViewportSave({
         x: Math.round(next.x),
         y: Math.round(next.y),
         zoom: semanticZoomRef.current,
       });
     },
-    [controller],
+    [scheduleViewportSave],
   );
   const onMoveStart: OnMoveStart = useCallback(() => {
     if (movementEndTimer.current) {
@@ -1005,10 +1022,17 @@ export function WorkflowCanvas({
       setSemanticZoom(zoom);
       setLiveViewport({ x: next.x, y: next.y, zoom });
       void instance.setViewport(next);
-      controller.saveViewport({ x: Math.round(next.x), y: Math.round(next.y), zoom });
+      scheduleViewportSave({ x: Math.round(next.x), y: Math.round(next.y), zoom });
     },
-    [controller, instance],
+    [instance, scheduleViewportSave],
   );
+  const wheelZoom = useMemo(() => createCanvasWheelZoom({
+    readZoom: () => semanticZoomRef.current,
+    applyZoom: setCanvasZoomAt,
+    min: MIN_CANVAS_ZOOM,
+    max: MAX_CANVAS_ZOOM,
+  }), [setCanvasZoomAt]);
+  useEffect(() => () => wheelZoom.dispose(), [wheelZoom]);
   const changeZoom = useCallback(
     (delta: number) => {
       const zoom = Math.round((semanticZoomRef.current + delta) * 10) / 10;
@@ -1054,8 +1078,8 @@ export function WorkflowCanvas({
     setSemanticZoom(zoom);
     setLiveViewport({ x, y, zoom });
     void instance.setViewport({ x, y, zoom: 1 }, { duration: 240 });
-    controller.saveViewport({ x: Math.round(x), y: Math.round(y), zoom });
-  }, [controller, instance, visible]);
+    scheduleViewportSave({ x: Math.round(x), y: Math.round(y), zoom });
+  }, [instance, scheduleViewportSave, visible]);
   /**
    * 把目标节点居中，走一次 360ms 缓动。keepZoom 给小地图这类"只挪视野"的入口用：
    * 语义缩放会连节点内容一起放大，为了一个概览点击把画面推到贴合尺寸会让过渡失去参照。
@@ -1115,11 +1139,11 @@ export function WorkflowCanvas({
         viewportAnimationFrame.current = requestAnimationFrame(animate);
       } else {
         viewportAnimationFrame.current = null;
-        controller.saveViewport({ x: Math.round(x), y: Math.round(y), zoom });
+        scheduleViewportSave({ x: Math.round(x), y: Math.round(y), zoom });
       }
     };
     viewportAnimationFrame.current = requestAnimationFrame(animate);
-  }, [controller, instance, visible]);
+  }, [instance, scheduleViewportSave, visible]);
   useEffect(() => {
     controller.registerFitView?.(instance ? fitCanvasView : null);
     return () => controller.registerFitView?.(null);
@@ -1214,8 +1238,7 @@ export function WorkflowCanvas({
               return;
             }
             event.preventDefault();
-            const nextZoom = semanticZoomRef.current * Math.exp(-event.deltaY * 0.002);
-            setCanvasZoomAt(nextZoom, { x: event.clientX, y: event.clientY });
+            wheelZoom.enqueue(event.deltaY, { x: event.clientX, y: event.clientY });
           }}
           onKeyDown={(event) => {
             if (!isCanvasDomEvent(event.nativeEvent, event.currentTarget)) return;

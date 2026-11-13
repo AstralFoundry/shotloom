@@ -105,22 +105,26 @@ export function useEditorMount(surface: HTMLElement | null, nodeId?: string, exp
         setActive(selected);
       }
     };
-    // Size changes must also synchronize while a background WebView suspends
-    // animation frames. Keep the frame loop for canvas pan/zoom transforms.
+    // Geometry changes are observable: avoid measuring every embedded editor
+    // on every display frame, and merge pan / zoom notifications.
+    const scheduleUpdate = () => {
+      if (frame) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        update();
+      });
+    };
+    // Resize delivery also keeps background WebViews sized when rAF is suspended.
     const observer = new ResizeObserver(update);
     const anchor = nodeId ? document.querySelector<HTMLElement>(`[data-clip-node-id="${CSS.escape(nodeId)}"]`) : null;
     if (anchor) observer.observe(anchor);
     observer.observe(surface);
-    const placement = new MutationObserver(update);
+    const placement = new MutationObserver(scheduleUpdate);
+    placement.observe(mount, { childList: true });
     for (const element of [anchor?.parentElement, anchor?.closest(".react-flow__node"), anchor?.closest(".react-flow__viewport")]) {
       if (element) placement.observe(element, { attributes: true, attributeFilter: ["style"] });
     }
-    const tick = () => {
-      update();
-      frame = requestAnimationFrame(tick);
-    };
     update();
-    frame = requestAnimationFrame(tick);
     return () => {
       observer.disconnect();
       placement.disconnect();

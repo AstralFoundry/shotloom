@@ -108,7 +108,10 @@ try {
         const camera = store.getState().project.entities.find((entity) => entity.kind === 'camera');
         session.selectEntity(camera.id);
     });
-    await page.getByText('焦距', { exact: true }).waitFor();
+    await page
+        .getByRole('complementary', { name: '属性面板', exact: true })
+        .getByText('焦距', { exact: true })
+        .waitFor();
     assert.equal((await state()).selected, '机位 1', 'camera row selects the camera');
 
     // One numeric edit commits a history entry; one undo restores the previous value.
@@ -183,6 +186,7 @@ try {
 
     // Timeline drag: one committed drag moves the idle clip, one undo restores it.
     const idleBar = page.locator('.timeline .clip', { hasText: '站立 / 待机' }).first();
+    await idleBar.scrollIntoViewIfNeeded();
     const idleBox = await idleBar.boundingBox();
     assert.ok(idleBox, 'idle clip bar has a box');
     await page.mouse.move(idleBox.x + idleBox.width / 2, idleBox.y + idleBox.height / 2);

@@ -10,6 +10,7 @@ import type { FramingName } from '@/state/commands/scene.ts';
 import { useTranslation } from '@/shared/i18n/use-translation.ts';
 import { ColorField } from '@/shared/ui/color-field.tsx';
 import { NumberField } from '@/shared/ui/number-field.tsx';
+import { SliderField } from '@/shared/ui/slider-field.tsx';
 import { session } from '@/state/editor-session.ts';
 import { useEditorStore, type InspectorTab } from '@/state/editor-store.ts';
 import { inspectorTabsFor } from '@/state/inspector-tabs.ts';
@@ -65,7 +66,11 @@ export function InspectorPanel({ resize, onHide }: { resize?: React.ReactNode; o
                     </>
                 )}
                 <div className="inspector__header-actions">
-                    {entity ? <Button size="small" onClick={() => session.selectScene()}>{t('环境')}</Button> : null}
+                    {entity ? (
+                        <Button size="small" className="inspector__scene-button" onClick={() => session.selectScene()}>
+                            {t('环境')}
+                        </Button>
+                    ) : null}
                     <Tooltip title={t('隐藏属性面板')}>
                         <Button
                             type="text"
@@ -160,7 +165,10 @@ function BasePanel({ entity }: { entity: Entity }) {
     const t = useTranslation();
     const time = useEditorStore((state) => state.time);
     const revision = useEditorStore((state) => state.revision);
-    const bounds = useMemo(() => session.entityBounds(entity.id), [entity.id, time, revision]);
+    // engineReady is a dep so a null cached before the engine attached is recomputed once it
+    // flips; otherwise the bounds section pops in mid slider-drag and shifts the handle.
+    const engineReady = useEditorStore((state) => state.engineReady);
+    const bounds = useMemo(() => session.entityBounds(entity.id), [entity.id, time, revision, engineReady]);
 
     return (
         <div className="stack">
@@ -242,58 +250,64 @@ function BasePanel({ entity }: { entity: Entity }) {
 
             {entity.kind === 'actor' || entity.kind === 'crowd' ? (
                 <FieldRow label={t('身高')}>
-                    <NumberField
+                    <SliderField
                         value={entity.height}
                         min={0.5}
                         max={3}
                         step={0.05}
                         precision={2}
-                        onCommit={(value) => session.setHeight(value)}
+                        disabled={entity.locked}
+                        aria-label={t('身高')}
+                        onInput={(value) => session.setHeight(value)}
                     />
                 </FieldRow>
             ) : null}
             {entity.kind === 'actor' || entity.kind === 'crowd' ? (
-                <FieldRow label={t('体型')}>
-                    <Select
-                        size="small"
-                        value={entity.build}
-                        onChange={(value) => session.setEntityOption('build', value)}
-                        options={[
-                            { value: 'slim', label: t('瘦') },
-                            { value: 'normal', label: t('标准') },
-                            { value: 'broad', label: t('壮') },
-                        ]}
-                    />
-                </FieldRow>
-            ) : null}
-            {entity.kind === 'actor' ? (
-                <FieldRow label={t('性别')}>
-                    <Select
-                        size="small"
-                        value={entity.gender}
-                        onChange={(value) => session.setEntityOption('gender', value)}
-                        options={[
-                            { value: 'male', label: t('男') },
-                            { value: 'female', label: t('女') },
-                        ]}
-                    />
-                </FieldRow>
+                <div className={entity.kind === 'actor' ? 'field-pair' : undefined}>
+                    <FieldRow label={t('体型')}>
+                        <Select
+                            size="small"
+                            value={entity.build}
+                            onChange={(value) => session.setEntityOption('build', value)}
+                            options={[
+                                { value: 'slim', label: t('瘦') },
+                                { value: 'normal', label: t('标准') },
+                                { value: 'broad', label: t('壮') },
+                            ]}
+                        />
+                    </FieldRow>
+                    {entity.kind === 'actor' ? (
+                        <FieldRow label={t('性别')}>
+                            <Select
+                                size="small"
+                                value={entity.gender}
+                                onChange={(value) => session.setEntityOption('gender', value)}
+                                options={[
+                                    { value: 'male', label: t('男') },
+                                    { value: 'female', label: t('女') },
+                                ]}
+                            />
+                        </FieldRow>
+                    ) : null}
+                </div>
             ) : null}
 
-            <FieldRow label={t('可见')}>
-                <Switch
-                    size="small"
-                    checked={entity.visible}
-                    onChange={(checked) => session.setEntityFlag('visible', checked)}
-                />
-            </FieldRow>
-            <FieldRow label={t('锁定')}>
-                <Switch
-                    size="small"
-                    checked={entity.locked}
-                    onChange={(checked) => session.setEntityFlag('locked', checked)}
-                />
-            </FieldRow>
+            <div className="field-pair">
+                <FieldRow label={t('可见')}>
+                    <Switch
+                        size="small"
+                        checked={entity.visible}
+                        onChange={(checked) => session.setEntityFlag('visible', checked)}
+                    />
+                </FieldRow>
+                <FieldRow label={t('锁定')}>
+                    <Switch
+                        size="small"
+                        checked={entity.locked}
+                        onChange={(checked) => session.setEntityFlag('locked', checked)}
+                    />
+                </FieldRow>
+            </div>
             <p className="muted small">{t('拖动场景中的对象可整体移动，路径会随对象一起平移。')}</p>
         </div>
     );
@@ -309,13 +323,14 @@ function CameraPanel({ entity }: { entity: Entity }) {
     return (
         <div className="stack">
             <FieldRow label={t('焦距')}>
-                <NumberField
+                <SliderField
                     value={camera.focalKeys ? numberAt({ keys: camera.focalKeys }, time) : camera.focal}
                     min={8}
                     max={300}
                     step={1}
                     precision={0}
-                    onCommit={(value) => session.setCameraField({ focal: value })}
+                    aria-label={t('焦距')}
+                    onInput={(value) => session.setCameraField({ focal: value })}
                 />
             </FieldRow>
             <FieldRow label={t('目标点')}>
@@ -330,11 +345,15 @@ function CameraPanel({ entity }: { entity: Entity }) {
                 />
             </FieldRow>
             <FieldRow label={t('目标高度 / 米')}>
-                <NumberField
+                <SliderField
                     value={camera.targetHeight}
+                    min={0}
+                    max={5}
                     step={0.05}
                     precision={2}
-                    onCommit={(value) => session.setCameraField({ targetHeight: value })}
+                    unboundedInput
+                    aria-label={t('目标高度 / 米')}
+                    onInput={(value) => session.setCameraField({ targetHeight: value })}
                 />
             </FieldRow>
             <FieldRow label={t('看向对象')}>
@@ -538,13 +557,15 @@ function ActionsPanel({ entity }: { entity: Entity }) {
                         </FieldRow>
                     </div>
                     <FieldRow label={t('动作速度')}>
-                        <NumberField
+                        <SliderField
                             value={clip.speed}
                             min={0.1}
                             max={5}
                             step={0.1}
                             precision={2}
-                            onCommit={(value) => session.setClipField(clip.id, { speed: value })}
+                            disabled={disabled}
+                            aria-label={t('动作速度')}
+                            onInput={(value) => session.setClipField(clip.id, { speed: value })}
                         />
                     </FieldRow>
                     <div className="button-row">
@@ -574,27 +595,27 @@ function ActionsPanel({ entity }: { entity: Entity }) {
             )}
 
             <Divider plain style={{ margin: '4px 0' }} />
-            <div className="field-pair">
-                {entity.kind === 'actor' && !entity.external ? (
-                    <FieldRow label={t('脚底贴合表面')}>
-                        <Switch
-                            size="small"
-                            checked={Boolean(entity.footContact)}
-                            onChange={(checked) => session.setFootContact(checked)}
-                        />
-                    </FieldRow>
-                ) : null}
-                <FieldRow label={t('基础动作衔接 / 秒')}>
-                    <NumberField
-                        value={entity.actionBlend ?? 0.2}
-                        min={0}
-                        max={2}
-                        step={0.05}
-                        precision={2}
-                        onCommit={(value) => session.setActionBlend(value)}
+            {entity.kind === 'actor' && !entity.external ? (
+                <FieldRow label={t('脚底贴合表面')}>
+                    <Switch
+                        size="small"
+                        checked={Boolean(entity.footContact)}
+                        onChange={(checked) => session.setFootContact(checked)}
                     />
                 </FieldRow>
-            </div>
+            ) : null}
+            <FieldRow label={t('基础动作衔接 / 秒')}>
+                <SliderField
+                    value={entity.actionBlend ?? 0.2}
+                    min={0}
+                    max={2}
+                    step={0.05}
+                    precision={2}
+                    disabled={disabled}
+                    aria-label={t('基础动作衔接 / 秒')}
+                    onInput={(value) => session.setActionBlend(value)}
+                />
+            </FieldRow>
 
             <Divider plain style={{ margin: '4px 0' }} />
             <ActionPresetPicker
@@ -758,55 +779,65 @@ function LightPanel({ entity }: { entity: Entity }) {
     return (
         <div className="stack">
             <FieldRow label={t('强度')}>
-                <NumberField
+                <SliderField
                     value={numberAt(light.intensity, time)}
                     min={0}
                     max={500}
                     step={1}
                     precision={1}
-                    onCommit={(value) => session.setLightField({ intensity: value })}
+                    disabled={entity.locked}
+                    aria-label={t('强度')}
+                    onInput={(value) => session.setLightField({ intensity: value })}
                 />
             </FieldRow>
             {light.temperature === undefined ? null : (
                 <FieldRow label={t('色温')}>
-                    <NumberField
+                    <SliderField
                         value={numberAt(light.temperature, time)}
                         min={2000}
                         max={12000}
                         step={100}
                         precision={0}
-                        onCommit={(value) => session.setLightField({ temperature: value })}
+                        disabled={entity.locked}
+                        aria-label={t('色温')}
+                        onInput={(value) => session.setLightField({ temperature: value })}
                     />
                 </FieldRow>
             )}
             <FieldRow label={t('范围')}>
-                <NumberField
+                <SliderField
                     value={light.range}
                     min={0.5}
                     max={200}
                     step={0.5}
                     precision={1}
-                    onCommit={(value) => session.setLightField({ range: value })}
+                    disabled={entity.locked}
+                    aria-label={t('范围')}
+                    onInput={(value) => session.setLightField({ range: value })}
                 />
             </FieldRow>
             <FieldRow label={t('角度')}>
-                <NumberField
+                <SliderField
                     value={light.angle}
                     min={1}
                     max={179}
                     step={1}
                     precision={0}
-                    onCommit={(value) => session.setLightField({ angle: value })}
+                    disabled={entity.locked}
+                    aria-label={t('角度')}
+                    onInput={(value) => session.setLightField({ angle: value })}
                 />
             </FieldRow>
             <FieldRow label={t('半影')}>
-                <NumberField
+                <SliderField
                     value={light.penumbra}
                     min={0}
                     max={1}
                     step={0.05}
                     precision={2}
-                    onCommit={(value) => session.setLightField({ penumbra: value })}
+                    disabled={entity.locked}
+                    aria-label={t('半影')}
+                    onInput={(value) => session.setLightField({ penumbra: value })}
                 />
             </FieldRow>
             <FieldRow label={t('阴影')}>
@@ -830,23 +861,25 @@ function EnvironmentPanel() {
         <div className="stack">
             <ReferenceBackdropSection />
             <FieldRow label={t('环境光')}>
-                <NumberField
+                <SliderField
                     value={numberAt(lighting.ambient, time)}
                     min={0}
                     max={20}
                     step={0.1}
                     precision={2}
-                    onCommit={(value) => session.setLightingField({ ambient: value })}
+                    aria-label={t('环境光')}
+                    onInput={(value) => session.setLightingField({ ambient: value })}
                 />
             </FieldRow>
             <FieldRow label={t('曝光')}>
-                <NumberField
+                <SliderField
                     value={numberAt(lighting.exposure, time)}
                     min={0.05}
                     max={10}
                     step={0.05}
                     precision={2}
-                    onCommit={(value) => session.setLightingField({ exposure: value })}
+                    aria-label={t('曝光')}
+                    onInput={(value) => session.setLightingField({ exposure: value })}
                 />
             </FieldRow>
             <FieldRow label={t('天空颜色')}>

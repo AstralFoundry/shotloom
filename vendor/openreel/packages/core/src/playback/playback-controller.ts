@@ -430,7 +430,12 @@ export class PlaybackController {
       let timeoutId: ReturnType<typeof setTimeout> | null = null;
       let renderPromise: Promise<RenderedFrame> | undefined;
       try {
-        renderPromise = this.videoEngine.renderFrame(project, time, undefined, undefined, { realtime: true });
+        renderPromise = this.videoEngine.renderFrame(
+          project, time,
+          this.displayCanvas?.width || undefined,
+          this.displayCanvas?.height || undefined,
+          { realtime: true },
+        );
         const frame = await (withTimeout ? Promise.race([
           renderPromise,
           new Promise<never>((_, reject) => {

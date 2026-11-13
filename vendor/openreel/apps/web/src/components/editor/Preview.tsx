@@ -8089,6 +8089,7 @@ export const Preview: React.FC = () => {
           {/* Resize/Transform Overlay */}
           {!cropMode && showResizeHandles && clipBounds && (
             <div
+              data-preview-transform-overlay
               className="absolute pointer-events-none"
               style={{
                 left: clipBounds.x,

@@ -133,6 +133,7 @@ export function TopBar({ sidebarOpen, onToggleSidebar, inspectorOpen, onToggleIn
                 <span className="topbar__divider" />
                 <Tooltip title={t('导出图片')}>
                     <Button
+                        className="topbar__snapshot"
                         size="small"
                         icon={<PictureOutlined />}
                         aria-label={t('导出图片')}
@@ -147,6 +148,7 @@ export function TopBar({ sidebarOpen, onToggleSidebar, inspectorOpen, onToggleIn
                 {exportOpen ? <ExportDialog open onClose={() => setExportOpen(false)} /> : null}
                 <Tooltip title={t('设置')}>
                     <Button
+                        className="topbar__settings"
                         type="text"
                         size="small"
                         icon={<SettingOutlined />}
@@ -164,7 +166,7 @@ export function TopBar({ sidebarOpen, onToggleSidebar, inspectorOpen, onToggleIn
                     open={helpOpen && !anyDialogOpen}
                     onOpenChange={(open) => setHelpOpen(open && !anyDialogOpen)}
                 >
-                    <Button type="text" size="small" icon={<QuestionCircleOutlined />} aria-label={t('操作与快捷键')} />
+                    <Button className="topbar__help" type="text" size="small" icon={<QuestionCircleOutlined />} aria-label={t('操作与快捷键')} />
                 </Popover>
                 <Dropdown menu={moreMenu} placement="bottomRight" trigger={['click']}>
                     <Button type="text" size="small" icon={<MoreOutlined />} aria-label={t('更多')} />

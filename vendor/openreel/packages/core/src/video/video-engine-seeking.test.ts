@@ -63,3 +63,25 @@ describe("native video frame seeking", () => {
     expect(f.listeners.size).toBe(0);
   });
 });
+
+
+describe("realtime source decoding", () => {
+  it("uses the persistent decoder rather than reopening the input for each frame", async () => {
+    const f = await fixture();
+    const { getMediaEngine } = await import("../media/mediabunny-engine");
+    const media = getMediaEngine();
+    vi.spyOn(media, "isAvailable").mockReturnValue(true);
+    const persistent = vi.spyOn(media, "getPlaybackFrame").mockResolvedValue({ width: 960, height: 540 } as OffscreenCanvas);
+    const randomAccess = vi.spyOn(media, "getFrameAtTime");
+    try {
+      const blob = new Blob(["source"]);
+      await f.engine.decodeFrameWithMediaBunny(blob, 1, 960, 540, "media", true);
+      await f.engine.decodeFrameWithMediaBunny(blob, 1 + 1 / 30, 960, 540, "media", true);
+      expect(persistent).toHaveBeenNthCalledWith(1, blob, 1, 960);
+      expect(persistent).toHaveBeenCalledTimes(2);
+      expect(randomAccess).not.toHaveBeenCalled();
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+});
