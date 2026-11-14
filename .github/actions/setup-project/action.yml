@@ -10,7 +10,10 @@ runs:
         cache-dependency-path: |
           package-lock.json
           harness/host/package-lock.json
+          vendor/shotloom-director-desk/package-lock.json
     - run: npm ci
       shell: bash
     - run: npm ci --prefix harness/host
+      shell: bash
+    - run: npm ci --ignore-scripts --prefix vendor/shotloom-director-desk
       shell: bash
