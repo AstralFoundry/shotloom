@@ -6,6 +6,7 @@ export interface HarnessProductHost {
   preview(nodeId: string): void;
   navigate(kind: 'nodes' | 'tasks', ids: string[]): void;
   status(phase: 'loading' | 'ready' | 'error', error?: string): void;
+  onTurnStart?(): void;
   subscribeMention(listener: (nodeId: string) => void): () => void;
 }
 interface NativeEvent { requestId: string; kind: string; value?: unknown; error?: string }

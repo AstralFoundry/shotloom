@@ -1,4 +1,4 @@
-import { ChevronDownIcon, XIcon, MessageCircleIcon, EllipsisVerticalIcon, CircleHelpIcon, Redo2Icon, Settings2Icon, PanelLeftCloseIcon, PanelLeftOpenIcon, ChevronLeftIcon, MoonIcon, SunIcon, Undo2Icon } from '@/shared/ui/icons.tsx';
+import { ChevronDownIcon, XIcon, EllipsisVerticalIcon, CircleHelpIcon, Redo2Icon, Settings2Icon, PanelLeftCloseIcon, PanelLeftOpenIcon, ChevronLeftIcon, MoonIcon, SunIcon, Undo2Icon } from '@/shared/ui/icons.tsx';
 import { Button, Dropdown, Modal, Popover, Select, Tooltip } from 'antd';
 import { useState } from 'react';
 import { useTranslation } from '@/shared/i18n/use-translation.ts';
@@ -16,7 +16,7 @@ import { ProjectDialog } from '@/features/dialogs/project-dialog.tsx';
 import { ResetProjectDialog } from '@/features/dialogs/reset-project-dialog.tsx';
 import { SettingsDialog } from '@/features/settings/settings-dialog.tsx';
 import { getEditorTheme } from '@/app/providers/theme.ts';
-import { requestHostAgentOpen, requestHostClose } from '@/app/host-bridge.ts';
+import { requestHostClose } from '@/app/host-bridge.ts';
 
 
 export function TopBar({ sidebarOpen, onToggleSidebar, inspectorOpen, onToggleInspector }: {
@@ -175,9 +175,6 @@ export function TopBar({ sidebarOpen, onToggleSidebar, inspectorOpen, onToggleIn
                 ) : null}
                 {window.parent !== window ? (
                     <>
-                        <Tooltip title={t('导演助手')}>
-                            <Button type="text" size="small" icon={<MessageCircleIcon />} aria-label={t('导演助手')} onClick={() => requestHostAgentOpen()} />
-                        </Tooltip>
                         <Tooltip title={t('返回画布')}>
                             <Button type="text" size="small" icon={<XIcon />} aria-label={t('返回画布')} onClick={requestHostClose} />
                         </Tooltip>

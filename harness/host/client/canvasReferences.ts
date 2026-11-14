@@ -3,6 +3,7 @@ import type { ProductHost } from './nativeBridge';
 import { installCanvasReferenceMenu, referenceCategories, directorReferenceCategories, type ReferenceCategory } from './canvasReferenceMenu';
 import { installCanvasMediaCards } from './canvasMediaCards';
 import type { Context } from '@deepseek-ai/cordis';
+import { symbols } from '@deepseek-ai/cordis';
 import type { SessionId } from '@deepseek-ai/dsh-session/types';
 import type { InputTriggerSource, TokenSpan } from '@deepseek-ai/dsh-client-ui-input-trigger/client';
 import type { ConversationController } from '@deepseek-ai/dsh-client-ui-conversation/client';
@@ -11,6 +12,44 @@ interface CanvasNode { id: string; label: string; type: string; mediaType: strin
 interface ReferenceResult {
   nodes?: CanvasNode[]; node?: CanvasNode; snapshot?: unknown;
   images?: { url: string; mime: string; filename?: string }[];
+}
+
+// The trigger registry belongs to the app runtime, while panels can overlap
+// during navigation/retry. Keep one source per session and lease its handlers.
+const referenceSources = new WeakMap<object, Map<string, { owners: InputTriggerSource[]; unregister(): void }>>();
+function retainReferenceSource(ctx: Context, source: InputTriggerSource) {
+  // Cordis returns context-bound proxies; key leases by the underlying service.
+  const service = (ctx.inputTriggers as unknown as Record<symbol, object>)[symbols.original] ?? ctx.inputTriggers;
+  let registry = referenceSources.get(service);
+  if (!registry) referenceSources.set(service, registry = new Map());
+  let entry = registry.get(source.name);
+  if (!entry) {
+    const owners = [source];
+    const current = () => owners[owners.length - 1]!;
+    const unregister = ctx.inputTriggers.registerSource({
+      trigger: source.trigger, name: source.name, order: source.order,
+      candidates: (session, request) => current().candidates(session, request),
+      onPick: context => current().onPick!(context),
+      codec: {
+        clipboardText: ref => current().codec!.clipboardText(ref),
+        serialize: (ref, signal) => current().codec!.serialize(ref, signal),
+      },
+      openReference: (session, reference) => current().openReference!(session, reference),
+    });
+    entry = { owners, unregister };
+    registry.set(source.name, entry);
+  } else entry.owners.push(source);
+  const lease = entry;
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    lease.owners.splice(lease.owners.indexOf(source), 1);
+    if (!lease.owners.length) {
+      lease.unregister();
+      registry.delete(source.name);
+    }
+  };
 }
 
 /** Only product reference discovery/serialization; upstream owns the menu,
@@ -22,7 +61,10 @@ export function installCanvasReferences(ctx: Context, sessionId: SessionId, host
   };
   const registerPreview = installCanvasMediaCards(ctx, host.preview, sessionId);
   const director = host.agentId === 'director-primary';
-  const sourceName = director ? t('ds.topbar.title') : t("ui.ProjectSearch.kind.95b2102f");
+  const sourceLabel = director ? t('ds.topbar.title') : t("ui.ProjectSearch.kind.95b2102f");
+  // Source identity is persisted in reference chips; keep sessions isolated
+  // without exposing that internal identity as the menu's accessible label.
+  const sourceName = `${sourceLabel}:${sessionId}`;
   let category: ReferenceCategory = 'all';
   let catalog: CanvasNode[] = [];
   let catalogReady = false;
@@ -93,6 +135,7 @@ export function installCanvasReferences(ctx: Context, sessionId: SessionId, host
   installCanvasReferenceMenu(ctx, {
     sessionId,
     sourceName,
+    sourceLabel,
     tabs: director ? directorReferenceCategories : referenceCategories,
     current: () => category,
     counts: () => {
@@ -176,11 +219,31 @@ export function installCanvasReferences(ctx: Context, sessionId: SessionId, host
       return true;
     },
   };
-  const unregister = ctx.inputTriggers.registerSource(source);
+  const unregister = retainReferenceSource(ctx, source);
+  // Older persisted drafts used the display label as their source identity.
+  // Keep a codec-only alias so those chips still submit after this upgrade.
+  const unregisterLegacy = retainReferenceSource(ctx, {
+    ...source, name: sourceLabel, candidates: async () => [],
+    codec: {
+      clipboardText,
+      async serialize(nodeId, signal) {
+        const service = (ctx.inputTriggers as unknown as Record<symbol, object>)[symbols.original] ?? ctx.inputTriggers;
+        const sessions = [...(referenceSources.get(service)?.entries() ?? [])]
+          .filter(([name]) => name.startsWith(`${sourceLabel}:`))
+          .map(([, entry]) => entry.owners[entry.owners.length - 1]!);
+        const results = await Promise.allSettled(sessions.map(owner => owner.codec!.serialize(nodeId, signal)));
+        signal.throwIfAborted();
+        const values = new Set(results.flatMap(result => result.status === 'fulfilled' ? [result.value] : []));
+        if (values.size !== 1) throw new Error(t('agent.client.referenceSessionUnknown'));
+        return [...values][0]!;
+      },
+    },
+  });
   ctx.effect(() => () => {
     disposed = true; clearTimeout(warmTimer);
     preparedMedia.clear();
     unregister();
+    unregisterLegacy();
   }, 'shotloom: canvas references');
   return insert;
 }

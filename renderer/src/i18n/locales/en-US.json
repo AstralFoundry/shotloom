@@ -2964,6 +2964,7 @@
   "agent.client.pluginsInactive": "Chat plugins failed to start: {details}",
   "agent.client.serviceMissing": "Service not loaded",
   "agent.client.sessionRequired": "The Agent session binding is missing. Please reopen the conversation.",
+  "agent.client.referenceSessionUnknown": "The session for this older reference could not be determined. Please add the reference again.",
   "agent.client.connectionNotReady": "The Agent connection is not ready. Please retry.",
   "agent.client.sessionUnavailable": "The Agent session is unavailable (session catalog status: {phase}). Please reopen the conversation.",
   "agent.role.canvas": "Canvas Agent",
@@ -10274,5 +10275,10 @@
   "ds.topbar.back": "Back to canvas",
   "ds.topbar.agent": "Assistant",
   "tool.title.director_editing_handoff": "Director editing handoff",
-  "tool.title.director_editing_media": "Director editing media"
+  "tool.title.director_editing_media": "Director editing media",
+  "director.agent.label": "Director assistant",
+  "director.agent.minimize": "Minimize director assistant",
+  "director.agent.history": "Conversation history",
+  "director.agent.placeholder": "Describe your scene",
+  "director.agent.expand": "Expand director assistant"
 }

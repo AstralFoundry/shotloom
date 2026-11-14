@@ -2964,6 +2964,7 @@
   "agent.client.pluginsInactive": "聊天插件启动失败：{details}",
   "agent.client.serviceMissing": "服务未加载",
   "agent.client.sessionRequired": "缺少 Agent 会话绑定，请重新打开对话",
+  "agent.client.referenceSessionUnknown": "无法确定旧引用所属的会话，请重新添加该引用",
   "agent.client.connectionNotReady": "Agent 连接未就绪，请重试",
   "agent.client.sessionUnavailable": "Agent 会话不可用（会话目录状态：{phase}），请重新打开对话",
   "agent.role.canvas": "画布 Agent",
@@ -10274,5 +10275,10 @@
   "ds.topbar.back": "返回画布",
   "ds.topbar.agent": "助手",
   "tool.title.director_editing_handoff": "导演台交付剪辑",
-  "tool.title.director_editing_media": "导演台剪辑素材"
+  "tool.title.director_editing_media": "导演台剪辑素材",
+  "director.agent.label": "导演助手",
+  "director.agent.minimize": "收起导演助手",
+  "director.agent.history": "历史对话",
+  "director.agent.placeholder": "继续补充描述",
+  "director.agent.expand": "展开导演助手"
 }

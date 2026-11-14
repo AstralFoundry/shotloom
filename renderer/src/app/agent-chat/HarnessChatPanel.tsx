@@ -18,7 +18,9 @@ import { mountHarnessClient } from '../agent-session/harnessClient';
 import { HarnessSessionToolbar } from './HarnessSessionToolbar';
 
 /** Official chat keeps its own React and state engines inside a ShadowRoot. */
-export function HarnessChatPanel({ agentId, nodeId, onClose, onStatusChange, directorEntityRequest, onDirectorEntityInserted }: {
+export function HarnessChatPanel({ agentId, nodeId, onClose, onStatusChange, directorEntityRequest, onDirectorEntityInserted, directorMode, onTurnStart }: {
+  directorMode?: 'compact' | 'input' | 'expanded';
+  onTurnStart?: () => void;
   agentId: ProductBinding['agentId']; nodeId?: string; onClose?: () => void; onStatusChange?: (status: 'loading' | 'ready' | 'error') => void;
   directorEntityRequest?: { id: string; nonce: number } | undefined;
   onDirectorEntityInserted?: ((nonce: number) => void) | undefined;
@@ -30,6 +32,8 @@ export function HarnessChatPanel({ agentId, nodeId, onClose, onStatusChange, dir
   const [selectedId, setSelectedId] = useState('');
   const [retry, setRetry] = useState(0);
   const [frameError, setFrameError] = useState('');
+  const turnStartRef = useRef(onTurnStart);
+  turnStartRef.current = onTurnStart;
   const entityRequestRef = useRef(directorEntityRequest);
   const deliveredEntityRequest = useRef(0);
   const deliveringEntityRequest = useRef(0);
@@ -110,6 +114,7 @@ export function HarnessChatPanel({ agentId, nodeId, onClose, onStatusChange, dir
     };
     window.addEventListener('shotloom:mention-node', mention);
     void mountHarnessClient(surface.current, {
+      onTurnStart: () => turnStartRef.current?.(),
       sessionId, agentId, locale: getLocale(), tools: panel.tools ?? [], toolTitles: panel.toolTitles ?? {},
       readReference: (nodeId, withImage) => readHarnessCanvasReference(sessionId, nodeId, withImage),
       preview(nodeId) {
@@ -147,7 +152,7 @@ export function HarnessChatPanel({ agentId, nodeId, onClose, onStatusChange, dir
         touchProject({ sessionDelay: 0, coalesceSession: false });
       }}
       onCreate={() => { const created = createHarnessSession(store.project, { agentId, ...(agentId === TEXT_AGENT_ID ? { textNodeId: nodeId! } : agentId === EDITOR_AGENT_ID ? { editorNodeId: nodeId! } : agentId === DIRECTOR_AGENT_ID && nodeId ? { directorNodeId: nodeId } : {}) }); setSelectedId(created.id!); touchProject(); }} />
-    <div ref={surface} className="harness-chat-frame" />
+    <div ref={surface} className="harness-chat-frame" data-director-mode={directorMode} />
     {panel?.key === key && !panel.sessionId && !panel.error && <p role="status">{t('agent.connecting')}</p>}
     {panel?.key === key && panel.error && <p role="alert">{panel.error}</p>}
     {(frameError || (panel?.key === key && panel.error)) && <div className="harness-connection-error" role="alert">

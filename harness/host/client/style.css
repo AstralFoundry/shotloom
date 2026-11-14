@@ -129,3 +129,104 @@
 .shotloom-empty-brand svg { position:absolute;inset:0;width:100%;height:100%;pointer-events:none; }
 .shotloom-empty-state h1 { margin:16px 0 7px;font-size:16px;line-height:1.5;font-weight:500;letter-spacing:.4px;color:var(--dsw-alias-label-primary); }
 .shotloom-empty-state p { margin:0;font-size:12px;line-height:1.8;color:var(--dsw-alias-label-tertiary); }
+
+/* Director presentation stays on the public embedded region markers. The
+   official composer, transcript and session remain mounted when minimized. */
+:host([data-director-mode]) {
+  --dsw-alias-bg-base: var(--director-dock-bg, #fff) !important;
+  --dsw-alias-label-primary: var(--director-dock-text, #242428) !important;
+  --dsw-alias-label-secondary: var(--director-dock-muted, #76767d) !important;
+  --dsw-alias-label-tertiary: var(--director-dock-muted, #76767d) !important;
+  --dsw-alias-border-l1: var(--director-dock-line, #d9d9de) !important;
+  --dsw-alias-interactive-bg-hover: var(--surface-2, #f1f1f3) !important;
+  background: transparent !important;
+  border-radius: inherit;
+  color-scheme: inherit;
+}
+:host([data-director-mode]) .shotloom-agent-chat { background:transparent; }
+:host([data-director-mode]) .shotloom-empty-state { display:none; }
+:host([data-director-mode]) [data-composer-seat] { padding:0; }
+:host([data-director-mode]) [data-composer-card] { border:1px solid var(--director-dock-line, #d9d9de);border-radius:28px;background:var(--director-dock-bg, #fff);box-shadow:none; }
+:host([data-director-mode]:not([data-director-mode="expanded"])) .shotloom-chat-body { padding-top:0; }
+:host([data-director-mode]:not([data-director-mode="expanded"])) .shotloom-session-stats,
+:host([data-director-mode]:not([data-director-mode="expanded"])) .shotloom-context-meter { display:none; }
+/* Public session slots use inline display:contents. Override that declaration
+   as well, so message bubbles cannot leak beneath the folded input. */
+:host([data-director-mode]:not([data-director-mode="expanded"])) [data-conversation-scroll] > :not([data-composer-seat]) { display:none !important; }
+:host([data-director-mode]:not([data-director-mode="expanded"])) [data-conversation-scroll] { overflow:visible; }
+:host([data-director-mode]:not([data-director-mode="expanded"])) [data-composer-seat] { margin:0;padding:0; }
+:host([data-director-mode]:not([data-director-mode="expanded"])) [data-conversation-content] { justify-content:flex-end; }
+:host([data-director-mode]) [data-composer-card] {
+  display:grid;grid-template-columns:28px minmax(0,1fr) auto;align-items:center;gap:0 4px;min-height:var(--director-composer-height,48px);padding:4px 12px;
+}
+:host([data-director-mode]) [data-composer-card] > * { grid-column:1 / -1; }
+:host([data-director-mode]) [data-input-scroll] { grid-column:2;grid-row:1;min-height:28px;max-height:52px;padding:0; }
+:host([data-director-mode]) [data-composer-card] > div:has(> div > [data-slot="conversation.input.left"]) { display:contents; }
+:host([data-director-mode]) [data-composer-card] > div > div:has(> [data-slot="conversation.input.left"]) { grid-column:1;grid-row:1; }
+:host([data-director-mode]) [data-composer-card] > div > div:has([data-slot="conversation.input.model"]) { grid-column:3;grid-row:1; }
+/* Slot wrappers carry inline display:contents from the public slot renderer. */
+:host([data-director-mode]) [data-slot="conversation.input.left"],
+:host([data-director-mode]) [data-slot="conversation.input.permission"],
+:host([data-director-mode]) [data-slot="conversation.input.plan"],
+:host([data-director-mode]) [data-slot="conversation.input.model"] { display:none !important; }
+:host([data-director-mode]) [data-composer-card] button[aria-haspopup="listbox"] { background:transparent;color:var(--director-dock-text, #242428); }
+:host([data-director-mode]) [data-composer-card] > div > div:has([data-slot="conversation.input.model"]) > button:last-child { background:var(--surface-2, #f1f1f3);color:var(--director-dock-text, #242428); }
+/* Compact menus open above the dock, beyond the transcript's usual clip. */
+:host([data-director-mode]:not([data-director-mode="expanded"])),
+:host([data-director-mode]:not([data-director-mode="expanded"])) .shotloom-agent-chat,
+:host([data-director-mode]:not([data-director-mode="expanded"])) .shotloom-chat-body,
+:host([data-director-mode]:not([data-director-mode="expanded"])) [data-conversation-content],
+:host([data-director-mode]:not([data-director-mode="expanded"])) [data-conversation-scroll],
+:host([data-director-mode]:not([data-director-mode="expanded"])) [data-composer-seat],
+:host([data-director-mode]:not([data-director-mode="expanded"])) [data-composer-card] { overflow:visible; }
+:host([data-director-mode]) [role="listbox"] { background:var(--director-dock-bg, #fff);color:var(--director-dock-text, #242428);border-color:var(--director-dock-line, #d9d9de); }
+:host([data-director-mode]) [data-trigger-menu] {
+  --dsw-menu-surface-fill:var(--director-dock-bg, #fff);
+  --dsw-menu-backdrop-filter:none;
+  border:0;border-radius:12px;box-shadow:0 4px 16px #0001;
+}
+/* The menu material paints the surface; the scrollport must not paint a
+   second square sheet inside its padding. */
+:host([data-director-mode]) [data-trigger-menu] [role="listbox"] { background:transparent;border:0; }
+
+:host([data-director-mode]) [data-composer-seat] { margin-top:auto;padding:0; }
+:host([data-director-mode]) [data-composer-placeholder] { left:0;font-size:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis; }
+:host([data-director-mode]) [data-composer-placeholder]::after { content:var(--shotloom-director-placeholder);font-size:14px;line-height:28px; }
+:host([data-director-mode]) [data-composer-input] { padding-left:0;font-size:14px;line-height:28px;min-height:28px; }
+:host([data-director-mode]) [data-composer-card] > div > div:has([data-slot="conversation.input.model"]) > button:last-child { width:32px;height:32px;min-width:32px;transform:none;border-radius:50%;background:var(--surface-2, #f1f1f3);color:var(--director-dock-text, #242428); }
+:host([data-director-mode]) [data-composer-card] > div > div:has([data-slot="conversation.input.model"]) > button:last-child:disabled { color:var(--director-dock-muted, #76767d);opacity:1; }
+
+:host([data-director-mode]) {
+  --dsh-composer-side-clearance:0px;
+  --dsh-composer-dock-inset:0px;
+  --dsh-composer-card-max-width:100%;
+}
+:host([data-director-mode]) [data-conversation-content],
+:host([data-director-mode]) [data-composer-seat],
+:host([data-director-mode]) [data-composer-seat] > div { width:100%;max-width:100%;margin-inline:0;padding-inline:0; }
+:host([data-director-mode]) [data-composer-card] { box-sizing:border-box;width:100%;max-width:none; }
+:host([data-director-mode]) [data-composer-card] { isolation:isolate;background:transparent;border-color:transparent; }
+:host([data-director-mode]) [data-composer-card]::before { content:'';position:absolute;inset:-1px;z-index:-1;border:1px solid var(--director-dock-line, #d9d9de);border-radius:inherit;background:var(--director-dock-bg, #fff);transform-origin:top left;pointer-events:none; }
+:host([data-director-mode]) [data-composer-seat] div:has(> [data-composer-card]) { padding-block:0; }
+:host([data-director-mode]) [data-composer-card] > div:has(> div > [data-slot="conversation.input.left"]) { padding:0; }
+
+/* Remove the upstream sticky composer's solid/gradient seat: only the input
+   card paints a surface. Otherwise it leaves a rectangular frame below it. */
+:host([data-director-mode]) [data-conversation-content] {
+  --dsh-composer-side-clearance:0px;
+  --dsh-composer-dock-inset:0px;
+  --dsh-composer-card-max-width:100%;
+}
+:host([data-director-mode]) [data-composer-seat] { background:transparent; }
+:host([data-director-mode]) [data-conversation-scroll] { margin-right:0;scrollbar-gutter:auto; }
+:host([data-director-mode]) [data-composer-card] button[aria-haspopup="listbox"] { width:28px;height:28px;color:var(--director-dock-muted, #76767d); }
+:host([data-director-mode]) [data-composer-card] button[aria-haspopup="listbox"] > svg { width:16px;height:16px; }
+:host([data-director-mode]) [data-input-scroll] { margin:0; }
+/* A folded transcript must not keep the sticky composer's previous scroll
+   position. Anchor it to the dock while the history is hidden. */
+:host([data-director-mode]:not([data-director-mode="expanded"])) .shotloom-chat-body,
+:host([data-director-mode]:not([data-director-mode="expanded"])) [data-conversation-content] { position:absolute;inset:0; }
+:host([data-director-mode]:not([data-director-mode="expanded"])) [data-conversation-scroll] { position:static; }
+:host([data-director-mode]:not([data-director-mode="expanded"])) [data-composer-seat] { position:absolute;inset:auto 0 0;margin:0; }
+:host([data-director-mode="expanded"]) [data-composer-card] { padding-block:4px; }
+:host([data-director-mode="expanded"]) [data-input-scroll] { max-height:112px; }

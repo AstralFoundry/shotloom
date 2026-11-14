@@ -56,15 +56,17 @@ function OfficialView({ renderSlot }: ConversationViewsProps) {
   return renderSlot('conversation.session', { view });
 }
 const CONTENT_SLOTS = { views: OfficialView };
-interface ChatActions { useBlank(): boolean; activateView(view: string): void; mentionNode(nodeId: string, span: TokenSpan): void }
+interface ChatActions { useRunning(): boolean; useBlank(): boolean; activateView(view: string): void; mentionNode(nodeId: string, span: TokenSpan): void }
 type ChatProps = PropsRuntime<'shotloom.chat'> & InjectFace<ChatActions> & PropsRenderFactories & PropsRenderSlots<'shotloom.stats'>;
-function EmbeddedChat({ activateView, renderFactorySlot, renderSlot, inputActions, mentionNode, useBlank }: ChatProps) {
+function EmbeddedChat({ activateView, renderFactorySlot, renderSlot, inputActions, mentionNode, useBlank, useRunning }: ChatProps) {
   const blank = useBlank();
+  const running = useRunning();
   // The embedded panel opens directly in the official conversation view.
   useEffect(() => { activateView('chat'); }, [activateView]);
   const host = useContext(ProductContext);
   useEffect(() => host.subscribeMention(nodeId => mentionNode(nodeId, inputActions.captureInsertion())), [host, inputActions, mentionNode]);
   useEffect(() => { host.status('ready'); }, [host]);
+  useEffect(() => { if (running) host.onTurnStart?.(); }, [host, running]);
   return <SelectedView.Provider value="chat"><div className="shotloom-chat-body">
     <aside className="shotloom-session-stats" aria-label={t("ui.main.arialabel.d703e30e")}>{renderSlot('shotloom.stats', {})}</aside>
     <div id="shotloom-context-meter" className="shotloom-context-meter" />
@@ -142,6 +144,10 @@ function installEmbeddedChat(ctx: ClientContext) {
     inject: (id: SessionId): ChatActions => ({
       activateView: view => ctx.uiConversation.binding(id).activate(view),
       mentionNode: (nodeId, span) => [...surfaces].find(surface => surface.host.sessionId === id)?.mentionNode(nodeId, span),
+      useRunning: () => {
+        const session = [...surfaces].find(surface => surface.host.sessionId === id)!.reference.binding.session;
+        return useSyncExternalStore(session.subscribe.bind(session), () => session.getSnapshot()).running;
+      },
       useBlank: () => {
         const reference = [...surfaces].find(surface => surface.host.sessionId === id)!.reference;
         const session = reference.binding.session;

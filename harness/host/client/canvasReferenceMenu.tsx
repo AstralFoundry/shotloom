@@ -20,6 +20,7 @@ export type ReferenceCategory = typeof referenceCategories[number][0] | typeof d
 export function installCanvasReferenceMenu(ctx: Context, categories: {
   sessionId: string;
   sourceName: string;
+  sourceLabel: string;
   tabs: readonly (readonly [ReferenceCategory, string])[];
   current(): ReferenceCategory;
   counts(): Record<string, number>;
@@ -75,7 +76,7 @@ export function installCanvasReferenceMenu(ctx: Context, categories: {
         </button>)}
       </nav>
       {state.groups.some(group => group.source === categories.sourceName && group.status === 'pending') && <div className="shotloom-reference-loading" role="status">{t("ui.canvasReferenceMenu.text.64769628")}</div>}
-      <div role="listbox" aria-label={categories.sourceName} className="shotloom-reference-list">
+      <div role="listbox" aria-label={categories.sourceLabel} className="shotloom-reference-list">
         {state.groups.map(group => group.items.map((item, index) => {
           const active = state.highlight?.source === group.source && state.highlight.index === index;
           return <button type="button" role="option" aria-selected={active} disabled={!item.value && group.source === categories.sourceName}

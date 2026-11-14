@@ -50,7 +50,7 @@ export const ThreeDDirectorNode: WorkflowNodeRenderer = memo(
     const [incomingImages, setIncomingImages] = useState<IncomingImage[]>([]);
     const [interacting, setInteracting] = useState(false);
     const [detailOpen, setDetailOpen] = useState(false);
-    const [agentCollapsed, setAgentCollapsed] = useState(false);
+    const [agentCollapsed, setAgentCollapsed] = useState(true);
     const [entityRequest, setEntityRequest] = useState<{ id: string; nonce: number }>();
     const entityRequestSerial = useRef(0);
     const summary = directorProjectSummary(readDirectorProject(node));
@@ -93,7 +93,7 @@ export const ThreeDDirectorNode: WorkflowNodeRenderer = memo(
     }, [selected]);
 
     useEffect(() => {
-      if (!detailOpen) setAgentCollapsed(false);
+      if (!detailOpen) setAgentCollapsed(true);
     }, [detailOpen]);
 
     useEffect(() => {

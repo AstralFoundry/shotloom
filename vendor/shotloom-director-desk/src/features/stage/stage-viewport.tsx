@@ -46,6 +46,35 @@ export function StageViewport() {
     const [shotHintIdle, setShotHintIdle] = useState(false);
 
     useEffect(() => {
+        const viewport = viewportRef.current;
+        if (!viewport || window.parent === window) return;
+        const toolbar = viewport.querySelector<HTMLElement>('.viewport__toolbar');
+        const report = () => {
+            const bounds = viewport.getBoundingClientRect();
+            window.parent.postMessage({ type: 'storyai:director-desk-agent-anchor', payload: {
+                x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height,
+                toolbarWidth: toolbar?.offsetWidth ?? 0,
+                toolbarHeight: toolbar?.offsetHeight ?? 48,
+            } }, window.location.origin);
+        };
+        const receive = (event: MessageEvent) => {
+            if (event.source !== window.parent || event.origin !== window.location.origin || event.data?.type !== 'storyai:director-desk-agent-layout') return;
+            const { mode, width, stacked } = event.data.payload ?? {};
+            if (!['compact', 'input', 'expanded'].includes(mode) || !Number.isFinite(width) || width < 0) return;
+            viewport.dataset.agentDockMode = mode;
+            viewport.dataset.agentDockStacked = String(stacked === true);
+            viewport.style.setProperty('--agent-dock-width', `${width}px`);
+            report();
+        };
+        const observer = new ResizeObserver(report);
+        observer.observe(viewport);
+        if (toolbar) observer.observe(toolbar);
+        window.addEventListener('message', receive);
+        report();
+        return () => { observer.disconnect(); window.removeEventListener('message', receive); };
+    }, []);
+
+    useEffect(() => {
         const stage = stageRef.current;
         const shot = shotRef.current;
         if (!stage || !shot) return;

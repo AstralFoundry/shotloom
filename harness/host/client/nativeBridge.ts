@@ -7,6 +7,7 @@ export interface ProductHost {
   preview(nodeId: string): void;
   navigate(kind: 'nodes' | 'tasks', ids: string[]): void;
   status(phase: 'loading' | 'ready' | 'error', error?: string): void;
+  onTurnStart?(): void;
   subscribeMention(listener: (nodeId: string) => void): () => void;
 }
 export interface NativeHost {

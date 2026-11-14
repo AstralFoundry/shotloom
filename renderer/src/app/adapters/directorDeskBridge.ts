@@ -4,6 +4,23 @@
 // 对端见 vendor/shotloom-director-desk/src/app/host-bridge.ts。
 
 export type DirectorDeskTheme = "light" | "dark";
+export type DirectorDeskAgentMode = 'compact' | 'input' | 'expanded';
+export type DirectorDeskAgentAnchor = { x: number; y: number; width: number; height: number; toolbarWidth: number; toolbarHeight: number };
+
+export function sendDirectorDeskAgentLayout(frame: HTMLIFrameElement, layout: { mode: DirectorDeskAgentMode; width: number; stacked: boolean }) {
+  post(frame, { type: 'storyai:director-desk-agent-layout', payload: layout });
+}
+
+export function listenDirectorDeskAgentAnchor(frame: HTMLIFrameElement, onAnchor: (anchor: DirectorDeskAgentAnchor) => void) {
+  const receive = (event: MessageEvent) => {
+    if (event.source !== frame.contentWindow || event.origin !== window.location.origin || event.data?.type !== 'storyai:director-desk-agent-anchor') return;
+    const value = event.data.payload;
+    if (!value || !['x', 'y', 'width', 'height', 'toolbarWidth', 'toolbarHeight'].every(key => Number.isFinite(value[key]))) return;
+    onAnchor(value);
+  };
+  window.addEventListener('message', receive);
+  return () => window.removeEventListener('message', receive);
+}
 
 export type DirectorDeskPanorama = {
   edgeId: string;
