@@ -2,9 +2,15 @@ import { create } from 'zustand';
 import type { Joint, Project } from '@/core/model.ts';
 import { createStarterProject } from './starter-project.ts';
 
-export type ViewMode = 'stage' | 'split' | 'shot';
+/**
+ * What the viewport shows: the stage alone, the stage with a floating camera monitor
+ * (`pip`), or the camera alone. `分屏` used to be a fourth layout, but a 50/50 split made
+ * both halves too small to judge; the resizable monitor covers the same need without
+ * taking the stage over.
+ */
+export type ViewMode = 'stage' | 'pip' | 'split' | 'shot';
 
-export type SidebarTab = 'scene' | 'assets' | 'shots';
+export type SidebarTab = 'scene' | 'assets' | 'cameras' | 'shots';
 
 export type InspectorTab =
     'base' | 'camera' | 'light' | 'actions' | 'pose' | 'path' | 'environment' | 'spatial' | 'keys';

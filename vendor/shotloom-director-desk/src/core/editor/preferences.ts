@@ -1,3 +1,4 @@
+import { CAPTURE_ASPECTS, type CaptureAspect } from './viewport-capture.ts';
 export const preferenceDefaults = {
     navigationSpeed: 3,
     navigationBoost: 3.333333,
@@ -28,6 +29,8 @@ export const preferenceDefaults = {
     sidebarWidth: null as number | null,
     inspectorWidth: null as number | null,
     timelineHeight: null as number | null,
+    timelineVisible: false,
+    captureAspect: 'auto' as CaptureAspect,
 };
 export type EditorPreferences = typeof preferenceDefaults;
 export type PreferenceKey = keyof EditorPreferences;
@@ -39,7 +42,7 @@ export const preferenceRanges: Partial<Record<PreferenceKey, [number, number]>> 
     panSpeed: [0.1, 3],
     gizmoSize: [0.3, 2],
     placementSnap: [0, 1],
-    sidebarWidth: [200, 520],
+    sidebarWidth: [240, 520],
     inspectorWidth: [240, 560],
     timelineHeight: [140, 720],
 };
@@ -47,6 +50,7 @@ export const preferenceRanges: Partial<Record<PreferenceKey, [number, number]>> 
 const nullableKeys: ReadonlySet<PreferenceKey> = new Set(['sidebarWidth', 'inspectorWidth', 'timelineHeight']);
 /** Keys constrained to a closed set of strings. */
 const enumKeys: Partial<Record<PreferenceKey, readonly string[]>> = {
+    captureAspect: CAPTURE_ASPECTS,
     previewQuality: ['full', 'draft'],
     labelMode: ['off', 'selected', 'all'],
 };

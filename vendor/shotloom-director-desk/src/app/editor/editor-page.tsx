@@ -5,7 +5,7 @@ import { InspectorPanel } from '@/features/inspector/inspector-panel.tsx';
 import { useTranslation } from '@/shared/i18n/use-translation.ts';
 import { hasBlockingLayer, shouldIgnoreShortcut, isTypingTarget } from '@/shared/lib/keyboard.ts';
 import { notify } from '@/shared/ui/feedback.ts';
-import { SceneSidebar } from '@/features/sidebar/scene-sidebar.tsx';
+import { SceneRail, SceneSidebar } from '@/features/sidebar/scene-sidebar.tsx';
 import { StageViewport } from '@/features/stage/stage-viewport.tsx';
 import { TimelinePanel } from '@/features/timeline/timeline-panel.tsx';
 import { TopBar } from '@/features/top-bar/top-bar.tsx';
@@ -208,13 +208,20 @@ export function EditorPage() {
     };
 
     return (
-        <div className={`editor ${narrow ? 'editor--narrow' : ''} ${sidebarOpen ? 'editor--sidebar-open' : 'editor--sidebar-closed'} ${inspectorOpen ? '' : 'editor--inspector-closed'}`} style={shellStyle}>
+        <div className={`editor ${narrow ? 'editor--narrow' : ''} ${sidebarOpen ? 'editor--sidebar-open' : 'editor--sidebar-closed'} ${inspectorOpen ? '' : 'editor--inspector-closed'} ${preferences.timelineVisible ? '' : 'editor--timeline-closed'}`} style={shellStyle}>
             <TopBar
                 sidebarOpen={sidebarOpen}
                 onToggleSidebar={toggleSidebar}
                 inspectorOpen={inspectorOpen}
                 onToggleInspector={toggleInspector}
             />
+            <SceneRail open={sidebarOpen} onSelect={(tab) => {
+                const sameTab = useEditorStore.getState().sidebarTab === tab;
+                useEditorStore.getState().patch({ sidebarTab: tab });
+                const next = !sameTab || !sidebarOpen;
+                setSidebarOpen(next);
+                if (narrow && next) setInspectorOpen(false);
+            }} />
             <div className="editor__body">
                 <SceneSidebar
                     resize={
@@ -222,7 +229,7 @@ export function EditorPage() {
                             side="right"
                             preferenceKey="sidebarWidth"
                             label={t('左侧资源栏宽度')}
-                            min={200}
+                            min={240}
                             max={520}
                         />
                     }

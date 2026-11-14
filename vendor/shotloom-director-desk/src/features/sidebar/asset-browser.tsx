@@ -100,7 +100,7 @@ export function AssetBrowser() {
                                 >
                                     <AssetPreview asset={asset} />
                                     <span className="asset-card__name">{t(asset.name)}</span>
-                                </button><button className="asset-card__inspect" aria-label={`${t('预览')} ${t(asset.name)}`} onClick={() => { setAngle(0); setPreviewAsset(asset); }}>{t('预览')} · {assetSize(asset)}m</button></div>
+                                </button><button className="asset-card__inspect" aria-label={`${t('预览')} ${t(asset.name)}`} onClick={() => { setAngle(0); setPreviewAsset(asset); }}>{t('预览')}</button></div>
                             ))}
                         </div>
                     </section>

@@ -1,4 +1,4 @@
-import { AimOutlined, BulbOutlined, CameraOutlined, MessageOutlined, TagOutlined, UserOutlined } from '@ant-design/icons';
+import { FocusIcon, LightbulbIcon, CameraIcon, MessageCircleIcon, TagIcon, UserRoundIcon } from '@/shared/ui/icons.tsx';
 import { requestHostAgentOpen } from '@/app/host-bridge.ts';
 import { useTranslation } from '@/shared/i18n/use-translation.ts';
 import { session } from '@/state/editor-session.ts';
@@ -38,18 +38,18 @@ export function ObjectLabels({
                             <i style={{ background: label.color }} />
                             <span className="object-label__icon" aria-hidden="true">
                                 {label.light ? (
-                                    <BulbOutlined />
+                                    <LightbulbIcon />
                                 ) : label.kind === 'camera' ? (
-                                    <CameraOutlined />
+                                    <CameraIcon />
                                 ) : label.kind === 'actor' || label.kind === 'crowd' ? (
-                                    <UserOutlined />
+                                    <UserRoundIcon />
                                 ) : (
-                                    <TagOutlined />
+                                    <TagIcon />
                                 )}
                             </span>
                             <span>{label.name}</span>
                             {label.kind === 'camera' ? (
-                                <AimOutlined className="object-label__tail" aria-hidden="true" />
+                                <FocusIcon className="object-label__tail" aria-hidden="true" />
                             ) : null}
                         </button>
                         {label.id === selected && window.parent !== window ? (
@@ -57,7 +57,7 @@ export function ObjectLabels({
                                 aria-label={`${t('发送给导演助手')}：${label.name}`}
                                 title={t('发送给导演助手')}
                                 onClick={() => requestHostAgentOpen(label.id)}>
-                                <MessageOutlined aria-hidden="true" />
+                                <MessageCircleIcon aria-hidden="true" />
                             </button>
                         ) : null}
                     </div>

@@ -133,6 +133,7 @@ export class Engine {
     dragging = false;
     pickingEnabled = true;
     gridVisible = true;
+    private cameraMarkerBounds = new T.Box3();
     private lightGroundPreview = false;
     private lightShotFloor: T.Mesh | null = null;
     placementSnap = 0;
@@ -1038,6 +1039,13 @@ export class Engine {
                 ? editorEntityVisible(this.project, e) && !(this.lightGroundPreview && e.asset === 'ground')
                 : shotEntityVisible(this.project, e, cameraEntity.camera) &&
                   !(this.lightGroundPreview && e.asset === 'ground');
+            // A camera captured from the current view surrounds the editor's eye.
+            // Hide its solid marker only while the eye intersects it, otherwise its
+            // body/lens occludes the whole stage. The shot camera remains available.
+            if (editor && root.visible && e.kind === 'camera') {
+                this.cameraMarkerBounds.setFromObject(root).expandByScalar(this.editorCamera.near);
+                if (this.cameraMarkerBounds.containsPoint(this.editorCamera.position)) root.visible = false;
+            }
         }
         if (this.lightShotFloor) this.lightShotFloor.visible = !editor;
         this.contactMarker.update(this.project.entities, this.models);
@@ -1115,6 +1123,8 @@ export class Engine {
         this.shotRenderer.setSize(width, height, false);
         // Match the live shot, including its default background and floor treatment.
         this.prepareView(false, cameraId);
+        const camera = this.getShotCamera(cameraId);
+        configureCamera(camera, camera.getFocalLength(), width / height);
         this.renderShot(cameraId);
         return this.shotRenderer.domElement;
     }

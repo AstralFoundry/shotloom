@@ -63,7 +63,9 @@ export class PathCommands {
             selectedPathSection: null,
             inspectorTab: 'path',
         });
-        this.host.setView('stage');
+        // Paths are drawn on the stage; only the camera-only view has to leave it, so a
+        // split or picture-in-picture layout survives starting a draft.
+        if (state.view === 'shot') this.host.setView('stage');
         engine.refreshHelpers();
     }
 

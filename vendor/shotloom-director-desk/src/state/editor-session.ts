@@ -35,6 +35,7 @@ import { EntityCommands } from './commands/entity.ts';
 import { PathCommands } from './commands/path.ts';
 import { PoseCommands } from './commands/pose.ts';
 import { SceneCommands } from './commands/scene.ts';
+import type { CameraPlacementId } from '@/core/cinematography/camera-placements.ts';
 import type { CameraPresetId } from '@/core/cinematography/camera-presets.ts';
 import { setEditorTheme } from '@/core/editor/theme-state.ts';
 import { editorPreferences } from '@/core/editor/preferences.ts';
@@ -1006,8 +1007,12 @@ export class EditorSession {
         this.scene.addCamera(fromView);
     }
 
-    snapshot(): Promise<void> {
-        return this.scene.snapshot();
+    addCameraPlacement(presetId: CameraPlacementId): boolean {
+        return this.scene.addCameraPlacement(presetId);
+    }
+
+    snapshot(size?: [number, number]): Promise<void> {
+        return this.scene.snapshot(size);
     }
 
     renderPreview(input: { seconds?: number; cameraId?: string; size?: number }) {

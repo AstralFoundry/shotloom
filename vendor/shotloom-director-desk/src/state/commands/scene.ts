@@ -6,7 +6,8 @@ import { cameraPresetPath, type CameraPresetId } from '@/core/cinematography/cam
 import { compileCampath } from '@/core/cinematography/campath.ts';
 import { libraryPreferences } from '@/core/assets/library-preferences.ts';
 import { workingElevation } from '@/core/building/floors.ts';
-import { entityPosition } from '@/core/timeline.ts';
+import { CAMERA_PLACEMENTS, createPlacedCamera, type CameraPlacementId } from '@/core/cinematography/camera-placements.ts';
+import { entityYaw, entityPosition } from '@/core/timeline.ts';
 import { ASPECTS, FRAME_RATES, COLORS, clip, entity, outputSize, type Project, type Vec3 } from '@/core/model.ts';
 import type { CameraConfig } from '@/core/model.ts';
 import { defaultLighting, type LightingConfig } from '@/core/lighting/model.ts';
@@ -98,19 +99,61 @@ export class SceneCommands {
         this.host.engine?.select(useEditorStore.getState().selected);
     }
 
-    async snapshot(): Promise<void> {
+    /** One history entry owns creation, selection and preview of a shot placement. */
+    addCameraPlacement(presetId: CameraPlacementId): boolean {
+        const engine = this.host.engine;
+        if (!engine) return false;
+        const preset = CAMERA_PLACEMENTS.find((item) => item.id === presetId);
+        if (!preset) return false;
+        const selected = this.host.current();
+        const subject = selected?.camera
+            ? this.host.project.entities.find((item) => item.id === selected.camera!.targetId)
+                ?? this.host.project.entities.find((item) => item.kind === 'actor')
+            : selected ?? this.host.project.entities.find((item) => item.kind === 'actor');
+        const position = subject ? entityPosition(subject, this.host.clock) : engine.orbit.target.clone();
+        const targetHeight = subject ? subject.height * 0.65 : 0;
+        const target = position.clone().add(new THREE.Vector3(0, targetHeight, 0));
+        const source = useEditorStore.getState().view === 'shot' && this.host.project.entities.some((item) => item.camera)
+            ? engine.getShotCamera()
+            : engine.editorCamera;
+        const reference = source.clone();
+        reference.filmGauge = 36;
+        const camera = createPlacedCamera({
+            presetId,
+            name: `${preset.label} · ${this.host.project.entities.filter((item) => item.camera).length + 1}`,
+            target: target.toArray() as Vec3,
+            subject: subject ? {
+                id: subject.id, position: position.toArray() as Vec3,
+                yaw: entityYaw(subject, this.host.clock, this.host.project), targetHeight,
+            } : undefined,
+            currentView: {
+                position: source.position.toArray() as Vec3,
+                rotation: [source.rotation.x, source.rotation.y, source.rotation.z],
+                focal: THREE.MathUtils.clamp(reference.getFocalLength(), 8, 300),
+            },
+        });
+        const applied = this.host.change(() => {
+            this.host.project.entities.push(camera);
+            engine.previewId = camera.id;
+            this.host.patch({ selected: camera.id, inspectorTab: 'camera', preview: camera.id });
+        });
+        if (applied) engine.select(camera.id);
+        return applied;
+    }
+
+    async snapshot(size?: [number, number]): Promise<void> {
         const engine = this.host.engine;
         if (!engine || useEditorStore.getState().busy) return;
         const at = useEditorStore.getState().time;
         this.host.patch({ playing: false, busy: true });
         engine.exporting = true;
         try {
-            const [width, height] = outputSize(this.host.project.aspect, 1920);
+            const [width, height] = size ?? outputSize(this.host.project.aspect, 1920);
             await engine.prepareOutput(at);
             const canvas = engine.renderOutput(at, width, height, useEditorStore.getState().preview);
             const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
             if (!blob) throw new Error('未能生成截图');
-            await deliverMedia(blob, `${this.host.project.name}-${at.toFixed(2)}s.png`, 'image', directorContext(this.host.project, at, at, useEditorStore.getState().preview));
+            await deliverMedia(blob, `${this.host.project.name}-${at.toFixed(2)}s.png`, 'image', { ...directorContext(this.host.project, at, at, useEditorStore.getState().preview), aspect: size ? `${width}:${height}` : this.host.project.aspect });
             notifySuccess('已导出当前画面');
         } catch (error) {
             notifyError((error as Error).message);

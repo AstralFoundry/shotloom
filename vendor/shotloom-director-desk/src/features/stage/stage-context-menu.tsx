@@ -1,14 +1,6 @@
 import { worldContactAnchors } from '@/core/assets/contact-anchors.ts';
 import { useEditorStore } from '@/state/editor-store.ts';
-import {
-    AimOutlined,
-    CopyOutlined,
-    DeleteOutlined,
-    EyeInvisibleOutlined,
-    EyeOutlined,
-    MessageOutlined,
-    VerticalAlignBottomOutlined,
-} from '@ant-design/icons';
+import { FocusIcon, CopyIcon, Trash2Icon, EyeOffIcon, EyeIcon, MessageCircleIcon, ArrowDownToLineIcon } from '@/shared/ui/icons.tsx';
 import { App, Menu } from 'antd';
 import { useEffect } from 'react';
 import type { Entity } from '@/core/model.ts';
@@ -62,7 +54,7 @@ export function StageContextMenu({ target, onClose }: Props) {
     const confirmDelete = () => {
         modal.confirm({
             className: 'delete-confirm',
-            icon: <DeleteOutlined />,
+            icon: <Trash2Icon />,
             centered: true,
             width: 400,
             title: t('删除对象') + `「${entity.name}」`,
@@ -118,12 +110,12 @@ export function StageContextMenu({ target, onClose }: Props) {
                     onClose();
                 }}
                 items={[
-                    { key: 'focus', icon: <AimOutlined />, label: t('定位对象') },
-                    { key: 'send-to-agent', icon: <MessageOutlined />, label: t('发送给导演助手') },
-                    { key: 'duplicate', icon: <CopyOutlined />, label: t('复制') },
+                    { key: 'focus', icon: <FocusIcon />, label: t('定位对象') },
+                    { key: 'send-to-agent', icon: <MessageCircleIcon />, label: t('发送给导演助手') },
+                    { key: 'duplicate', icon: <CopyIcon />, label: t('复制') },
                     {
                         key: 'visibility',
-                        icon: entity.visible ? <EyeInvisibleOutlined /> : <EyeOutlined />,
+                        icon: entity.visible ? <EyeOffIcon /> : <EyeIcon />,
                         label: entity.visible ? t('隐藏') : t('显示'),
                     },
                     { key: 'normal', label: t('按接触点贴面'), children: project.entities.filter(e => e.kind === 'prop' && e.id !== entity.id).flatMap(e => {
@@ -131,9 +123,9 @@ export function StageContextMenu({ target, onClose }: Props) {
                         return root ? [{ key: `normal:${JSON.stringify([e.id, ''])}`, label: `${e.name} · ${t('最近表面')}` }, ...worldContactAnchors(e, root).map(a => ({ key: `normal:${JSON.stringify([e.id, a.id])}`, label: `${e.name} · ${a.id}` }))] : [];
                     }) },
                     { key: 'surface', label: t('落到物体表面'), children: project.entities.filter(e => e.kind === 'prop' && e.id !== entity.id && e.visible).map(e => ({ key: `surface:${e.id}`, label: e.name })) },
-                    { key: 'ground', icon: <VerticalAlignBottomOutlined />, label: t('贴地') },
+                    { key: 'ground', icon: <ArrowDownToLineIcon />, label: t('贴地') },
                     { type: 'divider' },
-                    { key: 'delete', icon: <DeleteOutlined />, label: t('删除'), danger: true },
+                    { key: 'delete', icon: <Trash2Icon />, label: t('删除'), danger: true },
                 ]}
             />
         </div>

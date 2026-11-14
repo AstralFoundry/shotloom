@@ -43,16 +43,50 @@ const state = () =>
         };
     });
 
+const chooseView = async (label) => {
+    await page.getByRole('combobox', { name: '视角', exact: true }).click();
+    await page.locator('.ant-select-dropdown:visible').getByText(label, { exact: true }).click();
+};
 try {
     await page.goto(url.href, { waitUntil: 'networkidle' });
     await page.waitForFunction(() => !!window.__editorDebug, { timeout: 15_000 });
     await page.locator('.viewport__canvas canvas').first().waitFor({ timeout: 15_000 });
     await page.screenshot({ path: 'tmp/smoke/01-director-view.png' });
 
+    // Composition opens with the stage expanded; the dock reveals the animation tools.
+    assert.equal(await page.locator('.timeline').isVisible(), false, 'timeline starts collapsed');
+    assert.equal(await page.locator('.sidebar__rail').isVisible(), true, 'navigation remains visible');
+    await page.getByRole('button', { name: '动画时间轴', exact: true }).click();
+    assert.equal(await page.locator('.timeline').isVisible(), true, 'dock opens the timeline');
+
     const initial = await state();
     assert.equal(initial.entities, 3, 'starter scene has ground, actor and camera');
     assert.equal(initial.selected, '角色 A', 'the actor starts selected');
     assert.equal(initial.view, 'stage', 'director view is the default');
+
+    // A current-view camera marker must not cover the editor's eye with its solid lens.
+    const cameraPlacementPixels = await page.evaluate(() => {
+        const { session } = window.__editorDebug;
+        const engine = session.engine;
+        const sample = () => {
+            engine.render();
+            const canvas = document.createElement('canvas');
+            canvas.width = canvas.height = 64;
+            const context = canvas.getContext('2d');
+            context.drawImage(engine.editorRenderer.domElement, 0, 0, 64, 64);
+            return [...context.getImageData(0, 0, 64, 64).data];
+        };
+        const before = sample();
+        session.addCameraPlacement('current');
+        session.addCameraPlacement('low-up');
+        const after = sample();
+        session.undo();
+        session.undo();
+        return { before, after };
+    });
+    const lightPixels = (pixels) => pixels.filter((channel, index) => index % 4 !== 3 && channel > 100).length;
+    assert.ok(lightPixels(cameraPlacementPixels.after) > lightPixels(cameraPlacementPixels.before) * 0.75,
+        'adding current-view and low-angle cameras keeps the stage visible');
 
     // Deterministic scrubbing: the session clamps and republishes the same value.
     const scrubbed = await page.evaluate(() => {
@@ -66,7 +100,7 @@ try {
     assert.equal(scrubbed.first, scrubbed.again, 'seeking the same time is stable');
 
     // View switching keeps the engine mounted; the shot canvas only exists in the DOM once.
-    await page.getByText('机位视角', { exact: true }).click();
+    await chooseView('机位视角');
     await page.locator('.viewport__canvas--shot canvas').waitFor();
     assert.equal((await state()).view, 'shot', 'shot view is active');
     const shotColors = await page.evaluate(async () => {
@@ -100,7 +134,7 @@ try {
         );
     }
     await page.screenshot({ path: 'tmp/smoke/02-shot-view.png' });
-    await page.getByText('导演视角', { exact: true }).click();
+    await chooseView('导演视角');
 
     // Selection drives the inspector: pick the camera row and expect the lens panel.
     await page.evaluate(() => {
@@ -137,9 +171,9 @@ try {
     assert.equal(await positionOf(), before, 'one undo restores the position');
 
     // Asset catalogue: placing a card adds a selected entity. The sidebar starts collapsed
-    // in a fresh session, so the "添加" tab is only reachable after opening the panel.
-    await page.getByRole('button', { name: '展开场景面板' }).click();
-    await page.getByText('添加', { exact: true }).click();
+    // in a fresh session, so the asset panel is only reachable after opening the sidebar.
+    await page.getByRole('button', { name: '展开侧栏' }).click();
+    await page.getByRole('button', { name: '资产', exact: true }).click();
     // Cards swap their icon placeholder for a lazily rendered thumbnail; click only once the
     // first card has settled so the click cannot land on a repainting node.
     const firstCard = page.locator('.asset-card').first();
@@ -266,7 +300,8 @@ try {
     );
 
     // Export: the dialog renders a live preview, and the encoder produces an MP4 blob.
-    await page.getByRole('button', { name: '导出运镜视频' }).click();
+    await page.getByRole('button', { name: '输出', exact: true }).click();
+    await page.getByRole('menuitem', { name: '导出运镜视频', exact: true }).click();
     await page.locator('.export-preview img').waitFor({ timeout: 15_000 });
     await page.getByRole('button', { name: /取\s*消/ }).click();
     const exported = await page.evaluate(async () => {
@@ -349,7 +384,8 @@ try {
             '',
         ].join('\n'),
     );
-    await page.getByRole('button', { name: '导入模型' }).click();
+    await page.locator('.sidebar').getByRole('button', { name: '添加', exact: true }).click();
+    await page.getByRole('menuitem', { name: '导入模型' }).click();
     await page.locator('.ant-modal input[type=file]').first().waitFor({ state: 'attached' });
     await page.locator('.ant-modal input[type=file]').first().setInputFiles('tmp/smoke/cube.obj');
     await page.getByRole('button', { name: '读取模型' }).click();
@@ -377,10 +413,12 @@ try {
         'project rename applies',
     );
 
-    await page.getByRole('button', { name: '操作与快捷键' }).click();
+    await page.getByRole('button', { name: '更多', exact: true }).click();
+    await page.getByRole('menuitem', { name: '操作与快捷键' }).click();
     await page.locator('.help-group').first().waitFor();
     assert.equal(await page.locator('.help-group').count(), 4, 'help groups render');
-    await page.keyboard.press('Escape');
+    await page.locator('.ant-modal:visible .ant-modal-close').click();
+    await page.locator('.ant-modal-wrap:visible').waitFor({ state: 'hidden' });
 
     // Environment is reached from the inspector header button, not from the tab strip.
     await page.locator('.inspector .inspector__scene-button').click();

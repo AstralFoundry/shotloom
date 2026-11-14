@@ -1,21 +1,13 @@
+import { captureRect } from '@/core/editor/viewport-capture.ts';
 import { editorPreferences } from '@/core/editor/preferences.ts';
-import {
-    AimOutlined,
-    BorderOutlined,
-    BranchesOutlined,
-    CameraOutlined,
-    DragOutlined,
-    ExpandOutlined,
-    EyeOutlined,
-    HomeOutlined,
-    RotateRightOutlined,
-} from '@ant-design/icons';
+import { FocusIcon, CameraIcon, SplineIcon, MoveIcon, MaximizeIcon, EyeIcon, HouseIcon, Rotate3DIcon, ClapperboardIcon } from '@/shared/ui/icons.tsx';
 import { Button, Popover, Select, Switch, Tooltip } from 'antd';
 import { useEffect, useRef, useState } from 'react';
 import { activeCameraId } from '@/core/timeline.ts';
 import { numberAt } from '@/core/animation/channels.ts';
 import { useTranslation } from '@/shared/i18n/use-translation.ts';
 import { ObjectLabels } from './object-labels.tsx';
+import { CameraPreviewPanel } from './camera-preview-panel.tsx';
 import { FramingGuides } from './framing-guides.tsx';
 import { PreviousShotOverlay } from './previous-shot-overlay.tsx';
 import { StageContextMenu, type ContextMenuTarget } from './stage-context-menu.tsx';
@@ -25,17 +17,15 @@ import { useProject, useSelectedEntity } from '@/state/use-editor.ts';
 import { usePreferences } from '@/state/use-preferences.ts';
 
 const TOOL_MODES: Array<{ mode: TransformMode; label: string; icon: React.ReactNode; shortcut: string }> = [
-    { mode: 'translate', label: '移动', icon: <DragOutlined />, shortcut: '1' },
-    { mode: 'rotate', label: '旋转', icon: <RotateRightOutlined />, shortcut: '2' },
-    { mode: 'scale', label: '缩放', icon: <ExpandOutlined />, shortcut: '3' },
+    { mode: 'translate', label: '移动', icon: <MoveIcon />, shortcut: '1' },
+    { mode: 'rotate', label: '旋转', icon: <Rotate3DIcon />, shortcut: '2' },
+    { mode: 'scale', label: '缩放', icon: <MaximizeIcon />, shortcut: '3' },
 ];
 
 /** The only place the three.js engine is mounted. React owns the frame around it. */
 export function StageViewport() {
     const t = useTranslation();
     const project = useProject();
-    const effects = usePreferences();
-    const [pip, setPip] = useState(true);
     const view = useEditorStore((state) => state.view);
     const preview = useEditorStore((state) => state.preview);
     const time = useEditorStore((state) => state.time);
@@ -47,6 +37,8 @@ export function StageViewport() {
     const preferences = usePreferences();
     const selectedEntity = useSelectedEntity();
     const draftEntity = pathDraft ? project.entities.find((entity) => entity.id === pathDraft) : undefined;
+    const viewportRef = useRef<HTMLDivElement>(null);
+    const [captureFrame, setCaptureFrame] = useState<ReturnType<typeof captureRect> | null>(null);
     const stageRef = useRef<HTMLDivElement>(null);
     const shotRef = useRef<HTMLDivElement>(null);
     const [menu, setMenu] = useState<ContextMenuTarget | null>(null);
@@ -62,6 +54,26 @@ export function StageViewport() {
             session.detachEngine();
         };
     }, []);
+
+    useEffect(() => {
+        const target = view === 'shot' ? shotRef.current : stageRef.current;
+        if (!target) return;
+        const measure = () => {
+            const canvas = target.querySelector('canvas');
+            const host = viewportRef.current;
+            if (!canvas || !host || preferences.captureAspect === 'auto') { setCaptureFrame(null); return; }
+            const bounds = canvas.getBoundingClientRect();
+            const parent = host.getBoundingClientRect();
+            const crop = captureRect(bounds.width, bounds.height, preferences.captureAspect);
+            setCaptureFrame({ ...crop, x: crop.x + bounds.left - parent.left, y: crop.y + bounds.top - parent.top });
+        };
+        measure();
+        const observer = new ResizeObserver(measure);
+        observer.observe(target);
+        const canvas = target.querySelector('canvas');
+        if (canvas) observer.observe(canvas);
+        return () => observer.disconnect();
+    }, [view, preferences.captureAspect]);
 
     // Navigation hints are for the first encounter; once the user steers the view (or
     // after a grace period) they fade so they stop covering the scene. Path-drawing
@@ -84,7 +96,10 @@ export function StageViewport() {
         : 40;
 
     return (
-        <div className={`viewport viewport--${view}${pip && view === "stage" ? " viewport--pip" : ""}`}>
+        <div ref={viewportRef} className={`viewport viewport--${view}`}>
+            {captureFrame && (
+                <div className="viewport__capture-frame" aria-label={t('输出取景框')} style={{ left: captureFrame.x, top: captureFrame.y, width: captureFrame.width, height: captureFrame.height }} />
+            )}
             <section className="viewport__panel viewport__panel--stage" aria-label={t('导演视角')}>
                 <div
                     className="viewport__stage-frame"
@@ -132,138 +147,174 @@ export function StageViewport() {
                               : t('按地面平面画路线 · Enter 完成 · Esc 取消')
                         : t('拖动鼠标观察 · 点击布景后 WASD 移动视角 · Q/E 转向 · R/F 升降')}
                 </div>
-
-                <div
-                    className={`viewport__toolbar ${view === 'shot' ? 'viewport__toolbar--hidden' : ''}`}
-                    role="toolbar"
-                    aria-label={t('常用工具')}
-                >
-                    <Popover content={<div className="stack"><label>SSAO <Switch size="small" checked={effects.ambientOcclusion} onChange={value => editorPreferences.set('ambientOcclusion', value)} /></label><label>{t('轮廓描边')} <Switch size="small" checked={effects.outline} onChange={value => editorPreferences.set('outline', value)} /></label></div>}><Button size="small">{t('空间感')}</Button></Popover>
-                    <Button size="small" onClick={() => setPip(!pip)}>{pip ? t('隐藏画中画') : t('显示画中画')}</Button>
-                    <div className="viewport__tool-group" role="group" aria-label={t('移动 / 旋转 / 缩放')}>
-                        {TOOL_MODES.map((tool) => (
-                            <Tooltip key={tool.mode} title={`${t(tool.label)} · ${tool.shortcut}`}>
-                                <Button
-                                    size="small"
-                                    className={transformMode === tool.mode ? 'is-active' : ''}
-                                    icon={tool.icon}
-                                    aria-label={t(tool.label)}
-                                    aria-pressed={transformMode === tool.mode}
-                                    onClick={() => session.setTransformMode(tool.mode)}
-                                />
-                            </Tooltip>
-                        ))}
-                    </div>
-                    <span className="viewport__toolbar-separator" aria-hidden="true" />
-                    <div className="viewport__tool-group">
-                        <Tooltip title={t(pathDraft ? '完成路线' : '添加路径')}>
-                            <Button
-                                size="small"
-                                className={pathDraft ? 'is-active' : ''}
-                                icon={<BranchesOutlined />}
-                                aria-label={t(pathDraft ? '完成路线' : '添加路径')}
-                                aria-pressed={Boolean(pathDraft)}
-                                disabled={!pathDraft && (!selectedEntity || selectedEntity.locked)}
-                                onClick={() => (pathDraft ? session.finishPath() : session.startPath())}
-                            />
-                        </Tooltip>
-                        {pathDraft && (
-                            <span className="viewport__drawing">
-                                {draftEntity?.path?.points.length ?? 0} {t('个路径点')}
-                            </span>
-                        )}
-                        <Tooltip title={t('添加机位')}>
-                            <Button
-                                size="small"
-                                icon={<BorderOutlined />}
-                                aria-label={t('添加机位')}
-                                onClick={() => session.addCamera()}
-                            />
-                        </Tooltip>
-                        <Tooltip title={t('重置视角')}>
-                            <Button
-                                size="small"
-                                icon={<HomeOutlined />}
-                                aria-label={t('重置视角')}
-                                onClick={() => session.viewHome()}
-                            />
-                        </Tooltip>
-                    </div>
-                    <span className="viewport__toolbar-separator" aria-hidden="true" />
-                    <Popover
-                        trigger="click"
-                        placement="topRight"
-                        overlayClassName="viewport-options-popover"
-                        content={
-                            <ViewOptions
-                                gridVisible={gridVisible}
-                                placementSnap={preferences.placementSnap}
-                                objectSnap={preferences.objectSnap}
-                                surfaceDrop={preferences.surfaceDrop}
-                                draftQuality={preferences.previewQuality === 'draft'}
-                            />
-                        }
-                    >
-                        <Button size="small" icon={<EyeOutlined />} aria-label={t('视图选项')} />
-                    </Popover>
-                </div>
             </section>
 
-            <section className="viewport__panel viewport__panel--shot" aria-label={t('机位视角')}>
-                <div className="shot-header">
-                    <CameraOutlined />
-                    {view === 'stage' && <Button size="small" onClick={() => setPip(false)}>{t('关闭')}</Button>}
-                    <Select
-                        size="small"
-                        variant="borderless"
-                        value={preview}
-                        aria-label={t('拍摄机位')}
-                        onChange={(value) => session.setPreview(value)}
-                        options={[
-                            { value: 'program', label: t('成片 · 按切镜') },
-                            ...cameras.map((camera) => ({ value: camera.id, label: camera.name })),
-                        ]}
-                    />
-                    <span className="shot-header__lens">
-                        {Number(lens.toFixed(1))} mm · {project.aspect}
-                    </span>
-                </div>
-                <div
-                    className="viewport__canvas viewport__canvas--shot"
-                    ref={shotRef}
-                    onPointerDown={() => setShotHintIdle(true)}
-                >
+            <CameraPreviewPanel
+                view={view}
+                preview={preview}
+                cameras={cameras}
+                lens={lens}
+                aspect={project.aspect}
+                canvasRef={shotRef}
+                onInteract={() => setShotHintIdle(true)}
+            >
                     <FramingGuides aspect={project.aspect} />
                     {preferences.showPreviousShot ? <PreviousShotOverlay cameraId={shotCameraId ?? ''} /> : null}
                     <span className={`viewport__shot-hint ${shotHintIdle ? 'is-idle' : ''}`}>
                         {t('拖动画面调整机位方向')}
                     </span>
-                </div>
-            </section>
+            </CameraPreviewPanel>
+            <div
+                className="viewport__toolbar"
+                role="toolbar"
+                aria-label={t('常用工具')}
+            >
+                {view !== 'shot' && (
+                    <>
+                        <div className="viewport__tool-group" role="group" aria-label={t('移动 / 旋转 / 缩放')}>
+                            {TOOL_MODES.map((tool) => (
+                                <Tooltip key={tool.mode} title={`${t(tool.label)} · ${tool.shortcut}`}>
+                                    <Button
+                                        size="small"
+                                        className={transformMode === tool.mode ? 'is-active' : ''}
+                                        icon={tool.icon}
+                                        aria-label={t(tool.label)}
+                                        aria-pressed={transformMode === tool.mode}
+                                        onClick={() => session.setTransformMode(tool.mode)}
+                                    />
+                                </Tooltip>
+                            ))}
+                        </div>
+                        <span className="viewport__toolbar-separator" aria-hidden="true" />
+                        <div className="viewport__tool-group">
+                            <Tooltip title={t(pathDraft ? '完成路线' : '添加路径')}>
+                                <Button
+                                    size="small"
+                                    className={pathDraft ? 'is-active' : ''}
+                                    icon={<SplineIcon />}
+                                    aria-label={t(pathDraft ? '完成路线' : '添加路径')}
+                                    aria-pressed={Boolean(pathDraft)}
+                                    disabled={!pathDraft && (!selectedEntity || selectedEntity.locked)}
+                                    onClick={() => (pathDraft ? session.finishPath() : session.startPath())}
+                                />
+                            </Tooltip>
+                            {pathDraft && (
+                                <span className="viewport__drawing">
+                                    {draftEntity?.path?.points.length ?? 0} {t('个路径点')}
+                                </span>
+                            )}
+                            <Tooltip title={t('添加机位')}>
+                                <Button
+                                    size="small"
+                                    icon={<CameraIcon />}
+                                    aria-label={t('添加机位')}
+                                    onClick={() => session.addCamera()}
+                                />
+                            </Tooltip>
+                            <Tooltip title={t('重置视角')}>
+                                <Button
+                                    size="small"
+                                    icon={<HouseIcon />}
+                                    aria-label={t('重置视角')}
+                                    onClick={() => session.viewHome()}
+                                />
+                            </Tooltip>
+                        </div>
+                        <span className="viewport__toolbar-separator" aria-hidden="true" />
+                        <Popover
+                            trigger="click"
+                            placement="topRight"
+                            overlayClassName="viewport-options-popover"
+                            content={
+                                <ViewOptions
+                                    gridVisible={gridVisible}
+                                    placementSnap={preferences.placementSnap}
+                                    objectSnap={preferences.objectSnap}
+                                    surfaceDrop={preferences.surfaceDrop}
+                                    ambientOcclusion={preferences.ambientOcclusion}
+                                    outline={preferences.outline}
+                                    draftQuality={preferences.previewQuality === 'draft'}
+                                />
+                            }
+                        >
+                            <Tooltip title={t('视图选项')}>
+                                <Button size="small" icon={<EyeIcon />} aria-label={t('视图选项')} />
+                            </Tooltip>
+                        </Popover>
+                        <span className="viewport__toolbar-separator" aria-hidden="true" />
+                    </>
+                )}
+                <Tooltip title={t('动画时间轴')}>
+                    <Button
+                        size="small"
+                        icon={<ClapperboardIcon />}
+                        className={preferences.timelineVisible ? 'is-active' : ''}
+                        aria-label={t('动画时间轴')}
+                        aria-pressed={preferences.timelineVisible}
+                        onClick={() => editorPreferences.set('timelineVisible', !preferences.timelineVisible)}
+                    />
+                </Tooltip>
+            </div>
         </div>
     );
 }
 
-/** Secondary viewport controls live in one popover so the toolbar stays a single row. */
+/**
+ * Every display switch lives here: rendering (SSAO, outlines, draft quality), snapping and
+ * the top view. The floating toolbar is for tools, so nothing on it duplicates this menu.
+ */
 function ViewOptions({
     gridVisible,
     placementSnap,
     objectSnap,
     surfaceDrop,
+    ambientOcclusion,
+    outline,
     draftQuality,
 }: {
     gridVisible: boolean;
     placementSnap: number;
     objectSnap: boolean;
     surfaceDrop: boolean;
+    ambientOcclusion: boolean;
+    outline: boolean;
     draftQuality: boolean;
 }) {
     const t = useTranslation();
     return (
         <div className="viewport-options">
-            <Button size="small" icon={<AimOutlined />} onClick={() => session.viewTop()}>
+            <Button size="small" icon={<FocusIcon />} onClick={() => session.viewTop()}>
                 {t('俯视')}
             </Button>
+            <div className="viewport-options__section">{t('画面')}</div>
+            <div className="viewport-options__row">
+                <span>SSAO</span>
+                <Switch
+                    size="small"
+                    checked={ambientOcclusion}
+                    onChange={(value) => editorPreferences.set('ambientOcclusion', value)}
+                    aria-label={t('环境光遮蔽')}
+                />
+            </div>
+            <div className="viewport-options__row">
+                <span>{t('轮廓描边')}</span>
+                <Switch
+                    size="small"
+                    checked={outline}
+                    onChange={(value) => editorPreferences.set('outline', value)}
+                    aria-label={t('轮廓描边')}
+                />
+            </div>
+            <div className="viewport-options__row">
+                <span>{t('草稿预览')}</span>
+                <Switch
+                    size="small"
+                    checked={draftQuality}
+                    onChange={(checked) => session.setPreviewQuality(checked ? 'draft' : 'full')}
+                    aria-label={t('草稿预览')}
+                />
+            </div>
+            <div className="viewport-options__section">{t('辅助')}</div>
             <div className="viewport-options__row">
                 <span>{t('网格')}</span>
                 <Switch size="small" checked={gridVisible} onChange={() => session.toggleGrid()} aria-label={t('网格')} />
@@ -296,15 +347,6 @@ function ViewOptions({
             <div className="viewport-options__row">
                 <span>{t('自动落到表面')}</span>
                 <Switch size="small" checked={surfaceDrop} onChange={value => editorPreferences.set('surfaceDrop', value)} aria-label={t('自动落到表面')} />
-            </div>
-            <div className="viewport-options__row">
-                <span>{t('草稿预览')}</span>
-                <Switch
-                    size="small"
-                    checked={draftQuality}
-                    onChange={(checked) => session.setPreviewQuality(checked ? 'draft' : 'full')}
-                    aria-label={t('草稿预览')}
-                />
             </div>
         </div>
     );
