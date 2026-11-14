@@ -83,20 +83,16 @@ test('iframe 启动时会装配宿主桥，否则所有命令都会超时', () =
     'main.tsx 必须实际调用 initializeHostBridge()，只 import 不调用等于没接上');
 });
 
-test('导演台助手栏可拉伸，整页工作区和节点详情都能收缩', () => {
+test('浮动助手保留紧凑、输入与历史状态，两个入口都传入收起状态', () => {
   const pane = fs.readFileSync(path.join(root, 'renderer/src/app/agent-chat/DirectorAgentPane.tsx'), 'utf8');
   const view = fs.readFileSync(path.join(root, 'renderer/src/app/views/CreationView.tsx'), 'utf8');
   const node = fs.readFileSync(path.join(root, 'renderer/src/app/canvas/ThreeDDirectorNode.tsx'), 'utf8');
-
-  // Width must be adjustable and remembered; a fixed column was the original complaint.
-  assert.match(pane, /role="separator"/, '助手栏缺少拖动分隔条');
-  assert.match(pane, /localStorage\.setItem\(WIDTH_KEY/, '助手栏宽度必须持久化');
-  assert.match(pane, /ArrowLeft/, '分隔条必须支持键盘调整');
-
-  // Both entry points use the chat header's collapse button; the desk toolbar restores it.
-  assert.match(pane, /onClose=\{\(\) => onCollapsedChange\(true\)\}/, '助手栏标题应能收起 Agent');
-  assert.match(view, /className="director-workspace-agent" collapsed=\{agentCollapsed\}/, '整页工作区应传入收缩状态');
-  assert.match(node, /className="director-detail-agent"[^>]*collapsed=\{agentCollapsed\}/, '节点详情应传入收缩状态');
+  assert.match(pane, /collapsed \? 'compact' : expanded \? 'expanded' : 'input'/);
+  assert.match(pane, /onDoubleClickCapture/);
+  assert.match(pane, /className="director-agent-back"[\s\S]*?onClick=\{\(\) => onCollapsedChange\(true\)\}/);
+  assert.match(pane, /onClose=\{\(\) => setExpanded\(false\)\}/);
+  assert.match(view, /className="director-workspace-agent" collapsed=\{agentCollapsed\}/);
+  assert.match(node, /className="director-detail-agent"[^>]*collapsed=\{agentCollapsed\}/);
 });
 
 test('导演台退出入口在顶部工具栏，详情底部没有额外退出按钮', () => {
@@ -107,12 +103,12 @@ test('导演台退出入口在顶部工具栏，详情底部没有额外退出�
   const pane = fs.readFileSync(path.join(root, 'renderer/src/app/agent-chat/DirectorAgentPane.tsx'), 'utf8');
   const bridgeAdapter = fs.readFileSync(path.join(root, 'renderer/src/app/adapters/directorDeskBridge.ts'), 'utf8');
   assert.match(topBar, /onClick=\{requestHostClose\}/, '顶部工具栏应提供返回画布入口');
-  assert.match(topBar, /onClick=\{\(\) => requestHostAgentOpen\(\)\}/, '顶部工具栏应提供 Agent 恢复入口');
+  assert.doesNotMatch(topBar, /requestHostAgentOpen/, '助手通过底部输入框展开，顶部不再重复提供按钮');
   const labels = fs.readFileSync(path.join(root, 'vendor/shotloom-director-desk/src/features/stage/object-labels.tsx'), 'utf8');
   const menu = fs.readFileSync(path.join(root, 'vendor/shotloom-director-desk/src/features/stage/stage-context-menu.tsx'), 'utf8');
   assert.match(labels, /label\.id === selected[\s\S]*?requestHostAgentOpen\(label\.id\)/, '选中对象的场景标签旁应能送入 Agent 输入框');
   assert.match(menu, /requestHostAgentOpen\(entity\.id\)/, '舞台右键菜单应能把对象送入 Agent 输入框');
-  assert.match(bridgeAdapter, /messageType\.openAgent[\s\S]*?onOpenAgent/, '顶部工具栏的消息应传到宿主 Agent 面板');
+  assert.match(bridgeAdapter, /messageType\.openAgent[\s\S]*?onOpenAgent/, '场景对象的消息应传到宿主 Agent 面板');
   assert.doesNotMatch(topBar, /topbar__brand/, '顶部不应显示导演台与未命名场景标识');
   assert.doesNotMatch(pane, /director-agent-reopen/, '收起的 Agent 不应悬浮在属性面板标题上');
   assert.doesNotMatch(node, /director-detail-close/, '详情底部不应保留退出按钮');
@@ -120,32 +116,19 @@ test('导演台退出入口在顶部工具栏，详情底部没有额外退出�
   assert.match(workspace, /onExitInteraction: \(\) => onExit\?\.\(\)/, '整页退出消息必须返回画布');
 });
 
-test('助手栏分隔条的样式在全局层，两个调用方都能加载到', () => {
-  // 真实缺陷：.director-agent-resize 只写在画布节点的局部样式表里，
-  // 而整页工作区（CreationView）从不 import 那份文件。DOM 在、样式不在，
-  // 分隔条宽度为 auto、cursor 不生效，用户看到的就是"拉不动"。
+test('浮动助手样式由全局层提供，历史面板高度受工作区限制', () => {
   const global = fs.readFileSync(path.join(root, 'renderer/styles/creation-view.css'), 'utf8');
-  const local = fs.readFileSync(path.join(root, 'renderer/src/app/canvas/ThreeDDirectorNode.css'), 'utf8');
-
-  assert.match(global, /\.director-agent-resize\s*\{/, '分隔条样式必须在全局样式层');
-  assert.match(global, /cursor:\s*col-resize/, '分隔条必须声明 col-resize');
-  assert.ok(!/\.director-agent-resize\s*\{/.test(local), '不应在局部样式表重复定义，否则两处会漂移');
-
-  // 面板 overflow: hidden 会裁掉负偏移，命中区必须完全落在面板内。
-  const rule = global.slice(global.indexOf('.director-agent-resize {'), global.indexOf('}', global.indexOf('.director-agent-resize {')));
-  assert.match(rule, /left:\s*0;/, '分隔条不得用负偏移，否则命中区被 overflow 裁掉');
+  assert.match(global, /\.director-agent-dock\.director-workspace-agent,[\s\S]*?\.director-agent-dock\.director-detail-agent\s*\{/);
+  assert.match(global, /data-director-mode="expanded"[^}]*height: min\(500px, calc\(100% - 112px\)\)/);
+  assert.doesNotMatch(global, /\.director-agent-resize\s*\{/);
 });
 
-test('助手栏宽度按面板父级计算，不能拿分隔条的父级当可用空间', () => {
-  // 真实缺陷：resize() 用 container.parentElement 量可用宽度，而 container 是分隔条本身，
-  // 它的 parentElement 就是助手栏自己。于是 available = 宽度 - 480 恒为负，
-  // 每次拖动都被钳到最小值 280，表现就是"拖了没反应"。
+test('浮动助手按 iframe 舞台和工具栏布局，监听器随卸载释放', () => {
   const pane = fs.readFileSync(path.join(root, 'renderer/src/app/agent-chat/DirectorAgentPane.tsx'), 'utf8');
-
-  assert.ok(!/container\?\.parentElement/.test(pane),
-    '不能从分隔条取 parentElement 量可用宽度');
-  assert.match(pane, /asideRef/, '必须通过 ref 引用助手栏自身');
-  assert.match(pane, /asideRef\.current\?\.parentElement/, '可用宽度必须取自助手栏的父级');
+  assert.match(pane, /const bounds = parent\.getBoundingClientRect\(\)/);
+  assert.match(pane, /const frameBounds = frame\.getBoundingClientRect\(\)/);
+  assert.match(pane, /anchor\.width < anchor\.toolbarWidth \+ 320/);
+  assert.match(pane, /observer\.disconnect\(\); stopListening\(\); frame\.removeEventListener\('load', request\)/);
 });
 
 test('导演台只在载入宿主文档之后才写回，未载入时拒绝 Agent 操作', () => {

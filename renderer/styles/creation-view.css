@@ -523,10 +523,10 @@
 /* Floating chat shares the stage's bottom dock via the iframe layout bridge. */
 .director-agent-dock.director-workspace-agent,
 .director-agent-dock.director-detail-agent {
-  --director-dock-bg: var(--surface, #fff);
-  --director-dock-line: var(--line, #d9d9de);
-  --director-dock-text: var(--text, #242428);
-  --director-dock-muted: var(--muted, #76767d);
+  --director-dock-bg: var(--surface);
+  --director-dock-line: var(--line);
+  --director-dock-text: var(--text);
+  --director-dock-muted: var(--muted);
   --director-dock-radius: calc(var(--director-composer-height, 44px) / 2);
   position: absolute;
   z-index: 8;
@@ -565,7 +565,7 @@
   background: var(--director-dock-bg);
   transform-origin: top left;
   pointer-events: none;
-  transition: opacity 240ms cubic-bezier(.2,.8,.2,1);
+  transition: opacity var(--duration-enter) var(--ease-sheet);
 }
 .director-agent-dock[data-director-mode="compact"] .director-agent-card::before { opacity: 0; }
 .director-agent-dock .harness-chat-panel { height: var(--director-composer-height, 48px); border-radius: var(--director-dock-radius); background: transparent; }
@@ -587,7 +587,7 @@
   background: transparent;
   color: var(--director-dock-muted);
   font: inherit;
-  font-size: 13px;
+  font-size: var(--text-body-13);
   cursor: pointer;
 }
 .director-agent-history > span { white-space: nowrap; }
@@ -609,7 +609,7 @@
 }
 .director-agent-back > svg { width: 20px; height: 20px; }
 .director-agent-history,
-.director-agent-back { transition: opacity 180ms cubic-bezier(.2,.8,.2,1), transform 240ms cubic-bezier(.2,.8,.2,1), visibility 240ms; }
+.director-agent-back { transition: opacity var(--duration-base) var(--ease-sheet), transform var(--duration-enter) var(--ease-sheet), visibility var(--duration-enter); }
 .director-agent-dock[data-director-mode="compact"] .director-agent-history { position: absolute; opacity: 0; visibility: hidden; pointer-events: none; transform: translateY(4px); }
 .director-agent-dock[data-director-mode="compact"] .director-agent-back { opacity: 0; visibility: hidden; pointer-events: none; transform: translateX(8px); }
 @media (prefers-reduced-motion: reduce) {

@@ -47,7 +47,7 @@ test('画布素材入口统一项目、全局和文件并支持搜索与导入',
 
 test('资产浏览器从画布底部展开并支持拖动调整高度', () => {
   assert.match(styles, /\.canvas-material-picker\s*\{[\s\S]*?inset: auto 0 0;[\s\S]*?width: 100%;[\s\S]*?border-top:/);
-  assert.doesNotMatch(styles, /\.canvas-material-picker\s*\{[\s\S]*?left: 50%;[\s\S]*?transform: translateX\(-50%\)/);
+  assert.doesNotMatch(styles.match(/\.canvas-material-picker\s*\{([^}]*)\}/)?.[1] ?? "", /left: 50%|transform: translateX\(-50%\)/);
   assert.match(creation, /assetDrawerHeight[\s\S]*?canvas-asset-drawer-resizer[\s\S]*?startAssetDrawerResize/);
   assert.match(creation, /const minimum = Math\.round\(availableHeight \* 0\.7\)/);
   assert.match(creation, /aria-orientation="horizontal"[\s\S]*?resizeAssetDrawerWithKeyboard/);
