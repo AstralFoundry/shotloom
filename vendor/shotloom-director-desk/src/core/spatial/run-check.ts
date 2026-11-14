@@ -5,6 +5,7 @@ import type { RenderLease } from '../editor/render-lease.ts';
 import { checkSample, groupIssues, toSpatialBox, type SpatialBox, type SpatialIssue } from './checks.ts';
 
 export interface CheckRequest {
+    subjectIds?: string[];
     start: number;
     end: number;
     /** Samples per second; higher finds shorter events at proportionally higher cost. */
@@ -47,6 +48,7 @@ export async function runSpatialCheck(
     const end = Math.min(project.duration, Math.max(request.start, request.end));
     if (!(end > start)) throw Error('时间范围无效');
     if (!(request.sampleRate > 0)) throw Error('采样次数无效');
+    if (request.subjectIds?.some(id => !project.entities.some(e => e.id === id && (e.kind === 'actor' || e.kind === 'crowd')))) throw Error('subjectIds 包含不存在的角色');
     const count = Math.max(2, Math.min(2000, Math.round((end - start) * request.sampleRate)));
     const step = (end - start) / (count - 1);
     const collected: SpatialIssue[] = [];
@@ -95,6 +97,8 @@ export async function runSpatialCheck(
                 : null;
             const cameraPosition = shotCamera?.position.toArray() as [number, number, number] | undefined;
             // 每个切镜自己声明要看谁：没有目标时退回"所有人物"，避免把候场演员全报成出画。
+            const cut = [...project.cuts].reverse().find(c => c.time <= time);
+            const declared = request.subjectIds ?? (request.cameraId === 'program' ? cut?.subjectIds : undefined);
             const targetId = project.entities.find((entity) => entity.id === cameraId)?.camera?.targetId;
             collected.push(
                 ...checkSample(
@@ -109,7 +113,7 @@ export async function runSpatialCheck(
                                   },
                               }
                             : {}),
-                        ...(targetId && boxes.some((box) => box.id === targetId) ? { requiredIds: [targetId] } : {}),
+                        ...(declared !== undefined ? { requiredIds: declared } : targetId && boxes.some((box) => box.id === targetId) ? { requiredIds: [targetId] } : {}),
                         ...(standingPropIds ? { standingPropIds } : {}),
                     },
                     time,

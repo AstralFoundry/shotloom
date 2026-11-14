@@ -1,5 +1,4 @@
 import { editorMessage } from "../../shotloom-mode";
-import "./ai-workspace.css";
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import { ToolcraftText as Text, ToolcraftButton as Button } from "@openreel/ui";
 
@@ -22,10 +21,6 @@ import { useCompactEditor } from "../../hooks/useCompactEditor";
 import { isShotloomMode, useShotloomPresentation } from "../../shotloom-mode";
 import "./editor-responsive.css";
 
-const ChatPanel = React.lazy(() =>
-  import("./chat/ChatPanel").then((module) => ({ default: module.ChatPanel })),
-);
-
 // Timeline area (bottom band) is sized as a container-height fraction so the
 // top workspace (media | stage | inspector) gets the rest. The grid
 // from the mockup is `1fr var(--tl-height)` rows — by default
@@ -44,14 +39,10 @@ const DEFAULT_INSPECTOR_W = 360;
 const MIN_INSPECTOR_W = 280;
 const MAX_INSPECTOR_W = 560;
 
-const DEFAULT_CHAT_W = 380;
-const MIN_CHAT_W = 320;
-const MAX_CHAT_W = 560;
-
 const MIN_STAGE_W = 380;
 const RESIZE_HANDLE = 4;
 
-type ResizeTarget = "timeline" | "media" | "inspector" | "chat";
+type ResizeTarget = "timeline" | "media" | "inspector";
 
 const clamp = (value: number, min: number, max: number): number => {
   return Math.min(Math.max(value, min), Math.max(min, max));
@@ -90,8 +81,7 @@ const useAutoSave = () => {
 export const EditorInterface: React.FC = () => {
   const compact = useCompactEditor();
   const canvas = useShotloomPresentation() === "canvas";
-  const [compactPanel, setCompactPanel] = useState<"timeline" | "media" | "inspector" | "chat">("timeline");
-  const [hasOpenedChat, setHasOpenedChat] = useState(false);
+  const [compactPanel, setCompactPanel] = useState<"timeline" | "media" | "inspector">("timeline");
   const { initialized, initializing, initError, initStatus, retry } =
     useEditorInitialization();
 
@@ -207,34 +197,16 @@ export const EditorInterface: React.FC = () => {
   const resizeRef = useRef<ResizeTarget | null>(null);
   const [mediaWidth, setMediaWidth] = useState(() => window.innerWidth < 1600 ? MIN_MEDIA_W : DEFAULT_MEDIA_W);
   const [inspectorWidth, setInspectorWidth] = useState(() => window.innerWidth < 1600 ? MIN_INSPECTOR_W : DEFAULT_INSPECTOR_W);
-  const [chatWidth, setChatWidth] = useState(DEFAULT_CHAT_W);
   const [timelineVh, setTimelineVh] = useState(DEFAULT_TIMELINE_VH);
-
-  const chatVisible = panels.agentChat?.visible ?? false;
-  useEffect(() => {
-    if (chatVisible) {
-      setHasOpenedChat(true);
-      if (compact) setCompactPanel("chat");
-    }
-  }, [chatVisible, compact]);
-  const openCompactPanel = (panel: typeof compactPanel) => {
-    setCompactPanel(panel);
-    setPanelVisible("agentChat", panel === "chat");
-    if (panel === "chat") setHasOpenedChat(true);
-  };
 
   const mediaRef = useRef(mediaWidth);
   const inspectorRef = useRef(inspectorWidth);
-  const chatRef = useRef(chatWidth);
   useEffect(() => {
     mediaRef.current = mediaWidth;
   }, [mediaWidth]);
   useEffect(() => {
     inspectorRef.current = inspectorWidth;
   }, [inspectorWidth]);
-  useEffect(() => {
-    chatRef.current = chatWidth;
-  }, [chatWidth]);
 
   const beginResize = useCallback(
     (target: ResizeTarget) => (e: React.MouseEvent) => {
@@ -256,13 +228,9 @@ export const EditorInterface: React.FC = () => {
       const scaleX = bounds.width ? root.clientWidth / bounds.width : 1;
       const x = (e.clientX - bounds.left) * scaleX;
       const rect = { width: root.clientWidth, right: root.clientWidth, bottom: bounds.bottom, height: bounds.height };
-      const chatOpen =
-        useUIStore.getState().panels.agentChat?.visible ?? false;
-      const chatOffset = chatOpen ? chatRef.current + RESIZE_HANDLE : 0;
-
       if (target === "media") {
         const maxByStage =
-          rect.width - (chatOpen ? 0 : inspectorRef.current) - chatOffset - MIN_STAGE_W;
+          rect.width - inspectorRef.current - MIN_STAGE_W;
         setMediaWidth(
           clamp(x, MIN_MEDIA_W, Math.min(MAX_MEDIA_W, maxByStage)),
         );
@@ -270,27 +238,12 @@ export const EditorInterface: React.FC = () => {
       }
       if (target === "inspector") {
         const maxByStage =
-          rect.width - mediaRef.current - chatOffset - MIN_STAGE_W;
+          rect.width - mediaRef.current - MIN_STAGE_W;
         setInspectorWidth(
           clamp(
-            rect.right - chatOffset - x,
+            rect.right - x,
             MIN_INSPECTOR_W,
             Math.min(MAX_INSPECTOR_W, maxByStage),
-          ),
-        );
-        return;
-      }
-      if (target === "chat") {
-        const maxByStage =
-          rect.width -
-          mediaRef.current -
-          2 * RESIZE_HANDLE -
-          MIN_STAGE_W;
-        setChatWidth(
-          clamp(
-            rect.right - x,
-            MIN_CHAT_W,
-            Math.min(MAX_CHAT_W, maxByStage),
           ),
         );
         return;
@@ -322,9 +275,8 @@ export const EditorInterface: React.FC = () => {
     const tlVh = timelineMaximized ? COMPACT_TIMELINE_VH : timelineVh;
     r.style.setProperty("--media-w", `${mediaWidth}px`);
     r.style.setProperty("--inspector-w", `${inspectorWidth}px`);
-    r.style.setProperty("--chat-w", `${chatWidth}px`);
     r.style.setProperty("--tl-height", `${tlVh}%`);
-  }, [mediaWidth, inspectorWidth, chatWidth, timelineVh, timelineMaximized]);
+  }, [mediaWidth, inspectorWidth, timelineVh, timelineMaximized]);
 
   if (initializing || !initialized) {
     return (
@@ -359,13 +311,6 @@ export const EditorInterface: React.FC = () => {
     ? { gridTemplateColumns: "minmax(0, 1fr)", gridTemplateRows: "calc(56.25cqw + var(--clip-preview-gap, 8px)) minmax(0, 1fr)", gridTemplateAreas: "'stage' 'timeline'" }
     : compact
     ? { gridTemplateColumns: "minmax(0, 1fr)", gridTemplateRows: "minmax(220px, 48%) minmax(0, 1fr)", gridTemplateAreas: `'stage' '${compactPanel}'` }
-    : chatVisible
-    ? {
-        gridTemplateColumns: `${mediaWidth}px ${RESIZE_HANDLE}px minmax(0, 1fr) ${RESIZE_HANDLE}px ${chatWidth}px`,
-        gridTemplateRows: `1fr ${RESIZE_HANDLE}px ${effectiveTimelineVh}%`,
-        gridTemplateAreas:
-          "'media mh stage ch chat' 'th th th th th' 'timeline timeline timeline timeline timeline'",
-      }
     : !hasInspectorTarget
     ? {
         gridTemplateColumns: `${mediaWidth}px ${RESIZE_HANDLE}px minmax(0, 1fr)`,
@@ -397,7 +342,7 @@ export const EditorInterface: React.FC = () => {
           </div>
         )}
         <div
-          className={`editor-workspace flex-1 min-w-0 min-h-0 grid gap-px bg-border ${chatVisible && !compact ? "ai-workspace-grid" : ""}`}
+          className="editor-workspace flex-1 min-w-0 min-h-0 grid gap-px bg-border"
           style={gridStyle}
         >
         <div
@@ -435,7 +380,7 @@ export const EditorInterface: React.FC = () => {
           </PanelErrorBoundary>
         </div>
 
-        {!chatVisible && hasInspectorTarget && <><div
+        {hasInspectorTarget && <><div
           hidden={compact}
           className="editor-resizer bg-border hover:bg-brand-accent/30 cursor-col-resize"
           style={{ gridArea: "ih" }}
@@ -455,45 +400,6 @@ export const EditorInterface: React.FC = () => {
           </PanelErrorBoundary>
         </div></>}
 
-        {(chatVisible || hasOpenedChat) && (
-          <>
-            <div
-              hidden={compact || !chatVisible}
-              className="ai-chat-resizer editor-resizer grid place-items-center cursor-col-resize group/h"
-              style={{ gridArea: "ch" }}
-              onMouseDown={beginResize("chat")}
-              role="separator"
-              aria-label={editorMessage("editor.workspace.resizeChat")}
-              aria-orientation="vertical"
-              aria-valuenow={chatWidth}
-              tabIndex={0}
-              onKeyDown={(e) => { if (e.key === "ArrowLeft" || e.key === "ArrowRight") { e.preventDefault(); setChatWidth((w) => clamp(w + (e.key === "ArrowLeft" ? 20 : -20), MIN_CHAT_W, MAX_CHAT_W)); } }}
-            >
-              <span className="hidden" />
-            </div>
-
-            <div
-              id="editor-panel-chat"
-              hidden={!chatVisible || (compact && compactPanel !== "chat")}
-              className="editor-panel bg-bg-1 min-w-0 min-h-0 overflow-hidden"
-              style={{ gridArea: "chat" }}
-            >
-              <PanelErrorBoundary name="AI Editor">
-                <React.Suspense
-                  fallback={
-                    <div className="grid h-full place-items-center text-xs text-fg-muted">
-                      Loading AI Editor…
-                    </div>
-                  }
-                >
-                  <ChatPanel
-                    onClose={() => { setPanelVisible("agentChat", false); if (compact) setCompactPanel("timeline"); }}
-                  />
-                </React.Suspense>
-              </PanelErrorBoundary>
-            </div>
-          </>
-        )}
 
         <div
           hidden={compact}
@@ -522,7 +428,7 @@ export const EditorInterface: React.FC = () => {
           )}
 
           {compact && selectedItems.length > 0 && (
-            <button type="button" onClick={() => openCompactPanel("inspector")} className="shrink-0 text-xs text-accent bg-accent/10">
+            <button type="button" onClick={() => setCompactPanel("inspector")} className="shrink-0 text-xs text-accent bg-accent/10">
               Edit selected clip · trim, captions, audio & effects
             </button>
           )}
@@ -558,10 +464,10 @@ export const EditorInterface: React.FC = () => {
       {compact && (
         <nav aria-label={editorMessage("editor.workspace.workspace")} className="editor-workspace-tabs">
           {([
-            ["timeline", "editor.workspace.timeline"], ["media", "editor.workspace.media"], ["inspector", "editor.workspace.inspector"], ["chat", "editor.workspace.chat"],
+            ["timeline", "editor.workspace.timeline"], ["media", "editor.workspace.media"], ["inspector", "editor.workspace.inspector"],
           ] as const).map(([panel, label]) => (
             <button key={panel} type="button" aria-controls={`editor-panel-${panel}`} aria-pressed={compactPanel === panel}
-              onClick={() => openCompactPanel(panel)} className={compactPanel === panel ? "text-brand-accent border-brand-accent" : "text-fg-3 border-transparent hover:text-fg"}>
+              onClick={() => setCompactPanel(panel)} className={compactPanel === panel ? "text-brand-accent border-brand-accent" : "text-fg-3 border-transparent hover:text-fg"}>
               {editorMessage(label)}
             </button>
           ))}

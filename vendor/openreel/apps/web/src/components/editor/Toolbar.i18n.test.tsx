@@ -26,14 +26,12 @@ describe.each(["en-US", "zh-CN"] as const)("toolbar (%s)", (locale) => {
     configureShotloomLocale(locale);
     vi.clearAllMocks();
     useProjectStore.setState({ project: { ...originalProject, name: "My original project", timeline: { ...originalProject.timeline, duration: 5 } }, renameProject: vi.fn() });
-    useUIStore.getState().setPanelVisible("agentChat", false);
+
     useUIStore.getState().closeModal();
   });
-  afterEach(() => { cleanup(); configureShotloomLocale("en-US"); useProjectStore.setState({ project: originalProject, renameProject: originalRename }); useUIStore.getState().closeModal(); useUIStore.getState().setPanelVisible("agentChat", false); });
-  it("switches editing mode and commits a user project name without translation", () => {
+  afterEach(() => { cleanup(); configureShotloomLocale("en-US"); useProjectStore.setState({ project: originalProject, renameProject: originalRename }); useUIStore.getState().closeModal();  });
+  it("commits a user project name without translation", () => {
     render(<Toolbar />);
-    fireEvent.click(screen.getByRole("button", { name: ui("AI editing", "AI 编辑") }));
-    expect(useUIStore.getState().panels.agentChat?.visible).toBe(true);
     const name = screen.getByLabelText(ui("Project name", "工程名称"));
     fireEvent.change(name, { target: { value: "用户自己的工程 title" } });
     fireEvent.blur(name);

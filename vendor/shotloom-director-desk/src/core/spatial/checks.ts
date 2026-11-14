@@ -247,7 +247,7 @@ export function checkOcclusion(
     if (!cameraPosition) return [];
     const wanted = new Set(requiredIds ?? []);
     const subjects = boxes.filter(
-        (box) => (box.kind === 'actor' || box.kind === 'crowd') && (!wanted.size || wanted.has(box.id)),
+        (box) => (box.kind === 'actor' || box.kind === 'crowd') && (requiredIds === undefined || wanted.has(box.id)),
     );
     if (!subjects.length) return [];
     // A solid the camera sits inside is reported once as `cameraInSolid`; counting it again as an
@@ -358,7 +358,7 @@ export function checkSample(context: SampleContext, time: number): SpatialIssue[
         const wanted = new Set(context.requiredIds ?? []);
         for (const box of context.boxes) {
             if (box.kind !== 'actor' && box.kind !== 'crowd') continue;
-            if (wanted.size && !wanted.has(box.id)) continue;
+            if (context.requiredIds !== undefined && !wanted.has(box.id)) continue;
             if (!isInFrame(center(box), context.camera)) {
                 issues.push({
                     kind: 'outOfFrame',

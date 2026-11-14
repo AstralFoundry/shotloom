@@ -61,8 +61,8 @@ npm install
 npm run dev          # http://127.0.0.1:5173
 npm run build        # 类型检查 + 生产构建
 npm run typecheck    # 仅类型检查
-npm test             # 单元测试（首次会提示先跑 npm run test:assets 下载素材）
-npm run test:assets  # 下载并校验固定版本的测试素材
+npm test             # 自动启动独立服务，运行编辑器、时间轴与 GPU 浏览器回归（需要 Chrome）
+npm run test:assets  # 可选：下载并校验固定版本的模型测试素材
 npm run format       # Prettier 统一格式（CI 用 format:check 校验）
 npm run smoke        # 浏览器端端到端冒烟（需要先 npm run dev）
 ```

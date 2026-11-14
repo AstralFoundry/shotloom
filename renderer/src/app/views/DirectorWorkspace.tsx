@@ -76,7 +76,7 @@ export function DirectorWorkspace({ src, onReady, onExit, onOpenAgent }: { src: 
       touchProject();
     }
     if (project && (project as { format?: string }).format !== 'director-desk') project = null;
-    sendDirectorDeskSession(frameRef.current, { instanceId: `workspace-${projectId}`, theme: 'light', locale: getLocale(), project });
+    sendDirectorDeskSession(frameRef.current, { instanceId: `workspace-${projectId}`, artifactScope: projectId, theme: 'light', locale: getLocale(), project });
   }, [projectId, storageKey]);
 
   useEffect(() => {
@@ -100,10 +100,13 @@ export function DirectorWorkspace({ src, onReady, onExit, onOpenAgent }: { src: 
         sendDirectorDeskProjectSaved(frameRef.current);
       },
       onCaptures: async (captures) => {
+        const outputs = [];
         for (const capture of captures) {
           const result = await nodeActions.exportDirectorAsset('', capture.dataUrl, capture.fileName, capture.kind, capture.directorContext);
           if (!result) throw new Error('未能创建导出节点');
+          outputs.push(result);
         }
+        return outputs;
       },
       onError: (error) => showToast(t('director.loadFailed', { error }), 'error'),
     });

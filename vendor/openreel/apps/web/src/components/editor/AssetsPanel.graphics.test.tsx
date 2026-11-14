@@ -48,7 +48,7 @@ describe.each(["en-US", "zh-CN"] as const)("AssetsPanel graphics workflow (%s)",
     fireEvent.click(screen.getByRole("button", { name: ui("Graphics", "图形") }));
 
     expect(
-      screen.getByRole("button", { name: "Import & Add Sticker" }),
+      screen.getByRole("button", { name: ui("Import & Add Sticker", "导入并添加贴纸") }),
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("checkbox", { name: ui("Gradient", "渐变") }));
     expect(screen.getByRole("button", { name: ui("Sunset", "日落") })).toBeInTheDocument();

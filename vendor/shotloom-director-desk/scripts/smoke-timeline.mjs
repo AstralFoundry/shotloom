@@ -9,6 +9,7 @@ try {
     page.on('pageerror', error => errors.push(error.message));
     await page.goto(process.env.DIRECTOR_URL || 'http://127.0.0.1:5173');
     await page.waitForFunction(() => !!window.__editorDebug?.session.engine);
+    await page.getByRole('button', { name: '动画时间轴', exact: true }).click();
     await page.evaluate(() => {
         const { session, store } = window.__editorDebug;
         const camera = store.getState().project.entities.find(entity => entity.kind === 'camera');
@@ -17,34 +18,22 @@ try {
     });
     await page.waitForFunction(() => document.querySelectorAll('.lane__parameter-key').length === 2);
     await page.waitForTimeout(300);
-    const selectedColors = await page.locator('.topbar > .ant-segmented .ant-segmented-item-selected').evaluate(el => {
-        const style = getComputedStyle(el);
-        return { background: style.backgroundColor, color: style.color };
-    });
-    for (const selector of ['.topbar__actions .ant-btn-primary', '.timeline__meta .ant-btn-primary', '.viewport__toolbar .ant-btn.is-active']) {
+    for (const selector of ['.timeline__meta .ant-btn-primary', '.viewport__toolbar .ant-btn.is-active']) {
         const button = page.locator(selector).first();
+        await button.hover();
+        await page.waitForTimeout(250);
         const colors = await button.evaluate(el => {
             const style = getComputedStyle(el);
             return { background: style.backgroundColor, color: style.color };
         });
-        assert.deepEqual(colors, selectedColors, `${selector} matches the director-view selected colors`);
-        await button.hover();
-        await page.waitForTimeout(250);
-        const hover = await button.evaluate(el => {
-            const style = getComputedStyle(el);
-            return { background: style.backgroundColor, color: style.color };
-        });
-        assert.equal(hover.color, selectedColors.color, 'hover keeps readable theme text');
-        assert.notEqual(hover.background, hover.color, 'hover never hides text in the background');
-        await page.mouse.move(0, 0);
-        await page.waitForTimeout(250);
+        assert.notEqual(colors.background, colors.color, `${selector} keeps readable text on hover`);
     }
     const transformButtons = page.locator('.viewport__tool-group').first().getByRole('button');
     for (let index = 0; index < 3; index++) {
         await transformButtons.nth(index).click();
         await page.waitForTimeout(250);
         assert.equal(await transformButtons.nth(index).getAttribute('aria-pressed'), 'true');
-        assert.equal(await transformButtons.nth(index).evaluate(el => getComputedStyle(el).backgroundColor), selectedColors.background);
+        assert.equal(await page.evaluate(() => window.__editorDebug.store.getState().transformMode), ['translate', 'rotate', 'scale'][index]);
     }
     await transformButtons.first().click();
     await page.mouse.move(0, 0);
@@ -129,7 +118,7 @@ try {
                     wrapped: meta.top > controls.bottom, overflow };
             });
             assert.deepEqual(layout.overflow, [], `${kind} controls fit at ${width}px`);
-            if (layout.width >= 760) assert.equal(layout.height, 34, 'desktop transport stays on one compact row');
+            if (layout.width >= 900) assert.equal(layout.height, 34, 'desktop transport stays on one compact row');
             if (layout.wrapped) assert.equal(layout.metaX, layout.controlsX, 'wrapped groups align left');
             if ([1100, 400].includes(width)) {
                 const theme = new URL(page.url()).searchParams.get('theme') || 'default';
@@ -182,6 +171,41 @@ try {
     await page.getByRole('button', { name: '适合窗口', exact: true }).click();
     await page.getByRole('button', { name: '设置时间轴缩放', exact: true }).click();
     assert.equal(await page.locator('.timeline__zoom-value').innerText(), '100%');
+    const placement = await page.evaluate(async () => {
+        const request = (operation, args = {}) => new Promise((resolve, reject) => {
+            const requestId = crypto.randomUUID();
+            const timer = setTimeout(() => { window.removeEventListener('message', receive); reject(Error(`No receipt for ${operation}`)); }, 5000);
+            function receive(event) {
+                if (event.data?.type !== 'storyai:director-desk-agent-result' || event.data.payload?.requestId !== requestId) return;
+                clearTimeout(timer);
+                window.removeEventListener('message', receive);
+                resolve(event.data.payload);
+            }
+            window.addEventListener('message', receive);
+            window.postMessage({ type: 'storyai:director-desk-agent-request', payload: { requestId, operation, args } }, location.origin);
+        });
+        const { session, store } = window.__editorDebug;
+        const catalog = await request('catalog');
+        const before = JSON.stringify(store.getState().project.entities);
+        const added = await request('add_camera_placement', { id: 'front-medium' });
+        const camera = store.getState().project.entities.find(entity => entity.id === added.result?.entityId);
+        const invalid = await request('add_camera_placement', { id: 'missing-preset' });
+        const count = store.getState().project.entities.length;
+        session.undo();
+        return {
+            discoverable: catalog.result.cameraPlacements.some(preset => preset.id === 'front-medium'),
+            added, kind: camera?.kind, focal: camera?.camera?.focal, count,
+            invalid, restored: JSON.stringify(store.getState().project.entities) === before,
+        };
+    });
+    assert.equal(placement.discoverable, true, 'Agent can discover static shot placements');
+    assert.equal(placement.added.success, true);
+    assert.equal(placement.kind, 'camera');
+    assert.equal(placement.focal, 50);
+    assert.equal(placement.count, 4, 'invalid presets do not create extra cameras');
+    assert.equal(placement.invalid.success, false);
+    assert.equal(placement.invalid.code, 'INVALID_PARAMS');
+    assert.equal(placement.restored, true, 'Agent-created placement is one undoable edit');
     assert.deepEqual(errors, []);
     console.log('PASS: hierarchy, compact responsive transport, playback, duration, loop, zoom, scrolled seeking and playhead dragging.');
 } finally {

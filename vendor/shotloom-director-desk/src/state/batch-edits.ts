@@ -15,7 +15,14 @@ import { patchFieldCatalog } from '@/core/editor/patch-fields.ts';
 import { validateAssetParameters } from '@/core/assets/parameters.ts';
 
 export type BatchEdit = {
-    operation: 'set_entity' | 'set_camera' | 'set_light' | 'set_lighting' | 'set_room' | 'set_project' | 'add_action' | 'set_clip' | 'remove_clip'
+    ref?: string;
+    startSec?: number;
+    endSec?: number;
+    speed?: number;
+    blendIn?: number;
+    loop?: boolean;
+    subjectIds?: string[];
+    operation: 'add_shot' | 'set_entity' | 'set_camera' | 'set_light' | 'set_lighting' | 'set_room' | 'set_project' | 'add_action' | 'set_clip' | 'remove_clip'
         | 'align_surface' | 'place_on_surface' | 'seat_on_surface' | 'align_facing' | 'set_path' | 'set_rotation_animation' | 'add_asset' | 'add_wall' | 'add_room' | 'add_prop' | 'add_camera' | 'add_cut' | 'delete_entity' | 'duplicate_entity';
     entityId?: string;
     targetEntityId?: string;
@@ -61,8 +68,9 @@ export type BatchEdit = {
 };
 
 const entityFields = ['name', 'color', 'position', 'rotationDegrees', 'scale', 'parameters', 'visible', 'height', 'build', 'gender'] as const;
-const clipFields = ['start', 'end', 'speed', 'blendIn'] as const;
+const clipFields = ['start', 'end', 'speed', 'blendIn', 'loop'] as const;
 const operationFields: Record<BatchEdit['operation'], readonly string[]> = {
+    add_shot: ['operation', 'timeSec', 'cameraId', 'name', 'subjectIds', 'patch', 'points', 'smooth'],
     align_surface: ['operation', 'entityId', 'targetEntityId', 'anchorId'],
     place_on_surface: ['operation', 'entityId', 'targetEntityId', 'anchorId'],
     seat_on_surface: ['operation', 'entityId', 'targetEntityId', 'anchorId'],
@@ -73,7 +81,7 @@ const operationFields: Record<BatchEdit['operation'], readonly string[]> = {
     set_lighting: ['operation', 'patch'],
     set_room: ['operation', 'patch'],
     set_project: ['operation', 'patch'],
-    add_action: ['operation', 'entityId', 'action', 'atSec'],
+    add_action: ['operation', 'entityId', 'action', 'atSec', 'startSec', 'endSec', 'speed', 'blendIn', 'loop'],
     set_clip: ['operation', 'entityId', 'clipId', 'patch'],
     remove_clip: ['operation', 'entityId', 'clipId'],
     set_path: ['operation', 'entityId', 'points', 'smooth'],
@@ -182,6 +190,7 @@ const applyParameters = (e: Entity, input: unknown) => {
 
 export type BatchReceipt = {
     index: number;
+    ref?: string;
     operation: string;
     entityId?: string;
     targetEntityId?: string;
@@ -211,7 +220,7 @@ function resolveReferences(edit: BatchEdit, receipts: BatchReceipt[]): BatchEdit
     const resolve = (value: unknown, field: string, pick: 'entityId' | 'clipId'): unknown => {
         if (typeof value !== 'string' || !value.startsWith('$')) return value;
         const match = /^\$(\d+)$/.exec(value);
-        const target = match ? receipts[Number(match[1]) - 1] : undefined;
+        const target = match ? receipts[Number(match[1]) - 1] : receipts.find(receipt => receipt.ref === value.slice(1));
         const id = target?.[pick];
         if (!id)
             throw Error(`${field} 引用的 ${value} 不存在：$N 只能指向本批前面某一项新建的 id（第 N 项必须已创建实体${pick === 'clipId' ? '或片段' : ''}）`);
@@ -221,10 +230,12 @@ function resolveReferences(edit: BatchEdit, receipts: BatchReceipt[]): BatchEdit
     if (edit.targetEntityId !== undefined) next.targetEntityId = resolve(edit.targetEntityId, 'targetEntityId', 'entityId') as string;
     if (edit.entityId !== undefined) next.entityId = resolve(edit.entityId, 'entityId', 'entityId') as string;
     if (edit.clipId !== undefined) next.clipId = resolve(edit.clipId, 'clipId', 'clipId') as string;
+    if (edit.subjectIds !== undefined) next.subjectIds = edit.subjectIds.map(id => resolve(id, 'subjectIds', 'entityId') as string);
     if (edit.cameraId !== undefined) next.cameraId = resolve(edit.cameraId, 'cameraId', 'entityId') as string;
     if (isRecord(edit.patch)) {
         const patch = { ...edit.patch };
         if (patch.targetId !== undefined) patch.targetId = resolve(patch.targetId, 'patch.targetId', 'entityId');
+        if (Array.isArray(patch.hiddenEntityIds)) patch.hiddenEntityIds = patch.hiddenEntityIds.map(id => resolve(id, 'patch.hiddenEntityIds', 'entityId'));
         next.patch = patch;
     }
     return next;
@@ -243,9 +254,10 @@ export function applyBatchEdits(project: Project, edits: BatchEdit[]): BatchRece
             if (!isRecord(edit)) throw Error('每项必须是对象');
             const allowed = operationFields[edit.operation];
             if (!allowed) throw Error(`不支持操作：${String(edit.operation)}`);
-            const extra = Object.keys(edit).find(key => !allowed.includes(key));
+            const extra = Object.keys(edit).find(key => key !== 'ref' && !allowed.includes(key));
             if (extra) throw Error(`操作 ${edit.operation} 不接受字段 ${extra}`);
-            const receipt: BatchReceipt = { index, operation: edit.operation };
+            if (edit.ref !== undefined && (typeof edit.ref !== 'string' || !edit.ref.trim() || /^\d+$/.test(edit.ref) || receipts.some(r => r.ref === edit.ref))) throw Error('ref 需要唯一的非数字名称');
+            const receipt: BatchReceipt = { index, operation: edit.operation, ...(edit.ref ? { ref: edit.ref } : {}) };
             if (edit.operation === 'set_entity') {
                 const e = target(project, edit.entityId);
                 const patch = patchFor(edit, entityFields);
@@ -323,11 +335,19 @@ export function applyBatchEdits(project: Project, edits: BatchEdit[]): BatchRece
                 if (typeof edit.action !== 'string' || !Object.hasOwn(ACTIONS, edit.action)) throw Error('action 必须取自 catalog.actions');
                 const capabilities = findAsset(e.asset)?.capabilities;
                 if (capabilities && !capabilities.actions.includes(edit.action as keyof typeof ACTIONS)) throw Error('该实体不支持此动作');
-                const at = edit.atSec ?? 0;
+                const at = edit.startSec ?? edit.atSec ?? 0;
+                if (edit.startSec !== undefined && edit.atSec !== undefined && edit.startSec !== edit.atSec) throw Error('startSec 与 atSec 不一致');
                 if (typeof at !== 'number' || !Number.isFinite(at) || at < 0) throw Error('atSec 必须是非负秒数');
-                const duration = Math.ceil(actionDuration(edit.action) * project.fps - 1e-8) / project.fps;
-                const start = nextFreeStart(e.clips, at, duration);
-                const clip: Clip = { id: crypto.randomUUID(), action: edit.action as keyof typeof ACTIONS, start, end: start + duration, speed: 1 };
+                const duration = edit.endSec === undefined ? Math.ceil(actionDuration(edit.action) * project.fps - 1e-8) / project.fps : finite(edit.endSec, 'endSec') - at;
+                if (!(duration > 0)) throw Error('endSec 必须晚于 startSec');
+                const explicit = edit.startSec !== undefined || edit.endSec !== undefined;
+                const start = explicit ? at : nextFreeStart(e.clips, at, duration);
+                if (explicit && e.clips.some(c => c.start < start + duration && c.end > start)) throw Error('指定动作时段与已有片段重叠；请先修改或移除已有片段');
+                const speed = edit.speed === undefined ? 1 : finite(edit.speed, 'speed');
+                const blendIn = edit.blendIn === undefined ? 0.2 : finite(edit.blendIn, 'blendIn');
+                if (speed < 0.1 || speed > 5 || blendIn < 0 || blendIn > 2) throw Error('speed 需在 0.1—5，blendIn 需在 0—2');
+                if (edit.loop !== undefined && typeof edit.loop !== 'boolean') throw Error('loop 必须是布尔值');
+                const clip: Clip = { id: crypto.randomUUID(), action: edit.action as keyof typeof ACTIONS, start, end: start + duration, speed, blendIn, ...(edit.loop === undefined ? {} : { loop: edit.loop }) };
                 e.clips.push(clip);
                 e.clips.sort((a, b) => a.start - b.start);
                 project.duration = Math.max(project.duration, clip.end);
@@ -348,6 +368,8 @@ export function applyBatchEdits(project: Project, edits: BatchEdit[]): BatchRece
                         throw Error('片段结束时间必须至少晚于开始时间一帧');
                     if (typeof speed !== 'number' || !Number.isFinite(speed) || speed < 0.1 || speed > 5)
                         throw Error('动作速度需在 0.1—5 之间');
+                    if (patch.loop !== undefined && typeof patch.loop !== 'boolean') throw Error('loop 必须是布尔值');
+                    if (patch.blendIn !== undefined && (typeof patch.blendIn !== 'number' || !Number.isFinite(patch.blendIn) || patch.blendIn < 0 || patch.blendIn > 2)) throw Error('blendIn 需在 0—2');
                     Object.assign(clip, patch);
                     e.clips.sort((a, b) => a.start - b.start);
                     project.duration = Math.max(project.duration, clip.end);
@@ -565,6 +587,19 @@ export function applyBatchEdits(project: Project, edits: BatchEdit[]): BatchRece
                 project.entities.push(e);
                 receipt.entityId = e.id;
                 receipt.name = e.name;
+            } else if (edit.operation === 'add_shot') {
+                const camera = target(project, edit.cameraId);
+                if (!camera.camera) throw Error('add_shot.cameraId 必须指向摄影机');
+                const time = finite(edit.timeSec, 'timeSec');
+                if (time < 0 || time >= project.duration) throw Error('timeSec 需在场景时长内');
+                if (edit.patch) applyBatchEdits(project, [{ operation: 'set_camera', entityId: camera.id, patch: edit.patch }]);
+                if (edit.points) applyBatchEdits(project, [{ operation: 'set_path', entityId: camera.id, points: edit.points, smooth: edit.smooth }]);
+                if (edit.subjectIds !== undefined && (!Array.isArray(edit.subjectIds) || edit.subjectIds.some(id => !project.entities.some(e => e.id === id && (e.kind === 'actor' || e.kind === 'crowd'))))) throw Error('subjectIds 只能引用真实角色或群演');
+                addCut(project, time, camera.id);
+                const cut = project.cuts.find(c => Math.abs(c.time - Math.round(time * project.fps) / project.fps) < 1e-7)!;
+                if (edit.name !== undefined) cut.name = String(edit.name);
+                if (edit.subjectIds !== undefined) cut.subjectIds = [...edit.subjectIds];
+                receipt.cameraId = camera.id; receipt.timeSec = cut.time;
             } else if (edit.operation === 'add_cut') {
                 const timeSec = edit.timeSec;
                 if (typeof timeSec !== 'number' || !Number.isFinite(timeSec) || timeSec < 0)
@@ -581,6 +616,7 @@ export function applyBatchEdits(project: Project, edits: BatchEdit[]): BatchRece
                 const replacement = project.entities.find(item => item.kind === 'camera' && item.id !== e.id)?.id;
                 if (cutsUseTarget && !replacement) throw Error('该机位仍被切镜引用，请先添加另一个机位');
                 removeCameraVisibilityReference(project, e.id);
+                for (const cut of project.cuts) if (cut.subjectIds) cut.subjectIds = cut.subjectIds.filter(id => id !== e.id);
                 for (const item of project.entities) {
                     if (item.camera?.targetId === e.id) {
                         item.camera.targetId = '';

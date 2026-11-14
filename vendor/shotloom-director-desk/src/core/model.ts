@@ -75,6 +75,7 @@ export interface Clip {
     progressOffset?: number;
     sourceDuration?: number;
     blendIn?: number;
+    loop?: boolean;
     turnAmount?: number;
 }
 export interface PoseKey {
@@ -151,6 +152,8 @@ export interface Entity {
     footContact?: boolean;
 }
 export interface Cut {
+    name?: string;
+    subjectIds?: string[];
     time: number;
     cameraId: string;
 }
@@ -500,6 +503,7 @@ export function assertProject(input: unknown): asserts input is Project {
         const clips = [...e.clips].sort((a, b) => a.start - b.start);
         for (let i = 0; i < clips.length; i++) {
             const c = clips[i];
+            if (c.loop !== undefined && typeof c.loop !== 'boolean') fail('动作循环标记无效');
             assertNativeClip(c, !!e.external);
             assertRetargetClip(c, e, p);
             if (
@@ -627,6 +631,8 @@ export function assertProject(input: unknown): asserts input is Project {
     }
     if (!p.cuts.length || p.cuts[0]?.time !== 0) fail('切镜必须从零秒开始');
     p.cuts.forEach((c, i) => {
+        if (c.subjectIds !== undefined && (!Array.isArray(c.subjectIds) || c.subjectIds.some(id => !p.entities.some(e => e.id === id && (e.kind === 'actor' || e.kind === 'crowd'))))) fail('镜头主体不存在');
+        if (c.name !== undefined && typeof c.name !== 'string') fail('镜头名称无效');
         if (
             !c ||
             !n(c.time) ||

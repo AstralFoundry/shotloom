@@ -83,6 +83,7 @@ export function TopBar({ sidebarOpen, onToggleSidebar, inspectorOpen, onToggleIn
             <div className="topbar__workspace" role="group" aria-label={t('取景工具')}>
                 <Select<'stage' | 'shot'>
                     className="topbar__view-select"
+                    classNames={{ popup: { root: 'topbar__view-popup' } }}
                     variant="borderless"
                     aria-label={t('视角')}
                     disabled={outputActive}

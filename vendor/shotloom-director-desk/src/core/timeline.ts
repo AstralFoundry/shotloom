@@ -1,3 +1,4 @@
+import { actionDuration } from './animation/action-timing.ts';
 import { MathUtils, Vector3 } from 'three';
 import { sourcePathHeading } from './animation/path-heading.ts';
 import { eased } from './animation/channels.ts';
@@ -116,14 +117,18 @@ export function previousClip(e: Entity, time: number) {
 }
 export function sampledAction(e: Entity, t: number) {
     const active = activeClip(e, t);
-    if (active)
+    if (active) {
+        const elapsed = (t - active.start) * active.speed + (active.offset ?? 0);
+        const cycle = actionDuration(active.action);
+        const local = active.loop === undefined ? elapsed : active.loop ? elapsed % cycle : Math.min(elapsed, cycle);
         return {
             action: active.action,
-            local: (t - active.start) * active.speed + (active.offset ?? 0),
-            progress:
+            local,
+            progress: active.loop === undefined ?
                 (t - active.start + (active.progressOffset ?? 0)) /
-                (active.sourceDuration ?? active.end - active.start),
+                (active.sourceDuration ?? active.end - active.start) : local / cycle,
         };
+    }
     const previous = previousClip(e, t);
     if (previous && ['sit', 'crouch', 'crawl', 'lie', 'fall'].includes(previous.action))
         return {

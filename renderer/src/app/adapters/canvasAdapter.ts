@@ -818,6 +818,12 @@ export const nodeActions: WorkflowNodeActions = {
     touchProject();
   },
   async exportDirectorAsset(id, dataUrl, name, kind, directorContext) {
+    if (directorContext?.exportHostProjectId && directorContext.exportHostProjectId !== store.project.id) throw Error('导出产物属于其他工程，未创建节点');
+    const exportProject = store.project;
+    const exportProjectDir = store.projectDir;
+    const artifactId = typeof directorContext?.exportArtifactId === 'string' ? directorContext.exportArtifactId : '';
+    const existing = artifactId && store.project.nodes.find((node: any) => !node.archived && node.directorContext?.exportArtifactId === artifactId && node.materialId);
+    if (existing) return { nodeId: existing.id, materialId: existing.materialId, filePath: existing.filePath };
     const director: any = (store.project.nodes || []).find(
       (item: any) => item.id === id && item.type === "threeDDirector",
     );
@@ -829,6 +835,7 @@ export const nodeActions: WorkflowNodeActions = {
     const fallbackName = kind === "video" ? "3d-director.webm" : "3d-director.png";
     const preferredName = name.trim() || fallbackName;
     const file: any = await desktopApi.file.saveDataUrlToProject(dataUrl, preferredName);
+    if (store.project !== exportProject || store.projectDir !== exportProjectDir) throw Error('工程已切换，未在新工程创建导出节点；请回到原工程重试入库');
     const path = String(file?.filePath || file?.path || "");
     if (!path) {
       showToast(t("ui.canvasAdapter.text.b95b836a"));
@@ -885,7 +892,7 @@ export const nodeActions: WorkflowNodeActions = {
     if (!director) setSelectedNodeIds([output.id]);
     touchProject();
     showToast(kind === "video" ? t("ui.canvasAdapter.text.07952638") : t("ui.canvasAdapter.text.2b29d01f"));
-    return { nodeId: output.id };
+    return { nodeId: output.id, materialId: registered.material.id, filePath: path };
   },
   notify(message) {
     if (message) showToast(message);

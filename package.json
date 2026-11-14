@@ -3,7 +3,7 @@
   "productName": "Shotloom",
   "version": "0.8.1",
   "private": true,
-  "description": "Tauri-powered workflow panel for AI comic production with a light asset-management UI.",
+  "description": "Desktop workspace for AI filmmaking: infinite canvas, agent tools, 3D previsualization and video editing.",
   "scripts": {
     "prepare:media": "node scripts/prepare-media-sidecar.mjs",
     "prepare:openreel": "node scripts/prepare-openreel.mjs",

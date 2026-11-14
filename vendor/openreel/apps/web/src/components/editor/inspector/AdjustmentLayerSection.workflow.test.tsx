@@ -158,19 +158,15 @@ describe.each(["en-US", "zh-CN"] as const)("AdjustmentLayerSection workflow (%s)
     await waitFor(() => expect(engine.getAllLayers().map(layer => layer.id)).toEqual([original.id]));
   });
 
-  it("keeps all sixteen blend-mode enums when choosing translated menu options", async () => {
+  it.each(["normal", "multiply", "screen", "overlay", "darken", "lighten", "color-dodge", "color-burn", "hard-light", "soft-light", "difference", "exclusion", "hue", "saturation", "color", "luminosity"] as const)("persists blend mode %s when choosing its translated menu option", async (mode) => {
     render(<AdjustmentLayerSection clipId="clip-1" />);
     await waitFor(() => expect(screen.getByRole("button", { name: ui("Add Adjustment Layer", "添加调整图层") })).toBeEnabled());
     fireEvent.click(screen.getByRole("button", { name: ui("Add Adjustment Layer", "添加调整图层") }));
     await waitFor(() => expect(engine.getAllLayers()).toHaveLength(1));
-    let current = "normal" as "normal" | "multiply" | "screen" | "overlay" | "darken" | "lighten" | "color-dodge" | "color-burn" | "hard-light" | "soft-light" | "difference" | "exclusion" | "hue" | "saturation" | "color" | "luminosity";
-    for (const mode of ["normal", "multiply", "screen", "overlay", "darken", "lighten", "color-dodge", "color-burn", "hard-light", "soft-light", "difference", "exclusion", "hue", "saturation", "color", "luminosity"] as const) {
-      fireEvent.click(screen.getByRole("button", { name: editorMessage(`editor.motion.layers.blend.${current}`) }));
-      const name = editorMessage(`editor.motion.layers.blend.${mode}`);
-      fireEvent.click(await screen.findByRole("button", { name: editorMessage("editor.adjustment.useBlend", { name }) }));
-      await waitFor(() => expect(useProjectStore.getState().project.adjustmentLayers?.[0].blendMode).toBe(mode));
-      current = mode;
-    }
+    fireEvent.click(screen.getByRole("button", { name: editorMessage("editor.motion.layers.blend.normal") }));
+    const name = editorMessage(`editor.motion.layers.blend.${mode}`);
+    fireEvent.click(await screen.findByRole("button", { name: editorMessage("editor.adjustment.useBlend", { name }) }));
+    await waitFor(() => expect(useProjectStore.getState().project.adjustmentLayers?.[0].blendMode).toBe(mode));
   });
 
 });

@@ -1,3 +1,4 @@
+import { store } from '../../store/projectStore';
 import { desktopApi } from '../../services/desktopApi';
 import { mediaSourceUrl } from '../../services/mediaPoster';
 import { getLocale, t } from '@/i18n';
@@ -69,6 +70,7 @@ export const ThreeDDirectorNode: WorkflowNodeRenderer = memo(
     const sendSession = useCallback(() => {
       sendDirectorDeskSession(detailIframeRef.current, {
         instanceId: node.id,
+        artifactScope: store.project.id,
         theme: "light",
         locale: getLocale(),
         project: readDirectorProject(node),
@@ -143,10 +145,13 @@ export const ThreeDDirectorNode: WorkflowNodeRenderer = memo(
           if (path && readDirectorProject(node) === project) actions.update(node.id, { directorData: { ...(node.directorData as Record<string, unknown>), coverPath: path } });
         },
         onCaptures: async (captures) => {
+          const outputs = [];
           for (const capture of captures) {
             const result = await actions.exportDirectorAsset(node.id, capture.dataUrl, capture.fileName, capture.kind, capture.directorContext);
             if (!result) throw new Error('未能创建导出节点');
+            outputs.push(result);
           }
+          return outputs;
         },
         onSelectionChanged: (value) => setSelection(value.name),
         onError: (error) => showToast(t('director.loadFailed', { error }), 'error'),

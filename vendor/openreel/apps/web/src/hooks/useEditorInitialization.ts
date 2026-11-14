@@ -123,9 +123,6 @@ export const useEditorInitialization = () => {
           setLocalError(
             error instanceof Error ? error.message : editorMessage("editor.startup.unknown"),
           );
-          setInitStatus(
-            editorMessage("editor.startup.error", { detail: error instanceof Error ? error.message : editorMessage("editor.startup.unknown") }),
-          );
         }
       }
     };
@@ -143,11 +140,12 @@ export const useEditorInitialization = () => {
     };
   }, [initialize, attempt]);
 
+  const error = initError || localError;
   return {
     initialized: initialized && bridgesReady,
     initializing: initializing || (!bridgesReady && initialized),
-    initError: initError || localError,
-    initStatus,
+    initError: error,
+    initStatus: error ? editorMessage("editor.startup.error", { detail: error }) : initStatus,
     retry,
   };
 };

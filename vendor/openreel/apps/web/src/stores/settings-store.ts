@@ -50,7 +50,7 @@ export const SERVICE_REGISTRY: readonly ServiceConfig[] = [
 export type TtsProvider = "elevenlabs";
 export type LlmProvider = "openai-compatible" | "anthropic-compatible";
 export type AggregatorProvider = "kie-ai" | "freepik";
-export type SettingsTab = "general" | "ai-editor" | "api-keys" | "mcp";
+export type SettingsTab = "general" | "api-keys" | "mcp";
 
 function isLlmProvider(value: unknown): value is LlmProvider {
   return value === "openai-compatible" || value === "anthropic-compatible";
@@ -65,7 +65,7 @@ export interface SettingsState {
   // AI/Service preferences
   defaultTtsProvider: TtsProvider;
   defaultLlmProvider: LlmProvider | null;
-  /** User-defined compatible endpoint and model for the agent chat. */
+  /** User-defined compatible endpoint and model for shader generation and editor services. */
   llmBaseUrl: string;
   llmModel: string;
   defaultAggregator: AggregatorProvider;
@@ -76,11 +76,6 @@ export interface SettingsState {
 
   /** Desktop MCP server: auto-allow destructive/expensive tools from trusted local clients. */
   mcpAutoAllowTrustedLocal: boolean;
-
-  /** Agent chat: auto-approve destructive/expensive tools instead of prompting. */
-  agentAutoConfirm: boolean;
-  /** Agent chat: plan tools without applying mutations. */
-  agentDryRun: boolean;
 
   // Session-scoped API caches (cleared on session lock, not persisted)
   cachedElevenLabsVoices: Array<{ voice_id: string; name: string; category: string; labels: Record<string, string>; preview_url?: string }> | null;
@@ -99,8 +94,6 @@ export interface SettingsState {
   setLlmBaseUrl: (url: string) => void;
   setLlmModel: (model: string) => void;
   setMcpAutoAllowTrustedLocal: (enabled: boolean) => void;
-  setAgentAutoConfirm: (enabled: boolean) => void;
-  setAgentDryRun: (enabled: boolean) => void;
   setDefaultAggregator: (provider: AggregatorProvider) => void;
   setElevenLabsModel: (model: string) => void;
   addFavoriteVoice: (voice: { voiceId: string; name: string; previewUrl?: string }) => void;
@@ -135,8 +128,6 @@ export const useSettingsStore = create<SettingsState>()(
         configuredServices: [],
 
         mcpAutoAllowTrustedLocal: true,
-        agentAutoConfirm: false,
-        agentDryRun: false,
 
         cachedElevenLabsVoices: null,
         cachedElevenLabsModels: null,
@@ -164,9 +155,6 @@ export const useSettingsStore = create<SettingsState>()(
         setMcpAutoAllowTrustedLocal: (enabled: boolean) =>
           set({ mcpAutoAllowTrustedLocal: enabled }),
 
-        setAgentAutoConfirm: (enabled: boolean) => set({ agentAutoConfirm: enabled }),
-
-        setAgentDryRun: (enabled: boolean) => set({ agentDryRun: enabled }),
 
         setDefaultAggregator: (provider: AggregatorProvider) =>
           set({ defaultAggregator: provider }),
@@ -278,8 +266,6 @@ export const useSettingsStore = create<SettingsState>()(
           favoriteModels: state.favoriteModels,
           configuredServices: state.configuredServices,
           mcpAutoAllowTrustedLocal: state.mcpAutoAllowTrustedLocal,
-          agentAutoConfirm: state.agentAutoConfirm,
-          agentDryRun: state.agentDryRun,
         }),
       },
     ),

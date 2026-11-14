@@ -35,9 +35,7 @@
     "posthog-js": "^1.335.2",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
-    "react-markdown": "^10.1.0",
     "react-syntax-highlighter": "^16.1.0",
-    "remark-gfm": "^4.0.1",
     "three": "^0.182.0",
     "uuid": "^13.0.0",
     "zustand": "^4.5.2"

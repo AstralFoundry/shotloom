@@ -10,14 +10,10 @@ import { useProjectStore } from "../stores/project-store";
 import { autoSaveManager } from "../services/auto-save";
 import { UpdateBanner } from "./UpdateBanner";
 import { installRendererCrashHandlers, reportRendererCrash } from "./crash-reporting";
-import { installMcpListener } from "../services/agent/mcp-listener";
-import { getLiveEditorHost } from "../services/agent/host-singleton";
-import { createExportJobRunner } from "../services/agent/export-job-runner";
-import { useUIStore } from "../stores/ui-store";
 import { useSettingsStore } from "../stores/settings-store";
 import { SettingsDialog } from "../components/editor/settings/SettingsDialog";
 import { ToolcraftButton as Button } from "@openreel/ui";
-import { Settings, Sparkles } from "@/icons/lucide-compat";
+import { Settings } from "@/icons/lucide-compat";
 import "./theme/desktop-theme.css";
 
 function detectPlatform(): string {
@@ -29,11 +25,6 @@ function detectPlatform(): string {
 export function DesktopApp(): JSX.Element {
   const platform = detectPlatform();
   const hasProject = useProjectStore((state) => state.hasOpenProject);
-  const agentChatVisible = useUIStore(
-    (state) => state.panels.agentChat?.visible ?? false,
-  );
-  const togglePanel = useUIStore((state) => state.togglePanel);
-
   // Drive native-menu actions into the app: undo/redo hit the project store
   // directly; new/open/export are broadcast as events for the relevant UI to
   // pick up (e.g. the export button opens its dialog on "export").
@@ -64,15 +55,6 @@ export function DesktopApp(): JSX.Element {
   // collector so editor-side faults are captured alongside main-process crashes.
   useEffect(() => installRendererCrashHandlers(), []);
 
-  // Serve main-process MCP tool calls against the live editor so external MCP
-  // clients drive the open project through the same tool layer as the chat panel.
-  // Also back the export_* job tools with a runner that renders via the export
-  // engine and uploads the artifact to R2, returning a presigned download URL.
-  useEffect(() => {
-    getLiveEditorHost().setJobRunner(createExportJobRunner());
-    return installMcpListener();
-  }, []);
-
   // Answer the native unsaved-changes guard on window close / quit: report
   // dirty state and flush pending changes on request.
   useEffect(() => {
@@ -93,17 +75,6 @@ export function DesktopApp(): JSX.Element {
   return (
     <div className="openreel-desktop isolate flex h-screen w-screen flex-col overflow-hidden bg-bg text-fg">
       <DesktopTitleBar platform={platform}>
-        {hasProject ? (
-          <Button
-            label="AI Editor"
-            variant={agentChatVisible ? "primary" : "secondary"}
-            size="sm"
-            icon={<Sparkles size={15} aria-hidden />}
-            onClick={() => togglePanel("agentChat")}
-            className="mr-2"
-            aria-pressed={agentChatVisible}
-          />
-        ) : null}
         {hasProject ? <DesktopExportButton /> : null}
         <Button
           label="Settings"

@@ -468,3 +468,31 @@ test('拖拽落面使用真实表面高度，移出承托范围不吸附，并�
     assert.equal(domain.surfaceDropPosition(prop, [2, 0.1, 0], [table]), null);
   } finally { geometry.dispose(); material.dispose(); }
 });
+
+test('具名批内引用将创建机位、构图、路径与镜头主体作为一次编排', () => {
+  const p = starter(), actor = actorOf(p);
+  const r = domain.applyBatchEdits(p, [
+    { operation: 'add_camera', ref: 'tracking', name: 'Tracking' },
+    { operation: 'add_shot', cameraId: '$tracking', timeSec: 0, name: 'Return', subjectIds: [actor.id], patch: { targetId: actor.id, focal: 35 }, points: [{ timeSec: 0, position: [3, 2, 4] }, { timeSec: 4, position: [3, 2, 0] }] },
+  ]);
+  domain.assertProject(p);
+  assert.equal(p.cuts[0].cameraId, r[0].entityId);
+  assert.deepEqual(p.cuts[0].subjectIds, [actor.id]);
+  assert.equal(p.entities.find(e => e.id === r[0].entityId).path.points.length, 2);
+  assert.throws(() => domain.applyBatchEdits(p, [{ operation: 'add_shot', cameraId: '$future', timeSec: 0 }]), /引用/);
+  assert.throws(() => domain.applyBatchEdits(p, [{ operation: 'add_camera', ref: 'x' }, { operation: 'add_camera', ref: 'x' }]), /唯一/);
+});
+
+test('动作创建可直接指定起止、循环、速度与过渡，并拒绝静默推迟精确时间', () => {
+  const p = starter(), actor = actorOf(p);
+  assert.throws(() => domain.applyBatchEdits(p, [{ operation: 'add_action', entityId: actor.id, action: 'walk', startSec: 0, endSec: 10 }]), /重叠/);
+  actor.clips = [];
+  const result = domain.applyBatchEdits(p, [
+    { operation: 'add_action', ref: 'walk', entityId: actor.id, action: 'walk', startSec: 0, endSec: 10, loop: true, speed: 1.2, blendIn: 0.3 },
+    { operation: 'set_clip', entityId: actor.id, clipId: '$walk', patch: { loop: false } },
+  ]);
+  domain.assertProject(p);
+  assert.equal(result[0].clipId, actor.clips[0].id);
+  assert.deepEqual([actor.clips[0].start, actor.clips[0].end, actor.clips[0].loop, actor.clips[0].speed, actor.clips[0].blendIn], [0, 10, false, 1.2, 0.3]);
+  assert.throws(() => domain.applyBatchEdits(p, [{ operation: 'set_clip', entityId: actor.id, clipId: actor.clips[0].id, patch: { loop: 'yes' } }]), /布尔/);
+});

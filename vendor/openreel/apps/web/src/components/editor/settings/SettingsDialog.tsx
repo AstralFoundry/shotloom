@@ -1,6 +1,6 @@
 import { editorMessage } from "../../../shotloom-mode";
 import React, { useCallback } from "react";
-import { Settings, Key, Plug, Bot } from "@/icons/lucide-compat";
+import { Settings, Key, Plug } from "@/icons/lucide-compat";
 import { Tabs, TabsList, TabsTrigger } from "@openreel/ui";
 import { ToolcraftDialog as Dialog, ToolcraftDialogHeader as DialogHeader } from "@openreel/ui";
 import { ToolcraftLayout as Layout, ToolcraftLayoutContent as LayoutContent } from "@openreel/ui";
@@ -8,14 +8,12 @@ import { useSettingsStore, type SettingsTab } from "../../../stores/settings-sto
 import { GeneralPanel } from "./GeneralPanel";
 import { ApiKeysPanel } from "./ApiKeysPanel";
 import { McpPanel } from "./McpPanel";
-import { AISettingsPanel } from "./AISettingsPanel";
 
 const isDesktop =
   typeof window !== "undefined" && window.openreel?.platform === "desktop";
 
 const TABS: readonly { id: SettingsTab; label: () => string; icon: typeof Settings }[] = [
   { id: "general", label: () => editorMessage("editor.settings.general"), icon: Settings },
-  { id: "ai-editor", label: () => editorMessage("editor.settings.ai-editor"), icon: Bot },
   { id: "api-keys", label: () => editorMessage("editor.settings.api-keys"), icon: Key },
   ...(isDesktop
     ? [{ id: "mcp" as const, label: () => editorMessage("editor.settings.mcp"), icon: Plug }]
@@ -87,7 +85,6 @@ export const SettingsDialog: React.FC = () => {
               className="mt-4"
             >
               {settingsTab === "general" && <GeneralPanel />}
-              {settingsTab === "ai-editor" && <AISettingsPanel />}
               {settingsTab === "api-keys" && <ApiKeysPanel />}
               {settingsTab === "mcp" && <McpPanel />}
             </div>

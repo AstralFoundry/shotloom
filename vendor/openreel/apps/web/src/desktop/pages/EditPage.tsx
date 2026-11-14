@@ -7,7 +7,6 @@ import { AssetsPanel } from "../../components/editor/AssetsPanel";
 import { InspectorPanel } from "../../components/editor/InspectorPanel";
 import { PanelErrorBoundary } from "../../components/ErrorBoundary";
 import { Icon } from "@/icons/Icon";
-import { useUIStore } from "../../stores/ui-store";
 import { useResizable } from "../editor/useResizable";
 
 const Preview = lazy(() =>
@@ -16,12 +15,6 @@ const Preview = lazy(() =>
 const Timeline = lazy(() =>
   import("../../components/editor/Timeline").then((m) => ({ default: m.Timeline })),
 );
-const ChatPanel = lazy(() =>
-  import("../../components/editor/chat/ChatPanel").then((m) => ({
-    default: m.ChatPanel,
-  })),
-);
-
 function PanelLoading(): JSX.Element {
   return (
     <div className="grid h-full place-items-center">
@@ -99,10 +92,6 @@ function RowHandle({
 }
 
 export function EditPage(): JSX.Element {
-  const chatVisible = useUIStore(
-    (state) => state.panels.agentChat?.visible ?? false,
-  );
-  const setPanelVisible = useUIStore((state) => state.setPanelVisible);
   const mediaW = useResizable({
     initial: 320,
     min: 220,
@@ -119,14 +108,6 @@ export function EditPage(): JSX.Element {
     direction: -1,
     storageKey: "openreel-desktop-inspector-w",
   });
-  const chatW = useResizable({
-    initial: 380,
-    min: 320,
-    max: 560,
-    axis: "x",
-    direction: -1,
-    storageKey: "openreel-desktop-chat-w",
-  });
   const timelineH = useResizable({
     initial: 320,
     min: 160,
@@ -136,14 +117,7 @@ export function EditPage(): JSX.Element {
     storageKey: "openreel-desktop-timeline-h",
   });
 
-  const gridStyle: React.CSSProperties = chatVisible
-    ? {
-        gridTemplateColumns: `${mediaW.value}px 1fr ${inspectorW.value}px ${chatW.value}px`,
-        gridTemplateRows: `1fr ${timelineH.value}px`,
-        gridTemplateAreas:
-          "'media stage inspector chat' 'timeline timeline timeline timeline'",
-      }
-    : {
+  const gridStyle: React.CSSProperties = {
         gridTemplateColumns: `${mediaW.value}px 1fr ${inspectorW.value}px`,
         gridTemplateRows: `1fr ${timelineH.value}px`,
         gridTemplateAreas:
@@ -171,22 +145,6 @@ export function EditPage(): JSX.Element {
         <InspectorPanel />
         <ColumnHandle edge="left" onPointerDown={inspectorW.onHandlePointerDown} />
       </DockRegion>
-
-      {chatVisible ? (
-        <div
-          className="relative flex min-h-0 min-w-0 flex-col overflow-hidden bg-bg-1"
-          style={{ gridArea: "chat" }}
-        >
-          <PanelErrorBoundary name="AI Editor">
-            <Suspense fallback={<PanelLoading />}>
-              <ChatPanel
-                onClose={() => setPanelVisible("agentChat", false)}
-              />
-            </Suspense>
-          </PanelErrorBoundary>
-          <ColumnHandle edge="left" onPointerDown={chatW.onHandlePointerDown} />
-        </div>
-      ) : null}
 
       <DockRegion label="Timeline" name="Timeline" area="timeline" icon="rectangle.split.3x1" className="bg-tl-bg">
         <Suspense fallback={<PanelLoading />}>

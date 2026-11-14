@@ -10272,5 +10272,7 @@
   "ds.add.femaleHint": "Female bodies use their own model file.",
   "null": "Open the full 3D director workbench: build scenes, frame cameras, animate and capture.",
   "ds.topbar.back": "Back to canvas",
-  "ds.topbar.agent": "Assistant"
+  "ds.topbar.agent": "Assistant",
+  "tool.title.director_editing_handoff": "Director editing handoff",
+  "tool.title.director_editing_media": "Director editing media"
 }

@@ -142,12 +142,6 @@ export const EditorActionRail: React.FC = () => {
       {!isShotloomMode && (
         <>
           <RailButton
-            label={editorMessage("editor.actionRail.chat")}
-            icon="bubble.left.and.text.bubble.right"
-            onClick={() => togglePanel("agentChat")}
-            active={Boolean(panels.agentChat?.visible)}
-          />
-          <RailButton
             label={editorMessage("editor.actionRail.jsonComments")}
             icon="curlybraces"
             onClick={() => openModal("scriptView")}

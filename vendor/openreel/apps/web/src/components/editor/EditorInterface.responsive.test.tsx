@@ -17,9 +17,6 @@ vi.mock("./AssetsPanel", () => ({ AssetsPanel: () => <input aria-label="Media se
 vi.mock("./InspectorPanel", () => ({ InspectorPanel: () => <input aria-label="Clip title" /> }));
 vi.mock("./Preview", () => ({ Preview: () => <canvas aria-label="Video preview" /> }));
 vi.mock("./Timeline", () => ({ Timeline: () => <input aria-label="Timeline state" /> }));
-vi.mock("./chat/ChatPanel", () => ({ ChatPanel: ({ onClose }: { onClose: () => void }) =>
-  <div><input aria-label="AI message" /><button onClick={onClose}>Close AI</button></div>,
-}));
 vi.mock("./KeyframeEditorPanel", () => ({ KeyframeEditorPanel: () => null }));
 vi.mock("../audio-mixer", () => ({ AudioMixer: () => null }));
 vi.mock("./KeyboardShortcutsOverlay", () => ({ KeyboardShortcutsOverlay: () => null }));
@@ -40,7 +37,7 @@ describe.each(["en-US", "zh-CN"] as const)("compact editing workspace (%s)", loc
     resize(390);
     const panels = useUIStore.getState().panels;
     useUIStore.setState({ keyframeEditorOpen: false, selectedItems: [], panels: {
-      ...panels, agentChat: { ...panels.agentChat, visible: false },
+      ...panels,
       audioMixer: { ...panels.audioMixer, visible: false },
     } });
     vi.spyOn(useProjectStore.getState(), "initializeAutoSave").mockResolvedValue();
@@ -73,16 +70,4 @@ describe.each(["en-US", "zh-CN"] as const)("compact editing workspace (%s)", loc
     expect(title.value).toBe("My video");
   });
 
-  it("preserves AI drafts after switching panels and returns to timeline when AI closes", async () => {
-    const view = render(<EditorInterface />);
-    fireEvent.click(view.getByRole("button", { name: "AI" }));
-    const input = await view.findByLabelText("AI message") as HTMLInputElement;
-    input.value = "Make this shorter";
-    fireEvent.click(view.getByRole("button", { name: ui("Timeline", "时间线") }));
-    fireEvent.click(view.getByRole("button", { name: "AI" }));
-    expect(view.getByLabelText("AI message")).toBe(input);
-    expect(input.value).toBe("Make this shorter");
-    fireEvent.click(view.getByRole("button", { name: "Close AI" }));
-    expect(view.getByRole("button", { name: ui("Timeline", "时间线") })).toHaveAttribute("aria-pressed", "true");
-  });
 });

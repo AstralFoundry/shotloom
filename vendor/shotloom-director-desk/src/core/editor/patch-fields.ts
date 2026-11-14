@@ -83,6 +83,7 @@ const clipFields: Record<keyof Clip, FieldDoc> = {
     offset: { type: 'number | undefined' },
     progressOffset: { type: 'number | undefined' },
     sourceDuration: { type: 'number | undefined' },
+    loop: { type: 'boolean | undefined', note: '显式循环或在单次动作结束后保持姿态' },
     blendIn: { type: 'number | undefined', note: '片段入场过渡秒数，0—2' },
     turnAmount: { type: 'number | undefined' },
 };

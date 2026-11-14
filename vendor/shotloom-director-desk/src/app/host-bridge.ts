@@ -1,14 +1,19 @@
+import { ExportArtifacts, type Artifact } from '@/core/exporting/artifacts.ts';
+import { packageDelivery, shotTable, deliveryShots } from '@/core/exporting/delivery-package.ts';
+import { getFrameCount } from '@/core/model.ts';
+import { describeAsset } from '@/core/assets/agent-catalog.ts';
+import { ACTION_TIMING } from '@/core/animation/action-timing.ts';
 import { directorContext } from '@/core/director-context.ts';
 import { session } from '@/state/editor-session.ts';
 import { useEditorStore } from '@/state/editor-store.ts';
 import { readSceneDocument } from '@/core/scenes/sequence-project.ts';
 import { ACTIONS, ASPECTS, BUILDS, FRAME_RATES, GENDERS, type Joint, type Vec3 } from '@/core/model.ts';
 import { assetGroups, searchAssets } from '@/core/asset-catalog.ts';
+import { CAMERA_PLACEMENTS } from '@/core/cinematography/camera-placements.ts';
 import { CAMERA_PRESETS } from '@/core/cinematography/camera-presets.ts';
 import { exportVideo, type ExportOptions } from '@/core/export.ts';
 import { outputSize } from '@/core/model.ts';
 import { download } from '@/core/storage.ts';
-import { deliverMedia } from '@/core/host-delivery.ts';
 import { videoFilename } from '@/core/exporting/plan.ts';
 import { safeFilename } from '@/core/exporting/filename.ts';
 import { createScene } from '@/core/scene-templates.ts';
@@ -56,7 +61,10 @@ function scheduleCover() {
 let panorama: THREE.Texture | null = null;
 let panoramaRequest = 0;
 let panoramaEngine: object | null = null;
-type ExportJobState = { status: 'running' | 'completed' | 'failed' | 'canceled'; progress: number; filename: string; bytes?: number; error?: string; controller: AbortController };
+type ExportJobState = { owner: string; status: 'running' | 'completed' | 'delivery_failed' | 'failed' | 'canceled'; phase: 'encoding' | 'retaining' | 'ingesting' | 'done'; progress: number; filename: string; width: number; height: number; fps: number; frameCount: number; codec: string; artifact?: Artifact; bytes?: number; error?: string; controller: AbortController };
+const artifacts = new ExportArtifacts();
+let artifactHostScope = 'standalone';
+const artifactOwner = () => { const id = session.history.document().projectId; if (!id) throw Error('工程缺少 projectId'); return `${artifactHostScope}:${id}`; };
 const exportJobs = new Map<string, ExportJobState>();
 const send = (type: string, payload: Input = {}) => parent.postMessage({ type: `storyai:director-desk-${type}`, payload }, origin);
 export function requestHostClose() {
@@ -184,6 +192,7 @@ const commandSpecs: Record<string, CommandSpec> = {
     update_room: { kind: 'edit', agentHidden: true, prefer: 'batch_edit 的 set_room', args: { patch: 'object，房间字段补丁；合法键名见 catalog.patchFields.update_room' } },
     update_project_settings: { kind: 'edit', agentHidden: true, prefer: 'batch_edit 的 set_project', args: { patch: 'object，工程设置补丁；合法键名见 catalog.patchFields.update_project_settings' } },
     apply_framing: { kind: 'edit', args: { name: 'string，构图预设名', cameraId: 'string，可选机位 ID；省略则用当前选中的机位' } },
+    add_camera_placement: { kind: 'edit', args: { id: 'string，取自 catalog.cameraPlacements[].id；基于当前选中主体添加机位' } },
     apply_camera_preset: { kind: 'edit', args: { id: 'string，取自 catalog.cameraPresets[].id', cameraId: 'string，可选机位 ID；省略则用当前选中的机位', subjectId: 'string，可选跟拍主体 ID', foregroundId: 'string，前景运镜必填的遮挡物 ID' } },
 
     // 戏段时间线
@@ -253,6 +262,7 @@ const commandSpecs: Record<string, CommandSpec> = {
     export_shot: { kind: 'export', args: { index: 'number，切镜序号，从 0 开始；取自 scene_summary 或 document.cuts' } },
     entity_relations: { kind: 'view', args: { sourceId: 'string，源实体 ID', targetId: 'string，目标实体 ID', seconds: 'number，可选，采样时间', cameraIds: 'string[]，可选，默认所有机位；可见性按中心点视锥和实际网格射线测量' } },
     spatial_check: { kind: 'view', args: {
+        subjectIds: 'string[]，可选，显式检查主体；[] 跳过取景/遮挡主体检查但保留碰撞与机位检查；省略时取镜头 subjectIds，再退回机位目标',
         start: 'number，可选，默认 0',
         end: 'number，可选，默认工程时长',
         sampleRate: 'number，可选，每秒采样次数，默认 4',
@@ -288,6 +298,12 @@ const commandSpecs: Record<string, CommandSpec> = {
         filename: 'string，可选文件名',
         monochrome: 'boolean，可选黑白渲染',
     } },
+    export_artifact_list: { kind: 'view' },
+    export_artifact_read: { kind: 'view', args: { artifactId: 'string，稳定产物 ID；返回当前页面有效的下载 URL' } },
+    export_artifact_deliver: { kind: 'export', args: { artifactId: 'string', mode: "'ingest' | 'download'，ingest 重试入库且不重新编码；download 下载真实文件" } },
+    export_artifact_remove: { kind: 'export', args: { artifactId: 'string，删除当前工程保留的导出文件' } },
+    shot_list: { kind: 'view' },
+    export_delivery_package: { kind: 'export', args: { videoArtifactId: 'string，当前场景版本导出的视频产物 ID', filename: 'string，可选交付包名；返回 ZIP 的稳定 artifactId，包含视频、场景、镜头表、预览和 manifest' } },
     export_video_job: { kind: 'view', args: { jobId: 'string，export_video_start 返回的 jobId' } },
     export_video_cancel: { kind: 'export', args: { jobId: 'string' } },
 };
@@ -372,6 +388,7 @@ const commands: Record<string, (input: Input) => unknown> = {
         } finally { engine.restorePreview(state.time); session.endBusy(); }
     },
     spatial_check: i => session.runSpatialCheck({
+        ...(i.subjectIds === undefined ? {} : { subjectIds: Array.isArray(i.subjectIds) ? i.subjectIds.map(string) : (() => { throw Error('subjectIds 必须是数组'); })() }),
         ...(i.start === undefined ? {} : { start: number(i.start) }),
         ...(i.end === undefined ? {} : { end: number(i.end) }),
         ...(i.sampleRate === undefined ? {} : { sampleRate: number(i.sampleRate) }),
@@ -443,6 +460,12 @@ const commands: Record<string, (input: Input) => unknown> = {
     update_room: i => session.updateRoom(i.patch as Parameters<typeof session.updateRoom>[0]),
     update_project_settings: i => session.updateProjectSettings(i.patch as Parameters<typeof session.updateProjectSettings>[0]),
     apply_framing: i => session.applyFraming(i.name as Parameters<typeof session.applyFraming>[0], i.cameraId ? string(i.cameraId) : undefined),
+    add_camera_placement: i => {
+        const preset = CAMERA_PLACEMENTS.find(item => item.id === string(i.id));
+        if (!preset) throw new DirectorCommandError('未知机位预设', { code: 'INVALID_PARAMS', hint: '从 catalog.cameraPlacements 中选择有效的 id' });
+        if (!session.addCameraPlacement(preset.id)) throw Error('机位未创建，请等待场景引擎就绪后重试');
+        return { entityId: useEditorStore.getState().selected };
+    },
     apply_camera_preset: i => session.applyCameraPreset(i.id as Parameters<typeof session.applyCameraPreset>[0], i.cameraId ? string(i.cameraId) : undefined, { subjectId: i.subjectId ? string(i.subjectId) : undefined, foregroundId: i.foregroundId ? string(i.foregroundId) : undefined }),
     add_cut: () => session.addCutAtPlayhead(),
     remove_cut: i => session.removeCut(number(i.index)),
@@ -547,16 +570,46 @@ const commands: Record<string, (input: Input) => unknown> = {
         download(blob, filename);
         return { filename, bytes: blob.size, downloadTriggered: true };
     },
+    shot_list: () => shotTable(session.project),
+    export_artifact_list: () => artifacts.list(artifactOwner()),
+    export_artifact_read: i => artifacts.read(artifactOwner(), string(i.artifactId)),
+    export_artifact_deliver: i => {
+        if (i.mode !== 'ingest' && i.mode !== 'download') throw Error('mode 必须为 ingest 或 download');
+        return artifacts.deliver(artifactOwner(), string(i.artifactId), i.mode);
+    },
+    export_artifact_remove: i => artifacts.remove(artifactOwner(), string(i.artifactId)),
+    export_delivery_package: async i => {
+        const owner = artifactOwner(), id = string(i.videoArtifactId);
+        const video = await artifacts.read(owner, id);
+        if (video.kind !== 'video') throw Error('请指定视频产物');
+        const document = session.history.document();
+        if (JSON.stringify(await artifacts.sourceDocument(owner, id)) !== JSON.stringify(document)) throw Error('当前场景已变化；请切回原场景或重新导出视频再制作一致的交付包，已有视频仍可下载');
+        const options = video.metadata.options as { start?: number; end?: number; cameraId?: string };
+        const times = deliveryShots(session.project, options).map(s => (s.startSec + s.endSec) / 2);
+        const previews = [];
+        for (let n = 0; n < times.length; n += 8) {
+            const timesSec = times.slice(n, n + 8);
+            const frame = await session.renderPreviewSheet({ timesSec, cameraId: options.cameraId ?? 'program' });
+            previews.push({ filename: `storyboard-${previews.length + 1}.jpg`, blob: await (await fetch(frame.dataUrl)).blob(), timesSec });
+        }
+        if (JSON.stringify(session.history.document()) !== JSON.stringify(document) || artifactOwner() !== owner) throw Error('场景在取预览时发生变化，请重试交付包');
+        const bundle = await packageDelivery({ artifacts, owner, videoArtifactId: id, document, project: session.project, filename: `${safeFilename(string(i.filename || session.project.name))}.zip`, previews });
+        return { ...bundle, artifactId: bundle.id, ...(await artifacts.read(owner, bundle.id)) };
+    },
     export_video_start: i => startVideoExport(i),
-    export_video_job: i => {
+    export_video_job: async i => {
         const job = exportJobs.get(string(i.jobId));
-        if (!job) throw Error('导出任务不存在');
+        if (!job || job.owner !== artifactOwner()) throw Error('导出任务不存在');
+        if (job.artifact && job.phase === 'done') {
+            const current = (await artifacts.list(job.owner)).find(a => a.id === job.artifact!.id);
+            if (current) { job.artifact = current; job.status = current.ingestion === 'failed' || (current.ingestion === 'pending' && job.status === 'delivery_failed') ? 'delivery_failed' : 'completed'; if (current.error) job.error = current.error; else delete job.error; }
+        }
         const { controller: _controller, ...status } = job;
         return status;
     },
     export_video_cancel: i => {
         const job = exportJobs.get(string(i.jobId));
-        if (!job) throw Error('导出任务不存在');
+        if (!job || job.owner !== artifactOwner()) throw Error('导出任务不存在');
         if (job.status !== 'running') return false;
         job.controller.abort();
         return true;
@@ -668,25 +721,30 @@ function startVideoExport(input: Input) {
         format: format as ExportOptions['format'],
         monochrome: input.monochrome === true,
     };
-    const context = directorContext(project, options.start, options.end, options.cameraId);
+    const context = { ...directorContext(project, options.start, options.end, options.cameraId), exportHostProjectId: artifactHostScope };
     const jobId = crypto.randomUUID();
-    const job: ExportJobState = { status: 'running', progress: 0, filename, controller: new AbortController() };
+    const owner = artifactOwner(), document = session.history.document();
+    const job: ExportJobState = { owner, status: 'running', phase: 'encoding', progress: 0, filename, width, height, fps, frameCount: getFrameCount(options.start, options.end, fps), codec: format === 'mp4' ? 'avc' : 'vp9', controller: new AbortController() };
     exportJobs.set(jobId, job);
     session.beginBusy();
     void exportVideo(engine, options, job.controller.signal, progress => { job.progress = progress; })
         .then(async blob => {
             if (!blob) throw Error('视频编码未返回文件');
-            await deliverMedia(blob, filename, 'video', context);
-            job.bytes = blob.size;
-            job.progress = 1;
-            job.status = 'completed';
+            job.bytes = blob.size; job.progress = 1; job.phase = 'retaining';
+            job.artifact = await artifacts.retain(owner, blob, filename, 'video', { width, height, fps, frameCount: job.frameCount, codec: job.codec, options, document }, context);
+            if (artifactOwner() !== owner) { job.phase = 'done'; job.status = 'delivery_failed'; job.error = '工程已切换，视频已保留；回到原工程重试入库或下载'; return; }
+            job.phase = 'ingesting';
+            job.artifact = await artifacts.deliver(owner, job.artifact.id, 'ingest');
+            job.phase = 'done';
+            job.status = job.artifact.ingestion === 'failed' ? 'delivery_failed' : 'completed';
+            if (job.artifact.error) job.error = job.artifact.error;
         })
         .catch(error => {
             job.status = job.controller.signal.aborted ? 'canceled' : 'failed';
             job.error = String(error);
         })
         .finally(() => session.endBusy());
-    return { jobId, filename, status: job.status, note: '通过 export_video_job 查询完成状态；completed 表示已生成画布视频节点。' };
+    return { jobId, filename, status: job.status, phase: job.phase, width, height, fps, frameCount: job.frameCount, codec: job.codec, note: 'export_video_job 返回分阶段状态和 artifact.id；delivery_failed 可用 export_artifact_deliver 重试入库或下载，不必重编码。completed 是否入库请看 artifact.ingestion。' };
 }
 
 function loadProject(project: unknown) {
@@ -750,6 +808,7 @@ export function initializeHostBridge() {
                 // the scene the host saved; staying unbound keeps the saved scene recoverable.
                 // A fresh canvas node owns its own starter document from the first opening,
                 // even if the user closes it without making an edit.
+                artifactHostScope = string(payload.artifactScope) || string(payload.instanceId);
                 if (initialized) send('project-changed', { project: session.history.document(), revision: useEditorStore.getState().revision });
                 scheduleCover();
             } catch (error) { send('error', { error: String(error) }); }
@@ -825,19 +884,7 @@ export function initializeHostBridge() {
                     const query = string(args.query).trim();
                     const group = string(args.group).trim();
                     const filtered = Boolean(query || group);
-                    const matches = filtered ? searchAssets(query, group || '全部').map(asset => ({
-                        id: asset.id, name: asset.name, kind: asset.kind, group: asset.group,
-                        // 默认尺寸和原点约定放在这里，模型不必先 add_asset 再 inspect_model 量一遍。
-                        defaultSize: asset.parameters && 'width' in asset.parameters && 'height' in asset.parameters
-                            ? {
-                                width: asset.parameters.width.default,
-                                height: asset.parameters.height.default,
-                                depth: asset.parameters.depth?.default ?? null,
-                            }
-                            : null,
-                        // 可直接按真实尺寸设置的参数名（batch 的 parameters），没有的素材只能用 scale。
-                        ...(asset.parameters ? { params: Object.keys(asset.parameters) } : {}),
-                    })) : [];
+                    const matches = filtered ? searchAssets(query, group || '全部').map(describeAsset) : [];
                     // 全量素材序列化后接近 28 KB，而一次会话通常只用十几条：默认只给分组概览。
                     const shown = matches.slice(0, CATALOG_MATCH_LIMIT);
                     result = {
@@ -858,7 +905,7 @@ export function initializeHostBridge() {
                             origin: ASSET_ORIGIN,
                             note: '素材原点在底面中心：position 就是物体底面中心的位置，y=0 时物体正好立在地面上；不要按"原点在中心"再抬高半个高度。用 scale 改高度时底面仍留在 position.y。地面、道路、房间构件的上表面在 y=0，厚度向下延伸；石头和桥有一部分故意埋在地下。人物身高默认 1.75 米。',
                         },
-                        actions: ACTIONS, cameraPresets: CAMERA_PRESETS, aspects: ASPECTS, frameRates: FRAME_RATES,
+                        actions: ACTIONS, actionTiming: ACTION_TIMING, cameraPlacements: CAMERA_PLACEMENTS, cameraPresets: CAMERA_PRESETS, aspects: ASPECTS, frameRates: FRAME_RATES,
                         framings: FRAMING_NAMES,
                         entityOptions: { build: BUILDS, gender: GENDERS },
                         // 每次新增封闭枚举都必须登记在这里，否则对应命令只能靠猜。

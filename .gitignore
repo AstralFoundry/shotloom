@@ -33,3 +33,6 @@ vendor/shotloom-director-desk/tmp/
 
 # 本地调研与执行文档：只保留在工作区，不随代码入库
 docs/beef-tv-*.md
+
+# Downloaded director test fixtures
+vendor/shotloom-director-desk/test-assets/

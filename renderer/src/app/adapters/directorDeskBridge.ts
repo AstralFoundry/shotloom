@@ -34,7 +34,7 @@ export type DirectorDeskHandlers = {
   onPanoramaRemoved(edgeId: string): void;
   onProjectChanged(project: Record<string, unknown>): void;
   onCover?(dataUrl: string): void | Promise<void>;
-  onCaptures(captures: DirectorDeskCapture[]): void | Promise<void>;
+  onCaptures(captures: DirectorDeskCapture[]): unknown | Promise<unknown>;
   /** Scene totals, sent on ready and after every edit. */
   onSceneSummary?(summary: DirectorDeskSummary): void;
   /** What the director currently has selected, for card and chat context. */
@@ -109,7 +109,7 @@ function plainMessage<T>(message: T): T {
 
 export function sendDirectorDeskSession(
   frame: HTMLIFrameElement | null,
-  session: { instanceId: string; theme: DirectorDeskTheme; locale: 'zh-CN' | 'en-US'; project: unknown },
+  session: { instanceId: string; artifactScope?: string; theme: DirectorDeskTheme; locale: 'zh-CN' | 'en-US'; project: unknown },
 ) {
   post(frame, { type: messageType.session, payload: session });
 }
@@ -176,8 +176,8 @@ export function subscribeDirectorDesk(
       const requestId = typeof payload.requestId === 'string' ? payload.requestId : '';
       const source = event.source as Window | null;
       void Promise.resolve().then(() => handlers.onCaptures(readCaptures(payload.captures)))
-        .then(() => {
-          if (requestId) source?.postMessage({ type: 'storyai:director-desk-captures-saved', payload: { requestId, success: true } }, window.location.origin);
+        .then((outputs) => {
+          if (requestId) source?.postMessage({ type: 'storyai:director-desk-captures-saved', payload: { requestId, success: true, outputs } }, window.location.origin);
         })
         .catch((error) => {
           if (requestId) source?.postMessage({ type: 'storyai:director-desk-captures-saved', payload: { requestId, success: false, error: String(error) } }, window.location.origin);

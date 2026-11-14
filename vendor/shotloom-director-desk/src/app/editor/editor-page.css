@@ -1414,8 +1414,9 @@
     display: flex;
     flex: 0 0 auto;
     align-items: center;
+    justify-content: space-between;
     flex-wrap: wrap;
-    gap: 4px 12px;
+    gap: 4px 16px;
     min-height: 34px;
     padding: 4px 8px;
     border-bottom: 1px solid var(--ed-line-soft);
@@ -1424,18 +1425,17 @@
 .timeline__controls,
 .timeline__meta {
     display: flex;
+    flex: 0 1 max-content;
+    width: max-content;
+    max-width: 100%;
+    min-width: 0;
     align-items: center;
     flex-wrap: wrap;
     gap: 2px;
-    min-width: 0;
-}
-
-.timeline__controls {
-    flex-grow: 1;
 }
 
 .timeline__meta {
-    gap: 4px;
+    gap: 6px;
 }
 
 .editor .timeline__fps {
@@ -2372,6 +2372,9 @@
     border-radius: 999px;
     background: var(--ed-gp-card-hover);
     font-size: 12px;
+}
+.topbar__view-popup .ant-select-item-option-content {
+    text-align: center;
 }
 .editor .topbar__workspace .ant-btn {
     height: 34px;

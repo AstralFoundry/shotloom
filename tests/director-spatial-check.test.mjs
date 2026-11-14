@@ -181,3 +181,11 @@ test('目录里每个道具按默认参数放在 y=0 都落地：告诉模型的
   const expectedBuried = (id) => ['ground', 'room-part', 'rock', 'road'].includes(id) || id.startsWith('road-');
   assert.deepEqual(buried.filter((id) => !expectedBuried(id)), []);
 });
+
+test('显式空主体跳过遮挡和出画，但仍检查机位卡墙', () => {
+  const boxes = [wall('w1', [-2, 0, 1], [2, 3, 1.2]), person('a1', [0, 0, 0])];
+  assert.deepEqual(spatial.checkOcclusion([0, 1.6, 3], boxes, [], 0), []);
+  const issues = spatial.checkSample({ boxes, camera: camera({}), cameraPosition: [0, 1.6, 1.1], requiredIds: [] }, 0);
+  assert.ok(issues.some(i => i.kind === 'cameraInSolid'));
+  assert.ok(!issues.some(i => ['outOfFrame', 'occluded'].includes(i.kind)));
+});

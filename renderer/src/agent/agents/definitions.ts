@@ -51,7 +51,7 @@ const videoEditorTools = [
   'video_project_diagnostics', 'video_project_frame', 'video_project_export', 'video_project_history',
 ];
 const textDraftTools = ['text_draft_read', 'text_draft_write'];
-const directorTools = ['director_desk_snapshot', 'director_desk_catalog', 'director_desk_query', 'director_desk_batch', 'director_desk_command'];
+const directorTools = ['director_editing_media', 'director_editing_handoff', 'director_desk_snapshot', 'director_desk_catalog', 'director_desk_query', 'director_desk_batch', 'director_desk_command'];
 
 export const AGENT_DEFINITIONS: AgentDefinition[] = [
   {

@@ -1,0 +1,1457 @@
+{
+  "format": "director-desk",
+  "version": 3,
+  "name": "归航 · Homebound",
+  "activeSceneId": "scene-main",
+  "scenes": [
+    {
+      "id": "scene-main",
+      "name": "第一场",
+      "state": {
+        "duration": 24,
+        "fps": 24,
+        "aspect": "21:9",
+        "room": {
+          "enabled": false,
+          "width": 8,
+          "depth": 6,
+          "height": 2.8
+        },
+        "entities": [
+          {
+            "id": "223d9e14-2009-4850-98f5-2c111976cf2e",
+            "kind": "prop",
+            "asset": "ground",
+            "name": "地面",
+            "color": "#7d8586",
+            "position": [
+              0,
+              0,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              44,
+              1,
+              44
+            ],
+            "visible": true,
+            "locked": false,
+            "height": 1.75,
+            "build": "normal",
+            "gender": "male",
+            "path": null,
+            "face": "path",
+            "faceTarget": "",
+            "clips": [],
+            "pose": {},
+            "poseKeys": [],
+            "camera": null,
+            "count": 12,
+            "spacing": 0.75,
+            "seed": 42,
+            "reference": ""
+          },
+          {
+            "id": "88efd088-54a4-41b5-af84-73102a70fb5d",
+            "kind": "actor",
+            "asset": "person",
+            "name": "归来者",
+            "color": "#476f9a",
+            "position": [
+              -0.5,
+              0,
+              8
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
+            "visible": true,
+            "locked": false,
+            "height": 1.75,
+            "build": "normal",
+            "gender": "male",
+            "path": {
+              "smooth": false,
+              "points": [
+                {
+                  "time": 0,
+                  "position": [
+                    -0.5,
+                    0,
+                    8
+                  ]
+                },
+                {
+                  "time": 8,
+                  "position": [
+                    -0.5,
+                    0,
+                    2
+                  ]
+                },
+                {
+                  "time": 15,
+                  "position": [
+                    -0.5,
+                    0,
+                    -2.8
+                  ]
+                },
+                {
+                  "time": 24,
+                  "position": [
+                    -0.5,
+                    0,
+                    -2.8
+                  ]
+                }
+              ]
+            },
+            "face": "path",
+            "faceTarget": "",
+            "clips": [
+              {
+                "id": "327a2bed-8e28-4514-8b41-fc8a85b37177",
+                "action": "walk",
+                "start": 0,
+                "end": 15,
+                "speed": 1
+              },
+              {
+                "id": "91f98310-2bdb-4791-b24d-a24987cd4582",
+                "action": "wave",
+                "start": 15,
+                "end": 18,
+                "speed": 1
+              }
+            ],
+            "pose": {},
+            "poseKeys": [],
+            "camera": null,
+            "count": 12,
+            "spacing": 0.75,
+            "seed": 42,
+            "reference": ""
+          },
+          {
+            "id": "f73af3c0-3e1c-44a5-97aa-4f8eea09d592",
+            "kind": "camera",
+            "asset": "camera",
+            "name": "01 · 街区开场",
+            "color": "#d5d5d0",
+            "position": [
+              1.5,
+              8,
+              16
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
+            "visible": true,
+            "locked": false,
+            "height": 1.75,
+            "build": "normal",
+            "gender": "male",
+            "path": {
+              "smooth": true,
+              "points": [
+                {
+                  "time": 0,
+                  "position": [
+                    1.5,
+                    8,
+                    16
+                  ]
+                },
+                {
+                  "time": 4,
+                  "position": [
+                    1,
+                    5,
+                    12
+                  ]
+                }
+              ]
+            },
+            "face": "path",
+            "faceTarget": "",
+            "clips": [],
+            "pose": {},
+            "poseKeys": [],
+            "camera": {
+              "aim": "target",
+              "focal": 28,
+              "target": [
+                0,
+                0.9,
+                2
+              ],
+              "targetId": "",
+              "targetHeight": 1.1,
+              "mode": "free",
+              "offset": [
+                0,
+                1.6,
+                -1.8
+              ],
+              "inheritRotation": true,
+              "hideWalls": []
+            },
+            "count": 12,
+            "spacing": 0.75,
+            "seed": 42,
+            "reference": ""
+          },
+          {
+            "id": "17035957-740a-46ab-bc16-e89bf1242f96",
+            "kind": "prop",
+            "asset": "road-straight",
+            "name": "归途街道",
+            "color": "#d5d5d0",
+            "position": [
+              0,
+              0.01,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
+            "visible": true,
+            "locked": false,
+            "height": 1.75,
+            "build": "normal",
+            "gender": "male",
+            "path": null,
+            "face": "path",
+            "faceTarget": "",
+            "clips": [],
+            "pose": {},
+            "poseKeys": [],
+            "camera": null,
+            "count": 12,
+            "spacing": 0.75,
+            "seed": 42,
+            "reference": "",
+            "assetParameters": {
+              "width": 5,
+              "height": 0.08,
+              "length": 32
+            }
+          },
+          {
+            "id": "cfe5b93a-1388-41d8-8fe8-ca8aa2640d9b",
+            "kind": "prop",
+            "asset": "road-sidewalk",
+            "name": "西侧步道",
+            "color": "#d5d5d0",
+            "position": [
+              -3.4,
+              0,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
+            "visible": true,
+            "locked": false,
+            "height": 1.75,
+            "build": "normal",
+            "gender": "male",
+            "path": null,
+            "face": "path",
+            "faceTarget": "",
+            "clips": [],
+            "pose": {},
+            "poseKeys": [],
+            "camera": null,
+            "count": 12,
+            "spacing": 0.75,
+            "seed": 42,
+            "reference": "",
+            "assetParameters": {
+              "width": 1.6,
+              "height": 0.15,
+              "length": 30
+            }
+          },
+          {
+            "id": "53335d62-af7e-4378-a752-918f3d85664c",
+            "kind": "prop",
+            "asset": "road-sidewalk",
+            "name": "东侧步道",
+            "color": "#d5d5d0",
+            "position": [
+              3.4,
+              0,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
+            "visible": true,
+            "locked": false,
+            "height": 1.75,
+            "build": "normal",
+            "gender": "male",
+            "path": null,
+            "face": "path",
+            "faceTarget": "",
+            "clips": [],
+            "pose": {},
+            "poseKeys": [],
+            "camera": null,
+            "count": 12,
+            "spacing": 0.75,
+            "seed": 42,
+            "reference": "",
+            "assetParameters": {
+              "width": 1.6,
+              "height": 0.15,
+              "length": 30
+            }
+          },
+          {
+            "id": "35987328-7012-47c4-bbad-f002774d4d22",
+            "kind": "prop",
+            "asset": "building-house",
+            "name": "街坊 西1",
+            "color": "#d5d5d0",
+            "position": [
+              -6.5,
+              0,
+              -9
+            ],
+            "rotation": [
+              0,
+              1.5707963267948966,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
+            "visible": true,
+            "locked": false,
+            "height": 1.75,
+            "build": "normal",
+            "gender": "male",
+            "path": null,
+            "face": "path",
+            "faceTarget": "",
+            "clips": [],
+            "pose": {},
+            "poseKeys": [],
+            "camera": null,
+            "count": 12,
+            "spacing": 0.75,
+            "seed": 42,
+            "reference": "",
+            "assetParameters": {
+              "width": 5,
+              "depth": 4,
+              "floorHeight": 2.8,
+              "levels": 2,
+              "bays": 3,
+              "roofHeight": 1,
+              "roofStyle": 1
+            }
+          },
+          {
+            "id": "f085ab66-a1cd-4edc-a289-2d4d40668e35",
+            "kind": "prop",
+            "asset": "building-shop",
+            "name": "街坊 西2",
+            "color": "#d5d5d0",
+            "position": [
+              -6.5,
+              0,
+              -2
+            ],
+            "rotation": [
+              0,
+              1.5707963267948966,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
+            "visible": true,
+            "locked": false,
+            "height": 1.75,
+            "build": "normal",
+            "gender": "male",
+            "path": null,
+            "face": "path",
+            "faceTarget": "",
+            "clips": [],
+            "pose": {},
+            "poseKeys": [],
+            "camera": null,
+            "count": 12,
+            "spacing": 0.75,
+            "seed": 42,
+            "reference": "",
+            "assetParameters": {
+              "width": 5,
+              "depth": 4,
+              "floorHeight": 2.8,
+              "levels": 1,
+              "bays": 3,
+              "roofHeight": 1,
+              "roofStyle": 1
+            }
+          },
+          {
+            "id": "41fe8f67-2e00-49f9-aa29-5d7b9a6acb3e",
+            "kind": "prop",
+            "asset": "building-house",
+            "name": "街坊 西3",
+            "color": "#d5d5d0",
+            "position": [
+              -6.5,
+              0,
+              5
+            ],
+            "rotation": [
+              0,
+              1.5707963267948966,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
+            "visible": true,
+            "locked": false,
+            "height": 1.75,
+            "build": "normal",
+            "gender": "male",
+            "path": null,
+            "face": "path",
+            "faceTarget": "",
+            "clips": [],
+            "pose": {},
+            "poseKeys": [],
+            "camera": null,
+            "count": 12,
+            "spacing": 0.75,
+            "seed": 42,
+            "reference": "",
+            "assetParameters": {
+              "width": 5,
+              "depth": 4,
+              "floorHeight": 2.8,
+              "levels": 2,
+              "bays": 3,
+              "roofHeight": 1,
+              "roofStyle": 1
+            }
+          },
+          {
+            "id": "58014ce1-3613-43a6-b73a-d188c45e56b4",
+            "kind": "prop",
+            "asset": "building-house",
+            "name": "街坊 东1",
+            "color": "#d5d5d0",
+            "position": [
+              6.5,
+              0,
+              -9
+            ],
+            "rotation": [
+              0,
+              -1.5707963267948966,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
+            "visible": true,
+            "locked": false,
+            "height": 1.75,
+            "build": "normal",
+            "gender": "male",
+            "path": null,
+            "face": "path",
+            "faceTarget": "",
+            "clips": [],
+            "pose": {},
+            "poseKeys": [],
+            "camera": null,
+            "count": 12,
+            "spacing": 0.75,
+            "seed": 42,
+            "reference": "",
+            "assetParameters": {
+              "width": 5,
+              "depth": 4,
+              "floorHeight": 2.8,
+              "levels": 2,
+              "bays": 3,
+              "roofHeight": 1,
+              "roofStyle": 1
+            }
+          },
+          {
+            "id": "1b83f324-4519-4bef-a4d6-efcf15e46f28",
+            "kind": "prop",
+            "asset": "building-shop",
+            "name": "街坊 东2",
+            "color": "#d5d5d0",
+            "position": [
+              6.5,
+              0,
+              -2
+            ],
+            "rotation": [
+              0,
+              -1.5707963267948966,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
+            "visible": true,
+            "locked": false,
+            "height": 1.75,
+            "build": "normal",
+            "gender": "male",
+            "path": null,
+            "face": "path",
+            "faceTarget": "",
+            "clips": [],
+            "pose": {},
+            "poseKeys": [],
+            "camera": null,
+            "count": 12,
+            "spacing": 0.75,
+            "seed": 42,
+            "reference": "",
+            "assetParameters": {
+              "width": 5,
+              "depth": 4,
+              "floorHeight": 2.8,
+              "levels": 1,
+              "bays": 3,
+              "roofHeight": 1,
+              "roofStyle": 1
+            }
+          },
+          {
+            "id": "8127ef8a-1dae-47a2-b056-cad4ee1a7bc5",
+            "kind": "prop",
+            "asset": "building-house",
+            "name": "街坊 东3",
+            "color": "#d5d5d0",
+            "position": [
+              6.5,
+              0,
+              5
+            ],
+            "rotation": [
+              0,
+              -1.5707963267948966,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
+            "visible": true,
+            "locked": false,
+            "height": 1.75,
+            "build": "normal",
+            "gender": "male",
+            "path": null,
+            "face": "path",
+            "faceTarget": "",
+            "clips": [],
+            "pose": {},
+            "poseKeys": [],
+            "camera": null,
+            "count": 12,
+            "spacing": 0.75,
+            "seed": 42,
+            "reference": "",
+            "assetParameters": {
+              "width": 5,
+              "depth": 4,
+              "floorHeight": 2.8,
+              "levels": 2,
+              "bays": 3,
+              "roofHeight": 1,
+              "roofStyle": 1
+            }
+          },
+          {
+            "id": "16ffd474-9262-49a0-afac-9f255be6f9fb",
+            "kind": "prop",
+            "asset": "plant-broadleaf",
+            "name": "行道树",
+            "color": "#d5d5d0",
+            "position": [
+              -3.8,
+              0,
+              -12
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
+            "visible": true,
+            "locked": false,
+            "height": 1.75,
+            "build": "normal",
+            "gender": "male",
+            "path": null,
+            "face": "path",
+            "faceTarget": "",
+            "clips": [],
+            "pose": {},
+            "poseKeys": [],
+            "camera": null,
+            "count": 12,
+            "spacing": 0.75,
+            "seed": 42,
+            "reference": "",
+            "assetParameters": {
+              "width": 2.3,
+              "height": 4.2,
+              "depth": 2.3,
+              "density": 16
+            }
+          },
+          {
+            "id": "3415d378-c79b-41ad-8b77-c0bd17f49dcb",
+            "kind": "prop",
+            "asset": "plant-broadleaf",
+            "name": "行道树",
+            "color": "#d5d5d0",
+            "position": [
+              -3.8,
+              0,
+              -5
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
+            "visible": true,
+            "locked": false,
+            "height": 1.75,
+            "build": "normal",
+            "gender": "male",
+            "path": null,
+            "face": "path",
+            "faceTarget": "",
+            "clips": [],
+            "pose": {},
+            "poseKeys": [],
+            "camera": null,
+            "count": 12,
+            "spacing": 0.75,
+            "seed": 42,
+            "reference": "",
+            "assetParameters": {
+              "width": 2.3,
+              "height": 4.2,
+              "depth": 2.3,
+              "density": 16
+            }
+          },
+          {
+            "id": "4f6cbb43-d628-4784-8052-2d5bbcc5e8ad",
+            "kind": "prop",
+            "asset": "plant-broadleaf",
+            "name": "行道树",
+            "color": "#d5d5d0",
+            "position": [
+              -3.8,
+              0,
+              2
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
+            "visible": true,
+            "locked": false,
+            "height": 1.75,
+            "build": "normal",
+            "gender": "male",
+            "path": null,
+            "face": "path",
+            "faceTarget": "",
+            "clips": [],
+            "pose": {},
+            "poseKeys": [],
+            "camera": null,
+            "count": 12,
+            "spacing": 0.75,
+            "seed": 42,
+            "reference": "",
+            "assetParameters": {
+              "width": 2.3,
+              "height": 4.2,
+              "depth": 2.3,
+              "density": 16
+            }
+          },
+          {
+            "id": "f5f9ce09-a1b4-4de0-897d-4d60b32bf16f",
+            "kind": "prop",
+            "asset": "plant-broadleaf",
+            "name": "行道树",
+            "color": "#d5d5d0",
+            "position": [
+              -3.8,
+              0,
+              9
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
+            "visible": true,
+            "locked": false,
+            "height": 1.75,
+            "build": "normal",
+            "gender": "male",
+            "path": null,
+            "face": "path",
+            "faceTarget": "",
+            "clips": [],
+            "pose": {},
+            "poseKeys": [],
+            "camera": null,
+            "count": 12,
+            "spacing": 0.75,
+            "seed": 42,
+            "reference": "",
+            "assetParameters": {
+              "width": 2.3,
+              "height": 4.2,
+              "depth": 2.3,
+              "density": 16
+            }
+          },
+          {
+            "id": "895c9fc3-61c1-41fa-9139-306b16ce0aeb",
+            "kind": "prop",
+            "asset": "plant-broadleaf",
+            "name": "行道树",
+            "color": "#d5d5d0",
+            "position": [
+              3.8,
+              0,
+              -12
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
+            "visible": true,
+            "locked": false,
+            "height": 1.75,
+            "build": "normal",
+            "gender": "male",
+            "path": null,
+            "face": "path",
+            "faceTarget": "",
+            "clips": [],
+            "pose": {},
+            "poseKeys": [],
+            "camera": null,
+            "count": 12,
+            "spacing": 0.75,
+            "seed": 42,
+            "reference": "",
+            "assetParameters": {
+              "width": 2.3,
+              "height": 4.2,
+              "depth": 2.3,
+              "density": 16
+            }
+          },
+          {
+            "id": "f923ddfb-303b-4a08-9a8a-de5e386cbe79",
+            "kind": "prop",
+            "asset": "plant-broadleaf",
+            "name": "行道树",
+            "color": "#d5d5d0",
+            "position": [
+              3.8,
+              0,
+              -5
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
+            "visible": true,
+            "locked": false,
+            "height": 1.75,
+            "build": "normal",
+            "gender": "male",
+            "path": null,
+            "face": "path",
+            "faceTarget": "",
+            "clips": [],
+            "pose": {},
+            "poseKeys": [],
+            "camera": null,
+            "count": 12,
+            "spacing": 0.75,
+            "seed": 42,
+            "reference": "",
+            "assetParameters": {
+              "width": 2.3,
+              "height": 4.2,
+              "depth": 2.3,
+              "density": 16
+            }
+          },
+          {
+            "id": "cfac43ed-e33a-40ca-9c3b-a55ae5062ea4",
+            "kind": "prop",
+            "asset": "plant-broadleaf",
+            "name": "行道树",
+            "color": "#d5d5d0",
+            "position": [
+              3.8,
+              0,
+              2
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
+            "visible": true,
+            "locked": false,
+            "height": 1.75,
+            "build": "normal",
+            "gender": "male",
+            "path": null,
+            "face": "path",
+            "faceTarget": "",
+            "clips": [],
+            "pose": {},
+            "poseKeys": [],
+            "camera": null,
+            "count": 12,
+            "spacing": 0.75,
+            "seed": 42,
+            "reference": "",
+            "assetParameters": {
+              "width": 2.3,
+              "height": 4.2,
+              "depth": 2.3,
+              "density": 16
+            }
+          },
+          {
+            "id": "b160714f-62bd-494a-9eb2-03502e20d0ca",
+            "kind": "prop",
+            "asset": "plant-broadleaf",
+            "name": "行道树",
+            "color": "#d5d5d0",
+            "position": [
+              3.8,
+              0,
+              9
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
+            "visible": true,
+            "locked": false,
+            "height": 1.75,
+            "build": "normal",
+            "gender": "male",
+            "path": null,
+            "face": "path",
+            "faceTarget": "",
+            "clips": [],
+            "pose": {},
+            "poseKeys": [],
+            "camera": null,
+            "count": 12,
+            "spacing": 0.75,
+            "seed": 42,
+            "reference": "",
+            "assetParameters": {
+              "width": 2.3,
+              "height": 4.2,
+              "depth": 2.3,
+              "density": 16
+            }
+          },
+          {
+            "id": "13db8e3d-2fa7-4d46-92ae-9576e5685fd4",
+            "kind": "prop",
+            "asset": "vehicle-bicycle",
+            "name": "等候的自行车",
+            "color": "#d5d5d0",
+            "position": [
+              3.2,
+              0.15,
+              -4
+            ],
+            "rotation": [
+              0,
+              0.5235987755982988,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
+            "visible": true,
+            "locked": false,
+            "height": 1.75,
+            "build": "normal",
+            "gender": "male",
+            "path": null,
+            "face": "path",
+            "faceTarget": "",
+            "clips": [],
+            "pose": {},
+            "poseKeys": [],
+            "camera": null,
+            "count": 12,
+            "spacing": 0.75,
+            "seed": 42,
+            "reference": ""
+          },
+          {
+            "id": "3f313545-18b5-4927-a67e-891be1392a2d",
+            "kind": "prop",
+            "asset": "bench",
+            "name": "街角长椅",
+            "color": "#d5d5d0",
+            "position": [
+              -3.2,
+              0.15,
+              -4
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
+            "visible": true,
+            "locked": false,
+            "height": 1.75,
+            "build": "normal",
+            "gender": "male",
+            "path": null,
+            "face": "path",
+            "faceTarget": "",
+            "clips": [],
+            "pose": {},
+            "poseKeys": [],
+            "camera": null,
+            "count": 12,
+            "spacing": 0.75,
+            "seed": 42,
+            "reference": ""
+          },
+          {
+            "id": "529a2c59-091c-48f2-9629-d3bcdb2f1957",
+            "kind": "actor",
+            "asset": "woman",
+            "name": "迎接者",
+            "color": "#ba795d",
+            "position": [
+              0.8,
+              0,
+              -4
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
+            "visible": true,
+            "locked": false,
+            "height": 1.65,
+            "build": "normal",
+            "gender": "female",
+            "path": null,
+            "face": "path",
+            "faceTarget": "",
+            "clips": [
+              {
+                "id": "397a4a47-2f32-4767-9aa4-5a2a59c42239",
+                "action": "wave",
+                "start": 8,
+                "end": 16,
+                "speed": 1
+              }
+            ],
+            "pose": {},
+            "poseKeys": [],
+            "camera": null,
+            "count": 12,
+            "spacing": 0.75,
+            "seed": 42,
+            "reference": ""
+          },
+          {
+            "id": "132ddc9e-8afa-42f9-af52-f32877a16df4",
+            "kind": "camera",
+            "asset": "camera",
+            "name": "02 · 并肩跟拍",
+            "color": "#d5d5d0",
+            "position": [
+              2.3,
+              1.8,
+              5
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
+            "visible": true,
+            "locked": false,
+            "height": 1.75,
+            "build": "normal",
+            "gender": "male",
+            "path": {
+              "smooth": true,
+              "points": [
+                {
+                  "time": 4,
+                  "position": [
+                    2.3,
+                    1.8,
+                    5
+                  ]
+                },
+                {
+                  "time": 9,
+                  "position": [
+                    2.3,
+                    1.8,
+                    0
+                  ]
+                }
+              ]
+            },
+            "face": "path",
+            "faceTarget": "",
+            "clips": [],
+            "pose": {},
+            "poseKeys": [],
+            "camera": {
+              "aim": "target",
+              "focal": 24,
+              "target": [
+                0.1,
+                1.1,
+                -3.4
+              ],
+              "targetId": "88efd088-54a4-41b5-af84-73102a70fb5d",
+              "targetHeight": 1.1,
+              "mode": "free",
+              "offset": [
+                0,
+                1.6,
+                -1.8
+              ],
+              "inheritRotation": true,
+              "hideWalls": []
+            },
+            "count": 12,
+            "spacing": 0.75,
+            "seed": 42,
+            "reference": ""
+          },
+          {
+            "id": "9c3427f1-c90a-4ede-9143-580aae3e4ed9",
+            "kind": "camera",
+            "asset": "camera",
+            "name": "03 · 望见彼此",
+            "color": "#d5d5d0",
+            "position": [
+              -0.3,
+              1.7,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
+            "visible": true,
+            "locked": false,
+            "height": 1.75,
+            "build": "normal",
+            "gender": "male",
+            "path": {
+              "smooth": true,
+              "points": [
+                {
+                  "time": 9,
+                  "position": [
+                    -0.3,
+                    1.7,
+                    0
+                  ]
+                },
+                {
+                  "time": 13,
+                  "position": [
+                    -0.3,
+                    1.65,
+                    -0.8
+                  ]
+                }
+              ]
+            },
+            "face": "path",
+            "faceTarget": "",
+            "clips": [],
+            "pose": {},
+            "poseKeys": [],
+            "camera": {
+              "aim": "target",
+              "focal": 55,
+              "target": [
+                0.8,
+                1.3,
+                -4
+              ],
+              "targetId": "",
+              "targetHeight": 1.1,
+              "mode": "free",
+              "offset": [
+                0,
+                1.6,
+                -1.8
+              ],
+              "inheritRotation": true,
+              "hideWalls": []
+            },
+            "count": 12,
+            "spacing": 0.75,
+            "seed": 42,
+            "reference": ""
+          },
+          {
+            "id": "d3a7239f-f077-4fe4-a540-75a6ecc5826a",
+            "kind": "camera",
+            "asset": "camera",
+            "name": "04 · 街角相会",
+            "color": "#d5d5d0",
+            "position": [
+              4,
+              2,
+              -0.5
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
+            "visible": true,
+            "locked": false,
+            "height": 1.75,
+            "build": "normal",
+            "gender": "male",
+            "path": {
+              "smooth": true,
+              "points": [
+                {
+                  "time": 13,
+                  "position": [
+                    4,
+                    2,
+                    -0.5
+                  ]
+                },
+                {
+                  "time": 18,
+                  "position": [
+                    3.5,
+                    1.8,
+                    -0.6
+                  ]
+                }
+              ]
+            },
+            "face": "path",
+            "faceTarget": "",
+            "clips": [],
+            "pose": {},
+            "poseKeys": [],
+            "camera": {
+              "aim": "target",
+              "focal": 40,
+              "target": [
+                0.1,
+                1.1,
+                -3.4
+              ],
+              "targetId": "",
+              "targetHeight": 1.1,
+              "mode": "free",
+              "offset": [
+                0,
+                1.6,
+                -1.8
+              ],
+              "inheritRotation": true,
+              "hideWalls": []
+            },
+            "count": 12,
+            "spacing": 0.75,
+            "seed": 42,
+            "reference": ""
+          },
+          {
+            "id": "c4f2a996-57d4-4269-a574-4f7061ef2de7",
+            "kind": "camera",
+            "asset": "camera",
+            "name": "05 · 拉升归航",
+            "color": "#d5d5d0",
+            "position": [
+              1.7,
+              3,
+              1.5
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
+            "visible": true,
+            "locked": false,
+            "height": 1.75,
+            "build": "normal",
+            "gender": "male",
+            "path": {
+              "smooth": true,
+              "points": [
+                {
+                  "time": 18,
+                  "position": [
+                    1.7,
+                    3,
+                    1.5
+                  ]
+                },
+                {
+                  "time": 24,
+                  "position": [
+                    1,
+                    13,
+                    12
+                  ]
+                }
+              ]
+            },
+            "face": "path",
+            "faceTarget": "",
+            "clips": [],
+            "pose": {},
+            "poseKeys": [],
+            "camera": {
+              "aim": "target",
+              "focal": 28,
+              "target": [
+                0.1,
+                1.1,
+                -3.4
+              ],
+              "targetId": "",
+              "targetHeight": 1.1,
+              "mode": "free",
+              "offset": [
+                0,
+                1.6,
+                -1.8
+              ],
+              "inheritRotation": true,
+              "hideWalls": []
+            },
+            "count": 12,
+            "spacing": 0.75,
+            "seed": 42,
+            "reference": ""
+          }
+        ],
+        "cuts": [
+          {
+            "time": 0,
+            "cameraId": "f73af3c0-3e1c-44a5-97aa-4f8eea09d592"
+          },
+          {
+            "time": 4,
+            "cameraId": "132ddc9e-8afa-42f9-af52-f32877a16df4"
+          },
+          {
+            "time": 9,
+            "cameraId": "9c3427f1-c90a-4ede-9143-580aae3e4ed9"
+          },
+          {
+            "time": 13,
+            "cameraId": "d3a7239f-f077-4fe4-a540-75a6ecc5826a"
+          },
+          {
+            "time": 18,
+            "cameraId": "c4f2a996-57d4-4269-a574-4f7061ef2de7"
+          }
+        ],
+        "references": [],
+        "lighting": {
+          "defaultLights": true,
+          "ambient": 0.8,
+          "exposure": 1.15,
+          "background": "#c4ccd0",
+          "groundColor": "#889095",
+          "quality": "high",
+          "sunColor": "#ffe7c2",
+          "sunIntensity": 2.1,
+          "sunDirection": [
+            -7,
+            9,
+            4
+          ]
+        }
+      }
+    }
+  ],
+  "projectId": "d3af2298-9b01-4d63-8095-7d7867990360",
+  "resources": []
+}

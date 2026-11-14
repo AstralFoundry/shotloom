@@ -1,3 +1,6 @@
+import { assertAgentProject } from '@/services/agentProjectIdentity';
+import { listEditorMediaCandidates } from '@/services/editorMediaCatalog';
+import { directorEditingHandoff, type EditingHandoff } from '@/services/directorEditingHandoff';
 import { t } from '@/i18n/index';
 import { registerAgentTool } from '../core/toolRegistry';
 import type { AgentToolContext, AgentToolEffect, JsonObject } from '../core/types';
@@ -52,6 +55,28 @@ function commandEffect(operation: string): AgentToolEffect {
 }
 
 export function registerDirectorTools(): void {
+  registerAgentTool({
+    id: 'director_editing_media', icon: 'film', title: t('tool.title.director_editing_media'),
+    description: '列出可交接到剪辑台的真实视频和音频来源，无需先打开剪辑台。返回 id、名称、类型与时长；音频 id 可直接传给 director_editing_handoff.audio[].assetId。',
+    effect: 'read', inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+    execute: (_input, context) => {
+      assertAgentProject(context.projectKey, context.projectInstanceId, context.projectGeneration);
+      return listEditorMediaCandidates().filter(c => c.type === 'audio' || c.type === 'video');
+    },
+  });
+  registerAgentTool<JsonObject>({
+    id: 'director_editing_handoff', icon: 'workflow', title: t('tool.title.director_editing_handoff'),
+    description: '将真实导演台视频产物入库，打开剪辑台，按显式时间放入音频和字幕。handoffId 是本次剪辑的稳定名称，失败重试沿用它；已存在该轨道时不重复添加。要修改已有剪辑请委派 editor Agent 使用原生剪辑工具。export=true 仅在用户要求输出成片时使用。音频 assetId 从 director_editing_media 的真实目录读取；无音乐或配音时可省略，工具不会猜内容。浏览器入库失败返回可恢复产物 ID，不启动空剪辑。',
+    effect: 'project_write', activity: 'editor', timeoutMs: 0,
+    inputSchema: { type: 'object', required: ['videoArtifactId', 'handoffId'], additionalProperties: false, properties: {
+      videoArtifactId: { type: 'string' }, handoffId: { type: 'string' },
+      editorNodeId: { type: 'string' }, videoVolume: { type: 'number', minimum: 0 }, export: { type: 'boolean' },
+      audio: { type: 'array', items: { type: 'object', required: ['assetId', 'startSec'], additionalProperties: false, properties: { assetId: { type: 'string' }, startSec: { type: 'number', minimum: 0 }, durationSec: { type: 'number', minimum: 0 }, inPoint: { type: 'number', minimum: 0 }, volume: { type: 'number', minimum: 0 } } } },
+      subtitles: { type: 'array', items: { type: 'object', required: ['text', 'startSec', 'endSec'], additionalProperties: false, properties: { text: { type: 'string' }, startSec: { type: 'number', minimum: 0 }, endSec: { type: 'number', minimum: 0 } } } },
+    } },
+    execute: (input, context) => directorEditingHandoff(input as unknown as EditingHandoff, context),
+  });
+
   registerAgentTool<JsonObject>({
     id: 'director_desk_snapshot',
     icon: 'search',
@@ -105,7 +130,7 @@ commands 只列出你应当使用的命令；已由 batch 覆盖的搭景命令�
 素材有 200 多条，默认不返回：不传参数时只给 groups（分组名、条目数、示例 id）和 assetTotal。要找具体的墙、门窗、建筑、家具时按需筛：
 - group 传分组名（例如 "建筑构件"、"建筑外壳"、"通行构件"、"家具"、"人物"），返回该组完整条目；
 - query 传关键词（可中英文，例如 wall、墙、building、楼、door、桌），按 id／名称／分组／别名匹配；
-两个都给时取交集。每条含 id、name、kind、group、defaultSize（默认宽高深）与 params（可调的尺寸参数名，有 params 的用 parameters 写真实尺寸而不是 scale）。`,
+两个都给时取交集。每条含 id、name、kind、group、defaultSize（实测默认几何宽高深）、parameters（默认值、范围、单位、步长与 choices）与 params（可调的尺寸参数名，有 params 的用 parameters 写真实尺寸而不是 scale）。`,
     effect: 'read',
     activity: 'inspect',
     inputSchema: {
@@ -145,7 +170,7 @@ commands 只列出你应当使用的命令；已由 batch 覆盖的搭景命令�
         operation: {
           type: 'string',
           // 只读命令都可以走这条通道，不必经过写审批。
-          enum: ['scene_list', 'scene_read', 'history_status', 'export_video_job', 'scene_summary', 'spatial_check', 'entity_relations'],
+          enum: ['scene_list', 'scene_read', 'history_status', 'export_video_job', 'export_artifact_list', 'export_artifact_read', 'shot_list', 'scene_summary', 'spatial_check', 'entity_relations'],
         },
         args: { type: 'object', additionalProperties: true },
       },
@@ -168,6 +193,8 @@ commands 只列出你应当使用的命令；已由 batch 覆盖的搭景命令�
     title: t('tool.title.director_desk_batch'),
     description: `一次原子批量设置当前导演台：edits 非空，建议按相关修改分批、每批 1–8 项；这是调用建议，超过 8 项仍可提交，没有硬性数量上限。全部成功才写入，形成一条撤销记录；任一项失败则整批回滚并指出第几项。先读 director_desk_snapshot，expectedSessionId 必须等于其 sessionId，expectedRevision 必须等于其 revision；revision 是运行会话内计数，重新打开 iframe 后重新读取快照，不能把计数变小解释为场景丢失；实体、片段 ID 必须取自 snapshot。执行后再读 snapshot 和预览核验。可传 autoPreview:{timesSec:[0,2],plan:true} 在提交成功后返回真实预览附件；预览失败仍保留 applied:true。
 
+批内引用：创建条目可声明 ref:"hero"，后续 entityId/cameraId/targetEntityId/clipId/subjectIds 和 patch.targetId 可写 "$hero"；也支持 "$1" 引用前面第 1 项回执。引用只能指向已创建的真实实体或片段。
+
 这是搭建场景的主力工具：新增实体、机位、切镜都在这里，不要退化成逐条命令或整文档导入。
 
 edits 按顺序执行，支持：
@@ -184,8 +211,9 @@ edits 按顺序执行，支持：
 - set_entity：entityId + patch；字段 name、color、position:[x,y,z]（米，世界坐标，整条路径平移）、rotationDegrees:[x,y,z]（度）、scale:[x,y,z]、parameters、visible、height、build、gender。parameters 是素材的真实尺寸参数（米），键名取自 catalog.assets[].params，例如墙的 width/height/depth/openingWidth；有参数的素材优先改参数而不是 scale，scale 会把门洞和墙厚一起拉伸。内置人偶的 color 是身体及服装整体改色；服装款式用支持服装参数的 human-* 素材，先查 catalog.params，再设置 parameters.outfit / headwear / backpack（按目录 choices 取值）。person / woman 不支持这些换装参数。跟随机位不能直接设位置或旋转，手持道具不能直接设位置。
 - set_camera / set_light：entityId + patch；字段从 director_desk_catalog.patchFields.set_camera_field / set_light_field 取。
 - set_lighting / set_room / set_project：patch；字段分别从 catalog.patchFields.set_lighting_field / update_room / update_project_settings 取。
-- add_action：entityId + action（取 catalog.actions）+ 可选 atSec（秒，默认 0）；放在该时点之后第一个不重叠位置，返回新 clipId。已有待机片段可能把新动作推到其末尾。
-- set_clip：entityId + clipId + patch；只支持 start、end、speed、blendIn（入场过渡秒数，0—2）。
+- add_shot：timeSec（切入秒）+ cameraId + 可选 name、subjectIds（镜头明确要出现的角色 ID，[] 为无指定主体）、patch（camera 合法字段）、points/smooth（机位路径）。同批可引用新机位，原子设置构图、运镜和切镜。镜头出点为下一切镜或场景结束；用多个 add_shot 编排完整段落，不强制固定镜头数。
+- add_action：entityId + action（取 catalog.actions）+ 可选 atSec（秒，默认 0）；放在该时点之后第一个不重叠位置，返回新 clipId。已有待机片段可能把新动作推到其末尾。可用 startSec/endSec 精确指定时段（重叠时提示先修复），speed:0.1–5、blendIn:0–2、loop:boolean 控制速度、衔接与循环；actionTiming 返回默认时长和循环属性。
+- set_clip：entityId + clipId + patch；只支持 start、end、speed、blendIn（入场过渡秒数，0—2）、loop。
 - remove_clip：entityId + clipId；可先移除默认待机，再在同一批添加新动作。
 - delete_entity：entityId；会清掉指向它的机位视线、朝向、手持绑定，并把它占用的切镜改到另一台机位。
 - duplicate_entity：entityId + 可选 name、position、rotationDegrees；给 position 时整条路径随之平移，不给则在原型旁边 0.4 米处复制。
@@ -214,12 +242,13 @@ edits 按顺序执行，支持：
               operation: {
                 type: 'string',
                 enum: [
-                  'set_entity', 'set_camera', 'set_light', 'set_lighting', 'set_room', 'set_project',
+                  'add_shot', 'set_entity', 'set_camera', 'set_light', 'set_lighting', 'set_room', 'set_project',
                   'set_path', 'set_rotation_animation', 'add_asset', 'add_wall', 'add_room', 'add_prop', 'add_camera', 'add_cut', 'add_action', 'set_clip', 'remove_clip',
                   'delete_entity', 'duplicate_entity', 'place_on_surface', 'seat_on_surface', 'align_facing', 'align_surface',
                 ],
               },
               targetEntityId: { type: 'string' }, anchorId: { type: 'string' },
+              ref: { type: 'string' }, startSec: { type: 'number', minimum: 0 }, endSec: { type: 'number', minimum: 0 }, speed: { type: 'number', minimum: 0.1, maximum: 5 }, blendIn: { type: 'number', minimum: 0, maximum: 2 }, loop: { type: 'boolean' }, subjectIds: { type: 'array', items: { type: 'string' } },
               entityId: { type: 'string' }, clipId: { type: 'string' }, action: { type: 'string' }, atSec: { type: 'number' },
               assetId: { type: 'string' }, name: { type: 'string' }, cameraId: { type: 'string' },
               position: { type: 'array', items: { type: 'number' } },

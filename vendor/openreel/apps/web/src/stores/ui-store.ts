@@ -9,8 +9,7 @@ export type PanelId =
   | "effects"
   | "audioMixer"
   | "colorGrading"
-  | "subtitles"
-  | "agentChat";
+  | "subtitles";
 
 export type SelectionType =
   | "clip"
@@ -205,7 +204,6 @@ const DEFAULT_PANELS: Record<PanelId, PanelState> = {
   audioMixer: { visible: false, width: 300 },
   colorGrading: { visible: false, width: 400 },
   subtitles: { visible: false, width: 300 },
-  agentChat: { visible: false, width: 380 },
 };
 
 export const useUIStore = create<UIState>()(
@@ -600,18 +598,15 @@ export const useUIStore = create<UIState>()(
       }),
       {
         name: "openreel-ui-preferences",
-        version: 3,
+        version: 4,
         migrate: (persisted: unknown, version: number) => {
           const state = persisted as Record<string, unknown>;
           if (version === 0) {
             state.snapSettings = DEFAULT_SNAP_SETTINGS;
           }
-          if (version < 2) {
-            const panels = (state.panels ?? {}) as Record<string, PanelState>;
-            if (!panels.agentChat) {
-              panels.agentChat = DEFAULT_PANELS.agentChat;
-            }
-            state.panels = panels;
+          if (version < 4 && state.panels) {
+            // Retire the upstream chat preference; Harness owns the product chat.
+            delete (state.panels as Record<string, unknown>).agentChat;
           }
           if (version < 3 && state.desktopPage === "motion") {
             state.desktopPage = "edit";

@@ -1055,6 +1055,7 @@ export class EditorSession {
             start?: number;
             end?: number;
             sampleRate?: number;
+            subjectIds?: string[];
             cameraId?: string;
             includeObstacles?: boolean;
             includeFraming?: boolean;
@@ -1079,6 +1080,7 @@ export class EditorSession {
             {
                 start,
                 end,
+                subjectIds: input.subjectIds,
                 sampleRate: input.sampleRate === undefined ? 4 : input.sampleRate,
                 cameraId: input.cameraId ?? 'program',
                 includeObstacles: input.includeObstacles !== false,

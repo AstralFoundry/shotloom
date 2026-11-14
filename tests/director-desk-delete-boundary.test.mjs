@@ -86,7 +86,7 @@ test('导演台导出消息区分截图和视频，并在画布保存后回执',
     message(frameWindow, 'video');
     await new Promise(resolve => setImmediate(resolve));
     assert.deepEqual(captures, [{ dataUrl: 'data:video/webm;base64,AA==', fileName: 'shot.webm', kind: 'video' }]);
-    assert.deepEqual(replies, [{ type: 'storyai:director-desk-captures-saved', payload: { requestId: 'export-1', success: true } }]);
+    assert.deepEqual(replies, [{ type: 'storyai:director-desk-captures-saved', payload: { requestId: 'export-1', success: true, outputs: undefined } }]);
     unsubscribe();
   } finally {
     globalThis.window = previousWindow;

@@ -45,7 +45,6 @@ beforeEach(() => {
     desktopPage: "edit",
     panels: {
       ...panels,
-      agentChat: { ...panels.agentChat, visible: false },
     },
   });
   useSettingsStore.setState({ settingsOpen: false, settingsTab: "general" });
@@ -89,22 +88,6 @@ describe("DesktopApp", () => {
     useUIStore.setState({ desktopPage: "motion" });
     const motionView = render(<DesktopApp />);
     expect(motionView.getByRole("button", { name: "Video Export" })).toBeTruthy();
-    expect(motionView.getByRole("button", { name: "AI Editor" })).toBeTruthy();
-  });
-
-  it("toggles the AI Editor side panel from the desktop title bar", () => {
-    mockHasProject(true);
-    const view = render(<DesktopApp />);
-    const button = view.getByRole("button", { name: "AI Editor" });
-
-    expect(button).toHaveAttribute("aria-pressed", "false");
-    fireEvent.click(button);
-
-    expect(useUIStore.getState().panels.agentChat.visible).toBe(true);
-    expect(button).toHaveAttribute("aria-pressed", "true");
-
-    fireEvent.click(button);
-    expect(useUIStore.getState().panels.agentChat.visible).toBe(false);
   });
 
   it("keeps settings reachable from the desktop title bar", () => {

@@ -52,7 +52,6 @@ const HASH_DIRS = [
   // Product bridge messages are compiled into each isolated editor factory.
   "../../renderer/src/i18n",
   "packages/agent/src",
-  "packages/creation-core/src",
   "packages/creation-schema/src",
   "apps/web/src",
   "apps/web/vite-plugins",
