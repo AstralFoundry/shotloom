@@ -146,7 +146,7 @@
 :host([data-director-mode]) .shotloom-agent-chat { background:transparent; }
 :host([data-director-mode]) .shotloom-empty-state { display:none; }
 :host([data-director-mode]) [data-composer-seat] { padding:0; }
-:host([data-director-mode]) [data-composer-card] { border:1px solid var(--director-dock-line, #d9d9de);border-radius:28px;background:var(--director-dock-bg, #fff);box-shadow:none; }
+:host([data-director-mode]) [data-composer-card] { border:1px solid var(--director-dock-line, #d9d9de);border-radius:var(--director-dock-radius, 22px);background:var(--director-dock-bg, #fff);box-shadow:none; }
 :host([data-director-mode]:not([data-director-mode="expanded"])) .shotloom-chat-body { padding-top:0; }
 :host([data-director-mode]:not([data-director-mode="expanded"])) .shotloom-session-stats,
 :host([data-director-mode]:not([data-director-mode="expanded"])) .shotloom-context-meter { display:none; }
