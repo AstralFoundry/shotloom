@@ -1111,8 +1111,8 @@ export class EditorSession {
         this.scene.setCameraField(patch);
     }
 
-    applyCameraPreset(id: CameraPresetId, cameraId?: string): boolean {
-        return this.scene.applyCameraPreset(id, cameraId);
+    applyCameraPreset(id: CameraPresetId, cameraId?: string, options: { subjectId?: string; foregroundId?: string } = {}): boolean {
+        return this.scene.applyCameraPreset(id, cameraId, options);
     }
 
     toggleGrid(): void {

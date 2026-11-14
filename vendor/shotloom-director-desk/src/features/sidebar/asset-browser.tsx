@@ -53,7 +53,7 @@ function AssetPreview({ asset, angle = 0 }: { asset: AssetDefinition; angle?: nu
 
     return (
         <span ref={ref} className={`asset-card__preview ${src ? 'is-loaded' : ''}`} aria-hidden="true">
-            {src ? <><img src={src} alt="" /><span className="asset-card__dimensions">{assetSize(asset)}m</span></> : <span className="asset-card__fallback">{asset.icon}</span>}
+            {src ? <img src={src} alt="" /> : <span className="asset-card__fallback">{asset.icon}</span>}
         </span>
     );
 }

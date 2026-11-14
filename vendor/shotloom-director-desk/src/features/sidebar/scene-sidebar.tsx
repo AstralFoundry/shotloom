@@ -1,4 +1,4 @@
-import { LayersIcon, LayoutGridIcon, LightbulbIcon, CameraIcon, ChevronDownIcon, EyeOffIcon, EyeIcon, ImportIcon, PlusIcon, ChevronRightIcon, SearchIcon, UserRoundIcon, ClapperboardIcon } from '@/shared/ui/icons.tsx';
+import { SplineIcon, LayersIcon, LayoutGridIcon, LightbulbIcon, CameraIcon, ChevronDownIcon, EyeOffIcon, EyeIcon, ImportIcon, PlusIcon, ChevronRightIcon, SearchIcon, UserRoundIcon, ClapperboardIcon } from '@/shared/ui/icons.tsx';
 import { Button, Dropdown, Input, Tooltip } from 'antd';
 import { useState } from 'react';
 import { useTranslation } from '@/shared/i18n/use-translation.ts';
@@ -8,6 +8,7 @@ import { useProject } from '@/state/use-editor.ts';
 import { CAMERA_PLACEMENTS } from '@/core/cinematography/camera-placements.ts';
 import type { SidebarTab } from '@/state/editor-store.ts';
 import type { Entity } from '@/core/model.ts';
+import { CameraMovesPanel } from './camera-moves-panel.tsx';
 import { AssetBrowser } from './asset-browser.tsx';
 import { ModelImportDialog } from '@/features/model-import/model-import-dialog.tsx';
 import { ShotList } from '@/features/shots/shot-list.tsx';
@@ -24,10 +25,11 @@ const RAIL_TABS = [
     { key: 'scene', label: '场景', icon: <LayersIcon /> },
     { key: 'assets', label: '资产', icon: <LayoutGridIcon /> },
     { key: 'cameras', label: '添加机位', icon: <CameraIcon /> },
+    { key: 'moves', label: '运镜', icon: <SplineIcon /> },
     { key: 'shots', label: '镜头', icon: <ClapperboardIcon /> },
 ] as const;
 
-const PANEL_TITLES = { scene: '场景', assets: '资产', cameras: '添加机位', shots: '镜头' } as const;
+const PANEL_TITLES = { scene: '场景', assets: '资产', cameras: '添加机位', moves: '运镜', shots: '镜头' } as const;
 
 const SCENE_GROUPS = [
     { key: 'camera', label: '机位', icon: <CameraIcon /> },
@@ -88,7 +90,7 @@ export function SceneSidebar({ resize }: { resize?: React.ReactNode }) {
             <div className="sidebar__panel">
                 <header className="sidebar__header">
                     <span className="sidebar__title">{t(PANEL_TITLES[tab])}</span>
-                    {tab !== 'shots' && tab !== 'cameras' ? (
+                    {(tab === 'scene' || tab === 'assets') ? (
                         <Dropdown
                             trigger={['click']}
                             placement="bottomRight"
@@ -108,7 +110,7 @@ export function SceneSidebar({ resize }: { resize?: React.ReactNode }) {
                     ) : null}
                 </header>
 
-                {tab !== 'shots' && tab !== 'cameras' ? (
+                {(tab === 'scene' || tab === 'assets') ? (
                     <Input
                         id="scene-search"
                         size="small"
@@ -135,6 +137,8 @@ export function SceneSidebar({ resize }: { resize?: React.ReactNode }) {
                                 </Button>
                             ))}
                         </div>
+                    ) : tab === 'moves' ? (
+                        <CameraMovesPanel />
                     ) : tab === 'shots' ? (
                         <ShotList onExport={(shot) => session.exportShot(shot)} />
                     ) : tab === 'assets' ? (

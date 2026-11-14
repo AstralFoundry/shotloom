@@ -184,7 +184,7 @@ const commandSpecs: Record<string, CommandSpec> = {
     update_room: { kind: 'edit', agentHidden: true, prefer: 'batch_edit 的 set_room', args: { patch: 'object，房间字段补丁；合法键名见 catalog.patchFields.update_room' } },
     update_project_settings: { kind: 'edit', agentHidden: true, prefer: 'batch_edit 的 set_project', args: { patch: 'object，工程设置补丁；合法键名见 catalog.patchFields.update_project_settings' } },
     apply_framing: { kind: 'edit', args: { name: 'string，构图预设名', cameraId: 'string，可选机位 ID；省略则用当前选中的机位' } },
-    apply_camera_preset: { kind: 'edit', args: { id: 'string，取自 catalog.cameraPresets[].id', cameraId: 'string，可选机位 ID；省略则用当前选中的机位' } },
+    apply_camera_preset: { kind: 'edit', args: { id: 'string，取自 catalog.cameraPresets[].id', cameraId: 'string，可选机位 ID；省略则用当前选中的机位', subjectId: 'string，可选跟拍主体 ID', foregroundId: 'string，前景运镜必填的遮挡物 ID' } },
 
     // 戏段时间线
     add_cut: { kind: 'edit', agentHidden: true, prefer: 'batch_edit 的 add_cut' },
@@ -443,7 +443,7 @@ const commands: Record<string, (input: Input) => unknown> = {
     update_room: i => session.updateRoom(i.patch as Parameters<typeof session.updateRoom>[0]),
     update_project_settings: i => session.updateProjectSettings(i.patch as Parameters<typeof session.updateProjectSettings>[0]),
     apply_framing: i => session.applyFraming(i.name as Parameters<typeof session.applyFraming>[0], i.cameraId ? string(i.cameraId) : undefined),
-    apply_camera_preset: i => session.applyCameraPreset(i.id as Parameters<typeof session.applyCameraPreset>[0], i.cameraId ? string(i.cameraId) : undefined),
+    apply_camera_preset: i => session.applyCameraPreset(i.id as Parameters<typeof session.applyCameraPreset>[0], i.cameraId ? string(i.cameraId) : undefined, { subjectId: i.subjectId ? string(i.subjectId) : undefined, foregroundId: i.foregroundId ? string(i.foregroundId) : undefined }),
     add_cut: () => session.addCutAtPlayhead(),
     remove_cut: i => session.removeCut(number(i.index)),
     set_duration: i => session.setDuration(number(i.seconds)),

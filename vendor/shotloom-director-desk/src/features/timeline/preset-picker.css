@@ -61,8 +61,7 @@
     cursor: not-allowed;
 }
 
-.preset-card__image,
-.preset-card__diagram {
+.preset-card__image {
     display: block;
     width: 100%;
     aspect-ratio: 1.35;
@@ -70,26 +69,6 @@
     border-radius: 4px;
     background: var(--ed-thumb-bg);
     object-fit: cover;
-}
-
-.preset-card__diagram .diagram-bg {
-    fill: var(--ed-thumb-bg);
-}
-
-.preset-card__diagram .diagram-grid {
-    stroke: var(--ed-thumb-grid);
-}
-
-.preset-card__diagram .diagram-figure {
-    stroke: var(--ed-thumb-figure);
-}
-
-.preset-card__diagram .diagram-route {
-    stroke: var(--ed-thumb-route);
-}
-
-.preset-card__diagram .diagram-start {
-    fill: var(--ed-text-strong);
 }
 
 .preset-card__image img {
@@ -109,4 +88,104 @@
 .preset-card small {
     color: var(--ed-text-a50);
     font-size: 11px;
+}
+
+/* Refined with unslop by Damir Sokolovsky (@heydamir), CC BY 4.0. */
+.camera-preset-group + .camera-preset-group {
+    margin-top: 24px;
+}
+.camera-preset-group .preset-picker__heading {
+    margin: 0 0 12px;
+    color: var(--ed-text-secondary);
+    font-size: 13px;
+    line-height: 20px;
+}
+.camera-preset-picker .preset-picker__grid {
+    gap: 8px;
+}
+.camera-preset-card {
+    gap: 0;
+    padding: 8px;
+    border-color: transparent;
+    border-radius: 8px;
+    background: transparent;
+    overflow: hidden;
+    transition:
+        background-color 140ms ease-out,
+        border-color 140ms ease-out;
+}
+.camera-preset-card:hover:not(:disabled) {
+    border-color: var(--ed-line-strong);
+    background: var(--ed-gp-card-hover);
+}
+.camera-preset-card:focus-visible {
+    outline: 2px solid var(--ed-text-secondary);
+    outline-offset: 2px;
+}
+.camera-preset-card:disabled {
+    opacity: 0.55;
+}
+.camera-preset-card:disabled:hover {
+    border-color: transparent;
+    background: transparent;
+}
+.camera-preset-diagram {
+    display: block;
+    width: 100%;
+    aspect-ratio: 1.6;
+    border-radius: 4px;
+    background: var(--ed-thumb-bg);
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+.camera-diagram__grid {
+    stroke: var(--ed-thumb-grid);
+    stroke-width: 0.5;
+    opacity: 0.45;
+}
+.camera-diagram__subject {
+    fill: none;
+    stroke: var(--ed-thumb-figure);
+    stroke-width: 0.9;
+}
+.camera-diagram__route {
+    fill: none;
+    stroke: var(--ed-thumb-route);
+    stroke-width: 1.15;
+}
+.camera-diagram__marks {
+    fill: var(--ed-thumb-route);
+}
+.camera-diagram__frustum {
+    fill: none;
+    stroke: var(--ed-thumb-route);
+    stroke-width: 0.75;
+    opacity: 0.8;
+}
+.camera-diagram__camera {
+    fill: none;
+    stroke: var(--ed-text-strong);
+    stroke-width: 1.4;
+}
+.camera-preset-card .preset-card__name {
+    margin-top: 8px;
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 20px;
+}
+.camera-preset-card .preset-card__description {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+    min-height: 32px;
+    color: var(--ed-text-muted);
+    line-height: 16px;
+    font-size: 11px;
+}
+@media (prefers-reduced-motion: reduce) {
+    .camera-preset-card {
+        transition: none;
+    }
 }

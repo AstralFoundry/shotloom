@@ -10,7 +10,7 @@ import { createStarterProject } from './starter-project.ts';
  */
 export type ViewMode = 'stage' | 'pip' | 'split' | 'shot';
 
-export type SidebarTab = 'scene' | 'assets' | 'cameras' | 'shots';
+export type SidebarTab = 'scene' | 'assets' | 'cameras' | 'moves' | 'shots';
 
 export type InspectorTab =
     'base' | 'camera' | 'light' | 'actions' | 'pose' | 'path' | 'environment' | 'spatial' | 'keys';

@@ -21,6 +21,7 @@ export function CameraPreviewPanel({ view, preview, cameras, lens, aspect, canva
     const t = useTranslation();
     const panelRef = useRef<HTMLElement>(null);
     const [collapsed, setCollapsed] = useState(true);
+    const [cameraMenuOpen, setCameraMenuOpen] = useState(false);
     const [position, setPosition] = useState<Position | null>(null);
     const drag = useRef<{ pointer: number; start: Position; origin: Position } | null>(null);
     const floating = view === 'stage' || view === 'pip';
@@ -73,7 +74,7 @@ export function CameraPreviewPanel({ view, preview, cameras, lens, aspect, canva
             aria-label={t('机位视角')}
             style={floating && position ? { left: position.x, top: position.y, right: 'auto', bottom: 'auto' } : undefined}
         >
-            <div className={`shot-header ${floating ? 'camera-preview__chrome' : ''}`}>
+            <div className={`shot-header ${floating ? 'camera-preview__chrome' : 'shot-header--overlay'} ${cameraMenuOpen ? 'is-menu-open' : ''}`}>
                 {floating && (
                     <button
                         type="button"
@@ -135,6 +136,7 @@ export function CameraPreviewPanel({ view, preview, cameras, lens, aspect, canva
                             variant="borderless"
                             value={preview}
                             aria-label={t('拍摄机位')}
+                            onOpenChange={setCameraMenuOpen}
                             onChange={(value) => session.setPreview(value)}
                             options={[
                                 { value: 'program', label: floating ? t('机位') : t('成片 · 按切镜') },

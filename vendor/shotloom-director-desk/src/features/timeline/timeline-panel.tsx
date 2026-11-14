@@ -342,6 +342,7 @@ export function TimelinePanel({
                             onOpenChange={setCameraPickerOpen}
                             content={
                                 <CameraPresetPicker
+                                    hasSubject={project.entities.some(entity => entity.kind === 'actor' || entity.id === selectedEntity.camera?.targetId)}
                                     onChoose={(id) => {
                                         if (session.applyCameraPreset(id)) setCameraPickerOpen(false);
                                     }}

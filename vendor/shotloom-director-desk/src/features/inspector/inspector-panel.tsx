@@ -1,5 +1,5 @@
 import { EasingEditor } from './easing-editor.tsx';
-import { RightOutlined } from '@ant-design/icons';
+import { ChevronRightIcon } from '@/shared/ui/icons.tsx';
 import { Button, Col, Divider, Empty, Input, Row, Select, Switch, Tabs, Tooltip } from 'antd';
 import { useMemo, useState } from 'react';
 import type { Joint } from '@/core/model.ts';
@@ -47,7 +47,8 @@ export function InspectorPanel({ resize, onHide }: { resize?: React.ReactNode; o
             <header className="inspector__header">
                 {entity ? (
                     <>
-                        <h2>
+                        <h2 title={entity.name}>{entity.name}</h2>
+                        <span className="inspector__kind">
                             {t(
                                 entity.kind === 'actor' || entity.kind === 'crowd'
                                     ? '角色'
@@ -57,8 +58,7 @@ export function InspectorPanel({ resize, onHide }: { resize?: React.ReactNode; o
                                         ? '灯光'
                                         : '道具',
                             )}
-                        </h2>
-                        <span className="inspector__kind">{entity.name}</span>
+                        </span>
                     </>
                 ) : (
                     <>
@@ -76,7 +76,7 @@ export function InspectorPanel({ resize, onHide }: { resize?: React.ReactNode; o
                         <Button
                             type="text"
                             size="small"
-                            icon={<RightOutlined />}
+                            icon={<ChevronRightIcon />}
                             aria-label={t('隐藏属性面板')}
                             onClick={onHide}
                         />

@@ -19,7 +19,7 @@ import { usePreferences } from '@/state/use-preferences.ts';
 const TOOL_MODES: Array<{ mode: TransformMode; label: string; icon: React.ReactNode; shortcut: string }> = [
     { mode: 'translate', label: '移动', icon: <MoveIcon />, shortcut: '1' },
     { mode: 'rotate', label: '旋转', icon: <Rotate3DIcon />, shortcut: '2' },
-    { mode: 'scale', label: '缩放', icon: <MaximizeIcon />, shortcut: '3' },
+    { mode: 'scale', label: '缩放物体', icon: <MaximizeIcon />, shortcut: '3' },
 ];
 
 /** The only place the three.js engine is mounted. React owns the frame around it. */
@@ -145,7 +145,12 @@ export function StageViewport() {
                             : pathSurfaceMode === 'surface'
                               ? t('点击台阶、平台或地面添加路线点 · Enter 完成 · Esc 取消')
                               : t('按地面平面画路线 · Enter 完成 · Esc 取消')
-                        : t('拖动鼠标观察 · 点击布景后 WASD 移动视角 · Q/E 转向 · R/F 升降')}
+                        : <span className="viewport__navigation-hint">
+                            <span>{t('拖动鼠标观察 · 点击布景启用键盘')}</span>
+                            <span><kbd>WASD</kbd>{t('移动')}</span>
+                            <span><kbd>Q E</kbd>{t('转向')}</span>
+                            <span><kbd>R F</kbd>{t('升降')}</span>
+                        </span>}
                 </div>
             </section>
 

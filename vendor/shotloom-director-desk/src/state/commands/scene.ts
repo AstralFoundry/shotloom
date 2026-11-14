@@ -2,7 +2,7 @@ import { directorContext } from '@/core/director-context.ts';
 import { numberAt } from '@/core/animation/channels.ts';
 import * as THREE from 'three';
 import { findAsset } from '@/core/asset-catalog.ts';
-import { cameraPresetPath, type CameraPresetId } from '@/core/cinematography/camera-presets.ts';
+import { CAMERA_PRESETS, cameraPresetPath, type CameraPresetId } from '@/core/cinematography/camera-presets.ts';
 import { compileCampath } from '@/core/cinematography/campath.ts';
 import { libraryPreferences } from '@/core/assets/library-preferences.ts';
 import { workingElevation } from '@/core/building/floors.ts';
@@ -677,7 +677,7 @@ export class SceneCommands {
     }
 
     /** Preset a camera move; `cameraId` names the target instead of trusting the selection. */
-    applyCameraPreset(id: CameraPresetId, cameraId?: string): boolean {
+    applyCameraPreset(id: CameraPresetId, cameraId?: string, options: { subjectId?: string; foregroundId?: string } = {}): boolean {
         const camera = cameraId
             ? this.host.project.entities.find((entity) => entity.id === cameraId)
             : this.host.current();
@@ -690,17 +690,52 @@ export class SceneCommands {
         const duration = 4;
         const liveCamera = engine.getShotCamera(camera.id);
         const start = liveCamera.position.toArray() as Vec3;
-        const target = engine.targetPosition(camera).toArray() as Vec3;
+        const preset = CAMERA_PRESETS.find(p => p.id === id);
+        if (!preset || 'unavailable' in preset) {
+            notifyError(preset?.description ?? '未知运镜预设');
+            return false;
+        }
+        const entities = this.host.project.entities;
+        const subjectId = options.subjectId ?? camera.camera.targetId;
+        const subject = entities.find(e => e.id === subjectId && !e.camera)
+            ?? (!options.subjectId ? entities.find(e => e.kind === 'actor') : undefined);
+        const foreground = entities.find(e => e.id === options.foregroundId && !e.camera && e.visible && e.id !== subject?.id);
+        if ('subject' in preset && !subject) { notifyError('请先选择跟拍主体'); return false; }
+        if ('foreground' in preset && !foreground) { notifyError('请先选择前景遮挡物'); return false; }
+        const height = camera.camera.targetId === subject?.id ? camera.camera.targetHeight : (subject?.height ?? 1.7) * 0.65;
+        const subjectAt = subject ? (time: number) => entityPosition(subject, time).add(new THREE.Vector3(0, height, 0)).toArray() as Vec3 : undefined;
+        const currentTarget = engine.targetPosition(camera);
+        const target = 'subject' in preset && subjectAt ? subjectAt(from)
+            : liveCamera.position.clone().addScaledVector(liveCamera.getWorldDirection(new THREE.Vector3()),
+                Math.max(1, liveCamera.position.distanceTo(currentTarget))).toArray() as Vec3;
         const focal = liveCamera.getFocalLength();
-        const motion = cameraPresetPath(id, start, target, from, duration, focal);
+        const level = new THREE.PerspectiveCamera();
+        level.position.copy(liveCamera.position);
+        level.lookAt(level.position.clone().add(liveCamera.getWorldDirection(new THREE.Vector3())));
+        const roll = new THREE.Euler().setFromQuaternion(level.quaternion.invert().multiply(liveCamera.quaternion)).z * 180 / Math.PI;
+        const bounds = foreground ? engine.worldBounds(foreground.id) : null;
+        if ('foreground' in preset && !bounds) { notifyError('无法读取遮挡物的空间范围'); return false; }
+        const motion = cameraPresetPath(id, start, target, from, duration, focal, {
+            subjectAt: 'subject' in preset ? subjectAt : undefined,
+            subjectYaw: subject ? entityYaw(subject, from, this.host.project) : undefined,
+            foreground: bounds ? { center: bounds.getCenter(new THREE.Vector3()).toArray() as Vec3,
+                radius: bounds.getSize(new THREE.Vector3()).length() / 2 } : undefined,
+        });
         const applied = this.host.change(() => {
             camera.position = [...start];
             camera.path = motion.path;
+            delete camera.rotationAnimation;
+            if (Math.abs(roll) > 1e-6) camera.rotationAnimation = {
+                pivot: [0, 0, 0], keys: [
+                    { time: from, degrees: [0, 0, roll] },
+                    { time: from + duration, degrees: [0, 0, roll] },
+                ],
+            };
             camera.camera!.mode = 'free';
             camera.camera!.aim = 'target';
             camera.camera!.targetId = '';
             camera.camera!.target = [...target];
-            camera.camera!.targetPath = null;
+            camera.camera!.targetPath = motion.targetPath;
             camera.camera!.focal = focal;
             if (motion.focalKeys) camera.camera!.focalKeys = motion.focalKeys;
             else delete camera.camera!.focalKeys;
