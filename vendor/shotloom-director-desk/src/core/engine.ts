@@ -1,3 +1,5 @@
+import { SceneEffects } from './editor/scene-effects.ts';
+import { editorPreferences as effectPreferences } from './editor/preferences.ts';
 import { SceneLighting } from './lighting/runtime.ts';
 import { DEFAULT_SHOT_BACKGROUND } from './lighting/model.ts';
 import { installWallTransmission, isWallEntity } from './lighting/wall-transmission.ts';
@@ -23,7 +25,7 @@ import { isExternalModel } from './resources/project-resources.ts';
 import { makeCrowd } from './assets/crowd.ts';
 import { makeEditorCamera } from './assets/editor-camera.ts';
 import * as T from 'three';
-import { localObjectBounds, objectBounds, findObjectSnap, type SnapBounds } from './editor/object-snapping.ts';
+import { localObjectBounds, objectBounds, findObjectSnap, surfaceDropPosition, type SnapBounds } from './editor/object-snapping.ts';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
 import type { Rig } from './assets.ts';
@@ -849,6 +851,11 @@ export class Engine {
     snapObjectPosition(id: string, position: Vec3, axes = 'XYZ'): Vec3 {
         const entity = this.project.entities.find((e) => e.id === id),
             root = this.models.get(id);
+        if (effectPreferences.current.surfaceDrop && entity && !entity.handBinding && ['prop', 'actor'].includes(entity.kind) && root && this.selectedPoint < 0 && /[XZ]/.test(axes)) {
+            const targets = this.project.entities.filter(e => e.id !== id && e.kind === 'prop' && !e.light && editorEntityVisible(this.project, e)).flatMap(e => this.models.get(e.id) ?? []);
+            const snapped = surfaceDropPosition(root, position, targets);
+            if (snapped) return snapped;
+        }
         if (!this.objectSnapEnabled || entity?.kind !== 'prop' || !root || this.selectedPoint >= 0) return position;
         const bounds = objectBounds(root, id, entity.name);
         if (!bounds) return position;
@@ -1095,7 +1102,7 @@ export class Engine {
             if (o instanceof T.CameraHelper) o.update();
         });
         this.prepareView(true);
-        if (this.stage.clientWidth) this.editorRenderer.render(this.scene, this.editorCamera);
+        if (this.stage.clientWidth) this.renderScene(this.editorRenderer, this.editorCamera);
         this.prepareView(false);
         if (this.shot.clientWidth) {
             this.renderShot(this.previewId);
@@ -1147,7 +1154,7 @@ export class Engine {
         const clipping = this.shotRenderer.clippingPlanes;
         this.shotRenderer.clippingPlanes = [new T.Plane(new T.Vector3(0, -1, 0), cutHeight)];
         try {
-            this.shotRenderer.render(this.scene, camera);
+            this.renderScene(this.shotRenderer, camera);
         } finally {
             this.shotRenderer.clippingPlanes = clipping;
             for (const [material, side] of sides) {
@@ -1185,9 +1192,17 @@ export class Engine {
         if (!target) return;
         this.focusBounds(new T.Box3().setFromObject(target));
     }
+    private effects = new Map<T.WebGLRenderer, SceneEffects>();
+    private renderScene(renderer: T.WebGLRenderer, camera: T.Camera) {
+        const preferences = effectPreferences.current;
+        if (!preferences.ambientOcclusion && !preferences.outline) { renderer.render(this.scene, camera); return; }
+        let effects = this.effects.get(renderer);
+        if (!effects) { effects = new SceneEffects(renderer, this.scene, camera); this.effects.set(renderer, effects); }
+        effects.render(this.scene, camera, preferences.ambientOcclusion, preferences.outline);
+    }
     private renderShot(id: string) {
         const camera = this.getShotCamera(id);
-        this.shotRenderer.render(this.scene, camera);
+        this.renderScene(this.shotRenderer, camera);
     }
     focusBounds(bounds: T.Box3) {
         if (bounds.isEmpty()) return;
@@ -1381,6 +1396,8 @@ export class Engine {
         }
         this.selectionBox?.dispose();
         this.scene.clear();
+        this.effects.forEach(effect => effect.dispose());
+        this.effects.clear();
         for (const renderer of [this.editorRenderer, this.shotRenderer]) {
             renderer.dispose();
             renderer.domElement.remove();

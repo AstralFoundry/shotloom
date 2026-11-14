@@ -167,3 +167,28 @@ test('重新打开导演台节点时，节点保存的场景能完整送进导�
     await env.dispose();
   }
 });
+
+test('封面只接受最新场景版本，媒体交付保留结构化导演事实', async () => {
+  const env = await createRendererEnv({ withWindow: true });
+  try {
+    window.location = { origin: 'http://localhost' };
+    const listeners = new Set();
+    window.addEventListener = (type, handler) => { if (type === 'message') listeners.add(handler); };
+    window.removeEventListener = (type, handler) => { if (type === 'message') listeners.delete(handler); };
+    const { subscribeDirectorDesk } = await env.load('app/adapters/directorDeskBridge');
+    const source = { postMessage() {} }, covers = [], captures = [];
+    const stop = subscribeDirectorDesk(() => ({ contentWindow: source }), {
+      onReady() {}, onInteraction() {}, onExitInteraction() {}, onPanoramaRemoved() {}, onProjectChanged() {},
+      onCover: url => covers.push(url), onCaptures: values => captures.push(...values),
+    });
+    const emit = (type, payload) => listeners.forEach(handler => handler({ origin: window.location.origin, source, data: { type: `storyai:director-desk-${type}`, payload } }));
+    emit('project-changed', { revision: 3, project: { format: 'director-desk' } });
+    emit('project-cover', { revision: 2, dataUrl: 'data:image/png;base64,old' });
+    emit('project-cover', { revision: 3, dataUrl: 'data:image/png;base64,new' });
+    emit('captures-sent', { requestId: 'capture-1', captures: [{ dataUrl: 'data:image/png;base64,image', fileName: 'shot.png', kind: 'image', directorContext: { version: 1, shots: [{ cameraId: 'camera-a' }] } }] });
+    await new Promise(resolve => setImmediate(resolve));
+    assert.deepEqual(covers, ['data:image/png;base64,new']);
+    assert.equal(captures[0].directorContext.shots[0].cameraId, 'camera-a');
+    stop();
+  } finally { await env.dispose(); }
+});

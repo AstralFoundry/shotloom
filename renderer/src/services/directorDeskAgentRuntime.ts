@@ -55,7 +55,7 @@ export function directorCommandsKnown(): boolean {
 
 /**
  * 导演台失败回执。`hint` 与 `facts` 是 iframe 给出的可执行线索：
- * 例如 revision 冲突时回执自带 `currentRevision`，调用方可以直接重试而不必重新读取快照。
+ * 例如 revision 冲突时回执自带 `currentRevision`；调用方需重读快照核对内容，不能直接替换版本重放。
  */
 export class DirectorDeskError extends Error {
   /** Stable machine-readable reason (`INVALID_PARAMS`, `BUSY`, `REVISION_MISMATCH`, …). */

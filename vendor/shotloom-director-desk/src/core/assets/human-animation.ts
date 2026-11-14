@@ -22,7 +22,7 @@ export function sampleHumanAction(r: Rig, e: Entity, time: number, phaseOffset =
 
 export function sampleHumanBody(r: Rig, e: Entity, time: number, phaseOffset = 0) {
     const active = activeClip(e, time),
-        duration = e.actionBlend ?? 0.2,
+        duration = active?.blendIn ?? e.actionBlend ?? 0.2,
         last = previousClip(e, time);
     const anchor = active ? active.start - (active.progressOffset ?? 0) : (last?.end ?? 0);
     const window = active ? Math.min(duration, active.sourceDuration ?? active.end - active.start) : duration;

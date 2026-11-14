@@ -74,6 +74,7 @@ export interface Clip {
     offset?: number;
     progressOffset?: number;
     sourceDuration?: number;
+    blendIn?: number;
     turnAmount?: number;
 }
 export interface PoseKey {
@@ -544,6 +545,7 @@ export function assertProject(input: unknown): asserts input is Project {
         assertContactAnchors(e);
         assertHandBinding(e, p);
         if (e.footContact !== undefined && typeof e.footContact !== 'boolean') fail('脚底贴合设置错误');
+        for (const c of e.clips) if (c.blendIn !== undefined && (!n(c.blendIn) || c.blendIn < 0 || c.blendIn > 2)) throw Error('动作过渡时长无效');
         if (e.actionBlend !== undefined && (!n(e.actionBlend) || e.actionBlend < 0 || e.actionBlend > 2))
             fail('动作过渡时长错误');
         if (e.path) {

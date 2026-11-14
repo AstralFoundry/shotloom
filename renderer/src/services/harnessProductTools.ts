@@ -216,5 +216,5 @@ export async function readHarnessCanvasReference(sessionId: string, nodeId?: str
   // Recheck after asynchronous file I/O; never return facts from an old project.
   assertAgentProject(context.projectKey, context.projectInstanceId, context.projectGeneration);
   if (!store.project.nodes.some((item: AgentNode) => item.id === nodeId && !item.archived)) throw new Error(t('agent.reference.deleted'));
-  return { node: { ...descriptor, ...(duration !== undefined ? { duration } : {}) }, snapshot: { revision: snapshot.revision, nodes: snapshot.nodes, edges: snapshot.edges, tasks: snapshot.tasks }, images };
+  return { node: { ...descriptor, ...(node.directorContext ? { directorContext: node.directorContext } : {}), ...(duration !== undefined ? { duration } : {}) }, snapshot: { revision: snapshot.revision, nodes: snapshot.nodes, edges: snapshot.edges, tasks: snapshot.tasks }, images };
 }

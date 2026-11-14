@@ -119,12 +119,13 @@ test('director batch exposes rotation animation with hinge pivot and time keys',
       { timeSec: 2, rotationDegrees: [0, 90, 0], easing: 'smooth' },
     ],
   };
-  assert.doesNotThrow(() => validateToolInput(batch.parameters, { expectedRevision: 1, edits: [edit] }));
+  assert.doesNotThrow(() => validateToolInput(batch.parameters, { expectedSessionId: 'session-a', expectedRevision: 1, edits: [edit] }));
+  assert.throws(() => validateToolInput(batch.parameters, { expectedRevision: 1, edits: [edit] }), /expectedSessionId/);
   assert.doesNotThrow(() => validateToolInput(batch.parameters, {
-    expectedRevision: 1, edits: [{ operation: 'set_rotation_animation', entityId: 'door-leaf', keys: null }],
+    expectedSessionId: 'session-a', expectedRevision: 1, edits: [{ operation: 'set_rotation_animation', entityId: 'door-leaf', keys: null }],
   }));
   assert.throws(() => validateToolInput(batch.parameters, {
-    expectedRevision: 1, edits: [{ ...edit, pivot: [0, 0] }],
+    expectedSessionId: 'session-a', expectedRevision: 1, edits: [{ ...edit, pivot: [0, 0] }],
   }), /pivot/);
 });
 

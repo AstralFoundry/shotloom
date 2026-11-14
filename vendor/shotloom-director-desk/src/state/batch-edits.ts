@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { assertEasing } from '@/core/animation/channels.ts';
+import { alignSurface, placeOnSurface } from '@/core/editor/directing-geometry.ts';
 import { findAsset } from '@/core/asset-catalog.ts';
 import { removeCameraVisibilityReference } from '@/core/scenes/camera-visibility.ts';
 import {
@@ -14,8 +16,10 @@ import { validateAssetParameters } from '@/core/assets/parameters.ts';
 
 export type BatchEdit = {
     operation: 'set_entity' | 'set_camera' | 'set_light' | 'set_lighting' | 'set_room' | 'set_project' | 'add_action' | 'set_clip' | 'remove_clip'
-        | 'set_path' | 'set_rotation_animation' | 'add_asset' | 'add_wall' | 'add_room' | 'add_prop' | 'add_camera' | 'add_cut' | 'delete_entity' | 'duplicate_entity';
+        | 'align_surface' | 'place_on_surface' | 'seat_on_surface' | 'align_facing' | 'set_path' | 'set_rotation_animation' | 'add_asset' | 'add_wall' | 'add_room' | 'add_prop' | 'add_camera' | 'add_cut' | 'delete_entity' | 'duplicate_entity';
     entityId?: string;
+    targetEntityId?: string;
+    anchorId?: string;
     clipId?: string;
     action?: string;
     atSec?: number;
@@ -57,8 +61,12 @@ export type BatchEdit = {
 };
 
 const entityFields = ['name', 'color', 'position', 'rotationDegrees', 'scale', 'parameters', 'visible', 'height', 'build', 'gender'] as const;
-const clipFields = ['start', 'end', 'speed'] as const;
+const clipFields = ['start', 'end', 'speed', 'blendIn'] as const;
 const operationFields: Record<BatchEdit['operation'], readonly string[]> = {
+    align_surface: ['operation', 'entityId', 'targetEntityId', 'anchorId'],
+    place_on_surface: ['operation', 'entityId', 'targetEntityId', 'anchorId'],
+    seat_on_surface: ['operation', 'entityId', 'targetEntityId', 'anchorId'],
+    align_facing: ['operation', 'entityId', 'targetEntityId'],
     set_entity: ['operation', 'entityId', 'patch'],
     set_camera: ['operation', 'entityId', 'patch'],
     set_light: ['operation', 'entityId', 'patch'],
@@ -126,7 +134,8 @@ const motionPath = (points: unknown, smooth: boolean): NonNullable<Entity['path'
         const timeSec = point.timeSec;
         if (typeof timeSec !== 'number' || !Number.isFinite(timeSec) || timeSec < 0)
             throw Error(`points[${index}].timeSec 必须是非负有限数值`);
-        return { time: Math.round(timeSec * 1e6) / 1e6, position: vec3(point.position, `points[${index}].position`) };
+        assertEasing(point.easing);
+        return { time: Math.round(timeSec * 1e6) / 1e6, position: vec3(point.position, `points[${index}].position`), ...(point.easing === undefined ? {} : { easing: point.easing }) } as NonNullable<Entity['path']>['points'][number];
     }).sort((a, b) => a.time - b.time);
     for (let index = 1; index < sorted.length; index++) {
         if (sorted[index].time <= sorted[index - 1].time)
@@ -175,6 +184,8 @@ export type BatchReceipt = {
     index: number;
     operation: string;
     entityId?: string;
+    targetEntityId?: string;
+    anchorId?: string;
     clipId?: string;
     name?: string;
     points?: number;
@@ -207,6 +218,7 @@ function resolveReferences(edit: BatchEdit, receipts: BatchReceipt[]): BatchEdit
         return id;
     };
     const next: BatchEdit = { ...edit };
+    if (edit.targetEntityId !== undefined) next.targetEntityId = resolve(edit.targetEntityId, 'targetEntityId', 'entityId') as string;
     if (edit.entityId !== undefined) next.entityId = resolve(edit.entityId, 'entityId', 'entityId') as string;
     if (edit.clipId !== undefined) next.clipId = resolve(edit.clipId, 'clipId', 'clipId') as string;
     if (edit.cameraId !== undefined) next.cameraId = resolve(edit.cameraId, 'cameraId', 'entityId') as string;
@@ -342,6 +354,18 @@ export function applyBatchEdits(project: Project, edits: BatchEdit[]): BatchRece
                 }
                 receipt.entityId = e.id;
                 receipt.clipId = clip.id;
+            } else if (edit.operation === 'align_surface') {
+                Object.assign(receipt, alignSurface(project, String(edit.entityId), String(edit.targetEntityId), edit.anchorId));
+            } else if (edit.operation === 'place_on_surface' || edit.operation === 'seat_on_surface') {
+                Object.assign(receipt, placeOnSurface(project, String(edit.entityId), String(edit.targetEntityId), edit.anchorId, edit.operation === 'seat_on_surface'));
+            } else if (edit.operation === 'align_facing') {
+                const e = target(project, edit.entityId), other = target(project, edit.targetEntityId);
+                if (e.id === other.id || e.camera || e.handBinding) throw Error('朝向对齐需要不同实体；机位请使用 set_camera.targetId');
+                const dx = other.position[0] - e.position[0], dz = other.position[2] - e.position[2];
+                if (Math.hypot(dx, dz) < 1e-8) throw Error('两个实体水平位置相同，无法确定朝向');
+                e.rotation[1] = Math.atan2(dx, dz);
+                e.face = 'fixed';
+                receipt.entityId = e.id;
             } else if (edit.operation === 'set_path') {
                 const e = target(project, edit.entityId);
                 const path = motionPath(edit.points, edit.smooth !== false);

@@ -18,6 +18,7 @@ import type { VideoEditorAsset, VideoEditorAssetType } from "../app/editor/video
  */
 
 export type EditorMediaCandidate = {
+  directorContext?: Record<string, unknown>;
   key: string;
   name: string;
   type: VideoEditorAssetType;
@@ -75,6 +76,7 @@ function toCandidate(
   durationSec: number;
   width: number;
   height: number;
+  directorContext?: Record<string, unknown>;
 } | null {
   const sourceFile = String(source?.filePath || source?.path || "");
   const remoteUrl = String(source?.url || source?.remoteUrl || source?.previewUrl || "");
@@ -86,6 +88,7 @@ function toCandidate(
   // 可播放地址只服务缩略图与就地预览：没有它素材依然可以按本地文件导入，
   // 不能因为当前环境没有资源协议就把来源从清单里抹掉。
   return {
+    ...(source.directorContext ? { directorContext: source.directorContext } : {}),
     name: String(source?.title || source?.name || fallbackName || t("ui.canvasAdapter.text.75e00c77")),
     type,
     sourceFile,

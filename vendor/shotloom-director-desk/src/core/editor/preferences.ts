@@ -11,6 +11,9 @@ export const preferenceDefaults = {
     placementSnap: 0,
     /** Snap to nearby object faces/boundaries while dragging a prop. */
     objectSnap: false,
+    surfaceDrop: false,
+    ambientOcclusion: false,
+    outline: false,
     /** `draft` halves the render resolution while navigating on weak machines. */
     previewQuality: 'full' as 'full' | 'draft',
     /** Framing guides drawn over the camera view. */

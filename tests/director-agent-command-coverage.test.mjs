@@ -20,7 +20,7 @@ const implementations = (() => {
   const start = bridge.indexOf('const commands: Record<string, (input: Input) => unknown> = {');
   // 条目之间允许写注释：注释里出现 `xxx:` 不该被当成命令，反过来也不该让一条真实命令漏掉。
   const block = bridge.slice(start, bridge.indexOf('\nfunction editScenes')).replace(/^\s*\/\/.*$/gm, '');
-  return [...block.matchAll(/(?:^|[{,]\s*)([a-z][a-z0-9_]*):\s*(?:\(|i\s*=>|function)/gm)].map(m => m[1]);
+  return [...block.matchAll(/(?:^|[{,]\s*)([a-z][a-z0-9_]*):\s*(?:\(|(?:async\s+)?i\s*=>|function)/gm)].map(m => m[1]);
 })();
 
 const specs = [...bridge.matchAll(/^\s*([a-z][a-z0-9_]*):\s*\{ kind: '([a-z]+)'/gm)].map(m => ({
@@ -157,11 +157,19 @@ test('导演台只在载入宿主文档之后才写回，未载入时拒绝 Agen
   );
   assert.ok(sessionHandler.includes('loadProject(payload.project)'), '会话消息必须载入宿主文档');
   assert.ok(
-    sessionHandler.indexOf('connected = true') > sessionHandler.indexOf('loadProject(payload.project)'),
-    'connected 只能在 loadProject 成功之后置位，载入失败时不得写回',
+    sessionHandler.includes('hostSession.initialize(string(payload.instanceId), () => {') && sessionHandler.includes('loadProject(payload.project)'),
+    '加载必须经过幂等会话绑定；加载成功后才连接，失败可以重试',
   );
   const agent = bridge.slice(bridge.indexOf("message.type === 'storyai:director-desk-agent-request'"));
-  assert.match(agent.slice(0, 900), /parent !== window && !connected/, '嵌入模式下尚未绑定宿主文档时必须拒绝 Agent 请求');
+  assert.match(agent.slice(0, 900), /parent !== window && !hostSession\.connected/, '嵌入模式下尚未绑定宿主文档时必须拒绝 Agent 请求');
+});
+
+test('batch 在进入事务前检查快照会话，snapshot 与提交回执携带相同会话标识', () => {
+  const batch = bridge.slice(bridge.indexOf('batch_edit: i => {'), bridge.indexOf('set_clip_field: i =>'));
+  assert.ok(batch.indexOf('hostSession.assertCurrent(i.expectedSessionId,') >= 0);
+  assert.ok(batch.indexOf('hostSession.assertCurrent(') < batch.indexOf('session.applyBatch('));
+  assert.match(batch, /sessionId: hostSession.id/);
+  assert.match(bridge, /sessionId: hostSession.id, revision: state.revision/);
 });
 
 test('命令表分档：模型该用的命令保留，编辑器内部命令被隐藏并指向 batch', () => {

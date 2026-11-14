@@ -23,7 +23,7 @@ function transitionWindow(entity: Entity, time: number) {
     const outgoing = active(entity, fromTime);
     const basic = (clip?: Clip) => clip && clip.action !== 'idle' && Object.hasOwn(ACTIONS, clip.action);
     const duration = Math.min(
-        current?.retarget?.blend ??
+        current?.blendIn ?? current?.retarget?.blend ??
             outgoing?.retarget?.blend ??
             (entity.external && (basic(current) || basic(outgoing)) ? (entity.actionBlend ?? 0.2) : 0),
         current ? (current.sourceDuration ?? current.end - current.start) : Infinity,

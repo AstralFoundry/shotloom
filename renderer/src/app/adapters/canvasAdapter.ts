@@ -817,7 +817,7 @@ export const nodeActions: WorkflowNodeActions = {
     store.selectedEdgeId = null;
     touchProject();
   },
-  async exportDirectorAsset(id, dataUrl, name, kind) {
+  async exportDirectorAsset(id, dataUrl, name, kind, directorContext) {
     const director: any = (store.project.nodes || []).find(
       (item: any) => item.id === id && item.type === "threeDDirector",
     );
@@ -851,12 +851,14 @@ export const nodeActions: WorkflowNodeActions = {
       },
     );
     if (!registered.material) return null;
+    if (directorContext) registered.material.directorContext = directorContext;
     if (director) registered.material.nodeId = id;
     // Keep the source director selected while its iframe finishes the export job.
     // Selecting the new output closes the director detail and destroys that job.
     const output: any = addNode(kind === "video" ? "videoGeneration" : "imageGeneration", { select: !director });
     output.title = preferredName;
     output.prompt = "";
+    if (directorContext) output.directorContext = directorContext;
     output.x = director ? Math.round((Number(director.x) || 0) + 430) : Math.round((120 - (store.project.canvasViewport?.x || 0)) / (store.project.canvasViewport?.zoom || 1));
     output.y = director ? Math.round(Number(director.y) || 0) : Math.round((100 - (store.project.canvasViewport?.y || 0)) / (store.project.canvasViewport?.zoom || 1));
     output.materialId = registered.material.id;

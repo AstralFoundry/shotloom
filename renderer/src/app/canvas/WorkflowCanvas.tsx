@@ -146,6 +146,7 @@ export interface WorkflowNodeActions {
     dataUrl: string,
     name: string,
     kind: "image" | "video",
+    directorContext?: Record<string, unknown>,
   ) => Promise<{ nodeId: string } | null>;
   notify: (message: string) => void;
   applyColoredPencil: (id: string) => void | Promise<void>;

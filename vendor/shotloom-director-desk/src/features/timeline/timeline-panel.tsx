@@ -66,7 +66,11 @@ export function TimelinePanel({
     const loop = useEditorStore((state) => state.loop);
     const selected = useEditorStore((state) => state.selected);
     const selectedEntity = useSelectedEntity();
-    const tracks = project.entities;
+    const [trackFilter, setTrackFilter] = useState('all');
+    const [collapsedGroups, setCollapsedGroups] = useState<string[]>([]);
+    const tracks = project.entities.filter(e => trackFilter === 'all' || (trackFilter === 'selected' ? e.id === selected || e.camera?.targetId === selected : Boolean(e.path || e.rotationAnimation || e.clips.length)));
+    const trackGroups = [{ id: 'actor', name: '角色' }, { id: 'camera', name: '机位' }, { id: 'light', name: '灯光' }, { id: 'prop', name: '道具' }];
+    const groupOf = (e: Entity) => e.kind === 'actor' || e.kind === 'crowd' ? 'actor' : e.kind === 'camera' ? 'camera' : e.light ? 'light' : 'prop';
     const extent = Math.max(
         project.duration,
         time,
@@ -223,6 +227,7 @@ export function TimelinePanel({
             />
             <div className="timeline__transport" ref={transportRef}>
                 <div className="timeline__controls">
+                    <Select size="small" aria-label={t('轨道筛选')} value={trackFilter} onChange={setTrackFilter} options={[{ value: 'all', label: t('全部轨道') }, { value: 'selected', label: t('选中及关联机位') }, { value: 'animated', label: t('有动画') }]} />
                     <Button
                         className="timeline__zoom-step"
                         type="text"
@@ -465,11 +470,15 @@ export function TimelinePanel({
                         </div>
                     ) : null}
 
-                    {tracks.map((entity, index) => (
-                        <EntityTracks key={entity.id} entity={entity} index={index}
-                            selected={entity.id === selected} extent={extent} fps={project.fps}
-                            onSeek={seekFromPointer} />
-                    ))}
+                    {trackGroups.map(group => {
+                        const items = tracks.filter(e => groupOf(e) === group.id);
+                        if (!items.length) return null;
+                        const collapsed = collapsedGroups.includes(group.id);
+                        return <div key={group.id}>
+                            <button className="timeline__type-heading" aria-expanded={!collapsed} onClick={() => setCollapsedGroups(collapsed ? collapsedGroups.filter(id => id !== group.id) : [...collapsedGroups, group.id])}>{collapsed ? '▸' : '▾'} {t(group.name)} · {items.length}</button>
+                            {!collapsed && items.map((entity, index) => <EntityTracks key={entity.id} entity={entity} index={index} selected={entity.id === selected} extent={extent} fps={project.fps} onSeek={seekFromPointer} />)}
+                        </div>;
+                    })}
                     <div
                         className="timeline__playhead"
                         style={{
@@ -768,6 +777,9 @@ function EntityLane({ entity, extent, fps }: { entity: Entity; extent: number; f
                     <span>
                         {clipLabel(clip)} <small>{(clip.end - clip.start).toFixed(1)}s</small>
                     </span>
+                    {clip.start > 0 && <span className="clip__blend" style={{ width: `${Math.min(100, (clip.blendIn ?? entity.actionBlend ?? 0.2) / (clip.end - clip.start) * 100)}%`, minWidth: 24 }} onPointerDown={event => event.stopPropagation()}>
+                        <input type="range" aria-label={t('动作过渡 / 秒')} title={`${(clip.blendIn ?? entity.actionBlend ?? 0.2).toFixed(2)}s`} min={0} max={Math.min(2, clip.end - clip.start)} step={0.05} value={clip.blendIn ?? entity.actionBlend ?? 0.2} disabled={entity.locked} onChange={event => { session.selectEntity(entity.id); session.setClipField(clip.id, { blendIn: Number(event.target.value) }); }} />
+                    </span>}
                     <i className="clip__handle" data-resize="true" aria-hidden="true" />
                 </button>
             ))}

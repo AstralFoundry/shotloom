@@ -1,3 +1,4 @@
+import { directorContext } from '@/core/director-context.ts';
 import { session } from '@/state/editor-session.ts';
 import { useEditorStore } from '@/state/editor-store.ts';
 import { readSceneDocument } from '@/core/scenes/sequence-project.ts';
@@ -20,16 +21,38 @@ import { setLanguage } from '@/shared/i18n/locale.ts';
 import type { BatchEdit } from '@/state/batch-edits.ts';
 import { ASSET_ORIGIN } from '@/state/batch-edits.ts';
 import { DirectorCommandError, classifyDirectorError } from '@/core/errors.ts';
+import { isInFrame } from '@/core/spatial/checks.ts';
+import { worldContactAnchors } from '@/core/assets/contact-anchors.ts';
+import { modelNodeHidden } from '@/core/resources/model-node-visibility.ts';
+import { DirectorHostSession } from '@/core/host-session.ts';
 
 type Input = Record<string, unknown>;
 /** 一次筛选最多返回的素材条数：够覆盖"建筑构件"这类最大分组，又不至于把回执撑回几十 KB。 */
 const CATALOG_MATCH_LIMIT = 40;
 const origin = window.location.origin;
 const parent = window.parent;
-let connected = false;
+const hostSession = new DirectorHostSession();
 let lastRevision = useEditorStore.getState().revision;
 let lastSelected = useEditorStore.getState().selected;
 let saveTimer = 0;
+let coverTimer = 0;
+let coveredRevision = -1;
+function scheduleCover() {
+    window.clearTimeout(coverTimer);
+    const revision = useEditorStore.getState().revision;
+    coverTimer = window.setTimeout(async () => {
+        const state = useEditorStore.getState();
+        if (!hostSession.connected || coveredRevision === revision || state.revision !== revision) return;
+        if (!state.engineReady || state.busy || state.playing || session.engineOrNull?.exporting) { scheduleCover(); return; }
+        try {
+            const preview = await session.renderPreview({ seconds: 0, cameraId: 'program', size: 640 });
+            if (useEditorStore.getState().revision === revision) {
+                send('project-cover', { dataUrl: preview.dataUrl, revision });
+                coveredRevision = revision;
+            }
+        } catch { /* Cover is optional; the next successful scene change schedules a fresh attempt. */ }
+    }, 800);
+}
 let panorama: THREE.Texture | null = null;
 let panoramaRequest = 0;
 let panoramaEngine: object | null = null;
@@ -183,6 +206,7 @@ const commandSpecs: Record<string, CommandSpec> = {
         atSec: 'number，可选，起始秒，默认当前播放头',
     } },
     batch_edit: { kind: 'edit', args: {
+        expectedSessionId: 'string，必填，取自最新 snapshot.sessionId；iframe 重新打开后需重新读取快照',
         expectedRevision: 'number，必填，取自最新 snapshot.revision；不匹配时整批拒绝，须重新读取受影响实体后再决定如何提交',
         edits: 'BatchEdit[]，必填，非空；建议每批 1–8 项，超过 8 项仍可提交，没有硬性数量上限。支持 set_entity、set_camera、set_light、set_lighting、set_room、set_project、set_path、set_rotation_animation、add_asset、add_wall、add_room、add_prop、add_camera、add_cut、add_action、set_clip、remove_clip、delete_entity、duplicate_entity；具体字段见 director_desk_batch 工具描述',
         validateOnly: 'boolean，可选，默认 false。为 true 时按真实规则预检、不写入任何东西；失败时指出首个问题，修正后可再次预检',
@@ -227,6 +251,7 @@ const commandSpecs: Record<string, CommandSpec> = {
 
     // 镜头与空间核验
     export_shot: { kind: 'export', args: { index: 'number，切镜序号，从 0 开始；取自 scene_summary 或 document.cuts' } },
+    entity_relations: { kind: 'view', args: { sourceId: 'string，源实体 ID', targetId: 'string，目标实体 ID', seconds: 'number，可选，采样时间', cameraIds: 'string[]，可选，默认所有机位；可见性按中心点视锥和实际网格射线测量' } },
     spatial_check: { kind: 'view', args: {
         start: 'number，可选，默认 0',
         end: 'number，可选，默认工程时长',
@@ -286,6 +311,65 @@ const commands: Record<string, (input: Input) => unknown> = {
         const start = cuts[index]?.time ?? 0;
         const end = cuts[index + 1]?.time ?? session.project.duration;
         return session.exportShot({ index, cameraId: cuts[index]?.cameraId ?? '', start, end });
+    },
+    entity_relations: async i => {
+        const engine = session.engineOrNull, state = useEditorStore.getState();
+        if (!engine || state.busy || engine.exporting) throw Error('导演台未准备好或正在执行其他任务');
+        const seconds = i.seconds === undefined ? state.time : number(i.seconds);
+        if (seconds < 0 || seconds > session.project.duration) throw Error('采样时间超出场景');
+        const source = session.project.entities.find(e => e.id === i.sourceId), target = session.project.entities.find(e => e.id === i.targetId);
+        if (!source || !target) throw Error('源实体或目标实体不存在');
+        session.beginBusy();
+        try {
+            await engine.prepareOutput(seconds);
+            engine.sample(seconds);
+            const sampledTransform = (entity: typeof source) => {
+                const root = entity.kind === 'camera' ? engine.cameras.get(entity.id) : engine.models.get(entity.id);
+                if (!root) throw Error(`实体尚无可采样模型：${entity.id}`);
+                root.updateWorldMatrix(true, false);
+                const forward = new THREE.Vector3(0, 0, entity.kind === 'camera' ? -1 : 1).applyQuaternion(root.getWorldQuaternion(new THREE.Quaternion()));
+                return { position: root.getWorldPosition(new THREE.Vector3()), yaw: Math.atan2(forward.x, forward.z) };
+            };
+            const sampledSource = sampledTransform(source), sampledTarget = sampledTransform(target);
+            const a = sampledSource.position, b = sampledTarget.position, delta = b.clone().sub(a);
+            const yaw = sampledSource.yaw;
+            const local = delta.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), -yaw);
+            const visibility = [];
+            for (const [id, camera] of engine.cameras) {
+                if (Array.isArray(i.cameraIds) && !i.cameraIds.includes(id)) continue;
+                camera.updateWorldMatrix(true, false);
+                const root = engine.models.get(target.id);
+                const center = root ? new THREE.Box3().setFromObject(root).getCenter(new THREE.Vector3()) : b;
+                const origin = camera.getWorldPosition(new THREE.Vector3()), direction = center.clone().sub(origin);
+                const distance = direction.length();
+                const ray = new THREE.Raycaster(origin, direction.normalize(), 0, Math.max(0, distance - 0.001));
+                const blockers = [...engine.models].filter(([entityId, model]) => entityId !== target.id && model.visible && ['prop', 'actor', 'crowd'].includes(session.project.entities.find(e => e.id === entityId)?.kind ?? '')).map(([, model]) => model);
+                if (session.project.room.enabled) blockers.push(engine.roomGroup);
+                const hit = ray.intersectObjects(blockers, true).find(hit => {
+                    for (let node: THREE.Object3D | null = hit.object; node; node = node.parent) if (!node.visible) return false;
+                    return !modelNodeHidden(hit.object);
+                });
+                visibility.push({ cameraId: id, inFrustum: isInFrame(center.toArray(), camera), centerOccluded: Boolean(hit), method: 'center-ray-mesh' });
+            }
+            const targetRoot = engine.models.get(target.id);
+            const bearing = Math.atan2(local.x, local.z);
+            const yawDifference = sampledTarget.yaw - yaw;
+            const targetBearing = Math.atan2(-delta.x, -delta.z) - sampledTarget.yaw;
+            const sourceFacingTargetDegrees = Math.abs(THREE.MathUtils.radToDeg(bearing));
+            const targetFacingSourceDegrees = Math.abs(THREE.MathUtils.radToDeg(Math.atan2(Math.sin(targetBearing), Math.cos(targetBearing))));
+            return {
+                seconds, sourceId: source.id, targetId: target.id,
+                distanceMeters: delta.length(), horizontalDistanceMeters: Math.hypot(delta.x, delta.z),
+                relativePositionLocal: local.toArray(), bearingDegrees: THREE.MathUtils.radToDeg(bearing),
+                relativeDirection: Math.hypot(delta.x, delta.z) < 1e-6 ? 'coincident' : ['front', 'front_right', 'right', 'back_right', 'back', 'back_left', 'left', 'front_left'][(Math.round(bearing / (Math.PI / 4)) + 8) % 8],
+                facingAngleDegrees: THREE.MathUtils.radToDeg(Math.atan2(Math.sin(yawDifference), Math.cos(yawDifference))),
+                sourceFacingTargetDegrees, targetFacingSourceDegrees, facingToleranceDegrees: 45,
+                facingEachOther: Math.hypot(delta.x, delta.z) >= 1e-6 && sourceFacingTargetDegrees <= 45 && targetFacingSourceDegrees <= 45,
+                cameraVisibility: visibility,
+                inCameraView: target.visible ? visibility.filter(v => v.inFrustum && !v.centerOccluded).map(v => v.cameraId) : [],
+                targetAnchors: targetRoot ? worldContactAnchors(target, targetRoot) : [],
+            };
+        } finally { engine.restorePreview(state.time); session.endBusy(); }
     },
     spatial_check: i => session.runSpatialCheck({
         ...(i.start === undefined ? {} : { start: number(i.start) }),
@@ -374,7 +458,10 @@ const commands: Record<string, (input: Input) => unknown> = {
         ...(i.cameraId === undefined ? {} : { cameraId: string(i.cameraId) }),
         ...(i.atSec === undefined ? {} : { atSec: number(i.atSec) }),
     }),
-    batch_edit: i => session.applyBatch(i.edits as BatchEdit[], number(i.expectedRevision), i.validateOnly === true),
+    batch_edit: i => {
+        hostSession.assertCurrent(i.expectedSessionId, useEditorStore.getState().revision);
+        return { ...session.applyBatch(i.edits as BatchEdit[], number(i.expectedRevision), i.validateOnly === true), sessionId: hostSession.id };
+    },
     set_clip_field: i => session.setClipField(string(i.id), i.patch as Parameters<typeof session.setClipField>[1]),
     remove_clip: i => session.removeClip(string(i.id)),
     select_clip: i => session.selectClip(i.id == null ? null : string(i.id)),
@@ -581,6 +668,7 @@ function startVideoExport(input: Input) {
         format: format as ExportOptions['format'],
         monochrome: input.monochrome === true,
     };
+    const context = directorContext(project, options.start, options.end, options.cameraId);
     const jobId = crypto.randomUUID();
     const job: ExportJobState = { status: 'running', progress: 0, filename, controller: new AbortController() };
     exportJobs.set(jobId, job);
@@ -588,7 +676,7 @@ function startVideoExport(input: Input) {
     void exportVideo(engine, options, job.controller.signal, progress => { job.progress = progress; })
         .then(async blob => {
             if (!blob) throw Error('视频编码未返回文件');
-            await deliverMedia(blob, filename, 'video');
+            await deliverMedia(blob, filename, 'video', context);
             job.bytes = blob.size;
             job.progress = 1;
             job.status = 'completed';
@@ -653,14 +741,17 @@ export function initializeHostBridge() {
             const theme = string(payload.theme);
             if (theme === 'light' || theme === 'dark') setEditorTheme(theme, false);
             try {
-                loadProject(payload.project);
+                const initialized = hostSession.initialize(string(payload.instanceId), () => {
+                    window.clearTimeout(saveTimer);
+                    loadProject(payload.project);
+                });
                 // Bound only once the host's document is the one on screen. A desk that failed
                 // to load still shows its starter scene, and writing that back would replace
                 // the scene the host saved; staying unbound keeps the saved scene recoverable.
-                connected = true;
                 // A fresh canvas node owns its own starter document from the first opening,
                 // even if the user closes it without making an edit.
-                if (!payload.project) send('project-changed', { project: session.history.document() });
+                if (initialized) send('project-changed', { project: session.history.document(), revision: useEditorStore.getState().revision });
+                scheduleCover();
             } catch (error) { send('error', { error: String(error) }); }
             return;
         }
@@ -682,9 +773,10 @@ export function initializeHostBridge() {
             });
             if (applied) {
                 // The host handed over this document explicitly, so it is now the one on screen.
-                connected = true;
+                hostSession.connected = true;
                 window.clearTimeout(saveTimer);
-                send('project-changed', { project: session.history.document() });
+                send('project-changed', { project: session.history.document(), revision: useEditorStore.getState().revision });
+                scheduleCover();
             }
             return;
         }
@@ -699,7 +791,7 @@ export function initializeHostBridge() {
                 // the scene here is the built-in starter: the Agent would read an empty stage,
                 // and its first edit would be written back over the node's real saved scene.
                 // This is exactly how earlier sessions lost their work after a reload.
-                if (parent !== window && !connected && payload.operation !== 'catalog')
+                if (parent !== window && !hostSession.connected && payload.operation !== 'catalog')
                     throw new DirectorCommandError('导演台还没有载入当前节点保存的场景，本次操作未执行', {
                         hint: '稍等片刻后重试；如果一直如此，关闭并重新打开导演台。不要在默认场景上继续搭建，否则会覆盖节点里保存的场景。',
                     });
@@ -709,6 +801,7 @@ export function initializeHostBridge() {
                     const args = (payload.args && typeof payload.args === 'object' && !Array.isArray(payload.args) ? payload.args : {}) as Input;
                     const detail = args.detail === 'summary' ? 'summary' : 'full';
                     const document = session.history.document();
+                    hostSession.record(state.revision, document as unknown as Record<string, unknown>);
                     const requested = Array.isArray(args.entityIds)
                         ? new Set(args.entityIds.map(string).filter(Boolean))
                         : null;
@@ -721,7 +814,7 @@ export function initializeHostBridge() {
                     result = {
                         document: detail === 'summary' ? summarizeDocument(document, requested) : scopeDocument(document, requested),
                         selected: state.selected, time: state.time, view: state.view,
-                        revision: state.revision, commandsVersion,
+                        sessionId: hostSession.id, revision: state.revision, commandsVersion,
                         hiddenCommands: all ? 0 : descriptors.length - agentDescriptors.length,
                         ...(unchanged ? { commandsUnchanged: true } : { commands: table }),
                     };
@@ -794,7 +887,8 @@ export function initializeHostBridge() {
                     if (commandSpecs[operation]?.kind === 'edit' && result !== false &&
                         !(operation === 'batch_edit' && (result as { applied?: boolean }).applied === false)) {
                         window.clearTimeout(saveTimer);
-                        send('project-changed', { project: session.history.document() });
+                        send('project-changed', { project: session.history.document(), revision: useEditorStore.getState().revision });
+                        scheduleCover();
                     }
                 }
                 send('agent-result', { requestId, success: true, result: result ?? null });
@@ -807,7 +901,7 @@ export function initializeHostBridge() {
                     code: failure ? failure.code : classifyDirectorError(String(error)),
                     error: failure ? failure.message : String(error),
                     ...(failure?.hint ? { hint: failure.hint } : {}),
-                    ...(failure?.facts ? { facts: failure.facts } : {}),
+                    ...(failure?.facts ? { facts: { ...failure.facts, ...(failure.code === 'REVISION_MISMATCH' ? { revisionDiff: hostSession.diff(Number((payload.args as Input)?.expectedRevision), useEditorStore.getState().revision) } : {}) } } : {}),
                 });
             }
         }
@@ -822,7 +916,7 @@ export function initializeHostBridge() {
         // scene without waiting for a save round-trip.
         if (state.selected !== lastSelected) {
             lastSelected = state.selected;
-            if (connected) {
+            if (hostSession.connected) {
                 const entity = session.project.entities.find(item => item.id === state.selected);
                 send('selection-changed', {
                     id: state.selected,
@@ -831,11 +925,13 @@ export function initializeHostBridge() {
                 });
             }
         }
-        if (!connected || state.revision === lastRevision) return;
+        if (!hostSession.connected || state.revision === lastRevision) return;
         lastRevision = state.revision;
+        hostSession.record(state.revision, session.history.document() as unknown as Record<string, unknown>);
         window.clearTimeout(saveTimer);
         saveTimer = window.setTimeout(() => {
-            send('project-changed', { project: session.history.document() });
+            send('project-changed', { project: session.history.document(), revision: useEditorStore.getState().revision });
+            scheduleCover();
             send('scene-summary', { summary: session.sceneSummary() });
         }, 220);
     });

@@ -12,7 +12,7 @@ export type DirectorDeskPanorama = {
   url: string;
 };
 
-export type DirectorDeskCapture = { dataUrl: string; fileName: string; kind: 'image' | 'video' };
+export type DirectorDeskCapture = { dataUrl: string; fileName: string; kind: 'image' | 'video'; directorContext?: Record<string, unknown> };
 
 /** Compact description the canvas card can render without opening the desk. */
 export type DirectorDeskSummary = {
@@ -33,6 +33,7 @@ export type DirectorDeskHandlers = {
   onOpenAgent?(entityId?: string): void;
   onPanoramaRemoved(edgeId: string): void;
   onProjectChanged(project: Record<string, unknown>): void;
+  onCover?(dataUrl: string): void | Promise<void>;
   onCaptures(captures: DirectorDeskCapture[]): void | Promise<void>;
   /** Scene totals, sent on ready and after every edit. */
   onSceneSummary?(summary: DirectorDeskSummary): void;
@@ -143,12 +144,17 @@ export function subscribeDirectorDesk(
   getFrame: () => HTMLIFrameElement | null,
   handlers: DirectorDeskHandlers,
 ) {
+  let latestRevision: unknown;
   const handleMessage = (event: MessageEvent) => {
     // 只接受同源且确实来自当前导演台窗口的消息；其他 iframe 或扩展发来同名消息不算协议。
     if (event.origin !== window.location.origin || event.source !== getFrame()?.contentWindow) return;
     const message = event.data as { type?: unknown; payload?: Record<string, unknown> } | null;
     if (!message || typeof message.type !== "string") return;
     const payload = message.payload ?? {};
+    if (message.type === 'storyai:director-desk-project-cover') {
+      if (payload.revision === latestRevision && typeof payload.dataUrl === 'string' && payload.dataUrl.startsWith('data:image/')) void Promise.resolve(handlers.onCover?.(payload.dataUrl)).catch(() => undefined);
+      return;
+    }
     if (message.type === messageType.ready) return handlers.onReady();
     if (message.type === messageType.interaction) return handlers.onInteraction();
     // 详情窗口没有自己的标题栏，导演台顶栏的 × 与退出交互走同一个收起动作。
@@ -162,6 +168,7 @@ export function subscribeDirectorDesk(
       return handlers.onPanoramaRemoved(String(payload.edgeId ?? ""));
     }
     if (message.type === messageType.projectChanged) {
+      latestRevision = payload.revision;
       if (isRecord(payload.project)) handlers.onProjectChanged(payload.project);
       return;
     }
@@ -225,7 +232,7 @@ function readCaptures(value: unknown): DirectorDeskCapture[] {
       typeof entry.fileName === "string" && entry.fileName
         ? entry.fileName
         : `director-desk-capture-${index + 1}.png`;
-    captures.push({ dataUrl, fileName, kind: entry.kind === 'video' ? 'video' : 'image' });
+    captures.push({ dataUrl, fileName, kind: entry.kind === 'video' ? 'video' : 'image', ...(isRecord(entry.directorContext) && entry.directorContext.version === 1 ? { directorContext: entry.directorContext } : {}) });
   });
   return captures;
 }

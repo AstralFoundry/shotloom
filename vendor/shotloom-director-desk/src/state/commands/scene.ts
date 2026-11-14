@@ -1,3 +1,4 @@
+import { directorContext } from '@/core/director-context.ts';
 import { numberAt } from '@/core/animation/channels.ts';
 import * as THREE from 'three';
 import { findAsset } from '@/core/asset-catalog.ts';
@@ -109,7 +110,7 @@ export class SceneCommands {
             const canvas = engine.renderOutput(at, width, height, useEditorStore.getState().preview);
             const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
             if (!blob) throw new Error('未能生成截图');
-            await deliverMedia(blob, `${this.host.project.name}-${at.toFixed(2)}s.png`, 'image');
+            await deliverMedia(blob, `${this.host.project.name}-${at.toFixed(2)}s.png`, 'image', directorContext(this.host.project, at, at, useEditorStore.getState().preview));
             notifySuccess('已导出当前画面');
         } catch (error) {
             notifyError((error as Error).message);
@@ -495,7 +496,7 @@ export class SceneCommands {
             const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
             if (!blob) throw new Error('未能生成画面');
             const cameraName = this.host.project.entities.find((entity) => entity.id === span.cameraId)?.name ?? '';
-            await deliverMedia(blob, `${this.host.project.name}-镜头${span.index + 1}${cameraName ? '-' + cameraName : ''}.png`, 'image');
+            await deliverMedia(blob, `${this.host.project.name}-镜头${span.index + 1}${cameraName ? '-' + cameraName : ''}.png`, 'image', directorContext(this.host.project, at, at, span.cameraId));
             notifySuccess('已导出镜头画面');
         } catch (error) {
             notifyError((error as Error).message);
@@ -704,7 +705,7 @@ export class SceneCommands {
         const warnings = [...compiled.warnings];
         const applied = this.host.change(() => {
             const config = camera.camera!;
-            camera.path = { smooth: true, points: compiled.points.map((point) => ({ time: start + point.time, position: point.position })) };
+            camera.path = { smooth: true, points: compiled.points.map((point) => ({ time: start + point.time, position: point.position, easing: point.easing })) };
             camera.position = [...compiled.points[0].position];
             config.mode = 'free';
             config.aim = compiled.look.mode === 'ahead' ? 'manual' : 'target';

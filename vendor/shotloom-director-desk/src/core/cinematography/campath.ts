@@ -9,6 +9,7 @@
  *
  * Pure: no three.js, no DOM, no project access — so the whole grammar can be tested directly.
  */
+import type { Easing } from '../animation/channels.ts';
 import type { Vec3 } from '../model.ts';
 
 export type CampathLook =
@@ -19,7 +20,7 @@ export type CampathLook =
 export interface CampathResult {
     name: string;
     /** Absolute seconds, strictly increasing, starting at the `from` position. */
-    points: { time: number; position: Vec3 }[];
+    points: { time: number; position: Vec3; easing?: Easing }[];
     look: CampathLook;
     /** Focal length per keyframe when any segment sets one; otherwise null keeps the camera's own. */
     focalKeys: { time: number; value: number }[] | null;
@@ -79,19 +80,19 @@ export function compileCampath(source: string): CampathResult {
     const warnings: string[] = [];
     let look: CampathLook | null = null;
     let from: Vec3 | null = null;
-    let easing = false;
+    let easing: Easing = 'linear';
     let loop: CampathResult['loop'] = false;
     let cursor = 0;
     let time = 0;
     let position: Vec3 | null = null;
-    const points: { time: number; position: Vec3 }[] = [];
+    const points: { time: number; position: Vec3; easing?: Easing }[] = [];
     const focalKeys: { time: number; value: number }[] = [];
     let anyFocal = false;
     let focal = 0;
 
     const push = () => {
         if (!position) throw Error('campath 内部错误：位置未初始化');
-        points.push({ time: Number(time.toFixed(4)), position: [...position] as Vec3 });
+        points.push({ time: Number(time.toFixed(4)), position: [...position] as Vec3, easing });
         if (anyFocal) focalKeys.push({ time: Number(time.toFixed(4)), value: focal });
     };
 
@@ -119,10 +120,7 @@ export function compileCampath(source: string): CampathResult {
         if (head === 'easing') {
             if (!['linear', 'easeIn', 'easeOut', 'easeInOut', 'smoothstep'].includes(tokens[1] ?? ''))
                 throw Error(`第 ${line} 行：easing 只能是 linear / easeIn / easeOut / easeInOut / smoothstep`);
-            // Our paths interpolate per segment; a global easing is accepted for compatibility and
-            // stated once, rather than pretending to apply it to individual keyframes.
-            if (!easing) warnings.push(`第 ${line} 行：本导演台按关键帧插值，easing ${tokens[1]} 不会逐段改变速度曲线；要控速请调整相邻关键帧的时间间隔`);
-            easing = true;
+            easing = ({ linear: 'linear', easeIn: 'ease-in', easeOut: 'ease-out', easeInOut: 'smooth', smoothstep: 'smooth' } as const)[tokens[1] as 'linear'];
             continue;
         }
         if (head === 'loop') {

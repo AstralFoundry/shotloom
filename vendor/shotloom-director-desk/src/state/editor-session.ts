@@ -847,7 +847,7 @@ export class EditorSession {
         }], revision);
     }
 
-    setClipField(id: string, patch: Partial<Pick<Entity['clips'][number], 'start' | 'end' | 'speed'>>): void {
+    setClipField(id: string, patch: Partial<Pick<Entity['clips'][number], 'start' | 'end' | 'speed' | 'blendIn'>>): void {
         this.clips.setClipField(id, patch);
     }
 

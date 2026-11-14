@@ -1,3 +1,4 @@
+import { directorContext } from '@/core/director-context.ts';
 import './export-dialog.css';
 import { Button, Col, Input, Modal, Progress, Row, Segmented, Select } from 'antd';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -204,6 +205,7 @@ export function ExportDialog({ open, onClose }: { open: boolean; onClose: () => 
             for (const job of jobs) {
                 controller.signal.throwIfAborted();
                 const handle = await pickFile(job);
+                const context = directorContext(engine.project, job.options.start, job.options.end, job.options.cameraId);
                 const blob = await exportVideo(
                     engine,
                     job.options,
@@ -211,7 +213,7 @@ export function ExportDialog({ open, onClose }: { open: boolean; onClose: () => 
                     (value) => setProgress((done + value) / jobs.length),
                     handle,
                 );
-                if (blob) await deliverMedia(blob, job.filename, 'video');
+                if (blob) await deliverMedia(blob, job.filename, 'video', context);
                 done += 1;
             }
             setProgress(1);

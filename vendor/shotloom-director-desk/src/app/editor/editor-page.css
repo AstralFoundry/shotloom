@@ -2121,3 +2121,15 @@
 .lane__property-value { position: sticky; left: 208px; margin: 4px 10px; border: 0; padding: 2px 6px; background: transparent; color: var(--ed-text-a42); font: inherit; font-size: 12px; cursor: pointer; }
 .lane__property-value:hover { color: var(--ed-text-strong); background: var(--ed-line-faint); }
 .lane__parameter-key { position: absolute; top: calc(50% - 4px); width: 8px; height: 8px; padding: 0; border: 1px solid var(--ed-text-a62); background: var(--track-accent); transform: translateX(-50%) rotate(45deg); cursor: pointer; }
+
+.viewport { position: relative; }
+.viewport--pip .viewport__panel--shot { display: flex; position: absolute; right: 16px; bottom: 84px; width: 32%; min-width: 240px; max-width: 65%; height: 34%; min-height: 150px; max-height: 70%; resize: both; overflow: hidden; z-index: 6; border: 1px solid var(--ed-border); border-radius: 8px; box-shadow: 0 8px 24px #0004; }
+.timeline__type-heading { display: block; width: 100%; text-align: left; padding: 6px 12px; background: var(--ed-bg-panel); color: inherit; border: 0; border-bottom: 1px solid var(--ed-border); cursor: pointer; }
+.clip__blend { position: absolute; left: 0; bottom: 0; height: 8px; max-width: 100%; background: linear-gradient(90deg,#fff9,#fff0); }
+.clip__blend input { width: 100%; height: 8px; margin: 0; cursor: ew-resize; }
+
+.asset-card__inspect { width: 100%; padding: 4px; font-size: 10px; color: var(--ed-text-muted); background: transparent; border: 0; cursor: pointer; }
+.asset-card__inspect:hover { color: var(--ed-accent); }
+
+.asset-card__preview { position: relative; }
+.asset-card__dimensions { position: absolute; bottom: 2px; left: 2px; right: 2px; font-size: 9px; text-align: center; color: var(--ed-text-muted); background: var(--ed-bg-panel); }

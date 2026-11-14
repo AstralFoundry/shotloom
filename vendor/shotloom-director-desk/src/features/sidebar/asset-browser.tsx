@@ -1,11 +1,14 @@
+import { Modal, Slider } from 'antd';
 import { Empty, Select } from 'antd';
 import { useEffect, useRef, useState } from 'react';
 import { ASSET_GROUPS, searchAssets } from '@/core/asset-catalog.ts';
-import { thumbnail } from '@/core/assets/thumbnails.ts';
+import { assetDimensions, thumbnail } from '@/core/assets/thumbnails.ts';
 import type { AssetDefinition } from '@/core/assets/catalog/types.ts';
 import { useTranslation } from '@/shared/i18n/use-translation.ts';
 import { session } from '@/state/editor-session.ts';
 import { useEditorStore } from '@/state/editor-store.ts';
+
+const assetSize = (asset: AssetDefinition) => assetDimensions(asset.id)?.map(v => Number(v.toFixed(3))).join(' × ') ?? ['width', 'height', 'depth'].map(key => asset.parameters?.[key]?.default ?? (key === 'height' ? asset.defaults?.height : undefined) ?? '—').join(' × ');
 
 const SECTION_ORDER = ['角色', '群众', '几何', '家具', '建筑 / 场景', '自然 / 动物', '道具 / 设备'] as const;
 
@@ -21,7 +24,7 @@ function sectionFor(asset: AssetDefinition): (typeof SECTION_ORDER)[number] {
     return '道具 / 设备';
 }
 
-function AssetPreview({ asset }: { asset: AssetDefinition }) {
+function AssetPreview({ asset, angle = 0 }: { asset: AssetDefinition; angle?: number }) {
     const ref = useRef<HTMLSpanElement>(null);
     const [src, setSrc] = useState<string>();
 
@@ -33,7 +36,7 @@ function AssetPreview({ asset }: { asset: AssetDefinition }) {
             (entries) => {
                 if (!entries[0]?.isIntersecting) return;
                 observer.disconnect();
-                void thumbnail(asset.id, () => active)
+                void thumbnail(asset.id, () => active, angle)
                     .then((image) => {
                         if (active && image) setSrc(image);
                     })
@@ -46,11 +49,11 @@ function AssetPreview({ asset }: { asset: AssetDefinition }) {
             active = false;
             observer.disconnect();
         };
-    }, [asset.id]);
+    }, [asset.id, angle]);
 
     return (
         <span ref={ref} className={`asset-card__preview ${src ? 'is-loaded' : ''}`} aria-hidden="true">
-            {src ? <img src={src} alt="" /> : <span className="asset-card__fallback">{asset.icon}</span>}
+            {src ? <><img src={src} alt="" /><span className="asset-card__dimensions">{assetSize(asset)}m</span></> : <span className="asset-card__fallback">{asset.icon}</span>}
         </span>
     );
 }
@@ -58,6 +61,8 @@ function AssetPreview({ asset }: { asset: AssetDefinition }) {
 /** Catalogue browser for the "添加" tab: group filter + click-to-place asset cards. */
 export function AssetBrowser() {
     const t = useTranslation();
+    const [previewAsset, setPreviewAsset] = useState<AssetDefinition | null>(null);
+    const [angle, setAngle] = useState(0);
     const query = useEditorStore((state) => state.query);
     const filter = useEditorStore((state) => state.assetFilter);
     const assets = searchAssets(query, filter);
@@ -68,6 +73,9 @@ export function AssetBrowser() {
 
     return (
         <div className="asset-browser">
+            <Modal open={Boolean(previewAsset)} title={previewAsset ? t(previewAsset.name) : ''} onCancel={() => setPreviewAsset(null)} footer={null} destroyOnHidden>
+                {previewAsset && <><AssetPreview asset={previewAsset} angle={angle} /><p>{t('默认尺寸 / 米')} · {assetSize(previewAsset)}</p><Slider aria-label={t('旋转预览')} min={-Math.PI} max={Math.PI} step={0.05} value={angle} onChange={setAngle} /><button onClick={() => session.addAsset(previewAsset.id)}>{t('添加到场景')}</button></>}
+            </Modal>
             <Select
                 size="small"
                 value={filter}
@@ -84,16 +92,15 @@ export function AssetBrowser() {
                         <h3 className="asset-section__title">{t(section.name)}</h3>
                         <div className="asset-grid">
                             {section.assets.map((asset) => (
-                                <button
+                                <div key={asset.id}><button
                                     type="button"
-                                    key={asset.id}
                                     className="asset-card"
                                     title={t(asset.name)}
                                     onClick={() => session.addAsset(asset.id)}
                                 >
                                     <AssetPreview asset={asset} />
                                     <span className="asset-card__name">{t(asset.name)}</span>
-                                </button>
+                                </button><button className="asset-card__inspect" aria-label={`${t('预览')} ${t(asset.name)}`} onClick={() => { setAngle(0); setPreviewAsset(asset); }}>{t('预览')} · {assetSize(asset)}m</button></div>
                             ))}
                         </div>
                     </section>

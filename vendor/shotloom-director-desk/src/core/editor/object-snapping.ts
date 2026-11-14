@@ -1,4 +1,4 @@
-import { Box3, Matrix4, Mesh, Object3D, Vector3 } from 'three';
+import { Box3, Matrix4, Mesh, Object3D, Raycaster, Vector3 } from 'three';
 import { modelNodeHidden } from '../resources/model-node-visibility.ts';
 
 export interface SnapBounds {
@@ -11,6 +11,21 @@ export interface ObjectSnap {
     offset: Vector3;
     target: SnapBounds;
     normal: Vector3;
+}
+
+/** Allow a one-metre lift while dragging, then drop onto the first horizontal mesh face. */
+export function surfaceDropPosition(root: Object3D, position: [number, number, number], targets: Object3D[]): [number, number, number] | null {
+    root.updateWorldMatrix(true, true);
+    const bounds = new Box3().setFromObject(root);
+    if (bounds.isEmpty()) return null;
+    const offset = new Vector3(...position).sub(root.getWorldPosition(new Vector3()));
+    const ray = new Raycaster(new Vector3(position[0], bounds.max.y + offset.y + 1, position[2]), new Vector3(0, -1, 0));
+    for (const target of targets) target.updateWorldMatrix(true, true);
+    const hit = ray.intersectObjects(targets, true).find(hit => {
+        for (let node: Object3D | null = hit.object; node; node = node.parent) if (!node.visible) return false;
+        return !modelNodeHidden(hit.object) && hit.face && hit.face.normal.clone().transformDirection(hit.object.matrixWorld).y > 0.98;
+    });
+    return hit ? [position[0], position[1] + hit.point.y - (bounds.min.y + offset.y), position[2]] : null;
 }
 
 /** Axis-aligned bounds in the object's own coordinates, before its root transform. */

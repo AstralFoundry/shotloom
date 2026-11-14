@@ -181,7 +181,7 @@ export class ClipCommands {
         if (created) this.selectClip(created);
     }
 
-    setClipField(id: string, patch: Partial<Pick<Entity['clips'][number], 'start' | 'end' | 'speed'>>): void {
+    setClipField(id: string, patch: Partial<Pick<Entity['clips'][number], 'start' | 'end' | 'speed' | 'blendIn'>>): void {
         const e = this.host.current();
         const clip = e?.clips.find((item) => item.id === id);
         if (!e || !clip || e.locked) return;
@@ -198,6 +198,10 @@ export class ClipCommands {
             return;
         }
         this.host.change(() => {
+            if (patch.blendIn !== undefined) {
+                if (!Number.isFinite(patch.blendIn) || patch.blendIn < 0 || patch.blendIn > 2) throw Error('过渡时长必须为 0—2 秒');
+                clip.blendIn = patch.blendIn;
+            }
             clip.start = start;
             clip.end = end;
             clip.speed = speed;

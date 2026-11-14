@@ -101,7 +101,7 @@ export function DirectorWorkspace({ src, onReady, onExit, onOpenAgent }: { src: 
       },
       onCaptures: async (captures) => {
         for (const capture of captures) {
-          const result = await nodeActions.exportDirectorAsset('', capture.dataUrl, capture.fileName, capture.kind);
+          const result = await nodeActions.exportDirectorAsset('', capture.dataUrl, capture.fileName, capture.kind, capture.directorContext);
           if (!result) throw new Error('未能创建导出节点');
         }
       },

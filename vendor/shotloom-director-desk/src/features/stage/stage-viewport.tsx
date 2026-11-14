@@ -1,3 +1,4 @@
+import { editorPreferences } from '@/core/editor/preferences.ts';
 import {
     AimOutlined,
     BorderOutlined,
@@ -33,6 +34,8 @@ const TOOL_MODES: Array<{ mode: TransformMode; label: string; icon: React.ReactN
 export function StageViewport() {
     const t = useTranslation();
     const project = useProject();
+    const effects = usePreferences();
+    const [pip, setPip] = useState(true);
     const view = useEditorStore((state) => state.view);
     const preview = useEditorStore((state) => state.preview);
     const time = useEditorStore((state) => state.time);
@@ -81,7 +84,7 @@ export function StageViewport() {
         : 40;
 
     return (
-        <div className={`viewport viewport--${view}`}>
+        <div className={`viewport viewport--${view}${pip && view === "stage" ? " viewport--pip" : ""}`}>
             <section className="viewport__panel viewport__panel--stage" aria-label={t('导演视角')}>
                 <div
                     className="viewport__stage-frame"
@@ -135,6 +138,8 @@ export function StageViewport() {
                     role="toolbar"
                     aria-label={t('常用工具')}
                 >
+                    <Popover content={<div className="stack"><label>SSAO <Switch size="small" checked={effects.ambientOcclusion} onChange={value => editorPreferences.set('ambientOcclusion', value)} /></label><label>{t('轮廓描边')} <Switch size="small" checked={effects.outline} onChange={value => editorPreferences.set('outline', value)} /></label></div>}><Button size="small">{t('空间感')}</Button></Popover>
+                    <Button size="small" onClick={() => setPip(!pip)}>{pip ? t('隐藏画中画') : t('显示画中画')}</Button>
                     <div className="viewport__tool-group" role="group" aria-label={t('移动 / 旋转 / 缩放')}>
                         {TOOL_MODES.map((tool) => (
                             <Tooltip key={tool.mode} title={`${t(tool.label)} · ${tool.shortcut}`}>
@@ -194,6 +199,7 @@ export function StageViewport() {
                                 gridVisible={gridVisible}
                                 placementSnap={preferences.placementSnap}
                                 objectSnap={preferences.objectSnap}
+                                surfaceDrop={preferences.surfaceDrop}
                                 draftQuality={preferences.previewQuality === 'draft'}
                             />
                         }
@@ -206,6 +212,7 @@ export function StageViewport() {
             <section className="viewport__panel viewport__panel--shot" aria-label={t('机位视角')}>
                 <div className="shot-header">
                     <CameraOutlined />
+                    {view === 'stage' && <Button size="small" onClick={() => setPip(false)}>{t('关闭')}</Button>}
                     <Select
                         size="small"
                         variant="borderless"
@@ -242,11 +249,13 @@ function ViewOptions({
     gridVisible,
     placementSnap,
     objectSnap,
+    surfaceDrop,
     draftQuality,
 }: {
     gridVisible: boolean;
     placementSnap: number;
     objectSnap: boolean;
+    surfaceDrop: boolean;
     draftQuality: boolean;
 }) {
     const t = useTranslation();
@@ -283,6 +292,10 @@ function ViewOptions({
                     onChange={(checked) => session.setObjectSnap(checked)}
                     aria-label={t('物体吸附')}
                 />
+            </div>
+            <div className="viewport-options__row">
+                <span>{t('自动落到表面')}</span>
+                <Switch size="small" checked={surfaceDrop} onChange={value => editorPreferences.set('surfaceDrop', value)} aria-label={t('自动落到表面')} />
             </div>
             <div className="viewport-options__row">
                 <span>{t('草稿预览')}</span>

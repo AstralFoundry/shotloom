@@ -113,7 +113,7 @@ test('导演台命令表里每条命令都有参数契约，且分级只取三�
   // 条目之间允许写注释，注释内容不参与匹配。
   const implementations = [...commandBlock.slice(0, commandBlock.indexOf('\nfunction editScenes'))
     .replace(/^\s*\/\/.*$/gm, '')
-    .matchAll(/(?:^|[{,]\s*)([a-z][a-z0-9_]*):\s*(?:\(|i\s*=>|function)/gm)].map(match => match[1]);
+    .matchAll(/(?:^|[{,]\s*)([a-z][a-z0-9_]*):\s*(?:\(|(?:async\s+)?i\s*=>|function)/gm)].map(match => match[1]);
   // 每条契约独占一行，但实现可以和其他命令同行，所以两边用不同的提取锚点：
   // 契约按行首匹配（前面的注释行不影响），实现按行首或逗号/花括号之后匹配。
   const specs = [...source.matchAll(/^\s*([a-z][a-z0-9_]*):\s*\{ kind: '([a-z]+)'/gm)]

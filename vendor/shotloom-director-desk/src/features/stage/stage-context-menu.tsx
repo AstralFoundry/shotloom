@@ -1,3 +1,5 @@
+import { worldContactAnchors } from '@/core/assets/contact-anchors.ts';
+import { useEditorStore } from '@/state/editor-store.ts';
 import {
     AimOutlined,
     CopyOutlined,
@@ -84,6 +86,15 @@ export function StageContextMenu({ target, onClose }: Props) {
             <Menu
                 selectable={false}
                 onClick={({ key }) => {
+                    if (key.startsWith('normal:')) {
+                        const [targetId, anchorId] = JSON.parse(key.slice(7)) as [string, string];
+                        try { session.applyBatch([{ operation: 'align_surface', entityId: entity.id, targetEntityId: targetId, ...(anchorId ? { anchorId } : {}) }], useEditorStore.getState().revision); } catch (error) { modal.error({ content: String(error) }); }
+                        onClose(); return;
+                    }
+                    if (key.startsWith('surface:')) {
+                        try { session.applyBatch([{ operation: 'place_on_surface', entityId: entity.id, targetEntityId: key.slice(8) }], useEditorStore.getState().revision); } catch (error) { modal.error({ content: String(error) }); }
+                        onClose(); return;
+                    }
                     switch (key) {
                         case 'focus':
                             session.focusSelected();
@@ -115,6 +126,11 @@ export function StageContextMenu({ target, onClose }: Props) {
                         icon: entity.visible ? <EyeInvisibleOutlined /> : <EyeOutlined />,
                         label: entity.visible ? t('隐藏') : t('显示'),
                     },
+                    { key: 'normal', label: t('按接触点贴面'), children: project.entities.filter(e => e.kind === 'prop' && e.id !== entity.id).flatMap(e => {
+                        const root = session.engineOrNull?.models.get(e.id);
+                        return root ? [{ key: `normal:${JSON.stringify([e.id, ''])}`, label: `${e.name} · ${t('最近表面')}` }, ...worldContactAnchors(e, root).map(a => ({ key: `normal:${JSON.stringify([e.id, a.id])}`, label: `${e.name} · ${a.id}` }))] : [];
+                    }) },
+                    { key: 'surface', label: t('落到物体表面'), children: project.entities.filter(e => e.kind === 'prop' && e.id !== entity.id && e.visible).map(e => ({ key: `surface:${e.id}`, label: e.name })) },
                     { key: 'ground', icon: <VerticalAlignBottomOutlined />, label: t('贴地') },
                     { type: 'divider' },
                     { key: 'delete', icon: <DeleteOutlined />, label: t('删除'), danger: true },

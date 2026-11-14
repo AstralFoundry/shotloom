@@ -12,6 +12,7 @@ export type DirectorErrorCode =
     | 'OBJECT_NOT_FOUND'
     | 'LOCKED'
     | 'REVISION_MISMATCH'
+    | 'SESSION_MISMATCH'
     | 'BUSY'
     | 'CANVAS_NOT_READY'
     | 'PATH_INVALID'

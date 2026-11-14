@@ -1,3 +1,4 @@
+import { EasingEditor } from './easing-editor.tsx';
 import { RightOutlined } from '@ant-design/icons';
 import { Button, Col, Divider, Empty, Input, Row, Select, Switch, Tabs, Tooltip } from 'antd';
 import { useMemo, useState } from 'react';
@@ -713,6 +714,12 @@ function PathPanel({ entity }: { entity: Entity }) {
             {path && !drawing ? (
                 <>
                     <Divider plain style={{ margin: '4px 0' }} />
+                    <FieldRow label={t('路径插值')}><Select size="small" disabled={entity.locked} value={path.interpolation ?? 'segmented'} options={[{ value: 'segmented', label: t('分段曲线') }, { value: 'continuous', label: t('连贯运动') }]} onChange={value => session.change(() => {
+                        if (value === 'continuous') { path.interpolation = 'continuous'; for (const key of path.points) delete key.easing; }
+                        else delete path.interpolation;
+                    }, true)} /></FieldRow>
+                    {point && pointIndex > 0 && <><p className="muted small">{t('到达此点的速度曲线')}</p><EasingEditor value={point.easing} disabled={entity.locked || path.interpolation === 'continuous'} onChange={value => session.change(() => { point.easing = value; }, true)} /></>}
+                    {pointIndex === 0 && <p className="muted small">{t('选择后续途经点编辑入段速度曲线')}</p>}
                     <FieldRow label={t('途经点')}>
                         <Select
                             size="small"

@@ -1,3 +1,5 @@
+import { desktopApi } from '../../services/desktopApi';
+import { mediaSourceUrl } from '../../services/mediaPoster';
 import { getLocale, t } from '@/i18n';
 import { memo, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -130,13 +132,19 @@ export const ThreeDDirectorNode: WorkflowNodeRenderer = memo(
           const directorData = node.directorData as { project?: unknown; legacyProject?: unknown } | undefined;
           const legacyProject = directorData?.legacyProject ?? (directorData?.project && !readDirectorProject(node) ? directorData.project : null);
           actions.update(node.id, {
-            directorData: { project, ...(legacyProject ? { legacyProject } : {}) },
+            directorData: { ...(node.directorData as Record<string, unknown>), project, ...(legacyProject ? { legacyProject } : {}) },
             updatedAt: new Date().toISOString(),
           });
         },
+        onCover: async dataUrl => {
+          const project = readDirectorProject(node);
+          const saved = await desktopApi.file.saveDataUrlToProject(dataUrl, `director-cover-${node.id}-${Date.now()}.png`);
+          const path = String(saved?.filePath || saved?.path || '');
+          if (path && readDirectorProject(node) === project) actions.update(node.id, { directorData: { ...(node.directorData as Record<string, unknown>), coverPath: path } });
+        },
         onCaptures: async (captures) => {
           for (const capture of captures) {
-            const result = await actions.exportDirectorAsset(node.id, capture.dataUrl, capture.fileName, capture.kind);
+            const result = await actions.exportDirectorAsset(node.id, capture.dataUrl, capture.fileName, capture.kind, capture.directorContext);
             if (!result) throw new Error('未能创建导出节点');
           }
         },
@@ -197,6 +205,7 @@ export const ThreeDDirectorNode: WorkflowNodeRenderer = memo(
             setDetailOpen(true);
           }}
         >
+          {typeof (node.directorData as Record<string, unknown> | undefined)?.coverPath === 'string' && <img className="director-node-cover" alt="3D 导演台预览" src={mediaSourceUrl({ sourceFile: String((node.directorData as Record<string, unknown>).coverPath) })} />}
           <div className="director-node-placeholder">
             <IconSymbol name="box" />
             <strong>{t("ui.ThreeDDirectorNode.text.a3a5199b")}</strong>

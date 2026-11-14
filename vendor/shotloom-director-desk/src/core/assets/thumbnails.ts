@@ -6,9 +6,11 @@ import { makeProp } from './props.ts';
 import { disposeTree } from './dispose.ts';
 
 const cache = new Map<string, string>();
+const dimensions = new Map<string, [number, number, number]>();
+export const assetDimensions = (id: string) => dimensions.get(id);
 let renderer: T.WebGLRenderer | undefined,
     queue: Promise<unknown> = Promise.resolve();
-function paint(id: string) {
+function paint(id: string, angle = 0) {
     const definition = findAsset(id);
     if (!definition) throw new Error('资产不存在');
     renderer ??= new T.WebGLRenderer({ antialias: true, alpha: true });
@@ -26,6 +28,8 @@ function paint(id: string) {
                 root.add(person.root);
             }
         else root.add(definition.kind === 'actor' ? makeActor(object).root : makeProp(object));
+        dimensions.set(id, new T.Box3().setFromObject(root).getSize(new T.Vector3()).toArray());
+        root.rotation.y = angle;
         scene.add(root);
         scene.add(new T.HemisphereLight(0xffffff, 0x666666, 2));
         const sun = new T.DirectionalLight(0xffffff, 2);
@@ -51,13 +55,14 @@ function paint(id: string) {
     }
 }
 /** One renderer, a bounded cache, and at most one generation during an idle slice. */
-export function thumbnail(id: string, wanted: () => boolean): Promise<string | null> {
+export function thumbnail(id: string, wanted: () => boolean, angle = 0): Promise<string | null> {
     const task = queue.then(async () => {
         if (!wanted()) return null;
-        const existing = cache.get(id);
+        const key = `${id}:${angle.toFixed(3)}`;
+        const existing = cache.get(key);
         if (existing) {
-            cache.delete(id);
-            cache.set(id, existing);
+            cache.delete(key);
+            cache.set(key, existing);
             return existing;
         }
         await new Promise<void>((resolve) => {
@@ -65,8 +70,8 @@ export function thumbnail(id: string, wanted: () => boolean): Promise<string | n
             else requestAnimationFrame(() => resolve());
         });
         if (!wanted()) return null;
-        const data = paint(id);
-        cache.set(id, data);
+        const data = paint(id, angle);
+        cache.set(key, data);
         if (cache.size > 96) cache.delete(cache.keys().next().value!);
         return data;
     });

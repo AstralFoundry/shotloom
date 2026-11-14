@@ -16,7 +16,11 @@ try {
     stdin: {
       contents: `export { applyBatchEdits } from './vendor/shotloom-director-desk/src/state/batch-edits.ts';
 export { createStarterProject } from './vendor/shotloom-director-desk/src/state/starter-project.ts';
-export { assertProject } from './vendor/shotloom-director-desk/src/core/model.ts';`,
+export { directorContext } from './vendor/shotloom-director-desk/src/core/director-context.ts';
+export { pathPosition } from './vendor/shotloom-director-desk/src/core/timeline.ts';
+export { assertProject } from './vendor/shotloom-director-desk/src/core/model.ts';
+export { surfaceDropPosition } from './vendor/shotloom-director-desk/src/core/editor/object-snapping.ts';
+export { BoxGeometry, Mesh, MeshBasicMaterial } from 'three';`,
       resolveDir: root,
       sourcefile: 'director-batch-test-entry.ts',
     },
@@ -404,4 +408,63 @@ test('add_prop 拒绝非形状素材、越界部件和非法尺寸', () => {
   assert.throws(make([]), /parts 需要 1 至 32 个部件/);
   assert.throws(make(Array.from({ length: 33 }, () => ({ shape: 'shape-box', at: [0, 0, 0] }))),
     /parts 需要 1 至 32 个部件/);
+});
+
+
+test('表面放置使用同批已修改的实际几何，离开支撑范围时返回错误', () => {
+  const project = starter();
+  const [support, prop] = domain.applyBatchEdits(project, [
+    { operation: 'add_prop', position: [0, 0, 0], parts: [{ shape: 'shape-box', at: [0, 0, 0], size: [2, 1, 2] }] },
+    { operation: 'add_prop', position: [0, 4, 0], parts: [{ shape: 'shape-box', at: [0, 0, 0], size: [0.2, 0.2, 0.2] }] },
+  ]);
+  domain.applyBatchEdits(project, [
+    { operation: 'set_entity', entityId: support.entityId, patch: { scale: [1, 2, 1] } },
+    { operation: 'place_on_surface', entityId: prop.entityId, targetEntityId: support.entityId },
+  ]);
+  assert.ok(Math.abs(project.entities.find(e => e.id === prop.entityId).position[1] - 2) < 1e-5);
+  domain.applyBatchEdits(project, [{ operation: 'set_entity', entityId: prop.entityId, patch: { position: [10, 2, 0] } }]);
+  assert.throws(() => domain.applyBatchEdits(project, [{ operation: 'place_on_surface', entityId: prop.entityId, targetEntityId: support.entityId }]), /下方没有/);
+});
+
+test('朝向对齐以 +Z 为正面，路径 easing 和片段过渡保存后参与采样', () => {
+  const project = starter(), actor = actorOf(project);
+  const [other] = domain.applyBatchEdits(project, [{ operation: 'add_asset', assetId: 'shape-box', position: [2, 0, 0] }]);
+  domain.applyBatchEdits(project, [
+    { operation: 'align_facing', entityId: actor.id, targetEntityId: other.entityId },
+    { operation: 'set_path', entityId: actor.id, smooth: false, points: [{ timeSec: 0, position: [0,0,0] }, { timeSec: 2, position: [2,0,0], easing: 'ease-in' }] },
+    { operation: 'set_clip', entityId: actor.id, clipId: actor.clips[0].id, patch: { blendIn: 0.7 } },
+  ]);
+  assert.equal(actor.rotation[1], Math.PI / 2);
+  assert.equal(domain.pathPosition(actor.path, actor.position, 1).x, 0.5);
+  assert.equal(actor.clips[0].blendIn, 0.7);
+  domain.assertProject(project);
+});
+
+test('导出上下文按切镜分段且冻结事实，不把之后的修改带进旧素材', () => {
+  const project = starter(), actor = actorOf(project);
+  const [camera] = domain.applyBatchEdits(project, [{ operation: 'add_camera', position: [2,2,2] }]);
+  domain.applyBatchEdits(project, [{ operation: 'add_cut', timeSec: 2, cameraId: camera.entityId }]);
+  const context = domain.directorContext(project, 0, 4);
+  assert.equal(context.version, 1);
+  assert.equal(context.shots.length, 2);
+  assert.equal(context.shots[1].cameraId, camera.entityId);
+  const color = context.shots[0].subjects.find(e => e.id === actor.id).color;
+  actor.color = '#000000';
+  assert.equal(context.shots[0].subjects.find(e => e.id === actor.id).color, color);
+});
+
+test('拖拽落面使用真实表面高度，移出承托范围不吸附，并排除隐藏表面', () => {
+  const geometry = new domain.BoxGeometry(1, 1, 1), material = new domain.MeshBasicMaterial();
+  try {
+    const prop = new domain.Mesh(geometry, material), table = new domain.Mesh(geometry, material);
+    prop.scale.set(0.2, 0.2, 0.2);
+    prop.position.set(0, 0.1, 0);
+    table.scale.set(2, 0.8, 2);
+    table.position.set(2, 0.4, 0);
+    const placed = domain.surfaceDropPosition(prop, [2, 0.1, 0], [table]);
+    assert.ok(Math.abs(placed[1] - 0.9) < 1e-6);
+    assert.equal(domain.surfaceDropPosition(prop, [4, 0.1, 0], [table]), null);
+    table.visible = false;
+    assert.equal(domain.surfaceDropPosition(prop, [2, 0.1, 0], [table]), null);
+  } finally { geometry.dispose(); material.dispose(); }
 });

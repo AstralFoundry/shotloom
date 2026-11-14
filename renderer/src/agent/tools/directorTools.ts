@@ -135,7 +135,7 @@ commands 只列出你应当使用的命令；已由 batch 覆盖的搭景命令�
     id: 'director_desk_query',
     icon: 'list',
     title: t('tool.title.director_desk_query'),
-    description: '只读查询：scene_list 列出戏段，scene_read 读取指定戏段，history_status 查询撤销重做，export_video_job 查询视频导出任务进度，scene_summary 取人数/机位数/镜头数与时长，spatial_check 按时间区间采样检查重叠、过近、出画、机位卡在墙体内部与主体被遮挡（参数见 snapshot 中该命令的 args）。这些查询不修改工程。',
+    description: '只读查询：scene_list 列出戏段，scene_read 读取指定戏段，history_status 查询撤销重做，export_video_job 查询视频导出任务进度，scene_summary 取人数/机位数/镜头数与时长，spatial_check 按时间区间采样检查重叠、过近、出画、机位卡在墙体内部与主体被遮挡（参数见 snapshot 中该命令的 args）。entity_relations 查询 sourceId、targetId 在 seconds 时刻的相对坐标、距离、朝向差、机位视锥与中心遮挡，并返回目标接触锚点；可选 cameraIds。空间关系均为测量事实。这些查询不修改工程。',
     effect: 'read',
     activity: 'inspect',
     inputSchema: {
@@ -145,7 +145,7 @@ commands 只列出你应当使用的命令；已由 batch 覆盖的搭景命令�
         operation: {
           type: 'string',
           // 只读命令都可以走这条通道，不必经过写审批。
-          enum: ['scene_list', 'scene_read', 'history_status', 'export_video_job', 'scene_summary', 'spatial_check'],
+          enum: ['scene_list', 'scene_read', 'history_status', 'export_video_job', 'scene_summary', 'spatial_check', 'entity_relations'],
         },
         args: { type: 'object', additionalProperties: true },
       },
@@ -166,11 +166,13 @@ commands 只列出你应当使用的命令；已由 batch 覆盖的搭景命令�
     id: 'director_desk_batch',
     icon: 'workflow',
     title: t('tool.title.director_desk_batch'),
-    description: `一次原子批量设置当前导演台：edits 非空，建议按相关修改分批、每批 1–8 项；这是调用建议，超过 8 项仍可提交，没有硬性数量上限。全部成功才写入，形成一条撤销记录；任一项失败则整批回滚并指出第几项。先读 director_desk_snapshot，expectedRevision 必须等于其 revision；实体、片段 ID 必须取自 snapshot。执行后再读 snapshot 和预览核验。
+    description: `一次原子批量设置当前导演台：edits 非空，建议按相关修改分批、每批 1–8 项；这是调用建议，超过 8 项仍可提交，没有硬性数量上限。全部成功才写入，形成一条撤销记录；任一项失败则整批回滚并指出第几项。先读 director_desk_snapshot，expectedSessionId 必须等于其 sessionId，expectedRevision 必须等于其 revision；revision 是运行会话内计数，重新打开 iframe 后重新读取快照，不能把计数变小解释为场景丢失；实体、片段 ID 必须取自 snapshot。执行后再读 snapshot 和预览核验。可传 autoPreview:{timesSec:[0,2],plan:true} 在提交成功后返回真实预览附件；预览失败仍保留 applied:true。
 
 这是搭建场景的主力工具：新增实体、机位、切镜都在这里，不要退化成逐条命令或整文档导入。
 
 edits 按顺序执行，支持：
+- align_surface：entityId + targetEntityId + 可选 anchorId（省略则沿实体到目标中心射线测量表面），把物体局部 +Z 对齐接触点法线，并让背面贴合表面。
+- place_on_surface：entityId + targetEntityId + 可选 anchorId，按真实几何落到下方目标表面。seat_on_surface 使用同样参数且必须指定座面 anchorId，按人体坐姿计算位置。align_facing：entityId + targetEntityId，将实体正面（+Z）水平朝向目标。
 - add_asset：assetId（取 catalog.assets[].id）+ 可选 name、position:[x,y,z]、rotationDegrees:[x,y,z]、scale:[x,y,z]、parameters；回执含新 entityId。素材原点在底面中心，position 的 y 就是落地高度（y=0 正好站在地面），默认尺寸见 catalog.assets[].defaultSize，不必先加再量。
 - add_prop：目录里没有的物体用它拼，而不是拿外形无关的道具改名冒充。parts:[{ shape, at:[x,y,z], size?:[w,h,d], rotationDegrees?, color? }]（1–32 个部件，shape 取形状素材 shape-*，尺寸单位米）+ 可选 name、position:[x,y,z]、rotationDegrees、scale、color（整件的基础色，默认 #d5d5d0；说明是灰模，尽量用灰阶）。部件位置是相对基座的米制坐标，且每个部件的 at 指它的底面中心（和实体本身同一约定）：一个高 0.18 米的柱体放在 y=0 才会贴地，放在 y=0.09 就会悬空 0.09 米。适合灰模示意（篝火、简易乐器、特定家具、道具堆），不适合需要精细曲面的主体；拼完用 inspect_model 看形状、再用场景预览确认它在镜头里的比例与落地关系。
 - add_room：minX + maxX + minZ + maxZ（矩形房间范围，米）+ 可选 height（默认 3）、thickness（默认 0.18）、y（底面高度，默认 0）、name、floor:true（同时铺一块楼板地板）。四面墙自动首尾对齐、墙角按半个墙厚避让。可选 openings:[{ side:"south"|"north"|"east"|"west", width, height?, sill?, offset? }] 在对应墙面开门窗；offset 是沿墙段方向的偏移（0 居中），是负数就朝起始端偏。回执的 entities 按「南、北、西、东（、地板）」给出各面墙的 id。同一面墙只能开一个洞，需要多个就用 add_wall 把该侧拆段。
@@ -183,7 +185,7 @@ edits 按顺序执行，支持：
 - set_camera / set_light：entityId + patch；字段从 director_desk_catalog.patchFields.set_camera_field / set_light_field 取。
 - set_lighting / set_room / set_project：patch；字段分别从 catalog.patchFields.set_lighting_field / update_room / update_project_settings 取。
 - add_action：entityId + action（取 catalog.actions）+ 可选 atSec（秒，默认 0）；放在该时点之后第一个不重叠位置，返回新 clipId。已有待机片段可能把新动作推到其末尾。
-- set_clip：entityId + clipId + patch；只支持 start、end、speed。
+- set_clip：entityId + clipId + patch；只支持 start、end、speed、blendIn（入场过渡秒数，0—2）。
 - remove_clip：entityId + clipId；可先移除默认待机，再在同一批添加新动作。
 - delete_entity：entityId；会清掉指向它的机位视线、朝向、手持绑定，并把它占用的切镜改到另一台机位。
 - duplicate_entity：entityId + 可选 name、position、rotationDegrees；给 position 时整条路径随之平移，不给则在原型旁边 0.4 米处复制。
@@ -195,9 +197,14 @@ edits 按顺序执行，支持：
     effect: 'project_write',
     activity: 'canvas',
     inputSchema: {
-      type: 'object', required: ['expectedRevision', 'edits'], additionalProperties: false,
+      type: 'object', required: ['expectedSessionId', 'expectedRevision', 'edits'], additionalProperties: false,
       properties: {
+        expectedSessionId: { type: 'string', description: '最新 snapshot.sessionId；revision 只在该运行会话内有效。' },
         expectedRevision: { type: 'integer' },
+        autoPreview: { type: 'object', additionalProperties: false, properties: {
+          timesSec: { type: 'array', minItems: 1, maxItems: 8, items: { type: 'number' } },
+          cameraId: { type: 'string' }, plan: { type: 'boolean' },
+        } },
         validateOnly: { type: 'boolean' },
         edits: {
           type: 'array', minItems: 1,
@@ -209,9 +216,10 @@ edits 按顺序执行，支持：
                 enum: [
                   'set_entity', 'set_camera', 'set_light', 'set_lighting', 'set_room', 'set_project',
                   'set_path', 'set_rotation_animation', 'add_asset', 'add_wall', 'add_room', 'add_prop', 'add_camera', 'add_cut', 'add_action', 'set_clip', 'remove_clip',
-                  'delete_entity', 'duplicate_entity',
+                  'delete_entity', 'duplicate_entity', 'place_on_surface', 'seat_on_surface', 'align_facing', 'align_surface',
                 ],
               },
+              targetEntityId: { type: 'string' }, anchorId: { type: 'string' },
               entityId: { type: 'string' }, clipId: { type: 'string' }, action: { type: 'string' }, atSec: { type: 'number' },
               assetId: { type: 'string' }, name: { type: 'string' }, cameraId: { type: 'string' },
               position: { type: 'array', items: { type: 'number' } },
@@ -264,6 +272,7 @@ edits 按顺序执行，支持：
                   properties: {
                     position: { type: 'array', items: { type: 'number' }, minItems: 3, maxItems: 3 },
                     timeSec: { type: 'number' },
+                    easing: { oneOf: [{ type: 'string', enum: ['linear', 'smooth', 'ease-in', 'ease-out', 'hold', 'whip'] }, { type: 'object', required: ['bezier'], additionalProperties: false, properties: { bezier: { type: 'array', minItems: 4, maxItems: 4, items: { type: 'number', minimum: 0, maximum: 1 } } } }] },
                   },
                 },
               },
@@ -298,11 +307,34 @@ edits 按顺序执行，支持：
       },
     },
     summarizeInput: input => `${Array.isArray(input.edits) ? input.edits.length : 0} 项`,
+    summarizeResult: result => {
+      const attachments = (result as { __toolAttachments?: Array<{ url?: string }> }).__toolAttachments;
+      return attachments?.length ? { summary: '批次预览', previews: attachments.flatMap(a => a.url ? [{ path: a.url, label: '批次预览' }] : []) } : undefined;
+    },
     async execute(input) {
       if (!directorDeskAvailable()) return directorUnavailable();
       try {
         const result = await runDirectorDeskCommand('batch_edit', input as Record<string, unknown>) as Record<string, unknown>;
-        return { success: true, ...result };
+        const reply: Record<string, unknown> = { success: true, ...result };
+        if (result.applied === true && input.autoPreview && typeof input.autoPreview === 'object') {
+          const options = input.autoPreview as Record<string, unknown>;
+          const attachments: Array<Record<string, unknown>> = [];
+          const errors: string[] = [];
+          const requests = [
+            { operation: options.timesSec ? 'render_preview_sheet' : 'render_preview', args: { ...(options.timesSec ? { timesSec: options.timesSec } : {}), ...(options.cameraId ? { cameraId: options.cameraId } : {}) } },
+            ...(options.plan ? [{ operation: 'render_plan', args: {} }] : []),
+          ];
+          for (const request of requests) {
+            try {
+              const preview = await runDirectorDeskCommand(request.operation, request.args) as { dataUrl: string };
+              attachments.push({ type: 'file', mime: preview.dataUrl.startsWith('data:image/png') ? 'image/png' : 'image/jpeg', filename: `${request.operation}.${preview.dataUrl.startsWith('data:image/png') ? 'png' : 'jpg'}`, url: preview.dataUrl });
+            } catch (error) { errors.push(error instanceof Error ? error.message : String(error)); }
+          }
+          reply.__toolAttachments = attachments;
+          reply.previewErrors = errors;
+          reply.evidence = '批次已提交；附图为真实渲染事实，请核验画面。预览失败不撤销已提交修改。';
+        }
+        return reply;
       } catch (error) {
         return directorFailure(error);
       }

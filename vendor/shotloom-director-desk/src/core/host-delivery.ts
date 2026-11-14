@@ -1,7 +1,7 @@
 import { download } from './storage.ts';
 
 /** Deliver rendered media to Shotloom when embedded; standalone desk still downloads it. */
-export async function deliverMedia(blob: Blob, fileName: string, kind: 'image' | 'video'): Promise<void> {
+export async function deliverMedia(blob: Blob, fileName: string, kind: 'image' | 'video', directorContext?: unknown): Promise<void> {
     if (window.parent === window) {
         download(blob, fileName);
         return;
@@ -30,7 +30,7 @@ export async function deliverMedia(blob: Blob, fileName: string, kind: 'image' |
         window.addEventListener('message', onMessage);
         window.parent.postMessage({
             type: 'storyai:director-desk-captures-sent',
-            payload: { requestId, captures: [{ dataUrl, fileName, kind }] },
+            payload: { requestId, captures: [{ dataUrl, fileName, kind, directorContext }] },
         }, window.location.origin);
     });
 }
