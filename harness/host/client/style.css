@@ -81,6 +81,7 @@
   background: var(--shotloom-reference-thumb) center / cover no-repeat;
 }
 .shotloom-media-previews { display: flex; flex-wrap: wrap; gap: 10px; padding: 12px 14px 6px; }
+[data-shotloom-attachments] { display:contents; }
 .shotloom-media-preview { position: relative; flex: 0 0 auto; }
 .shotloom-media-cover {
   display: block; position: relative; width: 88px; height: 88px; padding: 0; overflow: hidden;
@@ -222,6 +223,16 @@
 :host([data-director-mode]) [data-composer-card] button[aria-haspopup="listbox"] { width:28px;height:28px;color:var(--director-dock-muted, #76767d); }
 :host([data-director-mode]) [data-composer-card] button[aria-haspopup="listbox"] > svg { width:16px;height:16px; }
 :host([data-director-mode]) [data-input-scroll] { margin:0; }
+/* Attachments have their own full-width tray. The pill's grid remains one
+   control row, regardless of the number or kind of pasted files. */
+:host([data-director-mode]) [data-shotloom-attachments][data-has-attachments="true"] {
+  position:absolute;bottom:calc(100% + 8px);left:0;right:0;z-index:2;
+  display:block;min-width:0;padding:8px;border-radius:12px;
+  background:var(--director-dock-bg, #fff);box-shadow:0 4px 16px #0001;
+}
+:host([data-director-mode]) [data-shotloom-attachments][data-has-attachments="true"] > div { min-width:0;width:100%;box-sizing:border-box;padding:0; }
+:host([data-director-mode]) .shotloom-media-previews { padding:0;gap:8px; }
+:host([data-director-mode]) .shotloom-media-cover { width:64px;height:64px;border-radius:12px; }
 /* A folded transcript must not keep the sticky composer's previous scroll
    position. Anchor it to the dock while the history is hidden. */
 :host([data-director-mode]:not([data-director-mode="expanded"])) .shotloom-chat-body,

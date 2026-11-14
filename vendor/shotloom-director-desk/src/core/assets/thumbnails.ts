@@ -39,6 +39,8 @@ function paint(id: string, angle = 0) {
             center = bounds.getCenter(new T.Vector3()),
             radius = bounds.getBoundingSphere(new T.Sphere()).radius;
         const camera = new T.PerspectiveCamera(35, 192 / 132, Math.max(0.0001, radius / 1000), radius * 100 + 10);
+        // Lights have no rendered surface; their editor markers live on layer 1.
+        if (object.light) camera.layers.enable(1);
         camera.position
             .copy(center)
             .add(

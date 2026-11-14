@@ -2206,27 +2206,11 @@
     background: transparent;
     color: var(--ed-text-primary);
 }
-.camera-preview__grip {
-    display: grid;
-    place-items: center;
-    flex: none;
-    width: 24px;
-    height: 30px;
-    padding: 0;
-    border: 0;
-    border-radius: 8px 0 0 8px;
-    background: var(--ed-toolbar-bg);
-    color: var(--ed-text-secondary);
-    cursor: grab;
-    touch-action: none;
-}
-.camera-preview__grip:active { cursor: grabbing; }
-.camera-preview__grip:focus-visible { outline: 2px solid var(--ed-focus); outline-offset: -2px; }
 .camera-preview__chrome .ant-select {
     flex: 0 1 134px;
     min-width: 0;
     height: 30px;
-    border-radius: 0 8px 8px 0;
+    border-radius: 8px;
     background: var(--ed-toolbar-bg);
 }
 .editor .camera-preview__collapse.ant-btn {
@@ -2243,7 +2227,7 @@
     max-width: calc(100% - 16px);
     height: 44px;
     border-radius: 999px;
-    padding: 0 10px;
+    padding: 0;
 }
 .camera-preview--collapsed .camera-preview__chrome {
     position: static;
@@ -2251,14 +2235,16 @@
     flex: 1;
 }
 .camera-preview--collapsed .viewport__canvas--shot { display: none; }
-.camera-preview--collapsed .camera-preview__grip { background: transparent; }
 .editor .camera-preview__expand.ant-btn {
+    width: 100%;
     height: 42px;
-    padding: 0 8px;
+    padding: 0 18px;
+    border-radius: 999px;
     gap: 10px;
     color: var(--ed-text-primary);
     font-size: 13px;
 }
+.editor .camera-preview__expand.ant-btn:not(:disabled):active { transform: none; }
 
 .timeline__type-heading { display: block; width: 100%; text-align: left; padding: 6px 12px; background: var(--ed-bg-panel); color: inherit; border: 0; border-bottom: 1px solid var(--ed-border); cursor: pointer; }
 .clip__blend { position: absolute; left: 0; bottom: 0; height: 8px; max-width: 100%; background: linear-gradient(90deg,#fff9,#fff0); }

@@ -24,7 +24,7 @@ export function installCanvasMediaCards(ctx: Context, openPreview: (nodeId: stri
       const selector = `[data-composer-chip=${JSON.stringify(t("ui.ProjectSearch.kind.95b2102f"))}] [title=${JSON.stringify(meta.label)}]`;
       return `${selector}{--shotloom-reference-thumb:url(${JSON.stringify(meta.thumbnail)})}${selector}>svg{display:none}${selector}::before{content:""}`;
     }).join('\n');
-    return <><style>{styles}</style>
+    return <div data-shotloom-attachments="" data-has-attachments={props.attachments.length > 0}><style>{styles}</style>
       {!!loading.size && <div className="shotloom-reference-loading" role="status">{t("ui.canvasMediaCards.text.8dfca0ba")}{Array.from(loading.values()).join('、')}…</div>}
       {!!selected.length && <div className="shotloom-media-previews" aria-label={t("ui.canvasMediaCards.arialabel.8247849c")}>{selected.map(item => {
         const meta = previews.get(item.id)!;
@@ -41,7 +41,7 @@ export function installCanvasMediaCards(ctx: Context, openPreview: (nodeId: stri
         </div>;
       })}</div>}
       <Official {...props} attachments={props.attachments.filter(item => !previews.has(item.id))} />
-    </>;
+    </div>;
   }
   ctx.slots.register({ name: 'conversation.input.attachments', priority: (entry.options.priority ?? 0) - 1, locale: entry.locale, inject: entry.inject, store: entry.store } as never, MediaAttachments as never);
   ctx.effect(() => () => { previews.clear(); loading.clear(); listeners.clear(); }, 'shotloom: media presentation');
