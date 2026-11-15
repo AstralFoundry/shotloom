@@ -110,7 +110,7 @@ test('侧栏 Logo 的瞳孔跟随鼠标并尊重减少动态效果设置', () =>
 });
 
 test('侧栏底部入口与上方导航使用一致的字号和图标尺寸', () => {
-  assert.match(styles, /\.sidebar-footer button \{[^}]*height:\s*36px[^}]*font-size:\s*var\(--text-body-13\)[^}]*font-weight:\s*500/);
+  assert.match(styles, /\.sidebar-footer button \{[^}]*height:\s*36px[^}]*font-size:\s*var\(--text-body-14\)[^}]*font-weight:\s*500/);
   assert.match(styles, /\.sidebar-footer svg \{ width:\s*var\(--icon-md\); height:\s*var\(--icon-md\); flex:\s*0 0 var\(--icon-md\)/);
   assert.doesNotMatch(styles, /sidebar-settings-icon/);
 });

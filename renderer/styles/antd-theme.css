@@ -49,8 +49,8 @@
   --ant-border-radius-lg: var(--radius-lg);
   --ant-font-family: var(--font-ui);
   --ant-font-size-sm: var(--text-body-12);
-  --ant-font-size: var(--text-body-13);
-  --ant-font-size-lg: var(--text-body-14);
+  --ant-font-size: var(--text-body-14);
+  --ant-font-size-lg: var(--text-title-16);
 
   /* Elevation */
   --ant-box-shadow: var(--shadow-lift);

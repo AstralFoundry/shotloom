@@ -25,6 +25,9 @@ body {
   color: var(--text);
   background: var(--bg);
   font-family: var(--font-ui);
+  font-size: var(--text-body-14);
+  line-height: var(--text-body-14--line-height);
+  font-weight: 400;
   letter-spacing: var(--tracking-normal);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;

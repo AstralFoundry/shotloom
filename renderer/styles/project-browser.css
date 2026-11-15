@@ -91,7 +91,7 @@
   background: var(--surface);
   font: inherit;
   font-size: var(--text-body-14);
-  font-weight: 600;
+  font-weight: 500;
   outline: 0;
   box-shadow: 0 0 0 1px var(--brand-accent-wash);
 }
@@ -133,7 +133,7 @@
 }
 
 .project-breadcrumb button.current {
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .project-browser {
@@ -164,7 +164,7 @@
   white-space: nowrap;
   color: var(--text);
   font-size: var(--text-body-14);
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .project-series-name {
@@ -259,7 +259,7 @@
   color: var(--muted);
   background: var(--surface-2);
   font-size: var(--text-caption-11);
-  font-weight: 600;
+  font-weight: 500;
   white-space: nowrap;
 }
 

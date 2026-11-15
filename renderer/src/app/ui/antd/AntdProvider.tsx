@@ -54,7 +54,7 @@ export function AntdProvider({ children }: { children: ReactNode }) {
           colorPrimary: dark ? SHOTLOOM_PRIMARY.dark : SHOTLOOM_PRIMARY.light,
           colorInfo: dark ? SHOTLOOM_PRIMARY.dark : SHOTLOOM_PRIMARY.light,
           fontFamily: "var(--font-ui)",
-          fontSize: 13,
+          fontSize: 14,
           borderRadius: 12,
           motionDurationMid: "0.16s",
           // 弹层压在画布/工作区之上、Toast 之下；antd 默认 1000 会盖住 Toast。

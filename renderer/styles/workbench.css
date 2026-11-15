@@ -258,8 +258,8 @@
   text-align: left;
 }
 
-.canvas-context-menu button i { width: 20px; height: 20px; flex: 0 0 20px; display: grid; place-items: center; color: var(--muted); background: transparent; font-style: normal; }
-.canvas-context-menu button svg { width: var(--icon-md); height: var(--icon-md); }
+.canvas-context-menu button i { width: 20px; height: 20px; flex: 0 0 20px; display: grid; place-items: center; color: currentColor; opacity: .8; background: transparent; font-style: normal; }
+.canvas-context-menu button svg { width: var(--icon-md); height: var(--icon-md); stroke-width: 2; }
 
 .canvas-context-menu button:hover {
   color: var(--type-primary);
@@ -292,7 +292,7 @@
   border-radius: 999px;
   display: grid;
   place-items: center;
-  color: color-mix(in srgb, var(--text) 55%, var(--surface));
+  color: var(--muted);
   background: transparent;
   pointer-events: auto;
 }
@@ -327,9 +327,9 @@
 }
 
 .bottom-mode-switch > .bottom-mode-group > button > svg {
-  width: var(--icon-lg);
-  height: var(--icon-lg);
-  stroke-width: var(--icon-stroke-width);
+  width: 18px;
+  height: 18px;
+  stroke-width: 1.8;
 }
 
 .canvas-shortcut-help {

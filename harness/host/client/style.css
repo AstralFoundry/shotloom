@@ -161,7 +161,8 @@
   display:grid;grid-template-columns:28px minmax(0,1fr) auto;align-items:center;gap:0 4px;min-height:var(--director-composer-height,48px);padding:4px 12px;
 }
 :host([data-director-mode]) [data-composer-card] > * { grid-column:1 / -1; }
-:host([data-director-mode]) [data-input-scroll] { grid-column:2;grid-row:1;min-height:28px;max-height:52px;padding:0; }
+:host([data-director-mode]) [data-input-scroll] { grid-column:2;grid-row:1;min-height:28px;max-height:52px;padding:0;scrollbar-width:none; }
+:host([data-director-mode]) [data-input-scroll]::-webkit-scrollbar { display:none; }
 :host([data-director-mode]) [data-composer-card] > div:has(> div > [data-slot="conversation.input.left"]) { display:contents; }
 :host([data-director-mode]) [data-composer-card] > div > div:has(> [data-slot="conversation.input.left"]) { grid-column:1;grid-row:1; }
 :host([data-director-mode]) [data-composer-card] > div > div:has([data-slot="conversation.input.model"]) { grid-column:3;grid-row:1; }

@@ -22,14 +22,14 @@
 
   /* Text — 四级墨色，一个名字对应一个角色：
    * --text 是参考实测的主文字 #000（标题、强控件、满墨强调）；
-   * --type-primary 是内容墨（节点标签、工具条静止态这一类需要比纯黑柔和一档的正文）；
+   * --type-primary 是参考项目的中性正文墨色，浅色 #171717、深色 #ededed；
    * --muted 次文字、--faint 三级/说明文字；--fg-disabled 只管禁用态，
-   * 深色主题下它比 --faint 更淡（.3 对 .42），所以不能并进色阶。 */
+   * 禁用态保留透明度表达，所以不能并进正文色阶。 */
   --text: #000000;
-  --muted: rgba(0, 0, 0, .5);
-  --faint: rgba(0, 0, 0, .32);
+  --muted: #808080;
+  --faint: #a3a3a3;
   --fg-disabled: rgba(0, 0, 0, .35);
-  --type-primary: rgba(0, 0, 0, .82);
+  --type-primary: #171717;
 
   /* Lines */
   --line: rgba(0, 0, 0, .08);
@@ -95,10 +95,10 @@
   --text-body-15--line-height: 23px;
   --text-title-16: 16px;
   --text-title-16--line-height: 24px;
-  --text-title-18: 18px;
-  --text-title-18--line-height: 26px;
   --text-title-20: 20px;
   --text-title-20--line-height: 28px;
+  --text-title-22: 22px;
+  --text-title-22--line-height: 30px;
   --text-display-24: 24px;
   --text-display-24--line-height: 32px;
 
@@ -297,10 +297,10 @@
   --window-shell: #141414;
 
   --text: #e0e0e0;
-  --muted: rgba(255, 255, 255, .6);
-  --faint: rgba(255, 255, 255, .42);
+  --muted: #a8a8a8;
+  --faint: #737373;
   --fg-disabled: rgba(255, 255, 255, .3);
-  --type-primary: rgba(255, 255, 255, .88);
+  --type-primary: #ededed;
 
   --line: rgba(255, 255, 255, .1);
   --line-soft: rgba(255, 255, 255, .05);

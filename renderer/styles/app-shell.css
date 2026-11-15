@@ -104,7 +104,7 @@ label.button {
 }
 
 .win-control {
-  font-size: var(--text-body-13);
+  font-size: var(--text-body-14);
   line-height: 1;
 }
 
@@ -325,7 +325,7 @@ label.button {
   gap: 8px;
   color: var(--muted);
   background: transparent;
-  font-size: var(--text-body-13);
+  font-size: var(--text-body-14);
   font-weight: 500;
   text-align: left;
 }
@@ -453,7 +453,7 @@ label.button {
   gap: 8px;
   color: var(--muted);
   background: transparent;
-  font-size: var(--text-body-13);
+  font-size: var(--text-body-14);
   font-weight: 500;
   text-align: left;
 }
@@ -478,7 +478,7 @@ label.button {
   color: var(--text);
   background: var(--wash-pressed);
   box-shadow: none;
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .side-item.active svg {

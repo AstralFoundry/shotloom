@@ -12,16 +12,16 @@
 .page-title {
   margin: 0;
   color: var(--type-primary);
-  font-size: var(--text-title-18);
-  line-height: var(--text-title-18--line-height);
+  font-size: var(--text-title-22);
+  line-height: var(--text-title-22--line-height);
   font-weight: 600;
 }
 
 .page-subtitle {
   margin-left: 10px;
-  color: var(--faint);
+  color: var(--muted);
   font-size: var(--text-body-12);
-  font-weight: 600;
+  font-weight: 400;
 }
 
 .project-scope-head {
@@ -57,9 +57,9 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  color: var(--faint);
+  color: var(--muted);
   font-size: var(--text-body-12);
-  font-weight: 600;
+  font-weight: 400;
 }
 
 .breadcrumb-link {
@@ -120,7 +120,7 @@
 .search .ant-input-affix-wrapper > input.ant-input {
   height: 100%;
   padding: 0;
-  font-size: var(--text-body-13);
+  font-size: var(--text-body-14);
   background: transparent;
 }
 .search .ant-input-prefix { margin-inline-end: 8px; color: var(--faint); }
@@ -139,7 +139,7 @@
 
 input::placeholder,
 textarea::placeholder {
-  color: var(--faint);
+  color: var(--muted);
 }
 
 .field input:focus,
@@ -166,8 +166,8 @@ textarea::placeholder {
   justify-content: center;
   gap: 6px;
   padding: 0 12px;
-  font-size: var(--text-body-13);
-  line-height: var(--text-body-13--line-height);
+  font-size: var(--text-body-14);
+  line-height: var(--text-body-14--line-height);
   font-weight: 500;
   text-decoration: none;
 }
@@ -263,7 +263,7 @@ textarea::placeholder {
   display: grid;
   justify-items: center;
   gap: 8px;
-  font-size: var(--text-body-13);
+  font-size: var(--text-body-14);
 }
 
 .empty svg {
@@ -367,7 +367,7 @@ textarea::placeholder {
 table {
   width: 100%;
   border-collapse: collapse;
-  font-size: var(--text-body-13);
+  font-size: var(--text-body-14);
 }
 
 th,
@@ -382,7 +382,7 @@ td {
 th {
   color: var(--muted);
   background: var(--surface-muted);
-  font-weight: 600;
+  font-weight: 500;
 }
 
 tr:last-child td {

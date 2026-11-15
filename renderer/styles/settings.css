@@ -409,25 +409,25 @@
   .recipe-test-input-row { grid-template-columns: 1fr; }
 }
 
-/* Settings uses the same calm 12px desktop type scale as the canvas. */
+/* Settings: 14px labels, 12px descriptions, 16px section titles. */
 .settings-panel :is(strong, b, button, input, select, textarea) {
   font-weight: 400;
 }
 
-.settings-nav-group > button { color: var(--muted); font-size: var(--text-body-13); font-weight: 400; }
+.settings-nav-group > button { color: var(--muted); font-size: var(--text-body-14); font-weight: 400; }
 .settings-nav-group > button.active { color: var(--type-primary); font-weight: 500; }
 .settings-nav-group > button em { font-size: var(--text-caption-11); font-weight: 400; }
 .settings-content-head h3 { margin: 0; color: var(--type-primary); font-size: var(--text-title-16); font-weight: 500; }
 .settings-content-head p { margin: 4px 0 0; color: var(--muted); font-size: var(--text-body-12); }
 .settings-section h4,
-.settings-heading { color: var(--type-primary); font-size: var(--text-body-13); font-weight: 500; }
+.settings-heading { color: var(--type-primary); font-size: var(--text-body-14); font-weight: 500; }
 .settings-row strong,
-.canvas-shortcut-setting strong { color: var(--type-primary); font-size: var(--text-body-13); font-weight: 500; }
+.canvas-shortcut-setting strong { color: var(--type-primary); font-size: var(--text-body-14); font-weight: 500; }
 .settings-row > div:first-child > span,
 .canvas-shortcut-setting span,
 .settings-meta { color: var(--muted); font-size: var(--text-body-12); font-weight: 400; }
 .settings-control-wide input,
-.shortcut-recorder { color: var(--type-primary); font-size: var(--text-body-13); font-weight: 400; }
+.shortcut-recorder { color: var(--type-primary); font-size: var(--text-body-14); font-weight: 400; }
 .settings-status-pill { font-size: var(--text-caption-11); font-weight: 400; }
 
 .recipe-test-lab > header div > span { font-size: var(--text-caption-11); font-weight: 400; }
@@ -515,7 +515,7 @@
 .provider-plugin-center { color: var(--type-primary); min-width: 0; }
 .provider-plugin-page { flex: 1; min-height: 0; overflow: auto; padding: 32px; }
 .provider-plugin-heading { margin-bottom: 28px; }
-.provider-plugin-heading h1 { margin: 0 0 8px; font-size: var(--text-title-20); font-weight: 600; }
+.provider-plugin-heading h1 { margin: 0 0 8px; font-size: var(--text-title-22); font-weight: 600; }
 .provider-plugin-heading p { margin: 0; color: var(--muted); font-size: var(--text-body-14); }
 .provider-plugin-tabs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 16px; }
 .provider-plugin-tabs .ant-btn { height: 40px; gap: 8px; padding-inline: 12px; color: var(--muted); }
@@ -537,7 +537,7 @@
 .provider-plugin-card-icon { width: 44px; height: 44px; border-radius: var(--radius-md); background: var(--surface-2); display: grid; place-items: center; flex-shrink: 0; }
 .provider-plugin-card-icon img { width: 28px; height: 28px; object-fit: contain; }
 .provider-plugin-version { color: var(--muted); font-size: var(--text-body-12); }
-.provider-plugin-card-description { margin: 20px 0 16px; color: var(--muted); font-size: var(--text-body-13); line-height: 1.6; min-height: 44px; overflow-wrap: anywhere; }
+.provider-plugin-card-description { margin: 20px 0 16px; color: var(--muted); font-size: var(--text-body-14); line-height: 1.6; min-height: 44px; overflow-wrap: anywhere; }
 .provider-plugin-capabilities { display: flex; flex-wrap: wrap; gap: 12px; margin-top: auto; }
 .provider-plugin-capabilities > span { display: inline-flex; align-items: center; gap: 4px; font-size: var(--text-body-12); color: var(--muted); }
 .provider-plugin-capabilities svg { width: var(--icon-sm); height: var(--icon-sm); }
@@ -549,8 +549,8 @@
 .provider-plugin-state.is-enabled i { background: var(--good); }
 .provider-plugin-card-footer .ant-btn { gap: 6px; }
 .provider-plugin-dialog { display: grid; gap: 20px; padding-top: 8px; }
-.provider-plugin-dialog p { margin: 0; font-size: var(--text-body-13); line-height: 1.6; color: var(--muted); }
-.provider-plugin-dialog label { display: grid; gap: 8px; font-size: var(--text-body-13); }
+.provider-plugin-dialog p { margin: 0; font-size: var(--text-body-14); line-height: 1.6; color: var(--muted); }
+.provider-plugin-dialog label { display: grid; gap: 8px; font-size: var(--text-body-14); }
 .provider-plugin-dialog label > .ant-select { width: 100%; }
 .provider-plugin-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .provider-plugin-inspection { display: grid; gap: 12px; padding: 16px; border-radius: var(--radius-md); background: var(--surface-2); }
@@ -565,7 +565,7 @@
 .provider-plugin-marketplace > .ant-empty { margin: 48px 0; }
 .provider-plugin-marketplace-loading { display: flex; justify-content: center; padding: 24px; }
 .provider-plugin-dialog small { display: block; color: var(--muted); font-size: var(--text-body-12); overflow-wrap: anywhere; }
-.provider-plugin-dialog summary { cursor: pointer; font-size: var(--text-body-13); color: var(--muted); }
+.provider-plugin-dialog summary { cursor: pointer; font-size: var(--text-body-14); color: var(--muted); }
 .provider-plugin-dialog details[open] > summary { margin-bottom: 12px; }
 .provider-plugin-detail-section, .provider-plugin-advanced { padding-top: 20px; border-top: 1px solid var(--line); }
 .provider-plugin-detail-section h3 { margin: 0 0 12px; font-size: var(--text-body-14); font-weight: 500; }
@@ -574,7 +574,7 @@
 .provider-plugin-models { display: flex; flex-wrap: wrap; gap: 8px; max-height: 160px; overflow: auto; }
 .provider-plugin-models > span { background: var(--surface-2); padding: 4px 8px; border-radius: var(--radius-xs); color: var(--muted); font-size: var(--text-body-12); }
 .provider-plugin-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
-.provider-plugin-row strong { font-size: var(--text-body-13); font-weight: 500; }
+.provider-plugin-row strong { font-size: var(--text-body-14); font-weight: 500; }
 .provider-plugin-advanced > p, .provider-plugin-advanced > small, .provider-plugin-advanced > .ant-select { margin-bottom: 12px; }
 .provider-plugin-confirm { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
 .provider-plugin-confirm > p { flex-basis: 100%; }
@@ -597,7 +597,7 @@
 
 .provider-plugin-inspector { height: 72vh; overflow: auto; align-content: start; }
 .provider-plugin-details { padding: 8px 12px 12px 0; line-height: 1.7; }
-.provider-plugin-details header h2 { margin: 0 0 8px; font-size: var(--text-title-20); }
+.provider-plugin-details header h2 { margin: 0 0 8px; font-size: var(--text-title-22); }
 .provider-plugin-details header p { color: var(--muted); }
 .provider-plugin-detail-meta { display: flex; flex-wrap: wrap; gap: 16px; color: var(--muted); font-size: var(--text-body-12); }
 .provider-plugin-details section { margin-top: 28px; }
@@ -607,11 +607,11 @@
 .provider-plugin-details dd { margin: 0; overflow-wrap: anywhere; }
 .provider-plugin-detail-pair { display: contents; }
 .provider-plugin-details small { display: block; color: var(--muted); font-size: var(--text-body-12); }
-.provider-plugin-details code { font-size: var(--text-body-13); background: var(--surface-2); padding: 2px 6px; border-radius: var(--radius-xs); overflow-wrap: anywhere; }
-.provider-plugin-details pre { padding: 16px; background: var(--surface-2); overflow: auto; border-radius: var(--radius-md); font-size: var(--text-body-13); }
+.provider-plugin-details code { font-size: var(--text-body-14); background: var(--surface-2); padding: 2px 6px; border-radius: var(--radius-xs); overflow-wrap: anywhere; }
+.provider-plugin-details pre { padding: 16px; background: var(--surface-2); overflow: auto; border-radius: var(--radius-md); font-size: var(--text-body-14); }
 .provider-plugin-details pre code { padding: 0; }
 .provider-plugin-table-wrap { overflow-x: auto; }
-.provider-plugin-details table { border-collapse: collapse; width: 100%; font-size: var(--text-body-13); }
+.provider-plugin-details table { border-collapse: collapse; width: 100%; font-size: var(--text-body-14); }
 .provider-plugin-details th, .provider-plugin-details td { text-align: left; padding: 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
 .provider-plugin-details th { font-weight: 500; background: var(--surface-2); }
 .provider-plugin-details details { margin-top: 16px; }
