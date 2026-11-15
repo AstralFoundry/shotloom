@@ -1,3 +1,4 @@
+import { retainCanvasSectionMembership, fitCanvasSectionsToMembers, type SectionNode } from '../domain/graph/CanvasSections.ts';
 import { t } from '../i18n/index.ts';
 import { isActiveTaskStatus } from '@/domain/tasks/TaskStatus';
 import { uid } from '@/utils/format';
@@ -81,7 +82,7 @@ export function normalizeProject(input: unknown): any {
   const storedNodeSizingVersion = Number(project?.canvasNodeSizingVersion) || 1;
   const retiredNodeIds = new Set((Array.isArray(project?.nodes) ? project.nodes : [])
     .filter((node: AnyRecord) => node.type === 'clipStudio' && node.clipNodeVersion !== 1).map((node: AnyRecord) => node.id));
-  const nodes: AnyRecord[] = (Array.isArray(project?.nodes) ? project?.nodes : [])
+  const nodes: (AnyRecord & SectionNode)[] = (Array.isArray(project?.nodes) ? project?.nodes : [])
     .filter((node: AnyRecord) => !retiredNodeIds.has(node.id)).map((node: AnyRecord) => {
     const next = { ...node };
     next.artifactType = canvasArtifactType(next.artifactType);
@@ -120,6 +121,8 @@ export function normalizeProject(input: unknown): any {
   });
   const nodeIds = new Set<any>(nodes.map((node) => node.id));
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
+  retainCanvasSectionMembership(nodes);
+  fitCanvasSectionsToMembers(nodes);
   const tasks: AnyRecord[] = (Array.isArray(project?.tasks) ? project?.tasks : []).map((task: AnyRecord) => {
     const compactRequestPayload = summarizeGenerationPayload((task?.requestPayload || {}) as GenerationPayload);
     task = {

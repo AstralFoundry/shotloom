@@ -1,6 +1,6 @@
 import { t } from '@/i18n';
 import { Button, Checkbox, Modal, Tabs } from "antd";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   DndContext,
   KeyboardSensor,
@@ -30,6 +30,7 @@ import {
 } from "../../utils/canvasNodeToolbar.ts";
 
 const SCOPE_TAB_LABELS: Record<NodeToolbarScope, string> = {
+  text: t("ui.canvasAdapter.label.f1926e9b"),
   image: t("ui.CanvasToolbarCustomizeDialog.image.167e8c64"),
   video: t("ui.CanvasToolbarCustomizeDialog.video.1a4fa42b"),
 };
@@ -78,8 +79,9 @@ function AvailableToolTile({ tool, onToggle }: {
   );
 }
 
-export function CanvasToolbarCustomizeDialog({ open, onClose, customization }: {
+export function CanvasToolbarCustomizeDialog({ open, onClose, customization, initialScope = "image" }: {
   open: boolean;
+  initialScope?: NodeToolbarScope;
   onClose: () => void;
   /**
    * 由工具条把订阅到的同一份排布传进来：弹窗背后就是工具条，
@@ -88,7 +90,8 @@ export function CanvasToolbarCustomizeDialog({ open, onClose, customization }: {
   customization: CanvasToolbarCustomization;
 }) {
   const surface = useWorkbenchSurfaceRoot();
-  const [scope, setScope] = useState<NodeToolbarScope>("image");
+  const [scope, setScope] = useState<NodeToolbarScope>(initialScope);
+  useEffect(() => { if (open) setScope(initialScope); }, [open, initialScope]);
   const sensors = useSensors(
     // 4px 激活距离：否则一次点击就被 dnd-kit 当成一次拖拽，加/减按钮点不动。
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),

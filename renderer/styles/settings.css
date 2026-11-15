@@ -376,6 +376,7 @@
 .provider-incomplete { color: var(--faint); }
 .provider-incomplete i { background: var(--line-strong); box-shadow: none; }
 
+.settings-row.settings-toggle-row { grid-template-columns: minmax(0, 1fr) auto; padding-block: 8px; }
 .settings-toggle-row .ant-switch { justify-self: end; }
 
 .settings-section .canvas-shortcut-settings { gap: 0; }

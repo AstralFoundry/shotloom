@@ -1,7 +1,5 @@
 import { t } from '@/i18n';
-import { Checkbox } from "antd";
 import { useState } from "react";
-import type { AgentLayoutMode } from "../../services/agentLayoutService";
 import { IconSymbol } from "../components/IconSymbol";
 
 interface BottomModeBarProps {
@@ -11,9 +9,7 @@ interface BottomModeBarProps {
   onUndo: () => void;
   onRedo: () => void;
   onMaterialPicker: () => void;
-  onAutoLayout: (options?: { mode?: AgentLayoutMode; includeConnected?: boolean }) => boolean;
   onMergeVideos: () => void;
-  onCreateSection?: () => void;
   onOpenHistory?: () => void;
 }
 export function BottomModeBar(
@@ -24,16 +20,11 @@ export function BottomModeBar(
     onUndo,
     onRedo,
     onMaterialPicker,
-    onAutoLayout,
     onMergeVideos,
-    onCreateSection,
     onOpenHistory,
   }: BottomModeBarProps,
 ) {
   const [help, setHelp] = useState(false);
-  const [layoutOpen, setLayoutOpen] = useState(false);
-  const [includeConnected, setIncludeConnected] = useState(true);
-  const [layoutConfirmation, setLayoutConfirmation] = useState(false);
   const shortcuts = [
     { label: t("ui.BottomModeBar.label.a187522f"), keys: shortcutLabels.fitView },
     { label: t("ui.canvasAdapter.text.7ea05931"), keys: shortcutLabels.autoLayout },
@@ -60,9 +51,6 @@ export function BottomModeBar(
       </div>
       <div className="bottom-mode-divider" />
       <div className="bottom-mode-group">
-        <button title={t('canvas.section.createHint')} aria-label={t('canvas.section.create')} onClick={onCreateSection}>
-          <IconSymbol name="layers" />
-        </button>
         <button
           className="bottom-material-trigger"
           title={t("ui.BottomModeBar.title.23678ecb")}
@@ -70,16 +58,6 @@ export function BottomModeBar(
           onClick={onMaterialPicker}
         >
           <IconSymbol name="folder" />
-        </button>
-        <button
-          title={t("ui.BottomModeBar.title.a5727ff5")}
-          className={layoutOpen ? "active" : ""}
-          onClick={() => {
-            setHelp(false);
-            setLayoutOpen((value) => !value);
-          }}
-        >
-          <IconSymbol name="columns" />
         </button>
       </div>
       <div className="bottom-mode-divider" />
@@ -104,53 +82,6 @@ export function BottomModeBar(
           <IconSymbol name="help" />
         </button>
       </div>
-      {layoutOpen && (
-        <div className="canvas-layout-menu" onClick={(event) => event.stopPropagation()}>
-          <strong>{t("ui.BottomModeBar.text.cdb29857")}</strong>
-          <span>{t("ui.BottomModeBar.text.ffa60850")}</span>
-          <div className="canvas-layout-options">
-            {([
-              ["workflow", t("ui.BottomModeBar.text.22181626"), "workflow"],
-              ["horizontal", t("ui.BottomModeBar.text.5f14560d"), "columns"],
-              ["vertical", t("ui.BottomModeBar.text.f96695fe"), "list"],
-              ["grid", t("ui.BottomModeBar.text.cd1bbb12"), "grid"],
-            ] as const).map(([mode, label, icon]) => (
-              <button
-                key={mode}
-                onClick={() => {
-                  const changed = onAutoLayout({ mode, includeConnected });
-                  setLayoutOpen(false);
-                  setLayoutConfirmation(changed);
-                }}
-              >
-                <IconSymbol name={icon} />
-                {label}
-              </button>
-            ))}
-          </div>
-          <div className="canvas-layout-connected">
-            <Checkbox
-              checked={includeConnected}
-              onChange={(event) => setIncludeConnected(event.target.checked)}
-            >
-              {t("ui.BottomModeBar.text.df42ff54")}
-            </Checkbox>
-          </div>
-        </div>
-      )}
-      {layoutConfirmation && (
-        <div className="canvas-layout-confirm" onClick={(event) => event.stopPropagation()}>
-          <span>{t("ui.BottomModeBar.text.e64b9a12")}</span>
-          <button onClick={() => setLayoutConfirmation(false)}>{t("ui.BottomModeBar.text.d046ac70")}</button>
-          <button
-            onClick={() => {
-              onUndo();
-              setLayoutConfirmation(false);
-            }}
-          >
-            {t("ui.BottomModeBar.title.9fcefd8d")}</button>
-        </div>
-      )}
       {help && (
         <div
           className="canvas-shortcut-help"

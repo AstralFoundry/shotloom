@@ -16,7 +16,7 @@ import type { IconName } from "@/app/components/IconSymbol";
  * 两边必须消费同一份定义，不能有第二份。
  */
 
-export type NodeToolbarScope = "image" | "video";
+export type NodeToolbarScope = "image" | "video" | "text";
 
 /**
  * 交互类别决定按钮的 aria 角色与弹层归属，不决定权限，也不用来猜用户意图。
@@ -35,13 +35,17 @@ export interface NodeToolDefinition {
   interaction: NodeToolInteraction;
 }
 
-/**
- * 右侧固定区（存为资产、加入对话、打开完整文本）把结果交还给产品，不加工素材本身，
- * 因此不在这张可自定义清单里，也不参与持久排布——它们由 CanvasNodeToolbar 直接呈现。
- */
+/** 收藏入口参与图片与视频排布；文本操作也参与排布。 */
 
 export const NODE_TOOLBAR_TOOLS: Record<NodeToolbarScope, NodeToolDefinition[]> = {
+  text: [
+    { id: "copy-text", label: t("ui.ResourcePreview.title.4641d26b"), icon: "copy", interaction: "instant" },
+    { id: "collect-asset", label: t("assets.collection.collect"), icon: "archive", interaction: "opens_panel" },
+    { id: "mention-node", label: t("canvas.toolbar.mention"), icon: "chat", interaction: "instant" },
+    { id: "expand-text", label: t("ui.CanvasNodeToolbar.title.5fbaa77b"), icon: "maximize", interaction: "opens_dialog" },
+  ],
   image: [
+    { id: "collect-asset", label: t("assets.collection.collect"), icon: "archive", interaction: "opens_panel" },
     { id: "crop", label: t("ui.ImageCropEditor.text.f06f360f"), icon: "crop", interaction: "opens_mode" },
     { id: "annotate", label: t("ui.canvasMediaActions.suffix.c57f2cf0"), icon: "pencil", interaction: "opens_mode" },
     { id: "split-grid", label: t("ui.canvasMediaActions.text.08b65689"), icon: "grid", interaction: "opens_mode" },
@@ -54,6 +58,7 @@ export const NODE_TOOLBAR_TOOLS: Record<NodeToolbarScope, NodeToolDefinition[]> 
     { id: "history", label: t("imageHistory.tool.label"), icon: "clock", interaction: "opens_dialog" },
   ],
   video: [
+    { id: "collect-asset", label: t("assets.collection.collect"), icon: "archive", interaction: "opens_panel" },
     { id: "clip", label: t("ui.videoEditorActions.text.801f1d23"), icon: "scissors", interaction: "side_effect" },
     { id: "extract-frame", label: t("ui.canvasNodeToolbar.label.4ee06a4b"), icon: "camera", interaction: "opens_mode" },
     { id: "extract-audio", label: t("ui.CanvasNodeToolbar.text.4fcd8517"), icon: "waveform", interaction: "instant" },
@@ -61,8 +66,9 @@ export const NODE_TOOLBAR_TOOLS: Record<NodeToolbarScope, NodeToolDefinition[]> 
 };
 
 export const NODE_TOOLBAR_DEFAULT_PINNED: Record<NodeToolbarScope, string[]> = {
-  image: ["crop", "annotate", "split-grid", "watermark", "angle", "lighting", "mask-edit", "emotion", "reverse-prompt", "history"],
-  video: ["clip", "extract-frame", "extract-audio"],
+  text: ["copy-text", "collect-asset", "mention-node", "expand-text"],
+  image: ["crop", "annotate", "split-grid", "watermark", "angle", "lighting", "mask-edit", "emotion", "reverse-prompt", "history", "collect-asset"],
+  video: ["clip", "extract-frame", "extract-audio", "collect-asset"],
 };
 
 export const CANVAS_TOOLBAR_LAYOUT_VERSION = 1;
@@ -76,6 +82,7 @@ export interface CanvasToolbarCustomization {
 const SCOPES = Object.keys(NODE_TOOLBAR_TOOLS) as NodeToolbarScope[];
 
 export function nodeToolbarScope(nodeType: unknown): NodeToolbarScope | null {
+  if (nodeType === "textGeneration") return "text";
   if (nodeType === "imageGeneration") return "image";
   if (nodeType === "videoGeneration") return "video";
   return null;
@@ -94,6 +101,7 @@ export function defaultCanvasToolbarCustomization(): CanvasToolbarCustomization 
     layoutVersion: CANVAS_TOOLBAR_LAYOUT_VERSION,
     showLabels: false,
     pinned: {
+      text: [...NODE_TOOLBAR_DEFAULT_PINNED.text],
       image: [...NODE_TOOLBAR_DEFAULT_PINNED.image],
       video: [...NODE_TOOLBAR_DEFAULT_PINNED.video],
     },
@@ -136,6 +144,7 @@ export function normalizeCanvasToolbarCustomization(
     layoutVersion: CANVAS_TOOLBAR_LAYOUT_VERSION,
     showLabels: source.showLabels === true,
     pinned: {
+      text: normalizePinned("text", pinned.text),
       image: normalizePinned("image", pinned.image),
       video: normalizePinned("video", pinned.video),
     },

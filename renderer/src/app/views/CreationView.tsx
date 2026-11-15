@@ -327,9 +327,7 @@ function CreationCanvas({ data, controller }: { data: CreationViewData; controll
               onUndo={controller.undo}
               onRedo={controller.redo}
               onMaterialPicker={openPicker}
-              onAutoLayout={controller.autoLayout}
               onMergeVideos={controller.mergeVideos}
-              onCreateSection={() => controller.canvas.createSection?.()}
               onOpenHistory={() => setVersionHistoryOpen(true)}
             />
             </>

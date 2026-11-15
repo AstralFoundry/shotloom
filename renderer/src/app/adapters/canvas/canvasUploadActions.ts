@@ -1,3 +1,4 @@
+import { canvasSectionDropTarget } from '../../../domain/graph/CanvasSections.ts';
 import { t } from '@/i18n';
 import {
   copyFileIntoProjectAssets,
@@ -56,6 +57,7 @@ export async function createUploadedNode(rawFile: any, position = { x: 120, y: 9
     resourceType,
     source: "canvas-upload",
   };
+  node.canvasSectionId = canvasSectionDropTarget(node, store.project.nodes)?.id ?? null;
   touchProject();
   return node;
 }

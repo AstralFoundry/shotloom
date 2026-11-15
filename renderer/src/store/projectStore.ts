@@ -1,3 +1,4 @@
+import { arrangeAutomaticCanvasSections } from '../domain/graph/CanvasSections.ts';
 import { t } from '@/i18n';
 import { isRecord } from '@/utils/typeGuards';
 import { isActiveTaskStatus } from '@/domain/tasks/TaskStatus';
@@ -214,6 +215,7 @@ function scheduleSessionPersist(delay = 100, { coalesce = false }: { coalesce?: 
 }
 
 export function touchProject({ sessionDelay = 100, coalesceSession = false }: { sessionDelay?: number; coalesceSession?: boolean } = {}) {
+  arrangeAutomaticCanvasSections(store.project.nodes);
   store.project.updatedAt = new Date().toISOString();
   scheduleSessionPersist(sessionDelay, { coalesce: coalesceSession });
   scheduleAutoSave();

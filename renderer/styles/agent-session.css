@@ -160,7 +160,7 @@
   color: var(--text);
 }
 .harness-session-trigger svg,
-.harness-session-icon svg { width: 15px; height: 15px; flex: none; stroke-width: 1.6; }
+.harness-session-icon svg { width: 15px; height: 15px; flex: none; stroke-width: var(--icon-stroke-width); }
 .harness-session-trigger .harness-session-chevron { width: 12px; height: 12px; color: var(--faint); }
 .harness-session-actions { display: flex; flex: none; align-items: center; gap: 4px; pointer-events: auto; }
 .harness-session-icon { width: 28px; }

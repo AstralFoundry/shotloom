@@ -210,7 +210,7 @@
   height: var(--canvas-node-state-icon-size);
   margin-bottom: 12px;
   color: var(--line-solid);
-  stroke-width: 1.4;
+  stroke-width: var(--icon-stroke-width);
 }
 
 .director-node-placeholder strong {

@@ -1,5 +1,5 @@
 import { t } from '@/i18n';
-import { Dropdown, Select, type MenuProps } from "antd";
+import { Dropdown, type MenuProps } from "antd";
 import { type MouseEvent, useEffect, useMemo, useRef, useState } from "react";
 import { formatTime, formatItemCount } from "../../utils/format.ts";
 import { showErrorMessage } from "../../store/notificationStore";
@@ -377,17 +377,25 @@ export function ProjectsView(
                   placeholder={t("ui.ProjectSearch.text.b617f05c")}
                 />
               </label>
-              {currentFolder && <Select
-                className="project-library-filter"
-                aria-label={t("ui.CreationView.text.fa6968d9")}
-                value={entryFilter}
-                onChange={(value) => setEntryFilter(value)}
-                options={[
-                  { value: "all", label: t("ui.taskAdapter.label.778fc8f9") },
-                  { value: "project", label: t("ui.ProjectSearch.kind.95b2102f") },
-                  { value: "folder", label: t("ui.ProjectsView.text.46ecac29") },
-                ]}
-              />}
+              {currentFolder && <Dropdown
+                trigger={["click"]}
+                placement="bottomRight"
+                menu={{
+                  selectable: true,
+                  selectedKeys: [entryFilter],
+                  items: [
+                    { key: "all", label: t("ui.taskAdapter.label.778fc8f9") },
+                    { key: "project", label: t("ui.ProjectSearch.kind.95b2102f") },
+                    { key: "folder", label: t("ui.ProjectsView.text.46ecac29") },
+                  ],
+                  onClick: ({ key }) => setEntryFilter(key as typeof entryFilter),
+                }}
+              >
+                <button className="project-library-sort-trigger" type="button" aria-label={t("ui.CreationView.text.fa6968d9")}>
+                  {entryFilter === "project" ? t("ui.ProjectSearch.kind.95b2102f") : entryFilter === "folder" ? t("ui.ProjectsView.text.46ecac29") : t("ui.taskAdapter.label.778fc8f9")}
+                  <IconSymbol name="chevron-down" />
+                </button>
+              </Dropdown>}
               <Dropdown
                 trigger={["click"]}
                 placement="bottomRight"

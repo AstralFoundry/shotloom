@@ -77,11 +77,67 @@
   position: absolute;
   inset: 0;
   box-sizing: border-box;
-  border: 1px solid var(--line-soft);
-  border-radius: calc(var(--radius-sm) * var(--section-zoom));
+  border: 1px solid var(--canvas-node-border);
+  border-radius: calc(var(--canvas-node-radius) * var(--section-zoom));
   background: var(--canvas-section-bg);
 }
-.canvas-section.is-selected { border-color: var(--canvas-node-border-selected); }
+.canvas-section-surface { position: absolute; inset: 0; pointer-events: auto; cursor: grab; }
+.canvas-section-surface:active { cursor: grabbing; }
+.canvas-section.is-selected { border-color: var(--canvas-node-border-selected); box-shadow: 0 0 0 1px var(--canvas-selection-bg); }
+.canvas-section {
+  transition: border-color var(--duration-fast) var(--ease-out), background-color var(--duration-base) var(--ease-out);
+}
+.canvas-section:has(.canvas-section-heading:hover),
+.canvas-section.is-dragging,
+.canvas-section[data-drop-state] { border-color: var(--canvas-node-border-selected); }
+.canvas-section[data-drop-state="join"],
+.canvas-section[data-drop-state="joined"] {
+  background: color-mix(in srgb, var(--canvas-node-border-selected) 3%, var(--canvas-section-bg));
+}
+.canvas-section[data-drop-state="leave"] { border-style: dashed; }
+.canvas-section.is-dragging .canvas-section-heading,
+.canvas-section[data-drop-state="join"] .canvas-section-heading { color: var(--text); }
+.canvas-section-drop-hint {
+  position: absolute;
+  right: calc(8px * var(--section-zoom));
+  bottom: calc(8px * var(--section-zoom));
+  display: flex;
+  align-items: center;
+  gap: calc(4px * var(--section-zoom));
+  max-width: calc(100% - 16px * var(--section-zoom));
+  padding: calc(3px * var(--section-zoom)) calc(8px * var(--section-zoom));
+  border-radius: calc(var(--radius-xs) * var(--section-zoom));
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-card);
+  font-size: calc(var(--text-body-12) * var(--section-zoom));
+  line-height: calc(18px * var(--section-zoom));
+  white-space: nowrap;
+  overflow: hidden;
+  opacity: 0;
+  transform: translateY(3px);
+  pointer-events: none;
+  transition: opacity var(--duration-fast) var(--ease-out), transform var(--duration-base) var(--ease-out);
+}
+.canvas-section[data-drop-state] .canvas-section-drop-hint { opacity: 1; transform: translateY(0); }
+.canvas-section-drop-hint svg { width: calc(12px * var(--section-zoom)); height: calc(12px * var(--section-zoom)); flex: none; }
+.canvas-section[data-drop-state="joined"]::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 1px solid var(--canvas-node-border-selected);
+  border-radius: inherit;
+  pointer-events: none;
+  animation: canvas-section-receive var(--duration-slow) var(--ease-out) both;
+}
+@keyframes canvas-section-receive {
+  from { opacity: .7; transform: scale(1); }
+  to { opacity: 0; transform: scale(1.025); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .canvas-section, .canvas-section-drop-hint { transition: none; }
+  .canvas-section[data-drop-state="joined"]::after { animation: none; }
+}
 .canvas-section-heading {
   position: absolute;
   left: 0;
@@ -99,7 +155,7 @@
   pointer-events: auto;
 }
 .canvas-section-heading:active { cursor: grabbing; }
-.canvas-section-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.canvas-section-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .canvas-section-heading input {
   flex: 1;
   min-width: 0;
@@ -126,10 +182,13 @@
   color: var(--muted);
   cursor: pointer;
 }
+.canvas-section-actions button[aria-pressed="true"] { color: var(--text); background: var(--surface-2); }
+.canvas-section-actions button:focus-visible { outline: 2px solid var(--canvas-node-border-selected); outline-offset: 2px; }
 .canvas-section-actions button:hover { color: var(--text); background: var(--surface-2); }
 .canvas-section-actions svg { width: calc(14px * var(--section-zoom)); height: calc(14px * var(--section-zoom)); }
-.canvas-section-resize, .canvas-section-resize-line { pointer-events: auto; border-color: var(--canvas-node-border-selected); }
-.canvas-section-resize { background: var(--surface); }
+/* Keep the same invisible 10px resize targets used by ordinary canvas nodes.
+   The section's own rounded border is the single visible selection outline. */
+.canvas-section-resize, .canvas-section-resize-line { pointer-events: auto; }
 .canvas-node-semantic-frame {
   width: 100%;
   height: 100%;
@@ -1008,7 +1067,7 @@ body.annotation-editor-open .screenshots-textarea {
   width: var(--canvas-node-icon-size);
   height: var(--canvas-node-icon-size);
   fill: none;
-  stroke-width: 2.4;
+  stroke-width: var(--icon-stroke-width);
 }
 .audio-waveform-controls .audio-waveform-download {
   width: var(--canvas-node-action-size);

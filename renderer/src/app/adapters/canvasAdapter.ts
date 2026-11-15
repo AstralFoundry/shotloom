@@ -54,7 +54,7 @@ import {
 import { runNode } from "../../store/taskStore.ts";
 import { uid } from "../../utils/format.ts";
 import { updatedTextVersions } from "../../utils/textNodeVersions.ts";
-import { canvasSectionBounds, canvasSectionMembers } from "../../domain/graph/CanvasSections.ts";
+import { canvasSectionBounds, canvasSectionMembers, retainCanvasSectionMembership, fitCanvasSectionsToMembers, moveCanvasSectionNodes, arrangeCanvasSection, canvasSectionDropTarget } from "../../domain/graph/CanvasSections.ts";
 import { showSuccessToast, showToast } from "../../store/notificationStore";
 import type {
   WorkflowCanvasController,
@@ -229,22 +229,20 @@ export const canvasController: WorkflowCanvasController = {
     recordCanvasHistory(t('canvas.section.create'));
     const count = store.project.nodes.filter((node: WorkflowNodeData) => node.type === 'canvasSection').length;
     const node = addNode('canvasSection');
-    Object.assign(node, bounds, { title: `${t('canvas.section.default')} ${count + 1}` });
+    retainCanvasSectionMembership(store.project.nodes);
+    Object.assign(node, bounds, { title: `${t('canvas.section.default')} ${count + 1}`, canvasSectionAutoLayout: true });
+    for (const member of selected) {
+      if (member.type !== 'canvasSection' && !member.archived) member.canvasSectionId = node.id;
+    }
     touchProject();
   },
   moveNodes(positions, options = {}) {
     if (!positions.length) return;
     if (options.recordHistory !== false) {
-      recordCanvasPositionHistory(positions.map((item) => item.id));
+      if (store.project.nodes.some((node: WorkflowNodeData) => node.type === 'canvasSection')) recordCanvasHistory(t('ui.canvasHistoryStore.text.c4aa4abc'));
+      else recordCanvasPositionHistory(positions.map((item) => item.id));
     }
-    const map = new Map(positions.map((item) => [item.id, item]));
-    for (const node of store.project.nodes || []) {
-      const position = map.get(node.id);
-      if (position) {
-        node.x = position.x;
-        node.y = position.y;
-      }
-    }
+    moveCanvasSectionNodes(store.project.nodes, positions);
     touchProject({ sessionDelay: 250, coalesceSession: true });
   },
   selectNodes(ids) {
@@ -318,6 +316,7 @@ export const canvasController: WorkflowCanvasController = {
     const node: any = addNode(type);
     node.x = Math.round(position.x);
     node.y = Math.round(position.y);
+    node.canvasSectionId = canvasSectionDropTarget(node, store.project.nodes)?.id ?? null;
     touchProject();
   },
   createArtifactNodeAt(artifactId, position) {
@@ -451,13 +450,23 @@ export const nodeActions: WorkflowNodeActions = {
           patch = { ...patch, textVersions: versions };
         }
       }
+      retainCanvasSectionMembership(store.project.nodes);
       Object.assign(node, patch);
+      fitCanvasSectionsToMembers(store.project.nodes);
       touchProject({ sessionDelay: 250, coalesceSession: true });
     }
   },
   select(id) {
     store.selectedEdgeId = null;
     selectNode(id);
+  },
+  arrangeSection(id) {
+    const section = store.project.nodes.find((node: WorkflowNodeData) => node.id === id && node.type === 'canvasSection');
+    if (!section) return;
+    recordCanvasHistory(t('canvas.section.arrange'));
+    retainCanvasSectionMembership(store.project.nodes);
+    arrangeCanvasSection(section, store.project.nodes);
+    touchProject();
   },
   selectSectionContents(id) {
     const section = store.project.nodes.find((node: WorkflowNodeData) => node.id === id && node.type === 'canvasSection');

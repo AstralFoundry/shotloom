@@ -126,7 +126,7 @@ test('局部重绘的工具栏、覆盖层与动作接线完整', () => {
   const icon = readSource('renderer/src/app/components/IconSymbol.tsx');
 
   assert.match(registry, /id: "mask-edit", label: t\("imageMask\.tool\.label"\), icon: "brush"/);
-  assert.match(registry, /image: \["crop", "annotate", "split-grid", "watermark", "angle", "lighting", "mask-edit", "emotion", "reverse-prompt", "history"\]/);
+  assert.match(registry, /image: \["crop", "annotate", "split-grid", "watermark", "angle", "lighting", "mask-edit", "emotion", "reverse-prompt", "history", "collect-asset"\]/);
   assert.match(toolbar, /case "mask-edit":[\s\S]*?pressed: imageMaskOpen[\s\S]*?onClick: onImageMaskOpen/);
   assert.match(canvas, /applyMaskEdit: \(id: string, input: \{[\s\S]*?prompt: string;[\s\S]*?maskFilePath: string;[\s\S]*?model\?: string;[\s\S]*?config\?: Record<string, unknown>;[\s\S]*?\}\) => boolean/);
   assert.match(canvas, /setImageMaskOpen\(\(current\) => !current\)/);

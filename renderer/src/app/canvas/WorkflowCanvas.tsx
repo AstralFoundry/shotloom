@@ -63,8 +63,8 @@ import { CanvasNodeToolbar } from "./CanvasNodeToolbar";
 import { isCanvasDomEvent, isEditableCanvasEvent } from "./canvasEventScope";
 import { GenerationHistoryDialog } from "./GenerationHistoryDialog";
 import { CanvasContextMenu } from "./CanvasContextMenu";
-import { CanvasSectionNode } from "./CanvasSectionNode";
-import { canvasSectionMembers } from "../../domain/graph/CanvasSections.ts";
+import { CanvasSectionNode, SectionDragFeedbackContext, CanvasSectionNodesContext, type SectionDragFeedback } from "./CanvasSectionNode";
+import { canvasSectionMembers, canvasSectionDropTarget } from "../../domain/graph/CanvasSections.ts";
 import { ARTIFACT_DRAG_TYPE } from "../agent-chat/artifactHelpers";
 import {
   canvasMenuPosition,
@@ -80,6 +80,8 @@ export interface WorkflowNodeData extends Record<string, unknown> {
   y?: number;
   canvasWidth?: number;
   canvasHeight?: number;
+  canvasSectionId?: string | null;
+  canvasSectionAutoLayout?: boolean;
   archived?: boolean;
   status?: string;
   selected?: boolean;
@@ -111,6 +113,7 @@ export type WorkflowReferenceCandidate = {
 };
 export interface WorkflowNodeActions {
   selectSectionContents?: (id: string) => void;
+  arrangeSection?: (id: string) => void;
   createClipNode: (id: string) => void | Promise<void>;
   update: (id: string, patch: Record<string, unknown>) => void;
   select: (id: string) => void;
@@ -401,7 +404,7 @@ function toFlowNodes(
         id: node.id,
         type: "panel",
         zIndex: node.type === 'canvasSection' ? -1 : 0,
-        ...(node.type === 'canvasSection' ? { dragHandle: '.canvas-section-heading' } : {}),
+        ...(node.type === 'canvasSection' ? { dragHandle: '.canvas-section-heading, .canvas-section-surface' } : {}),
         connectable: node.type !== 'canvasSection',
         className: [
           node.type === 'canvasSection' ? 'canvas-section-node' : '',
@@ -497,7 +500,7 @@ function CanvasNode({ data, selected, dragging }: NodeProps<FlowNode>) {
       : { width: 195, height: 135 };
   const dimensions = nodeDimensions(item);
   const semanticZoom = data.semanticZoom;
-  if (item.type === 'canvasSection') return <CanvasSectionNode node={item} selected={Boolean(selected)} zoom={semanticZoom} actions={actions} />;
+  if (item.type === 'canvasSection') return <CanvasSectionNode node={item} selected={Boolean(selected)} dragging={dragging} zoom={semanticZoom} actions={actions} />;
   return (
     <>
       {!imageMaskOpen && !imageEmotionOpen && <CanvasNodeToolbar
@@ -770,7 +773,10 @@ export function WorkflowCanvas({
   const [historyNodeId, setHistoryNodeId] = useState<string | null>(null);
   const [liveViewport, setLiveViewport] = useState({ ...viewport, zoom: initialZoom });
   const draggingNodeIds = useRef(new Set<string>());
-  const sectionDrag = useRef<{ origin: { x: number; y: number }; members: Map<string, { x: number; y: number }> } | null>(null);
+  const [sectionFeedback, setSectionFeedback] = useState<ReadonlyMap<string, SectionDragFeedback>>(new Map());
+  const sectionFeedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (sectionFeedbackTimer.current) clearTimeout(sectionFeedbackTimer.current); }, []);
+  const sectionDrag = useRef<{ origin: { x: number; y: number }; canvasOrigin: { x: number; y: number }; members: Map<string, { x: number; y: number; canvasX: number; canvasY: number }> } | null>(null);
   const movementEndTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const viewportAnimationFrame = useRef<number | null>(null);
   const canvasRoot = useRef<HTMLElement>(null);
@@ -873,25 +879,48 @@ export function WorkflowCanvas({
     },
     [applyFlowNodeChanges, controller, flowEdges, renderedNodes],
   );
+  const previewSectionDrop = useCallback((active: FlowNode[]) => {
+    const feedback = new Map<string, SectionDragFeedback>();
+    // Moving a frame carries its members; it does not reassign them to frames underneath.
+    if (active.some(item => item.data.node.type === 'canvasSection')) return feedback;
+    for (const item of active) {
+      const node = item.data.node;
+      const target = canvasSectionDropTarget({ ...node,
+        x: Math.round(item.position.x / semanticZoomRef.current), y: Math.round(item.position.y / semanticZoomRef.current),
+      }, visible);
+      const owner = node.canvasSectionId === undefined
+        ? visible.find(section => section.type === 'canvasSection' && canvasSectionMembers(section, visible).some(member => member.id === node.id))?.id
+        : node.canvasSectionId;
+      if (owner && owner !== target?.id && !feedback.has(owner)) feedback.set(owner, 'leave');
+      if (target && feedback.get(target.id) !== 'join') feedback.set(target.id, owner === target.id ? 'inside' : 'join');
+    }
+    return feedback;
+  }, [visible]);
+  const showSectionFeedback = useCallback((next: ReadonlyMap<string, SectionDragFeedback>) => {
+    setSectionFeedback(current => current.size === next.size && [...next].every(([id, state]) => current.get(id) === state) ? current : next);
+  }, []);
   const onNodeDragStart: OnNodeDrag<FlowNode> = useCallback(
     (_event, node, draggedNodes) => {
+      if (sectionFeedbackTimer.current) clearTimeout(sectionFeedbackTimer.current);
       const activeNodes = draggedNodes.length ? draggedNodes : [node];
+      showSectionFeedback(previewSectionDrop(activeNodes));
       activeNodes.forEach((item) => draggingNodeIds.current.add(item.id));
       const activeIds = new Set(activeNodes.map(item => item.id));
-      const members = new Map<string, { x: number; y: number }>();
+      const members = new Map<string, { x: number; y: number; canvasX: number; canvasY: number }>();
       for (const section of activeNodes.filter(item => item.data.node.type === 'canvasSection')) {
         for (const member of canvasSectionMembers(section.data.node, visible)) {
           if (activeIds.has(member.id)) continue;
           const flow = renderedNodes.find(item => item.id === member.id);
-          if (flow) members.set(member.id, { ...flow.position });
+          if (flow) members.set(member.id, { ...flow.position, canvasX: Number(member.x) || 0, canvasY: Number(member.y) || 0 });
         }
       }
       members.forEach((_position, id) => draggingNodeIds.current.add(id));
-      sectionDrag.current = { origin: { ...node.position }, members };
+      sectionDrag.current = { origin: { ...node.position }, canvasOrigin: { x: Number(node.data.node.x) || 0, y: Number(node.data.node.y) || 0 }, members };
     },
-    [renderedNodes, visible],
+    [renderedNodes, visible, previewSectionDrop, showSectionFeedback],
   );
-  const onNodeDrag: OnNodeDrag<FlowNode> = useCallback((_event, node) => {
+  const onNodeDrag: OnNodeDrag<FlowNode> = useCallback((_event, node, draggedNodes) => {
+    showSectionFeedback(previewSectionDrop(draggedNodes.length ? draggedNodes : [node]));
     const drag = sectionDrag.current;
     if (!drag?.members.size) return;
     const dx = node.position.x - drag.origin.x;
@@ -900,7 +929,7 @@ export function WorkflowCanvas({
       const origin = drag.members.get(item.id);
       return origin ? { ...item, position: { x: origin.x + dx, y: origin.y + dy } } : item;
     }));
-  }, [setFlowNodes]);
+  }, [setFlowNodes, previewSectionDrop, showSectionFeedback]);
   const onNodeDragStop: OnNodeDrag<FlowNode> = useCallback(
     (_event, node, draggedNodes) => {
       const stoppedNodes = draggedNodes.length ? draggedNodes : [node];
@@ -908,10 +937,12 @@ export function WorkflowCanvas({
       const moved = draggedCanvasPositions(node, draggedNodes, semanticZoomRef.current);
       const drag = sectionDrag.current;
       if (drag) {
-        const dx = node.position.x - drag.origin.x;
-        const dy = node.position.y - drag.origin.y;
+        // Apply one canonical delta to every member; independently rounding
+        // screen coordinates would make contents drift at fractional zoom.
+        const dx = Math.round(node.position.x / semanticZoomRef.current) - drag.canvasOrigin.x;
+        const dy = Math.round(node.position.y / semanticZoomRef.current) - drag.canvasOrigin.y;
         for (const [id, origin] of drag.members) {
-          moved.push({ id, x: Math.round((origin.x + dx) / semanticZoomRef.current), y: Math.round((origin.y + dy) / semanticZoomRef.current) });
+          moved.push({ id, x: origin.canvasX + dx, y: origin.canvasY + dy });
           draggingNodeIds.current.delete(id);
         }
       }
@@ -931,8 +962,14 @@ export function WorkflowCanvas({
       }));
       traceCanvasEvent("drag-stop", { moved });
       if (moved.length) controller.moveNodes(moved);
+      const joined = new Map<string, SectionDragFeedback>();
+      for (const [id, state] of previewSectionDrop(stoppedNodes)) {
+        if (state === 'join') joined.set(id, 'joined');
+      }
+      showSectionFeedback(joined);
+      if (joined.size) sectionFeedbackTimer.current = setTimeout(() => showSectionFeedback(new Map()), 900);
     },
-    [controller, setFlowNodes],
+    [controller, setFlowNodes, previewSectionDrop, showSectionFeedback],
   );
   useEffect(() => {
     // A cancelled pointer or a deactivated window may never deliver mouseup.
@@ -1205,6 +1242,8 @@ export function WorkflowCanvas({
         <CanvasOverlayRootContext.Provider value={canvasOverlayRoot}>
         <CanvasFocusNodesContext.Provider value={focusCanvasNodes}>
         <CanvasHistoryContext.Provider value={setHistoryNodeId}>
+        <SectionDragFeedbackContext.Provider value={sectionFeedback}>
+        <CanvasSectionNodesContext.Provider value={visible}>
         <section
           ref={bindCanvasRoot}
           onDragOver={onArtifactDragOver}
@@ -1262,6 +1301,13 @@ export function WorkflowCanvas({
             if (!editable && command && key === 'g') {
               event.preventDefault();
               controller.createSection?.();
+            }
+            if (!editable && command && event.shiftKey && key === 'l') {
+              const sections = visible.filter(node => node.type === 'canvasSection' && node.selected);
+              if (sections.length) {
+                event.preventDefault();
+                for (const section of sections) nodeActions.arrangeSection?.(section.id);
+              }
             }
             if (!editable && command && key === "a") {
               event.preventDefault();
@@ -1459,6 +1505,8 @@ export function WorkflowCanvas({
           nodeId={historyNodeId || ''}
           onClose={() => setHistoryNodeId(null)}
         />
+        </CanvasSectionNodesContext.Provider>
+        </SectionDragFeedbackContext.Provider>
         </CanvasHistoryContext.Provider>
         </CanvasFocusNodesContext.Provider>
         </CanvasOverlayRootContext.Provider>

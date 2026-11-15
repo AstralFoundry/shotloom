@@ -59,9 +59,9 @@ test('画布不存在便签与画板节点', () => {
 
 test('文本节点工具栏提供复制、加入对话与完整文本编辑', () => {
   assert.match(canvas, /isTextNode = node\.type === "textGeneration"/);
-  assert.match(canvas, /canvas-node-toolbar-label">文本节点/);
-  assert.match(canvas, /title="复制全文"[\s\S]*?navigator\.clipboard\.writeText\(textContent\)/);
-  assert.match(canvas, /title="打开完整文本"[\s\S]*?openTextDetail\(\)/);
+  assert.doesNotMatch(toolbar, /canvas-node-toolbar-label/);
+  assert.match(canvas, /case "copy-text":[\s\S]*?navigator\.clipboard\.writeText\(textContent\)/);
+  assert.match(canvas, /case "expand-text":[\s\S]*?onClick: openTextDetail/);
   assert.match(canvas, /openMediaViewer\(\{[\s\S]*?kind: "text"[\s\S]*?actions\.update\(node\.id/);
   assert.doesNotMatch(canvas, /item\.textContent \|\| item\.prompt/);
 });
@@ -69,7 +69,7 @@ test('文本节点工具栏提供复制、加入对话与完整文本编辑', ()
 test('媒体节点工具栏提供真实入库与音频分离', () => {
   assert.match(toolbar, /label: audioSplitRunning \? "拆分中…"[\s\S]*?disabled: !canExtractAudio \|\| audioSplitRunning,[\s\S]*?actions\.extractAudio\(node\.id\)/);
   assert.match(canvas, /desktopApi\.file\.hasAudio\(localMediaPath\)[\s\S]*?"present"\s*:\s*"absent"/);
-  assert.match(canvas, /canSaveToAssets[\s\S]*?收藏到资产库[\s\S]*?openMenu === "asset"/);
+  assert.match(canvas, /canSaveToAssets[\s\S]*?收藏[\s\S]*?openMenu === "asset"/);
   assert.match(canvas, /assetCategories\.map[\s\S]*?setAssetCategory\(category\.id\)/);
   assert.match(canvas, /createPortal\([\s\S]*?canvas-node-asset-scope-menu--portal[\s\S]*?canvasOverlayRoot/);
   assert.match(canvas, /assetPlacementRevision = useStore[\s\S]*?positionAbsolute[\s\S]*?state\.transform/);
@@ -243,7 +243,7 @@ test('节点工具条由注册表驱动，未接线的工具只是不出现', ()
 
   assert.equal(nodeToolbarScope('imageGeneration'), 'image');
   assert.equal(nodeToolbarScope('videoGeneration'), 'video');
-  assert.equal(nodeToolbarScope('textGeneration'), null);
+  assert.equal(nodeToolbarScope('textGeneration'), 'text');
   for (const scope of ['image', 'video']) {
     // 默认钉住的每一项都必须是真实登记过的工具，否则用户看到一个空位。
     for (const id of NODE_TOOLBAR_DEFAULT_PINNED[scope]) {
@@ -359,4 +359,39 @@ test('小地图节点可点击定位、保持缩放且地图不被面板裁切',
     readSource('../renderer/styles/workbench.css'),
     /\.canvas-minimap|\.minimap-viewport|\.minimap-dot/,
   );
+});
+
+
+test('收藏入口参与图片和视频排布，旧偏好保留并可从更多工具找回', () => {
+  const { NODE_TOOLBAR_TOOLS, defaultCanvasToolbarCustomization, normalizeCanvasToolbarCustomization, nodeToolbarOverflowIds } = toolbarContract;
+  const defaults = defaultCanvasToolbarCustomization();
+  for (const scope of ['image', 'video']) {
+    assert.equal(NODE_TOOLBAR_TOOLS[scope].filter(tool => tool.id === 'collect-asset').length, 1);
+    assert.ok(defaults.pinned[scope].includes('collect-asset'));
+    const previous = defaults.pinned[scope].filter(id => id !== 'collect-asset');
+    const restored = normalizeCanvasToolbarCustomization({ pinned: { [scope]: previous } });
+    assert.deepEqual(restored.pinned[scope], previous);
+    assert.ok(nodeToolbarOverflowIds(scope, restored.pinned[scope]).includes('collect-asset'));
+    const reordered = normalizeCanvasToolbarCustomization({ pinned: { [scope]: ['collect-asset', ...previous] } });
+    assert.equal(reordered.pinned[scope][0], 'collect-asset');
+  }
+  // 收起到更多时弹层使用仍存在的更多按钮定位，非图片/视频保留固定入口。
+  assert.match(toolbar, /assetAnchorRef = scope && !pinnedIds.includes\("collect-asset"\) \? moreTriggerRef : assetTriggerRef/);
+  assert.match(toolbar, /triggerRef: assetAnchorRef/);
+  assert.match(toolbar, /case "collect-asset":[\s\S]*?menuKey: "asset",[\s\S]*?onClick: toggleAssetMenu/);
+  assert.match(toolbar, /\{!scope && <button\s+ref=\{assetTriggerRef\}/);
+});
+
+
+test('文本工具栏排布可持久化，旧设置自动补默认文本工具', () => {
+  const { defaultCanvasToolbarCustomization, normalizeCanvasToolbarCustomization, nodeToolbarOverflowIds } = toolbarContract;
+  const defaults = defaultCanvasToolbarCustomization();
+  assert.deepEqual(defaults.pinned.text, ['copy-text', 'collect-asset', 'mention-node', 'expand-text']);
+  const old = normalizeCanvasToolbarCustomization({ pinned: { image: ['crop'], video: ['clip'] } });
+  assert.deepEqual(old.pinned.text, defaults.pinned.text);
+  assert.deepEqual(old.pinned.image, ['crop']);
+  const custom = normalizeCanvasToolbarCustomization({ pinned: { text: ['expand-text', 'copy-text'] } });
+  assert.deepEqual(custom.pinned.text, ['expand-text', 'copy-text']);
+  assert.deepEqual(nodeToolbarOverflowIds('text', custom.pinned.text), ['collect-asset', 'mention-node']);
+  assert.deepEqual(normalizeCanvasToolbarCustomization({ pinned: { text: [] } }).pinned.text, []);
 });

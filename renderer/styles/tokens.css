@@ -129,6 +129,7 @@
   --toolbar-divider-width: .5px;
 
   /* Icon ladder (reference: 12 / 14 / 16 / 20 / 24 / 32; 16 is the baseline) */
+  --icon-stroke-width: 1.35;
   --icon-xs: 12px;
   --icon-sm: 14px;
   --icon-md: 16px;

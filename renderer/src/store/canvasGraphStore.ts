@@ -42,6 +42,9 @@ export function deleteCanvasNodeData(nodeId: string, { touch = true }: { touch?:
     session.textNodeId === nodeId || session.editorNodeId === nodeId || session.directorNodeId === nodeId,
   ).map((session: any) => session.harnessSessionId).filter(Boolean));
   trashBoundHarnessSessions(current.project, nodeId);
+  for (const member of current.project.nodes) {
+    if (member.canvasSectionId === nodeId) member.canvasSectionId = null;
+  }
   current.project.nodes = current.project.nodes.filter((item) => item.id !== nodeId);
   current.project.edges = current.project.edges.filter(
     (edge) => edge.source !== nodeId && edge.target !== nodeId,
@@ -139,6 +142,7 @@ export function addCanvasEdge(
 export function remapImportedNodeReferences(nodes: any[], _idMap?: Map<string, string>): any[] {
   return nodes.filter((node) => node.type !== 'group').map((node) => {
     if (node.parentGroupId) delete node.parentGroupId;
+    if (node.canvasSectionId) node.canvasSectionId = _idMap?.get(node.canvasSectionId) ?? null;
     return node;
   });
 }

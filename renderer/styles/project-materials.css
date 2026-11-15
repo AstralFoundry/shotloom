@@ -66,7 +66,14 @@
 .project-library-search .ant-input-prefix { margin-inline-end:8px; }
 .project-library-search .ant-input-prefix svg { flex:none;width:var(--icon-sm);height:var(--icon-sm); }
 .project-library-search:focus-within { border-color:var(--brand-accent); }
-.project-library-sort-trigger { display:flex;align-items:center;justify-content:space-between;gap:16px;height:36px;padding:0 12px;border:1px solid var(--line-solid);border-radius:var(--radius-md);color:var(--type-primary);background:transparent;font-size:var(--text-body-13);white-space:nowrap;cursor:pointer; }
+/* 焦点由外层搜索框呈现，避免输入框内部再出现一圈轮廓。 */
+.project-library-search .ant-input-affix-wrapper,
+.project-library-search .ant-input-affix-wrapper > input.ant-input {
+  outline: none;
+  box-shadow: none;
+}
+
+.project-library-sort-trigger { min-width:116px;display:flex;align-items:center;justify-content:space-between;gap:16px;height:36px;padding:0 12px;border:1px solid var(--line-solid);border-radius:var(--radius-md);color:var(--type-primary);background:transparent;font-size:var(--text-body-13);white-space:nowrap;cursor:pointer; }
 .project-library-sort-trigger svg { width:var(--icon-sm);height:var(--icon-sm); }
 
 .project-card-grid {
@@ -668,7 +675,7 @@
   background: var(--brand-accent-tint);
 }
 .project-cover-sheet.has-image::after { background: var(--surface-2); }
-.project-cover-sheet > svg { width: 28px; height: 28px; stroke-width: 1.4; }
+.project-cover-sheet > svg { width: 28px; height: 28px; stroke-width: var(--icon-stroke-width); }
 .project-cover-sheet > img { width: 100%; height: 100%; min-height: 0; object-fit: cover; border-radius: var(--radius-md); }
 .project-card-grid .project-canvas-tile .project-tile-body,
 .project-card-grid .project-folder-tile .project-tile-body {
@@ -695,6 +702,3 @@
   .project-cover-sheet { transition: none; }
   .project-card-grid .project-tile:hover .project-cover-sheet { transform: rotate(2deg); }
 }
-
-.project-library-filter.ant-select { min-width:116px; height:36px; }
-.project-library-filter .ant-select-selector { border:1px solid var(--line-solid); border-radius:var(--radius-md); color:var(--type-primary); font-size:var(--text-body-13); }

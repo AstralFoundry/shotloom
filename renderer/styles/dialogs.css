@@ -238,7 +238,7 @@
   background: var(--surface-2);
 }
 .update-current-icon { width: 44px; height: 44px; flex: 0 0 44px; border-radius: var(--radius); display: grid; place-items: center; color: var(--good); background: var(--surface); box-shadow: inset 0 0 0 .5px var(--good-wash); }
-.update-current-icon svg { width: var(--icon-lg); height: var(--icon-lg); stroke-width: 2.1; }
+.update-current-icon svg { width: var(--icon-lg); height: var(--icon-lg); stroke-width: var(--icon-stroke-width); }
 .update-current-state > div { min-width: 0; display: grid; gap: 5px; }
 .update-current-state strong { color: var(--good); font-size: var(--text-body-14); font-weight: 600; letter-spacing: var(--tracking-tight); }
 .update-current-state > div > span { color: var(--muted); font-size: var(--text-caption-11); line-height: 1.55; }

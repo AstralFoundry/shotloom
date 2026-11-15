@@ -7,7 +7,7 @@ import { useNotificationStore, type MessageDialog, type ToastMessage, type Toast
 const marks = { default: Info, success: CircleCheck, warning: CircleAlert, error: CircleAlert };
 function MessageMark({ tone }: { tone: ToastTone }) {
   const Mark = marks[tone];
-  return <span className={`message-mark message-${tone}`}><Mark size={18} strokeWidth={1.7} aria-hidden="true" /></span>;
+  return <span className={`message-mark message-${tone}`}><Mark size={18} strokeWidth="var(--icon-stroke-width, 1.35)" aria-hidden="true" /></span>;
 }
 
 function ToastCard({ item }: { item: ToastMessage }) {
@@ -24,7 +24,7 @@ function ToastCard({ item }: { item: ToastMessage }) {
       onFocus={() => setFocused(true)} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false); }}>
       <MessageMark tone={item.tone} />
       <span className="toast-text" role={item.tone === "error" ? "alert" : "status"}>{item.message}</span>
-      <button type="button" className="message-close" aria-label={t('notification.closeToast')} onClick={() => dismiss(item.id)}><X size={14} strokeWidth={1.7} /></button>
+      <button type="button" className="message-close" aria-label={t('notification.closeToast')} onClick={() => dismiss(item.id)}><X size={14} strokeWidth="var(--icon-stroke-width, 1.35)" /></button>
     </div>
   );
 }

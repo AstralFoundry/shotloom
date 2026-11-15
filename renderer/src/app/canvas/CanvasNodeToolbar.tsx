@@ -303,7 +303,7 @@ export function CanvasNodeToolbar({
   const isLocalImage = node.type === "imageGeneration" && Boolean(localMediaPath);
   const canExtractAudio = isLocalVideo && audioTrackState === "present";
   const scope = nodeToolbarScope(
-    isLocalImage ? "imageGeneration" : isLocalVideo ? "videoGeneration" : "",
+    isLocalImage ? "imageGeneration" : isLocalVideo ? "videoGeneration" : node.type === "textGeneration" ? "textGeneration" : "",
   );
   const uploadLabels: Record<string, string> = {
     imageGeneration: t("ui.canvasMediaActions.text.be8da62e"),
@@ -343,10 +343,20 @@ export function CanvasNodeToolbar({
   const pinnedIds = scope ? customization.pinned[scope] : [];
   const showLabels = customization.showLabels;
 
+  const assetAnchorRef = scope && !pinnedIds.includes("collect-asset") ? moreTriggerRef : assetTriggerRef;
+
+  function toggleAssetMenu() {
+    if (openMenu !== "asset") {
+      setAssetCategory(assetCategoryFor(node.artifactType).id);
+      void loadLocalAssetLibrary().catch(error => console.warn('Asset catalog unavailable', error));
+    }
+    setOpenMenu(current => current === "asset" ? null : "asset");
+  }
+
   const assetMenuPlacement = useAnchoredMenuPlacement({
     open: openMenu === "asset",
     root: canvasOverlayRoot,
-    triggerRef: assetTriggerRef,
+    triggerRef: assetAnchorRef,
     menuRef: assetMenuRef,
     align: "end",
     placementRevision: assetPlacementRevision,
@@ -379,7 +389,7 @@ export function CanvasNodeToolbar({
   useEffect(() => {
     if (!openMenu) return;
     const pairs: Record<Exclude<OpenMenu, null>, Array<RefObject<HTMLElement | null>>> = {
-      asset: [assetTriggerRef, assetMenuRef],
+      asset: [assetAnchorRef, assetMenuRef],
       frame: [frameTriggerRef, frameMenuRef],
       more: [moreTriggerRef, moreMenuRef],
     };
@@ -391,7 +401,7 @@ export function CanvasNodeToolbar({
     };
     document.addEventListener("pointerdown", onPointerDown, true);
     return () => document.removeEventListener("pointerdown", onPointerDown, true);
-  }, [openMenu]);
+  }, [openMenu, assetAnchorRef]);
 
   useEffect(() => {
     if (!selected || !isLocalVideo) {
@@ -465,6 +475,33 @@ export function CanvasNodeToolbar({
   function resolveTool(tool: NodeToolDefinition): ResolvedTool | null {
     if (!scope) return null;
     switch (tool.id) {
+      case "copy-text":
+        return {
+          title: t("ui.CanvasNodeToolbar.title.ecb629bb"),
+          disabled: !textContent,
+          onClick: () => {
+            void navigator.clipboard.writeText(textContent).then(
+              () => actions.notify(t("ui.CanvasNodeToolbar.text.605dc592")),
+              () => actions.notify(t("ui.CanvasNodeToolbar.text.32f1a7e9")),
+            );
+          },
+        };
+      case "mention-node":
+        return mentionNode ? {
+          title: t("ui.CanvasNodeToolbar.text.efa6948e", { value0: node.title || node.type }),
+          onClick: () => mentionNode(node.id),
+        } : null;
+      case "expand-text":
+        return textContent ? {
+          title: t("ui.CanvasNodeToolbar.title.5fbaa77b"),
+          onClick: openTextDetail,
+        } : null;
+      case "collect-asset":
+        return canSaveToAssets ? {
+          title: t("assets.collection.collect"),
+          menuKey: "asset",
+          onClick: toggleAssetMenu,
+        } : null;
       case "crop":
         return {
           title: t("ui.CanvasNodeToolbar.title.424dce5b"),
@@ -598,7 +635,7 @@ export function CanvasNodeToolbar({
     ? [...overflowItems, ...(overflowItems.length ? [{ id: "customize-separator", separator: true } as const] : []), customizeItem, { id: "category-separator", separator: true }, ...categoryItems]
     : categoryItems;
   const showMoreButton = categoryItems.length > 0;
-  const hasFixedZone = canSaveToAssets || Boolean(mentionNode) || (isTextNode && Boolean(textContent));
+  const hasFixedZone = (canSaveToAssets && !scope) || (!isTextNode && Boolean(mentionNode));
   const hasToolbar = isTextNode || canUpload || mentionNode ||
     canSaveToAssets || wired.length > 0;
 
@@ -644,27 +681,6 @@ export function CanvasNodeToolbar({
           isVisible={selected && !imageAnnotationOpen}
           offset={toolbarOffset}
         >
-          {isTextNode && (
-            <>
-              <span className="canvas-node-toolbar-label">{t("ui.CanvasNodeToolbar.text.d80ef14f")}</span>
-              <button
-                className="canvas-node-toolbar-icon"
-                type="button"
-                title={t("ui.CanvasNodeToolbar.title.ecb629bb")}
-                disabled={!textContent}
-                onPointerDown={(event) => event.stopPropagation()}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  void navigator.clipboard.writeText(textContent).then(
-                    () => actions.notify(t("ui.CanvasNodeToolbar.text.605dc592")),
-                    () => actions.notify(t("ui.CanvasNodeToolbar.text.32f1a7e9")),
-                  );
-                }}
-              >
-                <IconSymbol name="copy" />
-              </button>
-            </>
-          )}
           {canUpload && (
             <button
               className="canvas-node-upload-action"
@@ -703,7 +719,7 @@ export function CanvasNodeToolbar({
           )}
           {canSaveToAssets && (
             <div className="canvas-node-asset-action">
-              <button
+              {!scope && <button
                 ref={assetTriggerRef}
                 type="button"
                 title={t("assets.collection.collect")}
@@ -712,19 +728,13 @@ export function CanvasNodeToolbar({
                 onPointerDown={(event) => event.stopPropagation()}
                 onClick={(event) => {
                   event.stopPropagation();
-                  setOpenMenu((current) => {
-                    if (current !== "asset") {
-                      setAssetCategory(assetCategoryFor(node.artifactType).id);
-                      void loadLocalAssetLibrary().catch(error => console.warn('Asset catalog unavailable', error));
-                    }
-                    return current === "asset" ? null : "asset";
-                  });
+                  toggleAssetMenu();
                 }}
               >
                 <IconSymbol name="archive" />
                 <span>{t("assets.collection.collect")}</span>
                 <IconSymbol className="canvas-node-asset-chevron" name="chevron-down" />
-              </button>
+              </button>}
               {openMenu === "asset" && canvasOverlayRoot && createPortal(
                 <div
                   ref={assetMenuRef}
@@ -774,7 +784,7 @@ export function CanvasNodeToolbar({
               )}
             </div>
           )}
-          {mentionNode && (
+          {!isTextNode && mentionNode && (
             <button
               className="canvas-node-toolbar-icon"
               type="button"
@@ -786,20 +796,6 @@ export function CanvasNodeToolbar({
               }}
             >
               <IconSymbol name="chat" />
-            </button>
-          )}
-          {isTextNode && textContent && (
-            <button
-              className="canvas-node-toolbar-icon"
-              type="button"
-              title={t("ui.CanvasNodeToolbar.title.5fbaa77b")}
-              onPointerDown={(event) => event.stopPropagation()}
-              onClick={(event) => {
-                event.stopPropagation();
-                openTextDetail();
-              }}
-            >
-              <IconSymbol name="maximize" />
             </button>
           )}
         </NodeToolbar>
@@ -826,6 +822,7 @@ export function CanvasNodeToolbar({
       )}
       <CanvasToolbarCustomizeDialog
         open={customizeOpen}
+        initialScope={scope || "image"}
         customization={customization}
         onClose={() => setCustomizeOpen(false)}
       />

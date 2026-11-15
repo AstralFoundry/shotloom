@@ -166,7 +166,7 @@ export function IconSymbol({ name, ...props }: IconSymbolProps) {
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth="2"
+      strokeWidth="var(--icon-stroke-width, 1.35)"
       aria-hidden="true"
       {...props}
       dangerouslySetInnerHTML={{ __html: markup }}
