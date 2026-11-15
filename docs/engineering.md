@@ -34,3 +34,17 @@
 剪辑 Agent 的原生工具共 309 个，全量 schema 约 4.8 万 token。因此 `core/openReelTools.ts` 维护一个核心集常驻上下文，其余由 `editor_find_tools` 按关键词在会话内解锁。新增原生工具时默认不进入核心集；只有基础剪辑轮次真正需要的能力才加进 `EDITOR_CORE_TOOL_NAMES`。
 
 `tests/agent-prompt-tool-references.test.mjs` 会校验提示词、契约与 Skill 里引用的工具名是否真实存在，并校验导演台命令表每条命令都有参数契约。改动提示词时先跑它。
+
+## 协议插件与厂商连接
+
+协议、模型预设和厂商默认连接只存在于 `plugin-packages/defaults/<plugin-id>/` 的独立包中。每个目录提供 `manifest.json`、npm `package.json`、README，以及可选的 `runtime/`。`scripts/prepare-provider-plugins.mjs` 校验并生成可重复构建的 `.shotloom-plugin` 包与 SHA-256 索引，输出到桌面资源和浏览器静态资源；不要再向 renderer 配置目录增加厂商清单。`shotloom.yml` 的默认模型在构建时对照这些包校验。
+
+应用的运行目录只读取已安装插件和用户连接，初始为空。桌面版在首次读取目录时把发行资源中的缺失包安装到用户插件存储；浏览器预览安装同源静态包，代码插件执行仍需桌面宿主。默认包遵守同一份身份、版本不可变、文件检查、历史版本和回滚规则；发行包中的代码随应用发行受信任，用户另外安装的代码仍需显式信任。记录已卸载的包，重启或再次分发相同 ID 时不得自动恢复或覆盖用户安装版本。
+
+`defaultConnections` 只在新插件安装时填充模型与连接预设，用户的地址、Key、参数覆盖和显式删除不会在每次启动时被重置。首次从旧内置目录迁移时，已保存的连接完整优先；旧禁用标记只迁移一次。历史任务通过冻结的操作契约和插件历史版本恢复；旧适配器身份通过包内 `legacyProviders` 的显式元数据兼容，不再加载旧厂商模型目录。历史目录只作为 `tests/fixtures/legacy-model-catalog/` 中的迁移证据，不进入发行包。
+
+`domain/provider/plugins/ProviderPlugins.ts` 统一装配目录；任务保存实际插件 ID、版本和操作契约。协议的传输字段不允许被连接能力覆盖。Key 只存用户设置。包经 `commands/provider_plugins.rs` 检查、解包和持久化，代码由独立 Node 进程执行。代码插件不是权限沙箱，不得宣称隔离了文件或网络权限。
+
+插件开发、打包与索引格式见 [provider-plugins.md](./provider-plugins.md)。
+
+媒体协议的路径占位符、独立结果查询、远程取消和缺省状态约束见 [媒体协议接入](./media-protocols.md)。这些是厂商传输契约，不用于推断 Agent 的制作意图或工作流。

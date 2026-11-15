@@ -1,3 +1,4 @@
+import { createBrowserProviderPlugins } from './browserProviderPlugins';
 import { t } from '../i18n/index.ts';
 import { projectCoverSource } from '../utils/projectCover';
 import { createTauriApi } from './tauriApi';
@@ -377,6 +378,7 @@ function createBrowserFallback() {
       getGlobal: async () => withBuiltInRecipes(JSON.parse(localStorage.getItem('shotloom-global-recipes') || 'null') || { storageVersion: 1, recipes: [] }),
       setGlobal: async (storage: AnyRecord) => { localStorage.setItem('shotloom-global-recipes', JSON.stringify(withoutBuiltInRecipes(storage))); return withBuiltInRecipes(storage); },
     },
+    providerPlugins: createBrowserProviderPlugins(),
     settings: {
       get: async () => JSON.parse(localStorage.getItem('shotloom-settings') || 'null') || {
         storageVersion: 7,

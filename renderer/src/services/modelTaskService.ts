@@ -1,3 +1,4 @@
+import { resolvePluginProvider } from '../domain/provider/plugins/ProviderPlugins';
 import { t } from '../i18n/index.ts';
 /**
  * modelTaskService — 生成任务的薄入口。
@@ -39,9 +40,10 @@ export async function submitRemoteGenerationTask({
   if (!credentialStatus.available) {
     throw new Error(t("errors.1c827b494a", { value0: credentialStatus.message }));
   }
-  const adapter = getProviderAdapter(contract.provider);
+  const adapter = getProviderAdapter(contract.provider, contract.pluginRef);
 
   const context = {
+    submissionId: String(task.id || crypto.randomUUID()),
     taskType: task.type,
     model: payload.model,
     prompt: payload.prompt || payload.content || '',
@@ -62,7 +64,12 @@ export async function submitRemoteGenerationTask({
     multipart: contract.inputFormat === 'multipart',
   } satisfies CompileContext;
 
-  const result = await adapter.submit(adapter.compileRequest(context));
+  const compiled = adapter.compileRequest(context);
+  const codePlugin = contract.pluginRef && resolvePluginProvider(contract.pluginRef)?.engine === 'module';
+  // Mark uncertainty before dispatch; a thrown call cannot prove the provider did not accept it.
+  if (codePlugin) task.submissionUncertain = true;
+  const result = await adapter.submit(compiled);
+  if (codePlugin) task.submissionUncertain = false;
 
   // Async task validation
   if (result.remoteTaskId) {
@@ -87,7 +94,7 @@ export async function pollRemoteGenerationTask({
   if (!modelContract?.isAsync || !modelContract.taskEndpoint?.path) {
     throw new Error(t("errors.6a97d63d1f"));
   }
-  return getProviderAdapter(modelContract.provider)
+  return getProviderAdapter(modelContract.provider, modelContract.pluginRef)
     .poll({ remoteTaskId, status: 'running', progress: 0 }, modelContract, signal);
 }
 
@@ -98,7 +105,7 @@ export async function pollRemoteGenerationTask({
  * Tauri 的 generation_request，由 Rust 端 generation_cancel 终止上游 HTTP 请求。
  *
  * 异步任务（remoteTaskId 非空）只能在目录声明了 cancel 端点时才能通知上游；
- * 当前 model-catalog-v2 没有 cancelEndpoint 定义，此时返回 false 让调用方如实
+ * 协议未声明 cancelEndpoint 时返回 false，让调用方如实
  * 提示用户“仅取消本地等待，上游任务仍在运行”，而不是假装成功。
  */
 export async function cancelRemoteGenerationTask({
@@ -107,9 +114,10 @@ export async function cancelRemoteGenerationTask({
 }: { remoteTaskId?: string; modelContract?: AnyRecord } = {}): Promise<boolean> {
   if (!remoteTaskId) return true;
   const cancelEndpoint = modelContract?.cancelEndpoint;
-  if (!cancelEndpoint?.path) return false;
-  const adapter = getProviderAdapter(modelContract?.provider);
+  const moduleProvider = modelContract?.pluginRef ? resolvePluginProvider(modelContract.pluginRef) : undefined;
+  if (!cancelEndpoint?.path && !(moduleProvider?.engine === 'module' && moduleProvider.supportsCancel)) return false;
+  const adapter = getProviderAdapter(modelContract?.provider, modelContract?.pluginRef);
   if (!adapter.cancel) return false;
-  await adapter.cancel({ remoteTaskId });
+  await adapter.cancel({ remoteTaskId, modelContract } as Parameters<NonNullable<typeof adapter.cancel>>[0]);
   return true;
 }

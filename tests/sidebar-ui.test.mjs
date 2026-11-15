@@ -154,43 +154,12 @@ test('助手折叠按钮为画布右上角工具组预留空间', () => {
 // 图片要能悬停放大，视频要能在原地播出去，不能只是"看起来像"。
 
 
-test('API 厂商页先展示内置厂商列表，点击后进入详情', () => {
-  assert.match(settingsFeature, /const providers = getProviderAdapters\(\)\.map/);
-  assert.match(settingsPanel, /data\.providers\.map\(\(item\) => \(\n\s+<button className="provider-list-row"/);
-  assert.match(settingsPanel, /setSelectedProviderId\(item\.id\)/);
-  assert.match(settingsPanel, /返回厂商列表/);
-  assert.match(settingsPanel, /<ProviderCard item=\{selectedProvider\}/);
-  assert.doesNotMatch(settingsPanel, /controller\.(add|edit|delete)Provider/);
-  assert.doesNotMatch(settingsFeature, /addProvider|editProvider|deleteProvider|ProviderConnectionDialog|getConfiguredProviders|getProviderDefinition/);
-  assert.equal(sourceExists('renderer/src/app/views/ProviderConnectionDialog.tsx'), false);
-});
-
-test('厂商卡片只提交 API Key 与接口地址，其余配置属于代码声明', () => {
-  assert.match(settingsPanel, /onChange=\{controller\.setProviderConfig\}/);
-  assert.match(settingsPanel, /onChange\(item\.id, \{ \[field\]: next \}\)/);
-  assert.match(settingsPanel, /interface ProviderConfigPatch \{[\s\S]*?apiKey\?: string;[\s\S]*?baseUrl\?: string;[\s\S]*?\}/);
-  assert.doesNotMatch(settingsPanel, /disabledModelIds|customModels|protocol|apiKeyValid/);
-  // 地址可覆盖但必填的厂商（Qwen 百炼）要在卡片上说明缺失。
-  assert.match(settingsPanel, /item\.baseUrlRequired && !item\.baseUrl\.trim\(\)/);
-  assert.match(settingsPanel, /该厂商必须填写接口地址/);
-  assert.match(settingsFeature, /saveAppSettings\(\{[\s\S]*?providerConfigs[\s\S]*?\}\)/);
-});
-
-test('厂商卡片用配置状态说明模型可见性而不是承诺连通性', () => {
-  assert.match(settingsPanel, /item\.configured \? "已配置" : "未配置"/);
-  assert.match(settingsPanel, /填写 API Key 后该厂商的模型才会进入目录/);
-  assert.match(settingsPanel, /实际连通性在调用模型时验证/);
-  assert.match(settingsStyles, /\.provider-incomplete i \{ background: var\(--line-strong\)/);
-});
-
-test('厂商卡片按生成类型展示该厂商的全部内置模型', () => {
-  assert.match(settingsFeature, /models: getProviderModelRows\(adapter\.id\)/);
-  assert.match(settingsPanel, /interface ProviderItem \{[\s\S]*?models: ProviderModelRow\[\];/);
-  assert.doesNotMatch(settingsPanel, /modelCount/);
-  // 分组与徽标全部消费目录派生的行，界面不另写一份模型清单。
-  assert.match(settingsPanel, /groupProviderModels\(item\.models\)\.map/);
-  assert.match(settingsPanel, /\{label\}[\s\S]*?\{models\.length\}/);
-  assert.match(settingsPanel, /MODEL_INPUT_LABELS\[kind\]/);
-  assert.match(settingsPanel, /model\.agentReady \? "可用于 Agent" : "仅画布"/);
-  assert.match(settingsStyles, /\.provider-model-list \{ display: grid; gap: 8px; \}/);
+test('厂商配置统一在插件中心，设置中不再保留旧页面和保存入口', () => {
+  const pluginCenter = readSource('renderer/src/app/views/ProviderPluginsPanel.tsx');
+  assert.doesNotMatch(settingsPanel, /ProviderCard|ProviderItem|setProviderConfig|selectedProviderId|id: "providers"/);
+  assert.doesNotMatch(settingsFeature, /saveProviderConfig|getProviderAdapters|getProviderModelRows/);
+  assert.doesNotMatch(settingsStyles, /\.provider-list-row|\.provider-detail|\.provider-field/);
+  assert.match(pluginCenter, /allProviderPlugins\(\)/);
+  assert.match(pluginCenter, /providerConfigs: \{ \.\.\.settingsStore\.providerConfigs, \[editing\.id\]/);
+  assert.match(pluginCenter, /setProviderPluginEnabled/);
 });

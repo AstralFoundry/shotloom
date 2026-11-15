@@ -36,3 +36,7 @@ docs/beef-tv-*.md
 
 # Downloaded director test fixtures
 vendor/shotloom-director-desk/test-assets/
+
+# Generated default plugin distribution archives
+src-tauri/resources/provider-plugins/
+renderer/public/provider-plugins/

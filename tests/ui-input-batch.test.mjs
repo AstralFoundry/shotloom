@@ -44,8 +44,11 @@ test('筛选与分档使用 Segmented', () => {
 });
 
 test('厂商凭据与技能字段使用 antd 输入组件', () => {
-  assert.match(settings, /<Input\.Password[\s\S]*?onPressEnter=\{\(e\) => e\.currentTarget\.blur\(\)\}/);
-  assert.match(settings, /<Input[\s\S]*?value=\{draft\.baseUrl\}/);
+  const plugins = readSource('renderer/src/app/views/ProviderPluginsPanel.tsx');
+  assert.match(plugins, /<Input\.Password/);
+  assert.match(plugins, /saveAppSettings\(\{ providerConfigs:/);
+  assert.doesNotMatch(settings, /<Input\.Password/);
+  assert.match(plugins, /<Input[\s\S]*?value=\{baseUrl\}/);
   assert.match(skillEditor, /<Input\.TextArea/);
   assert.match(skillEditor, /<Input[\s\S]*?value=\{draft\.id\}/);
   assert.doesNotMatch(skillEditor, /<input\b|<textarea\b/);

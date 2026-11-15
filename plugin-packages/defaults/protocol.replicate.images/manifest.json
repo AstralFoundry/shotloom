@@ -1,0 +1,159 @@
+{
+  "apiVersion": 1,
+  "kind": "protocol",
+  "id": "protocol.replicate.images",
+  "name": "Replicate Predictions Images",
+  "version": "1.0.0",
+  "shotloom": ">=0.9.1, <1.0.0",
+  "category": "imageGeneration",
+  "iconId": "replicate",
+  "engine": "declarative",
+  "homepage": "https://replicate.com/docs/reference/http",
+  "protocols": [
+    {
+      "id": "generate",
+      "mode": {
+        "id": "text-to-image",
+        "label": "文生图",
+        "endpoint": {
+          "path": "/v1/models/{modelPath}/predictions",
+          "method": "POST",
+          "scope": "root"
+        },
+        "auth": {
+          "type": "bearer"
+        },
+        "inputConstraints": {},
+        "outputConstraints": {},
+        "params": [
+          {
+            "key": "aspectRatio",
+            "label": "画面比例",
+            "labelKey": "plugins.parameter.aspectRatio",
+            "type": "select",
+            "options": [
+              "16:9",
+              "9:16"
+            ],
+            "default": "16:9",
+            "numeric": false
+          },
+          {
+            "key": "generationCount",
+            "label": "数量",
+            "labelKey": "plugins.parameter.generationCount",
+            "type": "select",
+            "options": [
+              1,
+              2,
+              3,
+              4
+            ],
+            "default": 1,
+            "numeric": true
+          }
+        ],
+        "requestTemplate": {
+          "input": {
+            "prompt": "{{prompt}}",
+            "aspect_ratio": "{{params.aspectRatio}}",
+            "num_outputs": "{{params.generationCount}}"
+          }
+        },
+        "isAsync": true,
+        "taskIdPath": "id",
+        "statusPath": "status",
+        "resultUrlPath": "output.*",
+        "taskEndpoint": {
+          "path": "/v1/predictions/{taskId}",
+          "method": "GET",
+          "scope": "root"
+        },
+        "pollStatusMap": {
+          "starting": "queued",
+          "processing": "running",
+          "succeeded": "completed",
+          "failed": "failed",
+          "canceled": "cancelled"
+        },
+        "cancelEndpoint": {
+          "path": "/v1/predictions/{taskId}/cancel",
+          "method": "POST",
+          "scope": "root"
+        },
+        "errorPath": "error",
+        "labelKey": "catalog.label.0b835958b8"
+      }
+    }
+  ],
+  "providers": [],
+  "author": "Shotloom Contributors",
+  "defaultConnections": [
+    {
+      "id": "replicate",
+      "name": "Replicate",
+      "baseUrl": "https://api.replicate.com",
+      "iconId": "replicate",
+      "description": "Replicate model predictions",
+      "descriptionKey": "plugins.provider.replicate",
+      "enabled": true,
+      "builtin": true,
+      "presetId": "protocol",
+      "pluginId": "protocol.replicate.images",
+      "models": [
+        {
+          "id": "replicate-flux-schnell",
+          "name": "Replicate · FLUX Schnell",
+          "upstreamModel": "black-forest-labs/flux-schnell",
+          "type": "imageGeneration",
+          "sortOrder": 100,
+          "enabled": true,
+          "defaultMode": "text-to-image",
+          "protocolPlugin": "protocol.replicate.images",
+          "protocolModes": {
+            "text-to-image": "generate"
+          },
+          "modes": [
+            {
+              "id": "text-to-image",
+              "label": "文生图",
+              "inputConstraints": {},
+              "outputConstraints": {},
+              "params": [
+                {
+                  "key": "aspectRatio",
+                  "label": "画面比例",
+                  "labelKey": "plugins.parameter.aspectRatio",
+                  "type": "select",
+                  "options": [
+                    "16:9",
+                    "9:16"
+                  ],
+                  "default": "16:9",
+                  "numeric": false
+                },
+                {
+                  "key": "generationCount",
+                  "label": "数量",
+                  "labelKey": "plugins.parameter.generationCount",
+                  "type": "select",
+                  "options": [
+                    1,
+                    2,
+                    3,
+                    4
+                  ],
+                  "default": 1,
+                  "numeric": true
+                }
+              ],
+              "labelKey": "catalog.label.0b835958b8"
+            }
+          ]
+        }
+      ],
+      "preserveModelIds": true,
+      "sortOrder": 17
+    }
+  ]
+}

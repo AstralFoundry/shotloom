@@ -1,0 +1,179 @@
+{
+  "apiVersion": 1,
+  "kind": "protocol",
+  "id": "protocol.fal.images",
+  "name": "fal.ai Queue Images",
+  "version": "1.0.0",
+  "shotloom": ">=0.9.1, <1.0.0",
+  "category": "imageGeneration",
+  "iconId": "fal",
+  "engine": "declarative",
+  "homepage": "https://docs.fal.ai/model-apis/model-endpoints/queue",
+  "protocols": [
+    {
+      "id": "generate",
+      "mode": {
+        "id": "text-to-image",
+        "label": "文生图",
+        "endpoint": {
+          "path": "/{modelPath}",
+          "method": "POST",
+          "scope": "root"
+        },
+        "auth": {
+          "type": "header",
+          "name": "Authorization",
+          "prefix": "Key "
+        },
+        "inputConstraints": {},
+        "outputConstraints": {},
+        "params": [
+          {
+            "key": "aspectRatio",
+            "label": "画面比例",
+            "labelKey": "plugins.parameter.aspectRatio",
+            "type": "select",
+            "options": [
+              "1:1",
+              "4:3",
+              "16:9",
+              "3:4",
+              "9:16"
+            ],
+            "default": "4:3",
+            "numeric": false
+          },
+          {
+            "key": "generationCount",
+            "label": "数量",
+            "labelKey": "plugins.parameter.generationCount",
+            "type": "select",
+            "options": [
+              1,
+              2,
+              3,
+              4
+            ],
+            "default": 1,
+            "numeric": true
+          }
+        ],
+        "requestTemplate": {
+          "prompt": "{{prompt}}",
+          "image_size": "{{params.aspectRatio}}",
+          "num_images": "{{params.generationCount}}"
+        },
+        "isAsync": true,
+        "taskIdPath": "request_id",
+        "statusPath": "status",
+        "resultUrlPath": "images.*.url",
+        "taskEndpoint": {
+          "path": "/{modelOwner}/{modelName}/requests/{taskId}/status",
+          "method": "GET",
+          "scope": "root"
+        },
+        "pollStatusMap": {
+          "IN_QUEUE": "queued",
+          "IN_PROGRESS": "running",
+          "COMPLETED": "completed",
+          "FAILED": "failed",
+          "CANCELLED": "cancelled"
+        },
+        "taskResultEndpoint": {
+          "path": "/{modelOwner}/{modelName}/requests/{taskId}",
+          "method": "GET",
+          "scope": "root"
+        },
+        "cancelEndpoint": {
+          "path": "/{modelOwner}/{modelName}/requests/{taskId}/cancel",
+          "method": "PUT",
+          "scope": "root"
+        },
+        "errorPath": "detail",
+        "labelKey": "catalog.label.0b835958b8",
+        "requestValueMaps": {
+          "aspectRatio": {
+            "1:1": "square_hd",
+            "4:3": "landscape_4_3",
+            "16:9": "landscape_16_9",
+            "3:4": "portrait_4_3",
+            "9:16": "portrait_16_9"
+          }
+        }
+      }
+    }
+  ],
+  "providers": [],
+  "author": "Shotloom Contributors",
+  "defaultConnections": [
+    {
+      "id": "fal",
+      "name": "fal.ai",
+      "baseUrl": "https://queue.fal.run",
+      "iconId": "fal",
+      "description": "Queued image and video models on fal.ai",
+      "descriptionKey": "plugins.provider.fal",
+      "enabled": true,
+      "builtin": true,
+      "presetId": "protocol",
+      "pluginId": "protocol.fal.images",
+      "models": [
+        {
+          "id": "fal-flux-schnell",
+          "name": "fal.ai · FLUX Schnell",
+          "upstreamModel": "fal-ai/flux/schnell",
+          "type": "imageGeneration",
+          "sortOrder": 100,
+          "enabled": true,
+          "defaultMode": "text-to-image",
+          "protocolPlugin": "protocol.fal.images",
+          "protocolModes": {
+            "text-to-image": "generate"
+          },
+          "modes": [
+            {
+              "id": "text-to-image",
+              "label": "文生图",
+              "inputConstraints": {},
+              "outputConstraints": {},
+              "params": [
+                {
+                  "key": "aspectRatio",
+                  "label": "画面比例",
+                  "labelKey": "plugins.parameter.aspectRatio",
+                  "type": "select",
+                  "options": [
+                    "1:1",
+                    "4:3",
+                    "16:9",
+                    "3:4",
+                    "9:16"
+                  ],
+                  "default": "4:3",
+                  "numeric": false
+                },
+                {
+                  "key": "generationCount",
+                  "label": "数量",
+                  "labelKey": "plugins.parameter.generationCount",
+                  "type": "select",
+                  "options": [
+                    1,
+                    2,
+                    3,
+                    4
+                  ],
+                  "default": 1,
+                  "numeric": true
+                }
+              ],
+              "labelKey": "catalog.label.0b835958b8"
+            }
+          ]
+        }
+      ],
+      "preserveModelIds": true,
+      "sortOrder": 16
+    }
+  ]
+}

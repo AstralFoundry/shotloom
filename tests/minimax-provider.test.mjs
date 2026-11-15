@@ -7,7 +7,7 @@ import { createRendererEnv } from './helpers/rendererSsr.mjs';
 import { readSource } from './helpers/sourceContract.mjs';
 
 const catalog = loadModelCatalog();
-const adapterSource = readSource('renderer/src/domain/provider/adapters/minimax.ts');
+const defaultConnections = catalog.providers;
 const speechModes = ['minimax-speech-2.8-hd', 'minimax-speech-2.8-turbo']
   .map((id) => catalog.models.find((model) => model.id === id))
   .map((model) => ({ model, mode: model.modes[0] }));
@@ -20,8 +20,9 @@ const speechParams = {
 };
 
 test('MiniMax 适配器只有一个官方地址并覆盖视频与音频', () => {
-  assert.match(adapterSource, /id: 'minimax'/);
-  assert.match(adapterSource, /baseUrl: 'https:\/\/api\.minimax\.io'/);
+  const presets = [JSON.parse(readSource('plugin-packages/defaults/protocol.minimax.video/manifest.json')).defaultConnections.find(connection => connection.id === 'minimax')];
+  assert.equal(presets.length, 1);
+  assert.equal(presets[0].baseUrl, 'https://api.minimax.io');
 });
 
 test('MiniMax 直连和 StarRouter 的首尾帧与多模态参考按各自协议编译', async () => {

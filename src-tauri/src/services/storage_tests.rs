@@ -35,6 +35,58 @@ mod tests {
     }
 
     #[test]
+    fn provider_registry_and_submission_receipts_survive_reopen_independently() {
+        let root = root();
+        let path = root.join(APP_DATABASE);
+        let fallback =
+            json!({"plugins": [], "connections": [], "disabledBuiltins": [], "registryUrl": ""});
+        assert_eq!(
+            catalog(&path, "provider-plugins", fallback.clone()).unwrap(),
+            fallback
+        );
+        assert_eq!(
+            catalog(&path, "provider-plugin-submissions", json!({})).unwrap(),
+            json!({})
+        );
+        let registry = json!({"plugins": [{"manifest": {"id": "example.protocol", "version": "1.0.0"}, "enabled": true}],
+            "connections": [{"id": "connection.local", "pluginId": "example.protocol"}], "disabledBuiltins": [], "registryUrl": "https://example.com/plugins.json"});
+        let receipts = json!({"submission-1": {"status": "running", "remoteTaskId": "remote-1"}});
+        save_catalog(&path, "provider-plugins", &registry).unwrap();
+        save_catalog(&path, "provider-plugin-submissions", &receipts).unwrap();
+        save_settings(
+            &path,
+            &json!({"providerConfigs": {"connection.local": {"apiKey": "test-only"}}}),
+        )
+        .unwrap();
+        // Each service call opens and closes the database: these reads exercise persistence.
+        assert_eq!(
+            catalog(&path, "provider-plugins", json!({})).unwrap(),
+            registry
+        );
+        assert_eq!(
+            catalog(&path, "provider-plugin-submissions", json!({})).unwrap(),
+            receipts
+        );
+        assert!(save_catalog(&path, "provider-plugins", &json!([])).is_err());
+        assert_eq!(
+            catalog(&path, "provider-plugins", json!({})).unwrap(),
+            registry
+        );
+        save_catalog(&path, "provider-plugin-submissions", &json!({})).unwrap();
+        assert_eq!(
+            catalog(&path, "provider-plugin-submissions", json!(null)).unwrap(),
+            json!({})
+        );
+        assert_eq!(
+            catalog(&path, "provider-plugins", json!({})).unwrap(),
+            registry
+        );
+        assert!(catalog(&path, "unknown-catalog", json!({})).is_err());
+        assert!(save_catalog(&path, "unknown-catalog", &json!({})).is_err());
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     fn database_paths_keep_unicode_and_uri_punctuation_literal() {
         let root = root().join(if cfg!(windows) { "工程 # percent%" } else { "工程 # percent% question?" });
         let path = root.join(PROJECT_DATABASE);

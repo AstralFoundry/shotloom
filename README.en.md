@@ -9,6 +9,8 @@ Shotloom organizes prompts, references, images, video and audio on an infinite c
 
 ## Features
 
+Protocols and model presets come from independent plugins, installed offline with the release. Removed plugins stay removed after restart. Protocol plugins support npm, file or URL installation, toggles and version rollback. Double-click a plugin card to read its documentation, endpoints and parameter details. Provider connections separately configure endpoints, keys and models, with a protocol selected per model. See [Protocol plugins](./docs/provider-plugins.md). See [media protocol coverage](./docs/media-protocols.md) for supported operations and validation.
+
 | Workspace | Capabilities |
 | :-- | :-- |
 | Creative canvas | Text, image, video, audio and tool nodes; reference connections, sections, selection, undo and automatic layout |
@@ -73,7 +75,7 @@ Director tools now support named batch references, shot composition, timed actio
 
 ## Getting started
 
-Download macOS Apple Silicon or Windows x64 builds from [Releases](https://github.com/AstralFoundry/shotloom/releases). Add your provider credentials and model configuration in **Settings → API providers** before using generation. The canvas and director desk can be used without a model connection.
+Download macOS Apple Silicon or Windows x64 builds from [Releases](https://github.com/AstralFoundry/shotloom/releases). Add your provider credentials and model configuration in **Plugin center** before using generation. The canvas and director desk can be used without a model connection.
 
 For development, install Node.js ≥ 22.19.0, npm ≥ 10, Rust stable and the [Tauri 2 system dependencies](https://v2.tauri.app/start/prerequisites/).
 

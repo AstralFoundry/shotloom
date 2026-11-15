@@ -44,3 +44,6 @@ pub use video_frame::*;
 
 pub(super) mod harness_session;
 pub use harness_session::*;
+
+mod provider_plugins;
+pub use provider_plugins::*;

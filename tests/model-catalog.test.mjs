@@ -1,4 +1,4 @@
-import { loadModelCatalog } from './helpers/modelCatalog.mjs';
+import { loadModelCatalog, loadLegacyModelCatalog } from './helpers/modelCatalog.mjs';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { modelResponseError } from '../renderer/src/utils/modelResponseParsing.ts';
@@ -9,17 +9,21 @@ import { readSource } from './helpers/sourceContract.mjs';
 const catalog = loadModelCatalog();
 const agentContract = JSON.parse(readSource('renderer/src/config/agent-action-contract.json'));
 
-test('模型能力按厂商文件登记，索引不复制模型定义', () => {
-  const manifest = JSON.parse(readSource('renderer/src/config/model-catalog-v2.json'));
-  assert.equal(Object.hasOwn(manifest, 'models'), false);
-  assert.equal(new Set(manifest.providers).size, manifest.providers.length);
-  assert.equal(new Set(manifest.modelOrder).size, catalog.models.length);
-  for (const provider of manifest.providers) {
-    const file = JSON.parse(readSource(`../renderer/src/config/model-catalog-v2/${provider}.json`));
-    assert.equal(file.provider, provider);
-    assert.ok(file.models.length > 0);
-    assert.ok(file.models.every((model) => model.provider === provider));
+test('模型能力由独立插件包登记，产品配置不再保留内置目录', () => {
+  const index = JSON.parse(readSource('plugin-packages/defaults/index.json'));
+  assert.equal(new Set(index.packages).size, index.packages.length);
+  const ids = new Set();
+  for (const folder of index.packages) {
+    const manifest = JSON.parse(readSource(`plugin-packages/defaults/${folder}/manifest.json`));
+    assert.equal(manifest.id, folder);
+    assert.ok(manifest.protocols.length);
+    for (const connection of manifest.defaultConnections || []) for (const model of connection.models) {
+      assert.equal(model.protocolPlugin, manifest.id);
+      assert.equal(ids.has(model.id), false);
+      ids.add(model.id);
+    }
   }
+  assert.equal(ids.size, catalog.models.length);
 });
 
 test('StarRouter 不再提供 GPT 5.4 和 GPT 5.5', () => {
@@ -64,9 +68,8 @@ test('StarRouter 不再提供 DeepSeek V4 Pro，仍保留 DeepSeek Flash', () =>
   assert.equal(catalog.models.some((item) => item.id === 'starrouter-deepseek-flash'), true);
 });
 
-test('内置模型使用统一模型定义结构', () => {
-  assert.equal(catalog.schema, 'shotloom.model-catalog');
-  assert.equal(catalog.modelDefinitionVersion, 2);
+test('插件模型使用统一的运行契约结构', () => {
+  assert.ok(catalog.models.length > 0);
   for (const model of catalog.models) {
     assert.ok(model.id);
     assert.ok(model.provider);
@@ -80,7 +83,7 @@ test('内置模型使用统一模型定义结构', () => {
       assert.ok(mode.auth?.type);
       if (model.type === 'textGeneration') {
         if (mode.agent?.supportsTools) {
-          assert.ok(['provider-default', 'openai-responses', 'anthropic-messages'].includes(mode.agent.transport));
+          assert.ok(['provider-default', 'openai-chat-completions', 'openai-responses', 'anthropic-messages'].includes(mode.agent.transport));
           if (mode.agent.transport === 'anthropic-messages') {
             assert.equal(mode.requestTemplate.messages, '{{nonSystemMessages}}');
             assert.equal(mode.requestTemplate.system, '{{system}}');
@@ -271,8 +274,8 @@ test('OpenAI GPT 画布文本请求使用 max_completion_tokens', () => {
   }
 });
 
-test('内置目录只保留每条产品线最新一代的模型', () => {
-  const ids = new Set(catalog.models.map((model) => model.id));
+test('历史目录的退役记录保留在迁移测试夹具中', () => {
+  const ids = new Set(loadLegacyModelCatalog().models.map((model) => model.id));
   for (const id of [
     'gpt-6-astra', 'gpt-image-2.5-sunburst', 'gpt-image-2.5-flare',
     'starrouter-gpt-image-2.5-sunburst', 'starrouter-gpt-image-2.5-flare',
@@ -597,7 +600,8 @@ test('请求模板里的 params 占位符都有同名目录参数', () => {
   };
   for (const model of catalog.models) {
     for (const mode of model.modes || []) {
-      walk(mode.requestTemplate, new Set((mode.params || []).map((param) => param.key)), `${model.id}/${mode.id}`);
+      const inherited = mode.protocolParams || [];
+      walk(mode.requestTemplate, new Set([...(mode.params || []), ...inherited].map((param) => param.key)), `${model.id}/${mode.id}`);
     }
   }
   assert.deepEqual(orphan, [], '模板引用了目录里不存在的参数，界面无法设置、请求里会被丢弃');

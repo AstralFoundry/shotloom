@@ -9,6 +9,8 @@ Shotloom 是面向 AI 影像创作的桌面工作台。用无限画布组织提�
 
 ## 能力
 
+协议与模型预设全部来自独立插件，发行包离线默认安装常用插件，卸载后重启不会恢复。协议插件支持 npm、本地文件或 URL 安装、启停与版本回滚；双击插件卡片可查看说明文档、接口和参数详情。厂商连接独立配置地址、Key 和模型，每个模型选择对应协议。接入说明见 [协议插件](./docs/provider-plugins.md)。 媒体接入范围见 [媒体协议](./docs/media-protocols.md)。
+
 | 工作区 | 可以做什么 |
 | :-- | :-- |
 | 创作画布 | 排布文本、图片、视频、音频与工具节点；连线表达参考与依赖；分区、多选、撤销和自动布局 |
@@ -73,7 +75,7 @@ Shotloom 是面向 AI 影像创作的桌面工作台。用无限画布组织提�
 
 ## 开始使用
 
-在 [Releases](https://github.com/AstralFoundry/shotloom/releases) 下载 macOS Apple Silicon 或 Windows x64 安装包。使用生成模型前，进入 **设置 → API 厂商** 添加厂商、凭据与模型配置。不接模型也可以整理画布和使用导演台。
+在 [Releases](https://github.com/AstralFoundry/shotloom/releases) 下载 macOS Apple Silicon 或 Windows x64 安装包。使用生成模型前，进入 **插件中心** 启用服务并配置接口地址和 Key。不接模型也可以整理画布和使用导演台。
 
 源码运行需要 Node.js ≥ 22.19.0、npm ≥ 10、Rust stable 和 [Tauri 2 系统依赖](https://v2.tauri.app/start/prerequisites/)。
 

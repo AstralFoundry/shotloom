@@ -1,6 +1,8 @@
 import type { SVGProps } from "react";
 
 const paths = {
+  library: '<rect x="3" y="3" width="4" height="18" rx="1"/><rect x="7" y="3" width="4" height="18" rx="1"/><path d="m13 4 3.8-1 5 17-3.8 1Z"/>',
+  blocks: '<rect x="3" y="7" width="8" height="14" rx="1"/><path d="M3 13h8"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="11" y="13" width="10" height="8" rx="1"/>',
   "scan-text": '<path d="M4 8V5a1 1 0 0 1 1-1h3"/><path d="M16 4h3a1 1 0 0 1 1 1v3"/><path d="M20 16v3a1 1 0 0 1-1 1h-3"/><path d="M8 20H5a1 1 0 0 1-1-1v-3"/><path d="M8 9h8"/><path d="M8 12h8"/><path d="M8 15h5"/>',
   target: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>',
   bell:

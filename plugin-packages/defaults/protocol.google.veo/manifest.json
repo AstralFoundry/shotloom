@@ -1,0 +1,175 @@
+{
+  "apiVersion": 1,
+  "kind": "protocol",
+  "id": "protocol.google.veo",
+  "name": "Google Veo",
+  "version": "1.0.0",
+  "shotloom": ">=0.9.1, <1.0.0",
+  "category": "videoGeneration",
+  "iconId": "google",
+  "engine": "declarative",
+  "homepage": "https://ai.google.dev/gemini-api/docs/video",
+  "protocols": [
+    {
+      "id": "generate",
+      "mode": {
+        "id": "text-to-video",
+        "label": "文生视频",
+        "endpoint": {
+          "path": "/models/{model}:predictLongRunning",
+          "method": "POST",
+          "scope": "root"
+        },
+        "auth": {
+          "type": "header",
+          "name": "x-goog-api-key",
+          "prefix": ""
+        },
+        "inputConstraints": {},
+        "outputConstraints": {
+          "durations": [
+            4,
+            6,
+            8
+          ],
+          "defaultDuration": 8
+        },
+        "params": [
+          {
+            "key": "aspectRatio",
+            "label": "画面比例",
+            "labelKey": "plugins.parameter.aspectRatio",
+            "type": "select",
+            "options": [
+              "16:9",
+              "9:16"
+            ],
+            "default": "16:9",
+            "numeric": false
+          },
+          {
+            "key": "duration",
+            "label": "时长",
+            "labelKey": "plugins.parameter.duration",
+            "type": "select",
+            "options": [
+              4,
+              6,
+              8
+            ],
+            "default": 8,
+            "numeric": true
+          }
+        ],
+        "requestTemplate": {
+          "instances": [
+            {
+              "prompt": "{{prompt}}"
+            }
+          ],
+          "parameters": {
+            "sampleCount": 1,
+            "aspectRatio": "{{params.aspectRatio}}",
+            "durationSeconds": "{{params.duration}}"
+          }
+        },
+        "isAsync": true,
+        "taskIdPath": "name",
+        "statusPath": "done",
+        "resultUrlPath": "response.generateVideoResponse.generatedSamples.*.video.uri",
+        "taskEndpoint": {
+          "path": "/{taskId}",
+          "method": "GET",
+          "scope": "root"
+        },
+        "pollStatusMap": {
+          "true": "completed",
+          "false": "running"
+        },
+        "pendingWhenStatusMissing": true,
+        "errorCodePath": "error.code",
+        "errorMessagePath": "error.message",
+        "errorPath": "error.message",
+        "resultDownloadAuth": true,
+        "labelKey": "catalog.label.dd6f194c41"
+      }
+    }
+  ],
+  "providers": [],
+  "author": "Shotloom Contributors",
+  "defaultConnections": [
+    {
+      "id": "google",
+      "name": "Google Gemini",
+      "descriptionKey": "provider.copy.aa9b734d17",
+      "iconId": "gemini",
+      "baseUrl": "https://generativelanguage.googleapis.com/v1beta",
+      "baseUrlRequired": false,
+      "engine": "declarative",
+      "pluginId": "protocol.google.veo",
+      "presetId": "protocol",
+      "models": [
+        {
+          "id": "veo-3.1-generate-preview",
+          "name": "Veo 3.1 Preview",
+          "upstreamModel": "veo-3.1-generate-preview",
+          "type": "videoGeneration",
+          "sortOrder": 100,
+          "enabled": true,
+          "defaultMode": "text-to-video",
+          "protocolPlugin": "protocol.google.veo",
+          "protocolModes": {
+            "text-to-video": "generate"
+          },
+          "modes": [
+            {
+              "id": "text-to-video",
+              "label": "文生视频",
+              "inputConstraints": {},
+              "outputConstraints": {
+                "durations": [
+                  4,
+                  6,
+                  8
+                ],
+                "defaultDuration": 8
+              },
+              "params": [
+                {
+                  "key": "aspectRatio",
+                  "label": "画面比例",
+                  "labelKey": "plugins.parameter.aspectRatio",
+                  "type": "select",
+                  "options": [
+                    "16:9",
+                    "9:16"
+                  ],
+                  "default": "16:9",
+                  "numeric": false
+                },
+                {
+                  "key": "duration",
+                  "label": "时长",
+                  "labelKey": "plugins.parameter.duration",
+                  "type": "select",
+                  "options": [
+                    4,
+                    6,
+                    8
+                  ],
+                  "default": 8,
+                  "numeric": true
+                }
+              ],
+              "labelKey": "catalog.label.dd6f194c41"
+            }
+          ]
+        }
+      ],
+      "enabled": true,
+      "builtin": true,
+      "preserveModelIds": true,
+      "sortOrder": 2
+    }
+  ]
+}

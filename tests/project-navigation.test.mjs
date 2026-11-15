@@ -33,3 +33,9 @@ test('已打开项目可以进入全部项目工作台页面', () => {
     assert.equal(resolveProjectRoute(route, openProject), route);
   }
 });
+
+// Plugin configuration is global and remains accessible before a project is opened.
+test('插件中心不依赖已打开项目', () => {
+  assert.equal(resolveProjectRoute('plugins', {}), 'plugins');
+  assert.equal(resolveProjectRoute('plugins', openProject), 'plugins');
+});

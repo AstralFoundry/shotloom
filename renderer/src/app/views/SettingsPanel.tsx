@@ -1,33 +1,15 @@
 import { t } from '@/i18n';
-import { Input, InputNumber, Select, Switch } from "antd";
+import { InputNumber, Select, Switch } from "antd";
 import {
-  useEffect,
-  useRef,
   useState,
 } from "react";
 import { type IconName, IconSymbol } from "../components/IconSymbol";
 import { ProviderBrandIcon } from "../components/ProviderBrandIcon";
-import type { ProviderModelRow } from "../../domain/provider/ModelAvailability";
 
 export interface SettingsModel {
   id: string;
   label: string;
   iconId: string;
-}
-export interface ProviderItem {
-  id: string;
-  name: string;
-  description: string;
-  iconId: string;
-  apiKey: string;
-  baseUrl: string;
-  baseUrlRequired: boolean;
-  configured: boolean;
-  models: ProviderModelRow[];
-}
-export interface ProviderConfigPatch {
-  apiKey?: string;
-  baseUrl?: string;
 }
 export interface SettingsData {
   locale?: string;
@@ -38,7 +20,6 @@ export interface SettingsData {
   agentModels: Record<string, string>;
   availableModels: Record<string, SettingsModel[]>;
   agentToggles: Record<string, boolean | string>;
-  providers: ProviderItem[];
   shortcutLabels: Record<string, string>;
 }
 export interface SettingsController {
@@ -54,13 +35,9 @@ export interface SettingsController {
   setAgentToggle: (key: string, value: boolean | string) => void | Promise<void>;
   recordShortcut: (key: string) => void;
   resetShortcuts: () => void | Promise<void>;
-  setProviderConfig: (
-    id: string,
-    patch: ProviderConfigPatch,
-  ) => void | Promise<void>;
 }
 
-type Tab = "general" | "canvas" | "providers" | "agent";
+type Tab = "general" | "canvas" | "agent";
 const groups: Array<
   {
     label: string;
@@ -86,11 +63,6 @@ const groups: Array<
   {
     label: t("ui.SettingsPanel.label.c0875dd1"),
     items: [{
-      id: "providers",
-      label: t("ui.SettingsPanel.label.795fa912"),
-      icon: "link",
-      description: t("ui.SettingsPanel.description.5f0c6b28"),
-    }, {
       id: "agent",
       label: "Agent",
       icon: "spark",
@@ -196,119 +168,6 @@ function ModelSelect(
   );
 }
 
-const MODEL_INPUT_LABELS: Record<ProviderModelRow["inputs"][number], string> = {
-  image: t("ui.canvasMediaActions.text.be8da62e"),
-  video: t("ui.canvasMediaActions.text.fa4e33b6"),
-  audio: t("ui.canvasAdapter.label.461189f1"),
-};
-
-function groupProviderModels(models: ProviderModelRow[]) {
-  const groups = new Map<string, ProviderModelRow[]>();
-  for (const model of models) {
-    const group = groups.get(model.typeLabel);
-    if (group) group.push(model);
-    else groups.set(model.typeLabel, [model]);
-  }
-  return [...groups];
-}
-
-function ProviderCard(
-  { item, onChange }: {
-    item: ProviderItem;
-    onChange: (id: string, patch: ProviderConfigPatch) => void | Promise<void>;
-  },
-) {
-  const [draft, setDraft] = useState({
-    apiKey: item.apiKey,
-    baseUrl: item.baseUrl,
-  });
-  useEffect(
-    () => setDraft({ apiKey: item.apiKey, baseUrl: item.baseUrl }),
-    [item.apiKey, item.baseUrl],
-  );
-  // 只有实际改动才落盘，避免失焦就写一次设置。
-  function commit(field: "apiKey" | "baseUrl") {
-    const next = draft[field].trim();
-    if (next === item[field]) return;
-    void onChange(item.id, { [field]: next });
-  }
-  const urlMissing = item.baseUrlRequired && !item.baseUrl.trim();
-  return (
-    <section className="provider-detail">
-      <div className="provider-card-head">
-        <span className="provider-badge">
-          <ProviderBrandIcon icon={item.iconId} />
-        </span>
-        <div className="provider-card-title">
-          <strong>{item.name}</strong>
-          <small>{item.description} · {item.models.length} {t("ui.SettingsPanel.text.dd861cb3")}</small>
-        </div>
-        <span
-          className={item.configured ? "provider-configured" : "provider-incomplete"}
-          title={item.configured
-            ? t("ui.SettingsPanel.text.89e6c087")
-            : t("ui.SettingsPanel.text.09dded24")}
-        >
-          <i />{item.configured ? t("ui.SettingsPanel.text.dc7cd22f") : t("ui.CanvasNodes.text.63595e95")}
-        </span>
-      </div>
-      <div className="provider-card-fields">
-        <label className="provider-field">
-          <span>API Key</span>
-          <Input.Password
-            value={draft.apiKey}
-            placeholder={item.configured ? t("ui.SettingsPanel.text.16813761") : t("ui.SettingsPanel.text.a37e9033")}
-            onChange={(e) => setDraft((d) => ({ ...d, apiKey: e.target.value }))}
-            onBlur={() => commit("apiKey")}
-            onPressEnter={(e) => e.currentTarget.blur()}
-          />
-        </label>
-        <label className="provider-field">
-          <span>{t("ui.SettingsPanel.text.29f5babe")}</span>
-          <Input
-            value={draft.baseUrl}
-            placeholder={urlMissing ? t("ui.SettingsPanel.text.8d0f2606") : t("ui.SettingsPanel.text.b6047c89")}
-            onChange={(e) => setDraft((d) => ({ ...d, baseUrl: e.target.value }))}
-            onBlur={() => commit("baseUrl")}
-            onPressEnter={(e) => e.currentTarget.blur()}
-          />
-        </label>
-      </div>
-      <div className="provider-models">
-        {groupProviderModels(item.models).map(([label, models]) => (
-          <div className="provider-model-group" key={label}>
-            <div className="provider-model-group-label">
-              <strong>{label}</strong>
-              <span>{models.length} {t("ui.SettingsPanel.text.674373ae")}</span>
-            </div>
-            <div className="provider-model-list">
-              {models.map((model) => (
-                <div
-                  className="provider-model-card"
-                  key={model.id}
-                >
-                  <div className="provider-model-card-main">
-                    <strong>{model.name}</strong>
-                    <small title={model.id}>{model.id}</small>
-                  </div>
-                  <div className="provider-model-card-meta">
-                    {model.inputs.map((kind) => (
-                      <span className="provider-model-input" key={kind}>{MODEL_INPUT_LABELS[kind]}{t("ui.SettingsPanel.text.e8850440")}</span>
-                    ))}
-                    <span className={model.agentReady ? "provider-model-agent" : "provider-model-canvas-only"}>
-                      {model.agentReady ? t("ui.SettingsPanel.text.b79aff63") : t("ui.SettingsPanel.text.fcf0100d")}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
 export function SettingsPanel(
   { data, controller }: {
     data: SettingsData;
@@ -316,9 +175,6 @@ export function SettingsPanel(
   },
 ) {
   const [tab, setTab] = useState<Tab>("general");
-  const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null);
-  const selectedProvider = data.providers.find((item) => item.id === selectedProviderId);
-  const contentScroll = useRef<HTMLDivElement>(null);
   const meta = groups.flatMap((group) => group.items).find((item) =>
     item.id === tab
   )!;
@@ -336,12 +192,10 @@ export function SettingsPanel(
                 className={tab === item.id ? "active" : ""}
                 onClick={() => {
                   setTab(item.id);
-                  setSelectedProviderId(null);
                 }}
               >
                 <IconSymbol name={item.icon} />
                 <span>{item.label}</span>
-                {item.id === "providers" && <em>{data.providers.length}</em>}
               </button>
             ))}
           </div>
@@ -354,8 +208,8 @@ export function SettingsPanel(
       <main className="settings-content">
         <header className="settings-content-head">
           <div>
-            <h3>{selectedProvider && tab === "providers" ? selectedProvider.name : meta.label}</h3>
-            <p>{selectedProvider && tab === "providers" ? selectedProvider.description : meta.description}</p>
+            <h3>{meta.label}</h3>
+            <p>{meta.description}</p>
           </div>
           {tab === "canvas" && (
             <button
@@ -365,7 +219,7 @@ export function SettingsPanel(
               {t("ui.CameraControlPanel.text.a191935b")}</button>
           )}
         </header>
-        <div className="settings-content-scroll" ref={contentScroll}>
+        <div className="settings-content-scroll">
           {tab === "general" && (
             <>
               <section className="settings-section">
@@ -519,46 +373,6 @@ export function SettingsPanel(
                   </div>
                 ))}
               </div>
-            </section>
-          )}
-          {tab === "providers" && (
-            <section className="settings-section settings-list-section">
-              {selectedProvider ? (
-                <>
-                  <button className="provider-back" type="button" onClick={() => {
-                    setSelectedProviderId(null);
-                    if (contentScroll.current) contentScroll.current.scrollTop = 0;
-                  }}>
-                    <IconSymbol name="chevron-left" />{t("ui.SettingsPanel.text.d713d971")}</button>
-                  <ProviderCard item={selectedProvider} onChange={controller.setProviderConfig} />
-                </>
-              ) : (
-                <>
-                  <div className="provider-list-intro">
-                    <span>{t("ui.SettingsPanel.text.190d85a5")}</span>
-                    <span>{data.providers.filter((item) => item.configured).length} / {data.providers.length} {t("ui.SettingsPanel.text.dc7cd22f")}</span>
-                  </div>
-                  <div className="provider-list">
-                    {data.providers.map((item) => (
-                      <button className="provider-list-row" type="button" key={item.id} onClick={() => {
-                        setSelectedProviderId(item.id);
-                        if (contentScroll.current) contentScroll.current.scrollTop = 0;
-                      }}>
-                        <span className="provider-badge"><ProviderBrandIcon icon={item.iconId} /></span>
-                        <span className="provider-list-copy">
-                          <strong>{item.name}</strong>
-                          <small>{item.description}</small>
-                        </span>
-                        <span className="provider-list-count">{item.models.length} {t("ui.SettingsPanel.text.674373ae")}</span>
-                        <span className={item.configured ? "provider-configured" : "provider-incomplete"}>
-                          <i />{item.configured ? t("ui.SettingsPanel.text.dc7cd22f") : t("ui.CanvasNodes.text.63595e95")}
-                        </span>
-                        <IconSymbol name="chevron-right" />
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
             </section>
           )}
           {tab === "agent" && (

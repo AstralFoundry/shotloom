@@ -11,6 +11,7 @@ import type { ModelRuntimeContract } from '../catalog/ModelCatalog';
 // ── Types ────────────────────────────────────────────────────────────────────
 
 export interface CompileContext {
+  submissionId?: string;
   taskType: 'textGeneration' | 'imageGeneration' | 'videoGeneration' | 'audioGeneration';
   model: string;
   prompt?: string;

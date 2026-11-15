@@ -1,0 +1,49 @@
+{
+  "apiVersion": 1,
+  "id": "example.openai-compatible",
+  "name": "OpenAI-compatible example",
+  "version": "1.0.0",
+  "shotloom": ">=0.9.1, <1.0.0",
+  "description": "Reusable text protocol. Configure endpoints, credentials and models in a separate provider connection.",
+  "protocols": [
+    {
+      "id": "chat",
+      "mode": {
+        "id": "text-generation",
+        "label": "Text generation",
+        "endpoint": {
+          "method": "POST",
+          "path": "/chat/completions",
+          "scope": "v1"
+        },
+        "requestTemplate": {
+          "model": "{{model}}",
+          "messages": [
+            {
+              "role": "user",
+              "content": "{{prompt}}"
+            }
+          ]
+        },
+        "inputConstraints": {
+          "text": {
+            "maxTokens": 8192
+          }
+        },
+        "outputConstraints": {
+          "supportsStreaming": false
+        },
+        "resultTextPath": "choices.0.message.content",
+        "agent": {
+          "transport": "openai-chat-completions",
+          "supportsTools": true
+        },
+        "params": []
+      }
+    }
+  ],
+  "kind": "protocol",
+  "category": "textGeneration",
+  "engine": "declarative",
+  "providers": []
+}

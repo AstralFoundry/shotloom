@@ -760,6 +760,13 @@ export function createTauriApi(browserFallback: BrowserFallback): BrowserFallbac
 
   return {
     ...browserFallback,
+    providerPlugins: {
+      onChanged: (callback: () => void) => subscribe<void>((handler) => listen<void>('provider-plugins-changed', () => handler()), callback),
+      manage: (operation: string, args: unknown = {}) => invoke('provider_plugins', { operation, args }),
+      call: (args: unknown) => invoke('provider_plugin_call', args as Record<string, unknown>),
+      cancel: (requestId: string) => invoke('provider_plugin_cancel', { requestId }),
+      selectPackage: () => openDialog({ multiple: false, filters: [{ name: 'Shotloom provider plugin', extensions: ['shotloom-plugin', 'zip', 'json'] }] }),
+    },
     platform,
     clipboard: {
       ...browserFallback.clipboard,

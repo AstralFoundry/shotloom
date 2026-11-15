@@ -33,7 +33,7 @@ export async function generateDirectorPanorama(input: { prompt: string; signal?:
   if (!credential.available) throw new Error(`模型 ${model} 未配置凭据：${credential.message}`);
   const contract = resolveModelRuntimeContract('imageGeneration', model, []);
   if (!contract) throw new Error(`模型 ${model} 不支持图片生成`);
-  const adapter = getProviderAdapter(contract.provider);
+  const adapter = getProviderAdapter(contract.provider, contract.pluginRef);
   const compiled = adapter.compileRequest({
     taskType: 'imageGeneration',
     model,

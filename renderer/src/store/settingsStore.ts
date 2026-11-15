@@ -1,3 +1,4 @@
+import { loadProviderPlugins } from './providerPluginStore';
 import { t } from '../i18n/index.ts';
 import { getLocale, normalizeLocale } from '@/i18n';
 import { reactive, toRaw } from '@/store/domainReactivity';
@@ -189,6 +190,7 @@ function applySettings(settings: AnyRecord) {
 }
 
 export async function loadAppSettings() {
+  await loadProviderPlugins();
   settingsStore.loading = true;
   try {
     let settings: AnyRecord = await desktopApi.settings.get();

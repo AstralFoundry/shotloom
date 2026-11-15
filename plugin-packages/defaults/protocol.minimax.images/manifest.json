@@ -1,0 +1,419 @@
+{
+  "apiVersion": 1,
+  "kind": "protocol",
+  "id": "protocol.minimax.images",
+  "name": "MiniMax H3 Images",
+  "version": "1.0.0",
+  "shotloom": ">=0.9.1, <1.0.0",
+  "category": "imageGeneration",
+  "iconId": "minimax",
+  "engine": "declarative",
+  "homepage": "https://platform.minimax.io/docs/guides/image-generation",
+  "protocols": [
+    {
+      "id": "generate",
+      "mode": {
+        "id": "text-to-image",
+        "label": "文生图",
+        "endpoint": {
+          "path": "/v1/images/generations",
+          "method": "POST",
+          "scope": "root"
+        },
+        "auth": {
+          "type": "bearer"
+        },
+        "inputConstraints": {},
+        "outputConstraints": {
+          "maxCount": 4,
+          "formats": [
+            "jpeg",
+            "png",
+            "webp"
+          ]
+        },
+        "params": [
+          {
+            "key": "aspectRatio",
+            "label": "画面比例",
+            "labelKey": "plugins.parameter.aspectRatio",
+            "type": "select",
+            "options": [
+              "1:1",
+              "16:9",
+              "9:16",
+              "4:3",
+              "3:4"
+            ],
+            "default": "1:1",
+            "numeric": false
+          },
+          {
+            "key": "count",
+            "label": "数量",
+            "labelKey": "plugins.parameter.generationCount",
+            "type": "select",
+            "options": [
+              1,
+              2,
+              3,
+              4
+            ],
+            "default": 1,
+            "numeric": true
+          }
+        ],
+        "requestTemplate": {
+          "model": "{{model}}",
+          "prompt": "{{prompt}}",
+          "aspect_ratio": "{{params.aspectRatio}}",
+          "n": "{{params.count}}",
+          "response_format": "url"
+        },
+        "resultUrlPath": "data.*.url",
+        "labelKey": "catalog.label.0b835958b8",
+        "resultFormatPath": "output_format"
+      }
+    },
+    {
+      "id": "edit",
+      "mode": {
+        "id": "image-to-image",
+        "label": "图片编辑",
+        "endpoint": {
+          "path": "/v1/images/edits",
+          "method": "POST",
+          "scope": "root"
+        },
+        "auth": {
+          "type": "bearer"
+        },
+        "inputConstraints": {
+          "images": {
+            "min": 1,
+            "max": 16,
+            "roles": [
+              "referenceImage"
+            ]
+          }
+        },
+        "outputConstraints": {
+          "maxCount": 4,
+          "formats": [
+            "jpeg",
+            "png",
+            "webp"
+          ]
+        },
+        "params": [
+          {
+            "key": "aspectRatio",
+            "label": "画面比例",
+            "labelKey": "plugins.parameter.aspectRatio",
+            "type": "select",
+            "options": [
+              "1:1",
+              "16:9",
+              "9:16",
+              "4:3",
+              "3:4"
+            ],
+            "default": "1:1",
+            "numeric": false
+          },
+          {
+            "key": "count",
+            "label": "数量",
+            "labelKey": "plugins.parameter.generationCount",
+            "type": "select",
+            "options": [
+              1,
+              2,
+              3,
+              4
+            ],
+            "default": 1,
+            "numeric": true
+          }
+        ],
+        "requestTemplate": {
+          "model": "{{model}}",
+          "prompt": "{{prompt}}",
+          "aspect_ratio": "{{params.aspectRatio}}",
+          "n": "{{params.count}}",
+          "response_format": "url",
+          "images": "{{content}}"
+        },
+        "resultUrlPath": "data.*.url",
+        "labelKey": "catalog.label.a038dfa6cd",
+        "resultFormatPath": "output_format",
+        "inputMode": "reference",
+        "inputSlots": [
+          "reference"
+        ],
+        "contentTemplate": {
+          "image": {
+            "image_url": "{{url}}"
+          }
+        }
+      }
+    }
+  ],
+  "providers": [],
+  "author": "Shotloom Contributors",
+  "defaultConnections": [
+    {
+      "id": "minimax",
+      "name": "MiniMax",
+      "descriptionKey": "provider.copy.9caabd1e70",
+      "iconId": "minimax",
+      "baseUrl": "https://api.minimax.io",
+      "baseUrlRequired": false,
+      "engine": "declarative",
+      "pluginId": "protocol.minimax.images",
+      "presetId": "protocol",
+      "models": [
+        {
+          "id": "MiniMax-H3-Image",
+          "name": "MiniMax H3 Image",
+          "upstreamModel": "MiniMax-H3-Image",
+          "type": "imageGeneration",
+          "sortOrder": 111,
+          "enabled": true,
+          "defaultMode": "text-to-image",
+          "protocolPlugin": "protocol.minimax.images",
+          "protocolModes": {
+            "text-to-image": "generate",
+            "image-to-image": "edit"
+          },
+          "modes": [
+            {
+              "id": "text-to-image",
+              "label": "文生图",
+              "inputConstraints": {},
+              "outputConstraints": {
+                "maxCount": 4,
+                "formats": [
+                  "jpeg",
+                  "png",
+                  "webp"
+                ]
+              },
+              "params": [
+                {
+                  "key": "aspectRatio",
+                  "label": "画面比例",
+                  "labelKey": "plugins.parameter.aspectRatio",
+                  "type": "select",
+                  "options": [
+                    "1:1",
+                    "16:9",
+                    "9:16",
+                    "4:3",
+                    "3:4"
+                  ],
+                  "default": "1:1",
+                  "numeric": false
+                },
+                {
+                  "key": "count",
+                  "label": "数量",
+                  "labelKey": "plugins.parameter.generationCount",
+                  "type": "select",
+                  "options": [
+                    1,
+                    2,
+                    3,
+                    4
+                  ],
+                  "default": 1,
+                  "numeric": true
+                }
+              ],
+              "labelKey": "catalog.label.0b835958b8"
+            },
+            {
+              "id": "image-to-image",
+              "label": "图片编辑",
+              "inputConstraints": {
+                "images": {
+                  "min": 1,
+                  "max": 16,
+                  "roles": [
+                    "referenceImage"
+                  ]
+                }
+              },
+              "outputConstraints": {
+                "maxCount": 4,
+                "formats": [
+                  "jpeg",
+                  "png",
+                  "webp"
+                ]
+              },
+              "params": [
+                {
+                  "key": "aspectRatio",
+                  "label": "画面比例",
+                  "labelKey": "plugins.parameter.aspectRatio",
+                  "type": "select",
+                  "options": [
+                    "1:1",
+                    "16:9",
+                    "9:16",
+                    "4:3",
+                    "3:4"
+                  ],
+                  "default": "1:1",
+                  "numeric": false
+                },
+                {
+                  "key": "count",
+                  "label": "数量",
+                  "labelKey": "plugins.parameter.generationCount",
+                  "type": "select",
+                  "options": [
+                    1,
+                    2,
+                    3,
+                    4
+                  ],
+                  "default": 1,
+                  "numeric": true
+                }
+              ],
+              "labelKey": "catalog.label.a038dfa6cd",
+              "inputMode": "reference",
+              "inputSlots": [
+                "reference"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "MiniMax-H3-Image-Highspeed",
+          "name": "MiniMax H3 Image Highspeed",
+          "upstreamModel": "MiniMax-H3-Image-Highspeed",
+          "type": "imageGeneration",
+          "sortOrder": 112,
+          "enabled": true,
+          "defaultMode": "text-to-image",
+          "protocolPlugin": "protocol.minimax.images",
+          "protocolModes": {
+            "text-to-image": "generate",
+            "image-to-image": "edit"
+          },
+          "modes": [
+            {
+              "id": "text-to-image",
+              "label": "文生图",
+              "inputConstraints": {},
+              "outputConstraints": {
+                "maxCount": 4,
+                "formats": [
+                  "jpeg",
+                  "png",
+                  "webp"
+                ]
+              },
+              "params": [
+                {
+                  "key": "aspectRatio",
+                  "label": "画面比例",
+                  "labelKey": "plugins.parameter.aspectRatio",
+                  "type": "select",
+                  "options": [
+                    "1:1",
+                    "16:9",
+                    "9:16",
+                    "4:3",
+                    "3:4"
+                  ],
+                  "default": "1:1",
+                  "numeric": false
+                },
+                {
+                  "key": "count",
+                  "label": "数量",
+                  "labelKey": "plugins.parameter.generationCount",
+                  "type": "select",
+                  "options": [
+                    1,
+                    2,
+                    3,
+                    4
+                  ],
+                  "default": 1,
+                  "numeric": true
+                }
+              ],
+              "labelKey": "catalog.label.0b835958b8"
+            },
+            {
+              "id": "image-to-image",
+              "label": "图片编辑",
+              "inputConstraints": {
+                "images": {
+                  "min": 1,
+                  "max": 16,
+                  "roles": [
+                    "referenceImage"
+                  ]
+                }
+              },
+              "outputConstraints": {
+                "maxCount": 4,
+                "formats": [
+                  "jpeg",
+                  "png",
+                  "webp"
+                ]
+              },
+              "params": [
+                {
+                  "key": "aspectRatio",
+                  "label": "画面比例",
+                  "labelKey": "plugins.parameter.aspectRatio",
+                  "type": "select",
+                  "options": [
+                    "1:1",
+                    "16:9",
+                    "9:16",
+                    "4:3",
+                    "3:4"
+                  ],
+                  "default": "1:1",
+                  "numeric": false
+                },
+                {
+                  "key": "count",
+                  "label": "数量",
+                  "labelKey": "plugins.parameter.generationCount",
+                  "type": "select",
+                  "options": [
+                    1,
+                    2,
+                    3,
+                    4
+                  ],
+                  "default": 1,
+                  "numeric": true
+                }
+              ],
+              "labelKey": "catalog.label.a038dfa6cd",
+              "inputMode": "reference",
+              "inputSlots": [
+                "reference"
+              ]
+            }
+          ]
+        }
+      ],
+      "enabled": true,
+      "builtin": true,
+      "preserveModelIds": true,
+      "sortOrder": 9
+    }
+  ]
+}

@@ -3,9 +3,7 @@ import { flushAutoSave, hasOpenProject } from '../../store/projectStore';
 import { t } from '@/i18n';
 import { useEffect, useMemo, useReducer } from "react";
 import { getModelInfo } from "../../domain/catalog/ModelCatalog";
-import { findProviderAdapter, getProviderAdapters } from "../../domain/provider/adapters";
-import { getProviderModelRows } from "../../domain/provider/ModelAvailability";
-import type { ProviderConfig } from "../../domain/provider/ProviderConfig";
+import { findProviderAdapter } from "../../domain/provider/adapters";
 import { resolveProviderIconId } from "../../domain/provider/ProviderBrandIcons.ts";
 import { desktopApi } from "../../services/desktopApi";
 import {
@@ -14,7 +12,6 @@ import {
   loadDownloadDir,
   selectDownloadDir,
 } from "../../store/fileStore";
-import { toRaw } from "../../store/domainReactivity";
 import {
   migrateProjectRoot,
   store,
@@ -76,20 +73,6 @@ export function SettingsFeature() {
         }),
       ]),
     );
-    const providers = getProviderAdapters().map((adapter) => {
-      const config = settingsStore.providerConfigs[adapter.id];
-      return {
-        id: adapter.id,
-        name: adapter.name,
-        description: adapter.description,
-        iconId: adapter.iconId,
-        apiKey: config?.apiKey || "",
-        baseUrl: config?.baseUrl || "",
-        baseUrlRequired: adapter.baseUrlRequired === true,
-        configured: Boolean(config?.apiKey?.trim()),
-        models: getProviderModelRows(adapter.id),
-      };
-    });
     return {
       locale: settingsStore.locale,
       projectRootDir: settingsStore.projectRootDir || "",
@@ -107,7 +90,6 @@ export function SettingsFeature() {
         agentAutoEval: settingsStore.agentAutoEval,
         agentAutoLayout: settingsStore.agentAutoLayout,
       },
-      providers,
       shortcutLabels: {
         fitView: canvasActionShortcutLabel(
           settingsStore.canvasActionShortcuts.fitView,
@@ -160,17 +142,6 @@ export function SettingsFeature() {
       void updateShortcut(action, shortcut);
     };
     window.addEventListener("keydown", listener, true);
-  }
-
-  async function saveProviderConfig(id: string, patch: Partial<ProviderConfig>) {
-    const current = settingsStore.providerConfigs[id];
-    await saveAppSettings({
-      providerConfigs: {
-        ...toRaw(settingsStore.providerConfigs),
-        [id]: { ...current, ...patch },
-      },
-    });
-    refresh();
   }
 
   const controller: SettingsController = {
@@ -258,9 +229,6 @@ export function SettingsFeature() {
           ),
         });
       }, t("ui.SettingsFeature.text.4f41873b")),
-    setProviderConfig: (id, patch) => run(async () => {
-      await saveProviderConfig(id, patch);
-    }),
   };
   return <SettingsPanel data={data} controller={controller} />;
 }

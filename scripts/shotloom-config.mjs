@@ -1,3 +1,4 @@
+import { defaultPluginConnections } from './provider-distribution.mjs';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -40,9 +41,7 @@ export function readShotloomConfig(path = configPath) {
   }
   const defaults = config?.defaults;
   const modelTypes = { text: 'textGeneration', image: 'imageGeneration', video: 'videoGeneration' };
-  const manifest = JSON.parse(readFileSync(join(rootDir, 'renderer', 'src', 'config', 'model-catalog-v2.json'), 'utf8'));
-  const catalog = manifest.providers.flatMap(provider =>
-    JSON.parse(readFileSync(join(rootDir, 'renderer', 'src', 'config', 'model-catalog-v2', `${provider}.json`), 'utf8')).models);
+  const catalog = defaultPluginConnections().flatMap(connection => connection.models || []);
   const models = {};
   for (const [kind, type] of Object.entries(modelTypes)) {
     const id = defaults?.models?.[kind];

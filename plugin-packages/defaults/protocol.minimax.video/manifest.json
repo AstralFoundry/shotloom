@@ -1,0 +1,2364 @@
+{
+  "apiVersion": 1,
+  "kind": "protocol",
+  "id": "protocol.minimax.video",
+  "name": "MiniMax Video",
+  "version": "1.0.0",
+  "shotloom": ">=0.9.1, <1.0.0",
+  "category": "videoGeneration",
+  "iconId": "minimax",
+  "engine": "declarative",
+  "protocols": [
+    {
+      "id": "operation.0fba497df1c45391",
+      "description": "MiniMax H3 Max",
+      "mode": {
+        "endpoint": {
+          "method": "POST",
+          "path": "/v2/video_generation",
+          "scope": "root"
+        },
+        "taskEndpoint": {
+          "method": "GET",
+          "path": "/v2/query/video_generation/{taskId}",
+          "scope": "root"
+        },
+        "isAsync": true,
+        "auth": {
+          "type": "bearer"
+        },
+        "requestTemplate": {
+          "model": "{{model}}",
+          "content": "{{content}}",
+          "resolution": "{{params.resolution}}",
+          "duration": "{{params.duration}}",
+          "ratio": "{{params.aspectRatio}}"
+        },
+        "contentTemplate": {
+          "text": {
+            "type": "text",
+            "text": "{{text}}"
+          },
+          "image": {
+            "type": "image_url",
+            "image_url": {
+              "url": "{{url}}"
+            },
+            "role": "{{role}}"
+          },
+          "video": {
+            "type": "video_url",
+            "video_url": {
+              "url": "{{url}}"
+            },
+            "role": "{{role}}"
+          },
+          "audio": {
+            "type": "audio_url",
+            "audio_url": {
+              "url": "{{url}}"
+            },
+            "role": "{{role}}"
+          }
+        },
+        "taskIdPath": "task_id",
+        "statusPath": "task.status",
+        "errorPath": "task.error.message",
+        "pollStatusMap": {
+          "queued": "running",
+          "running": "running",
+          "succeeded": "completed",
+          "failed": "failed",
+          "cancelled": "cancelled"
+        },
+        "resultUrlPath": "task.content.url",
+        "errorCodePath": "base_resp.status_code",
+        "errorMessagePath": "base_resp.status_msg",
+        "id": "text-to-video",
+        "label": "文生视频",
+        "inputConstraints": {
+          "images": {
+            "min": 0,
+            "max": 0
+          }
+        },
+        "outputConstraints": {
+          "durations": [
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15
+          ],
+          "defaultDuration": 5,
+          "formats": [
+            "mp4"
+          ]
+        },
+        "params": [
+          {
+            "key": "prompt",
+            "label": "提示词",
+            "type": "text",
+            "required": true,
+            "labelKey": "catalog.label.2f0bb12387"
+          },
+          {
+            "key": "duration",
+            "label": "时长",
+            "type": "select",
+            "default": 5,
+            "numeric": true,
+            "options": [
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15
+            ],
+            "labelKey": "catalog.label.29d0552d2e"
+          },
+          {
+            "key": "aspectRatio",
+            "label": "比例",
+            "type": "select",
+            "default": "16:9",
+            "options": [
+              "21:9",
+              "16:9",
+              "4:3",
+              "1:1",
+              "3:4",
+              "9:16"
+            ],
+            "labelKey": "catalog.label.c27f341ce5"
+          },
+          {
+            "key": "resolution",
+            "label": "分辨率",
+            "type": "select",
+            "default": "768P",
+            "options": [
+              "480P",
+              "768P"
+            ],
+            "labelKey": "catalog.label.cde9b52b23"
+          }
+        ],
+        "labelKey": "catalog.label.dd6f194c41"
+      }
+    },
+    {
+      "id": "operation.6ca0bc6de8211651",
+      "description": "MiniMax H3 Max",
+      "mode": {
+        "endpoint": {
+          "method": "POST",
+          "path": "/v2/video_generation",
+          "scope": "root"
+        },
+        "taskEndpoint": {
+          "method": "GET",
+          "path": "/v2/query/video_generation/{taskId}",
+          "scope": "root"
+        },
+        "isAsync": true,
+        "requestFields": {
+          "imageContentRole": "first_frame"
+        },
+        "auth": {
+          "type": "bearer"
+        },
+        "requestTemplate": {
+          "model": "{{model}}",
+          "content": "{{content}}",
+          "resolution": "{{params.resolution}}",
+          "duration": "{{params.duration}}",
+          "ratio": "adaptive"
+        },
+        "contentTemplate": {
+          "text": {
+            "type": "text",
+            "text": "{{text}}"
+          },
+          "image": {
+            "type": "image_url",
+            "image_url": {
+              "url": "{{url}}"
+            },
+            "role": "{{role}}"
+          },
+          "video": {
+            "type": "video_url",
+            "video_url": {
+              "url": "{{url}}"
+            },
+            "role": "{{role}}"
+          },
+          "audio": {
+            "type": "audio_url",
+            "audio_url": {
+              "url": "{{url}}"
+            },
+            "role": "{{role}}"
+          }
+        },
+        "taskIdPath": "task_id",
+        "statusPath": "task.status",
+        "errorPath": "task.error.message",
+        "pollStatusMap": {
+          "queued": "running",
+          "running": "running",
+          "succeeded": "completed",
+          "failed": "failed",
+          "cancelled": "cancelled"
+        },
+        "resultUrlPath": "task.content.url",
+        "errorCodePath": "base_resp.status_code",
+        "errorMessagePath": "base_resp.status_msg",
+        "id": "first-frame-to-video",
+        "label": "首帧图生视频",
+        "inputMode": "firstFrame",
+        "inputSlots": [
+          "firstFrame"
+        ],
+        "inputConstraints": {
+          "images": {
+            "min": 1,
+            "max": 1,
+            "roles": [
+              "referenceImage"
+            ],
+            "formats": [
+              "jpg",
+              "jpeg",
+              "png",
+              "webp",
+              "heic",
+              "heif"
+            ]
+          }
+        },
+        "outputConstraints": {
+          "durations": [
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15
+          ],
+          "defaultDuration": 5,
+          "formats": [
+            "mp4"
+          ]
+        },
+        "params": [
+          {
+            "key": "prompt",
+            "label": "提示词",
+            "type": "text",
+            "required": true,
+            "labelKey": "catalog.label.2f0bb12387"
+          },
+          {
+            "key": "duration",
+            "label": "时长",
+            "type": "select",
+            "default": 5,
+            "numeric": true,
+            "options": [
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15
+            ],
+            "labelKey": "catalog.label.29d0552d2e"
+          },
+          {
+            "key": "resolution",
+            "label": "分辨率",
+            "type": "select",
+            "default": "768P",
+            "options": [
+              "480P",
+              "768P"
+            ],
+            "labelKey": "catalog.label.cde9b52b23"
+          }
+        ],
+        "labelKey": "catalog.label.41d852e209"
+      }
+    },
+    {
+      "id": "operation.7110e68fa83d7170",
+      "description": "MiniMax H3 Max",
+      "mode": {
+        "endpoint": {
+          "method": "POST",
+          "path": "/v2/video_generation",
+          "scope": "root"
+        },
+        "taskEndpoint": {
+          "method": "GET",
+          "path": "/v2/query/video_generation/{taskId}",
+          "scope": "root"
+        },
+        "isAsync": true,
+        "requestFields": {
+          "firstFrameImageContentRole": "first_frame",
+          "lastFrameImageContentRole": "last_frame"
+        },
+        "auth": {
+          "type": "bearer"
+        },
+        "requestTemplate": {
+          "model": "{{model}}",
+          "content": "{{content}}",
+          "resolution": "{{params.resolution}}",
+          "duration": "{{params.duration}}",
+          "ratio": "adaptive"
+        },
+        "contentTemplate": {
+          "text": {
+            "type": "text",
+            "text": "{{text}}"
+          },
+          "image": {
+            "type": "image_url",
+            "image_url": {
+              "url": "{{url}}"
+            },
+            "role": "{{role}}"
+          },
+          "video": {
+            "type": "video_url",
+            "video_url": {
+              "url": "{{url}}"
+            },
+            "role": "{{role}}"
+          },
+          "audio": {
+            "type": "audio_url",
+            "audio_url": {
+              "url": "{{url}}"
+            },
+            "role": "{{role}}"
+          }
+        },
+        "taskIdPath": "task_id",
+        "statusPath": "task.status",
+        "errorPath": "task.error.message",
+        "pollStatusMap": {
+          "queued": "running",
+          "running": "running",
+          "succeeded": "completed",
+          "failed": "failed",
+          "cancelled": "cancelled"
+        },
+        "resultUrlPath": "task.content.url",
+        "errorCodePath": "base_resp.status_code",
+        "errorMessagePath": "base_resp.status_msg",
+        "id": "first-last-frame-to-video",
+        "label": "首尾帧",
+        "inputMode": "firstLastFrame",
+        "inputSlots": [
+          "firstFrame",
+          "lastFrame"
+        ],
+        "inputConstraints": {
+          "images": {
+            "min": 2,
+            "max": 2,
+            "roles": [
+              "referenceImage"
+            ],
+            "formats": [
+              "jpg",
+              "jpeg",
+              "png",
+              "webp",
+              "heic",
+              "heif"
+            ]
+          }
+        },
+        "outputConstraints": {
+          "durations": [
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15
+          ],
+          "defaultDuration": 5,
+          "formats": [
+            "mp4"
+          ]
+        },
+        "params": [
+          {
+            "key": "prompt",
+            "label": "提示词",
+            "type": "text",
+            "required": true,
+            "labelKey": "catalog.label.2f0bb12387"
+          },
+          {
+            "key": "duration",
+            "label": "时长",
+            "type": "select",
+            "default": 5,
+            "numeric": true,
+            "options": [
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15
+            ],
+            "labelKey": "catalog.label.29d0552d2e"
+          },
+          {
+            "key": "resolution",
+            "label": "分辨率",
+            "type": "select",
+            "default": "768P",
+            "options": [
+              "480P",
+              "768P"
+            ],
+            "labelKey": "catalog.label.cde9b52b23"
+          }
+        ],
+        "labelKey": "catalog.label.d5b5b1fde9"
+      }
+    },
+    {
+      "id": "operation.a3fdebacc52a6f3a",
+      "description": "MiniMax H3 Max",
+      "mode": {
+        "endpoint": {
+          "method": "POST",
+          "path": "/v2/video_generation",
+          "scope": "root"
+        },
+        "taskEndpoint": {
+          "method": "GET",
+          "path": "/v2/query/video_generation/{taskId}",
+          "scope": "root"
+        },
+        "isAsync": true,
+        "auth": {
+          "type": "bearer"
+        },
+        "requestTemplate": {
+          "model": "{{model}}",
+          "content": "{{content}}",
+          "resolution": "{{params.resolution}}",
+          "duration": "{{params.duration}}",
+          "ratio": "{{params.aspectRatio}}"
+        },
+        "contentTemplate": {
+          "text": {
+            "type": "text",
+            "text": "{{text}}"
+          },
+          "image": {
+            "type": "image_url",
+            "image_url": {
+              "url": "{{url}}"
+            },
+            "role": "{{role}}"
+          },
+          "video": {
+            "type": "video_url",
+            "video_url": {
+              "url": "{{url}}"
+            },
+            "role": "{{role}}"
+          },
+          "audio": {
+            "type": "audio_url",
+            "audio_url": {
+              "url": "{{url}}"
+            },
+            "role": "{{role}}"
+          }
+        },
+        "taskIdPath": "task_id",
+        "statusPath": "task.status",
+        "errorPath": "task.error.message",
+        "pollStatusMap": {
+          "queued": "running",
+          "running": "running",
+          "succeeded": "completed",
+          "failed": "failed",
+          "cancelled": "cancelled"
+        },
+        "resultUrlPath": "task.content.url",
+        "errorCodePath": "base_resp.status_code",
+        "errorMessagePath": "base_resp.status_msg",
+        "requestFields": {
+          "imageContentRole": "reference_image",
+          "videoContentRole": "reference_video",
+          "audioContentRole": "reference_audio"
+        },
+        "id": "omni-reference-to-video",
+        "label": "全模态参考生视频",
+        "inputConstraints": {
+          "images": {
+            "min": 0,
+            "max": 9,
+            "roles": [
+              "referenceImage"
+            ],
+            "formats": [
+              "jpg",
+              "jpeg",
+              "png",
+              "webp",
+              "heic",
+              "heif"
+            ]
+          },
+          "videos": {
+            "min": 0,
+            "max": 3,
+            "roles": [
+              "inputVideo"
+            ],
+            "formats": [
+              "mp4",
+              "mov"
+            ],
+            "maxBytes": 52428800
+          },
+          "audios": {
+            "min": 0,
+            "max": 3,
+            "roles": [
+              "referenceAudio"
+            ],
+            "formats": [
+              "wav",
+              "mp3"
+            ],
+            "maxBytes": 15728640,
+            "minDuration": 2,
+            "maxDuration": 15,
+            "maxTotalDuration": 15
+          }
+        },
+        "outputConstraints": {
+          "durations": [
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15
+          ],
+          "defaultDuration": 5,
+          "formats": [
+            "mp4"
+          ]
+        },
+        "params": [
+          {
+            "key": "prompt",
+            "label": "提示词",
+            "type": "text",
+            "required": true,
+            "labelKey": "catalog.label.2f0bb12387"
+          },
+          {
+            "key": "duration",
+            "label": "时长",
+            "type": "select",
+            "default": 5,
+            "numeric": true,
+            "options": [
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15
+            ],
+            "labelKey": "catalog.label.29d0552d2e"
+          },
+          {
+            "key": "aspectRatio",
+            "label": "比例",
+            "type": "select",
+            "default": "adaptive",
+            "options": [
+              "adaptive",
+              "21:9",
+              "16:9",
+              "4:3",
+              "1:1",
+              "3:4",
+              "9:16"
+            ],
+            "labelKey": "catalog.label.c27f341ce5"
+          },
+          {
+            "key": "resolution",
+            "label": "分辨率",
+            "type": "select",
+            "default": "768P",
+            "options": [
+              "480P",
+              "768P"
+            ],
+            "labelKey": "catalog.label.cde9b52b23"
+          }
+        ],
+        "labelKey": "catalog.label.d108de51ea",
+        "inputMode": "reference",
+        "inputSlots": [
+          "reference",
+          "inputVideo",
+          "referenceAudio"
+        ]
+      }
+    }
+  ],
+  "providers": [],
+  "author": "Shotloom Contributors",
+  "defaultConnections": [
+    {
+      "id": "minimax",
+      "name": "MiniMax",
+      "descriptionKey": "provider.copy.9caabd1e70",
+      "iconId": "minimax",
+      "baseUrl": "https://api.minimax.io",
+      "baseUrlRequired": false,
+      "engine": "declarative",
+      "pluginId": "protocol.minimax.video",
+      "presetId": "protocol",
+      "models": [
+        {
+          "id": "MiniMax-H3-Max",
+          "name": "MiniMax H3 Max",
+          "type": "videoGeneration",
+          "sortOrder": 3,
+          "enabled": true,
+          "defaultMode": "text-to-video",
+          "protocolPlugin": "protocol.minimax.video",
+          "protocolModes": {
+            "text-to-video": "operation.0fba497df1c45391",
+            "first-frame-to-video": "operation.6ca0bc6de8211651",
+            "first-last-frame-to-video": "operation.7110e68fa83d7170",
+            "omni-reference-to-video": "operation.a3fdebacc52a6f3a"
+          },
+          "modes": [
+            {
+              "id": "text-to-video",
+              "label": "文生视频",
+              "inputConstraints": {
+                "images": {
+                  "min": 0,
+                  "max": 0
+                }
+              },
+              "outputConstraints": {
+                "durations": [
+                  5,
+                  6,
+                  7,
+                  8,
+                  9,
+                  10,
+                  11,
+                  12,
+                  13,
+                  14,
+                  15
+                ],
+                "defaultDuration": 5,
+                "formats": [
+                  "mp4"
+                ]
+              },
+              "params": [
+                {
+                  "key": "prompt",
+                  "label": "提示词",
+                  "type": "text",
+                  "required": true,
+                  "labelKey": "catalog.label.2f0bb12387"
+                },
+                {
+                  "key": "duration",
+                  "label": "时长",
+                  "type": "select",
+                  "default": 5,
+                  "numeric": true,
+                  "options": [
+                    5,
+                    6,
+                    7,
+                    8,
+                    9,
+                    10,
+                    11,
+                    12,
+                    13,
+                    14,
+                    15
+                  ],
+                  "labelKey": "catalog.label.29d0552d2e"
+                },
+                {
+                  "key": "aspectRatio",
+                  "label": "比例",
+                  "type": "select",
+                  "default": "16:9",
+                  "options": [
+                    "21:9",
+                    "16:9",
+                    "4:3",
+                    "1:1",
+                    "3:4",
+                    "9:16"
+                  ],
+                  "labelKey": "catalog.label.c27f341ce5"
+                },
+                {
+                  "key": "resolution",
+                  "label": "分辨率",
+                  "type": "select",
+                  "default": "768P",
+                  "options": [
+                    "480P",
+                    "768P"
+                  ],
+                  "labelKey": "catalog.label.cde9b52b23"
+                }
+              ],
+              "labelKey": "catalog.label.dd6f194c41"
+            },
+            {
+              "id": "first-frame-to-video",
+              "label": "首帧图生视频",
+              "inputMode": "firstFrame",
+              "inputSlots": [
+                "firstFrame"
+              ],
+              "inputConstraints": {
+                "images": {
+                  "min": 1,
+                  "max": 1,
+                  "roles": [
+                    "referenceImage"
+                  ],
+                  "formats": [
+                    "jpg",
+                    "jpeg",
+                    "png",
+                    "webp",
+                    "heic",
+                    "heif"
+                  ]
+                }
+              },
+              "outputConstraints": {
+                "durations": [
+                  5,
+                  6,
+                  7,
+                  8,
+                  9,
+                  10,
+                  11,
+                  12,
+                  13,
+                  14,
+                  15
+                ],
+                "defaultDuration": 5,
+                "formats": [
+                  "mp4"
+                ]
+              },
+              "params": [
+                {
+                  "key": "prompt",
+                  "label": "提示词",
+                  "type": "text",
+                  "required": true,
+                  "labelKey": "catalog.label.2f0bb12387"
+                },
+                {
+                  "key": "duration",
+                  "label": "时长",
+                  "type": "select",
+                  "default": 5,
+                  "numeric": true,
+                  "options": [
+                    5,
+                    6,
+                    7,
+                    8,
+                    9,
+                    10,
+                    11,
+                    12,
+                    13,
+                    14,
+                    15
+                  ],
+                  "labelKey": "catalog.label.29d0552d2e"
+                },
+                {
+                  "key": "resolution",
+                  "label": "分辨率",
+                  "type": "select",
+                  "default": "768P",
+                  "options": [
+                    "480P",
+                    "768P"
+                  ],
+                  "labelKey": "catalog.label.cde9b52b23"
+                }
+              ],
+              "labelKey": "catalog.label.41d852e209"
+            },
+            {
+              "id": "first-last-frame-to-video",
+              "label": "首尾帧",
+              "inputMode": "firstLastFrame",
+              "inputSlots": [
+                "firstFrame",
+                "lastFrame"
+              ],
+              "inputConstraints": {
+                "images": {
+                  "min": 2,
+                  "max": 2,
+                  "roles": [
+                    "referenceImage"
+                  ],
+                  "formats": [
+                    "jpg",
+                    "jpeg",
+                    "png",
+                    "webp",
+                    "heic",
+                    "heif"
+                  ]
+                }
+              },
+              "outputConstraints": {
+                "durations": [
+                  5,
+                  6,
+                  7,
+                  8,
+                  9,
+                  10,
+                  11,
+                  12,
+                  13,
+                  14,
+                  15
+                ],
+                "defaultDuration": 5,
+                "formats": [
+                  "mp4"
+                ]
+              },
+              "params": [
+                {
+                  "key": "prompt",
+                  "label": "提示词",
+                  "type": "text",
+                  "required": true,
+                  "labelKey": "catalog.label.2f0bb12387"
+                },
+                {
+                  "key": "duration",
+                  "label": "时长",
+                  "type": "select",
+                  "default": 5,
+                  "numeric": true,
+                  "options": [
+                    5,
+                    6,
+                    7,
+                    8,
+                    9,
+                    10,
+                    11,
+                    12,
+                    13,
+                    14,
+                    15
+                  ],
+                  "labelKey": "catalog.label.29d0552d2e"
+                },
+                {
+                  "key": "resolution",
+                  "label": "分辨率",
+                  "type": "select",
+                  "default": "768P",
+                  "options": [
+                    "480P",
+                    "768P"
+                  ],
+                  "labelKey": "catalog.label.cde9b52b23"
+                }
+              ],
+              "labelKey": "catalog.label.d5b5b1fde9"
+            },
+            {
+              "id": "omni-reference-to-video",
+              "label": "全模态参考生视频",
+              "inputConstraints": {
+                "images": {
+                  "min": 0,
+                  "max": 9,
+                  "roles": [
+                    "referenceImage"
+                  ],
+                  "formats": [
+                    "jpg",
+                    "jpeg",
+                    "png",
+                    "webp",
+                    "heic",
+                    "heif"
+                  ]
+                },
+                "videos": {
+                  "min": 0,
+                  "max": 3,
+                  "roles": [
+                    "inputVideo"
+                  ],
+                  "formats": [
+                    "mp4",
+                    "mov"
+                  ],
+                  "maxBytes": 52428800
+                },
+                "audios": {
+                  "min": 0,
+                  "max": 3,
+                  "roles": [
+                    "referenceAudio"
+                  ],
+                  "formats": [
+                    "wav",
+                    "mp3"
+                  ],
+                  "maxBytes": 15728640,
+                  "minDuration": 2,
+                  "maxDuration": 15,
+                  "maxTotalDuration": 15
+                }
+              },
+              "outputConstraints": {
+                "durations": [
+                  5,
+                  6,
+                  7,
+                  8,
+                  9,
+                  10,
+                  11,
+                  12,
+                  13,
+                  14,
+                  15
+                ],
+                "defaultDuration": 5,
+                "formats": [
+                  "mp4"
+                ]
+              },
+              "params": [
+                {
+                  "key": "prompt",
+                  "label": "提示词",
+                  "type": "text",
+                  "required": true,
+                  "labelKey": "catalog.label.2f0bb12387"
+                },
+                {
+                  "key": "duration",
+                  "label": "时长",
+                  "type": "select",
+                  "default": 5,
+                  "numeric": true,
+                  "options": [
+                    5,
+                    6,
+                    7,
+                    8,
+                    9,
+                    10,
+                    11,
+                    12,
+                    13,
+                    14,
+                    15
+                  ],
+                  "labelKey": "catalog.label.29d0552d2e"
+                },
+                {
+                  "key": "aspectRatio",
+                  "label": "比例",
+                  "type": "select",
+                  "default": "adaptive",
+                  "options": [
+                    "adaptive",
+                    "21:9",
+                    "16:9",
+                    "4:3",
+                    "1:1",
+                    "3:4",
+                    "9:16"
+                  ],
+                  "labelKey": "catalog.label.c27f341ce5"
+                },
+                {
+                  "key": "resolution",
+                  "label": "分辨率",
+                  "type": "select",
+                  "default": "768P",
+                  "options": [
+                    "480P",
+                    "768P"
+                  ],
+                  "labelKey": "catalog.label.cde9b52b23"
+                }
+              ],
+              "labelKey": "catalog.label.d108de51ea",
+              "inputMode": "reference",
+              "inputSlots": [
+                "reference",
+                "inputVideo",
+                "referenceAudio"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "MiniMax-H3",
+          "name": "MiniMax H3",
+          "type": "videoGeneration",
+          "sortOrder": 4,
+          "enabled": true,
+          "defaultMode": "text-to-video",
+          "protocolPlugin": "protocol.minimax.video",
+          "protocolModes": {
+            "text-to-video": "operation.0fba497df1c45391",
+            "first-frame-to-video": "operation.6ca0bc6de8211651",
+            "first-last-frame-to-video": "operation.7110e68fa83d7170",
+            "omni-reference-to-video": "operation.a3fdebacc52a6f3a"
+          },
+          "modes": [
+            {
+              "id": "text-to-video",
+              "label": "文生视频",
+              "inputConstraints": {
+                "images": {
+                  "min": 0,
+                  "max": 0
+                }
+              },
+              "outputConstraints": {
+                "durations": [
+                  4,
+                  5,
+                  6,
+                  7,
+                  8,
+                  9,
+                  10,
+                  11,
+                  12,
+                  13,
+                  14,
+                  15
+                ],
+                "defaultDuration": 5,
+                "formats": [
+                  "mp4"
+                ]
+              },
+              "params": [
+                {
+                  "key": "prompt",
+                  "label": "提示词",
+                  "type": "text",
+                  "required": true,
+                  "labelKey": "catalog.label.2f0bb12387"
+                },
+                {
+                  "key": "duration",
+                  "label": "时长",
+                  "type": "select",
+                  "default": 5,
+                  "numeric": true,
+                  "options": [
+                    4,
+                    5,
+                    6,
+                    7,
+                    8,
+                    9,
+                    10,
+                    11,
+                    12,
+                    13,
+                    14,
+                    15
+                  ],
+                  "labelKey": "catalog.label.29d0552d2e"
+                },
+                {
+                  "key": "aspectRatio",
+                  "label": "比例",
+                  "type": "select",
+                  "default": "16:9",
+                  "options": [
+                    "21:9",
+                    "16:9",
+                    "4:3",
+                    "1:1",
+                    "3:4",
+                    "9:16"
+                  ],
+                  "labelKey": "catalog.label.c27f341ce5"
+                },
+                {
+                  "key": "resolution",
+                  "label": "分辨率",
+                  "type": "select",
+                  "default": "768P",
+                  "options": [
+                    "768P",
+                    "2K"
+                  ],
+                  "labelKey": "catalog.label.cde9b52b23"
+                }
+              ],
+              "labelKey": "catalog.label.dd6f194c41"
+            },
+            {
+              "id": "first-frame-to-video",
+              "label": "首帧图生视频",
+              "inputMode": "firstFrame",
+              "inputSlots": [
+                "firstFrame"
+              ],
+              "inputConstraints": {
+                "images": {
+                  "min": 1,
+                  "max": 1,
+                  "roles": [
+                    "referenceImage"
+                  ],
+                  "formats": [
+                    "jpg",
+                    "jpeg",
+                    "png",
+                    "webp",
+                    "heic",
+                    "heif"
+                  ]
+                }
+              },
+              "outputConstraints": {
+                "durations": [
+                  4,
+                  5,
+                  6,
+                  7,
+                  8,
+                  9,
+                  10,
+                  11,
+                  12,
+                  13,
+                  14,
+                  15
+                ],
+                "defaultDuration": 5,
+                "formats": [
+                  "mp4"
+                ]
+              },
+              "params": [
+                {
+                  "key": "prompt",
+                  "label": "提示词",
+                  "type": "text",
+                  "required": true,
+                  "labelKey": "catalog.label.2f0bb12387"
+                },
+                {
+                  "key": "duration",
+                  "label": "时长",
+                  "type": "select",
+                  "default": 5,
+                  "numeric": true,
+                  "options": [
+                    4,
+                    5,
+                    6,
+                    7,
+                    8,
+                    9,
+                    10,
+                    11,
+                    12,
+                    13,
+                    14,
+                    15
+                  ],
+                  "labelKey": "catalog.label.29d0552d2e"
+                },
+                {
+                  "key": "resolution",
+                  "label": "分辨率",
+                  "type": "select",
+                  "default": "768P",
+                  "options": [
+                    "768P",
+                    "2K"
+                  ],
+                  "labelKey": "catalog.label.cde9b52b23"
+                }
+              ],
+              "labelKey": "catalog.label.41d852e209"
+            },
+            {
+              "id": "first-last-frame-to-video",
+              "label": "首尾帧",
+              "inputMode": "firstLastFrame",
+              "inputSlots": [
+                "firstFrame",
+                "lastFrame"
+              ],
+              "inputConstraints": {
+                "images": {
+                  "min": 2,
+                  "max": 2,
+                  "roles": [
+                    "referenceImage"
+                  ],
+                  "formats": [
+                    "jpg",
+                    "jpeg",
+                    "png",
+                    "webp",
+                    "heic",
+                    "heif"
+                  ]
+                }
+              },
+              "outputConstraints": {
+                "durations": [
+                  4,
+                  5,
+                  6,
+                  7,
+                  8,
+                  9,
+                  10,
+                  11,
+                  12,
+                  13,
+                  14,
+                  15
+                ],
+                "defaultDuration": 5,
+                "formats": [
+                  "mp4"
+                ]
+              },
+              "params": [
+                {
+                  "key": "prompt",
+                  "label": "提示词",
+                  "type": "text",
+                  "required": true,
+                  "labelKey": "catalog.label.2f0bb12387"
+                },
+                {
+                  "key": "duration",
+                  "label": "时长",
+                  "type": "select",
+                  "default": 5,
+                  "numeric": true,
+                  "options": [
+                    4,
+                    5,
+                    6,
+                    7,
+                    8,
+                    9,
+                    10,
+                    11,
+                    12,
+                    13,
+                    14,
+                    15
+                  ],
+                  "labelKey": "catalog.label.29d0552d2e"
+                },
+                {
+                  "key": "resolution",
+                  "label": "分辨率",
+                  "type": "select",
+                  "default": "768P",
+                  "options": [
+                    "768P",
+                    "2K"
+                  ],
+                  "labelKey": "catalog.label.cde9b52b23"
+                }
+              ],
+              "labelKey": "catalog.label.d5b5b1fde9"
+            },
+            {
+              "id": "omni-reference-to-video",
+              "label": "全模态参考生视频",
+              "inputConstraints": {
+                "images": {
+                  "min": 0,
+                  "max": 9,
+                  "roles": [
+                    "referenceImage"
+                  ],
+                  "formats": [
+                    "jpg",
+                    "jpeg",
+                    "png",
+                    "webp",
+                    "heic",
+                    "heif"
+                  ]
+                },
+                "videos": {
+                  "min": 0,
+                  "max": 3,
+                  "roles": [
+                    "inputVideo"
+                  ],
+                  "formats": [
+                    "mp4",
+                    "mov"
+                  ],
+                  "maxBytes": 52428800
+                },
+                "audios": {
+                  "min": 0,
+                  "max": 3,
+                  "roles": [
+                    "referenceAudio"
+                  ],
+                  "formats": [
+                    "wav",
+                    "mp3"
+                  ],
+                  "maxBytes": 15728640,
+                  "minDuration": 2,
+                  "maxDuration": 15,
+                  "maxTotalDuration": 15
+                }
+              },
+              "outputConstraints": {
+                "durations": [
+                  4,
+                  5,
+                  6,
+                  7,
+                  8,
+                  9,
+                  10,
+                  11,
+                  12,
+                  13,
+                  14,
+                  15
+                ],
+                "defaultDuration": 5,
+                "formats": [
+                  "mp4"
+                ]
+              },
+              "params": [
+                {
+                  "key": "prompt",
+                  "label": "提示词",
+                  "type": "text",
+                  "required": true,
+                  "labelKey": "catalog.label.2f0bb12387"
+                },
+                {
+                  "key": "duration",
+                  "label": "时长",
+                  "type": "select",
+                  "default": 5,
+                  "numeric": true,
+                  "options": [
+                    4,
+                    5,
+                    6,
+                    7,
+                    8,
+                    9,
+                    10,
+                    11,
+                    12,
+                    13,
+                    14,
+                    15
+                  ],
+                  "labelKey": "catalog.label.29d0552d2e"
+                },
+                {
+                  "key": "aspectRatio",
+                  "label": "比例",
+                  "type": "select",
+                  "default": "adaptive",
+                  "options": [
+                    "adaptive",
+                    "21:9",
+                    "16:9",
+                    "4:3",
+                    "1:1",
+                    "3:4",
+                    "9:16"
+                  ],
+                  "labelKey": "catalog.label.c27f341ce5"
+                },
+                {
+                  "key": "resolution",
+                  "label": "分辨率",
+                  "type": "select",
+                  "default": "768P",
+                  "options": [
+                    "768P",
+                    "2K"
+                  ],
+                  "labelKey": "catalog.label.cde9b52b23"
+                }
+              ],
+              "labelKey": "catalog.label.d108de51ea",
+              "inputMode": "reference",
+              "inputSlots": [
+                "reference",
+                "inputVideo",
+                "referenceAudio"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "MiniMax-H3-Highspeed",
+          "name": "MiniMax H3 Highspeed",
+          "type": "videoGeneration",
+          "sortOrder": 4,
+          "enabled": true,
+          "defaultMode": "text-to-video",
+          "protocolPlugin": "protocol.minimax.video",
+          "protocolModes": {
+            "text-to-video": "operation.0fba497df1c45391",
+            "first-frame-to-video": "operation.6ca0bc6de8211651",
+            "first-last-frame-to-video": "operation.7110e68fa83d7170",
+            "omni-reference-to-video": "operation.a3fdebacc52a6f3a"
+          },
+          "modes": [
+            {
+              "id": "text-to-video",
+              "label": "文生视频",
+              "inputConstraints": {
+                "images": {
+                  "min": 0,
+                  "max": 0
+                }
+              },
+              "outputConstraints": {
+                "durations": [
+                  4,
+                  5,
+                  6,
+                  7,
+                  8,
+                  9,
+                  10,
+                  11,
+                  12,
+                  13,
+                  14,
+                  15
+                ],
+                "defaultDuration": 5,
+                "formats": [
+                  "mp4"
+                ]
+              },
+              "params": [
+                {
+                  "key": "prompt",
+                  "label": "提示词",
+                  "type": "text",
+                  "required": true,
+                  "labelKey": "catalog.label.2f0bb12387"
+                },
+                {
+                  "key": "duration",
+                  "label": "时长",
+                  "type": "select",
+                  "default": 5,
+                  "numeric": true,
+                  "options": [
+                    4,
+                    5,
+                    6,
+                    7,
+                    8,
+                    9,
+                    10,
+                    11,
+                    12,
+                    13,
+                    14,
+                    15
+                  ],
+                  "labelKey": "catalog.label.29d0552d2e"
+                },
+                {
+                  "key": "aspectRatio",
+                  "label": "比例",
+                  "type": "select",
+                  "default": "16:9",
+                  "options": [
+                    "21:9",
+                    "16:9",
+                    "4:3",
+                    "1:1",
+                    "3:4",
+                    "9:16"
+                  ],
+                  "labelKey": "catalog.label.c27f341ce5"
+                },
+                {
+                  "key": "resolution",
+                  "label": "分辨率",
+                  "type": "select",
+                  "default": "768P",
+                  "options": [
+                    "480P",
+                    "768P"
+                  ],
+                  "labelKey": "catalog.label.cde9b52b23"
+                }
+              ],
+              "labelKey": "catalog.label.dd6f194c41"
+            },
+            {
+              "id": "first-frame-to-video",
+              "label": "首帧图生视频",
+              "inputMode": "firstFrame",
+              "inputSlots": [
+                "firstFrame"
+              ],
+              "inputConstraints": {
+                "images": {
+                  "min": 1,
+                  "max": 1,
+                  "roles": [
+                    "referenceImage"
+                  ],
+                  "formats": [
+                    "jpg",
+                    "jpeg",
+                    "png",
+                    "webp",
+                    "heic",
+                    "heif"
+                  ]
+                }
+              },
+              "outputConstraints": {
+                "durations": [
+                  4,
+                  5,
+                  6,
+                  7,
+                  8,
+                  9,
+                  10,
+                  11,
+                  12,
+                  13,
+                  14,
+                  15
+                ],
+                "defaultDuration": 5,
+                "formats": [
+                  "mp4"
+                ]
+              },
+              "params": [
+                {
+                  "key": "prompt",
+                  "label": "提示词",
+                  "type": "text",
+                  "required": true,
+                  "labelKey": "catalog.label.2f0bb12387"
+                },
+                {
+                  "key": "duration",
+                  "label": "时长",
+                  "type": "select",
+                  "default": 5,
+                  "numeric": true,
+                  "options": [
+                    4,
+                    5,
+                    6,
+                    7,
+                    8,
+                    9,
+                    10,
+                    11,
+                    12,
+                    13,
+                    14,
+                    15
+                  ],
+                  "labelKey": "catalog.label.29d0552d2e"
+                },
+                {
+                  "key": "resolution",
+                  "label": "分辨率",
+                  "type": "select",
+                  "default": "768P",
+                  "options": [
+                    "480P",
+                    "768P"
+                  ],
+                  "labelKey": "catalog.label.cde9b52b23"
+                }
+              ],
+              "labelKey": "catalog.label.41d852e209"
+            },
+            {
+              "id": "first-last-frame-to-video",
+              "label": "首尾帧",
+              "inputMode": "firstLastFrame",
+              "inputSlots": [
+                "firstFrame",
+                "lastFrame"
+              ],
+              "inputConstraints": {
+                "images": {
+                  "min": 2,
+                  "max": 2,
+                  "roles": [
+                    "referenceImage"
+                  ],
+                  "formats": [
+                    "jpg",
+                    "jpeg",
+                    "png",
+                    "webp",
+                    "heic",
+                    "heif"
+                  ]
+                }
+              },
+              "outputConstraints": {
+                "durations": [
+                  4,
+                  5,
+                  6,
+                  7,
+                  8,
+                  9,
+                  10,
+                  11,
+                  12,
+                  13,
+                  14,
+                  15
+                ],
+                "defaultDuration": 5,
+                "formats": [
+                  "mp4"
+                ]
+              },
+              "params": [
+                {
+                  "key": "prompt",
+                  "label": "提示词",
+                  "type": "text",
+                  "required": true,
+                  "labelKey": "catalog.label.2f0bb12387"
+                },
+                {
+                  "key": "duration",
+                  "label": "时长",
+                  "type": "select",
+                  "default": 5,
+                  "numeric": true,
+                  "options": [
+                    4,
+                    5,
+                    6,
+                    7,
+                    8,
+                    9,
+                    10,
+                    11,
+                    12,
+                    13,
+                    14,
+                    15
+                  ],
+                  "labelKey": "catalog.label.29d0552d2e"
+                },
+                {
+                  "key": "resolution",
+                  "label": "分辨率",
+                  "type": "select",
+                  "default": "768P",
+                  "options": [
+                    "480P",
+                    "768P"
+                  ],
+                  "labelKey": "catalog.label.cde9b52b23"
+                }
+              ],
+              "labelKey": "catalog.label.d5b5b1fde9"
+            },
+            {
+              "id": "omni-reference-to-video",
+              "label": "全模态参考生视频",
+              "inputConstraints": {
+                "images": {
+                  "min": 0,
+                  "max": 9,
+                  "roles": [
+                    "referenceImage"
+                  ],
+                  "formats": [
+                    "jpg",
+                    "jpeg",
+                    "png",
+                    "webp",
+                    "heic",
+                    "heif"
+                  ]
+                },
+                "videos": {
+                  "min": 0,
+                  "max": 3,
+                  "roles": [
+                    "inputVideo"
+                  ],
+                  "formats": [
+                    "mp4",
+                    "mov"
+                  ],
+                  "maxBytes": 52428800
+                },
+                "audios": {
+                  "min": 0,
+                  "max": 3,
+                  "roles": [
+                    "referenceAudio"
+                  ],
+                  "formats": [
+                    "wav",
+                    "mp3"
+                  ],
+                  "maxBytes": 15728640,
+                  "minDuration": 2,
+                  "maxDuration": 15,
+                  "maxTotalDuration": 15
+                }
+              },
+              "outputConstraints": {
+                "durations": [
+                  4,
+                  5,
+                  6,
+                  7,
+                  8,
+                  9,
+                  10,
+                  11,
+                  12,
+                  13,
+                  14,
+                  15
+                ],
+                "defaultDuration": 5,
+                "formats": [
+                  "mp4"
+                ]
+              },
+              "params": [
+                {
+                  "key": "prompt",
+                  "label": "提示词",
+                  "type": "text",
+                  "required": true,
+                  "labelKey": "catalog.label.2f0bb12387"
+                },
+                {
+                  "key": "duration",
+                  "label": "时长",
+                  "type": "select",
+                  "default": 5,
+                  "numeric": true,
+                  "options": [
+                    4,
+                    5,
+                    6,
+                    7,
+                    8,
+                    9,
+                    10,
+                    11,
+                    12,
+                    13,
+                    14,
+                    15
+                  ],
+                  "labelKey": "catalog.label.29d0552d2e"
+                },
+                {
+                  "key": "aspectRatio",
+                  "label": "比例",
+                  "type": "select",
+                  "default": "adaptive",
+                  "options": [
+                    "adaptive",
+                    "21:9",
+                    "16:9",
+                    "4:3",
+                    "1:1",
+                    "3:4",
+                    "9:16"
+                  ],
+                  "labelKey": "catalog.label.c27f341ce5"
+                },
+                {
+                  "key": "resolution",
+                  "label": "分辨率",
+                  "type": "select",
+                  "default": "768P",
+                  "options": [
+                    "480P",
+                    "768P"
+                  ],
+                  "labelKey": "catalog.label.cde9b52b23"
+                }
+              ],
+              "labelKey": "catalog.label.d108de51ea",
+              "inputMode": "reference",
+              "inputSlots": [
+                "reference",
+                "inputVideo",
+                "referenceAudio"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "MiniMax-H3-Lite",
+          "name": "MiniMax H3 Lite",
+          "type": "videoGeneration",
+          "sortOrder": 4,
+          "enabled": true,
+          "defaultMode": "text-to-video",
+          "protocolPlugin": "protocol.minimax.video",
+          "protocolModes": {
+            "text-to-video": "operation.0fba497df1c45391",
+            "first-frame-to-video": "operation.6ca0bc6de8211651",
+            "first-last-frame-to-video": "operation.7110e68fa83d7170",
+            "omni-reference-to-video": "operation.a3fdebacc52a6f3a"
+          },
+          "modes": [
+            {
+              "id": "text-to-video",
+              "label": "文生视频",
+              "inputConstraints": {
+                "images": {
+                  "min": 0,
+                  "max": 0
+                }
+              },
+              "outputConstraints": {
+                "durations": [
+                  4,
+                  5,
+                  6,
+                  7,
+                  8,
+                  9,
+                  10,
+                  11,
+                  12,
+                  13,
+                  14,
+                  15
+                ],
+                "defaultDuration": 5,
+                "formats": [
+                  "mp4"
+                ]
+              },
+              "params": [
+                {
+                  "key": "prompt",
+                  "label": "提示词",
+                  "type": "text",
+                  "required": true,
+                  "labelKey": "catalog.label.2f0bb12387"
+                },
+                {
+                  "key": "duration",
+                  "label": "时长",
+                  "type": "select",
+                  "default": 5,
+                  "numeric": true,
+                  "options": [
+                    4,
+                    5,
+                    6,
+                    7,
+                    8,
+                    9,
+                    10,
+                    11,
+                    12,
+                    13,
+                    14,
+                    15
+                  ],
+                  "labelKey": "catalog.label.29d0552d2e"
+                },
+                {
+                  "key": "aspectRatio",
+                  "label": "比例",
+                  "type": "select",
+                  "default": "16:9",
+                  "options": [
+                    "21:9",
+                    "16:9",
+                    "4:3",
+                    "1:1",
+                    "3:4",
+                    "9:16"
+                  ],
+                  "labelKey": "catalog.label.c27f341ce5"
+                },
+                {
+                  "key": "resolution",
+                  "label": "分辨率",
+                  "type": "select",
+                  "default": "768P",
+                  "options": [
+                    "480P",
+                    "768P"
+                  ],
+                  "labelKey": "catalog.label.cde9b52b23"
+                }
+              ],
+              "labelKey": "catalog.label.dd6f194c41"
+            },
+            {
+              "id": "first-frame-to-video",
+              "label": "首帧图生视频",
+              "inputMode": "firstFrame",
+              "inputSlots": [
+                "firstFrame"
+              ],
+              "inputConstraints": {
+                "images": {
+                  "min": 1,
+                  "max": 1,
+                  "roles": [
+                    "referenceImage"
+                  ],
+                  "formats": [
+                    "jpg",
+                    "jpeg",
+                    "png",
+                    "webp",
+                    "heic",
+                    "heif"
+                  ]
+                }
+              },
+              "outputConstraints": {
+                "durations": [
+                  4,
+                  5,
+                  6,
+                  7,
+                  8,
+                  9,
+                  10,
+                  11,
+                  12,
+                  13,
+                  14,
+                  15
+                ],
+                "defaultDuration": 5,
+                "formats": [
+                  "mp4"
+                ]
+              },
+              "params": [
+                {
+                  "key": "prompt",
+                  "label": "提示词",
+                  "type": "text",
+                  "required": true,
+                  "labelKey": "catalog.label.2f0bb12387"
+                },
+                {
+                  "key": "duration",
+                  "label": "时长",
+                  "type": "select",
+                  "default": 5,
+                  "numeric": true,
+                  "options": [
+                    4,
+                    5,
+                    6,
+                    7,
+                    8,
+                    9,
+                    10,
+                    11,
+                    12,
+                    13,
+                    14,
+                    15
+                  ],
+                  "labelKey": "catalog.label.29d0552d2e"
+                },
+                {
+                  "key": "resolution",
+                  "label": "分辨率",
+                  "type": "select",
+                  "default": "768P",
+                  "options": [
+                    "480P",
+                    "768P"
+                  ],
+                  "labelKey": "catalog.label.cde9b52b23"
+                }
+              ],
+              "labelKey": "catalog.label.41d852e209"
+            },
+            {
+              "id": "first-last-frame-to-video",
+              "label": "首尾帧",
+              "inputMode": "firstLastFrame",
+              "inputSlots": [
+                "firstFrame",
+                "lastFrame"
+              ],
+              "inputConstraints": {
+                "images": {
+                  "min": 2,
+                  "max": 2,
+                  "roles": [
+                    "referenceImage"
+                  ],
+                  "formats": [
+                    "jpg",
+                    "jpeg",
+                    "png",
+                    "webp",
+                    "heic",
+                    "heif"
+                  ]
+                }
+              },
+              "outputConstraints": {
+                "durations": [
+                  4,
+                  5,
+                  6,
+                  7,
+                  8,
+                  9,
+                  10,
+                  11,
+                  12,
+                  13,
+                  14,
+                  15
+                ],
+                "defaultDuration": 5,
+                "formats": [
+                  "mp4"
+                ]
+              },
+              "params": [
+                {
+                  "key": "prompt",
+                  "label": "提示词",
+                  "type": "text",
+                  "required": true,
+                  "labelKey": "catalog.label.2f0bb12387"
+                },
+                {
+                  "key": "duration",
+                  "label": "时长",
+                  "type": "select",
+                  "default": 5,
+                  "numeric": true,
+                  "options": [
+                    4,
+                    5,
+                    6,
+                    7,
+                    8,
+                    9,
+                    10,
+                    11,
+                    12,
+                    13,
+                    14,
+                    15
+                  ],
+                  "labelKey": "catalog.label.29d0552d2e"
+                },
+                {
+                  "key": "resolution",
+                  "label": "分辨率",
+                  "type": "select",
+                  "default": "768P",
+                  "options": [
+                    "480P",
+                    "768P"
+                  ],
+                  "labelKey": "catalog.label.cde9b52b23"
+                }
+              ],
+              "labelKey": "catalog.label.d5b5b1fde9"
+            },
+            {
+              "id": "omni-reference-to-video",
+              "label": "全模态参考生视频",
+              "inputConstraints": {
+                "images": {
+                  "min": 0,
+                  "max": 9,
+                  "roles": [
+                    "referenceImage"
+                  ],
+                  "formats": [
+                    "jpg",
+                    "jpeg",
+                    "png",
+                    "webp",
+                    "heic",
+                    "heif"
+                  ]
+                },
+                "videos": {
+                  "min": 0,
+                  "max": 3,
+                  "roles": [
+                    "inputVideo"
+                  ],
+                  "formats": [
+                    "mp4",
+                    "mov"
+                  ],
+                  "maxBytes": 52428800
+                },
+                "audios": {
+                  "min": 0,
+                  "max": 3,
+                  "roles": [
+                    "referenceAudio"
+                  ],
+                  "formats": [
+                    "wav",
+                    "mp3"
+                  ],
+                  "maxBytes": 15728640,
+                  "minDuration": 2,
+                  "maxDuration": 15,
+                  "maxTotalDuration": 15
+                }
+              },
+              "outputConstraints": {
+                "durations": [
+                  4,
+                  5,
+                  6,
+                  7,
+                  8,
+                  9,
+                  10,
+                  11,
+                  12,
+                  13,
+                  14,
+                  15
+                ],
+                "defaultDuration": 5,
+                "formats": [
+                  "mp4"
+                ]
+              },
+              "params": [
+                {
+                  "key": "prompt",
+                  "label": "提示词",
+                  "type": "text",
+                  "required": true,
+                  "labelKey": "catalog.label.2f0bb12387"
+                },
+                {
+                  "key": "duration",
+                  "label": "时长",
+                  "type": "select",
+                  "default": 5,
+                  "numeric": true,
+                  "options": [
+                    4,
+                    5,
+                    6,
+                    7,
+                    8,
+                    9,
+                    10,
+                    11,
+                    12,
+                    13,
+                    14,
+                    15
+                  ],
+                  "labelKey": "catalog.label.29d0552d2e"
+                },
+                {
+                  "key": "aspectRatio",
+                  "label": "比例",
+                  "type": "select",
+                  "default": "adaptive",
+                  "options": [
+                    "adaptive",
+                    "21:9",
+                    "16:9",
+                    "4:3",
+                    "1:1",
+                    "3:4",
+                    "9:16"
+                  ],
+                  "labelKey": "catalog.label.c27f341ce5"
+                },
+                {
+                  "key": "resolution",
+                  "label": "分辨率",
+                  "type": "select",
+                  "default": "768P",
+                  "options": [
+                    "480P",
+                    "768P"
+                  ],
+                  "labelKey": "catalog.label.cde9b52b23"
+                }
+              ],
+              "labelKey": "catalog.label.d108de51ea",
+              "inputMode": "reference",
+              "inputSlots": [
+                "reference",
+                "inputVideo",
+                "referenceAudio"
+              ]
+            }
+          ]
+        }
+      ],
+      "enabled": true,
+      "builtin": true,
+      "preserveModelIds": true,
+      "sortOrder": 9
+    }
+  ],
+  "legacyProviders": [
+    {
+      "pluginId": "builtin.minimax",
+      "version": "1.0.0",
+      "provider": {
+        "id": "minimax",
+        "name": "MiniMax",
+        "descriptionKey": "provider.copy.9caabd1e70",
+        "iconId": "minimax",
+        "baseUrl": "https://api.minimax.io",
+        "baseUrlRequired": false,
+        "engine": "declarative",
+        "models": []
+      }
+    }
+  ]
+}

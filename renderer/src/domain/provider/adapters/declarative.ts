@@ -2,8 +2,7 @@ import { t } from '../../../i18n/index.ts';
 /**
  * declarative — 声明式协议适配器的共享实现。
  *
- * 请求骨架全部来自 model-catalog-v2/ 厂商文件的模式声明，因此绝大多数厂商只需要声明元数据
- * 就能工作；只有协议真正不同的厂商才在自己的适配器文件里提供完整实现。
+ * 请求、任务生命周期和结果映射来自协议插件，模型能力与凭据由连接提供。
  */
 
 import { desktopApi } from '@/services/desktopApi';
@@ -18,7 +17,7 @@ import type {
   CompiledProviderRequest, CompileContext, ProviderAdapter,
   ProviderTask, ProviderTaskState, ResourceRef,
 } from '../ProviderAdapter';
-import type { ModelRuntimeContract } from '../../catalog/ModelCatalog';
+import type { CatalogEndpoint, ModelRuntimeContract } from '../../catalog/ModelCatalog';
 import type { DeclarativeAdapterMeta } from './meta';
 
 function pickStr(value: unknown): string {
@@ -101,6 +100,11 @@ export class DeclarativeAdapter implements ProviderAdapter {
 
   compileRequest(context: CompileContext): CompiledProviderRequest {
     const contract = context.modelContract;
+    const params = { ...(context.params || {}) };
+    for (const [key, values] of Object.entries(contract.requestValueMaps || {})) {
+      const value = String(params[key]);
+      if (Object.hasOwn(values, value)) params[key] = structuredClone(values[value]);
+    }
     const inputs = context.modelInputs || {};
     const refs = inputs.images || [];
     const multipartImageField = multipartArrayFieldName(
@@ -122,7 +126,7 @@ export class DeclarativeAdapter implements ProviderAdapter {
           { role: 'system', content: '你是文本生成助手。' },
           { role: 'user', content: `${context.prompt || ''}${context.upstreamContext ? `\n\n${context.upstreamContext}` : ''}` },
         ],
-        params: context.params || {},
+        params,
         duration: context.params?.duration || context.duration || contract.defaultDuration,
         aspectRatio: context.params?.aspectRatio || context.aspectRatio || context.ratio,
         ratio: context.params?.ratio || context.ratio || context.aspectRatio || context.params?.aspectRatio,
@@ -265,38 +269,54 @@ export class DeclarativeAdapter implements ProviderAdapter {
     contract: ModelRuntimeContract,
     signal?: AbortSignal,
   ): Promise<ProviderTaskState> {
-    const encodedTaskId = task.remoteTaskId.split('/').map(encodeURIComponent).join('/');
-    const ep = (contract.taskEndpoint?.path || '').replace('{taskId}', encodedTaskId);
-    const body = contract.taskRequestTemplate === undefined
-      ? undefined
-      : renderProtocolTemplate(contract.taskRequestTemplate, { taskId: task.remoteTaskId });
-    const data = await desktopApi.model.videoTask({
-      taskId: task.remoteTaskId, endpointPath: ep,
-      endpointScope: contract.taskEndpoint?.scope || 'v1',
-      endpointMethod: contract.taskEndpoint?.method || 'GET',
-      body,
-      providerId: this.id,
-      headers: contract.headers,
-      auth: contract.auth,
-      signal, timeoutMs: 60000,
-    });
+    const data = await this.taskRequest(contract.taskEndpoint!, task.remoteTaskId, contract, signal, contract.taskRequestTemplate);
     const inBodyError = inBodyProtocolError(data, contract);
     if (inBodyError) {
       return { status: 'failed', progress: 0, error: inBodyError, result: { raw: data }, raw: data };
     }
-    const rawStatus = pickScalar(firstProtocolValue(data, contract.statusPath || ''));
+    const statusValue = firstProtocolValue(data, contract.statusPath || '');
+    const omittedPending = statusValue === undefined && contract.pendingWhenStatusMissing
+      && firstProtocolValue(data, contract.taskIdPath || '') === task.remoteTaskId;
+    const rawStatus = omittedPending ? 'running' : pickScalar(statusValue);
     if (!rawStatus) throw new Error(t("errors.cfc17e36f7", { value0: contract.modelId, value1: contract.modeId, value2: String(contract.statusPath) }));
     const status = contract.pollStatusMap?.[rawStatus] || normalizeRemoteStatus(rawStatus);
+    let resultData = data;
+    if (status === 'completed' && contract.taskResultEndpoint) {
+      resultData = await this.taskRequest(contract.taskResultEndpoint, task.remoteTaskId, contract, signal);
+      const error = inBodyProtocolError(resultData, contract);
+      if (error) return { status: 'failed', progress: 0, error, result: { raw: resultData } };
+    }
     const progressValue = firstProtocolValue(data, contract.progressPath || '');
     const errorValue = firstProtocolValue(data, contract.errorPath || '');
     return {
       status,
-      progress: status === 'completed' ? 100 : Number(progressValue) || 0,
+      progress: status === 'completed' ? 100 : Math.max(0, Math.min(100, (Number(progressValue) || 0) * (contract.progressScale || 1))),
       result: status === 'completed'
-        ? this.completedProtocolResult(data, contract, task.remoteTaskId)
+        ? this.completedProtocolResult(resultData, contract, task.remoteTaskId)
         : { raw: data },
       error: pickStr(errorValue),
     };
+  }
+
+  async cancel(task: { remoteTaskId: string; modelContract?: ModelRuntimeContract }): Promise<void> {
+    const contract = task.modelContract;
+    if (!contract?.cancelEndpoint) throw new Error(t('plugins.cancelUnsupported'));
+    const data = await this.taskRequest(contract.cancelEndpoint, task.remoteTaskId, contract, undefined, contract.cancelRequestTemplate);
+    const error = inBodyProtocolError(data, contract);
+    if (error) throw new Error(error);
+  }
+
+  private taskRequest(endpoint: CatalogEndpoint, taskId: string, contract: ModelRuntimeContract, signal?: AbortSignal, template?: unknown): Promise<Record<string, any>> {
+    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+    if (!endpoint?.path) throw new Error(t('plugins.invalidTaskEndpoint', { endpoint: contract.modelId }));
+    const segments = taskId.split('/');
+    if (!taskId || segments.some(segment => !segment || segment === '.' || segment === '..')) throw new Error(t('plugins.invalidTaskId'));
+    return desktopApi.model.videoTask({
+      taskId, endpointPath: endpoint.path.replaceAll('{taskId}', segments.map(encodeURIComponent).join('/')),
+      endpointScope: endpoint.scope, endpointMethod: endpoint.method,
+      body: template === undefined ? undefined : renderProtocolTemplate(template, { taskId }),
+      providerId: this.id, headers: contract.headers, auth: contract.auth, signal, timeoutMs: 60000,
+    });
   }
 
   private submittedTask(data: Record<string, any>, request: CompiledProviderRequest): ProviderTask {

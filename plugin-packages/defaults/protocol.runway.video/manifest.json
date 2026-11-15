@@ -1,0 +1,469 @@
+{
+  "apiVersion": 1,
+  "kind": "protocol",
+  "id": "protocol.runway.video",
+  "name": "Runway Video",
+  "version": "1.0.0",
+  "shotloom": ">=0.9.1, <1.0.0",
+  "category": "videoGeneration",
+  "iconId": "runway",
+  "engine": "declarative",
+  "homepage": "https://docs.dev.runwayml.com/api/",
+  "protocols": [
+    {
+      "id": "generate",
+      "mode": {
+        "id": "text-to-video",
+        "label": "文生视频",
+        "endpoint": {
+          "path": "/v1/text_to_video",
+          "method": "POST",
+          "scope": "root"
+        },
+        "auth": {
+          "type": "bearer"
+        },
+        "inputConstraints": {},
+        "outputConstraints": {
+          "durations": [
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10
+          ],
+          "defaultDuration": 5
+        },
+        "params": [
+          {
+            "key": "aspectRatio",
+            "label": "画面比例",
+            "labelKey": "plugins.parameter.aspectRatio",
+            "type": "select",
+            "options": [
+              "16:9",
+              "9:16"
+            ],
+            "default": "16:9",
+            "numeric": false
+          },
+          {
+            "key": "duration",
+            "label": "时长",
+            "labelKey": "plugins.parameter.duration",
+            "type": "select",
+            "options": [
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "default": 5,
+            "numeric": true
+          }
+        ],
+        "requestTemplate": {
+          "model": "{{model}}",
+          "promptText": "{{prompt}}",
+          "ratio": "{{params.aspectRatio}}",
+          "duration": "{{params.duration}}"
+        },
+        "isAsync": true,
+        "taskIdPath": "id",
+        "statusPath": "status",
+        "resultUrlPath": "output.*",
+        "taskEndpoint": {
+          "path": "/v1/tasks/{taskId}",
+          "method": "GET",
+          "scope": "root"
+        },
+        "pollStatusMap": {
+          "PENDING": "queued",
+          "THROTTLED": "queued",
+          "RUNNING": "running",
+          "SUCCEEDED": "completed",
+          "FAILED": "failed",
+          "CANCELLED": "cancelled"
+        },
+        "progressPath": "progress",
+        "progressScale": 100,
+        "errorPath": "failure",
+        "headers": {
+          "X-Runway-Version": "2024-11-06"
+        },
+        "cancelEndpoint": {
+          "path": "/v1/tasks/{taskId}",
+          "method": "DELETE",
+          "scope": "root"
+        },
+        "labelKey": "catalog.label.dd6f194c41",
+        "requestValueMaps": {
+          "aspectRatio": {
+            "16:9": "1280:720",
+            "9:16": "720:1280"
+          }
+        }
+      }
+    },
+    {
+      "id": "animate",
+      "mode": {
+        "id": "image-to-video",
+        "label": "图生视频",
+        "endpoint": {
+          "path": "/v1/image_to_video",
+          "method": "POST",
+          "scope": "root"
+        },
+        "auth": {
+          "type": "bearer"
+        },
+        "inputConstraints": {
+          "images": {
+            "min": 1,
+            "max": 1,
+            "roles": [
+              "firstFrame"
+            ]
+          }
+        },
+        "outputConstraints": {
+          "durations": [
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10
+          ],
+          "defaultDuration": 5
+        },
+        "params": [
+          {
+            "key": "aspectRatio",
+            "label": "画面比例",
+            "labelKey": "plugins.parameter.aspectRatio",
+            "type": "select",
+            "options": [
+              "16:9",
+              "9:16"
+            ],
+            "default": "16:9",
+            "numeric": false
+          },
+          {
+            "key": "duration",
+            "label": "时长",
+            "labelKey": "plugins.parameter.duration",
+            "type": "select",
+            "options": [
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "default": 5,
+            "numeric": true
+          }
+        ],
+        "requestTemplate": {
+          "model": "{{model}}",
+          "promptText": "{{prompt}}",
+          "ratio": "{{params.aspectRatio}}",
+          "duration": "{{params.duration}}",
+          "promptImage": "{{imageUrl}}"
+        },
+        "isAsync": true,
+        "taskIdPath": "id",
+        "statusPath": "status",
+        "resultUrlPath": "output.*",
+        "taskEndpoint": {
+          "path": "/v1/tasks/{taskId}",
+          "method": "GET",
+          "scope": "root"
+        },
+        "pollStatusMap": {
+          "PENDING": "queued",
+          "THROTTLED": "queued",
+          "RUNNING": "running",
+          "SUCCEEDED": "completed",
+          "FAILED": "failed",
+          "CANCELLED": "cancelled"
+        },
+        "progressPath": "progress",
+        "progressScale": 100,
+        "errorPath": "failure",
+        "headers": {
+          "X-Runway-Version": "2024-11-06"
+        },
+        "cancelEndpoint": {
+          "path": "/v1/tasks/{taskId}",
+          "method": "DELETE",
+          "scope": "root"
+        },
+        "labelKey": "catalog.label.7a36e3422a",
+        "inputMode": "firstFrame",
+        "inputSlots": [
+          "firstFrame"
+        ],
+        "requestValueMaps": {
+          "aspectRatio": {
+            "16:9": "1280:720",
+            "9:16": "720:1280"
+          }
+        }
+      }
+    }
+  ],
+  "providers": [],
+  "author": "Shotloom Contributors",
+  "defaultConnections": [
+    {
+      "id": "runway",
+      "name": "Runway",
+      "baseUrl": "https://api.dev.runwayml.com",
+      "iconId": "runway",
+      "description": "Runway video generation and animation",
+      "descriptionKey": "plugins.provider.runway",
+      "enabled": true,
+      "builtin": true,
+      "presetId": "protocol",
+      "pluginId": "protocol.runway.video",
+      "models": [
+        {
+          "id": "runway-gen4.5",
+          "name": "Runway Gen-4.5",
+          "upstreamModel": "gen4.5",
+          "type": "videoGeneration",
+          "sortOrder": 100,
+          "enabled": true,
+          "defaultMode": "text-to-video",
+          "protocolPlugin": "protocol.runway.video",
+          "protocolModes": {
+            "text-to-video": "generate",
+            "image-to-video": "animate"
+          },
+          "modes": [
+            {
+              "id": "text-to-video",
+              "label": "文生视频",
+              "inputConstraints": {},
+              "outputConstraints": {
+                "durations": [
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7,
+                  8,
+                  9,
+                  10
+                ],
+                "defaultDuration": 5
+              },
+              "params": [
+                {
+                  "key": "aspectRatio",
+                  "label": "画面比例",
+                  "labelKey": "plugins.parameter.aspectRatio",
+                  "type": "select",
+                  "options": [
+                    "16:9",
+                    "9:16"
+                  ],
+                  "default": "16:9",
+                  "numeric": false
+                },
+                {
+                  "key": "duration",
+                  "label": "时长",
+                  "labelKey": "plugins.parameter.duration",
+                  "type": "select",
+                  "options": [
+                    2,
+                    3,
+                    4,
+                    5,
+                    6,
+                    7,
+                    8,
+                    9,
+                    10
+                  ],
+                  "default": 5,
+                  "numeric": true
+                }
+              ],
+              "labelKey": "catalog.label.dd6f194c41"
+            },
+            {
+              "id": "image-to-video",
+              "label": "图生视频",
+              "inputConstraints": {
+                "images": {
+                  "min": 1,
+                  "max": 1,
+                  "roles": [
+                    "firstFrame"
+                  ]
+                }
+              },
+              "outputConstraints": {
+                "durations": [
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7,
+                  8,
+                  9,
+                  10
+                ],
+                "defaultDuration": 5
+              },
+              "params": [
+                {
+                  "key": "aspectRatio",
+                  "label": "画面比例",
+                  "labelKey": "plugins.parameter.aspectRatio",
+                  "type": "select",
+                  "options": [
+                    "16:9",
+                    "9:16"
+                  ],
+                  "default": "16:9",
+                  "numeric": false
+                },
+                {
+                  "key": "duration",
+                  "label": "时长",
+                  "labelKey": "plugins.parameter.duration",
+                  "type": "select",
+                  "options": [
+                    2,
+                    3,
+                    4,
+                    5,
+                    6,
+                    7,
+                    8,
+                    9,
+                    10
+                  ],
+                  "default": 5,
+                  "numeric": true
+                }
+              ],
+              "labelKey": "catalog.label.7a36e3422a",
+              "inputMode": "firstFrame",
+              "inputSlots": [
+                "firstFrame"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "runway-gen4-turbo",
+          "name": "Runway Gen-4 Turbo",
+          "upstreamModel": "gen4_turbo",
+          "type": "videoGeneration",
+          "sortOrder": 100,
+          "enabled": true,
+          "defaultMode": "image-to-video",
+          "protocolPlugin": "protocol.runway.video",
+          "protocolModes": {
+            "image-to-video": "animate"
+          },
+          "modes": [
+            {
+              "id": "image-to-video",
+              "label": "图生视频",
+              "inputConstraints": {
+                "images": {
+                  "min": 1,
+                  "max": 1,
+                  "roles": [
+                    "firstFrame"
+                  ]
+                }
+              },
+              "outputConstraints": {
+                "durations": [
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7,
+                  8,
+                  9,
+                  10
+                ],
+                "defaultDuration": 5
+              },
+              "params": [
+                {
+                  "key": "aspectRatio",
+                  "label": "画面比例",
+                  "labelKey": "plugins.parameter.aspectRatio",
+                  "type": "select",
+                  "options": [
+                    "16:9",
+                    "9:16"
+                  ],
+                  "default": "16:9",
+                  "numeric": false
+                },
+                {
+                  "key": "duration",
+                  "label": "时长",
+                  "labelKey": "plugins.parameter.duration",
+                  "type": "select",
+                  "options": [
+                    2,
+                    3,
+                    4,
+                    5,
+                    6,
+                    7,
+                    8,
+                    9,
+                    10
+                  ],
+                  "default": 5,
+                  "numeric": true
+                }
+              ],
+              "labelKey": "catalog.label.7a36e3422a",
+              "inputMode": "firstFrame",
+              "inputSlots": [
+                "firstFrame"
+              ]
+            }
+          ]
+        }
+      ],
+      "preserveModelIds": true,
+      "sortOrder": 14
+    }
+  ]
+}

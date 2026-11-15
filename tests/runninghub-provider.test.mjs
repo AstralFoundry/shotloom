@@ -5,24 +5,23 @@ import {
   buildRunningHubMinimaxH3Workflow,
   runningHubOutputUrl,
   runningHubTaskState,
-} from '../renderer/src/utils/runningHubWorkflow.ts';
+} from '../plugin-packages/defaults/protocol.runninghub.video/runtime/workflow.mjs';
 import { readSource, sourceExists } from './helpers/sourceContract.mjs';
 
 const catalog = loadModelCatalog();
 const runningHubMode = catalog.models.find((model) => model.id === 'runninghub-minimax-h3-reference-to-video').modes[0];
 const runtimeConstraints = { requestTemplate: runningHubMode.requestTemplate, allowedDurations: runningHubMode.outputConstraints.durations, inputConstraints: runningHubMode.inputConstraints };
-const template = JSON.parse(readSource('renderer/src/config/runninghub-minimax-h3-workflow.json'));
+const template = JSON.parse(readSource('plugin-packages/defaults/protocol.runninghub.video/runtime/workflow.json'));
 const adaptersIndexSource = readSource('renderer/src/domain/provider/adapters/index.ts');
-const adapterSource = readSource('renderer/src/domain/provider/adapters/runninghub.ts');
+const adapterSource = readSource('plugin-packages/defaults/protocol.runninghub.video/runtime/index.mjs');
 const gatewaySource = readSource('src-tauri/src/commands/generation_gateway.rs');
 
-test('RunningHub 是内置厂商且密钥由网关注入请求体', () => {
-  assert.match(adapterSource, /readonly id = 'runninghub'/);
-  assert.match(adapterSource, /readonly baseUrl = 'https:\/\/www\.runninghub\.ai'/);
-  assert.match(adaptersIndexSource, /import \{ runningHubAdapter \} from '\.\/runninghub'/);
-  assert.match(gatewaySource, /kind == "body"/);
-  assert.match(gatewaySource, /body_with_auth/);
-  assert.doesNotMatch(adapterSource, /__apiKey|__baseUrl|settingsStore\.providerConfigs/);
+test('RunningHub is an executable plugin with packaged workflow and no product adapter', () => {
+  const manifest = JSON.parse(readSource('plugin-packages/defaults/protocol.runninghub.video/manifest.json'));
+  assert.equal(manifest.engine, 'module');
+  assert.equal(manifest.runtime.entry, 'runtime/index.mjs');
+  assert.doesNotMatch(adaptersIndexSource, /runningHubAdapter|RunningHubAdapter/);
+  assert.match(adapterSource, /context.config.apiKey/);
 });
 
 test('RunningHub MiniMax H3 目录公开真实多模态输入与异步接口', () => {
@@ -86,9 +85,9 @@ test('RunningHub 当前顶层查询响应映射为统一任务状态', () => {
   }), { status: 'failed', progress: 0, error: 'Task not found' });
 });
 
-test('RunningHub 示例目录已移除，产品只保留运行时实现和工作流模板', () => {
+test('RunningHub 工作流和执行代码都位于独立插件包', () => {
   assert.equal(sourceExists('runninghub'), false);
-  assert.equal(sourceExists('renderer/src/config/runninghub-minimax-h3-workflow.json'), true);
+  assert.equal(sourceExists('plugin-packages/defaults/protocol.runninghub.video/runtime/workflow.json'), true);
 });
 
 

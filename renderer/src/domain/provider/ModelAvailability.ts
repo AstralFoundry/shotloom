@@ -10,6 +10,7 @@ import {
   type CatalogModel,
 } from '../catalog/ModelCatalog';
 import { findProviderAdapter, resolveProviderBaseUrl } from './adapters';
+import { registeredProviders, providerPluginRevision } from './plugins/ProviderPlugins';
 import type { ProviderConfigs } from './ProviderConfig';
 
 export interface ModelCredentialStatus {
@@ -25,7 +26,8 @@ export function isProviderConfigured(providerId: string, configs: ProviderConfig
   if (!adapter) return false;
   const config = configs?.[providerId];
   const baseUrl = resolveProviderBaseUrl(adapter, config || {});
-  return Boolean(String(config?.apiKey || '').trim() && (!adapter.baseUrlRequired || baseUrl));
+  const authRequired = registeredProviders().find(provider => provider.id === providerId)?.authRequired !== false;
+  return Boolean((!authRequired || String(config?.apiKey || '').trim()) && baseUrl);
 }
 
 export function getModelCredentialStatus(
@@ -92,7 +94,9 @@ function declaredInputs(model: CatalogModel): ProviderModelRow['inputs'] {
 }
 
 let agentModelIds: Set<string> | null = null;
+let agentCatalogRevision = -1;
 function isAgentModel(modelId: string) {
+  if (agentCatalogRevision !== providerPluginRevision()) { agentModelIds = null; agentCatalogRevision = providerPluginRevision(); }
   if (!agentModelIds) {
     agentModelIds = new Set(
       getAgentModelCatalog().flatMap((entry) => entry.models.map((model) => model.id)),
@@ -103,7 +107,7 @@ function isAgentModel(modelId: string) {
 
 const MODEL_TYPE_ORDER = new Map(GENERATION_TYPES.map((meta, index) => [meta.value, index]));
 
-/** 厂商在代码里声明的全部模型，按生成类型和目录顺序排列，供界面直接展示。 */
+/** 插件注册表中的可用模型，按生成类型和目录顺序排列，供界面直接展示。 */
 export function getProviderModelRows(providerId: string): ProviderModelRow[] {
   return getCatalogModels(providerId)
     .sort((a, b) =>

@@ -103,7 +103,7 @@ export async function generateDirectorSceneLayout(input: DirectorSceneLayoutRequ
   }
   const contract = resolveModelRuntimeContract('textGeneration', model, needsImage ? ['referenceImage'] : []);
   if (!contract) throw new Error(`模型 ${model} 不支持当前输入`);
-  const adapter = getProviderAdapter(contract.provider);
+  const adapter = getProviderAdapter(contract.provider, contract.pluginRef);
   const compiled = adapter.compileRequest({
     taskType: 'textGeneration',
     model,

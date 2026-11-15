@@ -1,0 +1,168 @@
+{
+  "apiVersion": 1,
+  "kind": "protocol",
+  "id": "protocol.zhipu.video",
+  "name": "智谱 GLM Video",
+  "version": "1.0.0",
+  "shotloom": ">=0.9.1, <1.0.0",
+  "category": "videoGeneration",
+  "iconId": "zhipu",
+  "engine": "declarative",
+  "protocols": [
+    {
+      "id": "operation.5f5a2bbf50cd67c3",
+      "description": "CogVideoX 3",
+      "mode": {
+        "endpoint": {
+          "method": "POST",
+          "path": "/paas/v4/videos/generations",
+          "scope": "root"
+        },
+        "taskEndpoint": {
+          "method": "GET",
+          "path": "/paas/v4/async-result/{taskId}",
+          "scope": "root"
+        },
+        "isAsync": true,
+        "auth": {
+          "type": "bearer"
+        },
+        "requestTemplate": {
+          "model": "{{model}}",
+          "prompt": "{{prompt}}",
+          "image_url": "{{imageUrl}}",
+          "quality": "{{params.quality}}"
+        },
+        "taskIdPath": "id",
+        "statusPath": "task_status",
+        "errorPath": "error.message",
+        "pollStatusMap": {
+          "PROCESSING": "running",
+          "SUCCESS": "completed",
+          "FAIL": "failed"
+        },
+        "resultUrlPath": "video_result.*.url",
+        "id": "text-or-image-to-video",
+        "label": "文生/图生视频",
+        "inputMode": "firstFrame",
+        "inputSlots": [
+          "firstFrame"
+        ],
+        "inputConstraints": {
+          "images": {
+            "min": 0,
+            "max": 1,
+            "roles": [
+              "referenceImage"
+            ]
+          }
+        },
+        "outputConstraints": {
+          "formats": [
+            "mp4"
+          ]
+        },
+        "params": [
+          {
+            "key": "prompt",
+            "label": "提示词",
+            "type": "text",
+            "required": true,
+            "labelKey": "catalog.label.2f0bb12387"
+          },
+          {
+            "key": "quality",
+            "label": "输出模式",
+            "type": "select",
+            "default": "quality",
+            "options": [
+              "quality",
+              "speed"
+            ],
+            "labelKey": "catalog.label.973f0cc4ef"
+          }
+        ],
+        "labelKey": "catalog.label.8546cca0b1"
+      }
+    }
+  ],
+  "providers": [],
+  "author": "Shotloom Contributors",
+  "defaultConnections": [
+    {
+      "id": "zhipu",
+      "nameKey": "provider.copy.5e4d6369b1",
+      "descriptionKey": "provider.copy.ad5133e7c8",
+      "iconId": "zhipu",
+      "baseUrl": "https://open.bigmodel.cn/api",
+      "baseUrlRequired": false,
+      "engine": "declarative",
+      "name": "智谱 GLM",
+      "pluginId": "protocol.zhipu.video",
+      "presetId": "protocol",
+      "models": [
+        {
+          "id": "cogvideox-3",
+          "name": "CogVideoX 3",
+          "type": "videoGeneration",
+          "sortOrder": 3,
+          "enabled": true,
+          "defaultMode": "text-or-image-to-video",
+          "protocolPlugin": "protocol.zhipu.video",
+          "protocolModes": {
+            "text-or-image-to-video": "operation.5f5a2bbf50cd67c3"
+          },
+          "modes": [
+            {
+              "id": "text-or-image-to-video",
+              "label": "文生/图生视频",
+              "inputMode": "firstFrame",
+              "inputSlots": [
+                "firstFrame"
+              ],
+              "inputConstraints": {
+                "images": {
+                  "min": 0,
+                  "max": 1,
+                  "roles": [
+                    "referenceImage"
+                  ]
+                }
+              },
+              "outputConstraints": {
+                "formats": [
+                  "mp4"
+                ]
+              },
+              "params": [
+                {
+                  "key": "prompt",
+                  "label": "提示词",
+                  "type": "text",
+                  "required": true,
+                  "labelKey": "catalog.label.2f0bb12387"
+                },
+                {
+                  "key": "quality",
+                  "label": "输出模式",
+                  "type": "select",
+                  "default": "quality",
+                  "options": [
+                    "quality",
+                    "speed"
+                  ],
+                  "labelKey": "catalog.label.973f0cc4ef"
+                }
+              ],
+              "labelKey": "catalog.label.8546cca0b1"
+            }
+          ]
+        }
+      ],
+      "enabled": true,
+      "builtin": true,
+      "preserveModelIds": true,
+      "sortOrder": 8
+    }
+  ]
+}

@@ -1,0 +1,427 @@
+{
+  "apiVersion": 1,
+  "kind": "protocol",
+  "id": "protocol.bfl.flux3.images",
+  "name": "BFL FLUX 3 Images",
+  "version": "1.0.0",
+  "shotloom": ">=0.9.1, <1.0.0",
+  "category": "imageGeneration",
+  "iconId": "bfl",
+  "engine": "declarative",
+  "homepage": "https://docs.bfl.ml/flux_3/flux3_image_generate",
+  "protocols": [
+    {
+      "id": "generate",
+      "mode": {
+        "id": "text-to-image",
+        "label": "文生图",
+        "endpoint": {
+          "path": "/v1/{model}",
+          "method": "POST",
+          "scope": "root"
+        },
+        "auth": {
+          "type": "header",
+          "name": "x-key",
+          "prefix": ""
+        },
+        "inputConstraints": {},
+        "outputConstraints": {},
+        "params": [
+          {
+            "key": "aspectRatio",
+            "label": "画面比例",
+            "labelKey": "plugins.parameter.aspectRatio",
+            "type": "select",
+            "options": [
+              "1:1",
+              "16:9",
+              "9:16",
+              "4:3",
+              "3:4",
+              "3:2",
+              "2:3"
+            ],
+            "default": "1:1",
+            "numeric": false
+          },
+          {
+            "key": "resolution",
+            "label": "分辨率",
+            "labelKey": "plugins.parameter.resolution",
+            "type": "select",
+            "options": [
+              "768sq",
+              "1k",
+              "1.5k",
+              "2k",
+              "4k"
+            ],
+            "default": "1k",
+            "numeric": false
+          }
+        ],
+        "requestTemplate": {
+          "prompt": "{{prompt}}",
+          "aspect_ratio": "{{params.aspectRatio}}",
+          "resolution": "{{params.resolution}}"
+        },
+        "isAsync": true,
+        "taskIdPath": "id",
+        "statusPath": "status",
+        "resultUrlPath": "result.sample",
+        "taskEndpoint": {
+          "path": "/v1/get_result?id={taskId}",
+          "method": "GET",
+          "scope": "root"
+        },
+        "pollStatusMap": {
+          "Pending": "queued",
+          "Reasoning": "running",
+          "Generating": "running",
+          "Ready": "completed",
+          "Error": "failed",
+          "Task not found": "failed",
+          "Request Moderated": "failed",
+          "Content Moderated": "failed",
+          "No Card Generated": "failed"
+        },
+        "errorPath": "details",
+        "labelKey": "catalog.label.0b835958b8"
+      }
+    },
+    {
+      "id": "edit",
+      "mode": {
+        "id": "image-to-image",
+        "label": "图片编辑",
+        "endpoint": {
+          "path": "/v1/{model}",
+          "method": "POST",
+          "scope": "root"
+        },
+        "auth": {
+          "type": "header",
+          "name": "x-key",
+          "prefix": ""
+        },
+        "inputConstraints": {
+          "images": {
+            "min": 1,
+            "max": 10,
+            "roles": [
+              "referenceImage"
+            ]
+          }
+        },
+        "outputConstraints": {},
+        "params": [
+          {
+            "key": "aspectRatio",
+            "label": "画面比例",
+            "labelKey": "plugins.parameter.aspectRatio",
+            "type": "select",
+            "options": [
+              "1:1",
+              "16:9",
+              "9:16",
+              "4:3",
+              "3:4",
+              "3:2",
+              "2:3"
+            ],
+            "default": "1:1",
+            "numeric": false
+          },
+          {
+            "key": "resolution",
+            "label": "分辨率",
+            "labelKey": "plugins.parameter.resolution",
+            "type": "select",
+            "options": [
+              "768sq",
+              "1k",
+              "1.5k",
+              "2k",
+              "4k"
+            ],
+            "default": "1k",
+            "numeric": false
+          }
+        ],
+        "requestTemplate": {
+          "prompt": "{{prompt}}",
+          "aspect_ratio": "{{params.aspectRatio}}",
+          "resolution": "{{params.resolution}}",
+          "images": "{{imageUrls}}"
+        },
+        "isAsync": true,
+        "taskIdPath": "id",
+        "statusPath": "status",
+        "resultUrlPath": "result.sample",
+        "taskEndpoint": {
+          "path": "/v1/get_result?id={taskId}",
+          "method": "GET",
+          "scope": "root"
+        },
+        "pollStatusMap": {
+          "Pending": "queued",
+          "Reasoning": "running",
+          "Generating": "running",
+          "Ready": "completed",
+          "Error": "failed",
+          "Task not found": "failed",
+          "Request Moderated": "failed",
+          "Content Moderated": "failed",
+          "No Card Generated": "failed"
+        },
+        "errorPath": "details",
+        "labelKey": "catalog.label.a038dfa6cd",
+        "inputMode": "reference",
+        "inputSlots": [
+          "reference"
+        ]
+      }
+    }
+  ],
+  "providers": [],
+  "author": "Shotloom Contributors",
+  "defaultConnections": [
+    {
+      "id": "bfl",
+      "name": "Black Forest Labs",
+      "baseUrl": "https://api.bfl.ai",
+      "iconId": "bfl",
+      "description": "FLUX image generation and editing",
+      "descriptionKey": "plugins.provider.bfl",
+      "enabled": true,
+      "builtin": true,
+      "presetId": "protocol",
+      "pluginId": "protocol.bfl.flux3.images",
+      "models": [
+        {
+          "id": "flux-3-image",
+          "name": "FLUX 3 Image",
+          "upstreamModel": "flux-3-image",
+          "type": "imageGeneration",
+          "sortOrder": 113,
+          "enabled": true,
+          "defaultMode": "text-to-image",
+          "protocolPlugin": "protocol.bfl.flux3.images",
+          "protocolModes": {
+            "text-to-image": "generate",
+            "image-to-image": "edit"
+          },
+          "modes": [
+            {
+              "id": "text-to-image",
+              "label": "文生图",
+              "inputConstraints": {},
+              "outputConstraints": {},
+              "params": [
+                {
+                  "key": "aspectRatio",
+                  "label": "画面比例",
+                  "labelKey": "plugins.parameter.aspectRatio",
+                  "type": "select",
+                  "options": [
+                    "1:1",
+                    "16:9",
+                    "9:16",
+                    "4:3",
+                    "3:4",
+                    "3:2",
+                    "2:3"
+                  ],
+                  "default": "1:1",
+                  "numeric": false
+                },
+                {
+                  "key": "resolution",
+                  "label": "分辨率",
+                  "labelKey": "plugins.parameter.resolution",
+                  "type": "select",
+                  "options": [
+                    "768sq",
+                    "1k",
+                    "1.5k",
+                    "2k",
+                    "4k"
+                  ],
+                  "default": "1k",
+                  "numeric": false
+                }
+              ],
+              "labelKey": "catalog.label.0b835958b8"
+            },
+            {
+              "id": "image-to-image",
+              "label": "图片编辑",
+              "inputConstraints": {
+                "images": {
+                  "min": 1,
+                  "max": 10,
+                  "roles": [
+                    "referenceImage"
+                  ]
+                }
+              },
+              "outputConstraints": {},
+              "params": [
+                {
+                  "key": "aspectRatio",
+                  "label": "画面比例",
+                  "labelKey": "plugins.parameter.aspectRatio",
+                  "type": "select",
+                  "options": [
+                    "1:1",
+                    "16:9",
+                    "9:16",
+                    "4:3",
+                    "3:4",
+                    "3:2",
+                    "2:3"
+                  ],
+                  "default": "1:1",
+                  "numeric": false
+                },
+                {
+                  "key": "resolution",
+                  "label": "分辨率",
+                  "labelKey": "plugins.parameter.resolution",
+                  "type": "select",
+                  "options": [
+                    "768sq",
+                    "1k",
+                    "1.5k",
+                    "2k",
+                    "4k"
+                  ],
+                  "default": "1k",
+                  "numeric": false
+                }
+              ],
+              "labelKey": "catalog.label.a038dfa6cd",
+              "inputMode": "reference",
+              "inputSlots": [
+                "reference"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "flux-3-image-klein",
+          "name": "FLUX 3 Image Klein",
+          "upstreamModel": "flux-3-image-klein",
+          "type": "imageGeneration",
+          "sortOrder": 114,
+          "enabled": true,
+          "defaultMode": "text-to-image",
+          "protocolPlugin": "protocol.bfl.flux3.images",
+          "protocolModes": {
+            "text-to-image": "generate",
+            "image-to-image": "edit"
+          },
+          "modes": [
+            {
+              "id": "text-to-image",
+              "label": "文生图",
+              "inputConstraints": {},
+              "outputConstraints": {},
+              "params": [
+                {
+                  "key": "aspectRatio",
+                  "label": "画面比例",
+                  "labelKey": "plugins.parameter.aspectRatio",
+                  "type": "select",
+                  "options": [
+                    "1:1",
+                    "16:9",
+                    "9:16",
+                    "4:3",
+                    "3:4",
+                    "3:2",
+                    "2:3"
+                  ],
+                  "default": "1:1",
+                  "numeric": false
+                },
+                {
+                  "key": "resolution",
+                  "label": "分辨率",
+                  "labelKey": "plugins.parameter.resolution",
+                  "type": "select",
+                  "options": [
+                    "768sq",
+                    "1k",
+                    "1.5k",
+                    "2k",
+                    "4k"
+                  ],
+                  "default": "1k",
+                  "numeric": false
+                }
+              ],
+              "labelKey": "catalog.label.0b835958b8"
+            },
+            {
+              "id": "image-to-image",
+              "label": "图片编辑",
+              "inputConstraints": {
+                "images": {
+                  "min": 1,
+                  "max": 10,
+                  "roles": [
+                    "referenceImage"
+                  ]
+                }
+              },
+              "outputConstraints": {},
+              "params": [
+                {
+                  "key": "aspectRatio",
+                  "label": "画面比例",
+                  "labelKey": "plugins.parameter.aspectRatio",
+                  "type": "select",
+                  "options": [
+                    "1:1",
+                    "16:9",
+                    "9:16",
+                    "4:3",
+                    "3:4",
+                    "3:2",
+                    "2:3"
+                  ],
+                  "default": "1:1",
+                  "numeric": false
+                },
+                {
+                  "key": "resolution",
+                  "label": "分辨率",
+                  "labelKey": "plugins.parameter.resolution",
+                  "type": "select",
+                  "options": [
+                    "768sq",
+                    "1k",
+                    "1.5k",
+                    "2k",
+                    "4k"
+                  ],
+                  "default": "1k",
+                  "numeric": false
+                }
+              ],
+              "labelKey": "catalog.label.a038dfa6cd",
+              "inputMode": "reference",
+              "inputSlots": [
+                "reference"
+              ]
+            }
+          ]
+        }
+      ],
+      "preserveModelIds": true,
+      "sortOrder": 13
+    }
+  ]
+}

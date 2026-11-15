@@ -1,0 +1,38 @@
+[
+  {
+    "id": "connection.example-async",
+    "name": "Example async service",
+    "baseUrl": "http://127.0.0.1:19391",
+    "authRequired": false,
+    "pluginId": "example.async-module",
+    "presetId": "protocol",
+    "enabled": true,
+    "models": [
+      {
+        "id": "example-async-text",
+        "name": "Async text example",
+        "upstreamModel": "demo-chat",
+        "type": "textGeneration",
+        "sortOrder": 100,
+        "enabled": true,
+        "defaultMode": "text-generation",
+        "protocolPlugin": "example.async-module",
+        "protocolModes": {
+          "text-generation": "async-text"
+        },
+        "modes": [
+          {
+            "id": "text-generation",
+            "label": "Text generation",
+            "inputConstraints": {
+              "text": {
+                "maxTokens": 8192
+              }
+            },
+            "params": []
+          }
+        ]
+      }
+    ]
+  }
+]

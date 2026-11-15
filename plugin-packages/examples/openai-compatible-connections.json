@@ -1,0 +1,80 @@
+[
+  {
+    "id": "connection.example-primary",
+    "name": "Example primary",
+    "baseUrl": "http://127.0.0.1:19391/v1",
+    "authRequired": false,
+    "pluginId": "example.openai-compatible",
+    "presetId": "protocol",
+    "enabled": true,
+    "models": [
+      {
+        "id": "example-primary-chat",
+        "name": "Example chat",
+        "upstreamModel": "demo-chat",
+        "type": "textGeneration",
+        "sortOrder": 100,
+        "enabled": true,
+        "defaultMode": "text-generation",
+        "protocolPlugin": "example.openai-compatible",
+        "protocolModes": {
+          "text-generation": "chat"
+        },
+        "modes": [
+          {
+            "id": "text-generation",
+            "label": "Text generation",
+            "inputConstraints": {
+              "text": {
+                "maxTokens": 8192
+              }
+            },
+            "outputConstraints": {
+              "supportsStreaming": false
+            },
+            "params": []
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "connection.example-secondary",
+    "name": "Example secondary",
+    "baseUrl": "http://127.0.0.1:19391/v1",
+    "authRequired": false,
+    "pluginId": "example.openai-compatible",
+    "presetId": "protocol",
+    "enabled": true,
+    "models": [
+      {
+        "id": "example-secondary-chat",
+        "name": "Example chat",
+        "upstreamModel": "demo-chat",
+        "type": "textGeneration",
+        "sortOrder": 100,
+        "enabled": true,
+        "defaultMode": "text-generation",
+        "protocolPlugin": "example.openai-compatible",
+        "protocolModes": {
+          "text-generation": "chat"
+        },
+        "modes": [
+          {
+            "id": "text-generation",
+            "label": "Text generation",
+            "inputConstraints": {
+              "text": {
+                "maxTokens": 8192
+              }
+            },
+            "outputConstraints": {
+              "supportsStreaming": false
+            },
+            "params": []
+          }
+        ]
+      }
+    ]
+  }
+]

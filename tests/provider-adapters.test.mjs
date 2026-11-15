@@ -1,9 +1,9 @@
 import { loadModelCatalog } from './helpers/modelCatalog.mjs';
 /**
- * 厂商适配器注册表契约：厂商与模型只能来自代码登记。
+ * 厂商适配器注册表契约：厂商与模型来自已启用的插件登记。
  *
  * 注册表是 fail-closed 的（和 Agent 工具白名单一样）：未登记的厂商既没有界面入口，
- * 也没有可执行的传输层；设置里因此只可能保存内置厂商的 Key 与实际生效地址。
+ * 也没有可执行的传输层；已停用或卸载厂商的凭据保留，供重新启用和历史任务使用。
  */
 import test, { after, before } from 'node:test';
 import assert from 'node:assert/strict';
@@ -45,7 +45,7 @@ test('每个内置厂商只有一个适配器，且覆盖目录里出现的厂�
 
 test('未登记的厂商在执行时直接失败，不回落到通用协议', () => {
   assert.equal(findProviderAdapter('my-proxy'), undefined);
-  assert.throws(() => getProviderAdapter('my-proxy'), /没有内置厂商适配器[\s\S]*domain\/provider\/adapters/);
+  assert.throws(() => getProviderAdapter('my-proxy'), /未找到[\s\S]*已启用插件[\s\S]*插件中心/);
 });
 
 test('品牌图标打包在应用内，StarRouter 用官方 logo 资源', async () => {
@@ -74,7 +74,7 @@ test('只有 Qwen 百炼没有可内置的地址，必须由用户填写', () =>
   assert.equal(resolveProviderBaseUrl(getProviderAdapter('qwen'), {}), '');
 });
 
-test('设置只保留内置厂商的 Key 与生效地址，丢弃自定义厂商字段', () => {
+test('设置保留已停用或缺失厂商凭据，但不保留废弃展示字段', () => {
   const stored = normalizeProviderConfigs({
     openai: {
       apiKey: '  sk-openai  ',
@@ -92,24 +92,25 @@ test('设置只保留内置厂商的 Key 与生效地址，丢弃自定义厂商
   }
   assert.equal(stored.openai.apiKey, 'sk-openai');
   assert.equal(stored.openai.baseUrl, 'https://api.openai.com/v1');
-  assert.deepEqual(Object.keys(stored).sort(), getProviderAdapters().map((a) => a.id).sort());
+  assert.equal(stored['legacy-provider'].apiKey, 'sk-legacy');
+  assert.deepEqual(Object.keys(stored).sort(), [...getProviderAdapters().map((a) => a.id), 'legacy-provider'].sort());
 });
 
 test('运行入口按厂商 id 取适配器，模型任务不再自行拼接地址', () => {
   const taskService = readSource('renderer/src/services/modelTaskService.ts');
-  assert.match(taskService, /getProviderAdapter\(modelContract\.provider\)\s*\.poll/);
+  assert.match(taskService, /getProviderAdapter\(modelContract\.provider, modelContract\.pluginRef\)\s*\.poll/);
   assert.doesNotMatch(taskService, /getProviderTransport|normalizeRemoteTask|desktopApi\.model\./);
 });
 
 test('厂商模型清单逐条来自目录声明，输入模态不靠模型名猜测', () => {
   const rows = getProviderModelRows('bytedance');
   assert.deepEqual(
-    rows.map((row) => row.id),
-    catalogJson.models.filter((model) => model.provider === 'bytedance').map((model) => model.id),
+    rows.map((row) => row.id).sort(),
+    catalogJson.models.filter((model) => model.provider === 'bytedance').map((model) => model.id).sort(),
     '清单必须等于该厂商在目录里登记的全部模型',
   );
-  assert.equal(rows[0].typeLabel, '视频生成');
-  assert.deepEqual(rows[0].inputs, ['image', 'video', 'audio'], 'Seedance 的三种媒体输入都要来自 inputConstraints');
+  assert.equal(rows.find(row => row.id === 'doubao-seedance-2-5-260628').typeLabel, '视频生成');
+  assert.deepEqual(rows.find(row => row.id === 'doubao-seedance-2-5-260628').inputs, ['image', 'video', 'audio'], 'Seedance 的三种媒体输入都要来自 inputConstraints');
 
   const googleRows = getProviderModelRows('google');
   assert.deepEqual(
@@ -118,6 +119,7 @@ test('厂商模型清单逐条来自目录声明，输入模态不靠模型名�
       ['imageGeneration', 'gemini-nano-banana-2.1', ['image']],
       ['imageGeneration', 'gemini-3.1-flash-lite-image', ['image']],
       ['imageGeneration', 'gemini-3-pro-image', ['image']],
+      ['videoGeneration', 'veo-3.1-generate-preview', []],
       ['textGeneration', 'gemini-3.8-flash', ['image']],
       ['textGeneration', 'gemini-3.1-pro-preview', []],
     ],
@@ -127,8 +129,8 @@ test('厂商模型清单逐条来自目录声明，输入模态不靠模型名�
   const anthropic = getProviderModelRows('anthropic');
   assert.deepEqual(
     anthropic.map((row) => row.id),
-    ['claude-opus-5-5', 'claude-sonnet-5-5'],
-    '清单只保留官方最新一代，被新一代取代的上一代不进目录',
+    ['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5'],
+    '清单包含已登记的 Opus、Sonnet 和 Haiku，保留稳定模型 ID',
   );
   assert.ok(anthropic.every((row) => row.inputs.length === 0 && row.agentReady === true),
     '声明了 Messages 工具协议的模型必须可用于 Agent');

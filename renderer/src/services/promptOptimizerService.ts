@@ -31,7 +31,7 @@ export async function optimizePrompt(input: OptimizePromptInput): Promise<Optimi
 
   const contract = resolveModelRuntimeContract('textGeneration', model);
   if (!contract) throw new Error('promptOptimizer.noContract');
-  const adapter = getProviderAdapter(contract.provider);
+  const adapter = getProviderAdapter(contract.provider, contract.pluginRef);
   const instruction = buildOptimizerInstruction({
     mode: input.mode,
     prompt: input.prompt,

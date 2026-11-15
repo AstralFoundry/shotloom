@@ -1,3 +1,4 @@
+import { ProviderPluginsPanel } from './views/ProviderPluginsPanel';
 import { getLocale, LOCALE_STORAGE_KEY } from '@/i18n';
 import { t } from '@/i18n';
 import { editorLocalMedia } from "./editor/editorLocalMedia";
@@ -338,6 +339,8 @@ export function ReactWorkbench() {
     activeView = (
       <ProjectsView {...projects!} controller={projectLibraryController} />
     );
+  } else if (appRoute === "plugins") {
+    activeView = <ProviderPluginsPanel standalone />;
   } else if (appRoute === "skills") {
     activeView = <SkillsFeature />;
 

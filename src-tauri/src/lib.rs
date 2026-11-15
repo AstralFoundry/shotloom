@@ -54,6 +54,9 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::recovery_status,
             commands::recovery_update_activity,
+            commands::provider_plugins,
+            commands::provider_plugin_call,
+            commands::provider_plugin_cancel,
             commands::generation_request,
             commands::generation_stream,
             commands::generation_download,

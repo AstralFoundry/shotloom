@@ -26,7 +26,8 @@ test('中英文文案键与参数保持一致，参数内容不再次参与模�
 test('厂商目录所有翻译键存在，英文展示不改变模型协议与提交选项值', async () => {
   const { default: zh } = await env.load('i18n/locales/zh-CN.json');
   const { default: en } = await env.load('i18n/locales/en-US.json');
-  const { modelCatalogV2: { models } } = await env.load('config/model-catalog-v2/index');
+  const { getCatalogModels } = await env.load('domain/catalog/ModelCatalog');
+  const models = getCatalogModels();
   let references = 0;
   function verify(value) {
     if (!value || typeof value !== 'object') return;
@@ -47,13 +48,14 @@ test('厂商目录所有翻译键存在，英文展示不改变模型协议与�
   const english = await createRendererEnv({ storage: new Map([['shotloom:locale', 'en-US']]) });
   try {
     const { modelCatalog } = await english.load('domain/catalog/ModelCatalog');
+    const { modelCatalog: chineseCatalog } = await env.load('domain/catalog/ModelCatalog');
     const { catalogLabel } = await english.load('i18n/index');
     assert.equal(catalogLabel('Custom label', 'unregistered.user.key'), 'Custom label');
     for (const model of models) {
       for (const mode of model.modes) {
         const runtime = modelCatalog.getModeConfig(model.id, mode.id);
-        assert.deepEqual(runtime.requestTemplate, mode.requestTemplate);
-        assert.deepEqual(runtime.endpoint, mode.endpoint);
+        assert.deepEqual(runtime.requestTemplate, chineseCatalog.getModeConfig(model.id, mode.id).requestTemplate);
+        assert.deepEqual(runtime.endpoint, chineseCatalog.getModeConfig(model.id, mode.id).endpoint);
         const displayed = modelCatalog.getModelModes(model.id).find(item => item.id === mode.id);
         assert.equal(displayed.label, mode.labelKey ? en[mode.labelKey] : mode.label);
         const schema = modelCatalog.getModelSchema(model.type, model.id, mode.id);
@@ -307,8 +309,9 @@ test('引用选择、媒体预览、快照校验和任务查询的产品提示�
     desktopApi.file.readArrayBuffer = async () => undefined;
     const { acquireMediaPreview } = await instance.load('services/mediaPreviewCache');
     await assert.rejects(acquireMediaPreview({ kind: 'video', path: '/missing.mp4' }), { message: 'Unable to read the media preview.' });
-    const { runningHubTaskState } = await instance.load('utils/runningHubWorkflow');
-    assert.equal(runningHubTaskState({ code: 503 }).error, 'Failed to query the task.');
+    const { runningHubTaskState } = await import('../plugin-packages/defaults/protocol.runninghub.video/runtime/workflow.mjs');
+    const { createTranslator } = await import('../plugin-packages/defaults/protocol.runninghub.video/runtime/messages.mjs');
+    assert.equal(runningHubTaskState({ code: 503 }, createTranslator('en-US')).error, 'Failed to query the task.');
     assert.equal(runningHubTaskState({ code: 503, msg: '上游原始错误 {id}' }).error, '上游原始错误 {id}');
   } finally { await instance.dispose(); }
 });

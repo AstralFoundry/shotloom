@@ -1,0 +1,11 @@
+{
+  "name": "@shotloom/shotloom-plugin-google-veo",
+  "version": "1.0.0",
+  "shotloomPlugin": "manifest.json",
+  "files": [
+    "manifest.json",
+    "README.md",
+    "docs",
+    "runtime"
+  ]
+}

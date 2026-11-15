@@ -261,6 +261,19 @@ test('Harness model limits come from the product catalog', async () => {
   assert.equal(model.maxTokens, 16384);
 });
 
+test('shared MiniMax media connection gives Harness the declared text API prefix', async () => {
+  const previous = settings.providerConfigs.minimax;
+  try {
+    settings.providerConfigs.minimax = { apiKey: 'isolated-test', baseUrl: 'https://example.invalid' };
+    const config = (await env.load('services/harnessModelConfig')).harnessModelConfig();
+    const profile = config.providers['shotloom-minimax-openai-completions'].profile;
+    assert.equal(profile.baseURL, 'https://example.invalid/v1');
+    const flash = profile.models.find(model => model.id === 'MiniMax-M3.1-Flash');
+    assert.deepEqual(flash.reasoningEfforts, { low: 'low', medium: 'medium', high: 'high', xhigh: 'xhigh', max: 'max' });
+    assert.equal(profile.models.find(model => model.id === 'MiniMax-M3').reasoningEfforts, undefined);
+  } finally { settings.providerConfigs.minimax = previous; }
+});
+
 test('Harness advertises StarRouter DeepSeek Flash reasoning levels and Agent defaults', async () => {
   settings.providerConfigs.starrouter = { apiKey: 'isolated-test', baseUrl: 'https://example.invalid/v1' };
   const previous = settings.agentPreferredTextModel;

@@ -1,0 +1,46 @@
+{
+  "apiVersion": 1,
+  "id": "example.async-module",
+  "name": "Async module example",
+  "version": "1.0.0",
+  "shotloom": ">=0.9.1, <1.0.0",
+  "description": "Reusable text protocol. Configure endpoints, credentials and models in a separate provider connection.",
+  "runtime": {
+    "entry": "runtime/index.mjs"
+  },
+  "protocols": [
+    {
+      "id": "async-text",
+      "mode": {
+        "id": "text-generation",
+        "label": "Text generation",
+        "endpoint": {
+          "method": "POST",
+          "path": "/plugin/submit",
+          "scope": "root"
+        },
+        "requestTemplate": {},
+        "isAsync": true,
+        "taskEndpoint": {
+          "method": "GET",
+          "path": "/plugin/{taskId}",
+          "scope": "root"
+        },
+        "taskIdPath": "remoteTaskId",
+        "statusPath": "status",
+        "resultTextPath": "result.text",
+        "inputConstraints": {
+          "text": {
+            "maxTokens": 8192
+          }
+        },
+        "params": []
+      }
+    }
+  ],
+  "kind": "protocol",
+  "category": "textGeneration",
+  "engine": "module",
+  "providers": [],
+  "supportsCancel": true
+}

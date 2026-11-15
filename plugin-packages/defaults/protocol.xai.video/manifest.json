@@ -1,0 +1,309 @@
+{
+  "apiVersion": 1,
+  "kind": "protocol",
+  "id": "protocol.xai.video",
+  "name": "xAI Video",
+  "version": "1.0.0",
+  "shotloom": ">=0.9.1, <1.0.0",
+  "category": "videoGeneration",
+  "iconId": "xai",
+  "engine": "declarative",
+  "protocols": [
+    {
+      "id": "operation.eaf180bc3d3867b7",
+      "description": "Grok Imagine Video 1.5",
+      "mode": {
+        "endpoint": {
+          "method": "POST",
+          "path": "/videos/generations",
+          "scope": "root"
+        },
+        "taskEndpoint": {
+          "method": "GET",
+          "path": "/videos/{taskId}",
+          "scope": "root"
+        },
+        "isAsync": true,
+        "auth": {
+          "type": "bearer"
+        },
+        "requestTemplate": {
+          "model": "{{model}}",
+          "prompt": "{{prompt}}",
+          "image": "{{imageObject}}",
+          "duration": "{{duration}}",
+          "aspect_ratio": "{{aspectRatio}}",
+          "resolution": "{{resolution}}",
+          "generate_audio": "{{params.generateAudio}}"
+        },
+        "taskIdPath": "request_id",
+        "statusPath": "status",
+        "errorPath": "error.message",
+        "pollStatusMap": {
+          "pending": "running",
+          "done": "completed",
+          "expired": "failed",
+          "failed": "failed"
+        },
+        "resultUrlPath": "video.url",
+        "id": "text-or-image-to-video",
+        "label": "文生/图生视频",
+        "inputMode": "firstFrame",
+        "inputSlots": [
+          "firstFrame"
+        ],
+        "inputConstraints": {
+          "images": {
+            "min": 0,
+            "max": 1,
+            "roles": [
+              "referenceImage"
+            ]
+          }
+        },
+        "outputConstraints": {
+          "durations": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15
+          ],
+          "defaultDuration": 8,
+          "formats": [
+            "mp4"
+          ]
+        },
+        "params": [
+          {
+            "key": "prompt",
+            "label": "提示词",
+            "type": "text",
+            "required": true,
+            "labelKey": "catalog.label.2f0bb12387"
+          },
+          {
+            "key": "duration",
+            "label": "时长",
+            "type": "select",
+            "default": 8,
+            "numeric": true,
+            "options": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15
+            ],
+            "labelKey": "catalog.label.29d0552d2e"
+          },
+          {
+            "key": "aspectRatio",
+            "label": "比例",
+            "type": "select",
+            "default": "16:9",
+            "options": [
+              "1:1",
+              "16:9",
+              "9:16",
+              "4:3",
+              "3:4",
+              "3:2",
+              "2:3",
+              "21:9",
+              "5:2"
+            ],
+            "labelKey": "catalog.label.c27f341ce5"
+          },
+          {
+            "key": "resolution",
+            "label": "分辨率",
+            "type": "select",
+            "default": "720p",
+            "options": [
+              "480p",
+              "720p",
+              "1080p"
+            ],
+            "labelKey": "catalog.label.cde9b52b23"
+          },
+          {
+            "key": "generateAudio",
+            "label": "生成同步声音",
+            "type": "boolean",
+            "default": true,
+            "labelKey": "catalog.label.058dddf225"
+          }
+        ],
+        "labelKey": "catalog.label.8546cca0b1"
+      }
+    }
+  ],
+  "providers": [],
+  "author": "Shotloom Contributors",
+  "defaultConnections": [
+    {
+      "id": "xai",
+      "name": "xAI",
+      "descriptionKey": "provider.copy.4db3a24b78",
+      "iconId": "xai",
+      "baseUrl": "https://api.x.ai/v1",
+      "baseUrlRequired": false,
+      "engine": "declarative",
+      "pluginId": "protocol.xai.video",
+      "presetId": "protocol",
+      "models": [
+        {
+          "id": "grok-imagine-video-1.5",
+          "name": "Grok Imagine Video 1.5",
+          "type": "videoGeneration",
+          "sortOrder": 2,
+          "enabled": true,
+          "defaultMode": "text-or-image-to-video",
+          "protocolPlugin": "protocol.xai.video",
+          "protocolModes": {
+            "text-or-image-to-video": "operation.eaf180bc3d3867b7"
+          },
+          "modes": [
+            {
+              "id": "text-or-image-to-video",
+              "label": "文生/图生视频",
+              "inputMode": "firstFrame",
+              "inputSlots": [
+                "firstFrame"
+              ],
+              "inputConstraints": {
+                "images": {
+                  "min": 0,
+                  "max": 1,
+                  "roles": [
+                    "referenceImage"
+                  ]
+                }
+              },
+              "outputConstraints": {
+                "durations": [
+                  1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7,
+                  8,
+                  9,
+                  10,
+                  11,
+                  12,
+                  13,
+                  14,
+                  15
+                ],
+                "defaultDuration": 8,
+                "formats": [
+                  "mp4"
+                ]
+              },
+              "params": [
+                {
+                  "key": "prompt",
+                  "label": "提示词",
+                  "type": "text",
+                  "required": true,
+                  "labelKey": "catalog.label.2f0bb12387"
+                },
+                {
+                  "key": "duration",
+                  "label": "时长",
+                  "type": "select",
+                  "default": 8,
+                  "numeric": true,
+                  "options": [
+                    1,
+                    2,
+                    3,
+                    4,
+                    5,
+                    6,
+                    7,
+                    8,
+                    9,
+                    10,
+                    11,
+                    12,
+                    13,
+                    14,
+                    15
+                  ],
+                  "labelKey": "catalog.label.29d0552d2e"
+                },
+                {
+                  "key": "aspectRatio",
+                  "label": "比例",
+                  "type": "select",
+                  "default": "16:9",
+                  "options": [
+                    "1:1",
+                    "16:9",
+                    "9:16",
+                    "4:3",
+                    "3:4",
+                    "3:2",
+                    "2:3",
+                    "21:9",
+                    "5:2"
+                  ],
+                  "labelKey": "catalog.label.c27f341ce5"
+                },
+                {
+                  "key": "resolution",
+                  "label": "分辨率",
+                  "type": "select",
+                  "default": "720p",
+                  "options": [
+                    "480p",
+                    "720p",
+                    "1080p"
+                  ],
+                  "labelKey": "catalog.label.cde9b52b23"
+                },
+                {
+                  "key": "generateAudio",
+                  "label": "生成同步声音",
+                  "type": "boolean",
+                  "default": true,
+                  "labelKey": "catalog.label.058dddf225"
+                }
+              ],
+              "labelKey": "catalog.label.8546cca0b1"
+            }
+          ]
+        }
+      ],
+      "enabled": true,
+      "builtin": true,
+      "preserveModelIds": true,
+      "sortOrder": 3
+    }
+  ]
+}

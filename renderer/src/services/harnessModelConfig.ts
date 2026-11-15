@@ -1,3 +1,4 @@
+import { registeredProviders } from '../domain/provider/plugins/ProviderPlugins';
 import { getAvailableAgentModelCatalog, settingsStore } from '../store/settingsStore';
 import { getAgentReasoningDefault, getModelInfo, getModelModeConfig, getModelReasoningEffortParam } from '../domain/catalog/ModelCatalog';
 
@@ -19,13 +20,20 @@ export function harnessModelConfig() {
     const transport = mode.agent.transport;
     // Explicit provider-default catalog contracts currently use Chat Completions.
     // Native Gemini has a different protocol and is not advertised as compatible.
-    if (transport === 'provider-default' && model.provider === 'google') continue;
+    if (transport === 'provider-default' && registeredProviders().find(provider => provider.id === model.provider)?.presetId === 'google') continue;
     const api = transport === 'openai-responses' ? 'openai-responses'
       : transport === 'anthropic-messages' ? 'anthropic-messages' : 'openai-completions';
     const config = settingsStore.providerConfigs[model.provider];
     if (!config?.apiKey) continue;
+    // A shared media connection may keep /v1 in the protocol rather than its base URL.
+    // Harness appends /chat/completions itself, so retain the declared API prefix.
+    const endpoint = mode.agent.endpoint;
+    const apiPrefix = api === 'openai-completions' && endpoint?.path.endsWith('/chat/completions')
+      ? endpoint.path.slice(0, -'/chat/completions'.length) : '';
+    const connectionBase = endpoint?.scope === 'origin' ? new URL(config.baseUrl).origin : config.baseUrl.replace(/\/+$/, '');
+    const baseURL = apiPrefix ? `${connectionBase}${apiPrefix}` : config.baseUrl;
     const route = `shotloom-${model.provider}-${api}`;
-    const entry = providers[route] ??= { key: config.apiKey, profile: { baseURL: config.baseUrl, api, displayName: model.provider, models: [] } };
+    const entry = providers[route] ??= { key: config.apiKey, profile: { baseURL, api, displayName: model.provider, models: [] } };
     const id = info.upstreamModel || model.id;
     const param = getModelReasoningEffortParam(model.id);
     const reasoningEfforts = Object.fromEntries((param?.options ?? []).flatMap(option => {

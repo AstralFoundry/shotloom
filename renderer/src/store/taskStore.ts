@@ -123,7 +123,7 @@ export function canAdoptRemoteTask(task: AnyRecord | null | undefined) {
     && failedTaskStatuses.has(task.status)
     && !task.remoteTaskId
     && !isHistoricalModelTask(task)
-    && SUBMIT_STAGE_ERROR_PATTERN.test(String(task.error || '')),
+    && (task.submissionUncertain === true || SUBMIT_STAGE_ERROR_PATTERN.test(String(task.error || ''))),
   );
 }
 
@@ -666,6 +666,7 @@ export function cancelNode(nodeId: string) {
 export function retryTask(taskId: string): AnyRecord | null {
   const task = (store.project.tasks as AnyRecord[]).find((item: AnyRecord) => item.id === taskId);
   if (!task || !failedTaskStatuses.has(task.status)) return null;
+  if (task.submissionUncertain === true) { showToast(t('plugins.submissionUnknown')); return null; }
   const node = (store.project.nodes as AnyRecord[]).find((item: AnyRecord) => item.id === task.nodeId);
   if (!node) return null;
   const nextRetryCount = Number(task.retryCount || 0) + 1;
@@ -764,7 +765,7 @@ export async function adoptRemoteTask(taskId: string, remoteTaskId: string) {
  * @returns {boolean}
  */
 export function canRetryTask(task: AnyRecord | null | undefined) {
-  if (!task || !failedTaskStatuses.has(task.status) || isHistoricalModelTask(task)) return false;
+  if (!task || task.submissionUncertain === true || !failedTaskStatuses.has(task.status) || isHistoricalModelTask(task)) return false;
   const maxRetries = normalizedInteger(task.maxRetries, 2);
   return Number(task.retryCount || 0) < maxRetries;
 }

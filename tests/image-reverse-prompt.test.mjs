@@ -70,7 +70,7 @@ test('反推工具的工具栏、动作与适配器接线完整', () => {
   const canvas = readSource('renderer/src/app/canvas/WorkflowCanvas.tsx');
   const adapter = readSource('renderer/src/app/adapters/canvasAdapter.ts');
   const action = readSource('renderer/src/app/adapters/canvas/imageReversePromptActions.ts');
-  const catalog = readSource('renderer/src/config/model-catalog-v2/google.json');
+  const catalog = readSource('plugin-packages/defaults/protocol.google.text/manifest.json');
   const provider = readSource('renderer/src/domain/provider/adapters/declarative.ts');
   assert.match(registry, /id: "reverse-prompt", label: t\("imageReverse\.tool\.label"\), icon: "scan-text"/);
   assert.match(registry, /"emotion", "reverse-prompt"/);
@@ -79,7 +79,9 @@ test('反推工具的工具栏、动作与适配器接线完整', () => {
   assert.match(adapter, /createReversePromptNode: createImageReversePromptNode/);
   assert.match(action, /getGenerationInputModes/);
   assert.match(action, /inputRole: 'referenceImage'/);
-  assert.match(catalog, /"images":[\s\S]*?"referenceImage"[\s\S]*?"imageContentFormat": "openai-image-url"/);
+  const operation = JSON.parse(catalog).protocols.find(item => item.mode.inputConstraints.images?.roles?.includes('referenceImage'));
+  assert.ok(operation);
+  assert.equal(operation.mode.requestFields.imageContentFormat, 'openai-image-url');
   assert.match(provider, /type: 'image_url'/);
   assert.match(provider, /type: 'text'/);
 });

@@ -1,3 +1,5 @@
+import { loadDefaultPluginSnapshot } from './modelCatalog.mjs';
+import { readDefaultPluginPackages } from '../../scripts/provider-distribution.mjs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createServer } from 'vite';
@@ -66,6 +68,16 @@ export async function createRendererEnv({ storage, withWindow = false, realTimer
     server: { middlewareMode: true, hmr: false },
     appType: 'custom',
   });
+
+  // Production starts with an empty catalog and installs release packages before settings.
+  // Test environments explicitly seed the same packages instead of relying on static built-ins.
+  const defaultSnapshot = loadDefaultPluginSnapshot();
+  const registry = await server.ssrLoadModule('/src/domain/provider/plugins/ProviderPlugins.ts');
+  registry.setProviderPluginSnapshot(defaultSnapshot);
+  if (storageShim && !storageShim.getItem('shotloom-provider-plugins')) storageShim.setItem('shotloom-provider-plugins', JSON.stringify(defaultSnapshot));
+  const { desktopApi } = await server.ssrLoadModule('/src/services/desktopApi.ts');
+  const { createBrowserProviderPlugins } = await server.ssrLoadModule('/src/services/browserProviderPlugins.ts');
+  desktopApi.providerPlugins = createBrowserProviderPlugins({ loadDistribution: async () => readDefaultPluginPackages().map((item, index) => ({ ...item, digest: defaultSnapshot.plugins[index].digest })) });
 
   return {
     /**

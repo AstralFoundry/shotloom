@@ -1213,4 +1213,10 @@ export interface MessageParameters {
   "ds.notice.captureFailed": Record<"error", string | number>;
   "ds.notice.applyFailed": Record<"error", string | number>;
   "ds.notice.uploadFailed": Record<"error", string | number>;
+  "plugins.resultCount": Record<"count", string | number>;
+  "plugins.modelCount": Record<"count", string | number>;
+  "plugins.connectionCount": Record<"count", string | number>;
+  "plugins.operationCount": Record<"count", string | number>;
+  "plugins.invalidModelPath": Record<"model", string | number>;
+  "plugins.invalidTaskEndpoint": Record<"endpoint", string | number>;
 }

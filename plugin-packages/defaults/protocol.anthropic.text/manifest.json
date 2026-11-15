@@ -1,0 +1,437 @@
+{
+  "apiVersion": 1,
+  "kind": "protocol",
+  "id": "protocol.anthropic.text",
+  "name": "Anthropic Claude Text",
+  "version": "1.0.0",
+  "shotloom": ">=0.9.1, <1.0.0",
+  "category": "textGeneration",
+  "iconId": "anthropic",
+  "engine": "declarative",
+  "protocols": [
+    {
+      "id": "operation.0de5f93999e75709",
+      "description": "Claude Opus 5.5",
+      "mode": {
+        "endpoint": {
+          "method": "POST",
+          "path": "/v1/messages",
+          "scope": "root"
+        },
+        "agent": {
+          "transport": "anthropic-messages",
+          "supportsTools": true
+        },
+        "auth": {
+          "type": "header",
+          "name": "x-api-key"
+        },
+        "headers": {
+          "anthropic-version": "2023-06-01"
+        },
+        "requestTemplate": {
+          "model": "{{model}}",
+          "system": "{{system}}",
+          "messages": "{{nonSystemMessages}}",
+          "max_tokens": "{{params.maxTokens}}"
+        },
+        "resultTextPath": "content.0.text",
+        "id": "text-generation",
+        "label": "文本生成",
+        "inputConstraints": {
+          "text": {
+            "maxTokens": 1000000
+          }
+        },
+        "outputConstraints": {
+          "supportsStreaming": true,
+          "supportsStructuredOutput": true,
+          "maxTokens": 128000
+        },
+        "capabilities": [
+          "reasoning"
+        ],
+        "params": [
+          {
+            "key": "maxTokens",
+            "label": "最大长度",
+            "type": "select",
+            "default": 8192,
+            "numeric": true,
+            "options": [
+              4096,
+              8192,
+              16384
+            ],
+            "labelKey": "catalog.label.c6f7a87b1e"
+          }
+        ],
+        "labelKey": "catalog.label.9612898b53"
+      }
+    }
+  ],
+  "providers": [],
+  "author": "Shotloom Contributors",
+  "defaultConnections": [
+    {
+      "id": "anthropic",
+      "name": "Anthropic Claude",
+      "descriptionKey": "provider.copy.61d2e219a5",
+      "iconId": "anthropic",
+      "baseUrl": "https://api.anthropic.com",
+      "baseUrlRequired": false,
+      "engine": "declarative",
+      "pluginId": "protocol.anthropic.text",
+      "presetId": "protocol",
+      "models": [
+        {
+          "id": "claude-opus-5-5",
+          "name": "Claude Opus 5.5",
+          "type": "textGeneration",
+          "sortOrder": 4,
+          "enabled": true,
+          "defaultMode": "text-generation",
+          "protocolPlugin": "protocol.anthropic.text",
+          "protocolModes": {
+            "text-generation": "operation.0de5f93999e75709",
+            "semantic-split": "operation.0de5f93999e75709",
+            "storyboard-generation": "operation.0de5f93999e75709"
+          },
+          "modes": [
+            {
+              "id": "text-generation",
+              "label": "文本生成",
+              "inputConstraints": {
+                "text": {
+                  "maxTokens": 1000000
+                }
+              },
+              "outputConstraints": {
+                "supportsStreaming": true,
+                "supportsStructuredOutput": true,
+                "maxTokens": 128000
+              },
+              "capabilities": [
+                "reasoning"
+              ],
+              "params": [
+                {
+                  "key": "maxTokens",
+                  "label": "最大长度",
+                  "type": "select",
+                  "default": 8192,
+                  "numeric": true,
+                  "options": [
+                    4096,
+                    8192,
+                    16384
+                  ],
+                  "labelKey": "catalog.label.c6f7a87b1e"
+                }
+              ],
+              "labelKey": "catalog.label.9612898b53"
+            },
+            {
+              "id": "semantic-split",
+              "label": "语义拆分",
+              "inputConstraints": {
+                "text": {
+                  "maxTokens": 1000000
+                }
+              },
+              "outputConstraints": {
+                "supportsStreaming": true,
+                "supportsStructuredOutput": true,
+                "maxTokens": 128000
+              },
+              "capabilities": [
+                "structured-output"
+              ],
+              "params": [
+                {
+                  "key": "maxTokens",
+                  "label": "最大长度",
+                  "type": "select",
+                  "default": 8192,
+                  "numeric": true,
+                  "options": [
+                    4096,
+                    8192,
+                    16384
+                  ],
+                  "labelKey": "catalog.label.c6f7a87b1e"
+                }
+              ],
+              "labelKey": "catalog.label.8f963ce0de"
+            },
+            {
+              "id": "storyboard-generation",
+              "label": "分镜生成",
+              "inputConstraints": {
+                "text": {
+                  "maxTokens": 1000000
+                }
+              },
+              "outputConstraints": {
+                "supportsStreaming": true,
+                "supportsStructuredOutput": true,
+                "maxTokens": 128000
+              },
+              "capabilities": [
+                "structured-output"
+              ],
+              "params": [
+                {
+                  "key": "maxTokens",
+                  "label": "最大长度",
+                  "type": "select",
+                  "default": 8192,
+                  "numeric": true,
+                  "options": [
+                    4096,
+                    8192,
+                    16384
+                  ],
+                  "labelKey": "catalog.label.c6f7a87b1e"
+                }
+              ],
+              "labelKey": "catalog.label.8c31cdcb5d"
+            }
+          ]
+        },
+        {
+          "id": "claude-sonnet-5-5",
+          "name": "Claude Sonnet 5.5",
+          "type": "textGeneration",
+          "sortOrder": 5,
+          "enabled": true,
+          "defaultMode": "text-generation",
+          "protocolPlugin": "protocol.anthropic.text",
+          "protocolModes": {
+            "text-generation": "operation.0de5f93999e75709",
+            "semantic-split": "operation.0de5f93999e75709",
+            "storyboard-generation": "operation.0de5f93999e75709"
+          },
+          "modes": [
+            {
+              "id": "text-generation",
+              "label": "文本生成",
+              "inputConstraints": {
+                "text": {
+                  "maxTokens": 1000000
+                }
+              },
+              "outputConstraints": {
+                "supportsStreaming": true,
+                "supportsStructuredOutput": true,
+                "maxTokens": 128000
+              },
+              "capabilities": [
+                "reasoning"
+              ],
+              "params": [
+                {
+                  "key": "maxTokens",
+                  "label": "最大长度",
+                  "type": "select",
+                  "default": 8192,
+                  "numeric": true,
+                  "options": [
+                    4096,
+                    8192,
+                    16384
+                  ],
+                  "labelKey": "catalog.label.c6f7a87b1e"
+                }
+              ],
+              "labelKey": "catalog.label.9612898b53"
+            },
+            {
+              "id": "semantic-split",
+              "label": "语义拆分",
+              "inputConstraints": {
+                "text": {
+                  "maxTokens": 1000000
+                }
+              },
+              "outputConstraints": {
+                "supportsStreaming": true,
+                "supportsStructuredOutput": true,
+                "maxTokens": 128000
+              },
+              "capabilities": [
+                "structured-output"
+              ],
+              "params": [
+                {
+                  "key": "maxTokens",
+                  "label": "最大长度",
+                  "type": "select",
+                  "default": 8192,
+                  "numeric": true,
+                  "options": [
+                    4096,
+                    8192,
+                    16384
+                  ],
+                  "labelKey": "catalog.label.c6f7a87b1e"
+                }
+              ],
+              "labelKey": "catalog.label.8f963ce0de"
+            },
+            {
+              "id": "storyboard-generation",
+              "label": "分镜生成",
+              "inputConstraints": {
+                "text": {
+                  "maxTokens": 1000000
+                }
+              },
+              "outputConstraints": {
+                "supportsStreaming": true,
+                "supportsStructuredOutput": true,
+                "maxTokens": 128000
+              },
+              "capabilities": [
+                "structured-output"
+              ],
+              "params": [
+                {
+                  "key": "maxTokens",
+                  "label": "最大长度",
+                  "type": "select",
+                  "default": 8192,
+                  "numeric": true,
+                  "options": [
+                    4096,
+                    8192,
+                    16384
+                  ],
+                  "labelKey": "catalog.label.c6f7a87b1e"
+                }
+              ],
+              "labelKey": "catalog.label.8c31cdcb5d"
+            }
+          ]
+        },
+        {
+          "id": "claude-haiku-5-5",
+          "name": "Claude Haiku 5.5",
+          "type": "textGeneration",
+          "sortOrder": 105,
+          "enabled": true,
+          "defaultMode": "text-generation",
+          "protocolPlugin": "protocol.anthropic.text",
+          "protocolModes": {
+            "text-generation": "operation.0de5f93999e75709",
+            "semantic-split": "operation.0de5f93999e75709",
+            "storyboard-generation": "operation.0de5f93999e75709"
+          },
+          "modes": [
+            {
+              "id": "text-generation",
+              "label": "文本生成",
+              "inputConstraints": {},
+              "outputConstraints": {
+                "supportsStreaming": true
+              },
+              "capabilities": [
+                "reasoning"
+              ],
+              "params": [
+                {
+                  "key": "maxTokens",
+                  "label": "最大长度",
+                  "type": "select",
+                  "default": 8192,
+                  "numeric": true,
+                  "options": [
+                    4096,
+                    8192,
+                    16384
+                  ],
+                  "labelKey": "catalog.label.c6f7a87b1e"
+                }
+              ],
+              "labelKey": "catalog.label.9612898b53"
+            },
+            {
+              "id": "semantic-split",
+              "label": "语义拆分",
+              "inputConstraints": {},
+              "outputConstraints": {
+                "supportsStreaming": true
+              },
+              "capabilities": [
+                "structured-output"
+              ],
+              "params": [
+                {
+                  "key": "maxTokens",
+                  "label": "最大长度",
+                  "type": "select",
+                  "default": 8192,
+                  "numeric": true,
+                  "options": [
+                    4096,
+                    8192,
+                    16384
+                  ],
+                  "labelKey": "catalog.label.c6f7a87b1e"
+                }
+              ],
+              "labelKey": "catalog.label.8f963ce0de"
+            },
+            {
+              "id": "storyboard-generation",
+              "label": "分镜生成",
+              "inputConstraints": {},
+              "outputConstraints": {
+                "supportsStreaming": true
+              },
+              "capabilities": [
+                "structured-output"
+              ],
+              "params": [
+                {
+                  "key": "maxTokens",
+                  "label": "最大长度",
+                  "type": "select",
+                  "default": 8192,
+                  "numeric": true,
+                  "options": [
+                    4096,
+                    8192,
+                    16384
+                  ],
+                  "labelKey": "catalog.label.c6f7a87b1e"
+                }
+              ],
+              "labelKey": "catalog.label.8c31cdcb5d"
+            }
+          ]
+        }
+      ],
+      "enabled": true,
+      "builtin": true,
+      "preserveModelIds": true,
+      "sortOrder": 4
+    }
+  ],
+  "legacyProviders": [
+    {
+      "pluginId": "builtin.anthropic",
+      "version": "1.0.0",
+      "provider": {
+        "id": "anthropic",
+        "name": "Anthropic Claude",
+        "descriptionKey": "provider.copy.61d2e219a5",
+        "iconId": "anthropic",
+        "baseUrl": "https://api.anthropic.com",
+        "baseUrlRequired": false,
+        "engine": "declarative",
+        "models": []
+      }
+    }
+  ]
+}

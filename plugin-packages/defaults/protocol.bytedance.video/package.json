@@ -1,0 +1,11 @@
+{
+  "name": "@shotloom/shotloom-plugin-bytedance-video",
+  "version": "1.0.0",
+  "shotloomPlugin": "manifest.json",
+  "files": [
+    "manifest.json",
+    "README.md",
+    "docs",
+    "runtime"
+  ]
+}

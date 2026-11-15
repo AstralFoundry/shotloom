@@ -1,13 +1,13 @@
 import { catalogLabel, t } from '../../i18n/index';
 import { isRecord } from '../../utils/typeGuards';
 /**
- * ModelCatalog — 模型目录 v2 解析与查询。
+ * ModelCatalog — 已安装插件的模型能力解析与查询。
  *
- * 框架无关的纯 TypeScript 模块。模型能力只来自 model-catalog-v2/ 的厂商文件。
+ * 框架无关的纯 TypeScript 模块。模型能力只来自已安装插件和用户保存的连接。
  * 不依赖 Vue、Vue Flow 或任何 Store。
  */
 
-import { modelCatalogV2 } from '../../config/model-catalog-v2/index';
+import { registeredModels, registeredProviders, providerPluginRevision, type PluginReference } from '../provider/plugins/ProviderPlugins';
 import { systemVoiceOptionLabels } from '../../config/systemVoices';
 import { defaultGenerationModel } from '@/config/defaultGenerationModels';
 import {
@@ -117,10 +117,19 @@ export interface CatalogMode {
   pollStatusMap?: Record<string, string>;
   auth?: { type: 'bearer' | 'header' | 'body' | 'none'; name?: string; prefix?: string };
   headers?: Record<string, string>;
+  /** Explicit API enum conversions, applied only to declared request parameter values. */
+  requestValueMaps?: Record<string, Record<string, unknown>> | undefined;
   requestTemplate?: unknown;
   contentTemplate?: unknown;
   taskIdPath?: string;
   taskRequestTemplate?: unknown;
+  /** Some queue APIs expose the completed JSON at a separate endpoint. */
+  taskResultEndpoint?: CatalogEndpoint | undefined;
+  cancelEndpoint?: CatalogEndpoint | undefined;
+  cancelRequestTemplate?: unknown;
+  /** Omitted status is pending only when the response identifies the same task. */
+  pendingWhenStatusMissing?: boolean | undefined;
+  progressScale?: number | undefined;
   statusPath?: string;
   progressPath?: string;
   errorPath?: string;
@@ -163,6 +172,7 @@ export interface CatalogMode {
 }
 
 export interface CatalogModel {
+  pluginRef?: PluginReference;
   id: string;
   name: string;
   provider: string;
@@ -349,6 +359,13 @@ export function catalogModelValidationErrors(
       if (!String(mode.taskIdPath || '').trim()) errors.push(t('catalog.validation.taskIdPath', { value0: location }));
       if (!String(mode.statusPath || '').trim()) errors.push(t('catalog.validation.statusPath', { value0: location }));
     }
+    for (const [key, methods] of [['taskResultEndpoint', TASK_ENDPOINT_METHODS], ['cancelEndpoint', GENERATION_ENDPOINT_METHODS]] as const) {
+      const endpoint = mode?.[key];
+      if (endpoint && (!endpoint.path?.startsWith('/') || endpoint.path.startsWith('//') || !methods.has(endpoint.method) || !ENDPOINT_SCOPES.has(endpoint.scope) || !endpoint.path.includes('{taskId}'))) {
+        errors.push(t('plugins.invalidTaskEndpoint', { endpoint: `${location}.${key}` }));
+      }
+    }
+    if (mode?.progressScale !== undefined && (!Number.isFinite(mode.progressScale) || mode.progressScale <= 0)) errors.push(t('plugins.invalidProgressScale'));
     if (!mode?.resultTextPath && !mode?.resultUrlPath && !mode?.resultBase64Path && !mode?.resultHexPath && !mode?.resultBody && !mode?.resultEndpoint) {
       errors.push(t('catalog.validation.resultSource', { value0: location }));
     }
@@ -361,6 +378,7 @@ export function catalogModelValidationErrors(
 
 export interface ModelRuntimeContract {
   catalogVersion: number;
+  pluginRef?: PluginReference | undefined;
   nodeType: string;
   modelId: string;
   upstreamModel: string;
@@ -402,10 +420,19 @@ export interface ModelRuntimeContract {
   pollStatusMap?: Record<string, string> | undefined;
   auth?: CatalogMode['auth'] | undefined;
   headers?: Record<string, string> | undefined;
+  /** Explicit API enum conversions, applied only to declared request parameter values. */
+  requestValueMaps?: Record<string, Record<string, unknown>> | undefined;
   requestTemplate?: unknown;
   contentTemplate?: unknown;
   taskIdPath?: string | undefined;
   taskRequestTemplate?: unknown;
+  /** Some queue APIs expose the completed JSON at a separate endpoint. */
+  taskResultEndpoint?: CatalogEndpoint | undefined;
+  cancelEndpoint?: CatalogEndpoint | undefined;
+  cancelRequestTemplate?: unknown;
+  /** Omitted status is pending only when the response identifies the same task. */
+  pendingWhenStatusMissing?: boolean | undefined;
+  progressScale?: number | undefined;
   statusPath?: string | undefined;
   progressPath?: string | undefined;
   errorPath?: string | undefined;
@@ -488,9 +515,18 @@ export interface ModelInputCapability {
   pollStatusMap?: Record<string, string> | undefined;
   auth?: CatalogMode['auth'] | undefined;
   headers?: Record<string, string> | undefined;
+  /** Explicit API enum conversions, applied only to declared request parameter values. */
+  requestValueMaps?: Record<string, Record<string, unknown>> | undefined;
   requestTemplate?: unknown;
   taskIdPath?: string | undefined;
   taskRequestTemplate?: unknown;
+  /** Some queue APIs expose the completed JSON at a separate endpoint. */
+  taskResultEndpoint?: CatalogEndpoint | undefined;
+  cancelEndpoint?: CatalogEndpoint | undefined;
+  cancelRequestTemplate?: unknown;
+  /** Omitted status is pending only when the response identifies the same task. */
+  pendingWhenStatusMissing?: boolean | undefined;
+  progressScale?: number | undefined;
   statusPath?: string | undefined;
   progressPath?: string | undefined;
   errorPath?: string | undefined;
@@ -522,22 +558,26 @@ const defaultCap: ModelInputCapability = {
 };
 
 class ModelCatalog {
-  models: CatalogModel[];
-  private modelMap: Map<string, CatalogModel>;
-
-  constructor() {
-    const raw = modelCatalogV2 as unknown as { version: number; models: CatalogModel[] };
-    if (raw.version !== 2) throw new Error(t('catalog.validation.version'));
-    this.models = (raw.models || []).filter((m) => m.enabled !== false);
-
-    // 目录声明与运行时消费同一份客观执行契约；一条声明不完整就不能启动。
-    for (const model of this.models) {
+  private currentModels: CatalogModel[] = [];
+  private currentMap = new Map<string, CatalogModel>();
+  private registryRevision = -1;
+  private refresh() {
+    if (this.registryRevision === providerPluginRevision()) return;
+    const models = registeredModels().filter(model => model.enabled !== false);
+    const seen = new Set<string>();
+    for (const model of models) {
       const errors = catalogModelValidationErrors(model, { requireProvider: true });
+      if (seen.has(model.id)) errors.push(`Duplicate model id: ${model.id}`);
       if (errors.length) throw new Error(errors.join('\n'));
+      seen.add(model.id);
     }
-
-    this.modelMap = new Map(this.models.map((m) => [m.id, m]));
+    this.currentModels = models;
+    this.currentMap = new Map(models.map(model => [model.id, model]));
+    this.registryRevision = providerPluginRevision();
   }
+  get models(): CatalogModel[] { this.refresh(); return this.currentModels; }
+  private get modelMap(): Map<string, CatalogModel> { this.refresh(); return this.currentMap; }
+  constructor() { this.refresh(); }
 
   getModels(providerId = ''): CatalogModel[] {
     return this.models.filter((model) => !providerId || model.provider === providerId);
@@ -711,8 +751,22 @@ class ModelCatalog {
 
   private contractFor(model: CatalogModel, mode: CatalogMode): ModelRuntimeContract {
     const cap = this.capabilityFromMode(mode);
+    const upstream = model.upstreamModel || model.id;
+    const segments = upstream.split('/');
+    const bindEndpoint = <T extends CatalogEndpoint>(endpoint: T): T => {
+      if (endpoint.path.includes('{modelPath}') || endpoint.path.includes('{modelOwner}') || endpoint.path.includes('{modelName}')) {
+        if (segments.some(segment => !segment || segment === '.' || segment === '..') || ((endpoint.path.includes('{modelOwner}') || endpoint.path.includes('{modelName}')) && segments.length < 2)) {
+          throw new Error(t('plugins.invalidModelPath', { model: upstream }));
+        }
+      }
+      return { ...endpoint, path: endpoint.path.replaceAll('{model}', encodeURIComponent(upstream))
+        .replaceAll('{modelPath}', segments.map(encodeURIComponent).join('/'))
+        .replaceAll('{modelOwner}', encodeURIComponent(segments[0] || ''))
+        .replaceAll('{modelName}', encodeURIComponent(segments[1] || '')) };
+    };
     return {
       catalogVersion: 2,
+      pluginRef: model.pluginRef || registeredProviders().find(provider => provider.id === model.provider)?.plugin,
       nodeType: model.type,
       modelId: model.id,
       upstreamModel: model.upstreamModel || model.id,
@@ -722,8 +776,8 @@ class ModelCatalog {
         ? [...mode.inputSlots]
         : (this.semanticInputMode(mode, model.type) ? slotsForInputMode(this.semanticInputMode(mode, model.type)!) : []),
       provider: model.provider,
-      endpoint: { ...mode.endpoint },
-      taskEndpoint: mode.taskEndpoint ? { ...mode.taskEndpoint } : null,
+      endpoint: bindEndpoint(mode.endpoint),
+      taskEndpoint: mode.taskEndpoint ? bindEndpoint(mode.taskEndpoint) : null,
       isAsync: mode.isAsync === true,
       inputFormat: mode.inputFormat || 'fields',
       requestFields: { ...mode.requestFields },
@@ -731,6 +785,8 @@ class ModelCatalog {
       outputConstraints: structuredClone(mode.outputConstraints || {}),
       agent: mode.agent ? structuredClone(mode.agent) : undefined,
       ...cap,
+      taskResultEndpoint: mode.taskResultEndpoint ? bindEndpoint(mode.taskResultEndpoint) : undefined,
+      cancelEndpoint: mode.cancelEndpoint ? bindEndpoint(mode.cancelEndpoint) : undefined,
     };
   }
 
@@ -768,9 +824,13 @@ class ModelCatalog {
       pollStatusMap: mode.pollStatusMap,
       auth: mode.auth ? { ...mode.auth } : undefined,
       headers: { ...mode.headers },
+      requestValueMaps: mode.requestValueMaps ? structuredClone(mode.requestValueMaps) : undefined,
       requestTemplate: mode.requestTemplate === undefined ? undefined : structuredClone(mode.requestTemplate),
       taskIdPath: mode.taskIdPath,
       taskRequestTemplate: mode.taskRequestTemplate === undefined ? undefined : structuredClone(mode.taskRequestTemplate),
+      cancelRequestTemplate: mode.cancelRequestTemplate === undefined ? undefined : structuredClone(mode.cancelRequestTemplate),
+      pendingWhenStatusMissing: mode.pendingWhenStatusMissing,
+      progressScale: mode.progressScale,
       statusPath: mode.statusPath,
       progressPath: mode.progressPath,
       errorPath: mode.errorPath,

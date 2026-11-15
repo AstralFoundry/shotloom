@@ -1,4 +1,7 @@
 import { t } from '../../i18n/index.ts';
+import bfl from '@lobehub/icons-static-svg/icons/bfl.svg';
+import runway from '@lobehub/icons-static-svg/icons/runway.svg';
+import vidu from '@lobehub/icons-static-svg/icons/vidu-color.svg';
 import adobeFirefly from '@lobehub/icons-static-svg/icons/adobefirefly-color.svg';
 import anthropic from '@lobehub/icons-static-svg/icons/anthropic.svg';
 import claude from '@lobehub/icons-static-svg/icons/claude-color.svg';
@@ -70,6 +73,9 @@ export const PROVIDER_ICON_OPTIONS: readonly ProviderIconOption[] = Object.freez
   { id: 'runninghub', label: 'RunningHub', src: runninghub },
   { id: 'together', label: 'Together AI', src: together },
   { id: 'replicate', label: 'Replicate', src: replicate },
+  { id: 'bfl', label: 'Black Forest Labs', src: bfl },
+  { id: 'runway', label: 'Runway', src: runway },
+  { id: 'vidu', label: 'Vidu', src: vidu },
   { id: 'fal', label: 'fal.ai', src: fal },
   { id: 'huggingface', label: 'Hugging Face', src: huggingface },
   { id: 'stability', label: 'Stability AI', src: stability },
