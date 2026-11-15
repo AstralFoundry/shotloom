@@ -21,6 +21,7 @@ jobs:
       tag: ${{ steps.release.outputs.tag }}
       version: ${{ steps.release.outputs.version }}
       matrix: ${{ steps.release.outputs.matrix }}
+      mobileMatrix: ${{ steps.release.outputs.mobileMatrix }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -185,9 +186,113 @@ jobs:
           security delete-keychain "$RUNNER_TEMP/shotloom-signing.keychain-db"
           rm -f "$RUNNER_TEMP/apple-certificate.p12"
 
+  mobile:
+    name: Package ${{ matrix.platform }}
+    needs: [metadata, verify]
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.metadata.outputs.mobileMatrix) }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: mobile/src-tauri
+          key: ${{ matrix.target }}
+      - name: Configure mobile version and cloud origin
+        env:
+          RELEASE_TAG: ${{ needs.metadata.outputs.tag }}
+          SHOTLOOM_CLOUD_URL: ${{ vars.SHOTLOOM_CLOUD_URL }}
+        run: node scripts/mobile-release.mjs
+      - name: Generate mobile icons from the product icon
+        run: node node_modules/@tauri-apps/cli/tauri.js icon src-tauri/icons/app.png --output mobile/src-tauri/icons
+
+      - uses: actions/setup-java@v4
+        if: matrix.mobile == 'android'
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@v3
+        if: matrix.mobile == 'android'
+        with:
+          packages: platform-tools
+      - name: Install Android SDK and NDK
+        if: matrix.mobile == 'android'
+        run: |
+          sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;28.2.13676358"
+          echo "NDK_HOME=$ANDROID_HOME/ndk/28.2.13676358" >> "$GITHUB_ENV"
+      - name: Build Android ARM64 APK
+        if: matrix.mobile == 'android'
+        working-directory: mobile
+        run: |
+          npm run tauri -- android init --ci --skip-targets-install
+          npm run tauri -- android build --apk --target aarch64 --ci -- --locked
+      - name: Align, sign and verify Android APK
+        if: matrix.mobile == 'android'
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          if [[ -z "$ANDROID_KEYSTORE_BASE64" || -z "$ANDROID_KEYSTORE_PASSWORD" ]]; then
+            echo "::error::Configure ANDROID_KEYSTORE_BASE64 and ANDROID_KEYSTORE_PASSWORD; the keystore alias must be shotloom."
+            exit 1
+          fi
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/shotloom-android.jks"
+          mapfile -t apks < <(find mobile/src-tauri/gen/android/app/build/outputs/apk -type f -name '*-release-unsigned.apk')
+          if (( ${#apks[@]} != 1 )); then
+            echo "::error::Expected exactly one unsigned release APK."
+            exit 1
+          fi
+          tools="$ANDROID_HOME/build-tools/36.0.0"
+          mkdir -p mobile/build
+          "$tools/zipalign" -P 16 -f 4 "${apks[0]}" "$RUNNER_TEMP/shotloom-aligned.apk"
+          "$tools/apksigner" sign --ks "$RUNNER_TEMP/shotloom-android.jks" \
+            --ks-key-alias shotloom --ks-pass env:ANDROID_KEYSTORE_PASSWORD \
+            --key-pass env:ANDROID_KEYSTORE_PASSWORD --out mobile/build/Shotloom.apk \
+            "$RUNNER_TEMP/shotloom-aligned.apk"
+          "$tools/apksigner" verify --verbose mobile/build/Shotloom.apk
+          "$tools/zipalign" -c -P 16 4 mobile/build/Shotloom.apk
+
+      - name: Build unsigned iOS ARM64 IPA
+        if: matrix.mobile == 'ios'
+        working-directory: mobile
+        run: |
+          npm run tauri -- ios init --ci --skip-targets-install
+          npm run tauri -- ios build --target aarch64 --no-sign --ci -- --locked
+
+      - name: Stage mobile release assets
+        env:
+          RELEASE_TAG: ${{ needs.metadata.outputs.tag }}
+          RELEASE_PLATFORM: ${{ matrix.platform }}
+          BUNDLE_DIR: ${{ matrix.mobile == 'android' && 'mobile/build' || 'mobile/src-tauri/gen/apple' }}
+          ASSET_DIR: release-assets
+        run: node scripts/desktop-release.mjs stage
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.platform }}
+          path: release-assets/
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+      - name: Remove Android signing material
+        if: always() && matrix.mobile == 'android'
+        run: rm -f "$RUNNER_TEMP/shotloom-android.jks" "$RUNNER_TEMP/shotloom-aligned.apk"
+
   publish:
     name: Verify assets and publish
-    needs: [metadata, build]
+    needs: [metadata, build, mobile]
     runs-on: ubuntu-latest
     permissions:
       contents: write

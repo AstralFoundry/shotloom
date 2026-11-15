@@ -26,7 +26,6 @@ export interface SkillListItem {
 export interface SkillsEditorState {
   draft: SkillDraft;
   isNew: boolean;
-  modifiedFields: string[];
   dirty: boolean;
 }
 
@@ -45,7 +44,6 @@ export interface SkillsController extends SkillEditorController {
   createSkill: () => void;
   toggleSkill: (id: string) => void;
   deleteSkill: (id: string) => void;
-  resetSkill: (id: string) => void;
   importFiles: (files: File[]) => void;
   exportSelected: () => void;
 }
@@ -115,6 +113,7 @@ export function SkillsView({ data, controller }: SkillsViewProps) {
           <div className="skills-list-summary">
             <Checkbox
               className="skills-select-all"
+              disabled={!data.items.length}
               checked={allSelected}
               onChange={() => controller.setSelection(
                 allSelected ? [] : data.items.map((item) => item.id),
@@ -147,7 +146,6 @@ export function SkillsView({ data, controller }: SkillsViewProps) {
               >
                 <span className="skills-row-name">
                   <strong>{item.name}</strong>
-                  {item.builtIn && <span>{t("ui.SkillsView.text.09ceea76")}</span>}
                   <span>v{item.version || 1}</span>
                   {item.category && <span>{skillDisplayCategory(item)}</span>}
                 </span>
@@ -160,29 +158,29 @@ export function SkillsView({ data, controller }: SkillsViewProps) {
                 <span className="skills-row-description">{skillDisplayDescription(item) || t("ui.SkillsView.text.6dd28f40")}</span>
                 <span className="skills-row-id">{item.id}</span>
               </button>
-              <Switch
-                className="skills-enable-toggle"
-                size="small"
-                checked={item.enabled !== false}
-                aria-label={t("ui.promptReferenceEditor.text.dca59cc0", { value0: item.enabled === false ? t("ui.SkillsView.text.d4e9ca3d") : t("ui.SkillsView.text.d989e551"), value1: item.name })}
-                onChange={() => controller.toggleSkill(item.id)}
-              />
-              <button
-                className={`icon-action${item.builtIn ? "" : " danger"}`}
-                title={item.builtIn ? t("ui.CameraControlPanel.text.a191935b") : t("ui.MaterialGrid.title.3755f56f")}
-                onClick={() => (item.builtIn
-                  ? controller.resetSkill(item.id)
-                  : controller.deleteSkill(item.id))}
-              >
-                <IconSymbol name={item.builtIn ? "refresh" : "trash"} />
-              </button>
+              <div className="skills-row-actions">
+                <Switch
+                  className="skills-enable-toggle"
+                  size="small"
+                  checked={item.enabled !== false}
+                  aria-label={t("ui.promptReferenceEditor.text.dca59cc0", { value0: item.enabled === false ? t("ui.SkillsView.text.d4e9ca3d") : t("ui.SkillsView.text.d989e551"), value1: item.name })}
+                  onChange={() => controller.toggleSkill(item.id)}
+                />
+                <button
+                  className="icon-action danger"
+                  title={t("ui.MaterialGrid.title.3755f56f")}
+                  onClick={() => controller.deleteSkill(item.id)}
+                >
+                  <IconSymbol name="trash" />
+                </button>
+              </div>
             </div>
           ))}
           {!data.items.length && (
             <Empty
               className="skills-empty"
               image={Empty.PRESENTED_IMAGE_SIMPLE}
-              description={t("ui.SkillsView.text.51c77281")}
+              description={t(data.query.trim() ? "ui.SkillsView.text.51c77281" : "skill.empty.user")}
             />
           )}
         </section>
@@ -205,7 +203,6 @@ export function SkillsView({ data, controller }: SkillsViewProps) {
             <SkillEditorPanel
               draft={editor.draft}
               isNew={editor.isNew}
-              modifiedFields={editor.modifiedFields}
               dirty={editor.dirty}
               controller={controller}
             />

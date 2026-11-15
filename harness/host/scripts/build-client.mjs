@@ -5,6 +5,7 @@ import { createHash } from 'node:crypto';
 import { build } from 'esbuild';
 import { orderByModuleGraph, bootInjections } from '@deepseek-ai/dsh-client-modules';
 import { renderIndexInjections } from '@deepseek-ai/dsh-host-webserver';
+import { adaptGatewayFailureUi } from './gateway-failure-ui.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const dist = join(root, 'client-dist');
@@ -27,6 +28,7 @@ while (pending.length) {
   };
   if (!manifest) throw new Error(`${id} has no official client manifest`);
   let bytes = await readFile(join(pkgRoot, 'lib/client.js'));
+  bytes = Buffer.from(adaptGatewayFailureUi(id, bytes.toString('utf8')));
   // 0.2.1-alpha.2 has no slot for ContextMeter. Keep the official component,
   // hooks and dialog, but portal it out of the composer's scrolling layer.
   // WKWebView can leave fixed descendants of that layer invisible until clicked.
@@ -130,7 +132,7 @@ const buildOptions = {
     // The native client supplies static plugin configurations. The loader's
     // unused YAML !!js evaluator otherwise runs new Function at import time,
     // which violates the product CSP before the official UI can initialize.
-    builder.onLoad({ filter: /@deepseek-ai\/cordis-plugin-loader\/lib\/index\.js$/ }, async args => {
+    builder.onLoad({ filter: /@deepseek-ai[\\/]cordis-plugin-loader[\\/]lib[\\/]index\.js$/ }, async args => {
       const source = await readFile(args.path, 'utf8');
       const evaluator = /const evaluate = new Function\("ctx", "expr", `[^`]*`\);/g;
       if ([...source.matchAll(evaluator)].length !== 1) throw new Error('Official loader expression seam changed; review CSP compatibility');
@@ -148,6 +150,9 @@ await build(buildOptions);
 await writeFile(join(dist, 'upstream.css'), await readFile(join(dist, 'client.css'), 'utf8'));
 await build(buildOptions);
 await cp(join(root, 'client/style.css'), join(dist, 'product.css'));
+if (/evaluate = new Function\("ctx", "expr"/.test(await readFile(join(dist, 'client.js'), 'utf8'))) {
+  throw new Error('Official loader still contains its import-time evaluator; the client cannot run under the product CSP');
+}
 await mkdir(join(root, '../../renderer/public/harness'), { recursive: true });
 await cp(dist, join(root, '../../renderer/public/harness'), { recursive: true });
 console.log(`Built official chat carrier: ${rows.length} client modules`);

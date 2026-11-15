@@ -320,12 +320,14 @@ test('通用设置的 General 与共享素材的 Shared 按语境区分', async 
     const { renderToStaticMarkup } = await import('react-dom/server');
     const { SettingsPanel } = await instance.load('app/views/SettingsPanel.tsx');
     const markup = renderToStaticMarkup(createElement(SettingsPanel, {
-      data: { locale: 'en-US', projectRootDir: '/projects', downloadDir: '', pollInterval: 1500,
+      data: { locale: 'en-US', projectRootDir: '/projects', downloadDir: '',
         projectModels: {}, agentModels: {}, availableModels: {}, agentToggles: {},
         providers: [], skills: [], shortcutLabels: {} }, controller: {},
     }));
     assert.match(markup, />General</);
     assert.doesNotMatch(markup, />Shared</);
+    assert.doesNotMatch(markup, /ant-input-number|Polling interval/);
+    assert.equal((markup.match(/aria-current="page"/g) || []).length, 1);
     const { t } = await instance.load('i18n/index');
     assert.equal(t('ui.resourceLibraryAdapter.text.1a0fdce8'), 'Shared');
   } finally { await instance.dispose(); }
@@ -776,7 +778,7 @@ test('技能分配角色和厂商图标名称随语言变化，执行身份、�
   assert.deepEqual(snapshots[1], snapshots[0]);
 });
 
-test('内置 Skill 用途说明完整双语展示，用户修改、技能正文与导出数据保持原值', async () => {
+test('内置 Skill 用途说明完整双语展示，系统正文不接受用户覆盖且不进入导出数据', async () => {
   const snapshots = [];
   for (const locale of ['zh-CN', 'en-US']) {
     const instance = await createRendererEnv({ storage: new Map([['shotloom:locale', locale]]) });
@@ -809,8 +811,8 @@ test('内置 Skill 用途说明完整双语展示，用户修改、技能正文�
       const customized = { ...builtInSkills[0], description: '用户修改的用途', instructions: '# 用户正文 {name}' };
       const catalog = withBuiltInSkills({ skills: [customized] });
       const saved = withoutBuiltInSkills(catalog);
-      assert.equal(saved.skills.find(skill => skill.id === customized.id).description, customized.description);
-      assert.equal(saved.skills.find(skill => skill.id === customized.id).instructions, customized.instructions);
+      assert.equal(catalog.skills.find(skill => skill.id === customized.id).instructions, builtInSkills[0].instructions);
+      assert.equal(saved.skills.some(skill => skill.id === customized.id), false);
       snapshots.push({ builtInSkills, saved });
     } finally { await instance.dispose(); }
   }

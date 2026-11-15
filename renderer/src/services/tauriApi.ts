@@ -761,6 +761,18 @@ export function createTauriApi(browserFallback: BrowserFallback): BrowserFallbac
   return {
     ...browserFallback,
     platform,
+    nativeMedia: {
+      clipboardWrite: (snapshotId: string) => invoke('cloud_clipboard_write_sentinel', { snapshotId }),
+      workspace: () => invoke<{ id: string; path: string }>('cloud_media_workspace'),
+      release: (id: string) => invoke('cloud_media_release', { id }),
+      download: (id: string, url: string, extension: string) => invoke<NativeFileRecord>('cloud_media_download', { id, url, extension }),
+      upload: (source: string, url: string, contentType: string) => invoke<{ size: number }>('cloud_media_upload', { source, url, contentType }),
+      pencil: (source: string, target: string) => command('file:apply-colored-pencil', source, target),
+      hasAudio: (source: string) => command('file:has-audio', source),
+      separate: (source: string, audio: string, video: string) => command('file:separate-audio', source, audio, video),
+      concat: (sources: string[], target: string) => command('file:concat-videos', sources, target),
+      render: (project: unknown, target: string, requestId: string) => command('file:export-video-project', target, project, requestId),
+    },
     clipboard: {
       ...browserFallback.clipboard,
       stageWorkflow: (payload: NativeRecord) => command('clipboard:stage-workflow', payload),
@@ -808,6 +820,7 @@ export function createTauriApi(browserFallback: BrowserFallback): BrowserFallbac
       openFolderDialog: () => projectDialog(true),
       openFolder: (directory: string) => command('project:open-folder', directory),
       readFile: (path: string) => command('project:read-file', path),
+      readBundle: (directory: string) => invoke('project_read_bundle', { directory }),
       getEditorSnapshot: (directory: string, nodeId: string) => invoke("editor_snapshot_get", { directory, nodeId }),
       setEditorSnapshot: (directory: string, nodeId: string, snapshot: unknown) => invoke("editor_snapshot_set", { directory, nodeId, snapshot }),
       getEditorRecord: (directory: string, nodeId: string, key: string) => invoke("editor_record_get", { directory, nodeId, key }),

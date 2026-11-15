@@ -4,6 +4,38 @@ on:
 permissions:
   contents: read
 jobs:
+  server:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: |
+            server/package-lock.json
+            harness/host/package-lock.json
+      - run: npm ci --prefix harness/host
+      - run: npm ci --ignore-scripts --prefix server
+      - name: Compile Harness declarations used by the server
+        run: node harness/host/node_modules/typescript/bin/tsc -p harness/host/tsconfig.json
+      - run: npm --prefix server run typecheck
+      - name: Test server with isolated configuration
+        run: npm --prefix server test
+        env:
+          NODE_ENV: test
+          SHOTLOOM_LIVE_TESTS: "0"
+          GATEWAY_BASE_URL: https://gateway.example.com
+          GATEWAY_CLIENT_ID: ci-client
+          GATEWAY_CLIENT_SECRET: ci-secret
+          GATEWAY_REDIRECT_URI: http://localhost:3001/api/auth/callback
+          FRONTEND_URL: http://localhost:3001
+          SUPABASE_URL: https://example.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: ci-service-role
+          SUPABASE_PUBLISHABLE_KEY: ci-publishable-key
+          SESSION_ENCRYPTION_KEY: "1111111111111111111111111111111111111111111111111111111111111111"
+
   product:
     # Exercise the official Seatbelt-backed Agent tests on a supported desktop OS.
     runs-on: macos-15

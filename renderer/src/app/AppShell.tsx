@@ -3,25 +3,26 @@ import { SideBar } from "./layout/SideBar";
 import { TopBar } from "./layout/TopBar";
 import { setWorkbenchSurfaceRoot } from "./layout/workbenchSurface";
 import { useAppStore } from "./store/appStore";
+import { IconSymbol } from "./components/IconSymbol";
+import { t } from '@/i18n';
 
 interface AppShellProps {
   platform: string;
   view: ReactNode;
-  onNotify: () => void;
-  onSettings: () => void;
   onUpdate: () => void;
+  onVideoEdit: () => void;
   onNavigationBlocked?: () => void;
 }
 
 export function AppShell({
   platform,
   view,
-  onNotify,
-  onSettings,
   onUpdate,
+  onVideoEdit,
   onNavigationBlocked,
 }: AppShellProps) {
   const route = useAppStore((state) => state.route);
+  const project = useAppStore((state) => state.currentProject);
   const collapsed = useAppStore((state) => state.sidebarCollapsed);
   const toggleSidebar = useAppStore((state) => state.toggleSidebar);
   const [sidebarPreviewOpen, setSidebarPreviewOpen] = useState(false);
@@ -106,9 +107,7 @@ export function AppShell({
       <TopBar platform={platform} />
       <main className="workspace sidebar-collapsed">
         <SideBar
-          onNotify={onNotify}
-          onSettings={onSettings}
-          onUpdate={onUpdate}
+          onUpdate={platform === 'browser' ? undefined : onUpdate}
           onToggleSidebar={toggleSidebarWithTransition}
           onNavigationBlocked={onNavigationBlocked}
           previewOpen={previewActive}
@@ -116,6 +115,16 @@ export function AppShell({
           onPreviewOpenChange={changeSidebarPreview}
         />
         <section className="content">
+          {project && route !== 'projects' && route !== 'skills' && route !== 'account' && (
+            <header className="mobile-workspace-head">
+              <strong title={project.name}>{project.name}</strong>
+              <button type="button" onClick={() => useAppStore.getState().setRoute(route === 'tasks' ? 'creation' : 'tasks')}>
+                <IconSymbol name={route === 'tasks' ? 'grid' : 'task'} />
+                {t(route === 'tasks' ? 'ui.navigation.label.a1fce3b0' : 'ui.navigation.label.f7c5769b')}
+              </button>
+              <button type="button" onClick={onVideoEdit}><IconSymbol name="scissors" />{t('ui.ReactWorkbench.text.3d65ff77')}</button>
+            </header>
+          )}
           {view}
           <div className="workbench-surface-root" ref={setWorkbenchSurfaceRoot} />
         </section>

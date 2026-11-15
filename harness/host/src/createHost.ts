@@ -33,9 +33,10 @@ import PermissionPresets from '@deepseek-ai/dsh-permission-presets';
 import Subprocess from '@deepseek-ai/dsh-subprocess-local';
 import Sandbox from '@deepseek-ai/dsh-sandbox-local';
 import SandboxPolicy from '@deepseek-ai/dsh-sandbox-policy';
-import Bash from '@deepseek-ai/dsh-bash-sandbox';
+import Bash from './bashExecutor.js';
 import * as ShellEnv from '@deepseek-ai/dsh-shell-env';
 import * as BashTool from '@deepseek-ai/dsh-tool-bash';
+import ShellExecutor from '@deepseek-ai/dsh-shell';
 import Questions from '@deepseek-ai/dsh-user-questions';
 import * as AskUser from '@deepseek-ai/dsh-tool-ask-user';
 import * as Todo from '@deepseek-ai/dsh-tool-todo';
@@ -44,16 +45,40 @@ import * as SkillFiles from '@deepseek-ai/dsh-skill-filesystem';
 import * as SkillTools from '@deepseek-ai/dsh-tool-skill';
 import WorkingDirectory from '@deepseek-ai/dsh-working-directory';
 import FileSystem from '@deepseek-ai/dsh-fs-local';
+import { FsError } from '@deepseek-ai/dsh-fs';
 import * as Checkpoints from '@deepseek-ai/dsh-session-checkpoint-policy';
-import Credentials from '@deepseek-ai/dsh-credentials-local';
+import Credentials from './productCredentials.js';
 import AttachmentLocal from '@deepseek-ai/dsh-attachment-local';
 import type { FileAttachmentRef } from '@deepseek-ai/dsh-attachment';
 import { mkdir, readFile, readdir, realpath } from 'node:fs/promises';
 import { join, resolve, relative, isAbsolute } from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
+import type { PersistenceBackend } from './persistenceBackend.js';
+import { CachedAttachments, type AttachmentStorage } from './cachedAttachments.js';
 
 export const roles = ['canvas-primary', 'editor-primary', 'text-primary', 'director-primary'] as const;
 export type ProductRole = typeof roles[number];
+
+// The official permission UI requires the shell seam; hosted deployments always refuse execution.
+class HostedShell extends ShellExecutor {
+  override get sandboxMode() { return 'read-only' as const; }
+  resolve(): never { throw new Error('Shell execution is unavailable on the hosted Agent'); }
+  async execute(): Promise<never> { throw new Error('Shell execution is unavailable on the hosted Agent'); }
+}
+
+// Official file-preview RPC uses ctx.fs directly, outside tool approval.
+class HostedFileSystem extends FileSystem {
+  override async resolve(path: string, opts?: { cwd?: string; signal?: AbortSignal }) {
+    const target = await super.resolve(path, opts);
+    const root = await super.resolve(this.config.cwd);
+    if (!this.contains(root, target)) throw new FsError('Path is outside this account workspace', 'FS_SANDBOX_DENIED');
+    return target;
+  }
+  override async lstat(path: string, opts?: { cwd?: string }, signal?: AbortSignal) {
+    await this.resolve(path, { ...opts, signal });
+    return super.lstat(path, opts, signal);
+  }
+}
 
 /** Trusted desktop binding. This is product metadata, never model input. */
 export interface SessionBinding {
@@ -73,6 +98,10 @@ export interface HostOptions {
   rulesPath: string;
   skillDirs?: string[];
   scopedSkills?: boolean;
+  persistence?: PersistenceBackend;
+  attachmentStorage?: AttachmentStorage;
+  /** Hosted runtimes delegate product tools to clients and cannot run server shell commands. */
+  clientToolsOnly?: boolean;
   /** Product tool registration runs in the unpublished official Agent scope. */
   registerTools?: (scope: Context, binding: Readonly<SessionBinding>) => void | Promise<void>;
 }
@@ -93,7 +122,7 @@ export async function loadContracts(directory: string): Promise<Contract[]> {
     const raw = await readFile(join(directory, file), 'utf8');
     const match = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/.exec(raw);
     if (!match) throw new Error(`Contract ${file} must start with a frontmatter block`);
-    const frontmatter = match[1];
+    const frontmatter = match[1]!;
     const appliesTo = /^appliesTo:\s*\[(.*)\]\s*$/m.exec(frontmatter)?.[1]
       ?.split(',').map(value => value.trim().replace(/^['"]|['"]$/g, '')).filter(Boolean) ?? [];
     if (!appliesTo.length) throw new Error(`Contract ${file} declares no appliesTo`);
@@ -110,10 +139,10 @@ export async function createHost(options: HostOptions) {
   const ctx = new Context();
   const dataRoot = resolve(options.dataRoot);
   await mkdir(dataRoot, { recursive: true });
-  const database = openDatabase(join(dataRoot, 'agent.sqlite'));
-  const hostCrud = new HostCrud(database);
-  ctx.effect(() => () => database.close());
-  let bindings = hostCrud.bindings() as unknown as SessionBinding[];
+  const database = options.persistence ? undefined : openDatabase(join(dataRoot, 'agent.sqlite'));
+  const hostCrud = options.persistence?.host ?? new HostCrud(database!);
+  ctx.effect(() => () => database?.close());
+  let bindings = await hostCrud.bindings() as unknown as SessionBinding[];
   const prompts = new Map<ProductRole, string>();
   const rules = await readFile(options.rulesPath, 'utf8');
   const planSection = await readFile(join(options.contentRoot, 'prompts', 'harness-plan-mode.md'), 'utf8');
@@ -136,7 +165,7 @@ export async function createHost(options: HostOptions) {
   }
   try {
     await ctx.plugin(Llm);
-    await ctx.plugin(Credentials, { dshHome: dataRoot, watch: false });
+    await ctx.plugin(Credentials);
     await ctx.plugin(Sessions);
     await ctx.plugin(Projections);
     await ctx.plugin(SessionStats);
@@ -148,23 +177,28 @@ export async function createHost(options: HostOptions) {
     await ctx.plugin(Tools);
     await ctx.plugin(Agents);
     await ctx.plugin(SessionFormat);
-    await ctx.plugin(Persistence, { path: join(dataRoot, 'agent.sqlite') });
+    await ctx.plugin(Persistence, { path: join(dataRoot, 'agent.sqlite'), crud: options.persistence?.sessions });
     await ctx.plugin(AgentLoop, { agents: [] });
-    await ctx.plugin(FileSystem);
-    await ctx.plugin(AttachmentLocal, { dshHome: dataRoot });
-    await ctx.plugin(WorkingDirectory);
+    await ctx.plugin(options.clientToolsOnly ? HostedFileSystem : FileSystem, options.clientToolsOnly ? { cwd: dataRoot } : {});
+    if (options.attachmentStorage) {
+      await ctx.plugin(scope => { new CachedAttachments(scope, { dshHome: dataRoot }, options.attachmentStorage!); });
+    } else await ctx.plugin(AttachmentLocal, { dshHome: dataRoot });
+    await ctx.plugin(WorkingDirectory, options.clientToolsOnly ? { defaultDirectory: dataRoot } : {});
     await ctx.plugin(Approval, { policy: 'ask' });
-    await ctx.plugin(Subprocess);
-    await ctx.plugin(Sandbox);
+    if (options.clientToolsOnly) await ctx.plugin(HostedShell);
     await ctx.plugin(SandboxPolicy, { mode: 'workspace-write', workspaceRoot: join(dataRoot, 'workspaces') });
-    await ctx.plugin(Bash, { cwd: join(dataRoot, 'workspaces'), timeoutMs: 30_000, maxTimeoutMs: 120_000 });
     await ctx.plugin(PermissionPresets, { defaultPreset: 'workspace-write', presets: {
       'read-only': { sandbox: 'read-only', approval: 'ask' },
       'workspace-write': { sandbox: 'workspace-write', approval: 'ask' },
       'danger-full-access': { sandbox: 'danger-full-access', approval: 'never' },
     } });
-    await ctx.plugin(ShellEnv, { dshHome: dataRoot });
-    await ctx.plugin(BashTool, { enableRunInBackground: false, promoteOnTimeout: false });
+    if (!options.clientToolsOnly) {
+      await ctx.plugin(Subprocess);
+      await ctx.plugin(Sandbox);
+      await ctx.plugin(Bash, { cwd: join(dataRoot, 'workspaces'), timeoutMs: 30_000, maxTimeoutMs: 120_000 });
+      await ctx.plugin(ShellEnv, { dshHome: dataRoot });
+      await ctx.plugin(BashTool, { enableRunInBackground: false, promoteOnTimeout: false });
+    }
     await ctx.plugin(Questions);
     await ctx.plugin(Goals);
     await ctx.plugin(GoalDriver);
@@ -200,8 +234,9 @@ export async function createHost(options: HostOptions) {
   let disposed = false;
   const live = new Map<string, AgentHandle>();
   const resuming = new Set<string>();
+  const workspace = (id: string) => join(dataRoot, 'workspaces', options.clientToolsOnly ? createHash('sha256').update(id).digest('hex') : id);
   async function persistBindings() {
-    hostCrud.saveBindings(bindings as unknown as Record<string, unknown>[]);
+    await hostCrud.saveBindings(bindings as unknown as Record<string, unknown>[]);
   }
   function setup(binding: Readonly<SessionBinding>, child?: Agent) {
     return async (scope: Context) => {
@@ -331,6 +366,11 @@ export async function createHost(options: HostOptions) {
   // The official continuation manager awaits this hook before the first turn,
   // including cold resumes. Only children with persisted trusted bindings get editor tools.
   ctx.on('agent/created', async ({ agent }) => {
+    if (options.clientToolsOnly) {
+      const cwd = workspace(String(agent.session.id));
+      await mkdir(cwd, { recursive: true });
+      if (ctx.workingDirectory.get(agent.session) !== cwd) await ctx.workingDirectory.set(agent, cwd);
+    }
     const binding = bindings.find(item => item.sessionId === String(agent.session.id));
     if (binding?.toolSessionId) {
       await setup(Object.freeze({ ...binding }), agent)(agent.ctx);
@@ -364,7 +404,7 @@ export async function createHost(options: HostOptions) {
       const trusted = Object.freeze({ ...binding, sessionId: randomUUID() });
       // Official browser Session discovery requires a durable cwd. Attachments
       // use this private workspace; product files stay behind Shotloom tools.
-      const cwd = join(dataRoot, 'workspaces', trusted.sessionId);
+      const cwd = workspace(trusted.sessionId);
       await mkdir(cwd, { recursive: true });
       const handle = await ctx.agents.create({
         sessionId: SessionId(trusted.sessionId), meta: { cwd }, agentOptions, setup: setup(trusted),

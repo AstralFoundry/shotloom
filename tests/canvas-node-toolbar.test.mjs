@@ -38,9 +38,10 @@ test('画布节点外框与选中操作工具栏保持职责分离', () => {
 test('加入对话只在节点选中工具栏中显示', () => {
   assert.match(canvas, /<NodeToolbar[\s\S]*?canvas-node-selection-toolbar--hidden[\s\S]*?isVisible=\{selected && !imageAnnotationOpen\}[\s\S]*?offset=\{toolbarOffset\}[\s\S]*?>[\s\S]*?加入对话[\s\S]*?<\/NodeToolbar>/);
   assert.match(canvas, /mentionNode\(node\.id\)/);
-  // 3D 导演台不挂引用入口，工具栏整体不渲染，而不是留下一个空壳。
+  // 导演台和剪辑节点保留通用删除入口，不挂引用入口。
   assert.match(toolbar, /node\.type === "threeDDirector" \|\| node\.type === "clipStudio" \? null : addNodeMention/);
-  assert.match(toolbar, /hasToolbar = isTextNode \|\| canUpload \|\| mentionNode \|\|/);
+  assert.doesNotMatch(toolbar, /hasToolbar &&/);
+  assert.match(toolbar, /actions\.delete\(node\.id\)/);
   assert.match(styles, /\.canvas-node-selection-toolbar \{[\s\S]*?z-index: var\(--layer-canvas-control\)/);
   for (const source of [generation, basicNodes, director]) {
     assert.doesNotMatch(source, /className="node-mention-btn/);

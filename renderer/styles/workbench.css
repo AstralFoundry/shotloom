@@ -148,7 +148,7 @@
   height: 100%;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 360px;
+  grid-template-columns: minmax(0, 1fr) var(--agent-panel-width, 360px);
   overflow: hidden;
   background: var(--surface-muted);
 }
@@ -222,7 +222,7 @@
 
 .canvas-context-menu {
   position: absolute;
-  z-index: 20;
+  z-index: calc(var(--layer-canvas-popover) + 1);
   width: 220px;
   max-height: calc(100% - 16px);
   border: 1px solid var(--elevated-border);
@@ -285,6 +285,8 @@
   box-shadow: none;
   pointer-events: none;
 }
+
+.bottom-mode-switch .canvas-tools-more, .canvas-display-settings .canvas-tools-more { display: none; }
 
 .bottom-mode-switch button {
   width: 30px;

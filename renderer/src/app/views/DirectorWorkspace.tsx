@@ -13,11 +13,12 @@ import { store, touchProject } from '../../store/projectStore';
 import { showToast } from '../../store/notificationStore';
 import { nodeActions } from '../adapters/canvasAdapter';
 import { recordDiagnosticEvent } from '../../services/diagnosticsService';
+import { cloudEnabled } from '../../utils/cloudConfig';
 
 /**
  * 整页 3D 导演台工作区（侧栏「3D导演台」入口）：iframe 运行 vendored 导演台，
  * 与画布节点共用同一份 postMessage 协议，只是宿主换成整页容器。
- * 场景按工程存本地草稿，导演台运行时本身不碰产品存储。
+ * 场景随工程持久化；本地模式另存恢复草稿，导演台运行时不碰产品存储。
  *
  * 与画布节点保持独立文档；工作区场景只有用户显式选择时才会载入节点。
  */
@@ -68,14 +69,13 @@ export function DirectorWorkspace({ src, onReady, onExit, onOpenAgent }: { src: 
   // 会话：导演台就绪后把本工程的草稿灌进去（没有草稿时用空项目，由导演台自己建默认场景）。
   const sendSession = useCallback(() => {
     let project: unknown = store.project.directorWorkspaceProject ?? null;
-    const backup = readWorkspaceBackup(storageKey);
+    const backup = cloudEnabled ? null : readWorkspaceBackup(storageKey);
     if (backup && backup.savedAt > Number(store.project.directorWorkspaceSavedAt || 0)) {
       project = backup.project;
       store.project.directorWorkspaceProject = backup.project;
       store.project.directorWorkspaceSavedAt = backup.savedAt;
       touchProject();
     }
-    if (project && (project as { format?: string }).format !== 'director-desk') project = null;
     sendDirectorDeskSession(frameRef.current, { instanceId: `workspace-${projectId}`, artifactScope: projectId, theme: 'light', locale: getLocale(), project });
   }, [projectId, storageKey]);
 
@@ -92,7 +92,9 @@ export function DirectorWorkspace({ src, onReady, onExit, onOpenAgent }: { src: 
       onProjectChanged: (project) => {
         latestDocument.current = project;
         const savedAt = Date.now();
-        try { window.localStorage.setItem(storageKey, JSON.stringify({ savedAt, project })); } catch { /* browser storage unavailable */ }
+        if (!cloudEnabled) {
+          try { window.localStorage.setItem(storageKey, JSON.stringify({ savedAt, project })); } catch { /* browser storage unavailable */ }
+        }
         store.project.directorWorkspaceProject = project;
         store.project.directorWorkspaceSavedAt = savedAt;
         touchProject();

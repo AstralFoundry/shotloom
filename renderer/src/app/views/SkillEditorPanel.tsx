@@ -22,19 +22,17 @@ export interface SkillEditorController {
   patch: (patch: Partial<SkillDraft>) => void;
   save: (draft: SkillDraft) => void;
   close: () => void;
-  reset: () => void;
 }
 
 interface SkillEditorPanelProps {
   draft: SkillDraft;
   isNew: boolean;
-  modifiedFields: string[];
   dirty: boolean;
   controller: SkillEditorController;
 }
 
 export function SkillEditorPanel(
-  { draft, isNew, modifiedFields, dirty, controller }: SkillEditorPanelProps,
+  { draft, isNew, dirty, controller }: SkillEditorPanelProps,
 ) {
   const [error, setError] = useState("");
   function submit() {
@@ -62,10 +60,6 @@ export function SkillEditorPanel(
             {isNew ? t("ui.SkillEditorPanel.text.412b2184") : t("ui.SkillEditorPanel.text.f872afc3", { value0: draft.name })}
             {dirty && <em>{t("ui.SkillEditorPanel.text.4123f1fa")}</em>}
           </h3>
-          {modifiedFields.length > 0 && (
-            <p className="skill-editor-change-summary">
-              {t("ui.SkillEditorPanel.text.c920e429")}{modifiedFields.length} {t("ui.SkillEditorPanel.text.bc92ff5e")}</p>
-          )}
         </div>
         <div className="skill-editor-actions">
           <label className="skill-editor-enabled">
@@ -90,19 +84,6 @@ export function SkillEditorPanel(
       </header>
       <div className="skill-editor-body">
         <p className="skill-editor-guidance">{t("ui.SkillEditorPanel.text.7157b41b")}</p>
-        {draft.builtIn && (
-          <div className="skill-editor-note">
-            <IconSymbol name="spark" />
-            <span>
-              {modifiedFields.length
-                ? t("ui.SkillEditorPanel.text.7bf0aabd", { value0: modifiedFields.join("、") })
-                : t("ui.SkillEditorPanel.text.e9640c74")}
-            </span>
-            {modifiedFields.length > 0 && (
-              <button type="button" onClick={controller.reset}>{t("ui.CameraControlPanel.text.a191935b")}</button>
-            )}
-          </div>
-        )}
         <div className="skill-editor-grid">
           <label className="skill-field">
             <span>ID</span>
@@ -144,8 +125,9 @@ export function SkillEditorPanel(
         </div>
         <label className="skill-field">
           <span>{t("ui.SkillEditorPanel.text.daed78ea")}</span>
-          <Input
+          <Input.TextArea
             value={draft.description}
+            autoSize={{ minRows: 2, maxRows: 5 }}
             placeholder={t("ui.SkillEditorPanel.placeholder.0d487900")}
             onChange={(event) => patch({ description: event.target.value })}
           />

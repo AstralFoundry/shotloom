@@ -4,7 +4,7 @@ import type { startDesktopHost } from './desktopHost.js';
 export function nativeTransport(desktop: Awaited<ReturnType<typeof startDesktopHost>>, send: (message: unknown) => void) {
   const streams = new Map<string, { control: AbortController; inbox: unknown[]; wake?: () => void }>();
   const fetchHandler = desktop.host.ctx.connection.createSharedFetchHandler('/api');
-  return async (message: { requestId: string; kind: string; payload?: any }) => {
+  const receive = async (message: { requestId: string; kind: string; payload?: any }) => {
     const { requestId, kind, payload } = message;
     try {
       if (kind === 'cancel') { streams.get(requestId)?.control.abort(); streams.get(requestId)?.wake?.(); return; }
@@ -45,4 +45,8 @@ export function nativeTransport(desktop: Awaited<ReturnType<typeof startDesktopH
       send({ requestId, kind: 'error', error: error instanceof Error ? error.message : String(error) });
     }
   };
+  return Object.assign(receive, { dispose() {
+    for (const stream of streams.values()) { stream.control.abort(); stream.wake?.(); }
+    streams.clear();
+  } });
 }

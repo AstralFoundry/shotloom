@@ -1,4 +1,4 @@
-import { convertFileSrc } from "@tauri-apps/api/core";
+import { mediaFileUrl as convertFileSrc } from '@/utils/mediaFileUrl';
 import { desktopApi } from "./desktopApi.ts";
 
 /**

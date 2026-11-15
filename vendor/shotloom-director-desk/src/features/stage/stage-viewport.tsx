@@ -1,7 +1,7 @@
 import { captureRect } from '@/core/editor/viewport-capture.ts';
 import { editorPreferences } from '@/core/editor/preferences.ts';
-import { FocusIcon, CameraIcon, SplineIcon, MoveIcon, MaximizeIcon, EyeIcon, HouseIcon, Rotate3DIcon, ClapperboardIcon } from '@/shared/ui/icons.tsx';
-import { Button, Popover, Select, Switch, Tooltip } from 'antd';
+import { EllipsisVerticalIcon, FocusIcon, CameraIcon, SplineIcon, MoveIcon, MaximizeIcon, EyeIcon, HouseIcon, Rotate3DIcon, ClapperboardIcon } from '@/shared/ui/icons.tsx';
+import { Button, Drawer, Popover, Select, Switch, Tooltip } from 'antd';
 import { useEffect, useRef, useState } from 'react';
 import { activeCameraId } from '@/core/timeline.ts';
 import { numberAt } from '@/core/animation/channels.ts';
@@ -42,6 +42,7 @@ export function StageViewport() {
     const stageRef = useRef<HTMLDivElement>(null);
     const shotRef = useRef<HTMLDivElement>(null);
     const [menu, setMenu] = useState<ContextMenuTarget | null>(null);
+    const [toolsOpen, setToolsOpen] = useState(false);
     const [stageHintIdle, setStageHintIdle] = useState(false);
     const [shotHintIdle, setShotHintIdle] = useState(false);
 
@@ -205,7 +206,7 @@ export function StageViewport() {
             >
                 {view !== 'shot' && (
                     <>
-                        <div className="viewport__tool-group" role="group" aria-label={t('移动 / 旋转 / 缩放')}>
+                        <div className="viewport__tool-group viewport__transform-tools" role="group" aria-label={t('移动 / 旋转 / 缩放')}>
                             {TOOL_MODES.map((tool) => (
                                 <Tooltip key={tool.mode} title={`${t(tool.label)} · ${tool.shortcut}`}>
                                     <Button
@@ -215,7 +216,7 @@ export function StageViewport() {
                                         aria-label={t(tool.label)}
                                         aria-pressed={transformMode === tool.mode}
                                         onClick={() => session.setTransformMode(tool.mode)}
-                                    />
+                                    ><span className="viewport__mobile-label">{t(tool.label)}</span></Button>
                                 </Tooltip>
                             ))}
                         </div>
@@ -240,6 +241,7 @@ export function StageViewport() {
                             <Tooltip title={t('添加机位')}>
                                 <Button
                                     size="small"
+                                    className="viewport__secondary-tool"
                                     icon={<CameraIcon />}
                                     aria-label={t('添加机位')}
                                     onClick={() => session.addCamera()}
@@ -248,6 +250,7 @@ export function StageViewport() {
                             <Tooltip title={t('重置视角')}>
                                 <Button
                                     size="small"
+                                    className="viewport__secondary-tool"
                                     icon={<HouseIcon />}
                                     aria-label={t('重置视角')}
                                     onClick={() => session.viewHome()}
@@ -272,7 +275,7 @@ export function StageViewport() {
                             }
                         >
                             <Tooltip title={t('视图选项')}>
-                                <Button size="small" icon={<EyeIcon />} aria-label={t('视图选项')} />
+                                <Button className="viewport__secondary-tool" size="small" icon={<EyeIcon />} aria-label={t('视图选项')} />
                             </Tooltip>
                         </Popover>
                         <span className="viewport__toolbar-separator" aria-hidden="true" />
@@ -286,8 +289,23 @@ export function StageViewport() {
                         aria-label={t('动画时间轴')}
                         aria-pressed={preferences.timelineVisible}
                         onClick={() => editorPreferences.set('timelineVisible', !preferences.timelineVisible)}
-                    />
+                    ><span className="viewport__mobile-label">{t('时间线')}</span></Button>
                 </Tooltip>
+                <Drawer className="director-mobile-sheet" title={t('更多工具')} placement="bottom" size="default" open={toolsOpen}
+                    onClose={() => setToolsOpen(false)} styles={{ wrapper: { maxHeight: '85dvh' } }}>
+                    <div className="viewport__mobile-options">
+                        <div className="viewport__mode-options" role="group" aria-label={t('移动 / 旋转 / 缩放')}>
+                            {TOOL_MODES.map(tool => <Button key={tool.mode} icon={tool.icon} aria-pressed={transformMode === tool.mode}
+                                type={transformMode === tool.mode ? 'primary' : 'default'} onClick={() => { session.setTransformMode(tool.mode); setToolsOpen(false); }}>{t(tool.label)}</Button>)}
+                        </div>
+                        <Button icon={<CameraIcon />} onClick={() => { session.addCamera(); setToolsOpen(false); }}>{t('添加机位')}</Button>
+                        <Button icon={<HouseIcon />} onClick={() => { session.viewHome(); setToolsOpen(false); }}>{t('重置视角')}</Button>
+                        <ViewOptions gridVisible={gridVisible} placementSnap={preferences.placementSnap} objectSnap={preferences.objectSnap}
+                            surfaceDrop={preferences.surfaceDrop} ambientOcclusion={preferences.ambientOcclusion} outline={preferences.outline}
+                            draftQuality={preferences.previewQuality === 'draft'} />
+                    </div>
+                </Drawer>
+                <Button className="viewport__mobile-more" icon={<EllipsisVerticalIcon />} aria-label={t('更多工具')} onClick={() => setToolsOpen(true)} />
             </div>
         </div>
     );

@@ -2,9 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
-import { readSource } from './helpers/sourceContract.mjs';
+import { readSource, repoRootPath as root } from './helpers/sourceContract.mjs';
 
-const root = new URL('..', import.meta.url).pathname;
 
 // 第三方导演台、OpenReel 与官方 Harness 的隔离 UI 自带样式；public 下是构建产物。
 const EXCLUDED = ['/vendor/', '/public/openreel/', '/public/harness/', '/public/director-desk-app/'];

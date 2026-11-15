@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile, rm, symlink } from 'node:fs/promises';
 import { tmpdir, homedir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -9,6 +9,8 @@ import { randomBytes } from 'node:crypto';
 import { LlmAdapter, ToolCallId, createUserMessage } from '@deepseek-ai/dsh-llm';
 import { openDatabase } from '../dist/db/connection.js';
 import { HostCrud } from '../dist/crud/hostCrud.js';
+import { SessionCrud } from '../dist/crud/sessionCrud.js';
+import { DomainCrud } from '../dist/crud/domainCrud.js';
 import { createHost } from '../dist/createHost.js';
 import { registerProductTools } from '../dist/productTools.js';
 
@@ -54,9 +56,51 @@ async function send(agent, value) {
 async function fixture(t, extra = {}) {
   const dataRoot = await mkdtemp(join(tmpdir(), 'shotloom-host-'));
   const host = await createHost({ ...options(dataRoot), ...extra });
-  t.after(async () => { await host.dispose(); await rm(dataRoot, { recursive: true, force: true }); });
-  return { host, dataRoot };
+  const hosts = new Set([host]);
+  t.after(async () => {
+    for (const host of hosts) await host.dispose();
+    await rm(dataRoot, { recursive: true, force: true });
+  });
+  return { host, dataRoot, hosts };
 }
+
+test('hosted file previews cannot read outside the account root, including symlink escapes', async t => {
+  const { host, dataRoot } = await fixture(t, { clientToolsOnly: true });
+  const { startClientServices } = await import('../dist/webHost.js');
+  await startClientServices(host, { dataRoot });
+  const privateFile = join(dataRoot, 'preview.txt');
+  await writeFile(privateFile, 'account media');
+  const fetcher = host.ctx.connection.createSharedFetchHandler('/api');
+  const preview = path => fetcher.fetch(new Request(`http://native.invalid/api/file?path=${encodeURIComponent(path)}`));
+  assert.equal(await (await preview(privateFile)).text(), 'account media');
+  assert.equal((await preview(join(root, 'server/.env'))).status, 403);
+  assert.equal((await preview(join(dataRoot, '../outside.txt'))).status, 403);
+  const link = join(dataRoot, 'escape');
+  await symlink(root, link, 'junction');
+  assert.equal((await preview(join(link, 'AGENTS.md'))).status, 403);
+  await assert.rejects(host.ctx.fs.lstat(join(link, 'AGENTS.md')), { code: 'FS_SANDBOX_DENIED' });
+});
+
+test('asynchronous Session persistence recovers a committed batch whose acknowledgement was lost', async t => {
+  const backendRoot = await mkdtemp(join(tmpdir(), 'shotloom-async-backend-'));
+  const database = openDatabase(join(backendRoot, 'backend.sqlite'));
+  const crud = new SessionCrud(database);
+  let loseAcknowledgement = false;
+  const sessions = Object.fromEntries(['find', 'list', 'create', 'read', 'append'].map(name => [name, async (...args) => {
+    await new Promise(resolve => setImmediate(resolve));
+    const result = crud[name](...args);
+    if (name === 'append' && loseAcknowledgement) { loseAcknowledgement = false; throw new Error('Lost network acknowledgement after commit'); }
+    return result;
+  }]));
+  const { host } = await fixture(t, { clientToolsOnly: true, persistence: { sessions, host: new HostCrud(database), domain: new DomainCrud(database) } });
+  t.after(async () => { database.close(); await rm(backendRoot, { recursive: true, force: true }); });
+  const owner = await host.create(binding, route);
+  loseAcknowledgement = true;
+  host.ctx.permissionPresets.set(owner.agent.session, 'read-only');
+  host.ctx.permissionPresets.set(owner.agent.session, 'workspace-write');
+  await host.ctx.sessionPersistence.flush();
+  assert.deepEqual(await sessions.read(owner.binding.sessionId), owner.agent.session.snapshotEvents());
+});
 
 test('official Host starts, scopes prompts and rejects unbound editor sessions', { timeout: 10000 }, async t => {
   const { host } = await fixture(t);
@@ -126,7 +170,7 @@ test('editor model receives supported OpenReel tools and guidance without absent
 });
 
 test('official manual compaction persists a summary and continues after a real Host restart', { timeout: 15000 }, async t => {
-  const { host, dataRoot } = await fixture(t);
+  const { host, dataRoot, hosts } = await fixture(t);
   const adapter = new SizedAdapter([text('第一轮完成'), text('第二轮完成'), text('项目代号霜叶，交付15秒广告，禁止付费生成。')]);
   host.ctx.llm.registerAdapter(['test'], adapter);
   const { agent, binding: bound } = await host.create(binding, route);
@@ -137,7 +181,7 @@ test('official manual compaction persists a summary and continues after a real H
   assert.equal(agent.session.snapshotEvents().filter(e => e.type === 'compaction/end').at(-1).data.error, undefined);
   await host.dispose();
   const restored = await createHost(options(dataRoot));
-  t.after(() => restored.dispose());
+  hosts.add(restored);
   const next = new SizedAdapter([text('霜叶，15秒广告，不付费。')]);
   restored.ctx.llm.registerAdapter(['test'], next);
   const resumed = await restored.resume(bound.sessionId, route);
@@ -285,7 +329,7 @@ test('named product tool calls the authenticated bridge and official SQLite pers
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   t.after(() => new Promise(resolve => server.close(resolve)));
   const catalog = [{ name: 'project_test_write', description: 'Write the test project artifact', roles: ['canvas-primary'], effect: 'write', parameters: { type: 'object', properties: { content: { type: 'string' } }, required: ['content'], additionalProperties: false } }];
-  const { host, dataRoot } = await fixture(t, {
+  const { host, dataRoot, hosts } = await fixture(t, {
     registerTools: (scope, bound) => registerProductTools(scope, bound, catalog, { url: `http://127.0.0.1:${server.address().port}`, token }),
   });
   outputPath = join(dataRoot, 'artifact.json');
@@ -300,7 +344,7 @@ test('named product tool calls the authenticated bridge and official SQLite pers
   const originalEvents = created.agent.session.snapshotEvents().length;
   await host.dispose();
   const restored = await createHost(options(dataRoot));
-  t.after(() => restored.dispose());
+  hosts.add(restored);
   const next = new ScriptedAdapter([text('restored')]);
   restored.ctx.llm.registerAdapter(['test'], next);
   const resumed = await restored.resume(created.binding.sessionId, route);
@@ -608,14 +652,17 @@ test('durable mutation receipts survive Host restart and uncertain dispatches ne
     res.end(JSON.stringify({ success: true, taskId: `task-${writes}` }));
   });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
-  t.after(async () => { await new Promise(resolve => server.close(resolve)); await rm(dataRoot, { recursive: true, force: true }); });
   const receiptRoot = join(dataRoot, 'receipts');
   const registerTools = (scope, bound) => registerProductTools(scope, bound, [{
     name: 'test_paid_write', description: 'Test a durable paid-operation receipt', roles: ['canvas-primary'], effect: 'generation',
     parameters: { type: 'object', properties: {}, additionalProperties: false },
   }], { url: `http://127.0.0.1:${server.address().port}`, token: 'test', receiptRoot });
   let host = await createHost({ ...options(dataRoot), registerTools });
-  t.after(() => host.dispose());
+  t.after(async () => {
+    await host.dispose();
+    await new Promise(resolve => server.close(resolve));
+    await rm(dataRoot, { recursive: true, force: true });
+  });
   host.ctx.llm.registerAdapter(['test'], new ScriptedAdapter([]));
   let owner = await host.create(binding, route);
   const sessionId = owner.binding.sessionId;
@@ -787,7 +834,7 @@ test('an existing Session sees newly available Bash despite its earlier unavaila
 });
 
 test('official spawn creates isolated analysis child, returns result and persists lineage', { timeout: 15000 }, async t => {
-  const { host, dataRoot } = await fixture(t);
+  const { host, dataRoot, hosts } = await fixture(t);
   const adapter = new ScriptedAdapter([request => {
     assert.ok(request.tools.some(tool => tool.name === 'send_message'));
     assert.ok(!request.tools.some(tool => ['bash', 'project_snapshot', 'subagent'].includes(tool.name)));
@@ -809,7 +856,7 @@ test('official spawn creates isolated analysis child, returns result and persist
   assert.ok(children.some(child => String(child.id) === String(activation.childId)));
   await host.dispose();
   const restored = await createHost(options(dataRoot));
-  t.after(() => restored.dispose());
+  hosts.add(restored);
   const continued = new ScriptedAdapter([
     request => {
       assert.deepEqual(request.tools.map(tool => tool.name), ['send_message']);

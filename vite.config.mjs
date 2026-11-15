@@ -16,6 +16,7 @@ export default defineConfig({
     port: development.webPort,
     strictPort: true,
     open: development.openBrowser,
+    proxy: { '/api': 'http://127.0.0.1:3001' },
     fs: { allow: [rootDir] },
     watch: {
       ignored: ['**/src-tauri/**'],

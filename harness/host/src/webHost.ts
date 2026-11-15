@@ -16,6 +16,7 @@ import DefaultModel from '@deepseek-ai/dsh-agent-default-model';
 import * as Frontend from '@deepseek-ai/dsh-host-frontend-static';
 import { dirname, join } from 'node:path';
 import { readFile } from 'node:fs/promises';
+import type { PersistenceBackend } from './persistenceBackend.js';
 
 /** Official RPC/stream transport. Product provisioning stays outside chat RPC. */
 export async function startWebHost(host: Awaited<ReturnType<typeof createHost>>, options: {
@@ -45,6 +46,7 @@ export async function startWebHost(host: Awaited<ReturnType<typeof createHost>>,
 /** Carrier-independent official services shared by native IPC and browser tests. */
 export async function startClientServices(host: Awaited<ReturnType<typeof createHost>>, options: {
   dataRoot: string; defaultModel?: { provider: string; model: string };
+  persistence?: PersistenceBackend;
 }) {
   const { ctx } = host;
   await ctx.plugin(Registry);
@@ -57,7 +59,7 @@ export async function startClientServices(host: Awaited<ReturnType<typeof create
     ctx.typert.register(TYPERT);
   }
   await ctx.plugin(Storage);
-  await ctx.plugin(SqliteStorage, { path: join(options.dataRoot, 'agent.sqlite') });
+  await ctx.plugin(SqliteStorage, { path: join(options.dataRoot, 'agent.sqlite'), crud: options.persistence?.domain });
   await ctx.plugin(DomainStorage, { backend: 'sqlite' });
   await ctx.plugin(Workspace);
   await ctx.plugin(Connection);

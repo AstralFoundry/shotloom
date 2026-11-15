@@ -63,10 +63,10 @@ export const AGENT_DEFINITIONS: AgentDefinition[] = [
     tools: [
       ...canvasReadTools, ...canvasWriteTools, ...generationTools, ...catalogTools,
       'project_snapshot', 'project_save', 'project_export_package', 'canvas_prepare_editor',
-      'director_workspace_view',
+      'director_workspace_view', ...directorTools,
       ...productionPlanWriteTools, ...productionPlanReadTools,
     ],
-    skills: ['*'],
+    skills: ['*', 'director-desk-staging'],
   },
   {
     id: EDITOR_AGENT_ID,

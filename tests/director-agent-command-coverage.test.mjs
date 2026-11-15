@@ -83,16 +83,14 @@ test('iframe 启动时会装配宿主桥，否则所有命令都会超时', () =
     'main.tsx 必须实际调用 initializeHostBridge()，只 import 不调用等于没接上');
 });
 
-test('浮动助手保留紧凑、输入与历史状态，两个入口都传入收起状态', () => {
-  const pane = fs.readFileSync(path.join(root, 'renderer/src/app/agent-chat/DirectorAgentPane.tsx'), 'utf8');
-  const view = fs.readFileSync(path.join(root, 'renderer/src/app/views/CreationView.tsx'), 'utf8');
-  const node = fs.readFileSync(path.join(root, 'renderer/src/app/canvas/ThreeDDirectorNode.tsx'), 'utf8');
-  assert.match(pane, /collapsed \? 'compact' : expanded \? 'expanded' : 'input'/);
-  assert.match(pane, /onDoubleClickCapture/);
-  assert.match(pane, /className="director-agent-back"[\s\S]*?onClick=\{\(\) => onCollapsedChange\(true\)\}/);
-  assert.match(pane, /onClose=\{\(\) => setExpanded\(false\)\}/);
-  assert.match(view, /className="director-workspace-agent" collapsed=\{agentCollapsed\}/);
-  assert.match(node, /className="director-detail-agent"[^>]*collapsed=\{agentCollapsed\}/);
+test('两个导演台入口共用独立聊天 Tab，并保留场景物体引用', () => {
+  for (const file of ['renderer/src/app/views/CreationView.tsx', 'renderer/src/app/canvas/ThreeDDirectorNode.tsx']) {
+    const source = fs.readFileSync(path.join(root, file), 'utf8');
+    assert.match(source, /<DirectorAgentPane[^>]*collapsed=\{agentCollapsed\}/);
+    assert.match(source, /setAgentCollapsed\(false\)/);
+    assert.match(source, /entityRequest=\{entityRequest\}/);
+    assert.match(source, /<DirectorAgentPane[\s\S]*?(?:<DirectorWorkspace|<iframe)[\s\S]*?<\/DirectorAgentPane>/);
+  }
 });
 
 test('导演台退出入口在顶部工具栏，详情底部没有额外退出按钮', () => {
@@ -103,7 +101,7 @@ test('导演台退出入口在顶部工具栏，详情底部没有额外退出�
   const pane = fs.readFileSync(path.join(root, 'renderer/src/app/agent-chat/DirectorAgentPane.tsx'), 'utf8');
   const bridgeAdapter = fs.readFileSync(path.join(root, 'renderer/src/app/adapters/directorDeskBridge.ts'), 'utf8');
   assert.match(topBar, /onClick=\{requestHostClose\}/, '顶部工具栏应提供返回画布入口');
-  assert.doesNotMatch(topBar, /requestHostAgentOpen/, '助手通过底部输入框展开，顶部不再重复提供按钮');
+  assert.doesNotMatch(topBar, /requestHostAgentOpen/, '助手通过独立 Tab 打开，顶部不再重复提供按钮');
   const labels = fs.readFileSync(path.join(root, 'vendor/shotloom-director-desk/src/features/stage/object-labels.tsx'), 'utf8');
   const menu = fs.readFileSync(path.join(root, 'vendor/shotloom-director-desk/src/features/stage/stage-context-menu.tsx'), 'utf8');
   assert.match(labels, /label\.id === selected[\s\S]*?requestHostAgentOpen\(label\.id\)/, '选中对象的场景标签旁应能送入 Agent 输入框');
@@ -116,19 +114,10 @@ test('导演台退出入口在顶部工具栏，详情底部没有额外退出�
   assert.match(workspace, /onExitInteraction: \(\) => onExit\?\.\(\)/, '整页退出消息必须返回画布');
 });
 
-test('浮动助手样式由全局层提供，历史面板高度受工作区限制', () => {
-  const global = fs.readFileSync(path.join(root, 'renderer/styles/creation-view.css'), 'utf8');
-  assert.match(global, /\.director-agent-dock\.director-workspace-agent,[\s\S]*?\.director-agent-dock\.director-detail-agent\s*\{/);
-  assert.match(global, /data-director-mode="expanded"[^}]*height: min\(500px, calc\(100% - 112px\)\)/);
-  assert.doesNotMatch(global, /\.director-agent-resize\s*\{/);
-});
-
-test('浮动助手按 iframe 舞台和工具栏布局，监听器随卸载释放', () => {
-  const pane = fs.readFileSync(path.join(root, 'renderer/src/app/agent-chat/DirectorAgentPane.tsx'), 'utf8');
-  assert.match(pane, /const bounds = parent\.getBoundingClientRect\(\)/);
-  assert.match(pane, /const frameBounds = frame\.getBoundingClientRect\(\)/);
-  assert.match(pane, /anchor\.width < anchor\.toolbarWidth \+ 320/);
-  assert.match(pane, /observer\.disconnect\(\); stopListening\(\); frame\.removeEventListener\('load', request\)/);
+test('聊天 Tab 保留舞台尺寸，Agent 在聊天中仍能取预览帧', () => {
+  const styles = fs.readFileSync(path.join(root, 'renderer/styles/creation-view.css'), 'utf8');
+  assert.match(styles, /\.director-agent-panel\[aria-hidden="true"\]\s*\{ visibility: hidden; \}/);
+  assert.doesNotMatch(styles, /\.director-agent-dock/);
 });
 
 test('导演台只在载入宿主文档之后才写回，未载入时拒绝 Agent 操作', () => {
@@ -140,7 +129,7 @@ test('导演台只在载入宿主文档之后才写回，未载入时拒绝 Agen
   );
   assert.ok(sessionHandler.includes('loadProject(payload.project)'), '会话消息必须载入宿主文档');
   assert.ok(
-    sessionHandler.includes('hostSession.initialize(string(payload.instanceId), () => {') && sessionHandler.includes('loadProject(payload.project)'),
+    sessionHandler.includes('await hostSession.initialize(string(payload.instanceId), async () => {') && sessionHandler.includes('await loadProject(payload.project)'),
     '加载必须经过幂等会话绑定；加载成功后才连接，失败可以重试',
   );
   const agent = bridge.slice(bridge.indexOf("message.type === 'storyai:director-desk-agent-request'"));

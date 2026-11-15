@@ -9,9 +9,31 @@ pub async fn harness_bind_session(
     window: tauri::WebviewWindow,
     runtime: State<'_, HarnessRuntimeState>,
     bridge: State<'_, HarnessBridgeState>,
-    config: Value,
+    mut config: Value,
 ) -> Result<Value, String> {
     if window.label() != "main" { return Err("Untrusted Harness configuration caller".into()); }
+    if let Some(origin) = config.get("cloudOrigin").and_then(Value::as_str) {
+        let url = reqwest::Url::parse(origin).map_err(|_| "Invalid cloud origin")?;
+        if window.url().map_err(|e| e.to_string())?.origin() != url.origin() {
+            return Err("Cloud Agent must use the signed-in application origin".into());
+        }
+        let base_url = format!("{}/api/relay/v1", url.origin().ascii_serialization());
+        let cookie = window.cookies_for_url(url).map_err(|_| "Cannot read cloud session")?
+            .into_iter().find(|cookie| cookie.name() == "shotloom_session" && cookie.http_only() == Some(true))
+            .ok_or("Sign in before using the cloud Agent")?;
+        if let Some(providers) = config.get_mut("providers").and_then(Value::as_object_mut) {
+            for entry in providers.values_mut() {
+                if entry["key"] == "__SHOTLOOM_SESSION__" {
+                    if entry["profile"]["baseURL"].as_str() != Some(base_url.as_str()) {
+                        return Err("Cloud Agent cannot forward credentials to another endpoint".into());
+                    }
+                    entry["key"] = Value::String(cookie.value().to_string());
+                    entry["profile"]["headers"]["Authorization"] = Value::String(format!("Bearer {}", cookie.value()));
+                }
+            }
+        }
+        config.as_object_mut().unwrap().remove("cloudOrigin");
+    }
     let result = native_request(&runtime, "bind", config.clone()).await?;
     let id = result.get("sessionId").and_then(Value::as_str).ok_or_else(|| localized_error("native.harness.missingSession", json!({}), "Agent Host 未返回会话 ID".into()))?;
     let mut binding = config.get("binding").cloned().ok_or_else(|| localized_error("native.harness.missingBinding", json!({}), "缺少会话绑定信息".into()))?;

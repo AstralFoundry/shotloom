@@ -1213,4 +1213,10 @@ export interface MessageParameters {
   "ds.notice.captureFailed": Record<"error", string | number>;
   "ds.notice.applyFailed": Record<"error", string | number>;
   "ds.notice.uploadFailed": Record<"error", string | number>;
+  "account.creditRate": Record<"value", string | number>;
+  "account.topupAmount": Record<"value", string | number>;
+  "account.creditAmount": Record<"value", string | number>;
+  "account.usagePage": Record<"page" | "pages", string | number>;
+  "canvas.selectionCount": Record<"count", string | number>;
+  "admin.models.overview": Record<"total" | "published", string | number>;
 }

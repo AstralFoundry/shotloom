@@ -48,7 +48,7 @@ export function VideoEditorWorkspace({
 }: VideoEditorWorkspaceProps) {
   const surface = useWorkbenchSurfaceRoot();
   const { mount, active } = useEditorMount(surface, canvasNode ? nodeId : undefined, expanded, selected);
-  const [agentVisible, setAgentVisible] = useState(true);
+  const [agentVisible, setAgentVisible] = useState(() => !window.matchMedia('(max-width: 700px), (max-width: 920px) and (max-height: 500px)').matches);
   const [agentWidth, setAgentWidth] = useState(readStoredAgentWidth);
   const [resizingAgent, setResizingAgent] = useState(false);
   const stageRef = useRef<HTMLDivElement | null>(null);

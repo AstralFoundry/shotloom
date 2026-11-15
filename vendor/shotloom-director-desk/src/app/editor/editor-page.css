@@ -1545,7 +1545,8 @@
 
 .timeline__tracks {
     position: relative;
-    min-width: 196px;
+    min-width: var(--timeline-label-width, 196px);
+    overflow: clip;
     user-select: none;
     --track-accent: var(--ed-track-accent-default);
 }
@@ -1553,7 +1554,7 @@
 .timeline__ruler-row,
 .timeline__row {
     display: grid;
-    grid-template-columns: 196px minmax(0, 1fr);
+    grid-template-columns: var(--timeline-label-width, 196px) minmax(0, 1fr);
     gap: 0;
     align-items: center;
 }
@@ -1572,6 +1573,10 @@
 }
 
 .timeline__ruler-row {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    background: var(--ed-gp-timeline);
     height: var(--timeline-ruler-height);
     border-bottom: 1px solid var(--ed-line);
 }
@@ -1687,9 +1692,9 @@
 }
 
 .timeline__playhead-handle {
-    position: absolute;
+    position: sticky;
     top: 0;
-    left: -13px;
+    margin-left: -13px;
     width: 28px;
     height: 27px;
     padding: 0;
@@ -2173,7 +2178,7 @@
 .track-label__chevron.is-open { transform: rotate(90deg); }
 .track-label--group { padding-left: 26px; font-size: 11px; font-weight: 500; }
 .track-label--property { font-size: 11px; color: var(--ed-text-secondary); }
-.lane__property-value { position: sticky; left: 208px; margin: 4px 10px; border: 0; padding: 2px 6px; background: transparent; color: var(--ed-text-muted); font: inherit; font-size: 12px; cursor: pointer; }
+.lane__property-value { position: sticky; left: calc(var(--timeline-label-width, 196px) + 12px); margin: 4px 10px; border: 0; padding: 2px 6px; background: transparent; color: var(--ed-text-muted); font: inherit; font-size: 12px; cursor: pointer; }
 .lane__property-value:hover { color: var(--ed-text-strong); background: var(--ed-line-faint); }
 .lane__parameter-key { position: absolute; top: calc(50% - 4px); width: 8px; height: 8px; padding: 0; border: 1px solid var(--ed-text-secondary); background: var(--track-accent); transform: translateX(-50%) rotate(45deg); cursor: pointer; }
 
@@ -2465,3 +2470,106 @@
 @media (prefers-reduced-motion: reduce) {
     .viewport[data-agent-dock-mode] .viewport__toolbar { transition: none; }
 }
+
+/* Phone controls share the full stage width; side panels open above the bottom tabs. */
+.viewport__mobile-label, .editor .viewport__mobile-more, .editor .timeline__mobile-more { display: none; }
+.timeline__track-options { display: flex; align-items: center; gap: 4px; }
+.viewport__mobile-options, .timeline__mobile-options { display: flex; flex-direction: column; gap: 12px; width: 100%; }
+.director-mobile-sheet .ant-drawer-body { overscroll-behavior: contain; padding-bottom: max(16px, env(safe-area-inset-bottom)); }
+.director-mobile-sheet .ant-drawer-close { min-width: 44px; min-height: 44px; }
+.viewport__mode-options, .timeline__option-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.viewport__mobile-options .ant-btn, .timeline__mobile-options .ant-btn, .timeline__mobile-options .ant-select { min-height: 44px; }
+.viewport__mobile-options .ant-btn { white-space: normal; height: auto; }
+.timeline__mobile-options .timeline__settings { width: 100%; }
+.timeline.timeline--compact .timeline__transport { padding: 4px 8px; gap: 0; }
+.timeline.timeline--compact .timeline__controls { display: flex; flex: 1; flex-wrap: nowrap; gap: 8px; }
+.timeline.timeline--compact .timeline__meta, .timeline.timeline--compact .timeline__track-options, .timeline.timeline--compact .timeline__secondary-control { display: none; }
+.editor .timeline--compact .timeline__mobile-more { display: inline-flex; }
+.timeline.timeline--compact .timeline__controls .timecode { margin-left: auto; font-size: 12px; }
+.timeline.timeline--compact .timecode > span { display: none; }
+.editor .timeline--compact .timeline__transport .ant-btn { min-width: 44px; height: 44px; }
+@media (max-width: 640px) {
+    .editor.editor--narrow,
+    .editor.editor--narrow.editor--sidebar-open {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: 56px minmax(120px, 1fr) clamp(144px, var(--timeline-height, 30dvh), 34dvh) calc(52px + env(safe-area-inset-bottom));
+    }
+    .editor.editor--narrow.editor--timeline-closed {
+        grid-template-rows: 56px minmax(120px, 1fr) 0 calc(52px + env(safe-area-inset-bottom));
+    }
+    .editor .viewport { grid-column: 1; grid-row: 2; }
+    .editor .timeline { grid-column: 1; grid-row: 3; }
+    .editor > .sidebar__rail {
+        grid-column: 1;
+        grid-row: 4;
+        flex-direction: row;
+        width: 100%;
+        gap: 0;
+        padding: 4px 4px calc(4px + env(safe-area-inset-bottom));
+        border-right: 0;
+        border-top: 1px solid var(--ed-line);
+    }
+    .sidebar__rail-item { flex: 1; flex-direction: row; min-width: 0; min-height: 44px; justify-content: center; gap: 4px; padding: 4px 0; }
+    .sidebar__rail-item svg { width: 16px; height: 16px; flex-shrink: 0; }
+    .sidebar__rail-item span { font-size: 12px; }
+    .editor .topbar {
+        flex-wrap: nowrap;
+        align-content: center;
+        gap: 0 4px;
+        padding: 4px 8px;
+        overflow: visible;
+    }
+    .topbar__workspace { flex: 1; min-width: 0; justify-content: flex-start; gap: 8px; }
+    .editor .topbar .topbar__scene-toggle, .editor .topbar .topbar__history, .editor .topbar .topbar__aspect, .editor .topbar .save-status { display: none; }
+    .editor .topbar .ant-btn { min-width: 44px; height: 44px; padding-inline: 8px; }
+    .ant-dropdown .ant-dropdown-menu-item, .ant-dropdown .ant-dropdown-menu-submenu-title, .ant-select-dropdown .ant-select-item-option { min-height: 44px; }
+    .topbar__view-select.ant-select { width: 104px; height: 44px; }
+    .topbar__actions { flex: 0 0 auto; justify-content: flex-end; gap: 4px; }
+    .topbar__actions .save-status__text { display: inline; }
+    .editor--narrow .sidebar, .editor--narrow .inspector {
+        top: max(56px, 25%);
+        bottom: calc(52px + env(safe-area-inset-bottom));
+        left: 0;
+        right: 0;
+        width: 100%;
+        border-radius: 16px 16px 0 0;
+        border: 1px solid var(--ed-line);
+        overflow: hidden;
+    }
+    .editor__scrim { inset: 56px 0 calc(52px + env(safe-area-inset-bottom)); }
+    .editor .sidebar .ant-btn, .editor .inspector .ant-btn { min-height: 44px; }
+    .inspector .ant-tabs-nav .ant-tabs-tab { min-height: 44px; }
+    .inspector .ant-input-number, .inspector .ant-input, .inspector .ant-select { min-height: 44px; font-size: 16px; }
+    .inspector .ant-input-number-input { height: 42px; font-size: 16px; }
+    .editor .viewport__toolbar {
+        flex-wrap: nowrap;
+        justify-content: center;
+        gap: 8px;
+        max-width: calc(100% - 16px);
+        bottom: 12px;
+        padding: 4px;
+    }
+    .editor .viewport__tool-group { display: contents; }
+    .editor .viewport__transform-tools .ant-btn:not(.is-active), .editor .viewport__secondary-tool { display: none; }
+    .editor .viewport__toolbar .viewport__mobile-more { display: inline-flex; }
+    .viewport__mobile-label { display: inline; }
+    .editor .viewport__toolbar-separator { display: none; }
+    .editor .viewport__toolbar .ant-btn { flex: 0 0 auto; min-width: 44px; height: 44px; border-radius: 12px; }
+    .viewport__drawing { position: absolute; bottom: calc(100% + 8px); padding: 4px 8px; border-radius: 8px; background: var(--ed-toolbar-bg); }
+    .viewport__hint { display: none; }
+    .editor .timeline__transport .ant-btn { min-width: 44px; height: 44px; font-size: 12px; }
+    .timeline__controls .ant-select, .editor .timeline__fps { height: 44px; }
+    .editor .timeline__transport .ant-input-number { height: 44px; }
+    .editor .timeline__transport .ant-input-number-input { height: 42px; font-size: 16px; }
+    .timeline__row--object, .timeline__row--property { --timeline-row-height: 44px; }
+    .track-label__expand, .track-label__lock { width: 32px; height: 44px; }
+    .track-label--object { gap: 0; padding-inline: 2px; }
+    .track-label--group { padding-left: 12px; }
+    .track-label__name { padding: 2px; }
+    .editor .timeline__loop { min-height: 44px; }
+}
+
+.timeline__settings { display: flex; flex-direction: column; align-items: stretch; gap: 12px; width: 200px; }
+.timeline__settings .ant-select, .timeline__settings .ant-input-number { height: 44px; }
+.timeline__settings .ant-input-number-input { height: 42px; font-size: 16px; }
+.timeline__settings .duration-input, .timeline__settings .timeline__loop { min-height: 44px; justify-content: space-between; font-size: 13px; }

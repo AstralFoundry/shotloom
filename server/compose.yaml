@@ -1,0 +1,28 @@
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: server/Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      TMPDIR: /var/cache/shotloom
+    ports:
+      - "127.0.0.1:13030:3001"
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,noexec,nosuid
+    volumes:
+      - agent-cache:/var/cache/shotloom
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  agent-cache:

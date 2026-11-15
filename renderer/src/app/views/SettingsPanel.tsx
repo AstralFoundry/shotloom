@@ -1,5 +1,5 @@
 import { t } from '@/i18n';
-import { Input, InputNumber, Select, Switch } from "antd";
+import { Input, Select, Switch } from "antd";
 import {
   useEffect,
   useRef,
@@ -8,6 +8,8 @@ import {
 import { type IconName, IconSymbol } from "../components/IconSymbol";
 import { ProviderBrandIcon } from "../components/ProviderBrandIcon";
 import type { ProviderModelRow } from "../../domain/provider/ModelAvailability";
+import { getTypeMeta } from "../../domain/catalog/ModelCatalog";
+import type { UpstreamModelRow } from "../../domain/provider/UpstreamModels";
 
 export interface SettingsModel {
   id: string;
@@ -23,6 +25,7 @@ export interface ProviderItem {
   baseUrl: string;
   baseUrlRequired: boolean;
   configured: boolean;
+  serverManaged?: boolean;
   models: ProviderModelRow[];
 }
 export interface ProviderConfigPatch {
@@ -31,9 +34,11 @@ export interface ProviderConfigPatch {
 }
 export interface SettingsData {
   locale?: string;
-  projectRootDir: string;
-  downloadDir: string;
-  pollInterval: number;
+  projectRootDir: string | null;
+  downloadDir: string | null;
+  managedModels?: boolean;
+  upstreamModels?: UpstreamModelRow[];
+  projectOpen?: boolean;
   projectModels: Record<string, string>;
   agentModels: Record<string, string>;
   availableModels: Record<string, SettingsModel[]>;
@@ -46,7 +51,6 @@ export interface SettingsController {
   selectProjectRoot: () => void | Promise<void>;
   selectDownloadDir: () => void | Promise<void>;
   clearDownloadDir: () => void | Promise<void>;
-  setPollInterval: (value: number) => void | Promise<void>;
   setProjectModel: (key: string, value: string) => void;
   repairNodeModels: () => void | Promise<void>;
   exportDiagnostics: () => void | Promise<void>;
@@ -157,9 +161,10 @@ const canvasShortcutRows = [
 ] as const;
 
 function ModelSelect(
-  { value, models, onChange }: {
+  { value, models, label, onChange }: {
     value: string;
     models: SettingsModel[];
+    label: string;
     onChange: (value: string) => void;
   },
 ) {
@@ -167,7 +172,7 @@ function ModelSelect(
   return (
     <Select
       className="settings-model-select"
-      aria-label={t("ui.SettingsPanel.text.5fd36376")}
+      aria-label={label}
       value={value || null}
       disabled={!models.length}
       placeholder={t("ui.SettingsPanel.text.5fd36376")}
@@ -252,7 +257,7 @@ function ProviderCard(
           <i />{item.configured ? t("ui.SettingsPanel.text.dc7cd22f") : t("ui.CanvasNodes.text.63595e95")}
         </span>
       </div>
-      <div className="provider-card-fields">
+      {item.serverManaged ? <p>{t('cloud.models.managed')}</p> : <div className="provider-card-fields">
         <label className="provider-field">
           <span>API Key</span>
           <Input.Password
@@ -273,7 +278,7 @@ function ProviderCard(
             onPressEnter={(e) => e.currentTarget.blur()}
           />
         </label>
-      </div>
+      </div>}
       <div className="provider-models">
         {groupProviderModels(item.models).map(([label, models]) => (
           <div className="provider-model-group" key={label}>
@@ -318,6 +323,7 @@ export function SettingsPanel(
   const [tab, setTab] = useState<Tab>("general");
   const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null);
   const selectedProvider = data.providers.find((item) => item.id === selectedProviderId);
+  const modelCount = data.upstreamModels?.length || 0;
   const contentScroll = useRef<HTMLDivElement>(null);
   const meta = groups.flatMap((group) => group.items).find((item) =>
     item.id === tab
@@ -333,29 +339,28 @@ export function SettingsPanel(
             {group.items.map((item) => (
               <button
                 key={item.id}
+                type="button"
+                aria-current={tab === item.id ? "page" : undefined}
                 className={tab === item.id ? "active" : ""}
                 onClick={() => {
                   setTab(item.id);
                   setSelectedProviderId(null);
+                  if (contentScroll.current) contentScroll.current.scrollTop = 0;
                 }}
               >
                 <IconSymbol name={item.icon} />
-                <span>{item.label}</span>
-                {item.id === "providers" && <em>{data.providers.length}</em>}
+                <span>{item.id === 'providers' && data.managedModels ? t('settings.availableModels') : item.label}</span>
+                {item.id === "providers" && <em>{data.managedModels ? modelCount : data.providers.length}</em>}
               </button>
             ))}
           </div>
         ))}
-        <div className="settings-nav-note">
-          <IconSymbol name="help" />
-          <span>{t("ui.SettingsPanel.text.fdfa533d")}</span>
-        </div>
       </nav>
       <main className="settings-content">
         <header className="settings-content-head">
           <div>
-            <h3>{selectedProvider && tab === "providers" ? selectedProvider.name : meta.label}</h3>
-            <p>{selectedProvider && tab === "providers" ? selectedProvider.description : meta.description}</p>
+            <h3>{selectedProvider && tab === "providers" ? selectedProvider.name : tab === 'providers' && data.managedModels ? t('settings.availableModels') : meta.label}</h3>
+            <p>{selectedProvider && tab === "providers" ? selectedProvider.description : tab === 'providers' && data.managedModels ? t('cloud.models.managed') : tab === 'general' && data.managedModels ? t('settings.cloudGeneralDescription') : meta.description}</p>
           </div>
           {tab === "canvas" && (
             <button
@@ -381,8 +386,8 @@ export function SettingsPanel(
                     ]}
                   />
                 </div>
-                <h4>{t("ui.SettingsPanel.text.93ded934")}</h4>
-                <div className="settings-row">
+                {(data.projectRootDir !== null || data.downloadDir !== null) && <h4>{t("ui.SettingsPanel.text.93ded934")}</h4>}
+                {data.projectRootDir !== null && <div className="settings-row">
                   <div>
                     <strong>{t("ui.SettingsPanel.text.4646bc3c")}</strong>
                     <span>{t("ui.SettingsPanel.text.2f3d4c66")}</span>
@@ -399,8 +404,8 @@ export function SettingsPanel(
                     >
                       {t("ui.SettingsPanel.text.70b20820")}</button>
                   </div>
-                </div>
-                <div className="settings-row">
+                </div>}
+                {data.downloadDir !== null && <div className="settings-row">
                   <div>
                     <strong>{t("ui.SettingsPanel.text.9d007062")}</strong>
                     <span>{t("ui.SettingsPanel.text.def47c08")}</span>
@@ -424,9 +429,9 @@ export function SettingsPanel(
                         {t("ui.SettingsPanel.text.7b15e5e8")}</button>
                     )}
                   </div>
-                </div>
+                </div>}
               </section>
-              <section className="settings-section">
+              {data.projectOpen !== false && <section className="settings-section">
                 <h4>{t("ui.SettingsPanel.text.b5bff31c")}</h4>
                 {modelRows.map(([key, type, label, description]) => (
                   <div key={key} className="settings-row">
@@ -435,6 +440,7 @@ export function SettingsPanel(
                       <span>{description}</span>
                     </div>
                     <ModelSelect
+                      label={label}
                       value={data.projectModels[key] || ""}
                       models={data.availableModels[type] || []}
                       onChange={(value) =>
@@ -454,7 +460,7 @@ export function SettingsPanel(
                     {t('settings.repairNodeModels.action')}
                   </button>
                 </div>
-              </section>
+              </section>}
               <section className="settings-section">
                 <h4>{t('settings.diagnostics.title')}</h4>
                 <div className="settings-row">
@@ -468,27 +474,6 @@ export function SettingsPanel(
                   >
                     {t('settings.diagnostics.action')}
                   </button>
-                </div>
-              </section>
-              <section className="settings-section">
-                <h4>{t("ui.SettingsPanel.text.060c628f")}</h4>
-                <div className="settings-row">
-                  <div>
-                    <strong>{t("ui.SettingsPanel.text.641398cc")}</strong>
-                    <span>{t("ui.SettingsPanel.text.b3b0f1f2")}</span>
-                  </div>
-                  <div className="settings-number-control">
-                    <InputNumber
-                      value={data.pollInterval}
-                      min={500}
-                      step={100}
-                      suffix={t("ui.SettingsPanel.text.f3c3d569")}
-                      onChange={(next) =>
-                        void controller.setPollInterval(
-                          Math.max(500, Number(next) || 1500),
-                        )}
-                    />
-                  </div>
                 </div>
               </section>
             </>
@@ -523,7 +508,36 @@ export function SettingsPanel(
           )}
           {tab === "providers" && (
             <section className="settings-section settings-list-section">
-              {selectedProvider ? (
+              {data.managedModels ? (
+                <>
+                  <div className="provider-list-intro">
+                    <span>{t('settings.availableModels')}</span>
+                    <span>{modelCount} {t("ui.SettingsPanel.text.674373ae")}</span>
+                  </div>
+                  {['textGeneration', 'imageGeneration', 'videoGeneration', 'audioGeneration', 'other'].map(type => {
+                    const label = type === 'other' ? t('settings.upstreamModels.other') : getTypeMeta(type).label;
+                    const models = (data.upstreamModels || []).filter(model => model.type === type);
+                    if (type === 'other' && !models.length) return null;
+                    return <section className="provider-model-group" key={type}>
+                      <div className="provider-model-group-label">
+                        <strong>{label}</strong>
+                        <span>{models.length} {t("ui.SettingsPanel.text.674373ae")}</span>
+                      </div>
+                      <div className="provider-model-list">
+                        {models.map(model => (
+                          <div className="provider-model-card" key={model.id}>
+                            <div className="provider-model-card-main">
+                              <strong>{model.id}</strong>
+                              {model.providerName && <small>{model.providerName}</small>}
+                            </div>
+                            {model.iconId && <span className="provider-badge"><ProviderBrandIcon icon={model.iconId} /></span>}
+                          </div>
+                        ))}
+                      </div>
+                    </section>;
+                  })}
+                </>
+              ) : selectedProvider ? (
                 <>
                   <button className="provider-back" type="button" onClick={() => {
                     setSelectedProviderId(null);
@@ -535,7 +549,7 @@ export function SettingsPanel(
               ) : (
                 <>
                   <div className="provider-list-intro">
-                    <span>{t("ui.SettingsPanel.text.190d85a5")}</span>
+                    <span>{data.managedModels ? t('settings.availableModels') : t("ui.SettingsPanel.text.190d85a5")}</span>
                     <span>{data.providers.filter((item) => item.configured).length} / {data.providers.length} {t("ui.SettingsPanel.text.dc7cd22f")}</span>
                   </div>
                   <div className="provider-list">
@@ -572,6 +586,7 @@ export function SettingsPanel(
                       <span>{description}</span>
                     </div>
                     <ModelSelect
+                      label={label}
                       value={data.agentModels[key] || ""}
                       models={data.availableModels[type] || []}
                       onChange={(value) =>

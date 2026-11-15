@@ -20,7 +20,7 @@
   align-items: center;
   gap: calc(4px * var(--node-label-zoom, 1));
   padding: 0 calc(2px * var(--node-label-zoom, 1));
-  color: var(--muted);
+  color: var(--type-primary);
   pointer-events: none;
 }
 
@@ -46,8 +46,10 @@
   outline: 0;
   color: inherit;
   background: transparent;
+  font-family: inherit;
   font-size: calc(var(--canvas-node-title-size) * var(--node-label-zoom, 1));
-  font-weight: 600;
+  font-weight: 400;
+  text-overflow: ellipsis;
   pointer-events: auto;
 }
 
@@ -282,18 +284,10 @@
   background: var(--surface);
   position: relative;
 }
-.director-detail-agent {
-  position: relative;
-  min-width: 280px;
-  height: 100%;
-  overflow: hidden;
-  border-left: 1px solid var(--line);
-}
-.director-detail-agent .harness-chat-panel { height: 100%; }
 .director-detail-frame {
   display: block;
   flex: 1;
-  width: 0;
+  width: 100%;
   height: 100%;
   min-width: 0;
   min-height: 0;

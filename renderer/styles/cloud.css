@@ -1,0 +1,117 @@
+.cloud-login, .cloud-session-loading { min-height: 100dvh; box-sizing: border-box; display: grid; place-items: center; padding: 40px 24px; background: var(--surface-muted); }
+.cloud-login-card { box-sizing: border-box; width: min(100%, 440px); padding: 40px; border: 1px solid var(--line); border-radius: var(--radius-2xl); background: var(--surface); }
+.cloud-login-intro { color: var(--text); }
+.cloud-wordmark { display: flex; align-items: center; gap: 12px; margin: 0; font-size: var(--text-title-20); font-weight: 600; }
+.cloud-wordmark img { border-radius: var(--radius-sm); }
+.cloud-login-intro h1 { margin: 36px 0 0; font-size: var(--text-display-24); font-weight: 600; line-height: var(--text-display-24--line-height); letter-spacing: var(--tracking-tight); }
+.cloud-login-form p { margin: 12px 0 0; color: var(--muted); line-height: 1.7; font-size: var(--text-body-14); }
+.cloud-login-form .button { width: 100%; min-height: 48px; margin-top: 28px; }
+.cloud-login-form [role="alert"] { color: var(--bad); }
+.cloud-login-overlay { position: fixed; inset: 0; z-index: 10000; overflow-y: auto; }
+.cloud-session-loading { align-content: center; justify-items: center; gap: 24px; }
+.cloud-session-loading > img { border-radius: var(--radius); }
+.cloud-session-loading > p { margin: 0; color: var(--muted); font-size: var(--text-body-13); }
+.cloud-session-progress { width: 96px; height: 3px; overflow: hidden; border-radius: var(--radius-control); background: var(--line); }
+.cloud-session-progress::after { content: ""; display: block; width: 40%; height: 100%; border-radius: inherit; background: var(--brand-accent); animation: cloud-session-progress 1.4s ease-in-out infinite alternate; }
+@keyframes cloud-session-progress { to { transform: translateX(150%); } }
+@media (prefers-reduced-motion: reduce) { .cloud-session-progress::after { animation: none; width: 100%; } }
+.app-shell.route-account .content { padding: 0; }
+.account-view { width: min(100%, 960px); margin: 0 auto; padding: 48px 40px; overflow: auto; height: 100%; }
+.account-header { margin-bottom: 36px; }
+.account-header h1 { margin: 0 0 8px; font-size: var(--text-display-24); font-weight: 600; }
+.account-header p { margin: 0; color: var(--muted); font-size: var(--text-body-14); }
+.account-profile { display: flex; align-items: center; gap: 16px; margin-bottom: 28px; min-width: 0; }
+.account-avatar { display: grid; place-items: center; flex: 0 0 56px; height: 56px; border-radius: var(--radius-xl); background: var(--brand-accent-wash); color: var(--brand-accent); }
+.account-avatar svg { width: 26px; height: 26px; }
+.account-profile > div { min-width: 0; }
+.account-profile h2 { margin: 0 0 6px; font-size: var(--text-title-20); font-weight: 600; overflow-wrap: anywhere; }
+.account-profile p { margin: 0; font-size: var(--text-body-14); color: var(--muted); overflow-wrap: anywhere; }
+.account-grid { display: grid; gap: 24px; }
+.account-wallet { padding: 24px 28px 28px; background: var(--brand); color: var(--surface); border-radius: var(--radius-2xl); }
+.account-wallet-heading { display: flex; align-items: center; justify-content: space-between; font-size: var(--text-body-14); }
+.account-refresh { display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: inherit; }
+.account-refresh:hover { background: color-mix(in srgb, var(--surface) 15%, transparent); }
+.account-refresh:disabled { opacity: .5; }
+.account-refresh svg { width: 18px; height: 18px; }
+.account-wallet > strong { display: block; margin: 8px 0 20px; font-size: var(--text-display-48); font-weight: 500; letter-spacing: var(--tracking-tight); line-height: var(--text-display-48--line-height); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.account-wallet-used { display: flex; gap: 16px; margin: 0; font-size: var(--text-body-14); opacity: .75; }
+.account-wallet-used span { font-variant-numeric: tabular-nums; }
+.account-wallet-bottom { margin-top: 28px; padding-top: 20px; border-top: 1px solid color-mix(in srgb, var(--surface) 20%, transparent); display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+.account-wallet-bottom p { margin: 0; max-width: 28em; opacity: .75; font-size: var(--text-body-12); line-height: 1.7; }
+.account-wallet .account-topup-trigger { flex-shrink: 0; min-height: 44px; padding: 0 18px; background: var(--surface); color: var(--brand); border: 1px solid var(--surface); border-radius: var(--radius-control); }
+.account-wallet .account-topup-trigger:hover { opacity: .85; }
+.account-action { display: flex; align-items: center; gap: 16px; width: 100%; padding: 20px; min-height: 88px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-xl); color: var(--text); text-align: left; }
+.account-action > span:nth-child(2) { flex: 1; min-width: 0; }
+.account-action strong { display: block; font-size: var(--text-title-16); font-weight: 500; }
+.account-action small { display: block; margin-top: 6px; color: var(--muted); font-size: var(--text-body-14); line-height: 1.5; }
+.account-action svg { width: 20px; height: 20px; flex-shrink: 0; }
+.account-action-icon { display: grid; place-items: center; width: 44px; height: 44px; border-radius: var(--radius); background: var(--surface-muted); }
+.account-action:hover { background: var(--surface-2); }
+.account-mobile-tools { display: none; }
+.account-footer { display: flex; justify-content: flex-end; margin-top: 32px; }
+.account-footer .button { width: 100%; min-height: 44px; color: var(--muted); }
+.account-usage { margin-top: 28px; border: 1px solid var(--line); border-radius: var(--radius-xl); padding: 20px; background: var(--surface); }
+.account-usage > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.account-usage h2 { margin: 0; font-size: var(--text-title-16); }
+.account-usage header p, .account-usage > p { margin: 8px 0 0; color: var(--muted); font-size: var(--text-body-13); line-height: var(--text-body-13--line-height); }
+.account-usage .account-refresh { flex-shrink: 0; }
+.account-usage ul { margin: 16px 0 0; padding: 0; list-style: none; }
+.account-usage li { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 0; border-top: 1px solid var(--line); }
+.account-usage li > div { display: grid; min-width: 0; gap: 6px; }
+.account-usage li strong { font-size: var(--text-body-14); font-weight: 500; overflow-wrap: anywhere; }
+.account-usage time { color: var(--muted); font-size: var(--text-body-12); }
+.account-usage-amount { flex-shrink: 0; font-size: var(--text-body-14); font-variant-numeric: tabular-nums; }
+.account-usage > footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 16px; }
+.account-usage > footer .button { min-height: 44px; }
+.account-usage > footer span { color: var(--muted); font-size: var(--text-body-12); }
+.account-usage-error { margin-top: 16px; color: var(--bad); font-size: var(--text-body-14); }
+.account-topup { width: min(calc(100% - 32px), 520px); max-height: calc(100dvh - 32px); overflow: auto; padding: 0; color: var(--text); background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-2xl); box-shadow: var(--shadow-modal); }
+.account-topup > header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 24px; border-bottom: 1px solid var(--line); }
+.account-topup h2 { margin: 0; font-size: var(--text-title-20); }
+.account-topup header p { margin: 6px 0 0; color: var(--muted); font-size: var(--text-body-13); }
+.account-topup .button { min-height: 44px; }
+.account-topup .button svg { width: 18px; height: 18px; flex-shrink: 0; }
+.account-topup .account-topup-close { flex-shrink: 0; width: 44px; padding: 0; }
+.account-topup form { display: grid; gap: 20px; padding: 24px; }
+.account-topup-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.account-topup-options button { display: grid; gap: 8px; min-height: 96px; padding: 16px; text-align: left; color: var(--text); background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--radius-xl); }
+.account-topup-options button:hover { border-color: var(--brand-accent); }
+.account-topup-options button[aria-pressed="true"] { color: var(--brand-accent); background: var(--brand-accent-wash); border-color: var(--brand-accent); }
+.account-topup-options strong { font-size: var(--text-display-24); font-weight: 600; font-variant-numeric: tabular-nums; }
+.account-topup-options small { margin-left: 6px; font-size: var(--text-body-12); font-weight: 400; }
+.account-topup-options span { font-size: var(--text-body-13); }
+.account-topup-custom { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 16px; font-size: var(--text-body-14); }
+.account-topup-custom .ant-input-number { width: 100%; }
+.account-topup-custom input { min-height: 44px; font-size: var(--text-title-16); }
+.account-topup-preview { display: grid; grid-template-columns: 1fr auto; align-items: baseline; gap: 8px 12px; padding: 20px 0; border-block: 1px solid var(--line); }
+.account-topup-preview > span { font-size: var(--text-body-14); }
+.account-topup-preview strong { font-size: var(--text-title-20); font-variant-numeric: tabular-nums; }
+.account-topup-preview small { grid-column: 1 / -1; color: var(--muted); font-size: var(--text-body-12); }
+.account-topup form p { margin: 0; color: var(--muted); font-size: var(--text-body-12); line-height: 1.7; }
+.account-topup form [role="alert"] { color: var(--bad); }
+.account-topup form > .button { width: 100%; justify-content: space-between; }
+.account-checkout-summary { display: flex; flex-shrink: 0; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px 16px; padding: 14px 24px; background: var(--brand-accent-wash); font-size: var(--text-body-13); }
+.account-checkout-summary strong { color: var(--brand-accent); font-size: var(--text-title-16); font-variant-numeric: tabular-nums; }
+.account-payment-handoff { display: grid; justify-items: center; gap: 20px; padding: 32px 24px; text-align: center; }
+.account-payment-handoff > p { margin: 0; font-size: var(--text-body-14); line-height: 1.7; }
+.account-payment-handoff > a { width: 100%; display: flex; justify-content: center; gap: 8px; text-decoration: none; }
+.account-payment-handoff > small { color: var(--muted); font-size: var(--text-body-12); line-height: 1.7; }
+.account-topup::backdrop { background: var(--overlay-dim); }
+@media (max-width: 700px), (max-width: 920px) and (max-height: 500px) {
+  .account-topup > header { padding: 20px; }
+  .account-topup form { padding: 20px; }
+  .account-checkout-summary { padding: 12px 20px; }
+  .cloud-login { padding: 20px; }
+  .cloud-login-card { padding: 32px 24px; }
+  .account-view { padding: 28px 20px; }
+  .account-header { margin-bottom: 28px; }
+  .account-wallet { padding: 18px 24px 24px; }
+  .account-wallet-bottom { flex-direction: column; align-items: stretch; gap: 18px; }
+  .account-wallet-bottom p { max-width: none; }
+  .account-footer { justify-content: center; margin-top: 24px; }
+  .account-action { padding: 16px; gap: 12px; }
+  .account-usage { padding: 16px; }
+  .account-usage li { flex-wrap: wrap; gap: 8px; }
+  .account-usage li > div { flex: 1 1 140px; }
+}
+

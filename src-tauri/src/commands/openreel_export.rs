@@ -125,12 +125,15 @@ impl OpenReelExportState {
         project_dir: String,
         settings: NativeEncoderSettings,
     ) -> Result<String, String> {
-        settings.validate()?;
-        media_tool("ffmpeg")?;
         let root = fs::canonicalize(project_dir).map_err(|e| e.to_string())?;
         if !root.join(PROJECT_FILE).is_file() {
             return Err(localized_error("native.error.ce0baa2719", json!({}), "Native export requires a saved Shotloom project".into()));
         }
+        self.start_in_root(owner, root, settings)
+    }
+    fn start_in_root(&self, owner: String, root: PathBuf, settings: NativeEncoderSettings) -> Result<String, String> {
+        settings.validate()?;
+        media_tool("ffmpeg")?;
         let assets = root.join("assets");
         fs::create_dir_all(&assets).map_err(|e| e.to_string())?;
         let assets = fs::canonicalize(assets).map_err(|e| e.to_string())?;
@@ -374,6 +377,17 @@ pub async fn openreel_export_start(
     settings: NativeEncoderSettings,
 ) -> Result<String, String> {
     state.start(window.label().to_string(), project_dir, settings)
+}
+#[tauri::command]
+pub async fn openreel_cloud_export_start(
+    app: tauri::AppHandle,
+    window: tauri::WebviewWindow,
+    state: tauri::State<'_, OpenReelExportState>,
+    workspace_id: String,
+    settings: NativeEncoderSettings,
+) -> Result<String, String> {
+    let root = fs::canonicalize(super::cloud_media::workspace(&app, &workspace_id)?).map_err(|e| e.to_string())?;
+    state.start_in_root(window.label().to_string(), root, settings)
 }
 #[tauri::command]
 pub async fn openreel_export_write(

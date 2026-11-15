@@ -376,13 +376,14 @@ export function useOpenReelBridge({
         if (!node) throw new Error(t("ui.useOpenReelBridge.text.68d57198"));
         const safeTitle = String(title || t("ui.ReactWorkbench.text.3d65ff77")).replace(/[\\/:*?"<>|]/g, "-");
         const fileName = t("ui.useOpenReelBridge.text.42e5cfaf", { value0: safeTitle, value1: Date.now(), value2: pending.format === "srt" ? "srt" : "mp4" });
-        const filePath = `${dir.replace(/[\\/]$/, "")}/assets/${fileName}`;
+        let filePath = `${dir.replace(/[\\/]$/, "")}/assets/${fileName}`;
         const checksum = pending.target === "canvas" && pending.format !== "srt"
           ? Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", buffer)), (byte) => byte.toString(16).padStart(2, "0")).join("")
           : undefined;
         assertOwner();
         const written = await desktopApi.file.writeFileToPath(filePath, buffer);
         if (!written) throw new Error(t("ui.useOpenReelBridge.text.6041c439"));
+        filePath = written.filePath || written.path || filePath;
         assertOwner(false);
         const deliveryId = pending.deliveryId;
         if (pending.target === "canvas" && pending.format !== "srt") {

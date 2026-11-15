@@ -3,17 +3,53 @@ import { existsSync, readdirSync } from 'node:fs';
 import test, { before, after } from 'node:test';
 import { readSource } from './helpers/sourceContract.mjs';
 import { createRendererEnv } from './helpers/rendererSsr.mjs';
-import { changedBuiltInFields, withBuiltInEntries, withoutBuiltInEntries } from '../renderer/src/services/builtInCatalogStorage.ts';
+import { changedBuiltInFields, withBuiltInEntries } from '../renderer/src/services/builtInCatalogStorage.ts';
 
 const skillsDir = 'renderer/src/agent/content/skills/';
 const skillsRoot = new URL(`../${skillsDir}`, import.meta.url);
 const skillFile = (relative) => readSource(`${skillsDir}${relative}`);
 let env, skills;
 before(async () => {
-  env = await createRendererEnv();
+  env = await createRendererEnv({ storage: new Map(), withWindow: true });
   ({ builtInSkills: skills } = await env.load('services/builtInSkills'));
 });
 after(async () => env?.dispose());
+
+test('系统技能拒绝历史覆盖和伪装 ID，只有用户技能进入持久化目录', async () => {
+  const { withBuiltInSkills, withoutBuiltInSkills, isUserSkill } = await env.load('services/builtInSkills');
+  const original = skills.find(skill => skill.id === 'video-production');
+  const custom = { id: 'my-film', name: 'My film', description: 'My workflow', instructions: 'Write a film', enabled: true };
+  const catalog = withBuiltInSkills({ skills: [
+    { ...original, instructions: 'Overridden', enabled: false, agentIds: ['text-primary'] },
+    { id: 'visual-prompt-craft', builtIn: false, instructions: 'Spoofed' },
+    custom,
+  ] });
+  assert.deepEqual(catalog.skills.find(skill => skill.id === original.id), original);
+  assert.deepEqual(withoutBuiltInSkills(catalog).skills, [custom]);
+  assert.deepEqual(catalog.skills.filter(isUserSkill), [custom]);
+  assert.ok(catalog.skills.some(skill => skill.id === original.id && skill.enabled));
+});
+
+test('内置技能不能被保存、导入、更新、禁用或删除，用户技能可正常保存', async () => {
+  const store = await env.load('store/skillsStore');
+  const { desktopApi } = await env.load('services/desktopApi');
+  await store.loadGlobalSkills();
+  const original = JSON.parse(JSON.stringify(store.skillsStore.skills.find(skill => skill.id === 'video-production')));
+  await assert.rejects(() => store.upsertSkill({ ...original, instructions: 'Override' }));
+  await assert.rejects(() => store.upsertSkill({ ...original, builtIn: false }));
+  await assert.rejects(() => store.updateSkill(store.skillsStore.skills.find(skill => skill.id === original.id), { instructions: 'Override' }));
+  await store.toggleSkill(original.id);
+  await store.deleteSkill(original.id);
+  assert.deepEqual(JSON.parse(JSON.stringify(store.skillsStore.skills.find(skill => skill.id === original.id))), original);
+  const draft = { ...store.createSkillDraft(['canvas-primary']), id: 'my-custom-skill', instructions: 'Write a film' };
+  const saved = await store.upsertSkill(draft);
+  assert.equal(saved.id, draft.id);
+  await store.toggleSkill(saved.id);
+  const catalog = await desktopApi.skills.getGlobal();
+  assert.equal(catalog.skills.find(skill => skill.id === saved.id).enabled, false);
+  assert.deepEqual(JSON.parse(JSON.stringify(catalog.skills.find(skill => skill.id === original.id))), original);
+  await store.deleteSkill(saved.id);
+});
 
 // 内容和 frontmatter 由真实加载器解析，Skill 不再依赖额外 manifest。
 function parseSkill(id) {
@@ -38,7 +74,7 @@ test('随包 Skill 与磁盘目录一一对应，身份、说明和启用状态�
   }
 });
 
-test('导演台创作 Skill 只授予导演台 Agent', async () => {
+test('导演台创作 Skill 授予导演台与画布 Agent', async () => {
   const { agentDefinition } = await env.load('agent/agents/definitions');
   const { selectAgentSkills } = await env.load('agent/core/visibility');
   const skill = parseSkill('director-desk-staging').metadata;
@@ -47,7 +83,8 @@ test('导演台创作 Skill 只授予导演台 Agent', async () => {
     selectAgentSkills(agentDefinition('director-primary'), [skill]).map((entry) => entry.id),
     ['director-desk-staging'],
   );
-  assert.deepEqual(selectAgentSkills(agentDefinition('canvas-primary'), [skill]), []);
+  assert.deepEqual(selectAgentSkills(agentDefinition('canvas-primary'), [skill]).map(entry => entry.id), ['director-desk-staging']);
+  assert.deepEqual(selectAgentSkills(agentDefinition('editor-primary'), [skill]), []);
 });
 
 test('Skill 正文引用的随包资料真实存在，包括跨 Skill 引用', () => {
@@ -81,34 +118,6 @@ test('角色板合同拥有四区域布局，其他 Skill 引用该合同', () =
   assert.match(parseSkill('script-to-video').body, /character-board/);
 });
 
-
-test('内置与自定义 Skill 使用同一结构持久化，内置内容允许覆盖', () => {
-  const parsed = parseSkill('character-board');
-  const builtInSkill = {
-    id: parsed.metadata.id,
-    name: parsed.metadata.name,
-    description: parsed.metadata.description,
-    instructions: parsed.body,
-    enabled: true,
-    builtIn: true,
-  };
-  const editedDescription = '本机修改后的技能说明';
-  const storage = withoutBuiltInEntries({
-    storageVersion: 1,
-    skills: [
-      { ...builtInSkill, description: editedDescription, enabled: false },
-      { id: 'custom', name: 'Custom', description: 'Custom skill', instructions: 'Do it.', enabled: true },
-    ],
-  }, 'skills');
-  assert.deepEqual(storage.skills.map((skill) => skill.id), [builtInSkill.id, 'custom']);
-
-  const hydrated = withBuiltInEntries(storage, 'skills', [builtInSkill]);
-  const editedBuiltIn = hydrated.skills.find((skill) => skill.id === builtInSkill.id);
-  assert.equal(editedBuiltIn?.description, editedDescription);
-  assert.equal(editedBuiltIn?.enabled, false);
-  assert.equal(editedBuiltIn?.builtIn, true);
-  assert.equal(hydrated.skills.find((skill) => skill.id === 'custom')?.enabled, true);
-});
 
 test('目录移除的内置条目在合并时被清理，自定义条目保留', () => {
   const hydrated = withBuiltInEntries({

@@ -1,13 +1,16 @@
 import { Hono } from "hono";
+import { assertPublishedRelay } from './models';
 import type { Context } from "hono";
 import { z } from "zod";
-import { requireAuth } from "./auth";
+import { requireAuth, refreshSession } from "./auth";
 import { env } from "./env";
-import { badRequest, notFound } from "./lib/errors";
+import { badRequest, notFound, supabaseError } from "./lib/errors";
 import { envelope } from "./lib/respond";
-import { resolveBucket, scopedKey, uploadFile, createSignedUrl, createSignedUploadUrl } from "./lib/supabase";
+import { admin, resolveBucket, scopedKey, createSignedUrl, createSignedUploadUrl } from "./lib/supabase";
 import type { AppEnv, Json } from "./lib/types";
 import * as store from "./lib/store";
+import { relayPath } from './lib/relay';
+import { remoteMedia } from './lib/remoteMedia';
 
 // ---------------------------------------------------------------------------
 // 校验辅助
@@ -43,6 +46,34 @@ const CATALOG_FALLBACKS: Record<string, Json> = {
 export const domainApp = new Hono<AppEnv>();
 domainApp.use("*", requireAuth);
 
+domainApp.get('/library-folders', async c => {
+  const { data, error } = await admin.rpc('list_library_folders', { p_user_id: c.get('userId') });
+  if (error) throw supabaseError(error.message);
+  return c.json(envelope(data));
+});
+domainApp.post('/library-folders', async c => {
+  const body = parseOrBadRequest(z.object({ name: z.string().trim().min(1).max(200), parentId: uuidSchema.nullable() }), await jsonBody(c));
+  const { data, error } = await admin.from('library_folders').insert({ user_id: c.get('userId'), name: body.name, parent_id: body.parentId }).select('id').single();
+  if (error?.code === '23503') throw badRequest('目标文件夹不存在或无权访问');
+  if (error) throw supabaseError(error.message);
+  return c.json(envelope(data));
+});
+domainApp.patch('/library-folders/:id', async c => {
+  const id = parseOrBadRequest(uuidSchema, c.req.param('id'));
+  const body = parseOrBadRequest(z.object({ name: z.string().trim().min(1).max(200) }), await jsonBody(c));
+  const { data, error } = await admin.from('library_folders').update({ name: body.name }).eq('id', id).eq('user_id', c.get('userId')).select('id').maybeSingle();
+  if (error) throw supabaseError(error.message);
+  if (!data) throw notFound('文件夹不存在或无权访问');
+  return c.json(envelope(data));
+});
+domainApp.delete('/library-folders/:id', async c => {
+  const id = parseOrBadRequest(uuidSchema, c.req.param('id'));
+  const { data, error } = await admin.from('library_folders').delete().eq('id', id).eq('user_id', c.get('userId')).select('id').maybeSingle();
+  if (error) throw supabaseError(error.message);
+  if (!data) throw notFound('文件夹不存在或无权访问');
+  return c.json(envelope(null));
+});
+
 // ---------------------------------------------------------------------------
 // 项目（画布图数据）
 // ---------------------------------------------------------------------------
@@ -60,6 +91,18 @@ domainApp.put("/project/:id", async (c) => {
   const body = await jsonBody(c);
   const saved = await store.saveProject(userId, projectId, body);
   return c.json(envelope(saved, "已保存"));
+});
+
+domainApp.get('/project/:id/bundle', async c => c.json(envelope(await store.loadProjectBundle(
+  c.get('userId'), parseOrBadRequest(uuidSchema, c.req.param('id')),
+))));
+domainApp.put('/project/:id/bundle', async c => {
+  const body = parseOrBadRequest(z.object({
+    project: z.record(z.string(), z.unknown()),
+    snapshots: z.array(z.object({ nodeId: z.string().min(1), payload: z.unknown() })),
+    records: z.array(z.object({ nodeId: z.string().min(1), key: z.string().min(1), payload: z.unknown() })),
+  }), await jsonBody(c));
+  return c.json(envelope(await store.importProjectBundle(c.get('userId'), parseOrBadRequest(uuidSchema, c.req.param('id')), body as Json)));
 });
 
 domainApp.get("/projects", async (c) => {
@@ -153,7 +196,7 @@ domainApp.put("/settings/token-group", async (c) => {
   const userId = c.get("userId");
   const body = parseOrBadRequest(
     z.object({ activeTokenGroupId: z.string() }),
-    await c.req.json(),
+    await jsonBody(c),
   );
   await store.setSettingField(userId, "activeTokenGroupId", body.activeTokenGroupId);
   return c.json(envelope(null, "已保存"));
@@ -215,7 +258,9 @@ domainApp.get("/clipboard/:id", async (c) => {
 
 domainApp.put("/clipboard/:id", async (c) => {
   const userId = c.get("userId");
-  await store.saveClipboard(userId, c.req.param("id"), await jsonBody(c));
+  const id = parseOrBadRequest(z.string().regex(/^[a-z0-9_-]+$/i), c.req.param("id"));
+  const payload = parseOrBadRequest(z.object({ snapshotId: z.literal(id), nodes: z.array(z.unknown()), edges: z.array(z.unknown()) }).passthrough(), await jsonBody(c));
+  await store.saveClipboard(userId, id, payload as Json);
   return c.json(envelope(null, "已保存"));
 });
 
@@ -228,7 +273,7 @@ domainApp.put("/workspace/:label", async (c) => {
   const userId = c.get("userId");
   const body = parseOrBadRequest(
     z.object({ projectId: z.string().uuid().nullable() }),
-    await c.req.json(),
+    await jsonBody(c),
   );
   await store.bindWorkspaceProject(userId, c.req.param("label"), body.projectId);
   return c.json(envelope(null, "已保存"));
@@ -239,12 +284,14 @@ domainApp.put("/workspace/:label", async (c) => {
 // ---------------------------------------------------------------------------
 const bucketSchema = z.enum(["media", "assets"]);
 
+domainApp.get('/files/remote', c => remoteMedia(c.req.query('url') || '', c.req.raw.signal, c.req.header('range')));
+
 // 直传上传签名 URL
 domainApp.post("/files/upload-url", async (c) => {
   const userId = c.get("userId");
   const body = parseOrBadRequest(
     z.object({ bucket: bucketSchema, key: z.string().min(1) }),
-    await c.req.json(),
+    await jsonBody(c),
   );
   const bucket = resolveBucket(body.bucket);
   const key = scopedKey(userId, body.key);
@@ -263,17 +310,18 @@ domainApp.get("/files/sign", async (c) => {
   return c.json(envelope({ bucket, key, url }));
 });
 
-// BFF 中转上传（小文件/不便直传时）
-domainApp.post("/files", async (c) => {
-  const userId = c.get("userId");
+domainApp.get("/files/content", async (c) => {
   const bucket = parseOrBadRequest(bucketSchema, c.req.query("bucket"));
-  const rawKey = c.req.query("key");
-  if (!rawKey) throw badRequest("缺少 key");
-  const key = scopedKey(userId, rawKey);
-  const contentType = c.req.header("content-type") ?? "application/octet-stream";
-  const bytes = await c.req.raw.arrayBuffer();
-  const savedKey = await uploadFile(resolveBucket(bucket), key, new Blob([bytes]), contentType);
-  return c.json(envelope({ bucket, key: savedKey }));
+  const key = scopedKey(c.get("userId"), c.req.query("key") ?? "");
+  return c.redirect(await createSignedUrl(resolveBucket(bucket), key, 300), 302);
+});
+
+domainApp.delete("/files", async (c) => {
+  const bucket = parseOrBadRequest(bucketSchema, c.req.query("bucket"));
+  const key = scopedKey(c.get("userId"), c.req.query("key") ?? "");
+  const { error } = await admin.storage.from(resolveBucket(bucket)).remove([key]);
+  if (error) throw badRequest("无法删除对象");
+  return c.json(envelope(null));
 });
 
 // ---------------------------------------------------------------------------
@@ -283,12 +331,13 @@ domainApp.all("/relay/*", async (c) => {
   const accessToken = c.get("accessToken");
   const incoming = new URL(c.req.url);
   const subpath = incoming.pathname.replace(/^\/api\/relay/, "") || "/";
-  const target = new URL(`/v1${subpath}`, env.GATEWAY_BASE_URL);
+  const target = new URL(relayPath(subpath, c.req.header('x-shotloom-provider') || '', c.req.header('x-shotloom-scope') || 'v1'), env.GATEWAY_BASE_URL);
   target.search = incoming.search;
+  await assertPublishedRelay(c.req.raw, target.pathname);
 
   const headers = new Headers();
   for (const [key, value] of c.req.raw.headers.entries()) {
-    if (["host", "cookie", "authorization", "content-length", "connection"].includes(key.toLowerCase())) {
+    if (!["content-type", "accept", "openai-beta", "anthropic-version", "anthropic-beta"].includes(key.toLowerCase())) {
       continue;
     }
     headers.set(key, value);
@@ -300,9 +349,16 @@ domainApp.all("/relay/*", async (c) => {
     init.body = await c.req.raw.arrayBuffer();
   }
 
-  const upstream = await fetch(target.toString(), init);
+  let upstream = await fetch(target.toString(), { ...init, redirect: 'manual', signal: c.req.raw.signal });
+  if (upstream.status === 401) {
+    await upstream.body?.cancel();
+    headers.set("Authorization", `Bearer ${await refreshSession(c.get('sessionId'))}`);
+    upstream = await fetch(target.toString(), { ...init, redirect: 'manual', signal: c.req.raw.signal });
+  }
   const resHeaders = new Headers(upstream.headers);
   resHeaders.delete("transfer-encoding");
   resHeaders.delete("content-length");
+  resHeaders.delete("set-cookie");
+  resHeaders.delete("location");
   return new Response(upstream.body, { status: upstream.status, headers: resHeaders });
 });

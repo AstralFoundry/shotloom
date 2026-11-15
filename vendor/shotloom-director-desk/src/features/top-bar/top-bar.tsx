@@ -46,6 +46,10 @@ export function TopBar({ sidebarOpen, onToggleSidebar, inspectorOpen, onToggleIn
     /** Secondary actions live behind one menu so the bar stops overflowing on narrow screens. */
     const moreMenu = {
         items: [
+            { key: 'undo', icon: <Undo2Icon />, label: t('撤销'), disabled: !canUndo },
+            { key: 'redo', icon: <Redo2Icon />, label: t('重做'), disabled: !canRedo },
+            { key: 'aspect', icon: <AspectIcon aspect={captureAspect} size={18} />, label: t('输出比例'), disabled: outputActive,
+                children: CAPTURE_ASPECTS.map(aspect => ({ key: `aspect:${aspect}`, label: aspect === 'auto' ? 'Auto' : aspect, onClick: () => editorPreferences.set('captureAspect', aspect) })) },
             { key: 'reset-project', icon: <Redo2Icon />, label: t('重置项目'), danger: true },
             { key: 'settings-project', icon: <Settings2Icon />, label: t('项目设置') },
             { key: 'settings', icon: <Settings2Icon />, label: t('设置') },
@@ -58,7 +62,9 @@ export function TopBar({ sidebarOpen, onToggleSidebar, inspectorOpen, onToggleIn
             { key: 'help', icon: <CircleHelpIcon />, label: t('操作与快捷键') },
         ],
         onClick: ({ key }: { key: string }) => {
-            if (key === 'reset-project') setResetProjectOpen(true);
+            if (key === 'undo') session.undo();
+            else if (key === 'redo') session.redo();
+            else if (key === 'reset-project') setResetProjectOpen(true);
             else if (key === 'settings-project') setProjectOpen(true);
             else if (key === 'settings') setSettingsOpen(true);
             else if (key === 'theme') session.setTheme(theme === 'dark' ? 'light' : 'dark');
@@ -141,6 +147,7 @@ export function TopBar({ sidebarOpen, onToggleSidebar, inspectorOpen, onToggleIn
                         type="text"
                         size="small"
                         icon={<Undo2Icon />}
+                        className="topbar__history"
                         aria-label={t('撤销')}
                         disabled={!canUndo}
                         onClick={() => session.undo()}
@@ -151,6 +158,7 @@ export function TopBar({ sidebarOpen, onToggleSidebar, inspectorOpen, onToggleIn
                         type="text"
                         size="small"
                         icon={<Redo2Icon />}
+                        className="topbar__history"
                         aria-label={t('重做')}
                         disabled={!canRedo}
                         onClick={() => session.redo()}

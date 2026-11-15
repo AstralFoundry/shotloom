@@ -33,3 +33,9 @@ test('未配置默认模型时回落到目录里的新一代模型', () => {
   }
 });
 
+test('云端新节点只选择当前网关实际提供的模型', () => {
+  assert.equal(resolveProjectDefaultModel({ defaultVideoModel: 'unavailable' }, 'videoGeneration', ['MiniMax-H3']), 'MiniMax-H3');
+  assert.equal(resolveProjectDefaultModel({ defaultVideoModel: 'preferred' }, 'videoGeneration', ['other', 'preferred']), 'preferred');
+  assert.equal(resolveProjectDefaultModel({}, 'videoGeneration', []), '');
+});
+

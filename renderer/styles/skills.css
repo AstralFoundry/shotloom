@@ -35,17 +35,17 @@
   background: var(--bg);
   font-size: var(--text-caption-10);
 }
-.skills-select-all { color: var(--muted); font-size: var(--text-caption-10); }
+.skills-select-all { display: inline-flex; align-items: center; gap: 8px; margin: 0; color: var(--muted); font-size: var(--text-caption-10); }
 
 /* 启用开关沿用设置页 Agent 开关的胶囊形态，行内不需要再解释勾选含义。 */
 .skills-enable-toggle { justify-self: end; }
 
 .skills-row {
-  padding: 10px 0;
+  padding: 14px 0;
   display: grid;
-  grid-template-columns: 22px minmax(0, 1fr) 38px 28px;
-  align-items: center;
-  gap: 10px;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 12px;
   border-bottom: 1px solid var(--line);
   transition: background var(--duration-fast) var(--ease-std);
 }
@@ -53,13 +53,14 @@
 .skills-row:hover { background: var(--wash-hover); }
 .skills-row.active { background: var(--brand-soft); box-shadow: inset 2px 0 var(--brand); }
 .skills-row.disabled .skills-row-main { opacity: .54; }
-.skills-row-select { justify-self: center; }
+.skills-row-select { display: inline-flex; justify-content: flex-start; align-items: center; justify-self: start; margin: 0; min-height: 24px; }
+.skills-row-actions { display: flex; align-items: center; gap: 12px; }
 
 .skills-row-main {
   min-width: 0;
   padding: 0;
   display: grid;
-  gap: 3px;
+  gap: 6px;
   border: 0;
   background: transparent;
   color: var(--type-primary);
@@ -67,12 +68,12 @@
   text-align: left;
   cursor: pointer;
 }
-.skills-row-name { display: flex; align-items: center; gap: 7px; }
-.skills-row-name strong { color: var(--type-primary); font-size: var(--text-body-12); }
+.skills-row-name { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.skills-row-name strong { color: var(--type-primary); font-size: var(--text-body-13); overflow-wrap: anywhere; }
 .skills-row-name span { padding: 1px 5px; border: 1px solid var(--line); border-radius: var(--radius-sm); color: var(--muted); background: var(--bg); font-size: var(--text-caption-10); font-weight: 600; }
 .skills-row-agents { display: flex; flex-wrap: wrap; gap: 4px; }
 .skills-row-agents span { padding: 1px 5px; border: 1px solid var(--line); border-radius: var(--radius-sm); color: var(--good); background: var(--good-wash); font-size: var(--text-caption-10); line-height: 1.3; }
-.skills-row-description { overflow: hidden; color: var(--muted); font-size: var(--text-caption-10); line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
+.skills-row-description { color: var(--muted); font-size: var(--text-body-12); line-height: 1.6; overflow-wrap: anywhere; }
 .skills-row-id { color: var(--faint); font-size: var(--text-caption-10); }
 
 .skills-empty { padding: 26px 0; color: var(--faint); font-size: var(--text-caption-11); }
@@ -115,6 +116,8 @@
 .skill-editor-head h3 {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
+  overflow-wrap: anywhere;
   gap: 8px;
   margin: 0;
   color: var(--type-primary);
@@ -131,7 +134,6 @@
   font-style: normal;
   font-weight: 600;
 }
-.skill-editor-change-summary { margin: 3px 0 0; color: var(--muted); font-size: var(--text-caption-10); }
 .skill-editor-actions { flex: none; display: flex; align-items: center; gap: 8px; }
 .skill-editor-enabled { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: var(--text-caption-11); cursor: pointer; }
 .skill-editor-enabled .ant-switch { margin: 0; }
@@ -139,10 +141,10 @@
 .skill-editor-body {
   min-height: 0;
   flex: 1 1 auto;
-  padding: 14px;
+  padding: 20px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 20px;
   overflow-y: auto;
 }
 .skill-editor-body > * { flex-shrink: 0; }
@@ -173,34 +175,24 @@
   font-size: var(--text-body-13);
   font-weight: 400;
 }
-.skill-field .ant-input { height: 34px; padding: 0 10px; }
+.skill-field input.ant-input { height: 36px; padding: 0 10px; }
+.skill-field textarea.ant-input { padding: 10px; line-height: 1.6; resize: vertical; }
 .skill-field .ant-input-textarea textarea { min-height: 148px; padding: 10px; line-height: 1.55; resize: vertical; }
 .skill-field .ant-input:focus { border-color: var(--text); box-shadow: none; }
 .skill-field .ant-input-textarea textarea:focus { border-color: var(--text); box-shadow: none; }
 .skill-field .ant-input:disabled { color: var(--muted); background: var(--surface-2); }
-.skill-field .ant-input-number { width: 100%; }
+.skill-field .ant-input-number { width: 100%; min-height: 36px; }
+.skill-field .ant-input-number-input { height: 34px; }
 .skill-field small { color: var(--faint); font-size: var(--text-caption-10); font-weight: 500; line-height: 1.45; }
 .skill-field em { margin-left: 6px; color: var(--faint); font-style: normal; font-weight: 500; }
 
-.skill-agent-field { border: 0; padding: 0; }
-.skill-agent-field legend { padding: 0; color: var(--muted); font-size: var(--text-caption-11); font-weight: 600; }
-.skill-agent-options { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 7px; }
-.skill-agent-options .ant-checkbox-wrapper { color: var(--muted); font-size: var(--text-caption-11); }
+.skill-agent-field { margin: 0; border: 0; padding: 0; }
+.skill-agent-field legend { margin-bottom: 5px; padding: 0; color: var(--type-primary); font-size: var(--text-caption-10); font-weight: 600; }
+.skill-agent-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+.skill-agent-options .ant-checkbox-wrapper { display: flex; align-items: center; gap: 8px; min-height: 40px; margin: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); color: var(--muted); font-size: var(--text-body-12); font-weight: 400; }
+.skill-agent-options .ant-checkbox-wrapper-checked { border-color: var(--brand-accent); color: var(--type-primary); background: var(--brand-accent-wash); }
+.skill-agent-options .ant-checkbox + span { padding: 0; }
 
-.skill-editor-note {
-  padding: 9px 10px;
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  color: var(--type-primary);
-  background: var(--bg);
-  font-size: var(--text-caption-10);
-}
-.skill-editor-note span { flex: 1; }
-.skill-editor-note button { border: 0; color: var(--type-primary); background: transparent; font-size: var(--text-caption-10); font-weight: 600; cursor: pointer; }
-.skill-editor-note svg { width: var(--icon-sm); height: var(--icon-sm); }
 .skill-editor-error { margin: 0; padding: 8px 10px; border-radius: var(--radius-sm); color: var(--bad); background: var(--bad-wash); font-size: var(--text-caption-10); }
 
 /* 技能编辑抽屉：弹层、遮罩、焦点和进出场由 antd Drawer 负责，这里只保留产品外壳。 */
@@ -219,6 +211,6 @@
   background: var(--surface);
 }
 
-@media (max-width: 900px) {
-  .skill-editor-grid { grid-template-columns: minmax(0, 1fr); }
+@media (max-width: 480px) {
+  .skill-editor-grid > .skill-field:nth-child(-n+2) { grid-column: 1 / -1; }
 }

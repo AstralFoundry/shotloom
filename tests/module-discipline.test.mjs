@@ -3,9 +3,8 @@ import { execFileSync } from 'node:child_process';
 import { readdirSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
-import { readSource } from './helpers/sourceContract.mjs';
+import { readSource, repoRootPath as repoRoot } from './helpers/sourceContract.mjs';
 
-const repoRoot = new URL('..', import.meta.url).pathname;
 const read = (path) => readSource(path);
 
 test('分层门禁把 Agent 引擎内部实现挡在声明入口之后', () => {

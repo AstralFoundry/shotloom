@@ -79,8 +79,8 @@ const useAutoSave = () => {
  * properties on the root grid so panels can pick them up.
  */
 export const EditorInterface: React.FC = () => {
-  const compact = useCompactEditor();
   const canvas = useShotloomPresentation() === "canvas";
+  const compact = useCompactEditor() && !canvas;
   const [compactPanel, setCompactPanel] = useState<"timeline" | "media" | "inspector">("timeline");
   const { initialized, initializing, initError, initStatus, retry } =
     useEditorInitialization();

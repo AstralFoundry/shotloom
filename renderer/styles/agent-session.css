@@ -102,6 +102,7 @@
   color: var(--good);
   background: var(--good-wash);
 }
+.harness-chat-panel[hidden] { display: none; }
 .harness-chat-panel {
   position: relative;
   display: flex;
@@ -222,7 +223,13 @@
   min-height: 0;
   border: 0;
 }
-.harness-chat-panel > [role="status"] { margin: 56px 16px 16px; color: var(--muted); font-size: var(--text-body-12); }
+.harness-connection-loading { position: absolute; inset: 48px 0 0; z-index: 1; display: grid; align-content: center; justify-items: center; gap: 16px; padding: 24px; background: var(--surface); }
+.harness-connection-loading > img { border-radius: var(--radius); }
+.harness-connection-loading > p { margin: 0; color: var(--muted); font-size: var(--text-body-13); }
+.harness-connection-spinner { width: 18px; height: 18px; border: 2px solid var(--line); border-top-color: var(--brand-accent); border-radius: 50%; animation: harness-connection-spin .9s linear infinite; }
+@keyframes harness-connection-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .harness-connection-spinner { animation: none; } }
+.harness-chat-panel > [role="alert"] { position: relative; z-index: 1; }
 
 .harness-connection-error { display: flex; align-items: center; gap: 10px; padding: 12px 16px; color: var(--bad); font-size: var(--text-body-12); }
 .harness-chat-panel > [role="alert"] { margin: 56px 16px 16px; color: var(--bad); font-size: var(--text-body-12); overflow-wrap: anywhere; }

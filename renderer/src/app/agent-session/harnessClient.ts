@@ -1,4 +1,6 @@
 import { Channel, invoke } from '@tauri-apps/api/core';
+import { cloudEnabled } from '../../utils/cloudConfig';
+import { cloudHarnessTransport } from './cloudHarnessTransport';
 
 export interface HarnessProductHost {
   sessionId: string; agentId: string; locale: string; tools: string[]; toolTitles: Record<string, string>;
@@ -15,7 +17,7 @@ interface HarnessModule {
   mount(container: HTMLElement, native: { send(message: { requestId: string; kind: string; payload?: unknown }, receive: (event: NativeEvent) => void): Promise<void> }, host: HarnessProductHost): Promise<{ dispose(): void }>;
 }
 let client: Promise<HarnessModule> | undefined;
-const native = { async send(message: { requestId: string; kind: string; payload?: unknown }, receive: (event: NativeEvent) => void) {
+const native = cloudEnabled ? cloudHarnessTransport : { async send(message: { requestId: string; kind: string; payload?: unknown }, receive: (event: NativeEvent) => void) {
   const channel = new Channel<NativeEvent>(); channel.onmessage = receive;
   await invoke('harness_transport', { message, channel });
 } };

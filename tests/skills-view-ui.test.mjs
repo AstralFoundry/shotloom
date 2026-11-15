@@ -16,10 +16,10 @@ const skillsStyles = readSource('renderer/styles/skills.css');
 const tokenStyles = readSource('renderer/styles/tokens.css');
 
 test('技能是应用级路由，未打开工程也能进入且能被恢复', () => {
-  assert.match(projectNavigation, /APPLICATION_ROUTES = new Set\(\['projects', 'skills', \.\.\.PROJECT_WORKSPACE_ROUTES\]\)/);
+  assert.match(projectNavigation, /APPLICATION_ROUTES = new Set\(\['projects', 'skills', [^\]]*\.\.\.PROJECT_WORKSPACE_ROUTES\]\)/);
   // 技能目录不隶属工程，因此不能进工作区路由集合，否则恢复路由时会被弹回项目库。
   assert.doesNotMatch(projectNavigation, /PROJECT_WORKSPACE_ROUTES = new Set\(\[[^\]]*'skills'/);
-  assert.match(appStore, /PROJECT_FREE_ROUTES = new Set<AppRoute>\(\["projects", "skills"\]\)/);
+  assert.match(appStore, /PROJECT_FREE_ROUTES = new Set<AppRoute>\(\["projects", "skills"[^\]]*\]\)/);
   assert.match(appStore, /if \(!PROJECT_FREE_ROUTES\.has\(route\) && !get\(\)\.currentProject\) return false;/);
   assert.match(workbench, /APPLICATION_ROUTES\.has\(route\)/);
   assert.doesNotMatch(workbench, /\["projects", "creation", "tasks", "assets", "materials"\]/);
@@ -54,7 +54,7 @@ test('技能清单占满内容区，编辑与新建从右侧抽屉覆盖', () =>
   assert.match(skillsStyles, /\.skill-editor-head \{[^}]*flex: 0 0 auto/);
 });
 
-test('编辑面板保存前校验必填字段，内置技能只提示覆盖范围', () => {
+test('编辑面板保存前校验必填字段，不再提供内置技能覆盖入口', () => {
   for (const message of [
     'ID 仅允许小写字母、数字和连字符，且首尾不能是连字符',
     '名称不能为空',
@@ -65,7 +65,8 @@ test('编辑面板保存前校验必填字段，内置技能只提示覆盖范�
   }
   assert.match(editorPanel, /if \(!draft\.instructions\.trim\(\)\)/);
   assert.match(editorPanel, /controller\.save\(draft\)/);
-  assert.match(editorPanel, /modifiedFields\.length > 0 && \(\s*<button type="button" onClick=\{controller\.reset\}/);
+  assert.doesNotMatch(editorPanel, /controller\.reset|skill-editor-note/);
+  assert.doesNotMatch(skillsView, /controller\.resetSkill/);
 });
 
 test('切换或新建技能前先保住未保存的草稿', () => {
@@ -74,10 +75,6 @@ test('切换或新建技能前先保住未保存的草稿', () => {
   assert.match(skillsFeature, /modal\.confirm\(\{\s*title:/);
   assert.match(skillsFeature, /confirmDiscard\(\(\) => \{\s*const item = readSkills\(\)/);
   assert.match(skillsFeature, /confirmDiscard\(\(\) => \{\s*const draft = createSkillDraft/);
-  // 确认对话框不能放在 run 的成功分支里，否则用户取消也会提示已恢复默认。
-  const resetBody = skillsFeature.split('function resetOpenSkill()')[1].split('\n  }')[0];
-  assert.ok(resetBody.includes('modal.confirm'), resetBody);
-  assert.ok(resetBody.indexOf('modal.confirm') < resetBody.indexOf('run('), resetBody);
 });
 
 test('抽屉三条关闭路径都在，且 Esc 不会静默丢掉草稿', () => {

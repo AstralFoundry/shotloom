@@ -26,6 +26,11 @@ body.shotloom-mode .editor-workspace {
   background: var(--border) !important;
 }
 
+body.shotloom-mode .editor-compact {
+  height: 100%;
+  min-height: 0;
+}
+
 body.shotloom-mode .editor-panel,
 body.shotloom-mode .editor-stage {
   border: 0 !important;

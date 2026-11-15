@@ -33,3 +33,8 @@ test('已打开项目可以进入全部项目工作台页面', () => {
     assert.equal(resolveProjectRoute(route, openProject), route);
   }
 });
+
+test('我的页面不需要打开工程，刷新路由时仍可访问', () => {
+  assert.equal(resolveProjectRoute('account', {}), 'account');
+  assert.equal(resolveProjectRoute('account', openProject), 'account');
+});

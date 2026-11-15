@@ -45,7 +45,7 @@ function createWindowShim(realTimers, localStorage) {
  * @param {boolean} [options.realTimers] window 定时器是否委派给 Node 的真实定时器。
  * @returns {Promise<{load: (relative: string) => Promise<any>, dispose: () => Promise<void>}>}
  */
-export async function createRendererEnv({ storage, withWindow = false, realTimers = false, plugins = [] } = {}) {
+export async function createRendererEnv({ storage, withWindow = false, realTimers = false, plugins = [], storageMode = 'local' } = {}) {
   const globals = [];
   const storageShim = storage ? createLocalStorageShim(storage) : undefined;
   if (storageShim) {
@@ -59,6 +59,7 @@ export async function createRendererEnv({ storage, withWindow = false, realTimer
 
   const server = await createServer({
     configFile: false,
+    define: { 'import.meta.env.VITE_STORAGE_MODE': JSON.stringify(storageMode) },
     plugins,
     optimizeDeps: { noDiscovery: true, include: [] },
     root: rendererRoot,

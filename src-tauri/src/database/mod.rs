@@ -38,6 +38,15 @@ pub async fn open(path: &Path) -> Result<DatabaseConnection, DbErr> {
     Ok(db)
 }
 
+/// Migration reads must never initialize or upgrade the original database.
+pub async fn open_readonly(path: &Path) -> Result<DatabaseConnection, DbErr> {
+    let filename = path.to_path_buf();
+    let mut options = ConnectOptions::new("sqlite://shotloom.sqlite?mode=ro");
+    options.max_connections(1).min_connections(1).sqlx_logging(false);
+    options.map_sqlx_sqlite_opts(move |opts| opts.filename(&filename).read_only(true).create_if_missing(false));
+    Database::connect(options).await
+}
+
 mod migrations {
     use super::*;
     use crate::models::*;

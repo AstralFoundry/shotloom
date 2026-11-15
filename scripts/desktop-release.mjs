@@ -49,20 +49,20 @@ export async function stageAssets({ bundle, destination, platform, version, arti
   // Tauri reports the final artifacts after retries; its bundle directory can
   // also contain temporary disk images left behind by a failed attempt.
   const files = artifactPaths ?? await filesUnder(bundle);
-  const updater = files.filter(file => file.endsWith(target.updaterExtension));
+  const updater = target.updaterExtension ? files.filter(file => file.endsWith(target.updaterExtension)) : [];
   const installers = files.filter(file => file.endsWith(target.installerExtension));
-  if (updater.length !== 1 || installers.length !== 1) throw new Error(`Expected one installer and updater for ${platform}; found installers: ${JSON.stringify(installers)}, updaters: ${JSON.stringify(updater)}`);
-  const signature = (await readFile(`${updater[0]}.sig`, 'utf8')).trim();
-  if (!signature) throw new Error(`Empty updater signature for ${platform}`);
+  if (installers.length !== 1 || (target.updaterExtension && updater.length !== 1)) throw new Error(`Expected one installer${target.updaterExtension ? ' and updater' : ''} for ${platform}; found installers: ${JSON.stringify(installers)}, updaters: ${JSON.stringify(updater)}`);
+  const signature = target.updaterExtension ? (await readFile(`${updater[0]}.sig`, 'utf8')).trim() : undefined;
+  if (target.updaterExtension && !signature) throw new Error(`Empty updater signature for ${platform}`);
   await mkdir(destination, { recursive: true });
   const assets = [];
-  for (const file of new Set([...installers, updater[0], `${updater[0]}.sig`])) {
+  for (const file of new Set([...installers, ...updater, ...(target.updaterExtension ? [`${updater[0]}.sig`] : [])])) {
     if (!(await stat(file)).size) throw new Error(`Empty release asset: ${file}`);
     const name = `${platform}-${basename(file)}`;
     await copyFile(file, join(destination, name));
     assets.push({ name, sha256: await digest(file) });
   }
-  const manifest = { platform, version, updater: `${platform}-${basename(updater[0])}`, signature, assets };
+  const manifest = { platform, version, ...(target.updaterExtension ? { updater: `${platform}-${basename(updater[0])}`, signature } : {}), assets };
   await writeJson(join(destination, `${platform}.manifest.json`), manifest);
   return manifest;
 }
@@ -76,8 +76,10 @@ export async function assembleAssets({ directory, version, repository, server = 
   for (const name of manifests) {
     const manifest = await readJson(join(directory, name));
     if (!expected.delete(manifest.platform) || manifest.version !== version) throw new Error(`Unexpected, duplicate or stale manifest: ${name}`);
-    if (!manifest.signature || !manifest.assets.some(asset => asset.name === manifest.updater)
-      || !manifest.assets.some(asset => asset.name === `${manifest.updater}.sig`)) throw new Error(`Missing updater/signature in ${name}`);
+    const target = targets.find(target => target.platform === manifest.platform);
+    if (!manifest.assets.some(asset => asset.name.endsWith(target.installerExtension))) throw new Error(`Missing installer in ${name}`);
+    if (target.updaterExtension && (!manifest.signature || !manifest.assets.some(asset => asset.name === manifest.updater)
+      || !manifest.assets.some(asset => asset.name === `${manifest.updater}.sig`))) throw new Error(`Missing updater/signature in ${name}`);
     for (const asset of manifest.assets) {
       if (basename(asset.name) !== asset.name || names.has(asset.name)) throw new Error(`Unsafe or duplicate asset: ${asset.name}`);
       names.add(asset.name);
@@ -85,11 +87,13 @@ export async function assembleAssets({ directory, version, repository, server = 
       if (!(await stat(path)).size || await digest(path) !== asset.sha256) throw new Error(`Corrupt asset: ${asset.name}`);
       assets.push(asset);
     }
-    const signature = (await readFile(join(directory, `${manifest.updater}.sig`), 'utf8')).trim();
-    if (signature !== manifest.signature) throw new Error(`Signature mismatch: ${name}`);
-    platforms[manifest.platform] = {
-      signature, url: `${server}/${repository}/releases/download/${tag}/${encodeURIComponent(manifest.updater)}`,
-    };
+    if (target.updaterExtension) {
+      const signature = (await readFile(join(directory, `${manifest.updater}.sig`), 'utf8')).trim();
+      if (signature !== manifest.signature) throw new Error(`Signature mismatch: ${name}`);
+      platforms[manifest.platform] = {
+        signature, url: `${server}/${repository}/releases/download/${tag}/${encodeURIComponent(manifest.updater)}`,
+      };
+    }
   }
   if (expected.size) throw new Error(`Missing platforms: ${[...expected].join(', ')}`);
   const latest = { version, notes: `See ${server}/${repository}/releases/tag/${tag}`, pub_date: new Date().toISOString(), platforms };
@@ -113,10 +117,10 @@ async function main() {
       const commit = gh('api', `repos/${process.env.GITHUB_REPOSITORY}/commits/${release.tag}`, '--jq', '.sha');
       if (commit !== sha) throw new Error(`${release.tag} points at another commit; tags will never be moved`);
     }
-    await appendFile(process.env.GITHUB_OUTPUT, `tag=${release.tag}\nversion=${release.version}\nprerelease=${release.prerelease}\nmatrix=${JSON.stringify({ include: targets })}\n`);
+    await appendFile(process.env.GITHUB_OUTPUT, `tag=${release.tag}\nversion=${release.version}\nprerelease=${release.prerelease}\nmatrix=${JSON.stringify({ include: targets.filter(target => !target.mobile) })}\nmobileMatrix=${JSON.stringify({ include: targets.filter(target => target.mobile) })}\n`);
     return;
   }
-  if (command === 'stage') return stageAssets({ bundle: process.env.BUNDLE_DIR, destination: process.env.ASSET_DIR, platform: process.env.RELEASE_PLATFORM, version: release.version, artifactPaths: JSON.parse(process.env.BUNDLE_ARTIFACTS) });
+  if (command === 'stage') return stageAssets({ bundle: process.env.BUNDLE_DIR, destination: process.env.ASSET_DIR, platform: process.env.RELEASE_PLATFORM, version: release.version, artifactPaths: process.env.BUNDLE_ARTIFACTS ? JSON.parse(process.env.BUNDLE_ARTIFACTS) : undefined });
   if (command === 'publish') {
     const repository = process.env.GITHUB_REPOSITORY;
     const assets = await assembleAssets({ directory: process.env.ASSET_DIR, version: release.version, tag: release.tag, repository, server: process.env.GITHUB_SERVER_URL });

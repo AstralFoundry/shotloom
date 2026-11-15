@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { env } from "../env";
 import { encrypt, decrypt } from "./crypto";
-import { supabaseError } from "./errors";
+import { badRequest, supabaseError } from "./errors";
 import type { Database, UserRow, SessionRow } from "./database";
 
 // service_role 客户端：BFF 是唯一持有该密钥的服务，绕过 RLS，自行强制租户隔离。
@@ -32,7 +32,7 @@ export async function upsertUser(
   sub: string,
   info: { username?: string; email?: string },
 ): Promise<UserRow> {
-  const existing = await admin.from("users").select("*").eq("sub", sub).maybeSingle();
+  const existing = await admin.from("users").select("*").eq("client_id", env.GATEWAY_CLIENT_ID).eq("sub", sub).maybeSingle();
   if (existing.error) throw supabaseError(existing.error.message);
 
   if (existing.data) {
@@ -87,9 +87,14 @@ export async function createSession(
 }
 
 export async function loadSession(sessionId: string): Promise<DecryptedSession | null> {
+  if (!/^[0-9a-f-]{36}$/i.test(sessionId)) return null;
   const { data, error } = await admin.from("sessions").select("*").eq("id", sessionId).maybeSingle();
   if (error) throw supabaseError(error.message);
   if (!data) return null;
+  const { data: owner, error: ownerError } = await admin.from("users").select("id")
+    .eq("id", data.user_id).eq("client_id", env.GATEWAY_CLIENT_ID).maybeSingle();
+  if (ownerError) throw supabaseError(ownerError.message);
+  if (!owner || Date.now() - Date.parse(data.created_at) >= 30 * 86400_000) return null;
   return {
     sessionId: data.id,
     userId: data.user_id,
@@ -136,23 +141,11 @@ export function resolveBucket(bucket: string): string {
   return resolved;
 }
 
-// 租户前缀：所有对象键强制以 u_<userId>/ 开头，杜绝跨用户访问。
+// 租户前缀：所有对象键强制以 <clientId>/<userId>/ 开头，杜绝跨用户访问。
 export function scopedKey(userId: string, key: string): string {
-  const normalized = key.replace(/^\/+/, "");
-  return `u_${userId}/${normalized}`;
-}
-
-export async function uploadFile(
-  bucket: string,
-  key: string,
-  file: Blob,
-  contentType: string,
-): Promise<string> {
-  const { error } = await admin.storage
-    .from(bucket)
-    .upload(key, file, { contentType, upsert: true });
-  if (error) throw supabaseError(error.message);
-  return key;
+  if (!key || key.length > 512 || key.split('/').some(part => !part || part === '.' || part === '..')
+    || /[\\\x00-\x1f?#%]/.test(key)) throw badRequest("对象路径无效");
+  return `${env.GATEWAY_CLIENT_ID}/${userId}/${key}`;
 }
 
 export async function createSignedUrl(bucket: string, key: string, expiresIn = 3600): Promise<string> {

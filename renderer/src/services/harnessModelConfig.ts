@@ -1,5 +1,6 @@
 import { getAvailableAgentModelCatalog, settingsStore } from '../store/settingsStore';
 import { getAgentReasoningDefault, getModelInfo, getModelModeConfig, getModelReasoningEffortParam } from '../domain/catalog/ModelCatalog';
+import { cloudEnabled, cloudOrigin, cloudUserHeaders } from './cloudRequest';
 
 // Harness owns a fixed set of selector IDs; values remain the catalog's wire spelling.
 const effortIds: Record<string, string> = { none: 'off', off: 'off', minimal: 'minimal', low: 'low', medium: 'medium', high: 'high', xhigh: 'xhigh', ultra: 'max', max: 'max' };
@@ -7,7 +8,7 @@ const effortIds: Record<string, string> = { none: 'off', off: 'off', minimal: 'm
 /** Product catalog translation; official adapters own serialization and streaming. */
 export function harnessModelConfig() {
   const providers: Record<string, { key: string; profile: {
-    baseURL: string; api: string; displayName: string;
+    baseURL: string; api: string; displayName: string; headers?: Record<string, string>;
     models: Array<{ id: string; name: string; contextWindow?: number; maxTokens?: number; input: string[]; reasoningEfforts?: Record<string, string>; compat?: { supportsReasoningEffort: boolean } }>;
   } }> = {};
   let defaultModel: { provider: string; model: string; reasoningEffort?: string } | undefined;
@@ -23,9 +24,12 @@ export function harnessModelConfig() {
     const api = transport === 'openai-responses' ? 'openai-responses'
       : transport === 'anthropic-messages' ? 'anthropic-messages' : 'openai-completions';
     const config = settingsStore.providerConfigs[model.provider];
-    if (!config?.apiKey) continue;
+    if (!config?.apiKey && !config?.serverManaged) continue;
     const route = `shotloom-${model.provider}-${api}`;
-    const entry = providers[route] ??= { key: config.apiKey, profile: { baseURL: config.baseUrl, api, displayName: model.provider, models: [] } };
+    const entry = providers[route] ??= { key: config.serverManaged ? '__SHOTLOOM_SESSION__' : config.apiKey, profile: {
+      baseURL: config.serverManaged ? `${cloudOrigin || location.origin}/api/relay/v1` : config.baseUrl,
+      ...(config.serverManaged ? { headers: cloudUserHeaders() } : {}), api, displayName: model.provider, models: [],
+    } };
     const id = info.upstreamModel || model.id;
     const param = getModelReasoningEffortParam(model.id);
     const reasoningEfforts = Object.fromEntries((param?.options ?? []).flatMap(option => {
@@ -45,5 +49,5 @@ export function harnessModelConfig() {
       ...(hasReasoning && defaultEffort ? { reasoningEffort: defaultEffort } : {}),
     };
   }
-  return { providers, ...(defaultModel ? { defaultModel } : {}) };
+  return { providers, ...(defaultModel ? { defaultModel } : {}), ...(cloudEnabled ? { cloudOrigin: cloudOrigin || location.origin } : {}) };
 }

@@ -243,14 +243,26 @@ export async function releaseAllLocalAssetReferences(projectKey: string) {
 export async function reconcileCurrentProjectLocalAssetReferences() {
   await loadLocalAssetLibrary(true);
   const identity = projectIdentity();
+  const before = JSON.stringify(localAssetLibrary.catalog.references);
+  const materials = (store.project.materials || []).filter((material: AnyRecord) => (
+    material.storageScope === 'library' && material.localLibraryMaterialId
+  )) as AnyRecord[];
   localAssetLibrary.catalog.references = localAssetLibrary.catalog.references
-    .filter((item: AnyRecord) => item.projectKey !== identity.projectKey);
-  for (const material of (store.project.materials || []) as AnyRecord[]) {
-    if (material.storageScope !== 'library' || !material.localLibraryMaterialId) continue;
+    .filter((item: AnyRecord) => item.projectKey !== identity.projectKey || materials.some(material => (
+      material.id === item.materialId && localAssetLibrary.catalog.assets.some((asset: AnyRecord) => (
+        asset.id === item.assetId && asset.materialId === material.localLibraryMaterialId
+      ))
+    )));
+  for (const material of materials) {
     const asset = localAssetLibrary.catalog.assets.find((item: AnyRecord) => item.materialId === material.localLibraryMaterialId);
-    if (asset) ensureReference(asset, material);
+    if (!asset) continue;
+    ensureReference(asset, material);
+    const reference = localAssetLibrary.catalog.references.find((item: AnyRecord) => (
+      item.projectKey === identity.projectKey && item.materialId === material.id && item.assetId === asset.id
+    ));
+    if (reference) Object.assign(reference, identity, { libraryMaterialId: asset.materialId });
   }
-  await persistCatalog();
+  if (JSON.stringify(localAssetLibrary.catalog.references) !== before) await persistCatalog();
 }
 
 export async function deleteLocalLibraryAsset(assetId: string) {

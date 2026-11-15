@@ -5,6 +5,7 @@ import { getAgentProjectKey } from "../../../services/agentProjectIdentity";
 import { getAgentProjectIdentity, assertAgentProject } from "../../../services/agentProjectIdentity";
 import { store } from "../../../store/projectStore";
 import { desktopApi } from "../../../services/desktopApi";
+import { cloudEnabled } from '../../../utils/cloudConfig';
 import { createNativeEditorExport } from "../../../services/openReelNativeExport";
 import { listEditorMediaCandidates, resolveEditorMediaAsset, type EditorMediaCandidate } from "../../../services/editorMediaCatalog";
 import { buildAssetPayload } from "./projectBridge";
@@ -72,7 +73,6 @@ export function ClipStudioRuntimeHost(props: Props) {
             return { bytes: await response.arrayBuffer(), mime: response.headers.get('content-type') || 'image/png' };
           }
           if (!['https:', 'http:'].includes(parsed.protocol)) throw new Error(t("ui.ClipStudioRuntimeHost.text.19787dca"));
-          if (desktopApi.platform === 'browser') throw new Error(t("ui.ClipStudioRuntimeHost.text.21e6d8eb"));
           const downloaded = await desktopApi.file.downloadUrlToProject(url, parsed.pathname.split('/').pop() || 'media.bin');
           assertAgentProject(owner.projectKey, owner.instanceId, owner.generation);
           const path = downloaded?.filePath || downloaded?.path;
@@ -93,13 +93,13 @@ export function ClipStudioRuntimeHost(props: Props) {
             if (!store.project.nodes.some((node: { id: string }) => node.id === props.nodeId)) throw new Error(t("ui.ClipStudioRuntimeHost.text.7554a1c0"));
           };
           assertOwner();
-          if (desktopApi.platform === 'browser' || !store.projectDir) throw new Error(t("ui.ClipStudioRuntimeHost.text.458e1a76"));
+          if (!store.projectDir) throw new Error(t("ui.ClipStudioRuntimeHost.text.458e1a76"));
           if (!bytes.byteLength) throw new Error(t("ui.ClipStudioRuntimeHost.text.3422628d"));
           const safeName = filename.split(/[\\/]/).pop()?.replace(/[\\/:*?"<>|]/g, '-') || 'export.bin';
           const path = `${store.projectDir.replace(/[\\/]$/, '')}/assets/${crypto.randomUUID()}-${safeName}`;
           const result = await desktopApi.file.writeFileToPath(path, bytes);
           assertOwner();
-          if (!result || result.filePath !== path || Number(result.size) !== bytes.byteLength) throw new Error(t("ui.ClipStudioRuntimeHost.text.d3f1ae3a"));
+          if (!result?.filePath || (!cloudEnabled && result.filePath !== path) || Number(result.size) !== bytes.byteLength) throw new Error(t("ui.ClipStudioRuntimeHost.text.d3f1ae3a"));
           return { filePath: result.filePath, filename: safeName, size: Number(result.size) };
         },
       },

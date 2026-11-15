@@ -2,6 +2,31 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createRendererEnv } from './helpers/rendererSsr.mjs';
 
+test('cloud export cancellation keeps its cache until native encoding has settled', async () => {
+  const env = await createRendererEnv({ withWindow: true, storageMode: 'cloud' });
+  try {
+    const calls = [];
+    let settle;
+    window.__TAURI_INTERNALS__ = { invoke: async command => {
+      calls.push(command);
+      if (command === 'cloud_media_workspace') return { id: 'cache-id', path: '/cache' };
+      if (command === 'openreel_cloud_export_start') return 'job-id';
+      if (command === 'openreel_export_finish') return new Promise(resolve => { settle = resolve; });
+    } };
+    const { createNativeEditorExport } = await env.load('services/openReelNativeExport');
+    const owner = createNativeEditorExport('cloud/projects/project-id', () => {});
+    const id = await owner.bridge.start({});
+    const finished = owner.bridge.finish(id);
+    await owner.bridge.cancel(id);
+    assert.equal(calls.includes('cloud_media_release'), false);
+    const rejected = assert.rejects(finished, /不属于/);
+    settle({ filePath: '/cache/export.mp4' });
+    await rejected;
+    assert.equal(calls.filter(command => command === 'cloud_media_release').length, 1);
+    await owner.dispose();
+  } finally { await env.dispose(); }
+});
+
 test('native editor export scopes opaque jobs and cancels unfinished jobs on dispose', async () => {
   const env = await createRendererEnv({ withWindow: true });
   try {

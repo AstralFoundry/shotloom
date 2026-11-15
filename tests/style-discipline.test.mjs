@@ -2,9 +2,8 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { readdirSync } from 'node:fs';
 import test from 'node:test';
-import { readSource } from './helpers/sourceContract.mjs';
+import { readSource, repoRootPath as repoRoot } from './helpers/sourceContract.mjs';
 
-const repoRoot = new URL('..', import.meta.url).pathname;
 const read = (path) => readSource(path);
 const runGate = () => execFileSync(process.execPath, ['scripts/verify-styles.mjs'], {
   cwd: repoRoot,

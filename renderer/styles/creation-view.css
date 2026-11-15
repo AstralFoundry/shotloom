@@ -24,6 +24,7 @@
   border-top: 1px solid var(--line);
   border-radius: var(--workbench-radius) var(--workbench-radius) 0 0;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: 11px auto auto auto minmax(0, 1fr);
   background: var(--surface);
   box-shadow: var(--shadow-cast-up);
@@ -482,8 +483,8 @@
 .director-workspace-host {
   position: relative;
   display: flex;
-  flex: 1 0 auto;
-  height: 100vh;
+  flex: 1;
+  height: 100%;
   min-height: 0;
   flex-direction: row;
   background: var(--bg);
@@ -499,17 +500,6 @@
   min-width: 0;
 }
 
-.director-workspace-agent {
-  position: relative;
-  min-width: 280px;
-  height: 100%;
-  overflow: hidden;
-  border-left: 1px solid var(--line);
-  background: var(--surface);
-}
-
-.director-workspace-agent .harness-chat-panel { height: 100%; }
-
 .director-workspace-frame {
   flex: 1;
   width: 100%;
@@ -520,106 +510,36 @@
   background: var(--overlay-stage);
 }
 
-/* Floating chat shares the stage's bottom dock via the iframe layout bridge. */
-.director-agent-dock.director-workspace-agent,
-.director-agent-dock.director-detail-agent {
-  --director-dock-bg: var(--surface);
-  --director-dock-line: var(--line);
-  --director-dock-text: var(--text);
-  --director-dock-muted: var(--muted);
-  --director-dock-radius: calc(var(--director-composer-height, 44px) / 2);
-  position: absolute;
-  z-index: 8;
-  left: 50%;
-  bottom: 96px;
+/* Both director entry points share the same full-size tabs. */
+.director-agent-tabs {
   display: flex;
+  flex: 1;
   flex-direction: column;
-  width: min(640px, calc(100% - 100px));
-  max-height: calc(100% - 112px);
   min-width: 0;
-  height: auto;
-  overflow: visible;
-  border: 0;
-  background: transparent;
-  color: var(--director-dock-text);
-  transform: translateX(-50%);
-}
-.director-agent-dock[data-director-mode="compact"] { width: min(360px, calc(100% - 48px)); }
-.director-agent-card {
-  position: relative;
-  isolation: isolate;
-  display: flex;
-  flex-direction: column;
   min-height: 0;
-  border: 0;
-  border-radius: var(--director-dock-radius);
-  background: transparent;
+  overflow: hidden;
+  background: var(--surface);
 }
-.director-agent-card::before {
-  content: '';
+.director-agent-tablist {
+  display: flex;
+  flex: none;
+  gap: 4px;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--line);
+}
+.director-agent-panels {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+.director-agent-panel {
   position: absolute;
   inset: 0;
-  z-index: -1;
-  border-radius: inherit;
-  border: 1px solid var(--director-dock-line);
-  background: var(--director-dock-bg);
-  transform-origin: top left;
-  pointer-events: none;
-  transition: opacity var(--duration-enter) var(--ease-sheet);
-}
-.director-agent-dock[data-director-mode="compact"] .director-agent-card::before { opacity: 0; }
-.director-agent-dock .harness-chat-panel { height: var(--director-composer-height, 48px); border-radius: var(--director-dock-radius); background: transparent; }
-.director-agent-dock[data-director-mode="expanded"] { height: min(500px, calc(100% - 112px)); }
-.director-agent-dock[data-director-mode="expanded"] .director-agent-card { height: 100%; }
-.director-agent-dock[data-director-mode="expanded"] .harness-chat-panel { flex: 1; height: auto; }
-.director-agent-dock:not([data-director-mode="expanded"]) .harness-chat-toolbar { display: none; }
-.director-agent-dock .harness-chat-toolbar { border: 0; color: var(--director-dock-muted); }
-.director-agent-history {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex: none;
-  width: 100%;
-  height: 36px;
-  padding: 0 20px;
-  border: 0;
-  border-radius: var(--director-dock-radius);
-  background: transparent;
-  color: var(--director-dock-muted);
-  font: inherit;
-  font-size: var(--text-body-13);
-  cursor: pointer;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
 }
-.director-agent-history > span { white-space: nowrap; }
-.director-agent-history > svg { flex: none; width: 16px; height: 16px; }
-.director-agent-back {
-  position: absolute;
-  right: calc(100% + 12px);
-  bottom: 0;
-  display: grid;
-  place-items: center;
-  width: var(--director-composer-height, 48px);
-  height: var(--director-composer-height, 48px);
-  padding: 0;
-  border: 1px solid var(--director-dock-line);
-  border-radius: 50%;
-  background: var(--director-dock-bg);
-  color: var(--director-dock-text);
-  cursor: pointer;
-}
-.director-agent-back > svg { width: 20px; height: 20px; }
-.director-agent-history,
-.director-agent-back { transition: opacity var(--duration-base) var(--ease-sheet), transform var(--duration-enter) var(--ease-sheet), visibility var(--duration-enter); }
-.director-agent-dock[data-director-mode="compact"] .director-agent-history { position: absolute; opacity: 0; visibility: hidden; pointer-events: none; transform: translateY(4px); }
-.director-agent-dock[data-director-mode="compact"] .director-agent-back { opacity: 0; visibility: hidden; pointer-events: none; transform: translateX(8px); }
-@media (prefers-reduced-motion: reduce) {
-  .director-agent-card::before,
-  .director-agent-history,
-  .director-agent-back { transition: none; }
-}
-.director-agent-history:hover,
-.director-agent-back:hover { color: var(--director-dock-text); }
-.director-agent-history:focus-visible,
-.director-agent-back:focus-visible { outline: 2px solid var(--director-dock-muted); outline-offset: 3px; }
-.director-agent-dock:not([data-director-mode="expanded"]) .harness-chat-panel,
-.director-agent-dock:not([data-director-mode="expanded"]) .harness-chat-frame { overflow: visible; }
+/* Preserve viewport dimensions so Agent previews can render on the chat tab. */
+.director-agent-panel[aria-hidden="true"] { visibility: hidden; }
+.director-agent-panel > .harness-chat-panel { flex: 1; min-width: 0; height: 100%; }

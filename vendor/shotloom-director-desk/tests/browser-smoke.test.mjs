@@ -24,6 +24,8 @@ for (const [name, script] of [
     ['agent production, export recovery and delivery package', 'smoke-agent-production.mjs'],
     ['editor workflows and recovery', 'smoke.mjs'],
     ['timeline controls and responsive layout', 'smoke-timeline.mjs'],
+    ['phone navigation, action editing and shot sequence', 'smoke-mobile.mjs'],
+    ['phone sidebar tab switching preserves layout', 'smoke-sidebar-tabs.mjs'],
     ['GPU depth across camera distances', 'smoke-depth.mjs'],
 ]) {
     test(name, { timeout: 180_000 }, async () => {

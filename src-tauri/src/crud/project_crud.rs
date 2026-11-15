@@ -52,6 +52,16 @@ pub async fn load(db: &impl ConnectionTrait) -> Result<Option<Value>, DbErr> {
     Ok(Some(value))
 }
 
+pub async fn load_bundle(db: &impl ConnectionTrait) -> Result<Value, DbErr> {
+    use crate::models::editor_record;
+    let project = load(db).await?.ok_or_else(|| DbErr::Custom("Project not found".into()))?;
+    let snapshots = editor_snapshot::Entity::find().all(db).await?.into_iter()
+        .map(|row| json!({ "nodeId": row.node_id, "payload": row.payload })).collect::<Vec<_>>();
+    let records = editor_record::Entity::find().all(db).await?.into_iter()
+        .map(|row| json!({ "nodeId": row.node_id, "key": row.key, "payload": row.payload })).collect::<Vec<_>>();
+    Ok(json!({ "project": project, "snapshots": snapshots, "records": records }))
+}
+
 /// Caller owns the transaction; changed records are updated individually.
 pub async fn save(db: &impl ConnectionTrait, value: Value) -> Result<Value, DbErr> {
     let current = project::Entity::find_by_id(1).one(db).await?;

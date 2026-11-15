@@ -6,6 +6,7 @@ import {
   lazy,
   Suspense,
   type KeyboardEvent,
+  type CSSProperties,
   type PointerEvent,
   useEffect,
   useCallback,
@@ -94,16 +95,17 @@ function FullDirectorWorkspace({ data }: { data: CreationViewData }) {
   const [entityRequest, setEntityRequest] = useState<{ id: string; nonce: number }>();
   const entityRequestSerial = useRef(0);
   return <div className="director-workspace-host" data-canvas-no-zoom>
-    <DirectorWorkspace
-      src={directorDeskWorkspaceSrc}
-      onExit={() => data.onLeaveFullDirectorWorkspace?.()}
-      onOpenAgent={(entityId) => {
-        setAgentCollapsed(false);
-        if (entityId) setEntityRequest({ id: entityId, nonce: ++entityRequestSerial.current });
-      }}
-    />
     <DirectorAgentPane className="director-workspace-agent" collapsed={agentCollapsed} onCollapsedChange={setAgentCollapsed}
-      entityRequest={entityRequest} onEntityRequestHandled={nonce => setEntityRequest(current => current?.nonce === nonce ? undefined : current)} />
+      entityRequest={entityRequest} onEntityRequestHandled={nonce => setEntityRequest(current => current?.nonce === nonce ? undefined : current)}>
+      <DirectorWorkspace
+        src={directorDeskWorkspaceSrc}
+        onExit={() => data.onLeaveFullDirectorWorkspace?.()}
+        onOpenAgent={(entityId) => {
+          setAgentCollapsed(false);
+          if (entityId) setEntityRequest({ id: entityId, nonce: ++entityRequestSerial.current });
+        }}
+      />
+    </DirectorAgentPane>
   </div>;
 }
 
@@ -112,7 +114,7 @@ function CreationCanvas({ data, controller }: { data: CreationViewData; controll
   const [canvasReady, setCanvasReady] = useState(false);
   const [agentStatus, setAgentStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const markCanvasReady = useCallback(() => setCanvasReady(true), []);
-  const [agentPanelVisible, setAgentPanelVisible] = useState(true);
+  const [agentPanelVisible, setAgentPanelVisible] = useState(() => !window.matchMedia('(max-width: 700px), (max-width: 920px) and (max-height: 500px)').matches);
   const starting = !canvasReady || (agentPanelVisible && agentStatus === 'loading');
   const [versionHistoryOpen, setVersionHistoryOpen] = useState(false);
   const [agentPanelWidth, setAgentPanelWidth] = useState(() => {
@@ -130,6 +132,7 @@ function CreationCanvas({ data, controller }: { data: CreationViewData; controll
     const closeOnOutsidePointer = (event: globalThis.PointerEvent) => {
       const target = event.target;
       if (!(target instanceof Node) || assetPickerRef.current?.contains(target)) return;
+      if (target instanceof Element && target.closest('.canvas-asset-filter-popup')) return;
       setPicker(false);
     };
     document.addEventListener("pointerdown", closeOnOutsidePointer, true);
@@ -303,7 +306,7 @@ function CreationCanvas({ data, controller }: { data: CreationViewData; controll
         className={`forge-lite-main${agentPanelVisible ? "" : " agent-collapsed"}`}
         inert={starting}
         style={
-          agentPanelVisible ? { gridTemplateColumns: `minmax(0, 1fr) ${agentPanelWidth}px` } : undefined
+          agentPanelVisible ? { '--agent-panel-width': `${agentPanelWidth}px` } as CSSProperties : undefined
         }
       >
         <WorkflowCanvas
@@ -332,6 +335,10 @@ function CreationCanvas({ data, controller }: { data: CreationViewData; controll
               onCreateSection={() => controller.canvas.createSection?.()}
               onOpenHistory={() => setVersionHistoryOpen(true)}
             />
+            {!agentPanelVisible && (
+              <button className="forge-agent-reopen" onClick={() => setAgentPanelVisible(true)}>
+                {t("ui.CreationView.text.e178fa71")}</button>
+            )}
             </>
           }
         />
@@ -350,12 +357,7 @@ function CreationCanvas({ data, controller }: { data: CreationViewData; controll
             onKeyDown={resizeAgentPanelWithKeyboard}
           />
         )}
-        {agentPanelVisible ? (
-          <HarnessChatPanel agentId={CANVAS_AGENT_ID} onStatusChange={setAgentStatus} onClose={() => setAgentPanelVisible(false)} />
-        ) : (
-          <button className="forge-agent-reopen" onClick={() => setAgentPanelVisible(true)}>
-            {t("ui.CreationView.text.e178fa71")}</button>
-        )}
+        <HarnessChatPanel hidden={!agentPanelVisible} agentId={CANVAS_AGENT_ID} onStatusChange={setAgentStatus} onClose={() => setAgentPanelVisible(false)} />
       <ProjectVersionHistory
         open={versionHistoryOpen}
         onClose={() => setVersionHistoryOpen(false)}
@@ -466,6 +468,7 @@ function CreationCanvas({ data, controller }: { data: CreationViewData; controll
                   size="small"
                   variant="borderless"
                   popupMatchSelectWidth={false}
+                  classNames={{ popup: { root: 'canvas-asset-filter-popup' } }}
                   options={[
                     { value: "all", label: t("ui.CreationView.text.fa6968d9") },
                     { value: "image", label: t("ui.CreationView.text.604dfedb") },
@@ -491,6 +494,7 @@ function CreationCanvas({ data, controller }: { data: CreationViewData; controll
                   size="small"
                   variant="borderless"
                   popupMatchSelectWidth={false}
+                  classNames={{ popup: { root: 'canvas-asset-filter-popup' } }}
                   options={[
                     { value: "newest", label: t("ui.CreationView.text.44ceb013") },
                     { value: "oldest", label: t("ui.CreationView.text.4e2f1163") },

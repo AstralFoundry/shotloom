@@ -25,7 +25,7 @@ export function isProviderConfigured(providerId: string, configs: ProviderConfig
   if (!adapter) return false;
   const config = configs?.[providerId];
   const baseUrl = resolveProviderBaseUrl(adapter, config || {});
-  return Boolean(String(config?.apiKey || '').trim() && (!adapter.baseUrlRequired || baseUrl));
+  return Boolean((config?.serverManaged ? config.allowedModelIds?.length : String(config?.apiKey || '').trim()) && (!adapter.baseUrlRequired || baseUrl));
 }
 
 export function getModelCredentialStatus(
@@ -35,7 +35,9 @@ export function getModelCredentialStatus(
   const info = getModelInfo(modelId);
   const providerId = String(info?.provider || '');
   const providerName = findProviderAdapter(providerId)?.name || providerId || t('provider.unknown');
-  const available = Boolean(info && providerId && isProviderConfigured(providerId, configs));
+  const config = configs[providerId];
+  const available = Boolean(info && providerId && isProviderConfigured(providerId, configs)
+    && (!config?.serverManaged || config.allowedModelIds?.includes(modelId)));
   return {
     available,
     modelId,
@@ -58,7 +60,7 @@ export function getConfiguredModelIdsByType(
 export function getConfiguredAgentModelCatalog(configs: ProviderConfigs = {}) {
   return getAgentModelCatalog()
     .map((entry) => {
-      const models = entry.models.filter((model) => isProviderConfigured(model.provider, configs));
+      const models = entry.models.filter((model) => getModelCredentialStatus(model.id, configs).available);
       return { ...entry, defaultModel: models[0]?.id || '', models };
     })
     .filter((entry) => entry.models.length > 0);
@@ -91,14 +93,8 @@ function declaredInputs(model: CatalogModel): ProviderModelRow['inputs'] {
     constraints.some((constraint) => acceptsInput(constraint, keys[kind])));
 }
 
-let agentModelIds: Set<string> | null = null;
 function isAgentModel(modelId: string) {
-  if (!agentModelIds) {
-    agentModelIds = new Set(
-      getAgentModelCatalog().flatMap((entry) => entry.models.map((model) => model.id)),
-    );
-  }
-  return agentModelIds.has(modelId);
+  return getAgentModelCatalog().some(entry => entry.models.some(model => model.id === modelId));
 }
 
 const MODEL_TYPE_ORDER = new Map(GENERATION_TYPES.map((meta, index) => [meta.value, index]));
@@ -109,7 +105,7 @@ export function getProviderModelRows(providerId: string): ProviderModelRow[] {
     .sort((a, b) =>
       (MODEL_TYPE_ORDER.get(a.type) ?? MODEL_TYPE_ORDER.size) -
         (MODEL_TYPE_ORDER.get(b.type) ?? MODEL_TYPE_ORDER.size) ||
-      (a.sortOrder || 99) - (b.sortOrder || 99))
+      (a.sortOrder ?? 99) - (b.sortOrder ?? 99))
     .map((model) => ({
       id: model.id,
       name: model.name,

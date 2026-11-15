@@ -7,6 +7,21 @@ const read = (path) => readSource(path);
 const config = JSON.parse(read('src-tauri/tauri.conf.json'));
 const capabilities = JSON.parse(read('src-tauri/capabilities/default.json'));
 
+test('cloud native access permits media and import without local domain or Harness writes', () => {
+  const permissions = JSON.parse(read('src-tauri/permissions/client.json')).permission;
+  const local = permissions.find(item => item.identifier === 'local-commands').commands.allow;
+  const cloud = permissions.find(item => item.identifier === 'cloud-client').commands.allow;
+  const registered = [...read('src-tauri/src/lib.rs').matchAll(/commands::([a-z0-9_]+),/g)].map(match => match[1]);
+  assert.deepEqual(local.toSorted(), registered.toSorted());
+  assert.ok(cloud.every(command => registered.includes(command)));
+  for (const command of ['cloud_media_workspace', 'cloud_media_upload', 'project_read_bundle', 'openreel_cloud_export_start']) assert.ok(cloud.includes(command));
+  for (const command of ['storage_set', 'settings_get', 'project_save', 'harness_bind_session', 'start_harness_runtime']) assert.ok(!cloud.includes(command));
+  assert.ok(capabilities.permissions.includes('local-commands'));
+  const script = read('scripts/desktop-cloud.mjs');
+  assert.match(script, /permission !== 'local-commands'/);
+  assert.match(script, /'cloud-client'/);
+});
+
 const metaPolicy = read('renderer/index.html').match(
   /http-equiv="Content-Security-Policy"\s+content="([^"]+)"/,
 )[1];
@@ -24,7 +39,7 @@ test('CSP keeps script execution same-origin and blocks plugin objects', () => {
   assert.equal(directive(metaPolicy, 'base-uri'), "base-uri 'self'");
 });
 
-test('CSP allows local media but keeps requests on the native IPC channel', () => {
+test('CSP permits the configured BFF and Storage without broad network permissions', () => {
   const mediaSrc = directive(metaPolicy, 'media-src');
   for (const source of ['asset:', 'http://asset.localhost', 'blob:']) {
     assert.match(mediaSrc, new RegExp(source.replace('.', '\\.')));
@@ -33,8 +48,9 @@ test('CSP allows local media but keeps requests on the native IPC channel', () =
   assert.ok(connectSources.includes("ipc://localhost"));
   assert.ok(connectSources.includes('https://ipc.localhost'));
   assert.ok(connectSources.includes('asset:'));
-  // 渲染进程没有任何 fetch/XHR，允许任意 scheme 或本机端口等于给 webview 开一条外传通道。
-  assert.ok(connectSources.every((source) => !source.includes('*') && !source.includes('127.0.0.1')));
+  assert.ok(connectSources.includes('https://dnxsksdoipdctstpqtsa.supabase.co'));
+  assert.ok(connectSources.includes('http://127.0.0.1:3001'));
+  assert.ok(connectSources.every((source) => !source.includes('*')));
   assert.ok(!connectSources.some((source) => /^(https?|ws|wss):$/.test(source)));
 });
 

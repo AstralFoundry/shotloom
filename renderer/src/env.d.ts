@@ -4,6 +4,7 @@
 // 当前是否运行在 Tauri 窗口里，不读取其内部结构。
 interface Window {
   __TAURI_INTERNALS__?: unknown;
+  __SHOTLOOM_MOBILE__?: boolean;
 }
 
 // CSS Module 的类名映射在构建时由 Vite 生成，运行时才存在。

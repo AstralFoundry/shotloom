@@ -7,6 +7,7 @@ import type { SessionBinding, ProductRole } from './createHost.js';
 import { join } from 'node:path';
 import { openDatabase } from './db/connection.js';
 import { HostCrud } from './crud/hostCrud.js';
+import type { PersistenceBackend } from './persistenceBackend.js';
 
 export interface ProductTool {
   name: string;
@@ -20,8 +21,10 @@ export interface ProductTool {
 }
 
 export interface ProductBridge {
-  url: string;
-  token: string;
+  url?: string;
+  token?: string;
+  dispatch?: (request: Record<string, unknown>, signal: AbortSignal) => Promise<unknown>;
+  receipts?: PersistenceBackend['host'];
   timeoutMs?: number;
   authorize?: boolean;
   /** Durable product-operation receipts; official persistence owns Session events. */
@@ -36,16 +39,25 @@ export function registerProductTools(
   bridge: ProductBridge,
   delegation?: { callerSessionId: string; approvalAgent: () => Agent | undefined },
 ) {
-  const target = new URL(bridge.url);
-  if (target.protocol !== 'http:' || target.hostname !== '127.0.0.1') {
+  const target = bridge.url ? new URL(bridge.url) : undefined;
+  if (!bridge.dispatch && (!target || target.protocol !== 'http:' || target.hostname !== '127.0.0.1')) {
     throw new Error('Shotloom Tool Bridge must be loopback HTTP');
   }
-  if (!bridge.token) throw new Error('Missing Shotloom Tool Bridge credential');
+  if (!bridge.dispatch && !bridge.token) throw new Error('Missing Shotloom Tool Bridge credential');
+  async function exchange(request: Record<string, unknown>, signal: AbortSignal) {
+    signal = AbortSignal.any([signal, AbortSignal.timeout(bridge.timeoutMs ?? 120_000)]);
+    if (bridge.dispatch) return { ok: true, receipt: await bridge.dispatch(request, signal) };
+    const response = await fetch(new URL('/tool', target!), {
+      method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${bridge.token}` },
+      body: JSON.stringify({ ...request, token: bridge.token }), signal,
+    });
+    return { ok: response.ok, receipt: await response.json() as unknown };
+  }
   const approval = scope.get('approval');
   if (!approval) throw new Error('Official Harness approval service is required');
   const disposers: Array<() => void> = [];
-  const receiptDatabase = bridge.receiptRoot ? openDatabase(join(bridge.receiptRoot, 'agent.sqlite')) : undefined;
-  const receiptCrud = receiptDatabase && new HostCrud(receiptDatabase);
+  const receiptDatabase = !bridge.receipts && bridge.receiptRoot ? openDatabase(join(bridge.receiptRoot, 'agent.sqlite')) : undefined;
+  const receiptCrud = bridge.receipts ?? (receiptDatabase && new HostCrud(receiptDatabase));
   if (receiptDatabase) disposers.push(() => receiptDatabase.close());
   for (const tool of catalog.filter(item => item.roles.includes(binding.agentId))) {
     disposers.push(scope.tools.register({
@@ -79,7 +91,7 @@ export function registerProductTools(
         const requestId = `${delegation?.callerSessionId ?? binding.sessionId}:${exec.callId}`;
         const persistReceipt = tool.effect !== 'read' && !!receiptCrud;
         if (persistReceipt) {
-          const previous = receiptCrud!.receipt(requestId);
+          const previous = await receiptCrud!.receipt(requestId);
           if (previous) {
             return previous.status === 'settled' ? previous.payload : {
               success: false, code: 'TOOL_OUTCOME_UNKNOWN', requestId,
@@ -90,13 +102,9 @@ export function registerProductTools(
         let requiresApproval = tool.approvalRequired === true;
         if (bridge.authorize) {
           try {
-            const preflight = await fetch(new URL('/tool', target), {
-              method: 'POST', headers: { 'content-type': 'application/json' },
-              body: JSON.stringify({ op: 'tool', phase: 'authorize', token: bridge.token,
-                requestId: `${delegation?.callerSessionId ?? binding.sessionId}:${exec.callId}:authorize`, binding, toolName: tool.name, input }),
-              signal: AbortSignal.any([exec.signal, AbortSignal.timeout(bridge.timeoutMs ?? 120_000)]),
-            });
-            const body = await preflight.json() as { success?: boolean; result?: { success?: boolean; approvalRequired?: boolean } };
+            const preflight = await exchange({ op: 'tool', phase: 'authorize',
+              requestId: `${delegation?.callerSessionId ?? binding.sessionId}:${exec.callId}:authorize`, binding, toolName: tool.name, input }, exec.signal);
+            const body = preflight.receipt as { success?: boolean; result?: { success?: boolean; approvalRequired?: boolean } };
             if (!preflight.ok || body.success === false || body.result?.success !== true) return body;
             requiresApproval = body.result.approvalRequired === true;
           } catch (error) {
@@ -130,14 +138,9 @@ export function registerProductTools(
         // Binding and credential originate in trusted composition, not input.
         // The desktop revalidates project/node existence and current settings.
         try {
-          if (persistReceipt && !receiptCrud!.claimReceipt(requestId)) return { success: false, code: 'TOOL_OUTCOME_UNKNOWN', requestId };
-          const response = await fetch(new URL('/tool', target), {
-            method: 'POST',
-            headers: { 'content-type': 'application/json', authorization: `Bearer ${bridge.token}` },
-            body: JSON.stringify({ op: 'tool', token: bridge.token, requestId, binding, toolName: tool.name, input, approvedByHarness, authorizedByFullAccess: fullAccessGrant }),
-            signal: AbortSignal.any([exec.signal, AbortSignal.timeout(bridge.timeoutMs ?? 120_000)]),
-          });
-          const receipt: unknown = await response.json();
+          if (persistReceipt && !await receiptCrud!.claimReceipt(requestId)) return { success: false, code: 'TOOL_OUTCOME_UNKNOWN', requestId };
+          const response = await exchange({ op: 'tool', requestId, binding, toolName: tool.name, input, approvedByHarness, authorizedByFullAccess: fullAccessGrant }, exec.signal);
+          const receipt = response.receipt;
           if (!receipt || typeof receipt !== 'object' || Array.isArray(receipt)) {
             throw new Error('Bridge did not return a structured receipt');
           }
@@ -152,7 +155,7 @@ export function registerProductTools(
             record.images = [...images];
             delete payload.__toolAttachments;
           }
-          if (persistReceipt) receiptCrud!.settleReceipt(requestId, receipt);
+          if (persistReceipt) await receiptCrud!.settleReceipt(requestId, receipt);
           if (!response.ok) return { success: false, code: 'BRIDGE_REJECTED', requestId, receipt };
           return receipt;
         } catch (error) {
@@ -166,5 +169,7 @@ export function registerProductTools(
       },
     }));
   }
-  return () => { for (const dispose of disposers.splice(0).reverse()) dispose(); };
+  const dispose = () => { for (const dispose of disposers.splice(0).reverse()) dispose(); };
+  scope.effect(() => dispose);
+  return dispose;
 }

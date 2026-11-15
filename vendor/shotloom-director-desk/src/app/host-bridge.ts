@@ -7,6 +7,7 @@ import { directorContext } from '@/core/director-context.ts';
 import { session } from '@/state/editor-session.ts';
 import { useEditorStore } from '@/state/editor-store.ts';
 import { readSceneDocument } from '@/core/scenes/sequence-project.ts';
+import { prepareDocumentModels } from '@/core/scenes/document-models.ts';
 import { ACTIONS, ASPECTS, BUILDS, FRAME_RATES, GENDERS, type Joint, type Vec3 } from '@/core/model.ts';
 import { assetGroups, searchAssets } from '@/core/asset-catalog.ts';
 import { CAMERA_PLACEMENTS } from '@/core/cinematography/camera-placements.ts';
@@ -747,9 +748,10 @@ function startVideoExport(input: Input) {
     return { jobId, filename, status: job.status, phase: job.phase, width, height, fps, frameCount: job.frameCount, codec: job.codec, note: 'export_video_job 返回分阶段状态和 artifact.id；delivery_failed 可用 export_artifact_deliver 重试入库或下载，不必重编码。completed 是否入库请看 artifact.ingestion。' };
 }
 
-function loadProject(project: unknown) {
+async function loadProject(project: unknown) {
     if (!project) return;
     const document = readSceneDocument(project);
+    await prepareDocumentModels(session.engine.externalModels, document);
     const restored = session.history.reset(document);
     useEditorStore.getState().patch({ project: restored, selected: restored.entities[0]?.id ?? '', time: 0 });
     session.changed(true);
@@ -799,9 +801,9 @@ export function initializeHostBridge() {
             const theme = string(payload.theme);
             if (theme === 'light' || theme === 'dark') setEditorTheme(theme, false);
             try {
-                const initialized = hostSession.initialize(string(payload.instanceId), () => {
+                const initialized = await hostSession.initialize(string(payload.instanceId), async () => {
                     window.clearTimeout(saveTimer);
-                    loadProject(payload.project);
+                    await loadProject(payload.project);
                 });
                 // Bound only once the host's document is the one on screen. A desk that failed
                 // to load still shows its starter scene, and writing that back would replace

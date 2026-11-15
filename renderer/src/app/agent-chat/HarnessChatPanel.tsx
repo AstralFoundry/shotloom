@@ -1,6 +1,6 @@
 import { getLocale, t } from '@/i18n';
 import { CANVAS_AGENT_ID, DIRECTOR_AGENT_ID, EDITOR_AGENT_ID, TEXT_AGENT_ID } from '../../agent/agents/definitions';
-import { convertFileSrc } from '@tauri-apps/api/core';
+import { mediaFileUrl as convertFileSrc } from '@/utils/mediaFileUrl';
 import { selectedNodeMedia, localMediaPath } from '../../utils/nodeMedia';
 import { inferMediaType } from '../../utils/mediaType';
 import { openMediaViewer } from '../store/overlayStore';
@@ -18,7 +18,8 @@ import { mountHarnessClient } from '../agent-session/harnessClient';
 import { HarnessSessionToolbar } from './HarnessSessionToolbar';
 
 /** Official chat keeps its own React and state engines inside a ShadowRoot. */
-export function HarnessChatPanel({ agentId, nodeId, onClose, onStatusChange, directorEntityRequest, onDirectorEntityInserted, directorMode, onTurnStart }: {
+export function HarnessChatPanel({ agentId, nodeId, onClose, onStatusChange, directorEntityRequest, onDirectorEntityInserted, directorMode, onTurnStart, hidden }: {
+  hidden?: boolean;
   directorMode?: 'compact' | 'input' | 'expanded';
   onTurnStart?: () => void;
   agentId: ProductBinding['agentId']; nodeId?: string; onClose?: () => void; onStatusChange?: (status: 'loading' | 'ready' | 'error') => void;
@@ -32,6 +33,7 @@ export function HarnessChatPanel({ agentId, nodeId, onClose, onStatusChange, dir
   const [selectedId, setSelectedId] = useState('');
   const [retry, setRetry] = useState(0);
   const [frameError, setFrameError] = useState('');
+  const [readyKey, setReadyKey] = useState('');
   const turnStartRef = useRef(onTurnStart);
   turnStartRef.current = onTurnStart;
   const entityRequestRef = useRef(directorEntityRequest);
@@ -67,6 +69,7 @@ export function HarnessChatPanel({ agentId, nodeId, onClose, onStatusChange, dir
   useEffect(() => {
     let active = true;
     onStatusChange?.('loading');
+    setReadyKey('');
     setPanel({ key });
     setFrameError('');
     const timeout = window.setTimeout(() => {
@@ -88,7 +91,7 @@ export function HarnessChatPanel({ agentId, nodeId, onClose, onStatusChange, dir
     const mentions = new Set<(nodeId: string) => void>();
     const deliverEntity = async () => {
       const request = entityRequestRef.current;
-      if (agentId !== DIRECTOR_AGENT_ID || !request || !mentions.size ||
+      if (!request || !mentions.size ||
         request.nonce === deliveredEntityRequest.current || deliveringEntityRequest.current) return;
       deliveringEntityRequest.current = request.nonce;
       try {
@@ -130,15 +133,19 @@ export function HarnessChatPanel({ agentId, nodeId, onClose, onStatusChange, dir
         if (kind === 'nodes') focusCanvasNodes(ids.filter(id => store.project.nodes.some((node: { id: string }) => node.id === id)));
         if (kind === 'tasks' && ids.some(id => store.project.tasks?.some((task: { id: string }) => task.id === id))) useAppStore.getState().setRoute('tasks');
       },
-      status(phase, error) { if (active) { setFrameError(error ?? ''); onStatusChange?.(phase); } },
+      status(phase, error) { if (active) { setReadyKey(phase === 'ready' ? key : ''); setFrameError(error ?? ''); onStatusChange?.(phase); } },
       subscribeMention(listener) { mentions.add(listener); void deliverEntity(); return () => { mentions.delete(listener); }; },
     }).then(result => { if (active) mounted = result; else result.dispose(); }).catch(error => {
       if (active) { setFrameError(String(error)); onStatusChange?.('error'); }
     });
     return () => { active = false; deliverEntityRef.current = null; mounted?.dispose(); window.removeEventListener('shotloom:mention-node', mention); };
   }, [panel, key, agentId, onStatusChange]);
-  return <section ref={container} className="harness-chat-panel">
-    <HarnessSessionToolbar sessions={sessions} selectedId={selected?.id} onSelect={setSelectedId} onClose={onClose}
+  return <section ref={container} className="harness-chat-panel" hidden={hidden}>
+    <HarnessSessionToolbar sessions={sessions} selectedId={selected?.id} onSelect={id => {
+      setSelectedId(id);
+      store.project.activeHarnessSessionId = id;
+      touchProject();
+    }} onClose={onClose}
       onDelete={async id => {
         const target = sessions.find(session => session.id === id);
         if (!target) return;
@@ -153,7 +160,11 @@ export function HarnessChatPanel({ agentId, nodeId, onClose, onStatusChange, dir
       }}
       onCreate={() => { const created = createHarnessSession(store.project, { agentId, ...(agentId === TEXT_AGENT_ID ? { textNodeId: nodeId! } : agentId === EDITOR_AGENT_ID ? { editorNodeId: nodeId! } : agentId === DIRECTOR_AGENT_ID && nodeId ? { directorNodeId: nodeId } : {}) }); setSelectedId(created.id!); touchProject(); }} />
     <div ref={surface} className="harness-chat-frame" data-director-mode={directorMode} />
-    {panel?.key === key && !panel.sessionId && !panel.error && <p role="status">{t('agent.connecting')}</p>}
+    {readyKey !== key && !frameError && !(panel?.key === key && panel.error) && <div className="harness-connection-loading" role="status" aria-live="polite">
+      <img src="/shotloom-logo.png" alt="" width="40" height="40" />
+      <span className="harness-connection-spinner" aria-hidden="true" />
+      <p>{t('agent.connecting')}</p>
+    </div>}
     {panel?.key === key && panel.error && <p role="alert">{panel.error}</p>}
     {(frameError || (panel?.key === key && panel.error)) && <div className="harness-connection-error" role="alert">
       {frameError && <span>{frameError}</span>}

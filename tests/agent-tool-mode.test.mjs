@@ -19,6 +19,15 @@ test('唯一 Agent 可在关键信息缺失时询问', () => {
   assert.equal(canRequestAgentClarification(), true);
 });
 
+test('画布 Agent 可以在同一会话使用导演台工具与搭景 Skill', async () => {
+  const { selectAgentSkills } = await import('../renderer/src/agent/core/visibility.ts');
+  const canvas = agentDefinition('canvas-primary');
+  for (const tool of agentDefinition('director-primary').tools) {
+    assert.ok(canvas.tools.includes(tool), `canvas Agent missing ${tool}`);
+  }
+  assert.equal(selectAgentSkills(canvas, [{ id: 'director-desk-staging' }]).length, 1);
+});
+
 test('Skill 命名空间工具在对应 Skill 加载前不进入模型请求', (t) => {
   const agent = agentDefinition('canvas-primary');
   const tools = agent.tools;

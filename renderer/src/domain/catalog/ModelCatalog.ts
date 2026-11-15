@@ -543,6 +543,15 @@ class ModelCatalog {
     return this.models.filter((model) => !providerId || model.provider === providerId);
   }
 
+  replacePublishedModels(models: CatalogModel[]) {
+    for (const model of models) {
+      const errors = catalogModelValidationErrors(model, { requireProvider: true });
+      if (errors.length) throw new Error(errors.join('\n'));
+    }
+    this.models = models;
+    this.modelMap = new Map(models.map(model => [model.id, model]));
+  }
+
   // ── Queries ────────────────────────────────────────────────────────────────
 
   getModel(modelId: string): CatalogModel | undefined {
@@ -621,7 +630,7 @@ class ModelCatalog {
   getModelIdsByType(nodeType: string): string[] {
     return this.models
       .filter((m) => m.type === nodeType)
-      .sort((a, b) => (a.sortOrder || 99) - (b.sortOrder || 99))
+      .sort((a, b) => (a.sortOrder ?? 99) - (b.sortOrder ?? 99))
       .map((m) => m.id);
   }
 
@@ -867,7 +876,7 @@ class ModelCatalog {
       const typeModels = this.models
         .filter((m) => m.type === type)
         .filter((m) => type !== 'textGeneration' || this.getModeConfig(m.id, m.defaultMode)?.agent?.supportsTools === true)
-        .sort((a, b) => (a.sortOrder || 99) - (b.sortOrder || 99));
+        .sort((a, b) => (a.sortOrder ?? 99) - (b.sortOrder ?? 99));
       return {
         type,
         label: type,

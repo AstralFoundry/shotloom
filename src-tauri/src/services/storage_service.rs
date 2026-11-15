@@ -29,6 +29,21 @@ pub fn load_project(path: &Path) -> Result<Value, String> {
         Ok(value)
     })
 }
+
+pub fn load_project_bundle(path: &Path) -> Result<Value, String> {
+    let path = path.to_path_buf();
+    database::run(async move {
+        let db = database::open_readonly(&path).await?;
+        let outcome = async {
+            let tx = db.begin().await?;
+            let bundle = project_crud::load_bundle(&tx).await?;
+            tx.commit().await?;
+            Ok(bundle)
+        }.await;
+        db.close().await?;
+        outcome
+    })
+}
 pub fn save_project(path: &Path, value: &Value) -> Result<Value, String> {
     let value = value.clone();
     with_database!(path, db, {

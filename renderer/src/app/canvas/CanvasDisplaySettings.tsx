@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
+import { Dropdown } from 'antd';
 import { t } from '@/i18n';
 import { CANVAS_COLORS, CANVAS_EDGE_MODES, CANVAS_PATTERNS, type CanvasAppearance } from '../../utils/canvasAppearance';
 import type { AgentLayoutMode } from '../../services/agentLayoutService';
 import { IconSymbol } from '../components/IconSymbol';
 
-export function CanvasDisplaySettings({ appearance, onChange, onAutoLayout }: {
+export function CanvasDisplaySettings({ appearance, onChange, onAutoLayout, minimapVisible, onToggleMinimap }: {
+  minimapVisible: boolean;
+  onToggleMinimap: () => void;
   appearance: CanvasAppearance;
   onChange: (patch: Partial<CanvasAppearance>) => Promise<void>;
   onAutoLayout?: ((options?: { mode?: AgentLayoutMode; includeConnected?: boolean }) => boolean) | undefined;
@@ -14,6 +17,7 @@ export function CanvasDisplaySettings({ appearance, onChange, onAutoLayout }: {
   const [includeConnected, setIncludeConnected] = useState(true);
   const [saving, setSaving] = useState(false);
   const root = useRef<HTMLDivElement>(null);
+  const tools = [['layout', 'columns', t('canvas.display.layout')], ['background', 'grid', t('canvas.display.background')], ['edges', 'workflow', t('canvas.display.edges')]] as const;
   useEffect(() => {
     if (!panel) return;
     const close = (event: PointerEvent) => { if (!root.current?.contains(event.target as Node)) setPanel(null); };
@@ -28,10 +32,17 @@ export function CanvasDisplaySettings({ appearance, onChange, onAutoLayout }: {
   };
   return <div className="canvas-display-settings" ref={root}>
     <div className="canvas-display-triggers">
-      {([['layout', 'columns', t('canvas.display.layout')], ['background', 'grid', t('canvas.display.background')], ['edges', 'workflow', t('canvas.display.edges')]] as const).map(([id, icon, label]) =>
+      {tools.map(([id, icon, label]) =>
         <button key={id} type="button" title={label} aria-label={label} aria-expanded={panel === id} aria-controls={`canvas-display-${id}`} className={panel === id ? 'active' : ''}
           onClick={() => setPanel(current => current === id ? null : id)}><IconSymbol name={icon} /></button>)}
     </div>
+    <button className={`canvas-corner-map${minimapVisible ? ' active' : ''}`} type="button" title={t('ui.WorkflowCanvas.title.088baf55')} aria-pressed={minimapVisible} onClick={onToggleMinimap}><IconSymbol name="map" /></button>
+    <Dropdown trigger={['click']} placement="bottomRight" menu={{ items: [
+      ...tools.map(([key, icon, label]) => ({ key, label, icon: <IconSymbol name={icon} />, onClick: () => setPanel(key) })),
+      { key: 'map', label: t('ui.WorkflowCanvas.title.088baf55'), icon: <IconSymbol name="map" />, onClick: onToggleMinimap },
+    ] }}>
+      <button type="button" className="canvas-tools-more" aria-label={t('canvas.moreTools')} title={t('canvas.moreTools')}><IconSymbol name="more" /></button>
+    </Dropdown>
     {panel && <div id={`canvas-display-${panel}`} className={`canvas-display-panel canvas-display-panel--${panel}`} role="dialog" aria-label={t(`canvas.display.${panel === 'background' ? 'background' : panel === 'layout' ? 'layout' : 'edges'}`)}>
       <header><strong>{panel === 'background' ? t('canvas.display.background') : panel === 'layout' ? t('canvas.display.layout') : t('canvas.display.edges')}</strong>
         <button type="button" aria-label={t('canvas.display.close')} onClick={() => setPanel(null)}><IconSymbol name="x" /></button></header>

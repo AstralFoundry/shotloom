@@ -223,7 +223,7 @@ test('工作台只计算当前路由数据且素材选择器按需加载', () =>
   assert.match(workbench, /\["assets", "materials"\]\.includes\(appRoute\)/);
   assert.match(workbench, /loadMaterials: resourceLibraryData/);
   assert.match(creationView, /controller\.loadMaterials\(\)/);
-  assert.match(shell, /<section className="content">\s*\{view\}/);
+  assert.match(shell, /<section className="content">(?:(?!<\/section>)[\s\S])*\{view\}/);
   assert.doesNotMatch(workbench, /agentSession\.subscribe\(refresh\)/);
   // Chat subscriptions and message rendering belong to the isolated official client.
   assert.match(creationView, /<HarnessChatPanel/);

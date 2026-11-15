@@ -11,6 +11,8 @@ import { getProviderAdapters, resolveProviderBaseUrl } from './adapters';
 export interface ProviderConfig {
   apiKey: string;
   baseUrl: string;
+  serverManaged?: boolean;
+  allowedModelIds?: string[];
 }
 
 export type ProviderConfigs = Record<string, ProviderConfig>;
@@ -24,6 +26,8 @@ export function normalizeProviderConfigs(configs: Record<string, any> = {}): Pro
     return [adapter.id, {
       apiKey: String(config.apiKey || '').trim(),
       baseUrl: resolveProviderBaseUrl(adapter, config),
+      ...(config.serverManaged === true ? { serverManaged: true } : {}),
+      ...(Array.isArray(config.allowedModelIds) ? { allowedModelIds: config.allowedModelIds.filter((id: unknown): id is string => typeof id === 'string') } : {}),
     }];
   }));
 }

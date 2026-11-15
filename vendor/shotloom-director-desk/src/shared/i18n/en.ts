@@ -2,6 +2,8 @@ import { assetEnglish } from './en-assets.ts';
 import { panelEnglish } from './en-panels.ts';
 /** Product terminology: Scene = independent scene; Shot = a camera cut. */
 export const english: Record<string, string> = {
+    '更多工具': 'More tools',
+    '时间线选项': 'Timeline options',
     '基础控制': 'Basic controls',
     '人物跟拍': 'Subject tracking',
     '空间航拍': 'Aerial moves',

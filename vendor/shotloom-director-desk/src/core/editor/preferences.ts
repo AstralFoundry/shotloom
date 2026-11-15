@@ -29,7 +29,7 @@ export const preferenceDefaults = {
     sidebarWidth: null as number | null,
     inspectorWidth: null as number | null,
     timelineHeight: null as number | null,
-    timelineVisible: false,
+    timelineVisible: true,
     captureAspect: 'auto' as CaptureAspect,
 };
 export type EditorPreferences = typeof preferenceDefaults;

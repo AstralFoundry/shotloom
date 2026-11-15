@@ -52,20 +52,19 @@ export function SceneRail({ open, onSelect }: { open: boolean; onSelect: (tab: S
     return (
         <nav className="sidebar__rail" aria-label={t('侧栏面板')}>
             {RAIL_TABS.map((item) => (
-                <Tooltip key={item.key} title={t(item.label)} placement="right">
-                    <button
-                        type="button"
-                        className={`sidebar__rail-item ${open && tab === item.key ? 'is-active' : ''}`}
-                        aria-pressed={open && tab === item.key}
-                        aria-expanded={open && tab === item.key}
-                        aria-controls="director-sidebar"
-                        aria-label={t(item.label)}
-                        onClick={() => onSelect(item.key)}
-                    >
-                        {item.icon}
-                        <span>{t(item.label)}</span>
-                    </button>
-                </Tooltip>
+                <button
+                    key={item.key}
+                    type="button"
+                    className={`sidebar__rail-item ${open && tab === item.key ? 'is-active' : ''}`}
+                    aria-pressed={open && tab === item.key}
+                    aria-expanded={open && tab === item.key}
+                    aria-controls="director-sidebar"
+                    aria-label={t(item.label)}
+                    onClick={() => onSelect(item.key)}
+                >
+                    {item.icon}
+                    <span>{t(item.key === 'cameras' ? '机位' : item.label)}</span>
+                </button>
             ))}
         </nav>
     );

@@ -116,12 +116,15 @@ test('宿主模式没有编辑器工具栏这一列，独有的四个入口落�
   );
 });
 
-test('打开剪辑助手不能把剪辑台压成紧凑布局：断点归属剪辑容器宽度', () => {
-  // 剪辑台使用会话容器尺寸，侧栏不能把完整工作区切到紧凑版。
-  // 参考在同一宽度下依然保留 [素材 | 播放器 | 时间线] 完整桌面栅格，
-  // 所以宿主模式必须彻底退出紧凑版，而不是再调阈值。
+test('宿主桌面保留完整剪辑布局，手机启用现有紧凑面板', () => {
   const hook = read('vendor/openreel/apps/web/src/hooks/useCompactEditor.ts');
-  assert.match(hook, /if \(isShotloomMode\) return false/);
+  const body = hook.match(/function getSnapshot\(\): boolean \{([\s\S]*?)\n\}/)?.[1];
+  assert.ok(body);
+  const snapshot = new Function('window', 'isShotloomMode', body);
+  assert.equal(snapshot({ innerWidth: 390, matchMedia: () => ({ matches: true }) }, true), true);
+  assert.equal(snapshot({ innerWidth: 1000, matchMedia: () => ({ matches: false }) }, true), false);
+  assert.equal(snapshot({ innerWidth: 1440, matchMedia: () => ({ matches: false }) }, true), false);
+  assert.equal(snapshot({ innerWidth: 1000, matchMedia: () => ({ matches: false }) }, false), true);
 });
 
 test('剪辑助手列宽可以左右拖动，拖动期间剪辑台不吃指针', () => {

@@ -152,7 +152,7 @@ export async function readHarnessCanvasReference(sessionId: string, nodeId?: str
   assertAgentProject(context.projectKey, context.projectInstanceId, context.projectGeneration);
   const conversation = store.project.harnessSessions?.find((item: { id: string; agentId: string }) => item.id === binding.conversationId);
   if (!conversation || conversation.agentId !== binding.agentId) throw new Error(t('agent.reference.expired'));
-  const director = binding.agentId === DIRECTOR_AGENT_ID;
+  const director = binding.agentId === DIRECTOR_AGENT_ID || binding.agentId === CANVAS_AGENT_ID;
   const directorState = async () => {
     if (!directorDeskAvailable()) throw new Error('当前导演台场景不可用');
     const [snapshot, catalog] = await Promise.all([

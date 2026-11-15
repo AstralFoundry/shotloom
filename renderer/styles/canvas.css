@@ -179,6 +179,10 @@
   height: calc(var(--canvas-node-icon-size) * max(1, var(--node-label-zoom, 1)));
 }
 .canvas-node-selection-toolbar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform: var(--node-toolbar-transform);
   z-index: var(--layer-canvas-control);
   border: 1px solid var(--elevated-border);
   border-radius: var(--radius);
@@ -199,6 +203,7 @@
   transition: none;
   pointer-events: none;
 }
+.canvas-mobile-selection-actions, .canvas-mobile-select-mode, .canvas-mobile-add-node { display: none; }
 .canvas-node-selection-toolbar button {
   height: var(--canvas-toolbar-action);
   border: 0;

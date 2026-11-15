@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { execFileSync } from 'node:child_process';
 import { readdirSync } from 'node:fs';
-import { readSource } from './helpers/sourceContract.mjs';
+import { readSource, repoRootPath } from './helpers/sourceContract.mjs';
 
 const script = readSource('scripts/verify-test-architecture.mjs');
 const readsHelper = readSource('tests/helpers/sourceContract.mjs');
@@ -48,7 +48,7 @@ test('门禁把重复装配挡在测试之外', () => {
   // helpers 里除这两个模块外也不得再复制一套装配。
   assert.match(script, /SHARED_FILES/);
   execFileSync(process.execPath, ['scripts/verify-test-architecture.mjs'], {
-    cwd: new URL('..', import.meta.url).pathname,
+    cwd: repoRootPath,
     stdio: 'pipe',
   });
 });

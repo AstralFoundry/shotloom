@@ -28,6 +28,7 @@ import {
 } from "../store/domainReactivity.ts";
 import { canvasActionShortcutLabel } from "../utils/canvasActionShortcuts.ts";
 import { APPLICATION_ROUTES } from "../utils/projectNavigation.ts";
+import { cloudEnabled } from '../utils/cloudConfig';
 import { AppShell } from "./AppShell";
 import {
   canvasCommands,
@@ -69,6 +70,7 @@ import { AssetsView } from "./views/AssetsView";
 import { MaterialsView } from "./views/MaterialsView";
 import { ProjectsView } from "./views/ProjectsView";
 import { SettingsFeature } from "./views/SettingsFeature";
+import { AccountView } from './views/AccountView';
 import { SkillsFeature } from "./views/SkillsFeature";
 import { TasksView } from "./views/TasksView";
 import { showToast, showErrorMessage } from "../store/notificationStore";
@@ -87,6 +89,7 @@ import { registerDirectorDeskNavigator } from "../services/directorDeskAgentRunt
 export function ReactWorkbench() {
   const [, refresh] = useReducer((value) => value + 1, 0);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [navigationStatus, setNavigationStatus] = useState<'loading' | 'ready' | 'error'>(cloudEnabled ? 'loading' : 'ready');
   const [searchOpen, setSearchOpen] = useState(false);
   const [editorNodeId, setEditorNodeId] = useState("");
   const [editorExpanded, setEditorExpanded] = useState(true);
@@ -96,6 +99,7 @@ export function ReactWorkbench() {
   const openingProjectPath = useAppStore(state => state.openingProjectPath);
   const appRoute = useAppStore((state) => state.route);
   const currentProjectId = useAppStore((state) => state.currentProject?.id);
+  const currentProjectDir = useAppStore((state) => state.currentProject?.projectDir);
   const directorWorkspaceOpen = useDirectorWorkspaceStore((state) => state.open);
   const setDirectorWorkspaceOpen = useDirectorWorkspaceStore((state) => state.setOpen);
   useEffect(() => {
@@ -129,6 +133,7 @@ export function ReactWorkbench() {
     let disposeMemoryPressure: undefined | (() => void);
     let disposeMediaCachePressure: undefined | (() => void);
     let cancelled = false;
+    const requestedRoute = cloudEnabled ? new URLSearchParams(location.search).get('route') : null;
     void (async () => {
       recordDiagnosticEvent({
         category: 'runtime',
@@ -153,6 +158,8 @@ export function ReactWorkbench() {
       ]);
       await loadBoundWindowProject();
       if (cancelled) return;
+      if (requestedRoute) navigateToRoute(requestedRoute, { notify: false });
+      setNavigationStatus('ready');
       if (desktopApi.platform !== "browser") {
         const recovery = await invoke<any>("recovery_status").catch(() => null);
         const previous = recovery?.previousUnclean;
@@ -186,9 +193,11 @@ export function ReactWorkbench() {
         );
       }
       refresh();
-    })().catch((cause) =>
-      showErrorMessage(cause instanceof Error ? cause.message : t("ui.ReactWorkbench.text.3e91af51"), t("ui.ReactWorkbench.text.ef92d657")),
-    );
+    })().catch((cause) => {
+      if (cancelled) return;
+      setNavigationStatus('error');
+      showErrorMessage(cause instanceof Error ? cause.message : t("ui.ReactWorkbench.text.3e91af51"), t("ui.ReactWorkbench.text.ef92d657"));
+    });
     const disposeEditorLauncher = registerVideoEditorLauncher(id => {
       if (id === WORKSPACE_VIDEO_EDITOR_ID) openWorkspaceVideoEditor();
       else {
@@ -243,6 +252,15 @@ export function ReactWorkbench() {
       refresh();
     }
   }, [appRoute]);
+
+  useEffect(() => {
+    if (!cloudEnabled || navigationStatus === 'loading' || (navigationStatus === 'error' && !currentProjectId)) return;
+    const url = new URL(location.href);
+    url.searchParams.set('route', appRoute);
+    if (currentProjectId && currentProjectDir) url.searchParams.set('project', currentProjectDir);
+    else url.searchParams.delete('project');
+    window.history.replaceState(window.history.state, '', url);
+  }, [navigationStatus, appRoute, currentProjectId, currentProjectDir]);
 
   const projects = appRoute === "projects" ? projectLibraryData() : null;
   const resources = ["assets", "materials"].includes(appRoute)
@@ -331,6 +349,7 @@ export function ReactWorkbench() {
     focusCanvasNodes([nodeId]);
   }
 
+  const onUpdate = () => void updateDialogController.check();
   let activeView: React.ReactNode;
   if (openingProjectPath) {
     activeView = <section className="react-workflow-canvas" aria-label={t("ui.ReactWorkbench.arialabel.6f4cc182")}><CanvasStartup canvasReady={false} /></section>;
@@ -340,7 +359,8 @@ export function ReactWorkbench() {
     );
   } else if (appRoute === "skills") {
     activeView = <SkillsFeature />;
-
+  } else if (appRoute === 'account') {
+    activeView = <AccountView onSettings={() => setSettingsOpen(true)} onUpdate={desktopApi.platform === 'browser' ? undefined : onUpdate} />;
   } else if (appRoute === "tasks") {
     activeView = (
       <TasksView
@@ -429,29 +449,25 @@ export function ReactWorkbench() {
       />
     );
   }
+  if (navigationStatus === 'loading') return <main className="cloud-session-loading" role="status" aria-live="polite">
+    <img src="/shotloom-logo.png" alt="Shotloom" width="48" height="48" />
+    <span className="cloud-session-progress" aria-hidden="true" />
+    <p>{t('canvas.preparing')}</p>
+  </main>;
   return (
     <>
       <AppShell
         platform={desktopApi.platform}
         view={activeView}
-        onNotify={() =>
-          void desktopApi
-            .notifyTask({
-              title: "Shotloom",
-              body: t("ui.ReactWorkbench.body.38b5befc"),
-            })
-            .then(() => showToast(t("ui.ReactWorkbench.text.7d112e59")))
-        }
-        onSettings={() => setSettingsOpen(true)}
-        onUpdate={() => void updateDialogController.check()}
+        onVideoEdit={() => canvasCommands.openBlankVideoEditor()}
+        onUpdate={onUpdate}
         onNavigationBlocked={() => showToast(t("project.openFirst"))}
       />
       {searchOpen && <ProjectSearch onClose={() => setSearchOpen(false)} />}
       {settingsOpen && (
         <Modal
           open
-          centered
-          width={1120}
+          width="100%"
           footer={null}
           closable={false}
           aria-label={t("ui.SideBar.title.7debf9cb")}
@@ -460,9 +476,9 @@ export function ReactWorkbench() {
           styles={{
             body: {
               padding: 0,
-              height: "min(760px, calc(100vh - 52px))",
+              height: "100dvh",
               display: "grid",
-              gridTemplateRows: "minmax(0, 1fr) 56px",
+              gridTemplateRows: "minmax(0, 1fr) auto",
             },
           }}
         >

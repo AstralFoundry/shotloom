@@ -267,16 +267,17 @@ export const ThreeDDirectorNode: WorkflowNodeRenderer = memo(
       {detailOpen && surface && createPortal(
         <div className="director-detail-backdrop" role="dialog" aria-label={t("ui.ThreeDDirectorNode.arialabel.fad461cc")}>
           <div className="director-detail-window">
-            <iframe
-              ref={detailIframeRef}
-              // 详情窗口使用独立布局；embedded=canvas 会触发导演台的缩略嵌入样式。
-              src={directorDeskFrameSrc(node.id, "light")}
-              title={t("ui.ThreeDDirectorNode.arialabel.fad461cc")}
-              className="director-detail-frame"
-              onLoad={() => { sendSession(); sendPanorama(); }}
-            />
             <DirectorAgentPane className="director-detail-agent" nodeId={node.id} collapsed={agentCollapsed} onCollapsedChange={setAgentCollapsed}
-              entityRequest={entityRequest} onEntityRequestHandled={nonce => setEntityRequest(current => current?.nonce === nonce ? undefined : current)} />
+              entityRequest={entityRequest} onEntityRequestHandled={nonce => setEntityRequest(current => current?.nonce === nonce ? undefined : current)}>
+              <iframe
+                ref={detailIframeRef}
+                // 详情窗口使用独立布局；embedded=canvas 会触发导演台的缩略嵌入样式。
+                src={directorDeskFrameSrc(node.id, "light")}
+                title={t("ui.ThreeDDirectorNode.arialabel.fad461cc")}
+                className="director-detail-frame"
+                onLoad={() => { sendSession(); sendPanorama(); }}
+              />
+            </DirectorAgentPane>
           </div>
         </div>,
         surface,

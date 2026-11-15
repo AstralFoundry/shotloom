@@ -1,4 +1,5 @@
 import type { Json } from "./types";
+import type { ModelPublication } from '../../../shared/modelPublications';
 
 // Supabase `Database` 类型：用 `type` 别名（而非 interface）声明 Row，
 // 以使其满足 supabase-js `Record<string, unknown>` 的泛型约束。
@@ -35,6 +36,7 @@ export type SessionRow = {
 export type ProjectRow = {
   id: string;
   user_id: string;
+  client_id: string;
   name: string;
   revision: number;
   payload: Json;
@@ -132,6 +134,12 @@ export type UserCollectionTable = "skills" | "recipes" | "catalog_assets" | "cat
 export type Database = {
   shotloom: {
     Tables: {
+      app_admins: Table<{ client_id: string; user_id: string }>;
+      model_publications: Table<ModelPublication & { client_id: string }>;
+      admin_audit: Table<{ id: number; client_id: string; actor_id: string; action: string; model_id: string | null; details: Json; created_at: string }>;
+      agent_sessions: Table<{ user_id: string; id: string; header: Json; inherited_count: number; event_count: number }>;
+      agent_events: Table<{ user_id: string; session_id: string; seq: number; payload: Json }>;
+      agent_state: Table<{ user_id: string; scope: string; key: string; payload: Json }>;
       users: Table<UserRow>;
       sessions: Table<SessionRow>;
       projects: Table<ProjectRow>;
@@ -157,8 +165,27 @@ export type Database = {
       recovery_records: Table<RecoveryRecordRow>;
       clipboard_records: Table<ClipboardRecordRow>;
       workspace_sessions: Table<WorkspaceSessionRow>;
+      library_folders: Table<{ id: string; user_id: string; client_id: string; parent_id: string | null; name: string }>;
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      list_admin_users: { Args: { p_client_id: string; p_actor_id: string; p_query: string; p_offset: number; p_limit: number }; Returns: Json };
+      set_app_admin: { Args: { p_client_id: string; p_actor_id: string; p_user_id: string; p_is_admin: boolean; p_expected_admin: boolean }; Returns: Json };
+      manage_models: { Args: { p_client_id: string; p_actor_id: string; p_action: string; p_value: Json }; Returns: Json };
+      load_project_bundle: { Args: { p_user_id: string; p_id: string }; Returns: Json | null };
+      import_project_bundle: { Args: { p_user_id: string; p_client_id: string; p_id: string; p_value: Json }; Returns: Json };
+      agent_append: { Args: { p_user_id: string; p_id: string; p_expected: number; p_events: Json }; Returns: undefined };
+      agent_read_events: { Args: { p_user_id: string; p_id: string; p_offset: number; p_length?: number }; Returns: Json };
+      agent_list_sessions: { Args: { p_user_id: string }; Returns: Json };
+      agent_list_state: { Args: { p_user_id: string; p_scope: string }; Returns: Json };
+      save_editor_snapshot: { Args: { p_project_id: string; p_node_id: string; p_payload: Json }; Returns: undefined };
+      list_projects: { Args: { p_user_id: string }; Returns: Json };
+      list_library_folders: { Args: { p_user_id: string }; Returns: Json };
+      load_project: { Args: { p_user_id: string; p_id: string }; Returns: Json | null };
+      load_catalog: { Args: { p_user_id: string; p_kind: string }; Returns: Json | null };
+      save_catalog: { Args: { p_user_id: string; p_kind: string; p_value: Json }; Returns: undefined };
+      save_project: { Args: { p_user_id: string; p_client_id: string; p_id: string; p_value: Json }; Returns: Json };
+      save_settings: { Args: { p_user_id: string; p_value: Json }; Returns: undefined };
+    };
   };
 };

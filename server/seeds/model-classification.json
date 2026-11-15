@@ -1,0 +1,18 @@
+{
+  "textGeneration": [
+    "deepseek-v4-pro", "gemini-3.8-flash", "gemini-3.8-live", "gemini-3.8-live-extended-thinking",
+    "gemini-4-argon", "gemini-4-carbon", "gemini-4-hydrogen", "MiniMax-M3", "MiniMax-M3.1-Flash",
+    "glm-3-turbo", "glm-4", "glm-4-0520", "glm-4-air", "glm-4-airx", "glm-4-alltools",
+    "glm-4-flash", "glm-4-long", "glm-4-plus", "glm-4.6", "glm-4.6v", "glm-4.7", "glm-4.7-flash",
+    "glm-4v", "glm-4v-plus", "glm-5"
+  ],
+  "imageGeneration": [
+    "gpt-image-2", "gpt-image-2.5-flare", "gpt-image-2.6-sunburst", "gemini-2.5-flash-image",
+    "gemini-3.1-flash-image", "gemini-3.1-flash-lite-image", "gemini-nano-banana-2.1"
+  ],
+  "videoGeneration": [
+    "MiniMax-H3", "veo-3.0-fast-generate-001", "veo-3.0-generate-001",
+    "veo-3.1-fast-generate-preview", "veo-3.1-generate-preview"
+  ],
+  "audioGeneration": ["gemini-3.8-flash-tts", "gemini-3.8-flash-lite-tts"]
+}

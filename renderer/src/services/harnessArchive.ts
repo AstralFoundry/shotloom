@@ -1,4 +1,5 @@
 import { desktopApi } from './desktopApi';
+import { cloudEnabled, cloudRequest } from './cloudRequest';
 
 const archiveQueues = new Map<string, Promise<void>>();
 
@@ -14,9 +15,13 @@ async function ensureHarnessReady(): Promise<void> {
 
 /** Serialize archive changes so a quick undo cannot be overtaken by an older delete. */
 export function setHarnessSessionsArchived(projectKey: string, sessionIds: string[] | undefined, archived: boolean): Promise<void> {
-  if (desktopApi.platform === 'browser') return Promise.resolve();
+  if (!cloudEnabled && desktopApi.platform === 'browser') return Promise.resolve();
   const previous = archiveQueues.get(projectKey) || Promise.resolve();
   const task = previous.catch(() => {}).then(async () => {
+    if (cloudEnabled) {
+      await cloudRequest('/agent/sessions/archive', 'POST', { projectKey, sessionIds, archived });
+      return;
+    }
     await ensureHarnessReady();
     await desktopApi.harness.archiveSessions(projectKey, sessionIds, archived);
   });

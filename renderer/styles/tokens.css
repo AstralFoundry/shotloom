@@ -102,6 +102,9 @@
   --text-display-24: 24px;
   --text-display-24--line-height: 32px;
 
+  --text-display-48: 48px;
+  --text-display-48--line-height: 58px;
+
   /* Tracking: em 基准，所以同一档在任何字号上视觉密度一致（阶梯取自参考实现）。
    * normal 是产品作用域的唯一复位值；tight 归 13px 以上的标题与品牌名，
    * wide 归 caption 级分组标签，widest 只给全大写/拉丁徽标（参考上限 .1em，不再往上铺）。
@@ -259,6 +262,7 @@
   --layer-canvas-control: 110;
   --layer-canvas-popover: 115;
   --layer-canvas-composer: 120;
+  --layer-workspace: 500;
   --layer-toast: 600;
 
   /* Motion

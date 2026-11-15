@@ -8,6 +8,7 @@ import { projectOperationBlockReason } from '@/services/projectOperationGuards';
 // store 只为顶层导航字段提供最小类型。
 import { reactive, toRaw } from '@/store/domainReactivity';
 import { desktopApi } from '@/services/desktopApi';
+import { cloudEnabled } from '@/services/cloudRequest';
 import { uid } from '@/utils/format';
 import { showToast, showErrorMessage } from '@/store/notificationStore';
 import { cancelTask, stopActiveTaskPolling } from '@/store/taskStore';
@@ -43,7 +44,7 @@ export interface CloneProgressState {
 }
 
 function restoreSession() {
-  if (desktopApi.platform !== 'browser') return null;
+  if (cloudEnabled || desktopApi.platform !== 'browser') return null;
   try {
     const data: AnyRecord | null = JSON.parse(localStorage.getItem(PROJECT_SESSION_KEY) || 'null');
     if (!data?.project) return null;
@@ -179,7 +180,7 @@ export function persistSession() {
     projectDir: store.projectDir,
     filePath: store.filePath,
   });
-  if (desktopApi.platform === 'browser') localStorage.setItem(PROJECT_SESSION_KEY, JSON.stringify(session));
+  if (!cloudEnabled && desktopApi.platform === 'browser') localStorage.setItem(PROJECT_SESSION_KEY, JSON.stringify(session));
   const snapshot = {
     project: session.project,
     projectDir: store.projectDir,
@@ -329,8 +330,10 @@ export function initProjectCloneProgressListener() {
 
 export async function loadRecentProjects() {
   try {
-    const rootEntries = (await desktopApi.project.listRoot?.(await ensureProjectRoot())) || [];
-    const recentProjects = await desktopApi.recent.list();
+    const [rootEntries, recentProjects] = await Promise.all([
+      ensureProjectRoot().then(async root => (await desktopApi.project.listRoot?.(root)) || []),
+      desktopApi.recent.list(),
+    ]);
     const flattenProjects = (entries: AnyRecord[] = []): AnyRecord[] =>
       entries.flatMap((entry: AnyRecord) =>
         entry.kind === 'project' ? [entry] : flattenProjects(entry.children || []),
@@ -836,8 +839,13 @@ async function applyOpenedProject(result: AnyRecord) {
   const { reconcileCurrentProjectLocalAssetReferences } = await import(
     '@/store/localAssetLibraryStore'
   );
-  await reconcileCurrentProjectLocalAssetReferences();
-  const restoration = await restoreMissingGeneratedFiles(store.project);
+  const [references, restoredFiles] = await Promise.allSettled([
+    reconcileCurrentProjectLocalAssetReferences(),
+    restoreMissingGeneratedFiles(store.project),
+  ]);
+  if (references.status === 'rejected') throw references.reason;
+  if (restoredFiles.status === 'rejected') throw restoredFiles.reason;
+  const restoration = restoredFiles.value;
   if (restoration.restored) {
     store.project.updatedAt = new Date().toISOString();
     const saved: AnyRecord = await saveProjectSerialized(

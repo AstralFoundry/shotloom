@@ -93,7 +93,10 @@ pub fn resolve_input_file(app_data: &Path, home: Option<&Path>, path: &str) -> R
     if !resolved.is_file() {
         return Err(localized_error("native.error.68ec0e94d7", json!({"path": path.to_string()}), format!("模型输入文件不存在或不是普通文件：{path}")));
     }
-    classify_media_file(&resolved, app_data, home)?;
+    // Windows app-data redirection and verbatim prefixes must resolve on both sides of the boundary.
+    let app_root = fs::canonicalize(app_data).map_err(|error| error.to_string())?;
+    let home_root = home.and_then(|root| fs::canonicalize(root).ok());
+    classify_media_file(&resolved, &app_root, home_root.as_deref())?;
     let size = resolved.metadata().map_err(|error| error.to_string())?.len();
     if size > MAX_MODEL_INPUT_BYTES {
         return Err(localized_error("native.error.534ec3e54f", json!({"size": (size / (1024 * 1024)).to_string(), "path": (path).to_string()}), format!(
@@ -146,7 +149,11 @@ mod tests {
         fs::write(&video, b"clip").unwrap();
         assert!(classify_media_file(&video, &app_data, Some(&base.join("home"))).is_ok());
         let library = app_data.join("local-asset-library").join("blobs").join("a.bin");
+        fs::write(&library, b"cached media").unwrap();
         assert!(classify_media_file(&library, &app_data, Some(&base.join("home"))).is_ok());
+        let app_alias = app_data.join("..").join("appdata");
+        assert_eq!(resolve_input_file(&app_alias, None, &library.to_string_lossy()).unwrap(), fs::canonicalize(&library).unwrap());
+        assert!(resolve_input_file(&app_data, None, &video.to_string_lossy()).is_err());
         fs::remove_dir_all(base).unwrap();
     }
 

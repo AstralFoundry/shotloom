@@ -1,178 +1,165 @@
-# Shotloom 云化迁移设计：Supabase 数据/对象存储 + new-api 登录服务端
+# Supabase 云化迁移状态
 
-> 目标：把 Shotloom（Tauri 桌面应用）的底层数据存储与对象存储迁移到 Supabase，
-> 新增一个支持 new-api OIDC 登录的独立服务端（BFF），客户端统一支持 Web / 桌面 / 移动端。
->
-> 本文档遵循文档驱动开发（DDD）：先固化架构、数据模型与迁移步骤，再进入编码。
+更新：2026-11-15。任务仍在进行，本文区分已验证能力与待完成项目。
 
-## 1. 现状与结论
+## 架构
 
-| 维度 | 现状 | 目标 |
-|------|------|------|
-| 数据存储 | Rust/SeaORM + SQLite（`app.sqlite`、`project.sqlite`、`assets.sqlite`、`clipboard.sqlite`） | Supabase Postgres（RLS + 租户字段） |
-| 对象存储 | 本地文件系统（`app_data/local-asset-library/blobs`、`<project>/assets`），经 Tauri `asset://` 协议暴露 | Supabase Storage（私有桶 + 签名 URL） |
-| 身份 | 无登录（本地单机） | new-api OIDC（OAuth2 Authorization Code + PKCE） |
-| 客户端 | Tauri 桌面 + Web（localStorage 降级） | Web / 桌面（改造）/ 移动端 |
-| 服务端 | 72 个 Tauri command（IPC） | 独立 BFF（HTTP REST） |
+保留 React/Vite 与现有 Hono 服务端。Web、Tauri 桌面壳、手机 PWA 共用 BFF 和 Supabase 项目 `dnxsksdoipdctstpqtsa`。领域数据以 Postgres 为事实源，媒体与 Agent 附件以私有 Storage 为事实源。桌面 FFmpeg、浏览器 Canvas/OpenReel 继续在客户端处理媒体。
 
-**关键事实**：前端所有数据访问都收敛在 `renderer/src/services/desktopApi.ts`（唯一读取
-`window.__TAURI_INTERNALS__` 的位置），约 200+ 调用点经它分发。因此客户端改造的核心是
-新增一个 HTTP 实现替换 Tauri 实现，上层无需改动。
+线上地址：`https://shotloom.0xfiang.com`。独立容器位于 mail 服务器 `/opt/shotloom`，Nginx 代理到本机 13030 端口；不接管服务器上的其他应用。托管 Agent、媒体下载通道与完整项目包已部署。
 
-## 2. 目标架构
+## 身份与权限
 
-```mermaid
-graph TD
-  subgraph Clients
-    Web["Web (Vite SPA)"]
-    Desktop["Desktop (Tauri 壳)"]
-    Mobile["Mobile (PWA/Capacitor)"]
-  end
+- new-api confidential OAuth App 5，Authorization Code + PKCE；保留原 public App 4。
+- `GET /api/auth/login` 发起登录；回调验证私有临时 Cookie 中的 state/verifier，OAuth code 在 BFF 交换。
+- 浏览器 Cookie 只包含随机会话 UUID，生产设置 HttpOnly、Secure、SameSite=Lax，最长 30 天。它不是 HMAC 用户信息载荷。
+- new-api access/refresh token 以 AES-256-GCM 加密保存在 `shotloom.sessions`。service_role、OAuth client secret、加密密钥仅在服务端。
+- 每次领域请求校验账号；打开的工作台使用 `x-shotloom-user` 固定原账号，账号切换返回 `ACCOUNT_CHANGED`，防止把旧工作区写入新账号。
+- 浏览器写请求必须来自配置的前端 origin。原生兼容传输的 UUID bearer 仅允许无 Origin 的 `/api/relay/`，不能用于业务数据写入。
+- 模型转发限制在明确的 new-api relay 路径，保留流式响应；额度与可用模型来自网关。
 
-  Web -->|HTTP JSON| BFF
-  Desktop -->|HTTP JSON| BFF
-  Mobile -->|HTTP JSON| BFF
+## 领域和对象数据
 
-  subgraph Server
-    BFF["Shotloom Server (BFF)\nHono + Zod + @supabase/supabase-js"]
-  end
+独立 `shotloom` schema 默认拒绝 anon/authenticated，仅允许 BFF 的 service_role。BFF 按用户隔离，项目子记录继承项目归属。该 Supabase 项目还存在其他应用表和远端迁移，不能 reset，也不能盲目覆盖远端迁移历史。
 
-  BFF -->|service_role| PG["Supabase Postgres\n(RLS / 租户)"]
-  BFF -->|service_role + signed URL| ST["Supabase Storage\n(私有桶 media/assets)"]
-  BFF -->|OAuth2 / OIDC| GW["new-api\n(/oauth/*, /v1/*)"]
+已实施的数据库迁移：
 
-  Desktop -.->|本地能力| Native["ffmpeg / harness / openreel\n(仅桌面保留)"]
-```
+1. `0001_shotloom_domain.sql`：用户、登录会话、项目及领域集合。
+2. `20261114131130_shotloom_atomic_cloud.sql`：项目事务保存、revision 与租户完整性。
+3. `20261115022109_shotloom_storage_integrity.sql`：聚合加载，避免 1,000 行默认上限；目录事务保存。
+4. `20261115022822_shotloom_library_folders.sql`：文件夹树、同账号外键与级联删除。
+5. `20261115032615_shotloom_snapshot_revision.sql`：编辑器快照原子递增 revision。
+6. `20261115033153_shotloom_agent_persistence.sql`：官方 Harness 日志、事件、KV、工具目录和回执。
+7. `20261115040938_shotloom_project_bundle.sql`：完整项目与编辑器数据的事务导入、聚合导出。
 
-### 分层职责
+这些迁移已经应用到指定项目，并登记历史。业务乐观锁冲突使用 `PT409`，避免被 PostgREST 当作数据库序列化失败反复重试。
 
-- **BFF**：唯一持有服务端密钥（service_role、会话加密密钥、OAuth client secret/verifier）。
-  负责 new-api 登录、会话管理、领域数据 CRUD、对象上传/下载签名。所有 `/v1/*` AI 流量经其转发。
-- **Supabase Postgres**：业务数据事实源，`client_id` + `user_id` 作为租户隔离点。
-- **Supabase Storage**：媒体与素材对象，私有桶，DB 只存 `bucket` + `path`，读取走短时签名 URL。
-- **客户端**：无任何密钥；通过会话 Cookie 与 BFF 交互。
+媒体使用稳定引用 `cloud://media/<key>`，不持久化带过期签名的 URL。上传使用私有桶签名直传；读取经认证后生成短期签名。桶为 `shotloom-media` 和 `shotloom-assets`，对象路径包含 OAuth client_id 与用户 UUID。
 
-### 保留在本地的桌面能力
+浏览器二进制下载先认证获取签名，再以 `credentials: omit` 直读 Storage，避免把应用 Cookie 带到跨域签名地址。公开 CDN 媒体经认证下载通道流式传输：只接受 HTTPS、逐次校验重定向与全部 DNS 结果、固定连接 IP、拒绝内网地址，不转发上游 Cookie 或用户凭据，单文件限制 500 MiB。桌面下载到工作缓存再处理和直传。
 
-ffmpeg 媒体处理、harness 运行时、openreel 导出、3D 导演台等重本地能力在 Web 端无等价实现，
-仍由桌面端（Tauri 壳）通过本地插件提供，数据与身份统一走 BFF。
+云端 ZIP v2 包含去重媒体、完整项目 JSON、编辑器快照和记录，浏览器解压使用客户端 Worker。Web 与桌面可导入；桌面同时保留 SQLite ZIP v1 和旧项目文件夹导入。导入总是创建新云端工程，数据库事务失败不留半份项目。原 SQLite 只读打包；旧目录入口的共享素材兼容整理仍沿用原生实现。单个媒体 500 MiB，包体 2 GiB；浏览器最终 ZIP Blob 仍占客户端内存。结果不确定的提交保留私有上传，不能在未核验时清理。
 
-## 3. 数据模型（Rust 模型 → Postgres）
+## 客户端与 Agent
 
-沿用 SeaORM 实体的语义，增加 `client_id` / `user_id` / `project_id` 租户维度；`file_path`
-由绝对路径改为 Supabase Storage 的 `bucket` + `path`。
+`desktopApi` 默认选择 cloud 实现；显式 `VITE_STORAGE_MODE=local` 才使用兼容本地模式。项目、设置、素材目录、Skill、模板、最近项目、剪贴板载荷、编辑器记录等通过 REST 保存。
 
-```mermaid
-erDiagram
-  USERS ||--o{ PROJECTS : owns
-  USERS ||--o{ SESSIONS : has
-  USERS ||--o{ SETTINGS : has
-  USERS ||--o{ SKILLS : has
-  USERS ||--o{ RECIPES : has
-  USERS ||--o{ RECENT_PROJECTS : has
-  PROJECTS ||--o{ NODES : contains
-  PROJECTS ||--o{ EDGES : contains
-  PROJECTS ||--o{ TASKS : contains
-  PROJECTS ||--o{ MATERIALS : contains
-  PROJECTS ||--o{ ASSETS : contains
-  PROJECTS ||--o{ CONVERSATIONS : contains
-  PROJECTS ||--o{ EDITOR_SNAPSHOTS : contains
-  PROJECTS ||--o{ EDITOR_RECORDS : contains
-  PROJECTS ||--o{ PRODUCTION_PLANS : contains
-  PROJECTS ||--o{ AGENT_BATCHES : contains
-  PROJECTS ||--o{ AGENT_EVALUATIONS : contains
+桌面启动脚本加载指定 HTTPS 站点，并只向该精确 origin 授予既有 Tauri 能力。Native FFmpeg 使用受限工作缓存下载、处理、上传，处理完成后才发布云端结果；缓存清理覆盖取消和失败。Web 提供浏览器端裁剪、抽帧和 OpenReel 导出。尚无浏览器实现的重处理能力明确要求桌面端。
 
-  USERS {
-    uuid id PK
-    text client_id
-    text sub UK "new-api OIDC sub"
-    text username
-    text email
-  }
-  PROJECTS {
-    uuid id PK
-    text client_id
-    uuid user_id FK
-    text name
-    bigint revision
-    jsonb payload
-  }
-  NODES {
-    uuid id PK
-    uuid project_id FK
-    int position
-    text kind
-    text title
-    jsonb payload
-  }
-```
+发行版为远程页面显式登记 `cloud-client` 原生命令权限，仅包含客户端媒体和旧项目导入所需的命令；本地数据库与 Harness 命令仍只授权给本地应用。构建工具使用工程内缓存，避免 Windows 重定向目录下 NSIS 解压重命名跨磁盘失败。
 
-完整建表见 `supabase/migrations/`。要点：
+官方 Harness 的 UI、循环、审批、模型协议与子 Agent 继续复用。新增托管运行方式通过认证 SSE + POST 传递官方 RPC/stream，产品工具返回客户端执行。托管 Host 不挂载服务器 Bash；模型密钥和会话 bearer 只在服务端。Agent 事件、绑定、配置 KV、幂等回执通过可注入异步存储写入 Supabase。附件先发布到私有 Storage 再返回引用，官方附件校验和派生图只使用可重建缓存。
 
-- 所有业务表带 `client_id text not null` 与 `user_id uuid not null`（引用 `users.id`）。
-- 项目级表带 `project_id uuid not null`（引用 `projects.id`，级联删除）。
-- `materials.storage_path text`、`assets.storage_path text` 指向 Storage 对象；
-  `materials.file_path` 语义由「磁盘绝对路径」收敛为「相对 key」。
-- 全局目录（skills/recipes/settings/recent_projects）按 `user_id` 归属，不按 project。
-- 索引对应原 `database/mod.rs::indexes`（kind、source、target、node_id、status、material_id 等）。
+托管文件系统的真实路径限制在当前账号工作缓存内，官方 `/api/file` 预览也受此边界约束，绝对路径、父目录和符号链接不能读取服务器配置。恢复 Agent 时重新建立当前缓存中的工作目录并记录目录变更，旧临时目录被清理或服务重启后仍可继续。Windows 媒体上传对文件和可信根目录同时 canonicalize，支持应用数据目录重定向与长路径前缀。
 
-## 4. 身份与登录时序
+手机端复用响应式 Web/PWA 入口，含 manifest、图标、safe-area 和触摸布局；已验证 390×844 浏览器视口。未交付原生 iOS/Android 安装包或离线缓存。
 
-```mermaid
-sequenceDiagram
-  participant C as 客户端
-  participant B as BFF
-  participant G as new-api
-  participant S as Supabase
+## 验证与剩余工作
 
-  C->>B: GET /api/auth/login
-  B->>B: 生成 state/nonce/code_verifier，写 HttpOnly Cookie
-  B-->>C: 302 → G /oauth/authorize (PKCE)
-  C->>G: 用户在 new-api 授权
-  G-->>C: 302 → B /api/auth/callback?code=...
-  C->>B: GET /api/auth/callback?code
-  B->>G: POST /oauth/token (code + verifier)
-  G-->>B: access_token + refresh_token
-  B->>G: GET /oauth/userinfo
-  G-->>B: { sub, username, email }
-  B->>S: upsert users(sub) → user_id
-  B->>S: 写入 sessions（加密后的 token）
-  B-->>C: Set-Cookie: shotloom_session=...; 302 → /
-```
+已验证：真实 new-api 登录、浏览器和 Windows 桌面读取同一项目；项目并发保存只有一个提交成功；跨用户读写隔离；目录事务回滚；超过 1,000 条的完整加载；文件夹归属与级联；签名上传下载与公开访问拒绝；账号切换拒写；并发快照 revision 不丢失。
 
-- 会话 Cookie：`HttpOnly` + `Secure`(生产) + `SameSite=Lax`，HMAC 签名。
-- new-api token 以 AES-256-GCM 加密后存 `gateway_sessions`，仅 service_role 可读。
-- 刷新：access token 过期前 60s 内 `POST /oauth/token (grant_type=refresh_token)` 轮换，
-  `invalid_grant` 时清除会话并要求重新登录。
-- 登录不创建 new-api 用户；以 `sub` 作为账户关联主键（`username`/`email` 可变，`email` 可为空）。
+新增云端 Harness 测试已验证：关闭后恢复官方会话、并发回执只认领一次、跨用户隔离、清空缓存后恢复文本与图片附件，以及真实 HTTP 下的官方 RPC、stream、cancel 和连接会话隔离。前端生产构建和 TypeScript 检查通过。
 
-## 5. REST 接口契约
+线上真实模型验收：Windows 桌面通过托管 Agent 得到 DeepSeek V4 Pro 回复，并在允许一次审批后创建真实画布节点；390×844 浏览器恢复相同节点和两轮会话。手机视口完成带图片项目的 UI 导出再导入，核验新媒体的 68 字节、保留轨道及编辑器记录。公开 CDN 下载返回 200，内网 URL 返回 400。全量前端检查 623 项、服务端真实 Supabase 测试 13 项通过；随后新增私有下载凭据回归测试，相关 8 项通过。Supabase 安全 advisor 未报告 Shotloom 问题。
 
-沿用 new-api `common/gin.go` 的 `{ success, message, data }` envelope 与统一分页/错误码：
+后续真实桌面验收：GPT Image 2.5 Flare 生成 1024×1024 PNG（751,171 字节）并归档私有桶；MiniMax H3 经 `/hailuo/v2` 提交、轮询并归档 MP4（383,260 字节），客户端播放元数据为 1344×768、4.458 秒。归档失败后的恢复复用原任务，没有重新生成。Gemini 3.1 Flash Lite Image 返回 Google 上游配额不足，应用正确记录错误。桌面只读 `project_read_bundle` 和认证远程媒体流式下载已通过实际 IPC 验证。当前前端全量检查 625 项通过，新增文件越界测试与更换工作缓存后的真实 Supabase 会话恢复通过；线上文件越界预览返回 403。
 
-- `POST /api/auth/login`、`GET /api/auth/callback`、`GET /api/auth/me`、`POST /api/auth/logout`
-- `GET/PUT /api/project/:id`（保存/加载画布图数据，乐观锁 `revision`）
-- `GET/PUT /api/settings`、`GET/PUT /api/catalog/:kind`（skills/recipes/assets/materials）
-- `GET/POST/DELETE /api/recent`
-- `GET/PUT /api/files`（Storage 上传/下载/签名 URL）
-- `POST /api/relay/[...path]`（AI 转发，透传 `/v1/*`，不缓冲流）
+移动端重新打开项目时的存在性检查已改为先认证取签名，再以 `credentials: omit` 发起 Storage HEAD，避免跨域凭据导致误判缺失和重复归档。线上 390×844 视口验证图片 1024×1024、视频 1344×768／4.458 秒正常恢复，无恢复失败提示；新建视频节点默认选择网关可用的 MiniMax。最新全量检查 627 项通过，包含原生命令权限检查。更新后的 Windows 发行程序实际 IPC 验证了旧项目只读导入、认证流式下载、15,477 字节私有上传与读取，并拒绝远程页面调用本地设置命令；临时上传已删除。
 
-## 6. 迁移步骤（roadmap）
+仍需完成并验收：
 
-1. ✅ 架构与数据模型设计（本文档）
-2. Supabase 迁移：建表 + RLS + Storage 桶
-3. BFF 骨架 + new-api OAuth 登录/会话
-4. 领域 REST 接口（project/settings/catalog/recent/files）
-5. 客户端：`desktopApi` 增加 HTTP 实现（Web 端数据路径）
-6. 桌面端改造：Tauri 壳保留本地能力、数据/身份走 BFF
-7. 移动端：PWA/Capacitor 复用 Web 客户端
-8. 部署：BFF + Web 到 Vercel/容器，同步三处 origin（生产域名、OAuth redirect、Supabase redirect）
+- Android / iOS 原生包及真实手机安装验收；Windows 发行安装包、原生读取、ZIP 解包、流式媒体下载和生成结果上传已验证。
+- 官方 Harness 历史日志及附件的导入迁移；旧会话缺失现在返回具体 404，不再只报服务器内部错误。原数据保留。
+- MiniMax 原生 v2 视频协议已发布并完成真实视频验收；其他模型仍受网关与其上游额度、模型开放状态约束。
+- 多实例部署的刷新令牌和 Agent 写者协调；当前部署为单实例。
+- 真实手机/PWA 安装与付费生成验收，结束时删除临时测试账号与测试对象。
 
-## 7. 安全清单（对齐 new-api-app-framework）
+Windows 兼容本地 Harness 的 Git Bash 在官方受限令牌下仍有 signal-pipe 权限错误；不通过放宽沙箱权限掩盖此问题。托管模式的客户端画布工具不依赖该 Bash。
 
-- [ ] `SUPABASE_SERVICE_ROLE_KEY`、`SESSION_ENCRYPTION_KEY` 仅服务端，永不 `NEXT_PUBLIC_*`。
-- [ ] OAuth `state`/`nonce`/PKCE verifier 存 HttpOnly Cookie，回调时校验。
-- [ ] 网关 token 只在内存/加密存储，不进日志、不进 `user_metadata`。
-- [ ] RLS：业务表默认拒绝 anon/authenticated，仅 service_role 经 BFF 访问（BFF 为强制点）。
-- [ ] 媒体对象仅存 `bucket` + `path`，读取走短时签名 URL。
-- [ ] 余额/额度/订单/用量来自 new-api，本地无账本。
+
+## Supabase 登录与个人中心（2026-11-15）
+
+登录入口采用 Supabase UI 的 Social Auth 模板并适配现有控件，BFF 使用 `@supabase/ssr` 完成 PKCE OAuth、身份校验和退出。独立 provider 为 `custom:shotloom-newapi`，仍使用原 Shotloom confidential App5；共享项目现有的 `custom:newapi`、site_url 和其他回调地址保持原配置。新增 Shotloom 回调白名单，new-api App5 增加 Supabase Auth callback。
+
+身份归属只读取 Auth 管理的 identity 并验证 App audience，与 new-api userinfo subject 交叉核对；继续按原 App5 + sub 绑定业务用户。真实登录验证原用户 UUID、工程归属和积分一致。官方 Auth 使用 publishable key，service_role 不参与 OAuth cookie；网关凭据仍加密保存在服务端。
+
+“我的”集中提供账号信息、可用积分、累计消耗、刷新、充值、设置和退出。充值由 BFF 创建订单，页面承载受信支付地址并提供独立窗口入口；关闭付款窗口后重读真实余额。已创建待支付测试订单，未实际付款。CSP 仅增加实际 checkout origin `https://pancake.waffo.ai`。
+
+登录页和个人中心统一黑白基调、紫色账号点缀、现有图标与设计令牌；手机使用单列和 44px 操作目标。手机浏览器隐藏空标题栏，侧栏 hover 状态不再挤压内容。真实浏览器检查设置弹窗和退出流程。
+
+Nginx 的 Supabase 分块 cookie 回调需要 `proxy_buffer_size 32k` 与 `proxy_buffers 8 32k`；已验证配置并重新加载。开启文本资源 gzip 和带 hash 静态资源的一年缓存，减少移动端首次加载时间。
+
+发行 NSIS 安装包已实际安装并通过受限云端 IPC、私有上传读取删除、旧 SQLite 只读导入及 FFmpeg 导出验证。仍需迁移旧 Harness 历史及附件，完成 Android / iOS 包与真实手机安装验收；这些尚未交付。
+
+
+界面更新验收：前端全量 `npm run check` 628 项通过，生产构建通过；真实 390×844 页面在导航 hover 状态下仍占满 388px 内容宽度，无横向溢出。设置弹窗、退出后重新通过 Supabase 登录已验证。支付 iframe 已实际显示余额充值表单，未继续付款。深浅主题及手机/桌面截图保存在忽略的 output 目录。
+
+Windows 媒体进程增加无控制台启动，避免 GUI 导出继承控制台关闭事件；失败无 stderr 时保留真实退出状态。进程取消和权限边界保持原逻辑。Windows 静默失败退出码及任务注册回归测试 2 项通过；新发行安装包已安装，通过实际 IPC 完成 H.264 与 PCM 音频编码，生成 2,676 字节 MP4。
+
+## 手机交互与网关错误提示（2026-11-15）
+
+真实失败事件显示，DeepSeek V4 Pro 收到 new-api 的 `403 insufficient_user_quota`，余额为零。官方 UI 将所有 AUTH 类错误显示为密钥无效；构建适配现在在聊天和轨迹中优先识别明确的额度错误码，提示到「我的」充值，兼容历史失败记录，真实密钥错误仍保留原提示。没有修改用户余额或发起付款。
+
+手机页面补齐项目搜索、技能列表及编辑抽屉、任务筛选、设置、素材和剪辑助手的布局与触控尺寸。设置使用全屏视口及安全区；剪辑助手默认收起，展开时覆盖手机剪辑区。剪辑台在手机使用现有紧凑布局与时间线、素材、属性切换，桌面保留完整布局；画布内嵌剪辑节点仍使用专用布局。官方 Harness 的移动样式在其 ShadowRoot 内适配。
+
+画布双指缩放复用语义缩放和保存视口，不改变 React Flow 的固定内部 zoom；保留按钮缩放和单指操作。新增手势回归覆盖双指比例与中点、剩余单指抑制、输入控件及监听器释放。线上浏览器 CDP 注入双指触控已验证缩放 100% → 200% → 100%，浏览器 visualViewport.scale 保持 1。
+
+导演台仍通过独立 HTML / iframe 与产品通信。手机底部提供「3D 视口 / 场景 / 属性」，竖屏面板在预览下方滚动，横屏面板在右侧。工具栏横向滚动，保留导出、关闭及三级操作入口，几何与群众菜单支持点击及返回。浏览器已检查 320×740、390×844、844×390 和 1440×1000：无页面横向溢出，面板与导航可访问，桌面侧栏正常。尚未完成真实 Android / iOS 硬件触控验证。
+
+最新全量检查 631 项通过，OpenReel 自身 TypeScript 检查及生产构建通过。稳定路径的 HTML 与剪辑运行时增加 `Cache-Control: no-cache`，防止浏览器的启发式缓存继续使用旧布局；API 的 `no-store` 保留，带 hash 的 Nginx 静态资源仍使用长缓存。已用实际 Hono 请求和线上响应头验证。
+
+项目库文件夹取消仅双击进入，统一支持单击、手机轻点以及 Enter / 空格打开，保留「更多」及右键菜单。类型检查、18 项相关回归和生产构建通过；线上 CDP 验证手机与桌面的封面、标题点击、菜单隔离、键盘打开和画布入口，共 10 项交互检查通过。触控验证使用浏览器模拟，尚未完成真实手机验收。
+
+## 上游 0.9.1 合并后的本地验收（2026-11-15）
+
+已将本地两个提交 rebase 到上游 `63a9404` 并推送 `origin/main`（`868ca45`）。尚未提交的云端和手机端工作保留在工作区，随后随下节预览版本部署。合并前的分支、Git bundle、stash 和旧导演台工作文件保存在本机 Codex backups 中。
+
+当前导演台为 `vendor/shotloom-director-desk`。上节对旧版「3D 视口 / 场景 / 属性」导航的验收仅是历史记录。新版手机使用「场景 / 资产 / 添加机位 / 运镜 / 镜头」底部导航；属性从顶栏打开，面板覆盖在导航上方。顶栏分两行保留输出、撤销、更多、属性及返回；视口工具栏单行滚动。默认展开动画时间线，单个镜头也显示切镜轨道；手机轨道名称列缩为 132px，缩放、定位和播放头计算共用此宽度。标尺与播放头手柄在纵向滚动后仍可使用。点击「角色动画」会直接打开动作面板。
+
+新增浏览器回归覆盖 320×740、390×844、844×390、1440×1000 的布局，验证顶栏触控目标、底部导航、工具可滚动访问、镜头序列、真实动作片段和时间定位。导演台已有完整编辑与时间线 smoke 也通过，包含模型导入、运镜、姿态、导出、撤销及恢复。本地宿主页使用真实云端账号验证新增机位后，从 Supabase 读回包含两个机位的 v3 文档；旧文档仍保留为 `legacyProject`，尚未实现旧导演台场景的语义转换。
+
+云端会话归档改走认证 BFF，浏览器不再跳过归档，云端桌面不再启动本地 Host。归档与快速撤销按项目串行。真实 HTTP 测试验证项目归属筛选、归档与撤销；真实 Supabase 测试验证全新 Host 恢复归档状态，再绑定时取消归档。宿主空闲时仍释放缓存和运行时。
+
+补齐上游新增命令的本地权限清单，没有扩大远程页面的本地数据库或 Harness 权限。产品 `npm run check` 879 项通过，前端生产构建、导演台构建、服务端类型检查及 Rust `cargo check` 通过。Windows 本地 Harness 的两项 Git Bash signal-pipe 测试仍失败；不影响云端托管模式，但不能据此声称全平台验收完成。
+
+仍需继续：新版导演台的真实手机触控和云端模型资源恢复、剪辑与素材等页面的合并后全流程复验、旧 Harness 日志及附件迁移、Android / iOS 原生打包和硬件安装。
+
+## 合并后线上预览（2026-11-15）
+
+按用户要求跳过旧导演台项目兼容，已将当前工作区部署至 `https://shotloom.0xfiang.com`，发布号 `20261115-rebase-mobile-105408`。该预览包含尚未提交的云端和手机端改动；此前推送的 `origin/main` 不包含全部预览内容。服务器保留旧应用及镜像备份，可回滚。
+
+云端导演工作区以服务端项目为准，不再读写浏览器本地恢复副本。修复聊天重试按钮被聊天容器遮挡的问题。服务端恢复会话时，将持久化 header 的工作目录投影到当前账号的运行目录，避免 Windows 创建的会话在 Linux 部署中因绝对路径校验失败；会话事件及附件保持不变。真实 Supabase 测试验证更换运行目录后仍能列出并恢复原会话、归档和附件，服务端类型检查通过。
+
+线上健康检查通过。390×844 浏览器验证登录保留、单击打开项目、底部导航、导演台镜头序列及无横向溢出；原导演 Agent 会话成功恢复，实际模型返回「部署验收成功」。产品全量检查 879 项及生产构建通过。触控仍使用浏览器模拟，本次没有发布 Android / iOS 安装包。
+
+后续预览发布号为 `20261115-rebase-mobile-111955`。修复手机画布助手入口遮挡底部工具栏、素材目录网格超宽裁切，以及点击浮层筛选选项意外关闭目录的问题；补齐筛选项触控尺寸和手机横屏列表空间。节点菜单随尺寸与滚动重新定位，云端设置删除过时的本机保存说明。
+
+保留回归脚本 `scripts/smoke-mobile-cloud.mjs`，通过已登录浏览器的 CDP 端点运行，使用 `SHOTLOOM_URL` 指定预览站。本地及线上均通过 320×740、390×844、844×390、1440×1000 的画布与素材目录检查，包含按钮命中、菜单边界、筛选和排序实际选择；剪辑页三个面板和设置四个页面也通过检查。最新素材修复通过 TypeScript、样式及 UI 检查和生产构建。线上 `/health` 返回 200。
+
+同一手机模拟浏览器连续三次刷新均保留登录，没有闪现登录入口；从刷新到项目列表可操作约 4.7–7.2 秒，进入项目到画布节点可操作约 7.5–9.6 秒。这只是当前预览环境的浏览器测量，仍有加载性能优化空间，不代表真实手机性能。此次预览仍包含未提交工作区内容，尚未交付 Android / iOS 安装包，也未完成真实手机触控验收。
+
+## 项目打开耗时优化（2026-11-15）
+
+线上请求时序显示，项目读取约 0.8 秒，随后串行等待素材目录读取、无条件写回、媒体存在性检查、最近项目写入和列表刷新，导致画布约 9.1 秒才能操作。本次修复素材引用核对：保留有效引用的 id 和创建时间，仅在引用实际变化时持久化，仍清理失效引用并更新项目名称；素材引用核对与媒体恢复并行，等两者结束后再处理错误；项目目录与最近项目列表并行读取。
+
+新增行为回归验证空目录和重复打开不写回、引用身份稳定、重命名更新、失效引用清理及其他项目引用保留，并验证目录请求未返回时最近项目读取已经开始。相关 23 项行为测试、TypeScript、模块分层、测试架构检查和生产构建通过。发布号 `20261115-rebase-mobile-113144`，容器及公开健康检查通过，保留可回滚备份。
+
+同一线上账号、项目和 390×844 浏览器首次对比，画布可操作时间由 9,070ms 降至 4,972ms；请求记录确认素材目录无 PUT，签名检查与目录读取、三个列表请求各自并行。该结果包含实际网络延迟，不能作为所有工程或真实手机的性能保证。
+
+随后连续三轮刷新仍保留登录、未出现登录入口，进入画布分别为 5,462ms、5,477ms、7,007ms（均值约 6.0 秒）；优化前对应三轮均值约 8.7 秒。项目列表加载分别为 5,243ms、3,623ms、3,132ms。网络波动仍明显，首屏及大工程加载尚有进一步优化空间。
+
+手机布局复验发现剪辑脚本下载耗时 47,683ms（压缩传输约 2.6MB），超过浏览器用例的等待时间；界面最终可以显示。进一步验证原静态响应带 `Last-Modified`，但条件请求仍返回 200。已将 `/openreel/` 改由 Nginx 直接提供文件并保持 `no-cache`，在线验证 ETag 条件请求由 200 正确转为 304，发布时内容变化仍需重新校验；API 缓存策略不变。配置通过 `nginx -t` 后重载，原配置保存在本次发布备份目录。
+
+修复后连续两次刷新再打开剪辑页，脚本均只传输 300 字节，校验耗时 251ms / 242ms，编辑工作区分别在 1,455ms / 1,377ms 可见。随后 `scripts/smoke-mobile-cloud.mjs` 在线全部通过：四种视口的画布和素材目录、剪辑时间线/媒体/剪辑面板、设置通用/画布/可用模型/Agent，结果 `MOBILE_LAYOUT_OK`。用例新增在开始前关闭已有剪辑页，以支持从上次验收状态重跑。首次下载仍需完整脚本，不应把缓存复用结果称为冷启动性能。
+
+## 最新部署与导演台云端资源验收（2026-11-15）
+
+发布号 `20261115-rebase-mobile-151905`，已部署当前前端和服务端至 `https://shotloom.0xfiang.com`。容器与公开健康检查通过；保留应用和镜像备份。本次修复部署漏包：服务端模型管理依赖的 shared 模块、模型目录和 JSON 清单现在进入 Docker 构建上下文与镜像。候选镜像先隔离启动并检查健康，再替换线上容器；此前失败版本已成功自动回滚。
+
+导演台模型包保存为 Supabase 私有对象引用。线上真实导入 OBJ 后，原始项目读取确认仅保存引用；全新 390×844 浏览器仅继承登录 Cookie，仍能恢复完全相同的 OBJ 内容，且无重复上传、浏览器错误或横向溢出。修复恢复时尚未准备外部模型就提交场景的问题：完成资源准备后才替换历史和确认 Host 连接，重复初始化串行处理。真实 Agent snapshot 已成功返回恢复后的模型资源。
+
+项目复制现在移除源项目的 Harness runtime session ID，包括回收站会话，保留产品会话标识和选择状态；新副本拥有独立绑定。原来已经创建并携带错误绑定的副本不自动迁移，新建对话可以使用。手机画布助手层级调整，避免遮挡独立导演台。
+
+本次验证：产品全量检查 899 项通过；服务端类型检查通过，13 项服务端测试通过、4 项需要单独环境的测试跳过；导演台 6 项浏览器 smoke 通过。线上四种视口的画布和素材目录、剪辑三个面板、设置四个分类复验通过。DeepSeek V4 Pro 新对话实际返回「连接正常。」。模型管理后台 `/admin` 已显示管理页面；普通测试账号访问管理接口返回 `403 ADMIN_REQUIRED`，客户端模型目录返回 28 个已发布模型。未在本次验收中修改模型发布配置。
+
+仍未完成：Android/iOS 真机安装和触控、桌面端完整回归、跨平台大媒体导出与性能验收。本次浏览器模拟不能替代上述验收。工作区仍包含未提交改动，线上内容不等同于此前推送的 main。

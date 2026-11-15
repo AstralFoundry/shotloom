@@ -31,7 +31,8 @@ const surfaces = [
 ];
 
 test('内容区提供唯一的大工作区挂载点', () => {
-  assert.match(shell, /<section className="content">\s*\{view\}\s*<div className="workbench-surface-root" ref=\{setWorkbenchSurfaceRoot\} \/>/);
+  assert.match(shell, /<section className="content">(?:(?!<\/section>)[\s\S])*\{view\}\s*<div className="workbench-surface-root" ref=\{setWorkbenchSurfaceRoot\} \/>\s*<\/section>/);
+  assert.equal((shell.match(/ref=\{setWorkbenchSurfaceRoot\}/g) || []).length, 1);
   assert.match(shell, /import \{ setWorkbenchSurfaceRoot \} from "\.\/layout\/workbenchSurface"/);
   assert.match(shellStyles, /\.content \{[\s\S]*?position: relative;[\s\S]*?isolation: isolate;/);
   assert.match(shellStyles, /\.workbench-surface-root \{[\s\S]*?position: absolute;[\s\S]*?inset: 0;[\s\S]*?z-index: 130;[\s\S]*?pointer-events: none;/);

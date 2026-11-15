@@ -69,6 +69,32 @@ test('createNewProject 使用的任务清理钩子随 projectStore 一路可用'
   assert.equal(typeof projectStore.stopActiveTaskPolling, 'undefined', 'stopActiveTaskPolling 属于 taskStore，而非 projectStore');
 });
 
+test('recent projects load while the project directory request is still pending', async () => {
+  const originalRoot = desktopApi.project.listRoot;
+  const originalRecent = desktopApi.recent.list;
+  let releaseRoot;
+  let markRecent;
+  const rootGate = new Promise(resolve => { releaseRoot = resolve; });
+  const recentStarted = new Promise(resolve => { markRecent = resolve; });
+  let timer;
+  let loading;
+  try {
+    desktopApi.project.listRoot = async () => { await rootGate; return []; };
+    desktopApi.recent.list = async () => { markRecent(); return []; };
+    loading = projectStore.loadRecentProjects();
+    await Promise.race([
+      recentStarted,
+      new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('recent list blocked on directory request')), 1000); }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+    releaseRoot();
+    await loading;
+    desktopApi.project.listRoot = originalRoot;
+    desktopApi.recent.list = originalRecent;
+  }
+});
+
 test('opening an unreadable project preserves the current project instead of normalizing an empty replacement', async () => {
   const previous = { project: store.project, path: store.filePath, dir: store.projectDir };
   const readFile = desktopApi.project.readFile;

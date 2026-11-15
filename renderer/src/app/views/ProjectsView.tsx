@@ -1,5 +1,5 @@
 import { t } from '@/i18n';
-import { Dropdown, Select, type MenuProps } from "antd";
+import { Dropdown, Select, Spin, type MenuProps } from "antd";
 import { type MouseEvent, useEffect, useMemo, useRef, useState } from "react";
 import { formatTime, formatItemCount } from "../../utils/format.ts";
 import { showErrorMessage } from "../../store/notificationStore";
@@ -186,6 +186,7 @@ export function ProjectsView(
   }
 
   function beginCreate(type: Draft["type"]) {
+    if (pending) return;
     closeMenus();
     if (type === "canvas" && !currentFolder) return;
     setEntryFilter("all");
@@ -200,13 +201,13 @@ export function ProjectsView(
     if (!draft || pending) return;
     const value = draft;
     const name = value.name.trim();
-    setDraft(null);
-    if (!name) return;
+    if (!name) { setDraft(null); return; }
     setPending(true);
     try {
       if (value.type === "folder") {
         await controller.createFolder(value.context?.folderDir || null, name);
       } else if (value.context) await controller.createProject(name, value.context);
+      setDraft(null);
     } catch (error) {
       showErrorMessage(error instanceof Error ? error.message : String(error), value.type === "folder" ? t("ui.ProjectsView.text.91ab3905") : t("project.createFailed"));
     } finally {
@@ -341,12 +342,13 @@ export function ProjectsView(
           {!currentFolder && <p className="project-page-description">{t("ui.ProjectsView.text.f5b63ec3")}</p>}
         </div>
         <div className="project-page-actions">
-          {currentFolder && <button className="button primary" type="button" onClick={() => beginCreate("canvas")}>
+          {currentFolder && <button className="button primary" type="button" disabled={pending} onClick={() => beginCreate("canvas")}>
             <IconSymbol name="grid" />{t("ui.ProjectsView.text.afb7afc7")}
           </button>}
           <button
             className={`button ${currentFolder ? "ghost" : "primary"}`}
             type="button"
+            disabled={pending}
             onClick={() => beginCreate("folder")}
           >
             <IconSymbol name="folder" />{t("ui.ProjectsView.text.95cf3cd4")}</button>
@@ -411,14 +413,15 @@ export function ProjectsView(
             ? (
               <div className="project-card-grid">
                 {draft && (
-                  <article className={`project-tile project-create-tile ${draft.type === "folder" ? "project-folder-tile" : "project-canvas-tile"}`}>
+                  <article aria-busy={pending} className={`project-tile project-create-tile ${draft.type === "folder" ? "project-folder-tile" : "project-canvas-tile"}`}>
                     <div className="project-tile-preview">
-                      <ProjectCover folder={draft.type === "folder"} />
+                      {pending ? <Spin /> : <ProjectCover folder={draft.type === "folder"} />}
                     </div>
                     <div className="project-tile-body">
                       <input
                         ref={createInput}
                         value={draft.name}
+                        disabled={pending}
                         className="project-create-name"
                         aria-label={draft.type === "folder"
                           ? t("ui.ProjectsView.text.6af274b8")
@@ -428,12 +431,12 @@ export function ProjectsView(
                           setDraft({ ...draft, name: event.target.value })}
                         onKeyDown={(event) => {
                           if (event.key === "Enter") void commitCreate();
-                          if (event.key === "Escape") setDraft(null);
+                          if (event.key === "Escape" && !pending) setDraft(null);
                         }}
                         onBlur={() => void commitCreate()}
                       />
                       <small>
-                        {draft.type === "folder" ? t("ui.ProjectsView.text.37e8824f") : t("ui.ProjectsView.text.f4e88e98")}
+                        {pending ? t("editor.welcome.create.creating") : draft.type === "folder" ? t("ui.ProjectsView.text.37e8824f") : t("ui.ProjectsView.text.f4e88e98")}
                       </small>
                     </div>
                   </article>
@@ -486,7 +489,15 @@ export function ProjectsView(
                       <article
                         key={entry.folderDir}
                         className="project-tile project-folder-tile"
-                        onDoubleClick={() => enterFolder(entry)}
+                        tabIndex={0}
+                        onClick={() => enterFolder(entry)}
+                        onKeyDown={(event) => {
+                          if (event.target !== event.currentTarget) return;
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+                            enterFolder(entry);
+                          }
+                        }}
                         onContextMenu={(event) => openEntryMenu(event, entry)}
                       >
                         <div className="project-tile-preview">
@@ -495,7 +506,7 @@ export function ProjectsView(
                         <div className="project-tile-body">
                           <h3>{entry.name}</h3>
                           <p>
-                            {formatItemCount(entry.itemCount || 0)} ·{" "}
+                            {formatItemCount(entry.children?.length ?? entry.itemCount ?? 0)} ·{" "}
                             {formatTime(entry.lastOpenedAt)}
                           </p>
                         </div>

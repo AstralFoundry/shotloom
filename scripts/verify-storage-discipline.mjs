@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 const failures=[];
 function walk(root) {
-  return readdirSync(root,{withFileTypes:true}).flatMap(entry=>entry.isDirectory()?walk(join(root,entry.name)):[join(root,entry.name)]);
+  return readdirSync(root,{withFileTypes:true}).flatMap(entry=>entry.isDirectory()?walk(join(root,entry.name)):[join(root,entry.name).replace(/\\/g, '/')]);
 }
 for(const file of [...walk('src-tauri/src'),...walk('harness/host/src')]) {
   if(!/\.(rs|ts)$/.test(file)) continue;

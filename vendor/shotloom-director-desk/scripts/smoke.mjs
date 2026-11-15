@@ -53,9 +53,11 @@ try {
     await page.locator('.viewport__canvas canvas').first().waitFor({ timeout: 15_000 });
     await page.screenshot({ path: 'tmp/smoke/01-director-view.png' });
 
-    // Composition opens with the stage expanded; the dock reveals the animation tools.
-    assert.equal(await page.locator('.timeline').isVisible(), false, 'timeline starts collapsed');
+    // The shot sequence and animation tracks are available on first open.
+    assert.equal(await page.locator('.timeline').isVisible(), true, 'timeline starts expanded');
     assert.equal(await page.locator('.sidebar__rail').isVisible(), true, 'navigation remains visible');
+    await page.getByRole('button', { name: '动画时间轴', exact: true }).click();
+    assert.equal(await page.locator('.timeline').isVisible(), false, 'dock can collapse the timeline');
     await page.getByRole('button', { name: '动画时间轴', exact: true }).click();
     assert.equal(await page.locator('.timeline').isVisible(), true, 'dock opens the timeline');
 

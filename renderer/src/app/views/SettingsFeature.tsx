@@ -1,20 +1,21 @@
 import { LOCALE_STORAGE_KEY, normalizeLocale } from '@/i18n';
 import { flushAutoSave, hasOpenProject } from '../../store/projectStore';
 import { t } from '@/i18n';
-import { useEffect, useMemo, useReducer } from "react";
+import { useEffect, useMemo, useReducer, useSyncExternalStore } from "react";
 import { getModelInfo } from "../../domain/catalog/ModelCatalog";
-import { findProviderAdapter, getProviderAdapters } from "../../domain/provider/adapters";
-import { getProviderModelRows } from "../../domain/provider/ModelAvailability";
+import { findProviderAdapter } from "../../domain/provider/adapters";
+import { getUpstreamModelRows } from "../../domain/provider/UpstreamModels";
 import type { ProviderConfig } from "../../domain/provider/ProviderConfig";
 import { resolveProviderIconId } from "../../domain/provider/ProviderBrandIcons.ts";
 import { desktopApi } from "../../services/desktopApi";
+import { cloudEnabled } from '../../services/cloudRequest';
 import {
   clearDownloadDir,
   fileStore,
   loadDownloadDir,
   selectDownloadDir,
 } from "../../store/fileStore";
-import { toRaw } from "../../store/domainReactivity";
+import { getDomainRevision, subscribeDomain, toRaw } from "../../store/domainReactivity";
 import {
   migrateProjectRoot,
   store,
@@ -50,8 +51,10 @@ const message = (cause: unknown) =>
 
 export function SettingsFeature() {
   const [revision, refresh] = useReducer((value) => value + 1, 0);
+  const domainRevision = useSyncExternalStore(subscribeDomain, getDomainRevision, getDomainRevision);
 
   useEffect(() => {
+    if (desktopApi.platform === 'browser') return;
     void loadDownloadDir().then(refresh).catch((cause) => showErrorMessage(message(cause), t("ui.SettingsFeature.text.f29f933e")));
   }, []);
 
@@ -76,25 +79,13 @@ export function SettingsFeature() {
         }),
       ]),
     );
-    const providers = getProviderAdapters().map((adapter) => {
-      const config = settingsStore.providerConfigs[adapter.id];
-      return {
-        id: adapter.id,
-        name: adapter.name,
-        description: adapter.description,
-        iconId: adapter.iconId,
-        apiKey: config?.apiKey || "",
-        baseUrl: config?.baseUrl || "",
-        baseUrlRequired: adapter.baseUrlRequired === true,
-        configured: Boolean(config?.apiKey?.trim()),
-        models: getProviderModelRows(adapter.id),
-      };
-    });
     return {
       locale: settingsStore.locale,
-      projectRootDir: settingsStore.projectRootDir || "",
-      downloadDir: fileStore.downloadDir || "",
-      pollInterval: settingsStore.modelPollIntervalMs,
+      projectRootDir: cloudEnabled ? null : settingsStore.projectRootDir || "",
+      downloadDir: desktopApi.platform === 'browser' ? null : fileStore.downloadDir || "",
+      managedModels: true,
+      upstreamModels: getUpstreamModelRows(settingsStore.upstreamModels),
+      projectOpen: hasOpenProject(),
       projectModels: { ...store.project.settings },
       agentModels: {
         agentPreferredTextModel: settingsStore.agentPreferredTextModel,
@@ -107,7 +98,7 @@ export function SettingsFeature() {
         agentAutoEval: settingsStore.agentAutoEval,
         agentAutoLayout: settingsStore.agentAutoLayout,
       },
-      providers,
+      providers: [],
       shortcutLabels: {
         fitView: canvasActionShortcutLabel(
           settingsStore.canvasActionShortcuts.fitView,
@@ -117,7 +108,7 @@ export function SettingsFeature() {
         ),
       },
     };
-  }, [revision]);
+  }, [revision, domainRevision]);
 
   async function run(action: () => void | Promise<void>, success?: string) {
     try {
@@ -199,10 +190,6 @@ export function SettingsFeature() {
     clearDownloadDir: () =>
       run(async () => {
         await clearDownloadDir();
-      }),
-    setPollInterval: (value) =>
-      run(async () => {
-        await saveAppSettings({ modelPollIntervalMs: Math.max(500, value) });
       }),
     repairNodeModels: () =>
       run(async () => {

@@ -5,6 +5,8 @@ import { withBuiltInSkills, withoutBuiltInSkills } from './builtInSkills';
 import { withBuiltInRecipes, withoutBuiltInRecipes } from './builtInRecipes';
 import { defaultGenerationModel } from '@/config/defaultGenerationModels';
 import shotloomDefaults from '@/config/shotloom-defaults.generated.json';
+import { createCloudApi } from './cloudApi';
+import { cloudEnabled } from './cloudRequest';
 
 // 浏览器替身把项目、素材和设置都存成 localStorage 里的 JSON，结构与桌面实现
 // 一样是松散记录；项目树节点按 kind 区分，形状不固定，只按键值记录传递。
@@ -371,7 +373,7 @@ function createBrowserFallback() {
     },
     skills: {
       getGlobal: async () => withBuiltInSkills(JSON.parse(localStorage.getItem('shotloom-global-skills') || 'null') || { storageVersion: 1, skills: [] }),
-      setGlobal: async (storage: AnyRecord) => { localStorage.setItem('shotloom-global-skills', JSON.stringify(withoutBuiltInSkills(storage))); return storage; },
+      setGlobal: async (storage: AnyRecord) => { localStorage.setItem('shotloom-global-skills', JSON.stringify(withoutBuiltInSkills(storage))); return withBuiltInSkills(storage); },
     },
     recipes: {
       getGlobal: async () => withBuiltInRecipes(JSON.parse(localStorage.getItem('shotloom-global-recipes') || 'null') || { storageVersion: 1, recipes: [] }),
@@ -476,6 +478,7 @@ function createBrowserFallback() {
 }
 
 const browserFallback = createBrowserFallback();
-const isTauri = typeof window !== 'undefined' && Boolean(window.__TAURI_INTERNALS__);
+const isTauri = typeof window !== 'undefined' && Boolean(window.__TAURI_INTERNALS__) && !window.__SHOTLOOM_MOBILE__;
 
-export const desktopApi = isTauri ? createTauriApi(browserFallback) : browserFallback;
+const localApi = isTauri ? createTauriApi(browserFallback) : browserFallback;
+export const desktopApi = cloudEnabled ? createCloudApi(localApi) : localApi;

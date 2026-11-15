@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { convertFileSrc } from "@tauri-apps/api/core";
+import { mediaFileUrl as convertFileSrc } from '@/utils/mediaFileUrl';
 import { desktopApi } from "../../services/desktopApi.ts";
 import {
   acquireMediaPreview,
@@ -25,7 +25,7 @@ export function useMediaPreviewCache(input: {
   const kind = input.kind as CachedMediaKind;
   const buffered = Boolean(path && bufferedPath === path);
   const streamUrl = useMemo(
-    () => input.enabled !== false && path && (kind === "video" || kind === "audio") && desktopApi.platform !== "browser" && !buffered
+    () => input.enabled !== false && path && (kind === "video" || kind === "audio") && (desktopApi.platform !== "browser" || path.startsWith('cloud://')) && !buffered
       ? convertFileSrc(path)
       : "",
     [buffered, input.enabled, kind, path],

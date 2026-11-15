@@ -14,7 +14,7 @@ export function CanvasContextMenu(
       className="canvas-context-menu"
       role="menu"
       aria-label={t("ui.CanvasContextMenu.arialabel.a88f7dd2")}
-      style={{ left: x, top: y }}
+      style={{ left: x, top: y, maxHeight: `calc(100% - ${y + 8}px)` }}
       onClick={(e) => e.stopPropagation()}
     >
       <div className="canvas-context-menu-section" role="group" aria-labelledby="canvas-menu-assets">

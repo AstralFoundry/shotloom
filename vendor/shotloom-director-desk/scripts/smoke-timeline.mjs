@@ -9,7 +9,7 @@ try {
     page.on('pageerror', error => errors.push(error.message));
     await page.goto(process.env.DIRECTOR_URL || 'http://127.0.0.1:5173');
     await page.waitForFunction(() => !!window.__editorDebug?.session.engine);
-    await page.getByRole('button', { name: '动画时间轴', exact: true }).click();
+    assert.equal(await page.locator('.timeline').isVisible(), true, 'timeline is visible on first open');
     await page.evaluate(() => {
         const { session, store } = window.__editorDebug;
         const camera = store.getState().project.entities.find(entity => entity.kind === 'camera');
@@ -111,6 +111,8 @@ try {
                 const controls = bar.querySelector('.timeline__controls').getBoundingClientRect();
                 const meta = bar.querySelector('.timeline__meta').getBoundingClientRect();
                 const overflow = [...bar.querySelectorAll('button, input, .timecode')].filter(el => {
+                    const group = el.closest('.timeline__controls, .timeline__meta');
+                    if (group && getComputedStyle(group).overflowX === 'auto') return false;
                     const box = el.getBoundingClientRect();
                     return box.width > 0 && (box.left < rect.left || box.right > rect.right + 1);
                 }).map(el => el.outerHTML);
@@ -118,6 +120,17 @@ try {
                     wrapped: meta.top > controls.bottom, overflow };
             });
             assert.deepEqual(layout.overflow, [], `${kind} controls fit at ${width}px`);
+            if (width <= 640) {
+                for (const group of await page.locator('.timeline__controls, .timeline__meta').all()) {
+                    for (const control of await group.locator('button, input, .timecode').all()) {
+                        if (!await control.isVisible()) continue;
+                        await control.scrollIntoViewIfNeeded();
+                        const box = await control.boundingBox();
+                        const bounds = await group.boundingBox();
+                        if (box?.width) assert.ok(box.x >= bounds.x - 1 && box.x + box.width <= bounds.x + bounds.width + 1, 'phone transport controls remain reachable by scrolling');
+                    }
+                }
+            }
             if (layout.width >= 900) assert.equal(layout.height, 34, 'desktop transport stays on one compact row');
             if (layout.wrapped) assert.equal(layout.metaX, layout.controlsX, 'wrapped groups align left');
             if ([1100, 400].includes(width)) {
@@ -156,7 +169,8 @@ try {
     const x = body.x + 360;
     await page.mouse.click(x, ruler.y + 20);
     const expected = (x - ruler.x) / ruler.width * 45;
-    assert.ok(Math.abs(await page.evaluate(() => window.__editorDebug.store.getState().time) - expected) < 0.05);
+    const seekTime = await page.evaluate(() => window.__editorDebug.store.getState().time);
+    assert.ok(Math.abs(seekTime - expected) < 0.05, JSON.stringify({ seekTime, expected, ruler, body, hit: await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.outerHTML.slice(0, 150), { x, y: ruler.y + 20 }) }));
     const head = await page.locator('.timeline__playhead').boundingBox();
     const beforeGrab = await page.evaluate(() => window.__editorDebug.store.getState().time);
     await page.mouse.move(head.x + 9, ruler.y + 7);

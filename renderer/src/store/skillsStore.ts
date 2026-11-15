@@ -1,7 +1,7 @@
 import { t } from '../i18n/index.ts';
 import { reactive } from '@/store/domainReactivity';
 import { desktopApi } from '@/services/desktopApi';
-import { getBuiltInSkill } from '@/services/builtInSkills';
+import { getBuiltInSkill, isUserSkill } from '@/services/builtInSkills';
 import { uid } from '@/utils/format';
 
 // 技能条目来自 DeepSeek 原生 SKILL.md 与用户目录；必填字段与 upsertSkill 的规范化输出一致，
@@ -68,6 +68,9 @@ export function createSkillDraft(agentIds: string[]) {
 }
 
 export async function updateSkill(skill: SkillRecord, patch: AnyRecord) {
+  if (!isUserSkill(skill) || !isUserSkill({ id: String(patch.id || skill.id), builtIn: patch.builtIn })) {
+    throw new Error(t('skill.error.systemReadOnly'));
+  }
   const builtIn = skill?.builtIn === true;
   Object.assign(skill, patch, { updatedAt: new Date().toISOString() });
   skill.builtIn = builtIn;
@@ -75,6 +78,9 @@ export async function updateSkill(skill: SkillRecord, patch: AnyRecord) {
 }
 
 export async function upsertSkill(input: AnyRecord) {
+  if (!isUserSkill({ id: String(input.id || '').trim(), builtIn: input.builtIn })) {
+    throw new Error(t('skill.error.systemReadOnly'));
+  }
   const existing = skillsStore.skills.find((item) => item.id === String(input.id || '').trim());
   const skill = {
     id: String(input.id || '').trim(),
@@ -108,13 +114,13 @@ export async function upsertSkill(input: AnyRecord) {
 
 export async function toggleSkill(skillId: string) {
   const skill = skillsStore.skills.find((s) => s.id === skillId);
-  if (!skill) return;
+  if (!skill || !isUserSkill(skill)) return;
   skill.enabled = skill.enabled === false;
   await saveGlobalSkills();
 }
 
 export async function deleteSkill(skillId: string) {
-  if (skillsStore.skills.find((skill) => skill.id === skillId)?.builtIn) return;
+  if (!isUserSkill({ id: skillId }) || skillsStore.skills.find((skill) => skill.id === skillId)?.builtIn) return;
   skillsStore.skills = skillsStore.skills.filter((skill) => skill.id !== skillId);
   if (skillsStore.selectedSkillId === skillId) {
     skillsStore.selectedSkillId = skillsStore.skills[0]?.id || null;

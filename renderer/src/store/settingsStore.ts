@@ -14,6 +14,7 @@ import { clonePlainData } from '@/utils/plainDataClone.ts';
 import { getModelIdsByType } from '@/domain/catalog/ModelCatalog';
 import { normalizeProviderConfigs } from '@/domain/provider/ProviderConfig';
 import type { ProviderConfigs } from '@/domain/provider/ProviderConfig';
+import type { UpstreamModel } from '@/domain/provider/UpstreamModels';
 import {
   getConfiguredAgentModelCatalog,
   getConfiguredModelIdsByType,
@@ -43,6 +44,7 @@ export const settingsStore = reactive({
   storageVersion: 7,
   locale: getLocale(),
   providerConfigs: {} as ProviderConfigs,
+  upstreamModels: [] as UpstreamModel[],
   balance: 0, rawQuota: 0, usedQuota: 0,
   tokenGroups: [] as TokenGroup[], activeTokenGroupId: '',
   apiKeyValid: false, accountSyncError: '',
@@ -72,7 +74,7 @@ export const settingsStore = reactive({
  * 至少有一个 Provider 配置了 API Key 即视为远程模型可用。
  */
 export function isRemoteModelEnabled() {
-  return Object.values(settingsStore.providerConfigs).some((config) => Boolean(config?.apiKey?.trim()));
+  return Object.values(settingsStore.providerConfigs).some((config) => Boolean(config?.serverManaged || config?.apiKey?.trim()));
 }
 
 export function getModelCredentialStatus(modelId: string) {
@@ -153,6 +155,7 @@ function applySettings(settings: AnyRecord) {
   settingsStore.storageVersion = settings.storageVersion;
   settingsStore.locale = normalizeLocale(settings.locale);
   settingsStore.providerConfigs = normalizeProviderConfigs(toRaw(settings.providerConfigs) || {});
+  settingsStore.upstreamModels = settings.upstreamModels || [];
   settingsStore.balance = Number.isFinite(settings.balance) ? settings.balance : 0;
   settingsStore.rawQuota = Number.isFinite(settings.rawQuota) ? settings.rawQuota : 0;
   settingsStore.usedQuota = Number.isFinite(settings.usedQuota) ? settings.usedQuota : 0;

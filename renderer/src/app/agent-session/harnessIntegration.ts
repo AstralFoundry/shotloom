@@ -11,9 +11,13 @@ import { getAgentProjectIdentity, assertAgentProject } from '../../services/agen
 import { store, touchProject } from '../../store/projectStore';
 import { initializeHarnessClient } from './harnessClient';
 export { setHarnessSessionsArchived } from '../../services/harnessArchive';
+import { cloudEnabled } from '../../utils/cloudConfig';
+import { bindCloudHarness, respondCloudTool, registerCloudToolHandler, connectCloudHarness } from './cloudHarnessTransport';
 
 // This integration owns native Harness calls, which bypass desktopApi's IPC boundary.
 async function invoke<T>(command: string, args?: InvokeArgs): Promise<T> {
+  if (cloudEnabled && command === 'harness_bind_session') return bindCloudHarness<T>((args as { config: unknown }).config);
+  if (cloudEnabled && command === 'harness_tool_respond') { await respondCloudTool((args as { response: Parameters<typeof respondCloudTool>[0] }).response); return undefined as T; }
   try { return await nativeInvoke<T>(command, args); }
   catch (error) {
     const message = localizeNativeError(error);
@@ -32,29 +36,29 @@ export function startHarnessIntegration(): Promise<void> {
     return { sessionId: result.sessionId, projectKey: getAgentProjectIdentity().projectKey, conversationId: conversation.id!, agentId: EDITOR_AGENT_ID, nodeId };
   });
   startup = (async () => {
-    if (desktopApi.platform === 'browser') throw new Error(t('agent.desktopRequired'));
-    if (!bridgeListening) await listen<Parameters<typeof executeProductRequest>[0]>('harness://tool-request', async event => {
+    if (!cloudEnabled && desktopApi.platform === 'browser') throw new Error(t('agent.desktopRequired'));
+    const handleToolRequest = async (payload: Parameters<typeof executeProductRequest>[0]) => {
       try {
-        const result = await executeProductRequest(event.payload);
+        const result = await executeProductRequest(payload);
         // 工具目录在绑定会话时一次性下发，所以两类工具必须在返回结果前重新下发，
         // 否则模型按回执去调用时会发现工具不在本轮请求里：
         // - save_skill 保存的新 Skill 要立刻可见；
         // - editor_find_tools 解锁的原生工具要立刻可调用。
-        const refreshesCatalog = event.payload.toolName === 'save_skill' || event.payload.toolName === 'editor_find_tools';
-        if (refreshesCatalog && event.payload.phase !== 'authorize') {
+        const refreshesCatalog = payload.toolName === 'save_skill' || payload.toolName === 'editor_find_tools';
+        if (refreshesCatalog && payload.phase !== 'authorize') {
           const receipt = result as { result?: { success?: boolean; activation?: string; warning?: string } };
           if (receipt.result?.success) {
             try {
-              const { sessionId, ...binding } = event.payload.binding;
+              const { sessionId, ...binding } = payload.binding;
               await invoke('harness_bind_session', { config: { binding, sessionId,
                 tools: productToolCatalog(binding), skills: availableAgentSkills(binding.agentId).map(skill => ({
                   id: skill.id, description: skill.description, instructions: skill.instructions || '', metadata: skill.metadata, builtIn: skill.builtIn === true,
                 })),
               } });
               // Skill 保存路径对外暴露可观察的激活状态；工具解锁只用同一份刷新，不新增文案。
-              if (event.payload.toolName === 'save_skill') receipt.result.activation = 'current-session-refreshed';
+              if (payload.toolName === 'save_skill') receipt.result.activation = 'current-session-refreshed';
             } catch (error) {
-              if (event.payload.toolName === 'save_skill') {
+              if (payload.toolName === 'save_skill') {
                 receipt.result.activation = 'refresh-failed';
                 receipt.result.warning = t('agent.skillRefreshFailed', { error: String(error) });
               } else {
@@ -64,11 +68,18 @@ export function startHarnessIntegration(): Promise<void> {
             }
           }
         }
-        await invoke('harness_tool_respond', { response: { requestId: event.payload.requestId, result } });
+        await invoke('harness_tool_respond', { response: { requestId: payload.requestId, result } });
       } catch (error) {
-        await invoke('harness_tool_respond', { response: { requestId: event.payload.requestId, error: String(error) } }).catch(() => {});
+        await invoke('harness_tool_respond', { response: { requestId: payload.requestId, error: String(error) } }).catch(() => {});
       }
-    });
+    };
+    if (cloudEnabled) {
+      registerCloudToolHandler(handleToolRequest);
+      await connectCloudHarness();
+      await initializeHarnessClient();
+      return;
+    }
+    if (!bridgeListening) await listen<Parameters<typeof executeProductRequest>[0]>('harness://tool-request', event => handleToolRequest(event.payload));
     bridgeListening = true;
     let status = await invoke<{ running: boolean; ready: boolean; error?: string }>('start_harness_runtime', { options: {} });
     const deadline = Date.now() + 30_000;

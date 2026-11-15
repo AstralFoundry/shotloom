@@ -219,6 +219,9 @@ label.button {
   ) { animation: none; }
 }
 
+.mobile-navigation { display: none; }
+.mobile-workspace-head { display: none; }
+
 .sidebar {
   width: 100%;
   height: 100%;

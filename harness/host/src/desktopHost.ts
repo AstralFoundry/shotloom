@@ -13,6 +13,8 @@ import { credentialRef } from '@deepseek-ai/dsh-credentials';
 import { SessionId } from '@deepseek-ai/dsh-session';
 import type { Context } from '@deepseek-ai/cordis';
 import { SessionCrud } from './crud/sessionCrud.js';
+import type { PersistenceBackend } from './persistenceBackend.js';
+import type { AttachmentStorage } from './cachedAttachments.js';
 
 type BindingInput = Omit<SessionBinding, 'sessionId'>;
 interface ProductSkill { id: string; description?: string; instructions: string; metadata?: Record<string, unknown>; builtIn?: boolean }
@@ -24,16 +26,19 @@ const key = (binding: BindingInput) => JSON.stringify([binding.projectKey, bindi
 export async function startDesktopHost(options: {
   dataRoot: string; contentRoot: string; rulesPath: string; distIndex: string;
   bridge: ProductBridge;
+  persistence?: PersistenceBackend;
+  attachmentStorage?: AttachmentStorage;
+  clientToolsOnly?: boolean;
 }) {
-  const database = openDatabase(join(options.dataRoot, 'agent.sqlite'));
-  const hostCrud = new HostCrud(database);
+  const database = options.persistence ? undefined : openDatabase(join(options.dataRoot, 'agent.sqlite'));
+  const hostCrud = options.persistence?.host ?? new HostCrud(database!);
   const supportPolicy = JSON.parse(await readFile(join(options.contentRoot, 'openreel-agent-policy.json'), 'utf8')) as { excludedTools: Record<string, string> };
   const excludedTools = new Set(Object.keys(supportPolicy.excludedTools).map(name => `openreel_${name}`));
   const supportedTools = (tools: ProductTool[]) => tools.filter(tool => !excludedTools.has(tool.name));
   const catalogs = new Map<string, Catalog>();
   const skillProviders = new Map<string, { scope: Context; plugin: Awaited<ReturnType<Context['plugin']>> }>();
   const toolRegistrations = new Map<string, { scope: Context; dispose: () => void }>();
-  for (const row of hostCrud.catalogs() as unknown as Catalog[]) catalogs.set(key(row.binding), { ...row, tools: supportedTools(row.tools) });
+  for (const row of await hostCrud.catalogs() as unknown as Catalog[]) catalogs.set(key(row.binding), { ...row, tools: supportedTools(row.tools) });
   const skillPath = (binding: BindingInput) => join(options.dataRoot, 'product-skills', createHash('sha256').update(key(binding)).digest('hex'));
   const host = await createHost({ ...options, scopedSkills: true, async registerTools(scope, binding) {
     const canonical = binding.toolSessionId ? host.binding(binding.toolSessionId) : binding;
@@ -52,7 +57,7 @@ export async function startDesktopHost(options: {
       toolRegistrations.set(key(binding), { scope, dispose });
     }
   } });
-  host.ctx.effect(() => () => database.close());
+  host.ctx.effect(() => () => database?.close());
   try {
     await startClientServices(host, options);
     const owners = new Map<string, Awaited<ReturnType<typeof host.create>>>();
@@ -60,7 +65,7 @@ export async function startDesktopHost(options: {
     let composition = Promise.resolve();
     let modelPlugin: Awaited<ReturnType<Context['plugin']>> | undefined;
     let modelConfig = '';
-    const sessionCrud = new SessionCrud(database);
+    const sessionCrud = options.persistence?.sessions ?? new SessionCrud(database!);
     const providerConfigs = new Map<string, string>();
     const skillVersions = new Map<string, string>();
     async function seedDefaultModel(owner: Awaited<ReturnType<typeof host.create>>, model?: { provider: string; model: string; reasoningEffort?: string }, providers?: Record<string, ProviderConfig>) {
@@ -139,13 +144,13 @@ export async function startDesktopHost(options: {
               provider.plugin = await provider.scope.plugin(SkillFiles, { includeDefaultRoots: false, customSkillDirs: [skillPath(binding)], watch: true });
             }
             catalogs.set(catalogKey, { binding, tools, skills: request.skills ?? catalogs.get(catalogKey)?.skills });
-            hostCrud.saveCatalog(catalogKey, catalogs.get(catalogKey)! as unknown as Record<string, unknown>);
+            await hostCrud.saveCatalog(catalogKey, catalogs.get(catalogKey)! as unknown as Record<string, unknown>);
             if (skillVersion) skillVersions.set(catalogKey, skillVersion);
             await seedDefaultModel(existing, request.defaultModel, request.providers);
             return existing;
           }
           catalogs.set(catalogKey, { binding, tools, skills: request.skills });
-          hostCrud.saveCatalog(catalogKey, catalogs.get(catalogKey)! as unknown as Record<string, unknown>);
+          await hostCrud.saveCatalog(catalogKey, catalogs.get(catalogKey)! as unknown as Record<string, unknown>);
           const defaultModel = request.defaultModel && { ...request.defaultModel,
             reasoningEffort: request.defaultModel.reasoningEffort === undefined ? undefined : ReasoningEffortId(request.defaultModel.reasoningEffort),
           };
@@ -166,9 +171,9 @@ export async function startDesktopHost(options: {
     async function setSessionsArchived(projectKey: string, sessionIds?: string[], archived = true) {
       const requested = sessionIds ? new Set(sessionIds) : undefined;
       const changed: string[] = [];
-      for (const binding of hostCrud.bindings() as Array<{ projectKey?: string; sessionId?: string }>) {
+      for (const binding of await hostCrud.bindings() as Array<{ projectKey?: string; sessionId?: string }>) {
         const id = binding.sessionId;
-        if (binding.projectKey !== projectKey || !id || (requested && !requested.has(id)) || !sessionCrud.find(id)) continue;
+        if (binding.projectKey !== projectKey || !id || (requested && !requested.has(id)) || !await sessionCrud.find(id)) continue;
         if (archived) await host.ctx.workspaceRegistry.archiveSession(SessionId(id), { stopActivity: true });
         else await host.ctx.workspaceRegistry.unarchiveSession(SessionId(id));
         changed.push(id);

@@ -1,4 +1,6 @@
 [
   { "platform": "darwin-aarch64", "os": "macos-15", "target": "aarch64-apple-darwin", "bundles": "dmg,app", "installerExtension": ".dmg", "updaterExtension": ".app.tar.gz" },
-  { "platform": "windows-x86_64", "os": "windows-2022", "target": "x86_64-pc-windows-msvc", "bundles": "nsis", "installerExtension": ".exe", "updaterExtension": ".exe" }
+  { "platform": "windows-x86_64", "os": "windows-2022", "target": "x86_64-pc-windows-msvc", "bundles": "nsis", "installerExtension": ".exe", "updaterExtension": ".exe" },
+  { "platform": "android-aarch64", "os": "ubuntu-latest", "target": "aarch64-linux-android", "mobile": "android", "installerExtension": ".apk" },
+  { "platform": "ios-aarch64-unsigned", "os": "macos-15", "target": "aarch64-apple-ios", "mobile": "ios", "installerExtension": ".ipa" }
 ]

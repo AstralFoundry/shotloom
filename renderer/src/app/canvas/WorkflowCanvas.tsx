@@ -1,5 +1,6 @@
 import { createCanvasWheelZoom } from "./canvasWheelZoom";
 import { CanvasDisplaySettings } from "./CanvasDisplaySettings";
+import { installCanvasPinch } from './canvasPinch';
 import { canvasEdgeVisible, type CanvasAppearance } from "../../utils/canvasAppearance";
 import { settingsStore, saveAppSettings } from "../../store/settingsStore";
 import { subscribeDomain } from "../../store/domainReactivity";
@@ -768,6 +769,13 @@ export function WorkflowCanvas({
   };
   const [minimapVisible, setMinimapVisible] = useState(false);
   const [historyNodeId, setHistoryNodeId] = useState<string | null>(null);
+  const [selectionMode, setSelectionMode] = useState(false);
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 700px), (max-width: 920px) and (max-height: 500px)');
+    const leaveMobile = () => { if (!media.matches) setSelectionMode(false); };
+    media.addEventListener('change', leaveMobile);
+    return () => media.removeEventListener('change', leaveMobile);
+  }, []);
   const [liveViewport, setLiveViewport] = useState({ ...viewport, zoom: initialZoom });
   const draggingNodeIds = useRef(new Set<string>());
   const sectionDrag = useRef<{ origin: { x: number; y: number }; members: Map<string, { x: number; y: number }> } | null>(null);
@@ -797,6 +805,7 @@ export function WorkflowCanvas({
     });
   }, [canonicalNodes]);
   const renderedNodes = flowNodes;
+  const selectionCount = renderedNodes.filter(node => node.selected).length;
   const ids = useMemo(() => new Set(visible.map((node) => node.id)), [visible]);
   const visibleById = useMemo(() => new Map(visible.map((node) => [node.id, node])), [visible]);
   const flowEdges = useMemo<Array<Edge<WorkflowEdgeData>>>(
@@ -1034,6 +1043,10 @@ export function WorkflowCanvas({
     max: MAX_CANVAS_ZOOM,
   }), [setCanvasZoomAt]);
   useEffect(() => () => wheelZoom.dispose(), [wheelZoom]);
+  useEffect(() => {
+    const root = canvasRoot.current?.querySelector<HTMLElement>('.react-flow');
+    if (root && instance) return installCanvasPinch(root, () => semanticZoomRef.current, setCanvasZoomAt);
+  }, [instance, setCanvasZoomAt]);
   const changeZoom = useCallback(
     (delta: number) => {
       const zoom = Math.round((semanticZoomRef.current + delta) * 10) / 10;
@@ -1160,11 +1173,12 @@ export function WorkflowCanvas({
     controller.selectNodes([nodeId]);
     focusCanvasNodes([nodeId], { keepZoom: true });
   };
-  function openMenu(event: globalThis.MouseEvent | ReactMouseEvent<Element>) {
+  function openMenu(event: globalThis.MouseEvent | ReactMouseEvent<Element>, anchor?: DOMRect) {
     event.preventDefault();
     const bounds = canvasRoot.current?.getBoundingClientRect();
     if (!bounds) return;
     const menuPosition = canvasMenuPosition(event.clientX, event.clientY, bounds);
+    if (anchor) menuPosition.y = anchor.bottom - bounds.top + 8;
     const point = instance?.screenToFlowPosition({ x: event.clientX, y: event.clientY }) || {
       x: 120,
       y: 90,
@@ -1209,8 +1223,19 @@ export function WorkflowCanvas({
           ref={bindCanvasRoot}
           onDragOver={onArtifactDragOver}
           onDrop={onArtifactDrop}
+          onClickCapture={event => {
+            if (!selectionMode) return;
+            const target = event.target as Element;
+            if (target.closest('button,input,textarea,select,iframe,[contenteditable=true]')) return;
+            const id = target.closest<HTMLElement>('.react-flow__node')?.dataset.id;
+            if (!id) return;
+            event.stopPropagation();
+            const selectedIds = renderedNodes.filter(node => node.selected).map(node => node.id);
+            controller.selectNodes(selectedIds.includes(id) ? selectedIds.filter(value => value !== id) : [...selectedIds, id]);
+          }}
           data-pattern={appearance.pattern}
           data-color={appearance.color}
+          data-multiple-selected={selectionCount > 1}
           className="react-workflow-canvas"
           // 连线粗细与箭头按同一倍率缩放，样式侧只读这一个变量。
           style={{ "--canvas-semantic-zoom": semanticZoom } as CSSProperties}
@@ -1340,14 +1365,14 @@ export function WorkflowCanvas({
             defaultViewport={{ x: viewport.x, y: viewport.y, zoom: 1 }}
             minZoom={1}
             maxZoom={1}
-            nodesDraggable
+            nodesDraggable={!selectionMode}
             autoPanOnNodeDrag={false}
             nodesConnectable
             connectOnClick
             connectionMode={ConnectionMode.Loose}
             connectionRadius={64}
             selectionOnDrag
-            panOnDrag
+            panOnDrag={!selectionMode}
             zoomOnScroll={false}
             zoomOnPinch={false}
             multiSelectionKeyCode={["Meta", "Control", "Shift"]}
@@ -1412,6 +1437,16 @@ export function WorkflowCanvas({
             </div>
           )}
           <CanvasMenuLayer ref={menuLayer} controller={controller} />
+          <button type="button" className="canvas-mobile-add-node" aria-label={t('canvas.addNode')}
+            onClick={event => openMenu(event, event.currentTarget.getBoundingClientRect())}><IconSymbol name="plus" /></button>
+          <button type="button" className="canvas-mobile-select-mode" aria-pressed={selectionMode}
+            onClick={() => setSelectionMode(value => !value)}><IconSymbol name="grid" />{t(selectionMode ? 'canvas.finishSelection' : 'canvas.selectMode')}</button>
+          {selectionCount > 1 && <div className="canvas-mobile-selection-actions nodrag nopan" role="toolbar" aria-label={t('canvas.selectionActions')}>
+            <span>{t('canvas.selectionCount', { count: selectionCount })}</span>
+            {controller.copySelection && <button type="button" onClick={() => void controller.copySelection?.()}><IconSymbol name="copy" />{t('canvas.copySelection')}</button>}
+            <button type="button" onClick={() => controller.deleteSelection()}><IconSymbol name="trash" />{t('ui.MaterialGrid.title.3755f56f')}</button>
+            <button type="button" aria-label={t('canvas.clearSelection')} onClick={() => controller.selectNodes([])}><IconSymbol name="x" /></button>
+          </div>}
           <div
             className="canvas-corner-controls"
             onPointerDown={(event) => event.stopPropagation()}
@@ -1441,16 +1476,8 @@ export function WorkflowCanvas({
               </button>
             </div>
             <span className="canvas-corner-divider" aria-hidden="true" />
-            <CanvasDisplaySettings appearance={appearance} onChange={updateAppearance} onAutoLayout={onAutoLayout} />
-            <span className="canvas-corner-divider" aria-hidden="true" />
-            <button
-              className={`canvas-corner-map${minimapVisible ? " active" : ""}`}
-              type="button"
-              title={t("ui.WorkflowCanvas.title.088baf55")}
-              onClick={() => setMinimapVisible((visible) => !visible)}
-            >
-              <IconSymbol name="map" />
-            </button>
+            <CanvasDisplaySettings appearance={appearance} onChange={updateAppearance} onAutoLayout={onAutoLayout}
+              minimapVisible={minimapVisible} onToggleMinimap={() => setMinimapVisible(visible => !visible)} />
           </div>
           {overlay}
         </section>

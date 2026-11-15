@@ -261,6 +261,7 @@ export function EditorPage() {
                 />
             )}
             <TimelinePanel
+                onOpenInspector={() => { setInspectorOpen(true); if (narrow) setSidebarOpen(false); }}
                 onHeightChange={(height) => editorPreferences.set('timelineHeight', height)}
                 onHeightReset={() => editorPreferences.set('timelineHeight', null)}
                 onNaturalHeight={setAutoTimelineHeight}

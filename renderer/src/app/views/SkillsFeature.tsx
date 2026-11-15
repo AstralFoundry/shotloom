@@ -3,7 +3,7 @@ import { App } from 'antd';
 import { useMemo, useState, useSyncExternalStore } from "react";
 import { CANVAS_AGENT_ID } from "../../agent/agents/definitions.ts";
 import {
-  builtInSkillChanges,
+  isUserSkill,
   skillDisplayCategory,
   skillDisplayDescription,
 } from "../../services/builtInSkills";
@@ -18,7 +18,6 @@ import { showToast, showErrorMessage } from "../../store/notificationStore";
 import {
   createSkillDraft,
   deleteSkill,
-  resetSkillToBuiltIn,
   skillsStore,
   toggleSkill,
   upsertSkill,
@@ -43,7 +42,7 @@ const message = (cause: unknown) =>
   cause instanceof Error ? cause.message : String(cause || t("ui.SkillsFeature.text.a4807a36"));
 
 function readSkills(): SkillRecord[] {
-  return toRaw(skillsStore.skills) as SkillRecord[];
+  return (toRaw(skillsStore.skills) as SkillRecord[]).filter(isUserSkill);
 }
 
 function toDraft(item: SkillRecord): SkillDraft {
@@ -111,22 +110,6 @@ export function SkillsFeature() {
     });
   }
 
-  /** 面板里的「恢复默认」只作用于当前打开的技能，确认放在 run 之外以免取消后仍提示成功。 */
-  function resetOpenSkill() {
-    const skillId = open?.draft.id;
-    if (!skillId) return;
-    modal.confirm({
-      title: t("ui.SkillsFeature.text.79325288", { value0: open!.draft.name }),
-      onOk: () => run(async () => {
-        await resetSkillToBuiltIn(skillId);
-        const item = readSkills().find((skill) => skill.id === skillId);
-        if (!item) return;
-        const draft = toDraft(item);
-        setOpen({ draft, isNew: false, baseline: JSON.stringify(draft) });
-      }, t("ui.SkillsFeature.text.c5ee08da")),
-    });
-  }
-
   async function importFiles(files: File[]) {
     let imported = 0;
     const errors: string[] = [];
@@ -175,9 +158,6 @@ export function SkillsFeature() {
       if (open?.draft.id === id) setOpen(null);
       setSelectedIds((current) => current.filter((item) => item !== id));
     }, t("ui.SkillsFeature.text.34c29b69")),
-    resetSkill: (id) => void run(async () => {
-      await resetSkillToBuiltIn(id);
-    }, t("ui.SkillsFeature.text.c5ee08da")),
     importFiles: (files) => void run(() => importFiles(files)),
     exportSelected: () => void run(exportSelected),
     patch: (value) => setOpen((current) => current
@@ -191,7 +171,6 @@ export function SkillsFeature() {
       setOpen({ draft: saved, isNew: false, baseline: JSON.stringify(saved) });
     }, t("ui.SkillsFeature.text.e1f0b15b")),
     close: () => confirmDiscard(() => setOpen(null)),
-    reset: resetOpenSkill,
   };
 
   const data: SkillsData = {
@@ -201,7 +180,6 @@ export function SkillsFeature() {
     editor: open && {
       draft: open.draft,
       isNew: open.isNew,
-      modifiedFields: builtInSkillChanges(open.draft),
       dirty,
     },
   };

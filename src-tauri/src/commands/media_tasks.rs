@@ -77,6 +77,12 @@ fn stderr_tail(bytes: &[u8]) -> String {
 /// 运行 FFmpeg 并在每次轮询时检查取消标记；stderr 由独立线程持续读空，
 /// 否则管道写满会让子进程停在退出之前，取消也就永远轮不到。
 pub fn run_ffmpeg(command: &mut Command, cancelled: &AtomicBool) -> Result<FfmpegRun, String> {
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        // GUI exports must not inherit a console's close/control events.
+        command.creation_flags(0x08000000); // CREATE_NO_WINDOW
+    }
     let mut child: Child = command
         .stdin(Stdio::null())
         .stdout(Stdio::null())
@@ -103,7 +109,10 @@ pub fn run_ffmpeg(command: &mut Command, cancelled: &AtomicBool) -> Result<Ffmpe
         }
         match child.try_wait().map_err(|error| localized_error("native.error.fdb7a33db2", json!({"error": error.to_string()}), format!("无法等待 FFmpeg：{error}")))? {
             Some(status) => {
-                let stderr = stderr_tail(&reader.join().unwrap_or_default());
+                let mut stderr = stderr_tail(&reader.join().unwrap_or_default());
+                if !status.success() && stderr.trim().is_empty() {
+                    stderr = status.to_string();
+                }
                 return Ok(FfmpegRun {
                     ok: status.success(),
                     stderr,
@@ -118,6 +127,17 @@ pub fn run_ffmpeg(command: &mut Command, cancelled: &AtomicBool) -> Result<Ffmpe
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(windows)]
+    #[test]
+    fn silent_windows_failure_reports_exit_status() {
+        let mut command = Command::new("cmd.exe");
+        command.args(["/d", "/c", "exit 3"]);
+        let run = run_ffmpeg(&mut command, &AtomicBool::new(false)).unwrap();
+        assert!(!run.ok);
+        assert!(!run.cancelled);
+        assert!(run.stderr.contains('3'), "{}", run.stderr);
+    }
 
     #[cfg(unix)]
     #[test]

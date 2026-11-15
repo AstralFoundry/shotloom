@@ -5,6 +5,7 @@ export class DirectorHostSession {
     private instanceId: string | null = null;
     private token = crypto.randomUUID();
     connected = false;
+    private initialization = Promise.resolve(false);
     private versions = new Map<number, { entities: Map<string, string>; sections: Map<string, string> }>();
 
     record(revision: number, document: Record<string, unknown>): void {
@@ -35,16 +36,20 @@ export class DirectorHostSession {
     get id() { return this.token; }
 
     /** ready and iframe load both deliver initialization; only the first may load the document. */
-    initialize(instanceId: string, load: () => void): boolean {
-        if (this.connected && this.instanceId === instanceId) return false;
-        this.connected = false;
-        this.instanceId = null;
-        this.token = crypto.randomUUID();
-        this.versions.clear();
-        load();
-        this.instanceId = instanceId;
-        this.connected = true;
-        return true;
+    initialize(instanceId: string, load: () => void | Promise<void>): Promise<boolean> {
+        const pending = this.initialization.then(async () => {
+            if (this.connected && this.instanceId === instanceId) return false;
+            this.connected = false;
+            this.instanceId = null;
+            this.token = crypto.randomUUID();
+            this.versions.clear();
+            await load();
+            this.instanceId = instanceId;
+            this.connected = true;
+            return true;
+        });
+        this.initialization = pending.catch(() => false);
+        return pending;
     }
 
     assertCurrent(expectedSessionId: unknown, currentRevision: number): void {

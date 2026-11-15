@@ -29,6 +29,10 @@ export function formatSize(size: number | undefined) {
   return `${value >= 100 || index === 0 ? value.toFixed(0) : value.toFixed(1)} ${units[index]}`;
 }
 
+export function formatCredits(quota: number) {
+  return (quota / 10_000).toLocaleString(getLocale(), { maximumFractionDigits: 4 });
+}
+
 /** Item counts are complete phrases so English can use its singular form. */
 export function formatItemCount(count: number) {
   return t(count === 1 ? 'common.itemCount.one' : 'common.itemCount.other', { count });

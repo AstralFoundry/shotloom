@@ -8,6 +8,12 @@ use tauri_plugin_clipboard_manager::ClipboardExt;
 
 const SENTINEL_PREFIX: &str = "shotloom-workflow:";
 
+#[tauri::command]
+pub fn cloud_clipboard_write_sentinel(app: AppHandle, snapshot_id: String) -> Result<(), String> {
+    if !valid_snapshot_id(&snapshot_id) { return Err("Invalid clipboard snapshot id".into()); }
+    app.clipboard().write_text(format!("{SENTINEL_PREFIX}{snapshot_id}")).map_err(|error| error.to_string())
+}
+
 fn valid_snapshot_id(id: &str) -> bool {
     !id.is_empty()
         && id

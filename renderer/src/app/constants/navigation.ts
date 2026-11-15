@@ -32,6 +32,7 @@ export const applicationItems: NavigationItem[] = [
     icon: "puzzle",
     description: t("ui.navigation.description.c3ec75a7"),
   },
+  { id: 'account', label: t('account.title'), icon: 'user', description: t('account.description') },
 ];
 
 export const nodeTypes = [

@@ -2,6 +2,8 @@ mod audio;
 mod common;
 mod clipboard;
 mod file;
+mod cloud_media;
+pub use cloud_media::*;
 mod image;
 mod media_paths;
 mod media_probe;

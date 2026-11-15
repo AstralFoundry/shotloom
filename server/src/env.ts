@@ -12,9 +12,12 @@ const envSchema = z.object({
   PORT: z.coerce.number().int().min(1).max(65535).default(3001),
   GATEWAY_BASE_URL: z.string().url(),
   GATEWAY_CLIENT_ID: z.string().min(1),
+  GATEWAY_CLIENT_SECRET: z.string().min(1),
   GATEWAY_REDIRECT_URI: z.string().url(),
   SUPABASE_URL: z.string().url(),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
+  SUPABASE_PUBLISHABLE_KEY: z.string().min(1),
+  SUPABASE_AUTH_PROVIDER: z.string().startsWith('custom:').default('custom:shotloom-newapi'),
   SESSION_ENCRYPTION_KEY: z
     .string()
     .regex(/^[0-9a-fA-F]{64}$/, "必须是 64 位 hex（32 字节）"),

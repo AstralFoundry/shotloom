@@ -241,3 +241,13 @@
 :host([data-director-mode]:not([data-director-mode="expanded"])) [data-composer-seat] { position:absolute;inset:auto 0 0;margin:0; }
 :host([data-director-mode="expanded"]) [data-composer-card] { padding-block:4px; }
 :host([data-director-mode="expanded"]) [data-input-scroll] { max-height:112px; }
+@media (max-width:700px) {
+  .shotloom-composer-control { min-width:44px; min-height:44px; justify-content:center; }
+  [data-composer-card] > div > div:has(> [data-slot="conversation.input.left"]) { gap:0; }
+  [data-slot="conversation.input.model"] button { min-height:44px; }
+  .shotloom-agent-chat :is(textarea, [contenteditable="true"], input) { font-size:16px; }
+  .shotloom-reference-tabs button, .shotloom-tool-actions button, .shotloom-subagent-dialog > header button { min-height:44px; }
+  .shotloom-media-remove { width:44px; height:44px; opacity:1; }
+  .shotloom-permission-menu, .shotloom-skill-menu { max-height:calc(100dvh - 160px); }
+  .shotloom-session-stats { gap:4px; }
+}

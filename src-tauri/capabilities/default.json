@@ -4,6 +4,7 @@
   "description": "Shotloom desktop permissions",
   "windows": ["main"],
   "permissions": [
+    "local-commands",
     "core:default",
     "core:window:allow-start-dragging",
     "core:window:allow-minimize",

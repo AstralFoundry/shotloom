@@ -4,13 +4,14 @@ import {
     UnlockOutlined,
     PauseOutlined,
     ScissorOutlined,
+    SettingOutlined,
     StepBackwardOutlined,
     StepForwardOutlined,
     VerticalRightOutlined,
     MinusOutlined,
     PlusOutlined,
 } from '@ant-design/icons';
-import { Button, Popover, Select, Slider, Switch, Tooltip } from 'antd';
+import { Button, Drawer, Popover, Select, Slider, Switch, Tooltip } from 'antd';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { pathSections } from '@/core/clip-editing.ts';
 import { clipLabel, FRAME_RATES, type Clip, type Entity } from '@/core/model.ts';
@@ -27,7 +28,6 @@ import { CameraPresetPicker } from './preset-picker.tsx';
 const MIN_EXTENT = 8;
 const MIN_ZOOM = 30;
 const MAX_ZOOM = 800;
-const TRACK_LABEL_WIDTH = 196;
 const ZOOM_STEPS = [30, 40, 50, 60, 75, 100, 125, 150, 200, 250, 300, 400, 500, 600, 800];
 const TRACK_COLORS = ['#aa8be8', '#69bea9', '#d7ae70', '#7baee0', '#d58fa2', '#9fbd7c'];
 const clipAccent = (action: Clip['action']): string => {
@@ -38,17 +38,19 @@ const clipAccent = (action: Clip['action']): string => {
     if (action === 'native' || action === 'retarget') return '#b3c9e9';
     return '#e79591';
 };
-const trackWidth = (viewport: number, zoom: number) =>
-    TRACK_LABEL_WIDTH + Math.max(0, viewport - TRACK_LABEL_WIDTH) * (zoom / 100);
+const trackWidth = (viewport: number, zoom: number, labelWidth: number) =>
+    labelWidth + Math.max(0, viewport - labelWidth) * (zoom / 100);
 
 export function TimelinePanel({
     onHeightChange,
     onHeightReset,
     onNaturalHeight,
+    onOpenInspector,
 }: {
     onHeightChange: (height: number) => void;
     onHeightReset: () => void;
     onNaturalHeight?: (height: number) => void;
+    onOpenInspector: () => void;
 }) {
     const t = useTranslation();
     const [zoom, setZoom] = useState(100);
@@ -56,10 +58,12 @@ export function TimelinePanel({
     const transportRef = useRef<HTMLDivElement>(null);
     const tracksRef = useRef<HTMLDivElement>(null);
     const [bodyWidth, setBodyWidth] = useState(0);
+    const labelWidth = bodyWidth <= 480 ? 132 : 196;
     const pendingZoomAnchor = useRef<{ fraction: number; x: number } | null>(null);
     const playheadGrabOffset = useRef(0);
     const resizing = useRef<{ y: number; height: number } | null>(null);
     const [cameraPickerOpen, setCameraPickerOpen] = useState(false);
+    const [optionsOpen, setOptionsOpen] = useState(false);
     const project = useProject();
     const time = useEditorStore((state) => state.time);
     const playing = useEditorStore((state) => state.playing);
@@ -85,7 +89,7 @@ export function TimelinePanel({
         ]),
     );
     const percent = (seconds: number) => `${(seconds / extent) * 100}%`;
-    const laneWidth = Math.max(0, trackWidth(bodyWidth, zoom) - TRACK_LABEL_WIDTH);
+    const laneWidth = Math.max(0, trackWidth(bodyWidth, zoom, labelWidth) - labelWidth);
     const ticks = rulerTicks(extent, zoom, laneWidth);
     const cameraName = (id: string) => project.entities.find((entity) => entity.id === id)?.name ?? '';
     const cutSpans = project.cuts.map((cut, index) => ({
@@ -110,9 +114,9 @@ export function TimelinePanel({
         session.seek(seconds);
         const body = bodyRef.current;
         if (!body) return;
-        const x = TRACK_LABEL_WIDTH + (seconds / extent) * (trackWidth(body.clientWidth, zoom) - TRACK_LABEL_WIDTH);
-        if (x < body.scrollLeft + TRACK_LABEL_WIDTH || x > body.scrollLeft + body.clientWidth - 14)
-            body.scrollLeft = x - TRACK_LABEL_WIDTH;
+        const x = labelWidth + (seconds / extent) * (trackWidth(body.clientWidth, zoom, labelWidth) - labelWidth);
+        if (x < body.scrollLeft + labelWidth || x > body.scrollLeft + body.clientWidth - 14)
+            body.scrollLeft = x - labelWidth;
     };
 
     const zoomAt = (requested: number, pointerX?: number) => {
@@ -120,17 +124,17 @@ export function TimelinePanel({
         const body = bodyRef.current;
         if (next === zoom || !body) return;
         const viewport = body.clientWidth;
-        const width = trackWidth(viewport, zoom);
-        const playheadX = TRACK_LABEL_WIDTH + (time / extent) * (width - TRACK_LABEL_WIDTH) - body.scrollLeft;
+        const width = trackWidth(viewport, zoom, labelWidth);
+        const playheadX = labelWidth + (time / extent) * (width - labelWidth) - body.scrollLeft;
         const x =
             pointerX === undefined
-                ? playheadX >= TRACK_LABEL_WIDTH && playheadX <= viewport
+                ? playheadX >= labelWidth && playheadX <= viewport
                     ? playheadX
                     : viewport / 2
                 : Math.max(0, Math.min(viewport, pointerX - body.getBoundingClientRect().left));
         const fraction = Math.max(
             0,
-            Math.min(1, (body.scrollLeft + x - TRACK_LABEL_WIDTH) / Math.max(1, width - TRACK_LABEL_WIDTH)),
+            Math.min(1, (body.scrollLeft + x - labelWidth) / Math.max(1, width - labelWidth)),
         );
         pendingZoomAnchor.current = { fraction, x };
         setZoom(next);
@@ -148,10 +152,10 @@ export function TimelinePanel({
         const anchor = pendingZoomAnchor.current;
         const body = bodyRef.current;
         if (!anchor || !body) return;
-        const width = trackWidth(body.clientWidth, zoom);
-        body.scrollLeft = TRACK_LABEL_WIDTH + anchor.fraction * (width - TRACK_LABEL_WIDTH) - anchor.x;
+        const width = trackWidth(body.clientWidth, zoom, labelWidth);
+        body.scrollLeft = labelWidth + anchor.fraction * (width - labelWidth) - anchor.x;
         pendingZoomAnchor.current = null;
-    }, [zoom]);
+    }, [zoom, labelWidth]);
 
     useEffect(() => {
         const body = bodyRef.current;
@@ -201,8 +205,84 @@ export function TimelinePanel({
             event.currentTarget.releasePointerCapture(event.pointerId);
     };
 
+    const projectSettings = (
+        <>
+            <Select
+                className="timeline__fps"
+                size="small"
+                value={project.fps}
+                aria-label={t('项目帧率')}
+                onChange={(fps) => session.updateProjectSettings({ fps })}
+                options={FRAME_RATES.map((value) => ({ value, label: `${value} fps` }))}
+                popupMatchSelectWidth={96}
+            />
+            <label className="duration-input">
+                {t('时长')}
+                <NumberField
+                    value={project.duration}
+                    min={0.1}
+                    step={1}
+                    precision={1}
+                    aria-label={t('时长')}
+                    onCommit={(value) => session.setDuration(value)}
+                />
+                {t('秒')}
+            </label>
+            <label className="timeline__loop">
+                <Switch size="small" aria-label={t('循环')} checked={loop} onChange={(checked) => session.setLoop(checked)} />
+                {t('循环')}
+            </label>
+        </>
+    );
+
+    const animationActions = <>
+                    <Button
+                        className="timeline__add"
+                        icon={<PlusOutlined />}
+                        disabled={!selectedEntity || selectedEntity.locked}
+                        onClick={() => { setOptionsOpen(false); session.startPath(); }}
+                    >
+                        {t('添加路径')}
+                    </Button>
+                    {selectedEntity?.kind === 'camera' ? (
+                        <Popover
+                            trigger="click"
+                            placement="top"
+                            open={cameraPickerOpen}
+                            onOpenChange={setCameraPickerOpen}
+                            content={
+                                <CameraPresetPicker
+                                    hasSubject={project.entities.some(entity => entity.kind === 'actor' || entity.id === selectedEntity.camera?.targetId)}
+                                    onChoose={(id) => {
+                                        if (session.applyCameraPreset(id)) { setCameraPickerOpen(false); setOptionsOpen(false); }
+                                    }}
+                                />
+                            }
+                        >
+                            <Button
+                                className="timeline__add"
+                                icon={<PlusOutlined />}
+                                type="primary"
+                                disabled={selectedEntity.locked}
+                            >
+                                {t('预设运镜')}
+                            </Button>
+                        </Popover>
+                    ) : selectedEntity?.kind === 'actor' || selectedEntity?.kind === 'crowd' ? (
+                        <Button
+                            className="timeline__add"
+                            icon={<PlusOutlined />}
+                            type="primary"
+                            disabled={selectedEntity.locked}
+                            onClick={() => { setOptionsOpen(false); session.setInspectorTab('actions'); onOpenInspector(); }}
+                        >
+                            {t('角色动画')}
+                        </Button>
+                    ) : null}
+    </>;
+
     return (
-        <section className="timeline" aria-label={t('时间线')}>
+        <section className={`timeline${bodyWidth <= 640 ? ' timeline--compact' : ''}`} aria-label={t('时间线')} style={{ '--timeline-label-width': `${labelWidth}px` } as React.CSSProperties}>
             <div
                 className="timeline__resize-handle"
                 role="separator"
@@ -227,6 +307,7 @@ export function TimelinePanel({
             />
             <div className="timeline__transport" ref={transportRef}>
                 <div className="timeline__controls">
+                    <div className="timeline__track-options">
                     <Select size="small" aria-label={t('轨道筛选')} value={trackFilter} onChange={setTrackFilter} options={[{ value: 'all', label: t('全部轨道') }, { value: 'selected', label: t('选中及关联机位') }, { value: 'animated', label: t('有动画') }]} />
                     <Button
                         className="timeline__zoom-step"
@@ -271,10 +352,12 @@ export function TimelinePanel({
                         onClick={() => stepZoom(1)}
                         disabled={zoom === MAX_ZOOM}
                     />
+                    </div>
                     <Tooltip title={t('回到开头')}>
                         <Button
                             type="text"
                             size="small"
+                            className="timeline__secondary-control"
                             icon={<VerticalRightOutlined />}
                             aria-label={t('回到开头')}
                             onClick={() => seekAndReveal(0)}
@@ -310,6 +393,7 @@ export function TimelinePanel({
                         <Button
                             type="text"
                             size="small"
+                            className="timeline__secondary-control"
                             icon={<ScissorOutlined />}
                             aria-label={t('在播放头切镜')}
                             onClick={() => session.addCutAtPlayhead()}
@@ -323,77 +407,30 @@ export function TimelinePanel({
                     >
                         {timecode(time, project.fps)} <span>/ {timecode(project.duration, project.fps)}</span>
                     </span>
+                    <Drawer className="director-mobile-sheet" title={t('时间线选项')} placement="bottom" size="default" open={optionsOpen}
+                        onClose={() => { setOptionsOpen(false); setCameraPickerOpen(false); }} styles={{ wrapper: { maxHeight: '85dvh' } }}>
+                        <div className="timeline__mobile-options">
+                            <Select aria-label={t('轨道筛选')} value={trackFilter} onChange={setTrackFilter} options={[{ value: 'all', label: t('全部轨道') }, { value: 'selected', label: t('选中及关联机位') }, { value: 'animated', label: t('有动画') }]} />
+                            <label>{t('设置时间轴缩放')} · {zoom}%<Slider min={MIN_ZOOM} max={MAX_ZOOM} step={5} value={zoom} onChange={value => zoomAt(value)} /></label>
+                            <Button onClick={() => zoomAt(100)}>{t('适合窗口')}</Button>
+                            <div className="timeline__option-actions">
+                                <Button onClick={() => seekAndReveal(0)}>{t('回到开头')}</Button>
+                                <Button onClick={() => session.addCutAtPlayhead()}>{t('在播放头切镜')}</Button>
+                                {animationActions}
+                            </div>
+                            <div className="timeline__settings">{projectSettings}</div>
+                        </div>
+                    </Drawer>
+                    <Button className="timeline__mobile-more" icon={<SettingOutlined />} aria-label={t('时间线选项')} onClick={() => setOptionsOpen(true)} />
                 </div>
 
                 <div className="timeline__meta">
-                    <Button
-                        className="timeline__add"
-                        icon={<PlusOutlined />}
-                        disabled={!selectedEntity || selectedEntity.locked}
-                        onClick={() => session.startPath()}
-                    >
-                        {t('添加路径')}
-                    </Button>
-                    {selectedEntity?.kind === 'camera' ? (
-                        <Popover
-                            trigger="click"
-                            placement="top"
-                            open={cameraPickerOpen}
-                            onOpenChange={setCameraPickerOpen}
-                            content={
-                                <CameraPresetPicker
-                                    hasSubject={project.entities.some(entity => entity.kind === 'actor' || entity.id === selectedEntity.camera?.targetId)}
-                                    onChoose={(id) => {
-                                        if (session.applyCameraPreset(id)) setCameraPickerOpen(false);
-                                    }}
-                                />
-                            }
-                        >
-                            <Button
-                                className="timeline__add"
-                                icon={<PlusOutlined />}
-                                type="primary"
-                                disabled={selectedEntity.locked}
-                            >
-                                {t('预设运镜')}
-                            </Button>
+                    {bodyWidth > 640 && animationActions}
+                    {bodyWidth <= 640 ? (
+                        <Popover trigger="click" placement="topRight" content={<div className="timeline__settings">{projectSettings}</div>}>
+                            <Button icon={<SettingOutlined />} aria-label={t('项目设置')} />
                         </Popover>
-                    ) : selectedEntity?.kind === 'actor' || selectedEntity?.kind === 'crowd' ? (
-                        <Button
-                            className="timeline__add"
-                            icon={<PlusOutlined />}
-                            type="primary"
-                            disabled={selectedEntity.locked}
-                            onClick={() => session.setInspectorTab('actions')}
-                        >
-                            {t('角色动画')}
-                        </Button>
-                    ) : null}
-                    <Select
-                        className="timeline__fps"
-                        size="small"
-                        value={project.fps}
-                        aria-label={t('项目帧率')}
-                        onChange={(fps) => session.updateProjectSettings({ fps })}
-                        options={FRAME_RATES.map((value) => ({ value, label: `${value} fps` }))}
-                        popupMatchSelectWidth={96}
-                    />
-                    <label className="duration-input">
-                        {t('时长')}
-                        <NumberField
-                            value={project.duration}
-                            min={0.1}
-                            step={1}
-                            precision={1}
-                            aria-label={t('时长')}
-                            onCommit={(value) => session.setDuration(value)}
-                        />
-                        {t('秒')}
-                    </label>
-                    <label className="timeline__loop">
-                        <Switch size="small" aria-label={t('循环')} checked={loop} onChange={(checked) => session.setLoop(checked)} />
-                        {t('循环')}
-                    </label>
+                    ) : projectSettings}
                 </div>
             </div>
 
@@ -401,7 +438,7 @@ export function TimelinePanel({
                 <div
                     className="timeline__tracks"
                     ref={tracksRef}
-                    style={{ width: `calc(${zoom}% + ${TRACK_LABEL_WIDTH * (1 - zoom / 100)}px)` }}
+                    style={{ width: `calc(${zoom}% + ${labelWidth * (1 - zoom / 100)}px)` }}
                 >
                     <div className="timeline__ruler-row">
                         <span className="track-label">
@@ -417,7 +454,7 @@ export function TimelinePanel({
                         </div>
                     </div>
 
-                    {project.cuts.length > 1 ? (
+                    {project.cuts.length > 0 ? (
                         <div className="timeline__row timeline__row--cuts">
                             <span className="track-label">
                                 {t('切镜')}{' '}
@@ -483,7 +520,7 @@ export function TimelinePanel({
                     <div
                         className="timeline__playhead"
                         style={{
-                            left: `calc(${(time / extent) * 100}% + ${TRACK_LABEL_WIDTH * (1 - time / extent)}px)`,
+                            left: `calc(${(time / extent) * 100}% + ${labelWidth * (1 - time / extent)}px)`,
                         }}
                     >
                         <button

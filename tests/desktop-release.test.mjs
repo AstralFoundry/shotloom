@@ -43,6 +43,11 @@ async function staged(root) {
   for (const target of targets) {
     const bundle = join(root, target.platform);
     await mkdir(bundle);
+    if (target.mobile) {
+      await writeFile(join(bundle, `Shotloom${target.installerExtension}`), `${target.platform} application`);
+      await stageAssets({ bundle, destination: directory, platform: target.platform, version: '2.0.0' });
+      continue;
+    }
     const updater = join(bundle, `Shotloom${target.updaterExtension}`);
     await writeFile(updater, `${target.platform} application`);
     await writeFile(`${updater}.sig`, 'base64-signature\n');
@@ -56,7 +61,10 @@ test('release artifacts preserve configured platforms and produce repository-spe
   const options = await staged(root);
   const files = await assembleAssets(options);
   const latest = JSON.parse(await readFile(join(options.directory, 'latest.json'), 'utf8'));
-  assert.deepEqual(Object.keys(latest.platforms).sort(), targets.map(target => target.platform).sort());
+  assert.deepEqual(Object.keys(latest.platforms).sort(), targets.filter(target => target.updaterExtension).map(target => target.platform).sort());
+  for (const target of targets.filter(target => target.mobile)) {
+    assert.ok(files.some(file => file.endsWith(`${target.platform}-Shotloom${target.installerExtension}`)));
+  }
   for (const platform of Object.values(latest.platforms)) {
     assert.equal(platform.signature, 'base64-signature');
     assert.match(platform.url, /^https:\/\/github.com\/another-owner\/another-repo\/releases\/download\/v2.0.0\//);
@@ -97,6 +105,18 @@ test('a missing signature is rejected when staging a platform', () => fixture(as
   await writeFile(join(root, 'app.app.tar.gz'), 'application');
   await writeFile(join(root, 'app.dmg'), 'installer');
   await assert.rejects(stageAssets({ bundle: root, destination: join(root, 'staged'), platform: target.platform, version: '2.0.0' }), /ENOENT/);
+}));
+
+test('missing, duplicated or tampered mobile installers block the complete release', () => fixture(async root => {
+  const target = targets.find(target => target.mobile === 'android');
+  await assert.rejects(stageAssets({ bundle: root, destination: join(root, 'staged'), platform: target.platform, version: '2.0.0' }), /Expected one installer/);
+  const options = await staged(root);
+  const apk = join(options.directory, `${target.platform}-Shotloom.apk`);
+  await writeFile(apk, 'tampered');
+  await assert.rejects(assembleAssets(options), /Corrupt asset/);
+  await writeFile(join(root, 'one.apk'), 'one');
+  await writeFile(join(root, 'two.apk'), 'two');
+  await assert.rejects(stageAssets({ bundle: root, destination: join(root, 'staged'), platform: target.platform, version: '2.0.0', artifactPaths: [join(root, 'one.apk'), join(root, 'two.apk')] }), /Expected one installer/);
 }));
 
 test('staging uses successful Tauri artifacts despite disk images left by a failed attempt', () => fixture(async root => {

@@ -92,14 +92,15 @@ export const builtInSkills: BuiltInSkill[] = Object.entries(skillSources)
   .sort((left, right) => left.id.localeCompare(right.id));
 
 export function withBuiltInSkills(storage: AnyRecord = {}): AnyRecord {
-  const catalog = withBuiltInEntries(storage, 'skills', builtInSkills);
+  // 系统技能只取随包内容，历史用户覆盖不能改写 Agent 的系统行为。
+  const catalog = withBuiltInEntries(withoutBuiltInSkills(storage), 'skills', builtInSkills);
   catalog.skills = catalog.skills.map(({ recipeIds, ...skill }: AnyRecord) => skill);
   return catalog;
 }
 
 export function withoutBuiltInSkills(storage: AnyRecord = {}): AnyRecord {
   const catalog = withoutBuiltInEntries(storage, 'skills');
-  catalog.skills = catalog.skills.map(({ recipeIds, ...skill }: AnyRecord) => skill);
+  catalog.skills = catalog.skills.filter(isUserSkill).map(({ recipeIds, ...skill }: AnyRecord) => skill);
   return catalog;
 }
 
@@ -109,6 +110,10 @@ export function builtInSkillChanges(skill: AnyRecord | null | undefined): string
 
 export function getBuiltInSkill(skillId: string): BuiltInSkill | null {
   return builtInSkills.find((skill) => skill.id === skillId) || null;
+}
+
+export function isUserSkill(skill: { id: string; builtIn?: boolean }): boolean {
+  return skill.builtIn !== true && !getBuiltInSkill(skill.id);
 }
 
 /** Translate only the shipped description in catalog views; editable content stays intact. */

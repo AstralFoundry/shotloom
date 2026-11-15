@@ -1,8 +1,10 @@
 import ts from 'typescript';
 import { existsSync, readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
+import { fileURLToPath } from 'node:url';
 
 const repoRoot = new URL('../../', import.meta.url);
+export const repoRootPath = fileURLToPath(repoRoot);
 const sources = new Map();
 
 function toRepoPath(relativePath) {
@@ -18,7 +20,7 @@ function toRepoPath(relativePath) {
  */
 export function readSource(relativePath) {
   const key = toRepoPath(relativePath);
-  if (!sources.has(key)) sources.set(key, readFileSync(new URL(key, repoRoot), 'utf8'));
+  if (!sources.has(key)) sources.set(key, readFileSync(new URL(key, repoRoot), 'utf8').replace(/\r\n/g, '\n'));
   return sources.get(key);
 }
 

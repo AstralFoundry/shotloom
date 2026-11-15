@@ -13,10 +13,9 @@ function subscribe(onChange: () => void): () => void {
   };
 }
 
-// 宿主剪辑台使用容器宽度，保留完整桌面布局。
-// 参考实现在同一宽度下依然保留完整的桌面布局，所以宿主模式不参与紧凑版换向。
+// 宿主桌面保留完整布局，手机使用现有的预览与面板切换。
 function getSnapshot(): boolean {
-  if (isShotloomMode) return false;
+  if (isShotloomMode) return window.matchMedia('(max-width: 700px), (max-width: 920px) and (max-height: 500px)').matches;
   return window.innerWidth <= 1100 || window.matchMedia(COMPACT_EDITOR_QUERY).matches;
 }
 

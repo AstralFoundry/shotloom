@@ -5,9 +5,7 @@ import { type NavigationItem, applicationItems, projectWorkspaceItems } from "..
 import { type AppRoute, useAppStore } from "../store/appStore";
 
 interface SideBarProps {
-  onNotify: () => void;
-  onSettings: () => void;
-  onUpdate: () => void;
+  onUpdate?: (() => void) | undefined;
   onToggleSidebar: () => void;
   onNavigationBlocked?: (() => void) | undefined;
   previewOpen: boolean;
@@ -17,8 +15,6 @@ interface SideBarProps {
 
 export function SideBar(
   {
-    onNotify,
-    onSettings,
     onUpdate,
     onToggleSidebar,
     onNavigationBlocked,
@@ -43,6 +39,7 @@ export function SideBar(
       <button
         key={item.id}
         className={`side-item${route === item.id ? " active" : ""}`}
+        aria-current={route === item.id ? "page" : undefined}
         title={iconRail ? item.label : undefined}
         onClick={() => navigate(item.id)}
       >
@@ -64,7 +61,7 @@ export function SideBar(
   );
 
   // 技能库和项目库都不依赖已打开的工程，两者共用同一组顶层入口。
-  const projectScopedNavigation = route === "projects" || route === "skills"
+  const projectScopedNavigation = route === "projects" || route === "skills" || route === "account"
     ? (
       <div className="side-list">
         <button
@@ -117,6 +114,13 @@ export function SideBar(
         if (collapsed) onPreviewOpenChange(false);
       }}
     >
+      <nav className="mobile-navigation" aria-label={t('navigation.primary')}>
+        <div className="mobile-navigation-items">
+          {navItem({ id: 'projects', label: t('ui.ProjectScopeHeader.text.79b705bd'), icon: 'folder', description: '' })}
+          <button className={`side-item${route === 'creation' || route === 'tasks' ? ' active' : ''}`} aria-current={route === 'creation' || route === 'tasks' ? 'page' : undefined} disabled={!project} onClick={() => navigate('creation')}><IconSymbol name="grid" /><span>{t('ui.navigation.label.a1fce3b0')}</span></button>
+          {applicationItems.map(item => navItem(item))}
+        </div>
+      </nav>
       <aside className="sidebar">
         <div className="sidebar-brand" title="Shotloom">
           <InteractiveLogo src="./shotloom-logo.png" />
@@ -129,20 +133,12 @@ export function SideBar(
           {projectScopedNavigation}
           {applicationNavigation}
         </div>
-        <footer className="sidebar-footer">
+        {onUpdate && <footer className="sidebar-footer">
           <button type="button" title={t("ui.SideBar.title.a6df3858")} onClick={onUpdate}>
             <IconSymbol name="package" />
             <span>{t("ui.SideBar.title.a6df3858")}</span>
           </button>
-          <button type="button" title={t("ui.SideBar.title.7a66c0d0")} onClick={onNotify}>
-            <IconSymbol name="bell" />
-            <span>{t("ui.SideBar.title.7a66c0d0")}</span>
-          </button>
-          <button type="button" title={t("ui.SideBar.title.7debf9cb")} onClick={onSettings}>
-            <IconSymbol name="settings" />
-            <span>{t("ui.SideBar.title.7debf9cb")}</span>
-          </button>
-        </footer>
+        </footer>}
       </aside>
       {(!collapsed || previewOpen) && (
         <button

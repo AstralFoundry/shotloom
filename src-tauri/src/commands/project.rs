@@ -436,6 +436,15 @@ pub async fn project_read_file(path: String) -> Result<Value, String> {
         .map_err(|error| localized_error("native.error.e5e47e6ad0", json!({"error": error.to_string()}), format!("项目读取任务异常：{error}")))?
 }
 
+#[tauri::command]
+pub async fn project_read_bundle(directory: String) -> Result<Value, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let bundle = storage_service::load_project_bundle(&Path::new(&directory).join(PROJECT_FILE))?;
+        validate_current_project(&bundle["project"])?;
+        Ok(bundle)
+    }).await.map_err(|error| error.to_string())?
+}
+
 fn open_project_folder(directory: String) -> Result<Value, String> {
     let directory = PathBuf::from(directory);
     let path = directory.join(PROJECT_FILE);
@@ -640,6 +649,46 @@ fn rewrite_imported_project_paths(value: &mut Value, source_root: &str, target_r
     }
 }
 
+fn import_cloud_package(archive: &mut zip::ZipArchive<fs::File>, target_root: &Path) -> Result<Value, String> {
+    let target = target_root.join(format!(".shotloom-cloud-import-{}", uuid::Uuid::new_v4()));
+    let result = (|| -> Result<Value, String> {
+        if archive.len() > 20_000 { return Err("Project package contains too many files".into()); }
+        let mut total = 0_u64;
+        let mut names = BTreeSet::new();
+        for index in 0..archive.len() {
+            let file = archive.by_index(index).map_err(|error| error.to_string())?;
+            let name = file.name();
+            let safe_media = name.strip_prefix("media/").is_some_and(|part| !part.is_empty()
+                && part.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '.')) && part != "." && part != "..");
+            if !names.insert(name.to_owned()) || (name != "manifest.json" && name != "project.json" && !safe_media) {
+                return Err("Project package contains duplicate or unsafe paths".into());
+            }
+            total = total.saturating_add(file.size());
+            let limit = if safe_media { 500 * 1024 * 1024 } else { 32 * 1024 * 1024 };
+            if file.size() > limit || total > 2 * 1024 * 1024 * 1024 { return Err("Project package exceeds size limits".into()); }
+        }
+        let bundle: Value = {
+            let mut file = archive.by_name("project.json").map_err(|error| error.to_string())?;
+            let mut text = String::new();
+            file.read_to_string(&mut text).map_err(|error| error.to_string())?;
+            serde_json::from_str(&text).map_err(|error| error.to_string())?
+        };
+        validate_current_project(&bundle["project"])?;
+        fs::create_dir_all(target.join("media")).map_err(|error| error.to_string())?;
+        for index in 0..archive.len() {
+            let mut file = archive.by_index(index).map_err(|error| error.to_string())?;
+            if !file.name().starts_with("media/") { continue; }
+            let mut output = fs::OpenOptions::new().write(true).create_new(true).open(target.join(file.name())).map_err(|error| error.to_string())?;
+            let expected = file.size();
+            let actual = std::io::copy(&mut file.by_ref().take(expected + 1), &mut output).map_err(|error| error.to_string())?;
+            if actual != expected { return Err("Project package media length mismatch".into()); }
+        }
+        Ok(json!({ "bundle": bundle, "mediaRoot": target.to_string_lossy() }))
+    })();
+    if result.is_err() { let _ = fs::remove_dir_all(target); }
+    result
+}
+
 fn import_package(source: String, target_root: String) -> Result<Value, String> {
     const MAX_PACKAGE_FILES: usize = 20_000;
     const MAX_PACKAGE_BYTES: u64 = 20 * 1024 * 1024 * 1024;
@@ -664,6 +713,10 @@ fn import_package(source: String, target_root: String) -> Result<Value, String> 
             .map_err(|error| error.to_string())?;
         serde_json::from_str(&text).map_err(|error| localized_error("native.error.05db8b0431", json!({"error": error.to_string()}), format!("项目包清单无效：{error}")))?
     };
+    if manifest.get("schema").and_then(Value::as_str) == Some("shotloom-project-package")
+        && manifest.get("version").and_then(Value::as_u64) == Some(2) {
+        return import_cloud_package(&mut archive, &target_root);
+    }
     if manifest.get("schema").and_then(Value::as_str) != Some("shotloom-project-package")
         || manifest.get("version").and_then(Value::as_u64) != Some(1)
         || manifest.get("projectFile").and_then(Value::as_str)
@@ -807,6 +860,13 @@ mod tests {
             "id":"lifecycle","name":"Created","nodes":[{"id":"n","type":"clipStudio","title":"clip"}],"edges":[]});
         let saved = save_project(directory.to_string_lossy().into_owned(), project).unwrap();
         storage_service::save_snapshot(&directory.join(PROJECT_FILE), "n", &json!({"tracks":[{"id":"t"}]})).unwrap();
+        storage_service::set_editor_record(&directory.join(PROJECT_FILE), "n".into(), "view".into(), Some(json!({"zoom": 2}))).unwrap();
+        let original = fs::read(directory.join(PROJECT_FILE)).unwrap();
+        let bundle = storage_service::load_project_bundle(&directory.join(PROJECT_FILE)).unwrap();
+        assert_eq!(bundle["snapshots"][0]["payload"]["tracks"][0]["id"], "t");
+        assert_eq!(bundle["records"][0]["key"], "view");
+        assert_eq!(bundle["records"][0]["payload"]["zoom"], 2);
+        assert_eq!(fs::read(directory.join(PROJECT_FILE)).unwrap(), original);
         assert_eq!(open_project_folder(directory.to_string_lossy().into_owned()).unwrap()["project"]["nodes"], saved["project"]["nodes"]);
         let cloned = clone_entry(directory.to_string_lossy().into_owned(), Some("Copied".into())).unwrap();
         let clone_dir = PathBuf::from(cloned["projectDir"].as_str().unwrap());
@@ -890,6 +950,32 @@ mod tests {
             b"asset-bytes"
         );
 
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn cloud_project_package_extracts_media_for_client_upload_and_refuses_traversal() {
+        let root = std::env::temp_dir().join(format!("shotloom-cloud-package-{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(&root).unwrap();
+        let source = root.join("package.zip");
+        let bundle = json!({ "project": { "schema": "shotloom-project", "schemaVersion": 2, "nodes": [{ "id": "clip", "filePath": "package://media/clip.mp4" }] },
+            "snapshots": [{"nodeId":"clip","payload":{"tracks":[]}}], "records": [] });
+        for media in ["media/clip.mp4", "media/../escape.mp4"] {
+            let mut zip = zip::ZipWriter::new(fs::File::create(&source).unwrap());
+            let options = zip::write::SimpleFileOptions::default();
+            for (name, content) in [("manifest.json", json!({ "schema": "shotloom-project-package", "version": 2 }).to_string()),
+                ("project.json", bundle.to_string()), (media, "video-bytes".to_string())] {
+                zip.start_file(name, options).unwrap(); zip.write_all(content.as_bytes()).unwrap();
+            }
+            zip.finish().unwrap();
+            let result = import_package(source.to_string_lossy().into_owned(), root.join("imports").to_string_lossy().into_owned());
+            if media.contains("..") { assert!(result.is_err()); }
+            else {
+                let imported = result.unwrap();
+                assert_eq!(imported["bundle"], bundle);
+                assert_eq!(fs::read(Path::new(imported["mediaRoot"].as_str().unwrap()).join(media)).unwrap(), b"video-bytes");
+            }
+        }
         fs::remove_dir_all(root).unwrap();
     }
 

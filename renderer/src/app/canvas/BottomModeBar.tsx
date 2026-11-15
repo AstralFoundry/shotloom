@@ -1,5 +1,5 @@
 import { t } from '@/i18n';
-import { Checkbox } from "antd";
+import { Checkbox, Dropdown } from "antd";
 import { useState } from "react";
 import type { AgentLayoutMode } from "../../services/agentLayoutService";
 import { IconSymbol } from "../components/IconSymbol";
@@ -60,7 +60,7 @@ export function BottomModeBar(
       </div>
       <div className="bottom-mode-divider" />
       <div className="bottom-mode-group">
-        <button title={t('canvas.section.createHint')} aria-label={t('canvas.section.create')} onClick={onCreateSection}>
+        <button className="canvas-secondary-tool" title={t('canvas.section.createHint')} aria-label={t('canvas.section.create')} onClick={onCreateSection}>
           <IconSymbol name="layers" />
         </button>
         <button
@@ -73,7 +73,7 @@ export function BottomModeBar(
         </button>
         <button
           title={t("ui.BottomModeBar.title.a5727ff5")}
-          className={layoutOpen ? "active" : ""}
+          className={`canvas-secondary-tool${layoutOpen ? ' active' : ''}`}
           onClick={() => {
             setHelp(false);
             setLayoutOpen((value) => !value);
@@ -83,7 +83,7 @@ export function BottomModeBar(
         </button>
       </div>
       <div className="bottom-mode-divider" />
-      <div className="bottom-mode-group">
+      <div className="bottom-mode-group canvas-secondary-tool">
         <button title={t("ui.BottomModeBar.title.18ba6fed")} onClick={onMergeVideos}>
           <IconSymbol name="link" />
         </button>
@@ -104,6 +104,15 @@ export function BottomModeBar(
           <IconSymbol name="help" />
         </button>
       </div>
+      <Dropdown trigger={['click']} placement="topRight" menu={{ items: [
+        { key: 'section', label: t('canvas.section.create'), icon: <IconSymbol name="layers" />, onClick: () => onCreateSection?.() },
+        { key: 'layout', label: t('ui.BottomModeBar.title.a5727ff5'), icon: <IconSymbol name="columns" />, onClick: () => { setHelp(false); setLayoutOpen(value => !value); } },
+        { key: 'merge', label: t('ui.BottomModeBar.title.18ba6fed'), icon: <IconSymbol name="link" />, onClick: onMergeVideos },
+        ...(onOpenHistory ? [{ key: 'history', label: t('project.version.title'), icon: <IconSymbol name="clock" />, onClick: onOpenHistory }] : []),
+        { key: 'help', label: t('ui.BottomModeBar.title.31e33107'), icon: <IconSymbol name="help" />, onClick: () => { setLayoutOpen(false); setHelp(value => !value); } },
+      ] }}>
+        <button type="button" className="canvas-tools-more" aria-label={t('canvas.moreTools')} title={t('canvas.moreTools')}><IconSymbol name="more" /></button>
+      </Dropdown>
       {layoutOpen && (
         <div className="canvas-layout-menu" onClick={(event) => event.stopPropagation()}>
           <strong>{t("ui.BottomModeBar.text.cdb29857")}</strong>

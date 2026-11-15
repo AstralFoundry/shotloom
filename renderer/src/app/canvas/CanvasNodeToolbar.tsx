@@ -59,7 +59,7 @@ function NodeToolbar({ nodeId, root, children, className, isVisible, offset }: {
   return createPortal(<div
     className={`react-flow__node-toolbar ${className}`}
     data-id={nodeId}
-    style={{ position: "absolute", top: 0, left: 0, transform }}
+    style={{ '--node-toolbar-transform': transform } as CSSProperties}
   >{children}</div>, root);
 }
 
@@ -141,10 +141,13 @@ function useAnchoredMenuPlacement({
     const observer = new ResizeObserver(sync);
     observer.observe(root);
     if (triggerRef.current) observer.observe(triggerRef.current);
+    if (menuRef.current) observer.observe(menuRef.current);
+    root.addEventListener("scroll", sync, true);
     window.addEventListener("resize", sync);
     return () => {
       cancelAnimationFrame(frame);
       observer.disconnect();
+      root.removeEventListener("scroll", sync, true);
       window.removeEventListener("resize", sync);
     };
     // refs 是稳定对象，它们指向谁由 placementRevision 反映
@@ -599,8 +602,6 @@ export function CanvasNodeToolbar({
     : categoryItems;
   const showMoreButton = categoryItems.length > 0;
   const hasFixedZone = canSaveToAssets || Boolean(mentionNode) || (isTextNode && Boolean(textContent));
-  const hasToolbar = isTextNode || canUpload || mentionNode ||
-    canSaveToAssets || wired.length > 0;
 
   const menuTriggerRefs = {
     asset: assetTriggerRef,
@@ -617,6 +618,7 @@ export function CanvasNodeToolbar({
         ref={resolved.menuKey ? menuTriggerRefs[resolved.menuKey] : undefined}
         type="button"
         title={resolved.title}
+        aria-label={label}
         aria-haspopup={resolved.menuKey ? "menu" : undefined}
         aria-expanded={resolved.menuKey ? openMenu === resolved.menuKey : undefined}
         aria-pressed={tool.interaction === "opens_mode" ? Boolean(resolved.pressed) : undefined}
@@ -636,7 +638,6 @@ export function CanvasNodeToolbar({
 
   return (
     <>
-      {hasToolbar && (
         <NodeToolbar
           nodeId={node.id}
           root={canvasOverlayRoot}
@@ -644,6 +645,12 @@ export function CanvasNodeToolbar({
           isVisible={selected && !imageAnnotationOpen}
           offset={toolbarOffset}
         >
+          <button type="button" className="canvas-node-delete-action"
+            aria-label={t('ui.canvasAdapter.text.ff37dc39')} title={t('ui.canvasAdapter.text.ff37dc39')}
+            onPointerDown={event => event.stopPropagation()}
+            onClick={event => { event.stopPropagation(); actions.delete(node.id); }}>
+            <IconSymbol name="trash" /><span>{t('ui.MaterialGrid.title.3755f56f')}</span>
+          </button>
           {isTextNode && (
             <>
               <span className="canvas-node-toolbar-label">{t("ui.CanvasNodeToolbar.text.d80ef14f")}</span>
@@ -803,7 +810,6 @@ export function CanvasNodeToolbar({
             </button>
           )}
         </NodeToolbar>
-      )}
       {openMenu === "more" && (
         <ToolbarPortalMenu
           items={moreItems}

@@ -7,7 +7,7 @@ interface TopBarProps {
 export function TopBar({ platform }: TopBarProps) {
   return (
     <header
-      className={`topbar${platform === "darwin" ? " is-mac" : ""}`}
+      className={`topbar${platform === "darwin" ? " is-mac" : platform === "browser" ? " is-browser" : ""}`}
       data-tauri-drag-region
     >
       <div className="window-drag-strip" data-tauri-drag-region />

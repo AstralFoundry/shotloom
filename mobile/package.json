@@ -1,0 +1,7 @@
+{
+  "name": "shotloom-mobile",
+  "private": true,
+  "scripts": {
+    "tauri": "node ../node_modules/@tauri-apps/cli/tauri.js"
+  }
+}

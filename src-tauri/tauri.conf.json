@@ -6,9 +6,9 @@
   "plugins": {
     "updater": {
       "endpoints": [
-        "https://github.com/AstralFoundry/shotloom/releases/latest/download/latest.json"
+        "https://github.com/854771076/shotloom/releases/latest/download/latest.json"
       ],
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDdCQTE4NUY3QkM1QUM5OUQKUldTZHlWcTg5NFdoZTF1OXhhR2N5enQ0blQ0N3RUSXowOXhpb1hLSXdHN0hpVmpjRlRtN0tUYSsK"
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDIxNDYyM0E1NkJBREQyNEQKUldSTjBxMXJwU05HSVZyN3VPVVBMMWpOTG4ybVdMN0NQTUZIQnVneTg5RDdkTUJUc3ZGNU9oTW4K"
     }
   },
   "build": {
@@ -18,7 +18,7 @@
   },
   "app": {
     "security": {
-      "csp": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: asset: http://asset.localhost file: http://127.0.0.1:*; media-src 'self' data: blob: asset: http://asset.localhost file: http://127.0.0.1:*; connect-src 'self' ipc://localhost http://ipc.localhost https://ipc.localhost tauri://localhost asset: http://asset.localhost blob: data: http://localhost:3080 https://mediashares.openreel.video; font-src 'self' data:; worker-src 'self' blob:; frame-src 'self' http://127.0.0.1:*; object-src 'none'; base-uri 'self';",
+      "csp": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: asset: http://asset.localhost file: http://127.0.0.1:* https://dnxsksdoipdctstpqtsa.supabase.co; media-src 'self' data: blob: asset: http://asset.localhost file: http://127.0.0.1:* https://dnxsksdoipdctstpqtsa.supabase.co; connect-src 'self' ipc://localhost http://ipc.localhost https://ipc.localhost tauri://localhost asset: http://asset.localhost blob: data: http://localhost:3080 https://mediashares.openreel.video https://dnxsksdoipdctstpqtsa.supabase.co http://localhost:3001 http://127.0.0.1:3001; font-src 'self' data:; worker-src 'self' blob:; frame-src 'self' http://127.0.0.1:* https://pancake.waffo.ai; object-src 'none'; base-uri 'self';",
       "assetProtocol": {
         "enable": true,
         "scope": [
