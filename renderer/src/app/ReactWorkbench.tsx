@@ -1,3 +1,4 @@
+import { mountAppTheme } from '../services/appTheme';
 import { ProviderPluginsPanel } from './views/ProviderPluginsPanel';
 import { getLocale, LOCALE_STORAGE_KEY } from '@/i18n';
 import { t } from '@/i18n';
@@ -86,6 +87,7 @@ import { registerDirectorDeskNavigator } from "../services/directorDeskAgentRunt
  * React 主工作台根；领域状态通过框架无关订阅同步到视图。
  */
 export function ReactWorkbench() {
+  useEffect(mountAppTheme, []);
   const [, refresh] = useReducer((value) => value + 1, 0);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);

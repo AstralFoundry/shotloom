@@ -102,8 +102,8 @@ export function directorDeskFrameSrc(instanceId: string, theme: DirectorDeskThem
 }
 
 /** 整页工作区入口（侧栏「3D导演台」）：和画布节点共用同一个导演台文档。 */
-export function directorDeskWorkspaceSrc(instanceId = ''): string {
-  return `./director-desk-app/index.html?theme=light&workspace=${encodeURIComponent(instanceId)}`;
+export function directorDeskWorkspaceSrc(instanceId = '', theme: DirectorDeskTheme = 'light'): string {
+  return `./director-desk-app/index.html?theme=${theme}&workspace=${encodeURIComponent(instanceId)}`;
 }
 
 function post(frame: HTMLIFrameElement | null, message: { type: string; payload?: unknown }) {
@@ -122,6 +122,10 @@ function post(frame: HTMLIFrameElement | null, message: { type: string; payload?
  */
 function plainMessage<T>(message: T): T {
   return JSON.parse(JSON.stringify(message)) as T;
+}
+
+export function sendDirectorDeskTheme(frame: HTMLIFrameElement | null, theme: DirectorDeskTheme) {
+  post(frame, { type: 'storyai:director-desk-theme', payload: { theme } });
 }
 
 export function sendDirectorDeskSession(

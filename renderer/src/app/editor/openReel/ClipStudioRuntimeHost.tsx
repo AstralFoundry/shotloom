@@ -1,3 +1,4 @@
+import { getResolvedAppTheme, subscribeAppTheme } from '../../../services/appTheme';
 import { getLocale, t } from '@/i18n';
 import { useEffect, useRef } from "react";
 import { showToast } from "../../../store/notificationStore";
@@ -52,7 +53,7 @@ export function ClipStudioRuntimeHost(props: Props) {
     const host: ClipStudioHost = {
       ...(nativeEncoder ? { nativeExport: nativeEncoder.bridge } : {}),
       ready: Promise.resolve(), persistenceKey,
-      app: { locale: getLocale(), theme: "light" },
+      app: { locale: getLocale(), theme: getResolvedAppTheme(), onChange: listener => subscribeAppTheme(() => listener({ theme: getResolvedAppTheme() })) },
       project: {
         changed: () => { void runtime?.getState().catch(props.callbacks.onError); },
         bindFlush: (flush) => { flushers.add(flush); return () => { flushers.delete(flush); }; },

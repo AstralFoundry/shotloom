@@ -10427,5 +10427,11 @@
   "plugins.searchNpm": "搜索 npm",
   "plugins.marketHint": "从 npm 搜索 shotloom-plugin- 插件，安装前检查格式与完整性。",
   "plugins.noMarketResults": "暂未找到符合命名规范的插件，可更换关键词或下载源后重试",
-  "plugins.loadMore": "加载更多"
+  "plugins.loadMore": "加载更多",
+  "settings.theme": "外观",
+  "settings.themeLight": "浅色",
+  "settings.themeDark": "深色",
+  "settings.themeSystem": "跟随系统",
+  "settings.themeHint": "立即应用于界面、导演台和剪辑器",
+  "settings.themeLabel": "主题"
 }

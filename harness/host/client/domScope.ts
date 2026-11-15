@@ -3,12 +3,34 @@
 const surfaces = new Set<ShadowRoot>();
 const mirrors = new Map<ShadowRoot, Map<HTMLStyleElement, HTMLStyleElement>>();
 let overlays: HTMLElement | undefined;
+
+/** Document roots collapse to one shadow host; qualifiers belong inside :host(). */
+export function scopeDocumentCss(css: string) {
+  return css.replace(/([^{}]+)\{/g, (rule, selectors: string) => {
+    if (selectors.trimStart().startsWith('@')) return rule;
+    return selectors.split(',').map(selector => {
+      const leading = selector.match(/^\s*/)?.[0] || '';
+      let rest = selector.trimStart();
+      let qualifiers = '';
+      let matched = false;
+      while (true) {
+        const root = rest.match(/^(?:html|body|:root)((?:\[[^\]]*\]|\.[\w-]+|#[\w-]+)*)(?=$|[\s>:+~])/);
+        if (!root) break;
+        matched = true; qualifiers += root[1]; rest = rest.slice(root[0].length);
+        const descendant = rest.match(/^\s+(?:>\s*)?(?=html\b|body\b|:root\b)/);
+        if (!descendant) break;
+        rest = rest.slice(descendant[0].length);
+      }
+      return matched ? `${leading}${qualifiers ? `:host(${qualifiers})` : ':host'}${rest}` : selector;
+    }).join(',') + '{';
+  });
+}
 function syncStyles() {
   if (!overlays) return;
   const sources = [...overlays.querySelectorAll<HTMLStyleElement>('style[data-plugin]')];
   for (const source of sources) {
     // Upstream document theme selectors become the ShadowRoot's host selectors.
-    const css = source.textContent!.replaceAll(':root', ':host').replace(/\b(?:body|html)(?=[\s[.:{>])/g, ':host');
+    const css = scopeDocumentCss(source.textContent!);
     if (source.textContent !== css) source.textContent = css;
   }
   for (const root of surfaces) {
@@ -29,6 +51,7 @@ function syncTheme(root: ShadowRoot) {
   const host = root.host as HTMLElement;
   host.style.colorScheme = overlays.style.colorScheme;
   host.toggleAttribute('data-ds-dark-theme', overlays.hasAttribute('data-ds-dark-theme'));
+  if (overlays.dataset.platform) host.dataset.platform = overlays.dataset.platform;
   for (const name of overlays.style) if (name.startsWith('--')) host.style.setProperty(name, overlays.style.getPropertyValue(name));
 }
 export function registerSurface(root: ShadowRoot) {
@@ -38,7 +61,7 @@ export function registerSurface(root: ShadowRoot) {
 export function setOverlayRoot(root: HTMLElement) {
   overlays = root;
   const theme = new MutationObserver(() => { for (const surface of surfaces) syncTheme(surface); });
-  theme.observe(root, { attributes: true, attributeFilter: ['style', 'data-ds-dark-theme'] });
+  theme.observe(root, { attributes: true, attributeFilter: ['style', 'data-ds-dark-theme', 'data-platform'] });
   const styles = new MutationObserver(syncStyles);
   styles.observe(root, { childList: true, subtree: true, characterData: true });
   return () => { theme.disconnect(); styles.disconnect(); if (overlays === root) overlays = undefined; };

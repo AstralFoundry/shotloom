@@ -1,6 +1,8 @@
 import type { SVGProps } from "react";
 
 const paths = {
+  palette: '<path d="M12 3a9 9 0 1 0 0 18h1a2 2 0 0 0 1.4-3.4 1.5 1.5 0 0 1 1.1-2.6H18a3 3 0 0 0 3-3 9 9 0 0 0-9-9Z"/><circle cx="7.5" cy="11" r=".8" fill="currentColor"/><circle cx="10" cy="7" r=".8" fill="currentColor"/><circle cx="15" cy="7.5" r=".8" fill="currentColor"/><circle cx="17.5" cy="11" r=".8" fill="currentColor"/>',
+  monitor: '<rect x="3" y="4" width="18" height="13" rx="2"/><path d="M12 17v4M8 21h8"/>',
   library: '<rect x="3" y="3" width="4" height="18" rx="1"/><rect x="7" y="3" width="4" height="18" rx="1"/><path d="m13 4 3.8-1 5 17-3.8 1Z"/>',
   blocks: '<rect x="3" y="7" width="8" height="14" rx="1"/><path d="M3 13h8"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="11" y="13" width="10" height="8" rx="1"/>',
   "scan-text": '<path d="M4 8V5a1 1 0 0 1 1-1h3"/><path d="M16 4h3a1 1 0 0 1 1 1v3"/><path d="M20 16v3a1 1 0 0 1-1 1h-3"/><path d="M8 20H5a1 1 0 0 1-1-1v-3"/><path d="M8 9h8"/><path d="M8 12h8"/><path d="M8 15h5"/>',

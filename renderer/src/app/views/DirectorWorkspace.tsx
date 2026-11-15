@@ -1,3 +1,4 @@
+import { getResolvedAppTheme, subscribeAppTheme } from '../../services/appTheme';
 import { useCallback, useEffect, useRef } from 'react';
 import { getLocale, t } from '@/i18n';
 import { create } from 'zustand';
@@ -5,6 +6,7 @@ import {
   directorDeskAgentProtocol,
   sendDirectorDeskProjectSaved,
   sendDirectorDeskSession,
+  sendDirectorDeskTheme,
   subscribeDirectorDesk,
 } from '../adapters/directorDeskBridge';
 import { useAppStore } from '../store/appStore';
@@ -47,9 +49,11 @@ export const useDirectorWorkspaceExport = create<WorkspaceExportState>((set) => 
   setRequest: (handler) => set({ request: handler }),
 }));
 
-export function DirectorWorkspace({ src, onReady, onExit, onOpenAgent }: { src: (instanceId: string) => string; onReady?: () => void; onExit?: () => void; onOpenAgent?: (entityId?: string) => void }) {
+export function DirectorWorkspace({ src, onReady, onExit, onOpenAgent }: { src: (instanceId: string, theme?: 'light' | 'dark') => string; onReady?: () => void; onExit?: () => void; onOpenAgent?: (entityId?: string) => void }) {
   const projectId = useAppStore((state) => state.currentProject?.id ?? 'local');
   const frameRef = useRef<HTMLIFrameElement>(null);
+  const initialTheme = useRef(getResolvedAppTheme());
+  useEffect(() => subscribeAppTheme(() => sendDirectorDeskTheme(frameRef.current, getResolvedAppTheme())), []);
   /** Latest document this instance reported, used when sending it to a canvas node. */
   const latestDocument = useRef<unknown>(null);
   const storageKey = `${STORAGE_PREFIX}${projectId}`;
@@ -76,7 +80,7 @@ export function DirectorWorkspace({ src, onReady, onExit, onOpenAgent }: { src: 
       touchProject();
     }
     if (project && (project as { format?: string }).format !== 'director-desk') project = null;
-    sendDirectorDeskSession(frameRef.current, { instanceId: `workspace-${projectId}`, artifactScope: projectId, theme: 'light', locale: getLocale(), project });
+    sendDirectorDeskSession(frameRef.current, { instanceId: `workspace-${projectId}`, artifactScope: projectId, theme: getResolvedAppTheme(), locale: getLocale(), project });
   }, [projectId, storageKey]);
 
   useEffect(() => {
@@ -118,7 +122,7 @@ export function DirectorWorkspace({ src, onReady, onExit, onOpenAgent }: { src: 
       <iframe
         ref={frameRef}
         className="director-workspace-frame"
-        src={src(`workspace-${projectId}`)}
+        src={src(`workspace-${projectId}`, initialTheme.current)}
         title="3D导演台"
         onLoad={sendSession}
       />

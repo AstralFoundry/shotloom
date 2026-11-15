@@ -1,3 +1,4 @@
+import { useThemeStore } from "../stores/theme-store";
 import { createRoot } from "react-dom/client";
 import { EditorInterface } from "../components/editor/EditorInterface";
 import { AstryxProvider } from "../components/astryx/AstryxProvider";
@@ -18,6 +19,11 @@ export function mountSession(options: ClipStudioRuntimeOptions, releaseEnvironme
   Object.defineProperty(container, "ownerDocument", { get: () => document });
   const reactRoot = createRoot(container);
   const runtime = createEmbeddedRuntime(options);
+  const applyTheme = (value: string | undefined) => {
+    if (value === 'light' || value === 'dark' || value === 'auto') useThemeStore.getState().setMode(value);
+  };
+  applyTheme(options.host.app.theme);
+  const unsubscribeTheme = options.host.app.onChange?.(next => applyTheme(next.theme));
   runtime.setPresentation(options.presentation, options.layout);
   runtime.setActive(options.active);
   document.documentElement.lang = options.host.app.locale === 'en-US' ? 'en-US' : 'zh-CN';
@@ -27,6 +33,7 @@ export function mountSession(options: ClipStudioRuntimeOptions, releaseEnvironme
   reactRoot.render(<AstryxProvider><EditorInterface /></AstryxProvider>);
   const dispose = runtime.dispose;
   runtime.dispose = async () => {
+    unsubscribeTheme?.();
     reactRoot.unmount();
     stopShotloomI18n();
     try { await dispose(); } finally { releaseEnvironment(); container.remove(); }

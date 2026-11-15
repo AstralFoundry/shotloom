@@ -201,8 +201,16 @@ function chatLayout(ctx: ClientContext) {
       document.body.style.setProperty('--dsh-content-font-size', `${snapshot.fontSizes.text}px`);
       document.body.style.setProperty('--dsh-code-font-size', `${snapshot.fontSizes.code}px`);
     };
+    const syncProductTheme = () => {
+      const theme = globalThis.document.documentElement.classList.contains('dark') ? 'dark' : 'light';
+      if (scope.theme.getTheme().preference !== theme) scope.theme.setTheme(theme);
+    };
+    syncProductTheme();
     apply(scope.theme.getTheme());
-    scope.on('theme/change', apply);
+    const observer = new MutationObserver(syncProductTheme);
+    observer.observe(globalThis.document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    scope.effect(() => () => observer.disconnect(), 'shotloom: product theme');
+    scope.on('theme/change', () => { syncProductTheme(); apply(scope.theme.getTheme()); });
   });
 }
 

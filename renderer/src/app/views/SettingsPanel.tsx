@@ -1,3 +1,5 @@
+import type { ThemePreference, ThemeOrigin } from '../../utils/appTheme';
+import { ThemeSwitch } from '../components/ThemeSwitch';
 import { t } from '@/i18n';
 import { InputNumber, Select, Switch } from "antd";
 import {
@@ -13,6 +15,7 @@ export interface SettingsModel {
 }
 export interface SettingsData {
   locale?: string;
+  themePreference?: string;
   projectRootDir: string;
   downloadDir: string;
   pollInterval: number;
@@ -23,6 +26,7 @@ export interface SettingsData {
   shortcutLabels: Record<string, string>;
 }
 export interface SettingsController {
+  setThemePreference?: (value: ThemePreference, origin?: ThemeOrigin) => void | Promise<void>;
   setLocale?: (locale: string) => void | Promise<void>;
   selectProjectRoot: () => void | Promise<void>;
   selectDownloadDir: () => void | Promise<void>;
@@ -234,6 +238,10 @@ export function SettingsPanel(
                       { value: "en-US", label: "English" },
                     ]}
                   />
+                </div>
+                <div className="settings-row">
+                  <div><strong>{t('settings.theme')}</strong><span>{t('settings.themeHint')}</span></div>
+                  <ThemeSwitch value={data.themePreference || 'light'} onChange={(value, origin) => void controller.setThemePreference?.(value, origin)} />
                 </div>
                 <h4>{t("ui.SettingsPanel.text.93ded934")}</h4>
                 <div className="settings-row">

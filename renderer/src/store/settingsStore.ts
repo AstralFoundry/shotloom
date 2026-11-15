@@ -1,3 +1,4 @@
+import { normalizeThemePreference, type ThemePreference } from '../utils/appTheme';
 import { loadProviderPlugins } from './providerPluginStore';
 import { t } from '../i18n/index.ts';
 import { getLocale, normalizeLocale } from '@/i18n';
@@ -43,6 +44,7 @@ interface RuntimeProtection {
 export const settingsStore = reactive({
   storageVersion: 7,
   locale: getLocale(),
+  themePreference: 'light' as ThemePreference,
   providerConfigs: {} as ProviderConfigs,
   balance: 0, rawQuota: 0, usedQuota: 0,
   tokenGroups: [] as TokenGroup[], activeTokenGroupId: '',
@@ -122,6 +124,7 @@ function toPlainSettings(patch: AnyRecord = {}) {
   const next: AnyRecord = {
     storageVersion: rawStore.storageVersion,
     locale: rawStore.locale,
+    themePreference: rawStore.themePreference,
     providerConfigs: { ...rawStore.providerConfigs },
     balance: rawStore.balance, rawQuota: rawStore.rawQuota, usedQuota: rawStore.usedQuota,
     tokenGroups: normalizeTokenGroups(rawStore.tokenGroups),
@@ -144,6 +147,7 @@ function toPlainSettings(patch: AnyRecord = {}) {
     runtimeProtection: { ...rawStore.runtimeProtection },
     ...rawPatch,
   };
+  next.themePreference = normalizeThemePreference(next.themePreference);
   next.tokenGroups = normalizeTokenGroups(next.tokenGroups);
   next.canvasAppearance = normalizeCanvasAppearance(next.canvasAppearance);
   next.providerConfigs = normalizeProviderConfigs(next.providerConfigs);
@@ -153,6 +157,7 @@ function toPlainSettings(patch: AnyRecord = {}) {
 function applySettings(settings: AnyRecord) {
   settingsStore.storageVersion = settings.storageVersion;
   settingsStore.locale = normalizeLocale(settings.locale);
+  settingsStore.themePreference = normalizeThemePreference(settings.themePreference);
   settingsStore.providerConfigs = normalizeProviderConfigs(toRaw(settings.providerConfigs) || {});
   settingsStore.balance = Number.isFinite(settings.balance) ? settings.balance : 0;
   settingsStore.rawQuota = Number.isFinite(settings.rawQuota) ? settings.rawQuota : 0;

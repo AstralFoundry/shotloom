@@ -20,7 +20,6 @@ import { createScene } from '@/core/scene-templates.ts';
 import { FRAMING_NAMES } from '@/state/commands/scene.ts';
 import { patchFieldCatalog } from '@/core/editor/patch-fields.ts';
 import * as THREE from 'three';
-import { setEditorTheme } from '@/core/editor/theme-state.ts';
 import { setReferenceBackdrop } from '@/state/reference-backdrop.ts';
 import { setLanguage } from '@/shared/i18n/locale.ts';
 import type { BatchEdit } from '@/state/batch-edits.ts';
@@ -792,12 +791,17 @@ export function initializeHostBridge() {
         if (event.origin !== origin || event.source !== parent || !event.data || typeof event.data.type !== 'string') return;
         const message = event.data as { type: string; payload?: Input };
         const payload = message.payload ?? {};
+        if (message.type === 'storyai:director-desk-theme') {
+            const theme = string(payload.theme);
+            if (theme === 'light' || theme === 'dark') session.setTheme(theme, false);
+            return;
+        }
         if (message.type === 'storyai:director-desk-session') {
             setLanguage(payload.locale === 'en-US' ? 'en' : 'zh-CN');
             // The host decides how the desk is embedded, so its theme wins over the URL and
             // over whatever this browser stored from a previous standalone run.
             const theme = string(payload.theme);
-            if (theme === 'light' || theme === 'dark') setEditorTheme(theme, false);
+            if (theme === 'light' || theme === 'dark') session.setTheme(theme, false);
             try {
                 const initialized = hostSession.initialize(string(payload.instanceId), () => {
                     window.clearTimeout(saveTimer);

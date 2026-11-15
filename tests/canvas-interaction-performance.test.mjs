@@ -434,7 +434,7 @@ test('vendored 导演台只通过宿主适配层通信', () => {
   assert.doesNotMatch(director, /storyai:director-desk/);
   assert.doesNotMatch(director, /director-desk\.html/);
   assert.match(director, /subscribeDirectorDesk\(getFrame, \{/);
-  assert.match(director, /src=\{directorDeskFrameSrc\(node\.id, "light"\)\}/);
+  assert.match(director, /src=\{directorDeskFrameSrc\(node\.id, initialTheme\.current\)\}/);
 });
 test('并发任务轮询只在状态变化时触发合并持久化', () => {
   const update =

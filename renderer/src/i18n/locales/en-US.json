@@ -10427,5 +10427,11 @@
   "plugins.searchNpm": "Search npm",
   "plugins.marketHint": "Search npm for shotloom-plugin- packages. Format and integrity are checked before installation.",
   "plugins.noMarketResults": "No matching plugin packages. Try another query or registry.",
-  "plugins.loadMore": "Load more"
+  "plugins.loadMore": "Load more",
+  "settings.theme": "Appearance",
+  "settings.themeLight": "Light",
+  "settings.themeDark": "Dark",
+  "settings.themeSystem": "System",
+  "settings.themeHint": "Applies immediately to the interface, director desk and editor",
+  "settings.themeLabel": "Theme"
 }

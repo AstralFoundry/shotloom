@@ -621,3 +621,8 @@
 @media (max-width: 600px) {
   .provider-plugin-details dl { grid-template-columns: minmax(80px, 100px) minmax(0, 1fr); gap: 8px; }
 }
+.theme-switch.ant-segmented { flex: 0 0 auto; padding: 3px; border-radius: var(--radius-control); background: var(--surface-2); }
+.settings-row > .theme-switch { justify-self: end; }
+.theme-switch .ant-segmented-item-label { min-height: 30px; padding: 0 8px; }
+.theme-switch .theme-switch-icon { display: flex; align-items: center; justify-content: center; height: 30px; }
+.theme-switch .theme-switch-icon svg { width: 18px; height: 18px; flex: 0 0 18px; }

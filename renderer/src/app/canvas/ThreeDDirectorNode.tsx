@@ -1,3 +1,4 @@
+import { getResolvedAppTheme, subscribeAppTheme } from '../../services/appTheme';
 import { store } from '../../store/projectStore';
 import { desktopApi } from '../../services/desktopApi';
 import { mediaSourceUrl } from '../../services/mediaPoster';
@@ -21,6 +22,7 @@ import {
   directorDeskAgentProtocol,
   sendDirectorDeskPanorama,
   sendDirectorDeskSession,
+  sendDirectorDeskTheme,
   sendDirectorDeskSceneLoad,
   subscribeDirectorDesk,
   type DirectorDeskPanorama,
@@ -56,6 +58,8 @@ export const ThreeDDirectorNode: WorkflowNodeRenderer = memo(
     const summary = directorProjectSummary(readDirectorProject(node));
     const [selection, setSelection] = useState('');
     const detailIframeRef = useRef<HTMLIFrameElement>(null);
+    const initialTheme = useRef(getResolvedAppTheme());
+    useEffect(() => subscribeAppTheme(() => sendDirectorDeskTheme(detailIframeRef.current, getResolvedAppTheme())), []);
     // The workspace runs in its own iframe, so its scene can only be read on demand. Subscribe
     // to the reader's existence (not its result) so the button appears once a workspace is live.
     const hasWorkspace = useDirectorWorkspaceExport((state) => state.request !== null);
@@ -71,7 +75,7 @@ export const ThreeDDirectorNode: WorkflowNodeRenderer = memo(
       sendDirectorDeskSession(detailIframeRef.current, {
         instanceId: node.id,
         artifactScope: store.project.id,
-        theme: "light",
+        theme: getResolvedAppTheme(),
         locale: getLocale(),
         project: readDirectorProject(node),
       });
@@ -270,7 +274,7 @@ export const ThreeDDirectorNode: WorkflowNodeRenderer = memo(
             <iframe
               ref={detailIframeRef}
               // 详情窗口使用独立布局；embedded=canvas 会触发导演台的缩略嵌入样式。
-              src={directorDeskFrameSrc(node.id, "light")}
+              src={directorDeskFrameSrc(node.id, initialTheme.current)}
               title={t("ui.ThreeDDirectorNode.arialabel.fad461cc")}
               className="director-detail-frame"
               onLoad={() => { sendSession(); sendPanorama(); }}

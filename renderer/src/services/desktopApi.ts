@@ -415,6 +415,7 @@ function createBrowserFallback() {
         const current = JSON.parse(localStorage.getItem('shotloom-settings') || 'null') || {};
         const next = {
           storageVersion: 7,
+          themePreference: current.themePreference || 'light',
           providerConfigs: current.providerConfigs || {},
           balance: current.balance || 0,
           rawQuota: current.rawQuota || 0,

@@ -1,3 +1,8 @@
+import { useSyncExternalStore } from 'react';
+import { getAppThemeSnapshot, subscribeAppTheme, changeAppTheme, getResolvedAppTheme } from '../../services/appTheme';
+import { settingsStore } from '../../store/settingsStore';
+import { showErrorMessage } from '../../store/notificationStore';
+import { ThemeSwitch } from '../components/ThemeSwitch';
 import { t } from '@/i18n';
 import { IconSymbol } from "../components/IconSymbol";
 import { InteractiveLogo } from "../components/InteractiveLogo";
@@ -27,6 +32,8 @@ export function SideBar(
     onPreviewOpenChange,
   }: SideBarProps,
 ) {
+  useSyncExternalStore(subscribeAppTheme, getAppThemeSnapshot, getAppThemeSnapshot);
+  const themeLabel = t('settings.theme');
   const route = useAppStore((state) => state.route);
   const project = useAppStore((state) => state.currentProject);
   const collapsed = useAppStore((state) => state.sidebarCollapsed);
@@ -130,6 +137,15 @@ export function SideBar(
           {applicationNavigation}
         </div>
         <footer className="sidebar-footer">
+          <div className="sidebar-theme-row">
+            <button className="sidebar-theme-label" type="button" title={themeLabel} aria-label={themeLabel} onClick={event => {
+              const rect = event.currentTarget.getBoundingClientRect();
+              void changeAppTheme(getResolvedAppTheme() === 'dark' ? 'light' : 'dark', { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 }).catch(error => showErrorMessage(String(error), themeLabel));
+            }}><IconSymbol name="palette" /><span>{t('settings.themeLabel')}</span></button>
+            {!iconRail && <ThemeSwitch value={settingsStore.themePreference} onChange={(themePreference, origin) => {
+              void changeAppTheme(themePreference, origin).catch(error => showErrorMessage(String(error), themeLabel));
+            }} />}
+          </div>
           <button type="button" title={t("ui.SideBar.title.a6df3858")} onClick={onUpdate}>
             <IconSymbol name="package" />
             <span>{t("ui.SideBar.title.a6df3858")}</span>

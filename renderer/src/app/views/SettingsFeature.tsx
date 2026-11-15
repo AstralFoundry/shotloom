@@ -1,3 +1,4 @@
+import { changeAppTheme } from '../../services/appTheme';
 import { LOCALE_STORAGE_KEY, normalizeLocale } from '@/i18n';
 import { flushAutoSave, hasOpenProject } from '../../store/projectStore';
 import { t } from '@/i18n';
@@ -75,6 +76,7 @@ export function SettingsFeature() {
     );
     return {
       locale: settingsStore.locale,
+      themePreference: settingsStore.themePreference,
       projectRootDir: settingsStore.projectRootDir || "",
       downloadDir: fileStore.downloadDir || "",
       pollInterval: settingsStore.modelPollIntervalMs,
@@ -145,6 +147,7 @@ export function SettingsFeature() {
   }
 
   const controller: SettingsController = {
+    setThemePreference: (value, origin) => run(async () => { await changeAppTheme(value, origin); }),
     setLocale: locale => run(async () => {
       // 先保存工程，再重载所有模块和独立 iframe，避免模块级菜单保留旧语言。
       if (hasOpenProject() && !await flushAutoSave()) return;
