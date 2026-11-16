@@ -43,6 +43,7 @@ jobs:
           api-level: 35
           arch: x86_64
           target: google_apis
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none -dns-server 8.8.8.8,1.1.1.1
           disable-animations: true
           script: |
             if [ -n "$BASELINE_RUN" ]; then adb install baseline/Shotloom-Preview.apk; else adb install acceptance/Shotloom-Preview.apk; fi
