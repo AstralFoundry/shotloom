@@ -4,26 +4,43 @@ import { resolveAppTheme, type ThemePreference, type ThemeOrigin } from '../util
 
 let activeTransition: ViewTransition | undefined;
 
-/** Capture the old UI before saving; reveal the updated UI from the clicked control. */
+/** Capture the old UI before saving; reveal the updated UI from the bottom-left corner. */
 export async function changeAppTheme(preference: ThemePreference, origin?: ThemeOrigin) {
   activeTransition?.skipTransition();
+  activeTransition = undefined;
+  if (typeof document !== 'undefined') document.documentElement.removeAttribute('data-theme-transition');
   const next = resolveAppTheme(preference, systemTheme()?.matches || false);
   if (typeof document === 'undefined' || !document.startViewTransition || !origin
     || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches || next === getResolvedAppTheme()) {
     await saveAppSettings({ themePreference: preference });
     return;
   }
-  const x = Math.max(0, Math.min(origin.x, window.innerWidth));
-  const y = Math.max(0, Math.min(origin.y, window.innerHeight));
-  const radius = Math.hypot(Math.max(x, window.innerWidth - x), Math.max(y, window.innerHeight - y));
-  const transition = document.startViewTransition(async () => { await saveAppSettings({ themePreference: preference }); });
+  const root = document.documentElement;
+  // The reveal already supplies the motion. Hundreds of component color transitions
+  // would otherwise keep repainting the new snapshot while it is being revealed.
+  root.setAttribute('data-theme-transition', '');
+  const transition = document.startViewTransition(async () => {
+    await saveAppSettings({ themePreference: preference });
+    // Let domain subscribers, React and the Ant Design theme observer commit before
+    // the browser captures the new view, rather than updating it during the reveal.
+    // View transitions suppress rendering here, so requestAnimationFrame would
+    // wait for the capture that is itself waiting on this callback.
+    await new Promise<void>(resolve => setTimeout(resolve, 0));
+  });
   activeTransition = transition;
   void transition.ready.then(() => {
-    document.documentElement.animate({ clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${radius}px at ${x}px ${y}px)`] }, {
-      duration: 800, easing: 'cubic-bezier(.22, .61, .36, 1)', pseudoElement: '::view-transition-new(root)',
+    // Percentages resolve against the transition snapshot itself, so the origin
+    // stays at its bottom-left corner regardless of window scale or dimensions.
+    document.documentElement.animate({ clipPath: ['circle(0% at 0% 100%)', 'circle(150% at 0% 100%)'] }, {
+      duration: 200, easing: 'cubic-bezier(.25, 0, 1, 1)', pseudoElement: '::view-transition-new(root)',
     });
   }).catch(() => transition.skipTransition());
-  const clear = () => { if (activeTransition === transition) activeTransition = undefined; };
+  const clear = () => {
+    if (activeTransition === transition) {
+      activeTransition = undefined;
+      root.removeAttribute('data-theme-transition');
+    }
+  };
   void transition.finished.then(clear, clear);
   await transition.updateCallbackDone;
 }

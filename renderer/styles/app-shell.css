@@ -336,6 +336,9 @@ label.button {
 .sidebar-theme-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 36px; }
 .sidebar-footer .sidebar-theme-label { width: auto; flex: 0 0 auto; white-space: nowrap; }
 
+html[data-theme-transition] *,
+html[data-theme-transition] *::before,
+html[data-theme-transition] *::after { transition: none !important; }
 ::view-transition-old(root), ::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
 ::view-transition-old(root) { z-index: 1; }
 ::view-transition-new(root) { z-index: 2; }
