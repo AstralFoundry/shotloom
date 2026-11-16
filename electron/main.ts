@@ -17,6 +17,7 @@ import './ipc/commands/generation';
 import './ipc/commands/openreel';
 import './ipc/commands/plugins';
 import './ipc/commands/videoExport';
+import './ipc/commands/agentE2e';
 import { initializeRecovery, markCleanExit } from './core/recovery';
 import { shutdownHarnessRuntime } from './core/harness';
 import { cancelUpdateDownload, checkForUpdate, downloadUpdate, installUpdate } from './core/updater';

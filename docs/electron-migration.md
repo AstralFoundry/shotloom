@@ -114,6 +114,13 @@ renderer/src/desktop/
    与 macOS `scutil --proxy`，非回环目标经 undici `ProxyAgent` 转发，回环地址始终直连
    （与 Rust `Proxy::custom` 行为一致）。代理服务器需要支持 CONNECT 隧道。
 
+## 命令面覆盖
+
+迁移前 Rust 侧共有 83 个 `#[tauri::command]`；Electron 侧注册了同样的 83 个命令名
+（无缺失、无多余）。渲染进程的 `command()` 映射表与其它直接 `invoke` 调用全部命中这些
+命令；`canvas_get_node` / `canvas_media_image` / `canvas_media_frame` 是产品工具名，
+由 Harness 工具调度器在渲染进程内分发，不是原生通道。
+
 ## 验证
 
 - `npm run typecheck`（渲染进程）与 `npm run typecheck:electron`（主进程）。

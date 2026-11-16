@@ -1,13 +1,13 @@
 import { shell } from 'electron';
 import { realpath } from 'node:fs/promises';
-import { access, mkdir, stat } from 'node:fs/promises';
+import { access, mkdir } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { join } from 'node:path';
 import { defineCommand } from '../registry';
 import { localizedError } from '../../core/errors';
 import { appDataDir } from '../../core/paths';
 import {
-  copyFileResult, fileChecksum, fileResult, readArrayBufferBase64, requireSafeOpenTarget,
+  copyFileResult, fileChecksum, readArrayBufferBase64, requireSafeOpenTarget,
   uniqueFilePath, writeBase64,
 } from '../../core/files';
 
@@ -71,9 +71,3 @@ defineCommand('file_path_exists', async (args) => exists(String(args.path ?? '')
 defineCommand('file_checksum', (args) => fileChecksum(String(args.path ?? '')));
 
 defineCommand('file_resolve_unique_path', (args) => uniqueFilePath(String(args.directory ?? ''), String(args.name ?? '')));
-
-defineCommand('file_result', async (args) => {
-  const path = String(args.path ?? '');
-  await stat(path);
-  return fileResult(path);
-});
