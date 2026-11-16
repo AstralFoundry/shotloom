@@ -12,6 +12,10 @@ const kinds: FeedbackKind[] = ['feedback', 'report'];
 const statusOptions = () => statuses.map(value => ({ value, label: t(`support.${value}`) }));
 const kindOptions = () => kinds.map(value => ({ value, label: t(`support.${value}`) }));
 
+export function openFeedbackCenter() {
+  window.dispatchEvent(new Event('shotloom-open-feedback'));
+}
+
 function FeedbackThread({ id, admin = false, onBack, onChanged }: {
   id: string; admin?: boolean; onBack: () => void; onChanged: () => void;
 }) {
@@ -120,6 +124,11 @@ export function SupportCenter() {
   const submission = useRef<{ payload: string; id: string } | undefined>(undefined);
   const reload = useCallback(() => setRefresh(value => value + 1), []);
   useEffect(() => {
+    const openFeedback = () => { setTab('feedback'); setSelected(''); setOpen(true); reload(); };
+    window.addEventListener('shotloom-open-feedback', openFeedback);
+    return () => window.removeEventListener('shotloom-open-feedback', openFeedback);
+  }, [reload]);
+  useEffect(() => {
     if (!cloudEnabled) return;
     const refreshVisible = () => { if (document.visibilityState === 'visible') reload(); };
     window.addEventListener('focus', reload);
@@ -142,7 +151,6 @@ export function SupportCenter() {
   const launch = (next: string) => { setTab(next); setSelected(''); setOpen(true); reload(); };
   return <>
     <div className="support-launcher">
-      <Button onClick={() => launch('feedback')} icon={<IconSymbol name="scan-text" />}>{t('support.title')}</Button>
       <Badge count={inbox?.unread || 0}><Button aria-label={t('support.notifications')} onClick={() => launch('notifications')} icon={<IconSymbol name="bell" />} /></Badge>
     </div>
     <Modal open={open} title={t('support.title')} footer={null} onCancel={() => { if (!busy) setOpen(false); }} width={640} className="support-dialog">

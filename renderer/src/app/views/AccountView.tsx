@@ -5,6 +5,7 @@ import { t } from '../../i18n';
 import { CloudLogout } from '../CloudSession';
 import { IconSymbol } from '../components/IconSymbol';
 import { formatCredits, formatTime } from '../../utils/format';
+import { openFeedbackCenter } from '../components/SupportCenter';
 
 type Account = { username?: string; email?: string; app_quota: number; app_used_quota: number };
 type UsagePage = { total: number; page: number; page_size: number; items: { id: number; created_at: number; model_name: string; quota: number; prompt_tokens: number; completion_tokens: number }[] };
@@ -80,6 +81,10 @@ export function AccountView({ onSettings, onUpdate }: { onSettings: () => void; 
           <span className="account-action-icon"><IconSymbol name="settings" /></span>
           <span><strong>{t('account.settings')}</strong><small>{t(cloudEnabled ? 'settings.cloudGeneralDescription' : 'account.settingsDescription')}</small></span><IconSymbol name="chevron-right" />
         </button>
+        {cloudEnabled && <button type="button" className="account-action" onClick={openFeedbackCenter}>
+          <span className="account-action-icon"><IconSymbol name="scan-text" /></span>
+          <span><strong>{t('support.title')}</strong><small>{t('support.accountDescription')}</small></span><IconSymbol name="chevron-right" />
+        </button>}
       </div>
     </div>
     {onUpdate && <div className="account-mobile-tools">

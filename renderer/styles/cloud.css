@@ -40,13 +40,15 @@
 .account-wallet-bottom p { margin: 0; max-width: 28em; opacity: .75; font-size: var(--text-body-12); line-height: 1.7; }
 .account-wallet .account-topup-trigger { flex-shrink: 0; min-height: 44px; padding: 0 18px; background: var(--surface); color: var(--brand); border: 1px solid var(--surface); border-radius: var(--radius-control); }
 .account-wallet .account-topup-trigger:hover { opacity: .85; }
-.account-action { display: flex; align-items: center; gap: 16px; width: 100%; padding: 20px; min-height: 88px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-xl); color: var(--text); text-align: left; }
+.account-actions { display: grid; gap: 12px; align-content: start; }
+.account-action { display: flex; align-items: center; gap: 16px; width: 100%; padding: 20px; min-height: 88px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-xl); color: var(--text); text-align: start; cursor: pointer; }
 .account-action > span:nth-child(2) { flex: 1; min-width: 0; }
 .account-action strong { display: block; font-size: var(--text-title-16); font-weight: 500; }
 .account-action small { display: block; margin-top: 6px; color: var(--muted); font-size: var(--text-body-14); line-height: 1.5; }
 .account-action svg { width: 20px; height: 20px; flex-shrink: 0; }
-.account-action-icon { display: grid; place-items: center; width: 44px; height: 44px; border-radius: var(--radius); background: var(--surface-muted); }
+.account-action-icon { display: grid; place-items: center; flex-shrink: 0; width: 44px; height: 44px; border-radius: var(--radius); background: var(--surface-muted); }
 .account-action:hover { background: var(--surface-2); }
+.account-action:focus-visible { outline: 2px solid var(--brand-accent); outline-offset: 3px; }
 .account-mobile-tools { display: none; }
 .account-footer { display: flex; justify-content: flex-end; margin-top: 32px; }
 .account-footer .button { width: 100%; min-height: 44px; color: var(--muted); }

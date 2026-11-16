@@ -45,7 +45,7 @@ jobs:
           target: google_apis
           disable-animations: true
           script: |
-            adb install acceptance/Shotloom-Preview.apk
+            if [ -n "$BASELINE_RUN" ]; then adb install baseline/Shotloom-Preview.apk; else adb install acceptance/Shotloom-Preview.apk; fi
             adb logcat -c
             adb shell am start -W -n com.shotloom.app.preview/.MainActivity
             sleep 25
@@ -61,7 +61,6 @@ jobs:
             adb install acceptance/Shotloom-Session-Test.apk
             adb shell am instrument -w -e cookie "$TEST_SESSION_COOKIE" com.shotloom.acceptance/com.shotloom.acceptance.SessionInstrumentation > acceptance/session-setup.txt
             grep 'Test session installed' acceptance/session-setup.txt
-            if [ -n "$BASELINE_RUN" ]; then adb install -r -d baseline/Shotloom-Preview.apk; fi
             adb shell am start -W -n com.shotloom.app.preview/.MainActivity
             sleep 20
             if [ -n "$BASELINE_RUN" ]; then adb shell uiautomator dump /sdcard/baseline.xml && adb pull /sdcard/baseline.xml acceptance/baseline.xml && grep -E 'Checking login|正在检查登录状态' acceptance/baseline.xml && adb shell am force-stop com.shotloom.app.preview && adb install -r acceptance/Shotloom-Preview.apk && adb shell am start -W -n com.shotloom.app.preview/.MainActivity && sleep 20; fi
