@@ -47,7 +47,7 @@ jobs:
           api-level: 35
           arch: x86_64
           target: google_apis
-          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none -dns-server 10.0.2.2
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none -dns-server 127.0.0.1
           disable-animations: true
           script: bash .github/scripts/native-acceptance.sh
       - uses: actions/upload-artifact@v4
