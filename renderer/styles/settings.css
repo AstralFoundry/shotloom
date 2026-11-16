@@ -428,10 +428,10 @@
 .settings-section h4,
 .settings-heading { color: var(--type-primary); font-size: var(--text-body-14); font-weight: 500; }
 .settings-row strong,
-.canvas-shortcut-setting strong { color: var(--type-primary); font-size: var(--text-body-14); line-height: var(--text-body-14--line-height); font-weight: 400; letter-spacing: 0; }
+.canvas-shortcut-setting strong { color: var(--type-primary); font-size: var(--text-body-14); line-height: var(--text-body-14--line-height); font-weight: 400; letter-spacing: var(--tracking-normal); }
 .settings-row > div:first-child > span,
 .canvas-shortcut-setting span,
-.settings-meta { color: var(--muted); font-size: var(--text-body-12); line-height: var(--text-body-13--line-height); font-weight: 400; letter-spacing: 0; }
+.settings-meta { color: var(--muted); font-size: var(--text-body-12); line-height: var(--text-body-13--line-height); font-weight: 400; letter-spacing: var(--tracking-normal); }
 .settings-control-wide input,
 .shortcut-recorder { color: var(--type-primary); font-size: var(--text-body-14); font-weight: 400; }
 .settings-status-pill { font-size: var(--text-caption-11); font-weight: 400; }
