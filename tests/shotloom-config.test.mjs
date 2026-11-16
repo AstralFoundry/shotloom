@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { readShotloomConfig, tauriBuildOverride, tauriDevOverride } from '../scripts/shotloom-config.mjs';
+import { readShotloomConfig } from '../scripts/shotloom-config.mjs';
 
 const yaml = (port = 5188) => `version: 1
 development:
@@ -52,11 +52,10 @@ test('YAML supplies the shared development URL and application defaults', () => 
     assert.equal(config.defaults.project.autoSave, false);
     assert.equal(config.defaults.agent.autoEval, false);
     assert.equal(config.defaults.generation.pollIntervalMs, 2100);
-    const devOverride = JSON.parse(tauriDevOverride(config));
-    assert.equal(devOverride.build.devUrl, 'http://127.0.0.1:5188');
-    assert.equal(devOverride.app.windows[0].width, 1200);
-    assert.equal(devOverride.app.windows[0].title, 'Shotloom Test');
-    assert.equal(JSON.parse(tauriBuildOverride(config)).build, undefined);
+    // 窗口尺寸由 Electron 主进程读取同一份配置；开发服务器地址由 Vite 配置复用同一端口。
+    assert.equal(config.desktop.mainWindow.width, 1200);
+    assert.equal(config.desktop.mainWindow.title, 'Shotloom Test');
+    assert.equal(`http://${config.development.webHost}:${config.development.webPort}`, 'http://127.0.0.1:5188');
     writeFileSync(path, yaml(0));
     assert.throws(() => readShotloomConfig(path), /development\.webPort/);
     writeFileSync(path, yaml().replace('webPort: 5188', 'webPort: 5188\n  webPort: 5199'));

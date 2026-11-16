@@ -21,7 +21,7 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-  native:
+  electron:
     needs: product
     strategy:
       fail-fast: false
@@ -32,20 +32,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-project
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri
-      - run: npm run prepare:media
-      - name: Expose media tools to native integration tests
-        shell: bash
-        run: |
-          node -e "for (const file of [require('ffmpeg-static'), require('ffprobe-static').path]) console.log(require('node:path').dirname(file))" >> "$GITHUB_PATH"
+      - run: npm run typecheck:electron
+      - run: npm run prepare:plugins
       - run: npm run prepare:harness
-      # generate_context! embeds frontendDist even when compiling lib tests.
-      - name: Restore verified frontend for Tauri context
-        uses: actions/download-artifact@v4
-        with:
-          name: verified-frontend
-          path: dist/renderer/
-      - run: cargo test --locked --manifest-path src-tauri/Cargo.toml --lib
+      - run: npm run prepare:media
+      - run: npm run smoke:electron
+      - run: npm run harness:verify-package

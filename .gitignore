@@ -7,10 +7,6 @@ npm-debug.log*
 .claude/
 .playwright-cli/
 release/
-src-tauri/target/
-src-tauri/gen/
-src-tauri/browser/
-src-tauri/binaries/
 # 由 scripts/prepare-openreel.mjs 从 vendor/openreel 生成
 renderer/public/openreel/
 vendor/openreel/packages/core/src/wasm/*/build/
@@ -19,7 +15,9 @@ vendor/openreel/packages/core/src/wasm/*/build/
 vendor/openreel/apps/web/dist-embedded/
 
 # Generated official Agent Host and bundled Node runtime
-src-tauri/resources/agent-host/
+electron/resources/agent-host/
+electron/resources/ffmpeg
+electron/resources/ffmpeg.exe
 
 # 本地调试产物：日志、截图与验证输出
 /output/
@@ -38,12 +36,14 @@ docs/beef-tv-*.md
 vendor/shotloom-director-desk/test-assets/
 
 # Generated default plugin distribution archives
-src-tauri/resources/provider-plugins/
+electron/resources/provider-plugins/
 renderer/public/provider-plugins/
 
 # 本地临时产物（Electron 冒烟数据、npm 缓存隔离）
 /tmp/
+/release/
 
-# 打包时按平台从 ffmpeg-static / src-tauri/binaries 拷贝的媒体工具
+# 打包时从 electron/resources 读取的媒体工具（由 prepare:media 生成）
 /electron/resources/ffmpeg
 /electron/resources/ffprobe
+/electron/resources/FFmpeg-GPL-3.0.txt

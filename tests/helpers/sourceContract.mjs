@@ -11,7 +11,7 @@ function toRepoPath(relativePath) {
 
 /**
  * 读取一份产品源码用于契约断言，路径相对仓库根，例如
- * `renderer/src/app/ReactWorkbench.tsx` 或 `src-tauri/src/commands/file.rs`。
+ * `renderer/src/app/ReactWorkbench.tsx` 或 `electron/ipc/commands/media.ts`。
  *
  * 测试自己不再各写一份 `readFileSync(new URL('../…'))`：同一个文件会被十几个测试读，
  * 统一在这里缓存一次，路径基准也只有一个，测试可以从任何工作目录运行。

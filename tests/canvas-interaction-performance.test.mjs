@@ -13,7 +13,7 @@ const api = readSource('renderer/src/services/tauriApi.ts');
 const previewQueue = readSource('renderer/src/app/canvas/previewLoadQueue.ts');
 const mediaCacheHook = readSource('renderer/src/app/canvas/useMediaPreviewCache.ts');
 const mediaCache = readSource('renderer/src/services/mediaPreviewCache.ts');
-const fileCommands = readSource('src-tauri/src/commands/file.rs') + readSource('src-tauri/src/commands/image.rs');
+const mediaCommands = readSource('electron/ipc/commands/media.ts') + readSource('electron/core/media.ts');
 const director = readSource('renderer/src/app/canvas/ThreeDDirectorNode.tsx');
 const directorStyles = readSource('renderer/src/app/canvas/ThreeDDirectorNode.css');
 const directorHost = readSource('renderer/src/app/adapters/directorDeskBridge.ts');
@@ -453,8 +453,9 @@ test('图片预览在缩放稳定后升级清晰度且视频不订阅预览尺�
   assert.match(node, /kind === "image" \? canvasPreviewMaxSize\(previewZoom\) : undefined/);
   assert.match(node, /350 \* Math\.max\(1, semanticZoom\) \* dpr[\s\S]*?return 2048[\s\S]*?return 1536[\s\S]*?return 960/);
   assert.match(mediaCache, /readImagePreview\(input\.path, input\.maxSize \|\| 960\)/);
-  assert.match(fileCommands, /jpeg-preview-v3/);
-  assert.match(fileCommands, /JpegEncoder::new_with_quality\(&mut encoded, 92\)/);
+  assert.match(mediaCommands, /jpeg-preview-v3/);
+  // 预览统一走一次 JPEG 编码（mjpeg q=2，接近 Rust 的 quality 92）。
+  assert.match(mediaCommands, /'-c:v', 'mjpeg', '-q:v', '2'/);
   assert.match(api, /activeImagePreviewReads < 4/);
   assert.match(node, /className="work-node-wrapper"[\s\S]*?actions\.select\(node\.id\)/);
 });

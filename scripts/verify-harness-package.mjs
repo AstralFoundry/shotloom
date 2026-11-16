@@ -8,7 +8,7 @@ import { once } from 'node:events';
 import { createInterface } from 'node:readline';
 
 // Exercise the actual resource closure without borrowing the development Host.
-const root = resolve('src-tauri/resources/agent-host');
+const root = resolve('electron/resources/agent-host');
 const dataRoot = await mkdtemp(join(tmpdir(), 'shotloom-package-smoke-'));
 const token = randomUUID();
 let child;

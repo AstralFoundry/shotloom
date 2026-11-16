@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readSource } from './helpers/sourceContract.mjs';
 import { createRendererEnv } from './helpers/rendererSsr.mjs';
 import { installDesktopBridge } from './helpers/desktopBridge.mjs';
+import { readdirSync } from 'node:fs';
 
 const env = await createRendererEnv();
 after(() => env.dispose());
@@ -109,23 +110,32 @@ test('原生错误仅翻译显式信封，未知错误与原始详情不按文�
 test('已接入原生错误的文案键与具名参数在双语字典中完整登记', async () => {
   const { default: zh } = await env.load('i18n/locales/zh-CN.json');
   const { default: en } = await env.load('i18n/locales/en-US.json');
+  const files = readdirSync(new URL('../electron', import.meta.url), { withFileTypes: true })
+    .filter(entry => entry.isDirectory())
+    .flatMap(directory => walkElectron(new URL(`../electron/${directory.name}`, import.meta.url)));
   let count = 0;
-  const files = ['file', 'project', 'settings', 'media_paths', 'media_probe', 'media_tool', 'media_tasks', 'video_export', 'clipboard', 'recent', 'audio', 'video_frame', 'video_concat', 'openreel_export', 'image', 'generation_gateway', 'harness_runtime', 'harness_session'].map(name => `commands/${name}.rs`);
-  files.push('database/mod.rs', 'crud/catalog_crud.rs', 'crud/project_crud.rs', 'crud/settings_crud.rs', 'crud/recent_crud.rs', 'services/storage_service.rs');
   for (const file of files) {
-    const source = readSource(`src-tauri/src/${file}`);
-    for (const match of source.matchAll(/localized_error\(\s*"([^"]+)",\s*json!\(\{([^}]*?)\}\)/g)) {
+    const source = readSource(file);
+    for (const match of source.matchAll(/localizedError\(\s*['"]([^'"]+)['"]\s*,\s*\{([^}]*)\}/g)) {
       const [, key, fields] = match;
       assert.ok(zh[key], key);
       assert.ok(en[key], key);
-      const params = new Set([...fields.matchAll(/"([^"]+)"\s*:/g)].map(item => item[1]));
+      // 参数既可能是 `{ error: ... }` 也可能是简写 `{ error }`。
+      const params = new Set([...fields.matchAll(/(\w+)\s*(?::|,|$)/g)].map(item => item[1]));
       for (const token of zh[key].matchAll(/\{([^{}]+)\}/g)) assert.ok(params.has(token[1]), `${key}: ${token[1]}`);
       count++;
     }
   }
-  assert.ok(count > 0);
+  assert.ok(count > 100, `expected the Electron native layer to raise localized errors, got ${count}`);
 });
 
+function walkElectron(directory) {
+  return readdirSync(directory, { withFileTypes: true }).flatMap(entry => {
+    const child = new URL(`${entry.name}${entry.isDirectory() ? '/' : ''}`, `${directory.href}${directory.href.endsWith('/') ? '' : '/'}`);
+    if (entry.isDirectory()) return walkElectron(child);
+    return entry.name.endsWith('.ts') ? [`electron/${child.pathname.split('/electron/')[1]}`] : [];
+  });
+}
 
 test('媒体导出错误在英文中保留文件标识与原始错误详情', async () => {
   const { localizeNativeError } = await env.load('i18n/index.ts');

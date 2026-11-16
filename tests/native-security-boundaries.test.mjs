@@ -1,11 +1,9 @@
 import assert from 'node:assert/strict';
 
 import test from 'node:test';
-import { readSource } from './helpers/sourceContract.mjs';
+import { readSource, readSources } from './helpers/sourceContract.mjs';
 
 const read = (path) => readSource(path);
-const config = JSON.parse(read('src-tauri/tauri.conf.json'));
-const capabilities = JSON.parse(read('src-tauri/capabilities/default.json'));
 
 const metaPolicy = read('renderer/index.html').match(
   /http-equiv="Content-Security-Policy"\s+content="([^"]+)"/,
@@ -14,36 +12,51 @@ const metaPolicy = read('renderer/index.html').match(
 const directive = (policy, name) =>
   policy.split(';').map((part) => part.trim()).find((part) => part.startsWith(`${name} `));
 
-test('the native CSP and the document CSP are the same single policy', () => {
-  assert.equal(config.app.security.csp, metaPolicy);
-});
-
 test('CSP keeps script execution same-origin and blocks plugin objects', () => {
   assert.doesNotMatch(directive(metaPolicy, 'script-src'), /'unsafe-inline'|'unsafe-eval'/);
   assert.equal(directive(metaPolicy, 'object-src'), "object-src 'none'");
   assert.equal(directive(metaPolicy, 'base-uri'), "base-uri 'self'");
+  assert.match(directive(metaPolicy, 'script-src'), /'self'/);
 });
 
-test('CSP allows local media but keeps requests on the native IPC channel', () => {
-  const mediaSrc = directive(metaPolicy, 'media-src');
-  for (const source of ['asset:', 'http://asset.localhost', 'blob:']) {
-    assert.match(mediaSrc, new RegExp(source.replace('.', '\\.')));
+test('CSP allows local media through the Electron asset scheme only', () => {
+  for (const name of ['img-src', 'media-src']) {
+    const sources = directive(metaPolicy, name).split(/\s+/).slice(1);
+    assert.ok(sources.includes('shotloom:'), `${name} must allow shotloom://asset`);
+    assert.ok(sources.includes('blob:'), `${name} must allow blob previews`);
+    assert.ok(sources.includes('data:'), `${name} must allow inline previews`);
+    assert.ok(sources.every((source) => !source.includes('*')), `${name} must not allow wildcards`);
   }
   const connectSources = directive(metaPolicy, 'connect-src').split(/\s+/).slice(1);
-  assert.ok(connectSources.includes("ipc://localhost"));
-  assert.ok(connectSources.includes('https://ipc.localhost'));
-  assert.ok(connectSources.includes('asset:'));
-  // 渲染进程没有任何 fetch/XHR，允许任意 scheme 或本机端口等于给 webview 开一条外传通道。
-  assert.ok(connectSources.every((source) => !source.includes('*') && !source.includes('127.0.0.1')));
-  assert.ok(!connectSources.some((source) => /^(https?|ws|wss):$/.test(source)));
+  // 渲染进程没有任意网络出口：只放行同源、本地预览和登记过的服务地址。
+  assert.ok(connectSources.every((source) => !source.includes('*')));
+  assert.ok(!connectSources.some((source) => /^(wss?|https?):$/.test(source)));
+  assert.ok(!connectSources.some((source) => source.startsWith('http://127.0.0.1') || source.startsWith('http://localhost:5')));
 });
 
-test('the webview has no shell permission and opens paths only through the native check', () => {
-  const permissions = JSON.stringify(capabilities.permissions);
-  assert.doesNotMatch(permissions, /shell/);
-  assert.doesNotMatch(read('src-tauri/Cargo.toml'), /tauri-plugin-shell/);
-  assert.doesNotMatch(read('package.json'), /plugin-shell/);
-  const api = read('renderer/src/services/tauriApi.ts');
+test('the renderer has no shell permission and opens paths only through the guarded command', () => {
+  const pkg = JSON.parse(read('package.json'));
+  const dependencies = { ...pkg.dependencies, ...pkg.devDependencies };
+  assert.equal(dependencies['@tauri-apps/plugin-shell'], undefined);
+  assert.equal(dependencies['@tauri-apps/cli'], undefined);
+  const api = readSources([
+    'renderer/src/services/tauriApi.ts',
+    'electron/ipc/commands/files.ts',
+  ]);
   assert.doesNotMatch(api, /@tauri-apps\/plugin-shell/);
   assert.match(api, /case 'file:open-path': return invoke\('file_open_path'/);
+  // 打开路径必须经过 canonicalize + 目录/媒体边界，而不是直接把字符串交给系统。
+  assert.match(read('electron/ipc/commands/files.ts'), /requireSafeOpenTarget\(target\)/);
+  assert.match(read('electron/core/files.ts'), /EXECUTABLE_BUNDLE_SUFFIXES/);
+});
+
+test('the Electron preload is the only native bridge surface', () => {
+  const preload = read('electron/preload.ts');
+  assert.match(preload, /contextBridge\.exposeInMainWorld\('shotloomDesktop'/);
+  assert.match(preload, /contextBridge\.exposeInMainWorld/);
+  const main = read('electron/main.ts');
+  assert.match(main, /contextIsolation: true/);
+  assert.match(main, /nodeIntegration: false/);
+  assert.doesNotMatch(main, /webSecurity: false/);
+  assert.match(main, /registerSchemesAsPrivileged/);
 });

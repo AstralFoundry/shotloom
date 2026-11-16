@@ -19,7 +19,7 @@ import {
 
 function runtimeResourceRoot(): string {
   // 与 electron/core/harness.ts 的 agent-host 定位一致：开发期读仓库产物，发行期读打包资源。
-  if (!app.isPackaged) return join(app.getAppPath(), 'src-tauri', 'resources');
+  if (!app.isPackaged) return join(app.getAppPath(), 'electron', 'resources');
   return join(process.resourcesPath, 'resources');
 }
 

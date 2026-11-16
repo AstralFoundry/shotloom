@@ -17,9 +17,6 @@ export default defineConfig({
     strictPort: true,
     open: development.openBrowser,
     fs: { allow: [rootDir] },
-    watch: {
-      ignored: ['**/src-tauri/**'],
-    },
   },
   build: {
     outDir: path.join(rootDir, 'dist', 'renderer'),

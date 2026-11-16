@@ -15,18 +15,18 @@ files:
 # agent-host 由 scripts/electron-after-pack.mjs 完整拷贝（含 node_modules 与 node 运行时）。
 afterPack: scripts/electron-after-pack.mjs
 extraResources:
-  - from: src-tauri/resources/provider-plugins
+  - from: electron/resources/provider-plugins
     to: resources/provider-plugins
-  - from: src-tauri/resources/FFmpeg-GPL-3.0.txt
+  - from: electron/resources/FFmpeg-GPL-3.0.txt
     to: resources/FFmpeg-GPL-3.0.txt
-  - from: src-tauri/resources/FFmpeg-SOURCE.txt
+  - from: electron/resources/FFmpeg-SOURCE.txt
     to: resources/FFmpeg-SOURCE.txt
   # 由 scripts/electron-package.mjs 按当前平台挑选并拷贝到 electron/resources。
   - from: electron/resources/ffmpeg
     to: ffmpeg
 mac:
   category: public.app-category.video
-  icon: src-tauri/icons/app.icns
+  icon: electron/build/icons/app.icns
   target:
     - dmg
     - zip
@@ -36,7 +36,7 @@ mac:
     LSMinimumSystemVersion: "13.0"
     NSHighResolutionCapable: true
 win:
-  icon: src-tauri/icons/app.ico
+  icon: electron/build/icons/app.ico
   target:
     - nsis
 nsis:
@@ -48,8 +48,14 @@ nsis:
     - en_US
     - zh_CN
 linux:
-  icon: src-tauri/icons/app.png
+  icon: electron/build/icons/app.png
   category: AudioVideo
   target:
     - AppImage
 artifactName: "${productName}-${version}-${os}-${arch}.${ext}"
+
+# electron-updater 的更新源：与本次发布同仓库的 GitHub Release。
+publish:
+  provider: github
+  owner: AstralFoundry
+  repo: shotloom

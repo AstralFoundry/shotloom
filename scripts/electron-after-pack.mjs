@@ -8,7 +8,7 @@ import { dirname, join } from 'node:path';
  */
 export default async function afterPack(context) {
   const rootDir = context.packager.projectDir;
-  const source = join(rootDir, 'src-tauri', 'resources', 'agent-host');
+  const source = join(rootDir, 'electron', 'resources', 'agent-host');
   if (!existsSync(source)) {
     console.warn('[electron] agent-host resources are missing; packaged app cannot start the Agent Host');
     return;

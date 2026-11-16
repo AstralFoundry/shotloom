@@ -1,7 +1,7 @@
 /**
  * 存储契约：同一个工程的写入必须全部从 projectSaveQueue 串行发出。
  * 旁路调用 desktopApi.project.save 会与自动保存交错提交，后发的旧快照带着上一次的
- * storageRevision 撞上后端乐观锁（src-tauri/src/crud/project_crud.rs 的 save），
+ * storageRevision 撞上后端乐观锁（electron/core/projectStorage.ts 的 saveProject），
  * 于是同一个窗口也会收到「工程已被另一窗口修改」。
  */
 import test from 'node:test';

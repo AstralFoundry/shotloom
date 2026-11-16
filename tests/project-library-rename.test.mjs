@@ -5,7 +5,7 @@ import { readSource } from './helpers/sourceContract.mjs';
 
 const projectsView = readSource('renderer/src/app/views/ProjectsView.tsx');
 const projectAdapter = readSource('renderer/src/app/adapters/projectLibraryAdapter.ts');
-const projectCommand = readSource('src-tauri/src/commands/project.rs');
+const projectCommand = readSource('electron/ipc/commands/project.ts');
 
 test('项目重命名只在进入编辑态时全选，不会在每次输入后重复全选', () => {
   assert.match(projectsView, /const renameEntryKey = rename \? entryKey\(rename\.entry\) : ""/);
@@ -14,9 +14,9 @@ test('项目重命名只在进入编辑态时全选，不会在每次输入后�
 });
 
 test('项目重命名同步项目文件名称与最近项目路径', () => {
-  assert.match(projectCommand, /project_path = target\.join\(PROJECT_FILE\)/);
-  assert.match(projectCommand, /record\.insert\("name"\.into\(\), json!\(actual_name\)\)/);
-  assert.match(projectCommand, /fs::rename\(&target, &source\)/);
+  assert.match(projectCommand, /const projectPath = join\(target, PROJECT_FILE\);/);
+  assert.match(projectCommand, /project\.name = actualName/);
+  assert.match(projectCommand, /await rename\(target, source\)/);
   assert.match(projectAdapter, /migrateRenamedRecentProjects/);
   assert.match(projectAdapter, /desktopApi\.recent\.remove\(project\.filePath\)/);
   assert.match(projectAdapter, /filePath:\s*replacePathPrefix\(project\.filePath, result\.oldDir, result\.newDir\)/);

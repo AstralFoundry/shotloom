@@ -14,7 +14,6 @@ const runtimeConstraints = { requestTemplate: runningHubMode.requestTemplate, al
 const template = JSON.parse(readSource('plugin-packages/defaults/protocol.runninghub.video/runtime/workflow.json'));
 const adaptersIndexSource = readSource('renderer/src/domain/provider/adapters/index.ts');
 const adapterSource = readSource('plugin-packages/defaults/protocol.runninghub.video/runtime/index.mjs');
-const gatewaySource = readSource('src-tauri/src/commands/generation_gateway.rs');
 
 test('RunningHub is an executable plugin with packaged workflow and no product adapter', () => {
   const manifest = JSON.parse(readSource('plugin-packages/defaults/protocol.runninghub.video/manifest.json'));

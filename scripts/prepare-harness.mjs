@@ -7,7 +7,7 @@ import { prepareOpenReelAgent } from './prepare-openreel-agent.mjs';
 /** Build a complete closure outside Tauri's watched resources before publishing it. */
 export async function stageHarnessResources({
   root = resolve('harness/host'),
-  target = resolve('src-tauri/resources/agent-host'),
+  target = resolve('electron/resources/agent-host'),
   content = resolve('renderer/src/agent/content'),
   rules = resolve('AGENTS.md'),
   stagingRoot = resolve('node_modules'),

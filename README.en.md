@@ -1,4 +1,4 @@
-<p align="center"><img src="./src-tauri/icons/app.png" width="80" alt="Shotloom"></p>
+<p align="center"><img src="./electron/build/icons/app.png" width="80" alt="Shotloom"></p>
 <h1 align="center">Shotloom</h1>
 <p align="center">A desktop workspace for ideas, 3D previsualization, generated media and editing.</p>
 <p align="center"><a href="./README.md">简体中文</a> · English · <a href="https://github.com/AstralFoundry/shotloom/releases">Downloads</a></p>
@@ -77,7 +77,7 @@ Director tools now support named batch references, shot composition, timed actio
 
 Download macOS Apple Silicon or Windows x64 builds from [Releases](https://github.com/AstralFoundry/shotloom/releases). Add your provider credentials and model configuration in **Plugin center** before using generation. The canvas and director desk can be used without a model connection.
 
-For development, install Node.js ≥ 22.19.0, npm ≥ 10, Rust stable and the [Tauri 2 system dependencies](https://v2.tauri.app/start/prerequisites/).
+For development, install Node.js ≥ 22.19.0 and npm ≥ 10. The desktop shell is Electron; no Rust toolchain is required.
 
 ```bash
 git clone https://github.com/AstralFoundry/shotloom.git
@@ -104,9 +104,10 @@ The browser does not offer the complete desktop experience. Agent Host, native f
 | `corepack pnpm -C vendor/openreel test:run` | OpenReel workspace tests |
 | `npm run prepare:director-desk` | Build the iframe director desk |
 | `npm run prepare:openreel` | Build the embedded editor |
-| `npm run build:desktop` | Build the desktop application |
+| `npm run build:desktop` | Build desktop installers (electron-builder) |
+| `npm run smoke:electron` | Boot Electron and exercise the native channels |
 
-React, TypeScript and Vite power the frontend; Tauri / Rust provide the desktop shell. React Flow powers the canvas and Three.js / React Three Fiber power 3D. The director lives in `vendor/shotloom-director-desk/`, isolated through iframe / postMessage. OpenReel lives in `vendor/openreel/` and is embedded through ShadowRoot. The Harness client does not own product domain state.
+React, TypeScript and Vite power the frontend; Electron / Node provide the desktop shell. Native capabilities (files, media, generation gateway, Agent Host, plugin host) live in the main process and the renderer only calls `window.shotloomDesktop`. React Flow powers the canvas and Three.js / React Three Fiber power 3D. The director lives in `vendor/shotloom-director-desk/`, isolated through iframe / postMessage. OpenReel lives in `vendor/openreel/` and is embedded through ShadowRoot. The Harness client does not own product domain state.
 
 Read [AGENTS.md](./AGENTS.md) and the [engineering guide](./docs/engineering.md) before contributing. The model owns intent and production decisions; code enforces permissions and data integrity. Keep domain and UI state separate. Branch from `develop`, run the checks and open a PR against `develop`.
 

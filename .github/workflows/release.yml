@@ -26,14 +26,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version-file: .node-version
-      - name: Validate signing key
-        env:
-          SIGNING_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-        run: |
-          if [[ -z "$SIGNING_KEY" ]]; then
-            echo "::error::Configure TAURI_SIGNING_PRIVATE_KEY once in repository secrets."
-            exit 1
-          fi
       - name: Resolve release and platform matrix
         id: release
         env:
@@ -63,14 +55,6 @@ jobs:
           RELEASE_TAG: ${{ needs.metadata.outputs.tag }}
         run: node scripts/desktop-release.mjs version
       - uses: ./.github/actions/setup-project
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri
-          key: ${{ matrix.target }}
-      - run: npm run prepare:media
 
       - name: Detect Apple signing credentials
         id: apple_signing
@@ -93,9 +77,10 @@ jobs:
 
           if (( ${#missing[@]} == 0 )); then
             echo "enabled=true" >> "$GITHUB_OUTPUT"
+            echo "CSC_IDENTITY_AUTO_DISCOVERY=true" >> "$GITHUB_ENV"
           else
             echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "APPLE_SIGNING_IDENTITY=-" >> "$GITHUB_ENV"
+            echo "CSC_IDENTITY_AUTO_DISCOVERY=false" >> "$GITHUB_ENV"
             echo "::warning::Publishing ad-hoc signed, unnotarized macOS artifacts; missing Apple credentials: ${missing[*]}"
           fi
 
@@ -106,9 +91,6 @@ jobs:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           certificate_path="$RUNNER_TEMP/apple-certificate.p12"
           keychain_path="$RUNNER_TEMP/shotloom-signing.keychain-db"
@@ -131,42 +113,33 @@ jobs:
           security list-keychains -d user -s "$keychain_path"
           security default-keychain -d user -s "$keychain_path"
           security find-identity -v -p codesigning "$keychain_path"
-          {
-            echo "APPLE_SIGNING_IDENTITY=$APPLE_SIGNING_IDENTITY"
-            echo "APPLE_ID=$APPLE_ID"
-            echo "APPLE_PASSWORD=$APPLE_PASSWORD"
-            echo "APPLE_TEAM_ID=$APPLE_TEAM_ID"
-          } >> "$GITHUB_ENV"
+          echo "CSC_NAME=$APPLE_SIGNING_IDENTITY" >> "$GITHUB_ENV"
 
-      - name: Build desktop application
-        id: tauri
-        uses: tauri-apps/tauri-action@v1
+      - name: Prepare desktop resources
+        run: npm run prepare:plugins && npm run prepare:media && npm run prepare:harness
+
+      - name: Build and package desktop application
         env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        with:
-          retryAttempts: 2
-          tauriScript: npm run tauri
-          args: --target ${{ matrix.target }} --bundles ${{ matrix.bundles }} -- --locked
-          uploadUpdaterJson: false
-          uploadUpdaterSignatures: false
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: npm run dist:electron
 
       - name: Verify macOS application signature
-        if: runner.os == 'macOS'
+        if: runner.os == 'macOS' && steps.apple_signing.outputs.enabled == 'true'
         shell: bash
         run: |
-          app="src-tauri/target/${{ matrix.target }}/release/bundle/macos/Shotloom.app"
+          app="release/mac-arm64/Shotloom.app"
           codesign --verify --deep --strict --verbose=2 "$app"
 
       - name: Smoke test the packaged Agent runtime
         run: npm run harness:verify-package
 
-      - name: Stage signed release assets
+      - name: Stage release assets
         env:
           RELEASE_TAG: ${{ needs.metadata.outputs.tag }}
           RELEASE_PLATFORM: ${{ matrix.platform }}
-          BUNDLE_DIR: src-tauri/target/${{ matrix.target }}/release/bundle
-          BUNDLE_ARTIFACTS: ${{ steps.tauri.outputs.artifactPaths }}
+          BUNDLE_DIR: release
           ASSET_DIR: release-assets
         run: node scripts/desktop-release.mjs stage
 

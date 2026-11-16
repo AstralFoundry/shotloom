@@ -1,5 +1,6 @@
-import { defaultPluginConnections } from './provider-distribution.mjs';
 import { readFileSync } from 'node:fs';
+import { defaultPluginConnections } from './provider-distribution.mjs';
+
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseDocument } from 'yaml';
@@ -88,18 +89,4 @@ export function readShotloomConfig(path = configPath) {
       runtimeProtection,
     },
   };
-}
-
-export function tauriDevOverride(config = readShotloomConfig()) {
-  return JSON.stringify({
-    ...JSON.parse(tauriBuildOverride(config)),
-    build: { devUrl: `http://${config.development.webHost}:${config.development.webPort}` },
-  });
-}
-
-export function tauriBuildOverride(config = readShotloomConfig()) {
-  const tauriConfig = JSON.parse(readFileSync(join(rootDir, 'src-tauri', 'tauri.conf.json'), 'utf8'));
-  const mainWindow = tauriConfig.app.windows.find(window => window.label === 'main');
-  if (!mainWindow) throw new Error('src-tauri/tauri.conf.json: main window is missing');
-  return JSON.stringify({ app: { windows: [{ ...mainWindow, ...config.desktop.mainWindow }] } });
 }

@@ -19,7 +19,7 @@ const archives = packages.map(({ manifest, files }) => {
   if (bytes.length > 20 * 1024 * 1024) throw new Error(`Package limit: ${manifest.id}`);
   return { bytes, entry: { id: manifest.id, version: manifest.version, file: `${manifest.id}-${manifest.version}.shotloom-plugin`, sha256: createHash('sha256').update(bytes).digest('hex') } };
 });
-for (const location of ['../src-tauri/resources/provider-plugins/', '../renderer/public/provider-plugins/']) {
+for (const location of ['../electron/resources/provider-plugins/', '../renderer/public/provider-plugins/']) {
   const directory = fileURLToPath(new URL(location, import.meta.url));
   await rm(directory, { recursive: true, force: true });
   await mkdir(directory, { recursive: true });

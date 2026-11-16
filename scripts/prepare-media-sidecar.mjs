@@ -20,10 +20,12 @@ const packageSource = require('ffmpeg-static');
 // npm installs made with --ignore-scripts (and some pnpm/npm cache restores)
 // leave ffmpeg-static's downloaded file absent. An existing sidecar may also
 // have stopped working, so validate each local candidate before selecting it.
+const suffix = platform === 'win32' ? '.exe' : '';
+const sidecarTarget = resolve('electron', 'resources', `ffmpeg${suffix}`);
 const sourceCandidates = [
   packageSource,
-  resolve('src-tauri', 'binaries', `ffmpeg-${triple}${platform === 'win32' ? '.exe' : ''}`),
-  resolve('src-tauri', 'target', 'release', platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg'),
+  sidecarTarget,
+  resolve('node_modules', 'ffmpeg-static', `ffmpeg${suffix}`),
 ];
 async function validateBinary(candidate) {
   const info = await stat(candidate);
@@ -50,8 +52,7 @@ if (!source) {
   throw new Error(`No working FFmpeg binary found. Run "npm rebuild ffmpeg-static --foreground-scripts" first.\n${failures.join('\n')}`);
 }
 
-const suffix = platform === 'win32' ? '.exe' : '';
-const target = resolve('src-tauri', 'binaries', `ffmpeg-${triple}${suffix}`);
+const target = sidecarTarget;
 await mkdir(dirname(target), { recursive: true });
 if (source !== target) {
   // Replacing a macOS executable in place can leave a stale code-signing cache for its inode.
@@ -69,8 +70,8 @@ if (source !== target) {
 console.log(`Prepared FFmpeg sidecar at ${target}`);
 
 const packageJson = require.resolve('ffmpeg-static/package.json');
-await mkdir(resolve('src-tauri', 'resources'), { recursive: true });
+await mkdir(resolve('electron', 'resources'), { recursive: true });
 await copyFile(
   resolve(dirname(packageJson), 'LICENSE'),
-  resolve('src-tauri', 'resources', 'FFmpeg-GPL-3.0.txt'),
+  resolve('electron', 'resources', 'FFmpeg-GPL-3.0.txt'),
 );

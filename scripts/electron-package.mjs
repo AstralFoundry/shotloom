@@ -34,10 +34,10 @@ function stageMediaTools() {
   const triple = process.platform === 'darwin'
     ? (process.arch === 'arm64' ? 'aarch64-apple-darwin' : 'x86_64-apple-darwin')
     : process.platform === 'win32' ? 'x86_64-pc-windows-msvc' : 'x86_64-unknown-linux-gnu';
+  void triple;
   stageMediaTool('ffmpeg', [
+    join(rootDir, 'electron', 'resources', 'ffmpeg'),
     ffmpegStatic,
-    join(rootDir, 'src-tauri', 'binaries', `ffmpeg-${triple}`),
-    join(rootDir, 'src-tauri', 'binaries', 'ffmpeg'),
   ]);
   // 与 Tauri 发行版一致：只随包提供 ffmpeg；ffprobe 缺失时媒体探测退回解析 ffmpeg 输出。
   void ffprobeStatic;

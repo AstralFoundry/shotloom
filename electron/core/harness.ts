@@ -58,7 +58,7 @@ function broadcast(name: string, payload: unknown): void {
 
 function hostRoot(options: HarnessRuntimeOptions): string {
   if (options.sourceRoot) return options.sourceRoot;
-  if (!app.isPackaged) return join(app.getAppPath(), 'src-tauri', 'resources', 'agent-host');
+  if (!app.isPackaged) return join(app.getAppPath(), 'electron', 'resources', 'agent-host');
   return join(process.resourcesPath, 'resources', 'agent-host');
 }
 

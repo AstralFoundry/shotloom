@@ -18,24 +18,25 @@ test('workspace writes use instance, generation and canvas revision fences', () 
 });
 
 test('crash recovery persists heartbeats and relieves sustained memory pressure', () => {
-  const recovery = read('src-tauri/src/commands/recovery.rs');
+  const recovery = read('electron/core/recovery.ts');
   const workbench = read('renderer/src/app/ReactWorkbench.tsx');
-  assert.match(recovery, /storage_service::save_recovery/);
+  assert.match(recovery, /saveRecovery\(/);
   assert.match(recovery, /previous-unclean-exit/);
   assert.match(recovery, /system-memory-pressure/);
-  assert.match(recovery, /low_memory_polls/);
+  assert.match(recovery, /lowMemoryPolls/);
+  assert.match(recovery, /startHeartbeat/);
   assert.match(workbench, /installMediaPreviewCacheMemoryPressureListener/);
 });
 
 test('SQLite storage uses ORM and rejects legacy schemas', () => {
-  const database = read('src-tauri/src/database/mod.rs');
-  const settings = read('src-tauri/src/commands/settings.rs');
+  const database = read('electron/core/db.ts');
+  const settings = read('electron/ipc/commands/settings.ts');
   const projects = read('renderer/src/store/projectStore.ts')
     + read('renderer/src/store/projectNormalization.ts');
-  assert.match(database, /Database::connect/);
-  assert.match(database, /SqliteJournalMode::Wal/);
-  assert.match(settings, /SETTINGS_STORAGE_VERSION: u64 = 7/);
-  assert.match(settings, /fn validate_current_settings/);
+  assert.match(database, /new DatabaseSync\(/);
+  assert.match(database, /journal_mode = WAL/);
+  assert.match(settings, /SETTINGS_STORAGE_VERSION = 7/);
+  assert.match(settings, /function validateCurrentSettings/);
   assert.doesNotMatch(settings, /fn migrate_settings/);
   assert.match(projects, /PROJECT_SCHEMA_VERSION = 2/);
   assert.match(projects, /function assertCurrentProjectSchema/);

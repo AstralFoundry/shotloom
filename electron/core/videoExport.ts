@@ -369,8 +369,7 @@ function drawtextFallbackCandidates(): string[] {
   const sidecar = process.platform === 'win32' ? `ffmpeg-${triple}.exe` : `ffmpeg-${triple}`;
   return [
     join(root, 'electron', 'resources', executable),
-    join(root, 'src-tauri', 'binaries', sidecar),
-    join(root, 'src-tauri', 'target', 'debug', executable),
+    join(root, 'electron', 'resources', sidecar),
   ];
 }
 

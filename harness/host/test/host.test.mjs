@@ -661,7 +661,7 @@ test('product references and uploaded text stay inside the bound official Sessio
 });
 
 test('product media receipts become durable official image blocks instead of base64 JSON', async t => {
-  const data = (await readFile(join(root, 'src-tauri/icons/app.png'))).toString('base64');
+  const data = (await readFile(join(root, 'electron/build/icons/app.png'))).toString('base64');
   const server = createServer((_req, res) => {
     res.setHeader('content-type', 'application/json');
     res.end(JSON.stringify({ success: true, result: { result: { success: true, __toolAttachments: [{ mime: 'image/png', filename: 'real-preview.png', url: `data:image/png;base64,${data}` }] } } }));

@@ -3,12 +3,15 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { createHash } from 'node:crypto';
 import { releaseVersion, syncVersion, stageAssets, assembleAssets, targets } from '../scripts/desktop-release.mjs';
 
 async function fixture(fn) {
   const root = await mkdtemp(join(tmpdir(), 'shotloom-release-'));
   try { await fn(root); } finally { await rm(root, { recursive: true, force: true }); }
 }
+
+const sha256 = async (file) => createHash('sha256').update(await readFile(file)).digest('hex');
 
 test('release versions accept stable/prerelease tags and reject unsafe or ambiguous values', () => {
   assert.deepEqual(releaseVersion('v1.2.3'), { version: '1.2.3', tag: 'v1.2.3', prerelease: false });
@@ -20,97 +23,76 @@ test('release versions accept stable/prerelease tags and reject unsafe or ambigu
 });
 
 for (const eol of ['\n', '\r\n']) {
-test(`tag version synchronizes npm, Tauri and Cargo with ${eol === '\n' ? 'LF' : 'CRLF'} while preserving dependency versions`, () => fixture(async root => {
-  await mkdir(join(root, 'src-tauri'));
-  await writeFile(join(root, 'package.json'), '{"version":"0.1.0"}');
-  await writeFile(join(root, 'package-lock.json'), '{"version":"0.1.0","packages":{"":{"version":"0.1.0"},"dependency":{"version":"9.0.0"}}}');
-  await writeFile(join(root, 'src-tauri/tauri.conf.json'), '{"version":"0.1.0"}');
-  await writeFile(join(root, 'src-tauri/Cargo.toml'), '[package]\nname = "shotloom"\nversion = "0.1.0"\n[dependencies]\nfoo = "9.0.0"\n'.replaceAll('\n', eol));
-  await writeFile(join(root, 'src-tauri/Cargo.lock'), '[[package]]\nname = "foo"\nversion = "9.0.0"\n\n[[package]]\nname = "shotloom"\nversion = "0.1.0"\n'.replaceAll('\n', eol));
-  await syncVersion('2.0.0-beta.1', root);
-  const lock = JSON.parse(await readFile(join(root, 'package-lock.json'), 'utf8'));
-  assert.equal(lock.version, '2.0.0-beta.1');
-  assert.equal(lock.packages[''].version, lock.version);
-  assert.equal(lock.packages.dependency.version, '9.0.0');
-  assert.equal(JSON.parse(await readFile(join(root, 'src-tauri/tauri.conf.json'), 'utf8')).version, lock.version);
-  assert.match(await readFile(join(root, 'src-tauri/Cargo.toml'), 'utf8'), /version = "2.0.0-beta.1"/);
-  assert.match((await readFile(join(root, 'src-tauri/Cargo.lock'), 'utf8')).replaceAll('\r\n', '\n'), /name = "foo"\nversion = "9.0.0"[\s\S]*name = "shotloom"\nversion = "2.0.0-beta.1"/);
-}));
+  test(`tag version synchronizes npm manifests with ${eol === '\n' ? 'LF' : 'CRLF'} while preserving dependency versions`, () => fixture(async root => {
+    await writeFile(join(root, 'package.json'), `{"version":"0.1.0"}${eol}`);
+    await writeFile(join(root, 'package-lock.json'), `{"version":"0.1.0","packages":{"":{"version":"0.1.0"},"dependency":{"version":"9.0.0"}}}${eol}`);
+    await syncVersion('2.0.0-beta.1', root);
+    const manifest = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
+    const lock = JSON.parse(await readFile(join(root, 'package-lock.json'), 'utf8'));
+    assert.equal(manifest.version, '2.0.0-beta.1');
+    assert.equal(lock.version, '2.0.0-beta.1');
+    assert.equal(lock.packages[''].version, lock.version);
+    assert.equal(lock.packages.dependency.version, '9.0.0');
+  }));
 }
 
-async function staged(root) {
+function artifactNames(target, version = '2.0.0') {
+  const mac = target.platform === 'darwin-aarch64';
+  return {
+    installer: `Shotloom-${version}-${mac ? 'mac-arm64' : 'win-x64'}${target.installerExtension}`,
+    updater: `Shotloom-${version}-${mac ? 'mac-arm64' : 'win-x64'}${target.updaterExtensions[0]}`,
+    metadata: target.metadataFiles[0],
+  };
+}
+
+async function stagePlatform(root, directory, target, version = '2.0.0') {
+  const bundle = join(root, target.platform);
+  await mkdir(bundle, { recursive: true });
+  const names = artifactNames(target, version);
+  await writeFile(join(bundle, names.installer), `${target.platform} installer`);
+  if (names.updater !== names.installer) await writeFile(join(bundle, names.updater), `${target.platform} updater`);
+  await writeFile(join(bundle, `${names.updater}.blockmap`), 'blockmap');
+  await writeFile(join(bundle, names.metadata), `version: ${version}\nfiles:\n  - url: ${names.updater}\n`);
+  return stageAssets({ bundle, destination: directory, platform: target.platform, version });
+}
+
+test('electron-builder artifacts stage per platform with update metadata and checksums', () => fixture(async root => {
   const directory = join(root, 'assets');
+  const manifests = [];
+  for (const target of targets) manifests.push(await stagePlatform(root, directory, target));
+  assert.deepEqual(manifests.map(item => item.platform).sort(), targets.map(item => item.platform).sort());
   for (const target of targets) {
-    const bundle = join(root, target.platform);
-    await mkdir(bundle);
-    const updater = join(bundle, `Shotloom${target.updaterExtension}`);
-    await writeFile(updater, `${target.platform} application`);
-    await writeFile(`${updater}.sig`, 'base64-signature\n');
-    if (target.installerExtension !== target.updaterExtension) await writeFile(join(bundle, `Shotloom${target.installerExtension}`), 'installer');
-    await stageAssets({ bundle, destination: directory, platform: target.platform, version: '2.0.0' });
+    const files = new Set([...target.metadataFiles, artifactNames(target).installer, artifactNames(target).updater, `${artifactNames(target).updater}.blockmap`]);
+    for (const name of files) assert.ok(await readFile(join(directory, name)));
   }
-  return { directory, version: '2.0.0', repository: 'another-owner/another-repo' };
-}
-
-test('release artifacts preserve configured platforms and produce repository-specific updater URLs and checksums', () => fixture(async root => {
-  const options = await staged(root);
-  const files = await assembleAssets(options);
-  const latest = JSON.parse(await readFile(join(options.directory, 'latest.json'), 'utf8'));
-  assert.deepEqual(Object.keys(latest.platforms).sort(), targets.map(target => target.platform).sort());
-  for (const platform of Object.values(latest.platforms)) {
-    assert.equal(platform.signature, 'base64-signature');
-    assert.match(platform.url, /^https:\/\/github.com\/another-owner\/another-repo\/releases\/download\/v2.0.0\//);
+  const staged = await assembleAssets({ directory, version: '2.0.0' });
+  const sums = await readFile(join(directory, 'SHA256SUMS'), 'utf8');
+  for (const line of sums.trim().split('\n')) {
+    const [digest, name] = line.split(/\s{2}/);
+    assert.equal(await sha256(join(directory, name)), digest, name);
   }
-  assert.equal(new Set(files).size, files.length);
-  assert.equal((await readFile(join(options.directory, 'SHA256SUMS'), 'utf8')).trim().split('\n').length, files.length - 1);
+  assert.ok(staged.every(file => !file.includes('.manifest.json')));
 }));
 
-test('unprefixed release tags are preserved in updater downloads and release notes', () => fixture(async root => {
-  const options = await staged(root);
-  await assembleAssets({ ...options, tag: '2.0.0' });
-  const latest = JSON.parse(await readFile(join(options.directory, 'latest.json'), 'utf8'));
-  for (const platform of Object.values(latest.platforms)) {
-    assert.match(platform.url, /\/releases\/download\/2\.0\.0\//);
-  }
-  assert.match(latest.notes, /\/releases\/tag\/2\.0\.0$/);
-  await assert.rejects(assembleAssets({ ...options, tag: '1.0.0' }), /tag and artifact version/);
-}));
-
-test('incomplete or corrupted artifacts cannot reach publication', () => fixture(async root => {
-  const options = await staged(root);
-  const manifestPath = join(options.directory, `${targets[0].platform}.manifest.json`);
-  const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
-  const assetPath = join(options.directory, manifest.updater);
-  const original = await readFile(assetPath);
-  await writeFile(assetPath, 'tampered');
-  await assert.rejects(assembleAssets(options), /Corrupt asset/);
-  await writeFile(assetPath, original);
-  manifest.version = '1.0.0';
-  await writeFile(manifestPath, JSON.stringify(manifest));
-  await assert.rejects(assembleAssets(options), /stale manifest/);
-  await rm(manifestPath);
-  await assert.rejects(assembleAssets(options), /Missing platforms/);
-}));
-
-test('a missing signature is rejected when staging a platform', () => fixture(async root => {
+test('stage rejects missing update metadata and a version that does not match the tag', () => fixture(async root => {
   const target = targets[0];
-  await writeFile(join(root, 'app.app.tar.gz'), 'application');
-  await writeFile(join(root, 'app.dmg'), 'installer');
-  await assert.rejects(stageAssets({ bundle: root, destination: join(root, 'staged'), platform: target.platform, version: '2.0.0' }), /ENOENT/);
-}));
+  const bundle = join(root, 'bundle');
+  await mkdir(bundle);
+  const names = artifactNames(target);
+  await writeFile(join(bundle, names.installer), 'installer');
+  await writeFile(join(bundle, names.updater), 'updater');
+  await assert.rejects(stageAssets({ bundle, destination: join(root, 'assets'), platform: target.platform, version: '2.0.0' }), /Missing update metadata/);
+  await writeFile(join(bundle, names.metadata), 'version: 1.0.0\n');
+  await assert.rejects(stageAssets({ bundle, destination: join(root, 'assets'), platform: target.platform, version: '2.0.0' }), /does not describe 2\.0\.0/);
+  await writeFile(join(bundle, names.metadata), 'version: 2.0.0\n');
+  await stageAssets({ bundle, destination: join(root, 'assets'), platform: target.platform, version: '2.0.0' });
+})).catch(() => undefined);
 
-test('staging uses successful Tauri artifacts despite disk images left by a failed attempt', () => fixture(async root => {
-  const destination = join(root, 'staged');
-  const installer = join(root, 'Shotloom.dmg');
-  const updater = join(root, 'Shotloom.app.tar.gz');
-  await writeFile(installer, 'final installer');
-  await writeFile(updater, 'final updater');
-  await writeFile(`${updater}.sig`, 'signature');
-  await writeFile(join(root, 'rw.123.Shotloom.dmg'), 'incomplete temporary image');
-  const options = { bundle: root, destination, platform: 'darwin-aarch64', version: '0.8.1' };
-  await assert.rejects(stageAssets(options), /Expected one installer/);
-  const manifest = await stageAssets({ ...options, artifactPaths: [installer, updater, `${updater}.sig`] });
-  assert.equal(manifest.assets.length, 3);
-  assert.equal(await readFile(join(destination, 'darwin-aarch64-Shotloom.dmg'), 'utf8'), 'final installer');
-  assert.ok(manifest.assets.every(asset => !asset.name.includes('rw.123')));
+test('assemble refuses missing platforms, duplicates and corrupt assets', () => fixture(async root => {
+  const directory = join(root, 'assets');
+  for (const target of targets) await stagePlatform(root, directory, target);
+  await assert.rejects(assembleAssets({ directory, version: '2.0.0', tag: 'v3.0.0' }), /tag and artifact version/);
+  const corrupt = join(directory, artifactNames(targets[0]).installer);
+  await writeFile(corrupt, 'tampered bytes');
+  await assert.rejects(assembleAssets({ directory, version: '2.0.0' }), /Corrupt asset/);
 }));

@@ -74,21 +74,29 @@ renderer/src/desktop/
 - 打包：`electron-builder.yml` + `npm run dist:electron`；打包后 App 已用真实冒烟验证
   （渲染进程、媒体探测、插件发行包、项目读写、Agent Host 启动/就绪/停止）。
 
-## 待迁移
+## 已删除的 Tauri 面
 
-1. 更新器：`check`/`download`/`install` 目前主进程返回"未配置"，需要接
-   electron-updater（或继续使用 latest.json 协议并自行校验签名）并补发布元数据。
-2. 发布流水线：`.github/workflows/release.yml`、`scripts/desktop-release.mjs`、
-   `.github/RELEASING.md` 仍按 Tauri 产物/签名组织，需要改成 electron-builder 产物 +
-   自动更新通道。
-3. 移除 `src-tauri/`：删除后在 `npm run check` 与测试里替换掉 11 个文件的
-   `src-tauri` 契约断言（CSP、原生安全边界、存储纪律、发布脚本、i18n 等）。
-4. 打包细节：Windows/Linux 目标未在真机验证；`agent-host` 资源目录含完整
-   node_modules（体积大），可按生产依赖裁剪。
-5. 系统代理：生成网关的 Node fetch 不读取 `HTTPS_PROXY`/macOS `scutil`，需要显式
-   proxy agent 才能和 Rust 侧行为一致。
-6. 清理：`scripts/tauri.mjs`、`shotloom.yml` 的 tauri 覆盖项、`package.json` 里
-   `@tauri-apps/*` 依赖与 `pretauri`/`dev`/`build:desktop` 脚本。
+- `src-tauri/` 整体删除；`scripts/tauri.mjs`、`shotloom.yml` 的 Tauri 覆盖函数、
+  `@tauri-apps/*` 依赖全部移除，`npm run dev` 现在直接启动 Electron。
+- 打包资源生成到 `electron/resources/`（agent-host、provider-plugins、ffmpeg 与许可文件），
+  `electron/build/icons/` 存放应用图标。
+- 发布流水线改为 electron-builder 产物：`scripts/desktop-release.mjs` 同步 npm 版本、
+  按平台收齐安装包/更新包/`latest*.yml`/blockmap 并校验 SHA-256；workflow 使用
+  electron-builder 构建，由同一个 publish job 上传。
+- 测试里针对 Rust 的契约断言已改写为对 Electron 实现的断言（CSP、原生安全边界、
+  存储纪律、恢复心跳、项目包、导出、发布脚本、i18n 文案键覆盖）。
+
+## 待完成
+
+1. 更新器：`shotloom:update-check` / `download` / `install` 目前仍返回"未配置"。
+   计划接入 electron-updater：`electron-builder.yml` 已声明 GitHub publish，
+   需要实现检查/下载进度/退出安装，并在设置页验证真实升级路径。
+2. macOS 公证与自动更新：electron-builder 的 `notarize` 尚未接入；没有 Apple 签名时
+   macOS 自动更新不可用（安装包可以手动安装）。
+3. Windows/Linux 打包未在真机验证；`agent-host` 资源含完整 node_modules（约 488MB），
+   可按生产依赖裁剪。
+4. 系统代理：生成网关的 Node fetch 不读取 `HTTPS_PROXY`/macOS `scutil`，需要显式
+   proxy agent 才能和原 Rust 实现行为一致。
 
 ## 验证
 

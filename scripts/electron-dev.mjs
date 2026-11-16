@@ -21,8 +21,8 @@ const electronBinary = require('electron');
  */
 export function ensureElectronResources() {
   const required = [
-    { file: ['src-tauri', 'resources', 'provider-plugins', 'index.json'], script: 'prepare:plugins' },
-    { file: ['src-tauri', 'resources', 'agent-host', 'dist', 'main.js'], script: 'prepare:harness' },
+    { file: ['electron', 'resources', 'provider-plugins', 'index.json'], script: 'prepare:plugins' },
+    { file: ['electron', 'resources', 'agent-host', 'dist', 'main.js'], script: 'prepare:harness' },
     { file: ['renderer', 'src', 'config', 'shotloom-defaults.generated.json'], script: 'config:generate' },
   ];
   for (const item of required) {
@@ -61,7 +61,7 @@ export async function startElectronDev({ env = {}, prod = false } = {}) {
     childEnv.SHOTLOOM_APPDATA_DIR = join(smokeRoot, 'appdata');
     childEnv.SHOTLOOM_USER_DATA = join(smokeRoot, 'userdata');
     // 冒烟会真的拉起 Agent Host（如果构建产物存在），验证 stdio/桥接通道。
-    childEnv.SHOTLOOM_AGENT_HOST = join(rootDir, 'src-tauri', 'resources', 'agent-host');
+    childEnv.SHOTLOOM_AGENT_HOST = join(rootDir, 'electron', 'resources', 'agent-host');
   }
   delete childEnv.ELECTRON_RUN_AS_NODE;
   const child = spawn(electronBinary, [rootDir], { cwd: rootDir, stdio: 'inherit', env: childEnv });

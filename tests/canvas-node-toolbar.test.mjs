@@ -19,9 +19,8 @@ const adapter = readSource('renderer/src/app/adapters/canvasAdapter.ts')
   + readSource('renderer/src/app/adapters/canvas/canvasMediaActions.ts');
 const api = readSource('renderer/src/services/tauriApi.ts');
 const browserApi = readSource('renderer/src/services/desktopApi.ts');
-const audioRust = readSource('src-tauri/src/commands/audio.rs');
-const fileRust = readSource('src-tauri/src/commands/file.rs');
-const imageRust = readSource('src-tauri/src/commands/image.rs');
+const mediaCommands = readSource('electron/ipc/commands/media.ts');
+const mediaCore = readSource('electron/core/media.ts');
 const settings = readSource('renderer/src/store/settingsStore.ts');
 const nodeChrome = await import('../renderer/src/utils/canvasNodeChrome.ts');
 const toolbarContract = await import('../renderer/src/utils/canvasNodeToolbar.ts');
@@ -87,22 +86,22 @@ test('媒体节点工具栏提供真实入库与音频分离', () => {
   assert.match(adapter, /addCanvasEdge\(store\.project, source\.id, silentVideo\.id[\s\S]*?addCanvasEdge\(store\.project, source\.id, audio\.id/);
   assert.match(api, /separateAudioToProject:[\s\S]*?file:separate-audio/);
   assert.match(api, /hasAudio:[\s\S]*?file:has-audio/);
-  assert.match(audioRust, /fn probe_audio[\s\S]*?source_has_audio/);
-  assert.match(audioRust, /pub async fn file_has_audio[\s\S]*?spawn_blocking/);
-  assert.match(audioRust, /pub async fn file_separate_audio[\s\S]*?spawn_blocking/);
-  assert.match(audioRust, /fn separate_audio[\s\S]*?source_has_audio[\s\S]*?"-map", "0:a:0"[\s\S]*?"-c:a", "aac"[\s\S]*?"-map", "0:v:0"[\s\S]*?"-an"[\s\S]*?"copy"/);
+  assert.match(mediaCommands, /async function sourceHasAudio[\s\S]*?defineCommand\('file_has_audio'/);
+  assert.match(mediaCommands, /defineCommand\('file_has_audio'/);
+  assert.match(mediaCommands, /defineCommand\('file_separate_audio'/);
+  // 分离音轨：视频流原样复制、音频转 AAC、静音视频去掉音频。
+  assert.match(mediaCommands, /'-map', '0:a:0'[\s\S]*?'-c:a', 'aac'[\s\S]*?'-map', '0:v:0'[\s\S]*?'-an'[\s\S]*?'copy'/);
 });
 
 test('取尾帧交给解码器，不按容器时长和固定帧率猜测时间点', () => {
-  const probeRust = readSource('src-tauri/src/commands/media_probe.rs');
   assert.match(toolbar, /captureFrame\('last'\)/);
   assert.doesNotMatch(toolbar, /duration - 1 \/ 30/);
   assert.match(api, /probeMedia:[\s\S]*?file:probe-media/);
   assert.match(api, /invoke\('file_probe_media', \{ source: args\[0\] \}\)/);
-  assert.match(probeRust, /pub async fn file_probe_media[\s\S]*?spawn_blocking/);
-  assert.match(probeRust, /"format=duration"/);
+  assert.match(mediaCommands, /defineCommand\('file_probe_media'/);
+  assert.match(mediaCommands, /'-show_entries', 'format=duration'/);
   // ffprobe 缺席时退回解析 ffmpeg 打印的流信息，两条路都不解码画面。
-  assert.match(probeRust, /probe_with_ffmpeg\(&media_tool\("ffmpeg"\)\?, &source\)/);
+  assert.match(mediaCommands, /parseDuration\([\s\S]*?probeFromFfmpeg|probeWithFfmpeg/);
   // 浏览器预览没有 FFmpeg，只能明确返回空元数据而不是假装探测成功。
   assert.match(browserApi, /probeMedia:[\s\S]*?duration: null/);
 });
@@ -121,8 +120,10 @@ test('本地图片节点提供原图裁剪与宫格切分两个入口', () => {
   assert.match(adapter, /addCanvasEdge\(store\.project, source\.id, output\.id[\s\S]*?derivation: "image-crop"/);
   assert.match(api, /case 'file:crop-image':[\s\S]*?file_crop_image/);
   assert.match(api, /cropImageToProject:[\s\S]*?file:crop-image/);
-  assert.match(imageRust, /pub async fn file_crop_image[\s\S]*?spawn_blocking/);
-  assert.match(imageRust, /fn crop_image[\s\S]*?apply_orientation[\s\S]*?crop_imm[\s\S]*?ImageFormat::Png/);
+  assert.match(mediaCommands, /defineCommand\('file_crop_image'/);
+  // 裁剪前先按 EXIF 转正，再按像素矩形裁切并输出 PNG。
+  assert.match(mediaCommands, /imageOrientationFilters\([\s\S]*?decodeImageRgba|decodeImageRgba[\s\S]*?imageOrientationFilters/);
+  assert.match(mediaCommands, /encodeRgbaPng/);
   assert.match(styles, /\.canvas-image-crop-layer \{/);
   assert.match(styles, /\.canvas-image-crop-toolbar \{[^}]*z-index:\s*var\(--layer-canvas-composer\)/);
 });

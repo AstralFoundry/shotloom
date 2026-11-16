@@ -1,4 +1,4 @@
-<p align="center"><img src="./src-tauri/icons/app.png" width="80" alt="Shotloom"></p>
+<p align="center"><img src="./electron/build/icons/app.png" width="80" alt="Shotloom"></p>
 <h1 align="center">织帧画布 Shotloom</h1>
 <p align="center">把创意、空间预演、生成素材与剪辑放进同一个项目。</p>
 <p align="center">简体中文 · <a href="./README.en.md">English</a> · <a href="https://github.com/AstralFoundry/shotloom/releases">下载</a></p>
@@ -77,7 +77,7 @@ Shotloom 是面向 AI 影像创作的桌面工作台。用无限画布组织提�
 
 在 [Releases](https://github.com/AstralFoundry/shotloom/releases) 下载 macOS Apple Silicon 或 Windows x64 安装包。使用生成模型前，进入 **插件中心** 启用服务并配置接口地址和 Key。不接模型也可以整理画布和使用导演台。
 
-源码运行需要 Node.js ≥ 22.19.0、npm ≥ 10、Rust stable 和 [Tauri 2 系统依赖](https://v2.tauri.app/start/prerequisites/)。
+源码运行需要 Node.js ≥ 22.19.0、npm ≥ 10；桌面壳是 Electron，无需 Rust 工具链。
 
 ```bash
 git clone https://github.com/AstralFoundry/shotloom.git
@@ -104,9 +104,10 @@ npm run dev:web
 | `corepack pnpm -C vendor/openreel test:run` | OpenReel 工作区测试 |
 | `npm run prepare:director-desk` | 构建 iframe 导演台 |
 | `npm run prepare:openreel` | 构建内嵌剪辑运行时 |
-| `npm run build:desktop` | 构建桌面应用 |
+| `npm run build:desktop` | 构建桌面安装包（electron-builder） |
+| `npm run smoke:electron` | 真实启动 Electron 并跑一遍原生通道冒烟 |
 
-前端使用 React、TypeScript 与 Vite，桌面使用 Tauri / Rust；画布基于 React Flow，3D 基于 Three.js / React Three Fiber。导演台位于 `vendor/shotloom-director-desk/`，通过 iframe / postMessage 交互；OpenReel 位于 `vendor/openreel/`，通过 ShadowRoot 内嵌。Harness 客户端不接管产品领域状态。
+前端使用 React、TypeScript 与 Vite，桌面使用 Electron / Node；画布基于 React Flow，3D 基于 Three.js / React Three Fiber。原生能力（文件、媒体、生成网关、Agent Host、插件宿主）在主进程实现，渲染进程只通过 `window.shotloomDesktop` 调用。导演台位于 `vendor/shotloom-director-desk/`，通过 iframe / postMessage 交互；OpenReel 位于 `vendor/openreel/`，通过 ShadowRoot 内嵌。Harness 客户端不接管产品领域状态。
 
 开发前请阅读 [AGENTS.md](./AGENTS.md) 与 [工程约定](./docs/engineering.md)。模型负责意图与制作判断，代码守住权限和数据完整性；领域状态与界面状态保持分离。从 `develop` 创建分支，完成检查后提 PR 回 `develop`。
 

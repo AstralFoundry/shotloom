@@ -195,7 +195,7 @@ npm run plugin -- validate plugin-packages/defaults/protocol.openai.images
 npm run plugin -- pack plugin-packages/defaults/protocol.openai.images /tmp/openai-images.shotloom-plugin
 ```
 
-开发和构建入口会运行 `prepare:plugins`。它校验全部操作和预设，生成固定时间戳的 ZIP 与 SHA-256 索引，分别写入 `src-tauri/resources/provider-plugins/` 和 `renderer/public/provider-plugins/`。这些是生成产物，不提交。桌面打包包含前者；启动时离线安装到用户目录，运行目录不导入任何内置厂商 JSON。
+开发和构建入口会运行 `prepare:plugins`。它校验全部操作和预设，生成固定时间戳的 ZIP 与 SHA-256 索引，分别写入 `electron/resources/provider-plugins/` 和 `renderer/public/provider-plugins/`。这些是生成产物，不提交。桌面打包包含前者；启动时离线安装到用户目录，运行目录不导入任何内置厂商 JSON。
 
 Development/build hooks prepare deterministic archives and a SHA-256 index for desktop resources and browser static assets. Generated artifacts are ignored by Git. Desktop releases carry the archives and install them offline into user storage. The application catalog imports no built-in provider JSON.
 
