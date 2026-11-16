@@ -73,6 +73,7 @@ jobs:
             acceptance/feedback-detail.xml
             acceptance/android-feedback.png
             acceptance/android-records.png
+            acceptance/android-records-empty.png
             acceptance/android-notifications.png
             acceptance/android-skills.png
             acceptance/android-skill-editor.png

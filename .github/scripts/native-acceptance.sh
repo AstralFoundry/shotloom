@@ -90,7 +90,7 @@ wait_for_ui feedback '问题描述|Description'
 adb exec-out screencap -p > acceptance/android-feedback.png
 tap_text '我的记录|My records'
 wait_for_ui records '暂无记录|No records'
-adb exec-out screencap -p > acceptance/android-records.png
+adb exec-out screencap -p > acceptance/android-records-empty.png
 adb shell input keyevent 4
 wait_for_ui feedback '问题描述|Description'
 tap_text '^类型$|^Type$' last
@@ -103,6 +103,15 @@ tap_text '^提交反馈或举报$|^Submit feedback or report$' last
 wait_for_ui feedback-detail '后台回复|[Rr]eplies'
 grep 'Android_UI_visual_acceptance' acceptance/feedback-detail.xml
 adb exec-out screencap -p > acceptance/android-feedback-detail.png
+adb shell input keyevent 4
+wait_for_ui account '可用积分|Available credits'
+tap_text '反馈与举报|Feedback and reports'
+wait_for_ui feedback '问题描述|Description'
+tap_text '我的记录|My records'
+wait_for_ui records 'Android_UI_visual_acceptance'
+adb exec-out screencap -p > acceptance/android-records.png
+adb shell input keyevent 4
+wait_for_ui feedback '问题描述|Description'
 adb shell input keyevent 4
 wait_for_ui account '可用积分|Available credits'
 tap_text '^通知$|^Notifications$'
