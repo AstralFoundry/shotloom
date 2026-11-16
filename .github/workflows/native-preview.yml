@@ -30,6 +30,8 @@ jobs:
           distribution: temurin
           java-version: '17'
       - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
       - run: npm ci
       - run: npm run typecheck && npm test && npm audit --audit-level=moderate
       - name: Generate Android project
