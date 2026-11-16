@@ -56,6 +56,16 @@ jobs:
           "$tools/apksigner" verify --verbose --print-certs acceptance/Shotloom-Preview.apk > acceptance/signature.txt
           "$tools/zipalign" -c -P 16 4 acceptance/Shotloom-Preview.apk
           "$tools/aapt" dump badging acceptance/Shotloom-Preview.apk > acceptance/package.txt
+          mkdir -p "$RUNNER_TEMP/session-test/classes" "$RUNNER_TEMP/session-test/dex"
+          platform="$ANDROID_HOME/platforms/android-36/android.jar"
+          javac -source 8 -target 8 -classpath "$platform" -d "$RUNNER_TEMP/session-test/classes" acceptance/SessionInstrumentation.java
+          "$tools/d8" --lib "$platform" --output "$RUNNER_TEMP/session-test/dex" "$RUNNER_TEMP/session-test/classes/com/shotloom/acceptance/SessionInstrumentation.class"
+          "$tools/aapt" package -f -M acceptance/AndroidManifest.xml -I "$platform" -F "$RUNNER_TEMP/session-test/unsigned.apk"
+          (cd "$RUNNER_TEMP/session-test/dex" && "$tools/aapt" add "$RUNNER_TEMP/session-test/unsigned.apk" classes.dex)
+          "$tools/zipalign" -f 4 "$RUNNER_TEMP/session-test/unsigned.apk" "$RUNNER_TEMP/session-test/aligned.apk"
+          "$tools/apksigner" sign --ks "$RUNNER_TEMP/shotloom-android.jks" --ks-key-alias shotloom \
+            --ks-pass env:ANDROID_KEYSTORE_PASSWORD --key-pass env:ANDROID_KEYSTORE_PASSWORD \
+            --out acceptance/Shotloom-Session-Test.apk "$RUNNER_TEMP/session-test/aligned.apk"
           cd acceptance
           sha256sum Shotloom-Preview.apk > SHA256SUMS
           printf 'Commit: %s\nOrigin: %s\n' "$GITHUB_SHA" "$EXPO_PUBLIC_CLOUD_URL" > build.txt

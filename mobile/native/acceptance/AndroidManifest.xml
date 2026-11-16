@@ -1,0 +1,5 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.shotloom.acceptance">
+  <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="36" />
+  <application android:label="Shotloom acceptance" />
+  <instrumentation android:name="com.shotloom.acceptance.SessionInstrumentation" android:targetPackage="com.shotloom.app.preview" />
+</manifest>

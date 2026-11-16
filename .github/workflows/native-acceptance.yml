@@ -1,9 +1,11 @@
 name: Native Android acceptance smoke
 on:
   workflow_dispatch:
-  push:
-    branches: ['codex/**']
-    paths: ['.github/workflows/native-acceptance.yml']
+    inputs:
+      baseline_run:
+        description: 'Optional old preview run to reproduce the login hang before upgrading'
+        required: false
+        default: ''
 permissions:
   contents: read
   actions: read
@@ -25,9 +27,18 @@ jobs:
           test -n "$run" && test "$run" != null
           gh run download "$run" --repo "$GITHUB_REPOSITORY" --name Shotloom-Android-Preview --dir acceptance
           cd acceptance && sha256sum --check SHA256SUMS
+      - name: Download optional reproduction baseline
+        if: inputs.baseline_run != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASELINE_RUN: ${{ inputs.baseline_run }}
+        run: gh run download "$BASELINE_RUN" --repo "$GITHUB_REPOSITORY" --name Shotloom-Android-Preview --dir baseline
       - name: Enable KVM
         run: sudo chmod 666 /dev/kvm
       - uses: reactivecircus/android-emulator-runner@v2
+        env:
+          TEST_SESSION_COOKIE: ${{ secrets.SHOTLOOM_ACCEPTANCE_SESSION }}
+          BASELINE_RUN: ${{ inputs.baseline_run }}
         with:
           api-level: 35
           arch: x86_64
@@ -45,6 +56,20 @@ jobs:
             adb pull /sdcard/window.xml acceptance/window.xml
             grep -E 'new-api|让创作|Sign in|Log in' acceptance/window.xml
             adb exec-out screencap -p > acceptance/android-launch.png
+            test -n "$TEST_SESSION_COOKIE"
+            adb shell am force-stop com.shotloom.app.preview
+            adb install acceptance/Shotloom-Session-Test.apk
+            adb shell am instrument -w -e cookie "$TEST_SESSION_COOKIE" com.shotloom.acceptance/com.shotloom.acceptance.SessionInstrumentation > acceptance/session-setup.txt
+            grep 'Test session installed' acceptance/session-setup.txt
+            if [ -n "$BASELINE_RUN" ]; then adb install -r -d baseline/Shotloom-Preview.apk; fi
+            adb shell am start -W -n com.shotloom.app.preview/.MainActivity
+            sleep 20
+            if [ -n "$BASELINE_RUN" ]; then adb shell uiautomator dump /sdcard/baseline.xml && adb pull /sdcard/baseline.xml acceptance/baseline.xml && grep -E 'Checking login|正在检查登录状态' acceptance/baseline.xml && adb shell am force-stop com.shotloom.app.preview && adb install -r acceptance/Shotloom-Preview.apk && adb shell am start -W -n com.shotloom.app.preview/.MainActivity && sleep 20; fi
+            adb shell uiautomator dump /sdcard/authenticated.xml
+            adb pull /sdcard/authenticated.xml acceptance/authenticated.xml
+            grep -E 'Open workspace|打开工作区' acceptance/authenticated.xml
+            ! grep -E 'Checking login|正在检查登录状态' acceptance/authenticated.xml
+            adb exec-out screencap -p > acceptance/android-authenticated.png
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -54,5 +79,9 @@ jobs:
             acceptance/window.xml
             acceptance/android-launch.png
             acceptance/build.txt
+            acceptance/session-setup.txt
+            acceptance/authenticated.xml
+            acceptance/android-authenticated.png
+            acceptance/baseline.xml
           if-no-files-found: warn
           retention-days: 14
