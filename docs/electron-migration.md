@@ -74,6 +74,14 @@ renderer/src/desktop/
 - 打包：`electron-builder.yml` + `npm run dist:electron`；打包后 App 已用真实冒烟验证
   （渲染进程、媒体探测、插件发行包、项目读写、Agent Host 启动/就绪/停止）。
 
+## 自动更新
+
+- `electron/core/updater.ts` 使用 electron-updater：非打包运行直接返回"无更新"，
+  检查只接受比当前版本新的版本；下载进度通过 `update-progress` 事件回推，
+  支持取消；安装走 `quitAndInstall`，会触发 before-quit 的清理流程。
+- 发布产物里必须有 `latest-mac.yml` / `latest.yml` 与 zip/exe 更新包；`scripts/desktop-release.mjs stage`
+  会校验这些文件并在 assemble 阶段计算 SHA-256。
+
 ## 已删除的 Tauri 面
 
 - `src-tauri/` 整体删除；`scripts/tauri.mjs`、`shotloom.yml` 的 Tauri 覆盖函数、
@@ -88,13 +96,14 @@ renderer/src/desktop/
 
 ## 待完成
 
-1. 更新器：`shotloom:update-check` / `download` / `install` 目前仍返回"未配置"。
-   计划接入 electron-updater：`electron-builder.yml` 已声明 GitHub publish，
-   需要实现检查/下载进度/退出安装，并在设置页验证真实升级路径。
-2. macOS 公证与自动更新：electron-builder 的 `notarize` 尚未接入；没有 Apple 签名时
+1. 自动更新的真实升级验证：electron-updater 已接入（检查 / 下载进度 / 取消 / 退出安装），
+   `electron-builder.yml` 声明了 GitHub publish，打包产物会生成 `app-update.yml` 与
+   `latest-mac.yml`（本地已验证生成正确）。真实"下载并重启"需要一次已签名、已发布的版本；
+   macOS 还需要 Developer ID 签名，否则 Squirrel 会拒绝安装。
+2. macOS 公证：electron-builder 的 `notarize` 尚未接入；没有 Apple 签名时
    macOS 自动更新不可用（安装包可以手动安装）。
-3. Windows/Linux 打包未在真机验证；`agent-host` 资源含完整 node_modules（约 488MB），
-   可按生产依赖裁剪。
+3. Windows/Linux 打包未在真机验证；DMG 制作在本机沙箱里被 hdiutil 拒绝（zip 与 .app 已验证）。
+   `agent-host` 资源含完整 node_modules（约 488MB），可按生产依赖裁剪。
 4. 系统代理：生成网关的 Node fetch 不读取 `HTTPS_PROXY`/macOS `scutil`，需要显式
    proxy agent 才能和原 Rust 实现行为一致。
 

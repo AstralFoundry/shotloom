@@ -19,6 +19,7 @@ import './ipc/commands/plugins';
 import './ipc/commands/videoExport';
 import { initializeRecovery, markCleanExit } from './core/recovery';
 import { shutdownHarnessRuntime } from './core/harness';
+import { cancelUpdateDownload, checkForUpdate, downloadUpdate, installUpdate } from './core/updater';
 
 const isDevelopment = Boolean(process.env.SHOTLOOM_DEV_URL);
 const smoke = process.env.SHOTLOOM_SMOKE;
@@ -195,10 +196,10 @@ function registerWindowControls(): void {
     app.relaunch();
     app.exit(0);
   });
-  ipcMain.handle('shotloom:update-check', () => null);
-  ipcMain.handle('shotloom:update-download', () => ({ ok: false, error: 'updater is not configured yet' }));
-  ipcMain.handle('shotloom:update-cancel', () => ({ ok: true }));
-  ipcMain.handle('shotloom:update-install', () => ({ ok: false, error: 'updater is not configured yet' }));
+  ipcMain.handle('shotloom:update-check', () => checkForUpdate());
+  ipcMain.handle('shotloom:update-download', (_event, version: unknown) => downloadUpdate(String(version ?? '')));
+  ipcMain.handle('shotloom:update-cancel', (_event, version: unknown) => cancelUpdateDownload(String(version ?? '')));
+  ipcMain.handle('shotloom:update-install', (_event, version: unknown) => installUpdate(String(version ?? '')));
 }
 
 function createWindow(): BrowserWindow {
