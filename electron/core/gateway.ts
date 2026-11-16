@@ -5,6 +5,7 @@ import { withDatabase } from './db';
 import { errorMessage, localizedError } from './errors';
 import { fileResult, type FileResult } from './files';
 import { homeRoot, resolveInputFile } from './media';
+import { fetchThroughSystemProxy } from './proxy';
 import { loadSettings } from './storage';
 
 /**
@@ -561,7 +562,8 @@ async function openResponse(outgoing: OutgoingRequest, timeoutMs: number, cancel
   }
   let response: Response;
   try {
-    response = await fetch(outgoing.url, {
+    // reqwest 客户端对非回环目标使用系统代理；回环（本地服务）始终直连。
+    response = await fetchThroughSystemProxy(outgoing.url, {
       method: outgoing.method,
       headers: outgoing.headers,
       body: outgoing.body,

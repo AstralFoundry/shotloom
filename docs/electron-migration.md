@@ -74,6 +74,12 @@ renderer/src/desktop/
 - 打包：`electron-builder.yml` + `npm run dist:electron`；打包后 App 已用真实冒烟验证
   （渲染进程、媒体探测、插件发行包、项目读写、Agent Host 启动/就绪/停止）。
 
+## 系统代理
+
+`electron/core/proxy.ts` 在每次网关请求前解析代理：环境变量优先，macOS 再读 scutil；
+`localhost`/`127.0.0.0/8`/`::1`/`*.localhost` 直连。配置了代理时使用 undici 的 `ProxyAgent`
+（CONNECT 隧道），没有代理时沿用全局 fetch。
+
 ## 自动更新
 
 - `electron/core/updater.ts` 使用 electron-updater：非打包运行直接返回"无更新"，
@@ -104,8 +110,9 @@ renderer/src/desktop/
    macOS 自动更新不可用（安装包可以手动安装）。
 3. Windows/Linux 打包未在真机验证；DMG 制作在本机沙箱里被 hdiutil 拒绝（zip 与 .app 已验证）。
    `agent-host` 资源含完整 node_modules（约 488MB），可按生产依赖裁剪。
-4. 系统代理：生成网关的 Node fetch 不读取 `HTTPS_PROXY`/macOS `scutil`，需要显式
-   proxy agent 才能和原 Rust 实现行为一致。
+4. 系统代理已补回：`electron/core/proxy.ts` 读取 `HTTPS_PROXY`/`HTTP_PROXY`/`ALL_PROXY`
+   与 macOS `scutil --proxy`，非回环目标经 undici `ProxyAgent` 转发，回环地址始终直连
+   （与 Rust `Proxy::custom` 行为一致）。代理服务器需要支持 CONNECT 隧道。
 
 ## 验证
 

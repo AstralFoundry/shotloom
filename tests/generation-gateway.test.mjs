@@ -47,6 +47,7 @@ test('项目不再分发 WebView HTTP 插件与网络权限', () => {
   }
   // 网络请求只发生在主进程网关；渲染进程没有任何 fetch/XHR 出口。
   const gateway = read('electron/core/gateway.ts');
-  assert.match(gateway, /fetch\(/);
+  assert.match(gateway, /fetchThroughSystemProxy\(/);
+  assert.match(gateway, /import \{ fetchThroughSystemProxy \} from '.\/proxy'/);
   assert.doesNotMatch(read('electron/preload.ts'), /fetch\(|XMLHttpRequest/);
 });
