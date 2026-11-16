@@ -2,6 +2,7 @@ import type { NativeApi } from './api';
 
 export type Skill = { id: string; name: string; description: string; category: string; version: number; instructions: string; enabled: boolean; agentIds?: string[]; updatedAt?: string; builtIn?: boolean; [key: string]: unknown };
 export type SkillCatalog = { storageVersion?: number; skills?: Skill[]; systemSkillIds?: string[]; [key: string]: unknown };
+const fingerprint = (value: unknown) => JSON.stringify(value, (_key, item) => item && typeof item === 'object' && !Array.isArray(item) ? Object.fromEntries(Object.entries(item).sort(([a], [b]) => a.localeCompare(b))) : item);
 export function normalizeSkill(input: unknown): Skill {
   if (!input || typeof input !== 'object') throw new Error('Invalid skill');
   const value = input as Record<string, unknown>;
@@ -28,7 +29,7 @@ export async function saveSkills(api: Pick<NativeApi, 'request'>, edits: Skill[]
   if (ids.some(id => catalog.systemSkillIds?.includes(id))) throw new Error('System skills are read-only');
   if (options.create && normalized.some(skill => skills.some(current => current.id === skill.id))) throw new Error('A skill with this ID already exists.');
   const expected = options.expected || options.remove;
-  if (expected && JSON.stringify(skills.find(skill => skill.id === expected.id)) !== JSON.stringify(expected)) throw new Error('This skill changed on another page. Refresh before saving.');
+  if (expected && fingerprint(skills.find(skill => skill.id === expected.id)) !== fingerprint(expected)) throw new Error('This skill changed on another page. Refresh before saving.');
   const next = new Map(skills.map(skill => [skill.id, skill]));
   if (options.remove) next.delete(options.remove.id);
   for (const skill of normalized) next.set(skill.id, { ...skill, updatedAt: new Date().toISOString() });

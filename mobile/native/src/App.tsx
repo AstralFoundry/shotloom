@@ -261,7 +261,7 @@ export default function App() {
         <Stack.Screen name="Workspace" component={Workspace} options={({ route }) => ({ title: route.params.name, headerShown: !route.params.id })} />
       </Stack.Navigator>
     </NavigationContainer>}
-    <View style={authenticated ? styles.hiddenBridge : styles.loginBridge} pointerEvents={authenticated ? 'none' : 'auto'}>
+    <View style={authenticated ? styles.hiddenBridge : styles.loginBridge} pointerEvents={authenticated ? 'none' : 'auto'} accessibilityElementsHidden={authenticated} importantForAccessibility={authenticated ? 'no-hide-descendants' : 'auto'}>
       <SafeAreaView style={styles.screen}>
         {failure && <ErrorNotice text={failure} retry={() => { setFailure(''); webview.current?.reload(); }} />}
         <WebView ref={webview} source={{ uri: `${origin}/native` }} sharedCookiesEnabled thirdPartyCookiesEnabled={false} mixedContentMode="never" setSupportMultipleWindows={false}
