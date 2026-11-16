@@ -69,6 +69,7 @@ jobs:
           path: |
             ${{ runner.temp }}/emulator-dns.log
             acceptance/launch-log.txt
+            acceptance/device-dns.txt
             acceptance/window.xml
             acceptance/android-launch.png
             acceptance/build.txt

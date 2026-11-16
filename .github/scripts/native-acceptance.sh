@@ -32,6 +32,16 @@ PY_ANR
 }
 adb shell wm size 750x1624
 adb shell wm density 320
+adb shell settings put global private_dns_mode off
+expected_dns=$(python3 -c "import socket; print(socket.gethostbyname('shotloom.0xfiang.com'))")
+device_dns=''
+for attempt in {1..18}; do
+  device_dns=$(adb shell ping -c 1 -W 1 shotloom.0xfiang.com 2>&1 || true)
+  if [[ "$device_dns" == *"$expected_dns"* ]]; then break; fi
+  sleep 2
+done
+printf '%s\n' "$device_dns" > acceptance/device-dns.txt
+[[ "$device_dns" == *"$expected_dns"* ]]
 if [ -n "$BASELINE_RUN" ]; then adb install baseline/Shotloom-Preview.apk; else adb install acceptance/Shotloom-Preview.apk; fi
 adb logcat -c
 adb shell am start -W -n com.shotloom.app.preview/.MainActivity
