@@ -80,9 +80,19 @@ def self_test():
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--self-test', action='store_true')
+    parser.add_argument('--probe', action='store_true')
     args = parser.parse_args()
     if args.self_test:
         self_test()
+    elif args.probe:
+        question = b'\x08shotloom\x070xfiang\x03com\x00'
+        query = b'\xab\xcd' + struct.pack('!HHHHH', 0x0100, 1, 0, 0, 0) + question + struct.pack('!HH', 1, 1)
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as client:
+            client.settimeout(2)
+            client.sendto(query, ('127.0.0.1', 53))
+            response, _ = client.recvfrom(65535)
+        assert response[:2] == query[:2] and response[6:8] == b'\x00\x01', 'CI origin DNS is not ready'
+        print('CI origin DNS relay ready')
     else:
         resolver = next(line.split()[1] for line in Path('/etc/resolv.conf').read_text().splitlines() if line.startswith('nameserver '))
         host = 'shotloom.0xfiang.com'

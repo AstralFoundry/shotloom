@@ -42,6 +42,14 @@ jobs:
         run: |
           python3 .github/scripts/emulator-dns.py --self-test
           sudo python3 .github/scripts/emulator-dns.py > "$RUNNER_TEMP/emulator-dns.log" 2>&1 &
+          dns_pid=$!
+          for attempt in {1..15}; do
+            if python3 .github/scripts/emulator-dns.py --probe; then break; fi
+            if ! kill -0 "$dns_pid" 2>/dev/null; then cat "$RUNNER_TEMP/emulator-dns.log"; exit 1; fi
+            sleep 1
+          done
+          python3 .github/scripts/emulator-dns.py --probe
+          cat "$RUNNER_TEMP/emulator-dns.log"
       - uses: reactivecircus/android-emulator-runner@v2
         env:
           TEST_SESSION_COOKIE: ${{ secrets.SHOTLOOM_ACCEPTANCE_SESSION }}
@@ -58,6 +66,7 @@ jobs:
         with:
           name: Android-launch-evidence
           path: |
+            ${{ runner.temp }}/emulator-dns.log
             acceptance/launch-log.txt
             acceptance/window.xml
             acceptance/android-launch.png
