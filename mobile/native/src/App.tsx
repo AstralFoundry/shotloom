@@ -229,7 +229,7 @@ function WebContent({ params, embedded = false }: { params: Routes['Workspace'];
   </View>;
 }
 function Workspace({ route }: NativeStackScreenProps<Routes, 'Workspace'>) {
-  return <SafeAreaView edges={['bottom']} style={styles.screen}><WebContent params={route.params} /></SafeAreaView>;
+  return <SafeAreaView edges={route.params.id ? ['top', 'bottom'] : ['bottom']} style={styles.screen}><WebContent params={route.params} /></SafeAreaView>;
 }
 export default function App() {
   const webview = useRef<WebView>(null);
@@ -255,7 +255,7 @@ export default function App() {
         <Stack.Screen name="Records" component={Records} options={{ title: t('support.history') }} />
         <Stack.Screen name="Feedback" component={Thread} options={{ title: t('support.title') }} />
         <Stack.Screen name="Notifications" component={Notifications} options={{ title: t('support.notifications') }} />
-        <Stack.Screen name="Workspace" component={Workspace} options={({ route }) => ({ title: route.params.name })} />
+        <Stack.Screen name="Workspace" component={Workspace} options={({ route }) => ({ title: route.params.name, headerShown: !route.params.id })} />
       </Stack.Navigator>
     </NavigationContainer>}
     <View style={authenticated ? styles.hiddenBridge : styles.loginBridge} pointerEvents={authenticated ? 'none' : 'auto'}>

@@ -2,6 +2,8 @@ package com.shotloom.acceptance;
 
 import android.app.Instrumentation;
 import android.os.Bundle;
+import android.content.Intent;
+import android.webkit.WebView;
 import android.webkit.CookieManager;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -22,6 +24,14 @@ public final class SessionInstrumentation extends Instrumentation {
                 ok -> { accepted[0] = ok; saved.countDown(); }));
             if (!saved.await(10, TimeUnit.SECONDS) || !accepted[0]) throw new IllegalStateException("Cookie setup failed");
             runOnMainSync(() -> CookieManager.getInstance().flush());
+            if ("1".equals(arguments.getString("debug"))) {
+                // Test APK only: inspect the release WebView without enabling debugging in the shipped app.
+                runOnMainSync(() -> WebView.setWebContentsDebuggingEnabled(true));
+                Intent launch = getTargetContext().getPackageManager().getLaunchIntentForPackage(getTargetContext().getPackageName());
+                launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                getTargetContext().startActivity(launch);
+                Thread.sleep(180000);
+            }
             result.putString("stream", "Test session installed\n");
             finish(-1, result);
         } catch (Exception error) {
