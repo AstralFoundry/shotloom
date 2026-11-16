@@ -74,6 +74,10 @@ jobs:
             acceptance/android-feedback.png
             acceptance/android-records.png
             acceptance/android-notifications.png
+            acceptance/android-skills.png
+            acceptance/android-skill-editor.png
+            acceptance/skills.xml
+            acceptance/skill-editor.xml
             acceptance/android-canvas*.png
             acceptance/canvas*.json
             acceptance/canvas*.xml

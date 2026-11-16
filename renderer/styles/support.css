@@ -16,6 +16,18 @@
 .support-list-item:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
 .support-list-item time, .support-thread time { color: var(--muted); }
 .support-excerpt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.support-record { gap: 16px; padding: 20px; border-radius: var(--radius-xl); }
+.support-record-heading, .support-record-kind, .support-record-footer { display: flex; align-items: center; gap: 12px; }
+.support-record-heading, .support-record-footer { justify-content: space-between; flex-wrap: wrap; }
+.support-record-kind strong { font-size: var(--text-body-14); font-weight: 500; }
+.support-record-icon { display: grid; place-items: center; width: 36px; height: 36px; border-radius: var(--radius-control); background: var(--brand-accent-wash); color: var(--brand-accent); }
+.support-record-icon svg { width: 18px; height: 18px; }
+.support-status { padding: 4px 10px; border-radius: var(--radius-xl); background: var(--wash-inset); color: var(--muted); font-size: var(--text-caption-11); }
+.support-status-processing { background: var(--brand-accent-wash); color: var(--brand-accent); }
+.support-status-resolved { background: var(--surface-2); color: var(--text); }
+.support-record-description { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--text-body-14); line-height: var(--text-body-14--line-height); }
+.support-record-footer { border-top: 1px solid var(--line); padding-top: 14px; font-size: var(--text-caption-11); color: var(--muted); }
+.support-record-footer svg { width: 16px; height: 16px; }
 .support-body { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
 .support-reply { display: grid; gap: 8px; padding: 16px; background: var(--surface-2); border-radius: var(--radius); }
 .support-notification { display: grid; gap: 4px; }

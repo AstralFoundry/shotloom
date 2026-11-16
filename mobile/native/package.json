@@ -1,6 +1,6 @@
 {
   "name": "shotloom-native",
-  "version": "0.9.1",
+  "version": "0.9.4",
   "private": true,
   "main": "index.ts",
   "scripts": {
@@ -17,7 +17,10 @@
     "expo": "57.0.33",
     "expo-crypto": "~57.0.4",
     "expo-dev-client": "~57.0.21",
+    "expo-document-picker": "~57.0.3",
+    "expo-file-system": "~57.0.7",
     "expo-localization": "~57.0.2",
+    "expo-sharing": "~57.0.26",
     "react": "19.2.3",
     "react-native": "0.86.3",
     "react-native-safe-area-context": "~5.7.0",
@@ -28,6 +31,9 @@
   "devDependencies": {
     "@types/node": "22.13.0",
     "@types/react": "19.2.14",
+    "@types/react-test-renderer": "^19.3.1",
+    "esbuild": "^0.28.1",
+    "react-test-renderer": "^19.2.3",
     "tsx": "4.22.4",
     "typescript": "~6.0.3"
   },

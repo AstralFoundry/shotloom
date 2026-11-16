@@ -64,7 +64,7 @@ await command('Page.addScriptToEvaluateOnNewDocument', { source });
 await command('Page.reload', { ignoreCache: true, scriptToEvaluateOnLoad: source });
 const inspect = async () => {
   const result = await command('Runtime.evaluate', {
-    expression: `JSON.stringify({ready:!!document.querySelector('.react-flow__viewport'),width:innerWidth,height:innerHeight,scrollWidth:document.documentElement.scrollWidth,transform:document.querySelector('.react-flow__viewport')?.style.transform})`,
+    expression: `JSON.stringify({ready:!!document.querySelector('.react-flow__viewport'),timeOrigin:performance.timeOrigin,width:innerWidth,height:innerHeight,scrollWidth:document.documentElement.scrollWidth,transform:document.querySelector('.react-flow__viewport')?.style.transform})`,
     returnByValue: true,
   });
   return JSON.parse(result.result.value);
@@ -101,4 +101,10 @@ assert.notEqual(after.transform, zoomed.transform, 'Android pan did not move the
 assert.equal(after.transform.match(/scale\([^)]+\)/)?.[0], zoomed.transform.match(/scale\([^)]+\)/)?.[0], 'Pan unexpectedly changes zoom');
 await writeFile('acceptance/canvas-interaction.json', JSON.stringify({ before, zoomed, after, fixtures: ['/api/auth/account', '/api/models'] }));
 console.log('CANVAS_INTERACTION_PASSED', JSON.stringify(after));
+await marker('canvas-reopen');
+const reopened = await inspect();
+assert.equal(reopened.timeOrigin, before.timeOrigin, 'Returning to the same canvas reloaded the document and session');
+assert.equal(reopened.transform, after.transform, 'Returning to canvas lost the viewport');
+await writeFile('acceptance/canvas-preserved.json', JSON.stringify({ after, reopened }));
+console.log('CANVAS_PRESERVED', JSON.stringify(reopened));
 ws.close();

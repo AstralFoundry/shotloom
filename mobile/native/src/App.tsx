@@ -1,11 +1,10 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, AppState, FlatList, KeyboardAvoidingView, Modal, Platform, Pressable, RefreshControl, ScrollView, StatusBar, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, AppState, BackHandler, FlatList, KeyboardAvoidingView, Modal, Platform, Pressable, RefreshControl, ScrollView, StatusBar, Text, TextInput, View } from 'react-native';
 import { NavigationContainer, useFocusEffect } from '@react-navigation/native';
 import { createNativeStackNavigator, type NativeStackScreenProps } from '@react-navigation/native-stack';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import { randomUUID } from 'expo-crypto';
-import { getLocales } from 'expo-localization';
 import { NativeApi } from './api';
 import { isSessionSource } from './sessionSource';
 import { SvgXml } from 'react-native-svg';
@@ -13,16 +12,12 @@ import { colors, styles, Icon, IconButton, Button as Action } from './ui';
 import { noProjectIllustration } from './illustration';
 import type { IconName } from '../../../shared/iconPaths';
 import type { Feedback, FeedbackDetail, FeedbackKind, InboxPage, Page } from '../../../shared/support';
-import zh from '../../../renderer/src/i18n/locales/zh-CN.json';
-import en from '../../../renderer/src/i18n/locales/en-US.json';
-
-let language = getLocales()[0]?.languageCode === 'zh' ? 'zh-CN' : 'en-US';
-const t = (key: keyof typeof zh) => (language === 'zh-CN' ? zh : en)[key];
-const local = (cn: string, english: string) => language === 'zh-CN' ? cn : english;
+import { language, local, setLanguage, t } from './i18n';
+import { NativeSkills } from './NativeSkills';
 const origin = (process.env.EXPO_PUBLIC_CLOUD_URL || 'https://shotloom.0xfiang.com').replace(/\/$/, '');
 const parsedOrigin = new URL(origin);
 if (parsedOrigin.origin !== origin || (parsedOrigin.protocol !== 'https:' && !(__DEV__ && parsedOrigin.protocol === 'http:'))) throw new Error('EXPO_PUBLIC_CLOUD_URL must be an HTTPS origin');
-type Routes = { Home: undefined; Records: undefined; Compose: undefined; Feedback: { id: string }; Notifications: undefined; Workspace: { id: string; name: string; page?: 'projects' | 'skills' | 'account'; panel?: 'settings' | 'topup'; folder?: string } };
+type Routes = { Home: undefined; Records: undefined; Compose: undefined; Feedback: { id: string }; Notifications: undefined; Workspace: { id: string; name: string; page?: 'projects' | 'account'; panel?: 'settings' | 'topup'; folder?: string } };
 const Stack = createNativeStackNavigator<Routes>();
 const ApiContext = createContext<NativeApi | null>(null);
 function useApi() { const value = useContext(ApiContext); if (!value) throw new Error('Session unavailable'); return value; }
@@ -102,6 +97,7 @@ function Account({ navigation }: { navigation: NativeStackScreenProps<Routes, 'H
   const logout = useContext(LogoutContext);
   const account = useRemote<Account>('/auth/account');
   const me = useRemote<{ username?: string; email?: string }>('/auth/me');
+  const inbox = useRemote<InboxPage>('/notifications?offset=0&limit=1');
   const [page, setPage] = useState(1);
   const usage = useRemote<Usage>(`/auth/usage?page=${page}&page_size=10`);
   const refresh = () => { account.refresh(); usage.refresh(); me.refresh(); };
@@ -111,7 +107,7 @@ function Account({ navigation }: { navigation: NativeStackScreenProps<Routes, 'H
     <View style={styles.accountHeader}><Text style={styles.heading}>{t('account.title')}</Text><Text style={styles.secondary}>{t('account.description')}</Text></View>
     <View style={styles.profile}><View style={styles.avatar}><Icon name="user" size={26} color={colors.accent} /></View><View style={styles.grow}><Text style={styles.profileName}>{account.data?.username || me.data?.username || t('account.welcome')}</Text><Text style={styles.secondary}>{account.data?.email || me.data?.email || 'new-api'}</Text></View></View>
     <View style={styles.wallet}><View style={styles.between}><Text style={[styles.body, styles.white]}>{t('account.quota')}</Text><IconButton name="refresh" light label={t('account.refresh')} disabled={account.loading} onPress={refresh} /></View><Text style={styles.quota}>{account.data ? credits(account.data.app_quota) : '—'}</Text><View style={[styles.inline, { gap: 16 }]}><Text style={styles.used}>{t('account.used')}</Text><Text style={styles.used}>{account.data ? credits(account.data.app_used_quota) : '—'}</Text></View><View style={styles.walletBottom}><Text style={styles.walletNote}>{t('account.quotaDescription')}</Text><Action title={t('account.topup')} icon="plus" ghost onPress={() => openPanel('topup')} /></View>{account.error ? <Text accessibilityRole="alert" style={[styles.walletNote, { marginTop: 12 }]}>{t('account.loadFailed')}</Text> : null}</View>
-    <View style={styles.accountActions}>{action('settings', t('account.settings'), t('settings.cloudGeneralDescription'), () => openPanel('settings'))}{action('scan-text', t('support.title'), t('support.accountDescription'), () => navigation.navigate('Compose'))}</View>
+    <View style={styles.accountActions}>{action('settings', t('account.settings'), t('settings.cloudGeneralDescription'), () => openPanel('settings'))}{action('bell', t('support.notifications'), inbox.data?.unread ? local(`${inbox.data.unread} 条未读通知`, `${inbox.data.unread} unread notifications`) : local('接收处理结果与重要消息', 'Replies and important updates'), () => navigation.navigate('Notifications'))}{action('scan-text', t('support.title'), t('support.accountDescription'), () => navigation.navigate('Compose'))}</View>
     <View style={styles.usage}><View style={styles.between}><View style={styles.grow}><Text style={styles.title}>{t('account.usage')}</Text><Text style={[styles.small, { marginTop: 8 }]}>{t('account.usageScope')}</Text></View><IconButton name="refresh" label={t('account.refreshUsage')} disabled={usage.loading} onPress={usage.refresh} /></View>
       {usage.loading ? <ActivityIndicator color={colors.accent} /> : usage.error ? <><Text style={styles.error}>{t('account.usageFailed')}</Text><Action ghost title={t('account.retryUsage')} onPress={usage.refresh} /></> : !usage.data?.items.length ? <Text style={styles.secondary}>{t('account.usageEmpty')}</Text> : usage.data.items.map(item => <View key={item.id} style={styles.usageItem}><View style={styles.between}><Text style={[styles.body, styles.grow]}>{item.model_name || t('account.usageUnknownModel')}</Text><Text style={styles.body}>{credits(item.quota)} {local('积分', 'credits')}</Text></View><Text style={styles.small}>{date(new Date(item.created_at * 1000).toISOString())}</Text></View>)}
       <View style={styles.between}><Action title={t('account.previousPage')} ghost disabled={usage.loading || page === 1} onPress={() => setPage(value => value - 1)} /><Text style={styles.small}>{page} / {Math.max(1, Math.ceil((usage.data?.total || 0) / 10))}</Text><Action title={t('account.nextPage')} ghost disabled={usage.loading || !usage.data || page * 10 >= usage.data.total || page >= 10000} onPress={() => setPage(value => value + 1)} /></View>
@@ -119,10 +115,15 @@ function Account({ navigation }: { navigation: NativeStackScreenProps<Routes, 'H
   </ScrollView>;
 }
 function Home({ navigation }: NativeStackScreenProps<Routes, 'Home'>) {
-  const [tab, setTab] = useState<'projects' | 'skills' | 'account'>('projects');
+  const api = useApi();
+  const [tab, setTab] = useState<'projects' | 'creation' | 'skills' | 'account'>('projects');
   const [currentProject, setCurrentProject] = useState<Project>();
-  const inbox = useRemote<InboxPage>('/notifications?offset=0&limit=1');
-  const open = (project: Project) => { setCurrentProject(project); navigation.navigate('Workspace', project); };
+  const open = (project: Project) => { setCurrentProject(current => current?.id === project.id ? current : project); setTab('creation'); };
+  useFocusEffect(useCallback(() => {
+    if (tab !== 'creation') return;
+    const listener = BackHandler.addEventListener('hardwareBackPress', () => { setTab('projects'); return true; });
+    return () => listener.remove();
+  }, [tab]));
   const tabs: Array<{ id: 'projects' | 'creation' | 'skills' | 'account'; label: string; icon: IconName }> = [
     { id: 'projects', label: t('ui.ProjectScopeHeader.text.79b705bd'), icon: 'folder' },
     { id: 'creation', label: t('ui.navigation.label.a1fce3b0'), icon: 'grid' },
@@ -130,25 +131,27 @@ function Home({ navigation }: NativeStackScreenProps<Routes, 'Home'>) {
     { id: 'account', label: t('account.title'), icon: 'user' },
   ];
   return <SafeAreaView style={styles.screen}><StatusBar barStyle="dark-content" backgroundColor={colors.background} /><View style={styles.grow}>
-    {tab === 'projects' ? <Projects navigation={navigation} onOpen={open} /> : tab === 'account' ? <Account navigation={navigation} /> : <WebContent params={{ id: '', name: '', page: 'skills' }} embedded />}
-    <View style={styles.bell}><IconButton name="bell" label={t('support.notifications')} onPress={() => navigation.navigate('Notifications')} />{inbox.data?.unread ? <View pointerEvents="none" style={styles.badge}><Text style={styles.badgeText}>{inbox.data.unread > 99 ? '99+' : inbox.data.unread}</Text></View> : null}</View>
+    {tab === 'projects' ? <Projects navigation={navigation} onOpen={open} /> : tab === 'account' ? <Account navigation={navigation} /> : tab === 'skills' ? <NativeSkills api={api} /> : null}
+    {currentProject && <View style={[styles.screen, tab !== 'creation' && styles.parkedWorkspace]} pointerEvents={tab === 'creation' ? 'auto' : 'none'} accessibilityElementsHidden={tab !== 'creation'} importantForAccessibility={tab === 'creation' ? 'auto' : 'no-hide-descendants'}><WebContent key={currentProject.id} params={currentProject} embedded /></View>}
   </View><View accessibilityRole="tablist" style={styles.tabs}>{tabs.map(item => <Pressable key={item.id} accessibilityRole="tab" accessibilityState={{ selected: tab === item.id, disabled: item.id === 'creation' && !currentProject }} disabled={item.id === 'creation' && !currentProject} onPress={() => { if (item.id === 'creation') { if (currentProject) open(currentProject); } else setTab(item.id); }} style={({ pressed }) => [styles.tab, tab === item.id && styles.tabActive, item.id === 'creation' && !currentProject && styles.disabled, pressed && styles.pressed]}><Icon name={item.icon} color={tab === item.id ? colors.accent : colors.muted} /><Text style={[styles.tabText, tab === item.id && styles.tabTextActive]}>{item.label}</Text></Pressable>)}</View></SafeAreaView>;
 }
-function SupportTabs({ active, navigation }: { active: 'Compose' | 'Records' | 'Notifications'; navigation: Pick<NativeStackScreenProps<Routes, 'Home'>['navigation'], 'navigate'> }) {
-  const tabs = [{ route: 'Compose' as const, label: t('support.submit') }, { route: 'Records' as const, label: t('support.history') }, { route: 'Notifications' as const, label: t('support.notifications') }];
+function SupportTabs({ active, navigation }: { active: 'Compose' | 'Records'; navigation: Pick<NativeStackScreenProps<Routes, 'Home'>['navigation'], 'navigate'> }) {
+  const tabs = [{ route: 'Compose' as const, label: t('support.submit') }, { route: 'Records' as const, label: t('support.history') }];
   return <View style={{ backgroundColor: colors.surface, paddingHorizontal: 16 }}><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 28, borderBottomWidth: 1, borderColor: colors.line }} accessibilityRole="tablist">{tabs.map(tab => <Pressable key={tab.route} accessibilityRole="tab" accessibilityState={{ selected: active === tab.route }} style={{ minHeight: 48, justifyContent: 'center', borderBottomWidth: 2, borderColor: active === tab.route ? colors.accent : 'transparent' }} onPress={() => { if (active !== tab.route) navigation.navigate(tab.route); }}><Text style={{ fontSize: 13, lineHeight: 20, color: active === tab.route ? colors.accent : colors.text }}>{tab.label}</Text></Pressable>)}</ScrollView></View>;
 }
 function Records({ navigation }: NativeStackScreenProps<Routes, 'Records'>) {
   const [page, setPage] = useState(0);
   const { data, error, loading, refresh } = useRemote<Page<Feedback>>(`/feedback?offset=${page * 20}&limit=20`);
-  return <SafeAreaView edges={['bottom']} style={[styles.screen, { backgroundColor: colors.surface }]}><SupportTabs active="Records" navigation={navigation} />
+  return <SafeAreaView edges={['bottom']} style={styles.screen}><SupportTabs active="Records" navigation={navigation} />
     {error && <ErrorNotice text={error} retry={refresh} />}
-    <FlatList data={data?.items || []} keyExtractor={item => item.id} refreshing={loading} onRefresh={refresh} contentContainerStyle={styles.list}
-      ListEmptyComponent={!loading && !error ? <EmptyState title={t('support.empty')} /> : null}
-      renderItem={({ item }) => <Pressable accessibilityRole="button" style={styles.row} onPress={() => navigation.navigate('Feedback', { id: item.id })}>
-        <Text style={styles.secondary}>{t(`support.${item.kind}`)} · {t(`support.${item.status}`)}</Text><Text numberOfLines={3} style={styles.body}>{item.description}</Text><Text style={styles.secondary}>{date(item.created_at)}</Text>
+    <FlatList data={data?.items || []} keyExtractor={item => item.id} refreshing={loading} onRefresh={refresh} contentContainerStyle={styles.recordList}
+      ListHeaderComponent={data?.items.length ? <Text style={styles.small}>{local(`${data.total} 条记录`, `${data.total} records`)}</Text> : null}
+      ListEmptyComponent={!loading && !error ? <EmptyState title={t('support.empty')} description={local('提交反馈或举报后，可在这里跟进处理进度。', 'Follow the progress of submitted feedback and reports here.')} /> : null}
+      renderItem={({ item }) => <Pressable accessibilityRole="button" style={({ pressed }) => [styles.recordCard, pressed && styles.pressed]} onPress={() => navigation.navigate('Feedback', { id: item.id })}>
+        <View style={styles.between}><View style={styles.inline}><View style={styles.recordIcon}><Icon name={item.kind === 'report' ? 'target' : 'scan-text'} size={18} color={colors.accent} /></View><Text style={styles.title}>{t(`support.${item.kind}`)}</Text></View><View style={[styles.statusPill, item.status === 'resolved' ? styles.resolvedPill : item.status === 'processing' ? styles.processingPill : undefined]}><Text style={[styles.small, item.status === 'resolved' ? styles.resolvedText : item.status === 'processing' ? styles.processingText : undefined]}>{t(`support.${item.status}`)}</Text></View></View>
+        <Text numberOfLines={3} style={styles.body}>{item.description}</Text><View style={styles.recordFooter}><Text style={styles.small}>{date(item.created_at)}</Text><View style={styles.inline}><Text style={styles.small}>{local('查看详情', 'View details')}</Text><Icon name="chevron-right" size={16} color={colors.muted} /></View></View>
       </Pressable>} />
-    <View style={styles.actions}><Action title={local('上一页', 'Previous')} disabled={!page} onPress={() => setPage(value => value - 1)} /><Action title={local('下一页', 'Next')} disabled={(page + 1) * 20 >= (data?.total || 0)} onPress={() => setPage(value => value + 1)} /></View>
+    {(data?.total || 0) > 20 && <View style={styles.pager}><Action ghost title={local('上一页', 'Previous')} disabled={!page || loading} onPress={() => setPage(value => value - 1)} /><Text style={styles.small}>{page + 1} / {Math.ceil((data?.total || 0) / 20)}</Text><Action ghost title={local('下一页', 'Next')} disabled={loading || (page + 1) * 20 >= (data?.total || 0)} onPress={() => setPage(value => value + 1)} /></View>}
   </SafeAreaView>;
 }
 function Thread({ route }: NativeStackScreenProps<Routes, 'Feedback'>) {
@@ -202,7 +205,7 @@ function Notifications({ navigation }: NativeStackScreenProps<Routes, 'Notificat
   const [failure, setFailure] = useState('');
   const [busy, setBusy] = useState(false);
   const run = async (operation: () => Promise<void>) => { setBusy(true); setFailure(''); try { await operation(); refresh(); } catch (cause) { setFailure(errorText(cause)); } finally { setBusy(false); } };
-  return <SafeAreaView edges={['bottom']} style={[styles.screen, { backgroundColor: colors.surface }]}><SupportTabs active="Notifications" navigation={navigation} />
+  return <SafeAreaView edges={['bottom']} style={styles.screen}>
     {(error || failure) ? <ErrorNotice text={error || failure} retry={refresh} /> : null}
     <View style={styles.actions}><Text style={styles.title}>{local('未读', 'Unread')}: {data?.unread || 0}</Text><Action title={t('support.readAll')} disabled={busy || !data?.unread} onPress={() => void run(async () => { await api.request('/notifications/read-all', 'PUT', { asOf: data!.asOf }); })} /></View>
     <FlatList data={data?.items || []} keyExtractor={item => item.id} refreshing={loading} onRefresh={refresh} contentContainerStyle={styles.list}
@@ -222,7 +225,7 @@ function WebContent({ params, embedded = false }: { params: Routes['Workspace'];
   if (params.panel) query.set('panel', params.panel);
   if (params.folder) query.set('folder', params.folder);
   // Workspace content has no native bridge. Embedded skill content uses the native tab bar.
-  const injected = `window.__SHOTLOOM_MOBILE__ = true; ${embedded ? `document.addEventListener('DOMContentLoaded',function(){var s=document.createElement('style');s.textContent='.app-shell .sidebar-shell,.app-shell .topbar,.support-launcher{display:none!important}.app-shell .workspace{grid-template-rows:minmax(0,1fr)!important}';document.head.appendChild(s)});` : ''} true;`;
+  const injected = `window.__SHOTLOOM_MOBILE__ = true; ${embedded ? `document.addEventListener('DOMContentLoaded',function(){var s=document.createElement('style');s.textContent='.app-shell .sidebar-shell,.app-shell .topbar,.app-shell .mobile-navigation{display:none!important}.app-shell .workspace{grid-template-rows:minmax(0,1fr)!important}';document.head.appendChild(s)});` : ''} true;`;
   return <View style={styles.screen}>{error && <ErrorNotice text={error} retry={() => { setError(''); setRetry(value => value + 1); }} />}
     <WebView key={retry} source={{ uri: `${origin}/?${query}` }} style={styles.screen} sharedCookiesEnabled thirdPartyCookiesEnabled={false}
       mixedContentMode="never" setSupportMultipleWindows={false} injectedJavaScriptBeforeContentLoaded={injected} onError={event => setError(event.nativeEvent.description)} onHttpError={event => setError(`HTTP ${event.nativeEvent.statusCode}`)} />
@@ -271,7 +274,7 @@ export default function App() {
               const value = JSON.parse(event.nativeEvent.data);
               if (value.type === 'ready' && typeof value.userId === 'string') {
                 if (user.current && user.current !== value.userId) { setFailure(t('cloud.login.accountChanged')); setAuthenticated(false); return; }
-                if (value.locale === 'zh-CN' || value.locale === 'en-US') language = value.locale;
+                setLanguage(value.locale);
                 user.current = value.userId; setOpened(true); setAuthenticated(true); setFailure('');
               } else if (value.type === 'login') { setAuthenticated(false); api.disconnect(); }
               else if (value.type === 'response' && typeof value.id === 'string') api.receive(value);

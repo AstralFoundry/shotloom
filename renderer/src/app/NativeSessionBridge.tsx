@@ -20,7 +20,13 @@ export function NativeSessionBridge() {
         post({ type: 'response', id: request?.id, error: 'Request is unavailable', status: 403 }); return;
       }
       void cloudRequest(request.path, request.method, request.value)
-        .then(data => post({ type: 'response', id: request.id, data }))
+        .then(async data => {
+          if (request.method === 'GET' && request.path === '/catalog/skills') {
+            const { builtInSkills, withoutBuiltInSkills } = await import('../services/builtInSkills');
+            data = { ...withoutBuiltInSkills(data as Record<string, unknown>), systemSkillIds: builtInSkills.map(skill => skill.id) };
+          }
+          post({ type: 'response', id: request.id, data });
+        })
         .catch(error => post({ type: 'response', id: request.id, error: error.message, status: error.status }));
     };
     void cloudRequest<{ id: string }>('/auth/me').then(user => post({ type: 'ready', userId: user.id, locale: getLocale() })).catch(() => post({ type: 'login' }));

@@ -15,6 +15,9 @@ const kindOptions = () => kinds.map(value => ({ value, label: t(`support.${value
 export function openFeedbackCenter() {
   window.dispatchEvent(new Event('shotloom-open-feedback'));
 }
+export function openNotificationCenter() {
+  window.dispatchEvent(new Event('shotloom-open-notifications'));
+}
 
 function FeedbackThread({ id, admin = false, onBack, onChanged }: {
   id: string; admin?: boolean; onBack: () => void; onChanged: () => void;
@@ -94,9 +97,9 @@ function FeedbackList({ admin = false, onSelect, refresh }: { admin?: boolean; o
     {error && <Alert type="error" title={error} />}
     {loading ? <Spin /> : !error && <>
       {!data?.items.length && <Empty description={t('support.empty')} image={Empty.PRESENTED_IMAGE_SIMPLE} />}
-      {data?.items.map(item => <button className="support-list-item" key={item.id} onClick={() => onSelect(item.id)}>
-        <Space><Tag>{t(`support.${item.kind}`)}</Tag><Tag>{t(`support.${item.status}`)}</Tag></Space>
-        <span className="support-excerpt">{item.description}</span><time>{date(item.created_at)}</time>
+      {data?.items.map(item => <button className="support-list-item support-record" key={item.id} onClick={() => onSelect(item.id)}>
+        <span className="support-record-heading"><span className="support-record-kind"><span className="support-record-icon"><IconSymbol name={item.kind === 'report' ? 'target' : 'scan-text'} /></span><strong>{t(`support.${item.kind}`)}</strong></span><span className={`support-status support-status-${item.status}`}>{t(`support.${item.status}`)}</span></span>
+        <span className="support-record-description">{item.description}</span><span className="support-record-footer"><time>{date(item.created_at)}</time><IconSymbol name="chevron-right" /></span>
       </button>)}
       <Pagination current={page} pageSize={20} total={data?.total || 0} onChange={setPage} showSizeChanger={false} hideOnSinglePage />
     </>}
@@ -112,7 +115,8 @@ export function AdminFeedback() {
 
 export function SupportCenter() {
   const [open, setOpen] = useState(false);
-  const [tab, setTab] = useState('notifications');
+  const [center, setCenter] = useState<'feedback' | 'notifications'>('feedback');
+  const [tab, setTab] = useState('feedback');
   const [selected, setSelected] = useState('');
   const [inbox, setInbox] = useState<InboxPage>();
   const [page, setPage] = useState(1);
@@ -124,9 +128,11 @@ export function SupportCenter() {
   const submission = useRef<{ payload: string; id: string } | undefined>(undefined);
   const reload = useCallback(() => setRefresh(value => value + 1), []);
   useEffect(() => {
-    const openFeedback = () => { setTab('feedback'); setSelected(''); setOpen(true); reload(); };
+    const openFeedback = () => { setCenter('feedback'); setTab('feedback'); setSelected(''); setOpen(true); reload(); };
+    const openNotifications = () => { setCenter('notifications'); setSelected(''); setOpen(true); reload(); };
     window.addEventListener('shotloom-open-feedback', openFeedback);
-    return () => window.removeEventListener('shotloom-open-feedback', openFeedback);
+    window.addEventListener('shotloom-open-notifications', openNotifications);
+    return () => { window.removeEventListener('shotloom-open-feedback', openFeedback); window.removeEventListener('shotloom-open-notifications', openNotifications); };
   }, [reload]);
   useEffect(() => {
     if (!cloudEnabled) return;
@@ -149,9 +155,20 @@ export function SupportCenter() {
     try { await operation(); reload(); } catch (cause) { setError(message(cause)); } finally { setBusy(false); }
   };
   return <>
-    <Modal open={open} title={t('support.title')} footer={null} onCancel={() => { if (!busy) setOpen(false); }} width={640} className="support-dialog">
+    <Modal open={open} title={t(center === 'notifications' ? 'support.notifications' : 'support.title')} footer={null} onCancel={() => { if (!busy) setOpen(false); }} width={640} className="support-dialog">
       {error && <Alert type="error" title={error} action={<Button onClick={reload}>{t('support.refresh')}</Button>} />}
-      {selected ? <FeedbackThread key={selected} id={selected} onBack={() => setSelected('')} onChanged={reload} /> : <Tabs activeKey={tab} onChange={value => { setTab(value); setSubmitted(''); }} items={[
+      {selected ? <FeedbackThread key={selected} id={selected} onBack={() => setSelected('')} onChanged={reload} /> : center === 'notifications' ? <section className="support-list">
+        <Space wrap><Button onClick={reload}>{t('support.refresh')}</Button><Button disabled={busy || !inbox?.unread} onClick={() => void run(async () => { await cloudRequest('/notifications/read-all', 'PUT', { asOf: inbox!.asOf }); })}>{t('support.readAll')}</Button></Space>
+        {!inbox && !error && <Spin />}
+        {inbox && !inbox.items.length && <Empty description={t('support.noNotifications')} image={Empty.PRESENTED_IMAGE_SIMPLE} />}
+        {inbox?.items.map(item => <article className="support-notification" key={item.id}>
+          <button className="support-list-item" disabled={busy} onClick={() => void run(async () => {
+            await cloudRequest(`/notifications/${item.id}/read`, 'PUT'); setSelected(item.feedback_id);
+          })}><Space><Badge dot={!item.read_at} /><span>{t('support.replyReceived')}</span></Space><span className="support-excerpt">{item.body}</span><time>{date(item.created_at)}</time></button>
+          {!item.read_at && <Button type="link" disabled={busy} onClick={() => void run(async () => { await cloudRequest(`/notifications/${item.id}/read`, 'PUT'); })}>{t('support.read')}</Button>}
+        </article>)}
+        <Pagination current={page} pageSize={20} total={inbox?.total || 0} onChange={setPage} showSizeChanger={false} hideOnSinglePage />
+      </section> : <Tabs activeKey={tab} onChange={value => { setTab(value); setSubmitted(''); }} items={[
         { key: 'feedback', label: t('support.submit'), children: <>
           {submitted && <Alert type="success" title={t('support.submitted')} description={<Button type="link" onClick={() => setSelected(submitted)}>{submitted}</Button>} />}
           <Form form={form} layout="vertical" initialValues={{ kind: 'feedback' }} onFinish={values => void run(async () => {
@@ -167,18 +184,6 @@ export function SupportCenter() {
           </Form>
         </> },
         { key: 'history', label: t('support.history'), children: <FeedbackList onSelect={setSelected} refresh={refresh} /> },
-        { key: 'notifications', label: t('support.notifications'), children: <section className="support-list">
-          <Space wrap><Button onClick={reload}>{t('support.refresh')}</Button><Button disabled={busy || !inbox?.unread} onClick={() => void run(async () => { await cloudRequest('/notifications/read-all', 'PUT', { asOf: inbox!.asOf }); })}>{t('support.readAll')}</Button></Space>
-          {!inbox && !error && <Spin />}
-          {inbox && !inbox.items.length && <Empty description={t('support.noNotifications')} image={Empty.PRESENTED_IMAGE_SIMPLE} />}
-          {inbox?.items.map(item => <article className="support-notification" key={item.id}>
-            <button className="support-list-item" disabled={busy} onClick={() => void run(async () => {
-              await cloudRequest(`/notifications/${item.id}/read`, 'PUT'); setSelected(item.feedback_id);
-            })}><Space><Badge dot={!item.read_at} /><span>{t('support.replyReceived')}</span></Space><span className="support-excerpt">{item.body}</span><time>{date(item.created_at)}</time></button>
-            {!item.read_at && <Button type="link" disabled={busy} onClick={() => void run(async () => { await cloudRequest(`/notifications/${item.id}/read`, 'PUT'); })}>{t('support.read')}</Button>}
-          </article>)}
-          <Pagination current={page} pageSize={20} total={inbox?.total || 0} onChange={setPage} showSizeChanger={false} hideOnSinglePage />
-        </section> },
       ]} />}
     </Modal>
   </>;

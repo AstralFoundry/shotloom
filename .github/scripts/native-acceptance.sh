@@ -84,6 +84,7 @@ wait_for_ui account-landscape '可用积分|Available credits'
 adb exec-out screencap -p > acceptance/android-account-landscape.png
 adb shell settings put system user_rotation 0
 wait_for_ui account '可用积分|Available credits'
+adb shell input swipe 380 1260 380 700 500
 tap_text '反馈与举报|Feedback and reports'
 wait_for_ui feedback '问题描述|Description'
 adb exec-out screencap -p > acceptance/android-feedback.png
@@ -106,7 +107,17 @@ adb shell input keyevent 4
 wait_for_ui account '可用积分|Available credits'
 tap_text '^通知$|^Notifications$'
 wait_for_ui notifications '暂无通知|No notifications'
+! grep -E '提交反馈或举报|Submit feedback or report|我的记录|My records' acceptance/notifications.xml
 adb exec-out screencap -p > acceptance/android-notifications.png
+adb shell input keyevent 4
+tap_text '^技能$|^Skills$'
+wait_for_ui skills 'Native Acceptance Skill'
+! grep -E 'Checking your session|正在检查登录状态|android.webkit.WebView' acceptance/skills.xml
+adb exec-out screencap -p > acceptance/android-skills.png
+tap_text 'Native Acceptance Skill'
+wait_for_ui skill-editor '技能指令|Instructions'
+adb exec-out screencap -p > acceptance/android-skill-editor.png
+adb shell input keyevent 4
 capture
 ! grep -E 'FATAL EXCEPTION|ReactNativeJS.*(Error:|Invariant Violation)' acceptance/launch-log.txt
 
@@ -139,7 +150,16 @@ test -f acceptance/canvas-zoom.json
 adb shell input swipe 320 950 450 1100 600
 sleep 2
 touch acceptance/canvas-pan.marker
-wait "$canvas_check"
+for attempt in {1..15}; do
+  if [ -f acceptance/canvas-interaction.json ]; then break; fi
+  sleep 1
+done
+test -f acceptance/canvas-interaction.json
 adb exec-out screencap -p > acceptance/android-canvas-pan.png
 adb shell input keyevent 4
 wait_for_ui canvas-return 'Android Canvas Acceptance'
+tap_text 'Android Canvas Acceptance'
+wait_for_ui canvas-reopen '110%'
+touch acceptance/canvas-reopen.marker
+wait "$canvas_check"
+adb exec-out screencap -p > acceptance/android-canvas-reopen.png
