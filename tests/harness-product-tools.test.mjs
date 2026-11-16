@@ -87,6 +87,69 @@ test('named product catalog covers workbenches and excludes generic forwarding a
   assert.ok(!clip.some(tool => tool.name === 'canvas_create_node'));
 });
 
+test('canvas sections support real membership, moving, undo and deletion through product tools', async () => {
+  const { binding, catalog } = fixture();
+  assert.equal(catalog.find(tool => tool.name === 'canvas_manage_section').effect, 'write');
+  const project = projects.store.project;
+  project.nodes = ['a', 'b', 'c'].map((id, i) => ({ id, type: 'imageGeneration', x: i * 300, y: 0, canvasWidth: 180, canvasHeight: 120, agentSemanticId: `item-${id}` }));
+  project.edges = [{ id: 'ab', source: 'a', target: 'b' }];
+  const call = async input => (await tools.executeProductRequest(request(binding, 'canvas_manage_section', input, { approvedByHarness: true }))).result;
+  const denied = await tools.executeProductRequest(request(binding, 'canvas_manage_section', { operation: 'create' }));
+  assert.equal(denied.code, 'APPROVAL_REQUIRED');
+  assert.equal(project.nodes.length, 3);
+  const created = await call({ operation: 'create', title: '角色', nodeIds: ['item-a', 'b'], autoLayout: false });
+  assert.equal(created.success, true);
+  const id = created.sectionId;
+  assert.deepEqual(created.section.nodeIds, ['a', 'b']);
+  const snapshot = (await tools.executeProductRequest(request(binding, 'canvas_list_nodes', { view: 'summary' }))).result;
+  assert.equal(snapshot.nodes.find(node => node.id === 'a').canvasSectionId, id);
+  const beforeMove = { x: project.nodes[0].x, y: project.nodes[0].y };
+  await call({ operation: 'update', sectionId: snapshot.nodes.find(node => node.id === id).alias, title: '角色设定', x: 500, y: 400 });
+  assert.equal(project.nodes[0].x - beforeMove.x, 500 - created.section.x);
+  assert.equal(project.nodes[0].y - beforeMove.y, 400 - created.section.y);
+  const second = await call({ operation: 'create', title: '场景', nodeIds: ['c'] });
+  await call({ operation: 'add_nodes', sectionId: second.sectionId, nodeIds: ['a'] });
+  assert.equal(project.nodes.find(node => node.id === 'a').canvasSectionId, second.sectionId);
+  await call({ operation: 'remove_nodes', sectionId: second.sectionId, nodeIds: ['a'] });
+  assert.equal(project.nodes.find(node => node.id === 'a').canvasSectionId, null);
+  await tools.executeProductRequest(request(binding, 'undo_canvas', {}, { approvedByHarness: true }));
+  assert.equal(project.nodes.find(node => node.id === 'a').canvasSectionId, second.sectionId);
+  const arranged = await call({ operation: 'arrange', sectionId: second.sectionId });
+  assert.equal(arranged.success, true);
+  const serialized = JSON.stringify(project.nodes);
+  assert.equal((await call({ operation: 'add_nodes', sectionId: id, nodeIds: ['c', 'missing'] })).success, false);
+  assert.equal((await call({ operation: 'add_nodes', sectionId: id, nodeIds: [second.sectionId] })).success, false);
+  assert.equal(JSON.stringify(project.nodes), serialized);
+  await call({ operation: 'delete', sectionId: second.sectionId });
+  assert.ok(!project.nodes.some(node => node.id === second.sectionId));
+  assert.equal(project.nodes.find(node => node.id === 'a').canvasSectionId, null);
+  assert.equal(project.nodes.find(node => node.id === 'c').canvasSectionId, null);
+  assert.deepEqual(project.edges, [{ id: 'ab', source: 'a', target: 'b' }]);
+  await tools.executeProductRequest(request(binding, 'undo_canvas', {}, { approvedByHarness: true }));
+  assert.ok(project.nodes.some(node => node.id === second.sectionId));
+  assert.equal(project.nodes.find(node => node.id === 'c').canvasSectionId, second.sectionId);
+  assert.equal(fixture('editor-primary', 'clip').catalog.some(tool => tool.name === 'canvas_manage_section'), false);
+});
+
+test('empty section creation replays safely and automatically arranges later additions', async () => {
+  const { binding } = fixture();
+  const input = { operation: 'create', title: '分镜', x: -500, y: -200, width: 600, height: 400 };
+  const create = request(binding, 'canvas_manage_section', input, { approvedByHarness: true });
+  const first = (await tools.executeProductRequest(create)).result;
+  const replay = (await tools.executeProductRequest(create)).result;
+  assert.equal(first.sectionId, replay.sectionId);
+  assert.equal(projects.store.project.nodes.length, 1);
+  assert.deepEqual(first.section.nodeIds, []);
+  assert.equal(first.section.width, 600);
+  assert.equal(first.section.height, 400);
+  projects.store.project.nodes.push({ id: 'later', type: 'textGeneration', x: 5000, y: 5000, canvasWidth: 180, canvasHeight: 120 });
+  const added = (await tools.executeProductRequest(request(binding, 'canvas_manage_section', {
+    operation: 'add_nodes', sectionId: first.sectionId, nodeIds: ['later'],
+  }, { approvedByHarness: true }))).result;
+  assert.deepEqual(added.section.nodeIds, ['later']);
+  assert.deepEqual([projects.store.project.nodes[1].x, projects.store.project.nodes[1].y], [-468, -144]);
+});
+
 test('canvas, editor and director all receive video frame tool with file path and contact sheet options', () => {
   for (const agentId of ['canvas-primary', 'editor-primary', 'director-primary']) {
     const { catalog } = fixture(agentId);

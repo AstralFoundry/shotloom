@@ -2498,6 +2498,7 @@
   "tool.title.canvas_media_image": "查看画布图片画面",
   "tool.title.canvas_focus_nodes": "聚焦画布节点",
   "tool.title.canvas_create_node": "创建画布节点",
+  "tool.title.canvas_manage_section": "管理画布分区",
   "tool.title.canvas_layout_nodes": "整理画布节点",
   "tool.title.canvas_update_node": "更新画布节点",
   "tool.title.canvas_connect_nodes": "连接画布节点",

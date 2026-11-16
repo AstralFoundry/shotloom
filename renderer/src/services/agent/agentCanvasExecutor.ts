@@ -26,6 +26,7 @@ import {
 import { assertAgentProject, getAgentProjectIdentity, getAgentProjectKey } from '@/services/agentProjectIdentity';
 import { applyAgentAction, type ActionHandlerContext } from '@/services/agent/agentActionHandlers';
 import { recordPerformanceMetric } from '@/services/performanceMetrics';
+import { editAgentCanvasSection, type AgentSectionInput } from '@/services/agentCanvasSections';
 import {
   captureCanvasTransaction,
   filterChangedCanvasTransaction,
@@ -249,6 +250,14 @@ export function getAgentCanvasSnapshot(request: JsonObject = {}) {
       canRedo: canRedoCanvas.value,
     },
     request,
+  });
+}
+
+export function manageAgentCanvasSection(body: AgentSectionInput & { projectKey?: string; projectInstanceId?: string; projectGeneration?: number }) {
+  assertAgentProject(body.projectKey, body.projectInstanceId, body.projectGeneration);
+  return projectActionQueue.enqueue(() => {
+    assertAgentProject(body.projectKey, body.projectInstanceId, body.projectGeneration);
+    return editAgentCanvasSection(body, id => resolveNodeId(id, new Map()));
   });
 }
 

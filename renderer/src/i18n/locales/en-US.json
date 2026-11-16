@@ -2498,6 +2498,7 @@
   "tool.title.canvas_media_image": "View canvas image",
   "tool.title.canvas_focus_nodes": "Focus canvas node",
   "tool.title.canvas_create_node": "Create canvas nodes",
+  "tool.title.canvas_manage_section": "Manage canvas section",
   "tool.title.canvas_layout_nodes": "Arrange canvas nodes",
   "tool.title.canvas_update_node": "Update canvas nodes",
   "tool.title.canvas_connect_nodes": "Connect canvas nodes",

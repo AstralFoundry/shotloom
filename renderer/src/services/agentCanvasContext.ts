@@ -133,6 +133,11 @@ export function compactAgentNode(node: AgentNode): CompactAgentNode {
     artifactRole: node.artifactRole || node.agentPlan?.artifactRole || '',
     promptSummary: compactPrompt(node),
     outputSpec: node.outputSpec || {},
+    ...(node.type === 'canvasSection' ? {
+      x: node.x ?? 0, y: node.y ?? 0,
+      canvasWidth: node.canvasWidth, canvasHeight: node.canvasHeight,
+      canvasSectionAutoLayout: node.canvasSectionAutoLayout === true,
+    } : { canvasSectionId: node.canvasSectionId ?? null }),
   };
 }
 

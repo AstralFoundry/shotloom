@@ -37,7 +37,7 @@ const canvasReadTools = [
   'canvas_list_nodes', 'canvas_get_node', 'canvas_media_frame', 'canvas_media_image', 'canvas_focus_nodes', 'inspect_tasks',
 ];
 const canvasWriteTools = [
-  'canvas_create_node', 'canvas_update_node', 'canvas_connect_nodes', 'canvas_layout_nodes',
+  'canvas_create_node', 'canvas_update_node', 'canvas_connect_nodes', 'canvas_layout_nodes', 'canvas_manage_section',
   'canvas_delete_node', 'canvas_update_edge', 'undo_canvas', 'redo_canvas',
 ];
 const generationTools = ['canvas_start_generation'];

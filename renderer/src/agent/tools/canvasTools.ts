@@ -7,6 +7,7 @@ import {
   executeAgentActions,
   getAgentCanvasSnapshot,
   layoutAgentCanvasNodes,
+  manageAgentCanvasSection,
 } from '@/services/agent/agentCanvasExecutor';
 import type { AgentAction, AgentActionRequest, JsonObject } from '@/services/agentTypes';
 import { registerAgentTool } from '../core/toolRegistry';
@@ -26,6 +27,7 @@ import {
 } from '@/utils/canvasMutationFingerprint.ts';
 import { desktopApi } from '@/services/desktopApi';
 import { videoContactSheet } from './videoContactSheet';
+import type { AgentSectionInput } from '@/services/agentCanvasSections';
 
 function imageDataUrl(bytes: ArrayBuffer) {
   const data = new Uint8Array(bytes);
@@ -409,6 +411,33 @@ export function registerCanvasTools(): void {
     inputSchema: focusedActionSchema(['create_gen_node', 'place_asset_on_canvas']),
     summarizeInput: (input) => String(input.title || input.type || 'create node'),
     execute: executeFocusedAction,
+  });
+
+  registerAgentTool<AgentSectionInput>({
+    id: 'canvas_manage_section',
+    icon: 'shapes',
+    title: t('tool.title.canvas_manage_section'),
+    description: '管理画布分区：create 创建（nodeIds 可包住已有节点）；update 改名、位置、尺寸、自动排列；add_nodes 将节点加入分区并转移原归属；remove_nodes 移出；arrange 整理；delete 仅移除分区并保留内容节点。除 create 外必须传 sectionId。支持真实 ID、稳定别名和语义 ID，不允许嵌套分区。自动排列默认开启，关闭时保留节点位置并扩展边框包住成员。移动分区会一起移动其成员。返回实际分区尺寸与成员 ID，支持撤销。',
+    effect: 'canvas_write',
+    inputSchema: {
+      type: 'object', required: ['operation'],
+      properties: {
+        operation: { type: 'string', enum: ['create', 'update', 'add_nodes', 'remove_nodes', 'arrange', 'delete'] },
+        sectionId: { type: 'string' },
+        nodeIds: { type: 'array', items: { type: 'string' } },
+        title: { type: 'string' },
+        x: { type: 'number' }, y: { type: 'number' },
+        width: { type: 'number', minimum: 240 }, height: { type: 'number', minimum: 160 },
+        autoLayout: { type: 'boolean' },
+      }, additionalProperties: false,
+    },
+    summarizeInput: input => input.title || nodeSummaryLabel(input.sectionId),
+    execute: async (input, context) => {
+      assertCanvasWriteFence(context);
+      const result = await manageAgentCanvasSection({ ...input, projectKey: context.projectKey, projectInstanceId: context.projectInstanceId, projectGeneration: context.projectGeneration });
+      if (result.success) advanceCanvasWriteFence(context);
+      return result;
+    },
   });
 
   registerAgentTool<JsonObject>({
