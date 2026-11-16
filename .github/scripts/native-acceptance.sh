@@ -129,7 +129,14 @@ adb shell input keyevent 4
 wait_for_ui feedback '问题描述|Description'
 adb shell input keyevent 4
 wait_for_ui account '反馈问题或举报内容|Feedback and reports'
-tap_text '^通知$|^Notifications$'
+for attempt in {1..3}; do
+  tap_text '^通知$|^Notifications$'
+  sleep 2
+  adb shell uiautomator dump /sdcard/window.xml >/dev/null
+  adb pull /sdcard/window.xml acceptance/notifications.xml >/dev/null 2>&1
+  if grep -Eq '全部消息|All messages' acceptance/notifications.xml; then break; fi
+done
+wait_for_ui notifications '全部消息|All messages'
 # A server-side fixture replies only after this isolated user's report exists.
 for attempt in {1..18}; do
   tap_text '^刷新$|^Refresh$'
