@@ -8,6 +8,12 @@ import { initializeNativeMenu } from './ipc/commands/settings';
 import './ipc/commands/recent';
 import './ipc/commands/files';
 import './ipc/commands/project';
+import './ipc/commands/clipboard';
+import './ipc/commands/diagnostics';
+import './ipc/commands/recovery';
+import './ipc/commands/harness';
+import { initializeRecovery, markCleanExit } from './core/recovery';
+import { shutdownHarnessRuntime } from './core/harness';
 
 const isDevelopment = Boolean(process.env.SHOTLOOM_DEV_URL);
 const smoke = process.env.SHOTLOOM_SMOKE;
@@ -242,11 +248,51 @@ async function runSmoke(window: BrowserWindow): Promise<void> {
   window.webContents.once('did-finish-load', async () => {
     try {
       await new Promise(resolve => setTimeout(resolve, 3000));
+      const agentHost = process.env.SHOTLOOM_AGENT_HOST || '';
       const report = await window.webContents.executeJavaScript(`(async () => {
         const invoke = (command, args) => window.shotloomDesktop.invoke(command, args).then(value => ({ ok: true, value }), error => ({ ok: false, error: String(error) }));
         const settings = await invoke('settings_get');
         const root = await invoke('project_get_default_root');
         const recent = await invoke('recent_list');
+        const storage = await invoke('storage_get', { name: 'skills', fallback: { storageVersion: 1, skills: [] } });
+        const diagnostics = await invoke('diagnostics_build', { files: { 'README.txt': 'smoke' } });
+        // 端到端：建项目 → 保存 → 读取 → 快照 → 导出包 → 导入包 → 最近项目。
+        const folder = await invoke('project_create_folder', { parent: root.value, name: 'Smoke Project' });
+        const project = {
+          schema: 'shotloom-project', schemaVersion: 2, id: 'smoke', name: 'Smoke Project',
+          createdAt: '1', updatedAt: '1',
+          nodes: [{ id: 'n1', type: 'text', title: 'hello' }], edges: [], tasks: [], assets: [], materials: [],
+          harnessSessions: [], productionPlans: [], agentBatches: [], agentEvaluations: [],
+          canvasHistory: [{ step: 1 }], canvasRedoStack: [],
+        };
+        const saved = await invoke('project_save', { directory: folder.value, project });
+        const read = await invoke('project_read_file', { path: saved.ok ? saved.value.filePath : '' });
+        const snapshot = await invoke('project_snapshot_create', { directory: folder.value, record: { id: 'snap-1', createdAt: '1', reason: 'auto', contentHash: 'h', payloadBytes: 2, mediaRefs: [] } });
+        const snapshots = await invoke('project_snapshot_list', { directory: folder.value });
+        const pkg = root.value + '/smoke-project.zip';
+        const exported = await invoke('project_export_package', { source: folder.value, target: pkg });
+        const imported = await invoke('project_import_package', { source: pkg, targetRoot: root.value + '/imports' });
+        const importedRead = await invoke('project_read_file', { path: imported.ok ? imported.value.filePath : '' });
+        // Harness：真实拉起 Agent Host，等到既 running 又 ready，再优雅停止。
+        const agentHost = ${JSON.stringify(process.env.SHOTLOOM_AGENT_HOST || '')};
+        let harness = { skipped: true };
+        if (agentHost) {
+          const started = await invoke('start_harness_runtime', { options: { sourceRoot: agentHost } });
+          let status = started;
+          const deadline = Date.now() + 30000;
+          while (Date.now() < deadline && !(status.ok && status.value.ready)) {
+            await new Promise(resolve => setTimeout(resolve, 250));
+            status = await invoke('harness_runtime_status');
+          }
+          const stopped = await invoke('stop_harness_runtime');
+          harness = {
+            running: status.ok ? status.value.running : status.error,
+            ready: status.ok ? status.value.ready : status.error,
+            stoppedRunning: stopped.ok ? stopped.value.running : stopped.error,
+          };
+        }
+        const added = await invoke('recent_add', { project: { filePath: saved.ok ? saved.value.filePath : '', name: 'Smoke Project' } });
+        const removed = await invoke('recent_remove', { path: saved.ok ? saved.value.filePath : '' });
         return {
           bridge: Boolean(window.shotloomDesktop),
           platform: await invoke('platform'),
@@ -255,12 +301,30 @@ async function runSmoke(window: BrowserWindow): Promise<void> {
           settingsVersion: settings.ok ? settings.value.storageVersion : settings.error,
           projectsRoot: root.ok ? root.value : root.error,
           recentCount: recent.ok ? recent.value.length : recent.error,
+          storageOk: storage.ok && Array.isArray(storage.value.skills),
+          diagnosticsBytes: diagnostics.ok ? diagnostics.value.length : diagnostics.error,
+          savedNodes: saved.ok ? saved.value.project.nodes.length : saved.error,
+          readRevision: read.ok ? read.value.storageRevision : read.error,
+          historyEntries: read.ok ? (read.value.canvasHistory || []).length : read.error,
+          snapshots: snapshots.ok ? snapshots.value.length : snapshots.error,
+          exported: exported.ok ? { count: exported.value.count, totalSize: exported.value.totalSize } : exported.error,
+          importedNodes: importedRead.ok ? importedRead.value.nodes.length : importedRead.error,
+          recentAfterAdd: added.ok ? added.value.length : added.error,
+          recentAfterRemove: removed.ok ? removed.value.length : removed.error,
+          snapshotCreate: snapshot.ok ? snapshot.value.saved : snapshot.error,
+          harness,
         };
       })()`);
       console.log(`[smoke] ${JSON.stringify(report)}`);
       if (consoleErrors.length) console.log(`[smoke] console errors: ${JSON.stringify(consoleErrors.slice(0, 5))}`);
-      const passed = report.bridge && report.platform === process.platform && report.appHtmlLength > 0
-        && report.settingsVersion === 7 && typeof report.projectsRoot === 'string' && Array.isArray(report.recentCount);
+      const passed = report.bridge && report.platform?.ok === true && report.platform.value === process.platform && report.appHtmlLength > 0
+        && report.settingsVersion === 7 && typeof report.projectsRoot === 'string' && typeof report.recentCount === 'number'
+        && report.storageOk && typeof report.diagnosticsBytes === 'number' && report.diagnosticsBytes > 0
+        && report.savedNodes === 1 && report.readRevision === 1 && report.historyEntries === 1
+        && report.snapshots === 1 && report.exported && report.exported.count >= 1
+        && report.importedNodes === 1 && report.recentAfterAdd === 1 && report.recentAfterRemove === 0
+        && report.snapshotCreate === true
+        && (!agentHost || (report.harness.running === true && report.harness.ready === true && report.harness.stoppedRunning === false));
       clearTimeout(timeout);
       app.exit(passed ? 0 : 1);
     } catch (error) {
@@ -280,6 +344,7 @@ app.whenReady().then(async () => {
   registerCommandChannel();
   registerDialogs();
   registerWindowControls();
+  initializeRecovery();
   initializeNativeMenu();
   mainWindow = createWindow();
   if (smoke) {
@@ -298,5 +363,7 @@ app.on('window-all-closed', () => {
 // Cmd+Q / 系统退出不能被窗口的「关闭请求」拦下：退出流程直接放行关闭。
 const QuitRequests = new Set<() => void>();
 app.on('before-quit', () => {
+  shutdownHarnessRuntime();
+  markCleanExit();
   for (const allow of QuitRequests) allow();
 });

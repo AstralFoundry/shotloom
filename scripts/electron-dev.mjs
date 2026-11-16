@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { rmSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -28,9 +29,13 @@ export async function startElectronDev({ env = {} } = {}) {
   const childEnv = { ...process.env, ...env, SHOTLOOM_DEV_URL: url, SHOTLOOM_ROOT: rootDir };
   if (childEnv.SHOTLOOM_SMOKE) {
     // 冒烟运行把用户数据放进工作区，避免沙箱/CI 环境没有主目录写权限时直接失败。
+    // 每次从空目录开始：冒烟脚本会真的建项目、导包、导包后再删掉，状态必须可复现。
     const smokeRoot = join(rootDir, 'tmp', 'electron-smoke');
+    rmSync(smokeRoot, { recursive: true, force: true });
     childEnv.SHOTLOOM_APPDATA_DIR = join(smokeRoot, 'appdata');
     childEnv.SHOTLOOM_USER_DATA = join(smokeRoot, 'userdata');
+    // 冒烟会真的拉起 Agent Host（如果构建产物存在），验证 stdio/桥接通道。
+    childEnv.SHOTLOOM_AGENT_HOST = join(rootDir, 'src-tauri', 'resources', 'agent-host');
   }
   delete childEnv.ELECTRON_RUN_AS_NODE;
   const child = spawn(electronBinary, [rootDir], { cwd: rootDir, stdio: 'inherit', env: childEnv });

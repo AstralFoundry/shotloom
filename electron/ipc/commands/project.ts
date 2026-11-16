@@ -1,6 +1,8 @@
 import { existsSync } from 'node:fs';
-import { mkdir, readdir, rename, stat } from 'node:fs/promises';
-import { basename, join } from 'node:path';
+import { mkdir, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { basename, join, sep } from 'node:path';
+import { shell } from 'electron';
 import { defineCommand } from '../registry';
 import { withDatabase, transaction } from '../../core/db';
 import { localizedError } from '../../core/errors';
@@ -9,6 +11,8 @@ import {
   PROJECT_FILE, SHARED_ASSET_LIBRARY_FILE, copyDir, uniqueDir,
 } from '../../core/files';
 import { loadCatalog, saveCatalog } from '../../core/storage';
+import { backupDatabase } from '../../core/db';
+import { StoredZipReader, StoredZipWriter } from '../../core/zip';
 import {
   createProjectSnapshot, editorRecord, editorSnapshot, listProjectSnapshots, loadProjectFile,
   readProjectSnapshot, saveProject, setEditorRecord, saveEditorSnapshot,
@@ -356,21 +360,216 @@ defineCommand('project_clone_entry', async (args) => {
   return { ok: true, projectDir: target, folderDir: target, name: basename(target) };
 });
 
-defineCommand('project_snapshot_list', (args) => listProjectSnapshots(String(args.directory ?? '')));
-defineCommand('project_snapshot_create', (args) => createProjectSnapshot(String(args.directory ?? ''), (args.record ?? {}) as Json));
-defineCommand('project_snapshot_read', (args) => readProjectSnapshot(String(args.directory ?? ''), String(args.id ?? '')));
+// 快照与编辑状态都存在项目目录内的 project.sqlite 里。
+function projectDatabase(directory: string): string {
+  return join(directory, PROJECT_FILE);
+}
 
-defineCommand('editor_snapshot_get', (args) => editorSnapshot(String(args.directory ?? ''), String(args.nodeId ?? '')));
+defineCommand('project_snapshot_list', (args) => listProjectSnapshots(projectDatabase(String(args.directory ?? ''))));
+defineCommand('project_snapshot_create', (args) => createProjectSnapshot(projectDatabase(String(args.directory ?? '')), (args.record ?? {}) as Json));
+defineCommand('project_snapshot_read', (args) => readProjectSnapshot(projectDatabase(String(args.directory ?? '')), String(args.id ?? '')));
+
+defineCommand('editor_snapshot_get', (args) => editorSnapshot(projectDatabase(String(args.directory ?? '')), String(args.nodeId ?? '')));
 defineCommand('editor_snapshot_set', (args) => {
   const directory = String(args.directory ?? '');
   const nodeId = String(args.nodeId ?? '');
-  return saveEditorSnapshot(directory, nodeId, args.snapshot);
+  saveEditorSnapshot(projectDatabase(directory), nodeId, args.snapshot);
+  return { saved: true };
 });
-defineCommand('editor_record_get', (args) => editorRecord(String(args.directory ?? ''), String(args.nodeId ?? ''), String(args.key ?? '')));
+defineCommand('editor_record_get', (args) => editorRecord(projectDatabase(String(args.directory ?? '')), String(args.nodeId ?? ''), String(args.key ?? '')));
 defineCommand('editor_record_set', (args) => {
   const directory = String(args.directory ?? '');
   const nodeId = String(args.nodeId ?? '');
   const key = String(args.key ?? '');
-  setEditorRecord(directory, nodeId, key, args.value);
+  setEditorRecord(projectDatabase(directory), nodeId, key, args.value);
   return null;
+});
+
+// ── 项目包 ──────────────────────────────────────────────────────────────────
+
+const PROJECT_PACKAGE_SCHEMA = 'shotloom-project-package';
+const MAX_PACKAGE_FILES = 20_000;
+const MAX_PACKAGE_BYTES = 20 * 1024 * 1024 * 1024;
+
+async function writeProjectArchive(
+  archive: StoredZipWriter, sourceRoot: string, directory: string, counts: { count: number; totalSize: number },
+): Promise<void> {
+  const entries = await readdir(directory, { withFileTypes: true }).catch(() => []);
+  entries.sort((left, right) => left.name.localeCompare(right.name));
+  for (const entry of entries) {
+    if (entry.isSymbolicLink()) continue;
+    const path = join(directory, entry.name);
+    if (entry.isDirectory()) {
+      await writeProjectArchive(archive, sourceRoot, path, counts);
+      continue;
+    }
+    if (!entry.isFile()) continue;
+    if (entry.name.endsWith('.sqlite-wal') || entry.name.endsWith('.sqlite-shm')) continue;
+    const relative = path.slice(sourceRoot.length).replace(/^[\\/]/, '').split(sep).join('/');
+    if (!relative || relative.includes('../')) continue;
+    if (entry.name.endsWith('.sqlite')) {
+      // 导出的是数据库的一致快照，而不是可能正在写入的 WAL 现场。
+      const snapshot = join(tmpdir(), `shotloom-export-${process.pid}-${Date.now()}-${counts.count}.sqlite`);
+      backupDatabase(path, snapshot);
+      try {
+        const size = (await stat(snapshot)).size;
+        counts.totalSize += await archive.addFile(`project/${relative}`, snapshot, size);
+        counts.count += 1;
+      } finally {
+        await rm(snapshot, { force: true });
+      }
+      continue;
+    }
+    const size = (await stat(path)).size;
+    counts.totalSize += await archive.addFile(`project/${relative}`, path, size);
+    counts.count += 1;
+  }
+}
+
+async function exportProjectPackage(source: string, target: string): Promise<Json> {
+  const projectPath = join(source, PROJECT_FILE);
+  if (!existsSync(projectPath)) {
+    throw new Error(localizedError('native.error.490282ece2', {}, '项目目录无效或缺少 project.sqlite'));
+  }
+  if (target === source || target.startsWith(source + sep)) {
+    throw new Error(localizedError('native.error.35af4b8578', {}, '项目包不能保存到项目目录内部'));
+  }
+  await mkdir(source.replace(/[\\/][^\\/]+$/, '') || '.', { recursive: true });
+  const project = await readProjectFile(projectPath);
+  const temporary = join(target.replace(/[\\/][^\\/]+$/, '') || '.', `.${basename(target)}.${Date.now()}.partial`);
+  const counts = { count: 0, totalSize: 0 };
+  const archive = await StoredZipWriter.create(temporary);
+  try {
+    const manifest = {
+      schema: PROJECT_PACKAGE_SCHEMA,
+      version: 1,
+      projectName: typeof project.name === 'string' ? project.name : '未命名项目',
+      projectFile: `project/${PROJECT_FILE}`,
+      sourceProjectDir: source,
+      exportedAtMs: String(Date.now()),
+    };
+    await archive.addBuffer('manifest.json', Buffer.from(JSON.stringify(manifest, null, 2), 'utf8'));
+    await writeProjectArchive(archive, source, source, counts);
+    await archive.close();
+  } catch (error) {
+    await archive.abort();
+    await rm(temporary, { force: true });
+    throw error;
+  }
+  await rm(target, { force: true });
+  await rename(temporary, target);
+  return { ok: true, filePath: target, count: counts.count, totalSize: counts.totalSize };
+}
+
+function rewriteImportedProjectPaths(value: unknown, sourceRoot: string, targetRoot: string): void {
+  if (Array.isArray(value)) {
+    for (const item of value) rewriteImportedProjectPaths(item, sourceRoot, targetRoot);
+    return;
+  }
+  if (value && typeof value === 'object') {
+    for (const [key, item] of Object.entries(value as Json)) {
+      if (typeof item === 'string') {
+        (value as Json)[key] = rewritePath(item, sourceRoot, targetRoot);
+      } else rewriteImportedProjectPaths(item, sourceRoot, targetRoot);
+    }
+  }
+}
+
+function rewritePath(text: string, sourceRoot: string, targetRoot: string): string {
+  if (!sourceRoot) return text;
+  const normalizedSource = sourceRoot.replace(/\\/g, '/').replace(/\/+$/, '');
+  const normalizedText = text.replace(/\\/g, '/');
+  if (normalizedText !== normalizedSource && !normalizedText.startsWith(`${normalizedSource}/`)) return text;
+  const suffix = normalizedText.slice(normalizedSource.length).replace(/^\/+/, '');
+  const parts = suffix.split('/').filter(Boolean);
+  return [targetRoot, ...parts].join(sep);
+}
+
+async function importProjectPackage(source: string, targetRoot: string): Promise<Json> {
+  if (!existsSync(source)) throw new Error(localizedError('native.error.bdaff3d4e7', {}, '项目包不存在'));
+  await mkdir(targetRoot, { recursive: true });
+  const reader = await StoredZipReader.open(source, (await stat(source)).size).catch((error: unknown) => {
+    throw new Error(localizedError('native.error.7c6b74d5d2', { error: String(error) }, `项目包格式无效：${String(error)}`));
+  });
+  const manifestEntry = reader.entry('manifest.json');
+  if (!manifestEntry) throw new Error(localizedError('native.error.271d00e74f', {}, '项目包缺少 manifest.json'));
+  if (manifestEntry.size > 1024 * 1024) throw new Error(localizedError('native.error.17726343ad', {}, '项目包清单过大'));
+  let manifest: Json;
+  try {
+    manifest = JSON.parse((await reader.readBuffer('manifest.json')).toString('utf8')) as Json;
+  } catch (error) {
+    throw new Error(localizedError('native.error.05db8b0431', { error: String(error) }, `项目包清单无效：${String(error)}`));
+  }
+  if (manifest.schema !== PROJECT_PACKAGE_SCHEMA || manifest.version !== 1 || manifest.projectFile !== `project/${PROJECT_FILE}`) {
+    throw new Error(localizedError('native.error.b97ed0790b', {}, '不是受支持的 Shotloom 项目包'));
+  }
+  let fileCount = 0;
+  let totalSize = 0;
+  for (const entry of reader.entries) {
+    const name = entry.name.replace(/\\/g, '/');
+    if (name === 'manifest.json' || name === 'project/') continue;
+    if (!name.startsWith('project/') || name.includes('../')) {
+      throw new Error(localizedError('native.error.0f90da86b1', { name }, `项目包包含不安全路径：${name}`));
+    }
+    fileCount += 1;
+    totalSize += entry.size;
+    if (fileCount > MAX_PACKAGE_FILES) throw new Error(localizedError('native.error.5dae9149f2', {}, '项目包文件数超过上限'));
+    if (totalSize > MAX_PACKAGE_BYTES) throw new Error(localizedError('native.error.6c9bb31fda', {}, '项目包解压体积超过 20GB 上限'));
+  }
+  const projectName = typeof manifest.projectName === 'string' ? manifest.projectName : '导入项目';
+  const target = uniqueDir(targetRoot, projectName);
+  const temporary = join(targetRoot, `.shotloom-import-${Date.now()}.partial`);
+  try {
+    await mkdir(temporary, { recursive: true });
+    for (const entry of reader.entries) {
+      const name = entry.name.replace(/\\/g, '/');
+      if (name === 'manifest.json' || name === 'project/') continue;
+      const relative = name.slice('project/'.length);
+      if (!relative) continue;
+      const parts = relative.split('/').filter(Boolean);
+      if (parts.some(part => part === '..')) {
+        throw new Error(localizedError('native.error.b9f84a3f77', {}, '项目包路径无效'));
+      }
+      const output = join(temporary, ...parts);
+      await mkdir(output.replace(/[\\/][^\\/]+$/, ''), { recursive: true });
+      const chunks: Buffer[] = [];
+      for await (const chunk of reader.read(name)) chunks.push(chunk as Buffer);
+      await writeFile(output, Buffer.concat(chunks));
+    }
+    const projectPath = join(temporary, PROJECT_FILE);
+    const project = loadProjectFile(projectPath);
+    try {
+      validateCurrentProject(project);
+    } catch (error) {
+      throw new Error(localizedError('native.error.fbd533a5a7', { error: String(error instanceof Error ? error.message : error) }, `项目包中的 project.sqlite 无效：${String(error)}`));
+    }
+    rewriteImportedProjectPaths(project, typeof manifest.sourceProjectDir === 'string' ? manifest.sourceProjectDir : '', target);
+    const saved = withDatabase(projectPath, db => transaction(db, () => saveProject(db, project)));
+    await rename(temporary, target);
+    return {
+      ok: true, projectDir: target, filePath: join(target, PROJECT_FILE), project: saved,
+      count: fileCount, totalSize,
+    };
+  } catch (error) {
+    await rm(temporary, { recursive: true, force: true }).catch(() => {});
+    throw error;
+  }
+}
+
+defineCommand('project_export_package', (args) => exportProjectPackage(String(args.source ?? ''), String(args.target ?? '')));
+
+defineCommand('project_import_package', (args) => importProjectPackage(String(args.source ?? ''), String(args.targetRoot ?? '')));
+
+defineCommand('project_create_episode_folder', async (args) => {
+  const target = uniqueDir(String(args.parent ?? ''), String(args.name ?? ''));
+  await mkdir(target, { recursive: true });
+  const assets = join(String(args.shared ?? ''), 'assets');
+  await mkdir(assets, { recursive: true });
+  return { projectDir: target, seriesDir: String(args.shared ?? ''), assetRootDir: assets };
+});
+
+defineCommand('project_trash_entry', async (args) => {
+  const target = String(args.path ?? '');
+  if (existsSync(target)) await shell.trashItem(target);
+  return { ok: true };
 });
