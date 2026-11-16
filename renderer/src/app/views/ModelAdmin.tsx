@@ -6,9 +6,10 @@ import { cloudRequest } from '../../services/cloudRequest';
 import { t } from '../../i18n';
 import type { ModelPublication } from '../../../../shared/modelPublications';
 import { AdminUsers } from './AdminUsers';
+import { AdminFeedback } from '../components/SupportCenter';
 
 type Template = { id: string; name: string; type: string; provider: string };
-type Audit = { id: number; actor_id: string; action: string; model_id: string | null; details: { user_id?: string }; created_at: string };
+type Audit = { id: number; actor_id: string; action: string; model_id: string | null; details: { user_id?: string; feedback_id?: string }; created_at: string };
 export function ModelAdmin() {
   const [models, setModels] = useState<ModelPublication[]>([]);
   const [templates, setTemplates] = useState<Template[]>([]);
@@ -83,13 +84,13 @@ export function ModelAdmin() {
         { title: t('admin.models.actions'), onCell: cell(t('admin.models.actions')), render: (_, row) => <Button disabled={busy} icon={<IconSymbol name="pencil" />} onClick={() => edit(row)}>{t('admin.models.edit')}</Button> },
       ]} /></> }, { key: 'users', label: <span className="admin-tab"><IconSymbol name="user" />{t('admin.users.title')}</span>, children: <AdminUsers currentUserId={currentUserId} onChanged={reload} onRevoked={() => {
         setAuthorized(false); setError(t('admin.users.revoked'));
-      }} /> }, { key: 'audit', label: <span className="admin-tab"><IconSymbol name="clock" />{t('admin.models.audit')}</span>, children: <>
+      }} /> }, { key: 'feedback', label: t('support.title'), children: <AdminFeedback /> }, { key: 'audit', label: <span className="admin-tab"><IconSymbol name="clock" />{t('admin.models.audit')}</span>, children: <>
         <div className="admin-section-header"><div><h2>{t('admin.models.audit')}</h2><p>{t('admin.audit.description')}</p></div><Button disabled={busy} icon={<IconSymbol name="refresh" />} onClick={() => void run(reload)}>{t('admin.models.refresh')}</Button></div>
         <Table<Audit> className="admin-table" rowKey="id" dataSource={audit} pagination={{ defaultPageSize: 20 }} columns={[
         { title: t('admin.models.time'), onCell: cell(t('admin.models.time')), render: (_, row) => new Date(row.created_at).toLocaleString() },
         { title: t('admin.models.actor'), dataIndex: 'actor_id', onCell: cell(t('admin.models.actor')) },
         { title: t('admin.models.actions'), dataIndex: 'action', onCell: cell(t('admin.models.actions')) },
-        { title: t('admin.audit.target'), onCell: cell(t('admin.audit.target')), render: (_, row) => row.model_id || row.details?.user_id || '—' },
+        { title: t('admin.audit.target'), onCell: cell(t('admin.audit.target')), render: (_, row) => row.model_id || row.details?.user_id || row.details?.feedback_id || '—' },
       ]} /></> }]} />
       </section>
     </>}

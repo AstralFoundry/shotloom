@@ -6,7 +6,7 @@ import { t } from '../../i18n';
 // https://supabase.com/ui/r/social-auth-react.json
 export function SocialAuth({ recover = false }: { recover?: boolean }) {
   const [busy, setBusy] = useState(false);
-  return <form action={`${cloudOrigin}/api/auth/login`} method="get" target={recover ? '_blank' : '_self'}
+  return <form action={`${cloudOrigin}/api/auth/login`} method="get" target={recover && !window.ReactNativeWebView ? '_blank' : '_self'}
     onSubmit={() => { if (!recover) setBusy(true); }}>
     <input type="hidden" name="redirect" value={window.location.href} />
     <button className="button primary" type="submit" disabled={busy}>

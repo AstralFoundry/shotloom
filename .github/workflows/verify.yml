@@ -4,6 +4,21 @@ on:
 permissions:
   contents: read
 jobs:
+  mobile-native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: mobile/native/package-lock.json
+      - run: npm ci --prefix mobile/native
+      - run: npm --prefix mobile/native run typecheck
+      - run: npm --prefix mobile/native test
+      - run: npm --prefix mobile/native run bundle:check
+
   server:
     runs-on: ubuntu-latest
     timeout-minutes: 15

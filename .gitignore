@@ -13,6 +13,9 @@ mobile/src-tauri/target/
 mobile/src-tauri/gen/
 mobile/src-tauri/icons/
 mobile/build/
+mobile/native/.expo/
+mobile/native/android/
+mobile/native/ios/
 src-tauri/browser/
 src-tauri/binaries/
 # 由 scripts/prepare-openreel.mjs 从 vendor/openreel 生成

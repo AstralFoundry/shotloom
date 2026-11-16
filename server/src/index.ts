@@ -9,6 +9,7 @@ import { existsSync } from 'node:fs';
 import { authApp, nativeRelaySession } from "./auth";
 import { domainApp } from "./domain";
 import { modelsApp } from './models';
+import { supportApp } from './support';
 import { agentApp, disposeAgentHosts } from './agent';
 import { env } from "./env";
 import { HttpError } from "./lib/errors";
@@ -35,6 +36,7 @@ app.get("/health", (c) => c.json(envelope({ status: "ok" })));
 app.route("/api/auth", authApp);
 app.route('/api/agent', agentApp);
 app.route('/api', modelsApp);
+app.route('/api', supportApp);
 app.route("/api", domainApp);
 const rendererDirectory = fileURLToPath(new URL('../../dist/renderer/', import.meta.url));
 if (existsSync(rendererDirectory)) {

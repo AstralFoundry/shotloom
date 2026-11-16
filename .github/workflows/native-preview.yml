@@ -1,0 +1,69 @@
+name: Native Android preview
+on:
+  workflow_dispatch:
+  push:
+    branches: ['codex/**']
+    paths: ['mobile/native/**', 'shared/nativeBridge.ts', '.github/workflows/native-preview.yml']
+permissions:
+  contents: read
+concurrency:
+  group: native-preview-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      EXPO_PUBLIC_CLOUD_URL: https://shotloom.0xfiang.com
+    defaults:
+      run:
+        working-directory: mobile/native
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: mobile/native/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - run: npm ci
+      - run: npm run typecheck && npm test && npm audit --audit-level=moderate
+      - name: Generate Android project
+        run: npx expo prebuild --platform android --no-install
+      - name: Compile standalone release APK
+        run: ./gradlew app:assembleRelease -PreactNativeArchitectures=arm64-v8a,x86_64 --no-daemon
+        working-directory: mobile/native/android
+      - name: Sign and verify acceptance APK
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$ANDROID_KEYSTORE_BASE64" && test -n "$ANDROID_KEYSTORE_PASSWORD"
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/shotloom-android.jks"
+          tools=$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)
+          mkdir -p acceptance
+          "$tools/zipalign" -P 16 -f 4 android/app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/shotloom-aligned.apk"
+          "$tools/apksigner" sign --ks "$RUNNER_TEMP/shotloom-android.jks" --ks-key-alias shotloom \
+            --ks-pass env:ANDROID_KEYSTORE_PASSWORD --key-pass env:ANDROID_KEYSTORE_PASSWORD \
+            --out acceptance/Shotloom-Preview.apk "$RUNNER_TEMP/shotloom-aligned.apk"
+          "$tools/apksigner" verify --verbose --print-certs acceptance/Shotloom-Preview.apk > acceptance/signature.txt
+          "$tools/zipalign" -c -P 16 4 acceptance/Shotloom-Preview.apk
+          "$tools/aapt" dump badging acceptance/Shotloom-Preview.apk > acceptance/package.txt
+          cd acceptance
+          sha256sum Shotloom-Preview.apk > SHA256SUMS
+          printf 'Commit: %s\nOrigin: %s\n' "$GITHUB_SHA" "$EXPO_PUBLIC_CLOUD_URL" > build.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Shotloom-Android-Preview
+          path: mobile/native/acceptance/
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+      - name: Remove signing material
+        if: always()
+        run: rm -f "$RUNNER_TEMP/shotloom-android.jks" "$RUNNER_TEMP/shotloom-aligned.apk"

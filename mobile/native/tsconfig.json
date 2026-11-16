@@ -1,0 +1,5 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": { "strict": true, "noUncheckedIndexedAccess": true, "types": ["react", "react-native", "node"] },
+  "include": ["**/*.ts", "**/*.tsx", "../../shared/support.ts", "../../shared/nativeBridge.ts"]
+}

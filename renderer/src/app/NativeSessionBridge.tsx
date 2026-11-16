@@ -1,0 +1,32 @@
+import { useEffect } from 'react';
+import { cloudRequest } from '../services/cloudRequest';
+import { nativeRequestAllowed, type NativeRequest } from '../../../shared/nativeBridge';
+import { t } from '../i18n';
+
+declare global {
+  interface Window {
+    ReactNativeWebView?: { postMessage: (message: string) => void };
+    __shotloomNativeRequest?: (request: NativeRequest) => void;
+  }
+}
+
+export function NativeSessionBridge() {
+  useEffect(() => {
+    let active = true;
+    const post = (value: unknown) => { if (active) window.ReactNativeWebView?.postMessage(JSON.stringify(value)); };
+    window.__shotloomNativeRequest = request => {
+      if (!request || typeof request.id !== 'string' || typeof request.method !== 'string'
+        || typeof request.path !== 'string' || !nativeRequestAllowed(request.method, request.path)) {
+        post({ type: 'response', id: request?.id, error: 'Request is unavailable', status: 403 }); return;
+      }
+      void cloudRequest(request.path, request.method, request.value)
+        .then(data => post({ type: 'response', id: request.id, data }))
+        .catch(error => post({ type: 'response', id: request.id, error: error.message, status: error.status }));
+    };
+    void cloudRequest<{ id: string }>('/auth/me').then(user => post({ type: 'ready', userId: user.id })).catch(() => post({ type: 'login' }));
+    const expired = () => post({ type: 'login' });
+    window.addEventListener('shotloom-session-expired', expired);
+    return () => { active = false; delete window.__shotloomNativeRequest; window.removeEventListener('shotloom-session-expired', expired); };
+  }, []);
+  return <main className="cloud-session-loading" role="status"><p>{t('cloud.login.loading')}</p></main>;
+}

@@ -12,6 +12,12 @@
 - `app/store/` 不得引入 domainReactivity；`store/` 下的纯函数模块（节点、边、步骤等图数据访问器）不携带引擎，只读写 projectStore 的同一份可变对象。
 - 以上边界由 `scripts/verify-module-discipline.mjs` 检查（`npm run check:layers`）。新增例外必须在该脚本的集合里显式登记并说明理由。
 
+## 原生移动端
+
+React Native 预览客户端采用独立 npm 安装，复用 shared 中的纯接口类型、请求边界与产品文案。服务端仍是反馈、回复和站内通知的持久事实来源；原生 React 状态保存页面投影和未提交输入，不引入新的领域状态引擎。原生导航和表单不依赖 renderer 的 DOM、桌面 IPC 或桌面运行时。
+
+原生会话由同 origin 的 WebView 管理 HttpOnly Cookie，经受限接口桥接原生页面；不得向原生端暴露 OAuth token，也不得放开任意 URL、管理操作或模型调用。复杂工作区继续使用无原生工具桥的独立 WebView。预览客户端和 Tauri 正式移动包分开构建，在真机验收完成前不替换正式发布链路。
+
 ## 第三方源码目录
 
 第三方源码统一放在项目根目录 `vendor/`：OpenReel 位于 `vendor/openreel/`，三维导演台位于 `vendor/shotloom-director-desk/`（从 AstralFoundry/shotloom-director-desk 引入）。旧版导演台源码可从 Git 历史回溯，不作为运行入口。不要在 `renderer/src` 下再建 vendor。新导演台单独编译到 `renderer/public/director-desk-app/`，只通过 iframe 运行；产品通过 `app/adapters/directorDeskBridge.ts` 的 postMessage 协议交互，不直接导入其运行时状态。根 `npm run typecheck` 同时检查产品与导演台，模块分层检查也覆盖导演台源码。

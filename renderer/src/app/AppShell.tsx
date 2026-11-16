@@ -5,6 +5,7 @@ import { setWorkbenchSurfaceRoot } from "./layout/workbenchSurface";
 import { useAppStore } from "./store/appStore";
 import { IconSymbol } from "./components/IconSymbol";
 import { t } from '@/i18n';
+import { SupportCenter } from './components/SupportCenter';
 
 interface AppShellProps {
   platform: string;
@@ -105,6 +106,7 @@ export function AppShell({
       }`}
     >
       <TopBar platform={platform} />
+      <SupportCenter />
       <main className="workspace sidebar-collapsed">
         <SideBar
           onUpdate={platform === 'browser' ? undefined : onUpdate}

@@ -169,6 +169,7 @@ export type Database = {
     };
     Views: Record<string, never>;
     Functions: {
+      support_action: { Args: { p_client_id: string; p_actor_id: string; p_action: string; p_value: Json }; Returns: Json };
       list_admin_users: { Args: { p_client_id: string; p_actor_id: string; p_query: string; p_offset: number; p_limit: number }; Returns: Json };
       set_app_admin: { Args: { p_client_id: string; p_actor_id: string; p_user_id: string; p_is_admin: boolean; p_expected_admin: boolean }; Returns: Json };
       manage_models: { Args: { p_client_id: string; p_actor_id: string; p_action: string; p_value: Json }; Returns: Json };
