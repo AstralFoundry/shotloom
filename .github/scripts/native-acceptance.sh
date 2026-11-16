@@ -123,8 +123,8 @@ tap_text '^技能$|^Skills$'
 wait_for_ui skills 'Native Acceptance Skill'
 ! grep -E 'Checking your session|正在检查登录状态|android.webkit.WebView' acceptance/skills.xml
 adb exec-out screencap -p > acceptance/android-skills.png
-tap_text 'Native Acceptance Skill'
-wait_for_ui skill-editor '技能指令|Instructions'
+tap_text '^Native Acceptance Skill$'
+wait_for_ui skill-editor 'text="编辑技能"|text="Edit skill"'
 adb exec-out screencap -p > acceptance/android-skill-editor.png
 adb shell input keyevent 4
 capture
