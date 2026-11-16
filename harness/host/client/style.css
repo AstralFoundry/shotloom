@@ -41,12 +41,25 @@
   position:absolute;top:0;height:var(--shotloom-header-height,44px);
   left:var(--shotloom-header-left,120px);right:var(--shotloom-header-right,84px);
 }
+.shotloom-session-stats { container:shotloom-stats / inline-size; overflow:hidden;flex-wrap:nowrap;max-height:var(--shotloom-header-height,44px); }
 .shotloom-session-stats [data-slot="shotloom.stats"] { display:contents; }
 .shotloom-session-stats [data-composer-stat] { min-width:0;flex:0 1 auto; }
 .shotloom-session-stats [data-composer-stat] > button,
 .shotloom-session-stats [data-composer-stat] > span { min-width:0;max-width:100%;white-space:nowrap; }
 .shotloom-session-stats [data-composer-stat] > button > span,
 .shotloom-session-stats [data-composer-stat] > span > span { min-width:0;overflow:hidden;text-overflow:ellipsis; }
+/* The official subagent trigger's count label is a bare <span> without a
+   class, so it wraps one character per line when the compact dock squeezes
+   the header. Pin the switcher to one line and ellipsize instead. */
+.shotloom-session-stats :has(> [aria-haspopup="tree"]) { flex:none; min-width:0; }
+.shotloom-session-stats [aria-haspopup="tree"] { display:inline-flex;align-items:center;flex:none;max-width:100%;height:28px;line-height:20px;white-space:nowrap; }
+.shotloom-session-stats [aria-haspopup="tree"] > span { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+/* In the narrow director dock the duration/token counters cannot coexist
+   with the subagent switcher and the context meter; drop the counters first
+   (the switcher is actionable, the counters are available in the panel). */
+@container shotloom-stats (max-width:240px) {
+  .shotloom-session-stats [data-composer-stat] { display:none; }
+}
 [data-shotloom-embedded="true"] [role="dialog"]:has([data-session-stats-details]),
 [data-shotloom-embedded="true"] [role="dialog"]:has([data-session-stats-usage]) {
   top:calc(var(--shotloom-header-height,44px) + 8px) !important;
