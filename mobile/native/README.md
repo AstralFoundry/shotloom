@@ -41,3 +41,9 @@ npm --prefix mobile/native run bundle:check
 发布前须在 Android/iOS 真机验证登录与会话恢复、账号切换、退出、通知链接、返回手势、键盘安全区域、前后台切换、弱网重试，以及工程在 WebView 中的保存与恢复。当前环境未进行真机验收，也未测得启动、滚动和内存性能基线。
 
 依赖审计为 0 漏洞。Expo fingerprint 工具链的 minimatch 已通过定向 override 固定到修复版本 11.0.1，SDK 版本保持兼容。
+
+## Android 验收包（2026-11-16）
+
+已部署配套数据库、API 和 `/native` 页面。独立 release APK 使用项目 Android 证书签名，支持 Android 7.0 及以上的 arm64-v8a / x86_64；运行不依赖 Metro。下载地址：`https://shotloom.0xfiang.com/downloads/Shotloom-Preview-20261116.apk`。
+
+`Native Android preview` 工作流生成并校验签名 APK；`Native Android acceptance smoke` 下载同一分支最新成功产物，在 Android API 35 模拟器中安装并启动到登录入口。2026-11-16 两项均通过；尚未验证真机 OAuth 登录和触控性能。iOS 尚无可安装签名包，缺少 Apple 签名和分发凭据。
