@@ -7,6 +7,7 @@ import { WebView } from 'react-native-webview';
 import { randomUUID } from 'expo-crypto';
 import { getLocales } from 'expo-localization';
 import { NativeApi } from './api';
+import { isSessionSource } from './sessionSource';
 import type { Feedback, FeedbackDetail, FeedbackKind, InboxPage, Page } from '../../../shared/support';
 import zh from '../../../renderer/src/i18n/locales/zh-CN.json';
 import en from '../../../renderer/src/i18n/locales/en-US.json';
@@ -142,6 +143,7 @@ function Workspace({ route }: NativeStackScreenProps<Routes, 'Workspace'>) {
 }
 export default function App() {
   const webview = useRef<WebView>(null);
+  const sessionDocument = useRef(`${origin}/native`);
   const user = useRef<string | null>(null);
   const [opened, setOpened] = useState(false);
   const [authenticated, setAuthenticated] = useState(false);
@@ -170,11 +172,11 @@ export default function App() {
       <SafeAreaView style={styles.screen}>
         {failure && <ErrorNotice text={failure} retry={() => { setFailure(''); webview.current?.reload(); }} />}
         <WebView ref={webview} source={{ uri: `${origin}/native` }} sharedCookiesEnabled thirdPartyCookiesEnabled={false} mixedContentMode="never" setSupportMultipleWindows={false}
-          onLoadStart={() => { api.disconnect(); setAuthenticated(false); }} onError={event => { setFailure(event.nativeEvent.description); setAuthenticated(false); }}
+          onLoadStart={event => { sessionDocument.current = event.nativeEvent.url; api.disconnect(); setAuthenticated(false); }} onError={event => { setFailure(event.nativeEvent.description); setAuthenticated(false); }}
           onHttpError={event => { setFailure(`HTTP ${event.nativeEvent.statusCode}`); setAuthenticated(false); }}
           onMessage={event => {
             // OAuth provider pages and workspace content never get native bridge privileges.
-            if (event.nativeEvent.url.split('?')[0] !== `${origin}/native`) return;
+            if (!isSessionSource(event.nativeEvent.url, sessionDocument.current, origin)) return;
             try {
               const value = JSON.parse(event.nativeEvent.data);
               if (value.type === 'ready' && typeof value.userId === 'string') {

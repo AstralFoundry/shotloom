@@ -4,6 +4,6 @@ export default (): ExpoConfig => ({
   name: 'Shotloom Preview', slug: 'shotloom-native', version: '0.9.1', scheme: 'shotloom-preview',
   platforms: ['ios', 'android'], orientation: 'default', userInterfaceStyle: 'light',
   ios: { bundleIdentifier: 'com.shotloom.app.preview', supportsTablet: true },
-  android: { package: 'com.shotloom.app.preview' },
+  android: { package: 'com.shotloom.app.preview', versionCode: 2 },
   plugins: ['expo-localization'],
 });
