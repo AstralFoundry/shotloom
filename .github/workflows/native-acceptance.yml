@@ -15,6 +15,9 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.19.0'
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -71,6 +74,10 @@ jobs:
             acceptance/android-feedback.png
             acceptance/android-records.png
             acceptance/android-notifications.png
+            acceptance/android-canvas*.png
+            acceptance/canvas*.json
+            acceptance/canvas*.xml
+            acceptance/canvas-cdp.txt
             acceptance/account.xml
             acceptance/feedback.xml
             acceptance/records.xml

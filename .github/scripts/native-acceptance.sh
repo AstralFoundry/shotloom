@@ -109,3 +109,29 @@ wait_for_ui notifications '暂无通知|No notifications'
 adb exec-out screencap -p > acceptance/android-notifications.png
 capture
 ! grep -E 'FATAL EXCEPTION|ReactNativeJS.*(Error:|Invariant Violation)' acceptance/launch-log.txt
+
+# Inspect the same signed release; only the separate test APK enables CDP.
+adb shell am force-stop com.shotloom.app.preview
+adb shell am instrument -w -e cookie "$TEST_SESSION_COOKIE" -e debug 1 com.shotloom.acceptance/com.shotloom.acceptance.SessionInstrumentation > acceptance/canvas-instrumentation.txt &
+wait_for_ui canvas-library 'Android Canvas Acceptance'
+pid=$(adb shell pidof com.shotloom.app.preview | tr -d '\r')
+adb forward tcp:9222 "localabstract:webview_devtools_remote_$pid"
+node .github/scripts/native-canvas-cdp.mjs > acceptance/canvas-cdp.txt 2>&1 &
+canvas_check=$!
+tap_text 'Android Canvas Acceptance'
+for attempt in {1..90}; do
+  if [ -f acceptance/canvas-ready.json ]; then break; fi
+  if ! kill -0 "$canvas_check" 2>/dev/null; then cat acceptance/canvas-cdp.txt; exit 1; fi
+  sleep 1
+done
+test -f acceptance/canvas-ready.json
+wait_for_ui canvas '100%'
+adb exec-out screencap -p > acceptance/android-canvas.png
+tap_text '^＋$'
+wait_for_ui canvas-zoom '110%'
+adb exec-out screencap -p > acceptance/android-canvas-zoom.png
+adb shell input swipe 320 950 450 1100 600
+wait "$canvas_check"
+adb exec-out screencap -p > acceptance/android-canvas-pan.png
+adb shell input keyevent 4
+wait_for_ui canvas-return 'Android Canvas Acceptance'

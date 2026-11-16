@@ -30,7 +30,10 @@ public final class SessionInstrumentation extends Instrumentation {
                 Intent launch = getTargetContext().getPackageManager().getLaunchIntentForPackage(getTargetContext().getPackageName());
                 launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                 getTargetContext().startActivity(launch);
-                Thread.sleep(180000);
+                for (int attempt = 0; attempt < 90; attempt++) {
+                    Thread.sleep(2000);
+                    runOnMainSync(() -> WebView.setWebContentsDebuggingEnabled(true));
+                }
             }
             result.putString("stream", "Test session installed\n");
             finish(-1, result);
