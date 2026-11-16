@@ -1,4 +1,4 @@
-import { ipcMain, type WebContents } from 'electron';
+import { ipcMain, BrowserWindow, type IpcMainInvokeEvent, type WebContents } from 'electron';
 import { errorMessage } from '../core/errors';
 
 /**
@@ -29,8 +29,26 @@ function toError(error: unknown): unknown {
   }
 }
 
+export function assertTrustedSender(event: IpcMainInvokeEvent): void {
+  const frame = event.senderFrame;
+  const window = BrowserWindow.fromWebContents(event.sender);
+  if (!window || !frame || frame !== event.sender.mainFrame || !isTrustedPage(frame.url)) {
+    throw new Error('Untrusted desktop IPC sender');
+  }
+}
+
+export function isTrustedPage(value: string): boolean {
+  try {
+    const url = new URL(value);
+    const devUrl = process.env.SHOTLOOM_DEV_URL;
+    if (devUrl) return url.origin === new URL(devUrl).origin;
+    return url.protocol === 'shotloom:' && url.hostname === 'app';
+  } catch { return false; }
+}
+
 export function registerCommandChannel(): void {
-  ipcMain.handle('shotloom:command', async (_event, command: unknown, args: unknown) => {
+  ipcMain.handle('shotloom:command', async (event, command: unknown, args: unknown) => {
+    assertTrustedSender(event);
     const name = String(command ?? '');
     const handler = handlers.get(name);
     if (!handler) return { ok: false, error: `Unknown desktop command: ${name}` };

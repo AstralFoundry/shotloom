@@ -111,7 +111,7 @@ renderer/src/desktop/
 3. Windows/Linux 打包未在真机验证；DMG 制作在本机沙箱里被 hdiutil 拒绝（zip 与 .app 已验证）。
    `agent-host` 资源含完整 node_modules（约 488MB），可按生产依赖裁剪。
 4. 系统代理已补回：`electron/core/proxy.ts` 读取 `HTTPS_PROXY`/`HTTP_PROXY`/`ALL_PROXY`
-   与 macOS `scutil --proxy`，非回环目标经 undici `ProxyAgent` 转发，回环地址始终直连
+   与 macOS `scutil --proxy`，环境变量变化立即生效、系统配置最多缓存 5 秒；非回环目标经 undici `ProxyAgent` 转发，回环地址始终直连
    （与 Rust `Proxy::custom` 行为一致）。代理服务器需要支持 CONNECT 隧道。
 
 ## 命令面覆盖
@@ -142,3 +142,9 @@ renderer/src/desktop/
   避免 `?`/`#` 被当成 URI 选项。
 - Electron 二进制若因网络无法下载，可手动解压 `~/Library/Caches/electron/**/*.zip`
   到 `node_modules/electron/dist`（本机即如此）。
+
+## 运行边界与大文件包
+
+网关逐跳处理 HTTP 重定向，每跳重新检查目标，跨 origin 移除标准和自定义鉴权头；含 Key 的请求体不得跨 origin 重放，也不允许 HTTPS 降级。Host 的退出、输出和错误事件只作用于当前进程实例；停止时立即结束待处理请求、清理工具桥绑定并使旧 token 失效。
+
+项目包通过 yazl/yauzl 读写 STORED ZIP，按需使用 ZIP64；导入只读取清单对应字节，媒体通过流直接写盘，并校验条目 CRC。旧版普通 ZIP 项目包继续兼容。

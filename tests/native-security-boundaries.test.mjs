@@ -60,3 +60,38 @@ test('the Electron preload is the only native bridge surface', () => {
   assert.doesNotMatch(main, /webSecurity: false/);
   assert.match(main, /registerSchemesAsPrivileged/);
 });
+
+test('native commands reject foreign pages, subframes and detached senders', async () => {
+  const { default: ts } = await import('typescript');
+  const { runInNewContext } = await import('node:vm');
+  const handlers = new Map();
+  const contents = { mainFrame: { url: 'shotloom://app/index.html' } };
+  const module = { exports: {} };
+  const code = ts.transpileModule(read('electron/ipc/registry.ts'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  }).outputText;
+  runInNewContext(code, {
+    module, exports: module.exports, URL,
+    process: { env: {} },
+    require(name) {
+      if (name === 'electron') return {
+        ipcMain: { handle: (name, handler) => handlers.set(name, handler) },
+        BrowserWindow: { fromWebContents: value => value === contents ? {} : null },
+      };
+      if (name === '../core/errors') return { errorMessage: String };
+      throw new Error(`Unexpected import: ${name}`);
+    },
+  });
+  const registry = module.exports;
+  registry.defineCommand('secret', () => 'private data');
+  registry.registerCommandChannel();
+  const invoke = handlers.get('shotloom:command');
+  const event = { sender: contents, senderFrame: contents.mainFrame };
+  assert.equal((await invoke(event, 'secret', {})).value, 'private data');
+  await assert.rejects(invoke({ ...event, senderFrame: { url: 'shotloom://app/index.html' } }, 'secret', {}), /Untrusted/);
+  await assert.rejects(invoke({ ...event, sender: {} }, 'secret', {}), /Untrusted/);
+  for (const url of ['https://example.com', 'data:text/html,test', 'shotloom://asset/file']) {
+    contents.mainFrame.url = url;
+    await assert.rejects(invoke(event, 'secret', {}), /Untrusted/);
+  }
+});

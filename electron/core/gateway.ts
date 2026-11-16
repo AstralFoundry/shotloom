@@ -478,7 +478,7 @@ async function resourceBytes(
     guardOutboundUrl(parsed, baseUrl);
     let opened: OpenResponse;
     try {
-      opened = await openResponse({ method: 'GET', url: parsed.toString(), headers: new Headers(), body: undefined }, timeoutMs);
+      opened = await openResponse({ baseUrl, method: 'GET', url: parsed.toString(), headers: new Headers(), body: undefined }, timeoutMs);
     } catch (error) {
       throw new Error(localizedError('native.error.ffe3bd1546', { error: errorMessage(error) }, `无法下载模型输入：${errorMessage(error)}`));
     }
@@ -509,6 +509,9 @@ function clampTimeout(timeoutMs: number): number {
 }
 
 interface OutgoingRequest {
+  baseUrl: string;
+  credentialHeader?: string;
+  bodyHasCredentials?: boolean;
   method: string;
   url: string;
   headers: Headers;
@@ -562,14 +565,37 @@ async function openResponse(outgoing: OutgoingRequest, timeoutMs: number, cancel
   }
   let response: Response;
   try {
-    // reqwest 客户端对非回环目标使用系统代理；回环（本地服务）始终直连。
-    response = await fetchThroughSystemProxy(outgoing.url, {
-      method: outgoing.method,
-      headers: outgoing.headers,
-      body: outgoing.body,
-      redirect: 'follow',
-      signal: controller.signal,
-    });
+    let url = new URL(outgoing.url);
+    let method = outgoing.method;
+    let body = outgoing.body;
+    const headers = new Headers(outgoing.headers);
+    for (let redirects = 0; ; redirects += 1) {
+      if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new Error('Redirect target must use HTTP(S)');
+      guardOutboundUrl(url, outgoing.baseUrl);
+      response = await fetchThroughSystemProxy(url.toString(), {
+        method, headers, body, redirect: 'manual', signal: controller.signal,
+      });
+      if (![301, 302, 303, 307, 308].includes(response.status) || !response.headers.has('location')) break;
+      // Cancel the intermediate response before validating or following the next hop.
+      await response.body?.cancel();
+      if (redirects >= 10) throw new Error('Too many gateway redirects');
+      const next = new URL(response.headers.get('location')!, url);
+      if (url.protocol === 'https:' && next.protocol !== 'https:') throw new Error('Insecure gateway redirect');
+      const dropsBody = (response.status === 303 && method.toUpperCase() !== 'HEAD')
+        || ([301, 302].includes(response.status) && method.toUpperCase() === 'POST');
+      if (dropsBody) {
+        method = 'GET'; body = undefined;
+        headers.delete('content-type');
+      }
+      if (next.origin !== url.origin) {
+        // Custom API-key headers must be stripped too; fetch only knows standard Authorization.
+        for (const name of ['authorization', 'proxy-authorization', 'cookie', outgoing.credentialHeader]) {
+          if (name) headers.delete(name);
+        }
+        if (outgoing.bodyHasCredentials && body != null) throw new Error('Cannot redirect credential-bearing request body to another origin');
+      }
+      url = next;
+    }
   } catch (error) {
     cleanup();
     throw abortFailure ?? asError(error);
@@ -645,7 +671,8 @@ async function buildRequest(input: GenerationRequestInput, environment: GatewayE
     body = Buffer.from(JSON.stringify(bodyWithAuth(input.body, input.auth, apiKey)), 'utf8');
     headers.set('content-type', 'application/json');
   }
-  return { method: input.method, url, headers, body };
+  return { baseUrl, credentialHeader: input.auth?.type === 'header' ? input.auth.name : 'authorization',
+    bodyHasCredentials: input.auth?.type === 'body' && Boolean(apiKey), method: input.method, url, headers, body };
 }
 
 // ── 命令实现 ────────────────────────────────────────────────────────────────
@@ -802,7 +829,7 @@ export async function runGenerationDownload(
   try {
     let opened: OpenResponse;
     try {
-      opened = await openResponse({ method, url: url.toString(), headers, body: undefined }, input.timeoutMs, cancel);
+      opened = await openResponse({ baseUrl, credentialHeader: input.auth?.type === 'header' ? input.auth.name : 'authorization', method, url: url.toString(), headers, body: undefined }, input.timeoutMs, cancel);
     } catch (error) {
       if (cancel.cancelled) throw cancelledError('download');
       throw networkFailure('native.error.56e76e0148', '生成结果下载失败', error);

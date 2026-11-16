@@ -8,6 +8,10 @@ import { fetch as undiciFetch, ProxyAgent, type Dispatcher } from 'undici';
 
 const PROXY_ENV_KEYS = ['HTTPS_PROXY', 'HTTP_PROXY', 'ALL_PROXY', 'https_proxy', 'http_proxy', 'all_proxy'];
 
+const SYSTEM_PROXY_CACHE_MS = 5000;
+let cacheExpiresAt = 0;
+let cachedEnvironment = '';
+let cachedAgentUrl: string | null = null;
 let cachedUrl: string | null | undefined;
 let cachedAgent: ProxyAgent | null = null;
 
@@ -46,7 +50,10 @@ function validProxyUrl(value: string): string | null {
 }
 
 export function resolvedSystemProxyUrl(): string | null {
-  if (cachedUrl !== undefined) return cachedUrl;
+  const environment = JSON.stringify(PROXY_ENV_KEYS.map(key => process.env[key] ?? ''));
+  if (cachedUrl !== undefined && cachedEnvironment === environment && Date.now() < cacheExpiresAt) return cachedUrl;
+  cachedEnvironment = environment;
+  cacheExpiresAt = Date.now() + SYSTEM_PROXY_CACHE_MS;
   for (const key of PROXY_ENV_KEYS) {
     const value = process.env[key];
     if (!value) continue;
@@ -89,6 +96,12 @@ export async function fetchThroughSystemProxy(
   init: RequestInit & { dispatcher?: Dispatcher } = {},
 ): Promise<Response> {
   const proxy = resolvedSystemProxyUrl();
+  if (proxy !== cachedAgentUrl) {
+    void cachedAgent?.close().catch(() => undefined);
+    cachedAgent = null;
+    proxyDispatcher = null;
+    cachedAgentUrl = proxy;
+  }
   let hostname = '';
   try { hostname = new URL(url).hostname; } catch { hostname = ''; }
   if (!proxy || !hostname || isLoopback(hostname)) return fetch(url, init);
@@ -105,4 +118,7 @@ export function closeProxyAgent(): void {
   cachedAgent = null;
   proxyDispatcher = null;
   cachedUrl = undefined;
+  cachedAgentUrl = null;
+  cacheExpiresAt = 0;
+  cachedEnvironment = '';
 }

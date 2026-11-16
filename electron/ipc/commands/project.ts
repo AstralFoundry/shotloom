@@ -1,5 +1,6 @@
-import { existsSync } from 'node:fs';
-import { mkdir, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { existsSync, createWriteStream } from 'node:fs';
+import { pipeline } from 'node:stream/promises';
+import { mkdir, readdir, rename, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join, sep } from 'node:path';
 import { shell } from 'electron';
@@ -532,9 +533,7 @@ async function importProjectPackage(source: string, targetRoot: string): Promise
       }
       const output = join(temporary, ...parts);
       await mkdir(output.replace(/[\\/][^\\/]+$/, ''), { recursive: true });
-      const chunks: Buffer[] = [];
-      for await (const chunk of reader.read(name)) chunks.push(chunk as Buffer);
-      await writeFile(output, Buffer.concat(chunks));
+      await pipeline(reader.read(name), createWriteStream(output));
     }
     const projectPath = join(temporary, PROJECT_FILE);
     const project = loadProjectFile(projectPath);

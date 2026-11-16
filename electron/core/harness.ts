@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { app } from 'electron';
 import { localizedError } from './errors';
 import { appDataDir } from './paths';
-import { emitEvent } from '../ipc/registry';
+import { emitEvent, emitChannel as emitEventChannel } from '../ipc/registry';
 
 /**
  * DeepSeek Harness 运行时：父进程通过 stdin/stdout 与新进程通信，
@@ -28,7 +28,7 @@ export interface HarnessRuntimeStatus {
 interface HarnessRuntimeOptions { sourceRoot?: string; dataRoot?: string }
 
 interface ReplyRequest { kind: 'request'; resolve: (value: unknown) => void; reject: (error: string) => void; timer: NodeJS.Timeout }
-interface ReplyStream { kind: 'stream'; channelId: string }
+interface ReplyStream { kind: 'stream'; channelId: string; operation: 'fetch' | 'stream' }
 type Reply = ReplyRequest | ReplyStream;
 
 let child: ChildProcessWithoutNullStreams | null = null;
@@ -180,7 +180,12 @@ async function handleBridgeRequest(request: import('node:http').IncomingMessage,
         bridge.pending.delete(requestId);
         reject(new Error('tool bridge timeout'));
       }, 120_000);
-      bridge.pending.set(requestId, (value) => { clearTimeout(timer); resolve(value); });
+      const complete = (value: { result?: unknown; error?: string }) => {
+        clearTimeout(timer);
+        if (bridge.pending.get(requestId) === complete) bridge.pending.delete(requestId);
+        resolve(value);
+      };
+      bridge.pending.set(requestId, complete);
       // 发给渲染进程执行产品工具；回执由 harness_tool_respond 填回。
       broadcast('harness://tool-request', {
         requestId,
@@ -192,7 +197,6 @@ async function handleBridgeRequest(request: import('node:http').IncomingMessage,
         authorizedByFullAccess: payload.authorizedByFullAccess,
       });
     });
-    bridge.pending.delete(requestId);
     if (result.error) jsonResponse(response, 200, { success: false, error: result.error });
     else jsonResponse(response, 200, { success: true, result: result.result });
   } catch (error) {
@@ -200,16 +204,36 @@ async function handleBridgeRequest(request: import('node:http').IncomingMessage,
   }
 }
 
-function stopChild(): void {
-  if (!child) {
-    ready = false;
-    replies.clear();
-    return;
+function rejectReplies(message: string, graceful = false): void {
+  for (const [requestId, reply] of replies) {
+    if (reply.kind === 'request') {
+      clearTimeout(reply.timer);
+      reply.reject(message);
+    } else {
+      const contents = mainWindowWebContents();
+      if (contents) emitEventChannel(contents, reply.channelId, graceful && reply.operation === 'stream'
+        ? { requestId, kind: 'end' }
+        : { requestId, kind: 'error', error: message });
+    }
   }
+  replies.clear();
+}
+
+function clearBridgeCalls(message: string): void {
+  bridge.bindings.clear();
+  bridge.token = null;
+  for (const resolve of bridge.pending.values()) resolve({ error: message });
+  bridge.pending.clear();
+}
+
+function stopChild(): void {
   const process_ = child;
   child = null;
   ready = false;
-  try { process_.stdin.write('shutdown\n'); } catch { /* 已关闭 */ }
+  rejectReplies('Agent Host stopped', true);
+  clearBridgeCalls('Agent Host stopped');
+  if (!process_) return;
+  try { process_.stdin.write('shutdown\n'); } catch { /* Already closed. */ }
   const deadline = Date.now() + 3000;
   const timer = setInterval(() => {
     if (process_.exitCode !== null || Date.now() > deadline) {
@@ -218,7 +242,6 @@ function stopChild(): void {
     }
   }, 25);
   timer.unref?.();
-  replies.clear();
 }
 
 export function stopHarnessRuntime(): HarnessRuntimeStatus {
@@ -241,6 +264,7 @@ async function doStart(options: HarnessRuntimeOptions): Promise<HarnessRuntimeSt
   const dataRoot = options.dataRoot ? options.dataRoot : join(appDataDir(), 'deepseek-harness');
   mkdirSync(dataRoot, { recursive: true });
   await startBridge();
+  bridge.token = randomUUID();
   if (!bridge.port || !bridge.token) throw new Error(localizedError('native.harness.bridgeNotReady', {}, '工具桥接尚未就绪'));
   const executable = join(root, process.platform === 'win32' ? 'node.exe' : 'node');
   const process_ = spawn(executable, [join(root, 'dist', 'main.js')], {
@@ -259,11 +283,17 @@ async function doStart(options: HarnessRuntimeOptions): Promise<HarnessRuntimeSt
   ready = false;
   lastError = null;
   process_.on('error', (error) => {
+    if (child !== process_) return;
+    child = null;
+    ready = false;
+    rejectReplies('Agent Host failed to start');
+    clearBridgeCalls('Agent Host failed to start');
     lastError = error.message;
     broadcast('harness://stderr', error.message);
   });
   let stdoutBuffer = '';
   process_.stdout.on('data', (chunk: Buffer) => {
+    if (child !== process_) return;
     stdoutBuffer += chunk.toString('utf8');
     let index = stdoutBuffer.indexOf('\n');
     while (index >= 0) {
@@ -283,23 +313,18 @@ async function doStart(options: HarnessRuntimeOptions): Promise<HarnessRuntimeSt
   });
   let stderrBuffer = '';
   process_.stderr.on('data', (chunk: Buffer) => {
+    if (child !== process_) return;
     stderrBuffer += chunk.toString('utf8');
     const lines = stderrBuffer.split('\n');
     stderrBuffer = lines.pop() ?? '';
     for (const line of lines) broadcast('harness://stderr', line);
   });
   process_.on('exit', () => {
-    if (child === process_) {
-      child = null;
-      ready = false;
-    }
-    for (const [id, reply] of replies) {
-      if (reply.kind === 'request') {
-        clearTimeout(reply.timer);
-        reply.reject('Agent Host disconnected');
-      }
-      replies.delete(id);
-    }
+    if (child !== process_) return;
+    child = null;
+    ready = false;
+    rejectReplies('Agent Host disconnected');
+    clearBridgeCalls('Agent Host disconnected');
   });
   return runtimeStatus();
 }
@@ -329,7 +354,7 @@ export function harnessTransport(message: Json, channelId: string): void {
   const kind = typeof message.kind === 'string' ? message.kind : '';
   if (!id) throw new Error('Missing transport request ID');
   if (!kind) throw new Error('Missing transport operation');
-  if (kind === 'fetch' || kind === 'stream') replies.set(id, { kind: 'stream', channelId });
+  if (kind === 'fetch' || kind === 'stream') replies.set(id, { kind: 'stream', channelId, operation: kind });
   else if (kind !== 'cancel' && kind !== 'uplink') throw new Error('Invalid client transport operation');
   try {
     writeNative(message);

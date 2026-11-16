@@ -22,8 +22,11 @@ extraResources:
   - from: electron/resources/FFmpeg-SOURCE.txt
     to: resources/FFmpeg-SOURCE.txt
   # 由 scripts/electron-package.mjs 按当前平台挑选并拷贝到 electron/resources。
-  - from: electron/resources/ffmpeg
-    to: ffmpeg
+  - from: electron/resources
+    to: .
+    filter:
+      - ffmpeg
+      - ffmpeg.exe
 mac:
   category: public.app-category.video
   icon: electron/build/icons/app.icns

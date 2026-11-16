@@ -1,6 +1,10 @@
+import { eq, and, asc, desc } from 'drizzle-orm';
+import { orm } from './sqliteOrm';
+import * as models from './schema';
+import type { CollectionName } from './schema';
 import type { DatabaseSync } from 'node:sqlite';
 import { localizedError } from './errors';
-import { insertRecord, metadataValue, setMetadataValue, transaction, withDatabase, type Row } from './db';
+import { insertCollectionRecord, metadataValue, setMetadataValue, transaction, withDatabase } from './db';
 
 /**
  * 项目数据库（project.sqlite）的读写，对应 src-tauri/src/crud/project_crud.rs。
@@ -10,20 +14,20 @@ import { insertRecord, metadataValue, setMetadataValue, transaction, withDatabas
 
 export const SNAPSHOT_LIMIT = 20;
 
-interface CollectionSpec { table: string; key: string; columns: (payload: Record<string, unknown>) => Record<string, unknown>; }
+interface CollectionSpec { table: CollectionName; key: string; }
 
 const text = (value: unknown) => (typeof value === 'string' ? value : '');
 
 const COLLECTIONS: CollectionSpec[] = [
-  { table: 'nodes', key: 'nodes', columns: payload => ({ kind: text(payload.type), title: text(payload.title) }) },
-  { table: 'edges', key: 'edges', columns: payload => ({ source: text(payload.source), target: text(payload.target) }) },
-  { table: 'tasks', key: 'tasks', columns: payload => ({ node_id: typeof payload.nodeId === 'string' ? payload.nodeId : null, status: text(payload.status) }) },
-  { table: 'assets', key: 'assets', columns: payload => ({ material_id: typeof payload.materialId === 'string' ? payload.materialId : null }) },
-  { table: 'materials', key: 'materials', columns: payload => ({ file_path: typeof payload.filePath === 'string' ? payload.filePath : (typeof payload.path === 'string' ? payload.path : null) }) },
-  { table: 'conversations', key: 'harnessSessions', columns: payload => ({ agent_id: text(payload.agentId) }) },
-  { table: 'production_plans', key: 'productionPlans', columns: payload => ({ name: text(payload.name) }) },
-  { table: 'agent_batches', key: 'agentBatches', columns: payload => ({ name: text(payload.name) }) },
-  { table: 'agent_evaluations', key: 'agentEvaluations', columns: payload => ({ name: text(payload.name) }) },
+  { table: 'nodes', key: 'nodes' },
+  { table: 'edges', key: 'edges' },
+  { table: 'tasks', key: 'tasks' },
+  { table: 'assets', key: 'assets' },
+  { table: 'materials', key: 'materials' },
+  { table: 'conversations', key: 'harnessSessions' },
+  { table: 'production_plans', key: 'productionPlans' },
+  { table: 'agent_batches', key: 'agentBatches' },
+  { table: 'agent_evaluations', key: 'agentEvaluations' },
 ];
 
 const PROJECT_ONLY_KEYS = new Set([
@@ -42,7 +46,7 @@ export function loadProjectFile(path: string): Record<string, unknown> | null {
 }
 
 export function loadProject(db: DatabaseSync): ProjectRecord | null {
-  const row = db.prepare('SELECT payload, revision FROM projects WHERE id = 1').get() as Row | undefined;
+  const row = orm(db).select().from(models.projects).where(eq(models.projects.id, 1)).get();
   if (!row) return null;
   const value = parse<ProjectRecord>(row.payload);
   value.storageRevision = Number(row.revision);
@@ -52,18 +56,18 @@ export function loadProject(db: DatabaseSync): ProjectRecord | null {
   return value;
 }
 
-function loadCollection(db: DatabaseSync, table: string): unknown[] {
-  return (db.prepare(`SELECT payload FROM "${table}" ORDER BY position ASC`).all() as Row[])
+function loadCollection(db: DatabaseSync, table: CollectionName): unknown[] {
+  return (orm(db).select().from(models.collectionTables[table]).orderBy(asc(models.collectionTables[table].position)).all())
     .map(row => parse(row.payload));
 }
 
 function loadHistory(db: DatabaseSync, stack: string): unknown[] {
-  return (db.prepare('SELECT payload FROM canvas_history WHERE stack = ? ORDER BY position ASC').all(stack) as Row[])
+  return (orm(db).select().from(models.canvas_history).where(eq(models.canvas_history.stack, stack)).orderBy(asc(models.canvas_history.position)).all())
     .map(row => parse(row.payload));
 }
 
 export function saveProject(db: DatabaseSync, value: ProjectRecord): ProjectRecord {
-  const current = db.prepare('SELECT revision FROM projects WHERE id = 1').get() as Row | undefined;
+  const current = orm(db).select().from(models.projects).where(eq(models.projects.id, 1)).get();
   const revision = current ? Number(current.revision) : 0;
   if (typeof value.storageRevision === 'number' && value.storageRevision !== revision) {
     throw new Error(localizedError('native.storage.7a2275e121', {}, '工程已被另一窗口修改，请重新打开后再保存'));
@@ -76,18 +80,13 @@ export function saveProject(db: DatabaseSync, value: ProjectRecord): ProjectReco
   for (const key of PROJECT_ONLY_KEYS) delete metadata[key];
   const record = {
     name: text(value.name),
-    createdAt: text(value.createdAt),
-    updatedAt: text(value.updatedAt),
+    created_at: text(value.createdAt),
+    updated_at: text(value.updatedAt),
     revision: revision + 1,
     payload: JSON.stringify(metadata),
   };
-  if (current) {
-    db.prepare('UPDATE projects SET name = ?, created_at = ?, updated_at = ?, revision = ?, payload = ? WHERE id = 1')
-      .run(record.name, record.createdAt, record.updatedAt, record.revision, record.payload);
-  } else {
-    db.prepare('INSERT INTO projects (id, name, created_at, updated_at, revision, payload) VALUES (1, ?, ?, ?, ?, ?)')
-      .run(record.name, record.createdAt, record.updatedAt, record.revision, record.payload);
-  }
+  orm(db).insert(models.projects).values({ id: 1, ...record })
+    .onConflictDoUpdate({ target: models.projects.id, set: record }).run();
   return { ...value, storageRevision: revision + 1 };
 }
 
@@ -107,28 +106,18 @@ function saveCollection(db: DatabaseSync, spec: CollectionSpec, rawRows: unknown
     }
     seen.add(id);
   }
-  if (spec.table === 'edges') db.prepare('DELETE FROM edges').run();
-  else db.prepare(`DELETE FROM "${spec.table}"`).run();
+  orm(db).delete(models.collectionTables[spec.table]).run();
   rows.forEach((payload, position) => {
     const record = payload as ProjectRecord;
-    insertRecord(db, spec.table, {
-      table: spec.table,
-      columns: {
-        ...spec.columns(record),
-        id: String(record.id),
-        position,
-        payload: JSON.stringify(record),
-      },
-    });
+    insertCollectionRecord(db, spec.table, String(record.id), position, record);
   });
 }
 
 function saveHistory(db: DatabaseSync, stack: string, rawEntries: unknown): void {
-  db.prepare('DELETE FROM canvas_history WHERE stack = ?').run(stack);
+  orm(db).delete(models.canvas_history).where(eq(models.canvas_history.stack, stack)).run();
   const entries = Array.isArray(rawEntries) ? rawEntries : [];
   entries.forEach((payload, position) => {
-    db.prepare('INSERT INTO canvas_history (stack, position, payload) VALUES (?, ?, ?)')
-      .run(stack, position, JSON.stringify(payload));
+    orm(db).insert(models.canvas_history).values({ stack, position, payload: JSON.stringify(payload) }).run();
   });
 }
 
@@ -136,7 +125,7 @@ function saveHistory(db: DatabaseSync, stack: string, rawEntries: unknown): void
 
 export function listProjectSnapshots(path: string): unknown[] {
   return withDatabase(path, (db) => {
-    const rows = db.prepare('SELECT * FROM project_snapshots ORDER BY created_at DESC').all() as Row[];
+    const rows = orm(db).select().from(models.project_snapshots).orderBy(desc(models.project_snapshots.created_at)).all();
     return rows.map(row => ({
       id: String(row.id),
       createdAt: String(row.created_at),
@@ -153,26 +142,22 @@ export function createProjectSnapshot(path: string, record: Record<string, unkno
   return withDatabase(path, (db) => transaction(db, () => {
     const id = typeof record.id === 'string' && record.id ? record.id : '';
     if (!id) throw new Error('snapshot record is missing id');
-    db.prepare('INSERT INTO project_snapshots (id, created_at, reason, content_hash, payload_bytes, media_refs, degraded, payload) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(
-        id,
-        text(record.createdAt),
-        typeof record.reason === 'string' && record.reason ? record.reason : 'auto',
-        text(record.contentHash),
-        typeof record.payloadBytes === 'number' ? record.payloadBytes : 0,
-        JSON.stringify(Array.isArray(record.mediaRefs) ? record.mediaRefs : []),
-        record.degraded === true ? 1 : 0,
-        record.payload === undefined || record.payload === null ? null : JSON.stringify(record.payload),
-      );
-    const stale = db.prepare('SELECT id FROM project_snapshots ORDER BY created_at DESC LIMIT -1 OFFSET ?').all(SNAPSHOT_LIMIT) as Row[];
-    for (const row of stale) db.prepare('DELETE FROM project_snapshots WHERE id = ?').run(String(row.id));
+    orm(db).insert(models.project_snapshots).values({
+      id, created_at: text(record.createdAt), reason: text(record.reason) || 'auto',
+      content_hash: text(record.contentHash), payload_bytes: typeof record.payloadBytes === 'number' ? record.payloadBytes : 0,
+      media_refs: JSON.stringify(Array.isArray(record.mediaRefs) ? record.mediaRefs : []), degraded: record.degraded === true ? 1 : 0,
+      payload: record.payload === undefined || record.payload === null ? null : JSON.stringify(record.payload),
+    }).run();
+    const stale = orm(db).select({ id: models.project_snapshots.id }).from(models.project_snapshots)
+      .orderBy(desc(models.project_snapshots.created_at)).all().slice(SNAPSHOT_LIMIT);
+    for (const row of stale) orm(db).delete(models.project_snapshots).where(eq(models.project_snapshots.id, row.id)).run();
     return { saved: true } as const;
   }));
 }
 
 export function readProjectSnapshot(path: string, id: string): unknown {
   return withDatabase(path, (db) => {
-    const row = db.prepare('SELECT payload FROM project_snapshots WHERE id = ?').get(id) as Row | undefined;
+    const row = orm(db).select().from(models.project_snapshots).where(eq(models.project_snapshots.id, id)).get();
     return row && row.payload !== null ? parse(row.payload) : null;
   });
 }
@@ -181,29 +166,24 @@ export function readProjectSnapshot(path: string, id: string): unknown {
 
 export function editorSnapshot(path: string, nodeId: string): unknown {
   return withDatabase(path, (db) => {
-    const row = db.prepare('SELECT payload FROM editor_snapshots WHERE node_id = ?').get(nodeId) as Row | undefined;
+    const row = orm(db).select().from(models.editor_snapshots).where(eq(models.editor_snapshots.node_id, nodeId)).get();
     return row ? parse(row.payload) : null;
   });
 }
 
 export function saveEditorSnapshot(path: string, nodeId: string, payload: unknown): unknown {
   return withDatabase(path, (db) => transaction(db, () => {
-    const existing = db.prepare('SELECT revision FROM editor_snapshots WHERE node_id = ?').get(nodeId) as Row | undefined;
-    const revision = existing ? Number(existing.revision) + 1 : 1;
-    if (existing) {
-      db.prepare('UPDATE editor_snapshots SET revision = ?, payload = ? WHERE node_id = ?')
-        .run(revision, JSON.stringify(payload), nodeId);
-    } else {
-      db.prepare('INSERT INTO editor_snapshots (node_id, revision, payload) VALUES (?, ?, ?)')
-        .run(nodeId, revision, JSON.stringify(payload));
-    }
+    const existing = orm(db).select().from(models.editor_snapshots).where(eq(models.editor_snapshots.node_id, nodeId)).get();
+    const value = { node_id: nodeId, revision: existing ? existing.revision + 1 : 1, payload: JSON.stringify(payload) };
+    orm(db).insert(models.editor_snapshots).values(value)
+      .onConflictDoUpdate({ target: models.editor_snapshots.node_id, set: value }).run();
     return payload;
   }));
 }
 
 export function editorRecord(path: string, nodeId: string, key: string): unknown {
   return withDatabase(path, (db) => {
-    const row = db.prepare('SELECT payload FROM editor_records WHERE node_id = ? AND key = ?').get(nodeId, key) as Row | undefined;
+    const row = orm(db).select().from(models.editor_records).where(and(eq(models.editor_records.node_id, nodeId), eq(models.editor_records.key, key))).get();
     return row ? parse(row.payload) : null;
   });
 }
@@ -211,12 +191,12 @@ export function editorRecord(path: string, nodeId: string, key: string): unknown
 export function setEditorRecord(path: string, nodeId: string, key: string, payload: unknown): void {
   withDatabase(path, (db) => transaction(db, () => {
     if (payload === undefined || payload === null) {
-      db.prepare('DELETE FROM editor_records WHERE node_id = ? AND key = ?').run(nodeId, key);
+      orm(db).delete(models.editor_records).where(and(eq(models.editor_records.node_id, nodeId), eq(models.editor_records.key, key))).run();
       return;
     }
-    const existing = db.prepare('SELECT node_id FROM editor_records WHERE node_id = ? AND key = ?').get(nodeId, key);
-    if (existing) db.prepare('UPDATE editor_records SET payload = ? WHERE node_id = ? AND key = ?').run(JSON.stringify(payload), nodeId, key);
-    else db.prepare('INSERT INTO editor_records (node_id, key, payload) VALUES (?, ?, ?)').run(nodeId, key, JSON.stringify(payload));
+    const value = { node_id: nodeId, key, payload: JSON.stringify(payload) };
+    orm(db).insert(models.editor_records).values(value)
+      .onConflictDoUpdate({ target: [models.editor_records.node_id, models.editor_records.key], set: { payload: value.payload } }).run();
   }));
 }
 

@@ -3,7 +3,7 @@ import { createReadStream, existsSync, statSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { extname, join, resolve, sep } from 'node:path';
 import { Readable } from 'node:stream';
-import { emitEvent, registerCommandChannel } from './ipc/registry';
+import { assertTrustedSender, isTrustedPage, emitEvent, registerCommandChannel } from './ipc/registry';
 import { initializeNativeMenu } from './ipc/commands/settings';
 import './ipc/commands/recent';
 import './ipc/commands/files';
@@ -32,6 +32,9 @@ if (smoke) {
 }
 const rootDir = process.env.SHOTLOOM_ROOT || app.getAppPath();
 const rendererRoot = join(rootDir, 'dist', 'renderer');
+// electron-builder 为安装包写入应用图标；直接运行 Electron 时需单独设置。
+const developmentIcon = app.isPackaged ? undefined : join(rootDir, 'electron', 'build', 'icons', 'app.png');
+app.setName('Shotloom');
 
 const windowConfig = (() => {
   try {
@@ -55,6 +58,9 @@ protocol.registerSchemesAsPrivileged([
 ]);
 
 let mainWindow: BrowserWindow | null = null;
+let quitRequested = false;
+let quitApproved = false;
+let relaunchRequested = false;
 
 const MIME_TYPES: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -145,6 +151,7 @@ async function handleProtocolRequest(request: Request): Promise<Response> {
 
 function registerDialogs(): void {
   ipcMain.handle('shotloom:dialog-open', async (event, options: Record<string, unknown> = {}) => {
+    assertTrustedSender(event);
     const window = BrowserWindow.fromWebContents(event.sender) ?? mainWindow;
     const properties: ('openFile' | 'openDirectory' | 'multiSelections')[] = [];
     properties.push(options.directory ? 'openDirectory' : 'openFile');
@@ -164,6 +171,7 @@ function registerDialogs(): void {
   });
 
   ipcMain.handle('shotloom:dialog-save', async (event, options: Record<string, unknown> = {}) => {
+    assertTrustedSender(event);
     const window = BrowserWindow.fromWebContents(event.sender) ?? mainWindow;
     const filters = Array.isArray(options.filters)
       ? (options.filters as { name?: string; extensions?: string[] }[]).map(filter => ({ name: filter.name || 'Files', extensions: filter.extensions || ['*'] }))
@@ -180,27 +188,33 @@ function registerDialogs(): void {
 
 function registerWindowControls(): void {
   ipcMain.handle('shotloom:window', async (event, action: unknown, value: unknown) => {
+    assertTrustedSender(event);
     const window = BrowserWindow.fromWebContents(event.sender) ?? mainWindow;
     if (!window) return null;
     switch (String(action)) {
       case 'minimize': window.minimize(); return null;
       case 'maximize': window.isMaximized() ? window.unmaximize() : window.maximize(); return window.isMaximized();
       case 'close': window.close(); return null;
-      case 'destroy': window.destroy(); return null;
+      case 'destroy':
+        if (quitRequested) { quitApproved = true; app.quit(); }
+        else window.destroy();
+        return null;
+      case 'cancel-close': quitRequested = false; relaunchRequested = false; return null;
       case 'is-maximized': return window.isMaximized();
       case 'title': return window.getTitle();
       case 'set-title': window.setTitle(String(value ?? '')); return null;
       default: throw new Error(`unknown window action: ${String(action)}`);
     }
   });
-  ipcMain.handle('shotloom:relaunch', () => {
-    app.relaunch();
-    app.exit(0);
+  ipcMain.handle('shotloom:relaunch', (event) => {
+    assertTrustedSender(event);
+    relaunchRequested = true;
+    app.quit();
   });
-  ipcMain.handle('shotloom:update-check', () => checkForUpdate());
-  ipcMain.handle('shotloom:update-download', (_event, version: unknown) => downloadUpdate(String(version ?? '')));
-  ipcMain.handle('shotloom:update-cancel', (_event, version: unknown) => cancelUpdateDownload(String(version ?? '')));
-  ipcMain.handle('shotloom:update-install', (_event, version: unknown) => installUpdate(String(version ?? '')));
+  ipcMain.handle('shotloom:update-check', (event) => { assertTrustedSender(event); return checkForUpdate(); });
+  ipcMain.handle('shotloom:update-download', (event, version: unknown) => { assertTrustedSender(event); return downloadUpdate(String(version ?? '')); });
+  ipcMain.handle('shotloom:update-cancel', (event, version: unknown) => { assertTrustedSender(event); return cancelUpdateDownload(String(version ?? '')); });
+  ipcMain.handle('shotloom:update-install', (event, version: unknown) => { assertTrustedSender(event); return installUpdate(String(version ?? '')); });
 }
 
 function createWindow(): BrowserWindow {
@@ -210,6 +224,7 @@ function createWindow(): BrowserWindow {
     minWidth: windowConfig.minWidth,
     minHeight: windowConfig.minHeight,
     title: windowConfig.title,
+    ...(developmentIcon ? { icon: developmentIcon } : {}),
     show: false,
     backgroundColor: '#000000',
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
@@ -223,15 +238,17 @@ function createWindow(): BrowserWindow {
       spellcheck: false,
     },
   });
+  window.webContents.on('will-navigate', (event, url) => {
+    if (!isTrustedPage(url)) event.preventDefault();
+  });
+  window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   window.once('ready-to-show', () => { window.show(); });
   window.on('resize', () => { emitEvent(window.webContents, 'window-resized', {}); });
   window.on('maximize', () => { emitEvent(window.webContents, 'window-resized', {}); });
   window.on('unmaximize', () => { emitEvent(window.webContents, 'window-resized', {}); });
   // 关闭请求交给渲染进程决定（未保存确认/最小化到后台），与 Tauri 的 onCloseRequested 一致。
-  let allowClose = false;
-  QuitRequests.add(() => { allowClose = true; });
   window.on('close', (event) => {
-    if (allowClose || window.webContents.isDestroyed()) { allowClose = true; return; }
+    if (quitApproved || window.webContents.isDestroyed()) return;
     event.preventDefault();
     emitEvent(window.webContents, 'window-close-requested', { reason: 'close' });
   });
@@ -357,6 +374,7 @@ async function runSmoke(window: BrowserWindow): Promise<void> {
 }
 
 app.whenReady().then(async () => {
+  if (developmentIcon && process.platform === 'darwin') app.dock?.setIcon(developmentIcon);
   protocol.handle('shotloom', handleProtocolRequest);
   // 只允许本机渲染进程使用原生通道；不做任意来源的 IPC。
   session.defaultSession.setPermissionRequestHandler((_contents, permission, callback) => {
@@ -381,10 +399,17 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
 
-// Cmd+Q / 系统退出不能被窗口的「关闭请求」拦下：退出流程直接放行关闭。
-const QuitRequests = new Set<() => void>();
-app.on('before-quit', () => {
+// 系统退出与窗口关闭共用渲染层的保存/任务守卫。
+app.on('before-quit', (event) => {
+  if (!quitApproved && mainWindow && !mainWindow.webContents.isDestroyed()) {
+    event.preventDefault();
+    if (!quitRequested) {
+      quitRequested = true;
+      emitEvent(mainWindow.webContents, 'window-close-requested', { reason: 'quit' });
+    }
+    return;
+  }
+  if (relaunchRequested) app.relaunch();
   shutdownHarnessRuntime();
   markCleanExit();
-  for (const allow of QuitRequests) allow();
 });

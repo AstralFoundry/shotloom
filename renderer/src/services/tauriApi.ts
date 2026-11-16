@@ -787,7 +787,7 @@ export function createTauriApi(browserFallback: BrowserFallback): BrowserFallbac
       maximize: async () => { await currentWindow.toggleMaximize(); return currentWindow.isMaximized(); },
       close: () => currentWindow.close(),
       confirmClose: () => currentWindow.destroy(),
-      cancelClose: async () => true,
+      cancelClose: async () => { await currentWindow.cancelClose(); return true; },
       isMaximized: () => currentWindow.isMaximized(),
       getTitle: () => currentWindow.title(),
       createNew: async () => false,

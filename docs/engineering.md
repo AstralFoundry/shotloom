@@ -48,3 +48,7 @@
 插件开发、打包与索引格式见 [provider-plugins.md](./provider-plugins.md)。
 
 媒体协议的路径占位符、独立结果查询、远程取消和缺省状态约束见 [媒体协议接入](./media-protocols.md)。这些是厂商传输契约，不用于推断 Agent 的制作意图或工作流。
+
+## Electron 数据存储
+
+Electron 使用 Drizzle 表模型和领域 CRUD（`core/schema.ts`、`core/storage.ts`、`core/projectStorage.ts`），与 Harness 保持同一 ORM。业务读写不得拼接 SQL、表名或列名，也不得直接调用原生 prepare/exec。`core/sqliteOrm.ts` 适配 Electron 内置 node:sqlite，负责执行 ORM 生成的参数化查询；`core/db.ts` 管理连接和在线备份；固定的 DDL 与旧版本升级集中在 `core/migrations.ts`。保留既有表名、列名、JSON 编码与数据库版本，兼容 Tauri 数据文件。迁移和项目多表写入必须在同一事务中完成。

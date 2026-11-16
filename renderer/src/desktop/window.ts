@@ -17,6 +17,7 @@ export interface DesktopWindow {
   isMaximized(): Promise<boolean>;
   close(): Promise<void>;
   destroy(): Promise<void>;
+  cancelClose(): Promise<void>;
   title(): Promise<string>;
   setTitle(title: string): Promise<void>;
   onResized(handler: () => void): Promise<UnlistenFn>;
@@ -35,6 +36,7 @@ export function getCurrentWindow(): DesktopWindow {
     isMaximized: async () => Boolean(await control('is-maximized')),
     close: async () => { await control('close'); },
     destroy: async () => { await control('destroy'); },
+    cancelClose: async () => { await control('cancel-close'); },
     title: async () => String(await control('title') ?? ''),
     setTitle: async (title: string) => { await control('set-title', title); },
     onResized: async (handler) => {
