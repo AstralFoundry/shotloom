@@ -42,7 +42,8 @@ test('deletion removes only the selected existing skill', async () => {
   assert.deepEqual(saved.skills, [other]);
 });
 test('JSON object key order from storage does not look like a conflicting edit', async () => {
-  const f = fixture({ skills: [{ instructions: skill.instructions, ...skill }] });
+  const { instructions, ...rest } = skill;
+  const f = fixture({ skills: [{ instructions, ...rest }] });
   await saveSkills(f.api, [{ ...skill, name: 'Renamed' }], { expected: skill });
   assert.equal(f.writes[0]?.skills?.[0]?.name, 'Renamed');
 });
