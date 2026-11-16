@@ -4,8 +4,8 @@
    application theme. */
 
 .canvas-selection-layout { position: absolute; z-index: 10; top: 16px; left: 50%; transform: translateX(-50%); }
-.snapshot-canvas { height: 340px; min-width: 0; background: var(--canvas-bg); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
-.snapshot-canvas-card { height: 100%; display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--text); overflow: hidden; }
+.snapshot-canvas { height: 340px; min-width: 0; background: var(--canvas-bg); border: 1px solid var(--line); border-radius: var(--radius-sm); overflow: hidden; }
+.snapshot-canvas-card { height: 100%; display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); color: var(--text); overflow: hidden; }
 .snapshot-canvas-card img { width: 100%; min-height: 0; flex: 1; object-fit: contain; }
 .snapshot-canvas-card p { white-space: pre-wrap; overflow: hidden; overflow-wrap: anywhere; }
 
@@ -64,8 +64,8 @@
 .react-workflow-canvas .react-flow__pane.dragging { cursor: grabbing; }
 .react-workflow-canvas .react-flow__pane.selection { cursor: crosshair; }
 .react-workflow-canvas :is(.react-flow__selection, .react-flow__nodesselection-rect) {
-  border: 1px solid var(--canvas-node-border-selected);
-  background: var(--canvas-selection-bg);
+  border: 1px dashed var(--canvas-edge-hover);
+  background: transparent;
 }
 .react-workflow-canvas .react-flow__node {
   border: 0;

@@ -55,14 +55,15 @@ export function AntdProvider({ children }: { children: ReactNode }) {
           colorInfo: dark ? SHOTLOOM_PRIMARY.dark : SHOTLOOM_PRIMARY.light,
           fontFamily: "var(--font-ui)",
           fontSize: 14,
-          borderRadius: 12,
+          // 控件圆角与 tokens.css 的 --radius-control 对齐；卡片/抽屉/弹窗走 LG 档。
+          borderRadius: 10,
+          borderRadiusLG: 16,
           motionDurationMid: "0.16s",
           // 弹层压在画布/工作区之上、Toast 之下；antd 默认 1000 会盖住 Toast。
           zIndexPopupBase: 560,
         },
         components: {
           Modal: {
-            borderRadiusLG: 12,
             paddingContentHorizontalLG: 24,
           },
           Button: {

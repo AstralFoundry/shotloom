@@ -17,7 +17,12 @@
 }
 
 .settings-heading-row .settings-heading { margin-bottom: 0; }
-.button.compact { min-height: 28px; padding: 4px 8px; font-size: var(--text-caption-11); }
+.button.compact {
+  min-height: 28px;
+  padding: 4px 10px;
+  border-radius: var(--radius-control-compact);
+  font-size: var(--text-body-12);
+}
 
 .canvas-shortcut-settings { display: grid; gap: 8px; }
 .canvas-shortcut-setting {
@@ -275,10 +280,11 @@
 }
 .settings-row:last-child { border-bottom: 0; }
 .settings-row > div:first-child { min-width: 0; }
-.settings-row strong { display: block; color: var(--type-primary); font-size: var(--text-caption-11); font-weight: 600; }
-.settings-row > div:first-child > span { display: block; margin-top: 3px; color: var(--faint); font-size: var(--text-caption-10); line-height: 1.45; }
+.settings-row strong { display: block; }
+.settings-row > div:first-child > span { display: block; margin-top: 4px; }
 .settings-row > .ant-select,
 .settings-row > .settings-number-control,
+.settings-row > button.button,
 .settings-row > .settings-control-wide { width: 100%; max-width: 390px; justify-self: end; }
 .settings-row .ant-select,
 .settings-row .ant-input-number {
@@ -404,7 +410,7 @@
   .settings-nav-group > button em { display: none; }
   .settings-content-head, .settings-content-scroll { padding-left: 14px; padding-right: 14px; }
   .settings-row { grid-template-columns: 1fr; gap: 8px; padding: 12px 0; }
-  .settings-row > .ant-select, .settings-row > .settings-number-control, .settings-row > .settings-control-wide { max-width: none; justify-self: stretch; }
+  .settings-row > .ant-select, .settings-row > .settings-number-control, .settings-row > button.button, .settings-row > .settings-control-wide { max-width: none; justify-self: stretch; }
   .recipe-form-grid { grid-template-columns: 1fr 1fr; }
   .recipe-test-input-row { grid-template-columns: 1fr; }
 }
@@ -417,15 +423,15 @@
 .settings-nav-group > button { color: var(--muted); font-size: var(--text-body-14); font-weight: 400; }
 .settings-nav-group > button.active { color: var(--type-primary); font-weight: 500; }
 .settings-nav-group > button em { font-size: var(--text-caption-11); font-weight: 400; }
-.settings-content-head h3 { margin: 0; color: var(--type-primary); font-size: var(--text-title-16); font-weight: 500; }
+.settings-content-head h3 { margin: 0; color: var(--type-primary); font-size: var(--text-title-16); line-height: var(--text-title-16--line-height); font-weight: 600; }
 .settings-content-head p { margin: 4px 0 0; color: var(--muted); font-size: var(--text-body-12); }
 .settings-section h4,
 .settings-heading { color: var(--type-primary); font-size: var(--text-body-14); font-weight: 500; }
 .settings-row strong,
-.canvas-shortcut-setting strong { color: var(--type-primary); font-size: var(--text-body-14); font-weight: 500; }
+.canvas-shortcut-setting strong { color: var(--type-primary); font-size: var(--text-body-14); line-height: var(--text-body-14--line-height); font-weight: 400; letter-spacing: 0; }
 .settings-row > div:first-child > span,
 .canvas-shortcut-setting span,
-.settings-meta { color: var(--muted); font-size: var(--text-body-12); font-weight: 400; }
+.settings-meta { color: var(--muted); font-size: var(--text-body-12); line-height: var(--text-body-13--line-height); font-weight: 400; letter-spacing: 0; }
 .settings-control-wide input,
 .shortcut-recorder { color: var(--type-primary); font-size: var(--text-body-14); font-weight: 400; }
 .settings-status-pill { font-size: var(--text-caption-11); font-weight: 400; }
@@ -621,7 +627,10 @@
 @media (max-width: 600px) {
   .provider-plugin-details dl { grid-template-columns: minmax(80px, 100px) minmax(0, 1fr); gap: 8px; }
 }
-.theme-switch.ant-segmented { flex: 0 0 auto; padding: 3px; border-radius: var(--radius-control); background: var(--surface-2); }
+.theme-switch.ant-segmented { flex: 0 0 auto; padding: 3px; border-radius: var(--radius-control); background: transparent; }
+.theme-switch .ant-segmented-item { color: var(--muted); }
+.theme-switch .ant-segmented-item-selected,
+.theme-switch .ant-segmented-thumb { background: var(--wash-hover); box-shadow: none; color: var(--type-primary); }
 .settings-row > .theme-switch { justify-self: end; }
 .theme-switch .ant-segmented-item-label { min-height: 30px; padding: 0 8px; }
 .theme-switch .theme-switch-icon { display: flex; align-items: center; justify-content: center; height: 30px; }

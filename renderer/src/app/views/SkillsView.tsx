@@ -93,18 +93,18 @@ export function SkillsView({ data, controller }: SkillsViewProps) {
               return false;
             }}
           >
-            <button className="button ghost compact">
+            <button className="button ghost">
               <IconSymbol name="upload" />{t("ui.CreationView.text.60e2bcad")}</button>
           </Upload>
           <button
-            className="button ghost compact"
+            className="button ghost"
             disabled={!data.selectedIds.length}
             onClick={controller.exportSelected}
           >
             <IconSymbol name="download" />{t("ui.SkillsView.text.b1a497ad")}{data.selectedIds.length})
           </button>
           <button
-            className="button primary compact"
+            className="button primary"
             onClick={controller.createSkill}
           >
             {t("ui.SkillsView.text.8918a182")}</button>
@@ -189,7 +189,7 @@ export function SkillsView({ data, controller }: SkillsViewProps) {
         <Drawer
           open={Boolean(data.editor)}
           placement="right"
-          size={720}
+          size={600}
           closable={false}
           onClose={() => controller.close()}
           rootClassName="skills-drawer"

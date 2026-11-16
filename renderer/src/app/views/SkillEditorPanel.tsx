@@ -76,7 +76,7 @@ export function SkillEditorPanel(
             />
             {draft.enabled ? t("ui.SkillEditorPanel.text.25d28431") : t("ui.SkillEditorPanel.text.0fe5a98e")}
           </label>
-          <button className="button primary compact" type="button" onClick={submit}>
+          <button className="button primary" type="button" onClick={submit}>
             {t("ui.SkillEditorPanel.text.52427937")}</button>
           <button
             className="icon-action"

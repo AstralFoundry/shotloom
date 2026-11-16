@@ -38,7 +38,7 @@ test('技能清单占满内容区，编辑与新建从右侧抽屉覆盖', () =>
   assert.match(skillsView, /className="skills-list-pane"/);
   assert.match(skillsView, /<Drawer[\s\S]*?placement="right"/);
   assert.match(skillsView, /rootClassName="skills-drawer"/);
-  assert.match(skillsView, /size=\{720\}/);
+  assert.match(skillsView, /size=\{600\}/);
   assert.match(skillsView, /<SkillEditorPanel/);
   assert.match(skillsStyles, /\.skills-list-pane \{[^}]*flex: 1 1 auto/);
   // 内容区自己已经有一层边框，清单不再套第二张卡片。
