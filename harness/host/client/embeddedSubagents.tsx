@@ -1,5 +1,5 @@
 import { t } from './i18n';
-import { useEffect, useState, type ComponentType } from 'react';
+import { useEffect, useRef, useState, type ComponentType } from 'react';
 import type { Context } from '@deepseek-ai/cordis';
 import type { SessionReference } from '@deepseek-ai/dsh-api-session-controller/client';
 import type { ConversationViewsProps } from '@deepseek-ai/dsh-client-ui-conversation/client';
@@ -22,6 +22,7 @@ export function installEmbeddedSubagents(ctx: Context) {
   if (!entry) throw new Error(t('agent.client.subagentCatalogMissing'));
   const Official = entry.component as ComponentType<SubagentCatalogActionProps>;
   function Catalog(props: SubagentCatalogActionProps & PropsRenderSlots<'shotloom.subagent-content'>) {
+    const dialog = useRef<HTMLDialogElement>(null);
     const [address, setAddress] = useState<SubagentAddress>();
     const [opened, setOpened] = useState<{ address: SubagentAddress; reference?: SessionReference; error?: string }>();
     useEffect(() => {
@@ -33,13 +34,19 @@ export function installEmbeddedSubagents(ctx: Context) {
       });
       return () => { active = false; reference.release(); };
     }, [address]);
+    useEffect(() => {
+      const element = dialog.current;
+      if (!address || !element) return;
+      element.showModal();
+      return () => element.close();
+    }, [address]);
     return <><Official {...props} openChild={setAddress} openChildAside={setAddress} />
-      {address && <section role="dialog" aria-label={t("ui.embeddedSubagents.arialabel.7142f5c3")} className="shotloom-subagent-dialog">
+      {address && <dialog ref={dialog} aria-label={t("ui.embeddedSubagents.arialabel.7142f5c3")} className="shotloom-subagent-dialog" onCancel={event => { event.preventDefault(); setAddress(undefined); }}>
         <header><span>{t("ui.embeddedSubagents.text.adc782ac")}</span><button type="button" onClick={() => setAddress(undefined)} aria-label={t("ui.embeddedSubagents.arialabel.609c7045")}>×</button></header>
-        {opened?.address === address && opened.reference
+        <div className="shotloom-subagent-content">{opened?.address === address && opened.reference
           ? <props.SessionProvider session={opened.reference}>{props.renderSlot('shotloom.subagent-content', {})}</props.SessionProvider>
-          : <p role="status">{opened?.address === address && opened.error ? opened.error : t("ui.embeddedSubagents.text.1ef097e8")}</p>}
-      </section>}
+          : <p role="status">{opened?.address === address && opened.error ? opened.error : t("ui.embeddedSubagents.text.1ef097e8")}</p>}</div>
+      </dialog>}
     </>;
   }
   ctx.slots.register({ name: 'shotloom.stats', id: 'subagent-catalog', inject: entry.inject, store: entry.store, locale: entry.locale,

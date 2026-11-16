@@ -113,10 +113,20 @@
 .shotloom-media-preview:hover .shotloom-media-remove, .shotloom-media-preview:focus-within .shotloom-media-remove { opacity: 1; }
 @media (hover: none) { .shotloom-media-remove { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .shotloom-media-remove { transition: none; } }
-.shotloom-subagent-dialog { position: fixed; inset: 50px 8px 8px; z-index: 20; display: flex; flex-direction: column; min-height: 0; border: 1px solid var(--dsw-alias-border-l1); border-radius: 12px; background: var(--dsw-alias-bg-base, Canvas); box-shadow: 0 8px 32px #0002; overflow: hidden; }
-.shotloom-subagent-dialog > header { display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; padding: 8px 14px; border-bottom: 1px solid var(--dsw-alias-border-l1); font-size: 13px; }
-.shotloom-subagent-dialog > header button { border: none; background: transparent; color: inherit; font-size: 22px; cursor: pointer; }
-.shotloom-subagent-dialog > p { padding: 14px; }
+/* A top-layer dialog keeps the conversation above the product sidebar and
+   confines its composer and scrolling transcript to a readable surface. */
+.shotloom-subagent-dialog { position:fixed;inset:0;margin:auto;width:min(960px,calc(100vw - 64px));height:min(820px,calc(100vh - 80px));max-width:none;max-height:none;box-sizing:border-box;padding:0;min-height:0;border:1px solid var(--dsw-alias-border-l1);border-radius:16px;background:var(--dsw-alias-bg-base,Canvas);color:var(--dsw-alias-label-primary);box-shadow:0 16px 64px #0003;overflow:hidden; }
+.shotloom-subagent-dialog[open] { display:flex;flex-direction:column; }
+.shotloom-subagent-dialog::backdrop { background:#0003; }
+.shotloom-subagent-dialog > header { display:flex;justify-content:space-between;align-items:center;flex:none;height:48px;gap:12px;padding:0 16px;border-bottom:1px solid var(--dsw-alias-border-l1);font-size:14px; }
+.shotloom-subagent-dialog > header button { display:grid;place-items:center;width:28px;height:28px;border:none;border-radius:6px;background:transparent;color:inherit;font-size:22px;cursor:pointer; }
+.shotloom-subagent-dialog > header button:hover { background:var(--dsw-alias-interactive-bg-hover); }
+.shotloom-subagent-content { position:relative;display:flex;flex:1;min-width:0;min-height:0;overflow:hidden; }
+.shotloom-subagent-content > * { flex:1;min-width:0;min-height:0;max-width:100%; }
+.shotloom-subagent-content > p { margin:0;padding:20px;overflow:auto; }
+@media (max-width:600px) {
+  .shotloom-subagent-dialog { width:calc(100vw - 24px);height:calc(100vh - 48px); }
+}
 
 .shotloom-reference-menu { position:absolute;bottom:calc(100% + 4px);left:0;right:0;z-index:100;display:flex;flex-direction:column;min-height:0;width:100%;box-sizing:border-box;padding:8px;border:1px solid var(--dsw-alias-border-l1);border-radius:16px;background:var(--dsw-alias-bg-base);box-shadow:0 8px 30px #0001;overflow:hidden; }
 .shotloom-reference-tabs { display:flex;flex-shrink:0;gap:4px;overflow-x:auto;border-bottom:1px solid var(--dsw-alias-border-l1);padding:0 4px 5px; }
