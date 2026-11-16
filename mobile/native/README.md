@@ -1,6 +1,6 @@
 # Shotloom 原生移动端预览
 
-这是 React Native + Expo SDK 57 的第一阶段客户端。使用原生 Stack 导航、工程列表、反馈／举报表单、个人记录、回复详情和站内通知；画布、导演台和剪辑工作区通过 WebView 继续使用云端应用。
+这是 React Native + Expo SDK 57 的第一阶段客户端。使用原生 Stack 导航、项目库、账号与额度页、反馈／举报表单、个人记录、回复详情和站内通知；画布、导演台和剪辑工作区通过 WebView 继续使用云端应用。
 
 预览包名为 `com.shotloom.app.preview`，不会覆盖现有 Tauri 移动包。现有正式发布流水线继续构建 Tauri；原生 CI 检查 TypeScript、协议行为以及 Android/iOS Hermes bundle。切换正式包需先完成真机验收与签名配置。
 
@@ -47,3 +47,14 @@ npm --prefix mobile/native run bundle:check
 已部署配套数据库、API 和 `/native` 页面。独立 release APK 使用项目 Android 证书签名，支持 Android 7.0 及以上的 arm64-v8a / x86_64；运行不依赖 Metro。下载地址：`https://shotloom.0xfiang.com/downloads/Shotloom-Preview-20261116.apk`。
 
 `Native Android preview` 工作流生成并校验签名 APK；`Native Android acceptance smoke` 下载同一分支最新成功产物，在 Android API 35 模拟器中安装并启动到登录入口。2026-11-16 两项均通过；尚未验证真机 OAuth 登录和触控性能。iOS 尚无可安装签名包，缺少 Apple 签名和分发凭据。
+
+
+## 对齐移动网页版的预览（2026-11-16）
+
+0.9.3 / versionCode 4 的项目库、“我的”、反馈表单使用原生组件；颜色、图标路径、页面层级与移动网页版对齐。反馈入口在“我的”，通知入口与个人记录保留。模型与额度请求失败时展示错误和未知值，不伪造余额。
+
+画布继续加载对应工程的现有网页，链接带 `route=creation`；去除重复原生标题栏，保留系统安全区域。技能、复杂设置和充值沿用网页，普通原生页面不导入 renderer 的 DOM 与领域存储。
+
+构建 43864377209 的签名 release APK 支持覆盖现有同签名 Preview。TypeScript、5 项原生边界/会话测试与 Android/iOS Hermes bundle 检查通过；模拟器中的原生项目库、账号、横屏、举报提交、记录、详情和通知已验证。画布的最终模拟器结果与下载链接见 `docs/features/feedback-notifications-native-mobile.md`。真实第三方 OAuth、付费生成、复杂画布节点和真机触控性能仍需验收。
+
+画布模拟器运行 `43870287115` 通过加载、缩放、拖动和返回验证。当前 APK：`https://shotloom.0xfiang.com/downloads/Shotloom-Preview-20261116-web-ui.apk`；完整证据包：`https://shotloom.0xfiang.com/downloads/Shotloom-Acceptance-20261116-web-ui.zip`。网页补丁 `20261116-canvas-no-float` 另行去除了右下角空白通知悬浮按钮，重新进入画布生效，无需重装 APK。

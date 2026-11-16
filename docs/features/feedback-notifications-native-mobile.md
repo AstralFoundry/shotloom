@@ -108,3 +108,11 @@
 本次原生 5 项测试、类型检查、依赖审计和 Android/iOS 导出通过，网页 11 项相关测试、类型检查、样式／控件／文案检查及生产构建通过。Android 构建运行 `43830209637` 产出同证书签名的 versionCode 2。模拟器运行 `43837330233` 使用隔离的有效服务端会话：旧 APK 稳定停在“正在检查登录状态”，保留 Cookie 覆盖升级后进入原生首页。测试没有模拟第三方 OAuth 授权，也不替代用户真机验收。
 
 新版下载：`https://shotloom.0xfiang.com/downloads/Shotloom-Preview-20261116-login-fix.apk`；完整验收包：`https://shotloom.0xfiang.com/downloads/Shotloom-Acceptance-20261116-login-fix.zip`。APK SHA-256：`fa4af4660fd41e4be47077970e71ef60b9b860b3d655f0ebdb3907cedf86b237`。可覆盖安装现有 Shotloom Preview，不需清除登录数据。
+
+移动网页版 UI 对齐（2026-11-16）：Android 0.9.3 / versionCode 4，签名构建 `43864377209`，模拟器验收运行 `43870287115` 通过。项目库、“我的”、反馈与举报表单使用原生组件；画布加载对应工程网页，移除重复原生标题栏并保留安全区域。实际 release APK 已验证会话恢复、项目库、账号横竖屏、举报提交、记录详情、通知，以及 WebView 画布加载、100%→110% 缩放、拖动和安卓返回。画布为 375×764 CSS 像素，无横向溢出；语义缩放通过节点尺寸实现，React Flow transform scale 保持 1 属预期行为。
+
+画布验收使用隔离账号，仅在测试进程固定账号额度与模型目录响应；项目 API 仍使用真实鉴权请求。临时用户、会话和 CI 会话密钥已清理。未验证真实 OAuth 交互、付费生成、复杂节点、iOS 安装和真机性能。
+
+当前 APK：`https://shotloom.0xfiang.com/downloads/Shotloom-Preview-20261116-web-ui.apk`；验收包：`https://shotloom.0xfiang.com/downloads/Shotloom-Acceptance-20261116-web-ui.zip`。APK SHA-256：`82d88439fc3a9c1b1f6ed12e027a6bf15fae88a73dbe65cb2fe135952997bceb`。
+
+网页补丁 `20261116-canvas-no-float` 移除通知悬浮按钮及其定位样式，解决画布右下角出现空框和遮挡工具栏的问题。网页通知仍从“我的 → 反馈与举报 → 通知”访问，安卓原生通知入口保留。已有 APK 重新进入画布即可加载网页更新。补丁通过 TypeScript、样式、分层、Vite 生产构建，以及移动端/桌面端浏览器组件预览；完整 npm build 的 Harness 资源目录替换因 Windows 文件占用失败，改用已生成资源完成 Vite 构建。本次未重新运行安卓模拟器，验收包明确区分补丁后浏览器预览与补丁前模拟器截图。
