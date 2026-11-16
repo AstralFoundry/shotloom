@@ -46,16 +46,22 @@ function command(method, params = {}) {
 }
 const source = `(() => {
   const fixture = ${fixture.toString()};
+  window.__canvasVisualFixtureHits = {};
   const original = window.fetch.bind(window);
   window.fetch = (input, init) => {
     const url = new URL(typeof input === 'string' ? input : input.url, location.href);
     const value = url.origin === location.origin ? fixture(url.pathname) : undefined;
-    if (value !== undefined) return Promise.resolve(new Response(JSON.stringify({success:true,data:value}), {headers:{'Content-Type':'application/json'}}));
+    if (value !== undefined) {
+      window.__canvasVisualFixtureHits[url.pathname] = (window.__canvasVisualFixtureHits[url.pathname] || 0) + 1;
+      return Promise.resolve(new Response(JSON.stringify({success:true,data:value}), {headers:{'Content-Type':'application/json'}}));
+    }
     return original(input, init);
   };
 })();`;
+await command('Page.enable');
+await command('Runtime.enable');
 await command('Page.addScriptToEvaluateOnNewDocument', { source });
-await command('Page.reload', { ignoreCache: true });
+await command('Page.reload', { ignoreCache: true, scriptToEvaluateOnLoad: source });
 const inspect = async () => {
   const result = await command('Runtime.evaluate', {
     expression: `JSON.stringify({ready:!!document.querySelector('.react-flow__viewport'),width:innerWidth,height:innerHeight,scrollWidth:document.documentElement.scrollWidth,transform:document.querySelector('.react-flow__viewport')?.style.transform})`,
@@ -67,6 +73,13 @@ let before;
 for (let i = 0; i < 120; i++) {
   try { before = await inspect(); if (before.ready) break; } catch { /* Navigation replaces the JS context. */ }
   await pause(500);
+}
+if (!before?.ready) {
+  const result = await command('Runtime.evaluate', {
+    expression: `JSON.stringify({url:location.href,text:document.body.innerText.slice(0,1800),fixtures:window.__canvasVisualFixtureHits,authStatus:await fetch('/api/auth/me',{credentials:'include'}).then(r=>r.status)})`,
+    returnByValue: true, awaitPromise: true,
+  });
+  await writeFile('acceptance/canvas-diagnostic.json', JSON.stringify(result));
 }
 assert.ok(before?.ready, 'Canvas did not mount');
 assert.ok(before.scrollWidth <= before.width, 'Canvas causes horizontal page overflow');
