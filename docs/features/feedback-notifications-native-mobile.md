@@ -102,3 +102,9 @@
 - 已应用线上数据库迁移并部署前端与 API，真实公网 HTTP 闭环、权限隔离、重复请求和已读验证通过；浏览器实际发送后台回复并验证会话桥接的管理接口拒绝。Android release APK 已完成编译、项目证书签名、16 KB zip 对齐和 SHA-256 校验，Android API 35 模拟器安装启动至登录入口通过。原生依赖审计 0 漏洞。未进行真机 OAuth 登录／触控验收及性能测量；缺少 Apple 签名和分发凭据，未生成可安装 IPA。
 
 验收交付（2026-11-16）：云端发布号 `20261116-support-native`；Android 预览包使用独立包名 `com.shotloom.app.preview`，支持 Android 7.0 及以上的 arm64-v8a / x86_64。保留线上旧应用与镜像用于回滚，临时验收数据在验证后清理。下载入口与验收步骤见原生 README 和验收包说明。Issue 在用户验收前保持打开。
+
+登录修复与入口调整（2026-11-16）：网页发布号更新为 `20261116-account-login`，反馈／举报入口移至“我的”页并沿用设置卡片样式。Android WebMessageListener 只报告来源 origin，旧客户端却要求消息 URL 包含 `/native`，导致授权完成消息被忽略；现在同时校验来源 origin 和 WebView 当前主文档，兼容旧桥接报告完整 URL 的行为，继续拒绝第三方页面和工作区页面。
+
+本次原生 5 项测试、类型检查、依赖审计和 Android/iOS 导出通过，网页 11 项相关测试、类型检查、样式／控件／文案检查及生产构建通过。Android 构建运行 `43830209637` 产出同证书签名的 versionCode 2。模拟器运行 `43837330233` 使用隔离的有效服务端会话：旧 APK 稳定停在“正在检查登录状态”，保留 Cookie 覆盖升级后进入原生首页。测试没有模拟第三方 OAuth 授权，也不替代用户真机验收。
+
+新版下载：`https://shotloom.0xfiang.com/downloads/Shotloom-Preview-20261116-login-fix.apk`；完整验收包：`https://shotloom.0xfiang.com/downloads/Shotloom-Acceptance-20261116-login-fix.zip`。APK SHA-256：`fa4af4660fd41e4be47077970e71ef60b9b860b3d655f0ebdb3907cedf86b237`。可覆盖安装现有 Shotloom Preview，不需清除登录数据。
