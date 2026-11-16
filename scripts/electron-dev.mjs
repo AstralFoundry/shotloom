@@ -9,7 +9,6 @@ import { readShotloomConfig } from './shotloom-config.mjs';
 
 const rootDir = dirname(dirname(fileURLToPath(import.meta.url)));
 const require = createRequire(import.meta.url);
-const electronBinary = require('electron');
 
 /**
  * Electron 开发启动：先构建主进程/preload，再起 Vite（渲染进程保持热更新），
@@ -19,17 +18,23 @@ const electronBinary = require('electron');
  * 桌面开发/打包都依赖仓库里生成好的发行物：厂商插件目录、Agent Host、默认配置。
  * 缺了就直接运行对应的 prepare 脚本，而不是等应用启动时报「目录不可用」。
  */
-export function ensureElectronResources() {
+export function ensureElectronResources({ exists = existsSync, run = spawnSync } = {}) {
   const required = [
     { file: ['renderer', 'public', 'director-desk-app', 'index.html'], script: 'prepare:director-desk' },
     { file: ['electron', 'resources', 'provider-plugins', 'index.json'], script: 'prepare:plugins' },
     { file: ['electron', 'resources', 'agent-host', 'dist', 'main.js'], script: 'prepare:harness' },
     { file: ['renderer', 'src', 'config', 'shotloom-defaults.generated.json'], script: 'config:generate' },
+    { file: ['node_modules', 'react-screenshots', 'lib', 'Screenshots', 'screenshots.css'], script: 'prepare:screenshots' },
   ];
   for (const item of required) {
-    if (existsSync(join(rootDir, ...item.file))) continue;
+    if (exists(join(rootDir, ...item.file))) continue;
     console.log(`[electron] missing ${item.file.join('/')}; running npm run ${item.script}`);
-    const result = spawnSync('npm', ['run', item.script], { cwd: rootDir, stdio: 'inherit' });
+    // npm's JS entrypoint runs without .cmd resolution or shell quoting on Windows.
+    const npmCli = process.env.npm_execpath;
+    const result = run(npmCli ? process.execPath : 'npm', npmCli ? [npmCli, 'run', item.script] : ['run', item.script], {
+      cwd: rootDir, stdio: 'inherit', shell: !npmCli && process.platform === 'win32',
+    });
+    if (result.error) throw result.error;
     if (result.status !== 0) throw new Error(`npm run ${item.script} failed`);
   }
 }
@@ -65,7 +70,7 @@ export async function startElectronDev({ env = {}, prod = false } = {}) {
     childEnv.SHOTLOOM_AGENT_HOST = join(rootDir, 'electron', 'resources', 'agent-host');
   }
   delete childEnv.ELECTRON_RUN_AS_NODE;
-  const child = spawn(electronBinary, [rootDir], { cwd: rootDir, stdio: 'inherit', env: childEnv });
+  const child = spawn(require('electron'), [rootDir], { cwd: rootDir, stdio: 'inherit', env: childEnv });
   const shutdown = async (code) => {
     await server?.close().catch(() => {});
     process.exit(code ?? 0);
