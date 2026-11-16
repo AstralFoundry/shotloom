@@ -28,3 +28,18 @@ test('native request replies correlate by ID, propagate errors and reject on dis
   await assert.rejects(api.request('/admin/feedback'), /unavailable/);
   assert.equal(sent.length, 4);
 });
+
+test('background bridge reconnect queues new requests, never replays interrupted writes, and cancels queued work on expiry', async () => {
+  const sent: NativeRequest[] = []; let id = 0;
+  const api = new NativeApi(request => sent.push(request), () => String(++id));
+  const writing = api.request('/feedback', 'POST', { description: 'draft' });
+  api.pause(); await assert.rejects(writing, /interrupted/);
+  const reading = api.request('/notifications');
+  assert.equal(sent.length, 1, 'new work waits for the authenticated ready message');
+  api.resume(); assert.equal(sent.length, 2); assert.equal(sent[1]?.path, '/notifications');
+  api.receive({ type: 'response', id: sent[1]!.id, data: { items: [] } });
+  assert.deepEqual(await reading, { items: [] });
+  api.pause(); const expired = api.request('/projects'); api.disconnect();
+  await assert.rejects(expired, /interrupted/);
+  api.resume(); assert.equal(sent.length, 2, 'disconnected queued work must never execute later');
+});

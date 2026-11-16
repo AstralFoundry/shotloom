@@ -204,16 +204,29 @@ function Notifications({ navigation }: NativeStackScreenProps<Routes, 'Notificat
   const { data, error, loading, refresh } = useRemote<InboxPage>(`/notifications?offset=${page * 20}&limit=20`);
   const [failure, setFailure] = useState('');
   const [busy, setBusy] = useState(false);
-  const run = async (operation: () => Promise<void>) => { setBusy(true); setFailure(''); try { await operation(); refresh(); } catch (cause) { setFailure(errorText(cause)); } finally { setBusy(false); } };
+  const running = useRef(false);
+  const run = async (operation: () => Promise<void>) => {
+    if (running.current) return;
+    running.current = true; setBusy(true); setFailure('');
+    try { await operation(); refresh(); } catch (cause) { setFailure(errorText(cause)); }
+    finally { running.current = false; setBusy(false); }
+  };
   return <SafeAreaView edges={['bottom']} style={styles.screen}>
+    <View style={styles.inboxHead}><Text style={styles.secondary}>{local('处理进度与后台回复，都在这里。', 'Follow updates and replies here.')}</Text>
+      <View style={styles.between}><View style={styles.inline}><Text style={styles.title}>{local('全部消息', 'All messages')}</Text>{data ? <View style={styles.inboxCount}><Text style={styles.small}>{data.total}</Text></View> : null}</View>
+        <View style={styles.inline}>{data?.unread ? <Pressable accessibilityRole="button" accessibilityLabel={t('support.readAll')} disabled={busy} onPress={() => void run(async () => { await api.request('/notifications/read-all', 'PUT', { asOf: data.asOf }); })} style={({ pressed }) => [styles.inboxTextAction, pressed && styles.pressed, busy && styles.disabled]}><Icon name="check" size={16} color={colors.accent} /><Text style={styles.inboxActionText}>{t('support.readAll')}</Text></Pressable> : null}<IconButton name="refresh" label={t('support.refresh')} disabled={loading || busy} onPress={refresh} /></View>
+      </View>{data?.unread ? <Text style={styles.small}>{local(`${data.unread} 条未读`, `${data.unread} unread`)}</Text> : null}
+    </View>
     {(error || failure) ? <ErrorNotice text={error || failure} retry={refresh} /> : null}
-    <View style={styles.actions}><Text style={styles.title}>{local('未读', 'Unread')}: {data?.unread || 0}</Text><Action title={t('support.readAll')} disabled={busy || !data?.unread} onPress={() => void run(async () => { await api.request('/notifications/read-all', 'PUT', { asOf: data!.asOf }); })} /></View>
-    <FlatList data={data?.items || []} keyExtractor={item => item.id} refreshing={loading} onRefresh={refresh} contentContainerStyle={styles.list}
-      ListEmptyComponent={!loading && !error ? <EmptyState title={t('support.noNotifications')} /> : null}
-      renderItem={({ item }) => <View style={styles.row}><Pressable accessibilityRole="button" disabled={busy} onPress={() => void run(async () => { await api.request(`/notifications/${item.id}/read`, 'PUT'); navigation.navigate('Feedback', { id: item.feedback_id }); })}>
-        <Text style={styles.title}>{!item.read_at ? '● ' : ''}{t('support.replyReceived')}</Text><Text numberOfLines={3} style={styles.body}>{item.body}</Text><Text style={styles.secondary}>{date(item.created_at)}</Text>
-      </Pressable>{!item.read_at && <Action title={t('support.read')} disabled={busy} onPress={() => void run(async () => { await api.request(`/notifications/${item.id}/read`, 'PUT'); })} />}</View>} />
-    <View style={styles.actions}><Action title={local('上一页', 'Previous')} disabled={!page} onPress={() => setPage(value => value - 1)} /><Action title={local('下一页', 'Next')} disabled={(page + 1) * 20 >= (data?.total || 0)} onPress={() => setPage(value => value + 1)} /></View>
+    <FlatList data={data?.items || []} keyExtractor={item => item.id} refreshing={loading} onRefresh={refresh} contentContainerStyle={styles.inboxList}
+      ListEmptyComponent={loading ? <ActivityIndicator color={colors.accent} style={{ marginTop: 32 }} /> : !error ? <View style={styles.inboxEmpty}><View style={styles.inboxEmptyIcon}><Icon name="bell" size={32} color={colors.accent} /></View><Text style={styles.title}>{t('support.noNotifications')}</Text><Text style={styles.inboxEmptyHint}>{local('反馈有了新回复或处理进展，\n会在这里及时告诉你。', 'New replies and updates to your feedback\nwill appear here.')}</Text></View> : null}
+      renderItem={({ item }) => <View style={[styles.inboxCard, !item.read_at && styles.inboxUnread]}>
+        <Pressable accessibilityRole="button" accessibilityLabel={`${t('support.replyReceived')}, ${item.body}`} disabled={busy} onPress={() => void run(async () => { if (!item.read_at) await api.request(`/notifications/${item.id}/read`, 'PUT'); navigation.navigate('Feedback', { id: item.feedback_id }); })} style={({ pressed }) => [styles.inboxMessage, pressed && styles.pressed]}>
+          <View style={styles.recordIcon}><Icon name="scan-text" size={18} color={colors.accent} /></View><View style={[styles.grow, { gap: 8 }]}><View style={styles.between}><Text style={[styles.inboxTitle, !item.read_at && styles.inboxUnreadTitle]}>{t('support.replyReceived')}</Text>{!item.read_at ? <View accessibilityLabel={local('未读', 'Unread')} style={styles.unreadDot} /> : null}</View><Text numberOfLines={3} style={styles.secondary}>{item.body}</Text></View>
+        </Pressable>
+        <View style={styles.inboxFooter}><Text style={[styles.small, styles.grow]}>{date(item.created_at)}</Text>{!item.read_at ? <Pressable accessibilityRole="button" disabled={busy} accessibilityLabel={t('support.read')} style={({ pressed }) => [styles.inboxTextAction, pressed && styles.pressed]} onPress={() => void run(async () => { await api.request(`/notifications/${item.id}/read`, 'PUT'); })}><Icon name="check" size={14} color={colors.muted} /><Text style={styles.small}>{t('support.read')}</Text></Pressable> : <View style={styles.inline}><Text style={styles.small}>{local('查看回复', 'View reply')}</Text><Icon name="chevron-right" size={14} color={colors.muted} /></View>}</View>
+      </View>} />
+    {(data?.total || 0) > 20 && <View style={styles.pager}><Action ghost title={local('上一页', 'Previous')} disabled={!page || loading || busy} onPress={() => setPage(value => value - 1)} /><Text style={styles.small}>{page + 1} / {Math.ceil((data?.total || 0) / 20)}</Text><Action ghost title={local('下一页', 'Next')} disabled={loading || busy || (page + 1) * 20 >= (data?.total || 0)} onPress={() => setPage(value => value + 1)} /></View>}
   </SafeAreaView>;
 }
 function WebContent({ params, embedded = false }: { params: Routes['Workspace']; embedded?: boolean }) {
@@ -251,6 +264,7 @@ export default function App() {
     catch (cause) { setFailure(errorText(cause)); }
   };
   return <SafeAreaProvider><View style={styles.screen}><ApiContext.Provider value={api}><LogoutContext.Provider value={() => void logout()}>
+    {authenticated && failure ? <ErrorNotice text={failure} retry={() => { setFailure(''); webview.current?.reload(); }} /> : null}
     {opened && <NavigationContainer linking={{ prefixes: ['shotloom-preview://'], config: { screens: { Feedback: 'feedback/:id', Notifications: 'notifications' } } }}>
       <Stack.Navigator screenOptions={{ headerBackButtonDisplayMode: 'minimal', contentStyle: styles.screen, headerShadowVisible: false, headerStyle: { backgroundColor: colors.background }, headerTintColor: colors.text, headerTitleStyle: { fontSize: 16, fontWeight: '500' } }}>
         <Stack.Screen name="Home" component={Home} options={{ headerShown: false }} />
@@ -265,18 +279,19 @@ export default function App() {
       <SafeAreaView style={styles.screen}>
         {failure && <ErrorNotice text={failure} retry={() => { setFailure(''); webview.current?.reload(); }} />}
         <WebView ref={webview} source={{ uri: `${origin}/native` }} sharedCookiesEnabled thirdPartyCookiesEnabled={false} mixedContentMode="never" setSupportMultipleWindows={false}
-          onLoadStart={event => { sessionDocument.current = event.nativeEvent.url; api.disconnect(); setAuthenticated(false); }} onError={event => { setFailure(event.nativeEvent.description); setAuthenticated(false); }}
-          onHttpError={event => { setFailure(`HTTP ${event.nativeEvent.statusCode}`); setAuthenticated(false); }}
+          onLoadStart={event => { sessionDocument.current = event.nativeEvent.url; api.pause(); }} onError={event => { api.pause(); setFailure(event.nativeEvent.description); }}
+          onHttpError={event => { api.pause(); setFailure(`HTTP ${event.nativeEvent.statusCode}`); if (event.nativeEvent.statusCode === 401) setAuthenticated(false); }}
           onMessage={event => {
             // OAuth provider pages and workspace content never get native bridge privileges.
             if (!isSessionSource(event.nativeEvent.url, sessionDocument.current, origin)) return;
             try {
               const value = JSON.parse(event.nativeEvent.data);
               if (value.type === 'ready' && typeof value.userId === 'string') {
-                if (user.current && user.current !== value.userId) { setFailure(t('cloud.login.accountChanged')); setAuthenticated(false); return; }
+                if (user.current && user.current !== value.userId) { setFailure(t('cloud.login.accountChanged')); api.pause(); setAuthenticated(false); return; }
                 setLanguage(value.locale);
-                user.current = value.userId; setOpened(true); setAuthenticated(true); setFailure('');
-              } else if (value.type === 'login') { setAuthenticated(false); api.disconnect(); }
+                user.current = value.userId; api.resume(); setOpened(true); setAuthenticated(true); setFailure('');
+              } else if (value.type === 'login') { setAuthenticated(false); api.pause(); }
+              else if (value.type === 'error') { api.pause(); setFailure(typeof value.error === 'string' ? value.error : local('连接失败，请重试。', 'Connection failed. Please retry.')); }
               else if (value.type === 'response' && typeof value.id === 'string') api.receive(value);
             } catch { setFailure(local('会话响应无效，请重试。', 'Invalid session response. Please retry.')); }
           }} />

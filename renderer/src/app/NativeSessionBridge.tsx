@@ -29,7 +29,7 @@ export function NativeSessionBridge() {
         })
         .catch(error => post({ type: 'response', id: request.id, error: error.message, status: error.status }));
     };
-    void cloudRequest<{ id: string }>('/auth/me').then(user => post({ type: 'ready', userId: user.id, locale: getLocale() })).catch(() => post({ type: 'login' }));
+    void cloudRequest<{ id: string }>('/auth/me').then(user => post({ type: 'ready', userId: user.id, locale: getLocale() })).catch(error => post(error.status === 401 ? { type: 'login' } : { type: 'error', error: error.message }));
     const expired = () => post({ type: 'login' });
     window.addEventListener('shotloom-session-expired', expired);
     return () => { active = false; delete window.__shotloomNativeRequest; window.removeEventListener('shotloom-session-expired', expired); };
