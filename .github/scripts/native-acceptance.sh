@@ -104,7 +104,7 @@ wait_for_ui feedback-detail '后台回复|[Rr]eplies'
 grep 'Android_UI_visual_acceptance' acceptance/feedback-detail.xml
 adb exec-out screencap -p > acceptance/android-feedback-detail.png
 adb shell input keyevent 4
-wait_for_ui account '可用积分|Available credits'
+wait_for_ui account '反馈问题或举报内容|Feedback and reports'
 tap_text '反馈与举报|Feedback and reports'
 wait_for_ui feedback '问题描述|Description'
 tap_text '我的记录|My records'
@@ -113,7 +113,7 @@ adb exec-out screencap -p > acceptance/android-records.png
 adb shell input keyevent 4
 wait_for_ui feedback '问题描述|Description'
 adb shell input keyevent 4
-wait_for_ui account '可用积分|Available credits'
+wait_for_ui account '反馈问题或举报内容|Feedback and reports'
 tap_text '^通知$|^Notifications$'
 wait_for_ui notifications '暂无通知|No notifications'
 ! grep -E '提交反馈或举报|Submit feedback or report|我的记录|My records' acceptance/notifications.xml
