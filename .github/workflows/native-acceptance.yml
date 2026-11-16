@@ -56,6 +56,7 @@ jobs:
           BASELINE_RUN: ${{ inputs.baseline_run }}
         with:
           api-level: 35
+          system-image-api-level: 35-ext15
           arch: x86_64
           target: google_apis
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none -dns-server 127.0.0.1
