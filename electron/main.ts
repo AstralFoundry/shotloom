@@ -12,6 +12,11 @@ import './ipc/commands/clipboard';
 import './ipc/commands/diagnostics';
 import './ipc/commands/recovery';
 import './ipc/commands/harness';
+import './ipc/commands/media';
+import './ipc/commands/generation';
+import './ipc/commands/openreel';
+import './ipc/commands/plugins';
+import './ipc/commands/videoExport';
 import { initializeRecovery, markCleanExit } from './core/recovery';
 import { shutdownHarnessRuntime } from './core/harness';
 
@@ -257,6 +262,14 @@ async function runSmoke(window: BrowserWindow): Promise<void> {
         const storage = await invoke('storage_get', { name: 'skills', fallback: { storageVersion: 1, skills: [] } });
         const diagnostics = await invoke('diagnostics_build', { files: { 'README.txt': 'smoke' } });
         // 端到端：建项目 → 保存 → 读取 → 快照 → 导出包 → 导入包 → 最近项目。
+        // 媒体层：写入 1x1 PNG，再用真实 ffmpeg/ffprobe 探测与生成预览。
+        const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+        const mediaPath = root.value + '/smoke.png';
+        await invoke('file_write', { path: mediaPath, data: png, append: false });
+        const probe = await invoke('file_probe_media', { source: mediaPath });
+        const preview = await invoke('file_read_image_preview', { path: mediaPath, maxSize: 64 });
+        // 厂商插件发行包：list 会按需安装默认发行包，必须先有这个目录。
+        const plugins = await invoke('provider_plugins', { operation: 'list', args: {} });
         const folder = await invoke('project_create_folder', { parent: root.value, name: 'Smoke Project' });
         const project = {
           schema: 'shotloom-project', schemaVersion: 2, id: 'smoke', name: 'Smoke Project',
@@ -312,6 +325,9 @@ async function runSmoke(window: BrowserWindow): Promise<void> {
           recentAfterAdd: added.ok ? added.value.length : added.error,
           recentAfterRemove: removed.ok ? removed.value.length : removed.error,
           snapshotCreate: snapshot.ok ? snapshot.value.saved : snapshot.error,
+          probe: probe.ok ? { width: probe.value.width, height: probe.value.height, kind: probe.value.kind } : probe.error,
+          pluginCount: plugins.ok && Array.isArray(plugins.value.plugins) ? plugins.value.plugins.length : plugins.error,
+          previewBytes: preview.ok ? String(preview.value).length : preview.error,
           harness,
         };
       })()`);
@@ -324,6 +340,9 @@ async function runSmoke(window: BrowserWindow): Promise<void> {
         && report.snapshots === 1 && report.exported && report.exported.count >= 1
         && report.importedNodes === 1 && report.recentAfterAdd === 1 && report.recentAfterRemove === 0
         && report.snapshotCreate === true
+        && report.probe && report.probe.width === 1 && report.probe.height === 1
+        && typeof report.pluginCount === 'number' && report.pluginCount > 0
+        && typeof report.previewBytes === 'number' && report.previewBytes > 0
         && (!agentHost || (report.harness.running === true && report.harness.ready === true && report.harness.stoppedRunning === false));
       clearTimeout(timeout);
       app.exit(passed ? 0 : 1);

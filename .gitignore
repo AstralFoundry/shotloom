@@ -43,3 +43,7 @@ renderer/public/provider-plugins/
 
 # 本地临时产物（Electron 冒烟数据、npm 缓存隔离）
 /tmp/
+
+# 打包时按平台从 ffmpeg-static / src-tauri/binaries 拷贝的媒体工具
+/electron/resources/ffmpeg
+/electron/resources/ffprobe

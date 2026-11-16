@@ -1,0 +1,55 @@
+appId: com.shotloom.app
+productName: Shotloom
+copyright: Copyright © Shotloom
+directories:
+  output: release
+  buildResources: electron/build
+# 使用 node_modules 里已安装的 Electron（CI 中 electron 包安装后自带 dist），
+# 打包时不再从 GitHub 下载发行包。
+electronDist: node_modules/electron/dist
+# 主进程与前端产物；模型/插件/Agent Host 等大文件走 extraResources。
+files:
+  - dist/electron/**/*
+  - dist/renderer/**/*
+  - package.json
+# agent-host 由 scripts/electron-after-pack.mjs 完整拷贝（含 node_modules 与 node 运行时）。
+afterPack: scripts/electron-after-pack.mjs
+extraResources:
+  - from: src-tauri/resources/provider-plugins
+    to: resources/provider-plugins
+  - from: src-tauri/resources/FFmpeg-GPL-3.0.txt
+    to: resources/FFmpeg-GPL-3.0.txt
+  - from: src-tauri/resources/FFmpeg-SOURCE.txt
+    to: resources/FFmpeg-SOURCE.txt
+  # 由 scripts/electron-package.mjs 按当前平台挑选并拷贝到 electron/resources。
+  - from: electron/resources/ffmpeg
+    to: ffmpeg
+mac:
+  category: public.app-category.video
+  icon: src-tauri/icons/app.icns
+  target:
+    - dmg
+    - zip
+  hardenedRuntime: false
+  gatekeeperAssess: false
+  extendInfo:
+    LSMinimumSystemVersion: "13.0"
+    NSHighResolutionCapable: true
+win:
+  icon: src-tauri/icons/app.ico
+  target:
+    - nsis
+nsis:
+  oneClick: false
+  perMachine: false
+  allowElevation: false
+  allowToChangeInstallationDirectory: true
+  installerLanguages:
+    - en_US
+    - zh_CN
+linux:
+  icon: src-tauri/icons/app.png
+  category: AudioVideo
+  target:
+    - AppImage
+artifactName: "${productName}-${version}-${os}-${arch}.${ext}"

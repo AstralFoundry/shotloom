@@ -46,7 +46,8 @@ test('项目不再分发 WebView HTTP 插件与网络权限', () => {
   const cargo = read('src-tauri/Cargo.toml');
   const lib = read('src-tauri/src/lib.rs');
   const capability = read('src-tauri/capabilities/default.json');
-  assert.equal(pkg.dependencies['@tauri-apps/plugin-http'], undefined);
+  assert.equal(pkg.dependencies?.['@tauri-apps/plugin-http'], undefined);
+  assert.equal(pkg.devDependencies?.['@tauri-apps/plugin-http'], undefined);
   assert.doesNotMatch(cargo, /tauri-plugin-http/);
   assert.doesNotMatch(lib, /tauri_plugin_http/);
   assert.doesNotMatch(capability, /http:default/);

@@ -70,6 +70,11 @@ const CATALOG_COLLECTIONS = [
 ] as const;
 
 export function loadCatalog(db: DatabaseSync, kind: string): unknown {
+  // 厂商插件目录是纯元数据目录，没有集合表；和 Rust catalog() 的 metadata 分支一致。
+  if (kind === 'provider-plugins' || kind === 'provider-plugin-submissions') {
+    const row = db.prepare('SELECT payload FROM catalog_metadata WHERE scope = ?').get(kind) as Row | undefined;
+    return row ? parsePayload(row.payload) : undefined;
+  }
   const collection = CATALOG_COLLECTIONS.find(item => item.kind === kind);
   if (!collection) throw new Error(unknownCatalog(kind));
   const metadata = db.prepare('SELECT payload FROM catalog_metadata WHERE scope = ?').get(kind) as Row | undefined;

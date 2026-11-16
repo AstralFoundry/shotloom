@@ -56,35 +56,52 @@ renderer/src/desktop/
 
 ## 已迁移（当前状态）
 
-- Electron 主进程/preload、开发启动（`npm run dev:electron`）、冒烟验证（`npm run smoke:electron`）。
+- Electron 主进程/preload、开发启动（`npm run dev:electron`）、冒烟验证（`npm run smoke:electron` / `smoke:electron:prod`）。
 - 设置 / 存储目录 / 最近项目 / 项目默认根目录 / 项目树 / 工程读写 / 画布快照 / 编辑快照。
 - 文件基础通道（读写、复制、校验和、唯一路径、回收站、在文件夹中显示、打开路径）。
-- 原生菜单、窗口控制、文件对话框、CSP 相关协议。
-- 渲染进程传输层替换（不再 import `@tauri-apps/*`）。
+- 媒体与图像：`file_probe_media`、`file_read_image_preview`、`file_crop_image`、
+  `file_apply_colored_pencil`、`file_capture_video_frame`、`file_concat_videos`、
+  `file_has_audio`、`file_separate_audio`、`media_task_cancel`、资源包导入/导出（ffmpeg + fflate）。
+- 生成网关：`generation_request` / `generation_stream` / `generation_download` /
+  `generation_cancel`（凭据注入、作用域 URL、主机边界、multipart、流式事件）。
+- 项目包：`project_export_package` / `project_import_package`（流式 ZIP、清单、路径重写、20k 文件 / 20GB 上限）。
+- 厂商插件：`provider_plugins`（list/search/inspect/install/documentation/index/configure/
+  enable/remove/rollback）、`provider_plugin_call`、`provider_plugin_cancel`（发行包 provisioning、
+  子进程宿主、变更事件）。
+- Harness：`harness_*`（spawn agent host、stdio transport、本地工具桥、会话绑定/归档、Channel 回推）。
+- 恢复日志、工作流剪贴板、诊断包。
+- 导出：`openreel_export_*`、`file_export_video_project`。
+- 打包：`electron-builder.yml` + `npm run dist:electron`；打包后 App 已用真实冒烟验证
+  （渲染进程、媒体探测、插件发行包、项目读写、Agent Host 启动/就绪/停止）。
 
-## 待迁移（按依赖顺序）
+## 待迁移
 
-1. 媒体/图像：`file_probe_media`、`file_read_image_preview`、`file_crop_image`、
-   `file_apply_colored_pencil`、`file_capture_video_frame`、`file_concat_videos`、
-   `file_has_audio`、`file_separate_audio`、`media_task_cancel`（ffmpeg sidecar）。
-2. 生成网关：`generation_request` / `generation_stream` / `generation_download` /
-   `generation_cancel`（HTTP、multipart、流式事件）。
-3. 项目包与资源包：`project_export_package` / `project_import_package` /
-   `file_export_resource_package` / `file_import_resource_package` / 回收站目录条目。
-4. Harness：`harness_*`（spawn agent host、transport Channel、tool respond）。
-5. 厂商插件：`provider_plugins*`；诊断：`diagnostics_build`；恢复：`recovery_*`；
-   剪贴板工作流：`clipboard_stage_workflow` / `clipboard_load_staged_payload`。
-6. 编辑器导出：`file_export_video_project`、`openreel_export_*`。
-7. 更新器与打包：electron-builder、`latest.json`/发布流水线、`npm run release:*`。
-8. 收尾：删除 `src-tauri/`、更新 `.github/workflows`、`scripts/*`、测试里的
-   `src-tauri` 契约断言（`tests/*.test.mjs` 共 11 个文件）以及文档。
+1. 更新器：`check`/`download`/`install` 目前主进程返回"未配置"，需要接
+   electron-updater（或继续使用 latest.json 协议并自行校验签名）并补发布元数据。
+2. 发布流水线：`.github/workflows/release.yml`、`scripts/desktop-release.mjs`、
+   `.github/RELEASING.md` 仍按 Tauri 产物/签名组织，需要改成 electron-builder 产物 +
+   自动更新通道。
+3. 移除 `src-tauri/`：删除后在 `npm run check` 与测试里替换掉 11 个文件的
+   `src-tauri` 契约断言（CSP、原生安全边界、存储纪律、发布脚本、i18n 等）。
+4. 打包细节：Windows/Linux 目标未在真机验证；`agent-host` 资源目录含完整
+   node_modules（体积大），可按生产依赖裁剪。
+5. 系统代理：生成网关的 Node fetch 不读取 `HTTPS_PROXY`/macOS `scutil`，需要显式
+   proxy agent 才能和 Rust 侧行为一致。
+6. 清理：`scripts/tauri.mjs`、`shotloom.yml` 的 tauri 覆盖项、`package.json` 里
+   `@tauri-apps/*` 依赖与 `pretauri`/`dev`/`build:desktop` 脚本。
 
 ## 验证
 
 - `npm run typecheck`（渲染进程）与 `npm run typecheck:electron`（主进程）。
 - `npm test`：881 个测试；原生桥测试通过 `tests/helpers/desktopBridge.mjs` 伪造 preload。
-- `npm run smoke:electron`：真实启动 Electron、加载渲染进程、断言 `settings_get` /
-  `project_get_default_root` / `recent_list` 与页面已渲染。用户数据写到 `tmp/electron-smoke/`。
+- `npm run smoke:electron`：开发模式真实启动 Electron，断言：
+  页面渲染、`settings_get`、项目建库/保存/读取/快照、项目包导出/导入、最近项目、
+  诊断包、媒体探测与预览（真实 ffmpeg）、厂商插件发行包（32 个）、Agent Host 启动/就绪/停止。
+  用户数据写到 `tmp/electron-smoke/`，每次从空目录开始。
+- `npm run smoke:electron:prod`：同上，但从 `dist/renderer` 通过 `shotloom://app` 加载，
+  验证生产协议与 CSP。
+- `npm run dist:electron`：electron-builder 产出；`release/mac-arm64/Shotloom.app` 可用
+  `env -u ELECTRON_RUN_AS_NODE SHOTLOOM_SMOKE=1 .../Contents/MacOS/Shotloom` 冒烟。
 
 ## 环境注意事项
 
