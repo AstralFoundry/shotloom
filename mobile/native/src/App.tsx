@@ -134,10 +134,14 @@ function Home({ navigation }: NativeStackScreenProps<Routes, 'Home'>) {
     <View style={styles.bell}><IconButton name="bell" label={t('support.notifications')} onPress={() => navigation.navigate('Notifications')} />{inbox.data?.unread ? <View pointerEvents="none" style={styles.badge}><Text style={styles.badgeText}>{inbox.data.unread > 99 ? '99+' : inbox.data.unread}</Text></View> : null}</View>
   </View><View accessibilityRole="tablist" style={styles.tabs}>{tabs.map(item => <Pressable key={item.id} accessibilityRole="tab" accessibilityState={{ selected: tab === item.id, disabled: item.id === 'creation' && !currentProject }} disabled={item.id === 'creation' && !currentProject} onPress={() => { if (item.id === 'creation') { if (currentProject) open(currentProject); } else setTab(item.id); }} style={({ pressed }) => [styles.tab, tab === item.id && styles.tabActive, item.id === 'creation' && !currentProject && styles.disabled, pressed && styles.pressed]}><Icon name={item.icon} color={tab === item.id ? colors.accent : colors.muted} /><Text style={[styles.tabText, tab === item.id && styles.tabTextActive]}>{item.label}</Text></Pressable>)}</View></SafeAreaView>;
 }
+function SupportTabs({ active, navigation }: { active: 'Compose' | 'Records' | 'Notifications'; navigation: Pick<NativeStackScreenProps<Routes, 'Home'>['navigation'], 'navigate'> }) {
+  const tabs = [{ route: 'Compose' as const, label: t('support.submit') }, { route: 'Records' as const, label: t('support.history') }, { route: 'Notifications' as const, label: t('support.notifications') }];
+  return <View style={{ backgroundColor: colors.surface, paddingHorizontal: 16 }}><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 28, borderBottomWidth: 1, borderColor: colors.line }} accessibilityRole="tablist">{tabs.map(tab => <Pressable key={tab.route} accessibilityRole="tab" accessibilityState={{ selected: active === tab.route }} style={{ minHeight: 48, justifyContent: 'center', borderBottomWidth: 2, borderColor: active === tab.route ? colors.accent : 'transparent' }} onPress={() => { if (active !== tab.route) navigation.navigate(tab.route); }}><Text style={{ fontSize: 13, lineHeight: 20, color: active === tab.route ? colors.accent : colors.text }}>{tab.label}</Text></Pressable>)}</ScrollView></View>;
+}
 function Records({ navigation }: NativeStackScreenProps<Routes, 'Records'>) {
   const [page, setPage] = useState(0);
   const { data, error, loading, refresh } = useRemote<Page<Feedback>>(`/feedback?offset=${page * 20}&limit=20`);
-  return <SafeAreaView edges={['bottom']} style={styles.screen}>
+  return <SafeAreaView edges={['bottom']} style={[styles.screen, { backgroundColor: colors.surface }]}><SupportTabs active="Records" navigation={navigation} />
     {error && <ErrorNotice text={error} retry={refresh} />}
     <FlatList data={data?.items || []} keyExtractor={item => item.id} refreshing={loading} onRefresh={refresh} contentContainerStyle={styles.list}
       ListEmptyComponent={!loading && !error ? <EmptyState title={t('support.empty')} /> : null}
@@ -163,6 +167,7 @@ function Thread({ route }: NativeStackScreenProps<Routes, 'Feedback'>) {
 function Compose({ navigation }: NativeStackScreenProps<Routes, 'Compose'>) {
   const api = useApi();
   const [kind, setKind] = useState<FeedbackKind>('feedback');
+  const [kindOpen, setKindOpen] = useState(false);
   const [description, setDescription] = useState('');
   const [reference, setReference] = useState('');
   const [busy, setBusy] = useState(false);
@@ -178,17 +183,17 @@ function Compose({ navigation }: NativeStackScreenProps<Routes, 'Compose'>) {
       navigation.replace('Feedback', { id: saved.id });
     } catch (cause) { setError(errorText(cause)); } finally { setBusy(false); }
   };
-  return <SafeAreaView edges={['bottom']} style={styles.screen}><KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={96}>
+  return <SafeAreaView edges={['bottom']} style={[styles.screen, { backgroundColor: colors.surface }]}><SupportTabs active="Compose" navigation={navigation} /><KeyboardAvoidingView style={[styles.screen, { backgroundColor: colors.surface }]} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={96}>
     <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.list}>
       {error && <ErrorNotice text={error} />}
-      <View style={styles.between}><Text style={styles.title}>{t('support.title')}</Text><Action title={t('support.history')} ghost onPress={() => navigation.navigate('Records')} /></View><Text style={styles.secondary}>{t('support.accountDescription')}</Text><Text style={styles.body}>{t('support.kind')}</Text>
-      <View accessibilityRole="radiogroup" style={styles.actions}>{(['feedback', 'report'] as const).map(value => <Pressable key={value} accessibilityRole="radio" accessibilityState={{ checked: kind === value }} disabled={busy} style={[styles.choice, kind === value && styles.chosen]} onPress={() => setKind(value)}><Text style={[styles.body, kind === value && { color: colors.accent }]}>{t(`support.${value}`)}</Text></Pressable>)}</View>
-      <Text style={styles.body}>{t('support.description')}</Text><TextInput accessibilityLabel={t('support.description')} value={description} onChangeText={setDescription} editable={!busy} multiline maxLength={10000} style={[styles.input, styles.description]} textAlignVertical="top" />
+      <Text style={styles.body}>{t('support.kind')}</Text>
+      <Pressable accessibilityRole="button" accessibilityLabel={t('support.kind')} accessibilityState={{ expanded: kindOpen }} disabled={busy} onPress={() => setKindOpen(true)} style={[styles.input, styles.between]}><Text style={styles.body}>{t(`support.${kind}`)}</Text><Icon name="chevron-down" size={16} color="#bfbfbf" /></Pressable>
+      <Text style={styles.body}><Text style={{ color: '#c8443c' }}>* </Text>{t('support.description')}</Text><TextInput accessibilityLabel={t('support.description')} value={description} onChangeText={setDescription} editable={!busy} multiline maxLength={10000} style={[styles.input, styles.description]} textAlignVertical="top" />
       <Text style={styles.body}>{t('support.reference')}</Text><TextInput accessibilityLabel={t('support.reference')} value={reference} onChangeText={setReference} editable={!busy} maxLength={1000} style={styles.input} />
       <Text style={styles.secondary}>{t('support.referenceHelp')}</Text>
-      <Action title={busy ? local('提交中…', 'Submitting…') : t('support.submit')} disabled={busy || !description.trim()} onPress={() => void submit()} />
+      <View style={{ alignSelf: 'flex-start', marginTop: 4 }}><Action accent title={busy ? local('提交中…', 'Submitting…') : t('support.submit')} disabled={busy || !description.trim()} onPress={() => void submit()} /></View>
     </ScrollView>
-  </KeyboardAvoidingView></SafeAreaView>;
+  </KeyboardAvoidingView><Modal visible={kindOpen} transparent animationType="fade" onRequestClose={() => setKindOpen(false)}><Pressable accessibilityRole="button" accessibilityLabel={local('关闭类型选择', 'Close type selection')} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', padding: 24, justifyContent: 'center' }} onPress={() => setKindOpen(false)}><View style={styles.row}>{(['feedback', 'report'] as const).map(value => <Pressable key={value} accessibilityRole="radio" accessibilityState={{ checked: value === kind }} style={[styles.choice, { flex: 0 }, value === kind && styles.chosen]} onPress={() => { setKind(value); setKindOpen(false); }}><Text style={styles.body}>{t(`support.${value}`)}</Text></Pressable>)}</View></Pressable></Modal></SafeAreaView>;
 }
 function Notifications({ navigation }: NativeStackScreenProps<Routes, 'Notifications'>) {
   const api = useApi();
@@ -197,7 +202,7 @@ function Notifications({ navigation }: NativeStackScreenProps<Routes, 'Notificat
   const [failure, setFailure] = useState('');
   const [busy, setBusy] = useState(false);
   const run = async (operation: () => Promise<void>) => { setBusy(true); setFailure(''); try { await operation(); refresh(); } catch (cause) { setFailure(errorText(cause)); } finally { setBusy(false); } };
-  return <SafeAreaView edges={['bottom']} style={styles.screen}>
+  return <SafeAreaView edges={['bottom']} style={[styles.screen, { backgroundColor: colors.surface }]}><SupportTabs active="Notifications" navigation={navigation} />
     {(error || failure) ? <ErrorNotice text={error || failure} retry={refresh} /> : null}
     <View style={styles.actions}><Text style={styles.title}>{local('未读', 'Unread')}: {data?.unread || 0}</Text><Action title={t('support.readAll')} disabled={busy || !data?.unread} onPress={() => void run(async () => { await api.request('/notifications/read-all', 'PUT', { asOf: data!.asOf }); })} /></View>
     <FlatList data={data?.items || []} keyExtractor={item => item.id} refreshing={loading} onRefresh={refresh} contentContainerStyle={styles.list}
@@ -246,7 +251,7 @@ export default function App() {
     {opened && <NavigationContainer linking={{ prefixes: ['shotloom-preview://'], config: { screens: { Feedback: 'feedback/:id', Notifications: 'notifications' } } }}>
       <Stack.Navigator screenOptions={{ headerBackButtonDisplayMode: 'minimal', contentStyle: styles.screen, headerShadowVisible: false, headerStyle: { backgroundColor: colors.background }, headerTintColor: colors.text, headerTitleStyle: { fontSize: 16, fontWeight: '500' } }}>
         <Stack.Screen name="Home" component={Home} options={{ headerShown: false }} />
-        <Stack.Screen name="Compose" component={Compose} options={{ title: t('support.submit') }} />
+        <Stack.Screen name="Compose" component={Compose} options={{ title: t('support.title'), headerStyle: { backgroundColor: colors.surface } }} />
         <Stack.Screen name="Records" component={Records} options={{ title: t('support.history') }} />
         <Stack.Screen name="Feedback" component={Thread} options={{ title: t('support.title') }} />
         <Stack.Screen name="Notifications" component={Notifications} options={{ title: t('support.notifications') }} />

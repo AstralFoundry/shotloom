@@ -8,8 +8,8 @@ export const colors = { background: '#fafafa', surface: '#ffffff', text: '#00000
 export function Icon({ name, size = 20, color = colors.text }: { name: IconName; size?: number; color?: string }) {
   return <SvgXml width={size} height={size} color={color} xml={`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${paths[name]}</svg>`} />;
 }
-export function Button({ title, onPress, disabled = false, ghost = false, icon }: { title: string; onPress: () => void; disabled?: boolean; ghost?: boolean; icon?: IconName }) {
-  return <Pressable hitSlop={2} accessibilityRole="button" disabled={disabled} onPress={onPress} style={({ pressed }) => [styles.button, ghost && styles.ghost, pressed && styles.pressed, disabled && styles.disabled]}>
+export function Button({ title, onPress, disabled = false, ghost = false, accent = false, icon }: { title: string; onPress: () => void; disabled?: boolean; ghost?: boolean; accent?: boolean; icon?: IconName }) {
+  return <Pressable hitSlop={2} accessibilityRole="button" disabled={disabled} onPress={onPress} style={({ pressed }) => [styles.button, accent && { backgroundColor: colors.accent, borderColor: colors.accent }, ghost && styles.ghost, pressed && styles.pressed, disabled && styles.disabled]}>
     {icon && <Icon name={icon} size={16} color={ghost ? colors.text : colors.surface} />}<Text style={[styles.buttonText, ghost && styles.ghostText]}>{title}</Text>
   </Pressable>;
 }
@@ -38,7 +38,7 @@ export const styles = StyleSheet.create({
   choice: { minHeight: 48, flex: 1, padding: 12, borderWidth: 1, borderRadius: 10, borderColor: colors.line, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
   chosen: { borderColor: colors.accent, backgroundColor: colors.wash },
   input: { minHeight: 48, padding: 12, borderRadius: 10, borderWidth: 1, borderColor: '#d9d9d9', fontSize: 14, lineHeight: 21, color: colors.text, backgroundColor: colors.surface },
-  description: { minHeight: 160 }, notice: { padding: 16, gap: 8 }, error: { color: '#c8443c', fontSize: 14, lineHeight: 21 },
+  description: { minHeight: 120 }, notice: { padding: 16, gap: 8 }, error: { color: '#c8443c', fontSize: 14, lineHeight: 21 },
   empty: { flexGrow: 1, paddingVertical: 32, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center', gap: 12 },
   tabs: { flexDirection: 'row', gap: 8, paddingHorizontal: 12, paddingVertical: 4, borderTopWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
   tab: { flex: 1, minHeight: 56, paddingVertical: 6, paddingHorizontal: 4, gap: 4, alignItems: 'center', justifyContent: 'center', borderRadius: 10.2 },
