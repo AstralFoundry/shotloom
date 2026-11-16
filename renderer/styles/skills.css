@@ -138,6 +138,17 @@
 }
 .skill-editor-change-summary { margin: 3px 0 0; color: var(--muted); font-size: var(--text-caption-11); }
 .skill-editor-actions { flex: none; display: flex; align-items: center; gap: 10px; }
+.skill-editor-actions > .button,
+.skill-editor-actions > .icon-action {
+  box-sizing: border-box;
+  height: var(--control-height);
+  min-height: var(--control-height);
+  border-radius: var(--radius-control-compact);
+}
+.skill-editor-actions > .icon-action {
+  width: var(--control-height);
+  padding: 0;
+}
 .skill-editor-enabled { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: var(--text-body-12); cursor: pointer; }
 .skill-editor-enabled .ant-switch { margin: 0; }
 
