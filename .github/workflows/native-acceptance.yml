@@ -65,6 +65,9 @@ jobs:
             acceptance/android-current.png
             acceptance/baseline.xml
             acceptance/android-account.png
+            acceptance/android-account-landscape.png
+            acceptance/android-feedback-detail.png
+            acceptance/feedback-detail.xml
             acceptance/android-feedback.png
             acceptance/android-records.png
             acceptance/android-notifications.png

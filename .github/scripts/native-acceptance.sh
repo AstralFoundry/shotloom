@@ -44,16 +44,19 @@ tap_text() {
   adb shell uiautomator dump /sdcard/window.xml >/dev/null
   adb pull /sdcard/window.xml acceptance/current.xml >/dev/null 2>&1
   local coords
-  coords=$(python3 - "$1" <<'PY'
+  coords=$(python3 - "$1" "${2:-first}" <<'PY'
 import re, sys, xml.etree.ElementTree as ET
+matches=[]
 for node in ET.parse('acceptance/current.xml').iter('node'):
+    if sys.argv[2] == 'input' and node.get('class') != 'android.widget.EditText':
+        continue
     if any(re.search(sys.argv[1], label) for label in [node.get('text', ''), node.get('content-desc', '')]):
         x1,y1,x2,y2=map(int,re.findall(r'\d+',node.get('bounds','')))
         if x2>x1 and y2>y1:
-            print((x1+x2)//2,(y1+y2)//2)
-            break
-else:
+            matches.append(((x1+x2)//2,(y1+y2)//2))
+if not matches:
     raise SystemExit('Missing UI target: '+sys.argv[1])
+print(*(matches[-1] if sys.argv[2] == 'last' else matches[0]))
 PY
 )
   adb shell input tap $coords
@@ -61,6 +64,12 @@ PY
 tap_text '^我的$|^My account$'
 wait_for_ui account '可用积分|Available credits'
 adb exec-out screencap -p > acceptance/android-account.png
+adb shell settings put system accelerometer_rotation 0
+adb shell settings put system user_rotation 1
+wait_for_ui account-landscape '可用积分|Available credits'
+adb exec-out screencap -p > acceptance/android-account-landscape.png
+adb shell settings put system user_rotation 0
+wait_for_ui account '可用积分|Available credits'
 tap_text '反馈与举报|Feedback and reports'
 wait_for_ui feedback '问题描述|Description'
 adb exec-out screencap -p > acceptance/android-feedback.png
@@ -69,6 +78,16 @@ wait_for_ui records '暂无记录|No records'
 adb exec-out screencap -p > acceptance/android-records.png
 adb shell input keyevent 4
 wait_for_ui feedback '问题描述|Description'
+tap_text '^类型$|^Type$'
+wait_for_ui kind '举报|Report'
+tap_text '^举报$|^Report$'
+tap_text '^问题描述$|^Description$' input
+adb shell input text Android_UI_visual_acceptance
+adb shell input keyevent 4
+tap_text '^提交反馈或举报$|^Submit feedback or report$' last
+wait_for_ui feedback-detail '后台回复|[Rr]eplies'
+grep 'Android_UI_visual_acceptance' acceptance/feedback-detail.xml
+adb exec-out screencap -p > acceptance/android-feedback-detail.png
 adb shell input keyevent 4
 wait_for_ui account '可用积分|Available credits'
 tap_text '^通知$|^Notifications$'
