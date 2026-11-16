@@ -92,8 +92,8 @@ wait_for_ui records '暂无记录|No records'
 adb exec-out screencap -p > acceptance/android-records.png
 adb shell input keyevent 4
 wait_for_ui feedback '问题描述|Description'
-tap_text '^类型$|^Type$'
-wait_for_ui kind '举报|Report'
+tap_text '^类型$|^Type$' last
+wait_for_ui kind 'text="举报"|text="Report"'
 tap_text '^举报$|^Report$'
 tap_text '^问题描述$|^Description$' input
 adb shell input text Android_UI_visual_acceptance
