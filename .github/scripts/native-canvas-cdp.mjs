@@ -76,7 +76,7 @@ for (let i = 0; i < 120; i++) {
 }
 if (!before?.ready) {
   const result = await command('Runtime.evaluate', {
-    expression: `JSON.stringify({url:location.href,text:document.body.innerText.slice(0,1800),fixtures:window.__canvasVisualFixtureHits,authStatus:await fetch('/api/auth/me',{credentials:'include'}).then(r=>r.status)})`,
+    expression: `(async()=>JSON.stringify({url:location.href,text:document.body.innerText.slice(0,1800),fixtures:window.__canvasVisualFixtureHits,authStatus:await fetch('/api/auth/me',{credentials:'include'}).then(r=>r.status)}))()`,
     returnByValue: true, awaitPromise: true,
   });
   await writeFile('acceptance/canvas-diagnostic.json', JSON.stringify(result));
