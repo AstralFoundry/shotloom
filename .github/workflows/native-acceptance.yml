@@ -1,0 +1,58 @@
+name: Native Android acceptance smoke
+on:
+  workflow_dispatch:
+  push:
+    branches: ['codex/**']
+    paths: ['.github/workflows/native-acceptance.yml']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  launch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Download latest signed preview for this branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          run=$(gh run list --repo "$GITHUB_REPOSITORY" --branch "$GITHUB_REF_NAME" --workflow native-preview.yml --status success --limit 1 --json databaseId --jq '.[0].databaseId')
+          test -n "$run" && test "$run" != null
+          gh run download "$run" --repo "$GITHUB_REPOSITORY" --name Shotloom-Android-Preview --dir acceptance
+          cd acceptance && sha256sum --check SHA256SUMS
+      - name: Enable KVM
+        run: sudo chmod 666 /dev/kvm
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          script: |
+            adb install acceptance/Shotloom-Preview.apk
+            adb logcat -c
+            adb shell am start -W -n com.shotloom.app.preview/.MainActivity
+            sleep 25
+            adb shell pidof com.shotloom.app.preview
+            adb logcat -d > acceptance/launch-log.txt
+            ! grep -E 'FATAL EXCEPTION|ReactNativeJS.*(Error:|Invariant Violation)' acceptance/launch-log.txt
+            adb shell uiautomator dump /sdcard/window.xml
+            adb pull /sdcard/window.xml acceptance/window.xml
+            grep -E 'new-api|让创作|Sign in|Log in' acceptance/window.xml
+            adb exec-out screencap -p > acceptance/android-launch.png
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Android-launch-evidence
+          path: |
+            acceptance/launch-log.txt
+            acceptance/window.xml
+            acceptance/android-launch.png
+            acceptance/build.txt
+          if-no-files-found: warn
+          retention-days: 14
