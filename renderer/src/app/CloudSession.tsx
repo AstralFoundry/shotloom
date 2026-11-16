@@ -8,6 +8,11 @@ export function CloudSession({ children }: { children: ReactNode }) {
   const [opened, setOpened] = useState(!cloudEnabled);
   const [retry, setRetry] = useState(0);
   useEffect(() => {
+    if (location.pathname !== '/native') return;
+    if (status === 'login' || status === 'account') window.ReactNativeWebView?.postMessage(JSON.stringify({ type: 'login' }));
+    else if (status === 'error') window.ReactNativeWebView?.postMessage(JSON.stringify({ type: 'error', error: t('cloud.login.unavailable') }));
+  }, [status]);
+  useEffect(() => {
     if (!cloudEnabled) return;
     let active = true;
     const expired = () => setStatus('login');

@@ -51,6 +51,21 @@ try {
   }
   assert.ok(connected, 'Background session did not reconnect');
   await writeFile('acceptance/session-reload-passed.json', JSON.stringify({ realAuthResumed: true, nativeScreenVerifiedWhileAuthPending: true }));
+  blocked = undefined;
+  await command('Fetch.enable', { patterns: [{ urlPattern: 'https://shotloom.0xfiang.com/api/auth/me', requestStage: 'Request' }] });
+  await command('Page.reload', { ignoreCache: true });
+  for (let i = 0; i < 100 && !blocked; i++) await pause(500);
+  assert.ok(blocked, 'Expiry test did not request the session');
+  await command('Fetch.fulfillRequest', { requestId: blocked, responseCode: 401, responseHeaders: [{ name: 'Content-Type', value: 'application/json' }], body: Buffer.from(JSON.stringify({ success: false, message: 'Session expired acceptance fixture' })).toString('base64') });
+  await command('Fetch.disable');
+  await writeFile('acceptance/session-expired.marker', '401 delivered');
+  let loginVerified = false;
+  for (let i = 0; i < 120; i++) {
+    try { await access('acceptance/session-expired-verified.marker'); loginVerified = true; break; } catch { await pause(500); }
+  }
+  assert.ok(loginVerified, 'Explicit expiry did not reveal the login page');
+  await command('Page.reload', { ignoreCache: true });
+  await writeFile('acceptance/session-expiry-passed.json', JSON.stringify({ synthetic401RequiresLogin: true, realCookiePreservedForRecovery: true }));
 } finally {
   await command('Fetch.disable').catch(() => {});
   ws.close();

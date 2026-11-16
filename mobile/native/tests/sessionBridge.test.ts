@@ -29,3 +29,30 @@ test('session bridge reports network failures as recoverable errors and only 401
     }
   } finally { delete (globalThis as any).window; delete (globalThis as any).__bridgeStatus; }
 });
+
+test('the native login gate reports expired or unavailable sessions after a background document reload', async () => {
+  (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
+  const result = await build({ entryPoints: ['renderer/src/app/CloudSession.tsx'], absWorkingDir: fileURLToPath(new URL('../../..', import.meta.url)), bundle: true, write: false, platform: 'node', format: 'cjs', jsx: 'automatic', external: ['react','react/jsx-runtime'], plugins: [{ name: 'gate-network-fixture', setup(builder) {
+    builder.onResolve({ filter: /store\/projectStore$/ }, () => ({ path: 'store', namespace: 'fixture' }));
+    builder.onResolve({ filter: /services\/cloudRequest$/ }, () => ({ path: 'network', namespace: 'fixture' }));
+    builder.onResolve({ filter: /^\.\.\/i18n$/ }, () => ({ path: 'i18n', namespace: 'fixture' }));
+    builder.onResolve({ filter: /components\/SocialAuth$/ }, () => ({ path: 'social', namespace: 'fixture' }));
+    builder.onLoad({ filter: /.*/, namespace: 'fixture' }, ({path}) => ({ contents: path==='network' ? `exports.cloudEnabled=true;exports.cloudOrigin='https://shotloom.0xfiang.com';exports.bindCloudUser=()=>true;` : path==='i18n' ? `exports.t=x=>x;` : `exports.SocialAuth=()=>null;` }));
+  } }] });
+  const module = { exports: {} as { CloudSession: React.ComponentType<React.PropsWithChildren> } };
+  new Function('require','module','exports',result.outputFiles[0]!.text)(createRequire(import.meta.url),module,module.exports);
+  const messages: any[] = [];
+  const savedFetch = globalThis.fetch;
+  (globalThis as any).window=Object.assign(new EventTarget(), { ReactNativeWebView: { postMessage: (value:string)=>messages.push(JSON.parse(value)) } });
+  try {
+    for (const [path,status,type] of [['/native',401,'login'],['/native',503,'error'],['/',401,undefined]] as const) {
+      messages.length=0;(globalThis as any).location={pathname:path,search:''};
+      globalThis.fetch=async()=>new Response('{}',{status});
+      let tree!:ReturnType<typeof create>;
+      await act(async()=>{tree=create(React.createElement(module.exports.CloudSession,null,'native bridge'));});
+      assert.equal(messages.length,type ? 1 : 0);
+      if(type) assert.equal(messages[0].type,type);
+      await act(async()=>tree.unmount());
+    }
+  } finally { globalThis.fetch=savedFetch;delete (globalThis as any).window;delete (globalThis as any).location; }
+});

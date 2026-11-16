@@ -170,7 +170,17 @@ wait_for_ui session-reload 'Android Canvas Acceptance'
 ! grep -E 'Checking your session|正在检查登录状态|android.webkit.WebView' acceptance/session-reload.xml
 adb exec-out screencap -p > acceptance/android-session-reload.png
 touch acceptance/session-reload-release.marker
+for attempt in {1..60}; do
+  if [ -f acceptance/session-expired.marker ]; then break; fi
+  if ! kill -0 "$reload_check" 2>/dev/null; then cat acceptance/session-reload-cdp.txt; exit 1; fi
+  sleep 1
+done
+test -f acceptance/session-expired.marker
+wait_for_ui session-expired 'new-api|让创作|Sign in|Log in'
+adb exec-out screencap -p > acceptance/android-session-expired.png
+touch acceptance/session-expired-verified.marker
 wait "$reload_check"
+wait_for_ui session-recovered 'Android Canvas Acceptance'
 node .github/scripts/native-canvas-cdp.mjs > acceptance/canvas-cdp.txt 2>&1 &
 canvas_check=$!
 tap_text 'Android Canvas Acceptance'
