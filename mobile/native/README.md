@@ -1,6 +1,6 @@
 # Shotloom 原生移动端预览
 
-这是 React Native + Expo SDK 57 的第一阶段客户端。使用原生 Stack 导航、项目库、账号与额度页、反馈／举报表单、个人记录、回复详情和站内通知；画布、导演台和剪辑工作区通过 WebView 继续使用云端应用。
+这是 React Native + Expo SDK 57 的第一阶段客户端。使用原生 Stack 导航、项目库、技能管理、账号与额度页、反馈／举报表单、个人记录、回复详情和站内通知；画布、导演台和剪辑工作区通过 WebView 继续使用云端应用。
 
 预览包名为 `com.shotloom.app.preview`，不会覆盖现有 Tauri 移动包。现有正式发布流水线继续构建 Tauri；原生 CI 检查 TypeScript、协议行为以及 Android/iOS Hermes bundle。切换正式包需先完成真机验收与签名配置。
 
@@ -58,3 +58,14 @@ npm --prefix mobile/native run bundle:check
 构建 43864377209 的签名 release APK 支持覆盖现有同签名 Preview。TypeScript、5 项原生边界/会话测试与 Android/iOS Hermes bundle 检查通过；模拟器中的原生项目库、账号、横屏、举报提交、记录、详情和通知已验证。画布的最终模拟器结果与下载链接见 `docs/features/feedback-notifications-native-mobile.md`。真实第三方 OAuth、付费生成、复杂画布节点和真机触控性能仍需验收。
 
 画布模拟器运行 `43870287115` 通过加载、缩放、拖动和返回验证。当前 APK：`https://shotloom.0xfiang.com/downloads/Shotloom-Preview-20261116-web-ui.apk`；完整证据包：`https://shotloom.0xfiang.com/downloads/Shotloom-Acceptance-20261116-web-ui.zip`。网页补丁 `20261116-canvas-no-float` 另行去除了右下角空白通知悬浮按钮，重新进入画布生效，无需重装 APK。
+
+
+## 0.9.4：技能原生化与画布保留
+
+技能页使用原生列表与编辑器，支持搜索、新建、修改、启停、Agent 分配、JSON 文件导入及系统分享导出。沿用用户侧 `/catalog/skills` 接口；系统技能不进入自定义列表，同名 ID 和陈旧编辑会被拒绝。保存前合并最新目录并保留无关元数据；接口尚未提供数据库 CAS，不声称目录写入完全原子。
+
+“我的”页分别提供通知和反馈／举报入口。反馈页只保留提交和我的记录；通知页独立。记录使用卡片、状态标签和详情入口，仅超过一页时显示翻页操作。
+
+当前工程的画布 WebView 在 Home 内保留挂载：切换原生标签或返回项目库后再打开同一工程，继续使用同一文档与视口。首次打开、切换其他工程、进程重启或手动重试仍需要初始化。设置和充值继续沿用网页；项目库的导入、管理菜单及新建画布入口进入网页项目管理。项目列表、搜索、排序、文件夹浏览与新建文件夹是原生界面。画布、节点编辑、Agent 对话、导演台和剪辑功能仍由现有网页承载。登录授权和隐藏的会话桥接也继续使用 WebView。
+
+回归测试直接挂载真实 App 树，验证同一工程往返只创建一次 WebView；其他测试覆盖技能导入、元数据保留、冲突识别和接口允许列表。最终签名包、模拟器结果和下载链接见功能文档的 0.9.4 验收记录。
