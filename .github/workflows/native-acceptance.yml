@@ -2,6 +2,10 @@ name: Native Android acceptance smoke
 on:
   workflow_dispatch:
     inputs:
+      preview_run:
+        description: 'Signed preview build run to verify; empty selects the latest completed build'
+        required: false
+        default: ''
       baseline_run:
         description: 'Optional old preview run to reproduce the login hang before upgrading'
         required: false
@@ -25,10 +29,18 @@ jobs:
       - name: Download latest signed preview for this branch
         env:
           GH_TOKEN: ${{ github.token }}
+          PREVIEW_RUN: ${{ inputs.preview_run }}
         run: |
-          run=$(gh run list --repo "$GITHUB_REPOSITORY" --branch "$GITHUB_REF_NAME" --workflow native-preview.yml --status success --limit 1 --json databaseId --jq '.[0].databaseId')
+          run="$PREVIEW_RUN"
+          if [ -z "$run" ]; then
+            run=$(gh run list --repo "$GITHUB_REPOSITORY" --branch "$GITHUB_REF_NAME" --workflow native-preview.yml --limit 20 --json databaseId,conclusion --jq '[.[] | select(.conclusion == "success")][0].databaseId')
+          fi
           test -n "$run" && test "$run" != null
+          mkdir -p acceptance
+          gh run view "$run" --repo "$GITHUB_REPOSITORY" --json headBranch,headSha,conclusion > acceptance/preview-source.json
+          jq -e --arg branch "$GITHUB_REF_NAME" '.conclusion == "success" and .headBranch == $branch' acceptance/preview-source.json
           gh run download "$run" --repo "$GITHUB_REPOSITORY" --name Shotloom-Android-Preview --dir acceptance
+          grep -Fx "Commit: $(jq -r .headSha acceptance/preview-source.json)" acceptance/build.txt
           cd acceptance && sha256sum --check SHA256SUMS
       - name: Download optional reproduction baseline
         if: inputs.baseline_run != ''
@@ -73,6 +85,8 @@ jobs:
             acceptance/window.xml
             acceptance/android-launch.png
             acceptance/build.txt
+            acceptance/SHA256SUMS
+            acceptance/preview-source.json
             acceptance/session-setup.txt
             acceptance/authenticated.xml
             acceptance/android-authenticated.png
