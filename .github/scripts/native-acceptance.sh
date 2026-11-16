@@ -11,6 +11,20 @@ wait_for_ui() {
     sleep 5
     adb shell uiautomator dump /sdcard/window.xml >/dev/null
     adb pull /sdcard/window.xml "acceptance/$file.xml" >/dev/null 2>&1
+    if grep -q "Pixel Launcher isn't responding" "acceptance/$file.xml"; then
+      python3 - "acceptance/$file.xml" <<'PY_ANR' | xargs adb shell input tap
+import re, sys, xml.etree.ElementTree as ET
+for node in ET.parse(sys.argv[1]).iter('node'):
+    if node.get('text') == 'Close app':
+        x1,y1,x2,y2 = map(int, re.findall(r'\d+', node.get('bounds', '')))
+        print((x1+x2)//2, (y1+y2)//2)
+        break
+else:
+    raise SystemExit('Launcher ANR close button missing')
+PY_ANR
+      adb shell am start -W -n com.shotloom.app.preview/.MainActivity
+      continue
+    fi
     if grep -Eq "$pattern" "acceptance/$file.xml"; then return; fi
   done
   echo "Expected screen did not appear: $file"
