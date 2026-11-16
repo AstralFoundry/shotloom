@@ -150,9 +150,7 @@ export function SupportCenter() {
   };
   const launch = (next: string) => { setTab(next); setSelected(''); setOpen(true); reload(); };
   return <>
-    <div className="support-launcher">
-      <Badge count={inbox?.unread || 0}><Button aria-label={t('support.notifications')} onClick={() => launch('notifications')} icon={<IconSymbol name="bell" />} /></Badge>
-    </div>
+    <div className="support-launcher"><Badge count={inbox?.unread || 0}><Button aria-label={t('support.notifications')} onClick={() => launch('notifications')} icon={<IconSymbol name="bell" />} /></Badge></div>
     <Modal open={open} title={t('support.title')} footer={null} onCancel={() => { if (!busy) setOpen(false); }} width={640} className="support-dialog">
       {error && <Alert type="error" title={error} action={<Button onClick={reload}>{t('support.refresh')}</Button>} />}
       {selected ? <FeedbackThread key={selected} id={selected} onBack={() => setSelected('')} onChanged={reload} /> : <Tabs activeKey={tab} onChange={value => { setTab(value); setSubmitted(''); }} items={[

@@ -88,7 +88,7 @@ import { registerDirectorDeskNavigator } from "../services/directorDeskAgentRunt
  */
 export function ReactWorkbench() {
   const [, refresh] = useReducer((value) => value + 1, 0);
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(cloudEnabled && new URLSearchParams(location.search).get('panel') === 'settings');
   const [navigationStatus, setNavigationStatus] = useState<'loading' | 'ready' | 'error'>(cloudEnabled ? 'loading' : 'ready');
   const [searchOpen, setSearchOpen] = useState(false);
   const [editorNodeId, setEditorNodeId] = useState("");
@@ -355,7 +355,7 @@ export function ReactWorkbench() {
     activeView = <section className="react-workflow-canvas" aria-label={t("ui.ReactWorkbench.arialabel.6f4cc182")}><CanvasStartup canvasReady={false} /></section>;
   } else if (appRoute === "projects") {
     activeView = (
-      <ProjectsView {...projects!} controller={projectLibraryController} />
+      <ProjectsView {...projects!} {...(cloudEnabled && new URLSearchParams(location.search).get('folder') ? { initialFolderPath: [new URLSearchParams(location.search).get('folder')!] } : {})} controller={projectLibraryController} />
     );
   } else if (appRoute === "skills") {
     activeView = <SkillsFeature />;

@@ -15,7 +15,7 @@ export function AccountView({ onSettings, onUpdate }: { onSettings: () => void; 
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [retry, setRetry] = useState(0);
-  const [topupOpen, setTopupOpen] = useState(false);
+  const [topupOpen, setTopupOpen] = useState(cloudEnabled && new URLSearchParams(location.search).get('panel') === 'topup');
   const [amount, setAmount] = useState('10');
   const [paying, setPaying] = useState(false);
   const [checkoutUrl, setCheckoutUrl] = useState('');

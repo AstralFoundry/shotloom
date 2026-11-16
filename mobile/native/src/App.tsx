@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, AppState, FlatList, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, AppState, FlatList, KeyboardAvoidingView, Modal, Platform, Pressable, RefreshControl, ScrollView, StatusBar, Text, TextInput, View } from 'react-native';
 import { NavigationContainer, useFocusEffect } from '@react-navigation/native';
 import { createNativeStackNavigator, type NativeStackScreenProps } from '@react-navigation/native-stack';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
@@ -8,27 +8,27 @@ import { randomUUID } from 'expo-crypto';
 import { getLocales } from 'expo-localization';
 import { NativeApi } from './api';
 import { isSessionSource } from './sessionSource';
+import { SvgXml } from 'react-native-svg';
+import { colors, styles, Icon, IconButton, Button as Action } from './ui';
+import { noProjectIllustration } from './illustration';
+import type { IconName } from '../../../shared/iconPaths';
 import type { Feedback, FeedbackDetail, FeedbackKind, InboxPage, Page } from '../../../shared/support';
 import zh from '../../../renderer/src/i18n/locales/zh-CN.json';
 import en from '../../../renderer/src/i18n/locales/en-US.json';
 
-const language = getLocales()[0]?.languageCode === 'zh' ? 'zh-CN' : 'en-US';
-const catalog = language === 'zh-CN' ? zh : en;
-const t = (key: keyof typeof zh) => catalog[key];
+let language = getLocales()[0]?.languageCode === 'zh' ? 'zh-CN' : 'en-US';
+const t = (key: keyof typeof zh) => (language === 'zh-CN' ? zh : en)[key];
 const local = (cn: string, english: string) => language === 'zh-CN' ? cn : english;
 const origin = (process.env.EXPO_PUBLIC_CLOUD_URL || 'https://shotloom.0xfiang.com').replace(/\/$/, '');
 const parsedOrigin = new URL(origin);
 if (parsedOrigin.origin !== origin || (parsedOrigin.protocol !== 'https:' && !(__DEV__ && parsedOrigin.protocol === 'http:'))) throw new Error('EXPO_PUBLIC_CLOUD_URL must be an HTTPS origin');
-type Routes = { Home: undefined; Records: undefined; Compose: undefined; Feedback: { id: string }; Notifications: undefined; Workspace: { id: string; name: string } };
+type Routes = { Home: undefined; Records: undefined; Compose: undefined; Feedback: { id: string }; Notifications: undefined; Workspace: { id: string; name: string; page?: 'projects' | 'skills' | 'account'; panel?: 'settings' | 'topup'; folder?: string } };
 const Stack = createNativeStackNavigator<Routes>();
 const ApiContext = createContext<NativeApi | null>(null);
 function useApi() { const value = useContext(ApiContext); if (!value) throw new Error('Session unavailable'); return value; }
 const errorText = (value: unknown) => value instanceof Error ? value.message : String(value);
 const date = (value: string) => new Date(value).toLocaleString(language);
 
-function Action({ title, onPress, disabled = false }: { title: string; onPress: () => void; disabled?: boolean }) {
-  return <Pressable accessibilityRole="button" disabled={disabled} onPress={onPress} style={({ pressed }) => [styles.button, pressed && styles.pressed, disabled && styles.disabled]}><Text style={styles.buttonText}>{title}</Text></Pressable>;
-}
 function ErrorNotice({ text, retry }: { text: string; retry?: () => void }) {
   return <View accessibilityRole="alert" style={styles.notice}><Text style={styles.error}>{text}</Text>{retry && <Action title={t('support.refresh')} onPress={retry} />}</View>;
 }
@@ -48,16 +48,91 @@ function useRemote<T>(path: string) {
   }, [api, path, revision, refresh]));
   return { data, error, loading, refresh };
 }
+type Project = { id: string; name: string; cloudFolderId?: string | null; updatedAt?: string; nodeCount?: number };
+type Folder = { id: string; parentId: string | null; name: string };
+type Account = { username?: string; email?: string; app_quota: number; app_used_quota: number };
+type Usage = { total: number; page_size: number; items: { id: number; model_name: string; quota: number; created_at: number }[] };
+const LogoutContext = createContext<() => void>(() => {});
+const credits = (quota: number) => (quota / 10000).toLocaleString(language, { maximumFractionDigits: 4 });
+function EmptyState({ title, description, artwork = false }: { title: string; description?: string; artwork?: boolean }) {
+  return <View style={styles.empty}>{artwork ? <SvgXml xml={noProjectIllustration} width={134} height={134} /> : <Icon name="box" size={40} color="#bfbfbf" />}<Text style={styles.title}>{title}</Text>{description ? <Text style={[styles.secondary, { textAlign: 'center' }]}>{description}</Text> : null}</View>;
+}
+function Projects({ navigation, onOpen }: { navigation: NativeStackScreenProps<Routes, 'Home'>['navigation']; onOpen: (project: Project) => void }) {
+  const api = useApi();
+  const projects = useRemote<Project[]>('/projects');
+  const folders = useRemote<Folder[]>('/library-folders');
+  const [parents, setParents] = useState<Folder[]>([]);
+  const [query, setQuery] = useState('');
+  const [sort, setSort] = useState<'updated' | 'name'>('updated');
+  const [draft, setDraft] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [failure, setFailure] = useState('');
+  const parent = parents.at(-1);
+  const refresh = () => { projects.refresh(); folders.refresh(); };
+  const manage = () => navigation.navigate('Workspace', { id: '', name: t('ui.ProjectScopeHeader.text.79b705bd'), page: 'projects', ...(parent ? { folder: `cloud/projects/folders/${parent.id}` } : {}) });
+  const entries = [
+    ...(folders.data || []).filter(folder => folder.parentId === (parent?.id || null)).map(folder => ({ ...folder, kind: 'folder' as const })),
+    ...(projects.data || []).filter(project => (project.cloudFolderId || null) === (parent?.id || null)).map(project => ({ ...project, kind: 'project' as const })),
+  ].filter(entry => entry.name.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())).sort((a, b) => sort === 'name' ? a.name.localeCompare(b.name, language) : new Date('updatedAt' in b ? b.updatedAt || 0 : 0).getTime() - new Date('updatedAt' in a ? a.updatedAt || 0 : 0).getTime());
+  const createFolder = async () => {
+    if (!draft?.trim() || busy) return;
+    setBusy(true); setFailure('');
+    try { await api.request('/library-folders', 'POST', { name: draft.trim(), parentId: parent?.id || null }); setDraft(null); refresh(); }
+    catch (cause) { setFailure(errorText(cause)); } finally { setBusy(false); }
+  };
+  return <View style={styles.screen}>
+    <FlatList data={entries} keyExtractor={item => item.id} refreshing={projects.loading || folders.loading} onRefresh={refresh} contentContainerStyle={styles.projectList}
+      ListHeaderComponent={<><View style={styles.projectHead}>
+        {parent && <Pressable accessibilityRole="button" style={[styles.inline, { minHeight: 48 }]} onPress={() => { setParents(value => value.slice(0, -1)); setQuery(''); }}><Icon name="chevron-left" /><Text style={styles.secondary}>{t('ui.ProjectScopeHeader.text.79b705bd')}</Text></Pressable>}
+        <Text style={{ fontSize: 20, lineHeight: 28, fontWeight: '700', color: '#292929' }}>{parent?.name || t('ui.ProjectScopeHeader.text.79b705bd')}</Text>
+        {!parent && <Text style={{ fontSize: 13, lineHeight: 20, color: colors.muted }}>{t('ui.ProjectsView.text.f5b63ec3')}</Text>}
+        <View style={styles.projectActions}>{parent && <Action title={t('ui.ProjectsView.text.afb7afc7')} icon="grid" onPress={manage} />}<Action title={t('ui.ProjectsView.text.95cf3cd4')} icon="folder" ghost={Boolean(parent)} onPress={() => setDraft('')} /><Action title={t('ui.CreationView.text.60e2bcad')} icon="upload" ghost onPress={manage} /></View>
+      </View><View style={styles.libraryHead}>
+        <View style={styles.inline}><Text style={{ fontSize: 12, lineHeight: 18, fontWeight: '500', color: '#292929' }}>{parent?.name || t('ui.ProjectsView.text.f095b12b')}</Text><Text style={styles.small}>{local(`${entries.length} 项`, `${entries.length} items`)}</Text></View>
+        <View style={styles.inline}><View style={styles.search}><Icon name="search" size={16} color={colors.muted} /><TextInput accessibilityLabel={t('ui.ProjectSearch.text.b617f05c')} placeholder={t('ui.ProjectSearch.text.b617f05c')} placeholderTextColor="#808080" value={query} onChangeText={setQuery} style={styles.searchInput} /></View><Action ghost title={sort === 'updated' ? local('最近更新', 'Recent') : local('名称', 'Name')} onPress={() => setSort(value => value === 'updated' ? 'name' : 'updated')} /></View>
+      </View>{(projects.error || folders.error) ? <ErrorNotice text={projects.error || folders.error} retry={refresh} /> : null}</>}
+      ListEmptyComponent={!projects.loading && !folders.loading && !projects.error && !folders.error ? <EmptyState artwork title={t(query.trim() ? 'ui.ProjectsView.text.ede67948' : 'ui.ProjectsView.text.a3dba20f')} description={!query.trim() ? t('ui.ProjectsView.text.f4ca1241') : undefined} /> : null}
+      renderItem={({ item }) => <View style={styles.projectCard}><Pressable accessibilityRole="button" style={[styles.inline, styles.grow]} onPress={() => { if (item.kind === 'folder') { setParents(value => [...value, item]); setQuery(''); } else onOpen(item); }}>
+        <View style={styles.projectPreview}><Icon name={item.kind === 'folder' ? 'folder' : 'grid'} size={30} color={colors.accent} /></View><View style={styles.grow}><Text numberOfLines={2} style={styles.projectName}>{item.name}</Text><Text style={styles.small}>{item.kind === 'folder' ? local('文件夹', 'Folder') : local('画布', 'Canvas')}</Text>{'updatedAt' in item && item.updatedAt ? <Text style={styles.small}>{date(item.updatedAt)}</Text> : null}</View>
+      </Pressable><IconButton name="more" label={local('管理项目', 'Manage project')} onPress={manage} /></View>} />
+    <Modal visible={draft !== null} transparent animationType="fade" onRequestClose={() => { if (!busy) setDraft(null); }}><KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', padding: 24 }}><View style={[styles.row, { gap: 20 }]}><Text style={styles.title}>{t('ui.ProjectsView.text.95cf3cd4')}</Text><TextInput autoFocus accessibilityLabel={local('文件夹名称', 'Folder name')} placeholder={local('文件夹名称', 'Folder name')} value={draft || ''} onChangeText={setDraft} maxLength={200} editable={!busy} style={styles.input} onSubmitEditing={() => void createFolder()} />{failure ? <ErrorNotice text={failure} /> : null}<View style={styles.inline}><View style={styles.grow}><Action ghost disabled={busy} title={local('取消', 'Cancel')} onPress={() => setDraft(null)} /></View><View style={styles.grow}><Action disabled={busy || !draft?.trim()} title={local('创建', 'Create')} onPress={() => void createFolder()} /></View></View></View></KeyboardAvoidingView></Modal>
+  </View>;
+}
+function Account({ navigation }: { navigation: NativeStackScreenProps<Routes, 'Home'>['navigation'] }) {
+  const logout = useContext(LogoutContext);
+  const account = useRemote<Account>('/auth/account');
+  const me = useRemote<{ username?: string; email?: string }>('/auth/me');
+  const [page, setPage] = useState(1);
+  const usage = useRemote<Usage>(`/auth/usage?page=${page}&page_size=10`);
+  const refresh = () => { account.refresh(); usage.refresh(); me.refresh(); };
+  const openPanel = (panel: 'settings' | 'topup') => navigation.navigate('Workspace', { id: '', name: t(panel === 'settings' ? 'account.settings' : 'account.topup'), page: 'account', panel });
+  const action = (icon: IconName, title: string, description: string, onPress: () => void) => <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.accountAction, pressed && styles.pressed]}><View style={styles.actionIcon}><Icon name={icon} /></View><View style={styles.grow}><Text style={styles.title}>{title}</Text><Text style={styles.actionDescription}>{description}</Text></View><Icon name="chevron-right" /></Pressable>;
+  return <ScrollView contentContainerStyle={styles.account} refreshControl={<RefreshControl refreshing={account.loading} onRefresh={refresh} />}>
+    <View style={styles.accountHeader}><Text style={styles.heading}>{t('account.title')}</Text><Text style={styles.secondary}>{t('account.description')}</Text></View>
+    <View style={styles.profile}><View style={styles.avatar}><Icon name="user" size={26} color={colors.accent} /></View><View style={styles.grow}><Text style={styles.profileName}>{account.data?.username || me.data?.username || t('account.welcome')}</Text><Text style={styles.secondary}>{account.data?.email || me.data?.email || 'new-api'}</Text></View></View>
+    <View style={styles.wallet}><View style={styles.between}><Text style={[styles.body, styles.white]}>{t('account.quota')}</Text><IconButton name="refresh" light label={t('account.refresh')} disabled={account.loading} onPress={refresh} /></View><Text style={styles.quota}>{account.data ? credits(account.data.app_quota) : '—'}</Text><View style={[styles.inline, { gap: 16 }]}><Text style={styles.used}>{t('account.used')}</Text><Text style={styles.used}>{account.data ? credits(account.data.app_used_quota) : '—'}</Text></View><View style={styles.walletBottom}><Text style={styles.walletNote}>{t('account.quotaDescription')}</Text><Action title={t('account.topup')} icon="plus" ghost onPress={() => openPanel('topup')} /></View>{account.error ? <Text accessibilityRole="alert" style={[styles.walletNote, { marginTop: 12 }]}>{t('account.loadFailed')}</Text> : null}</View>
+    <View style={styles.accountActions}>{action('settings', t('account.settings'), t('settings.cloudGeneralDescription'), () => openPanel('settings'))}{action('scan-text', t('support.title'), t('support.accountDescription'), () => navigation.navigate('Compose'))}</View>
+    <View style={styles.usage}><View style={styles.between}><View style={styles.grow}><Text style={styles.title}>{t('account.usage')}</Text><Text style={[styles.small, { marginTop: 8 }]}>{t('account.usageScope')}</Text></View><IconButton name="refresh" label={t('account.refreshUsage')} disabled={usage.loading} onPress={usage.refresh} /></View>
+      {usage.loading ? <ActivityIndicator color={colors.accent} /> : usage.error ? <><Text style={styles.error}>{t('account.usageFailed')}</Text><Action ghost title={t('account.retryUsage')} onPress={usage.refresh} /></> : !usage.data?.items.length ? <Text style={styles.secondary}>{t('account.usageEmpty')}</Text> : usage.data.items.map(item => <View key={item.id} style={styles.usageItem}><View style={styles.between}><Text style={[styles.body, styles.grow]}>{item.model_name || t('account.usageUnknownModel')}</Text><Text style={styles.body}>{credits(item.quota)} {local('积分', 'credits')}</Text></View><Text style={styles.small}>{date(new Date(item.created_at * 1000).toISOString())}</Text></View>)}
+      <View style={styles.between}><Action title={t('account.previousPage')} ghost disabled={usage.loading || page === 1} onPress={() => setPage(value => value - 1)} /><Text style={styles.small}>{page} / {Math.max(1, Math.ceil((usage.data?.total || 0) / 10))}</Text><Action title={t('account.nextPage')} ghost disabled={usage.loading || !usage.data || page * 10 >= usage.data.total || page >= 10000} onPress={() => setPage(value => value + 1)} /></View>
+    </View><View style={styles.accountFooter}><Action title={t('cloud.logout')} ghost onPress={logout} /></View>
+  </ScrollView>;
+}
 function Home({ navigation }: NativeStackScreenProps<Routes, 'Home'>) {
-  const { data, error, loading, refresh } = useRemote<Array<{ id: string; name: string }>>('/projects');
-  return <SafeAreaView edges={['bottom']} style={styles.screen}>
-    <View style={styles.actions}><Action title={t('support.submit')} onPress={() => navigation.navigate('Compose')} /><Action title={t('support.history')} onPress={() => navigation.navigate('Records')} /><Action title={t('support.notifications')} onPress={() => navigation.navigate('Notifications')} /></View>
-    {error && <ErrorNotice text={error} retry={refresh} />}
-    <FlatList data={data || []} keyExtractor={item => item.id} refreshing={loading} onRefresh={refresh} contentContainerStyle={styles.list}
-      ListEmptyComponent={!loading && !error ? <Text>{local('暂无工程，可在工作区创建。', 'No projects yet. Create one in the workspace.')}</Text> : null}
-      renderItem={({ item }) => <Pressable accessibilityRole="button" style={styles.row} onPress={() => navigation.navigate('Workspace', item)}><Text style={styles.title}>{item.name}</Text><Text style={styles.secondary}>{local('打开工作区', 'Open workspace')}</Text></Pressable>} />
-    <Action title={local('打开工作区', 'Open workspace')} onPress={() => navigation.navigate('Workspace', { id: '', name: 'Shotloom' })} />
-  </SafeAreaView>;
+  const [tab, setTab] = useState<'projects' | 'skills' | 'account'>('projects');
+  const [currentProject, setCurrentProject] = useState<Project>();
+  const inbox = useRemote<InboxPage>('/notifications?offset=0&limit=1');
+  const open = (project: Project) => { setCurrentProject(project); navigation.navigate('Workspace', project); };
+  const tabs: Array<{ id: 'projects' | 'creation' | 'skills' | 'account'; label: string; icon: IconName }> = [
+    { id: 'projects', label: t('ui.ProjectScopeHeader.text.79b705bd'), icon: 'folder' },
+    { id: 'creation', label: t('ui.navigation.label.a1fce3b0'), icon: 'grid' },
+    { id: 'skills', label: t('ui.navigation.label.53da139b'), icon: 'puzzle' },
+    { id: 'account', label: t('account.title'), icon: 'user' },
+  ];
+  return <SafeAreaView style={styles.screen}><StatusBar barStyle="dark-content" backgroundColor={colors.background} /><View style={styles.grow}>
+    {tab === 'projects' ? <Projects navigation={navigation} onOpen={open} /> : tab === 'account' ? <Account navigation={navigation} /> : <WebContent params={{ id: '', name: '', page: 'skills' }} embedded />}
+    <View style={styles.bell}><IconButton name="bell" label={t('support.notifications')} onPress={() => navigation.navigate('Notifications')} />{inbox.data?.unread ? <View pointerEvents="none" style={styles.badge}><Text style={styles.badgeText}>{inbox.data.unread > 99 ? '99+' : inbox.data.unread}</Text></View> : null}</View>
+  </View><View accessibilityRole="tablist" style={styles.tabs}>{tabs.map(item => <Pressable key={item.id} accessibilityRole="tab" accessibilityState={{ selected: tab === item.id, disabled: item.id === 'creation' && !currentProject }} disabled={item.id === 'creation' && !currentProject} onPress={() => { if (item.id === 'creation') { if (currentProject) open(currentProject); } else setTab(item.id); }} style={({ pressed }) => [styles.tab, tab === item.id && styles.tabActive, item.id === 'creation' && !currentProject && styles.disabled, pressed && styles.pressed]}><Icon name={item.icon} color={tab === item.id ? colors.accent : colors.muted} /><Text style={[styles.tabText, tab === item.id && styles.tabTextActive]}>{item.label}</Text></Pressable>)}</View></SafeAreaView>;
 }
 function Records({ navigation }: NativeStackScreenProps<Routes, 'Records'>) {
   const [page, setPage] = useState(0);
@@ -65,7 +140,7 @@ function Records({ navigation }: NativeStackScreenProps<Routes, 'Records'>) {
   return <SafeAreaView edges={['bottom']} style={styles.screen}>
     {error && <ErrorNotice text={error} retry={refresh} />}
     <FlatList data={data?.items || []} keyExtractor={item => item.id} refreshing={loading} onRefresh={refresh} contentContainerStyle={styles.list}
-      ListEmptyComponent={!loading && !error ? <Text>{t('support.empty')}</Text> : null}
+      ListEmptyComponent={!loading && !error ? <EmptyState title={t('support.empty')} /> : null}
       renderItem={({ item }) => <Pressable accessibilityRole="button" style={styles.row} onPress={() => navigation.navigate('Feedback', { id: item.id })}>
         <Text style={styles.secondary}>{t(`support.${item.kind}`)} · {t(`support.${item.status}`)}</Text><Text numberOfLines={3} style={styles.body}>{item.description}</Text><Text style={styles.secondary}>{date(item.created_at)}</Text>
       </Pressable>} />
@@ -106,10 +181,10 @@ function Compose({ navigation }: NativeStackScreenProps<Routes, 'Compose'>) {
   return <SafeAreaView edges={['bottom']} style={styles.screen}><KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={96}>
     <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.list}>
       {error && <ErrorNotice text={error} />}
-      <Text style={styles.title}>{t('support.kind')}</Text>
-      <View accessibilityRole="radiogroup" style={styles.actions}>{(['feedback', 'report'] as const).map(value => <Pressable key={value} accessibilityRole="radio" accessibilityState={{ checked: kind === value }} disabled={busy} style={[styles.choice, kind === value && styles.chosen]} onPress={() => setKind(value)}><Text>{t(`support.${value}`)}</Text></Pressable>)}</View>
-      <Text style={styles.title}>{t('support.description')}</Text><TextInput accessibilityLabel={t('support.description')} value={description} onChangeText={setDescription} editable={!busy} multiline maxLength={10000} style={[styles.input, styles.description]} textAlignVertical="top" />
-      <Text style={styles.title}>{t('support.reference')}</Text><TextInput accessibilityLabel={t('support.reference')} value={reference} onChangeText={setReference} editable={!busy} maxLength={1000} style={styles.input} />
+      <View style={styles.between}><Text style={styles.title}>{t('support.title')}</Text><Action title={t('support.history')} ghost onPress={() => navigation.navigate('Records')} /></View><Text style={styles.secondary}>{t('support.accountDescription')}</Text><Text style={styles.body}>{t('support.kind')}</Text>
+      <View accessibilityRole="radiogroup" style={styles.actions}>{(['feedback', 'report'] as const).map(value => <Pressable key={value} accessibilityRole="radio" accessibilityState={{ checked: kind === value }} disabled={busy} style={[styles.choice, kind === value && styles.chosen]} onPress={() => setKind(value)}><Text style={[styles.body, kind === value && { color: colors.accent }]}>{t(`support.${value}`)}</Text></Pressable>)}</View>
+      <Text style={styles.body}>{t('support.description')}</Text><TextInput accessibilityLabel={t('support.description')} value={description} onChangeText={setDescription} editable={!busy} multiline maxLength={10000} style={[styles.input, styles.description]} textAlignVertical="top" />
+      <Text style={styles.body}>{t('support.reference')}</Text><TextInput accessibilityLabel={t('support.reference')} value={reference} onChangeText={setReference} editable={!busy} maxLength={1000} style={styles.input} />
       <Text style={styles.secondary}>{t('support.referenceHelp')}</Text>
       <Action title={busy ? local('提交中…', 'Submitting…') : t('support.submit')} disabled={busy || !description.trim()} onPress={() => void submit()} />
     </ScrollView>
@@ -126,20 +201,30 @@ function Notifications({ navigation }: NativeStackScreenProps<Routes, 'Notificat
     {(error || failure) ? <ErrorNotice text={error || failure} retry={refresh} /> : null}
     <View style={styles.actions}><Text style={styles.title}>{local('未读', 'Unread')}: {data?.unread || 0}</Text><Action title={t('support.readAll')} disabled={busy || !data?.unread} onPress={() => void run(async () => { await api.request('/notifications/read-all', 'PUT', { asOf: data!.asOf }); })} /></View>
     <FlatList data={data?.items || []} keyExtractor={item => item.id} refreshing={loading} onRefresh={refresh} contentContainerStyle={styles.list}
-      ListEmptyComponent={!loading && !error ? <Text>{t('support.noNotifications')}</Text> : null}
+      ListEmptyComponent={!loading && !error ? <EmptyState title={t('support.noNotifications')} /> : null}
       renderItem={({ item }) => <View style={styles.row}><Pressable accessibilityRole="button" disabled={busy} onPress={() => void run(async () => { await api.request(`/notifications/${item.id}/read`, 'PUT'); navigation.navigate('Feedback', { id: item.feedback_id }); })}>
         <Text style={styles.title}>{!item.read_at ? '● ' : ''}{t('support.replyReceived')}</Text><Text numberOfLines={3} style={styles.body}>{item.body}</Text><Text style={styles.secondary}>{date(item.created_at)}</Text>
       </Pressable>{!item.read_at && <Action title={t('support.read')} disabled={busy} onPress={() => void run(async () => { await api.request(`/notifications/${item.id}/read`, 'PUT'); })} />}</View>} />
     <View style={styles.actions}><Action title={local('上一页', 'Previous')} disabled={!page} onPress={() => setPage(value => value - 1)} /><Action title={local('下一页', 'Next')} disabled={(page + 1) * 20 >= (data?.total || 0)} onPress={() => setPage(value => value + 1)} /></View>
   </SafeAreaView>;
 }
-function Workspace({ route }: NativeStackScreenProps<Routes, 'Workspace'>) {
+function WebContent({ params, embedded = false }: { params: Routes['Workspace']; embedded?: boolean }) {
   const [error, setError] = useState('');
   const [retry, setRetry] = useState(0);
-  return <SafeAreaView edges={['bottom']} style={styles.screen}>{error && <ErrorNotice text={error} retry={() => { setError(''); setRetry(value => value + 1); }} />}
-    <WebView key={retry} source={{ uri: `${origin}/${route.params.id ? `?project=${encodeURIComponent(route.params.id)}` : ''}` }} sharedCookiesEnabled thirdPartyCookiesEnabled={false}
-      mixedContentMode="never" setSupportMultipleWindows={false} injectedJavaScriptBeforeContentLoaded="window.__SHOTLOOM_MOBILE__ = true; true;" onError={event => setError(event.nativeEvent.description)} onHttpError={event => setError(`HTTP ${event.nativeEvent.statusCode}`)} />
-  </SafeAreaView>;
+  const query = new URLSearchParams();
+  if (params.id) { query.set('project', params.id); query.set('route', 'creation'); }
+  else if (params.page) query.set('route', params.page);
+  if (params.panel) query.set('panel', params.panel);
+  if (params.folder) query.set('folder', params.folder);
+  // Workspace content has no native bridge. Embedded skill content uses the native tab bar.
+  const injected = `window.__SHOTLOOM_MOBILE__ = true; ${embedded ? `document.addEventListener('DOMContentLoaded',function(){var s=document.createElement('style');s.textContent='.app-shell .sidebar-shell,.app-shell .topbar,.support-launcher{display:none!important}.app-shell .workspace{grid-template-rows:minmax(0,1fr)!important}';document.head.appendChild(s)});` : ''} true;`;
+  return <View style={styles.screen}>{error && <ErrorNotice text={error} retry={() => { setError(''); setRetry(value => value + 1); }} />}
+    <WebView key={retry} source={{ uri: `${origin}/?${query}` }} style={styles.screen} sharedCookiesEnabled thirdPartyCookiesEnabled={false}
+      mixedContentMode="never" setSupportMultipleWindows={false} injectedJavaScriptBeforeContentLoaded={injected} onError={event => setError(event.nativeEvent.description)} onHttpError={event => setError(`HTTP ${event.nativeEvent.statusCode}`)} />
+  </View>;
+}
+function Workspace({ route }: NativeStackScreenProps<Routes, 'Workspace'>) {
+  return <SafeAreaView edges={['bottom']} style={styles.screen}><WebContent params={route.params} /></SafeAreaView>;
 }
 export default function App() {
   const webview = useRef<WebView>(null);
@@ -157,10 +242,10 @@ export default function App() {
     try { await api.request('/auth/logout', 'POST'); user.current = null; setOpened(false); setAuthenticated(false); webview.current?.reload(); }
     catch (cause) { setFailure(errorText(cause)); }
   };
-  return <SafeAreaProvider><View style={styles.screen}><ApiContext.Provider value={api}>
+  return <SafeAreaProvider><View style={styles.screen}><ApiContext.Provider value={api}><LogoutContext.Provider value={() => void logout()}>
     {opened && <NavigationContainer linking={{ prefixes: ['shotloom-preview://'], config: { screens: { Feedback: 'feedback/:id', Notifications: 'notifications' } } }}>
-      <Stack.Navigator screenOptions={{ headerBackButtonDisplayMode: 'minimal', contentStyle: styles.screen }}>
-        <Stack.Screen name="Home" component={Home} options={{ title: 'Shotloom', headerRight: () => <Pressable accessibilityRole="button" onPress={() => void logout()}><Text>{t('cloud.logout')}</Text></Pressable> }} />
+      <Stack.Navigator screenOptions={{ headerBackButtonDisplayMode: 'minimal', contentStyle: styles.screen, headerShadowVisible: false, headerStyle: { backgroundColor: colors.background }, headerTintColor: colors.text, headerTitleStyle: { fontSize: 16, fontWeight: '500' } }}>
+        <Stack.Screen name="Home" component={Home} options={{ headerShown: false }} />
         <Stack.Screen name="Compose" component={Compose} options={{ title: t('support.submit') }} />
         <Stack.Screen name="Records" component={Records} options={{ title: t('support.history') }} />
         <Stack.Screen name="Feedback" component={Thread} options={{ title: t('support.title') }} />
@@ -181,6 +266,7 @@ export default function App() {
               const value = JSON.parse(event.nativeEvent.data);
               if (value.type === 'ready' && typeof value.userId === 'string') {
                 if (user.current && user.current !== value.userId) { setFailure(t('cloud.login.accountChanged')); setAuthenticated(false); return; }
+                if (value.locale === 'zh-CN' || value.locale === 'en-US') language = value.locale;
                 user.current = value.userId; setOpened(true); setAuthenticated(true); setFailure('');
               } else if (value.type === 'login') { setAuthenticated(false); api.disconnect(); }
               else if (value.type === 'response' && typeof value.id === 'string') api.receive(value);
@@ -188,23 +274,5 @@ export default function App() {
           }} />
       </SafeAreaView>
     </View>
-  </ApiContext.Provider></View></SafeAreaProvider>;
+  </LogoutContext.Provider></ApiContext.Provider></View></SafeAreaProvider>;
 }
-const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#fafafa' },
-  list: { padding: 20, gap: 16, flexGrow: 1 },
-  actions: { padding: 12, flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
-  row: { padding: 16, gap: 10, backgroundColor: '#ffffff', borderRadius: 12, borderWidth: 1, borderColor: '#e6e6e6' },
-  title: { fontSize: 17, fontWeight: '600', color: '#000000' },
-  body: { fontSize: 16, lineHeight: 24, color: '#202020' },
-  secondary: { fontSize: 13, color: '#606060', lineHeight: 20 },
-  button: { minHeight: 44, paddingHorizontal: 16, paddingVertical: 12, borderRadius: 10, backgroundColor: '#202020', alignItems: 'center' },
-  buttonText: { fontSize: 15, color: '#ffffff', fontWeight: '600' },
-  pressed: { opacity: 0.75 }, disabled: { opacity: 0.4 },
-  choice: { minHeight: 44, padding: 12, borderWidth: 1, borderRadius: 10, borderColor: '#c0c0c0' },
-  chosen: { borderColor: '#202020', backgroundColor: '#e6e6e6' },
-  input: { minHeight: 48, padding: 12, borderRadius: 10, borderWidth: 1, borderColor: '#c0c0c0', fontSize: 16, backgroundColor: '#ffffff' },
-  description: { minHeight: 180 }, notice: { padding: 16, gap: 8 }, error: { color: '#a12622', fontSize: 15 },
-  hiddenBridge: { position: 'absolute', width: 1, height: 1, opacity: 0 },
-  loginBridge: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, backgroundColor: '#ffffff' },
-});

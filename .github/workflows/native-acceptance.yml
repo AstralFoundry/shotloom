@@ -60,5 +60,13 @@ jobs:
             acceptance/android-authenticated.png
             acceptance/android-current.png
             acceptance/baseline.xml
+            acceptance/android-account.png
+            acceptance/android-feedback.png
+            acceptance/android-records.png
+            acceptance/android-notifications.png
+            acceptance/account.xml
+            acceptance/feedback.xml
+            acceptance/records.xml
+            acceptance/notifications.xml
           if-no-files-found: warn
           retention-days: 14
