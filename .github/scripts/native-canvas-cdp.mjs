@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { writeFile } from 'node:fs/promises';
+import { access, writeFile } from 'node:fs/promises';
 
 // Visual test only: the isolated session has no paid gateway credentials.
 // Project loading/saving and authentication continue to use the live API.
@@ -72,9 +72,20 @@ assert.ok(before?.ready, 'Canvas did not mount');
 assert.ok(before.scrollWidth <= before.width, 'Canvas causes horizontal page overflow');
 await writeFile('acceptance/canvas-ready.json', JSON.stringify(before));
 console.log('CANVAS_READY', JSON.stringify(before));
-await pause(15000);
+async function marker(name) {
+  for (let i = 0; i < 120; i++) {
+    try { await access(`acceptance/${name}.marker`); return; } catch { await pause(500); }
+  }
+  throw new Error(`Android gesture was not performed: ${name}`);
+}
+await marker('canvas-zoom');
+const zoomed = await inspect();
+assert.notEqual(zoomed.transform, before.transform, 'Android zoom did not change the canvas viewport');
+await writeFile('acceptance/canvas-zoom.json', JSON.stringify(zoomed));
+await marker('canvas-pan');
 const after = await inspect();
-assert.notEqual(after.transform, before.transform, 'Android zoom/pan did not change the canvas viewport');
-await writeFile('acceptance/canvas-interaction.json', JSON.stringify({ before, after, fixtures: ['/api/auth/account', '/api/models'] }));
+assert.notEqual(after.transform, zoomed.transform, 'Android pan did not move the canvas viewport');
+assert.equal(after.transform.match(/scale\([^)]+\)/)?.[0], zoomed.transform.match(/scale\([^)]+\)/)?.[0], 'Pan unexpectedly changes zoom');
+await writeFile('acceptance/canvas-interaction.json', JSON.stringify({ before, zoomed, after, fixtures: ['/api/auth/account', '/api/models'] }));
 console.log('CANVAS_INTERACTION_PASSED', JSON.stringify(after));
 ws.close();

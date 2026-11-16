@@ -130,7 +130,15 @@ adb exec-out screencap -p > acceptance/android-canvas.png
 tap_text '^＋$'
 wait_for_ui canvas-zoom '110%'
 adb exec-out screencap -p > acceptance/android-canvas-zoom.png
+touch acceptance/canvas-zoom.marker
+for attempt in {1..15}; do
+  if [ -f acceptance/canvas-zoom.json ]; then break; fi
+  sleep 1
+done
+test -f acceptance/canvas-zoom.json
 adb shell input swipe 320 950 450 1100 600
+sleep 2
+touch acceptance/canvas-pan.marker
 wait "$canvas_check"
 adb exec-out screencap -p > acceptance/android-canvas-pan.png
 adb shell input keyevent 4
