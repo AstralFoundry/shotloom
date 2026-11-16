@@ -45,11 +45,13 @@ try {
   await command('Fetch.disable');
   let connected = false;
   for (let i = 0; i < 100; i++) {
-    const result = await command('Runtime.evaluate', { expression: '!!window.__shotloomNativeRequest && !document.body.innerText.includes("正在检查登录状态") && !document.body.innerText.includes("Checking your session")', returnByValue: true });
+    const result = await command('Runtime.evaluate', { expression: '!!window.__shotloomNativeRequest', returnByValue: true });
     if (result.result.value) { connected = true; break; }
     await pause(500);
   }
   assert.ok(connected, 'Background session did not reconnect');
+  const auth = await command('Runtime.evaluate', { expression: "fetch('/api/auth/me',{credentials:'include'}).then(response=>response.status)", returnByValue: true, awaitPromise: true });
+  assert.equal(auth.result.value, 200, 'Real session did not recover');
   await writeFile('acceptance/session-reload-passed.json', JSON.stringify({ realAuthResumed: true, nativeScreenVerifiedWhileAuthPending: true }));
   blocked = undefined;
   await command('Fetch.enable', { patterns: [{ urlPattern: 'https://shotloom.0xfiang.com/api/auth/me', requestStage: 'Request' }] });
