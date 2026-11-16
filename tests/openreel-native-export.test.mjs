@@ -1,17 +1,18 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createRendererEnv } from './helpers/rendererSsr.mjs';
+import { installDesktopBridge } from './helpers/desktopBridge.mjs';
 
 test('native editor export scopes opaque jobs and cancels unfinished jobs on dispose', async () => {
   const env = await createRendererEnv({ withWindow: true });
   try {
     const calls = [];
     let valid = true, nextId = 0;
-    window.__TAURI_INTERNALS__ = { invoke: async (command, args) => {
+    installDesktopBridge({ invoke: async (command, args) => {
       calls.push({ command, args });
       if (command === 'openreel_export_start') return `job-${++nextId}`;
       if (command === 'openreel_export_finish') return { filePath: '/project/assets/actual.webm', filename: 'actual.webm', size: 50, codec: 'vp9', format: 'webm' };
-    } };
+    } });
     const { createNativeEditorExport } = await env.load('services/openReelNativeExport');
     const owner = createNativeEditorExport('/project', () => { if (!valid) throw new Error('stale project'); });
     const id = await owner.bridge.start({ width: 2, height: 2, totalFrames: 1, frameRate: 1, codec: 'vp9', format: 'webm', audioSampleRate: 48000, audioChannels: 2 });
@@ -35,10 +36,10 @@ test('native export cancels a job when ownership changes while start is pending'
   try {
     let valid = true;
     const cancelled = [];
-    window.__TAURI_INTERNALS__ = { invoke: async (command, args) => {
+    installDesktopBridge({ invoke: async (command, args) => {
       if (command === 'openreel_export_start') { valid = false; return 'pending-job'; }
       if (command === 'openreel_export_cancel') cancelled.push(args.jobId);
-    } };
+    } });
     const { createNativeEditorExport } = await env.load('services/openReelNativeExport');
     const owner = createNativeEditorExport('/project', () => { if (!valid) throw new Error('switched node'); });
     await assert.rejects(owner.bridge.start({}), /switched node/);
@@ -56,7 +57,7 @@ test('native export bridge localizes explicit IPC errors in both languages and p
     const env = await createRendererEnv({ withWindow: true, storage: new Map([['shotloom:locale', locale]]) });
     try {
       let failure = JSON.stringify({ type: 'shotloom:localized-error', key: 'native.error.cf621a4f6c', params: {}, fallback: 'fallback' });
-      window.__TAURI_INTERNALS__ = { invoke: async () => { throw failure; } };
+      installDesktopBridge({ invoke: async () => { throw failure; } });
       const { createNativeEditorExport } = await env.load('services/openReelNativeExport');
       const owner = createNativeEditorExport('/project', () => {});
       await assert.rejects(owner.bridge.start({}), { message: expected });

@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from '@/desktop/core.ts';
 import { canvasViewData } from '@/app/adapters/canvasAdapter';
 import { saveProject, store } from '@/store/projectStore';
 import { desktopApi } from '@/services/desktopApi';
@@ -18,7 +18,7 @@ declare global {
 }
 
 export function installAgentE2eHook(): () => void {
-  if (!import.meta.env.DEV || !window.__TAURI_INTERNALS__) return () => undefined;
+  if (!import.meta.env.DEV || !window.shotloomDesktop) return () => undefined;
   const hook: E2eHook = {
     click(selector) {
       const element = document.querySelector<HTMLElement>(selector);

@@ -1,4 +1,4 @@
-import { convertFileSrc } from "@tauri-apps/api/core";
+import { convertFileSrc } from "@/desktop/core.ts";
 import { desktopApi } from "./desktopApi.ts";
 
 /**

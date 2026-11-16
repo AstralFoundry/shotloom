@@ -111,7 +111,7 @@ function runtimeSummary() {
     locale: getLocale(),
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
-    desktop: Boolean(globalThis.window?.__TAURI_INTERNALS__),
+    desktop: Boolean(globalThis.window?.shotloomDesktop),
     nodeCount: Array.isArray(store.project?.nodes) ? store.project.nodes.length : 0,
     edgeCount: Array.isArray(store.project?.edges) ? store.project.edges.length : 0,
     taskCount: Array.isArray(store.project?.tasks) ? store.project.tasks.length : 0,

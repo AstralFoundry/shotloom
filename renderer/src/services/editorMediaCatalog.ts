@@ -1,7 +1,7 @@
 import { t } from '../i18n/index.ts';
 import { inferMediaType } from '../utils/mediaType.ts';
 import { createNodeMediaCatalog, selectedNodeMedia } from "../utils/nodeMedia.ts";
-import { convertFileSrc } from "@tauri-apps/api/core";
+import { convertFileSrc } from "@/desktop/core.ts";
 import { store } from "../store/projectStore.ts";
 import { desktopApi } from "./desktopApi.ts";
 import { agentNodeAliasMaps } from "./agentCanvasSnapshot.ts";

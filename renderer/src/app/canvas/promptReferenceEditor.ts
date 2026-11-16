@@ -1,5 +1,5 @@
 import { t } from '@/i18n';
-import { convertFileSrc } from "@tauri-apps/api/core";
+import { convertFileSrc } from "@/desktop/core.ts";
 import type { WorkflowIncomingInput } from "./WorkflowCanvas";
 import { generationMediaKind } from "./generationNodeMedia";
 

@@ -479,6 +479,6 @@ function createBrowserFallback() {
 }
 
 const browserFallback = createBrowserFallback();
-const isTauri = typeof window !== 'undefined' && Boolean(window.__TAURI_INTERNALS__);
+const isDesktop = typeof window !== 'undefined' && Boolean(window.shotloomDesktop);
 
-export const desktopApi = isTauri ? createTauriApi(browserFallback) : browserFallback;
+export const desktopApi = isDesktop ? createTauriApi(browserFallback) : browserFallback;

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { convertFileSrc } from "@tauri-apps/api/core";
+import { convertFileSrc } from "@/desktop/core.ts";
 import { desktopApi } from "../../services/desktopApi.ts";
 import {
   acquireMediaPreview,

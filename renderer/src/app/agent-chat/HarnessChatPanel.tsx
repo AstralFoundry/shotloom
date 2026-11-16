@@ -1,6 +1,6 @@
 import { getLocale, t } from '@/i18n';
 import { CANVAS_AGENT_ID, DIRECTOR_AGENT_ID, EDITOR_AGENT_ID, TEXT_AGENT_ID } from '../../agent/agents/definitions';
-import { convertFileSrc } from '@tauri-apps/api/core';
+import { convertFileSrc } from '@/desktop/core.ts';
 import { selectedNodeMedia, localMediaPath } from '../../utils/nodeMedia';
 import { inferMediaType } from '../../utils/mediaType';
 import { openMediaViewer } from '../store/overlayStore';

@@ -12,6 +12,8 @@
     "prebuild:desktop": "npm run prepare:director-desk && npm run prepare:openreel && npm run prepare:media",
     "pretauri": "npm run prepare:media",
     "dev": "node scripts/tauri.mjs dev",
+    "dev:electron": "node scripts/electron-dev.mjs",
+    "smoke:electron": "node scripts/electron-dev.mjs --smoke",
     "dev:web": "node --max-http-header-size=65536 node_modules/vite/bin/vite.js",
     "prepare:screenshots": "node scripts/prepare-react-screenshots.mjs",
     "build": "npm run prepare:plugins && npm run config:generate && npm run prepare:director-desk && npm run prepare:harness && npm run prepare:openreel && npm run prepare:screenshots && vite build",
@@ -20,6 +22,7 @@
     "config:check": "node scripts/generate-shotloom-defaults.mjs --check",
     "prepare:director-desk": "node scripts/prepare-director-desk.mjs",
     "build:desktop": "node scripts/tauri.mjs build",
+    "build:electron": "node scripts/build-electron.mjs",
     "tauri": "node scripts/tauri.mjs",
     "check": "npm run config:check && npm run typecheck && npm run check:i18n && npm run check:storage && npm run check:layers && npm run check:styles && npm run check:ui && npm run check:tests && npm test",
     "test": "node --test tests/*.test.mjs",
@@ -36,7 +39,8 @@
     "check:i18n": "node scripts/generate-i18n-types.mjs --check",
     "verify:product": "npm run prepare:openreel && npm run prepare:screenshots && npm run check && npm run harness:test && npm run build && npm run harness:verify-package",
     "release:version": "node scripts/desktop-release.mjs version",
-    "prepare:plugins": "node scripts/prepare-provider-plugins.mjs"
+    "prepare:plugins": "node scripts/prepare-provider-plugins.mjs",
+    "typecheck:electron": "tsc --noEmit -p tsconfig.electron.json"
   },
   "dependencies": {
     "@ant-design/icons": "^6.3.4",
@@ -65,11 +69,13 @@
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.11.4",
+    "@types/node": "^24.19.2",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
     "@types/semver": "^7.8.0",
     "@types/three": "^0.185.0",
     "@vitejs/plugin-react": "5.2.0",
+    "electron": "^44.10.2",
     "esbuild": "0.28.1",
     "ffmpeg-static": "^5.3.0",
     "ffprobe-static": "3.1.0",
@@ -80,5 +86,6 @@
   "engines": {
     "node": ">=22.19.0",
     "npm": ">=10.0.0"
-  }
+  },
+  "main": "dist/electron/main.cjs"
 }

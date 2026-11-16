@@ -2,7 +2,7 @@ import { t } from '../i18n/index.ts';
 import { isRecord } from '@/utils/typeGuards';
 import { mediaExtension, MEDIA_MIME_BY_EXTENSION } from '@/utils/mediaType.ts';
 import { projectAssetRoot as resolveProjectAssetRoot } from '@/utils/assetPaths.ts';
-import { invoke as nativeInvoke, type InvokeArgs, type InvokeOptions } from '@tauri-apps/api/core';
+import { invoke as nativeInvoke, type InvokeArgs, type InvokeOptions } from '../desktop/core.ts';
 import { localizeNativeError } from '../i18n/index.ts';
 
 async function invoke<T>(cmd: string, args?: InvokeArgs, options?: InvokeOptions): Promise<T> {
@@ -14,11 +14,11 @@ async function invoke<T>(cmd: string, args?: InvokeArgs, options?: InvokeOptions
   }
 }
 
-import { listen } from '@tauri-apps/api/event';
-import { getCurrentWindow } from '@tauri-apps/api/window';
-import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog';
-import { check as checkUpdate, type Update } from '@tauri-apps/plugin-updater';
-import { relaunch } from '@tauri-apps/plugin-process';
+import { listen } from '../desktop/event.ts';
+import { getCurrentWindow } from '../desktop/window.ts';
+import { open as openDialog, save as saveDialog } from '../desktop/dialog.ts';
+import { check as checkUpdate, type Update } from '../desktop/updater.ts';
+import { relaunch } from '../desktop/process.ts';
 import { withBuiltInSkills, withoutBuiltInSkills } from './builtInSkills';
 import { withBuiltInRecipes, withoutBuiltInRecipes } from './builtInRecipes';
 import { modelJsonRequestBody, modelRequestEntries } from '@/utils/modelRequestBody.ts';

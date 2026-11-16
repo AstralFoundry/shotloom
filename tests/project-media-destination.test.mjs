@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test, { before, after } from 'node:test';
 import { createRendererEnv } from './helpers/rendererSsr.mjs';
+import { installDesktopBridge } from './helpers/desktopBridge.mjs';
 
 let env, store, api;
 const calls = [];
@@ -8,15 +9,14 @@ before(async () => {
   env = await createRendererEnv({ storage: new Map(), withWindow: true });
   ({ store } = await env.load('store/projectStore'));
   const { createTauriApi } = await env.load('services/tauriApi');
-  window.__TAURI_INTERNALS__ = {
-    metadata: { currentWindow: { label: "main" } },
+  installDesktopBridge({
     invoke: async (command, args) => {
       calls.push({ command, args });
       if (command === 'file_resolve_unique_path') return `${args.directory}/${args.name}`;
       if (command === 'generation_download') return { filePath: args.request.target };
       return null;
     },
-  };
+  });
   api = createTauriApi({});
 });
 after(async () => env?.dispose());

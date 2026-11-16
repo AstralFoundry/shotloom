@@ -40,3 +40,6 @@ vendor/shotloom-director-desk/test-assets/
 # Generated default plugin distribution archives
 src-tauri/resources/provider-plugins/
 renderer/public/provider-plugins/
+
+# 本地临时产物（Electron 冒烟数据、npm 缓存隔离）
+/tmp/

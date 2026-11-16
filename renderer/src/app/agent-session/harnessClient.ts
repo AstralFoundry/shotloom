@@ -1,4 +1,4 @@
-import { Channel, invoke } from '@tauri-apps/api/core';
+import { Channel, invoke } from '@/desktop/core.ts';
 
 export interface HarnessProductHost {
   sessionId: string; agentId: string; locale: string; tools: string[]; toolTitles: Record<string, string>;

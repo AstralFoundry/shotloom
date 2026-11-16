@@ -1,5 +1,5 @@
 import { t } from '@/i18n';
-import { convertFileSrc } from "@tauri-apps/api/core";
+import { convertFileSrc } from "@/desktop/core.ts";
 import { desktopApi } from "../../services/desktopApi";
 import { copyFileIntoProjectAssets, inferFileResourceType } from "../../store/assetStore";
 import { store } from "../../store/projectStore";

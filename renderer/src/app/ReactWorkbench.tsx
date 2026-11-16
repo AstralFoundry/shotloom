@@ -7,8 +7,8 @@ import type { VideoEditorIntent } from "./editor/openReel/types";
 import { Modal } from "antd";
 import { ConfirmHost } from "./ui/confirm/ConfirmHost";
 import { useEffect, useReducer, useState, useSyncExternalStore } from "react";
-import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
+import { invoke } from "@/desktop/core.ts";
+import { listen } from "@/desktop/event.ts";
 import { registerWindowCloseGuard } from "./windowCloseGuard";
 import { desktopApi } from "../services/desktopApi.ts";
 import {

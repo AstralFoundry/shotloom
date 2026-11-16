@@ -9,15 +9,18 @@ const root = path.resolve(import.meta.dirname, '../renderer/src');
 const directorVendorRoot = path.resolve(import.meta.dirname, '../vendor/shotloom-director-desk/src');
 
 const LAYERS = {
-  app: ['app', 'agent', 'services', 'store', 'domain', 'config', 'utils', 'i18n', 'assets'],
-  agent: ['agent', 'services', 'store', 'domain', 'config', 'utils', 'i18n', 'assets'],
-  services: ['services', 'agent', 'store', 'domain', 'config', 'utils', 'i18n', 'assets'],
-  store: ['store', 'services', 'domain', 'config', 'utils', 'i18n', 'assets'],
+  app: ['app', 'agent', 'services', 'desktop', 'store', 'domain', 'config', 'utils', 'i18n', 'assets'],
+  agent: ['agent', 'services', 'desktop', 'store', 'domain', 'config', 'utils', 'i18n', 'assets'],
+  services: ['services', 'desktop', 'agent', 'store', 'domain', 'config', 'utils', 'i18n', 'assets'],
+  store: ['store', 'services', 'desktop', 'domain', 'config', 'utils', 'i18n', 'assets'],
   domain: ['domain', 'config', 'utils', 'i18n', 'assets'],
   config: ['config', 'utils', 'i18n', 'assets'],
   utils: ['utils', 'i18n', 'assets'],
   // 纯文案字典与插值函数，不依赖状态、服务或 UI，可供各层输出产品提示。
   i18n: ['i18n'],
+  // 桌面壳传输层：Electron preload 暴露的 invoke/listen/Channel/convertFileSrc。
+  // 业务层只认这一份契约，不允许自己 import electron 或 @tauri-apps/*。
+  desktop: ['desktop', 'utils', 'i18n'],
   // 静态资产目录：只有 svg，不产生依赖，登记在此只为让目录清单完整。
   assets: ['assets'],
 };

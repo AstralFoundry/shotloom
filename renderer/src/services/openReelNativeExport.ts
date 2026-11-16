@@ -1,4 +1,4 @@
-import { invoke as nativeInvoke, type InvokeArgs } from '@tauri-apps/api/core';
+import { invoke as nativeInvoke, type InvokeArgs } from '@/desktop/core.ts';
 import { localizeNativeError, t } from '../i18n/index.ts';
 import type { ClipStudioNativeExport, NativeExportReceipt } from '../../../vendor/openreel/apps/web/src/embedded/runtime-types';
 

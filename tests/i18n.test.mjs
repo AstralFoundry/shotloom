@@ -2,6 +2,7 @@ import { after, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readSource } from './helpers/sourceContract.mjs';
 import { createRendererEnv } from './helpers/rendererSsr.mjs';
+import { installDesktopBridge } from './helpers/desktopBridge.mjs';
 
 const env = await createRendererEnv();
 after(() => env.dispose());
@@ -214,32 +215,25 @@ test('模型网关的普通 IPC 和流式错误事件均翻译显式信封，保
     const key = Object.keys(zh).find(key => zh[key] === '模型网络请求失败：{error}');
     const rawDetail = 'socket closed {error} 原始详情';
     let failure = JSON.stringify({ type: 'shotloom:localized-error', key, params: { error: rawDetail }, fallback: 'fallback' });
-    let callback;
-    let unlistened = 0;
-    window.__TAURI_EVENT_PLUGIN_INTERNALS__ = { unregisterListener: () => { unlistened++; } };
-    window.__TAURI_INTERNALS__ = {
-      metadata: { currentWindow: { label: 'main' } },
-      transformCallback: handler => { callback = handler; return 1; },
-      invoke: async (command, args) => {
-        if (command === 'plugin:event|listen') return 1;
-        if (command === 'plugin:event|unlisten') return;
-        if (command === 'generation_request') throw failure;
-        if (command === 'generation_stream') {
-          callback({ payload: { requestId: args.request.requestId, error: failure, done: true } });
-          return { status: 200, body: '{}', contentType: 'text/event-stream' };
-        }
-        throw new Error(`Unexpected test command: ${command}`);
-      },
-    };
+    let bridge;
+    const unlistened = () => bridge.disposed.length;
+    bridge = installDesktopBridge({ invoke: async (command, args) => {
+      if (command === 'generation_request') throw failure;
+      if (command === 'generation_stream') {
+        queueMicrotask(() => bridge.emit('generation-stream-event', { requestId: args.request.requestId, error: failure, done: true }));
+        return { status: 200, body: '{}', contentType: 'text/event-stream' };
+      }
+      throw new Error(`Unexpected test command: ${command}`);
+    } });
     const { createTauriApi } = await instance.load('services/tauriApi');
     const api = createTauriApi({});
     const expected = `The model network request failed: ${rawDetail}`;
     await assert.rejects(api.model.chatCompletion({}), { message: expected });
     await assert.rejects(api.model.chatCompletionStream({}), { message: expected });
-    assert.equal(unlistened, 1);
+    assert.equal(unlistened(), 1);
     failure = 'upstream failure {error}';
     await assert.rejects(api.model.chatCompletionStream({}), { message: failure });
-    assert.equal(unlistened, 2);
+    assert.equal(unlistened(), 2);
   } finally { await instance.dispose(); }
 });
 
@@ -274,19 +268,14 @@ test('Agent 启动的直接 IPC 与状态错误均使用界面语言，未登记
     const detail = 'spawn /用户/Agent {error}: ENOENT';
     const envelope = JSON.stringify({ type: 'shotloom:localized-error', key: 'native.harness.startFailed', params: { error: detail }, fallback: '启动失败' });
     let mode = 'reject';
-    window.__TAURI_INTERNALS__ = {
-      metadata: { currentWindow: { label: 'main' } },
-      transformCallback: () => 1,
-      invoke: async command => {
-        if (command === 'plugin:event|listen') return 1;
-        if (command === 'start_harness_runtime') {
-          if (mode === 'reject') throw envelope;
-          if (mode === 'status') return { running: false, error: envelope };
-          throw '厂商返回原始错误 {error}';
-        }
-        throw new Error(`Unexpected test command: ${command}`);
-      },
-    };
+    installDesktopBridge({ invoke: async command => {
+      if (command === 'start_harness_runtime') {
+        if (mode === 'reject') throw envelope;
+        if (mode === 'status') return { running: false, error: envelope };
+        throw '厂商返回原始错误 {error}';
+      }
+      throw new Error(`Unexpected test command: ${command}`);
+    } });
     const { desktopApi } = await instance.load('services/desktopApi');
     desktopApi.platform = 'macos';
     const { startHarnessIntegration } = await instance.load('app/agent-session/harnessIntegration');

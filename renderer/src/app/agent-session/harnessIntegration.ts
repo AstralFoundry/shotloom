@@ -1,7 +1,7 @@
 import { t, localizeNativeError } from '@/i18n';
 import { CANVAS_AGENT_ID, DIRECTOR_AGENT_ID, EDITOR_AGENT_ID } from '../../agent/agents/definitions';
-import { invoke as nativeInvoke, type InvokeArgs } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
+import { invoke as nativeInvoke, type InvokeArgs } from '@/desktop/core.ts';
+import { listen } from '@/desktop/event.ts';
 import { harnessModelConfig } from '../../services/harnessModelConfig';
 import { availableAgentSkills } from '../../agent/tools/catalogTools';
 import { desktopApi } from '../../services/desktopApi';
