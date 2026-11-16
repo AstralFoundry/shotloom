@@ -203,19 +203,21 @@
 .skill-editor-note svg { width: var(--icon-sm); height: var(--icon-sm); }
 .skill-editor-error { margin: 0; padding: 8px 10px; border-radius: var(--radius-sm); color: var(--bad); background: var(--bad-wash); font-size: var(--text-caption-10); }
 
-/* 技能编辑抽屉：弹层、遮罩、焦点和进出场由 antd Drawer 负责，这里只保留产品外壳。 */
+/* 技能编辑抽屉：弹层、遮罩、焦点和进出场由 antd Drawer 负责，这里只保留产品外壳。
+   抽屉贴住窗口四边，不再保留 4px 窗框和圆角，避免顶部、左侧、底部露出边距。 */
 .skills-drawer .ant-drawer-content-wrapper {
   box-sizing: border-box;
   max-width: 92vw;
-  padding: 4px 0 4px 4px;
+  padding: 0;
 }
 
 /* v6 的 Drawer 面板类名是 section，不是 content。 */
 .skills-drawer .ant-drawer-section {
   height: 100%;
   overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: var(--workbench-radius);
+  border: 0;
+  border-left: 1px solid var(--line);
+  border-radius: 0;
   background: var(--surface);
 }
 

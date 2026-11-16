@@ -1,0 +1,56 @@
+/* 3D 导演台属性面板：宿主侧的控件尺寸微调。
+   导演台源码在 vendor/shotloom-director-desk，直接改 `src/` 会在
+   `prepare:director-desk` 构建或上游同步时被覆盖；这份样式由宿主在
+   iframe 加载后注入，只覆盖尺寸与间距，不参与导演台业务逻辑。 */
+#director-inspector .ant-input {
+  height: 28px;
+  padding: 4px 8px;
+}
+
+#director-inspector .ant-input-number {
+  height: 28px;
+  /* 去掉 antd 默认 6px 内边距，把宽度让给 x/y/z 前缀和 200.000 这类长值。 */
+  padding-inline: 0;
+}
+
+#director-inspector .ant-input-number .ant-input-number-input {
+  height: 26px;
+  line-height: 26px;
+}
+
+/* antd 6 的下拉框内部结构已改为 .ant-select-content，只需要约束单选根节点高度；
+   旧版 .ant-select-selector 选择器在导演台里本来就是空规则。 */
+#director-inspector .ant-select-single {
+  height: 28px;
+}
+
+#director-inspector .field-row__content > .inline:has(.ant-color-picker-trigger) {
+  height: 28px;
+  min-height: 0;
+  padding: 1px 8px;
+}
+
+/* 控件从 24px 提到 28px，同时收紧行距，让整块属性面板的高度基本不变。 */
+#director-inspector .stack {
+  gap: 9px;
+}
+
+#director-inspector .field-row {
+  gap: 5px;
+}
+
+/* 滑块右侧的数值框与其它控件同高，并给 1.75、100 这类值留出余量。 */
+#director-inspector .slider-field__input {
+  width: 80px;
+}
+
+/* 字段高度变高后，x/y/z 前缀不再额外占 23px 的左内边距；
+   280px 窄面板下 200.000 这类值也能完整显示。 */
+#director-inspector .axis-field > span {
+  left: 8px;
+}
+
+#director-inspector .axis-field .ant-input-number-input {
+  padding-left: 18px;
+  padding-right: 4px;
+}

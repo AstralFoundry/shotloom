@@ -21,6 +21,7 @@ const electronBinary = require('electron');
  */
 export function ensureElectronResources() {
   const required = [
+    { file: ['renderer', 'public', 'director-desk-app', 'index.html'], script: 'prepare:director-desk' },
     { file: ['electron', 'resources', 'provider-plugins', 'index.json'], script: 'prepare:plugins' },
     { file: ['electron', 'resources', 'agent-host', 'dist', 'main.js'], script: 'prepare:harness' },
     { file: ['renderer', 'src', 'config', 'shotloom-defaults.generated.json'], script: 'config:generate' },

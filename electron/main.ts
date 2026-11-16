@@ -26,8 +26,11 @@ const isDevelopment = Boolean(process.env.SHOTLOOM_DEV_URL);
 const smoke = process.env.SHOTLOOM_SMOKE;
 if (process.env.SHOTLOOM_USER_DATA) app.setPath('userData', process.env.SHOTLOOM_USER_DATA);
 if (smoke) {
-  // Agent/CI 的沙箱里没有可用的 GPU 与 Chromium sandbox：冒烟模式只验证主进程与 IPC。
-  app.disableHardwareAcceleration();
+  // 保留 WebGL，覆盖导演台实际渲染；非 macOS 的 CI 使用软件后端。
+  if (process.platform !== 'darwin') {
+    app.commandLine.appendSwitch('use-angle', 'swiftshader');
+    app.commandLine.appendSwitch('enable-unsafe-swiftshader');
+  }
   app.commandLine.appendSwitch('no-sandbox');
 }
 const rootDir = process.env.SHOTLOOM_ROOT || app.getAppPath();
@@ -325,7 +328,31 @@ async function runSmoke(window: BrowserWindow): Promise<void> {
         }
         const added = await invoke('recent_add', { project: { filePath: saved.ok ? saved.value.filePath : '', name: 'Smoke Project' } });
         const removed = await invoke('recent_remove', { path: saved.ok ? saved.value.filePath : '' });
+        // 独立导演台有自己的依赖树，主页面能启动不代表其 React 与渲染引擎可用。
+        const director = await new Promise(resolve => {
+          const frame = document.createElement('iframe');
+          frame.style.cssText = 'position:fixed;inset:0;width:1280px;height:800px';
+          let ready = false;
+          const receive = event => {
+            if (event.source === frame.contentWindow && event.origin === location.origin
+              && event.data?.type === 'storyai:director-desk-ready') ready = true;
+          };
+          window.addEventListener('message', receive);
+          frame.src = './director-desk-app/index.html?workspace=smoke';
+          document.body.append(frame);
+          const deadline = Date.now() + 15000;
+          const timer = setInterval(() => {
+            const editor = Boolean(frame.contentDocument?.querySelector('.editor'));
+            const canvases = frame.contentDocument?.querySelectorAll('canvas').length || 0;
+            if (!(ready && editor && canvases) && Date.now() < deadline) return;
+            clearInterval(timer);
+            window.removeEventListener('message', receive);
+            frame.remove();
+            resolve({ ready, editor, canvases });
+          }, 100);
+        });
         return {
+          director,
           bridge: Boolean(window.shotloomDesktop),
           platform: await invoke('platform'),
           appHtmlLength: document.querySelector('#app')?.innerHTML.length ?? 0,
@@ -353,6 +380,7 @@ async function runSmoke(window: BrowserWindow): Promise<void> {
       console.log(`[smoke] ${JSON.stringify(report)}`);
       if (consoleErrors.length) console.log(`[smoke] console errors: ${JSON.stringify(consoleErrors.slice(0, 5))}`);
       const passed = report.bridge && report.platform?.ok === true && report.platform.value === process.platform && report.appHtmlLength > 0
+        && report.director?.ready && report.director.editor && report.director.canvases > 0
         && report.settingsVersion === 7 && typeof report.projectsRoot === 'string' && typeof report.recentCount === 'number'
         && report.storageOk && typeof report.diagnosticsBytes === 'number' && report.diagnosticsBytes > 0
         && report.savedNodes === 1 && report.readRevision === 1 && report.historyEntries === 1

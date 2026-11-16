@@ -63,7 +63,7 @@ export const AGENT_DEFINITIONS: AgentDefinition[] = [
     tools: [
       ...canvasReadTools, ...canvasWriteTools, ...generationTools, ...catalogTools,
       'project_snapshot', 'project_save', 'project_export_package', 'canvas_prepare_editor',
-      'director_workspace_view',
+      'canvas_prepare_director',
       ...productionPlanWriteTools, ...productionPlanReadTools,
     ],
     skills: ['*'],
@@ -91,7 +91,7 @@ export const AGENT_DEFINITIONS: AgentDefinition[] = [
     title: t('agent.role.director'),
     description: '3D director desk agent with access to the open scene and canvas',
     effects: ['read', 'agent_state_write', 'project_write', 'canvas_write'],
-    tools: [...directorTools, ...canvasReadTools, 'project_snapshot', 'canvas_prepare_editor', 'director_workspace_view'],
+    tools: [...directorTools, ...canvasReadTools, 'project_snapshot', 'canvas_prepare_editor'],
     skills: ['director-desk-staging'],
   },
   {

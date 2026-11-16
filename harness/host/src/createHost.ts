@@ -227,25 +227,27 @@ export async function createHost(options: HostOptions) {
         return { kind: 'ask', reason: '执行 Bash 命令（受当前会话文件权限限制）' };
       });
       await options.registerTools?.(scope, binding);
-      if (binding.agentId === 'canvas-primary' || binding.agentId === 'director-primary') {
+      for (const specialist of ['editor', 'director'] as const) {
+        if (binding.toolSessionId || (specialist === 'director' ? binding.agentId !== 'canvas-primary' : !['canvas-primary', 'director-primary'].includes(binding.agentId))) continue;
+        const role = specialist === 'director' ? 'director-primary' : 'editor-primary';
         scope.tools.register({
-          name: 'delegate_editor',
-          description: '派发能实际剪辑的子 Agent。它绑定指定剪辑工程，可读取同一画布的剧本、字幕及真实媒体，导入视频并修改时间线。传递完整剪辑要求与已知节点 ID；nodeId 省略时使用独立剪辑工作台。等待子 Agent 执行结束并返回真实结果；运行期间写入审批显示在当前画布会话。',
+          name: `delegate_${specialist}`,
+          description: specialist === 'director' ? '派发可实际搭景、布置角色和机位、制作运镜并核验画面的导演子 Agent。nodeId 指定已有导演台节点，省略时绑定独立导演台场景。传递完整要求和已知素材节点 ID。后台准备对应场景，不切换用户界面；等待真实结果，写入审批归属当前父会话。' : '派发能实际剪辑的子 Agent。它绑定指定剪辑工程，可读取同一画布的剧本、字幕及真实媒体，导入视频并修改时间线。传递完整剪辑要求与已知节点 ID；nodeId 省略时使用独立剪辑工作台。等待子 Agent 执行结束并返回真实结果；运行期间写入审批显示在当前画布会话。',
           parameters: { type: 'object', properties: { nodeId: { type: 'string' }, prompt: { type: 'string' }, description: { type: 'string' } }, required: ['prompt', 'description'], additionalProperties: false },
           output: { schema: { type: 'object', additionalProperties: true }, render: (_args, value) => [{ type: 'text', text: JSON.stringify(value) }] },
           isConcurrencySafe: () => false,
           async execute(input, exec) {
             if (!exec.agent || String(exec.agent.session.id) !== binding.sessionId) return { success: false, code: 'SCOPE_MISMATCH' };
             const args = input as { nodeId?: string; prompt: string; description: string };
-            const prepare = scope.tools.get('canvas_prepare_editor', exec.agent);
-            if (!prepare) return { success: false, error: 'Editor delegation is unavailable in this workspace' };
-            const receipt = await prepare.execute(args.nodeId ? { nodeId: args.nodeId } : {}, { ...exec, callId: ToolCallId(`${exec.callId}:prepare-editor`) });
+            const prepare = scope.tools.get(`canvas_prepare_${specialist}`, exec.agent);
+            if (!prepare) return { success: false, error: `${specialist} delegation is unavailable in this workspace` };
+            const receipt = await prepare.execute(args.nodeId ? { nodeId: args.nodeId } : {}, { ...exec, callId: ToolCallId(`${exec.callId}:prepare-${specialist}`) });
             const result = (receipt as { result?: { result?: { success?: boolean; binding?: SessionBinding } } }).result?.result;
-            const editor = result?.binding;
-            const canonical = editor && bindings.find(item => item.sessionId === editor.sessionId);
-            if (!result?.success || !canonical || canonical.agentId !== 'editor-primary' || canonical.projectKey !== binding.projectKey
-              || canonical.nodeId !== editor?.nodeId || canonical.conversationId !== editor?.conversationId) {
-              return { success: false, error: 'Editor preparation did not return a trusted bound Session', receipt };
+            const specialistBinding = result?.binding;
+            const canonical = specialistBinding && bindings.find(item => item.sessionId === specialistBinding.sessionId);
+            if (!result?.success || !canonical || canonical.agentId !== role || canonical.projectKey !== binding.projectKey
+              || canonical.nodeId !== specialistBinding?.nodeId || canonical.conversationId !== specialistBinding?.conversationId) {
+              return { success: false, error: `${specialist} preparation did not return a trusted bound Session`, receipt };
             }
             const childId = SessionId(randomUUID());
             const childBinding: SessionBinding = { ...canonical, sessionId: String(childId), toolSessionId: canonical.sessionId, parentSessionId: binding.sessionId };

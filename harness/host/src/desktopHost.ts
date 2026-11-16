@@ -38,7 +38,7 @@ export async function startDesktopHost(options: {
   const host = await createHost({ ...options, scopedSkills: true, async registerTools(scope, binding) {
     const canonical = binding.toolSessionId ? host.binding(binding.toolSessionId) : binding;
     if (!canonical || canonical.agentId !== binding.agentId || canonical.projectKey !== binding.projectKey || canonical.nodeId !== binding.nodeId) {
-      throw new Error('Delegated editor binding is unavailable');
+      throw new Error('Delegated specialist binding is unavailable');
     }
     const catalog = catalogs.get(key(canonical));
     if (!catalog) throw new Error('Session has no trusted product tool catalog');

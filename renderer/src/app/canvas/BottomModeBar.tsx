@@ -26,6 +26,9 @@ export function BottomModeBar(
 ) {
   const [help, setHelp] = useState(false);
   const shortcuts = [
+    { label: t('canvas.gesture.pan'), keys: t('canvas.gesture.panKeys') },
+    { label: t('canvas.gesture.zoom'), keys: t('canvas.gesture.zoomKeys') },
+    { label: t('canvas.gesture.select'), keys: t('canvas.gesture.selectKeys') },
     { label: t("ui.BottomModeBar.label.a187522f"), keys: shortcutLabels.fitView },
     { label: t("ui.canvasAdapter.text.7ea05931"), keys: shortcutLabels.autoLayout },
     { label: t("ui.BottomModeBar.label.d4e529ba"), keys: "⌘/Ctrl Z · ⇧⌘/Ctrl Z" },

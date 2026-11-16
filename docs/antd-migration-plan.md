@@ -452,7 +452,7 @@ npx vite build
 
 | 位置 | 原实现 | 现在 |
 | :-- | :-- | :-- |
-| `views/SkillsView.tsx`、`styles/skills.css` | portal + 自绘遮罩 + `DRAWER_EXIT_MS` 进出场 | antd `Drawer`，只保留 4px 窗框和产品外壳 |
+| `views/SkillsView.tsx`、`styles/skills.css` | portal + 自绘遮罩 + `DRAWER_EXIT_MS` 进出场 | antd `Drawer`，只保留产品外壳，抽屉贴窗口四边 |
 | `views/AssetsView.tsx`、`views/MaterialsView.tsx` | 两套重命名弹窗、一套分类弹窗 | `Modal` + `Input`，共用 `rename-dialog-body` 样式 |
 | `views/AssetsView.tsx`、`views/MaterialsView.tsx`、`views/TasksView.tsx` | 三处右键菜单各自算坐标、钳边缘、点外关闭 | `components/ContextMenu.tsx` + `Dropdown`，边缘翻转交给组件 |
 | `agent-chat/HarnessSessionToolbar.tsx` | `<details>` + 手写 outside/Esc/blur | `Dropdown` + 分组菜单 |

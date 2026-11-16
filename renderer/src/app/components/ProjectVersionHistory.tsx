@@ -18,6 +18,7 @@ import { readProjectSnapshot } from '@/services/projectSnapshotService';
 import { snapshotPreview } from '@/domain/snapshots/SnapshotPolicy';
 import { formatTime } from '@/utils/format';
 import { EmptyState } from './EmptyState';
+import { ProjectSnapshotCanvas } from './ProjectSnapshotCanvas';
 
 const REASON_LABEL: Record<string, MessageKey> = {
   auto: 'project.version.reason.auto',
@@ -32,12 +33,18 @@ export function ProjectVersionHistory({ open, onClose }: { open: boolean; onClos
   useSyncExternalStore(subscribeDomain, getDomainRevision);
   const [selectedId, setSelectedId] = useState('');
   const [preview, setPreview] = useState<Preview | null>(null);
+  const [previewPayload, setPreviewPayload] = useState<Record<string, unknown> | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState(false);
+  const [loadedKey, setLoadedKey] = useState('');
   const [busy, setBusy] = useState(false);
+  const directory = store.projectDir;
+  const previewKey = `${directory}:${selectedId}`;
 
   useEffect(() => {
     if (!open) return;
     void loadProjectSnapshotList(store.projectDir);
-  }, [open]);
+  }, [open, directory]);
 
   useEffect(() => {
     if (!open) {
@@ -46,25 +53,40 @@ export function ProjectVersionHistory({ open, onClose }: { open: boolean; onClos
     }
   }, [open]);
 
+  useEffect(() => { setSelectedId(''); }, [directory]);
+
   useEffect(() => {
+    setPreview(null);
+    setPreviewPayload(null);
+    setPreviewError(false);
+    setLoadedKey('');
+    setPreviewLoading(false);
     if (!open || !selectedId) {
       setPreview(null);
       return;
     }
     let cancelled = false;
-    void readProjectSnapshot(store.projectDir, selectedId).then((payload) => {
-      if (!cancelled) setPreview(payload ? snapshotPreview(payload) : null);
-    });
+    setPreviewLoading(true);
+    void readProjectSnapshot(directory, selectedId).then((payload) => {
+      if (cancelled) return;
+      setPreview(payload ? snapshotPreview(payload) : null);
+      setPreviewPayload(payload);
+      setLoadedKey(`${directory}:${selectedId}`);
+      setPreviewError(!payload);
+    }).catch(() => { if (!cancelled) setPreviewError(true); })
+      .finally(() => { if (!cancelled) setPreviewLoading(false); });
     return () => { cancelled = true; };
-  }, [open, selectedId]);
+  }, [open, selectedId, directory]);
 
   function confirmRestore(snapshotId: string) {
+    if (loadedKey !== previewKey || !previewPayload) return;
     modal.confirm({
       title: t('project.version.restoreConfirmTitle'),
       content: t('project.version.restoreConfirmBody'),
       okText: t('project.version.restore'),
       cancelText: t('project.version.cancel'),
       onOk: async () => {
+        if (store.projectDir !== directory) return;
         setBusy(true);
         try {
           const result = await restoreProjectFromSnapshot(snapshotId);
@@ -124,9 +146,12 @@ export function ProjectVersionHistory({ open, onClose }: { open: boolean; onClos
           )}
         />
         <div className="version-history-preview">
-          {!preview && <p className="version-history-hint">{t('project.version.select')}</p>}
-          {preview && (
+          {previewLoading && <p role="status">{t('project.version.previewLoading')}</p>}
+          {previewError && <p role="alert">{t('project.version.previewError')}</p>}
+          {!preview && !previewLoading && !previewError && <p className="version-history-hint">{t('project.version.select')}</p>}
+          {preview && loadedKey === previewKey && (
             <>
+              {previewPayload && <ProjectSnapshotCanvas key={`${directory}:${selectedId}`} payload={previewPayload} />}
               <p className="version-history-hint">{t('project.version.previewHint')}</p>
               <p>
                 {t('project.version.counts', {

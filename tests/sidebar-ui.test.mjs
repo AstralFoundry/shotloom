@@ -37,6 +37,14 @@ test('悬停抽屉只改变宽度和文字，不改变工具图标几何尺寸',
   assert.match(styles, /\.sidebar-shell\.collapsed \.sidebar-brand \{[^}]*min-height:\s*54px[^}]*margin:\s*0 0 12px 3\.5px[^}]*padding:\s*3px 0 11px/);
 });
 
+test('侧栏收起时品牌行高度不变，导航图标不会在动画末尾上跳', () => {
+  // 品牌文字两行比品牌行的 min-height 高 6.5px；收起时若直接 display:none，
+  // 品牌行会在收起动画结束的瞬间缩回 54px，下面的图标和分隔线整体上移。
+  assert.doesNotMatch(styles, /\.sidebar-shell\.collapsed \.sidebar-brand-copy \{[^}]*display:\s*none/);
+  assert.match(styles, /\.sidebar-shell\.collapsed \.sidebar-brand-copy \{[^}]*visibility:\s*hidden;[^}]*width:\s*0/);
+  assert.match(styles, /\.sidebar-shell\.collapsed \.sidebar-brand \{[^}]*justify-content:\s*center;[^}]*gap:\s*0/);
+});
+
 test('侧栏关闭时保留详情直到抽屉和淡出动画完成', () => {
   assert.match(appShell, /sidebarPreviewClosing/);
   assert.match(appShell, /}, 220\)/);
@@ -95,7 +103,7 @@ test('侧栏使用 Shotloom 自有 Logo 和正确产品名', () => {
   assert.match(styles, /\.sidebar-brand img/);
   assert.match(styles, /\.sidebar-brand img \{[^}]*width:\s*32px[^}]*height:\s*32px[^}]*flex:\s*0 0 32px/);
   assert.doesNotMatch(styles, /\.sidebar-shell\.collapsed \.sidebar-brand img/);
-  assert.match(styles, /\.sidebar-shell\.collapsed \.sidebar-brand-copy \{ display: none; \}/);
+  assert.match(styles, /\.sidebar-shell\.collapsed \.sidebar-brand-copy \{[^}]*visibility:\s*hidden[^}]*width:\s*0/);
   assert.equal(sourceExists('renderer/public/shotloom-logo.png'), true);
   assert.doesNotMatch(sidebar, /Hoshi/);
 });
@@ -124,6 +132,8 @@ test('顶部栏不占布局高度并提供窄窗口拖拽区域', () => {
   assert.match(styles, /\.app-shell \{[\s\S]*?display:\s*block/);
   assert.match(styles, /\.topbar \{[\s\S]*?position:\s*absolute/);
   assert.match(topbar, /className="window-drag-strip" data-tauri-drag-region/);
+  assert.doesNotMatch(topbar, /className=\{`topbar[^>]+data-tauri-drag-region/);
+  assert.match(styles, /\.topbar \{[^}]*-webkit-app-region:\s*no-drag/);
   assert.match(styles, /\.window-drag-strip \{[^}]*height:\s*5px;[^}]*pointer-events:\s*auto;[^}]*-webkit-app-region:\s*drag/);
   assert.match(styles, /\.workspace \{[\s\S]*?height:\s*100%/);
   assert.match(styles, /padding:\s*4px 4px 4px 0/);

@@ -853,7 +853,8 @@ test('model-facing subagent tool starts a child and official runtime notifies it
   assert.ok(adapter.requests.some(request => request.messages.some(message => JSON.stringify(message).includes('咖啡杯特写'))));
 });
 
-test('canvas delegates a real editor child with live canvas tools, parent approvals and durable cold resume', { timeout: 20000 }, async t => {
+for (const specialist of ['editor', 'director']) test(`canvas delegates a real ${specialist} child with live canvas tools, parent approvals and durable cold resume`, { timeout: 20000 }, async t => {
+  const writeTool = specialist === 'editor' ? 'video_project_import_media' : 'director_desk_batch';
   const { startDesktopHost } = await import('../dist/desktopHost.js');
   const dataRoot = await mkdtemp(join(tmpdir(), 'shotloom-editor-delegation-'));
   let editorBinding, approved = true;
@@ -863,14 +864,14 @@ test('canvas delegates a real editor child with live canvas tools, parent approv
     const request = JSON.parse(text);
     res.setHeader('content-type', 'application/json');
     if (request.phase === 'authorize') {
-      res.end(JSON.stringify({ success: true, result: { success: true, approvalRequired: request.toolName === 'video_project_import_media' } }));
+      res.end(JSON.stringify({ success: true, result: { success: true, approvalRequired: request.toolName === writeTool } }));
       return;
     }
     let result;
-    if (request.toolName === 'canvas_prepare_editor') result = { success: true, binding: editorBinding };
+    if (request.toolName === `canvas_prepare_${specialist}`) result = { success: true, binding: editorBinding };
     else {
       assert.deepEqual(request.binding, editorBinding, 'child uses the exact native-authorized editor binding');
-      if (request.toolName === 'video_project_import_media') {
+      if (request.toolName === writeTool) {
         assert.equal(request.approvedByHarness, true);
         writes.push(request);
         result = { success: true, mediaId: 'actual-media', assetId: request.input.assetId };
@@ -896,29 +897,29 @@ test('canvas delegates a real editor child with live canvas tools, parent approv
     async resolveModel(provider, id) { return { provider, id, name: id }; }
     async *stream(request) {
       const names = request.tools.map(tool => tool.name);
-      if (names.includes('delegate_editor')) {
-        if (this.parentCalls++ === 0) yield* call('delegate_editor', { prompt: '读取画布字幕并导入视频', description: '剪辑字幕', nodeId: 'timeline-a' });
+      if (names.includes(`delegate_${specialist}`)) {
+        if (this.parentCalls++ === 0) yield* call(`delegate_${specialist}`, { prompt: '读取画布字幕并导入视频', description: '剪辑字幕', nodeId: 'timeline-a' });
         else yield* text('画布父 Agent 收到实际剪辑回报');
         return;
       }
       assert.ok(names.includes('canvas_get_node'));
-      assert.ok(names.includes('video_project_import_media'));
-      for (const forbidden of ['bash', 'subagent', 'delegate_editor', 'canvas_prepare_editor']) assert.ok(!names.includes(forbidden), forbidden);
-      assert.match(JSON.stringify(request.messages), /Canvas Sources and Delegation/);
+      assert.ok(names.includes(writeTool));
+      for (const forbidden of ['bash', 'subagent', `delegate_${specialist}`, `canvas_prepare_${specialist}`]) assert.ok(!names.includes(forbidden), forbidden);
+      if (specialist === 'editor') assert.match(JSON.stringify(request.messages), /Canvas Sources and Delegation/);
       if (this.childCalls++ === 0) yield* call('canvas_get_node', { nodeId: 'subtitle-source' });
       else if (this.childCalls === 2) {
         assert.match(JSON.stringify(request.messages), /真实字幕/);
-        yield* call('video_project_import_media', { assetId: 'canvas:video-a:output' });
+        yield* call(writeTool, { assetId: 'canvas:video-a:output' });
       } else yield* text('已读取真实字幕并导入 actual-media');
     }
   }
   const adapter = new EditorDelegationAdapter();
   desktop.host.ctx.llm.registerAdapter(['test'], adapter);
-  const editor = await bind({ ...binding, conversationId: 'editor-conversation', agentId: 'editor-primary', nodeId: 'timeline-a' }, [
-    tool('canvas_get_node', ['editor-primary']), tool('video_project_import_media', ['editor-primary'], 'write'),
+  const editor = await bind({ ...binding, conversationId: 'editor-conversation', agentId: `${specialist}-primary`, nodeId: 'timeline-a' }, [
+    tool('canvas_get_node', [`${specialist}-primary`]), tool(writeTool, [`${specialist}-primary`], 'write'),
   ]);
   editorBinding = desktop.host.binding(editor.sessionId);
-  const parent = await bind(binding, [tool('canvas_prepare_editor', ['canvas-primary'], 'write')]);
+  const parent = await bind(binding, [tool(`canvas_prepare_${specialist}`, ['canvas-primary'], 'write')]);
   let childAgent;
   desktop.host.ctx.on('agent/created', ({ agent }) => { if (desktop.host.binding(String(agent.session.id))?.toolSessionId) childAgent = agent; });
   const parentAgent = desktop.host.ctx.agents.get(parent.sessionId);
@@ -926,7 +927,7 @@ test('canvas delegates a real editor child with live canvas tools, parent approv
   await send(parentAgent, '请派发剪辑子 Agent');
   await desktop.host.ctx.subagents.waitForChildren(parentAgent);
   await parentAgent.whenIdle();
-  assert.equal(reads.length, 1, JSON.stringify(parentAgent.session.snapshotEvents()));
+  assert.equal(reads.length, 1, JSON.stringify(childAgent?.session.snapshotEvents().filter(e => ['agent/error', 'error', 'turn/end'].includes(e.type))));
   assert.equal(writes.length, 1, JSON.stringify(childAgent?.session.snapshotEvents().filter(e => ['tool/result', 'turn/end', 'agent/error', 'error'].includes(e.type))));
   const children = await desktop.host.ctx.subagents.listChildren(parentAgent.session.id);
   assert.equal(children.length, 1);
@@ -944,9 +945,9 @@ test('canvas delegates a real editor child with live canvas tools, parent approv
   const restoredAdapter = new ScriptedAdapter([
     request => {
       assert.ok(request.tools.some(tool => tool.name === 'canvas_get_node'));
-      assert.ok(request.tools.some(tool => tool.name === 'video_project_import_media'));
-      assert.ok(!request.tools.some(tool => tool.name === 'delegate_editor'));
-      return call('video_project_import_media', { assetId: 'another-video' }, 'denied-import');
+      assert.ok(request.tools.some(tool => tool.name === writeTool));
+      assert.ok(!request.tools.some(tool => tool.name === `delegate_${specialist}`));
+      return call(writeTool, { assetId: 'another-video' }, 'denied-import');
     }, text('剪辑导入需要父会话审批'), text('父 Agent 已收到审批要求'),
   ]);
   desktop.host.ctx.llm.registerAdapter(['test'], restoredAdapter);
@@ -959,10 +960,10 @@ test('canvas delegates a real editor child with live canvas tools, parent approv
 
   resumed.agent.ctx.on('approval/request', async () => 'rejected', { prepend: true });
   restoredAdapter.script.push(
-    call('delegate_editor', { nodeId: 'timeline-a', prompt: '继续导入', description: '继续剪辑' }, 'delegate-again'),
+    call(`delegate_${specialist}`, { nodeId: 'timeline-a', prompt: '继续导入', description: '继续剪辑' }, 'delegate-again'),
     request => {
-      assert.ok(request.tools.some(tool => tool.name === 'video_project_import_media'));
-      return call('video_project_import_media', { assetId: 'another-video' }, 'rejected-by-parent');
+      assert.ok(request.tools.some(tool => tool.name === writeTool));
+      return call(writeTool, { assetId: 'another-video' }, 'rejected-by-parent');
     },
     text('导入未获批准'), text('已保留原时间线'),
   );
@@ -975,7 +976,7 @@ test('canvas delegates a real editor child with live canvas tools, parent approv
   const childStarted = Promise.withResolvers();
   let childSignal;
   restoredAdapter.script.push(
-    call('delegate_editor', { nodeId: 'timeline-a', prompt: '继续剪辑并等待', description: '取消剪辑' }, 'delegate-cancel'),
+    call(`delegate_${specialist}`, { nodeId: 'timeline-a', prompt: '继续剪辑并等待', description: '取消剪辑' }, 'delegate-cancel'),
     async function* (request) {
       childSignal = request.signal;
       childStarted.resolve();

@@ -19,7 +19,9 @@
   border-bottom: 0;
   pointer-events: none;
   background: transparent;
-  -webkit-app-region: drag;
+  /* Native drag regions consume mouse input even through pointer-events:none.
+     Only the narrow strip below may cover embedded workbench toolbars. */
+  -webkit-app-region: no-drag;
 }
 
 .window-drag-strip {
@@ -354,8 +356,15 @@ label.button {
   margin: 0 0 12px 3.5px;
   padding: 3px 0 11px;
   justify-content: center;
+  gap: 0;
 }
-.sidebar-shell.collapsed .sidebar-brand-copy { display: none; }
+/* 收起时只隐藏品牌文字，保留它在品牌行里的高度占位。文字版两行内容比
+   min-height 高 6.5px；直接 display:none 会让品牌行在开合动画结束的瞬间
+   缩回 54px，下面的导航图标因此整体上跳。 */
+.sidebar-shell.collapsed .sidebar-brand-copy {
+  visibility: hidden;
+  width: 0;
+}
 .sidebar-toggle {
   width: 32px;
   height: 32px;

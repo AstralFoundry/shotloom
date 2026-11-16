@@ -5,6 +5,8 @@ export default {
     base: './',
     plugins: [react()],
     resolve: {
+        // Hoisted peer dependencies must use the desk's React dispatcher as well.
+        dedupe: ['react', 'react-dom'],
         alias: {
             // Single alias keeps layer boundaries readable: @/features/..., @/core/..., @/state/...
             '@': fileURLToPath(new URL('./src', import.meta.url)),

@@ -5,7 +5,7 @@ import { listen } from '@/desktop/event.ts';
 import { harnessModelConfig } from '../../services/harnessModelConfig';
 import { availableAgentSkills } from '../../agent/tools/catalogTools';
 import { desktopApi } from '../../services/desktopApi';
-import { productToolCatalog, bindProductSession, registerEditorSessionBinder, executeProductRequest, type ProductBinding } from '../../services/harnessProductTools';
+import { productToolCatalog, bindProductSession, registerEditorSessionBinder, registerDirectorSessionBinder, executeProductRequest, type ProductBinding } from '../../services/harnessProductTools';
 import { canvasHarnessSession, directorHarnessSession, editorHarnessSession, textHarnessSession } from '../../services/harnessSessionStore';
 import { getAgentProjectIdentity, assertAgentProject } from '../../services/agentProjectIdentity';
 import { store, touchProject } from '../../store/projectStore';
@@ -30,6 +30,11 @@ export function startHarnessIntegration(): Promise<void> {
     const result = await openHarnessPanel(EDITOR_AGENT_ID, nodeId);
     const conversation = editorHarnessSession(store.project, nodeId);
     return { sessionId: result.sessionId, projectKey: getAgentProjectIdentity().projectKey, conversationId: conversation.id!, agentId: EDITOR_AGENT_ID, nodeId };
+  });
+  registerDirectorSessionBinder(async nodeId => {
+    const result = await openHarnessPanel(DIRECTOR_AGENT_ID, nodeId, undefined, true);
+    const conversation = directorHarnessSession(store.project, nodeId);
+    return { sessionId: result.sessionId, projectKey: getAgentProjectIdentity().projectKey, conversationId: conversation.id!, agentId: DIRECTOR_AGENT_ID, ...(nodeId ? { nodeId } : {}) };
   });
   startup = (async () => {
     if (desktopApi.platform === 'browser') throw new Error(t('agent.desktopRequired'));
@@ -82,13 +87,15 @@ export function startHarnessIntegration(): Promise<void> {
   return startup;
 }
 
-export async function openHarnessPanel(role: ProductBinding['agentId'], nodeId?: string, conversationId?: string) {
+export async function openHarnessPanel(role: ProductBinding['agentId'], nodeId?: string, conversationId?: string, background = false) {
   await startHarnessIntegration();
   const identity = getAgentProjectIdentity();
+  const previousActive = store.project.activeHarnessSessionId;
   const selected = store.project.harnessSessions?.find((item: { id?: string; agentId?: string; textNodeId?: string; editorNodeId?: string; directorNodeId?: string }) => item.id === conversationId && item.agentId === role && (item.textNodeId || item.editorNodeId || item.directorNodeId) === nodeId);
   const conversation = selected ?? (role === CANVAS_AGENT_ID ? canvasHarnessSession(store.project)
     : role === DIRECTOR_AGENT_ID ? directorHarnessSession(store.project, nodeId)
     : role === EDITOR_AGENT_ID ? editorHarnessSession(store.project, nodeId!) : textHarnessSession(store.project, nodeId!));
+  if (background) store.project.activeHarnessSessionId = previousActive;
   const binding = { projectKey: identity.projectKey, conversationId: conversation.id!, agentId: role, ...(nodeId ? { nodeId } : {}) };
   const result = await invoke<{ sessionId: string; tools: string[]; toolTitles: Record<string, string> }>('harness_bind_session', { config: {
     binding, tools: productToolCatalog(binding), skills: availableAgentSkills(role).map(skill => ({ id: skill.id, description: skill.description, instructions: skill.instructions || '', metadata: skill.metadata, builtIn: skill.builtIn === true })),

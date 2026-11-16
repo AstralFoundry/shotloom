@@ -48,6 +48,7 @@ function NodeToolbar({ nodeId, root, children, className, isVisible, offset }: {
   offset: number;
 }) {
   const transform = useStore((state) => {
+    if (!isVisible) return null;
     const node = state.nodeLookup.get(nodeId);
     if (!node) return null;
     const [x, y, zoom] = state.transform;
@@ -287,6 +288,9 @@ export function CanvasNodeToolbar({
   const moreMenuRef = useRef<HTMLDivElement>(null);
   const nodeChromeHidden = Boolean(dragging || dragReleaseSettling);
   const assetPlacementRevision = useStore((state: ReactFlowState) => {
+    // Closed menus do not need viewport updates. Otherwise every node toolbar
+    // rerenders on every pan even when that node is not selected.
+    if (!selected || !openMenu || nodeChromeHidden) return "";
     const internal = state.nodeLookup.get(node.id);
     const position = internal?.internals.positionAbsolute;
     return [

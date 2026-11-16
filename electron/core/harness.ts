@@ -169,7 +169,11 @@ async function handleBridgeRequest(request: import('node:http').IncomingMessage,
     const binding = payload.binding as Json | undefined;
     if (!binding || typeof binding !== 'object') throw new Error('missing trusted session binding');
     const sessionId = typeof binding.sessionId === 'string' ? binding.sessionId : '';
-    if (!sessionId || JSON.stringify(bridge.bindings.get(sessionId)) !== JSON.stringify(binding)) {
+    const registered = bridge.bindings.get(sessionId);
+    // Bindings are flat identity records. Tauri persisted sorted keys, whereas
+    // Electron preserves insertion order; property order is not session identity.
+    if (!registered || Object.keys(registered).length !== Object.keys(binding).length
+      || Object.keys(registered).some(key => registered[key] !== binding[key])) {
       throw new Error('unregistered or mismatched session binding');
     }
     const requestId = typeof payload.requestId === 'string' ? payload.requestId : '';

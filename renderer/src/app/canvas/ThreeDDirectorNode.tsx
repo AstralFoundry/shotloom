@@ -8,7 +8,7 @@ import { createPortal } from "react-dom";
 import { IconSymbol } from "../components/IconSymbol";
 import { directorProjectSummary } from './directorProjectSummary';
 import { DirectorAgentPane } from '../agent-chat/DirectorAgentPane';
-import { registerDirectorDeskFrame } from "../../services/directorDeskAgentRuntime";
+import { registerDirectorDeskFrame, markDirectorDeskReady } from "../../services/directorDeskAgentRuntime";
 import { showToast } from "../../store/notificationStore";
 import { useWorkbenchSurfaceRoot } from "../layout/workbenchSurface";
 import { useDirectorWorkspaceExport } from "../views/DirectorWorkspace";
@@ -17,6 +17,7 @@ import {
   type WorkflowNodeData,
   type WorkflowNodeRenderer,
 } from "./WorkflowCanvas";
+import { installDirectorDeskHostChrome } from "../adapters/directorDeskHostChrome";
 import {
   directorDeskFrameSrc,
   directorDeskAgentProtocol,
@@ -68,8 +69,8 @@ export const ThreeDDirectorNode: WorkflowNodeRenderer = memo(
 
     useEffect(() => {
       if (!detailOpen) return;
-      return registerDirectorDeskFrame(detailIframeRef.current, directorDeskAgentProtocol);
-    }, [detailOpen]);
+      return registerDirectorDeskFrame(detailIframeRef.current, directorDeskAgentProtocol, node.id, { ready: false });
+    }, [detailOpen, node.id]);
 
     const sendSession = useCallback(() => {
       sendDirectorDeskSession(detailIframeRef.current, {
@@ -135,6 +136,7 @@ export const ThreeDDirectorNode: WorkflowNodeRenderer = memo(
           if (edgeId) actions.removeDirectorIncomingEdge(node.id, edgeId);
         },
         onProjectChanged: (project) => {
+          markDirectorDeskReady(detailIframeRef.current);
           const directorData = node.directorData as { project?: unknown; legacyProject?: unknown } | undefined;
           const legacyProject = directorData?.legacyProject ?? (directorData?.project && !readDirectorProject(node) ? directorData.project : null);
           actions.update(node.id, {
@@ -277,7 +279,11 @@ export const ThreeDDirectorNode: WorkflowNodeRenderer = memo(
               src={directorDeskFrameSrc(node.id, initialTheme.current)}
               title={t("ui.ThreeDDirectorNode.arialabel.fad461cc")}
               className="director-detail-frame"
-              onLoad={() => { sendSession(); sendPanorama(); }}
+              onLoad={() => {
+                installDirectorDeskHostChrome(detailIframeRef.current);
+                sendSession();
+                sendPanorama();
+              }}
             />
             <DirectorAgentPane className="director-detail-agent" nodeId={node.id} collapsed={agentCollapsed} onCollapsedChange={setAgentCollapsed}
               entityRequest={entityRequest} onEntityRequestHandled={nonce => setEntityRequest(current => current?.nonce === nonce ? undefined : current)} />

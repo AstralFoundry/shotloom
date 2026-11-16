@@ -1,6 +1,7 @@
 import { assertAgentProject } from '@/services/agentProjectIdentity';
 import { listEditorMediaCandidates } from '@/services/editorMediaCatalog';
 import { directorEditingHandoff, type EditingHandoff } from '@/services/directorEditingHandoff';
+import { store } from '@/store/projectStore';
 import { t } from '@/i18n/index';
 import { registerAgentTool } from '../core/toolRegistry';
 import type { AgentToolContext, AgentToolEffect, JsonObject } from '../core/types';
@@ -12,7 +13,6 @@ import {
   directorDeskAvailable,
   rememberDirectorCommandKinds,
   runDirectorDeskCommand,
-  showDirectorDeskView,
 } from '@/services/directorDeskAgentRuntime';
 
 /** 导演台未打开时不应让整轮失败：所有回执都返回可恢复的说明。 */
@@ -21,7 +21,7 @@ function directorUnavailable() {
     success: false,
     applied: false,
     error: t('tool.feedback.director.closed'),
-    hint: '先调用 director_workspace_view 的 view=director 打开导演台画布，再重试本操作。',
+    hint: '通过 delegate_director 委派导演子 Agent，后台运行时会准备对应场景。',
   };
 }
 
@@ -52,6 +52,10 @@ let knownCommandsVersion = '';
  */
 function commandEffect(operation: string): AgentToolEffect {
   return directorCommandKind(operation) === 'view' ? 'read' : 'project_write';
+}
+
+function directorTarget(context: AgentToolContext) {
+  return store.project.harnessSessions?.find((session: { id?: string }) => session.id === context.conversationId)?.directorNodeId as string | undefined;
 }
 
 export function registerDirectorTools(): void {
@@ -101,8 +105,9 @@ commands 只列出你应当使用的命令；已由 batch 覆盖的搭景命令�
       additionalProperties: false,
     },
     summarizeInput: (input) => (input.detail === 'summary' ? 'summary' : 'full'),
-    async execute(input) {
-      if (!directorDeskAvailable()) return directorUnavailable();
+    async execute(input, context) {
+      const target = directorTarget(context);
+      if (!directorDeskAvailable(target)) return directorUnavailable();
       try {
         const requestedVersion = input.includeAll === true || !directorCommandsKnown() ? ''
           : typeof input.commandsVersion === 'string' && input.commandsVersion ? input.commandsVersion : knownCommandsVersion;
@@ -111,7 +116,7 @@ commands 只列出你应当使用的命令；已由 batch 覆盖的搭景命令�
           ...(Array.isArray(input.entityIds) && input.entityIds.length ? { entityIds: input.entityIds } : {}),
           ...(requestedVersion ? { commandsVersion: requestedVersion } : {}),
           ...(input.includeAll === true ? { includeAll: true } : {}),
-        }) as Record<string, unknown>;
+        }, target) as Record<string, unknown>;
         if (snapshot.commandsUnchanged !== true) rememberDirectorCommandKinds(snapshot.commands);
         if (typeof snapshot.commandsVersion === 'string') knownCommandsVersion = snapshot.commandsVersion;
         return { success: true, ...snapshot };
@@ -142,14 +147,15 @@ commands 只列出你应当使用的命令；已由 batch 覆盖的搭景命令�
       additionalProperties: false,
     },
     summarizeInput: (input) => String(input.group || input.query || 'all'),
-    async execute(input) {
-      if (!directorDeskAvailable()) return directorUnavailable();
+    async execute(input, context) {
+      const target = directorTarget(context);
+      if (!directorDeskAvailable(target)) return directorUnavailable();
       try {
         const args = {
           ...(typeof input.query === 'string' && input.query.trim() ? { query: input.query.trim() } : {}),
           ...(typeof input.group === 'string' && input.group.trim() ? { group: input.group.trim() } : {}),
         };
-        return { success: true, ...(await runDirectorDeskCommand('catalog', args) as Record<string, unknown>) };
+        return { success: true, ...(await runDirectorDeskCommand('catalog', args, target) as Record<string, unknown>) };
       } catch (error) {
         return directorFailure(error);
       }
@@ -177,10 +183,11 @@ commands 只列出你应当使用的命令；已由 batch 覆盖的搭景命令�
       additionalProperties: false,
     },
     summarizeInput: (input) => String(input.operation || ''),
-    async execute(input) {
-      if (!directorDeskAvailable()) return directorUnavailable();
+    async execute(input, context) {
+      const target = directorTarget(context);
+      if (!directorDeskAvailable(target)) return directorUnavailable();
       try {
-        return { success: true, result: await runDirectorDeskCommand(String(input.operation), (input.args ?? {}) as Record<string, unknown>) };
+        return { success: true, result: await runDirectorDeskCommand(String(input.operation), (input.args ?? {}) as Record<string, unknown>, target) };
       } catch (error) {
         return directorFailure(error);
       }
@@ -340,10 +347,11 @@ edits 按顺序执行，支持：
       const attachments = (result as { __toolAttachments?: Array<{ url?: string }> }).__toolAttachments;
       return attachments?.length ? { summary: '批次预览', previews: attachments.flatMap(a => a.url ? [{ path: a.url, label: '批次预览' }] : []) } : undefined;
     },
-    async execute(input) {
-      if (!directorDeskAvailable()) return directorUnavailable();
+    async execute(input, context) {
+      const target = directorTarget(context);
+      if (!directorDeskAvailable(target)) return directorUnavailable();
       try {
-        const result = await runDirectorDeskCommand('batch_edit', input as Record<string, unknown>) as Record<string, unknown>;
+        const result = await runDirectorDeskCommand('batch_edit', input as Record<string, unknown>, target) as Record<string, unknown>;
         const reply: Record<string, unknown> = { success: true, ...result };
         if (result.applied === true && input.autoPreview && typeof input.autoPreview === 'object') {
           const options = input.autoPreview as Record<string, unknown>;
@@ -355,7 +363,7 @@ edits 按顺序执行，支持：
           ];
           for (const request of requests) {
             try {
-              const preview = await runDirectorDeskCommand(request.operation, request.args) as { dataUrl: string };
+              const preview = await runDirectorDeskCommand(request.operation, request.args, target) as { dataUrl: string };
               attachments.push({ type: 'file', mime: preview.dataUrl.startsWith('data:image/png') ? 'image/png' : 'image/jpeg', filename: `${request.operation}.${preview.dataUrl.startsWith('data:image/png') ? 'png' : 'jpg'}`, url: preview.dataUrl });
             } catch (error) { errors.push(error instanceof Error ? error.message : String(error)); }
           }
@@ -401,8 +409,9 @@ edits 按顺序执行，支持：
       additionalProperties: false,
     },
     summarizeInput: (input) => String(input.operation || ''),
-    async execute(input) {
-      if (!directorDeskAvailable()) return directorUnavailable();
+    async execute(input, context) {
+      const target = directorTarget(context);
+      if (!directorDeskAvailable(target)) return directorUnavailable();
       const operation = String(input.operation || '');
       const known = directorCommandNames();
       // 首次 snapshot 前没有命令表，不在此拦截；iframe 仍会拒绝未知命令。
@@ -416,7 +425,7 @@ edits 按顺序执行，支持：
         };
       }
       try {
-        const result = await runDirectorDeskCommand(operation, (input.args ?? {}) as Record<string, unknown>);
+        const result = await runDirectorDeskCommand(operation, (input.args ?? {}) as Record<string, unknown>, target);
         // Preview pixels are evidence for the model and user, not a delivered media node.
         const preview = result as { dataUrl?: unknown; seconds?: unknown; timesSec?: unknown; cameraId?: unknown; entityId?: unknown; cells?: unknown; name?: unknown } | null;
         const previewMime = typeof preview?.dataUrl === 'string'
@@ -472,28 +481,4 @@ edits 按顺序执行，支持：
     },
   });
 
-  registerAgentTool<JsonObject>({
-    id: 'director_workspace_view',
-    icon: 'image',
-    title: t('tool.title.director_workspace_view'),
-    description: '在 Shotloom 工作流画布和 3D 导演台之间切换可见工作区。view=director 打开导演台画布（导演台未打开时其余导演台工具不可用），view=canvas 回到工作流画布。',
-    effect: 'agent_state_write',
-    activity: 'canvas',
-    inputSchema: {
-      type: 'object',
-      required: ['view'],
-      properties: { view: { type: 'string', enum: ['director', 'canvas'] } },
-      additionalProperties: false,
-    },
-    summarizeInput: (input) => String(input.view || ''),
-    execute(input: JsonObject, _context: AgentToolContext) {
-      const applied = showDirectorDeskView(input.view as 'director' | 'canvas');
-      return {
-        success: applied,
-        applied,
-        view: input.view,
-        ...(applied ? {} : { error: t('tool.feedback.director.viewUnavailable') }),
-      };
-    },
-  });
 }

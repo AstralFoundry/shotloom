@@ -2,26 +2,27 @@ import { getResolvedAppTheme, subscribeAppTheme } from '../../services/appTheme'
 import { useCallback, useEffect, useRef } from 'react';
 import { getLocale, t } from '@/i18n';
 import { create } from 'zustand';
+import { installDirectorDeskHostChrome } from '../adapters/directorDeskHostChrome';
 import {
   directorDeskAgentProtocol,
   sendDirectorDeskProjectSaved,
+  sendDirectorDeskPanorama,
   sendDirectorDeskSession,
   sendDirectorDeskTheme,
   subscribeDirectorDesk,
 } from '../adapters/directorDeskBridge';
 import { useAppStore } from '../store/appStore';
-import { registerDirectorDeskFrame } from '../../services/directorDeskAgentRuntime';
+import { registerDirectorDeskFrame, markDirectorDeskReady } from '../../services/directorDeskAgentRuntime';
 import { store, touchProject } from '../../store/projectStore';
 import { showToast } from '../../store/notificationStore';
 import { nodeActions } from '../adapters/canvasAdapter';
+import { desktopApi } from '../../services/desktopApi';
+import { getAgentProjectFenceKey } from '../../services/agentProjectIdentity';
 import { recordDiagnosticEvent } from '../../services/diagnosticsService';
 
 /**
- * 整页 3D 导演台工作区（侧栏「3D导演台」入口）：iframe 运行 vendored 导演台，
- * 与画布节点共用同一份 postMessage 协议，只是宿主换成整页容器。
- * 场景按工程存本地草稿，导演台运行时本身不碰产品存储。
- *
- * 与画布节点保持独立文档；工作区场景只有用户显式选择时才会载入节点。
+ * 导演台的可见工作区与后台运行时共用协议、持久化和导出处理。
+ * nodeId 绑定节点场景，省略时绑定独立工作区草稿；后台挂载不改变导航。
  */
 const STORAGE_PREFIX = 'shotloom:director-workspace:';
 type WorkspaceBackup = { savedAt: number; project: Record<string, unknown> };
@@ -49,7 +50,7 @@ export const useDirectorWorkspaceExport = create<WorkspaceExportState>((set) => 
   setRequest: (handler) => set({ request: handler }),
 }));
 
-export function DirectorWorkspace({ src, onReady, onExit, onOpenAgent }: { src: (instanceId: string, theme?: 'light' | 'dark') => string; onReady?: () => void; onExit?: () => void; onOpenAgent?: (entityId?: string) => void }) {
+export function DirectorWorkspace({ src, nodeId, background = false, onReady, onExit, onOpenAgent }: { nodeId?: string | undefined; background?: boolean; src: (instanceId: string, theme?: 'light' | 'dark') => string; onReady?: () => void; onExit?: () => void; onOpenAgent?: (entityId?: string) => void }) {
   const projectId = useAppStore((state) => state.currentProject?.id ?? 'local');
   const frameRef = useRef<HTMLIFrameElement>(null);
   const initialTheme = useRef(getResolvedAppTheme());
@@ -57,7 +58,7 @@ export function DirectorWorkspace({ src, onReady, onExit, onOpenAgent }: { src: 
   /** Latest document this instance reported, used when sending it to a canvas node. */
   const latestDocument = useRef<unknown>(null);
   const storageKey = `${STORAGE_PREFIX}${projectId}`;
-  useEffect(() => registerDirectorDeskFrame(frameRef.current, directorDeskAgentProtocol), []);
+  useEffect(() => registerDirectorDeskFrame(frameRef.current, directorDeskAgentProtocol, nodeId, { background, ready: false }), [nodeId, background]);
   useEffect(() => {
     recordDiagnosticEvent({ category: 'runtime', name: 'director-workspace-mounted', data: { projectId } });
     return () => { recordDiagnosticEvent({ category: 'runtime', name: 'director-workspace-unmounted', data: { projectId } }); };
@@ -65,14 +66,16 @@ export function DirectorWorkspace({ src, onReady, onExit, onOpenAgent }: { src: 
 
   // Publish a reader so the surrounding shell can move this scene onto a canvas node.
   useEffect(() => {
+    if (nodeId || background) return;
     useDirectorWorkspaceExport.getState().setRequest(() => latestDocument.current);
     return () => useDirectorWorkspaceExport.getState().setRequest(null);
-  }, []);
+  }, [nodeId, background]);
 
   // 会话：导演台就绪后把本工程的草稿灌进去（没有草稿时用空项目，由导演台自己建默认场景）。
   const sendSession = useCallback(() => {
-    let project: unknown = store.project.directorWorkspaceProject ?? null;
-    const backup = readWorkspaceBackup(storageKey);
+    const node = nodeId ? store.project.nodes.find((item: { id: string }) => item.id === nodeId) : undefined;
+    let project: unknown = nodeId ? node?.directorData?.project ?? null : store.project.directorWorkspaceProject ?? null;
+    const backup = nodeId ? null : readWorkspaceBackup(storageKey);
     if (backup && backup.savedAt > Number(store.project.directorWorkspaceSavedAt || 0)) {
       project = backup.project;
       store.project.directorWorkspaceProject = backup.project;
@@ -80,8 +83,12 @@ export function DirectorWorkspace({ src, onReady, onExit, onOpenAgent }: { src: 
       touchProject();
     }
     if (project && (project as { format?: string }).format !== 'director-desk') project = null;
-    sendDirectorDeskSession(frameRef.current, { instanceId: `workspace-${projectId}`, artifactScope: projectId, theme: getResolvedAppTheme(), locale: getLocale(), project });
-  }, [projectId, storageKey]);
+    sendDirectorDeskSession(frameRef.current, { instanceId: nodeId || `workspace-${projectId}`, artifactScope: projectId, theme: getResolvedAppTheme(), locale: getLocale(), project });
+    if (nodeId) void nodeActions.getDirectorIncomingImages(nodeId).then(images => {
+      const image = images.at(-1);
+      sendDirectorDeskPanorama(frameRef.current, image ? { edgeId: image.edgeId, sourceNodeId: image.nodeId, name: image.name, url: image.url } : null);
+    });
+  }, [projectId, storageKey, nodeId]);
 
   useEffect(() => {
     const unsubscribe = subscribeDirectorDesk(() => frameRef.current, {
@@ -94,7 +101,14 @@ export function DirectorWorkspace({ src, onReady, onExit, onOpenAgent }: { src: 
       onOpenAgent: (entityId) => onOpenAgent?.(entityId),
       onPanoramaRemoved: () => undefined,
       onProjectChanged: (project) => {
+        markDirectorDeskReady(frameRef.current);
         latestDocument.current = project;
+        if (nodeId) {
+          const node = store.project.nodes.find((item: { id: string }) => item.id === nodeId);
+          if (node) nodeActions.update(nodeId, { directorData: { ...node.directorData, project }, updatedAt: new Date().toISOString() });
+          sendDirectorDeskProjectSaved(frameRef.current);
+          return;
+        }
         const savedAt = Date.now();
         try { window.localStorage.setItem(storageKey, JSON.stringify({ savedAt, project })); } catch { /* browser storage unavailable */ }
         store.project.directorWorkspaceProject = project;
@@ -103,10 +117,21 @@ export function DirectorWorkspace({ src, onReady, onExit, onOpenAgent }: { src: 
         // 回执「已保存」，导演台顶栏的同步状态才能落回稳定态。
         sendDirectorDeskProjectSaved(frameRef.current);
       },
+      onCover: async dataUrl => {
+        if (!nodeId) return;
+        const fence = getAgentProjectFenceKey();
+        const node = store.project.nodes.find((item: { id: string }) => item.id === nodeId);
+        const project = node?.directorData?.project;
+        const saved = await desktopApi.file.saveDataUrlToProject(dataUrl, `director-cover-${nodeId}-${Date.now()}.png`);
+        const path = String(saved?.filePath || saved?.path || '');
+        if (path && fence === getAgentProjectFenceKey() && node?.directorData?.project === project) {
+          nodeActions.update(nodeId, { directorData: { ...node.directorData, coverPath: path } });
+        }
+      },
       onCaptures: async (captures) => {
         const outputs = [];
         for (const capture of captures) {
-          const result = await nodeActions.exportDirectorAsset('', capture.dataUrl, capture.fileName, capture.kind, capture.directorContext);
+          const result = await nodeActions.exportDirectorAsset(nodeId || '', capture.dataUrl, capture.fileName, capture.kind, capture.directorContext);
           if (!result) throw new Error('未能创建导出节点');
           outputs.push(result);
         }
@@ -115,16 +140,19 @@ export function DirectorWorkspace({ src, onReady, onExit, onOpenAgent }: { src: 
       onError: (error) => showToast(t('director.loadFailed', { error }), 'error'),
     });
     return unsubscribe;
-  }, [onExit, onOpenAgent, onReady, sendSession, storageKey]);
+  }, [onExit, onOpenAgent, onReady, sendSession, storageKey, nodeId]);
 
   return (
     <section className="director-workspace" aria-label="3D导演台" data-director-workspace="true">
       <iframe
         ref={frameRef}
         className="director-workspace-frame"
-        src={src(`workspace-${projectId}`, initialTheme.current)}
+        src={src(nodeId || `workspace-${projectId}`, initialTheme.current)}
         title="3D导演台"
-        onLoad={sendSession}
+        onLoad={() => {
+          installDirectorDeskHostChrome(frameRef.current);
+          sendSession();
+        }}
       />
     </section>
   );

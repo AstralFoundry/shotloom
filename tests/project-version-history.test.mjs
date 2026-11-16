@@ -39,7 +39,7 @@ test('画布底栏提供版本记录入口，并挂载抽屉', () => {
 
 test('预览只读：读取快照不修改当前项目，恢复只在确认回调里调用', () => {
   // 预览路径只调用 readProjectSnapshot + snapshotPreview，不碰 store.project。
-  assert.match(component, /readProjectSnapshot\(store\.projectDir, selectedId\)/);
+  assert.match(component, /readProjectSnapshot\(directory, selectedId\)/);
   assert.match(component, /snapshotPreview\(payload\)/);
   assert.doesNotMatch(component, /store\.project\s*=/);
   assert.doesNotMatch(component, /touchProject/);
@@ -49,6 +49,27 @@ test('预览只读：读取快照不修改当前项目，恢复只在确认回�
   const confirmIndex = component.indexOf('modal.confirm(');
   const restoreIndex = component.indexOf('restoreProjectFromSnapshot(');
   assert.ok(confirmIndex > 0 && restoreIndex > confirmIndex, '恢复调用必须位于确认之后');
+});
+
+test('历史画布使用快照素材和坐标，排除归档节点及悬空连线', async () => {
+  const { snapshotCanvasGraph } = await env.load('app/components/ProjectSnapshotCanvas.tsx');
+  const payload = {
+    nodes: [
+      { id: 'image', type: 'imageGeneration', x: -120, y: 90, selectedOutputNodeId: 'material:old' },
+      { id: 'text', type: 'textGeneration', x: 500, y: 200, textContent: 'Old dialogue' },
+      { id: 'hidden', type: 'imageGeneration', archived: true },
+    ],
+    materials: [{ id: 'old', nodeId: 'image', filePath: '/old/image.png', name: 'Historical output' }],
+    edges: [{ id: 'live', source: 'image', target: 'text' }, { id: 'missing', source: 'hidden', target: 'text' }],
+  };
+  const original = structuredClone(payload);
+  const graph = snapshotCanvasGraph(payload);
+  assert.deepEqual(graph.nodes.map(node => node.id), ['image', 'text']);
+  assert.deepEqual(graph.nodes[0].position, { x: -120, y: 90 });
+  assert.equal(graph.nodes[0].data.imagePath, '/old/image.png');
+  assert.equal(graph.nodes[1].data.text, 'Old dialogue');
+  assert.deepEqual(graph.edges.map(edge => edge.id), ['live']);
+  assert.deepEqual(payload, original);
 });
 
 test('快照预览是纯函数：截断到 50 个节点且不改变源数据', () => {

@@ -21,7 +21,7 @@ const contentRoot = join(root, 'renderer/src/agent/content');
 const HARNESS_TOOLS = new Set([
   'ask_user_question', 'todo_read', 'todo_write', 'skill', 'subagent', 'send_message',
   'interrupt_agent', 'exit_plan_mode', 'get_goal', 'create_goal', 'update_goal',
-  'read_uploaded_file', 'read_skill_reference', 'delegate_editor', 'bash',
+  'read_uploaded_file', 'read_skill_reference', 'delegate_editor', 'delegate_director', 'bash',
 ]);
 
 /**

@@ -116,7 +116,7 @@ test('ZIP entry corruption rejects extraction rather than accepting damaged cont
   await assert.rejects(reader.readBuffer('entry.txt'), /integrity/);
 });
 
-test('Host restart ignores old exit/stdout and settles interrupted requests immediately', async () => {
+test('Host restart fences old children and the tool bridge compares binding identity independently of key order', async () => {
   const children = [];
   const events = [];
   globalThis.__shotloomAuditContents = { isDestroyed: () => false, send: (...args) => events.push(args) };
@@ -151,6 +151,27 @@ test('Host restart ignores old exit/stdout and settles interrupted requests imme
     children[1].stdout.write('shotloom transport: ' + JSON.stringify({ requestId: message.requestId, kind: 'result', value: 'new-host-result' }) + '\n');
     assert.equal(await fresh, 'new-host-result');
     assert.equal(host.harnessStatus().running, true);
+    const binding = { projectKey: 'project', conversationId: 'conversation', agentId: 'director-primary', nodeId: 'director-node' };
+    const bound = host.bindHarnessSession({ binding, tools: [] });
+    const bindMessage = JSON.parse(children[1].stdin.read().toString());
+    children[1].stdout.write('shotloom transport: ' + JSON.stringify({ requestId: bindMessage.requestId, kind: 'result', value: { sessionId: 'trusted-director' } }) + '\n');
+    await bound;
+    const bridge = host.harnessBridgeStatus();
+    globalThis.__shotloomAuditContents.send = (name, request) => {
+      if (name === 'shotloom:event:harness://tool-request') host.respondHarnessTool({ requestId: request.requestId, result: { reachedRenderer: true } });
+    };
+    const legacyOrder = { agentId: binding.agentId, conversationId: binding.conversationId, nodeId: binding.nodeId, projectKey: binding.projectKey, sessionId: 'trusted-director' };
+    const call = async identity => {
+      const response = await fetch(`http://127.0.0.1:${bridge.port}`, { method: 'POST', body: JSON.stringify({ op: 'tool', token: bridge.token, requestId: 'director-call', toolName: 'director_desk_snapshot', binding: identity }) });
+      return { status: response.status, value: await response.json() };
+    };
+    assert.deepEqual(await call(legacyOrder), { status: 200, value: { success: true, result: { reachedRenderer: true } } });
+    for (const field of ['sessionId', 'projectKey', 'conversationId', 'agentId', 'nodeId']) {
+      assert.equal((await call({ ...legacyOrder, [field]: 'mismatched' })).status, 400, field);
+    }
+    const { nodeId: _nodeId, ...missingNode } = legacyOrder;
+    assert.equal((await call(missingNode)).status, 400);
+    assert.equal((await call({ ...legacyOrder, extra: 'unexpected' })).status, 400);
   } finally { host.shutdownHarnessRuntime(); delete globalThis.__shotloomAuditSpawn; delete globalThis.__shotloomAuditContents; }
 });
 

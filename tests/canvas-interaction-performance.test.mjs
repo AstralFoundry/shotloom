@@ -258,7 +258,9 @@ test('画布缩放使用最终布局尺寸并保持 React Flow 视口为 1x', ()
   assert.match(canvas, /defaultViewport=\{\{ x: viewport\.x, y: viewport\.y, zoom: 1 \}\}/);
   assert.match(canvas, /minZoom=\{1\}[\s\S]*?maxZoom=\{1\}/);
   assert.match(canvas, /zoomOnScroll=\{false\}[\s\S]*?zoomOnPinch=\{false\}/);
-  assert.match(canvas, /onWheelCapture=\{\(event\) => \{[\s\S]*?if \(event\.ctrlKey\)[\s\S]*?event\.preventDefault\(\);[\s\S]*?return;/);
+  assert.match(canvas, /if \(event\.ctrlKey \|\| event\.metaKey\) \{\s*wheelZoom\.enqueue/);
+  assert.match(canvas, /wheelPan\.enqueue\(event\.deltaX, event\.deltaY, event\.deltaMode, root\.clientHeight\)/);
+  assert.match(canvas, /panOnDrag=\{\[1, 2\]\}/);
 });
 test('节点文字、图标和错误态共享语义尺寸并沿同一缩放轨道', () => {
   // 画布只按角色命名尺寸，值和字体阶梯/图标刻度仍归 tokens.css 所有。
@@ -280,7 +282,7 @@ test('导演台名称使用画布外部标签并和语义缩放同步', () => {
   assert.match(director, /className="director-node-label"/);
   assert.match(directorStyles, /\.director-node-label \{[\s\S]*?var\(--node-label-zoom, 1\)/);
   assert.match(directorStyles, /\.director-node-workspace \{[\s\S]*?height: 100%;/);
-  assert.match(canvas, /<CanvasNodeSemanticContent width=\{dimensions\.width\} height=\{dimensions\.height\} semanticZoom=\{semanticZoom\}>/);
+  assert.match(canvas, /<CanvasNodeSemanticContent width=\{dimensions\.width\} height=\{dimensions\.height\} semanticZoom=\{semanticZoom\}/);
   assert.match(directorStyles, /\.director-node-placeholder p \{[\s\S]*?font-size: var\(--canvas-node-body-size\)/);
   assert.match(directorStyles, /\.director-node-open-button \{[\s\S]*?font-size: var\(--canvas-node-body-size\)/);
   assert.doesNotMatch(migrationStyles, /canvas-zoom-overview :is\([\s\S]*?\.director-node-placeholder/);
@@ -378,7 +380,9 @@ test('3D 导演台随节点比例铺满，画布删除键删除当前节点选�
   assert.match(directorStyles, /\.director-node\.resizing[\s\S]*?pointer-events: none/);
   assert.match(canvas, /tabIndex=\{0\}/);
   assert.match(canvas, /event\.currentTarget\.focus\(\{ preventScroll: true \}\)/);
-  assert.equal(canvas.match(/if \(!isCanvasDomEvent\(event\.nativeEvent, event\.currentTarget\)\) return;/g)?.length, 3);
+  assert.equal(canvas.match(/if \(!isCanvasDomEvent\(event\.nativeEvent, event\.currentTarget\)\) return;/g)?.length, 2);
+  assert.match(canvas, /root\.addEventListener\('wheel', onWheel, \{ passive: false, capture: true \}\)/);
+  assert.match(canvas, /if \(!isCanvasDomEvent\(event, root\)\) return;/);
   assert.match(canvas, /const editable = isEditableCanvasEvent\(event\.nativeEvent\)/);
   assert.match(
     canvas,
@@ -406,7 +410,7 @@ test('3D 导演台默认整块可移动，双击后进入场景交互', () => {
   assert.match(directorStyles, /\.director-node-drag-handle[\s\S]*?cursor: grab/);
 });
 test('3D 导演台从真实上游连线同步当前图片输出', () => {
-  assert.match(canvas, /inputRevision[\s\S]*?edge\.id[\s\S]*?source\?\.updatedAt/);
+  assert.match(readSource('renderer/src/app/canvas/canvasInputIndex.ts'), /edge\.id[\s\S]*?source\?\.updatedAt/);
   assert.match(canvas, /inputRevision=\{data\.inputRevision\}/);
   assert.match(adapter, /edge\.target === id[\s\S]*?selectedNodeMedia\(node, store\.project\)/);
   assert.match(adapter, /edgeId: String\(edge\.id/);

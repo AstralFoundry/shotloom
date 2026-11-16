@@ -52,13 +52,21 @@ function ScreenSpaceComposer({
       if (revealTimer) window.clearTimeout(revealTimer);
     };
   }, [dragReleaseSettling, dragging]);
+  const [rootWidth, setRootWidth] = useState(570);
+  useLayoutEffect(() => {
+    if (!root) return;
+    const measure = () => setRootWidth(root.clientWidth || 570);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(root);
+    return () => observer.disconnect();
+  }, [root]);
   const selectPlacement = useCallback((state: ReactFlowState) => {
     const internal = state.nodeLookup.get(nodeId);
     const [viewportX, viewportY, zoom] = state.transform;
     const position = internal?.internals.positionAbsolute;
     const width = Number(internal?.measured.width || internal?.width || 0);
     const height = Number(internal?.measured.height || internal?.height || 0);
-    const rootWidth = Number(root?.clientWidth || 570);
     const composerWidth = Math.min(570, Math.max(320, rootWidth - 24));
     const desiredLeft = viewportX + (Number(position?.x || 0) + width / 2) * zoom;
     return {
@@ -66,7 +74,7 @@ function ScreenSpaceComposer({
       top: viewportY + (Number(position?.y || 0) + height) * zoom + 10,
       width: composerWidth,
     };
-  }, [nodeId, root]);
+  }, [nodeId, rootWidth]);
   const placement = useStore(
     selectPlacement,
     (left, right) => left.left === right.left && left.top === right.top && left.width === right.width,

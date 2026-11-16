@@ -147,7 +147,7 @@
 :host([data-director-mode]) .shotloom-agent-chat { background:transparent; }
 :host([data-director-mode]) .shotloom-empty-state { display:none; }
 :host([data-director-mode]) [data-composer-seat] { padding:0; }
-:host([data-director-mode]) [data-composer-card] { border:1px solid var(--director-dock-line, #d9d9de);border-radius:var(--director-dock-radius, 22px);background:var(--director-dock-bg, #fff);box-shadow:none; }
+:host([data-director-mode]) [data-composer-card] { border:1px solid var(--director-dock-line, #d9d9de);border-radius:999px;corner-shape:round;background:var(--director-dock-bg, #fff);box-shadow:none; }
 :host([data-director-mode]:not([data-director-mode="expanded"])) .shotloom-chat-body { padding-top:0; }
 :host([data-director-mode]:not([data-director-mode="expanded"])) .shotloom-session-stats,
 :host([data-director-mode]:not([data-director-mode="expanded"])) .shotloom-context-meter { display:none; }
@@ -208,7 +208,9 @@
 :host([data-director-mode]) [data-composer-seat] > div { width:100%;max-width:100%;margin-inline:0;padding-inline:0; }
 :host([data-director-mode]) [data-composer-card] { box-sizing:border-box;width:100%;max-width:none; }
 :host([data-director-mode]) [data-composer-card] { isolation:isolate;background:transparent;border-color:transparent; }
-:host([data-director-mode]) [data-composer-card]::before { content:'';position:absolute;inset:-1px;z-index:-1;border:1px solid var(--director-dock-line, #d9d9de);border-radius:inherit;background:var(--director-dock-bg, #fff);transform-origin:top left;pointer-events:none; }
+/* The official client uses superellipse corners globally, including pseudo-elements.
+   The director pill must match the viewport toolbar's circular end caps. */
+:host([data-director-mode]) [data-composer-card]::before { content:'';position:absolute;inset:-1px;z-index:-1;border:1px solid var(--director-dock-line, #d9d9de);border-radius:inherit;corner-shape:round;background:var(--director-dock-bg, #fff);transform-origin:top left;pointer-events:none; }
 :host([data-director-mode]) [data-composer-seat] div:has(> [data-composer-card]) { padding-block:0; }
 :host([data-director-mode]) [data-composer-card] > div:has(> div > [data-slot="conversation.input.left"]) { padding:0; }
 

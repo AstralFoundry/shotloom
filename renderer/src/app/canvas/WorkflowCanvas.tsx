@@ -1,4 +1,8 @@
+import { canvasInputIndex } from './canvasInputIndex';
 import { createCanvasWheelZoom } from "./canvasWheelZoom";
+import { createCanvasWheelPan } from './canvasWheelPan';
+import { Button, Dropdown } from 'antd';
+import { alignCanvasSelection, type CanvasAlignment } from '../../utils/canvasSelectionLayout';
 import { CanvasDisplaySettings } from "./CanvasDisplaySettings";
 import { canvasEdgeVisible, type CanvasAppearance } from "../../utils/canvasAppearance";
 import { settingsStore, saveAppSettings } from "../../store/settingsStore";
@@ -237,21 +241,30 @@ export function CanvasNodeSemanticContent({
   height,
   semanticZoom,
   children,
+  deferOffscreen = false,
 }: {
   width: number;
   height: number;
   semanticZoom: number;
   children: ReactNode;
+  deferOffscreen?: boolean;
 }) {
+  const [playing, setPlaying] = useState(false);
   // CSS zoom 已让节点内容按最终屏幕尺寸重新布局，所以节点内样式只写逻辑像素。
   // 再乘一次语义倍率（或给某块内容单独反向缩放）都会让它脱离节点外框所在的坐标系：
   // 高倍率下溢出节点，低倍率下按第二套尺寸折行。
   return (
     <div
       className="canvas-node-semantic-frame"
+      onPlayCapture={() => setPlaying(true)}
+      onPauseCapture={() => setPlaying(false)}
+      onEndedCapture={() => setPlaying(false)}
       style={{
         width: width * semanticZoom,
         height: height * semanticZoom,
+        // Keep DOM, editor state and media leases. The browser can skip layout
+        // and paint offscreen; selected and playing nodes remain fully active.
+        contentVisibility: deferOffscreen && !playing ? 'auto' : 'visible',
       }}
     >
       <div
@@ -326,33 +339,14 @@ function toFlowNodes(
   semanticZoom = 1,
   cache?: Map<string, FlowNodeCacheEntry>,
 ): FlowNode[] {
-  const nodeById = new Map(nodes.map((node) => [node.id, node]));
-  const incomingByTarget = new Map<string, WorkflowEdge[]>();
-  edges.forEach((edge) => {
-    const incoming = incomingByTarget.get(edge.target) || [];
-    incoming.push(edge);
-    incomingByTarget.set(edge.target, incoming);
-  });
+  const inputs = canvasInputIndex(nodes, edges, t("ui.WorkflowCanvas.text.a4c9a837"));
   const result = nodes
     .filter((node) => !node.archived)
     .map((node) => {
       const dimensions = nodeDimensions(node);
       const screenWidth = dimensions.width * semanticZoom;
       const screenHeight = dimensions.height * semanticZoom;
-      const inputRevision = (incomingByTarget.get(node.id) || [])
-        .map((edge) => {
-          const source = nodeById.get(edge.source);
-          return [
-            edge.id,
-            edge.source,
-            edge.data?.inputRole || "",
-            edge.data?.inputSlot || "",
-            edge.data?.skipTaskInput === true ? "inactive" : "active",
-            source?.updatedAt || "",
-            source?.selectedOutputNodeId || "",
-          ].join(":");
-        })
-        .join("|");
+      const inputRevision = inputs.get(node.id)?.revision || '';
       const selected = Boolean(node.selected);
       const cached = cache?.get(node.id);
       const data = cached &&
@@ -363,32 +357,7 @@ function toFlowNodes(
         : {
             node,
             inputRevision,
-            incomingInputs: (incomingByTarget.get(node.id) || []).flatMap((edge) => {
-              const source = nodeById.get(edge.source);
-              if (!source) return [];
-              const outputs = Array.isArray(source.generatedOutputs) ? source.generatedOutputs : [];
-              const selectedOutput = outputs.find(
-                (item) => item && typeof item === "object" && item.selected,
-              ) || outputs[0];
-              const uploaded = source.uploadedFile && typeof source.uploadedFile === "object"
-                ? source.uploadedFile
-                : null;
-              const candidate = selectedOutput && typeof selectedOutput === "object"
-                ? selectedOutput
-                : uploaded || source;
-              return [{
-                ...candidate,
-                edgeId: edge.id,
-                nodeId: source.id,
-                name: String(
-                  candidate.title || candidate.name || candidate.fileName || source.title || t("ui.WorkflowCanvas.text.a4c9a837"),
-                ),
-                resourceType: candidate.resourceType || source.resourceType || "",
-                inputRole: edge.data?.inputRole || "auto",
-                inputSlot: edge.data?.inputSlot || "",
-                skipTaskInput: edge.data?.skipTaskInput === true,
-              }];
-            }),
+            incomingInputs: inputs.get(node.id)?.inputs || [],
             semanticZoom,
           };
       if (
@@ -637,7 +606,8 @@ function CanvasNode({ data, selected, dragging }: NodeProps<FlowNode>) {
         position={Position.Right}
       />
       <CanvasNodeLabelRootContext.Provider value={labelRoot}>
-      <CanvasNodeSemanticContent width={dimensions.width} height={dimensions.height} semanticZoom={semanticZoom}>
+      <CanvasNodeSemanticContent width={dimensions.width} height={dimensions.height} semanticZoom={semanticZoom}
+        deferOffscreen={!selected && !resizing && !['threeDDirector', 'clipStudio', 'canvasSection'].includes(item.type)}>
         <Renderer
           node={item}
           selected={selected}
@@ -757,9 +727,12 @@ export function WorkflowCanvas({
   const semanticZoomRef = useRef(initialZoom);
   const flowNodeCache = useRef(new Map<string, FlowNodeCacheEntry>());
   const flowEdgeCache = useRef(new Map<string, FlowEdgeCacheEntry>());
-  const [flowNodes, setFlowNodes, applyFlowNodeChanges] = useNodesState<FlowNode>(
+  // useNodesState consumes its argument only on mount; evaluating toFlowNodes
+  // on every render both repeats graph work and overwrites the live zoom cache.
+  const [initialFlowNodes] = useState(() =>
     toFlowNodes(nodes, edges, initialZoom, flowNodeCache.current),
   );
+  const [flowNodes, setFlowNodes, applyFlowNodeChanges] = useNodesState<FlowNode>(initialFlowNodes);
   const [instance, setInstance] = useState<ReactFlowInstance<
     FlowNode,
     Edge<WorkflowEdgeData>
@@ -803,6 +776,18 @@ export function WorkflowCanvas({
     });
   }, [canonicalNodes]);
   const renderedNodes = flowNodes;
+  // A selected section moves its children through the existing controller;
+  // do not independently align those same children a second time.
+  const layoutSelection = useMemo(() => {
+    const selectedSections = new Set(visible.filter(node => node.selected && node.type === 'canvasSection').map(node => node.id));
+    return visible.filter(node => node.selected && !selectedSections.has(String(node.canvasSectionId || '')));
+  }, [visible]);
+  const alignSelection = (mode: CanvasAlignment) => {
+    const positions = alignCanvasSelection(layoutSelection.map(node => ({
+      id: node.id, x: Number(node.x) || 0, y: Number(node.y) || 0, ...nodeDimensions(node),
+    })), mode);
+    if (positions.length) controller.moveNodes(positions);
+  };
   const ids = useMemo(() => new Set(visible.map((node) => node.id)), [visible]);
   const visibleById = useMemo(() => new Map(visible.map((node) => [node.id, node])), [visible]);
   const flowEdges = useMemo<Array<Edge<WorkflowEdgeData>>>(
@@ -856,7 +841,7 @@ export function WorkflowCanvas({
       // Node lifetime is owned by the project graph. React Flow remove changes
       // are not allowed to transiently delete a controlled node during a drag.
       const interactiveChanges = changes.filter((change) => change.type !== "remove");
-      traceCanvasEvent("nodes-change", {
+      if (import.meta.env.DEV) traceCanvasEvent("nodes-change", {
         changes: changes.map((change) => ({
           id: "id" in change ? change.id : change.item.id,
           type: change.type,
@@ -879,6 +864,14 @@ export function WorkflowCanvas({
     },
     [applyFlowNodeChanges, controller, flowEdges, renderedNodes],
   );
+  const sectionIndex = useMemo(() => {
+    const sections = visible.filter(node => node.type === 'canvasSection');
+    const owners = new Map<string, string>();
+    for (const section of sections) {
+      for (const member of canvasSectionMembers(section, visible)) owners.set(member.id, section.id);
+    }
+    return { sections, owners };
+  }, [visible]);
   const previewSectionDrop = useCallback((active: FlowNode[]) => {
     const feedback = new Map<string, SectionDragFeedback>();
     // Moving a frame carries its members; it does not reassign them to frames underneath.
@@ -887,15 +880,13 @@ export function WorkflowCanvas({
       const node = item.data.node;
       const target = canvasSectionDropTarget({ ...node,
         x: Math.round(item.position.x / semanticZoomRef.current), y: Math.round(item.position.y / semanticZoomRef.current),
-      }, visible);
-      const owner = node.canvasSectionId === undefined
-        ? visible.find(section => section.type === 'canvasSection' && canvasSectionMembers(section, visible).some(member => member.id === node.id))?.id
-        : node.canvasSectionId;
+      }, sectionIndex.sections);
+      const owner = sectionIndex.owners.get(node.id);
       if (owner && owner !== target?.id && !feedback.has(owner)) feedback.set(owner, 'leave');
       if (target && feedback.get(target.id) !== 'join') feedback.set(target.id, owner === target.id ? 'inside' : 'join');
     }
     return feedback;
-  }, [visible]);
+  }, [sectionIndex]);
   const showSectionFeedback = useCallback((next: ReadonlyMap<string, SectionDragFeedback>) => {
     setSectionFeedback(current => current.size === next.size && [...next].every(([id, state]) => current.get(id) === state) ? current : next);
   }, []);
@@ -1071,6 +1062,36 @@ export function WorkflowCanvas({
     max: MAX_CANVAS_ZOOM,
   }), [setCanvasZoomAt]);
   useEffect(() => () => wheelZoom.dispose(), [wheelZoom]);
+  const wheelPan = useMemo(() => createCanvasWheelPan({
+    read: () => instance?.getViewport() || { x: 0, y: 0 },
+    apply: next => {
+      if (!instance) return;
+      void instance.setViewport({ ...next, zoom: 1 });
+      scheduleViewportSave({ ...next, zoom: semanticZoomRef.current });
+    },
+  }), [instance, scheduleViewportSave]);
+  useEffect(() => () => wheelPan.dispose(), [wheelPan]);
+  useEffect(() => {
+    const root = canvasRoot.current;
+    if (!root) return;
+    // React's delegated wheel listener is passive. Own cancellation at the
+    // canvas boundary so scrolling inputs and portalled dialogs remain native.
+    const onWheel = (event: WheelEvent) => {
+      if (!isCanvasDomEvent(event, root)) return;
+      const target = event.target;
+      if (target instanceof Element && target.closest('.nowheel,input,textarea,select,button,video,audio,[contenteditable=true]')) return;
+      event.preventDefault();
+      // Chromium reports trackpad pinch as Ctrl+wheel. Ordinary two-finger
+      // scrolling pans on both axes; no device guessing from delta magnitude.
+      if (event.ctrlKey || event.metaKey) {
+        wheelZoom.enqueue(event.deltaY, { x: event.clientX, y: event.clientY });
+        return;
+      }
+      wheelPan.enqueue(event.deltaX, event.deltaY, event.deltaMode, root.clientHeight);
+    };
+    root.addEventListener('wheel', onWheel, { passive: false, capture: true });
+    return () => root.removeEventListener('wheel', onWheel, { capture: true });
+  }, [wheelZoom, wheelPan]);
   const changeZoom = useCallback(
     (delta: number) => {
       const zoom = Math.round((semanticZoomRef.current + delta) * 10) / 10;
@@ -1261,25 +1282,6 @@ export function WorkflowCanvas({
               event.currentTarget.focus({ preventScroll: true });
             }
           }}
-          onWheelCapture={(event) => {
-            if (!isCanvasDomEvent(event.nativeEvent, event.currentTarget)) return;
-            // Trackpad pinch gestures arrive as ctrlKey wheel events. They
-            // must not change the semantic canvas zoom.
-            if (event.ctrlKey) {
-              event.preventDefault();
-              return;
-            }
-            const target = event.target as Element;
-            if (
-              target.closest(
-                ".nowheel,input,textarea,select,button,video,audio,[contenteditable=true]",
-              )
-            ) {
-              return;
-            }
-            event.preventDefault();
-            wheelZoom.enqueue(event.deltaY, { x: event.clientX, y: event.clientY });
-          }}
           onKeyDown={(event) => {
             if (!isCanvasDomEvent(event.nativeEvent, event.currentTarget)) return;
             const editable = isEditableCanvasEvent(event.nativeEvent);
@@ -1393,7 +1395,7 @@ export function WorkflowCanvas({
             connectionMode={ConnectionMode.Loose}
             connectionRadius={64}
             selectionOnDrag
-            panOnDrag
+            panOnDrag={[1, 2]}
             zoomOnScroll={false}
             zoomOnPinch={false}
             multiSelectionKeyCode={["Meta", "Control", "Shift"]}
@@ -1458,6 +1460,13 @@ export function WorkflowCanvas({
             </div>
           )}
           <CanvasMenuLayer ref={menuLayer} controller={controller} />
+          {layoutSelection.length > 1 && <div className="canvas-selection-layout" onPointerDown={event => event.stopPropagation()}>
+            <Dropdown menu={{ items: (['left', 'centerX', 'right', 'top', 'centerY', 'bottom', 'distributeX', 'distributeY'] as const).map(mode => ({
+              key: mode, label: t(`canvas.selection.${mode}`), disabled: mode.startsWith('distribute') && layoutSelection.length < 3,
+            })), onClick: ({ key }) => alignSelection(key as CanvasAlignment) }} trigger={['click']}>
+              <Button>{t('canvas.selection.align')}</Button>
+            </Dropdown>
+          </div>}
           <div
             className="canvas-corner-controls"
             onPointerDown={(event) => event.stopPropagation()}

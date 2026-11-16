@@ -19,7 +19,7 @@ import { inferMediaType } from '../utils/mediaType';
 import { prepareVideoEditor, WORKSPACE_VIDEO_EDITOR_ID } from './videoEditorSession';
 import { settingsStore } from '../store/settingsStore';
 import { registerDirectorTools } from '../agent/tools/directorTools';
-import { directorDeskAvailable, runDirectorDeskCommand } from './directorDeskAgentRuntime';
+import { directorDeskAvailable, prepareDirectorDesk, runDirectorDeskCommand } from './directorDeskAgentRuntime';
 import { directorReferenceCatalog, resolveDirectorReference } from './agent/directorReferences';
 
 export interface ProductBinding {
@@ -32,6 +32,11 @@ const calls = new Map<string, Promise<unknown>>();
 let editorSessionBinder: ((nodeId: string) => Promise<ProductBinding>) | undefined;
 export function registerEditorSessionBinder(binder: (nodeId: string) => Promise<ProductBinding>) {
   editorSessionBinder = binder;
+}
+
+let directorSessionBinder: ((nodeId?: string) => Promise<ProductBinding>) | undefined;
+export function registerDirectorSessionBinder(binder: (nodeId?: string) => Promise<ProductBinding>) {
+  directorSessionBinder = binder;
 }
 
 function register() {
@@ -50,6 +55,22 @@ function register() {
       await prepareVideoEditor(nodeId, context);
       assertAgentProject(context.projectKey, context.projectInstanceId, context.projectGeneration);
       const binding = await editorSessionBinder(nodeId);
+      assertAgentProject(context.projectKey, context.projectInstanceId, context.projectGeneration);
+      return { success: true, binding };
+    },
+  });
+  registerAgentTool({ id: 'canvas_prepare_director', title: t('agent.role.director'),
+    description: '为 delegate_director 准备并绑定真实导演台场景；nodeId 指定已有节点，省略时绑定独立场景。后台加载，不改变用户界面，不表示已完成制作。',
+    effect: 'agent_state_write', inputSchema: { type: 'object', properties: { nodeId: { type: 'string' } }, additionalProperties: false },
+    async execute(input, context) {
+      const nodeId = typeof input.nodeId === 'string' && input.nodeId ? input.nodeId : undefined;
+      if (nodeId && !store.project.nodes.some((node: AgentNode) => node.id === nodeId && node.type === 'threeDDirector' && !node.archived)) {
+        return { success: false, error: 'The requested director scene does not exist' };
+      }
+      if (!directorSessionBinder) return { success: false, error: 'Director session binding is unavailable' };
+      await prepareDirectorDesk(nodeId, context);
+      assertAgentProject(context.projectKey, context.projectInstanceId, context.projectGeneration);
+      const binding = await directorSessionBinder(nodeId);
       assertAgentProject(context.projectKey, context.projectInstanceId, context.projectGeneration);
       return { success: true, binding };
     },
@@ -154,9 +175,9 @@ export async function readHarnessCanvasReference(sessionId: string, nodeId?: str
   if (!conversation || conversation.agentId !== binding.agentId) throw new Error(t('agent.reference.expired'));
   const director = binding.agentId === DIRECTOR_AGENT_ID;
   const directorState = async () => {
-    if (!directorDeskAvailable()) throw new Error('当前导演台场景不可用');
+    if (!directorDeskAvailable(binding.nodeId)) throw new Error('当前导演台场景不可用');
     const [snapshot, catalog] = await Promise.all([
-      runDirectorDeskCommand('snapshot'), runDirectorDeskCommand('catalog'),
+      runDirectorDeskCommand('snapshot', {}, binding.nodeId), runDirectorDeskCommand('catalog', {}, binding.nodeId),
     ]);
     assertAgentProject(context.projectKey, context.projectInstanceId, context.projectGeneration);
     return { snapshot, catalog };

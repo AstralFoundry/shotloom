@@ -1,28 +1,63 @@
-let frame: HTMLIFrameElement | null = null;
-let navigate: ((view: 'director' | 'canvas') => boolean) | null = null;
-let requestType = '';
-let resultType = '';
-const pending = new Map<string, { resolve(value: unknown): void; reject(error: Error): void; timer: number }>();
+import { assertAgentProject, getAgentProjectFenceKey } from './agentProjectIdentity';
+import type { AgentToolContext } from '../agent/core/types';
 
-export function registerDirectorDeskFrame(next: HTMLIFrameElement | null, protocol: { request: string; result: string }) {
-  frame = next;
-  requestType = protocol.request;
-  resultType = protocol.result;
+type Frame = { frame: HTMLIFrameElement; request: string; result: string; ready: boolean; background: boolean; fenceKey: string };
+const frames = new Map<string, Set<Frame>>();
+const listeners = new Set<() => void>();
+let revision = 0;
+let launcher: ((nodeId?: string) => void) | undefined;
+const pending = new Map<string, { source: Window; resultType: string; resolve(value: unknown): void; reject(error: Error): void; timer: number }>();
+const changed = () => { revision++; listeners.forEach(listener => listener()); };
+export const subscribeDirectorFrames = (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener); }; };
+export const directorFramesRevision = () => revision;
+function sceneFrame(nodeId?: string) {
+  const entries = [...(frames.get(nodeId || '') || [])].filter(entry => entry.fenceKey === getAgentProjectFenceKey());
+  return entries.find(entry => !entry.background) ?? entries[0];
+}
+export function directorDeskHasVisibleFrame(nodeId?: string) { return [...(frames.get(nodeId || '') || [])].some(entry => !entry.background && entry.fenceKey === getAgentProjectFenceKey()); }
+export function registerDirectorDeskFrame(next: HTMLIFrameElement | null, protocol: { request: string; result: string }, nodeId?: string, options: { background?: boolean; ready?: boolean } = {}) {
+  if (!next) return () => {};
+  const key = nodeId || '';
+  const source = next.contentWindow;
+  const entry = { frame: next, fenceKey: getAgentProjectFenceKey(), ...protocol, background: options.background === true, ready: options.ready !== false };
+  const entries = frames.get(key) ?? new Set<Frame>();
+  entries.add(entry); frames.set(key, entries); changed();
   return () => {
-    if (frame === next) frame = null;
+    entries.delete(entry); if (!entries.size) frames.delete(key);
+    for (const [id, request] of pending) if (request.source === source) {
+      window.clearTimeout(request.timer); pending.delete(id);
+      request.reject(new DirectorDeskError('导演台运行会话已关闭，请重新读取快照后继续'));
+    }
+    changed();
   };
 }
-
-export function directorDeskAvailable() { return Boolean(frame?.contentWindow); }
-
-export function registerDirectorDeskNavigator(next: (view: 'director' | 'canvas') => boolean) {
-  navigate = next;
-  return () => { if (navigate === next) navigate = null; };
+export function markDirectorDeskReady(frame: HTMLIFrameElement | null) {
+  for (const entries of frames.values()) for (const entry of entries) if (entry.frame === frame && !entry.ready) { entry.ready = true; changed(); }
 }
-
-export function showDirectorDeskView(view: 'director' | 'canvas') {
-  if (!navigate) return false;
-  return navigate(view);
+export function directorDeskAvailable(nodeId?: string) { const entry = sceneFrame(nodeId); return Boolean(entry?.ready && entry.frame.contentWindow); }
+export function registerDirectorDeskLauncher(next: (nodeId?: string) => void) { launcher = next; return () => { if (launcher === next) launcher = undefined; }; }
+/** Preparing an exact bound scene never changes the user's route or selection. */
+export async function prepareDirectorDesk(nodeId: string | undefined, context: AgentToolContext): Promise<void> {
+  assertAgentProject(context.projectKey, context.projectInstanceId, context.projectGeneration);
+  if (directorDeskAvailable(nodeId)) return;
+  if (!launcher) throw new Error('导演台后台运行时尚未挂载，请稍后重试');
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const finish = (error?: Error) => {
+      if (settled) return; settled = true;
+      clearTimeout(timer); listeners.delete(check); context.signal.removeEventListener('abort', abort);
+      if (error) reject(error); else resolve();
+    };
+    const check = () => {
+      try { assertAgentProject(context.projectKey, context.projectInstanceId, context.projectGeneration); if (directorDeskAvailable(nodeId)) finish(); }
+      catch (error) { finish(error as Error); }
+    };
+    const abort = () => finish(new Error('导演台准备已取消'));
+    const timer = setTimeout(() => finish(new Error('导演台后台场景未能就绪，请重试')), 45000);
+    listeners.add(check); context.signal.addEventListener('abort', abort, { once: true });
+    if (context.signal.aborted) { abort(); return; }
+    try { launcher!(nodeId); check(); } catch (error) { finish(error as Error); }
+  });
 }
 
 /**
@@ -72,33 +107,27 @@ export class DirectorDeskError extends Error {
   }
 }
 
-export function runDirectorDeskCommand(operation: string, args: Record<string, unknown> = {}): Promise<unknown> {
-  const target = frame?.contentWindow;
-  if (!target) return Promise.reject(new DirectorDeskError('请先打开 3D 导演台画布', {
-    hint: '调用 director_workspace_view 的 view=director 打开导演台画布，再重试本操作。',
+export function runDirectorDeskCommand(operation: string, args: Record<string, unknown> = {}, nodeId?: string): Promise<unknown> {
+  const entry = sceneFrame(nodeId);
+  const target = entry?.ready ? entry.frame.contentWindow : null;
+  if (!target || !entry) return Promise.reject(new DirectorDeskError('绑定的导演台场景尚未就绪', {
+    hint: '通过 delegate_director 委派导演子 Agent，后台运行时会准备对应场景。',
   }));
   const requestId = crypto.randomUUID();
   return new Promise((resolve, reject) => {
-    const timer = window.setTimeout(() => {
-      pending.delete(requestId);
-      reject(new DirectorDeskError('导演台未响应，请检查画布是否已加载'));
-    }, 20_000);
-    pending.set(requestId, { resolve, reject, timer });
-    target.postMessage({ type: requestType, payload: { requestId, operation, args } }, window.location.origin);
+    const timer = window.setTimeout(() => { pending.delete(requestId); reject(new DirectorDeskError('导演台未响应，请检查场景是否已加载')); }, 20_000);
+    pending.set(requestId, { source: target, resultType: entry.result, resolve, reject, timer });
+    target.postMessage({ type: entry.request, payload: { requestId, operation, args } }, window.location.origin);
   });
 }
 
 if (typeof window !== 'undefined') window.addEventListener('message', event => {
-  if (event.origin !== window.location.origin || event.source !== frame?.contentWindow) return;
-  const message = event.data as {
-    type?: string;
-    payload?: { requestId?: string; success?: boolean; result?: unknown; code?: string; error?: string; hint?: string; facts?: Record<string, unknown> };
-  };
-  if (message?.type !== resultType || !message.payload?.requestId) return;
+  if (event.origin !== window.location.origin) return;
+  const message = event.data as { type?: string; payload?: { requestId?: string; success?: boolean; result?: unknown; code?: string; error?: string; hint?: string; facts?: Record<string, unknown> } };
+  if (!message?.payload?.requestId) return;
   const request = pending.get(message.payload.requestId);
-  if (!request) return;
-  window.clearTimeout(request.timer);
-  pending.delete(message.payload.requestId);
+  if (!request || event.source !== request.source || message.type !== request.resultType) return;
+  window.clearTimeout(request.timer); pending.delete(message.payload.requestId);
   if (message.payload.success) request.resolve(message.payload.result);
   else request.reject(new DirectorDeskError(message.payload.error || '导演台操作失败', {
     ...(message.payload.code ? { code: message.payload.code } : {}),
