@@ -45,31 +45,7 @@ jobs:
           target: google_apis
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none -dns-server 8.8.8.8,1.1.1.1
           disable-animations: true
-          script: |
-            if [ -n "$BASELINE_RUN" ]; then adb install baseline/Shotloom-Preview.apk; else adb install acceptance/Shotloom-Preview.apk; fi
-            adb logcat -c
-            adb shell am start -W -n com.shotloom.app.preview/.MainActivity
-            sleep 25
-            adb shell pidof com.shotloom.app.preview
-            adb logcat -d > acceptance/launch-log.txt
-            ! grep -E 'FATAL EXCEPTION|ReactNativeJS.*(Error:|Invariant Violation)' acceptance/launch-log.txt
-            adb shell uiautomator dump /sdcard/window.xml
-            adb pull /sdcard/window.xml acceptance/window.xml
-            grep -E 'new-api|让创作|Sign in|Log in' acceptance/window.xml
-            adb exec-out screencap -p > acceptance/android-launch.png
-            test -n "$TEST_SESSION_COOKIE"
-            adb shell am force-stop com.shotloom.app.preview
-            adb install acceptance/Shotloom-Session-Test.apk
-            adb shell am instrument -w -e cookie "$TEST_SESSION_COOKIE" com.shotloom.acceptance/com.shotloom.acceptance.SessionInstrumentation > acceptance/session-setup.txt
-            grep 'Test session installed' acceptance/session-setup.txt
-            adb shell am start -W -n com.shotloom.app.preview/.MainActivity
-            sleep 20
-            if [ -n "$BASELINE_RUN" ]; then adb shell uiautomator dump /sdcard/baseline.xml && adb pull /sdcard/baseline.xml acceptance/baseline.xml && grep -E 'Checking login|正在检查登录状态' acceptance/baseline.xml && adb shell am force-stop com.shotloom.app.preview && adb install -r acceptance/Shotloom-Preview.apk && adb shell am start -W -n com.shotloom.app.preview/.MainActivity && sleep 20; fi
-            adb shell uiautomator dump /sdcard/authenticated.xml
-            adb pull /sdcard/authenticated.xml acceptance/authenticated.xml
-            grep -E 'Open workspace|打开工作区' acceptance/authenticated.xml
-            ! grep -E 'Checking login|正在检查登录状态' acceptance/authenticated.xml
-            adb exec-out screencap -p > acceptance/android-authenticated.png
+          script: bash .github/scripts/native-acceptance.sh
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -82,6 +58,7 @@ jobs:
             acceptance/session-setup.txt
             acceptance/authenticated.xml
             acceptance/android-authenticated.png
+            acceptance/android-current.png
             acceptance/baseline.xml
           if-no-files-found: warn
           retention-days: 14
