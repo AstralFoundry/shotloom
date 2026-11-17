@@ -30,7 +30,7 @@ public final class SessionInstrumentation extends Instrumentation {
                 Intent launch = getTargetContext().getPackageManager().getLaunchIntentForPackage(getTargetContext().getPackageName());
                 launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                 getTargetContext().startActivity(launch);
-                for (int attempt = 0; attempt < 90; attempt++) {
+                for (int attempt = 0; attempt < 450; attempt++) {
                     Thread.sleep(2000);
                     runOnMainSync(() -> WebView.setWebContentsDebuggingEnabled(true));
                 }

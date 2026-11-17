@@ -251,13 +251,6 @@ for roundtrip in 1 2; do
 done
 touch acceptance/pages-roundtrip.marker
 wait "$pages_check"
-# Each debug instrumentation process expires after three minutes; start a fresh
-# process for canvas gestures after the native settings/cache checks.
-adb shell am force-stop com.shotloom.app.preview
-adb shell am instrument -w -e cookie "$TEST_SESSION_COOKIE" -e debug 1 com.shotloom.acceptance/com.shotloom.acceptance.SessionInstrumentation > acceptance/canvas-instrumentation.txt &
-wait_for_ui canvas-library 'Android Canvas Acceptance'
-pid=$(adb shell pidof com.shotloom.app.preview | tr -d '\r')
-adb forward tcp:9222 "localabstract:webview_devtools_remote_$pid"
 node .github/scripts/native-canvas-cdp.mjs > acceptance/canvas-cdp.txt 2>&1 &
 canvas_check=$!
 tap_text 'Android Canvas Acceptance'

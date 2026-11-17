@@ -53,7 +53,6 @@ export interface SettingsController {
   clearDownloadDir: () => void | Promise<void>;
   setProjectModel: (key: string, value: string) => void;
   repairNodeModels: () => void | Promise<void>;
-  exportDiagnostics: () => void | Promise<void>;
   setAgentModel: (key: string, value: string) => void | Promise<void>;
   setAgentToggle: (key: string, value: boolean | string) => void | Promise<void>;
   recordShortcut: (key: string) => void;
@@ -461,21 +460,6 @@ export function SettingsPanel(
                   </button>
                 </div>
               </section>}
-              <section className="settings-section">
-                <h4>{t('settings.diagnostics.title')}</h4>
-                <div className="settings-row">
-                  <div>
-                    <strong>{t('settings.diagnostics.action')}</strong>
-                    <span>{t('settings.diagnostics.hint')}</span>
-                  </div>
-                  <button
-                    className="button ghost compact"
-                    onClick={() => void controller.exportDiagnostics()}
-                  >
-                    {t('settings.diagnostics.action')}
-                  </button>
-                </div>
-              </section>
             </>
           )}
           {tab === "canvas" && (

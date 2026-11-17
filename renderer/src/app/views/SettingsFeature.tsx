@@ -34,11 +34,6 @@ import {
   normalizeCanvasActionShortcuts,
 } from "../../utils/canvasActionShortcuts";
 import { showToast, showErrorMessage } from "../../store/notificationStore";
-import { confirmAction } from "../ui/confirm/confirmService";
-import {
-  exportDiagnosticsBundle,
-  previewDiagnostics,
-} from "../../services/diagnosticsService";
 import { repairUnconfiguredNodeModels } from "../../services/nodeModelRepairService";
 import {
   type SettingsController,
@@ -208,26 +203,6 @@ export function SettingsFeature() {
       touchProject();
       refresh();
     },
-    exportDiagnostics: () =>
-      run(async () => {
-        const preview = previewDiagnostics();
-        const kilobytes = Math.max(1, Math.ceil(preview.bytes / 1024));
-        const confirmed = await confirmAction({
-          title: [
-            t('settings.diagnostics.confirm', { count: preview.eventCount, kb: kilobytes }),
-            preview.truncated ? t('settings.diagnostics.truncated') : '',
-          ].filter(Boolean).join('\n'),
-          okText: t('settings.diagnostics.action'),
-          cancelText: t('settings.diagnostics.cancel'),
-        });
-        if (!confirmed) return;
-        const result = await exportDiagnosticsBundle();
-        if (result.ok) {
-          showToast(t('settings.diagnostics.done', { name: result.fileName || '' }), 'success');
-        } else {
-          showErrorMessage(t('settings.diagnostics.failed'), t('settings.diagnostics.failedTitle'));
-        }
-      }),
     setAgentModel: (key, value) =>
       run(async () => {
         await saveAppSettings({ [key]: value });

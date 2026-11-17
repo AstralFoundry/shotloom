@@ -2,8 +2,6 @@ import React, { useCallback, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, Modal, Pressable, RefreshControl, ScrollView, Switch, Text, TextInput, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { File, Paths } from 'expo-file-system';
-import { isAvailableAsync, shareAsync } from 'expo-sharing';
 import defaults from '../../../renderer/src/config/shotloom-defaults.generated.json';
 import type { MobileSettings } from '../../../shared/mobileSettings';
 import type { ModelPublication } from '../../../shared/modelPublications';
@@ -55,18 +53,6 @@ export function NativeSettings({ api, onChanged }: { api: NativeApi; onChanged: 
     } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
     finally { running.current = false; setBusy(false); }
   };
-  const diagnostics = async () => {
-    if (running.current) return;
-    running.current = true; setBusy(true); setError('');
-    try {
-      if (!await isAvailableAsync()) throw new Error(local('当前设备不支持分享文件。', 'File sharing is unavailable.'));
-      const file = new File(Paths.cache, 'shotloom-native-diagnostics.json');
-      file.create({ overwrite: true });
-      file.write(JSON.stringify({ app: 'Shotloom Preview', version: '0.9.6', platform: 'react-native', locale: language, modelCount: catalog.publications.length, createdAt: new Date().toISOString() }, null, 2));
-      await shareAsync(file.uri, { mimeType: 'application/json', dialogTitle: t('settings.diagnostics.action') });
-    } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
-    finally { running.current = false; setBusy(false); }
-  };
   const selectedType = models.find(([key]) => key === picker)?.[1];
   const available = catalog.publications.filter(model => model.published && model.available);
   const choices = available.filter(model => model.type === selectedType && `${model.name} ${model.id}`.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()));
@@ -86,7 +72,6 @@ export function NativeSettings({ api, onChanged }: { api: NativeApi; onChanged: 
         {modelError && <View accessibilityRole="alert"><Text style={styles.error}>{modelError}</Text><Button title={t('support.refresh')} ghost onPress={() => void refresh(true)} /></View>}
       </View>
       <View style={styles.recordCard}><Pressable accessibilityRole="button" accessibilityState={{ expanded }} style={styles.between} onPress={() => setExpanded(value => !value)}><View style={styles.grow}><Text style={styles.title}>{t('settings.availableModels')}</Text><Text style={styles.small}>{local(`${available.length} 个模型，由服务端管理`, `${available.length} models, managed by the server`)}</Text></View><Icon name={expanded ? 'chevron-down' : 'chevron-right'} /></Pressable>{expanded && available.map(model => <View key={model.id} style={styles.field}><Text style={styles.body}>{model.name || model.id}</Text><Text style={styles.small}>{model.id} · {model.owned_by}</Text></View>)}</View>
-      <View style={styles.recordCard}><Text style={styles.title}>{t('settings.diagnostics.title')}</Text><Text style={styles.small}>{local('导出应用版本、语言和模型数量，供排查问题使用。', 'Share app version, language and model count for troubleshooting.')}</Text><Button title={t('settings.diagnostics.action')} ghost disabled={busy} onPress={() => void diagnostics()} /></View>
     </ScrollView>
     <Modal visible={Boolean(picker)} animationType="slide" onRequestClose={() => { if (!busy) setPicker(undefined); }}><SafeAreaView style={styles.screen}><View style={styles.list}><View style={styles.between}><Text style={styles.title}>{local('选择模型', 'Choose model')}</Text><Button title={local('关闭', 'Close')} ghost disabled={busy} onPress={() => setPicker(undefined)} /></View><TextInput accessibilityLabel={local('搜索模型', 'Search models')} placeholder={local('搜索模型', 'Search models')} value={query} onChangeText={setQuery} style={styles.input} />{error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}<FlatList data={choices} keyExtractor={model => model.id} ListHeaderComponent={<Button title={local('跟随默认配置', 'Use default')} ghost disabled={busy} onPress={() => picker && void save({ [picker]: '' })} />} ListEmptyComponent={<Text style={styles.secondary}>{local('暂无匹配的可用模型', 'No matching models available')}</Text>} renderItem={({ item }) => <Pressable accessibilityRole="radio" accessibilityState={{ checked: picker ? settings[picker] === item.id : false }} disabled={busy} style={styles.accountAction} onPress={() => picker && void save({ [picker]: item.id })}><View style={styles.grow}><Text style={styles.body}>{item.name || item.id}</Text><Text style={styles.small}>{item.id}</Text></View>{picker && settings[picker] === item.id && <Icon name="check" color={colors.accent} />}</Pressable>} /></View></SafeAreaView></Modal>
   </SafeAreaView>;

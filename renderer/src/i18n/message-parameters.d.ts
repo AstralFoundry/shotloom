@@ -1191,8 +1191,6 @@ export interface MessageParameters {
   "imageRecipe.lighting.derivedTitle": Record<"name", string | number>;
   "project.version.counts": Record<"nodes" | "edges", string | number>;
   "project.version.restoreFailed": Record<"reason", string | number>;
-  "settings.diagnostics.confirm": Record<"count" | "kb", string | number>;
-  "settings.diagnostics.done": Record<"name", string | number>;
   "imageRecipe.notice.modelFallback": Record<"value0", string | number>;
   "settings.repairNodeModels.done": Record<"count", string | number>;
   "imageMask.derivedTitle": Record<"name", string | number>;
