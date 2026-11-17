@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path';
 /**
  * electron-builder 的 extraResources 会沿用默认的忽略规则，把 agent-host 的
  * node_modules 丢掉，导致打包后的 Agent Host 起不来。这里在打完后按目录原样
- * 拷一次，保证资源闭包完整（node 运行时 + 依赖 + content）。
+ * 拷一次已由 prepare-harness 精简的生产资源闭包（node 运行时 + 依赖 + content）。
  */
 export default async function afterPack(context) {
   const rootDir = context.packager.projectDir;

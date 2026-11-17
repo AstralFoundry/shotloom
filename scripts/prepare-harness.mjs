@@ -1,10 +1,40 @@
-import { cp, copyFile, mkdir, writeFile, chmod, rm, mkdtemp, rename, access } from 'node:fs/promises';
-import { resolve, join } from 'node:path';
+import { cp, copyFile, mkdir, writeFile, chmod, rm, mkdtemp, rename, access, readFile } from 'node:fs/promises';
+import { resolve, join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { prepareOpenReelAgent } from './prepare-openreel-agent.mjs';
 
-/** Build a complete closure outside Tauri's watched resources before publishing it. */
+async function runtimeDependencyFilter(root) {
+  const lock = JSON.parse(await readFile(join(root, 'package-lock.json'), 'utf8'));
+  if (!lock.packages) throw new Error('Harness lockfile must include package records to stage production dependencies');
+  const development = new Set(Object.entries(lock.packages).filter(([, pkg]) => pkg.dev === true).map(([path]) => path));
+  const developmentBins = new Set();
+  const productionBins = new Set();
+  for (const [path, pkg] of Object.entries(lock.packages)) {
+    if (!path || !pkg.bin) continue;
+    const directory = path.slice(0, path.lastIndexOf('node_modules/') + 'node_modules/'.length);
+    const names = typeof pkg.bin === 'string' ? [path.split('/').at(-1)] : Object.keys(pkg.bin);
+    for (const name of names) {
+      for (const suffix of ['', '.cmd', '.ps1']) {
+        (pkg.dev === true ? developmentBins : productionBins).add(`${directory}.bin/${name}${suffix}`);
+      }
+    }
+  }
+  return source => {
+    const path = relative(root, source).split(sep).join('/');
+    const parts = path.split('/');
+    for (let count = 1; count <= parts.length; count++) {
+      if (development.has(parts.slice(0, count).join('/'))) return false;
+    }
+    if (developmentBins.has(path) && !productionBins.has(path)) return false;
+    if (/\.d\.[cm]?ts(?:\.map)?$|\.[cm]?js\.map$/.test(path)) return false;
+    const prebuild = 'node_modules/node-pty/prebuilds/';
+    if (path.startsWith(prebuild) && parts[3] !== `${process.platform}-${process.arch}`) return false;
+    return true;
+  };
+}
+
+/** Build a production closure outside watched resources before publishing it. */
 export async function stageHarnessResources({
   root = resolve('harness/host'),
   target = resolve('electron/resources/agent-host'),
@@ -20,8 +50,10 @@ export async function stageHarnessResources({
   let backedUp = false;
   try {
     await mkdir(ready);
+    const filter = await runtimeDependencyFilter(root);
     for (const folder of ['dist', 'client-dist', 'node_modules']) {
-      await cp(join(root, folder), join(ready, folder), { recursive: true, dereference: true });
+      await cp(join(root, folder), join(ready, folder), { recursive: true, dereference: true,
+        ...(folder === 'node_modules' ? { filter } : {}) });
     }
     await cp(content, join(ready, 'content'), { recursive: true });
     await copyFile(rules, join(ready, 'AGENTS.md'));

@@ -7,6 +7,10 @@ on:
         description: "版本号或标签；留空使用 package.json 版本。无需修改工作流。"
         required: false
         type: string
+      publish:
+        description: "发布到 GitHub Release；关闭时只构建并上传测试产物。"
+        type: boolean
+        default: true
   push:
     tags: ["v*", "[0-9]*.[0-9]*.[0-9]*"]
 permissions:
@@ -160,6 +164,7 @@ jobs:
 
   publish:
     name: Verify assets and publish
+    if: github.event_name != 'workflow_dispatch' || inputs.publish
     needs: [metadata, build]
     runs-on: ubuntu-latest
     permissions:

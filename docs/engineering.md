@@ -22,6 +22,8 @@
 
 ## 官方 Harness 客户端隔离
 
+Agent Host 发行资源由 `scripts/prepare-harness.mjs` 在临时目录准备后原子替换。依赖按锁文件中的 `dev` 标记排除纯开发包及其命令入口，保留生产依赖和许可证；不复制依赖的 JS 源码映射、类型声明及其他平台的 node-pty 预编译文件。只精简发行副本，不修改开发依赖目录；变更后运行资源装配测试和 `npm run harness:verify-package`。
+
 `harness/host/client/` 直接复用官方 Harness 的 UI、状态、投影与 React 依赖，以 App 级单例运行时在 Shotloom 页面内挂载，使用 ShadowRoot 隔离样式，不使用 iframe。它不接管 Shotloom 领域状态，不导入 renderer/store，不将官方状态引擎扩散到产品模块。桌面客户端通过原生 IPC 与父进程私有管道连接 Host，不使用 Cookie 登录或浏览器认证跳转；原生调用边界、项目绑定、Tool Bridge 和工具权限校验继续生效。切换项目只切换会话，工具、Skill、模型配置内容未变时不得重复复制或挂载。产品导航和画布引用通过显式适配接口协作；renderer 内仍严格遵守以上两类状态引擎约定。
 
 ## Agent 工具的暴露与可见性
