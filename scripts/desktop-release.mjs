@@ -27,11 +27,10 @@ export async function syncVersion(version, directory = root) {
   }
 }
 
-async function filesUnder(directory) {
+async function bundleFiles(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
-  const files = await Promise.all(entries.map(entry => entry.isDirectory()
-    ? filesUnder(join(directory, entry.name)) : [join(directory, entry.name)]));
-  return files.flat();
+  // Unpacked application directories contain executables, not release installers.
+  return entries.filter(entry => entry.isFile()).map(entry => join(directory, entry.name));
 }
 const digest = async file => createHash('sha256').update(await readFile(file)).digest('hex');
 
@@ -42,7 +41,7 @@ const digest = async file => createHash('sha256').update(await readFile(file)).d
 export async function stageAssets({ bundle, destination, platform, version, artifactPaths }) {
   const target = targets.find(item => item.platform === platform);
   if (!target) throw new Error(`Unknown platform: ${platform}`);
-  const files = artifactPaths ?? await filesUnder(bundle);
+  const files = artifactPaths ?? await bundleFiles(bundle);
   const metadata = target.metadataFiles.map(name => files.find(file => basename(file) === name)).filter(Boolean);
   if (metadata.length !== target.metadataFiles.length) {
     throw new Error(`Missing update metadata for ${platform}: ${target.metadataFiles.join(', ')}`);
