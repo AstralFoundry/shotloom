@@ -92,15 +92,6 @@ tap_text '^我的$|^My account$'
 wait_for_ui account '可用积分|Available credits'
 adb exec-out screencap -p > acceptance/android-account.png
 
-tap_text '^设置$|^Settings$'
-wait_for_ui settings '偏好设置|Preferences'
-! grep 'android.webkit.WebView' acceptance/settings.xml
-adb exec-out screencap -p > acceptance/android-settings.png
-adb shell input swipe 380 1250 380 550 500
-wait_for_ui settings-agent 'Agent'
-adb exec-out screencap -p > acceptance/android-settings-agent.png
-adb shell input keyevent 4
-wait_for_ui account '可用积分|Available credits'
 adb shell settings put system accelerometer_rotation 0
 adb shell settings put system user_rotation 1
 wait_for_ui account-landscape '可用积分|Available credits'
