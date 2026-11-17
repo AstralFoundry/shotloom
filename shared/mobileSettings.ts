@@ -1,5 +1,10 @@
 export const mobileSettingKeys = ['locale', 'agentCanRunNodes', 'agentAutoEval', 'agentAutoLayout', 'agentPreferredTextModel', 'agentPreferredImageModel', 'agentPreferredVideoModel'] as const;
 export type MobileSettings = { locale?: 'zh-CN' | 'en-US'; agentCanRunNodes?: boolean; agentAutoEval?: boolean; agentAutoLayout?: boolean; agentPreferredTextModel?: string; agentPreferredImageModel?: string; agentPreferredVideoModel?: string };
 export function pickMobileSettings(value: Record<string, unknown>): MobileSettings {
-  return Object.fromEntries(mobileSettingKeys.filter(key => value[key] !== undefined).map(key => [key, value[key]]));
+  return Object.fromEntries(mobileSettingKeys.filter(key => {
+    const input = value[key];
+    if (key === 'locale') return input === 'zh-CN' || input === 'en-US';
+    if (key === 'agentCanRunNodes' || key === 'agentAutoEval' || key === 'agentAutoLayout') return typeof input === 'boolean';
+    return typeof input === 'string' && input.length <= 200;
+  }).map(key => [key, value[key]]));
 }
