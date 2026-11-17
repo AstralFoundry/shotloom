@@ -249,6 +249,23 @@
 :host([data-director-mode]) [data-composer-card] button[aria-haspopup="listbox"] { width:28px;height:28px;color:var(--director-dock-muted, #76767d); }
 :host([data-director-mode]) [data-composer-card] button[aria-haspopup="listbox"] > svg { width:16px;height:16px; }
 :host([data-director-mode]) [data-input-scroll] { margin:0; }
+/* The input dock is a sibling of the input bar, not part of its pill. Keep
+   projected tasks above the entire folded card (including its history row),
+   so adding or expanding tasks cannot displace the fixed-height composer. */
+:host([data-director-mode]) [data-testid="todo-panel"] {
+  width:100%;max-width:100%;min-width:0;
+  border:1px solid var(--director-dock-line, #d9d9de);border-radius:var(--director-dock-radius,22px);corner-shape:round;
+  background:var(--director-dock-bg, #fff);box-shadow:none;backdrop-filter:none;
+}
+:host([data-director-mode]) [data-testid="todo-panel"] > div { padding:9px 20px; }
+:host([data-director-mode]) [data-testid="todo-panel"] ul { max-height:min(180px,30vh); }
+:host([data-director-mode]:not([data-director-mode="expanded"])) [data-slot="conversation.input.dock"] {
+  position:absolute;inset:auto 0 calc(100% + 8px);z-index:2;
+  display:flex !important;flex-direction:column;gap:8px;
+}
+:host([data-director-mode="input"]:not([data-director-mode="expanded"])) [data-slot="conversation.input.dock"] {
+  bottom:calc(100% + var(--director-history-height,36px) + 8px);
+}
 /* Attachments have their own full-width tray. The pill's grid remains one
    control row, regardless of the number or kind of pasted files. */
 :host([data-director-mode]) [data-shotloom-attachments][data-has-attachments="true"] {
