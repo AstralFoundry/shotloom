@@ -230,7 +230,14 @@ adb shell input swipe 380 1280 380 650 500
 wait_for_ui settings-agent '创建后自动整理|Arrange after creation'
 adb exec-out screencap -p > acceptance/android-settings-agent.png
 tap_text '创建后自动整理|Arrange after creation' switch
-sleep 2
+setting_saved=0
+for attempt in {1..15}; do
+  adb shell uiautomator dump /sdcard/window.xml >/dev/null
+  adb pull /sdcard/window.xml acceptance/settings-saved.xml >/dev/null 2>&1
+  if python3 -c 'import re,xml.etree.ElementTree as ET; assert any("Switch" in n.get("class", "") and re.search("创建后自动整理|Arrange after creation", n.get("content-desc", "")) and n.get("checked")=="false" and n.get("enabled")=="true" for n in ET.parse("acceptance/settings-saved.xml").iter("node"))'; then setting_saved=1; break; fi
+  sleep 2
+done
+test "$setting_saved" = 1
 adb shell input keyevent 4
 wait_for_ui account '可用积分|Available credits'
 tap_text '^技能$|^Skills$'
