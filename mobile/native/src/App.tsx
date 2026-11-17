@@ -14,11 +14,14 @@ import type { IconName } from '../../../shared/iconPaths';
 import type { Feedback, FeedbackDetail, FeedbackKind, InboxPage, Page } from '../../../shared/support';
 import { language, local, setLanguage, t } from './i18n';
 import { NativeSkills } from './NativeSkills';
+import { NativeSettings } from './NativeSettings';
 const origin = (process.env.EXPO_PUBLIC_CLOUD_URL || 'https://shotloom.0xfiang.com').replace(/\/$/, '');
 const parsedOrigin = new URL(origin);
 if (parsedOrigin.origin !== origin || (parsedOrigin.protocol !== 'https:' && !(__DEV__ && parsedOrigin.protocol === 'http:'))) throw new Error('EXPO_PUBLIC_CLOUD_URL must be an HTTPS origin');
-type Routes = { Home: undefined; Records: undefined; Compose: undefined; Feedback: { id: string }; Notifications: undefined; Workspace: { id: string; name: string; page?: 'projects' | 'account'; panel?: 'settings' | 'topup'; folder?: string } };
+type Routes = { Home: undefined; Settings: undefined; Records: undefined; Compose: undefined; Feedback: { id: string }; Notifications: undefined; Workspace: { id: string; name: string; page?: 'projects' | 'account'; panel?: 'settings' | 'topup'; folder?: string } };
 const Stack = createNativeStackNavigator<Routes>();
+const SettingsChanged = createContext({ revision: 0, changed: () => {} });
+const PageActive = createContext(true);
 const ApiContext = createContext<NativeApi | null>(null);
 function useApi() { const value = useContext(ApiContext); if (!value) throw new Error('Session unavailable'); return value; }
 const errorText = (value: unknown) => value instanceof Error ? value.message : String(value);
@@ -29,18 +32,22 @@ function ErrorNotice({ text, retry }: { text: string; retry?: () => void }) {
 }
 function useRemote<T>(path: string) {
   const api = useApi();
-  const [data, setData] = useState<T>();
+  const pageActive = useContext(PageActive);
+  const force = useRef(false);
+  const [data, setData] = useState<T | undefined>(() => api.cached<T>(path));
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [revision, setRevision] = useState(0);
-  const refresh = useCallback(() => setRevision(value => value + 1), []);
+  const refresh = useCallback(() => { force.current = true; setRevision(value => value + 1); }, []);
   useFocusEffect(useCallback(() => {
+    if (!pageActive) return;
     let active = true;
-    setLoading(true); setError('');
-    void api.request<T>(path).then(value => { if (active) setData(value); }).catch(cause => { if (active) setError(errorText(cause)); }).finally(() => { if (active) setLoading(false); });
+    const bypass = force.current; force.current = false;
+    setLoading(api.cached(path) === undefined || bypass); setError('');
+    void api.read<T>(path, bypass).then(value => { if (active) setData(value); }).catch(cause => { if (active) setError(errorText(cause)); }).finally(() => { if (active) setLoading(false); });
     const subscription = AppState.addEventListener('change', state => { if (state === 'active') refresh(); });
     return () => { active = false; subscription.remove(); };
-  }, [api, path, revision, refresh]));
+  }, [api, path, revision, refresh, pageActive]));
   return { data, error, loading, refresh };
 }
 type Project = { id: string; name: string; cloudFolderId?: string | null; updatedAt?: string; nodeCount?: number };
@@ -101,7 +108,7 @@ function Account({ navigation }: { navigation: NativeStackScreenProps<Routes, 'H
   const [page, setPage] = useState(1);
   const usage = useRemote<Usage>(`/auth/usage?page=${page}&page_size=10`);
   const refresh = () => { account.refresh(); usage.refresh(); me.refresh(); };
-  const openPanel = (panel: 'settings' | 'topup') => navigation.navigate('Workspace', { id: '', name: t(panel === 'settings' ? 'account.settings' : 'account.topup'), page: 'account', panel });
+  const openPanel = (panel: 'settings' | 'topup') => panel === 'settings' ? navigation.navigate('Settings') : navigation.navigate('Workspace', { id: '', name: t('account.topup'), page: 'account', panel });
   const action = (icon: IconName, title: string, description: string, onPress: () => void) => <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.accountAction, pressed && styles.pressed]}><View style={styles.actionIcon}><Icon name={icon} /></View><View style={styles.grow}><Text style={styles.title}>{title}</Text><Text style={styles.actionDescription}>{description}</Text></View><Icon name="chevron-right" /></Pressable>;
   return <ScrollView contentContainerStyle={styles.account} refreshControl={<RefreshControl refreshing={account.loading} onRefresh={refresh} />}>
     <View style={styles.accountHeader}><Text style={styles.heading}>{t('account.title')}</Text><Text style={styles.secondary}>{t('account.description')}</Text></View>
@@ -118,6 +125,8 @@ function Home({ navigation }: NativeStackScreenProps<Routes, 'Home'>) {
   const api = useApi();
   const [tab, setTab] = useState<'projects' | 'creation' | 'skills' | 'account'>('projects');
   const [currentProject, setCurrentProject] = useState<Project>();
+  const [visited, setVisited] = useState(['projects']);
+  useEffect(() => { setVisited(value => value.includes(tab) ? value : [...value, tab]); }, [tab]);
   const open = (project: Project) => { setCurrentProject(current => current?.id === project.id ? current : project); setTab('creation'); };
   useFocusEffect(useCallback(() => {
     if (tab !== 'creation') return;
@@ -131,8 +140,10 @@ function Home({ navigation }: NativeStackScreenProps<Routes, 'Home'>) {
     { id: 'account', label: t('account.title'), icon: 'user' },
   ];
   return <SafeAreaView style={styles.screen}><StatusBar barStyle="dark-content" backgroundColor={colors.background} /><View style={styles.grow}>
-    {tab === 'projects' ? <Projects navigation={navigation} onOpen={open} /> : tab === 'account' ? <Account navigation={navigation} /> : tab === 'skills' ? <NativeSkills api={api} /> : null}
-    {currentProject && <View style={[styles.screen, tab !== 'creation' && styles.parkedWorkspace]} pointerEvents={tab === 'creation' ? 'auto' : 'none'} accessibilityElementsHidden={tab !== 'creation'} importantForAccessibility={tab === 'creation' ? 'auto' : 'no-hide-descendants'}><WebContent key={currentProject.id} params={currentProject} embedded /></View>}
+    {visited.includes('projects') && <View style={[styles.screen, tab !== 'projects' && styles.parkedWorkspace]}><PageActive.Provider value={tab === 'projects'}><Projects navigation={navigation} onOpen={open} /></PageActive.Provider></View>}
+    {visited.includes('account') && <View style={[styles.screen, tab !== 'account' && styles.parkedWorkspace]}><PageActive.Provider value={tab === 'account'}><Account navigation={navigation} /></PageActive.Provider></View>}
+    {visited.includes('skills') && <View style={[styles.screen, tab !== 'skills' && styles.parkedWorkspace]}><NativeSkills api={api} active={tab === 'skills'} /></View>}
+    {currentProject && <View style={[styles.screen, tab !== 'creation' && styles.parkedWorkspace]} pointerEvents={tab === 'creation' ? 'auto' : 'none'} accessibilityElementsHidden={tab !== 'creation'} importantForAccessibility={tab === 'creation' ? 'auto' : 'no-hide-descendants'}><WebContent key={currentProject.id} params={currentProject} /></View>}
   </View><View accessibilityRole="tablist" style={styles.tabs}>{tabs.map(item => <Pressable key={item.id} accessibilityRole="tab" accessibilityState={{ selected: tab === item.id, disabled: item.id === 'creation' && !currentProject }} disabled={item.id === 'creation' && !currentProject} onPress={() => { if (item.id === 'creation') { if (currentProject) open(currentProject); } else setTab(item.id); }} style={({ pressed }) => [styles.tab, tab === item.id && styles.tabActive, item.id === 'creation' && !currentProject && styles.disabled, pressed && styles.pressed]}><Icon name={item.icon} color={tab === item.id ? colors.accent : colors.muted} /><Text style={[styles.tabText, tab === item.id && styles.tabTextActive]}>{item.label}</Text></Pressable>)}</View></SafeAreaView>;
 }
 function SupportTabs({ active, navigation }: { active: 'Compose' | 'Records'; navigation: Pick<NativeStackScreenProps<Routes, 'Home'>['navigation'], 'navigate'> }) {
@@ -229,7 +240,12 @@ function Notifications({ navigation }: NativeStackScreenProps<Routes, 'Notificat
     {(data?.total || 0) > 20 && <View style={styles.pager}><Action ghost title={local('上一页', 'Previous')} disabled={!page || loading || busy} onPress={() => setPage(value => value - 1)} /><Text style={styles.small}>{page + 1} / {Math.ceil((data?.total || 0) / 20)}</Text><Action ghost title={local('下一页', 'Next')} disabled={loading || busy || (page + 1) * 20 >= (data?.total || 0)} onPress={() => setPage(value => value + 1)} /></View>}
   </SafeAreaView>;
 }
-function WebContent({ params, embedded = false }: { params: Routes['Workspace']; embedded?: boolean }) {
+function WebContent({ params }: { params: Routes['Workspace'] }) {
+  const api = useApi();
+  const webview = useRef<WebView>(null);
+  const { revision } = useContext(SettingsChanged);
+  const [ready, setReady] = useState(false);
+  useEffect(() => { if (revision) webview.current?.injectJavaScript("window.dispatchEvent(new Event('shotloom-native-settings-changed')); true;"); }, [revision]);
   const [error, setError] = useState('');
   const [retry, setRetry] = useState(0);
   const query = new URLSearchParams();
@@ -237,12 +253,20 @@ function WebContent({ params, embedded = false }: { params: Routes['Workspace'];
   else if (params.page) query.set('route', params.page);
   if (params.panel) query.set('panel', params.panel);
   if (params.folder) query.set('folder', params.folder);
-  // Workspace content has no native bridge. Embedded skill content uses the native tab bar.
-  const injected = `window.__SHOTLOOM_MOBILE__ = true; ${embedded ? `document.addEventListener('DOMContentLoaded',function(){var s=document.createElement('style');s.textContent='.app-shell .sidebar-shell,.app-shell .topbar,.app-shell .mobile-navigation{display:none!important}.app-shell .workspace{grid-template-rows:minmax(0,1fr)!important}';document.head.appendChild(s)});` : ''} true;`;
-  return <View style={styles.screen}>{error && <ErrorNotice text={error} retry={() => { setError(''); setRetry(value => value + 1); }} />}
-    <WebView key={retry} source={{ uri: `${origin}/?${query}` }} style={styles.screen} sharedCookiesEnabled thirdPartyCookiesEnabled={false}
-      mixedContentMode="never" setSupportMultipleWindows={false} injectedJavaScriptBeforeContentLoaded={injected} onError={event => setError(event.nativeEvent.description)} onHttpError={event => setError(`HTTP ${event.nativeEvent.statusCode}`)} />
+  query.set('native', 'embedded');
+  // The workspace can report display readiness, but has no API/tool request bridge.
+  const injected = `window.__SHOTLOOM_MOBILE__ = true; try { localStorage.setItem('shotloom:locale', ${JSON.stringify(language)}); } catch {} document.documentElement.dataset.nativeEmbedded='true'; true;`;
+  return <View style={styles.screen}>{error && <ErrorNotice text={error} retry={() => { setError(''); setReady(false); setRetry(value => value + 1); }} />}
+    <WebView ref={webview} key={retry} source={{ uri: `${origin}/?${query}` }} style={[styles.screen, !ready && !error && { opacity: 0 }]} sharedCookiesEnabled thirdPartyCookiesEnabled={false} contentInsetAdjustmentBehavior="never"
+      onMessage={event => { try { if (new URL(event.nativeEvent.url).origin !== origin) return; const value = JSON.parse(event.nativeEvent.data); if (value.type === 'workspace-ready' || value.type === 'workspace-blocked') setReady(true); else if (value.type === 'workspace-mutated') api.invalidate(); } catch {} }}
+      mixedContentMode="never" setSupportMultipleWindows={false} injectedJavaScriptBeforeContentLoaded={injected} onLoadStart={event => { try { const url = new URL(event.nativeEvent.url); setReady(url.origin !== origin || url.searchParams.get('native') !== 'embedded'); } catch { setReady(true); } }} onError={event => setError(event.nativeEvent.description)} onHttpError={event => setError(`HTTP ${event.nativeEvent.statusCode}`)} />
+    {!ready && !error && <View style={[styles.empty, { position: 'absolute', inset: 0, backgroundColor: colors.background }]}><ActivityIndicator color={colors.accent} /><Text style={styles.secondary}>{params.id ? local('正在打开画布…', 'Opening canvas…') : local('正在打开页面…', 'Opening page…')}</Text></View>}
   </View>;
+}
+function Settings() {
+  const api = useApi();
+  const { changed } = useContext(SettingsChanged);
+  return <NativeSettings api={api} onChanged={changed} />;
 }
 function Workspace({ route }: NativeStackScreenProps<Routes, 'Workspace'>) {
   return <SafeAreaView edges={route.params.id ? ['top', 'bottom'] : ['bottom']} style={styles.screen}><WebContent params={route.params} /></SafeAreaView>;
@@ -251,6 +275,9 @@ export default function App() {
   const webview = useRef<WebView>(null);
   const sessionDocument = useRef(`${origin}/native`);
   const user = useRef<string | null>(null);
+  const loggingOut = useRef(false);
+  const [settingsRevision, setSettingsRevision] = useState(0);
+  const changed = useCallback(() => setSettingsRevision(value => value + 1), []);
   const [opened, setOpened] = useState(false);
   const [authenticated, setAuthenticated] = useState(false);
   const [failure, setFailure] = useState('');
@@ -259,15 +286,23 @@ export default function App() {
     webview.current.injectJavaScript(`window.__shotloomNativeRequest?.(${JSON.stringify(request)}); true;`);
   }, randomUUID), []);
   useEffect(() => () => api.disconnect(), [api]);
-  const logout = async () => {
-    try { await api.request('/auth/logout', 'POST'); user.current = null; setOpened(false); setAuthenticated(false); webview.current?.reload(); }
-    catch (cause) { setFailure(errorText(cause)); }
+  const finishLogout = () => {
+    api.invalidate(); loggingOut.current = false; user.current = null; setOpened(false); setAuthenticated(false); setFailure('');
+    webview.current?.reload();
   };
-  return <SafeAreaProvider><View style={styles.screen}><ApiContext.Provider value={api}><LogoutContext.Provider value={() => void logout()}>
+  const logout = async () => {
+    if (loggingOut.current) return;
+    loggingOut.current = true; setFailure('');
+    try { await api.request('/auth/logout', 'POST'); if (loggingOut.current) finishLogout(); }
+    catch (cause) { if (loggingOut.current) setFailure(errorText(cause)); }
+    finally { loggingOut.current = false; }
+  };
+  return <SafeAreaProvider><View style={styles.screen}><ApiContext.Provider value={api}><SettingsChanged.Provider value={{ revision: settingsRevision, changed }}><LogoutContext.Provider value={() => void logout()}>
     {authenticated && failure ? <ErrorNotice text={failure} retry={() => { setFailure(''); webview.current?.reload(); }} /> : null}
     {opened && <NavigationContainer linking={{ prefixes: ['shotloom-preview://'], config: { screens: { Feedback: 'feedback/:id', Notifications: 'notifications' } } }}>
       <Stack.Navigator screenOptions={{ headerBackButtonDisplayMode: 'minimal', contentStyle: styles.screen, headerShadowVisible: false, headerStyle: { backgroundColor: colors.background }, headerTintColor: colors.text, headerTitleStyle: { fontSize: 16, fontWeight: '500' } }}>
         <Stack.Screen name="Home" component={Home} options={{ headerShown: false }} />
+        <Stack.Screen name="Settings" component={Settings} options={{ title: t('account.settings') }} />
         <Stack.Screen name="Compose" component={Compose} options={{ title: t('support.title'), headerStyle: { backgroundColor: colors.surface } }} />
         <Stack.Screen name="Records" component={Records} options={{ title: t('support.history') }} />
         <Stack.Screen name="Feedback" component={Thread} options={{ title: t('support.title') }} />
@@ -290,12 +325,16 @@ export default function App() {
                 if (user.current && user.current !== value.userId) { setFailure(t('cloud.login.accountChanged')); api.pause(); setAuthenticated(false); return; }
                 setLanguage(value.locale);
                 user.current = value.userId; api.resume(); setOpened(true); setAuthenticated(true); setFailure('');
-              } else if (value.type === 'login') { setAuthenticated(false); api.pause(); }
+              } else if (value.type === 'login') {
+                // Session expiry may reach native before the logout request's reply.
+                if (loggingOut.current) finishLogout();
+                setAuthenticated(false); api.pause();
+              }
               else if (value.type === 'error') { api.pause(); setFailure(typeof value.error === 'string' ? value.error : local('连接失败，请重试。', 'Connection failed. Please retry.')); }
               else if (value.type === 'response' && typeof value.id === 'string') api.receive(value);
             } catch { setFailure(local('会话响应无效，请重试。', 'Invalid session response. Please retry.')); }
           }} />
       </SafeAreaView>
     </View>
-  </LogoutContext.Provider></ApiContext.Provider></View></SafeAreaProvider>;
+  </LogoutContext.Provider></SettingsChanged.Provider></ApiContext.Provider></View></SafeAreaProvider>;
 }

@@ -22,5 +22,6 @@ export async function cloudRequest<T>(path: string, method = 'GET', value?: unkn
   if (response.status === 401 && typeof window !== 'undefined') window.dispatchEvent(new Event('shotloom-session-expired'));
   if (response.status === 409 && (result as { code?: string }).code === 'ACCOUNT_CHANGED' && typeof window !== 'undefined') window.dispatchEvent(new Event('shotloom-session-expired'));
   if (!response.ok || !result.success) throw Object.assign(new Error(result.message || `HTTP ${response.status}`), { status: response.status });
+  if (method !== 'GET' && typeof window !== 'undefined' && new URLSearchParams(window.location?.search).get('native') === 'embedded') window.ReactNativeWebView?.postMessage(JSON.stringify({ type: 'workspace-mutated' }));
   return result.data;
 }

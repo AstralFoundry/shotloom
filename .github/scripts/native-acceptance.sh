@@ -72,6 +72,8 @@ tap_text() {
 import re, sys, xml.etree.ElementTree as ET
 matches=[]
 for node in ET.parse('acceptance/current.xml').iter('node'):
+    if sys.argv[2] == 'switch' and 'Switch' not in node.get('class', ''):
+        continue
     if sys.argv[2] == 'input' and node.get('class') != 'android.widget.EditText':
         continue
     if any(re.search(sys.argv[1], label) for label in [node.get('text', ''), node.get('content-desc', '')]):
@@ -88,6 +90,16 @@ PY
 tap_text '^我的$|^My account$'
 wait_for_ui account '可用积分|Available credits'
 adb exec-out screencap -p > acceptance/android-account.png
+
+tap_text '^设置$|^Settings$'
+wait_for_ui settings '偏好设置|Preferences'
+! grep 'android.webkit.WebView' acceptance/settings.xml
+adb exec-out screencap -p > acceptance/android-settings.png
+adb shell input swipe 380 1250 380 550 500
+wait_for_ui settings-agent 'Agent'
+adb exec-out screencap -p > acceptance/android-settings-agent.png
+adb shell input keyevent 4
+wait_for_ui account '可用积分|Available credits'
 adb shell settings put system accelerometer_rotation 0
 adb shell settings put system user_rotation 1
 wait_for_ui account-landscape '可用积分|Available credits'
@@ -198,6 +210,48 @@ adb exec-out screencap -p > acceptance/android-session-expired.png
 touch acceptance/session-expired-verified.marker
 wait "$reload_check"
 wait_for_ui session-recovered 'Android Canvas Acceptance'
+
+node .github/scripts/native-pages-cdp.mjs > acceptance/pages-cdp.txt 2>&1 &
+pages_check=$!
+for attempt in {1..30}; do
+  if [ -f acceptance/pages-attached.marker ]; then break; fi
+  if ! kill -0 "$pages_check" 2>/dev/null; then cat acceptance/pages-cdp.txt; exit 1; fi
+  sleep 1
+done
+test -f acceptance/pages-attached.marker
+tap_text '^我的$|^My account$'
+wait_for_ui account '可用积分|Available credits'
+tap_text '^设置$|^Settings$'
+wait_for_ui settings '偏好设置|Preferences'
+! grep 'android.webkit.WebView' acceptance/settings.xml
+adb exec-out screencap -p > acceptance/android-settings.png
+adb shell input swipe 380 1280 380 650 500
+wait_for_ui settings-agent '创建后自动整理|Arrange after creation'
+adb exec-out screencap -p > acceptance/android-settings-agent.png
+tap_text '创建后自动整理|Arrange after creation' switch
+sleep 2
+adb shell input keyevent 4
+wait_for_ui account '可用积分|Available credits'
+tap_text '^技能$|^Skills$'
+wait_for_ui skills 'Native Acceptance Skill'
+tap_text '^项目库$|^Project library$' last
+wait_for_ui canvas-library 'Android Canvas Acceptance'
+touch acceptance/pages-warm.marker
+for attempt in {1..15}; do
+  if [ -f acceptance/pages-counting.marker ]; then break; fi
+  sleep 1
+done
+test -f acceptance/pages-counting.marker
+for roundtrip in 1 2; do
+  tap_text '^我的$|^My account$'
+  wait_for_ui account '可用积分|Available credits'
+  tap_text '^技能$|^Skills$'
+  wait_for_ui skills 'Native Acceptance Skill'
+  tap_text '^项目库$|^Project library$' last
+  wait_for_ui canvas-library 'Android Canvas Acceptance'
+done
+touch acceptance/pages-roundtrip.marker
+wait "$pages_check"
 node .github/scripts/native-canvas-cdp.mjs > acceptance/canvas-cdp.txt 2>&1 &
 canvas_check=$!
 tap_text 'Android Canvas Acceptance'

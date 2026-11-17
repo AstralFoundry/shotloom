@@ -116,7 +116,7 @@ test('工具图标由注册表声明，缺省时按 effect 取类别图标', () 
 
 // 写错图标名不会报错，IconSymbol 会静默换成 box，所以必须按真实清单校验。
 test('每个 Agent 工具都声明图标且图标名真实存在', () => {
-  const iconsSource = readSource('renderer/src/app/components/IconSymbol.tsx').match(/const paths = \{([\s\S]*?)\n\} as const/)[1];
+  const iconsSource = readSource('shared/iconPaths.ts').match(/const paths = \{([\s\S]*?)\n\} as const/)[1];
   const iconNames = new Set([...iconsSource.matchAll(/^\s{2}"?([a-z-]+)"?:/gm)].map(([, name]) => name));
   assert.ok(iconNames.size > 40, '未解析到图标清单');
 

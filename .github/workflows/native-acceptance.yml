@@ -105,6 +105,10 @@ jobs:
             acceptance/session-*.json
             acceptance/session-*.xml
             acceptance/session-reload-cdp.txt
+            acceptance/android-settings*.png
+            acceptance/settings*.xml
+            acceptance/pages-*.json
+            acceptance/pages-cdp.txt
             acceptance/android-skills.png
             acceptance/android-skill-editor.png
             acceptance/skills.xml

@@ -64,7 +64,7 @@ await command('Page.addScriptToEvaluateOnNewDocument', { source });
 await command('Page.reload', { ignoreCache: true, scriptToEvaluateOnLoad: source });
 const inspect = async () => {
   const result = await command('Runtime.evaluate', {
-    expression: `JSON.stringify({ready:!!document.querySelector('.react-flow__viewport'),timeOrigin:performance.timeOrigin,width:innerWidth,height:innerHeight,scrollWidth:document.documentElement.scrollWidth,transform:document.querySelector('.react-flow__viewport')?.style.transform})`,
+    expression: `JSON.stringify({ready:!!document.querySelector('.react-flow__viewport'),timeOrigin:performance.timeOrigin,width:innerWidth,height:innerHeight,scrollWidth:document.documentElement.scrollWidth,transform:document.querySelector('.react-flow__viewport')?.style.transform,headTop:document.querySelector('.mobile-workspace-head')?.getBoundingClientRect().top,workspaceTop:document.querySelector('.workspace')?.getBoundingClientRect().top,nativeEmbedded:document.documentElement.dataset.nativeEmbedded})`,
     returnByValue: true,
   });
   return JSON.parse(result.result.value);
@@ -83,6 +83,8 @@ if (!before?.ready) {
 }
 assert.ok(before?.ready, 'Canvas did not mount');
 assert.ok(before.scrollWidth <= before.width, 'Canvas causes horizontal page overflow');
+assert.equal(before.nativeEmbedded,'true');
+assert.ok(before.workspaceTop <= 1 && before.headTop <= 1, 'Embedded canvas must start at the WebView top, with no reserved web header space');
 await writeFile('acceptance/canvas-ready.json', JSON.stringify(before));
 console.log('CANVAS_READY', JSON.stringify(before));
 async function marker(name) {

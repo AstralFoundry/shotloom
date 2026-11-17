@@ -10,6 +10,7 @@ import { listen } from "@tauri-apps/api/event";
 import { registerWindowCloseGuard } from "./windowCloseGuard";
 import { desktopApi } from "../services/desktopApi.ts";
 import {
+  flushAutoSave,
   hasOpenProject,
   initProjectCloneProgressListener,
   loadBoundWindowProject,
@@ -102,6 +103,34 @@ export function ReactWorkbench() {
   const currentProjectDir = useAppStore((state) => state.currentProject?.projectDir);
   const directorWorkspaceOpen = useDirectorWorkspaceStore((state) => state.open);
   const setDirectorWorkspaceOpen = useDirectorWorkspaceStore((state) => state.setOpen);
+  useEffect(() => {
+    if (new URLSearchParams(location.search).get('native') !== 'embedded') return;
+    if (navigationStatus === 'error') window.ReactNativeWebView?.postMessage(JSON.stringify({ type: 'workspace-blocked' }));
+    if (navigationStatus !== 'ready') return;
+    const ready = () => {
+      if (appRoute === 'creation' && !document.querySelector('.react-flow__viewport')) return;
+      window.ReactNativeWebView?.postMessage(JSON.stringify({ type: 'workspace-ready' }));
+      observer.disconnect();
+    };
+    const observer = new MutationObserver(ready);
+    observer.observe(document.body, { childList: true, subtree: true });
+    ready();
+    return () => observer.disconnect();
+  }, [navigationStatus, appRoute]);
+  useEffect(() => {
+    if (new URLSearchParams(location.search).get('native') !== 'embedded') return;
+    const refreshSettings = () => {
+      void loadAppSettings().then(async () => {
+        if (settingsStore.locale !== getLocale()) {
+          if (hasOpenProject() && !await flushAutoSave()) return;
+          window.localStorage.setItem(LOCALE_STORAGE_KEY, settingsStore.locale);
+          window.location.reload();
+        }
+      }).catch(cause => showErrorMessage(String(cause)));
+    };
+    window.addEventListener('shotloom-native-settings-changed', refreshSettings);
+    return () => window.removeEventListener('shotloom-native-settings-changed', refreshSettings);
+  }, []);
   useEffect(() => {
     if (currentProjectId) useDirectorWorkspaceStore.getState().restoreForProject(currentProjectId);
   }, [currentProjectId]);

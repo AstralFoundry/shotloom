@@ -1,9 +1,9 @@
 import type { ExpoConfig } from 'expo/config';
 
 export default (): ExpoConfig => ({
-  name: 'Shotloom Preview', slug: 'shotloom-native', version: '0.9.5', scheme: 'shotloom-preview',
+  name: 'Shotloom Preview', slug: 'shotloom-native', version: '0.9.6', scheme: 'shotloom-preview',
   platforms: ['ios', 'android'], orientation: 'default', userInterfaceStyle: 'light',
   ios: { bundleIdentifier: 'com.shotloom.app.preview', supportsTablet: true },
-  android: { package: 'com.shotloom.app.preview', versionCode: 6 },
+  android: { package: 'com.shotloom.app.preview', versionCode: 7 },
   plugins: ['expo-localization', 'expo-sharing'],
 });

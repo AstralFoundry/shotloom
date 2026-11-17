@@ -123,7 +123,7 @@ test('局部重绘的工具栏、覆盖层与动作接线完整', () => {
   const adapter = readSource('renderer/src/app/adapters/canvasAdapter.ts');
   const editor = readSource('renderer/src/app/canvas/ImageMaskEditor.tsx');
   const styles = readSource('renderer/styles/image-recipes.css');
-  const icon = readSource('renderer/src/app/components/IconSymbol.tsx');
+  const icon = readSource('shared/iconPaths.ts');
 
   assert.match(registry, /id: "mask-edit", label: t\("imageMask\.tool\.label"\), icon: "brush"/);
   assert.match(registry, /image: \["crop", "annotate", "split-grid", "watermark", "angle", "lighting", "mask-edit", "emotion", "reverse-prompt", "history"\]/);

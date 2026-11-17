@@ -8,6 +8,11 @@ test('native requests only expose the user-facing API, never admin, relay or arb
   assert.ok(nativeRequestAllowed('POST', '/library-folders'));
   assert.ok(nativeRequestAllowed('GET', '/catalog/skills'));
   assert.ok(nativeRequestAllowed('PUT', '/catalog/skills'));
+  assert.ok(nativeRequestAllowed('GET', '/settings/mobile'));
+  assert.ok(nativeRequestAllowed('PATCH', '/settings/mobile'));
+  assert.ok(nativeRequestAllowed('GET', '/models'));
+  assert.equal(nativeRequestAllowed('GET', '/settings'), false);
+  assert.equal(nativeRequestAllowed('PUT', '/settings'), false);
   for (const path of ['/catalog/recipes', '/catalog/assets', '/catalog/skills?userId=other', '/catalog/skills/../settings']) assert.equal(nativeRequestAllowed('PUT', path), false);
   for (const [method, path] of [['GET', '/admin/feedback'], ['POST', '/relay/chat/completions'], ['GET', 'https://attacker.example/feedback'], ['GET', '//attacker.example'], ['GET', '/feedback/../admin'], ['GET', '/feedback?redirect=evil'], ['DELETE', '/feedback'], ['GET', '/auth/account?redirect=evil'], ['GET', '/auth/usage?access_token=secret'], ['GET', '/library-folders?parentId=other'], ['DELETE', '/library-folders'], ['POST', '/auth/topup']]) assert.equal(nativeRequestAllowed(method!, path!), false);
 });
@@ -42,4 +47,27 @@ test('background bridge reconnect queues new requests, never replays interrupted
   api.pause(); const expired = api.request('/projects'); api.disconnect();
   await assert.rejects(expired, /interrupted/);
   api.resume(); assert.equal(sent.length, 2, 'disconnected queued work must never execute later');
+});
+
+
+test('read cache coalesces pages, refreshes explicitly, expires, and cannot be repopulated by an old session', async () => {
+  const sent: NativeRequest[] = []; let id = 0;
+  const api = new NativeApi(request => sent.push(request), () => String(++id));
+  const reply = (value: unknown) => api.receive({ type: 'response', id: sent.at(-1)!.id, data: value });
+  const first = api.read('/projects'); const concurrent = api.read('/projects');
+  assert.equal(sent.length, 1); reply([{ id: 'one' }]);
+  assert.deepEqual(await first, await concurrent);
+  await api.read('/projects'); assert.equal(sent.length, 1);
+  const fresh = api.read('/projects', true); assert.equal(sent.length, 2); reply([]); await fresh;
+  assert.deepEqual(api.cached('/projects'), []);
+  const now = Date.now; Date.now = () => now() + 61000;
+  try { const expired = api.read('/projects'); assert.equal(sent.length, 3); reply(['fresh']); await expired; } finally { Date.now = now; }
+  const old = api.read('/notifications'); api.invalidate(); reply(['old-user']); await old;
+  assert.equal(api.cached('/notifications'), undefined);
+  const auth = api.read('/auth/me'); reply({ id: 'user' }); await auth;
+  const nextAuth = api.read('/auth/me'); assert.equal(sent.at(-1)!.path, '/auth/me'); reply({ id: 'user' }); await nextAuth;
+  const writing = api.request('/notifications/read-all', 'PUT'); reply(null); await writing;
+  assert.equal(api.cached('/projects'), undefined, 'writes invalidate related page projections');
+  const failed = api.read('/projects'); api.receive({ type:'response', id:sent.at(-1)!.id, error:'Unavailable', status:503 });
+  await assert.rejects(failed, /Unavailable/); assert.equal(api.cached('/projects'), undefined);
 });

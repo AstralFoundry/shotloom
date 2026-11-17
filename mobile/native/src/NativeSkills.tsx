@@ -13,8 +13,8 @@ import { parseSkillImport, saveSkills, type Skill, type SkillCatalog } from './s
 
 type Editor = { draft: Skill; original?: Skill; baseline: string };
 const confirm = (title: string, description = '') => new Promise<boolean>(resolve => Alert.alert(title, description, [{ text: local('取消', 'Cancel'), style: 'cancel', onPress: () => resolve(false) }, { text: local('确认', 'Confirm'), onPress: () => resolve(true) }], { cancelable: true, onDismiss: () => resolve(false) }));
-export function NativeSkills({ api }: { api: NativeApi }) {
-  const [catalog, setCatalog] = useState<SkillCatalog>();
+export function NativeSkills({ api, active: pageActive = true }: { api: NativeApi; active?: boolean }) {
+  const [catalog, setCatalog] = useState<SkillCatalog | undefined>(() => api.cached('/catalog/skills'));
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<string[]>([]);
   const [editor, setEditor] = useState<Editor>();
@@ -23,14 +23,17 @@ export function NativeSkills({ api }: { api: NativeApi }) {
   const [busy, setBusy] = useState(false);
   const running = useRef(false);
   const [revision, setRevision] = useState(0);
-  const refresh = () => setRevision(value => value + 1);
+  const force = useRef(false);
+  const refresh = () => { force.current = true; setRevision(value => value + 1); };
   useFocusEffect(useCallback(() => {
+    if (!pageActive) return;
     let active = true;
-    setLoading(true); setError('');
-    void api.request<SkillCatalog>('/catalog/skills').then(value => { if (active) setCatalog(value); })
+    const bypass = force.current; force.current = false;
+    setLoading(api.cached('/catalog/skills') === undefined || bypass); setError('');
+    void api.read<SkillCatalog>('/catalog/skills', bypass).then(value => { if (active) setCatalog(value); })
       .catch(cause => { if (active) setError(String(cause.message || cause)); }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [api, revision]));
+  }, [api, revision, pageActive]));
   const all = (catalog?.skills || []).filter(skill => !skill.builtIn);
   const needle = query.trim().toLocaleLowerCase();
   const items = all.filter(skill => [skill.name, skill.id, skill.description, skill.category].join(' ').toLocaleLowerCase().includes(needle)).sort((a, b) => Number(b.enabled !== false) - Number(a.enabled !== false) || a.name.localeCompare(b.name));

@@ -9,6 +9,7 @@ import { envelope } from "./lib/respond";
 import { admin, resolveBucket, scopedKey, createSignedUrl, createSignedUploadUrl } from "./lib/supabase";
 import type { AppEnv, Json } from "./lib/types";
 import * as store from "./lib/store";
+import { pickMobileSettings } from '../../shared/mobileSettings';
 import { relayPath } from './lib/relay';
 import { remoteMedia } from './lib/remoteMedia';
 
@@ -173,6 +174,20 @@ domainApp.delete("/project/:id/editor/:nodeId/:key", async (c) => {
 domainApp.get("/settings", async (c) => {
   const userId = c.get("userId");
   return c.json(envelope(await store.loadSettings(userId)));
+});
+
+domainApp.get('/settings/mobile', async c => c.json(envelope(pickMobileSettings(await store.loadSettings(c.get('userId'))))));
+domainApp.patch('/settings/mobile', async c => {
+  const patch = parseOrBadRequest(z.object({
+    locale: z.enum(['zh-CN', 'en-US']).optional(),
+    agentCanRunNodes: z.boolean().optional(), agentAutoEval: z.boolean().optional(), agentAutoLayout: z.boolean().optional(),
+    agentPreferredTextModel: z.string().trim().max(200).optional(),
+    agentPreferredImageModel: z.string().trim().max(200).optional(),
+    agentPreferredVideoModel: z.string().trim().max(200).optional(),
+  }).strict().refine(value => Object.keys(value).length === 1, 'Update one setting at a time'), await jsonBody(c));
+  const [key, value] = Object.entries(patch)[0]!;
+  await store.setSettingField(c.get('userId'), key, value);
+  return c.json(envelope(pickMobileSettings(await store.loadSettings(c.get('userId')))));
 });
 
 domainApp.put("/settings", async (c) => {

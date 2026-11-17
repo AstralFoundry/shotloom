@@ -154,7 +154,7 @@ test('表情工具的工具栏、覆盖层与动作接线完整', () => {
   const adapter = readSource('renderer/src/app/adapters/canvasAdapter.ts');
   const editor = readSource('renderer/src/app/canvas/ImageEmotionEditor.tsx');
   const styles = readSource('renderer/styles/image-recipes.css');
-  const icon = readSource('renderer/src/app/components/IconSymbol.tsx');
+  const icon = readSource('shared/iconPaths.ts');
   const facePreview = readSource('renderer/src/app/canvas/EmotionFacePreview.tsx');
 
   assert.match(registry, /id: "emotion", label: t\("imageEmotion\.tool\.label"\), icon: "smile"/);

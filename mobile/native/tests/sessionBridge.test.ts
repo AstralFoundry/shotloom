@@ -12,7 +12,7 @@ test('session bridge reports network failures as recoverable errors and only 401
     builder.onResolve({ filter: /services\/cloudRequest$/ }, () => ({ path: 'network', namespace: 'fixture' }));
     builder.onResolve({ filter: /^\.\.\/i18n$/ }, () => ({ path: 'i18n', namespace: 'fixture' }));
     builder.onResolve({ filter: /services\/builtInSkills$/ }, () => ({ path: 'skills', namespace: 'fixture' }));
-    builder.onLoad({ filter: /.*/, namespace: 'fixture' }, ({path}) => ({ contents: path==='network' ? `exports.cloudRequest=()=>Promise.reject(Object.assign(new Error('Connection failed'),{status:globalThis.__bridgeStatus}));` : path==='i18n' ? `exports.t=x=>x;exports.getLocale=()=> 'en-US';` : `exports.builtInSkills=[];exports.withoutBuiltInSkills=x=>x;` }));
+    builder.onLoad({ filter: /.*/, namespace: 'fixture' }, ({path}) => ({ contents: path==='network' ? `exports.cloudRequest=path=>globalThis.__bridgeReady?Promise.resolve(path==='/settings/mobile'?{locale:'en-US'}:{id:'fixture-user'}):Promise.reject(Object.assign(new Error('Connection failed'),{status:globalThis.__bridgeStatus}));` : path==='i18n' ? `exports.t=x=>x;exports.getLocale=()=> 'en-US';` : `exports.builtInSkills=[];exports.withoutBuiltInSkills=x=>x;` }));
   } }] });
   const module = { exports: {} as { NativeSessionBridge: React.ComponentType } };
   new Function('require','module','exports',result.outputFiles[0]!.text)(createRequire(import.meta.url),module,module.exports);
@@ -27,7 +27,12 @@ test('session bridge reports network failures as recoverable errors and only 401
       assert.equal(messages.length,1);assert.equal(messages[0].type,type);
       await act(async()=>tree.unmount());
     }
-  } finally { delete (globalThis as any).window; delete (globalThis as any).__bridgeStatus; }
+    (globalThis as any).__bridgeReady=true; messages.length=0;
+    let readyTree!:ReturnType<typeof create>;
+    await act(async()=>{readyTree=create(React.createElement(module.exports.NativeSessionBridge));});
+    assert.deepEqual(messages,[{type:'ready',userId:'fixture-user',locale:'en-US'}],'native locale comes from the saved account setting before opening any workspace');
+    await act(async()=>readyTree.unmount());
+  } finally { delete (globalThis as any).window; delete (globalThis as any).__bridgeStatus; delete (globalThis as any).__bridgeReady; }
 });
 
 test('the native login gate reports expired or unavailable sessions after a background document reload', async () => {

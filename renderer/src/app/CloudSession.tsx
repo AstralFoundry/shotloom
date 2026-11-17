@@ -8,6 +8,7 @@ export function CloudSession({ children }: { children: ReactNode }) {
   const [opened, setOpened] = useState(!cloudEnabled);
   const [retry, setRetry] = useState(0);
   useEffect(() => {
+    if (new URLSearchParams(location.search).get('native') === 'embedded' && ['login', 'account', 'error'].includes(status)) window.ReactNativeWebView?.postMessage(JSON.stringify({ type: 'workspace-blocked' }));
     if (location.pathname !== '/native') return;
     if (status === 'login' || status === 'account') window.ReactNativeWebView?.postMessage(JSON.stringify({ type: 'login' }));
     else if (status === 'error') window.ReactNativeWebView?.postMessage(JSON.stringify({ type: 'error', error: t('cloud.login.unavailable') }));

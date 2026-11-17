@@ -28,6 +28,8 @@ import '../styles/creation-view.css';
 import '../styles/skills.css';
 import '../styles/responsive.css';
 
+if (new URLSearchParams(location.search).get('native') === 'embedded') document.documentElement.dataset.nativeEmbedded = 'true';
+
 const container = document.getElementById('app');
 if (!container) throw new Error('Shotloom renderer root is missing');
 const ModelAdmin = lazy(() => import('./app/views/ModelAdmin').then(module => ({ default: module.ModelAdmin })));
