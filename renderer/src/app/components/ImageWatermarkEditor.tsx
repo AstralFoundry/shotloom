@@ -1,5 +1,5 @@
 import { t } from '@/i18n';
-import { ColorPicker, Segmented, Select, Slider } from "antd";
+import { Button, ColorPicker, Segmented, Select, Slider } from "antd";
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { IconSymbol } from "./IconSymbol";
@@ -181,6 +181,7 @@ export function ImageWatermarkEditor({
       />
       <div
         className="canvas-image-watermark-panel nodrag nopan nowheel"
+        data-media-editor
         style={{ left: placement.left, top: placement.top, width: placement.width, height: placement.height }}
         role="dialog"
         aria-label={t("ui.ImageWatermarkEditor.arialabel.e46824ff")}
@@ -332,15 +333,15 @@ export function ImageWatermarkEditor({
           {error && <p className="canvas-image-watermark-error" role="alert">{error}</p>}
         </div>
         <footer className="canvas-image-watermark-foot">
-          <button type="button" className="button ghost" disabled={saving} onClick={onCancel}>{t("ui.ImageWatermarkEditor.text.4d0b4688")}</button>
-          <button
-            type="button"
-            className="button primary"
+          <Button disabled={saving} onClick={onCancel}>{t("ui.ImageWatermarkEditor.text.4d0b4688")}</Button>
+          <Button
+            type="primary"
+            loading={saving}
             disabled={saving || !settings.text.trim()}
             onClick={() => void submit()}
           >
             {saving ? t("ui.ImageWatermarkEditor.text.1cac8ac7") : t("ui.ImageWatermarkEditor.text.4562024d")}
-          </button>
+          </Button>
         </footer>
       </div>
     </>,

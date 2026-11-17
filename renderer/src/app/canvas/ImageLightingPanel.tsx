@@ -18,7 +18,7 @@ import { IconSymbol } from "../components/IconSymbol";
 import { ImageRecipePanelFrame } from "./ImageRecipePanelFrame";
 
 const PANEL_WIDTH = 664;
-const PANEL_HEIGHT = 648;
+const PANEL_HEIGHT = 736;
 const STAGE_SIZE = 236;
 
 function clamp(value: number, min: number, max: number) {
@@ -161,10 +161,8 @@ function LightingPresetThumb({
       className="image-lighting-preset"
       aria-pressed={active}
       onClick={onSelect}
-      style={{
-        backgroundImage: `linear-gradient(150deg, ${preset.tone} -18%, #0b0b10 118%)`,
-      }}
     >
+      <img src={new URL(`../../assets/lighting-presets/${preset.id}.webp`, import.meta.url).href} alt="" draggable={false} />
       <span>{preset.label}</span>
       {active && (
         <span className="image-lighting-preset-check" aria-hidden="true">
@@ -281,112 +279,114 @@ export function ImageLightingPanel({
       anchorRef={anchorRef}
       onClose={onClose}
     >
-      <div className="image-lighting-body">
-        <div className="image-lighting-preview">
-          <Segmented
-            block
-            size="small"
-            value={viewMode}
-            onChange={(value) => setViewMode(value as "perspective" | "front")}
-            options={[
-              { value: 'perspective', label: t('imageRecipe.lighting.view.perspective') },
-              { value: 'front', label: t('imageRecipe.lighting.view.front') },
-            ]}
-          />
-          <canvas
-            ref={stageRef}
-            className="image-lighting-stage"
-            aria-label={t('imageRecipe.lighting.aria.sphere')}
-            onPointerDown={startDrag}
-            onPointerMove={moveDrag}
-            onPointerUp={endDrag}
-            onPointerCancel={endDrag}
-          />
-        </div>
-
-        <div className="image-lighting-controls">
-          <div className="image-recipe-field-row">
-            <span className="image-recipe-label">{t('imageRecipe.lighting.global')}</span>
-            <span className="image-recipe-toggle">
-              <span>{t('imageRecipe.lighting.smartMode')}</span>
-              <Switch size="small" checked={options.smartMode} onChange={(checked) => update({ smartMode: checked })} />
-            </span>
+      <div className="image-lighting-content">
+        <div className="image-lighting-body">
+          <div className="image-lighting-preview">
+            <Segmented
+              block
+              size="small"
+              value={viewMode}
+              onChange={(value) => setViewMode(value as "perspective" | "front")}
+              options={[
+                { value: 'perspective', label: t('imageRecipe.lighting.view.perspective') },
+                { value: 'front', label: t('imageRecipe.lighting.view.front') },
+              ]}
+            />
+            <canvas
+              ref={stageRef}
+              className="image-lighting-stage"
+              aria-label={t('imageRecipe.lighting.aria.sphere')}
+              onPointerDown={startDrag}
+              onPointerMove={moveDrag}
+              onPointerUp={endDrag}
+              onPointerCancel={endDrag}
+            />
           </div>
 
-          <div className="image-lighting-row">
-            <span className="image-recipe-label">{t('imageRecipe.lighting.brightness')}</span>
-            <div className="image-lighting-slider">
-              <Slider
-                aria-label={t('imageRecipe.lighting.brightness')}
-                min={0}
-                max={100}
-                value={options.brightness}
-                tooltip={{ formatter: (value) => `${value}%` }}
-                onChange={(value) => update({ brightness: value })}
-              />
-            </div>
-            <span className="image-recipe-value-chip">
-              <IconSymbol name="sun" />
-              {options.brightness}%
-            </span>
-          </div>
-
-          <div className="image-recipe-field-row">
-            <span className="image-recipe-label">{t('imageRecipe.lighting.color')}</span>
-            <div className="image-lighting-color-row">
-              <ColorPicker
-                size="small"
-                value={options.lightColor}
-                onChange={(color) => update({ lightColor: color.toHexString() })}
-              />
+          <div className="image-lighting-controls">
+            <div className="image-recipe-field-row">
+              <span className="image-recipe-label">{t('imageRecipe.lighting.global')}</span>
               <span className="image-recipe-toggle">
-                <span>{t('imageRecipe.lighting.rim')}</span>
-                <Switch size="small" checked={options.rimLight} onChange={(checked) => update({ rimLight: checked })} />
+                <span>{t('imageRecipe.lighting.smartMode')}</span>
+                <Switch size="small" checked={options.smartMode} onChange={(checked) => update({ smartMode: checked })} />
               </span>
             </div>
-          </div>
 
-          <div className="image-recipe-field">
-            <span className="image-recipe-label">{t('imageRecipe.lighting.keyLight')}</span>
-            <div className="image-lighting-positions">
-              {LIGHT_POSITIONS.map((position) => (
-                <button
-                  key={position.id}
-                  type="button"
-                  className="image-recipe-choice"
-                  aria-pressed={position.azimuth === options.azimuth && position.elevation === options.elevation}
-                  onClick={() => update({ azimuth: position.azimuth, elevation: position.elevation })}
-                >
-                  {position.label}
-                </button>
-              ))}
+            <div className="image-lighting-row">
+              <span className="image-recipe-label">{t('imageRecipe.lighting.brightness')}</span>
+              <div className="image-lighting-slider">
+                <Slider
+                  aria-label={t('imageRecipe.lighting.brightness')}
+                  min={0}
+                  max={100}
+                  value={options.brightness}
+                  tooltip={{ formatter: (value) => `${value}%` }}
+                  onChange={(value) => update({ brightness: value })}
+                />
+              </div>
+              <span className="image-recipe-value-chip">
+                <IconSymbol name="sun" />
+                {options.brightness}%
+              </span>
+            </div>
+
+            <div className="image-recipe-field-row">
+              <span className="image-recipe-label">{t('imageRecipe.lighting.color')}</span>
+              <div className="image-lighting-color-row">
+                <ColorPicker
+                  size="small"
+                  value={options.lightColor}
+                  onChange={(color) => update({ lightColor: color.toHexString() })}
+                />
+                <span className="image-recipe-toggle">
+                  <span>{t('imageRecipe.lighting.rim')}</span>
+                  <Switch size="small" checked={options.rimLight} onChange={(checked) => update({ rimLight: checked })} />
+                </span>
+              </div>
+            </div>
+
+            <div className="image-recipe-field">
+              <span className="image-recipe-label">{t('imageRecipe.lighting.keyLight')}</span>
+              <div className="image-lighting-positions">
+                {LIGHT_POSITIONS.map((position) => (
+                  <button
+                    key={position.id}
+                    type="button"
+                    className="image-recipe-choice"
+                    aria-pressed={position.azimuth === options.azimuth && position.elevation === options.elevation}
+                    onClick={() => update({ azimuth: position.azimuth, elevation: position.elevation })}
+                  >
+                    {position.label}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      <div className="image-lighting-note">
-        <span className="image-recipe-label">{t('imageRecipe.lighting.smartMode')}</span>
-        <Input.TextArea
-          value={options.smartDescription}
-          onChange={(event) => update({ smartDescription: event.target.value })}
-          placeholder={t('imageRecipe.lighting.descriptionPlaceholder')}
-          disabled={!options.smartMode}
-          autoSize={{ minRows: 2, maxRows: 4 }}
-        />
-        <span className="image-recipe-label">{t('imageRecipe.lighting.presets')}</span>
-        <div className="image-lighting-presets">
-          {LIGHTING_STYLE_PRESETS.map((preset) => (
-            <LightingPresetThumb
-              key={preset.id}
-              preset={preset}
-              active={options.stylePresetId === preset.id}
-              onSelect={() => update({ stylePresetId: options.stylePresetId === preset.id ? '' : preset.id })}
-            />
-          ))}
+        <div className="image-lighting-note">
+          <span className="image-recipe-label">{t('imageRecipe.lighting.smartMode')}</span>
+          <Input.TextArea
+            value={options.smartDescription}
+            onChange={(event) => update({ smartDescription: event.target.value })}
+            placeholder={t('imageRecipe.lighting.descriptionPlaceholder')}
+            disabled={!options.smartMode}
+            autoSize={{ minRows: 2, maxRows: 4 }}
+          />
+          <span className="image-recipe-label">{t('imageRecipe.lighting.presets')}</span>
+          <div className="image-lighting-presets">
+            {LIGHTING_STYLE_PRESETS.map((preset) => (
+              <LightingPresetThumb
+                key={preset.id}
+                preset={preset}
+                active={options.stylePresetId === preset.id}
+                onSelect={() => update({ stylePresetId: options.stylePresetId === preset.id ? '' : preset.id })}
+              />
+            ))}
+          </div>
         </div>
-      </div>
 
+      </div>
       <footer className="image-recipe-foot">
         <Button size="small" onClick={() => setOptions(normalizeLightingOptions(DEFAULT_LIGHTING_OPTIONS))}>
           {t('imageRecipe.lighting.reset')}

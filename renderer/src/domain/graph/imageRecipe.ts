@@ -114,8 +114,6 @@ export const LIGHT_POSITIONS: readonly LightPosition[] = Object.freeze([
 export interface LightingStylePreset {
   id: string;
   label: string;
-  /** 预设缩略图的基色；用 CSS 渐变代替图片资产，避免多带一组二进制素材。 */
-  tone: string;
   prompt: string;
 }
 
@@ -123,49 +121,41 @@ export const LIGHTING_STYLE_PRESETS: readonly LightingStylePreset[] = Object.fre
   {
     id: 'overexposed',
     label: t('imageRecipe.lighting.preset.overexposed'),
-    tone: '#d8c4a4',
     prompt: '过曝胶片质感，高调照明，高光轻微溢出，柔和漫射光，复古胶片色调',
   },
   {
     id: 'blueBacklight',
     label: t('imageRecipe.lighting.preset.blueBacklight'),
-    tone: '#1c3f63',
     prompt: '戏剧性逆光，冷蓝色轮廓光，暗部压深，主体边缘留出细窄高光',
   },
   {
     id: 'rembrandt',
     label: t('imageRecipe.lighting.preset.rembrandt'),
-    tone: '#6b4522',
     prompt: '伦勃朗布光，45 度侧前方主光，面部三角光斑，明暗对比强烈，古典肖像质感',
   },
   {
     id: 'cyberpunk',
     label: t('imageRecipe.lighting.preset.cyberpunk'),
-    tone: '#4a1147',
     prompt: '赛博朋克霓虹照明，青品红双色光，合成感辉光，湿润反射，未来都市氛围',
   },
   {
     id: 'sunset',
     label: t('imageRecipe.lighting.preset.sunset'),
-    tone: '#8a3a12',
     prompt: '黄金时刻夕照，暖橙侧逆光，长阴影，胶片暖色偏，浪漫氛围',
   },
   {
     id: 'mysterious',
     label: t('imageRecipe.lighting.preset.mysterious'),
-    tone: '#14141c',
     prompt: '低调黑色电影布光，大面积深阴影，只保留关键轮廓与眼神光，高反差静谧',
   },
   {
     id: 'goldenHour',
     label: t('imageRecipe.lighting.preset.goldenHour'),
-    tone: '#8a6a12',
     prompt: '黄金时刻柔和暖光，眼神光清晰，轻微体积光与耀斑，皮肤通透',
   },
   {
     id: 'nolanGrey',
     label: t('imageRecipe.lighting.preset.nolanGrey'),
-    tone: '#22333a',
     prompt: '冷灰去饱和调色，IMAX 质感，青色阴影与中性高光，克制的高反差',
   },
 ]);

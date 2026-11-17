@@ -94,6 +94,7 @@ export function ImageRecipePanelFrame({
   return createPortal(
     <section
       className="image-recipe-panel nodrag nopan nowheel"
+      data-media-editor
       role="dialog"
       aria-label={title}
       style={placement}
