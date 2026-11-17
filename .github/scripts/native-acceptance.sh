@@ -8,7 +8,7 @@ trap capture EXIT
 wait_for_ui() {
   local file=$1 pattern=$2
   for attempt in {1..18}; do
-    sleep 5
+    sleep 1
     adb shell uiautomator dump /sdcard/window.xml >/dev/null
     adb pull /sdcard/window.xml "acceptance/$file.xml" >/dev/null 2>&1
     if grep -q "Pixel Launcher isn't responding" "acceptance/$file.xml"; then
@@ -26,6 +26,7 @@ PY_ANR
       continue
     fi
     if grep -Eq "$pattern" "acceptance/$file.xml"; then return; fi
+    sleep 4
   done
   echo "Expected screen did not appear: $file"
   return 1

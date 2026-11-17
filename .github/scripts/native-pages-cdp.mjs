@@ -25,6 +25,12 @@ function command(method, params = {}) {
   });
 }
 
+let connected = false;
+for (let attempt=0; attempt<60; attempt++) {
+  try { const state = await command('Runtime.evaluate', {expression:'typeof window.__shotloomNativeRequest === \'function\'',returnByValue:true}); if (state.result.value) {connected=true;break;} } catch {}
+  await pause(500);
+}
+assert.ok(connected, 'API bridge reconnected after real authentication');
 await command('Runtime.evaluate', { expression: `(() => {
   window.__nativePageReads = {};
   const original = window.__shotloomNativeRequest;
