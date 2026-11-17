@@ -24,7 +24,11 @@ export async function packageElectron({ dirOnly = CLI_ONLY_DIR() } = {}) {
   await buildElectron();
   // electron-builder 默认读取 projectDir 下的 electron-builder.yml。
   // The release workflow stages/verifies artifacts and publishes them together.
-  const artifacts = await electronBuild({ projectDir: rootDir, publish: 'never', ...(dirOnly ? { dir: true } : {}) });
+  // Disabling certificate discovery does not perform ad-hoc signing. Select it
+  // explicitly so downloaded builds have a valid, sealed application bundle.
+  const signing = process.platform === 'darwin'
+    ? { config: { mac: { identity: process.env.CSC_NAME || '-' } } } : {};
+  const artifacts = await electronBuild({ projectDir: rootDir, publish: 'never', ...signing, ...(dirOnly ? { dir: true } : {}) });
   console.log(`[electron] packaged: ${artifacts.join(', ')}`);
   return artifacts;
 }

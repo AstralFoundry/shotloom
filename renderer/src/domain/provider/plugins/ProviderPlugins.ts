@@ -202,7 +202,7 @@ export function registeredModels(): CatalogModel[] {
 }
 
 const safeId = (value: unknown) => typeof value === 'string' && /^[a-z0-9][a-z0-9._-]{0,95}$/.test(value);
-export function providerManifestErrors(value: unknown): string[] {
+export function providerManifestErrors(value: unknown, appVersion = appPackage.version): string[] {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return ['Plugin manifest must be an object'];
   const m = value as ProviderPluginManifest;
   const errors: string[] = [];
@@ -215,7 +215,7 @@ export function providerManifestErrors(value: unknown): string[] {
   if (typeof m.name !== 'string' || !m.name.trim()) errors.push('Missing plugin name');
   if (!valid(m.version)) errors.push('Invalid semantic version');
   if (typeof m.shotloom !== 'string' || !validRange(m.shotloom.replace(/,/g, ' '))) errors.push('Invalid Shotloom compatibility range');
-  else if (!satisfies(appPackage.version, m.shotloom.replace(/,/g, ' '))) errors.push('Plugin is incompatible with this Shotloom version');
+  else if (!satisfies(appVersion, m.shotloom.replace(/,/g, ' '), { includePrerelease: true })) errors.push('Plugin is incompatible with this Shotloom version');
   if (!Array.isArray(m.protocols)) errors.push('protocols must be an array');
   if (!Array.isArray(m.providers) || (m.kind !== 'protocol' && !m.providers.length)) return [...errors, 'providers must be a non-empty array'];
   if (m.runtime && (!/^runtime\/[a-zA-Z0-9_./-]+\.mjs$/.test(m.runtime.entry || '') || m.runtime.entry.split('/').includes('..'))) errors.push('Runtime entry must be an ES module inside runtime/');

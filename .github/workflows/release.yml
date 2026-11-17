@@ -130,7 +130,7 @@ jobs:
         run: npm run dist:electron
 
       - name: Verify macOS application signature
-        if: runner.os == 'macOS' && steps.apple_signing.outputs.enabled == 'true'
+        if: runner.os == 'macOS'
         shell: bash
         run: |
           app="release/mac-arm64/Shotloom.app"

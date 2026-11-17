@@ -257,7 +257,7 @@ function rangeValid(range: string): boolean {
 }
 
 function rangeMatches(range: string, version: string): boolean {
-  return rangeSatisfies(version, rangeParts(range).join(' '));
+  return rangeSatisfies(version, rangeParts(range).join(' '), { includePrerelease: true });
 }
 
 function validateManifest(manifest: unknown, appVersion: string): void {

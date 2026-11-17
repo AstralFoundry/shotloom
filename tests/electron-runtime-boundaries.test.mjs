@@ -11,6 +11,7 @@ import { PassThrough } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { build } from 'esbuild';
 import { ZipFile } from 'yazl';
+import { readSource } from './helpers/sourceContract.mjs';
 
 const root = mkdtempSync(join(tmpdir(), 'shotloom-boundaries-'));
 test.after(() => rmSync(root, { recursive: true, force: true }));
@@ -22,6 +23,21 @@ async function bundle(contents, plugins = []) {
   return require(outfile);
 }
 const api = await bundle(`export * from './electron/core/gateway'; export * from './electron/core/db'; export * from './electron/core/storage'; export * from './electron/core/zip';`);
+
+test('desktop plugin inspection supports test application versions without bypassing compatibility bounds', async () => {
+  const { inspectProviderPackage } = await bundle(`export { inspectProviderPackage } from './electron/core/plugins';`);
+  const manifest = JSON.parse(readSource('plugin-packages/examples/openai-compatible/manifest.json'));
+  manifest.shotloom = '>=0.9.0, <1.0.0';
+  const source = join(root, 'plugin-manifest.json');
+  writeFileSync(source, JSON.stringify(manifest));
+  for (const appVersion of ['0.9.2', '0.9.2-test20261117', '0.9.2-test.1']) {
+    const result = await inspectProviderPackage({ appVersion }, source, 'npm');
+    assert.equal(result.manifest.id, manifest.id);
+  }
+  for (const appVersion of ['0.8.9-test1', '1.1.0-test1']) {
+    await assert.rejects(inspectProviderPackage({ appVersion }, source, 'npm'), /incompatible/);
+  }
+});
 
 async function listen(t, handler) {
   const server = createHttpServer(handler);

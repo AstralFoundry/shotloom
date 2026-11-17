@@ -56,3 +56,18 @@ test('plugin README metadata is validated before entering the details renderer',
     assert.ok(providerManifestErrors({ ...manifest, readme: 'a'.repeat(512 * 1024 + 1) }).includes('Plugin README exceeds 512 KiB'));
   } finally { await env.dispose(); }
 });
+
+test('test application versions accept compatible plugins while preserving version bounds', async () => {
+  const env = await createRendererEnv();
+  try {
+    const { providerManifestErrors } = await env.load('domain/provider/plugins/ProviderPlugins');
+    const manifest = JSON.parse(readSource('plugin-packages/examples/openai-compatible/manifest.json'));
+    manifest.shotloom = '>=0.9.0, <1.0.0';
+    for (const version of ['0.9.2', '0.9.2-test20261117', '0.9.2-test.1']) {
+      assert.deepEqual(providerManifestErrors(manifest, version), [], version);
+    }
+    for (const version of ['0.8.9-test1', '1.1.0-test1']) {
+      assert.ok(providerManifestErrors(manifest, version).includes('Plugin is incompatible with this Shotloom version'), version);
+    }
+  } finally { await env.dispose(); }
+});

@@ -35,7 +35,9 @@ test('packaging installs Electron before building and never implicitly publishes
     assert.match(calls[0][2][0], /electron[/\\]install\.js$/);
     assert.deepEqual(calls.slice(1, 3).map(call => call[2].at(-1)), ['build', 'prepare:media']);
     assert.equal(calls[3][0], 'main');
-    assert.deepEqual(calls[4], ['package', { projectDir: resolve('.'), publish: 'never', dir: true }]);
+    assert.deepEqual(calls[4], ['package', { projectDir: resolve('.'), publish: 'never', dir: true,
+      ...(process.platform === 'darwin' ? { config: { mac: { identity: process.env.CSC_NAME || '-' } } } : {}),
+    }]);
     calls.length = 0;
     await packageElectron({ dirOnly: false });
     assert.equal(calls.at(-1)[1].publish, 'never');
