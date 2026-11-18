@@ -2,7 +2,7 @@ import { shell } from 'electron';
 import { realpath } from 'node:fs/promises';
 import { access, mkdir } from 'node:fs/promises';
 import { constants } from 'node:fs';
-import { join } from 'node:path';
+import { join, relative, isAbsolute } from 'node:path';
 import { defineCommand } from '../registry';
 import { localizedError } from '../../core/errors';
 import { appDataDir } from '../../core/paths';
@@ -30,6 +30,17 @@ defineCommand('file_global_asset_root', async () => {
 defineCommand('file_trash', async (args) => {
   const path = String(args.path ?? '');
   if (!(await exists(path))) return { ok: true, missing: true };
+  if (args.projectDirectory) {
+    const directory = await realpath(String(args.projectDirectory));
+    const root = join(directory, 'assets');
+    const actualRoot = await realpath(root);
+    const actualPath = await realpath(path);
+    const child = relative(root, actualPath);
+    if (actualRoot !== root || !child || child === '..' || child.startsWith('../')
+      || child.startsWith('..\\') || isAbsolute(child)) {
+      throw new Error('Project asset cleanup cannot trash files outside the project assets directory');
+    }
+  }
   // Electron 的 trashItem 就是各平台的系统回收站；不自己实现删除语义。
   await shell.trashItem(path);
   return { ok: true, path };

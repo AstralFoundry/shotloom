@@ -301,7 +301,7 @@ const command = (channel: CommandChannel, ...args: unknown[]): Promise<unknown> 
     case 'storage:get': return invoke('storage_get', { name: args[0], fallback: args[1] });
     case 'storage:set': return invoke('storage_set', { name: args[0], value: args[1] });
     case 'file:global-asset-root': return invoke('file_global_asset_root');
-    case 'file:trash': return invoke('file_trash', { path: args[0] });
+    case 'file:trash': return invoke('file_trash', { path: args[0], projectDirectory: args[1] });
     case 'file:show-item-in-folder': return invoke('file_show_item_in_folder', { path: args[0] });
     case 'file:open-path': return invoke('file_open_path', { path: args[0] });
     case 'file:export-resource-package': return invoke('file_export_resource_package', {
@@ -816,6 +816,7 @@ export function createTauriApi(browserFallback: BrowserFallback): BrowserFallbac
       openFolder: (directory: string) => command('project:open-folder', directory),
       readFile: (path: string) => command('project:read-file', path),
       getEditorSnapshot: (directory: string, nodeId: string) => invoke("editor_snapshot_get", { directory, nodeId }),
+      getEditorMediaState: (directory: string) => invoke<unknown[]>("editor_media_state", { directory }),
       setEditorSnapshot: (directory: string, nodeId: string, snapshot: unknown) => invoke("editor_snapshot_set", { directory, nodeId, snapshot }),
       getEditorRecord: (directory: string, nodeId: string, key: string) => invoke("editor_record_get", { directory, nodeId, key }),
       setEditorRecord: (directory: string, nodeId: string, key: string, value: unknown) => invoke("editor_record_set", { directory, nodeId, key, value }),
@@ -901,7 +902,7 @@ export function createTauriApi(browserFallback: BrowserFallback): BrowserFallbac
       ),
       checksum: (path: string) => command('file:checksum', path),
       getGlobalAssetRoot: () => command('file:global-asset-root'),
-      trash: (path: string) => command('file:trash', path),
+      trash: (path: string, projectDirectory?: string) => command('file:trash', path, projectDirectory),
       pathExists: (path: string) => command('file:path-exists', path),
       resolveUniqueFilePath: (directory: string, name: string) => command('file:resolve-unique-path', directory, name),
       writeFileToPath: (path: string, buffer: ArrayBuffer | Uint8Array) => writeBytes(path, buffer),

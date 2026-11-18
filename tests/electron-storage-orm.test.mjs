@@ -167,6 +167,16 @@ test('unsupported versions are rejected without rewriting the original database'
 });
 
 
+test('editor media scan includes snapshots and separately stored undo records', t => {
+  const path = workspace(t);
+  api.saveEditorSnapshot(path, 'editor-1', { assets: [{ sourceFile: '/project/assets/hero.png' }] });
+  api.setEditorRecord(path, 'editor-1', 'undo', { sourceFile: '/project/assets/old.png' });
+  const media = api.editorMediaState(path);
+  assert.equal(media.length, 2);
+  assert.ok(JSON.stringify(media).includes('/project/assets/hero.png'));
+  assert.ok(JSON.stringify(media).includes('/project/assets/old.png'));
+});
+
 test('ORM model columns match the persisted migration schema', t => {
   const path = workspace(t);
   api.withDatabase(path, db => {

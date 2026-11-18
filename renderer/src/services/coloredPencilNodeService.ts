@@ -81,6 +81,8 @@ export async function createColoredPencilImageNode(
     const filePath = file?.filePath || file?.path || '';
     if (!filePath) throw new Error(t("errors.78ada4752b"));
     const material = {
+      projectAssetOwnerId: project.id,
+      storageScope: 'project',
       id: outputId,
       name: file.name || preferredName,
       path: filePath,

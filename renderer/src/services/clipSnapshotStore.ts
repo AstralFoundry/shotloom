@@ -9,6 +9,14 @@ const SNAPSHOT_DIR = "project.sqlite#editor";
 const drafts = new Map<string, OpenReelNativeState>();
 const fileWrites = new Map<string, Promise<unknown>>();
 const readers = new Map<string, () => Promise<OpenReelNativeState>>();
+/** Deletion must also protect unflushed editor changes and failed save drafts. */
+export async function readLiveClipMediaState(directory: string): Promise<unknown[]> {
+  const prefix = snapshotAbsolutePath(directory, '').replace(/editor$/, '');
+  const states: unknown[] = [];
+  for (const [path, draft] of drafts) if (path.startsWith(prefix)) states.push(draft);
+  for (const [path, reader] of readers) if (path.startsWith(prefix)) states.push(await reader());
+  return states;
+}
 export type SnapshotSaveStatus = "dirty" | "saving" | "saved" | "failed";
 
 /** Capture the engine's latest revision before copying, including edits not yet posted to the host. */

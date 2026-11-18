@@ -12,6 +12,8 @@ import { addNode } from '@/store/nodeStore';
 import { isPathInsideAssetRoot, projectAssetRoot } from '@/utils/assetPaths.ts';
 import { releaseLocalAssetReference } from '@/store/localAssetLibraryStore';
 import { materialReferencedBySnapshots } from '@/services/projectSnapshotService';
+import { projectUsesMaterial } from '@/domain/asset/materialReferences';
+import { materialReferencedByEditors } from '@/services/projectAssetCleanup';
 
 type AnyRecord = Record<string, any>;
 
@@ -157,6 +159,8 @@ export function registerImportedMaterial(file: AnyRecord = {}, options: AnyRecor
     }
   }
   const material: AnyRecord = {
+    projectAssetOwnerId: store.projectDir && isPathInsideAssetRoot(file.path || file.filePath, projectAssetRoot({}, store.projectDir))
+      ? store.project.id : undefined,
     id: options.materialId || uid(),
     path: file.path || file.filePath || '',
     name: displayName(file),
@@ -434,6 +438,8 @@ export function deleteAssetFromLibrary(assetId: string) {
 }
 
 export async function deleteMaterialFile(materialId: string): Promise<{ ok: boolean; error?: string }> {
+  const project = store.project;
+  const directory = store.projectDir;
   if (!materialId) return { ok: false, error: t("ui.assetStore.text.195204c2") };
   const material = (store.project.materials as AnyRecord[]).find((item: AnyRecord) => item.id === materialId);
   if (!material) return { ok: false, error: t("ui.assetStore.text.195204c2") };
@@ -443,12 +449,24 @@ export async function deleteMaterialFile(materialId: string): Promise<{ ok: bool
   const usedByTask = (store.project.tasks as AnyRecord[]).some((task: AnyRecord) => (
     (task.result?.archivedFiles || []) as AnyRecord[]
   ).some((file: AnyRecord) => file.id === materialId));
-  if (usedByNode || usedByTask) {
+  if (usedByNode || usedByTask || projectUsesMaterial(store.project, material)) {
     return { ok: false, error: t("ui.assetStore.text.4a8fff22") };
   }
   // 历史版本只是引用素材，但恢复旧版本时需要文件还在；删除前必须先拦住。
-  if (await materialReferencedBySnapshots(store.projectDir, materialId)) {
+  try {
+    if (store.projectDir) {
+      if (await materialReferencedByEditors(store.projectDir, material)) {
+        return { ok: false, error: t("ui.assetStore.text.4a8fff22") };
+      }
+    }
+    if (await materialReferencedBySnapshots(store.projectDir, materialId, material)) {
+      return { ok: false, error: t("ui.assetStore.text.snapshotReference") };
+    }
+  } catch {
     return { ok: false, error: t("ui.assetStore.text.snapshotReference") };
+  }
+  if (store.project !== project || store.projectDir !== directory || projectUsesMaterial(project, material)) {
+    return { ok: false, error: t("ui.assetStore.text.4a8fff22") };
   }
   const before = store.project.materials.length;
   store.project.materials = (store.project.materials as AnyRecord[]).filter((material: AnyRecord) => material.id !== materialId);
@@ -467,7 +485,7 @@ export async function deleteMaterialFile(materialId: string): Promise<{ ok: bool
   const samePathStillUsed = (store.project.materials as AnyRecord[]).some((item: AnyRecord) => item.path && item.path === material.path);
   if (!samePathStillUsed && material.storageScope !== 'library'
     && isPathInsideAssetRoot(material.path, localProjectRoot)) {
-    try { await desktopApi.file.trash?.(material.path); } catch { /* metadata deletion remains valid */ }
+    try { await desktopApi.file.trash?.(material.path, directory || undefined); } catch { /* metadata deletion remains valid */ }
   }
   touchProject();
   showToast(t("ui.assetStore.text.031757d5"));

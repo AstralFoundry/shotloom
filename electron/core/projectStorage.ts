@@ -164,6 +164,14 @@ export function readProjectSnapshot(path: string, id: string): unknown {
 
 // ── 编辑器快照 / 片段记录 ───────────────────────────────────────────────────
 
+/** Include editor undo/history records, which live outside the project JSON. */
+export function editorMediaState(path: string): unknown[] {
+  return withDatabase(path, db => [
+    ...orm(db).select({ payload: models.editor_snapshots.payload }).from(models.editor_snapshots).all(),
+    ...orm(db).select({ payload: models.editor_records.payload }).from(models.editor_records).all(),
+  ].map(row => JSON.parse(row.payload)));
+}
+
 export function editorSnapshot(path: string, nodeId: string): unknown {
   return withDatabase(path, (db) => {
     const row = orm(db).select().from(models.editor_snapshots).where(eq(models.editor_snapshots.node_id, nodeId)).get();

@@ -8,6 +8,7 @@
 
 import { desktopApi } from '@/services/desktopApi';
 import { uid } from '@/utils/format';
+import { referencesMaterial } from '@/domain/asset/materialReferences';
 import {
   decideSnapshot,
   snapshotContentHash,
@@ -125,11 +126,24 @@ export async function listProjectSnapshots(directory: string | null | undefined)
 export async function materialReferencedBySnapshots(
   directory: string | null | undefined,
   materialId: string,
+  material?: AnyRecord,
 ): Promise<boolean> {
   const id = String(materialId || '').trim();
   if (!directory || !id) return false;
-  const snapshots = await listProjectSnapshots(directory);
-  return snapshots.some((snapshot) => (snapshot.mediaRefs || []).includes(id));
+  // Deletion must fail closed; the UI list intentionally hides storage failures.
+  const snapshots = await desktopApi.project.snapshotList(directory);
+  if (!Array.isArray(snapshots)) throw new Error('Cannot verify project history');
+  for (const snapshot of snapshots) {
+    if (!Array.isArray(snapshot.mediaRefs)) return true;
+    if (snapshot.mediaRefs.includes(id)) return true;
+    if (material) {
+      if (snapshot.degraded) return true;
+      const payload = await desktopApi.project.snapshotRead(directory, snapshot.id);
+      if (!payload || typeof payload !== 'object') return true;
+      if (referencesMaterial(payload, material)) return true;
+    }
+  }
+  return false;
 }
 
 export async function readProjectSnapshot(

@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { isPathInsideAssetRoot, joinAssetPath, projectAssetRoot } from '../renderer/src/utils/assetPaths.ts';
 
-test('shared project asset root overrides the canvas-local assets directory', () => {
-  assert.equal(projectAssetRoot({ library: { assetRootDir: '/work/assets' } }, '/work/shot-1'), '/work/assets');
+test('project copies use the canvas-local directory before legacy shared storage', () => {
+  assert.equal(projectAssetRoot({ library: { assetRootDir: '/work/assets' } }, '/work/shot-1'), '/work/shot-1/assets');
   assert.equal(projectAssetRoot({}, '/work/shot-1'), '/work/shot-1/assets');
 });
 

@@ -6,6 +6,7 @@ import { trashBoundHarnessSessions } from '@/services/harnessSessionStore';
 import { getAgentProjectKey } from '@/services/agentProjectIdentity';
 import { desktopApi } from '@/services/desktopApi';
 import { setHarnessSessionsArchived } from '@/services/harnessArchive';
+import { queueDeletedNodeAssets } from '@/services/projectAssetCleanup';
 
 // projectStore 的顶层字段只有最小类型，画布图对象在这里放宽为 any 边界。
 type ProjectLike = {
@@ -49,7 +50,9 @@ export function deleteCanvasNodeData(nodeId: string, { touch = true }: { touch?:
   current.project.edges = current.project.edges.filter(
     (edge) => edge.source !== nodeId && edge.target !== nodeId,
   );
+  const removedTasks = current.project.tasks.filter((task) => task.nodeId === nodeId);
   current.project.tasks = current.project.tasks.filter((task) => task.nodeId !== nodeId);
+  queueDeletedNodeAssets(current.project, rawStore.projectDir, node, removedTasks);
   if (current.selectedNodeId === nodeId) current.selectedNodeId = null;
   if (Array.isArray(current.selectedNodeIds)) {
     current.selectedNodeIds = current.selectedNodeIds.filter((id) => id !== nodeId);

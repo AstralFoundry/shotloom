@@ -118,6 +118,10 @@ function createBrowserFallback() {
       onCloseRequested: () => () => {},
     },
     project: {
+      getEditorMediaState: async (directory: string): Promise<unknown[]> => {
+        const record = readBrowserProjects()[`${directory}/project.sqlite`];
+        return [record?.project.editorSnapshots || {}, record?.project.editorRecords || {}];
+      },
       getEditorSnapshot: async (directory: string, nodeId: string): Promise<unknown> => {
         const record = readBrowserProjects()[`${directory}/project.sqlite`];
         return record?.project.editorSnapshots?.[nodeId] ?? null;
@@ -318,7 +322,7 @@ function createBrowserFallback() {
       },
       checksum: async () => ({ checksum: '', checksumAlgorithm: 'sha256', size: 0 }),
       getGlobalAssetRoot: async () => 'browser/local-asset-library/blobs',
-      trash: async () => ({ ok: false, error: t("browser.unsupported.trash") }),
+      trash: async (_path: string, _projectDirectory?: string) => ({ ok: false, error: t("browser.unsupported.trash") }),
       getDownloadDir: async () => '',
       selectDownloadDir: async () => '',
       clearDownloadDir: async () => '',

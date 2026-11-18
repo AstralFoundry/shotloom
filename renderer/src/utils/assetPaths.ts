@@ -14,9 +14,10 @@ export function joinAssetPath(root: unknown = '', ...parts: unknown[]) {
 
 export function projectAssetRoot(project: any = {}, projectDir: string | null = '') {
   return String(
-    project?.library?.assetRootDir
+    (projectDir ? joinAssetPath(projectDir, 'assets') : '')
+    || project?.library?.assetRootDir
     || project?.series?.assetRootDir
-    || (projectDir ? joinAssetPath(projectDir, 'assets') : ''),
+    || '',
   );
 }
 
@@ -24,6 +25,7 @@ export function isPathInsideAssetRoot(filePath = '', root = '') {
   const path = normalizeAssetPath(filePath);
   const normalizedRoot = normalizeAssetPath(root);
   if (!path || !normalizedRoot) return false;
+  if (path.split('/').includes('..') || normalizedRoot.split('/').includes('..')) return false;
   const insensitive = /^[a-z]:\//i.test(path) || /^[a-z]:\//i.test(normalizedRoot);
   const left = insensitive ? path.toLowerCase() : path;
   const right = insensitive ? normalizedRoot.toLowerCase() : normalizedRoot;

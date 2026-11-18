@@ -59,6 +59,14 @@ macOS 试包也必须有完整签名：`electron-package.mjs` 使用 `CSC_NAME` 
 
 插件兼容范围在 renderer 与 Electron 中均使用 semver 的 `includePrerelease` 选项，使兼容范围内的 `0.9.2-testxxxx` 等测试版本可加载插件；仍须保留范围上下界校验。
 
+## 项目资产的所有权与自动清理
+
+新媒体写入当前项目的 `assets/`，不再优先写入旧的 library/series 共享目录。通用资产库保留全局原件，加入项目或拖入画布时复制一份；同项目重复使用复用项目副本。新文件记录的 `projectAssetOwnerId` 标识所有者，项目副本不再发布到旧的跨画布共享清单。
+
+删除节点后，把关联的项目文件登记到持久化的 `pendingAssetCleanup`。最后一个当前引用消失时移除素材与项目资产条目；撤销恢复节点时自动恢复条目。项目保存成功后才检查清理队列：其他节点、任务、剪辑、导演台文档、画布撤销/重做、历史版本、剪辑器独立数据库记录与未保存草稿均保护文件。确认无引用才移入系统回收站；读取失败、项目切换或回收失败均保留文件，后续保存自动重查。清理队列不进入历史版本，避免恢复旧版本时重新执行旧清理任务。
+
+旧的共享引用和外部文件缺少项目独占所有权，不自动删除。原生清理还校验真实文件路径在当前项目 `assets/` 内，拒绝越界路径及通过符号链接指向外部的文件。
+
 ## Electron 数据存储
 
 Electron 使用 Drizzle 表模型和领域 CRUD（`core/schema.ts`、`core/storage.ts`、`core/projectStorage.ts`），与 Harness 保持同一 ORM。业务读写不得拼接 SQL、表名或列名，也不得直接调用原生 prepare/exec。`core/sqliteOrm.ts` 适配 Electron 内置 node:sqlite，负责执行 ORM 生成的参数化查询；`core/db.ts` 管理连接和在线备份；固定的 DDL 与旧版本升级集中在 `core/migrations.ts`。保留既有表名、列名、JSON 编码与数据库版本，兼容 Tauri 数据文件。迁移和项目多表写入必须在同一事务中完成。

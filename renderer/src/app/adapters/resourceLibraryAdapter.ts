@@ -32,11 +32,14 @@ const materialMap = () =>
 export function resourceLibraryData() {
   const materials = materialMap();
   const visibleAssets = (store.project.assets || []) as MaterialItem[];
-  const projectAssetByLocalId = new Map<string, MaterialItem>(
-    (store.project.assets || [])
-      .filter((asset: MaterialItem) => asset.localLibraryAssetId)
-      .map((asset: MaterialItem) => [String(asset.localLibraryAssetId), asset]),
-  );
+  const projectAssetByLocalId = new Map<string, MaterialItem>();
+  for (const asset of visibleAssets) {
+    if (!asset.localLibraryAssetId) continue;
+    const key = String(asset.localLibraryAssetId);
+    if (!projectAssetByLocalId.has(key) || materials.get(String(asset.materialId))?.storageScope === "project") {
+      projectAssetByLocalId.set(key, asset);
+    }
+  }
   const projectAssets = visibleAssets.map((asset: MaterialItem) => {
     const material: MaterialItem =
       materials.get(String(asset.materialId || "")) || ({} as MaterialItem);
@@ -149,7 +152,7 @@ export const assetsController: AssetsController = {
     showToast(t("ui.resourceLibraryAdapter.text.338e2261"));
   },
   async referenceProject(item) {
-    await useLocalAssetInProject(item, { copy: false });
+    await useLocalAssetInProject(item, { copy: true });
     showToast(t("ui.resourceLibraryAdapter.text.888bfc46"));
   },
   async copyProject(item) {

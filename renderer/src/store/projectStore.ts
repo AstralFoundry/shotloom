@@ -5,6 +5,7 @@ import { isActiveTaskStatus } from '@/domain/tasks/TaskStatus';
 import { projectCoverSource } from '@/utils/projectCover';
 import { bindProjectSource } from '@/services/tauriApi';
 import { projectOperationBlockReason } from '@/services/projectOperationGuards';
+import { reconcilePendingProjectAssets } from '@/services/projectAssetCleanup';
 // 项目状态是数据库回执中的领域记录：recent/clone/desktopApi 回执都按 AnyRecord 进出，
 // store 只为顶层导航字段提供最小类型。
 import { reactive, toRaw } from '@/store/domainReactivity';
@@ -76,8 +77,19 @@ const projectSaveQueue = new LatestSaveQueue(
     };
     const result = await desktopApi.project.save(directory, outgoing);
     if (Number.isInteger(result.project?.storageRevision)) savedRevisions.set(directory, result.project.storageRevision);
-    // 快照是保存的旁路产物：失败不影响这次保存，也不阻塞后续写入。
-    if (directory && result?.project) void captureProjectSnapshot(directory, outgoing);
+    // Ordinary saves keep snapshots off the critical path. Cleanup waits for
+    // history to settle before checking whether a file is still referenced.
+    if (directory && result?.project) {
+      const snapshotWrite = captureProjectSnapshot(directory, outgoing);
+      if (outgoing.pendingAssetCleanup?.length) await snapshotWrite;
+      const project = store.project;
+      if (store.projectDir === directory && project.id === outgoing.id && outgoing.pendingAssetCleanup?.length) {
+        const { cleanupProjectAssets } = await import('@/services/projectAssetCleanup');
+        await cleanupProjectAssets(project, directory,
+          () => store.project === project && store.projectDir === directory,
+          () => touchProject(), new Set(outgoing.pendingAssetCleanup.map((item: AnyRecord) => item.id)));
+      }
+    }
     return result;
   },
   {
@@ -157,6 +169,7 @@ function clearActiveProjectSession() {
 }
 
 export function projectPersistenceSnapshot() {
+  reconcilePendingProjectAssets(store.project);
   const startedAt = performance.now();
   // Official session persistence in SQLite owns conversation history.
   const snapshot: AnyRecord = JSON.parse(JSON.stringify(store.project));
@@ -215,6 +228,7 @@ function scheduleSessionPersist(delay = 100, { coalesce = false }: { coalesce?: 
 }
 
 export function touchProject({ sessionDelay = 100, coalesceSession = false }: { sessionDelay?: number; coalesceSession?: boolean } = {}) {
+  reconcilePendingProjectAssets(store.project);
   arrangeAutomaticCanvasSections(store.project.nodes);
   store.project.updatedAt = new Date().toISOString();
   scheduleSessionPersist(sessionDelay, { coalesce: coalesceSession });

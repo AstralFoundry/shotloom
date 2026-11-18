@@ -239,7 +239,7 @@ export function AssetsView({
               assetMaterialIds={assetMaterialIds}
               showLibraryAction={false}
               showPromoteAction={scope === "project"}
-              showReferenceAction={scope === "local"}
+              showReferenceAction={false}
               showCopyAction={scope === "local"}
               showRenameAction={scope === "project"}
               showDeleteAction

@@ -30,7 +30,7 @@ test('媒体落盘只读取当前公共项目对象，切换后不使用旧会�
   store.projectDir = '/next-project';
   store.project = { library: { assetRootDir: '/shared-assets' } };
   const next = await api.file.downloadUrlToProject('https://cdn.example.com/frame.png', 'frame.png');
-  assert.equal(next.filePath, '/shared-assets/frame.png');
+  assert.equal(next.filePath, '/next-project/assets/frame.png');
   assert.equal(calls.some((call) => JSON.stringify(call).includes('/old-project')), false);
 });
 

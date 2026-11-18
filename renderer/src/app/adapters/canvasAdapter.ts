@@ -963,7 +963,7 @@ export const canvasCommands = {
     }
     let material = item;
     if (item.storageScope === "library" && item.localLibraryAssetId) {
-      const referenced = await useLocalAssetInProject(item, { copy: false });
+      const referenced = await useLocalAssetInProject(item, { copy: true });
       material = { ...referenced.material, assetId: referenced.asset.id };
     }
     const node = applyMaterialToCanvas(material);

@@ -15,7 +15,7 @@ import { loadCatalog, saveCatalog } from '../../core/storage';
 import { backupDatabase } from '../../core/db';
 import { StoredZipReader, StoredZipWriter } from '../../core/zip';
 import {
-  createProjectSnapshot, editorRecord, editorSnapshot, listProjectSnapshots, loadProjectFile,
+  createProjectSnapshot, editorMediaState, editorRecord, editorSnapshot, listProjectSnapshots, loadProjectFile,
   readProjectSnapshot, saveProject, setEditorRecord, saveEditorSnapshot,
 } from '../../core/projectStorage';
 
@@ -95,7 +95,12 @@ function applySharedAssetCatalog(project: Json, catalog: Json): void {
   const sharedMaterials = values(catalog, 'materials');
   const materials = [...values(project, 'materials')];
   for (const material of sharedMaterials) upsertById(materials, material);
-  project.assets = assets;
+  const localMaterialIds = new Set(values(project, 'materials')
+    .filter(material => isRecord(material) && material.projectAssetOwnerId === project.id)
+    .map(valueId));
+  const localAssets = values(project, 'assets')
+    .filter(asset => isRecord(asset) && localMaterialIds.has(String(asset.materialId || '')));
+  project.assets = [...localAssets, ...assets.filter(asset => !localAssets.some(local => valueId(local) === valueId(asset)))];
   project.materials = materials;
   project.sharedLibraryDeletedAssetIds = values(catalog, 'deletedAssetIds');
 }
@@ -121,7 +126,11 @@ function persistSharedAssetCatalog(project: Json): void {
   for (const id of values(project, 'sharedLibraryDeletedAssetIds')) if (typeof id === 'string') deleted.add(id);
 
   const assets = [...values(catalog, 'assets')];
+  const localMaterialIds = new Set(values(project, 'materials')
+    .filter(material => isRecord(material) && Boolean(material.projectAssetOwnerId))
+    .map(valueId));
   for (const asset of values(project, 'assets')) {
+    if (isRecord(asset) && localMaterialIds.has(String(asset.materialId || ''))) continue;
     if (!deleted.has(valueId(asset))) upsertById(assets, asset);
   }
   const keptAssets = assets.filter(asset => !deleted.has(valueId(asset)));
@@ -260,7 +269,7 @@ async function ensureAbsoluteDirectory(root: string, fallbackRoot: string): Prom
 async function saveProjectToDirectory(directory: string, project: Json): Promise<Json> {
   validateCurrentProject(project);
   await withAssetLock(() => { persistSharedAssetCatalog(project); });
-  const assetDirectory = sharedAssetBoundary(project, 'assetRootDir') || join(directory, 'assets');
+  const assetDirectory = join(directory, 'assets');
   await mkdir(assetDirectory, { recursive: true });
   const path = join(directory, PROJECT_FILE);
   const saved = withDatabase(path, db => transaction(db, () => saveProject(db, project)));
@@ -371,6 +380,7 @@ defineCommand('project_snapshot_create', (args) => createProjectSnapshot(project
 defineCommand('project_snapshot_read', (args) => readProjectSnapshot(projectDatabase(String(args.directory ?? '')), String(args.id ?? '')));
 
 defineCommand('editor_snapshot_get', (args) => editorSnapshot(projectDatabase(String(args.directory ?? '')), String(args.nodeId ?? '')));
+defineCommand('editor_media_state', (args) => editorMediaState(projectDatabase(String(args.directory ?? ''))));
 defineCommand('editor_snapshot_set', (args) => {
   const directory = String(args.directory ?? '');
   const nodeId = String(args.nodeId ?? '');

@@ -187,6 +187,8 @@ function buildPastedMaterials(resources: AnyRecord[] = []): {
       ...clone(item),
       id,
       path: item.stagedPath,
+      projectAssetOwnerId: store.project.id,
+      storageScope: 'project',
       filePath: item.stagedPath,
       localPath: item.stagedPath,
       name: item.name || item.fileName || basename(item.stagedPath),

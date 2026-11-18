@@ -150,6 +150,8 @@ export async function archiveGeneratedOutput({ project, node, task, output }: {
   // 下载全部完成后再提交项目状态，避免多文件任务中途失败留下半套节点，
   // 以及恢复归档时重复创建已经提交过的素材。
   for (const { material } of pendingMaterials) {
+    material.projectAssetOwnerId = project.id;
+    material.storageScope = 'project';
     project.materials.unshift(material);
     archivedFiles.push(material);
     node.selectedOutputNodeId = `material:${material.id}`;

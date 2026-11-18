@@ -4,7 +4,7 @@ import { desktopApi } from '@/services/desktopApi';
 import { store, touchProject } from '@/store/projectStore';
 import { assetCategoryFor } from '@/domain/asset/assetCategories';
 import { uid } from '@/utils/format';
-import { joinAssetPath, projectAssetRoot } from '@/utils/assetPaths.ts';
+import { isPathInsideAssetRoot, joinAssetPath, projectAssetRoot } from '@/utils/assetPaths.ts';
 
 // 素材库目录条目是数据库记录；卡片与引用都允许历史扩展字段，按 AnyRecord 读写。
 type AnyRecord = Record<string, any>;
@@ -160,65 +160,48 @@ function ensureReference(asset: AnyRecord, projectMaterial: AnyRecord) {
   });
 }
 
-export async function useLocalAssetInProject(card: AnyRecord, { copy = false }: { copy?: boolean } = {}) {
+// Global assets are sources for project-local copies. Legacy callers may still
+// pass copy:false, but no new shared-file references are created.
+export async function useLocalAssetInProject(card: AnyRecord, _options: { copy?: boolean } = {}) {
   await loadLocalAssetLibrary(true);
+  const project = store.project;
+  const directory = store.projectDir;
+  const root = directory ? projectAssetRoot({}, directory) : '';
+  if (!root) throw new Error(t("errors.c2fc00e90d"));
   const libraryAsset = localAssetLibrary.catalog.assets.find((item: AnyRecord) => item.id === card.localLibraryAssetId || item.id === card.assetId);
   const libraryMaterial = localAssetLibrary.catalog.materials.find((item: AnyRecord) => item.id === libraryAsset?.materialId || item.id === card.localLibraryMaterialId);
   if (!libraryAsset || !libraryMaterial?.path) throw new Error(t("errors.5f966e3392"));
   if (!await desktopApi.file.pathExists(libraryMaterial.path)) throw new Error(t("errors.34998ab5e0"));
-  let projectMaterial = store.project.materials.find((item: AnyRecord) => item.localLibraryMaterialId === libraryMaterial.id);
-  if (projectMaterial && copy && projectMaterial.storageScope === 'library') {
-    const root = projectAssetRoot(store.project, store.projectDir);
-    if (!root) throw new Error(t("errors.c2fc00e90d"));
-    const copied = await desktopApi.file.copyToDirectory(libraryMaterial.path, root, libraryMaterial.name);
-    projectMaterial.path = copied.path || copied.filePath;
-    projectMaterial.filePath = projectMaterial.path;
-    projectMaterial.storageScope = 'project';
-    projectMaterial.source = 'local-library-copy';
-    projectMaterial.sourceType = 'local-library-copy';
-    const identity = projectIdentity();
-    localAssetLibrary.catalog.references = localAssetLibrary.catalog.references.filter((item: AnyRecord) => !(
-      item.projectKey === identity.projectKey && item.materialId === projectMaterial.id
-    ));
-  }
+  // Existing references remain intact for old nodes and historical versions.
+  let projectMaterial = project.materials.find((item: AnyRecord) => item.localLibraryMaterialId === libraryMaterial.id
+    && item.storageScope === 'project' && isPathInsideAssetRoot(item.path, root));
   if (!projectMaterial) {
-    let path = libraryMaterial.path;
-    let storageScope = 'library';
-    if (copy) {
-      const root = projectAssetRoot(store.project, store.projectDir);
-      if (!root) throw new Error(t("errors.c2fc00e90d"));
-      const copied = await desktopApi.file.copyToDirectory(libraryMaterial.path, root, libraryMaterial.name);
-      path = copied.path || copied.filePath;
-      storageScope = 'project';
-    }
+    const copied = await desktopApi.file.copyToDirectory(libraryMaterial.path, root, libraryMaterial.name);
+    const path = copied.path || copied.filePath;
+    if (!isPathInsideAssetRoot(path, root)) throw new Error(t("errors.6a02cb5c9d"));
+    if (store.project !== project || store.projectDir !== directory) throw new Error('Project changed during asset copy');
     projectMaterial = {
       ...JSON.parse(JSON.stringify(libraryMaterial)),
-      id: uid(),
-      path,
-      filePath: path,
-      storageScope,
+      id: uid(), path, filePath: path,
+      storageScope: 'project', projectAssetOwnerId: project.id,
       localLibraryMaterialId: libraryMaterial.id,
-      source: copy ? 'local-library-copy' : 'local-library-reference',
-      sourceType: copy ? 'local-library-copy' : 'local-library-reference',
+      source: 'local-library-copy', sourceType: 'local-library-copy',
       importedAt: new Date().toISOString(),
     };
-    store.project.materials.unshift(projectMaterial);
+    project.materials.unshift(projectMaterial);
   }
-  let projectAsset = store.project.assets.find((item: AnyRecord) => item.localLibraryAssetId === libraryAsset?.id);
+  let projectAsset = project.assets.find((item: AnyRecord) => item.localLibraryAssetId === libraryAsset.id
+    && item.materialId === projectMaterial.id);
   if (!projectAsset) {
     projectAsset = {
       ...JSON.parse(JSON.stringify(libraryAsset)),
-      id: uid(),
-      materialId: projectMaterial.id,
-      localLibraryAssetId: libraryAsset.id,
-      createdAt: new Date().toISOString(),
+      id: uid(), materialId: projectMaterial.id,
+      localLibraryAssetId: libraryAsset.id, createdAt: new Date().toISOString(),
     };
-    store.project.assets.unshift(projectAsset);
+    project.assets.unshift(projectAsset);
   }
-  ensureReference(libraryAsset, projectMaterial);
-  await persistCatalog();
   touchProject();
-  return { material: projectMaterial, asset: projectAsset, referenced: !copy };
+  return { material: projectMaterial, asset: projectAsset, referenced: false };
 }
 
 export async function releaseLocalAssetReference(materialId: string) {

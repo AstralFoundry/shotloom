@@ -37,6 +37,7 @@ export type SnapshotDecision =
  * 其中撤销栈每项都是完整的节点/连线副本，是快照体积最大的浪费来源。
  */
 const VOLATILE_KEYS = [
+  'pendingAssetCleanup',
   'canvasHistory',
   'selectedNodeId',
   'selectedNodeIds',
