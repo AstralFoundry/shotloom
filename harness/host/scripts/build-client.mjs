@@ -130,7 +130,8 @@ const buildOptions = {
     // The native client supplies static plugin configurations. The loader's
     // unused YAML !!js evaluator otherwise runs new Function at import time,
     // which violates the product CSP before the official UI can initialize.
-    builder.onLoad({ filter: /@deepseek-ai\/cordis-plugin-loader\/lib\/index\.js$/ }, async args => {
+    // esbuild passes native paths to onLoad, including backslashes on Windows.
+    builder.onLoad({ filter: /@deepseek-ai[\\/]cordis-plugin-loader[\\/]lib[\\/]index\.js$/ }, async args => {
       const source = await readFile(args.path, 'utf8');
       const evaluator = /const evaluate = new Function\("ctx", "expr", `[^`]*`\);/g;
       if ([...source.matchAll(evaluator)].length !== 1) throw new Error('Official loader expression seam changed; review CSP compatibility');
