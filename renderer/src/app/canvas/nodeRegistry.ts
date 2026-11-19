@@ -1,3 +1,4 @@
+import { PluginProcessingNode } from './PluginProcessingNode';
 import { ClipStudioNode } from "./ClipStudioNode";
 import { defaultNodeRenderers } from "./CanvasNodes";
 import { generationNodeRenderers } from "./GenerationNode";
@@ -9,4 +10,5 @@ export const workflowNodeRenderers: Record<string, WorkflowNodeRenderer> = {
   ...generationNodeRenderers,
   threeDDirector: ThreeDDirectorNode,
   clipStudio: ClipStudioNode,
+  pluginProcessing: PluginProcessingNode,
 };

@@ -104,7 +104,7 @@ test('protocol packages share transport across connections while models own capa
     const { createBrowserProviderPlugins } = await env.load('services/browserProviderPlugins');
     const bridge = createBrowserProviderPlugins();
     store.validateProviderPackage(protocolExample);
-    store.validateProviderPackage(registry.allProviderPlugins().find(item => item.manifest.id === 'protocol.openai.images').manifest);
+    store.validateProviderPackage(registry.allProviderPlugins().find(item => item.manifest.id === 'vendor.openai').manifest);
     assert.equal(protocolExample.providers.length, 0);
     const source = JSON.stringify(protocolExample);
     const inspected = await bridge.manage('inspect', { source });
@@ -137,8 +137,8 @@ test('protocol packages share transport across connections while models own capa
   } finally { await env.dispose(); }
 });
 
-test('installed default packages preserve historical model identities and compiled endpoints', async () => {
-  const env = await createRendererEnv();
+test('installed packages including optional StarRouter preserve historical model identities and compiled endpoints', async () => {
+  const env = await createRendererEnv({ includeStarrouter: true });
   try {
     const registry = await env.load('domain/provider/plugins/ProviderPlugins');
     const modelCatalogV2 = loadLegacyModelCatalog();
@@ -152,15 +152,15 @@ test('installed default packages preserve historical model identities and compil
         assert.equal(contract.provider, model.provider);
         assert.equal(contract.endpoint.path, mode.endpoint.path);
         assert.equal(contract.endpoint.method, mode.endpoint.method);
-        assert.ok(contract.pluginRef.id.startsWith('protocol.'));
+        assert.ok(contract.pluginRef.id.startsWith('vendor.'));
         assert.equal(adapters.getProviderAdapter(model.provider, contract.pluginRef).baseUrl, registry.providerConnections().find(item => item.id === model.provider).baseUrl);
       }
     }
     for (const { manifest } of registry.allProviderPlugins()) {
-      assert.equal(manifest.kind, 'protocol');
+      assert.equal(manifest.kind, 'vendor');
       assert.deepEqual(manifest.providers, []);
       assert.ok(manifest.protocols.length);
     }
-    assert.ok(registry.resolvePluginProvider({ id: 'builtin.openai', version: '1.0.0', providerId: 'openai' }));
+    assert.ok(registry.resolvePluginProvider({ id: 'vendor.openai', version: registry.allProviderPlugins().find(item => item.manifest.id === 'vendor.openai').manifest.version, providerId: 'vendor' }));
   } finally { await env.dispose(); }
 });

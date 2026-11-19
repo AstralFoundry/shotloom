@@ -1,3 +1,7 @@
+import { withNpmPluginIcons } from '../../shared/npmPluginIcons';
+import { pluginIconPath, pluginIconSource, packagedPluginIcon } from '../../shared/pluginIcon';
+import { migrateVendorPlugins, vendorInstallState, vendorMigrationErrors, type VendorMigrationState, type VendorMigrationSettings } from '../../shared/vendorPluginMigration';
+import { pluginCapabilityErrors, capabilityParameterErrors } from '../../shared/pluginCapabilities';
 import { spawn } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import {
@@ -6,12 +10,12 @@ import {
 import { dirname, join } from 'node:path';
 import { crc32, gunzipSync, inflateRawSync } from 'node:zlib';
 import { parse as parseSemver, satisfies as rangeSatisfies, validRange } from 'semver';
-import { withDatabase } from './db';
+import { withDatabase, transaction } from './db';
 import { errorMessage } from './errors';
-import { loadCatalog, loadSettings, saveCatalog } from './storage';
+import { loadCatalog, loadSettings, saveCatalog, saveSettings } from './storage';
 
 /**
- * 厂商插件（协议插件）领域实现，对应 src-tauri/src/commands/provider_plugins.rs。
+ * 厂商插件领域实现，旧协议包身份仅用于兼容历史任务。
  *
  * 产品边界：
  * - 检查包永不执行代码；只有显式信任的 code 插件才会在独立 Node 子进程中运行。
@@ -261,6 +265,10 @@ function rangeMatches(range: string, version: string): boolean {
 }
 
 function validateManifest(manifest: unknown, appVersion: string): void {
+  if (field(manifest, 'icon') !== undefined && !pluginIconPath(field(manifest, 'icon'))) throw new Error('Plugin icon must be a relative raster asset path');
+  if (field(manifest, 'iconData') !== undefined && !pluginIconSource(field(manifest, 'iconData'))) throw new Error('Invalid resolved plugin icon');
+  const capabilityErrors = pluginCapabilityErrors(manifest);
+  if (capabilityErrors.length) throw new Error(capabilityErrors.join('\n'));
   for (const key of ['description', 'author', 'homepage', 'license', 'readme']) {
     const value = field(manifest, key);
     // JSON null 在 Rust 里是 Some(Value::Null)，同样必须报类型错误。
@@ -269,7 +277,7 @@ function validateManifest(manifest: unknown, appVersion: string): void {
   if (Buffer.byteLength(text(manifest, 'readme'), 'utf8') > MAX_DOCUMENTATION) {
     throw new Error('Plugin README exceeds 512 KiB');
   }
-  if (field(manifest, 'apiVersion') !== 1 || !idValid(text(manifest, 'id')) || text(manifest, 'name').trim() === '') {
+  if (![1, 2].includes(Number(field(manifest, 'apiVersion'))) || !idValid(text(manifest, 'id')) || text(manifest, 'name').trim() === '') {
     throw new Error('Invalid provider plugin identity or apiVersion');
   }
   if (parseVersionStrict(text(manifest, 'version')) === null) {
@@ -282,6 +290,8 @@ function validateManifest(manifest: unknown, appVersion: string): void {
     throw new Error('Plugin is incompatible with this Shotloom version');
   }
   if (!Array.isArray(field(manifest, 'protocols'))) throw new Error('protocols must be an array');
+  const migrationErrors = vendorMigrationErrors(manifest);
+  if (migrationErrors.length) throw new Error(migrationErrors.join('\n'));
 
   const protocol = field(manifest, 'kind') === 'protocol';
   const providers = listField(manifest, 'providers');
@@ -303,6 +313,23 @@ function validateManifest(manifest: unknown, appVersion: string): void {
         throw new Error('Invalid protocol operation');
       }
       operationIds.add(id);
+    }
+  } else if (field(manifest, 'kind') === 'vendor') {
+    if (providers.length) throw new Error('Vendor models belong in defaultConnections');
+    if (!(listField(manifest, 'defaultConnections')?.length)) throw new Error('Vendor plugin requires a default connection');
+    if (!['', 'declarative', 'module'].includes(text(manifest, 'engine'))) throw new Error('Unsupported vendor engine');
+    if (field(manifest, 'engine') === 'module' && !isRecord(field(manifest, 'runtime'))) throw new Error('Module vendor requires runtime');
+    const ids = new Set<string>();
+    for (const operation of listField(manifest, 'protocols') || []) {
+      if (!idValid(text(operation, 'id')) || ids.has(text(operation, 'id')) || !isRecord(field(operation, 'mode'))) throw new Error('Invalid internal operation');
+      ids.add(text(operation, 'id'));
+    }
+    for (const connection of listField(manifest, 'defaultConnections') || []) {
+      if (field(connection, 'pluginId') !== field(manifest, 'id') || field(connection, 'presetId') !== 'vendor') throw new Error('Vendor connection must belong to its package');
+      for (const model of listField(connection, 'models') || []) {
+        const modes = field(model, 'protocolModes');
+        if (!isRecord(modes) || !Object.keys(modes).length || Object.values(modes).some(id => typeof id !== 'string' || !ids.has(id))) throw new Error('Vendor model references unknown internal operation');
+      }
     }
   } else if (providers.length === 0) {
     throw new Error('providers must be a non-empty array');
@@ -356,7 +383,7 @@ function validateManifest(manifest: unknown, appVersion: string): void {
       const models = listField(connection, 'models');
       if (!models) throw new Error('Invalid default model list');
       for (const model of models) {
-        if (field(model, 'protocolPlugin') !== field(manifest, 'id')) {
+        if (field(manifest, 'kind') === 'vendor' ? hasOwn(model, 'protocolPlugin') && field(model, 'protocolPlugin') !== field(manifest, 'id') : field(model, 'protocolPlugin') !== field(manifest, 'id')) {
           throw new Error('Default models must reference their own package');
         }
       }
@@ -659,6 +686,10 @@ function parsePackage(bytes: Buffer, appVersion: string): ParsedPackage {
     }
   }
 
+  if (field(manifest, 'icon') !== undefined) {
+    const icon = text(manifest, 'icon');
+    manifest.iconData = packagedPluginIcon(icon, files.find(([name]) => name === icon)?.[1]);
+  }
   const readme = files.find(([name]) => name.toLowerCase() === 'readme.md');
   if (readme) {
     if (readme[1].length > MAX_DOCUMENTATION) throw new Error('Plugin README exceeds 512 KiB');
@@ -718,7 +749,7 @@ function httpStatusError(response: Response, url: URL): string {
  * 与 Rust fetch_bytes 相同的边界：HTTPS（或本机 HTTP 开发）、拒绝带凭据 URL、
  * 最多 4 次重定向且每一跳都重新校验、60s 总超时、流式累计大小上限。
  */
-async function fetchBytes(url: string, limit: number): Promise<Buffer> {
+async function fetchBytes(url: string, limit: number, timeoutMs = DOWNLOAD_TIMEOUT_MS): Promise<Buffer> {
   let parsed: URL;
   try {
     parsed = new URL(url);
@@ -729,7 +760,7 @@ async function fetchBytes(url: string, limit: number): Promise<Buffer> {
     throw new Error('Plugin downloads require HTTPS (or local HTTP for development)');
   }
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(new Error('Plugin download timed out')), DOWNLOAD_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(new Error('Plugin download timed out')), timeoutMs);
   try {
     let current = parsed;
     for (let redirects = 0; ; redirects += 1) {
@@ -938,12 +969,14 @@ function installInState(
     }
   }
 
-  const defaults = listField(manifest, 'defaultConnections') ?? [];
+  const prior = vendorInstallState(state as VendorMigrationState, manifest as unknown as VendorMigrationState['plugins'][number]['manifest']);
+  const defaults = field(manifest, 'kind') === 'vendor' && source.startsWith('distribution:') ? prior.connections : listField(manifest, 'defaultConnections') ?? [];
   const record: JsonObject = {
     manifest,
     digest: pkg.digest,
     source,
-    enabled: true,
+    enabled: field(manifest, 'kind') === 'vendor' && source.startsWith('distribution:') ? prior.enabled : true,
+    removed: field(manifest, 'kind') === 'vendor' && source.startsWith('distribution:') ? prior.removed : false,
     trustedCode: trusted,
     installedAt: chronoStamp(),
     history,
@@ -993,7 +1026,7 @@ function provisionDistribution(env: PluginEnvironment, state: unknown): boolean 
     const disabled = (listField(state, 'disabledBuiltins') ?? []).some((value) => value === id);
     installInState(state, packageRoot(env), pkg, `distribution:${id}@${text(entry, 'version')}`, text(entry, 'sha256'), true);
     const plugin = (listField(state, 'plugins') ?? []).find((item) => field(field(item, 'manifest'), 'id') === id);
-    if (plugin) assign(plugin, 'enabled', !disabled);
+    if (plugin && disabled) assign(plugin, 'enabled', false);
     changed = true;
   }
 
@@ -1021,8 +1054,16 @@ export interface ProviderPluginListResult {
 export async function listProviderPlugins(env: PluginEnvironment): Promise<ProviderPluginListResult> {
   return mutations.run(() => {
     const state = readState(env);
-    const changed = provisionDistribution(env, state);
-    if (changed) writeState(env, state);
+    let changed = provisionDistribution(env, state);
+    withDatabase(env.databaseFile, db => {
+      transaction(db, () => {
+        const settings = loadSettings(db, {});
+        if (migrateVendorPlugins(state as VendorMigrationState, settings as VendorMigrationSettings)) {
+          saveSettings(db, settings); changed = true;
+        }
+        if (changed) saveCatalog(db, PLUGIN_CATALOG, state);
+      });
+    });
     return { state, changed };
   });
 }
@@ -1065,7 +1106,7 @@ export async function searchProviderPlugins(args: JsonObject): Promise<unknown> 
     ? Math.min(args.offset, 10_000)
     : 0;
   url.search = new URLSearchParams({ text: `shotloom ${text(args, 'query')}`, size: '40', from: String(offset) }).toString();
-  return parseJsonBytes(await fetchBytes(url.toString(), 4 * 1024 * 1024));
+  return withNpmPluginIcons(parseJsonBytes(await fetchBytes(url.toString(), 4 * 1024 * 1024)), base, (url, limit) => fetchBytes(url, limit, 8000));
 }
 
 export async function fetchProviderPluginIndex(url: string): Promise<unknown> {
@@ -1212,6 +1253,7 @@ function submissionKey(providerId: string, submissionId: string): string {
 }
 
 function isExecutableModule(manifest: unknown, reference: unknown, presetId: string): boolean {
+  if (field(manifest, 'kind') === 'vendor') return presetId === 'tools' ? isRecord(field(manifest, 'runtime')) : presetId === 'vendor' && field(manifest, 'engine') === 'module';
   const protocol = field(manifest, 'kind') === 'protocol';
   const legacyProtocol = (listField(manifest, 'legacyProviders') ?? []).some((alias) => field(alias, 'pluginId') === field(reference, 'id')
     && field(field(alias, 'provider'), 'id') === presetId
@@ -1260,16 +1302,45 @@ export async function callProviderPlugin(env: PluginEnvironment, call: PluginCal
   if (!isExecutableModule(manifest, call.reference, presetId)) {
     throw new Error('Provider is not a module in this plugin');
   }
-  const connections = listField(state, 'connections') ?? [];
+  const connections = [...(listField(state, 'connections') ?? []), ...(['poll', 'cancel'].includes(call.method) ? listField(state, 'legacyConnections') ?? [] : [])];
+  const vendor = field(manifest, 'kind') === 'vendor';
   if (call.providerId !== presetId) {
     const belongs = connections.some((connection) => text(connection, 'id') === call.providerId
-      && ((text(connection, 'pluginId') === text(call.reference, 'id') && text(connection, 'presetId') === presetId)
+      && ((text(connection, 'pluginId') === text(call.reference, 'id') && (text(connection, 'presetId') === presetId || vendor && presetId === 'tools' && text(connection, 'presetId') === 'vendor'))
         || (protocol && (listField(connection, 'models')?.some((model) => text(model, 'protocolPlugin') === text(call.reference, 'id')) ?? false))));
     if (!belongs) throw new Error('Connection does not belong to this plugin');
   }
   if (call.method === 'submit' && call.providerId !== presetId
     && connections.some((connection) => text(connection, 'id') === call.providerId && field(connection, 'enabled') === false)) {
     throw new Error('Connection is disabled');
+  }
+
+  const processing = field(call.input, 'processingContract');
+  if (processing !== undefined) {
+    const capabilities = listField(manifest, 'capabilities') ?? [];
+    const capability = capabilities.find(c => field(c, 'id') === field(field(processing, 'capability'), 'id'));
+    const operation = (listField(manifest, 'protocols') ?? []).find(p => field(p, 'id') === field(capability, 'operation'));
+    if (field(processing, 'contractVersion') !== 1 || !capability || !operation
+      || !jsonEqual(capability, field(processing, 'capability')) || !jsonEqual(operation, field(processing, 'operation'))
+      || !jsonEqual(call.reference, field(processing, 'reference')) || text(processing, 'digest') !== text(record, 'digest')
+      || text(processing, 'connectionId') !== call.providerId) throw new Error('Invalid pinned processing contract');
+    if (!connections.some(c => text(c, 'id') === call.providerId && text(c, 'pluginId') === text(manifest, 'id') && text(c, 'presetId') === (vendor ? 'vendor' : 'protocol'))) throw new Error('Processing requires a plugin connection');
+    const parameters = field(processing, 'parameters');
+    if (!isRecord(parameters)) throw new Error('Invalid processing parameters');
+    const parameterErrors = capabilityParameterErrors(field(capability, 'parameters') as never, parameters);
+    if (parameterErrors.length) throw new Error(parameterErrors.join('\n'));
+    if (call.method === 'cancel' && field(capability, 'supportsCancel') !== true) throw new Error('Capability does not support remote cancellation');
+    const inputs = field(processing, 'inputs');
+    if (!isRecord(inputs)) throw new Error('Invalid processing inputs');
+    for (const key of Object.keys(inputs)) if (!(listField(capability, 'inputs') ?? []).some(slot => text(slot, 'id') === key)) throw new Error('Unknown processing input');
+    for (const slot of listField(capability, 'inputs') ?? []) {
+      const items = listField(inputs, text(slot, 'id'));
+      if (!items || (field(slot, 'required') === true && !items.length) || (field(slot, 'multiple') !== true && items.length > 1)) throw new Error('Invalid processing input cardinality');
+      for (const item of items) {
+        if (field(item, 'type') !== field(slot, 'type') || (!text(item, 'filePath') && !text(item, 'url'))) throw new Error('Invalid processing media input');
+        if (call.method === 'submit' && text(item, 'filePath') && !isFile(text(item, 'filePath'))) throw new Error('Processing input file is unavailable');
+      }
+    }
   }
 
   const root = artifactDir(env, manifest, text(record, 'digest'));
@@ -1294,12 +1365,13 @@ export async function callProviderPlugin(env: PluginEnvironment, call: PluginCal
         if (!jsonEqual(field(receipt, 'reference'), call.reference)) {
           throw new Error('Submission was pinned to another plugin version');
         }
+        if (processing !== undefined && !jsonEqual(field(receipt, 'processingContract'), processing)) throw new Error('Submission inputs changed');
         if (hasOwn(receipt, 'result')) return { value: field(receipt, 'result') };
         throw new Error('Submission outcome unknown; recover using the provider task id. This submission will not be sent again.');
       }
       // 先确认 Node 存在再写“已派发”标记，避免把未派发的提交标成结果未知。
       if (!isFile(executable)) throw new Error('Plugin Node runtime unavailable');
-      if (isRecord(receipts)) receipts[receiptKey] = { reference: clone(call.reference), startedAt: chronoStamp() };
+      if (isRecord(receipts)) receipts[receiptKey] = { reference: clone(call.reference), startedAt: chronoStamp(), ...(processing === undefined ? {} : { processingContract: clone(processing) }) };
       writeSubmissions(env, receipts);
       return null;
     });

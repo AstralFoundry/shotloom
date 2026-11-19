@@ -1,3 +1,4 @@
+import type { ProcessingContract } from '../domain/provider/plugins/PluginCapabilities';
 import { t } from '../i18n/index.ts';
 import { recordDiagnosticEvent } from '@/services/diagnosticsService';
 import { isActiveTaskStatus } from '@/domain/tasks/TaskStatus';
@@ -7,7 +8,7 @@ import {
   submissionFingerprint,
 } from '@/domain/tasks/Submission';
 // task/node/remote 回执保留扩展字段；任务状态的公共定义由领域模块维护。
-import { store, touchProject } from '@/store/projectStore';
+import { store, touchProject, flushProjectCheckpoint } from '@/store/projectStore';
 import { desktopApi } from '@/services/desktopApi';
 import { showToast } from '@/store/notificationStore';
 import { uid } from '@/utils/format';
@@ -44,6 +45,7 @@ import { RETRYABLE_TASK_STATUSES as failedTaskStatuses } from '@/domain/tasks/Ta
 // ── Timer management ────────────────────────────────────────────────────────
 
 const activeTaskTimers = new Map<string, AnyRecord>();
+const pendingProcessingCancellations = new WeakSet<AnyRecord>();
 
 /**
  * 切换/关闭项目时，先停止所有进行中任务的本地定时器与轮询，再替换 store.project。
@@ -231,6 +233,7 @@ function applyRemoteTaskUpdate(node: AnyRecord, task: AnyRecord, remote: AnyReco
 }
 
 async function finishRemoteTaskIfTerminal(node: AnyRecord, task: AnyRecord, remote: AnyRecord, owningProjectId = store.project?.id || '') {
+  const owningProject = store.project;
   if (remote.status === 'completed') {
     // 任务所属项目已被切走：此时 store.project 指向另一个项目，任何归档写入
     // 都会污染它。保持节点状态并停止本地轮询，避免跨项目写入。
@@ -251,6 +254,7 @@ async function finishRemoteTaskIfTerminal(node: AnyRecord, task: AnyRecord, remo
         task,
         output: remote.result,
       });
+      if (store.project !== owningProject) return true;
       archivedFiles = archived.archivedFiles || [];
       resultNodes = archived.resultNodes || [];
       generatedText = archived.text || '';
@@ -295,6 +299,7 @@ async function finishRemoteTaskIfTerminal(node: AnyRecord, task: AnyRecord, remo
     } catch (error) {
       archiveError = (error as AnyRecord)?.message || t("ui.taskStore.text.32da42c9");
     }
+    if (store.project !== owningProject) return true;
     if (archiveError) {
       task.result = {
         remoteTaskId: task.remoteTaskId || remote.remoteTaskId,
@@ -344,8 +349,9 @@ function attachRemoteTaskPolling(node: AnyRecord, task: AnyRecord, controller: A
   activeTaskTimers.set(node.id, active);
   const intervalMs = Math.max(500, Number(settingsStore.modelPollIntervalMs) || 1500);
   const owningProjectId = store.project?.id || '';
+  const owningProject = store.project;
   const poll = async () => {
-    if ((store.project?.id || '') !== owningProjectId) {
+    if (store.project !== owningProject) {
       clearActiveTaskForNode(node.id);
       return;
     }
@@ -356,14 +362,16 @@ function attachRemoteTaskPolling(node: AnyRecord, task: AnyRecord, controller: A
       const remote = await pollRemoteGenerationTask({
         remoteTaskId: task.remoteTaskId,
         modelContract: task.requestPayload?.modelContract,
+        processingContract: task.requestPayload?.processingContract,
         signal: controller.signal,
       });
+      if (store.project !== owningProject || activeTaskTimers.get(node.id) !== active || !isActiveTaskStatus(task.status)) return;
       active.pollFailureCount = 0;
       delete task.lastPollError;
       applyRemoteTaskUpdate(node, task, remote);
       await finishRemoteTaskIfTerminal(node, task, remote, owningProjectId);
     } catch (error) {
-      if (controller.signal.aborted) return;
+      if (controller.signal.aborted || store.project !== owningProject || activeTaskTimers.get(node.id) !== active) return;
       active.pollFailureCount = Number(active.pollFailureCount || 0) + 1;
       task.lastPollError = formatRemoteTaskError(error) || t("ui.taskStore.text.a35c88be");
       if (active.pollFailureCount >= 3) {
@@ -380,7 +388,37 @@ function attachRemoteTaskPolling(node: AnyRecord, task: AnyRecord, controller: A
   if (immediate) poll();
 }
 
+/** Fold legacy processing cards into durable tasks and direct source/result links. */
+function collapseLegacyProcessingNodes() {
+  const project = store.project;
+  const nodes = (project.nodes as AnyRecord[]).filter(node => node.type === 'pluginProcessing');
+  if (!nodes.length) return;
+  let changed = false;
+  for (const node of nodes) {
+    const tasks = (project.tasks as AnyRecord[]).filter(task => task.nodeId === node.id && task.requestPayload?.processingContract);
+    // Preserve unrecognized records instead of discarding work without a durable task.
+    if (!tasks.length) continue;
+    changed = true;
+    const contract = tasks[0]!.requestPayload.processingContract;
+    const sourceIds = [...new Set<string>(Object.values(contract.inputs as Record<string, Array<{ nodeId: string }>>).flat().map(input => input.nodeId))];
+    for (const task of tasks) {
+      task.processingNodeSnapshot ||= JSON.parse(JSON.stringify(node));
+      task.sourceNodeIds = sourceIds;
+    }
+    for (const edge of (project.edges as AnyRecord[]).filter(edge => edge.source === node.id)) {
+      for (const source of sourceIds.filter(id => project.nodes.some((item: AnyRecord) => item.id === id))) {
+        if (!project.edges.some((item: AnyRecord) => item.source === source && item.target === edge.target)) project.edges.push({ ...edge, id: `${edge.id}:direct:${source}`, source });
+      }
+    }
+    for (const result of project.nodes as AnyRecord[]) if (result.generatedFrom?.nodeId === node.id) result.generatedFrom = { ...result.generatedFrom, nodeId: sourceIds[0], sourceNodeIds: sourceIds };
+    project.edges = project.edges.filter((edge: AnyRecord) => edge.source !== node.id && edge.target !== node.id);
+    project.nodes = project.nodes.filter((item: AnyRecord) => item.id !== node.id);
+  }
+  if (changed) touchProject();
+}
+
 export function resumeRemoteTasks() {
+  collapseLegacyProcessingNodes();
   let resumed = 0;
   let reconciled = false;
   for (const node of (store.project.nodes || []) as AnyRecord[]) {
@@ -401,7 +439,8 @@ export function resumeRemoteTasks() {
     if (!previous || taskTime > previousTime) recoverableArchiveTasks.set(task.nodeId, task);
   }
   for (const task of (store.project.tasks || []) as AnyRecord[]) {
-    const node = (store.project.nodes as AnyRecord[]).find((item: AnyRecord) => item.id === task.nodeId);
+    const node = (store.project.nodes as AnyRecord[]).find((item: AnyRecord) => item.id === task.nodeId)
+      || (task.requestPayload?.processingContract ? task.processingNodeSnapshot : undefined);
     if (!node) continue;
     // 远端已经成功、仅本地归档失败时，复用保存下来的 URL/Base64。同一节点
     // 每次只恢复最新的一条，避免并发写入；后续轮次再依次保全更早结果。
@@ -482,6 +521,7 @@ async function startRemoteTask(node: AnyRecord, task: AnyRecord, requestPayload:
     }, task.timeoutMs),
   });
 
+  const owningProject = store.project;
   try {
     const submitted = await submitRemoteGenerationTask({
       task,
@@ -489,17 +529,48 @@ async function startRemoteTask(node: AnyRecord, task: AnyRecord, requestPayload:
       signal: controller.signal,
     });
     // 第一次请求失败后用户可能已经点击重试。旧请求即使迟到，也不能覆盖新任务。
+    if (store.project !== owningProject) return;
     const active = activeTaskTimers.get(node.id);
     if (!active || active.taskId !== task.id || !isActiveTaskStatus(task.status)) return;
     applyRemoteTaskUpdate(node, task, submitted);
+    if (task.requestPayload?.processingContract && !(await flushProjectCheckpoint({ force: true }))) throw new Error('Could not persist remote processing receipt');
+    if (store.project !== owningProject) return;
     if (await finishRemoteTaskIfTerminal(node, task, submitted)) return;
     attachRemoteTaskPolling(node, task, controller);
   } catch (error) {
     if (controller.signal.aborted) return;
+    if (store.project !== owningProject) return;
     const active = activeTaskTimers.get(node.id);
     if (!active || active.taskId !== task.id) return;
     finishTaskFailure(node, task, 'error', formatRemoteTaskError(error) || t("ui.taskStore.text.fee54fe0"));
   }
+}
+
+/** Persist the task and its private processing context before dispatch; no canvas node is needed. */
+export async function startPluginProcessingTask(node: AnyRecord, processingContract: ProcessingContract, submissionId: string) {
+  if (!store.projectDir || desktopApi.platform === 'browser') throw new Error('Save a desktop project before running plugin actions');
+  const project = store.project;
+  const requestPayload = { processingContract };
+  const fingerprint = submissionFingerprint(requestPayload);
+  const previous = resolveSubmission(project.tasks as AnyRecord[], { submissionId, fingerprint });
+  if (previous.action === 'conflict') throw new Error('Submission ID already belongs to different inputs');
+  if (previous.action === 'reuse') return previous.task as AnyRecord;
+  if ((project.tasks as AnyRecord[]).some(t => t.submissionId === submissionId && t.submissionUncertain)) throw new Error('Submission outcome unknown; recover the original task');
+  const now = new Date().toISOString();
+  const task: AnyRecord = { id: uid(), nodeId: node.id, title: node.title, type: 'pluginProcessing',
+    sourceNodeIds: [...new Set(Object.values(processingContract.inputs).flat().map(input => input.nodeId))],
+    requestPayload, processingNodeSnapshot: JSON.parse(JSON.stringify(node)), submissionId, requestFingerprint: fingerprint,
+    status: 'running', progress: 0, timeoutMs: DEFAULT_GENERATION_TIMEOUT_MS, attempt: 1, startedAt: now, createdAt: now, error: '' };
+  node.status = 'running';
+  project.tasks.unshift(task);
+  touchProject();
+  if (!(await flushProjectCheckpoint({ force: true }))) {
+    finishTaskFailure(node, task, 'error', 'Could not persist processing task; no remote request was sent');
+    throw new Error(task.error);
+  }
+  if (store.project !== project) throw new Error('Project changed before processing started');
+  void startRemoteTask(node, task, requestPayload);
+  return task;
 }
 
 // ── Public task API ─────────────────────────────────────────────────────────
@@ -626,11 +697,29 @@ export function runNode(node: AnyRecord | null | undefined, options: AnyRecord =
 export function cancelTask(taskId: string) {
   const task = (store.project.tasks as AnyRecord[]).find((item: AnyRecord) => item.id === taskId);
   if (!task || !isActiveTaskStatus(task.status)) return false;
-  const node = (store.project.nodes as AnyRecord[]).find((item: AnyRecord) => item.id === task.nodeId);
+  const node = (store.project.nodes as AnyRecord[]).find((item: AnyRecord) => item.id === task.nodeId) || task.processingNodeSnapshot;
+  if (task.requestPayload?.processingContract) {
+    if (!task.remoteTaskId || pendingProcessingCancellations.has(task)) return false;
+    const project = store.project;
+    pendingProcessingCancellations.add(task);
+    void cancelRemoteGenerationTask({ remoteTaskId: task.remoteTaskId, processingContract: task.requestPayload.processingContract })
+      .then(confirmed => {
+        if (store.project !== project || !project.tasks.includes(task) || !isActiveTaskStatus(task.status)) return;
+        if (!confirmed) { showToast(t('pluginActions.cancelUnconfirmed')); return; }
+        if (node) finishTaskFailure(node, task, 'cancelled', t('ui.taskStore.text.6df9b765'));
+        else { task.status = 'cancelled'; task.completedAt = new Date().toISOString(); touchProject(); }
+      }).catch(error => {
+        if (store.project === project && project.tasks.includes(task) && isActiveTaskStatus(task.status)) {
+          showToast(`${t('pluginActions.cancelUnconfirmed')} ${error instanceof Error ? error.message : String(error)}`);
+        }
+      }).finally(() => pendingProcessingCancellations.delete(task));
+    return true;
+  }
   if (task.remoteTaskId) {
     cancelRemoteGenerationTask({
       remoteTaskId: task.remoteTaskId,
       modelContract: task.requestPayload?.modelContract,
+        processingContract: task.requestPayload?.processingContract,
     }).then((confirmed: boolean) => {
       // 上游异步任务没有可声明的取消端点时，本地停止轮询并不影响远端任务：
       // 如实告知用户，避免误以为已停止计费/执行。
@@ -663,9 +752,28 @@ export function cancelNode(nodeId: string) {
  * @param {string} taskId
  * @returns {Object|null} 新创建的任务对象
  */
+/** Recover existing processing work without submitting or charging again. */
+export function recoverPluginProcessingTask(taskId: string): boolean {
+  const task = (store.project.tasks as AnyRecord[]).find(t => t.id === taskId);
+  if (!task?.requestPayload?.processingContract || isActiveTaskStatus(task.status)) return false;
+  const node = (store.project.nodes as AnyRecord[]).find(n => n.id === task.nodeId) || task.processingNodeSnapshot;
+  if (!node) return false;
+  if (task.result?.archiveError && task.result.output) {
+    task.status = 'running'; task.error = ''; node.status = 'running';
+    void finishRemoteTaskIfTerminal(node, task, { status: 'completed', result: task.result.output, remoteTaskId: task.remoteTaskId });
+    return true;
+  }
+  if (!task.remoteTaskId) return false;
+  task.status = 'running'; task.error = ''; node.status = 'running';
+  attachRemoteTaskPolling(node, task, new AbortController(), { immediate: true, resuming: true });
+  touchProject();
+  return true;
+}
+
 export function retryTask(taskId: string): AnyRecord | null {
   const task = (store.project.tasks as AnyRecord[]).find((item: AnyRecord) => item.id === taskId);
   if (!task || !failedTaskStatuses.has(task.status)) return null;
+  if (task.requestPayload?.processingContract) { recoverPluginProcessingTask(taskId); return task; }
   if (task.submissionUncertain === true) { showToast(t('plugins.submissionUnknown')); return null; }
   const node = (store.project.nodes as AnyRecord[]).find((item: AnyRecord) => item.id === task.nodeId);
   if (!node) return null;
@@ -765,6 +873,7 @@ export async function adoptRemoteTask(taskId: string, remoteTaskId: string) {
  * @returns {boolean}
  */
 export function canRetryTask(task: AnyRecord | null | undefined) {
+  if (task?.requestPayload?.processingContract) return failedTaskStatuses.has(task.status) && Boolean(task.remoteTaskId || task.result?.archiveError);
   if (!task || task.submissionUncertain === true || !failedTaskStatuses.has(task.status) || isHistoricalModelTask(task)) return false;
   const maxRetries = normalizedInteger(task.maxRetries, 2);
   return Number(task.retryCount || 0) < maxRetries;

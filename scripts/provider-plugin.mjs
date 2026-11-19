@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { packagedPluginIcon } from '../shared/pluginIcon.ts';
 import { readFile, writeFile, readdir, lstat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -31,6 +32,7 @@ try {
     }
   }
   await walk();
+  if (manifest.icon !== undefined) packagedPluginIcon(manifest.icon, files[manifest.icon]);
   if (files['package.json']) {
     const metadata = JSON.parse(new TextDecoder().decode(files['package.json']));
     if (!/^shotloom-plugin-[a-z0-9][a-z0-9._-]*$/.test(String(metadata.name || '').split('/').at(-1))) throw new Error('Plugin package names must start with shotloom-plugin-, e.g. @scope/shotloom-plugin-example');

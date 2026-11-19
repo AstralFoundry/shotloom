@@ -1,5 +1,6 @@
+import { packagedPluginIcon } from '../shared/pluginIcon.ts';
 import { readFileSync, readdirSync, lstatSync } from 'node:fs';
-import { resolve, join } from 'node:path';
+import { resolve, join, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 const root = fileURLToPath(new URL('../plugin-packages/defaults/', import.meta.url));
 
@@ -9,24 +10,31 @@ export function readDefaultPluginPackages(directory = root) {
   if (index.apiVersion !== 1 || !Array.isArray(index.packages) || new Set(index.packages).size !== index.packages.length) throw new Error('Invalid default plugin index');
   return index.packages.map(folder => {
     if (!/^[a-z0-9][a-z0-9._-]*$/.test(folder)) throw new Error('Unsafe default plugin directory');
-    const files = {};
-    function walk(relative = '') {
-      for (const name of readdirSync(join(directory, folder, relative)).sort()) {
-        if (name.startsWith('.') || name === 'node_modules') throw new Error('Bundle plugin dependencies');
-        const local = relative ? `${relative}/${name}` : name;
-        const stat = lstatSync(join(directory, folder, local));
-        if (stat.isSymbolicLink()) throw new Error('Plugin packages cannot contain symlinks');
-        if (stat.isDirectory()) walk(local);
-        else files[local] = readFileSync(join(directory, folder, local));
-      }
-    }
-    walk();
-    const manifest = JSON.parse(files['manifest.json'].toString());
-    const metadata = JSON.parse(files['package.json'].toString());
-    if (manifest.id !== folder || !/^shotloom-plugin-[a-z0-9][a-z0-9._-]*$/.test(metadata.name.split('/').at(-1)) || metadata.version !== manifest.version || metadata.shotloomPlugin !== 'manifest.json') throw new Error(`Invalid package identity: ${folder}`);
-    const documentation = Object.keys(files).find(name => name.toLowerCase() === 'readme.md');
-    return { manifest: documentation ? { ...manifest, readme: files[documentation].toString() } : manifest, files };
+    return readPluginPackage(join(directory, folder));
   });
+}
+
+/** Read an independent package without adding it to the bundled distribution. */
+export function readPluginPackage(packageDirectory) {
+  const directory = resolve(packageDirectory);
+  const files = {};
+  function walk(relative = '') {
+    for (const name of readdirSync(join(directory, relative)).sort()) {
+      if (name.startsWith('.') || name === 'node_modules') throw new Error('Bundle plugin dependencies');
+      const local = relative ? `${relative}/${name}` : name;
+      const stat = lstatSync(join(directory, local));
+      if (stat.isSymbolicLink()) throw new Error('Plugin packages cannot contain symlinks');
+      if (stat.isDirectory()) walk(local);
+      else files[local] = readFileSync(join(directory, local));
+    }
+  }
+  walk();
+  const manifest = JSON.parse(files['manifest.json'].toString());
+  const metadata = JSON.parse(files['package.json'].toString());
+  if (manifest.id !== basename(directory) || !/^shotloom-plugin-[a-z0-9][a-z0-9._-]*$/.test(metadata.name.split('/').at(-1)) || metadata.version !== manifest.version || metadata.shotloomPlugin !== 'manifest.json') throw new Error(`Invalid package identity: ${directory}`);
+  if (manifest.icon !== undefined) manifest.iconData = packagedPluginIcon(manifest.icon, files[manifest.icon]);
+  const documentation = Object.keys(files).find(name => name.toLowerCase() === 'readme.md');
+  return { manifest: documentation ? { ...manifest, readme: files[documentation].toString() } : manifest, files };
 }
 
 export function defaultPluginConnections(packages = readDefaultPluginPackages()) {

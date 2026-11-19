@@ -16,6 +16,7 @@ export function PluginMarketplace({ registry, onRegistryChange, onInstall }: {
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [failedIcons, setFailedIcons] = useState<Set<string>>(new Set());
   useEffect(() => {
     let active = true;
     setLoading(true); setError(''); setPackages([]); setOffset(0); setHasMore(false);
@@ -24,7 +25,7 @@ export function PluginMarketplace({ registry, onRegistryChange, onInstall }: {
       const result = npmPluginListings(response);
       setPackages(result.packages); setOffset(result.nextOffset); setHasMore(result.hasMore);
     }).catch((cause: unknown) => { if (active) setError(String(cause)); }).finally(() => { if (active) setLoading(false); });
-    return () => { active = false; };
+    return () => { active = false;  };
   }, [search, registry]);
   async function loadMore() {
     setLoading(true); setError('');
@@ -47,9 +48,9 @@ export function PluginMarketplace({ registry, onRegistryChange, onInstall }: {
     <p className="provider-plugin-marketplace-hint">{t('plugins.marketHint')}</p>
     {error && <p className="provider-plugin-error" role="alert">{error}</p>}
     {packages.length > 0 && <div className="provider-plugin-grid">{packages.map(item => <article className="provider-plugin-card" key={item.name}>
-      <div className="provider-plugin-card-heading"><div className="provider-plugin-card-icon"><IconSymbol name="blocks" /></div><div><h2 title={item.name}>{item.name}</h2><span className="provider-plugin-version">v{item.version}{item.author && ` · ${item.author}`}</span></div></div>
+      <div className="provider-plugin-card-heading"><div className="provider-plugin-card-icon">{item.icon && !failedIcons.has(item.icon) ? <img src={item.icon} alt="" referrerPolicy="no-referrer" onError={() => setFailedIcons(previous => new Set(previous).add(item.icon!))} /> : <IconSymbol name="blocks" />}</div><div><h2 title={item.name}>{item.name}</h2><span className="provider-plugin-version">v{item.version}{item.author && ` · ${item.author}`}</span></div></div>
       <p className="provider-plugin-card-description">{item.description}</p>
-      <footer className="provider-plugin-card-footer"><Button onClick={() => onInstall(`npm:${item.name}@${item.version}`)}>{t('plugins.inspect')}</Button></footer>
+      <footer className="provider-plugin-card-footer"><Button onClick={() => onInstall(`npm:${item.name}@latest`)}>{t('plugins.installTitle')}</Button></footer>
     </article>)}</div>}
     {loading && <div className="provider-plugin-marketplace-loading"><Spin /></div>}
     {!loading && !error && !packages.length && <Empty description={t('plugins.noMarketResults')} />}

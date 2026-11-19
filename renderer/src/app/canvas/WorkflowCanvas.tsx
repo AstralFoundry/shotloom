@@ -1,3 +1,5 @@
+import { PluginNodeContextMenu } from './PluginNodeContextMenu';
+import { capabilitiesForNode } from '../../domain/provider/plugins/PluginCapabilities';
 import { canvasInputIndex } from './canvasInputIndex';
 import { createCanvasWheelZoom } from "./canvasWheelZoom";
 import { createCanvasWheelPan } from './canvasWheelPan';
@@ -755,6 +757,7 @@ export function WorkflowCanvas({
   const canvasRoot = useRef<HTMLElement>(null);
   const [canvasOverlayRoot, setCanvasOverlayRoot] = useState<HTMLElement | null>(null);
   const menuLayer = useRef<CanvasMenuLayerHandle>(null);
+  const [pluginContext, setPluginContext] = useState<{ nodeId: string; x: number; y: number } | null>(null);
   const visible = useMemo(() => nodes.filter((node) => !node.archived), [nodes]);
   const canonicalNodes = useMemo(
     () => toFlowNodes(visible, edges, semanticZoom, flowNodeCache.current),
@@ -1377,7 +1380,14 @@ export function WorkflowCanvas({
             if ((event.target as Element).classList.contains("react-flow__pane")) openMenu(event);
           }}
         >
+          {pluginContext && <PluginNodeContextMenu key={pluginContext.nodeId} {...pluginContext} onClose={() => setPluginContext(null)} />}
           <ReactFlow
+            onNodeContextMenu={(event, flowNode) => {
+              const node = flowNode.data.node;
+              if (!capabilitiesForNode(node, undefined, 'contextMenu').length) return;
+              event.preventDefault(); event.stopPropagation();
+              setPluginContext({ nodeId: node.id, x: event.clientX, y: event.clientY });
+            }}
             nodes={renderedNodes}
             edges={displayedEdges}
             nodeTypes={nodeTypes}

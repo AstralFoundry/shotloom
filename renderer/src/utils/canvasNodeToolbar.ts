@@ -16,7 +16,7 @@ import type { IconName } from "@/app/components/IconSymbol";
  * 两边必须消费同一份定义，不能有第二份。
  */
 
-export type NodeToolbarScope = "image" | "video" | "text";
+export type NodeToolbarScope = "image" | "video" | "audio" | "text";
 
 /**
  * 交互类别决定按钮的 aria 角色与弹层归属，不决定权限，也不用来猜用户意图。
@@ -57,6 +57,9 @@ export const NODE_TOOLBAR_TOOLS: Record<NodeToolbarScope, NodeToolDefinition[]> 
     { id: "reverse-prompt", label: t("imageReverse.tool.label"), icon: "scan-text", interaction: "instant" },
     { id: "history", label: t("imageHistory.tool.label"), icon: "clock", interaction: "opens_dialog" },
   ],
+  audio: [
+    { id: "collect-asset", label: t("assets.collection.collect"), icon: "archive", interaction: "opens_panel" },
+  ],
   video: [
     { id: "collect-asset", label: t("assets.collection.collect"), icon: "archive", interaction: "opens_panel" },
     { id: "clip", label: t("ui.videoEditorActions.text.801f1d23"), icon: "scissors", interaction: "side_effect" },
@@ -65,9 +68,16 @@ export const NODE_TOOLBAR_TOOLS: Record<NodeToolbarScope, NodeToolDefinition[]> 
   ],
 };
 
+let pluginTools: Partial<Record<NodeToolbarScope, NodeToolDefinition[]>> = {};
+export function setPluginToolbarTools(tools: Partial<Record<NodeToolbarScope, NodeToolDefinition[]>>) { pluginTools = tools; }
+export function nodeToolbarTools(scope: NodeToolbarScope): NodeToolDefinition[] {
+  return [...NODE_TOOLBAR_TOOLS[scope], ...(pluginTools[scope] || [])];
+}
+
 export const NODE_TOOLBAR_DEFAULT_PINNED: Record<NodeToolbarScope, string[]> = {
   text: ["copy-text", "collect-asset", "mention-node", "expand-text"],
   image: ["crop", "annotate", "split-grid", "watermark", "angle", "lighting", "mask-edit", "emotion", "reverse-prompt", "history", "collect-asset"],
+  audio: ["collect-asset"],
   video: ["clip", "extract-frame", "extract-audio", "collect-asset"],
 };
 
@@ -82,6 +92,7 @@ export interface CanvasToolbarCustomization {
 const SCOPES = Object.keys(NODE_TOOLBAR_TOOLS) as NodeToolbarScope[];
 
 export function nodeToolbarScope(nodeType: unknown): NodeToolbarScope | null {
+  if (nodeType === "audioGeneration") return "audio";
   if (nodeType === "textGeneration") return "text";
   if (nodeType === "imageGeneration") return "image";
   if (nodeType === "videoGeneration") return "video";
@@ -89,11 +100,11 @@ export function nodeToolbarScope(nodeType: unknown): NodeToolbarScope | null {
 }
 
 export function nodeToolbarToolIds(scope: NodeToolbarScope) {
-  return NODE_TOOLBAR_TOOLS[scope].map((tool) => tool.id);
+  return nodeToolbarTools(scope).map((tool) => tool.id);
 }
 
 export function nodeToolbarTool(scope: NodeToolbarScope, toolId: string) {
-  return NODE_TOOLBAR_TOOLS[scope].find((tool) => tool.id === toolId) || null;
+  return nodeToolbarTools(scope).find((tool) => tool.id === toolId) || null;
 }
 
 export function defaultCanvasToolbarCustomization(): CanvasToolbarCustomization {
@@ -104,6 +115,7 @@ export function defaultCanvasToolbarCustomization(): CanvasToolbarCustomization 
       text: [...NODE_TOOLBAR_DEFAULT_PINNED.text],
       image: [...NODE_TOOLBAR_DEFAULT_PINNED.image],
       video: [...NODE_TOOLBAR_DEFAULT_PINNED.video],
+      audio: [...NODE_TOOLBAR_DEFAULT_PINNED.audio],
     },
   };
 }
@@ -118,7 +130,7 @@ function normalizePinned(scope: NodeToolbarScope, value: unknown) {
   const picked: string[] = [];
   for (const item of value) {
     const id = typeof item === "string" ? item : "";
-    if (!known.has(id) || picked.includes(id)) continue;
+    if ((!known.has(id) && !/^plugin:[a-z0-9][a-z0-9._-]*:[a-z0-9][a-z0-9._-]*$/.test(id)) || picked.includes(id)) continue;
     picked.push(id);
   }
   return picked;
@@ -147,6 +159,7 @@ export function normalizeCanvasToolbarCustomization(
       text: normalizePinned("text", pinned.text),
       image: normalizePinned("image", pinned.image),
       video: normalizePinned("video", pinned.video),
+      audio: normalizePinned("audio", pinned.audio),
     },
   };
 }

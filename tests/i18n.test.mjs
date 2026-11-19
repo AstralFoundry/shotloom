@@ -308,8 +308,8 @@ test('引用选择、媒体预览、快照校验和任务查询的产品提示�
     desktopApi.file.readArrayBuffer = async () => undefined;
     const { acquireMediaPreview } = await instance.load('services/mediaPreviewCache');
     await assert.rejects(acquireMediaPreview({ kind: 'video', path: '/missing.mp4' }), { message: 'Unable to read the media preview.' });
-    const { runningHubTaskState } = await import('../plugin-packages/defaults/protocol.runninghub.video/runtime/workflow.mjs');
-    const { createTranslator } = await import('../plugin-packages/defaults/protocol.runninghub.video/runtime/messages.mjs');
+    const { runningHubTaskState } = await import('../plugin-packages/defaults/vendor.runninghub/runtime/workflow.mjs');
+    const { createTranslator } = await import('../plugin-packages/defaults/vendor.runninghub/runtime/messages.mjs');
     assert.equal(runningHubTaskState({ code: 503 }, createTranslator('en-US')).error, 'Failed to query the task.');
     assert.equal(runningHubTaskState({ code: 503, msg: '上游原始错误 {id}' }).error, '上游原始错误 {id}');
   } finally { await instance.dispose(); }

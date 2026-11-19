@@ -3,7 +3,7 @@ import { after, test } from 'node:test';
 import { createRendererEnv } from './helpers/rendererSsr.mjs';
 import { readSource } from './helpers/sourceContract.mjs';
 
-const env = await createRendererEnv({ storage: new Map(), withWindow: true });
+const env = await createRendererEnv({ includeStarrouter: true, storage: new Map(), withWindow: true });
 after(() => env.dispose());
 
 const { store } = await env.load('store/projectStore');
@@ -70,7 +70,7 @@ test('反推工具的工具栏、动作与适配器接线完整', () => {
   const canvas = readSource('renderer/src/app/canvas/WorkflowCanvas.tsx');
   const adapter = readSource('renderer/src/app/adapters/canvasAdapter.ts');
   const action = readSource('renderer/src/app/adapters/canvas/imageReversePromptActions.ts');
-  const catalog = readSource('plugin-packages/defaults/protocol.google.text/manifest.json');
+  const catalog = readSource('plugin-packages/defaults/vendor.google/manifest.json');
   const provider = readSource('renderer/src/domain/provider/adapters/declarative.ts');
   assert.match(registry, /id: "reverse-prompt", label: t\("imageReverse\.tool\.label"\), icon: "scan-text"/);
   assert.match(registry, /"emotion", "reverse-prompt"/);
@@ -90,7 +90,7 @@ for (const { provider, model } of [
   { provider: 'google', model: 'gemini-3.8-flash' },
   { provider: 'starrouter', model: 'starrouter-deepseek-flash' },
 ]) test(`${model} 带图片的文本任务把图片放进 chat content parts`, async () => {
-  const env2 = await createRendererEnv();
+  const env2 = await createRendererEnv({ includeStarrouter: true });
   try {
     const { desktopApi } = await env2.load('services/desktopApi');
     const { findProviderAdapter } = await env2.load('domain/provider/adapters/index');

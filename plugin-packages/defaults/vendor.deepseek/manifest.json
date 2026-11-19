@@ -1,0 +1,643 @@
+{
+  "apiVersion": 2,
+  "kind": "vendor",
+  "id": "vendor.deepseek",
+  "name": "DeepSeek",
+  "version": "1.0.1",
+  "shotloom": ">=0.9.2, <1.0.0",
+  "iconId": "deepseek",
+  "description": "DeepSeek 厂商插件，统一提供模型和画布工具，共用连接与 API Key。",
+  "engine": "declarative",
+  "protocols": [
+    {
+      "id": "openai.chat.operation.9479cbca039d68dd",
+      "description": "GPT 6 Astra",
+      "mode": {
+        "endpoint": {
+          "method": "POST",
+          "path": "/chat/completions",
+          "scope": "root"
+        },
+        "agent": {
+          "transport": "openai-responses",
+          "supportsTools": true,
+          "endpoint": {
+            "method": "POST",
+            "path": "/responses",
+            "scope": "root"
+          }
+        },
+        "auth": {
+          "type": "bearer"
+        },
+        "requestTemplate": {
+          "model": "{{model}}",
+          "messages": "{{messages}}",
+          "max_completion_tokens": "{{params.maxTokens}}",
+          "reasoning_effort": "{{params.reasoningEffort}}",
+          "tools": "{{tools}}",
+          "tool_choice": "{{toolChoice}}"
+        },
+        "resultTextPath": "choices.0.message.content",
+        "id": "text-generation",
+        "label": "文本生成",
+        "inputConstraints": {
+          "text": {
+            "maxTokens": 1000000
+          }
+        },
+        "outputConstraints": {
+          "supportsStreaming": true,
+          "supportsStructuredOutput": true,
+          "maxTokens": 16384
+        },
+        "capabilities": [
+          "reasoning"
+        ],
+        "params": [
+          {
+            "key": "maxTokens",
+            "label": "最大长度",
+            "type": "select",
+            "default": 8192,
+            "numeric": true,
+            "options": [
+              4096,
+              8192,
+              16384
+            ],
+            "labelKey": "catalog.label.c6f7a87b1e"
+          },
+          {
+            "key": "reasoningEffort",
+            "label": "推理强度",
+            "type": "select",
+            "default": "medium",
+            "options": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "optionLabels": {
+              "low": "低",
+              "medium": "中",
+              "high": "高",
+              "xhigh": "极高",
+              "max": "最高"
+            },
+            "labelKey": "catalog.label.66778fdee4",
+            "optionLabelKeys": {
+              "low": "catalog.label.b9ee259b7f",
+              "medium": "catalog.label.0869071c92",
+              "high": "catalog.label.b096b3f5ac",
+              "xhigh": "catalog.label.c34687da2b",
+              "max": "catalog.label.2cd489b0a5"
+            }
+          }
+        ],
+        "labelKey": "catalog.label.9612898b53"
+      }
+    },
+    {
+      "id": "openai.chat.operation.833e3b3a2547a46a",
+      "description": "Grok 4.7",
+      "mode": {
+        "endpoint": {
+          "method": "POST",
+          "path": "/chat/completions",
+          "scope": "root"
+        },
+        "agent": {
+          "transport": "provider-default",
+          "supportsTools": true
+        },
+        "auth": {
+          "type": "bearer"
+        },
+        "requestTemplate": {
+          "model": "{{model}}",
+          "messages": "{{messages}}",
+          "max_tokens": "{{params.maxTokens}}",
+          "tools": "{{tools}}",
+          "tool_choice": "{{toolChoice}}"
+        },
+        "resultTextPath": "choices.0.message.content",
+        "id": "text-generation",
+        "label": "文本生成",
+        "inputConstraints": {
+          "text": {
+            "maxTokens": 500000
+          }
+        },
+        "outputConstraints": {
+          "supportsStreaming": true,
+          "supportsStructuredOutput": true,
+          "maxTokens": 16384
+        },
+        "capabilities": [
+          "reasoning"
+        ],
+        "params": [
+          {
+            "key": "maxTokens",
+            "label": "最大长度",
+            "type": "select",
+            "default": 8192,
+            "numeric": true,
+            "options": [
+              4096,
+              8192,
+              16384
+            ],
+            "labelKey": "catalog.label.c6f7a87b1e"
+          }
+        ],
+        "labelKey": "catalog.label.9612898b53"
+      }
+    },
+    {
+      "id": "openai.chat.operation.797b7900d018201b",
+      "description": "DeepSeek Flash（StarRouter）",
+      "mode": {
+        "endpoint": {
+          "method": "POST",
+          "path": "/chat/completions",
+          "scope": "root"
+        },
+        "agent": {
+          "transport": "provider-default",
+          "supportsTools": true
+        },
+        "auth": {
+          "type": "bearer"
+        },
+        "requestTemplate": {
+          "model": "{{model}}",
+          "messages": "{{messages}}",
+          "max_tokens": "{{params.maxTokens}}",
+          "tools": "{{tools}}",
+          "tool_choice": "{{toolChoice}}",
+          "reasoning_effort": "{{params.reasoningEffort}}"
+        },
+        "resultTextPath": "choices.0.message.content",
+        "requestFields": {
+          "imageContentFormat": "openai-image-url"
+        },
+        "id": "text-generation",
+        "label": "文本生成",
+        "inputConstraints": {
+          "text": {
+            "maxTokens": 1000000
+          },
+          "images": {
+            "max": 1,
+            "roles": [
+              "referenceImage"
+            ]
+          }
+        },
+        "outputConstraints": {
+          "supportsStreaming": true,
+          "supportsStructuredOutput": true,
+          "maxTokens": 393216
+        },
+        "capabilities": [
+          "reasoning"
+        ],
+        "params": [
+          {
+            "key": "maxTokens",
+            "label": "最大长度",
+            "type": "select",
+            "default": 8192,
+            "numeric": true,
+            "options": [
+              4096,
+              8192,
+              16384,
+              32768,
+              65536,
+              131072,
+              262144,
+              393216
+            ],
+            "labelKey": "catalog.label.c6f7a87b1e"
+          },
+          {
+            "key": "reasoningEffort",
+            "label": "推理强度",
+            "type": "select",
+            "default": "high",
+            "options": [
+              "none",
+              "low",
+              "high",
+              "max"
+            ],
+            "optionLabels": {
+              "none": "关闭",
+              "low": "低",
+              "high": "高",
+              "max": "最高"
+            },
+            "labelKey": "catalog.label.66778fdee4",
+            "optionLabelKeys": {
+              "none": "catalog.label.6c14bd7f6f",
+              "low": "catalog.label.b9ee259b7f",
+              "high": "catalog.label.b096b3f5ac",
+              "max": "catalog.label.2cd489b0a5"
+            }
+          }
+        ],
+        "labelKey": "catalog.label.9612898b53"
+      }
+    },
+    {
+      "id": "openai.chat.operation.83a19005402ac41e",
+      "description": "Qwen 3.6 Plus（StarRouter）",
+      "mode": {
+        "endpoint": {
+          "method": "POST",
+          "path": "/chat/completions",
+          "scope": "root"
+        },
+        "agent": {
+          "transport": "provider-default",
+          "supportsTools": true
+        },
+        "auth": {
+          "type": "bearer"
+        },
+        "requestTemplate": {
+          "model": "{{model}}",
+          "messages": "{{messages}}",
+          "max_tokens": "{{params.maxTokens}}",
+          "reasoning_effort": "{{params.reasoningEffort}}",
+          "tools": "{{tools}}",
+          "tool_choice": "{{toolChoice}}"
+        },
+        "resultTextPath": "choices.0.message.content",
+        "id": "text-generation",
+        "label": "文本生成",
+        "inputConstraints": {
+          "text": {
+            "maxTokens": 131072
+          }
+        },
+        "outputConstraints": {
+          "supportsStreaming": true,
+          "supportsStructuredOutput": true,
+          "maxTokens": 16384
+        },
+        "params": [
+          {
+            "key": "maxTokens",
+            "label": "最大长度",
+            "type": "select",
+            "default": 8192,
+            "numeric": true,
+            "options": [
+              4096,
+              8192,
+              16384
+            ],
+            "labelKey": "catalog.label.c6f7a87b1e"
+          },
+          {
+            "key": "reasoningEffort",
+            "label": "推理强度",
+            "type": "select",
+            "default": "medium",
+            "options": [
+              "none",
+              "minimal",
+              "low",
+              "medium",
+              "high",
+              "xhigh"
+            ],
+            "optionLabels": {
+              "none": "关闭",
+              "minimal": "极简",
+              "low": "低",
+              "medium": "中",
+              "high": "高",
+              "xhigh": "极高"
+            },
+            "labelKey": "catalog.label.66778fdee4",
+            "optionLabelKeys": {
+              "none": "catalog.label.6c14bd7f6f",
+              "minimal": "catalog.label.4d9492c5f8",
+              "low": "catalog.label.b9ee259b7f",
+              "medium": "catalog.label.0869071c92",
+              "high": "catalog.label.b096b3f5ac",
+              "xhigh": "catalog.label.c34687da2b"
+            }
+          }
+        ],
+        "capabilities": [
+          "reasoning"
+        ],
+        "labelKey": "catalog.label.9612898b53"
+      }
+    }
+  ],
+  "providers": [],
+  "defaultConnections": [
+    {
+      "id": "deepseek",
+      "name": "DeepSeek",
+      "descriptionKey": "provider.copy.dd161a69dd",
+      "iconId": "deepseek",
+      "baseUrl": "https://api.deepseek.com/v1",
+      "baseUrlRequired": false,
+      "engine": "declarative",
+      "pluginId": "vendor.deepseek",
+      "presetId": "vendor",
+      "models": [
+        {
+          "id": "deepseek-v4-pro",
+          "name": "DeepSeek V4 Pro",
+          "type": "textGeneration",
+          "sortOrder": 8,
+          "enabled": true,
+          "defaultMode": "text-generation",
+          "protocolModes": {
+            "text-generation": "openai.chat.operation.833e3b3a2547a46a",
+            "semantic-split": "openai.chat.operation.833e3b3a2547a46a",
+            "storyboard-generation": "openai.chat.operation.833e3b3a2547a46a"
+          },
+          "modes": [
+            {
+              "id": "text-generation",
+              "label": "文本生成",
+              "inputConstraints": {
+                "text": {
+                  "maxTokens": 1000000
+                }
+              },
+              "outputConstraints": {
+                "supportsStreaming": true,
+                "supportsStructuredOutput": true,
+                "maxTokens": 393216
+              },
+              "capabilities": [
+                "reasoning"
+              ],
+              "params": [
+                {
+                  "key": "maxTokens",
+                  "label": "最大长度",
+                  "type": "select",
+                  "default": 8192,
+                  "numeric": true,
+                  "options": [
+                    4096,
+                    8192,
+                    16384,
+                    32768,
+                    65536,
+                    131072,
+                    262144,
+                    393216
+                  ],
+                  "labelKey": "catalog.label.c6f7a87b1e"
+                }
+              ],
+              "labelKey": "catalog.label.9612898b53"
+            },
+            {
+              "id": "semantic-split",
+              "label": "语义拆分",
+              "inputConstraints": {
+                "text": {
+                  "maxTokens": 1000000
+                }
+              },
+              "outputConstraints": {
+                "supportsStreaming": true,
+                "supportsStructuredOutput": true,
+                "maxTokens": 393216
+              },
+              "capabilities": [
+                "structured-output"
+              ],
+              "params": [
+                {
+                  "key": "maxTokens",
+                  "label": "最大长度",
+                  "type": "select",
+                  "default": 8192,
+                  "numeric": true,
+                  "options": [
+                    4096,
+                    8192,
+                    16384,
+                    32768,
+                    65536,
+                    131072,
+                    262144,
+                    393216
+                  ],
+                  "labelKey": "catalog.label.c6f7a87b1e"
+                }
+              ],
+              "labelKey": "catalog.label.8f963ce0de"
+            },
+            {
+              "id": "storyboard-generation",
+              "label": "分镜生成",
+              "inputConstraints": {
+                "text": {
+                  "maxTokens": 1000000
+                }
+              },
+              "outputConstraints": {
+                "supportsStreaming": true,
+                "supportsStructuredOutput": true,
+                "maxTokens": 393216
+              },
+              "capabilities": [
+                "structured-output"
+              ],
+              "params": [
+                {
+                  "key": "maxTokens",
+                  "label": "最大长度",
+                  "type": "select",
+                  "default": 8192,
+                  "numeric": true,
+                  "options": [
+                    4096,
+                    8192,
+                    16384,
+                    32768,
+                    65536,
+                    131072,
+                    262144,
+                    393216
+                  ],
+                  "labelKey": "catalog.label.c6f7a87b1e"
+                }
+              ],
+              "labelKey": "catalog.label.8c31cdcb5d"
+            }
+          ]
+        },
+        {
+          "id": "deepseek-flash",
+          "name": "DeepSeek Flash",
+          "type": "textGeneration",
+          "sortOrder": 9,
+          "enabled": true,
+          "defaultMode": "text-generation",
+          "protocolModes": {
+            "text-generation": "openai.chat.operation.833e3b3a2547a46a",
+            "semantic-split": "openai.chat.operation.833e3b3a2547a46a",
+            "storyboard-generation": "openai.chat.operation.833e3b3a2547a46a"
+          },
+          "modes": [
+            {
+              "id": "text-generation",
+              "label": "文本生成",
+              "inputConstraints": {
+                "text": {
+                  "maxTokens": 1000000
+                }
+              },
+              "outputConstraints": {
+                "supportsStreaming": true,
+                "supportsStructuredOutput": true,
+                "maxTokens": 393216
+              },
+              "capabilities": [
+                "reasoning"
+              ],
+              "params": [
+                {
+                  "key": "maxTokens",
+                  "label": "最大长度",
+                  "type": "select",
+                  "default": 8192,
+                  "numeric": true,
+                  "options": [
+                    4096,
+                    8192,
+                    16384,
+                    32768,
+                    65536,
+                    131072,
+                    262144,
+                    393216
+                  ],
+                  "labelKey": "catalog.label.c6f7a87b1e"
+                }
+              ],
+              "labelKey": "catalog.label.9612898b53"
+            },
+            {
+              "id": "semantic-split",
+              "label": "语义拆分",
+              "inputConstraints": {
+                "text": {
+                  "maxTokens": 1000000
+                }
+              },
+              "outputConstraints": {
+                "supportsStreaming": true,
+                "supportsStructuredOutput": true,
+                "maxTokens": 393216
+              },
+              "capabilities": [
+                "structured-output"
+              ],
+              "params": [
+                {
+                  "key": "maxTokens",
+                  "label": "最大长度",
+                  "type": "select",
+                  "default": 8192,
+                  "numeric": true,
+                  "options": [
+                    4096,
+                    8192,
+                    16384,
+                    32768,
+                    65536,
+                    131072,
+                    262144,
+                    393216
+                  ],
+                  "labelKey": "catalog.label.c6f7a87b1e"
+                }
+              ],
+              "labelKey": "catalog.label.8f963ce0de"
+            },
+            {
+              "id": "storyboard-generation",
+              "label": "分镜生成",
+              "inputConstraints": {
+                "text": {
+                  "maxTokens": 1000000
+                }
+              },
+              "outputConstraints": {
+                "supportsStreaming": true,
+                "supportsStructuredOutput": true,
+                "maxTokens": 393216
+              },
+              "capabilities": [
+                "structured-output"
+              ],
+              "params": [
+                {
+                  "key": "maxTokens",
+                  "label": "最大长度",
+                  "type": "select",
+                  "default": 8192,
+                  "numeric": true,
+                  "options": [
+                    4096,
+                    8192,
+                    16384,
+                    32768,
+                    65536,
+                    131072,
+                    262144,
+                    393216
+                  ],
+                  "labelKey": "catalog.label.c6f7a87b1e"
+                }
+              ],
+              "labelKey": "catalog.label.8c31cdcb5d"
+            }
+          ]
+        }
+      ],
+      "enabled": true,
+      "builtin": true,
+      "preserveModelIds": true,
+      "sortOrder": 5
+    }
+  ],
+  "vendorMigration": {
+    "bindings": [
+      {
+        "pluginId": "protocol.openai.chat",
+        "operations": {
+          "operation.9479cbca039d68dd": "openai.chat.operation.9479cbca039d68dd",
+          "operation.833e3b3a2547a46a": "openai.chat.operation.833e3b3a2547a46a",
+          "operation.797b7900d018201b": "openai.chat.operation.797b7900d018201b",
+          "operation.83a19005402ac41e": "openai.chat.operation.83a19005402ac41e"
+        }
+      },
+      {
+        "pluginId": "builtin.deepseek",
+        "operations": {}
+      }
+    ]
+  },
+  "icon": "icon.png"
+}

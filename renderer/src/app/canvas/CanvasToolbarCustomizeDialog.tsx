@@ -21,7 +21,7 @@ import { IconSymbol } from "../components/IconSymbol";
 import { useWorkbenchSurfaceRoot } from "../layout/workbenchSurface";
 import { saveAppSettings } from "../../store/settingsStore.ts";
 import {
-  NODE_TOOLBAR_TOOLS,
+  nodeToolbarTools,
   defaultCanvasToolbarCustomization,
   nodeToolbarScopes,
   type CanvasToolbarCustomization,
@@ -30,6 +30,7 @@ import {
 } from "../../utils/canvasNodeToolbar.ts";
 
 const SCOPE_TAB_LABELS: Record<NodeToolbarScope, string> = {
+  audio: t("plugins.audio"),
   text: t("ui.canvasAdapter.label.f1926e9b"),
   image: t("ui.CanvasToolbarCustomizeDialog.image.167e8c64"),
   video: t("ui.CanvasToolbarCustomizeDialog.video.1a4fa42b"),
@@ -100,7 +101,7 @@ export function CanvasToolbarCustomizeDialog({ open, onClose, customization, ini
 
   if (!surface) return null;
 
-  const tools = NODE_TOOLBAR_TOOLS[scope];
+  const tools = nodeToolbarTools(scope);
   const pinned = customization.pinned[scope];
   const pinnedSet = new Set(pinned);
   const pinnedTools = pinned

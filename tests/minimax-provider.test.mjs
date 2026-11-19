@@ -6,7 +6,7 @@ import { loadModelCatalog } from './helpers/modelCatalog.mjs';
 import { createRendererEnv } from './helpers/rendererSsr.mjs';
 import { readSource } from './helpers/sourceContract.mjs';
 
-const catalog = loadModelCatalog();
+const catalog = loadModelCatalog({ includeStarrouter: true });
 const defaultConnections = catalog.providers;
 const speechModes = ['minimax-speech-2.8-hd', 'minimax-speech-2.8-turbo']
   .map((id) => catalog.models.find((model) => model.id === id))
@@ -20,14 +20,14 @@ const speechParams = {
 };
 
 test('MiniMax 适配器只有一个官方地址并覆盖视频与音频', () => {
-  const presets = [JSON.parse(readSource('plugin-packages/defaults/protocol.minimax.video/manifest.json')).defaultConnections.find(connection => connection.id === 'minimax')];
+  const presets = [JSON.parse(readSource('plugin-packages/defaults/vendor.minimax/manifest.json')).defaultConnections.find(connection => connection.id === 'minimax')];
   assert.equal(presets.length, 1);
   assert.equal(presets[0].baseUrl, 'https://api.minimax.io');
 });
 
 test('MiniMax 直连和 StarRouter 的首尾帧与多模态参考按各自协议编译', async () => {
   // https://platform.minimax.io/docs/api-reference/video-generation-v2-create
-  const env = await createRendererEnv();
+  const env = await createRendererEnv({ includeStarrouter: true });
   try {
     const { desktopApi } = await env.load('services/desktopApi');
     const { findProviderAdapter } = await env.load('domain/provider/adapters/index');
@@ -106,7 +106,7 @@ test('MiniMax 直连和 StarRouter 的首尾帧与多模态参考按各自协议
 
 test('StarRouter H3 使用公开任务 ID 轮询并解析结果和失败原因', async () => {
   // StarRouter MCP get_public_docs(page=minimax.post-v1-videos), 2026-11-03.
-  const env = await createRendererEnv();
+  const env = await createRendererEnv({ includeStarrouter: true });
   try {
     const { desktopApi } = await env.load('services/desktopApi');
     const { findProviderAdapter } = await env.load('domain/provider/adapters/index');
@@ -243,7 +243,7 @@ test('MiniMax Music 3.0 只发出官方声明的参数，歌词是自由文本',
 });
 
 test('MiniMax 把失败写在 HTTP 200 的响应体里，提交回执必须带真实原因', async () => {
-  const env = await createRendererEnv();
+  const env = await createRendererEnv({ includeStarrouter: true });
   try {
     const { desktopApi } = await env.load('services/desktopApi');
     const { findProviderAdapter } = await env.load('domain/provider/adapters/index');
@@ -310,7 +310,7 @@ test('MiniMax 把失败写在 HTTP 200 的响应体里，提交回执必须带�
 });
 
 test('没有声明 errorCodePath 的厂商不受 body 内错误判定影响', async () => {
-  const env = await createRendererEnv();
+  const env = await createRendererEnv({ includeStarrouter: true });
   try {
     const { desktopApi } = await env.load('services/desktopApi');
     const { findProviderAdapter } = await env.load('domain/provider/adapters/index');

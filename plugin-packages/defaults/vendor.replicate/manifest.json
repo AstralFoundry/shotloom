@@ -1,0 +1,167 @@
+{
+  "apiVersion": 2,
+  "kind": "vendor",
+  "id": "vendor.replicate",
+  "name": "Replicate",
+  "version": "1.0.1",
+  "shotloom": ">=0.9.2, <1.0.0",
+  "iconId": "replicate",
+  "description": "Replicate 厂商插件，统一提供模型和画布工具，共用连接与 API Key。",
+  "engine": "declarative",
+  "protocols": [
+    {
+      "id": "replicate.images.generate",
+      "mode": {
+        "id": "text-to-image",
+        "label": "文生图",
+        "endpoint": {
+          "path": "/v1/models/{modelPath}/predictions",
+          "method": "POST",
+          "scope": "root"
+        },
+        "auth": {
+          "type": "bearer"
+        },
+        "inputConstraints": {},
+        "outputConstraints": {},
+        "params": [
+          {
+            "key": "aspectRatio",
+            "label": "画面比例",
+            "labelKey": "plugins.parameter.aspectRatio",
+            "type": "select",
+            "options": [
+              "16:9",
+              "9:16"
+            ],
+            "default": "16:9",
+            "numeric": false
+          },
+          {
+            "key": "generationCount",
+            "label": "数量",
+            "labelKey": "plugins.parameter.generationCount",
+            "type": "select",
+            "options": [
+              1,
+              2,
+              3,
+              4
+            ],
+            "default": 1,
+            "numeric": true
+          }
+        ],
+        "requestTemplate": {
+          "input": {
+            "prompt": "{{prompt}}",
+            "aspect_ratio": "{{params.aspectRatio}}",
+            "num_outputs": "{{params.generationCount}}"
+          }
+        },
+        "isAsync": true,
+        "taskIdPath": "id",
+        "statusPath": "status",
+        "resultUrlPath": "output.*",
+        "taskEndpoint": {
+          "path": "/v1/predictions/{taskId}",
+          "method": "GET",
+          "scope": "root"
+        },
+        "pollStatusMap": {
+          "starting": "queued",
+          "processing": "running",
+          "succeeded": "completed",
+          "failed": "failed",
+          "canceled": "cancelled"
+        },
+        "cancelEndpoint": {
+          "path": "/v1/predictions/{taskId}/cancel",
+          "method": "POST",
+          "scope": "root"
+        },
+        "errorPath": "error",
+        "labelKey": "catalog.label.0b835958b8"
+      }
+    }
+  ],
+  "providers": [],
+  "defaultConnections": [
+    {
+      "id": "replicate",
+      "name": "Replicate",
+      "baseUrl": "https://api.replicate.com",
+      "iconId": "replicate",
+      "description": "Replicate model predictions",
+      "descriptionKey": "plugins.provider.replicate",
+      "enabled": true,
+      "builtin": true,
+      "presetId": "vendor",
+      "pluginId": "vendor.replicate",
+      "models": [
+        {
+          "id": "replicate-flux-schnell",
+          "name": "Replicate · FLUX Schnell",
+          "upstreamModel": "black-forest-labs/flux-schnell",
+          "type": "imageGeneration",
+          "sortOrder": 100,
+          "enabled": true,
+          "defaultMode": "text-to-image",
+          "protocolModes": {
+            "text-to-image": "replicate.images.generate"
+          },
+          "modes": [
+            {
+              "id": "text-to-image",
+              "label": "文生图",
+              "inputConstraints": {},
+              "outputConstraints": {},
+              "params": [
+                {
+                  "key": "aspectRatio",
+                  "label": "画面比例",
+                  "labelKey": "plugins.parameter.aspectRatio",
+                  "type": "select",
+                  "options": [
+                    "16:9",
+                    "9:16"
+                  ],
+                  "default": "16:9",
+                  "numeric": false
+                },
+                {
+                  "key": "generationCount",
+                  "label": "数量",
+                  "labelKey": "plugins.parameter.generationCount",
+                  "type": "select",
+                  "options": [
+                    1,
+                    2,
+                    3,
+                    4
+                  ],
+                  "default": 1,
+                  "numeric": true
+                }
+              ],
+              "labelKey": "catalog.label.0b835958b8"
+            }
+          ]
+        }
+      ],
+      "preserveModelIds": true,
+      "sortOrder": 17
+    }
+  ],
+  "vendorMigration": {
+    "bindings": [
+      {
+        "pluginId": "protocol.replicate.images",
+        "operations": {
+          "generate": "replicate.images.generate"
+        }
+      }
+    ]
+  },
+  "icon": "icon.png"
+}

@@ -222,7 +222,7 @@ export function deleteNodeById(nodeId: string, { touch = true }: { touch?: boole
   if (!nodeId || !store.project.nodes.some((node: NodeLike) => node.id === nodeId)) return false;
   const reason = projectOperationBlockReason(store.project, [nodeId]);
   if (reason) { showToast(reason); return false; }
-  cancelNode(nodeId);
+  if (!store.project.nodes.some((node: NodeLike) => node.id === nodeId && node.type === 'pluginProcessing')) cancelNode(nodeId);
   return deleteCanvasNodeData(nodeId, { touch });
 }
 

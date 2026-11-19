@@ -34,7 +34,7 @@ test('供应商 size 参数可以按统一比例控件展示', () => {
 });
 
 test('模型说明的厂商与接口逐字段取自目录，只有观感文案是手写', async () => {
-  const env = await createRendererEnv({ storage: new Map(), withWindow: true });
+  const env = await createRendererEnv({ includeStarrouter: true, storage: new Map(), withWindow: true });
   try {
     const { generationModelDescription } = await env.load('app/canvas/generationNodeState');
     // openai.json 里的 gpt-image 系列曾被按模型 ID 猜厂商的关键字表说成 StarRouter

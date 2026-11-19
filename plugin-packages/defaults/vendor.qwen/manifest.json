@@ -1,0 +1,3140 @@
+{
+  "apiVersion": 2,
+  "kind": "vendor",
+  "id": "vendor.qwen",
+  "name": "阿里云百炼 Qwen / Wan",
+  "version": "1.0.1",
+  "shotloom": ">=0.9.2, <1.0.0",
+  "iconId": "qwen",
+  "description": "阿里云百炼 Qwen / Wan 厂商插件，统一提供模型和画布工具，共用连接与 API Key。",
+  "engine": "declarative",
+  "protocols": [
+    {
+      "id": "qwen.text.operation.81e335ef8e3ba10a",
+      "description": "Qwen 3.8 Max",
+      "mode": {
+        "endpoint": {
+          "method": "POST",
+          "path": "/compatible-mode/v1/chat/completions",
+          "scope": "root"
+        },
+        "agent": {
+          "transport": "provider-default",
+          "supportsTools": true
+        },
+        "auth": {
+          "type": "bearer"
+        },
+        "requestTemplate": {
+          "model": "{{model}}",
+          "messages": "{{messages}}",
+          "max_tokens": "{{params.maxTokens}}",
+          "tools": "{{tools}}",
+          "tool_choice": "{{toolChoice}}"
+        },
+        "resultTextPath": "choices.0.message.content",
+        "id": "text-generation",
+        "label": "文本生成",
+        "inputConstraints": {
+          "text": {
+            "maxTokens": 1000000
+          }
+        },
+        "outputConstraints": {
+          "supportsStreaming": true,
+          "supportsStructuredOutput": true,
+          "maxTokens": 16384
+        },
+        "capabilities": [
+          "reasoning"
+        ],
+        "params": [
+          {
+            "key": "maxTokens",
+            "label": "最大长度",
+            "type": "select",
+            "default": 8192,
+            "numeric": true,
+            "options": [
+              4096,
+              8192,
+              16384
+            ],
+            "labelKey": "catalog.label.c6f7a87b1e"
+          }
+        ],
+        "labelKey": "catalog.label.9612898b53"
+      }
+    },
+    {
+      "id": "qwen.images.operation.f67cb0f77e3df802",
+      "description": "Qwen Image 3.0 Pro",
+      "mode": {
+        "endpoint": {
+          "method": "POST",
+          "path": "/api/v1/services/aigc/multimodal-generation/generation",
+          "scope": "root"
+        },
+        "auth": {
+          "type": "bearer"
+        },
+        "requestTemplate": {
+          "model": "{{model}}",
+          "input": {
+            "messages": [
+              {
+                "role": "user",
+                "content": [
+                  {
+                    "text": "{{prompt}}"
+                  }
+                ]
+              }
+            ]
+          },
+          "parameters": {
+            "size": "{{params.size}}",
+            "n": "{{params.generationCount}}",
+            "prompt_extend": true,
+            "watermark": false
+          }
+        },
+        "resultUrlPath": "output.choices.*.message.content.*.image",
+        "id": "text-to-image",
+        "label": "文生图",
+        "inputConstraints": {
+          "images": {
+            "min": 0,
+            "max": 0
+          }
+        },
+        "outputConstraints": {
+          "maxCount": 6,
+          "formats": [
+            "png",
+            "jpg"
+          ]
+        },
+        "params": [
+          {
+            "key": "prompt",
+            "label": "提示词",
+            "type": "text",
+            "required": true,
+            "labelKey": "catalog.label.2f0bb12387"
+          },
+          {
+            "key": "size",
+            "label": "尺寸",
+            "type": "select",
+            "default": "2048*2048",
+            "options": [
+              "2048*2048",
+              "2304*1728",
+              "1728*2304"
+            ],
+            "optionLabels": {
+              "2048*2048": "1:1",
+              "2304*1728": "4:3",
+              "1728*2304": "3:4"
+            },
+            "labelKey": "catalog.label.94a6711f24",
+            "optionLabelKeys": {}
+          },
+          {
+            "key": "generationCount",
+            "label": "张数",
+            "type": "select",
+            "default": 1,
+            "numeric": true,
+            "options": [
+              1,
+              2,
+              4,
+              6
+            ],
+            "labelKey": "catalog.label.33abb92abd"
+          }
+        ],
+        "labelKey": "catalog.label.0b835958b8"
+      }
+    },
+    {
+      "id": "qwen.video.operation.83a4875fd7fda89e",
+      "description": "Wan 3.0 Video",
+      "mode": {
+        "endpoint": {
+          "method": "POST",
+          "path": "/api/v1/services/aigc/video-generation/video-synthesis",
+          "scope": "origin"
+        },
+        "taskEndpoint": {
+          "method": "GET",
+          "path": "/api/v1/tasks/{taskId}",
+          "scope": "origin"
+        },
+        "isAsync": true,
+        "auth": {
+          "type": "bearer"
+        },
+        "requestTemplate": {
+          "model": "{{model}}",
+          "input": {
+            "prompt": "{{prompt}}",
+            "media": "{{content}}"
+          },
+          "parameters": {
+            "resolution": "{{params.resolution}}",
+            "ratio": "{{params.aspectRatio}}",
+            "duration": "{{params.duration}}",
+            "audio": "{{params.generateAudio}}",
+            "prompt_extend": "{{params.promptExtend}}",
+            "watermark": "{{params.watermark}}",
+            "seed": "{{params.seed}}"
+          }
+        },
+        "contentTemplate": {
+          "image": {
+            "type": "{{role}}",
+            "url": "{{url}}"
+          },
+          "video": {
+            "type": "{{role}}",
+            "url": "{{url}}"
+          },
+          "audio": {
+            "type": "{{role}}",
+            "url": "{{url}}"
+          }
+        },
+        "taskIdPath": "output.task_id",
+        "statusPath": "output.task_status",
+        "errorPath": "output.message",
+        "pollStatusMap": {
+          "PENDING": "running",
+          "RUNNING": "running",
+          "SUCCEEDED": "completed",
+          "FAILED": "failed",
+          "CANCELED": "cancelled",
+          "UNKNOWN": "failed"
+        },
+        "resultUrlPath": "output.video_url",
+        "headers": {
+          "X-DashScope-Async": "enable"
+        },
+        "errorCodePath": "code",
+        "errorMessagePath": "message",
+        "id": "text-to-video",
+        "label": "文生视频",
+        "inputConstraints": {
+          "images": {
+            "min": 0,
+            "max": 0
+          }
+        },
+        "outputConstraints": {
+          "durations": [
+            -1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            29,
+            30
+          ],
+          "defaultDuration": 5,
+          "formats": [
+            "mp4"
+          ],
+          "fps": 30
+        },
+        "params": [
+          {
+            "key": "prompt",
+            "label": "提示词",
+            "type": "text",
+            "required": true,
+            "labelKey": "catalog.label.2f0bb12387"
+          },
+          {
+            "key": "duration",
+            "label": "时长",
+            "type": "select",
+            "default": 5,
+            "numeric": true,
+            "options": [
+              -1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15,
+              16,
+              17,
+              18,
+              19,
+              20,
+              21,
+              22,
+              23,
+              24,
+              25,
+              26,
+              27,
+              28,
+              29,
+              30
+            ],
+            "labelKey": "catalog.label.29d0552d2e",
+            "optionLabels": {
+              "-1": "智能时长"
+            },
+            "optionLabelKeys": {
+              "-1": "catalog.option.duration.auto"
+            }
+          },
+          {
+            "key": "aspectRatio",
+            "label": "比例",
+            "type": "select",
+            "default": "adaptive",
+            "options": [
+              "adaptive",
+              "21:9",
+              "16:9",
+              "4:3",
+              "1:1",
+              "3:4",
+              "9:16"
+            ],
+            "labelKey": "catalog.label.c27f341ce5"
+          },
+          {
+            "key": "resolution",
+            "label": "分辨率",
+            "type": "select",
+            "default": "1080P",
+            "options": [
+              "480P",
+              "720P",
+              "1080P"
+            ],
+            "labelKey": "catalog.label.cde9b52b23"
+          },
+          {
+            "key": "generateAudio",
+            "label": "生成同步声音",
+            "labelKey": "catalog.label.058dddf225",
+            "type": "boolean",
+            "default": true
+          },
+          {
+            "key": "promptExtend",
+            "label": "智能改写提示词",
+            "labelKey": "catalog.label.promptExtend",
+            "type": "boolean",
+            "default": true
+          },
+          {
+            "key": "watermark",
+            "label": "AI 水印",
+            "labelKey": "catalog.label.f6bbf9b630",
+            "type": "boolean",
+            "default": false
+          },
+          {
+            "key": "seed",
+            "label": "随机种子",
+            "labelKey": "editor.motion.contents.param.seed",
+            "type": "number",
+            "presentation": {
+              "control": "number",
+              "min": 0,
+              "max": 2147483647,
+              "step": 1
+            }
+          }
+        ],
+        "labelKey": "catalog.label.dd6f194c41"
+      }
+    },
+    {
+      "id": "qwen.video.operation.a27fd3e7156c513d",
+      "description": "Wan 3.0 Video",
+      "mode": {
+        "endpoint": {
+          "method": "POST",
+          "path": "/api/v1/services/aigc/video-generation/video-synthesis",
+          "scope": "origin"
+        },
+        "taskEndpoint": {
+          "method": "GET",
+          "path": "/api/v1/tasks/{taskId}",
+          "scope": "origin"
+        },
+        "isAsync": true,
+        "requestFields": {
+          "imageContentRole": "first_frame"
+        },
+        "auth": {
+          "type": "bearer"
+        },
+        "requestTemplate": {
+          "model": "{{model}}",
+          "input": {
+            "prompt": "{{prompt}}",
+            "media": "{{content}}"
+          },
+          "parameters": {
+            "resolution": "{{params.resolution}}",
+            "ratio": "{{params.aspectRatio}}",
+            "duration": "{{params.duration}}",
+            "audio": "{{params.generateAudio}}",
+            "prompt_extend": "{{params.promptExtend}}",
+            "watermark": "{{params.watermark}}",
+            "seed": "{{params.seed}}"
+          }
+        },
+        "contentTemplate": {
+          "image": {
+            "type": "{{role}}",
+            "url": "{{url}}"
+          },
+          "video": {
+            "type": "{{role}}",
+            "url": "{{url}}"
+          },
+          "audio": {
+            "type": "{{role}}",
+            "url": "{{url}}"
+          }
+        },
+        "taskIdPath": "output.task_id",
+        "statusPath": "output.task_status",
+        "errorPath": "output.message",
+        "pollStatusMap": {
+          "PENDING": "running",
+          "RUNNING": "running",
+          "SUCCEEDED": "completed",
+          "FAILED": "failed",
+          "CANCELED": "cancelled",
+          "UNKNOWN": "failed"
+        },
+        "resultUrlPath": "output.video_url",
+        "headers": {
+          "X-DashScope-Async": "enable"
+        },
+        "errorCodePath": "code",
+        "errorMessagePath": "message",
+        "id": "first-frame-to-video",
+        "label": "首帧图生视频",
+        "inputMode": "firstFrame",
+        "inputSlots": [
+          "firstFrame"
+        ],
+        "inputConstraints": {
+          "images": {
+            "min": 1,
+            "max": 1,
+            "roles": [
+              "referenceImage"
+            ],
+            "formats": [
+              "jpeg",
+              "jpg",
+              "png",
+              "bmp",
+              "webp"
+            ]
+          }
+        },
+        "outputConstraints": {
+          "durations": [
+            -1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            29,
+            30
+          ],
+          "defaultDuration": 5,
+          "formats": [
+            "mp4"
+          ],
+          "fps": 30
+        },
+        "params": [
+          {
+            "key": "prompt",
+            "label": "提示词",
+            "type": "text",
+            "required": false,
+            "labelKey": "catalog.label.2f0bb12387"
+          },
+          {
+            "key": "duration",
+            "label": "时长",
+            "type": "select",
+            "default": 5,
+            "numeric": true,
+            "options": [
+              -1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15,
+              16,
+              17,
+              18,
+              19,
+              20,
+              21,
+              22,
+              23,
+              24,
+              25,
+              26,
+              27,
+              28,
+              29,
+              30
+            ],
+            "labelKey": "catalog.label.29d0552d2e",
+            "optionLabels": {
+              "-1": "智能时长"
+            },
+            "optionLabelKeys": {
+              "-1": "catalog.option.duration.auto"
+            }
+          },
+          {
+            "key": "aspectRatio",
+            "label": "比例",
+            "labelKey": "catalog.label.c27f341ce5",
+            "type": "select",
+            "default": "adaptive",
+            "options": [
+              "adaptive",
+              "21:9",
+              "16:9",
+              "4:3",
+              "1:1",
+              "3:4",
+              "9:16"
+            ]
+          },
+          {
+            "key": "resolution",
+            "label": "分辨率",
+            "type": "select",
+            "default": "1080P",
+            "options": [
+              "480P",
+              "720P",
+              "1080P"
+            ],
+            "labelKey": "catalog.label.cde9b52b23"
+          },
+          {
+            "key": "generateAudio",
+            "label": "生成同步声音",
+            "labelKey": "catalog.label.058dddf225",
+            "type": "boolean",
+            "default": true
+          },
+          {
+            "key": "promptExtend",
+            "label": "智能改写提示词",
+            "labelKey": "catalog.label.promptExtend",
+            "type": "boolean",
+            "default": true
+          },
+          {
+            "key": "watermark",
+            "label": "AI 水印",
+            "labelKey": "catalog.label.f6bbf9b630",
+            "type": "boolean",
+            "default": false
+          },
+          {
+            "key": "seed",
+            "label": "随机种子",
+            "labelKey": "editor.motion.contents.param.seed",
+            "type": "number",
+            "presentation": {
+              "control": "number",
+              "min": 0,
+              "max": 2147483647,
+              "step": 1
+            }
+          }
+        ],
+        "labelKey": "catalog.label.41d852e209"
+      }
+    },
+    {
+      "id": "qwen.video.operation.837a0dbde3cad574",
+      "description": "Wan 3.0 Video",
+      "mode": {
+        "endpoint": {
+          "method": "POST",
+          "path": "/api/v1/services/aigc/video-generation/video-synthesis",
+          "scope": "origin"
+        },
+        "taskEndpoint": {
+          "method": "GET",
+          "path": "/api/v1/tasks/{taskId}",
+          "scope": "origin"
+        },
+        "isAsync": true,
+        "requestFields": {
+          "firstFrameImageContentRole": "first_frame",
+          "lastFrameImageContentRole": "last_frame"
+        },
+        "auth": {
+          "type": "bearer"
+        },
+        "requestTemplate": {
+          "model": "{{model}}",
+          "input": {
+            "prompt": "{{prompt}}",
+            "media": "{{content}}"
+          },
+          "parameters": {
+            "resolution": "{{params.resolution}}",
+            "ratio": "{{params.aspectRatio}}",
+            "duration": "{{params.duration}}",
+            "audio": "{{params.generateAudio}}",
+            "prompt_extend": "{{params.promptExtend}}",
+            "watermark": "{{params.watermark}}",
+            "seed": "{{params.seed}}"
+          }
+        },
+        "contentTemplate": {
+          "image": {
+            "type": "{{role}}",
+            "url": "{{url}}"
+          },
+          "video": {
+            "type": "{{role}}",
+            "url": "{{url}}"
+          },
+          "audio": {
+            "type": "{{role}}",
+            "url": "{{url}}"
+          }
+        },
+        "taskIdPath": "output.task_id",
+        "statusPath": "output.task_status",
+        "errorPath": "output.message",
+        "pollStatusMap": {
+          "PENDING": "running",
+          "RUNNING": "running",
+          "SUCCEEDED": "completed",
+          "FAILED": "failed",
+          "CANCELED": "cancelled",
+          "UNKNOWN": "failed"
+        },
+        "resultUrlPath": "output.video_url",
+        "headers": {
+          "X-DashScope-Async": "enable"
+        },
+        "errorCodePath": "code",
+        "errorMessagePath": "message",
+        "id": "first-last-frame-to-video",
+        "label": "首尾帧",
+        "inputMode": "firstLastFrame",
+        "inputSlots": [
+          "firstFrame",
+          "lastFrame"
+        ],
+        "inputConstraints": {
+          "images": {
+            "min": 2,
+            "max": 2,
+            "roles": [
+              "referenceImage"
+            ],
+            "formats": [
+              "jpeg",
+              "jpg",
+              "png",
+              "bmp",
+              "webp"
+            ]
+          }
+        },
+        "outputConstraints": {
+          "durations": [
+            -1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            29,
+            30
+          ],
+          "defaultDuration": 5,
+          "formats": [
+            "mp4"
+          ],
+          "fps": 30
+        },
+        "params": [
+          {
+            "key": "prompt",
+            "label": "提示词",
+            "type": "text",
+            "required": false,
+            "labelKey": "catalog.label.2f0bb12387"
+          },
+          {
+            "key": "duration",
+            "label": "时长",
+            "type": "select",
+            "default": 5,
+            "numeric": true,
+            "options": [
+              -1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15,
+              16,
+              17,
+              18,
+              19,
+              20,
+              21,
+              22,
+              23,
+              24,
+              25,
+              26,
+              27,
+              28,
+              29,
+              30
+            ],
+            "labelKey": "catalog.label.29d0552d2e",
+            "optionLabels": {
+              "-1": "智能时长"
+            },
+            "optionLabelKeys": {
+              "-1": "catalog.option.duration.auto"
+            }
+          },
+          {
+            "key": "aspectRatio",
+            "label": "比例",
+            "labelKey": "catalog.label.c27f341ce5",
+            "type": "select",
+            "default": "adaptive",
+            "options": [
+              "adaptive",
+              "21:9",
+              "16:9",
+              "4:3",
+              "1:1",
+              "3:4",
+              "9:16"
+            ]
+          },
+          {
+            "key": "resolution",
+            "label": "分辨率",
+            "type": "select",
+            "default": "1080P",
+            "options": [
+              "480P",
+              "720P",
+              "1080P"
+            ],
+            "labelKey": "catalog.label.cde9b52b23"
+          },
+          {
+            "key": "generateAudio",
+            "label": "生成同步声音",
+            "labelKey": "catalog.label.058dddf225",
+            "type": "boolean",
+            "default": true
+          },
+          {
+            "key": "promptExtend",
+            "label": "智能改写提示词",
+            "labelKey": "catalog.label.promptExtend",
+            "type": "boolean",
+            "default": true
+          },
+          {
+            "key": "watermark",
+            "label": "AI 水印",
+            "labelKey": "catalog.label.f6bbf9b630",
+            "type": "boolean",
+            "default": false
+          },
+          {
+            "key": "seed",
+            "label": "随机种子",
+            "labelKey": "editor.motion.contents.param.seed",
+            "type": "number",
+            "presentation": {
+              "control": "number",
+              "min": 0,
+              "max": 2147483647,
+              "step": 1
+            }
+          }
+        ],
+        "labelKey": "catalog.label.d5b5b1fde9"
+      }
+    },
+    {
+      "id": "qwen.video.operation.eca3ef67318c8c4a",
+      "description": "Wan 3.0 Video",
+      "mode": {
+        "endpoint": {
+          "method": "POST",
+          "path": "/api/v1/services/aigc/video-generation/video-synthesis",
+          "scope": "origin"
+        },
+        "taskEndpoint": {
+          "method": "GET",
+          "path": "/api/v1/tasks/{taskId}",
+          "scope": "origin"
+        },
+        "isAsync": true,
+        "auth": {
+          "type": "bearer"
+        },
+        "requestTemplate": {
+          "model": "{{model}}",
+          "input": {
+            "prompt": "{{prompt}}",
+            "media": "{{content}}"
+          },
+          "parameters": {
+            "resolution": "{{params.resolution}}",
+            "ratio": "{{params.aspectRatio}}",
+            "duration": "{{params.duration}}",
+            "audio": "{{params.generateAudio}}",
+            "prompt_extend": "{{params.promptExtend}}",
+            "watermark": "{{params.watermark}}",
+            "seed": "{{params.seed}}"
+          }
+        },
+        "contentTemplate": {
+          "image": {
+            "type": "{{role}}",
+            "url": "{{url}}"
+          },
+          "video": {
+            "type": "{{role}}",
+            "url": "{{url}}"
+          },
+          "audio": {
+            "type": "{{role}}",
+            "url": "{{url}}"
+          }
+        },
+        "taskIdPath": "output.task_id",
+        "statusPath": "output.task_status",
+        "errorPath": "output.message",
+        "pollStatusMap": {
+          "PENDING": "running",
+          "RUNNING": "running",
+          "SUCCEEDED": "completed",
+          "FAILED": "failed",
+          "CANCELED": "cancelled",
+          "UNKNOWN": "failed"
+        },
+        "resultUrlPath": "output.video_url",
+        "requestFields": {
+          "imageContentRole": "reference_image",
+          "videoContentRole": "reference_video",
+          "audioContentRole": "reference_audio"
+        },
+        "headers": {
+          "X-DashScope-Async": "enable"
+        },
+        "errorCodePath": "code",
+        "errorMessagePath": "message",
+        "id": "omni-reference-to-video",
+        "label": "全模态参考生视频",
+        "inputConstraints": {
+          "images": {
+            "min": 0,
+            "max": 10,
+            "roles": [
+              "referenceImage"
+            ],
+            "formats": [
+              "jpeg",
+              "jpg",
+              "png",
+              "bmp",
+              "webp"
+            ]
+          },
+          "videos": {
+            "min": 0,
+            "max": 5,
+            "roles": [
+              "inputVideo"
+            ],
+            "formats": [
+              "mp4",
+              "mov"
+            ],
+            "maxBytes": 104857600
+          },
+          "audios": {
+            "min": 0,
+            "max": 5,
+            "roles": [
+              "referenceAudio"
+            ],
+            "formats": [
+              "wav",
+              "mp3"
+            ],
+            "maxBytes": 15728640,
+            "minDuration": 1,
+            "maxDuration": 15,
+            "maxTotalDuration": 15
+          }
+        },
+        "outputConstraints": {
+          "durations": [
+            -1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            29,
+            30
+          ],
+          "defaultDuration": 5,
+          "formats": [
+            "mp4"
+          ],
+          "fps": 30
+        },
+        "params": [
+          {
+            "key": "prompt",
+            "label": "提示词",
+            "type": "text",
+            "required": false,
+            "labelKey": "catalog.label.2f0bb12387"
+          },
+          {
+            "key": "duration",
+            "label": "时长",
+            "type": "select",
+            "default": 5,
+            "numeric": true,
+            "options": [
+              -1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15,
+              16,
+              17,
+              18,
+              19,
+              20,
+              21,
+              22,
+              23,
+              24,
+              25,
+              26,
+              27,
+              28,
+              29,
+              30
+            ],
+            "labelKey": "catalog.label.29d0552d2e",
+            "optionLabels": {
+              "-1": "智能时长"
+            },
+            "optionLabelKeys": {
+              "-1": "catalog.option.duration.auto"
+            }
+          },
+          {
+            "key": "aspectRatio",
+            "label": "比例",
+            "type": "select",
+            "default": "adaptive",
+            "options": [
+              "adaptive",
+              "21:9",
+              "16:9",
+              "4:3",
+              "1:1",
+              "3:4",
+              "9:16"
+            ],
+            "labelKey": "catalog.label.c27f341ce5"
+          },
+          {
+            "key": "resolution",
+            "label": "分辨率",
+            "type": "select",
+            "default": "1080P",
+            "options": [
+              "480P",
+              "720P",
+              "1080P"
+            ],
+            "labelKey": "catalog.label.cde9b52b23"
+          },
+          {
+            "key": "generateAudio",
+            "label": "生成同步声音",
+            "labelKey": "catalog.label.058dddf225",
+            "type": "boolean",
+            "default": true
+          },
+          {
+            "key": "promptExtend",
+            "label": "智能改写提示词",
+            "labelKey": "catalog.label.promptExtend",
+            "type": "boolean",
+            "default": true
+          },
+          {
+            "key": "watermark",
+            "label": "AI 水印",
+            "labelKey": "catalog.label.f6bbf9b630",
+            "type": "boolean",
+            "default": false
+          },
+          {
+            "key": "seed",
+            "label": "随机种子",
+            "labelKey": "editor.motion.contents.param.seed",
+            "type": "number",
+            "presentation": {
+              "control": "number",
+              "min": 0,
+              "max": 2147483647,
+              "step": 1
+            }
+          }
+        ],
+        "labelKey": "catalog.label.d108de51ea",
+        "inputMode": "reference",
+        "inputSlots": [
+          "reference",
+          "inputVideo",
+          "referenceAudio"
+        ]
+      }
+    }
+  ],
+  "providers": [],
+  "defaultConnections": [
+    {
+      "id": "qwen",
+      "nameKey": "provider.copy.0f2051023f",
+      "descriptionKey": "provider.copy.8fc2f0af91",
+      "iconId": "qwen",
+      "baseUrl": "",
+      "baseUrlRequired": true,
+      "engine": "declarative",
+      "name": "阿里云百炼 Qwen / Wan",
+      "pluginId": "vendor.qwen",
+      "presetId": "vendor",
+      "models": [
+        {
+          "id": "qwen3.8-max",
+          "name": "Qwen 3.8 Max",
+          "type": "textGeneration",
+          "sortOrder": 8,
+          "enabled": true,
+          "defaultMode": "text-generation",
+          "protocolModes": {
+            "text-generation": "qwen.text.operation.81e335ef8e3ba10a",
+            "semantic-split": "qwen.text.operation.81e335ef8e3ba10a",
+            "storyboard-generation": "qwen.text.operation.81e335ef8e3ba10a"
+          },
+          "modes": [
+            {
+              "id": "text-generation",
+              "label": "文本生成",
+              "inputConstraints": {
+                "text": {
+                  "maxTokens": 1000000
+                }
+              },
+              "outputConstraints": {
+                "supportsStreaming": true,
+                "supportsStructuredOutput": true,
+                "maxTokens": 16384
+              },
+              "capabilities": [
+                "reasoning"
+              ],
+              "params": [
+                {
+                  "key": "maxTokens",
+                  "label": "最大长度",
+                  "type": "select",
+                  "default": 8192,
+                  "numeric": true,
+                  "options": [
+                    4096,
+                    8192,
+                    16384
+                  ],
+                  "labelKey": "catalog.label.c6f7a87b1e"
+                }
+              ],
+              "labelKey": "catalog.label.9612898b53"
+            },
+            {
+              "id": "semantic-split",
+              "label": "语义拆分",
+              "inputConstraints": {
+                "text": {
+                  "maxTokens": 1000000
+                }
+              },
+              "outputConstraints": {
+                "supportsStreaming": true,
+                "supportsStructuredOutput": true,
+                "maxTokens": 16384
+              },
+              "capabilities": [
+                "structured-output"
+              ],
+              "params": [
+                {
+                  "key": "maxTokens",
+                  "label": "最大长度",
+                  "type": "select",
+                  "default": 8192,
+                  "numeric": true,
+                  "options": [
+                    4096,
+                    8192,
+                    16384
+                  ],
+                  "labelKey": "catalog.label.c6f7a87b1e"
+                }
+              ],
+              "labelKey": "catalog.label.8f963ce0de"
+            },
+            {
+              "id": "storyboard-generation",
+              "label": "分镜生成",
+              "inputConstraints": {
+                "text": {
+                  "maxTokens": 1000000
+                }
+              },
+              "outputConstraints": {
+                "supportsStreaming": true,
+                "supportsStructuredOutput": true,
+                "maxTokens": 16384
+              },
+              "capabilities": [
+                "structured-output"
+              ],
+              "params": [
+                {
+                  "key": "maxTokens",
+                  "label": "最大长度",
+                  "type": "select",
+                  "default": 8192,
+                  "numeric": true,
+                  "options": [
+                    4096,
+                    8192,
+                    16384
+                  ],
+                  "labelKey": "catalog.label.c6f7a87b1e"
+                }
+              ],
+              "labelKey": "catalog.label.8c31cdcb5d"
+            }
+          ]
+        },
+        {
+          "id": "qwen3.8-flash",
+          "name": "Qwen 3.8 Flash",
+          "type": "textGeneration",
+          "sortOrder": 9,
+          "enabled": true,
+          "defaultMode": "text-generation",
+          "protocolModes": {
+            "text-generation": "qwen.text.operation.81e335ef8e3ba10a",
+            "semantic-split": "qwen.text.operation.81e335ef8e3ba10a",
+            "storyboard-generation": "qwen.text.operation.81e335ef8e3ba10a"
+          },
+          "modes": [
+            {
+              "id": "text-generation",
+              "label": "文本生成",
+              "inputConstraints": {
+                "text": {
+                  "maxTokens": 1000000
+                }
+              },
+              "outputConstraints": {
+                "supportsStreaming": true,
+                "supportsStructuredOutput": true,
+                "maxTokens": 16384
+              },
+              "capabilities": [
+                "reasoning"
+              ],
+              "params": [
+                {
+                  "key": "maxTokens",
+                  "label": "最大长度",
+                  "type": "select",
+                  "default": 8192,
+                  "numeric": true,
+                  "options": [
+                    4096,
+                    8192,
+                    16384
+                  ],
+                  "labelKey": "catalog.label.c6f7a87b1e"
+                }
+              ],
+              "labelKey": "catalog.label.9612898b53"
+            },
+            {
+              "id": "semantic-split",
+              "label": "语义拆分",
+              "inputConstraints": {
+                "text": {
+                  "maxTokens": 1000000
+                }
+              },
+              "outputConstraints": {
+                "supportsStreaming": true,
+                "supportsStructuredOutput": true,
+                "maxTokens": 16384
+              },
+              "capabilities": [
+                "structured-output"
+              ],
+              "params": [
+                {
+                  "key": "maxTokens",
+                  "label": "最大长度",
+                  "type": "select",
+                  "default": 8192,
+                  "numeric": true,
+                  "options": [
+                    4096,
+                    8192,
+                    16384
+                  ],
+                  "labelKey": "catalog.label.c6f7a87b1e"
+                }
+              ],
+              "labelKey": "catalog.label.8f963ce0de"
+            },
+            {
+              "id": "storyboard-generation",
+              "label": "分镜生成",
+              "inputConstraints": {
+                "text": {
+                  "maxTokens": 1000000
+                }
+              },
+              "outputConstraints": {
+                "supportsStreaming": true,
+                "supportsStructuredOutput": true,
+                "maxTokens": 16384
+              },
+              "capabilities": [
+                "structured-output"
+              ],
+              "params": [
+                {
+                  "key": "maxTokens",
+                  "label": "最大长度",
+                  "type": "select",
+                  "default": 8192,
+                  "numeric": true,
+                  "options": [
+                    4096,
+                    8192,
+                    16384
+                  ],
+                  "labelKey": "catalog.label.c6f7a87b1e"
+                }
+              ],
+              "labelKey": "catalog.label.8c31cdcb5d"
+            }
+          ]
+        },
+        {
+          "id": "qwen3.7-plus",
+          "name": "Qwen 3.7 Plus",
+          "type": "textGeneration",
+          "sortOrder": 108,
+          "enabled": true,
+          "defaultMode": "text-generation",
+          "protocolModes": {
+            "text-generation": "qwen.text.operation.81e335ef8e3ba10a",
+            "semantic-split": "qwen.text.operation.81e335ef8e3ba10a",
+            "storyboard-generation": "qwen.text.operation.81e335ef8e3ba10a"
+          },
+          "modes": [
+            {
+              "id": "text-generation",
+              "label": "文本生成",
+              "inputConstraints": {
+                "text": {
+                  "maxTokens": 1000000
+                }
+              },
+              "outputConstraints": {
+                "supportsStreaming": true,
+                "supportsStructuredOutput": true,
+                "maxTokens": 16384
+              },
+              "capabilities": [
+                "reasoning"
+              ],
+              "params": [
+                {
+                  "key": "maxTokens",
+                  "label": "最大长度",
+                  "type": "select",
+                  "default": 8192,
+                  "numeric": true,
+                  "options": [
+                    4096,
+                    8192,
+                    16384
+                  ],
+                  "labelKey": "catalog.label.c6f7a87b1e"
+                }
+              ],
+              "labelKey": "catalog.label.9612898b53"
+            },
+            {
+              "id": "semantic-split",
+              "label": "语义拆分",
+              "inputConstraints": {
+                "text": {
+                  "maxTokens": 1000000
+                }
+              },
+              "outputConstraints": {
+                "supportsStreaming": true,
+                "supportsStructuredOutput": true,
+                "maxTokens": 16384
+              },
+              "capabilities": [
+                "structured-output"
+              ],
+              "params": [
+                {
+                  "key": "maxTokens",
+                  "label": "最大长度",
+                  "type": "select",
+                  "default": 8192,
+                  "numeric": true,
+                  "options": [
+                    4096,
+                    8192,
+                    16384
+                  ],
+                  "labelKey": "catalog.label.c6f7a87b1e"
+                }
+              ],
+              "labelKey": "catalog.label.8f963ce0de"
+            },
+            {
+              "id": "storyboard-generation",
+              "label": "分镜生成",
+              "inputConstraints": {
+                "text": {
+                  "maxTokens": 1000000
+                }
+              },
+              "outputConstraints": {
+                "supportsStreaming": true,
+                "supportsStructuredOutput": true,
+                "maxTokens": 16384
+              },
+              "capabilities": [
+                "structured-output"
+              ],
+              "params": [
+                {
+                  "key": "maxTokens",
+                  "label": "最大长度",
+                  "type": "select",
+                  "default": 8192,
+                  "numeric": true,
+                  "options": [
+                    4096,
+                    8192,
+                    16384
+                  ],
+                  "labelKey": "catalog.label.c6f7a87b1e"
+                }
+              ],
+              "labelKey": "catalog.label.8c31cdcb5d"
+            }
+          ]
+        },
+        {
+          "id": "qwen-image-3.0-pro",
+          "name": "Qwen Image 3.0 Pro",
+          "type": "imageGeneration",
+          "sortOrder": 3,
+          "enabled": true,
+          "defaultMode": "text-to-image",
+          "protocolModes": {
+            "text-to-image": "qwen.images.operation.f67cb0f77e3df802"
+          },
+          "modes": [
+            {
+              "id": "text-to-image",
+              "label": "文生图",
+              "inputConstraints": {
+                "images": {
+                  "min": 0,
+                  "max": 0
+                }
+              },
+              "outputConstraints": {
+                "maxCount": 6,
+                "formats": [
+                  "png",
+                  "jpg"
+                ]
+              },
+              "params": [
+                {
+                  "key": "prompt",
+                  "label": "提示词",
+                  "type": "text",
+                  "required": true,
+                  "labelKey": "catalog.label.2f0bb12387"
+                },
+                {
+                  "key": "size",
+                  "label": "尺寸",
+                  "type": "select",
+                  "default": "2048*2048",
+                  "options": [
+                    "2048*2048",
+                    "2304*1728",
+                    "1728*2304"
+                  ],
+                  "optionLabels": {
+                    "2048*2048": "1:1",
+                    "2304*1728": "4:3",
+                    "1728*2304": "3:4"
+                  },
+                  "labelKey": "catalog.label.94a6711f24",
+                  "optionLabelKeys": {}
+                },
+                {
+                  "key": "generationCount",
+                  "label": "张数",
+                  "type": "select",
+                  "default": 1,
+                  "numeric": true,
+                  "options": [
+                    1,
+                    2,
+                    4,
+                    6
+                  ],
+                  "labelKey": "catalog.label.33abb92abd"
+                }
+              ],
+              "labelKey": "catalog.label.0b835958b8"
+            }
+          ]
+        },
+        {
+          "id": "wan3.0-video",
+          "name": "Wan 3.0 Video",
+          "type": "videoGeneration",
+          "sortOrder": 5,
+          "enabled": true,
+          "defaultMode": "text-to-video",
+          "protocolModes": {
+            "text-to-video": "qwen.video.operation.83a4875fd7fda89e",
+            "first-frame-to-video": "qwen.video.operation.a27fd3e7156c513d",
+            "first-last-frame-to-video": "qwen.video.operation.837a0dbde3cad574",
+            "omni-reference-to-video": "qwen.video.operation.eca3ef67318c8c4a"
+          },
+          "modes": [
+            {
+              "id": "text-to-video",
+              "label": "文生视频",
+              "inputConstraints": {
+                "images": {
+                  "min": 0,
+                  "max": 0
+                }
+              },
+              "outputConstraints": {
+                "durations": [
+                  -1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7,
+                  8,
+                  9,
+                  10,
+                  11,
+                  12,
+                  13,
+                  14,
+                  15,
+                  16,
+                  17,
+                  18,
+                  19,
+                  20,
+                  21,
+                  22,
+                  23,
+                  24,
+                  25,
+                  26,
+                  27,
+                  28,
+                  29,
+                  30
+                ],
+                "defaultDuration": 5,
+                "formats": [
+                  "mp4"
+                ],
+                "fps": 30
+              },
+              "params": [
+                {
+                  "key": "prompt",
+                  "label": "提示词",
+                  "type": "text",
+                  "required": true,
+                  "labelKey": "catalog.label.2f0bb12387"
+                },
+                {
+                  "key": "duration",
+                  "label": "时长",
+                  "type": "select",
+                  "default": 5,
+                  "numeric": true,
+                  "options": [
+                    -1,
+                    2,
+                    3,
+                    4,
+                    5,
+                    6,
+                    7,
+                    8,
+                    9,
+                    10,
+                    11,
+                    12,
+                    13,
+                    14,
+                    15,
+                    16,
+                    17,
+                    18,
+                    19,
+                    20,
+                    21,
+                    22,
+                    23,
+                    24,
+                    25,
+                    26,
+                    27,
+                    28,
+                    29,
+                    30
+                  ],
+                  "labelKey": "catalog.label.29d0552d2e",
+                  "optionLabels": {
+                    "-1": "智能时长"
+                  },
+                  "optionLabelKeys": {
+                    "-1": "catalog.option.duration.auto"
+                  }
+                },
+                {
+                  "key": "aspectRatio",
+                  "label": "比例",
+                  "type": "select",
+                  "default": "adaptive",
+                  "options": [
+                    "adaptive",
+                    "21:9",
+                    "16:9",
+                    "4:3",
+                    "1:1",
+                    "3:4",
+                    "9:16"
+                  ],
+                  "labelKey": "catalog.label.c27f341ce5"
+                },
+                {
+                  "key": "resolution",
+                  "label": "分辨率",
+                  "type": "select",
+                  "default": "1080P",
+                  "options": [
+                    "480P",
+                    "720P",
+                    "1080P"
+                  ],
+                  "labelKey": "catalog.label.cde9b52b23"
+                },
+                {
+                  "key": "generateAudio",
+                  "label": "生成同步声音",
+                  "labelKey": "catalog.label.058dddf225",
+                  "type": "boolean",
+                  "default": true
+                },
+                {
+                  "key": "promptExtend",
+                  "label": "智能改写提示词",
+                  "labelKey": "catalog.label.promptExtend",
+                  "type": "boolean",
+                  "default": true
+                },
+                {
+                  "key": "watermark",
+                  "label": "AI 水印",
+                  "labelKey": "catalog.label.f6bbf9b630",
+                  "type": "boolean",
+                  "default": false
+                },
+                {
+                  "key": "seed",
+                  "label": "随机种子",
+                  "labelKey": "editor.motion.contents.param.seed",
+                  "type": "number",
+                  "presentation": {
+                    "control": "number",
+                    "min": 0,
+                    "max": 2147483647,
+                    "step": 1
+                  }
+                }
+              ],
+              "labelKey": "catalog.label.dd6f194c41"
+            },
+            {
+              "id": "first-frame-to-video",
+              "label": "首帧图生视频",
+              "inputMode": "firstFrame",
+              "inputSlots": [
+                "firstFrame"
+              ],
+              "inputConstraints": {
+                "images": {
+                  "min": 1,
+                  "max": 1,
+                  "roles": [
+                    "referenceImage"
+                  ],
+                  "formats": [
+                    "jpeg",
+                    "jpg",
+                    "png",
+                    "bmp",
+                    "webp"
+                  ]
+                }
+              },
+              "outputConstraints": {
+                "durations": [
+                  -1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7,
+                  8,
+                  9,
+                  10,
+                  11,
+                  12,
+                  13,
+                  14,
+                  15,
+                  16,
+                  17,
+                  18,
+                  19,
+                  20,
+                  21,
+                  22,
+                  23,
+                  24,
+                  25,
+                  26,
+                  27,
+                  28,
+                  29,
+                  30
+                ],
+                "defaultDuration": 5,
+                "formats": [
+                  "mp4"
+                ],
+                "fps": 30
+              },
+              "params": [
+                {
+                  "key": "prompt",
+                  "label": "提示词",
+                  "type": "text",
+                  "required": false,
+                  "labelKey": "catalog.label.2f0bb12387"
+                },
+                {
+                  "key": "duration",
+                  "label": "时长",
+                  "type": "select",
+                  "default": 5,
+                  "numeric": true,
+                  "options": [
+                    -1,
+                    2,
+                    3,
+                    4,
+                    5,
+                    6,
+                    7,
+                    8,
+                    9,
+                    10,
+                    11,
+                    12,
+                    13,
+                    14,
+                    15,
+                    16,
+                    17,
+                    18,
+                    19,
+                    20,
+                    21,
+                    22,
+                    23,
+                    24,
+                    25,
+                    26,
+                    27,
+                    28,
+                    29,
+                    30
+                  ],
+                  "labelKey": "catalog.label.29d0552d2e",
+                  "optionLabels": {
+                    "-1": "智能时长"
+                  },
+                  "optionLabelKeys": {
+                    "-1": "catalog.option.duration.auto"
+                  }
+                },
+                {
+                  "key": "aspectRatio",
+                  "label": "比例",
+                  "labelKey": "catalog.label.c27f341ce5",
+                  "type": "select",
+                  "default": "adaptive",
+                  "options": [
+                    "adaptive",
+                    "21:9",
+                    "16:9",
+                    "4:3",
+                    "1:1",
+                    "3:4",
+                    "9:16"
+                  ]
+                },
+                {
+                  "key": "resolution",
+                  "label": "分辨率",
+                  "type": "select",
+                  "default": "1080P",
+                  "options": [
+                    "480P",
+                    "720P",
+                    "1080P"
+                  ],
+                  "labelKey": "catalog.label.cde9b52b23"
+                },
+                {
+                  "key": "generateAudio",
+                  "label": "生成同步声音",
+                  "labelKey": "catalog.label.058dddf225",
+                  "type": "boolean",
+                  "default": true
+                },
+                {
+                  "key": "promptExtend",
+                  "label": "智能改写提示词",
+                  "labelKey": "catalog.label.promptExtend",
+                  "type": "boolean",
+                  "default": true
+                },
+                {
+                  "key": "watermark",
+                  "label": "AI 水印",
+                  "labelKey": "catalog.label.f6bbf9b630",
+                  "type": "boolean",
+                  "default": false
+                },
+                {
+                  "key": "seed",
+                  "label": "随机种子",
+                  "labelKey": "editor.motion.contents.param.seed",
+                  "type": "number",
+                  "presentation": {
+                    "control": "number",
+                    "min": 0,
+                    "max": 2147483647,
+                    "step": 1
+                  }
+                }
+              ],
+              "labelKey": "catalog.label.41d852e209"
+            },
+            {
+              "id": "first-last-frame-to-video",
+              "label": "首尾帧",
+              "inputMode": "firstLastFrame",
+              "inputSlots": [
+                "firstFrame",
+                "lastFrame"
+              ],
+              "inputConstraints": {
+                "images": {
+                  "min": 2,
+                  "max": 2,
+                  "roles": [
+                    "referenceImage"
+                  ],
+                  "formats": [
+                    "jpeg",
+                    "jpg",
+                    "png",
+                    "bmp",
+                    "webp"
+                  ]
+                }
+              },
+              "outputConstraints": {
+                "durations": [
+                  -1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7,
+                  8,
+                  9,
+                  10,
+                  11,
+                  12,
+                  13,
+                  14,
+                  15,
+                  16,
+                  17,
+                  18,
+                  19,
+                  20,
+                  21,
+                  22,
+                  23,
+                  24,
+                  25,
+                  26,
+                  27,
+                  28,
+                  29,
+                  30
+                ],
+                "defaultDuration": 5,
+                "formats": [
+                  "mp4"
+                ],
+                "fps": 30
+              },
+              "params": [
+                {
+                  "key": "prompt",
+                  "label": "提示词",
+                  "type": "text",
+                  "required": false,
+                  "labelKey": "catalog.label.2f0bb12387"
+                },
+                {
+                  "key": "duration",
+                  "label": "时长",
+                  "type": "select",
+                  "default": 5,
+                  "numeric": true,
+                  "options": [
+                    -1,
+                    2,
+                    3,
+                    4,
+                    5,
+                    6,
+                    7,
+                    8,
+                    9,
+                    10,
+                    11,
+                    12,
+                    13,
+                    14,
+                    15,
+                    16,
+                    17,
+                    18,
+                    19,
+                    20,
+                    21,
+                    22,
+                    23,
+                    24,
+                    25,
+                    26,
+                    27,
+                    28,
+                    29,
+                    30
+                  ],
+                  "labelKey": "catalog.label.29d0552d2e",
+                  "optionLabels": {
+                    "-1": "智能时长"
+                  },
+                  "optionLabelKeys": {
+                    "-1": "catalog.option.duration.auto"
+                  }
+                },
+                {
+                  "key": "aspectRatio",
+                  "label": "比例",
+                  "labelKey": "catalog.label.c27f341ce5",
+                  "type": "select",
+                  "default": "adaptive",
+                  "options": [
+                    "adaptive",
+                    "21:9",
+                    "16:9",
+                    "4:3",
+                    "1:1",
+                    "3:4",
+                    "9:16"
+                  ]
+                },
+                {
+                  "key": "resolution",
+                  "label": "分辨率",
+                  "type": "select",
+                  "default": "1080P",
+                  "options": [
+                    "480P",
+                    "720P",
+                    "1080P"
+                  ],
+                  "labelKey": "catalog.label.cde9b52b23"
+                },
+                {
+                  "key": "generateAudio",
+                  "label": "生成同步声音",
+                  "labelKey": "catalog.label.058dddf225",
+                  "type": "boolean",
+                  "default": true
+                },
+                {
+                  "key": "promptExtend",
+                  "label": "智能改写提示词",
+                  "labelKey": "catalog.label.promptExtend",
+                  "type": "boolean",
+                  "default": true
+                },
+                {
+                  "key": "watermark",
+                  "label": "AI 水印",
+                  "labelKey": "catalog.label.f6bbf9b630",
+                  "type": "boolean",
+                  "default": false
+                },
+                {
+                  "key": "seed",
+                  "label": "随机种子",
+                  "labelKey": "editor.motion.contents.param.seed",
+                  "type": "number",
+                  "presentation": {
+                    "control": "number",
+                    "min": 0,
+                    "max": 2147483647,
+                    "step": 1
+                  }
+                }
+              ],
+              "labelKey": "catalog.label.d5b5b1fde9"
+            },
+            {
+              "id": "omni-reference-to-video",
+              "label": "全模态参考生视频",
+              "inputConstraints": {
+                "images": {
+                  "min": 0,
+                  "max": 10,
+                  "roles": [
+                    "referenceImage"
+                  ],
+                  "formats": [
+                    "jpeg",
+                    "jpg",
+                    "png",
+                    "bmp",
+                    "webp"
+                  ]
+                },
+                "videos": {
+                  "min": 0,
+                  "max": 5,
+                  "roles": [
+                    "inputVideo"
+                  ],
+                  "formats": [
+                    "mp4",
+                    "mov"
+                  ],
+                  "maxBytes": 104857600
+                },
+                "audios": {
+                  "min": 0,
+                  "max": 5,
+                  "roles": [
+                    "referenceAudio"
+                  ],
+                  "formats": [
+                    "wav",
+                    "mp3"
+                  ],
+                  "maxBytes": 15728640,
+                  "minDuration": 1,
+                  "maxDuration": 15,
+                  "maxTotalDuration": 15
+                }
+              },
+              "outputConstraints": {
+                "durations": [
+                  -1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7,
+                  8,
+                  9,
+                  10,
+                  11,
+                  12,
+                  13,
+                  14,
+                  15,
+                  16,
+                  17,
+                  18,
+                  19,
+                  20,
+                  21,
+                  22,
+                  23,
+                  24,
+                  25,
+                  26,
+                  27,
+                  28,
+                  29,
+                  30
+                ],
+                "defaultDuration": 5,
+                "formats": [
+                  "mp4"
+                ],
+                "fps": 30
+              },
+              "params": [
+                {
+                  "key": "prompt",
+                  "label": "提示词",
+                  "type": "text",
+                  "required": false,
+                  "labelKey": "catalog.label.2f0bb12387"
+                },
+                {
+                  "key": "duration",
+                  "label": "时长",
+                  "type": "select",
+                  "default": 5,
+                  "numeric": true,
+                  "options": [
+                    -1,
+                    2,
+                    3,
+                    4,
+                    5,
+                    6,
+                    7,
+                    8,
+                    9,
+                    10,
+                    11,
+                    12,
+                    13,
+                    14,
+                    15,
+                    16,
+                    17,
+                    18,
+                    19,
+                    20,
+                    21,
+                    22,
+                    23,
+                    24,
+                    25,
+                    26,
+                    27,
+                    28,
+                    29,
+                    30
+                  ],
+                  "labelKey": "catalog.label.29d0552d2e",
+                  "optionLabels": {
+                    "-1": "智能时长"
+                  },
+                  "optionLabelKeys": {
+                    "-1": "catalog.option.duration.auto"
+                  }
+                },
+                {
+                  "key": "aspectRatio",
+                  "label": "比例",
+                  "type": "select",
+                  "default": "adaptive",
+                  "options": [
+                    "adaptive",
+                    "21:9",
+                    "16:9",
+                    "4:3",
+                    "1:1",
+                    "3:4",
+                    "9:16"
+                  ],
+                  "labelKey": "catalog.label.c27f341ce5"
+                },
+                {
+                  "key": "resolution",
+                  "label": "分辨率",
+                  "type": "select",
+                  "default": "1080P",
+                  "options": [
+                    "480P",
+                    "720P",
+                    "1080P"
+                  ],
+                  "labelKey": "catalog.label.cde9b52b23"
+                },
+                {
+                  "key": "generateAudio",
+                  "label": "生成同步声音",
+                  "labelKey": "catalog.label.058dddf225",
+                  "type": "boolean",
+                  "default": true
+                },
+                {
+                  "key": "promptExtend",
+                  "label": "智能改写提示词",
+                  "labelKey": "catalog.label.promptExtend",
+                  "type": "boolean",
+                  "default": true
+                },
+                {
+                  "key": "watermark",
+                  "label": "AI 水印",
+                  "labelKey": "catalog.label.f6bbf9b630",
+                  "type": "boolean",
+                  "default": false
+                },
+                {
+                  "key": "seed",
+                  "label": "随机种子",
+                  "labelKey": "editor.motion.contents.param.seed",
+                  "type": "number",
+                  "presentation": {
+                    "control": "number",
+                    "min": 0,
+                    "max": 2147483647,
+                    "step": 1
+                  }
+                }
+              ],
+              "labelKey": "catalog.label.d108de51ea",
+              "inputMode": "reference",
+              "inputSlots": [
+                "reference",
+                "inputVideo",
+                "referenceAudio"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "wan3.0-video-prime",
+          "name": "Wan 3.0 Video Prime",
+          "type": "videoGeneration",
+          "sortOrder": 5,
+          "enabled": true,
+          "defaultMode": "text-to-video",
+          "protocolModes": {
+            "text-to-video": "qwen.video.operation.83a4875fd7fda89e",
+            "first-frame-to-video": "qwen.video.operation.a27fd3e7156c513d",
+            "first-last-frame-to-video": "qwen.video.operation.837a0dbde3cad574",
+            "omni-reference-to-video": "qwen.video.operation.eca3ef67318c8c4a"
+          },
+          "modes": [
+            {
+              "id": "text-to-video",
+              "label": "文生视频",
+              "inputConstraints": {
+                "images": {
+                  "min": 0,
+                  "max": 0
+                }
+              },
+              "outputConstraints": {
+                "durations": [
+                  -1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7,
+                  8,
+                  9,
+                  10,
+                  11,
+                  12,
+                  13,
+                  14,
+                  15,
+                  16,
+                  17,
+                  18,
+                  19,
+                  20,
+                  21,
+                  22,
+                  23,
+                  24,
+                  25,
+                  26,
+                  27,
+                  28,
+                  29,
+                  30
+                ],
+                "defaultDuration": 5,
+                "formats": [
+                  "mp4"
+                ],
+                "fps": 30
+              },
+              "params": [
+                {
+                  "key": "prompt",
+                  "label": "提示词",
+                  "type": "text",
+                  "required": true,
+                  "labelKey": "catalog.label.2f0bb12387"
+                },
+                {
+                  "key": "duration",
+                  "label": "时长",
+                  "type": "select",
+                  "default": 5,
+                  "numeric": true,
+                  "options": [
+                    -1,
+                    2,
+                    3,
+                    4,
+                    5,
+                    6,
+                    7,
+                    8,
+                    9,
+                    10,
+                    11,
+                    12,
+                    13,
+                    14,
+                    15,
+                    16,
+                    17,
+                    18,
+                    19,
+                    20,
+                    21,
+                    22,
+                    23,
+                    24,
+                    25,
+                    26,
+                    27,
+                    28,
+                    29,
+                    30
+                  ],
+                  "labelKey": "catalog.label.29d0552d2e",
+                  "optionLabels": {
+                    "-1": "智能时长"
+                  },
+                  "optionLabelKeys": {
+                    "-1": "catalog.option.duration.auto"
+                  }
+                },
+                {
+                  "key": "aspectRatio",
+                  "label": "比例",
+                  "type": "select",
+                  "default": "adaptive",
+                  "options": [
+                    "adaptive",
+                    "21:9",
+                    "16:9",
+                    "4:3",
+                    "1:1",
+                    "3:4",
+                    "9:16"
+                  ],
+                  "labelKey": "catalog.label.c27f341ce5"
+                },
+                {
+                  "key": "resolution",
+                  "label": "分辨率",
+                  "type": "select",
+                  "default": "1080P",
+                  "options": [
+                    "480P",
+                    "720P",
+                    "1080P"
+                  ],
+                  "labelKey": "catalog.label.cde9b52b23"
+                },
+                {
+                  "key": "generateAudio",
+                  "label": "生成同步声音",
+                  "labelKey": "catalog.label.058dddf225",
+                  "type": "boolean",
+                  "default": true
+                },
+                {
+                  "key": "promptExtend",
+                  "label": "智能改写提示词",
+                  "labelKey": "catalog.label.promptExtend",
+                  "type": "boolean",
+                  "default": true
+                },
+                {
+                  "key": "watermark",
+                  "label": "AI 水印",
+                  "labelKey": "catalog.label.f6bbf9b630",
+                  "type": "boolean",
+                  "default": false
+                },
+                {
+                  "key": "seed",
+                  "label": "随机种子",
+                  "labelKey": "editor.motion.contents.param.seed",
+                  "type": "number",
+                  "presentation": {
+                    "control": "number",
+                    "min": 0,
+                    "max": 2147483647,
+                    "step": 1
+                  }
+                }
+              ],
+              "labelKey": "catalog.label.dd6f194c41"
+            },
+            {
+              "id": "first-frame-to-video",
+              "label": "首帧图生视频",
+              "inputMode": "firstFrame",
+              "inputSlots": [
+                "firstFrame"
+              ],
+              "inputConstraints": {
+                "images": {
+                  "min": 1,
+                  "max": 1,
+                  "roles": [
+                    "referenceImage"
+                  ],
+                  "formats": [
+                    "jpeg",
+                    "jpg",
+                    "png",
+                    "bmp",
+                    "webp"
+                  ]
+                }
+              },
+              "outputConstraints": {
+                "durations": [
+                  -1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7,
+                  8,
+                  9,
+                  10,
+                  11,
+                  12,
+                  13,
+                  14,
+                  15,
+                  16,
+                  17,
+                  18,
+                  19,
+                  20,
+                  21,
+                  22,
+                  23,
+                  24,
+                  25,
+                  26,
+                  27,
+                  28,
+                  29,
+                  30
+                ],
+                "defaultDuration": 5,
+                "formats": [
+                  "mp4"
+                ],
+                "fps": 30
+              },
+              "params": [
+                {
+                  "key": "prompt",
+                  "label": "提示词",
+                  "type": "text",
+                  "required": false,
+                  "labelKey": "catalog.label.2f0bb12387"
+                },
+                {
+                  "key": "duration",
+                  "label": "时长",
+                  "type": "select",
+                  "default": 5,
+                  "numeric": true,
+                  "options": [
+                    -1,
+                    2,
+                    3,
+                    4,
+                    5,
+                    6,
+                    7,
+                    8,
+                    9,
+                    10,
+                    11,
+                    12,
+                    13,
+                    14,
+                    15,
+                    16,
+                    17,
+                    18,
+                    19,
+                    20,
+                    21,
+                    22,
+                    23,
+                    24,
+                    25,
+                    26,
+                    27,
+                    28,
+                    29,
+                    30
+                  ],
+                  "labelKey": "catalog.label.29d0552d2e",
+                  "optionLabels": {
+                    "-1": "智能时长"
+                  },
+                  "optionLabelKeys": {
+                    "-1": "catalog.option.duration.auto"
+                  }
+                },
+                {
+                  "key": "aspectRatio",
+                  "label": "比例",
+                  "labelKey": "catalog.label.c27f341ce5",
+                  "type": "select",
+                  "default": "adaptive",
+                  "options": [
+                    "adaptive",
+                    "21:9",
+                    "16:9",
+                    "4:3",
+                    "1:1",
+                    "3:4",
+                    "9:16"
+                  ]
+                },
+                {
+                  "key": "resolution",
+                  "label": "分辨率",
+                  "type": "select",
+                  "default": "1080P",
+                  "options": [
+                    "480P",
+                    "720P",
+                    "1080P"
+                  ],
+                  "labelKey": "catalog.label.cde9b52b23"
+                },
+                {
+                  "key": "generateAudio",
+                  "label": "生成同步声音",
+                  "labelKey": "catalog.label.058dddf225",
+                  "type": "boolean",
+                  "default": true
+                },
+                {
+                  "key": "promptExtend",
+                  "label": "智能改写提示词",
+                  "labelKey": "catalog.label.promptExtend",
+                  "type": "boolean",
+                  "default": true
+                },
+                {
+                  "key": "watermark",
+                  "label": "AI 水印",
+                  "labelKey": "catalog.label.f6bbf9b630",
+                  "type": "boolean",
+                  "default": false
+                },
+                {
+                  "key": "seed",
+                  "label": "随机种子",
+                  "labelKey": "editor.motion.contents.param.seed",
+                  "type": "number",
+                  "presentation": {
+                    "control": "number",
+                    "min": 0,
+                    "max": 2147483647,
+                    "step": 1
+                  }
+                }
+              ],
+              "labelKey": "catalog.label.41d852e209"
+            },
+            {
+              "id": "first-last-frame-to-video",
+              "label": "首尾帧",
+              "inputMode": "firstLastFrame",
+              "inputSlots": [
+                "firstFrame",
+                "lastFrame"
+              ],
+              "inputConstraints": {
+                "images": {
+                  "min": 2,
+                  "max": 2,
+                  "roles": [
+                    "referenceImage"
+                  ],
+                  "formats": [
+                    "jpeg",
+                    "jpg",
+                    "png",
+                    "bmp",
+                    "webp"
+                  ]
+                }
+              },
+              "outputConstraints": {
+                "durations": [
+                  -1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7,
+                  8,
+                  9,
+                  10,
+                  11,
+                  12,
+                  13,
+                  14,
+                  15,
+                  16,
+                  17,
+                  18,
+                  19,
+                  20,
+                  21,
+                  22,
+                  23,
+                  24,
+                  25,
+                  26,
+                  27,
+                  28,
+                  29,
+                  30
+                ],
+                "defaultDuration": 5,
+                "formats": [
+                  "mp4"
+                ],
+                "fps": 30
+              },
+              "params": [
+                {
+                  "key": "prompt",
+                  "label": "提示词",
+                  "type": "text",
+                  "required": false,
+                  "labelKey": "catalog.label.2f0bb12387"
+                },
+                {
+                  "key": "duration",
+                  "label": "时长",
+                  "type": "select",
+                  "default": 5,
+                  "numeric": true,
+                  "options": [
+                    -1,
+                    2,
+                    3,
+                    4,
+                    5,
+                    6,
+                    7,
+                    8,
+                    9,
+                    10,
+                    11,
+                    12,
+                    13,
+                    14,
+                    15,
+                    16,
+                    17,
+                    18,
+                    19,
+                    20,
+                    21,
+                    22,
+                    23,
+                    24,
+                    25,
+                    26,
+                    27,
+                    28,
+                    29,
+                    30
+                  ],
+                  "labelKey": "catalog.label.29d0552d2e",
+                  "optionLabels": {
+                    "-1": "智能时长"
+                  },
+                  "optionLabelKeys": {
+                    "-1": "catalog.option.duration.auto"
+                  }
+                },
+                {
+                  "key": "aspectRatio",
+                  "label": "比例",
+                  "labelKey": "catalog.label.c27f341ce5",
+                  "type": "select",
+                  "default": "adaptive",
+                  "options": [
+                    "adaptive",
+                    "21:9",
+                    "16:9",
+                    "4:3",
+                    "1:1",
+                    "3:4",
+                    "9:16"
+                  ]
+                },
+                {
+                  "key": "resolution",
+                  "label": "分辨率",
+                  "type": "select",
+                  "default": "1080P",
+                  "options": [
+                    "480P",
+                    "720P",
+                    "1080P"
+                  ],
+                  "labelKey": "catalog.label.cde9b52b23"
+                },
+                {
+                  "key": "generateAudio",
+                  "label": "生成同步声音",
+                  "labelKey": "catalog.label.058dddf225",
+                  "type": "boolean",
+                  "default": true
+                },
+                {
+                  "key": "promptExtend",
+                  "label": "智能改写提示词",
+                  "labelKey": "catalog.label.promptExtend",
+                  "type": "boolean",
+                  "default": true
+                },
+                {
+                  "key": "watermark",
+                  "label": "AI 水印",
+                  "labelKey": "catalog.label.f6bbf9b630",
+                  "type": "boolean",
+                  "default": false
+                },
+                {
+                  "key": "seed",
+                  "label": "随机种子",
+                  "labelKey": "editor.motion.contents.param.seed",
+                  "type": "number",
+                  "presentation": {
+                    "control": "number",
+                    "min": 0,
+                    "max": 2147483647,
+                    "step": 1
+                  }
+                }
+              ],
+              "labelKey": "catalog.label.d5b5b1fde9"
+            },
+            {
+              "id": "omni-reference-to-video",
+              "label": "全模态参考生视频",
+              "inputConstraints": {
+                "images": {
+                  "min": 0,
+                  "max": 10,
+                  "roles": [
+                    "referenceImage"
+                  ],
+                  "formats": [
+                    "jpeg",
+                    "jpg",
+                    "png",
+                    "bmp",
+                    "webp"
+                  ]
+                },
+                "videos": {
+                  "min": 0,
+                  "max": 5,
+                  "roles": [
+                    "inputVideo"
+                  ],
+                  "formats": [
+                    "mp4",
+                    "mov"
+                  ],
+                  "maxBytes": 104857600
+                },
+                "audios": {
+                  "min": 0,
+                  "max": 5,
+                  "roles": [
+                    "referenceAudio"
+                  ],
+                  "formats": [
+                    "wav",
+                    "mp3"
+                  ],
+                  "maxBytes": 15728640,
+                  "minDuration": 1,
+                  "maxDuration": 15,
+                  "maxTotalDuration": 15
+                }
+              },
+              "outputConstraints": {
+                "durations": [
+                  -1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7,
+                  8,
+                  9,
+                  10,
+                  11,
+                  12,
+                  13,
+                  14,
+                  15,
+                  16,
+                  17,
+                  18,
+                  19,
+                  20,
+                  21,
+                  22,
+                  23,
+                  24,
+                  25,
+                  26,
+                  27,
+                  28,
+                  29,
+                  30
+                ],
+                "defaultDuration": 5,
+                "formats": [
+                  "mp4"
+                ],
+                "fps": 30
+              },
+              "params": [
+                {
+                  "key": "prompt",
+                  "label": "提示词",
+                  "type": "text",
+                  "required": false,
+                  "labelKey": "catalog.label.2f0bb12387"
+                },
+                {
+                  "key": "duration",
+                  "label": "时长",
+                  "type": "select",
+                  "default": 5,
+                  "numeric": true,
+                  "options": [
+                    -1,
+                    2,
+                    3,
+                    4,
+                    5,
+                    6,
+                    7,
+                    8,
+                    9,
+                    10,
+                    11,
+                    12,
+                    13,
+                    14,
+                    15,
+                    16,
+                    17,
+                    18,
+                    19,
+                    20,
+                    21,
+                    22,
+                    23,
+                    24,
+                    25,
+                    26,
+                    27,
+                    28,
+                    29,
+                    30
+                  ],
+                  "labelKey": "catalog.label.29d0552d2e",
+                  "optionLabels": {
+                    "-1": "智能时长"
+                  },
+                  "optionLabelKeys": {
+                    "-1": "catalog.option.duration.auto"
+                  }
+                },
+                {
+                  "key": "aspectRatio",
+                  "label": "比例",
+                  "type": "select",
+                  "default": "adaptive",
+                  "options": [
+                    "adaptive",
+                    "21:9",
+                    "16:9",
+                    "4:3",
+                    "1:1",
+                    "3:4",
+                    "9:16"
+                  ],
+                  "labelKey": "catalog.label.c27f341ce5"
+                },
+                {
+                  "key": "resolution",
+                  "label": "分辨率",
+                  "type": "select",
+                  "default": "1080P",
+                  "options": [
+                    "480P",
+                    "720P",
+                    "1080P"
+                  ],
+                  "labelKey": "catalog.label.cde9b52b23"
+                },
+                {
+                  "key": "generateAudio",
+                  "label": "生成同步声音",
+                  "labelKey": "catalog.label.058dddf225",
+                  "type": "boolean",
+                  "default": true
+                },
+                {
+                  "key": "promptExtend",
+                  "label": "智能改写提示词",
+                  "labelKey": "catalog.label.promptExtend",
+                  "type": "boolean",
+                  "default": true
+                },
+                {
+                  "key": "watermark",
+                  "label": "AI 水印",
+                  "labelKey": "catalog.label.f6bbf9b630",
+                  "type": "boolean",
+                  "default": false
+                },
+                {
+                  "key": "seed",
+                  "label": "随机种子",
+                  "labelKey": "editor.motion.contents.param.seed",
+                  "type": "number",
+                  "presentation": {
+                    "control": "number",
+                    "min": 0,
+                    "max": 2147483647,
+                    "step": 1
+                  }
+                }
+              ],
+              "labelKey": "catalog.label.d108de51ea",
+              "inputMode": "reference",
+              "inputSlots": [
+                "reference",
+                "inputVideo",
+                "referenceAudio"
+              ]
+            }
+          ]
+        }
+      ],
+      "enabled": true,
+      "builtin": true,
+      "preserveModelIds": true,
+      "sortOrder": 6
+    }
+  ],
+  "vendorMigration": {
+    "bindings": [
+      {
+        "pluginId": "protocol.qwen.text",
+        "operations": {
+          "operation.81e335ef8e3ba10a": "qwen.text.operation.81e335ef8e3ba10a"
+        }
+      },
+      {
+        "pluginId": "protocol.qwen.images",
+        "operations": {
+          "operation.f67cb0f77e3df802": "qwen.images.operation.f67cb0f77e3df802"
+        }
+      },
+      {
+        "pluginId": "protocol.qwen.video",
+        "operations": {
+          "operation.83a4875fd7fda89e": "qwen.video.operation.83a4875fd7fda89e",
+          "operation.a27fd3e7156c513d": "qwen.video.operation.a27fd3e7156c513d",
+          "operation.837a0dbde3cad574": "qwen.video.operation.837a0dbde3cad574",
+          "operation.eca3ef67318c8c4a": "qwen.video.operation.eca3ef67318c8c4a"
+        }
+      },
+      {
+        "pluginId": "builtin.qwen",
+        "operations": {}
+      }
+    ]
+  },
+  "icon": "icon.png"
+}

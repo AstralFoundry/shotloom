@@ -1,0 +1,31 @@
+{
+  "name": "@shotloom/shotloom-plugin-starrouter",
+  "version": "1.0.1",
+  "description": "StarRouter 厂商插件，统一提供模型和画布工具，共用连接与 API Key。",
+  "keywords": [
+    "shotloom",
+    "shotloom-plugin",
+    "starrouter",
+    "video",
+    "image",
+    "audio"
+  ],
+  "shotloomPlugin": "manifest.json",
+  "files": [
+    "manifest.json",
+    "README.md",
+    "runtime",
+    "icon.png"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AstralFoundry/shotloom.git",
+    "directory": "plugin-packages/vendor.starrouter"
+  },
+  "homepage": "https://github.com/AstralFoundry/shotloom/tree/main/plugin-packages/vendor.starrouter",
+  "shotloomIcon": "icon.png"
+}

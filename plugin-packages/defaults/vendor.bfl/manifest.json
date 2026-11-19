@@ -1,0 +1,1177 @@
+{
+  "apiVersion": 2,
+  "kind": "vendor",
+  "id": "vendor.bfl",
+  "name": "Black Forest Labs",
+  "version": "1.0.1",
+  "shotloom": ">=0.9.2, <1.0.0",
+  "iconId": "bfl",
+  "description": "Black Forest Labs 厂商插件，统一提供模型和画布工具，共用连接与 API Key。",
+  "engine": "declarative",
+  "protocols": [
+    {
+      "id": "bfl.flux.generate",
+      "mode": {
+        "id": "text-to-image",
+        "label": "文生图",
+        "endpoint": {
+          "path": "/v1/{model}",
+          "method": "POST",
+          "scope": "root"
+        },
+        "auth": {
+          "type": "header",
+          "name": "x-key",
+          "prefix": ""
+        },
+        "inputConstraints": {},
+        "outputConstraints": {},
+        "params": [
+          {
+            "key": "width",
+            "label": "宽度",
+            "labelKey": "plugins.parameter.width",
+            "type": "select",
+            "options": [
+              768,
+              1024,
+              1440,
+              2048
+            ],
+            "default": 1024,
+            "numeric": true
+          },
+          {
+            "key": "height",
+            "label": "高度",
+            "labelKey": "plugins.parameter.height",
+            "type": "select",
+            "options": [
+              768,
+              1024,
+              1440,
+              2048
+            ],
+            "default": 1024,
+            "numeric": true
+          }
+        ],
+        "requestTemplate": {
+          "prompt": "{{prompt}}",
+          "width": "{{params.width}}",
+          "height": "{{params.height}}",
+          "output_format": "jpeg"
+        },
+        "isAsync": true,
+        "taskIdPath": "id",
+        "statusPath": "status",
+        "resultUrlPath": "result.sample",
+        "taskEndpoint": {
+          "path": "/v1/get_result?id={taskId}",
+          "method": "GET",
+          "scope": "root"
+        },
+        "pollStatusMap": {
+          "Pending": "queued",
+          "Reasoning": "running",
+          "Generating": "running",
+          "Ready": "completed",
+          "Error": "failed",
+          "Task not found": "failed",
+          "Request Moderated": "failed",
+          "Content Moderated": "failed",
+          "No Card Generated": "failed"
+        },
+        "errorPath": "details",
+        "labelKey": "catalog.label.0b835958b8"
+      }
+    },
+    {
+      "id": "bfl.flux.edit",
+      "mode": {
+        "id": "image-to-image",
+        "label": "图片编辑",
+        "endpoint": {
+          "path": "/v1/{model}",
+          "method": "POST",
+          "scope": "root"
+        },
+        "auth": {
+          "type": "header",
+          "name": "x-key",
+          "prefix": ""
+        },
+        "inputConstraints": {
+          "images": {
+            "min": 1,
+            "max": 1,
+            "roles": [
+              "referenceImage"
+            ]
+          }
+        },
+        "outputConstraints": {},
+        "params": [
+          {
+            "key": "width",
+            "label": "宽度",
+            "labelKey": "plugins.parameter.width",
+            "type": "select",
+            "options": [
+              768,
+              1024,
+              1440,
+              2048
+            ],
+            "default": 1024,
+            "numeric": true
+          },
+          {
+            "key": "height",
+            "label": "高度",
+            "labelKey": "plugins.parameter.height",
+            "type": "select",
+            "options": [
+              768,
+              1024,
+              1440,
+              2048
+            ],
+            "default": 1024,
+            "numeric": true
+          }
+        ],
+        "requestTemplate": {
+          "prompt": "{{prompt}}",
+          "width": "{{params.width}}",
+          "height": "{{params.height}}",
+          "output_format": "jpeg",
+          "input_image": "{{imageUrl}}"
+        },
+        "isAsync": true,
+        "taskIdPath": "id",
+        "statusPath": "status",
+        "resultUrlPath": "result.sample",
+        "taskEndpoint": {
+          "path": "/v1/get_result?id={taskId}",
+          "method": "GET",
+          "scope": "root"
+        },
+        "pollStatusMap": {
+          "Pending": "queued",
+          "Reasoning": "running",
+          "Generating": "running",
+          "Ready": "completed",
+          "Error": "failed",
+          "Task not found": "failed",
+          "Request Moderated": "failed",
+          "Content Moderated": "failed",
+          "No Card Generated": "failed"
+        },
+        "errorPath": "details",
+        "labelKey": "catalog.label.a038dfa6cd",
+        "inputMode": "reference",
+        "inputSlots": [
+          "reference"
+        ]
+      }
+    },
+    {
+      "id": "bfl.flux3.images.generate",
+      "mode": {
+        "id": "text-to-image",
+        "label": "文生图",
+        "endpoint": {
+          "path": "/v1/{model}",
+          "method": "POST",
+          "scope": "root"
+        },
+        "auth": {
+          "type": "header",
+          "name": "x-key",
+          "prefix": ""
+        },
+        "inputConstraints": {},
+        "outputConstraints": {},
+        "params": [
+          {
+            "key": "aspectRatio",
+            "label": "画面比例",
+            "labelKey": "plugins.parameter.aspectRatio",
+            "type": "select",
+            "options": [
+              "1:1",
+              "16:9",
+              "9:16",
+              "4:3",
+              "3:4",
+              "3:2",
+              "2:3"
+            ],
+            "default": "1:1",
+            "numeric": false
+          },
+          {
+            "key": "resolution",
+            "label": "分辨率",
+            "labelKey": "plugins.parameter.resolution",
+            "type": "select",
+            "options": [
+              "768sq",
+              "1k",
+              "1.5k",
+              "2k",
+              "4k"
+            ],
+            "default": "1k",
+            "numeric": false
+          }
+        ],
+        "requestTemplate": {
+          "prompt": "{{prompt}}",
+          "aspect_ratio": "{{params.aspectRatio}}",
+          "resolution": "{{params.resolution}}"
+        },
+        "isAsync": true,
+        "taskIdPath": "id",
+        "statusPath": "status",
+        "resultUrlPath": "result.sample",
+        "taskEndpoint": {
+          "path": "/v1/get_result?id={taskId}",
+          "method": "GET",
+          "scope": "root"
+        },
+        "pollStatusMap": {
+          "Pending": "queued",
+          "Reasoning": "running",
+          "Generating": "running",
+          "Ready": "completed",
+          "Error": "failed",
+          "Task not found": "failed",
+          "Request Moderated": "failed",
+          "Content Moderated": "failed",
+          "No Card Generated": "failed"
+        },
+        "errorPath": "details",
+        "labelKey": "catalog.label.0b835958b8"
+      }
+    },
+    {
+      "id": "bfl.flux3.images.edit",
+      "mode": {
+        "id": "image-to-image",
+        "label": "图片编辑",
+        "endpoint": {
+          "path": "/v1/{model}",
+          "method": "POST",
+          "scope": "root"
+        },
+        "auth": {
+          "type": "header",
+          "name": "x-key",
+          "prefix": ""
+        },
+        "inputConstraints": {
+          "images": {
+            "min": 1,
+            "max": 10,
+            "roles": [
+              "referenceImage"
+            ]
+          }
+        },
+        "outputConstraints": {},
+        "params": [
+          {
+            "key": "aspectRatio",
+            "label": "画面比例",
+            "labelKey": "plugins.parameter.aspectRatio",
+            "type": "select",
+            "options": [
+              "1:1",
+              "16:9",
+              "9:16",
+              "4:3",
+              "3:4",
+              "3:2",
+              "2:3"
+            ],
+            "default": "1:1",
+            "numeric": false
+          },
+          {
+            "key": "resolution",
+            "label": "分辨率",
+            "labelKey": "plugins.parameter.resolution",
+            "type": "select",
+            "options": [
+              "768sq",
+              "1k",
+              "1.5k",
+              "2k",
+              "4k"
+            ],
+            "default": "1k",
+            "numeric": false
+          }
+        ],
+        "requestTemplate": {
+          "prompt": "{{prompt}}",
+          "aspect_ratio": "{{params.aspectRatio}}",
+          "resolution": "{{params.resolution}}",
+          "images": "{{imageUrls}}"
+        },
+        "isAsync": true,
+        "taskIdPath": "id",
+        "statusPath": "status",
+        "resultUrlPath": "result.sample",
+        "taskEndpoint": {
+          "path": "/v1/get_result?id={taskId}",
+          "method": "GET",
+          "scope": "root"
+        },
+        "pollStatusMap": {
+          "Pending": "queued",
+          "Reasoning": "running",
+          "Generating": "running",
+          "Ready": "completed",
+          "Error": "failed",
+          "Task not found": "failed",
+          "Request Moderated": "failed",
+          "Content Moderated": "failed",
+          "No Card Generated": "failed"
+        },
+        "errorPath": "details",
+        "labelKey": "catalog.label.a038dfa6cd",
+        "inputMode": "reference",
+        "inputSlots": [
+          "reference"
+        ]
+      }
+    },
+    {
+      "id": "bfl.flux3.video.generate",
+      "mode": {
+        "id": "text-to-video",
+        "label": "文生视频",
+        "endpoint": {
+          "path": "/v1/{model}",
+          "method": "POST",
+          "scope": "root"
+        },
+        "auth": {
+          "type": "header",
+          "name": "x-key",
+          "prefix": ""
+        },
+        "inputConstraints": {},
+        "outputConstraints": {
+          "durations": [
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "defaultDuration": 5
+        },
+        "params": [
+          {
+            "key": "duration",
+            "label": "时长",
+            "labelKey": "plugins.parameter.duration",
+            "type": "select",
+            "options": [
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15,
+              16,
+              17,
+              18,
+              19,
+              20
+            ],
+            "default": 5,
+            "numeric": true
+          },
+          {
+            "key": "aspectRatio",
+            "label": "画面比例",
+            "labelKey": "plugins.parameter.aspectRatio",
+            "type": "select",
+            "options": [
+              "16:9",
+              "9:16",
+              "1:1",
+              "4:3",
+              "3:4"
+            ],
+            "default": "16:9",
+            "numeric": false
+          },
+          {
+            "key": "resolution",
+            "label": "分辨率",
+            "labelKey": "plugins.parameter.resolution",
+            "type": "select",
+            "options": [
+              "hd",
+              "fhd",
+              "qhd",
+              "uhd"
+            ],
+            "default": "hd",
+            "numeric": false
+          }
+        ],
+        "requestTemplate": {
+          "mode": "t2v",
+          "prompt": "{{prompt}}",
+          "duration": "{{params.duration}}",
+          "aspect_ratio": "{{params.aspectRatio}}",
+          "resolution": "{{params.resolution}}",
+          "generate_audio": true
+        },
+        "isAsync": true,
+        "taskIdPath": "id",
+        "statusPath": "status",
+        "resultUrlPath": "result.sample",
+        "taskEndpoint": {
+          "path": "/v1/get_result?id={taskId}",
+          "method": "GET",
+          "scope": "root"
+        },
+        "pollStatusMap": {
+          "Pending": "queued",
+          "Reasoning": "running",
+          "Generating": "running",
+          "Ready": "completed",
+          "Error": "failed",
+          "Task not found": "failed",
+          "Request Moderated": "failed",
+          "Content Moderated": "failed",
+          "No Card Generated": "failed"
+        },
+        "errorPath": "details",
+        "labelKey": "catalog.label.dd6f194c41"
+      }
+    },
+    {
+      "id": "bfl.flux3.video.animate",
+      "mode": {
+        "id": "image-to-video",
+        "label": "图生视频",
+        "endpoint": {
+          "path": "/v1/{model}",
+          "method": "POST",
+          "scope": "root"
+        },
+        "auth": {
+          "type": "header",
+          "name": "x-key",
+          "prefix": ""
+        },
+        "inputConstraints": {
+          "images": {
+            "min": 1,
+            "max": 1,
+            "roles": [
+              "firstFrame"
+            ]
+          }
+        },
+        "outputConstraints": {
+          "durations": [
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "defaultDuration": 5
+        },
+        "params": [
+          {
+            "key": "duration",
+            "label": "时长",
+            "labelKey": "plugins.parameter.duration",
+            "type": "select",
+            "options": [
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15,
+              16,
+              17,
+              18,
+              19,
+              20
+            ],
+            "default": 5,
+            "numeric": true
+          },
+          {
+            "key": "aspectRatio",
+            "label": "画面比例",
+            "labelKey": "plugins.parameter.aspectRatio",
+            "type": "select",
+            "options": [
+              "16:9",
+              "9:16",
+              "1:1",
+              "4:3",
+              "3:4"
+            ],
+            "default": "16:9",
+            "numeric": false
+          },
+          {
+            "key": "resolution",
+            "label": "分辨率",
+            "labelKey": "plugins.parameter.resolution",
+            "type": "select",
+            "options": [
+              "hd",
+              "fhd",
+              "qhd",
+              "uhd"
+            ],
+            "default": "hd",
+            "numeric": false
+          }
+        ],
+        "requestTemplate": {
+          "mode": "i2v",
+          "prompt": "{{prompt}}",
+          "duration": "{{params.duration}}",
+          "aspect_ratio": "{{params.aspectRatio}}",
+          "resolution": "{{params.resolution}}",
+          "generate_audio": true,
+          "keyframes": "{{imageUrl}}"
+        },
+        "isAsync": true,
+        "taskIdPath": "id",
+        "statusPath": "status",
+        "resultUrlPath": "result.sample",
+        "taskEndpoint": {
+          "path": "/v1/get_result?id={taskId}",
+          "method": "GET",
+          "scope": "root"
+        },
+        "pollStatusMap": {
+          "Pending": "queued",
+          "Reasoning": "running",
+          "Generating": "running",
+          "Ready": "completed",
+          "Error": "failed",
+          "Task not found": "failed",
+          "Request Moderated": "failed",
+          "Content Moderated": "failed",
+          "No Card Generated": "failed"
+        },
+        "errorPath": "details",
+        "labelKey": "catalog.label.7a36e3422a",
+        "inputMode": "firstFrame",
+        "inputSlots": [
+          "firstFrame"
+        ]
+      }
+    }
+  ],
+  "providers": [],
+  "defaultConnections": [
+    {
+      "id": "bfl",
+      "name": "Black Forest Labs",
+      "baseUrl": "https://api.bfl.ai",
+      "iconId": "bfl",
+      "description": "FLUX image generation and editing",
+      "descriptionKey": "plugins.provider.bfl",
+      "enabled": true,
+      "builtin": true,
+      "presetId": "vendor",
+      "pluginId": "vendor.bfl",
+      "models": [
+        {
+          "id": "flux-2-pro",
+          "name": "FLUX.2 Pro",
+          "upstreamModel": "flux-2-pro",
+          "type": "imageGeneration",
+          "sortOrder": 100,
+          "enabled": true,
+          "defaultMode": "text-to-image",
+          "protocolModes": {
+            "text-to-image": "bfl.flux.generate",
+            "image-to-image": "bfl.flux.edit"
+          },
+          "modes": [
+            {
+              "id": "text-to-image",
+              "label": "文生图",
+              "inputConstraints": {},
+              "outputConstraints": {},
+              "params": [
+                {
+                  "key": "width",
+                  "label": "宽度",
+                  "labelKey": "plugins.parameter.width",
+                  "type": "select",
+                  "options": [
+                    768,
+                    1024,
+                    1440,
+                    2048
+                  ],
+                  "default": 1024,
+                  "numeric": true
+                },
+                {
+                  "key": "height",
+                  "label": "高度",
+                  "labelKey": "plugins.parameter.height",
+                  "type": "select",
+                  "options": [
+                    768,
+                    1024,
+                    1440,
+                    2048
+                  ],
+                  "default": 1024,
+                  "numeric": true
+                }
+              ],
+              "labelKey": "catalog.label.0b835958b8"
+            },
+            {
+              "id": "image-to-image",
+              "label": "图片编辑",
+              "inputConstraints": {
+                "images": {
+                  "min": 1,
+                  "max": 1,
+                  "roles": [
+                    "referenceImage"
+                  ]
+                }
+              },
+              "outputConstraints": {},
+              "params": [
+                {
+                  "key": "width",
+                  "label": "宽度",
+                  "labelKey": "plugins.parameter.width",
+                  "type": "select",
+                  "options": [
+                    768,
+                    1024,
+                    1440,
+                    2048
+                  ],
+                  "default": 1024,
+                  "numeric": true
+                },
+                {
+                  "key": "height",
+                  "label": "高度",
+                  "labelKey": "plugins.parameter.height",
+                  "type": "select",
+                  "options": [
+                    768,
+                    1024,
+                    1440,
+                    2048
+                  ],
+                  "default": 1024,
+                  "numeric": true
+                }
+              ],
+              "labelKey": "catalog.label.a038dfa6cd",
+              "inputMode": "reference",
+              "inputSlots": [
+                "reference"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "flux-3-image",
+          "name": "FLUX 3 Image",
+          "upstreamModel": "flux-3-image",
+          "type": "imageGeneration",
+          "sortOrder": 113,
+          "enabled": true,
+          "defaultMode": "text-to-image",
+          "protocolModes": {
+            "text-to-image": "bfl.flux3.images.generate",
+            "image-to-image": "bfl.flux3.images.edit"
+          },
+          "modes": [
+            {
+              "id": "text-to-image",
+              "label": "文生图",
+              "inputConstraints": {},
+              "outputConstraints": {},
+              "params": [
+                {
+                  "key": "aspectRatio",
+                  "label": "画面比例",
+                  "labelKey": "plugins.parameter.aspectRatio",
+                  "type": "select",
+                  "options": [
+                    "1:1",
+                    "16:9",
+                    "9:16",
+                    "4:3",
+                    "3:4",
+                    "3:2",
+                    "2:3"
+                  ],
+                  "default": "1:1",
+                  "numeric": false
+                },
+                {
+                  "key": "resolution",
+                  "label": "分辨率",
+                  "labelKey": "plugins.parameter.resolution",
+                  "type": "select",
+                  "options": [
+                    "768sq",
+                    "1k",
+                    "1.5k",
+                    "2k",
+                    "4k"
+                  ],
+                  "default": "1k",
+                  "numeric": false
+                }
+              ],
+              "labelKey": "catalog.label.0b835958b8"
+            },
+            {
+              "id": "image-to-image",
+              "label": "图片编辑",
+              "inputConstraints": {
+                "images": {
+                  "min": 1,
+                  "max": 10,
+                  "roles": [
+                    "referenceImage"
+                  ]
+                }
+              },
+              "outputConstraints": {},
+              "params": [
+                {
+                  "key": "aspectRatio",
+                  "label": "画面比例",
+                  "labelKey": "plugins.parameter.aspectRatio",
+                  "type": "select",
+                  "options": [
+                    "1:1",
+                    "16:9",
+                    "9:16",
+                    "4:3",
+                    "3:4",
+                    "3:2",
+                    "2:3"
+                  ],
+                  "default": "1:1",
+                  "numeric": false
+                },
+                {
+                  "key": "resolution",
+                  "label": "分辨率",
+                  "labelKey": "plugins.parameter.resolution",
+                  "type": "select",
+                  "options": [
+                    "768sq",
+                    "1k",
+                    "1.5k",
+                    "2k",
+                    "4k"
+                  ],
+                  "default": "1k",
+                  "numeric": false
+                }
+              ],
+              "labelKey": "catalog.label.a038dfa6cd",
+              "inputMode": "reference",
+              "inputSlots": [
+                "reference"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "flux-3-image-klein",
+          "name": "FLUX 3 Image Klein",
+          "upstreamModel": "flux-3-image-klein",
+          "type": "imageGeneration",
+          "sortOrder": 114,
+          "enabled": true,
+          "defaultMode": "text-to-image",
+          "protocolModes": {
+            "text-to-image": "bfl.flux3.images.generate",
+            "image-to-image": "bfl.flux3.images.edit"
+          },
+          "modes": [
+            {
+              "id": "text-to-image",
+              "label": "文生图",
+              "inputConstraints": {},
+              "outputConstraints": {},
+              "params": [
+                {
+                  "key": "aspectRatio",
+                  "label": "画面比例",
+                  "labelKey": "plugins.parameter.aspectRatio",
+                  "type": "select",
+                  "options": [
+                    "1:1",
+                    "16:9",
+                    "9:16",
+                    "4:3",
+                    "3:4",
+                    "3:2",
+                    "2:3"
+                  ],
+                  "default": "1:1",
+                  "numeric": false
+                },
+                {
+                  "key": "resolution",
+                  "label": "分辨率",
+                  "labelKey": "plugins.parameter.resolution",
+                  "type": "select",
+                  "options": [
+                    "768sq",
+                    "1k",
+                    "1.5k",
+                    "2k",
+                    "4k"
+                  ],
+                  "default": "1k",
+                  "numeric": false
+                }
+              ],
+              "labelKey": "catalog.label.0b835958b8"
+            },
+            {
+              "id": "image-to-image",
+              "label": "图片编辑",
+              "inputConstraints": {
+                "images": {
+                  "min": 1,
+                  "max": 10,
+                  "roles": [
+                    "referenceImage"
+                  ]
+                }
+              },
+              "outputConstraints": {},
+              "params": [
+                {
+                  "key": "aspectRatio",
+                  "label": "画面比例",
+                  "labelKey": "plugins.parameter.aspectRatio",
+                  "type": "select",
+                  "options": [
+                    "1:1",
+                    "16:9",
+                    "9:16",
+                    "4:3",
+                    "3:4",
+                    "3:2",
+                    "2:3"
+                  ],
+                  "default": "1:1",
+                  "numeric": false
+                },
+                {
+                  "key": "resolution",
+                  "label": "分辨率",
+                  "labelKey": "plugins.parameter.resolution",
+                  "type": "select",
+                  "options": [
+                    "768sq",
+                    "1k",
+                    "1.5k",
+                    "2k",
+                    "4k"
+                  ],
+                  "default": "1k",
+                  "numeric": false
+                }
+              ],
+              "labelKey": "catalog.label.a038dfa6cd",
+              "inputMode": "reference",
+              "inputSlots": [
+                "reference"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "flux-3-video",
+          "name": "FLUX 3 Video",
+          "upstreamModel": "flux-3-video",
+          "type": "videoGeneration",
+          "sortOrder": 115,
+          "enabled": true,
+          "defaultMode": "text-to-video",
+          "protocolModes": {
+            "text-to-video": "bfl.flux3.video.generate",
+            "image-to-video": "bfl.flux3.video.animate"
+          },
+          "modes": [
+            {
+              "id": "text-to-video",
+              "label": "文生视频",
+              "inputConstraints": {},
+              "outputConstraints": {
+                "durations": [
+                  5,
+                  6,
+                  7,
+                  8,
+                  9,
+                  10,
+                  11,
+                  12,
+                  13,
+                  14,
+                  15,
+                  16,
+                  17,
+                  18,
+                  19,
+                  20
+                ],
+                "defaultDuration": 5
+              },
+              "params": [
+                {
+                  "key": "duration",
+                  "label": "时长",
+                  "labelKey": "plugins.parameter.duration",
+                  "type": "select",
+                  "options": [
+                    5,
+                    6,
+                    7,
+                    8,
+                    9,
+                    10,
+                    11,
+                    12,
+                    13,
+                    14,
+                    15,
+                    16,
+                    17,
+                    18,
+                    19,
+                    20
+                  ],
+                  "default": 5,
+                  "numeric": true
+                },
+                {
+                  "key": "aspectRatio",
+                  "label": "画面比例",
+                  "labelKey": "plugins.parameter.aspectRatio",
+                  "type": "select",
+                  "options": [
+                    "16:9",
+                    "9:16",
+                    "1:1",
+                    "4:3",
+                    "3:4"
+                  ],
+                  "default": "16:9",
+                  "numeric": false
+                },
+                {
+                  "key": "resolution",
+                  "label": "分辨率",
+                  "labelKey": "plugins.parameter.resolution",
+                  "type": "select",
+                  "options": [
+                    "hd",
+                    "fhd",
+                    "qhd",
+                    "uhd"
+                  ],
+                  "default": "hd",
+                  "numeric": false
+                }
+              ],
+              "labelKey": "catalog.label.dd6f194c41"
+            },
+            {
+              "id": "image-to-video",
+              "label": "图生视频",
+              "inputConstraints": {
+                "images": {
+                  "min": 1,
+                  "max": 1,
+                  "roles": [
+                    "firstFrame"
+                  ]
+                }
+              },
+              "outputConstraints": {
+                "durations": [
+                  5,
+                  6,
+                  7,
+                  8,
+                  9,
+                  10,
+                  11,
+                  12,
+                  13,
+                  14,
+                  15,
+                  16,
+                  17,
+                  18,
+                  19,
+                  20
+                ],
+                "defaultDuration": 5
+              },
+              "params": [
+                {
+                  "key": "duration",
+                  "label": "时长",
+                  "labelKey": "plugins.parameter.duration",
+                  "type": "select",
+                  "options": [
+                    5,
+                    6,
+                    7,
+                    8,
+                    9,
+                    10,
+                    11,
+                    12,
+                    13,
+                    14,
+                    15,
+                    16,
+                    17,
+                    18,
+                    19,
+                    20
+                  ],
+                  "default": 5,
+                  "numeric": true
+                },
+                {
+                  "key": "aspectRatio",
+                  "label": "画面比例",
+                  "labelKey": "plugins.parameter.aspectRatio",
+                  "type": "select",
+                  "options": [
+                    "16:9",
+                    "9:16",
+                    "1:1",
+                    "4:3",
+                    "3:4"
+                  ],
+                  "default": "16:9",
+                  "numeric": false
+                },
+                {
+                  "key": "resolution",
+                  "label": "分辨率",
+                  "labelKey": "plugins.parameter.resolution",
+                  "type": "select",
+                  "options": [
+                    "hd",
+                    "fhd",
+                    "qhd",
+                    "uhd"
+                  ],
+                  "default": "hd",
+                  "numeric": false
+                }
+              ],
+              "labelKey": "catalog.label.7a36e3422a",
+              "inputMode": "firstFrame",
+              "inputSlots": [
+                "firstFrame"
+              ]
+            }
+          ]
+        }
+      ],
+      "preserveModelIds": true,
+      "sortOrder": 13
+    }
+  ],
+  "vendorMigration": {
+    "bindings": [
+      {
+        "pluginId": "protocol.bfl.flux",
+        "operations": {
+          "generate": "bfl.flux.generate",
+          "edit": "bfl.flux.edit"
+        }
+      },
+      {
+        "pluginId": "protocol.bfl.flux3.images",
+        "operations": {
+          "generate": "bfl.flux3.images.generate",
+          "edit": "bfl.flux3.images.edit"
+        }
+      },
+      {
+        "pluginId": "protocol.bfl.flux3.video",
+        "operations": {
+          "generate": "bfl.flux3.video.generate",
+          "animate": "bfl.flux3.video.animate"
+        }
+      }
+    ]
+  },
+  "icon": "icon.png"
+}

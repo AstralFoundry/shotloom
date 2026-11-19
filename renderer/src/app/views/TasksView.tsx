@@ -24,6 +24,8 @@ export interface GenerationTask {
   progress?: number;
   model?: string;
   nodeId?: string;
+  sourceNodeIds?: string[];
+  locateNodeId?: string;
   error?: string;
   retryCount?: number;
   maxRetries?: number;
@@ -299,12 +301,12 @@ export function TasksView(
                       )}
                     </div>
                     <div className="task-record-actions">
-                      {task.nodeId && (
+                      {(task.locateNodeId ?? task.nodeId) && (
                         <button
                           className="icon-button"
                           title={t("ui.TasksView.title.2dde6bb8")}
                           aria-label={t("ui.TasksView.text.477b3c92", { value0: task.title || typeLabel })}
-                          onClick={() => void onLocate(task.nodeId!)}
+                          onClick={() => void onLocate((task.locateNodeId ?? task.nodeId)!)}
                         >
                           <IconSymbol name="maximize" />
                         </button>

@@ -5,7 +5,7 @@ import { readSource } from './helpers/sourceContract.mjs';
 
 let env, tools, projects, normalization, settings, identity, sessions, drafts, translate;
 before(async () => {
-  env = await createRendererEnv({ storage: new Map(), withWindow: true });
+  env = await createRendererEnv({ includeStarrouter: true, storage: new Map(), withWindow: true });
   projects = await env.load('store/projectStore');
   normalization = await env.load('store/projectNormalization');
   settings = (await env.load('store/settingsStore')).settingsStore;

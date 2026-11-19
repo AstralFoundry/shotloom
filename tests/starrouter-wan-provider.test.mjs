@@ -8,7 +8,7 @@ for (const [provider, id] of [
   ['starrouter', 'starrouter-wan3.0-video-prime'],
   ['qwen', 'wan3.0-video'], ['qwen', 'wan3.0-video-prime'],
 ]) test(`${id} 编译四种输入模式并处理任务结果`, async () => {
-  const env = await createRendererEnv();
+  const env = await createRendererEnv({ includeStarrouter: true });
   try {
     const { desktopApi } = await env.load('services/desktopApi');
     const { findProviderAdapter } = await env.load('domain/provider/adapters/index');

@@ -50,8 +50,8 @@ export function deleteCanvasNodeData(nodeId: string, { touch = true }: { touch?:
   current.project.edges = current.project.edges.filter(
     (edge) => edge.source !== nodeId && edge.target !== nodeId,
   );
-  const removedTasks = current.project.tasks.filter((task) => task.nodeId === nodeId);
-  current.project.tasks = current.project.tasks.filter((task) => task.nodeId !== nodeId);
+  const removedTasks = current.project.tasks.filter((task) => task.nodeId === nodeId && !task.requestPayload?.processingContract);
+  current.project.tasks = current.project.tasks.filter((task) => task.nodeId !== nodeId || task.requestPayload?.processingContract);
   queueDeletedNodeAssets(current.project, rawStore.projectDir, node, removedTasks);
   if (current.selectedNodeId === nodeId) current.selectedNodeId = null;
   if (Array.isArray(current.selectedNodeIds)) {

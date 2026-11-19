@@ -47,7 +47,7 @@ export function validateProviderPackage(manifest: ProviderPluginManifest) {
   const errors = providerManifestErrors(manifest);
   if (errors.length) throw new Error(errors.join('\n'));
   if (manifest.kind === 'protocol') {
-    for (const operation of manifest.protocols) {
+    for (const operation of manifest.protocols.filter(operation => !manifest.capabilities?.some(capability => capability.operation === operation.id))) {
       const model = { id: `${manifest.id}.${operation.id}`, name: manifest.name, provider: 'protocol', type: manifest.category,
         sortOrder: 1, enabled: true, defaultMode: operation.mode.id, modes: [operation.mode] };
       errors.push(...catalogModelValidationErrors(model, { requireProvider: true }));
@@ -90,7 +90,12 @@ export async function configureProviderPlugins(patch: Partial<Pick<ProviderPlugi
     connectionIds.add(connection.id);
     const plugin = allProviderPlugins().find(plugin => plugin.manifest.id === connection.pluginId);
     const manifest = plugin?.manifest;
-    if (manifest?.kind === 'protocol') {
+    if (manifest?.kind === 'vendor') {
+      for (const model of connection.models || []) {
+        if (model.protocolPlugin && model.protocolPlugin !== manifest.id) throw new Error('Models must use their vendor plugin');
+        if (!Object.keys(model.protocolModes || {}).length || Object.values(model.protocolModes || {}).some(operation => !manifest.protocols.some(item => item.id === operation))) throw new Error('Unknown internal model operation');
+      }
+    } else if (manifest?.kind === 'protocol') {
       for (const model of connection.models || []) {
         const bound = allProviderPlugins().find(item => item.manifest.id === (model.protocolPlugin || connection.pluginId))?.manifest;
         if (!bound || bound.kind !== 'protocol' || bound.category !== model.type) throw new Error('Model references an incompatible protocol plugin');

@@ -1219,4 +1219,5 @@ export interface MessageParameters {
   "plugins.operationCount": Record<"count", string | number>;
   "plugins.invalidModelPath": Record<"model", string | number>;
   "plugins.invalidTaskEndpoint": Record<"endpoint", string | number>;
+  "plugins.toolCount": Record<"count", string | number>;
 }

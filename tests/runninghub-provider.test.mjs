@@ -5,18 +5,18 @@ import {
   buildRunningHubMinimaxH3Workflow,
   runningHubOutputUrl,
   runningHubTaskState,
-} from '../plugin-packages/defaults/protocol.runninghub.video/runtime/workflow.mjs';
+} from '../plugin-packages/defaults/vendor.runninghub/runtime/workflow.mjs';
 import { readSource, sourceExists } from './helpers/sourceContract.mjs';
 
 const catalog = loadModelCatalog();
 const runningHubMode = catalog.models.find((model) => model.id === 'runninghub-minimax-h3-reference-to-video').modes[0];
 const runtimeConstraints = { requestTemplate: runningHubMode.requestTemplate, allowedDurations: runningHubMode.outputConstraints.durations, inputConstraints: runningHubMode.inputConstraints };
-const template = JSON.parse(readSource('plugin-packages/defaults/protocol.runninghub.video/runtime/workflow.json'));
+const template = JSON.parse(readSource('plugin-packages/defaults/vendor.runninghub/runtime/workflow.json'));
 const adaptersIndexSource = readSource('renderer/src/domain/provider/adapters/index.ts');
-const adapterSource = readSource('plugin-packages/defaults/protocol.runninghub.video/runtime/index.mjs');
+const adapterSource = readSource('plugin-packages/defaults/vendor.runninghub/runtime/index.mjs');
 
 test('RunningHub is an executable plugin with packaged workflow and no product adapter', () => {
-  const manifest = JSON.parse(readSource('plugin-packages/defaults/protocol.runninghub.video/manifest.json'));
+  const manifest = JSON.parse(readSource('plugin-packages/defaults/vendor.runninghub/manifest.json'));
   assert.equal(manifest.engine, 'module');
   assert.equal(manifest.runtime.entry, 'runtime/index.mjs');
   assert.doesNotMatch(adaptersIndexSource, /runningHubAdapter|RunningHubAdapter/);
@@ -86,7 +86,7 @@ test('RunningHub 当前顶层查询响应映射为统一任务状态', () => {
 
 test('RunningHub 工作流和执行代码都位于独立插件包', () => {
   assert.equal(sourceExists('runninghub'), false);
-  assert.equal(sourceExists('plugin-packages/defaults/protocol.runninghub.video/runtime/workflow.json'), true);
+  assert.equal(sourceExists('plugin-packages/defaults/vendor.runninghub/runtime/workflow.json'), true);
 });
 
 

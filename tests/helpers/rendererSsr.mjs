@@ -1,5 +1,4 @@
-import { loadDefaultPluginSnapshot } from './modelCatalog.mjs';
-import { readDefaultPluginPackages } from '../../scripts/provider-distribution.mjs';
+import { loadDefaultPluginSnapshot, loadTestPluginPackages } from './modelCatalog.mjs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createServer } from 'vite';
@@ -47,7 +46,7 @@ function createWindowShim(realTimers, localStorage) {
  * @param {boolean} [options.realTimers] window 定时器是否委派给 Node 的真实定时器。
  * @returns {Promise<{load: (relative: string) => Promise<any>, dispose: () => Promise<void>}>}
  */
-export async function createRendererEnv({ storage, withWindow = false, realTimers = false, plugins = [] } = {}) {
+export async function createRendererEnv({ storage, withWindow = false, realTimers = false, plugins = [], includeStarrouter = false } = {}) {
   const globals = [];
   const storageShim = storage ? createLocalStorageShim(storage) : undefined;
   if (storageShim) {
@@ -70,14 +69,14 @@ export async function createRendererEnv({ storage, withWindow = false, realTimer
   });
 
   // Production starts with an empty catalog and installs release packages before settings.
-  // Test environments explicitly seed the same packages instead of relying on static built-ins.
-  const defaultSnapshot = loadDefaultPluginSnapshot();
+  // Tests seed release packages and explicitly opt in to the independent StarRouter package when needed.
+  const defaultSnapshot = loadDefaultPluginSnapshot({ includeStarrouter });
   const registry = await server.ssrLoadModule('/src/domain/provider/plugins/ProviderPlugins.ts');
   registry.setProviderPluginSnapshot(defaultSnapshot);
   if (storageShim && !storageShim.getItem('shotloom-provider-plugins')) storageShim.setItem('shotloom-provider-plugins', JSON.stringify(defaultSnapshot));
   const { desktopApi } = await server.ssrLoadModule('/src/services/desktopApi.ts');
   const { createBrowserProviderPlugins } = await server.ssrLoadModule('/src/services/browserProviderPlugins.ts');
-  desktopApi.providerPlugins = createBrowserProviderPlugins({ loadDistribution: async () => readDefaultPluginPackages().map((item, index) => ({ ...item, digest: defaultSnapshot.plugins[index].digest })) });
+  desktopApi.providerPlugins = createBrowserProviderPlugins({ loadDistribution: async () => loadTestPluginPackages({ includeStarrouter }).map((item, index) => ({ ...item, digest: defaultSnapshot.plugins[index].digest })) });
 
   return {
     /**

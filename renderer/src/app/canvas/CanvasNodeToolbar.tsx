@@ -1,3 +1,5 @@
+import { PluginActionDialog } from './PluginActionDialog';
+import { capabilitiesForNode } from '../../domain/provider/plugins/PluginCapabilities';
 import { localAssetLibrary, loadLocalAssetLibrary } from '../../store/localAssetLibraryStore';
 import { nodeAssetCollections } from '../adapters/canvas/canvasMediaSelection';
 import { useAppStore } from '../store/appStore';
@@ -24,7 +26,7 @@ import { settingsStore } from "../../store/settingsStore.ts";
 import { selectedTextOutput, textNodeContent } from "../../utils/textNodeContent.ts";
 import { canvasNodeToolbarOffset } from "../../utils/canvasNodeChrome.ts";
 import {
-  NODE_TOOLBAR_TOOLS,
+  nodeToolbarTools,
   nodeToolbarOverflowIds,
   nodeToolbarScope,
   type NodeToolDefinition,
@@ -256,6 +258,7 @@ export function CanvasNodeToolbar({
   onImageEmotionOpen: () => void;
   onOpenGenerationHistory?: ((nodeId: string) => void) | undefined;
 }) {
+  const [pluginActionKey, setPluginActionKey] = useState('');
   const [openMenu, setOpenMenu] = useState<OpenMenu>(null);
   const [assetCategory, setAssetCategory] = useState('other');
   const [collectionBusy, setCollectionBusy] = useState(false);
@@ -307,7 +310,7 @@ export function CanvasNodeToolbar({
   const isLocalImage = node.type === "imageGeneration" && Boolean(localMediaPath);
   const canExtractAudio = isLocalVideo && audioTrackState === "present";
   const scope = nodeToolbarScope(
-    isLocalImage ? "imageGeneration" : isLocalVideo ? "videoGeneration" : node.type === "textGeneration" ? "textGeneration" : "",
+    isLocalImage ? "imageGeneration" : isLocalVideo ? "videoGeneration" : node.type === "audioGeneration" && localMediaPath ? "audioGeneration" : node.type === "textGeneration" ? "textGeneration" : "",
   );
   const uploadLabels: Record<string, string> = {
     imageGeneration: t("ui.canvasMediaActions.text.be8da62e"),
@@ -478,6 +481,10 @@ export function CanvasNodeToolbar({
 
   function resolveTool(tool: NodeToolDefinition): ResolvedTool | null {
     if (!scope) return null;
+    if (tool.id.startsWith('plugin:')) {
+      const capability = capabilitiesForNode(node, store.project).find(c => c.key === tool.id);
+      return capability ? { title: tool.label, onClick: () => { setOpenMenu(null); setPluginActionKey(tool.id); } } : null;
+    }
     switch (tool.id) {
       case "copy-text":
         return {
@@ -600,7 +607,7 @@ export function CanvasNodeToolbar({
   }
 
   const wired = scope
-    ? NODE_TOOLBAR_TOOLS[scope]
+    ? nodeToolbarTools(scope)
         .map((tool) => ({ tool, resolved: resolveTool(tool) }))
         .filter((entry): entry is { tool: NodeToolDefinition; resolved: ResolvedTool } => Boolean(entry.resolved))
     : [];
@@ -824,6 +831,7 @@ export function CanvasNodeToolbar({
           onClose={() => setOpenMenu(null)}
         />
       )}
+      {pluginActionKey && <PluginActionDialog key={`${node.id}:${pluginActionKey}`} capabilityKey={pluginActionKey} nodeId={node.id} onClose={() => setPluginActionKey('')} />}
       <CanvasToolbarCustomizeDialog
         open={customizeOpen}
         initialScope={scope || "image"}

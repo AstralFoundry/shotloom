@@ -10,7 +10,7 @@ let getGenerationInputModes;
 let reconcileGenerationInputEdges;
 
 before(async () => {
-  env = await createRendererEnv();
+  env = await createRendererEnv({ includeStarrouter: true });
   ({ generationUpstreamReadiness, buildGenerationPayload } = await env.load(
     'domain/graph/generationPayload',
   ));

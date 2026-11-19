@@ -73,6 +73,7 @@ export function splitTaskError(error: string) {
 export function taskViewData(): GenerationTask[] {
   return (store.project.tasks || []).map((task: GenerationTask) => ({
     ...task,
+    locateNodeId: task.sourceNodeIds ? task.sourceNodeIds.find(id => store.project.nodes.some((node: { id: string }) => node.id === id)) || '' : task.nodeId || '',
     historical: isHistoricalModelTask(task),
     canRetry: canRetryTask(task),
     canAdoptRemote: canAdoptRemoteTask(task),

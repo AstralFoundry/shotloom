@@ -1,3 +1,5 @@
+import { callPluginAction } from './pluginActionService';
+import type { ProcessingContract } from '../domain/provider/plugins/PluginCapabilities';
 import { resolvePluginProvider } from '../domain/provider/plugins/ProviderPlugins';
 import { t } from '../i18n/index.ts';
 /**
@@ -35,6 +37,12 @@ export async function submitRemoteGenerationTask({
   payload,
   signal,
 }: { task: AnyRecord; payload: AnyRecord; signal: AbortSignal }): Promise<ProviderTask> {
+  if (payload.processingContract) {
+    task.submissionUncertain = true;
+    const result = await callPluginAction('submit', payload.processingContract, { submissionId: task.submissionId }, signal);
+    task.submissionUncertain = false;
+    return result;
+  }
   const contract = requireModelContract(payload);
   const credentialStatus = getModelCredentialStatus(contract.modelId);
   if (!credentialStatus.available) {
@@ -87,10 +95,12 @@ export async function submitRemoteGenerationTask({
 export async function pollRemoteGenerationTask({
   remoteTaskId,
   modelContract,
+  processingContract,
   signal,
-}: { remoteTaskId?: string; modelContract?: ModelRuntimeContract; signal?: AbortSignal }): Promise<ProviderTaskState> {
+}: { remoteTaskId?: string; modelContract?: ModelRuntimeContract; processingContract?: ProcessingContract; signal?: AbortSignal }): Promise<ProviderTaskState> {
   if (!remoteTaskId) throw new Error(t("errors.53dbed9ae9"));
   if (signal?.aborted) throw new DOMException(t("errors.b94b06f3ae"), 'AbortError');
+  if (processingContract) return callPluginAction('poll', processingContract, { remoteTaskId }, signal);
   if (!modelContract?.isAsync || !modelContract.taskEndpoint?.path) {
     throw new Error(t("errors.6a97d63d1f"));
   }
@@ -111,8 +121,14 @@ export async function pollRemoteGenerationTask({
 export async function cancelRemoteGenerationTask({
   remoteTaskId,
   modelContract,
-}: { remoteTaskId?: string; modelContract?: AnyRecord } = {}): Promise<boolean> {
+  processingContract,
+}: { remoteTaskId?: string; modelContract?: AnyRecord; processingContract?: ProcessingContract } = {}): Promise<boolean> {
   if (!remoteTaskId) return true;
+  if (processingContract) {
+    if (!processingContract.capability.supportsCancel) return false;
+    const result = await callPluginAction('cancel', processingContract, { remoteTaskId });
+    return result.status === 'cancelled';
+  }
   const cancelEndpoint = modelContract?.cancelEndpoint;
   const moduleProvider = modelContract?.pluginRef ? resolvePluginProvider(modelContract.pluginRef) : undefined;
   if (!cancelEndpoint?.path && !(moduleProvider?.engine === 'module' && moduleProvider.supportsCancel)) return false;

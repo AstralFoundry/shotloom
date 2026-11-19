@@ -11,7 +11,7 @@ import assert from 'node:assert/strict';
 import { createRendererEnv } from './helpers/rendererSsr.mjs';
 import { readSource } from './helpers/sourceContract.mjs';
 
-const catalogJson = loadModelCatalog();
+const catalogJson = loadModelCatalog({ includeStarrouter: true });
 
 let env;
 let getProviderAdapter;
@@ -22,7 +22,7 @@ let normalizeProviderConfigs;
 let getProviderModelRows;
 
 before(async () => {
-  env = await createRendererEnv();
+  env = await createRendererEnv({ includeStarrouter: true });
   ({ getProviderAdapter, getProviderAdapters, findProviderAdapter, resolveProviderBaseUrl } =
     await env.load('domain/provider/adapters/index'));
   ({ normalizeProviderConfigs } = await env.load('domain/provider/ProviderConfig'));

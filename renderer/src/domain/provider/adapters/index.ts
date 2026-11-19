@@ -23,7 +23,7 @@ export function getProviderAdapter(id: string, pinned?: PluginReference): Provid
   if (pinned) {
     const provider = resolvePluginProvider(pinned);
     if (!provider) throw new Error(`Pinned provider plugin is not installed: ${pinned.id}@${pinned.version}`);
-    const connection = pinned.providerId === 'protocol' ? providerConnections().find(item => item.id === id) : undefined;
+    const connection = ['protocol', 'vendor'].includes(pinned.providerId) ? providerConnections().find(item => item.id === id) : undefined;
     return buildAdapter({ ...provider, id, baseUrl: connection?.baseUrl || provider.baseUrl });
   }
   const adapter = findProviderAdapter(id);

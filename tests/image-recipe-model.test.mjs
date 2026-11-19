@@ -12,7 +12,7 @@ let normalization;
 let applyImageRecipe;
 
 before(async () => {
-  env = await createRendererEnv({ storage: new Map(), withWindow: true });
+  env = await createRendererEnv({ includeStarrouter: true, storage: new Map(), withWindow: true });
   ({ store } = await env.load('store/projectStore'));
   ({ settingsStore } = await env.load('store/settingsStore'));
   normalization = await env.load('store/projectNormalization');

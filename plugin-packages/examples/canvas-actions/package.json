@@ -1,0 +1,10 @@
+{
+  "name": "shotloom-plugin-canvas-actions-example",
+  "version": "1.0.0",
+  "type": "module",
+  "files": [
+    "manifest.json",
+    "runtime",
+    "README.md"
+  ]
+}

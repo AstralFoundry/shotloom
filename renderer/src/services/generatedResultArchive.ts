@@ -1,3 +1,5 @@
+import { store } from '../store/projectStore';
+import { recordCanvasHistory } from '../store/canvasHistoryStore';
 import { t } from '../i18n/index.ts';
 import { desktopApi } from '@/services/desktopApi';
 import { uid } from '@/utils/format';
@@ -70,12 +72,20 @@ export async function archiveGeneratedOutput({ project, node, task, output }: {
   task: AnyRecord;
   output: unknown;
 }) {
+  const processing = task.requestPayload?.processingContract;
+  const checkOwner = () => {
+    if (processing && store.project !== project) throw new Error('Project changed while saving processing output');
+  };
+  checkOwner();
+  const previous = processing ? project.materials.filter((m: AnyRecord) => m.taskId === task.id) : [];
+  if (processing && previous.length) return { archivedFiles: previous, resultNodes: project.nodes.filter((n: AnyRecord) => n.generatedFrom?.taskId === task.id), text: '' };
   const remoteFiles = extractGeneratedFiles(output);
   const archivedFiles: AnyRecord[] = [];
   const resultNodes: AnyRecord[] = [];
   const pendingMaterials: Array<{ material: AnyRecord; file: AnyRecord }> = [];
 
   for (const [index, file] of remoteFiles.entries()) {
+    checkOwner();
     const sourceUrl = await urlForArchivedFile(file);
     const extension = extensionForGeneratedFile(file, extensionForNode(node.type));
     const preferredName = semanticOutputFileName(
@@ -138,14 +148,20 @@ export async function archiveGeneratedOutput({ project, node, task, output }: {
           nodeType: node.type,
           model: task.model,
           mimeType: saved.mimeType || mimeType,
-          resourceType: resourceTypeForNode(node.type),
+          resourceType: inferResourceType(file, node.type),
           metadata: file.metadata || {},
           importedAt: saved.savedAt || new Date().toISOString(),
         };
         pendingMaterials.push({ material, file });
       }
     }
+    if (processing && (!material || !material.path)) throw new Error('Processing output could not be saved');
   }
+  checkOwner();
+  const sourceNodeIds: string[] = processing ? [...new Set<string>(Object.values(processing.inputs as Record<string, Array<{ nodeId: string }>>).flat().map(input => input.nodeId))].filter(id => project.nodes.some((n: AnyRecord) => n.id === id)) : [];
+  const sourceNode = processing ? project.nodes.find((n: AnyRecord) => n.id === sourceNodeIds[0]) : undefined;
+  const attachResults = processing && sourceNodeIds.length > 0;
+  if (attachResults) recordCanvasHistory(node.title);
 
   // 下载全部完成后再提交项目状态，避免多文件任务中途失败留下半套节点，
   // 以及恢复归档时重复创建已经提交过的素材。
@@ -154,6 +170,18 @@ export async function archiveGeneratedOutput({ project, node, task, output }: {
     material.storageScope = 'project';
     project.materials.unshift(material);
     archivedFiles.push(material);
+    if (attachResults) {
+      const index = archivedFiles.length - 1;
+      const result = { id: `plugin-result:${task.id}:${index}`, type: `${material.resourceType}Generation`,
+        title: material.name, x: Number(sourceNode?.x || node.x || 0) + 410, y: Number(sourceNode?.y || node.y || 0) + index * 300,
+        canvasWidth: 350, canvasHeight: 280, status: 'completed', progress: 100,
+        uploadedFile: { ...material, filePath: material.path, url: material.remoteUrl },
+        generatedFrom: { nodeId: sourceNodeIds[0], sourceNodeIds, taskId: task.id, plugin: processing.reference, capabilityId: processing.capability.id },
+        createdAt: new Date().toISOString() };
+      project.nodes.push(result);
+      for (const sourceId of sourceNodeIds) project.edges.push({ id: `plugin-output:${task.id}:${index}:${sourceId}`, source: sourceId, target: result.id, kind: 'reference' });
+      resultNodes.push(result);
+    }
     node.selectedOutputNodeId = `material:${material.id}`;
     node.selectedOutputTaskId = task.id;
   }

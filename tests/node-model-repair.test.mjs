@@ -12,7 +12,7 @@ let settingsStore;
 let normalization;
 
 before(async () => {
-  env = await createRendererEnv({ storage: new Map(), withWindow: true });
+  env = await createRendererEnv({ includeStarrouter: true, storage: new Map(), withWindow: true });
   repair = await env.load('services/nodeModelRepairService');
   ({ store } = await env.load('store/projectStore'));
   ({ settingsStore } = await env.load('store/settingsStore'));

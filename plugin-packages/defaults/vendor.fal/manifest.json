@@ -1,0 +1,358 @@
+{
+  "apiVersion": 2,
+  "kind": "vendor",
+  "id": "vendor.fal",
+  "name": "fal.ai",
+  "version": "1.0.1",
+  "shotloom": ">=0.9.2, <1.0.0",
+  "iconId": "fal",
+  "description": "fal.ai 厂商插件，统一提供模型和画布工具，共用连接与 API Key。",
+  "engine": "declarative",
+  "protocols": [
+    {
+      "id": "fal.images.generate",
+      "mode": {
+        "id": "text-to-image",
+        "label": "文生图",
+        "endpoint": {
+          "path": "/{modelPath}",
+          "method": "POST",
+          "scope": "root"
+        },
+        "auth": {
+          "type": "header",
+          "name": "Authorization",
+          "prefix": "Key "
+        },
+        "inputConstraints": {},
+        "outputConstraints": {},
+        "params": [
+          {
+            "key": "aspectRatio",
+            "label": "画面比例",
+            "labelKey": "plugins.parameter.aspectRatio",
+            "type": "select",
+            "options": [
+              "1:1",
+              "4:3",
+              "16:9",
+              "3:4",
+              "9:16"
+            ],
+            "default": "4:3",
+            "numeric": false
+          },
+          {
+            "key": "generationCount",
+            "label": "数量",
+            "labelKey": "plugins.parameter.generationCount",
+            "type": "select",
+            "options": [
+              1,
+              2,
+              3,
+              4
+            ],
+            "default": 1,
+            "numeric": true
+          }
+        ],
+        "requestTemplate": {
+          "prompt": "{{prompt}}",
+          "image_size": "{{params.aspectRatio}}",
+          "num_images": "{{params.generationCount}}"
+        },
+        "isAsync": true,
+        "taskIdPath": "request_id",
+        "statusPath": "status",
+        "resultUrlPath": "images.*.url",
+        "taskEndpoint": {
+          "path": "/{modelOwner}/{modelName}/requests/{taskId}/status",
+          "method": "GET",
+          "scope": "root"
+        },
+        "pollStatusMap": {
+          "IN_QUEUE": "queued",
+          "IN_PROGRESS": "running",
+          "COMPLETED": "completed",
+          "FAILED": "failed",
+          "CANCELLED": "cancelled"
+        },
+        "taskResultEndpoint": {
+          "path": "/{modelOwner}/{modelName}/requests/{taskId}",
+          "method": "GET",
+          "scope": "root"
+        },
+        "cancelEndpoint": {
+          "path": "/{modelOwner}/{modelName}/requests/{taskId}/cancel",
+          "method": "PUT",
+          "scope": "root"
+        },
+        "errorPath": "detail",
+        "labelKey": "catalog.label.0b835958b8",
+        "requestValueMaps": {
+          "aspectRatio": {
+            "1:1": "square_hd",
+            "4:3": "landscape_4_3",
+            "16:9": "landscape_16_9",
+            "3:4": "portrait_4_3",
+            "9:16": "portrait_16_9"
+          }
+        }
+      }
+    },
+    {
+      "id": "fal.video.generate",
+      "mode": {
+        "id": "text-to-video",
+        "label": "文生视频",
+        "endpoint": {
+          "path": "/{modelPath}",
+          "method": "POST",
+          "scope": "root"
+        },
+        "auth": {
+          "type": "header",
+          "name": "Authorization",
+          "prefix": "Key "
+        },
+        "inputConstraints": {},
+        "outputConstraints": {
+          "durations": [
+            4,
+            6,
+            8
+          ],
+          "defaultDuration": 8
+        },
+        "params": [
+          {
+            "key": "aspectRatio",
+            "label": "画面比例",
+            "labelKey": "plugins.parameter.aspectRatio",
+            "type": "select",
+            "options": [
+              "16:9",
+              "9:16"
+            ],
+            "default": "16:9",
+            "numeric": false
+          },
+          {
+            "key": "duration",
+            "label": "时长",
+            "labelKey": "plugins.parameter.duration",
+            "type": "select",
+            "options": [
+              4,
+              6,
+              8
+            ],
+            "default": 8,
+            "numeric": true
+          },
+          {
+            "key": "resolution",
+            "label": "分辨率",
+            "labelKey": "plugins.parameter.resolution",
+            "type": "select",
+            "options": [
+              "720p",
+              "1080p"
+            ],
+            "default": "720p",
+            "numeric": false
+          }
+        ],
+        "requestTemplate": {
+          "prompt": "{{prompt}}",
+          "aspect_ratio": "{{params.aspectRatio}}",
+          "duration": "{{params.duration}}s",
+          "resolution": "{{params.resolution}}"
+        },
+        "isAsync": true,
+        "taskIdPath": "request_id",
+        "statusPath": "status",
+        "resultUrlPath": "video.url",
+        "taskEndpoint": {
+          "path": "/{modelOwner}/{modelName}/requests/{taskId}/status",
+          "method": "GET",
+          "scope": "root"
+        },
+        "pollStatusMap": {
+          "IN_QUEUE": "queued",
+          "IN_PROGRESS": "running",
+          "COMPLETED": "completed",
+          "FAILED": "failed",
+          "CANCELLED": "cancelled"
+        },
+        "taskResultEndpoint": {
+          "path": "/{modelOwner}/{modelName}/requests/{taskId}",
+          "method": "GET",
+          "scope": "root"
+        },
+        "cancelEndpoint": {
+          "path": "/{modelOwner}/{modelName}/requests/{taskId}/cancel",
+          "method": "PUT",
+          "scope": "root"
+        },
+        "errorPath": "detail",
+        "labelKey": "catalog.label.dd6f194c41"
+      }
+    }
+  ],
+  "providers": [],
+  "defaultConnections": [
+    {
+      "id": "fal",
+      "name": "fal.ai",
+      "baseUrl": "https://queue.fal.run",
+      "iconId": "fal",
+      "description": "Queued image and video models on fal.ai",
+      "descriptionKey": "plugins.provider.fal",
+      "enabled": true,
+      "builtin": true,
+      "presetId": "vendor",
+      "pluginId": "vendor.fal",
+      "models": [
+        {
+          "id": "fal-flux-schnell",
+          "name": "fal.ai · FLUX Schnell",
+          "upstreamModel": "fal-ai/flux/schnell",
+          "type": "imageGeneration",
+          "sortOrder": 100,
+          "enabled": true,
+          "defaultMode": "text-to-image",
+          "protocolModes": {
+            "text-to-image": "fal.images.generate"
+          },
+          "modes": [
+            {
+              "id": "text-to-image",
+              "label": "文生图",
+              "inputConstraints": {},
+              "outputConstraints": {},
+              "params": [
+                {
+                  "key": "aspectRatio",
+                  "label": "画面比例",
+                  "labelKey": "plugins.parameter.aspectRatio",
+                  "type": "select",
+                  "options": [
+                    "1:1",
+                    "4:3",
+                    "16:9",
+                    "3:4",
+                    "9:16"
+                  ],
+                  "default": "4:3",
+                  "numeric": false
+                },
+                {
+                  "key": "generationCount",
+                  "label": "数量",
+                  "labelKey": "plugins.parameter.generationCount",
+                  "type": "select",
+                  "options": [
+                    1,
+                    2,
+                    3,
+                    4
+                  ],
+                  "default": 1,
+                  "numeric": true
+                }
+              ],
+              "labelKey": "catalog.label.0b835958b8"
+            }
+          ]
+        },
+        {
+          "id": "fal-veo3-fast",
+          "name": "fal.ai · Veo 3 Fast",
+          "upstreamModel": "fal-ai/veo3/fast",
+          "type": "videoGeneration",
+          "sortOrder": 100,
+          "enabled": true,
+          "defaultMode": "text-to-video",
+          "protocolModes": {
+            "text-to-video": "fal.video.generate"
+          },
+          "modes": [
+            {
+              "id": "text-to-video",
+              "label": "文生视频",
+              "inputConstraints": {},
+              "outputConstraints": {
+                "durations": [
+                  4,
+                  6,
+                  8
+                ]
+              },
+              "params": [
+                {
+                  "key": "aspectRatio",
+                  "label": "画面比例",
+                  "labelKey": "plugins.parameter.aspectRatio",
+                  "type": "select",
+                  "options": [
+                    "16:9",
+                    "9:16"
+                  ],
+                  "default": "16:9",
+                  "numeric": false
+                },
+                {
+                  "key": "duration",
+                  "label": "时长",
+                  "labelKey": "plugins.parameter.duration",
+                  "type": "select",
+                  "options": [
+                    4,
+                    6,
+                    8
+                  ],
+                  "default": 8,
+                  "numeric": true
+                },
+                {
+                  "key": "resolution",
+                  "label": "分辨率",
+                  "labelKey": "plugins.parameter.resolution",
+                  "type": "select",
+                  "options": [
+                    "720p",
+                    "1080p"
+                  ],
+                  "default": "720p",
+                  "numeric": false
+                }
+              ],
+              "labelKey": "catalog.label.dd6f194c41"
+            }
+          ]
+        }
+      ],
+      "preserveModelIds": true,
+      "sortOrder": 16
+    }
+  ],
+  "vendorMigration": {
+    "bindings": [
+      {
+        "pluginId": "protocol.fal.images",
+        "operations": {
+          "generate": "fal.images.generate"
+        }
+      },
+      {
+        "pluginId": "protocol.fal.video",
+        "operations": {
+          "generate": "fal.video.generate"
+        }
+      }
+    ]
+  },
+  "icon": "icon.png"
+}

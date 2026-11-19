@@ -6,7 +6,7 @@ import { renderProtocolContentTemplate, renderProtocolTemplate } from '../render
 import { optionLabel, sliderTrackDomain, sliderTrackPosition, sliderValueFromTrack } from '../renderer/src/utils/modelPresentation.ts';
 import { readSource } from './helpers/sourceContract.mjs';
 
-const catalog = loadModelCatalog();
+const catalog = loadModelCatalog({ includeStarrouter: true });
 const agentContract = JSON.parse(readSource('renderer/src/config/agent-action-contract.json'));
 
 test('模型能力由独立插件包登记，产品配置不再保留内置目录', () => {
@@ -18,12 +18,14 @@ test('模型能力由独立插件包登记，产品配置不再保留内置目�
     assert.equal(manifest.id, folder);
     assert.ok(manifest.protocols.length);
     for (const connection of manifest.defaultConnections || []) for (const model of connection.models) {
-      assert.equal(model.protocolPlugin, manifest.id);
+      assert.equal(model.protocolPlugin, undefined);
+      for (const operation of Object.values(model.protocolModes)) assert.ok(manifest.protocols.some(item => item.id === operation));
       assert.equal(ids.has(model.id), false);
       ids.add(model.id);
     }
   }
-  assert.equal(ids.size, catalog.models.length);
+  assert.equal(ids.size, loadModelCatalog().models.length);
+  assert.equal(index.packages.includes('vendor.starrouter'), false);
 });
 
 test('StarRouter 不再提供 GPT 5.4 和 GPT 5.5', () => {

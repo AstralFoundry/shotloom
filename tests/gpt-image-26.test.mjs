@@ -11,7 +11,7 @@ import { loadModelCatalog } from './helpers/modelCatalog.mjs';
 const gif = Buffer.from('47494638396101000100800000000000ffffff21ff0b4e45545343415045322e30030100000021f904000a0000002c000000000100010000020244010021f90400140000002c00000000010001000002024c01003b', 'hex').toString('base64');
 
 test('GIF 缺省尺寸使用小尺寸预设，静态图与显式尺寸保持不变', () => {
-  for (const model of loadModelCatalog().models.filter(m => m.id.includes('gpt-image-2.6-'))) {
+  for (const model of loadModelCatalog({ includeStarrouter: true }).models.filter(m => m.id.includes('gpt-image-2.6-'))) {
     for (const mode of model.modes) {
       const params = mode.params;
       const config = compileGenerationNodeConfig({ outputFormat: 'gif' }, params);
@@ -30,7 +30,7 @@ test('GIF 缺省尺寸使用小尺寸预设，静态图与显式尺寸保持不�
 });
 
 test('切换 GIF 保留底栏参数摘要，仅按输出格式显隐动画参数', async () => {
-  const env = await createRendererEnv({ storage: new Map(), withWindow: true });
+  const env = await createRendererEnv({ includeStarrouter: true, storage: new Map(), withWindow: true });
   try {
     const { generationNodeState } = await env.load('app/canvas/generationNodeState');
     const { paramSummary } = await env.load('utils/modelPresentation');
@@ -55,7 +55,7 @@ test('切换 GIF 保留底栏参数摘要，仅按输出格式显隐动画参数
 });
 
 test('Images 2.6 两家渠道的生成和编辑传递 GIF 参数，归档保留全部帧', async () => {
-  const env = await createRendererEnv();
+  const env = await createRendererEnv({ includeStarrouter: true });
   try {
     const { desktopApi } = await env.load('services/desktopApi');
     const { getProviderAdapter } = await env.load('domain/provider/adapters/index');
@@ -140,7 +140,7 @@ test('SVG 和无后缀链接使用回执格式，data URL 与 JPEG 使用实际 
 });
 
 test('GIF 预览读取原始动画，避免 JPEG 缩略图抹掉后续帧', async () => {
-  const env = await createRendererEnv();
+  const env = await createRendererEnv({ includeStarrouter: true });
   try {
     const { desktopApi } = await env.load('services/desktopApi');
     const { acquireMediaPreview } = await env.load('services/mediaPreviewCache');

@@ -15,6 +15,7 @@
     "smoke:electron": "node scripts/electron-dev.mjs --smoke",
     "smoke:electron:prod": "node scripts/electron-dev.mjs --smoke --prod",
     "dev:web": "node --max-http-header-size=65536 node_modules/vite/bin/vite.js",
+    "site:dev": "node site/server.mjs",
     "prepare:screenshots": "node scripts/prepare-react-screenshots.mjs",
     "build": "npm run prepare:plugins && npm run config:generate && npm run prepare:director-desk && npm run prepare:harness && npm run prepare:openreel && npm run prepare:screenshots && vite build",
     "plugin": "node scripts/provider-plugin.mjs",

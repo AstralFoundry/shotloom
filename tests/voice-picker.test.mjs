@@ -16,7 +16,7 @@ const panelSource = readGenerationNodeSource();
 const dialogSource = readSource('renderer/src/app/components/VoicePickerDialog.tsx');
 const dialogStyles = readSource('renderer/src/app/components/VoicePickerDialog.css');
 
-const audioModes = loadModelCatalog().models
+const audioModes = loadModelCatalog({ includeStarrouter: true }).models
   .filter((model) => model.type === 'audioGeneration')
   .flatMap((model) => model.modes || []);
 const voiceParams = audioModes
@@ -58,7 +58,7 @@ test('音色摘要与选择器解析出同一个中文名', () => {
 });
 
 test('音色清单由目录层注入参数，厂商模式不各自复制一份', async () => {
-  const env = await createRendererEnv();
+  const env = await createRendererEnv({ includeStarrouter: true });
   try {
     const { getModelSchema } = await env.load('domain/catalog/ModelCatalog');
     const param = getModelSchema('audioGeneration', 'starrouter-speech-2.8-hd', 'text-to-speech')
@@ -102,7 +102,7 @@ test('参数面板只挂一个音色选择器实例', () => {
 });
 
 test('英文音色显示与参数摘要一致且不改变真实音色 ID', async () => {
-  const env = await createRendererEnv({ storage: new Map([['shotloom:locale', 'en-US']]) });
+  const env = await createRendererEnv({ includeStarrouter: true, storage: new Map([['shotloom:locale', 'en-US']]) });
   try {
     const voices = await env.load('config/systemVoices');
     assert.deepEqual(voices.systemVoices.map(item => item.value), systemVoices.map(item => item.value));

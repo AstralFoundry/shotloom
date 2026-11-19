@@ -86,7 +86,15 @@ export function ProviderPluginDetails({ plugin, connections }: { plugin: Install
       <tr><td><code>baseUrl</code></td><td>URL</td><td>{t('plugins.endpoint')}</td></tr>
       <tr><td><code>apiKey</code></td><td>secret</td><td>{t('plugins.keyPerConnection')}</td></tr>
     </tbody></table></div></section>
-    {manifest.protocols.map(operation => {
+    {Boolean(manifest.capabilities?.length) && <section><h3>{t('pluginActions.menu')}</h3>
+      {manifest.capabilities!.map(capability => <div key={capability.id}>
+        <h4>{capability.name}</h4><p>{capability.description}</p>
+        <dl><dt>{t('plugins.operationId')}</dt><dd>{capability.id}</dd>
+          <dt>{t('pluginActions.inputs')}</dt><dd>{capability.inputs.map(slot => `${slot.label} (${slot.type})`).join(' · ')}</dd>
+          <dt>{t('pluginActions.outputs')}</dt><dd>{capability.outputs.map(slot => `${slot.label} (${slot.type})`).join(' · ')}</dd></dl>
+      </div>)}
+    </section>}
+    <details className="provider-plugin-advanced"><summary>{t('plugins.requestContract')}</summary>{manifest.protocols.map(operation => {
       const mode = operation.mode;
       const endpoints = [[t('plugins.createEndpoint'), mode.endpoint], [t('plugins.agentEndpoint'), mode.agent?.endpoint], [t('plugins.queryEndpoint'), mode.taskEndpoint], [t('plugins.resultEndpoint'), mode.taskResultEndpoint], [t('plugins.cancelEndpoint'), mode.cancelEndpoint]] as const;
       return <section key={operation.id}><h3>{catalogLabel(mode.label, mode.labelKey)}</h3>{operation.description && <p>{operation.description}</p>}<dl>
@@ -98,6 +106,6 @@ export function ProviderPluginDetails({ plugin, connections }: { plugin: Install
       {mode.params?.length > 0 && <div className="provider-plugin-table-wrap"><table><thead><tr><th>{t('plugins.field')}</th><th>{t('plugins.fieldType')}</th><th>{t('plugins.required')}</th><th>{t('plugins.defaultValue')}</th><th>{t('plugins.descriptionLabel')}</th></tr></thead><tbody>{mode.params.map(param => <tr key={param.key}><td><code>{param.key}</code></td><td>{param.type}</td><td>{t(param.required ? 'plugins.yes' : 'plugins.no')}</td><td><code>{param.default === undefined ? '—' : JSON.stringify(param.default)}</code></td><td>{catalogLabel(param.label, param.labelKey)}{param.options && <small>{param.options.map(value => String(value)).join(' · ')}</small>}</td></tr>)}</tbody></table></div>}
       <details><summary>{t('plugins.requestContract')}</summary><pre>{JSON.stringify({ request: mode.requestTemplate ?? mode.requestFields, inputs: mode.inputConstraints, outputs: mode.outputConstraints }, null, 2)}</pre></details>
       </section>;
-    })}
+    })}</details>
   </div>;
 }

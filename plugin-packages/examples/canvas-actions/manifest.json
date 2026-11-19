@@ -1,0 +1,136 @@
+{
+  "apiVersion": 2,
+  "id": "example.canvas-actions",
+  "name": "Canvas actions example",
+  "version": "1.0.0",
+  "shotloom": ">=0.9.1, <1.0.0",
+  "description": "Local-only sample of multiple canvas capabilities; copies media without AI processing.",
+  "runtime": {
+    "entry": "runtime/index.mjs"
+  },
+  "protocols": [
+    {
+      "id": "process",
+      "mode": {
+        "id": "process",
+        "label": "Process media",
+        "endpoint": {
+          "method": "POST",
+          "path": "/tasks",
+          "scope": "origin"
+        },
+        "taskEndpoint": {
+          "method": "GET",
+          "path": "/tasks/{taskId}",
+          "scope": "origin"
+        },
+        "isAsync": true,
+        "requestTemplate": {},
+        "taskIdPath": "remoteTaskId",
+        "statusPath": "status",
+        "params": []
+      }
+    }
+  ],
+  "kind": "vendor",
+  "engine": "module",
+  "providers": [],
+  "supportsCancel": true,
+  "capabilities": [
+    {
+      "id": "video-copy",
+      "name": "Video processing sample",
+      "description": "Copies video through a local mock service. No AI processing or paid call.",
+      "operation": "process",
+      "inputs": [
+        {
+          "id": "source",
+          "label": "Source media",
+          "type": "video",
+          "required": true
+        }
+      ],
+      "outputs": [
+        {
+          "id": "result",
+          "label": "Result",
+          "type": "video",
+          "required": true,
+          "multiple": true
+        }
+      ],
+      "parameters": [
+        {
+          "id": "copies",
+          "label": "Copies",
+          "type": "number",
+          "default": 1,
+          "enum": [
+            1,
+            2,
+            3
+          ],
+          "required": true
+        }
+      ],
+      "surfaces": [
+        "toolbar",
+        "contextMenu"
+      ],
+      "supportsCancel": true
+    },
+    {
+      "id": "image-copy",
+      "name": "Image processing sample",
+      "description": "Copies image through a local mock service. No AI processing or paid call.",
+      "operation": "process",
+      "inputs": [
+        {
+          "id": "source",
+          "label": "Source media",
+          "type": "image",
+          "required": true
+        }
+      ],
+      "outputs": [
+        {
+          "id": "result",
+          "label": "Result",
+          "type": "image",
+          "required": true,
+          "multiple": true
+        }
+      ],
+      "parameters": [
+        {
+          "id": "copies",
+          "label": "Copies",
+          "type": "number",
+          "default": 1,
+          "enum": [
+            1,
+            2,
+            3
+          ],
+          "required": true
+        }
+      ],
+      "surfaces": [
+        "toolbar",
+        "contextMenu"
+      ],
+      "supportsCancel": true
+    }
+  ],
+  "defaultConnections": [
+    {
+      "id": "connection.canvas-actions",
+      "name": "Local canvas action sample",
+      "pluginId": "example.canvas-actions",
+      "presetId": "vendor",
+      "baseUrl": "http://127.0.0.1:19392",
+      "models": [],
+      "authRequired": false
+    }
+  ]
+}

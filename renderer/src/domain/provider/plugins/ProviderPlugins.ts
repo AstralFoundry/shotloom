@@ -1,3 +1,7 @@
+import { pluginIconPath, pluginIconSource } from '../../../../../shared/pluginIcon';
+import { vendorMigrationErrors, type VendorMigration } from '../../../../../shared/vendorPluginMigration';
+import { setPluginToolbarTools, type NodeToolbarScope, type NodeToolDefinition } from '../../../utils/canvasNodeToolbar';
+import { pluginCapabilityErrors, type PluginCapability } from '../../../../../shared/pluginCapabilities';
 import { satisfies, valid, validRange } from 'semver';
 import appPackage from '../../../../../package.json';
 import { catalogLabel } from '../../../i18n/index.ts';
@@ -26,10 +30,16 @@ export interface ProviderPreset {
   models: PluginModel[];
 }
 export interface ProviderPluginManifest {
-  apiVersion: 1;
-  kind?: 'protocol';
+  apiVersion: 1 | 2;
+  capabilities?: PluginCapability[];
+  kind?: 'vendor' | 'protocol';
+  vendorMigration?: VendorMigration;
   category?: string;
   iconId?: string;
+  /** Relative path to a bundled raster icon, at most 64 KiB. */
+  icon?: string;
+  /** Derived by the package loader for display; never a remote URL. */
+  iconData?: string;
   engine?: 'declarative' | 'module';
   supportsCancel?: boolean;
   id: string;
@@ -55,6 +65,7 @@ export interface InstalledProviderPlugin {
   manifest: ProviderPluginManifest;
   enabled: boolean;
   removed?: boolean;
+  retired?: boolean;
   digest: string;
   source: string;
   trustedCode: boolean;
@@ -84,6 +95,7 @@ export interface ProviderPluginSnapshot {
   disabledBuiltins?: string[];
   connections: ProviderConnection[];
   registryUrl: string;
+  legacyConnections?: ProviderConnection[];
 }
 export interface RegisteredProvider extends ProviderPreset {
   plugin: PluginReference;
@@ -112,6 +124,15 @@ export const providerPluginRevision = () => revision;
 export const providerPluginSnapshot = () => snapshot;
 export function setProviderPluginSnapshot(next: ProviderPluginSnapshot) {
   snapshot = structuredClone(next);
+  const tools: Partial<Record<NodeToolbarScope, NodeToolDefinition[]>> = {};
+  for (const plugin of snapshot.plugins.filter(p => p.enabled && !p.removed && !p.retired)) for (const capability of plugin.manifest.capabilities || []) {
+    if (!capability.surfaces.includes('toolbar')) continue;
+    for (const scope of new Set(capability.inputs.map(slot => slot.type))) {
+      if (scope !== 'image' && scope !== 'video' && scope !== 'audio') continue;
+      (tools[scope] ||= []).push({ id: `plugin:${plugin.manifest.id}:${capability.id}`, label: `${capability.name} · ${plugin.manifest.name}`, icon: 'blocks', interaction: 'opens_dialog' });
+    }
+  }
+  setPluginToolbarTools(tools);
   revision++;
 }
 export function allProviderPlugins() { return snapshot.plugins; }
@@ -136,9 +157,16 @@ function presets(manifest: ProviderPluginManifest): RegisteredProvider[] {
   }));
 }
 export function registeredProviders(): RegisteredProvider[] {
-  const active = allProviderPlugins().filter(plugin => plugin.enabled && !plugin.removed);
-  const oldPresets = active.filter(plugin => plugin.manifest.kind !== 'protocol').flatMap(plugin => presets(plugin.manifest));
+  const active = allProviderPlugins().filter(plugin => plugin.enabled && !plugin.removed && !plugin.retired);
+  const oldPresets = active.filter(plugin => !plugin.manifest.kind).flatMap(plugin => presets(plugin.manifest));
   const connections = providerConnections().filter(connection => connection.enabled !== false).flatMap(connection => {
+    const owner = active.find(plugin => plugin.manifest.id === connection.pluginId)?.manifest;
+    if (owner?.kind === 'vendor') return [{ id: connection.id, name: connection.name, baseUrl: connection.baseUrl || '',
+      iconId: connection.iconId || owner.iconId || 'custom', description: connection.description || owner.description || '',
+      authRequired: connection.authRequired, baseUrlRequired: connection.baseUrl === '', models: connection.models || [], presetId: 'vendor',
+      preserveModelIds: connection.preserveModelIds === true, engine: owner.engine || 'declarative', supportsCancel: owner.supportsCancel,
+      plugin: { id: owner.id, version: owner.version, providerId: 'vendor' },
+    } as RegisteredProvider];
     // Older installed packages and saved custom connections remain readable.
     const legacy = oldPresets.find(provider => provider.plugin.id === connection.pluginId && provider.id === connection.presetId)
       || legacyProviderAt({ id: connection.pluginId, version: '1.0.0', providerId: connection.presetId });
@@ -160,6 +188,11 @@ export function registeredProviders(): RegisteredProvider[] {
 }
 export function resolvePluginProvider(ref: PluginReference): RegisteredProvider | undefined {
   const manifest = pluginManifestAt(ref);
+  if (manifest?.kind === 'vendor' && ['vendor', 'tools'].includes(ref.providerId)) return {
+    id: ref.providerId, presetId: ref.providerId, name: manifest.name, description: manifest.description || '',
+    iconId: manifest.iconId || 'custom', baseUrl: '', models: [],
+    engine: ref.providerId === 'tools' ? 'module' : manifest.engine || 'declarative', supportsCancel: manifest.supportsCancel, plugin: ref,
+  } as RegisteredProvider;
   if (manifest?.kind === 'protocol' && ref.providerId === 'protocol') return {
     id: 'protocol', presetId: 'protocol', name: manifest.name, description: manifest.description || '', iconId: manifest.iconId || 'custom',
     baseUrl: '', models: [], engine: manifest.engine || 'declarative', supportsCancel: manifest.supportsCancel, plugin: ref,
@@ -168,20 +201,20 @@ export function resolvePluginProvider(ref: PluginReference): RegisteredProvider 
 }
 export function expandProviderModels(provider: RegisteredProvider, manifest: ProviderPluginManifest): CatalogModel[] {
   return provider.models.map(model => {
-    if (model.protocolPlugin) {
-      const protocolManifest = allProviderPlugins().find(plugin => plugin.manifest.id === model.protocolPlugin)?.manifest;
-      if (!protocolManifest || protocolManifest.kind !== 'protocol') throw new Error(`Missing protocol plugin: ${model.protocolPlugin}`);
+    if (model.protocolPlugin || (manifest.kind === 'vendor' && model.protocolModes)) {
+      const protocolManifest = manifest.kind === 'vendor' ? manifest : allProviderPlugins().find(plugin => plugin.manifest.id === model.protocolPlugin)?.manifest;
+      if (!protocolManifest || !['protocol', 'vendor'].includes(protocolManifest.kind || '')) throw new Error(`Missing protocol plugin: ${model.protocolPlugin}`);
       const modes = Object.entries(model.protocolModes || {}).map(([id, operation]) => {
         const wire = protocolManifest.protocols.find(protocol => protocol.id === operation)?.mode;
         if (!wire) throw new Error(`Unknown protocol operation: ${operation}`);
         const capability = model.modes?.find(mode => mode.id === id) || {};
-        // Connections own model capabilities; wire contracts belong exclusively to the protocol plugin.
+        // Connections may override model capabilities; transport contracts stay inside the owning package.
         const allowed = ['label','labelKey','inputConstraints','outputConstraints','params','inputMode','inputSlots','inputVariants','capabilities'];
         return { ...wire, ...Object.fromEntries(Object.entries(capability).filter(([key]) => allowed.includes(key))), id } as CatalogMode;
       });
       return { ...model, id: provider.preserveModelIds ? model.id : `${provider.id}::${model.id}`, provider: provider.id,
         upstreamModel: model.upstreamModel || model.id, modes,
-        pluginRef: { id: protocolManifest.id, version: protocolManifest.version, providerId: 'protocol' },
+        pluginRef: { id: protocolManifest.id, version: protocolManifest.version, providerId: protocolManifest.kind === 'vendor' ? 'vendor' : 'protocol' },
       } as CatalogModel;
     }
     const protocol = model.protocol ? manifest.protocols.find(item => item.id === model.protocol) : undefined;
@@ -206,7 +239,9 @@ export function providerManifestErrors(value: unknown, appVersion = appPackage.v
   if (!value || typeof value !== 'object' || Array.isArray(value)) return ['Plugin manifest must be an object'];
   const m = value as ProviderPluginManifest;
   const errors: string[] = [];
-  if (m.apiVersion !== 1) errors.push('Unsupported apiVersion (expected 1)');
+  if (m.icon !== undefined && !pluginIconPath(m.icon)) errors.push('Plugin icon must be a relative raster asset path');
+  if (m.iconData !== undefined && !pluginIconSource(m.iconData)) errors.push('Invalid resolved plugin icon');
+  errors.push(...pluginCapabilityErrors(m), ...vendorMigrationErrors(m));
   for (const key of ['description', 'author', 'homepage', 'license', 'readme'] as const) {
     if (m[key] !== undefined && typeof m[key] !== 'string') errors.push(`${key} must be a string`);
   }
@@ -217,12 +252,26 @@ export function providerManifestErrors(value: unknown, appVersion = appPackage.v
   if (typeof m.shotloom !== 'string' || !validRange(m.shotloom.replace(/,/g, ' '))) errors.push('Invalid Shotloom compatibility range');
   else if (!satisfies(appVersion, m.shotloom.replace(/,/g, ' '), { includePrerelease: true })) errors.push('Plugin is incompatible with this Shotloom version');
   if (!Array.isArray(m.protocols)) errors.push('protocols must be an array');
-  if (!Array.isArray(m.providers) || (m.kind !== 'protocol' && !m.providers.length)) return [...errors, 'providers must be a non-empty array'];
+  if (!Array.isArray(m.providers) || (!m.kind && !m.providers.length)) return [...errors, 'providers must be a non-empty array'];
   if (m.runtime && (!/^runtime\/[a-zA-Z0-9_./-]+\.mjs$/.test(m.runtime.entry || '') || m.runtime.entry.split('/').includes('..'))) errors.push('Runtime entry must be an ES module inside runtime/');
   const protocolIds = new Set<string>();
   for (const protocol of Array.isArray(m.protocols) ? m.protocols : []) {
     if (!protocol || !safeId(protocol.id) || protocolIds.has(protocol.id) || !protocol.mode || typeof protocol.mode !== 'object') errors.push('Invalid or duplicate protocol');
     else protocolIds.add(protocol.id);
+  }
+  if (m.kind && !['vendor', 'protocol'].includes(m.kind)) errors.push('Unsupported plugin kind');
+  if (m.kind === 'vendor') {
+    if (m.providers.length) errors.push('Vendor models belong in defaultConnections');
+    if (!m.defaultConnections?.length) errors.push('Vendor plugin requires a default connection');
+    for (const connection of m.defaultConnections || []) {
+      if (connection.pluginId !== m.id || connection.presetId !== 'vendor') errors.push('Vendor connection must belong to its package');
+      for (const model of connection.models || []) {
+        if (!Object.keys(model.protocolModes || {}).length) errors.push('Vendor model requires internal operations');
+        for (const operation of Object.values(model.protocolModes || {})) if (!protocolIds.has(operation)) errors.push(`Unknown internal operation: ${operation}`);
+      }
+    }
+    if (m.engine && !['declarative', 'module'].includes(m.engine)) errors.push('Unsupported vendor engine');
+    if ((m.engine === 'module' || m.capabilities?.length) && !m.runtime) errors.push('Vendor code capabilities require runtime');
   }
   if (m.kind === 'protocol') {
     if (!['textGeneration','imageGeneration','videoGeneration','audioGeneration'].includes(m.category || '')) errors.push('Protocol plugin requires a media category');
@@ -238,7 +287,7 @@ export function providerManifestErrors(value: unknown, appVersion = appPackage.v
   if (m.defaultConnections !== undefined && !Array.isArray(m.defaultConnections)) errors.push('defaultConnections must be an array');
   for (const connection of Array.isArray(m.defaultConnections) ? m.defaultConnections : []) {
     if (!safeId(connection.id) || !connection.name?.trim() || !Array.isArray(connection.models)) errors.push('Invalid default connection');
-    for (const model of connection.models || []) if (model.protocolPlugin !== m.id) errors.push('Default models must reference their own package');
+    for (const model of connection.models || []) if ((m.kind === 'vendor' && model.protocolPlugin && model.protocolPlugin !== m.id) || (m.kind !== 'vendor' && model.protocolPlugin !== m.id)) errors.push('Default models must reference their own package');
   }
   const ids = new Set<string>();
   for (const p of m.providers) {

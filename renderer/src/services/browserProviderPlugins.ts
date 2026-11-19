@@ -1,3 +1,6 @@
+import { withNpmPluginIcons } from '../../../shared/npmPluginIcons';
+import { packagedPluginIcon } from '../../../shared/pluginIcon';
+import { migrateVendorPlugins, vendorInstallState } from '../../../shared/vendorPluginMigration';
 import { unzipSync, strFromU8 } from 'fflate';
 import { npmSearchUrl } from './npmPluginMarketplace';
 import { providerManifestErrors, provisionPluginConnections } from '../domain/provider/plugins/ProviderPlugins';
@@ -19,6 +22,7 @@ export function createBrowserProviderPlugins({ loadDistribution = async () => {
     const files = unzipSync(bytes);
     const manifest = JSON.parse(strFromU8(files['manifest.json']!));
     if (manifest.id !== entry.id || manifest.version !== entry.version) throw new Error('Default plugin identity mismatch');
+    if (manifest.icon !== undefined) manifest.iconData = packagedPluginIcon(manifest.icon, files[manifest.icon]);
     if (files['README.md']) manifest.readme = strFromU8(files['README.md']);
     return { manifest, digest, files };
   }));
@@ -38,12 +42,15 @@ export function createBrowserProviderPlugins({ loadDistribution = async () => {
         if (errors.length) throw new Error(errors.join('\n'));
         artifactFiles.set(`${item.manifest.id}@${item.digest}`, item.files);
         if (state.plugins.some(plugin => plugin.manifest.id === item.manifest.id)) continue;
-        state.plugins.push({ manifest: item.manifest, digest: item.digest, source: `distribution:${item.manifest.id}@${item.manifest.version}`, enabled: !state.disabledBuiltins?.includes(item.manifest.id), trustedCode: false, installedAt: new Date().toISOString(), history: [] });
-        provisionPluginConnections(state, item.manifest);
+        const prior = vendorInstallState(state, item.manifest);
+        state.plugins.push({ manifest: item.manifest, digest: item.digest, source: `distribution:${item.manifest.id}@${item.manifest.version}`, enabled: prior.enabled && !state.disabledBuiltins?.includes(item.manifest.id), removed: prior.removed, trustedCode: false, installedAt: new Date().toISOString(), history: [] });
+        provisionPluginConnections(state, item.manifest.kind === 'vendor' ? { ...item.manifest, defaultConnections: prior.connections } : item.manifest);
       }
       for (const connection of protectedConnections) state.connections[state.connections.findIndex(item => item.id === connection.id)] = connection;
       for (const connection of state.connections) if (state.disabledBuiltins?.includes(`builtin.${connection.id}`)) connection.enabled = false;
       delete state.disabledBuiltins;
+      const settings = JSON.parse(localStorage.getItem('shotloom-settings') || 'null') || {};
+      if (migrateVendorPlugins(state, settings)) localStorage.setItem('shotloom-settings', JSON.stringify(settings));
       return write(state);
     })().catch(error => { provisioning = undefined; throw error; });
     await provisioning;
@@ -68,7 +75,14 @@ export function createBrowserProviderPlugins({ loadDistribution = async () => {
       if (operation === 'search') {
         const response = await fetch(npmSearchUrl(args.query || '', args.registry || 'npm', args.offset || 0));
         if (!response.ok) throw new Error(`npm search failed: ${response.status}`);
-        return response.json();
+        const base = new URL(npmSearchUrl('', args.registry || 'npm', 0)).origin;
+        return withNpmPluginIcons(await response.json(), base, async (url, limit) => {
+          const asset = await fetch(url, { signal: AbortSignal.timeout(8000) });
+          if (!asset.ok) throw new Error('Plugin metadata or icon unavailable');
+          const bytes = new Uint8Array(await asset.arrayBuffer());
+          if (bytes.length > limit) throw new Error('Plugin metadata or icon exceeds limit');
+          return bytes;
+        });
       }
       if (operation === 'list') return installed();
       if (operation === 'documentation') {

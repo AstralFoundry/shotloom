@@ -1,0 +1,16 @@
+{
+  "name": "@shotloom/shotloom-plugin-runninghub",
+  "version": "1.0.1",
+  "description": "RunningHub 厂商插件，统一提供模型和画布工具，共用连接与 API Key。",
+  "keywords": [
+    "shotloom-plugin"
+  ],
+  "shotloomPlugin": "manifest.json",
+  "files": [
+    "manifest.json",
+    "README.md",
+    "runtime",
+    "icon.png"
+  ],
+  "shotloomIcon": "icon.png"
+}

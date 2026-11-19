@@ -11,7 +11,7 @@ import { subscribeDomain, getDomainRevision } from '../../store/domainReactivity
 import { showSuccessToast } from '../../store/notificationStore';
 import { settingsStore, saveAppSettings } from '../../store/settingsStore';
 import {
-  allProviderPlugins, providerConnections, bindProtocolModel, type PluginModel, type ProviderConnection,
+  allProviderPlugins, providerConnections, type PluginModel, type ProviderConnection,
 } from '../../domain/provider/plugins/ProviderPlugins';
 import {
   providerPluginStore, inspectProviderPackage, installProviderPackage, mutateProviderPlugin,
@@ -29,15 +29,14 @@ const categories: Array<{ id: string; label: 'plugins.all' | 'plugins.text' | 'p
 
 export function ProviderPluginsPanel({ standalone = false }: { standalone?: boolean }) {
   useSyncExternalStore(subscribeDomain, getDomainRevision, getDomainRevision);
-  const plugins = allProviderPlugins().filter(plugin => !plugin.removed);
+  const plugins = allProviderPlugins().filter(plugin => !plugin.removed && !plugin.retired);
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('all');
-  const [npmRegistry, setNpmRegistry] = useState('npmmirror');
+  const [npmRegistry, setNpmRegistry] = useState('npm');
   const [status, setStatus] = useState('all');
   const [origin, setOrigin] = useState('all');
   const [installOpen, setInstallOpen] = useState(false);
   const [selectedId, setSelectedId] = useState('');
-  const [section, setSection] = useState('protocols');
   const [source, setSource] = useState('');
   const [installMethod, setInstallMethod] = useState('npm');
   const [selectedView, setSelectedView] = useState('details');
@@ -54,12 +53,11 @@ export function ProviderPluginsPanel({ standalone = false }: { standalone?: bool
   const [confirmRemove, setConfirmRemove] = useState(false);
   const selected = plugins.find(plugin => plugin.manifest.id === selectedId);
   const connections = providerConnections();
-  const enabledProtocols = plugins.filter(plugin => plugin.enabled && plugin.manifest.kind === 'protocol');
   const linked = (pluginId: string) => connections.filter(connection => connection.models?.some(model => model.protocolPlugin === pluginId) || connection.pluginId === pluginId);
-  const pluginTypes = (plugin: typeof plugins[number]) => new Set(plugin.manifest.kind === 'protocol' ? [plugin.manifest.category!] : plugin.manifest.providers.flatMap(provider => provider.models.map(model => model.type)));
+  const pluginTypes = (plugin: typeof plugins[number]) => new Set([...(plugin.manifest.kind === 'protocol' ? [plugin.manifest.category!] : [...plugin.manifest.providers.flatMap(provider => provider.models), ...(plugin.manifest.defaultConnections || []).flatMap(connection => connection.models || [])].map(model => model.type)), ...(plugin.manifest.capabilities || []).flatMap(capability => [...capability.inputs, ...capability.outputs].map(slot => `${slot.type}Generation`))]);
   const descriptionFor = (plugin: typeof plugins[number]) => plugin.manifest.description || (plugin.manifest.kind === 'protocol' ? t('plugins.protocolDescription') : plugin.manifest.providers.map(provider => catalogLabel(provider.description || provider.name, provider.descriptionKey)).join(' · '));
   const visible = plugins.filter(plugin => {
-    const search = `${plugin.manifest.name} ${descriptionFor(plugin)} ${plugin.manifest.author || ''} ${plugin.manifest.providers.map(provider => provider.name).join(' ')}`.toLocaleLowerCase();
+    const search = `${plugin.manifest.name} ${descriptionFor(plugin)} ${plugin.manifest.author || ''} ${(plugin.manifest.defaultConnections || []).flatMap(connection => connection.models || []).map(model => model.name).join(' ')} ${(plugin.manifest.capabilities || []).map(capability => capability.name).join(' ')} ${plugin.manifest.providers.map(provider => provider.name).join(' ')}`.toLocaleLowerCase();
     return (!query.trim() || search.includes(query.trim().toLocaleLowerCase()))
       && (category === 'all' || pluginTypes(plugin).has(category))
       && (status === 'all' || plugin.enabled === (status === 'enabled'))
@@ -77,11 +75,13 @@ export function ProviderPluginsPanel({ standalone = false }: { standalone?: bool
   function openSettings(plugin: typeof plugins[number], view = 'settings') {
     setSelectedView(view);
     setSelectedId(plugin.manifest.id); setConfirmRemove(false); setError('');
+    if (view === 'settings') editConnection(linked(plugin.manifest.id)[0], plugin);
+    else setEditing(null);
   }
-  function editConnection(connection?: ProviderConnection) {
-    const plugin = selected || enabledProtocols[0];
+  function editConnection(connection?: ProviderConnection, plugin = selected) {
     if (!connection && !plugin) return;
-    const next = structuredClone(connection || { id: `connection.${crypto.randomUUID()}`, name: '', pluginId: plugin!.manifest.id, presetId: 'protocol', models: [], enabled: true });
+    const next = structuredClone(connection || { name: plugin!.manifest.name, ...structuredClone(plugin!.manifest.defaultConnections?.[0] || {}), id: `connection.${crypto.randomUUID()}`, pluginId: plugin!.manifest.id, presetId: plugin!.manifest.kind === 'vendor' ? 'vendor' : 'protocol', preserveModelIds: false, enabled: true });
+    next.models ??= structuredClone(plugin?.manifest.providers.find(provider => provider.id === next.presetId)?.models || []);
     setEditing(next); setModelIndex(null);
     const config = settingsStore.providerConfigs[next.id];
     setApiKey(config?.apiKey || ''); setBaseUrl(config?.baseUrl || next.baseUrl || ''); setError('');
@@ -90,19 +90,10 @@ export function ProviderPluginsPanel({ standalone = false }: { standalone?: bool
     if (!editing) return;
     setEditing({ ...editing, models: editing.models?.map((item, i) => i === index ? model : item) || [] });
   }
-  function addModel() {
-    if (!editing) return;
-    const plugin = selected?.manifest.kind === 'protocol' && selected.enabled ? selected : enabledProtocols[0];
-    if (!plugin) return;
-    const model = bindProtocolModel(plugin.manifest, plugin.manifest.protocols[0] ? [plugin.manifest.protocols[0].id] : []);
-    setEditing({ ...editing, models: [...editing.models || [], model] });
-  }
   const errorMessage = error || providerPluginStore.error;
   const errorNotice = errorMessage ? <p className="provider-plugin-error" role="alert">{errorMessage}</p> : null;
   return <section className={`provider-plugin-center${standalone ? ' provider-plugin-page' : ''}`}>
     {standalone && <header className="provider-plugin-heading"><h1>{t('plugins.title')}</h1><p>{t('plugins.description')}</p></header>}
-    <Segmented className="provider-plugin-sections" value={section} onChange={setSection} options={[{ value: 'protocols', label: t('plugins.protocols') }, { value: 'connections', label: t('plugins.providerConnections') }]} />
-    {section === 'protocols' && <>
     <nav className="provider-plugin-tabs" aria-label={t('plugins.categories')}>
       {categories.map(item => <Button key={item.id} type="text" className={category === item.id ? 'is-active' : ''} aria-pressed={category === item.id} onClick={() => setCategory(item.id)}>
         <IconSymbol name={item.icon} /><span>{t(item.label)}</span><small>{plugins.filter(plugin => item.id === 'all' || pluginTypes(plugin).has(item.id)).length}</small>
@@ -130,19 +121,18 @@ export function ProviderPluginsPanel({ standalone = false }: { standalone?: bool
     <div className="provider-plugin-results"><span>{t('plugins.resultCount', { count: visible.length })}</span></div>
     <div className="provider-plugin-grid">
       {visible.map(plugin => {
-        const models = plugin.manifest.providers.flatMap(provider => provider.models);
+        const models = [...plugin.manifest.providers.flatMap(provider => provider.models), ...(plugin.manifest.defaultConnections || []).flatMap(connection => connection.models || [])];
         const types = pluginTypes(plugin);
-        const connections = linked(plugin.manifest.id);
         return <article className="provider-plugin-card" key={plugin.manifest.id} tabIndex={0}
           onDoubleClick={() => openSettings(plugin, 'details')}
           onKeyDown={event => { if (event.target === event.currentTarget && event.key === 'Enter') openSettings(plugin, 'details'); }}>
           <div className="provider-plugin-card-heading">
-            <div className="provider-plugin-card-icon"><ProviderBrandIcon icon={plugin.manifest.iconId || plugin.manifest.providers[0]?.iconId || 'custom'} /></div>
+            <div className="provider-plugin-card-icon"><ProviderBrandIcon src={plugin.manifest.iconData} icon={plugin.manifest.iconId || plugin.manifest.providers[0]?.iconId || 'custom'} /></div>
             <div><h2 title={plugin.manifest.name}>{plugin.manifest.name}</h2><span className="provider-plugin-version">v{plugin.manifest.version} · {plugin.source.startsWith('distribution:') ? t('plugins.bundled') : t('plugins.userInstalled')}</span></div>
           </div>
           <p className="provider-plugin-card-description">{descriptionFor(plugin)}</p>
           <div className="provider-plugin-capabilities">{categories.filter(item => types.has(item.id)).map(item => <span key={item.id}><IconSymbol name={item.icon} />{t(item.label)}</span>)}</div>
-          <div className="provider-plugin-card-meta"><span>{t(plugin.manifest.kind === 'protocol' ? 'plugins.operationCount' : 'plugins.modelCount', { count: plugin.manifest.kind === 'protocol' ? plugin.manifest.protocols.length : models.length })}</span>{connections.length > 0 && <span>{t('plugins.connectionCount', { count: connections.length })}</span>}</div>
+          <div className="provider-plugin-card-meta"><span>{t(plugin.manifest.kind === 'protocol' ? 'plugins.operationCount' : 'plugins.modelCount', { count: plugin.manifest.kind === 'protocol' ? plugin.manifest.protocols.length : models.length })}</span>{Boolean(plugin.manifest.capabilities?.length) && <span>{t('plugins.toolCount', { count: plugin.manifest.capabilities!.length })}</span>}</div>
           <footer className="provider-plugin-card-footer" onDoubleClick={event => event.stopPropagation()}>
             <span className={`provider-plugin-state${plugin.enabled ? ' is-enabled' : ''}`}><i />{t(plugin.enabled ? 'plugins.enabled' : 'plugins.disabled')}</span>
             <Switch size="small" checked={plugin.enabled} disabled={busy} aria-label={plugin.manifest.name} onChange={enabled => void run(async () => { await setProviderPluginEnabled(plugin.manifest.id, enabled); await saveAppSettings(); })} />
@@ -152,17 +142,6 @@ export function ProviderPluginsPanel({ standalone = false }: { standalone?: bool
       })}
     </div>
     {!visible.length && <Empty description={t('plugins.noResults')} />}
-    </>}
-    </>}
-    {section === 'connections' && <>
-      <div className="provider-plugin-section-heading"><p>{t('plugins.connectionHint')}</p><Button type="primary" disabled={!enabledProtocols.length} onClick={() => { setSelectedId(''); editConnection(); }}><IconSymbol name="plus" />{t('plugins.addConnection')}</Button></div>
-      <div className="provider-plugin-grid">{connections.map(connection => <article className="provider-plugin-card" key={connection.id}>
-        <div className="provider-plugin-card-heading"><div className="provider-plugin-card-icon"><ProviderBrandIcon icon={connection.iconId || 'custom'} /></div><h2>{connection.name}</h2></div>
-        <p className="provider-plugin-card-description">{settingsStore.providerConfigs[connection.id]?.baseUrl || connection.baseUrl}</p>
-        <div className="provider-plugin-card-meta">{t('plugins.modelCount', { count: connection.models?.length || 0 })}</div>
-        <footer className="provider-plugin-card-footer"><span className="provider-plugin-state">{t(connection.enabled !== false ? 'plugins.enabled' : 'plugins.disabled')}</span><Switch size="small" aria-label={connection.name} checked={connection.enabled !== false} disabled={busy} onChange={enabled => void run(() => saveProviderConnection({ ...connection, enabled }))} /><Button onClick={() => editConnection(connection)}>{t('plugins.settings')}</Button></footer>
-      </article>)}</div>
-      {errorNotice}
     </>}
 
 
@@ -185,58 +164,53 @@ export function ProviderPluginsPanel({ standalone = false }: { standalone?: bool
       </div>
     </Modal>
 
-    <Modal title={selected?.manifest.name || t('plugins.settings')} open={Boolean(selected)} onCancel={() => { if (!busy) setSelectedId(''); }} footer={null} width={1100}>
+    <Modal className="provider-plugin-settings-modal" centered title={selected ? <div className="provider-plugin-settings-title"><ProviderBrandIcon src={selected.manifest.iconData} icon={selected.manifest.iconId || selected.manifest.providers[0]?.iconId || 'custom'} /><span>{selected.manifest.name}<small>v{selected.manifest.version}</small></span></div> : t('plugins.settings')} open={Boolean(selected)} onCancel={() => { if (!busy) { setSelectedId(''); setEditing(null); } }} footer={selectedView === 'settings' && editing ? <div className="provider-plugin-settings-footer">{errorNotice}<Button disabled={busy} onClick={() => { setEditing(null); setSelectedId(''); }}>{t('plugins.cancel')}</Button><Button type="primary" loading={busy} disabled={busy || !editing.name.trim()} onClick={() => void run(async () => {
+      await saveProviderConnection({ ...editing, name: editing.name.trim(), baseUrl, pluginId: editing.pluginId, presetId: editing.presetId });
+      await saveAppSettings({ providerConfigs: { ...settingsStore.providerConfigs, [editing.id]: { apiKey, baseUrl } } });
+      showSuccessToast(t('plugins.saved'));
+    })}>{t('plugins.save')}</Button></div> : null} width={1000}>
       {selected && <div className="provider-plugin-dialog provider-plugin-inspector">
         {selectedView === 'details' ? <ProviderPluginDetails key={`${selected.manifest.id}@${selected.manifest.version}`} plugin={selected} connections={linked(selected.manifest.id)} /> : <>
-        <p>{descriptionFor(selected)}</p>
-        {selected.manifest.kind === 'protocol' && <section className="provider-plugin-detail-section"><h3>{t('plugins.operations')}</h3>{selected.manifest.protocols.map(operation => <div className="provider-plugin-row" key={operation.id}><strong>{catalogLabel(operation.mode.label, operation.mode.labelKey)}</strong><small>{operation.description || operation.mode.endpoint.path}</small></div>)}</section>}
-        <section className="provider-plugin-detail-section"><div className="provider-plugin-section-heading"><h3>{t('plugins.providerConnections')}</h3><Button size="small" disabled={busy || !selected.enabled} onClick={() => editConnection()}><IconSymbol name="plus" />{t('plugins.addConnection')}</Button></div><p>{t('plugins.connectionHint')}</p>
-          {linked(selected.manifest.id).map(connection => <div className="provider-plugin-row" key={connection.id}><strong>{connection.name}</strong><Button size="small" onClick={() => editConnection(connection)}>{t('plugins.settings')}</Button></div>)}
+      {editing && <div className="provider-plugin-settings-content">
+        <section className="provider-plugin-connection-panel">
+          <div className="provider-plugin-connection-heading"><div><h3>{t('plugins.providerConnections')}</h3><p>{t('plugins.connectionHint')}</p></div>
+            <label className="provider-plugin-enabled-field">{t(editing.enabled !== false ? 'plugins.enabled' : 'plugins.disabled')}<Switch size="small" checked={editing.enabled !== false} disabled={busy} onChange={enabled => setEditing({ ...editing, enabled })} /></label>
+          </div>
+          {linked(selected.manifest.id).length > 1 && <Select className="provider-plugin-connection-select" aria-label={t('plugins.providerConnections')} value={linked(selected.manifest.id).some(connection => connection.id === editing.id) ? editing.id : undefined} disabled={busy} options={linked(selected.manifest.id).map(connection => ({ value: connection.id, label: connection.name }))} onChange={id => editConnection(linked(selected.manifest.id).find(connection => connection.id === id))} />}
+        <div className="provider-plugin-credentials">
+        <label>{t('plugins.connectionName')}<Input value={editing.name} onChange={event => setEditing({ ...editing, name: event.target.value })} /></label>
+        <label>{t('plugins.endpoint')}<Input value={baseUrl} onChange={event => setBaseUrl(event.target.value)} /></label>
+        <label className="provider-plugin-key-field">API Key<Input.Password value={apiKey} onChange={event => setApiKey(event.target.value)} autoComplete="off" /></label>
+        </div>
         </section>
-        <details className="provider-plugin-advanced"><summary>{t('plugins.advanced')}</summary><p>{t('plugins.retentionHint')}</p><small>{selected.manifest.id} · v{selected.manifest.version}</small>
+
+        <section className="provider-plugin-models-panel"><div className="provider-plugin-section-heading"><h3>{t('plugins.availableModels')}</h3><span className="provider-plugin-count">{editing.models?.length || 0}</span></div>
+          <div className="provider-plugin-model-grid">
+          {editing.models?.map((model, i) => {
+            return <details className="provider-plugin-model-editor" key={model.id}><summary><span className="provider-plugin-model-name">{model.name || t('plugins.newModel')}</span><span className="provider-plugin-model-actions" onClick={event => { event.preventDefault(); event.stopPropagation(); }}>
+              <Switch size="small" checked={model.enabled !== false} disabled={busy} aria-label={`${model.name} ${t('plugins.enabled')}`} onChange={enabled => updateModel(i, { ...model, enabled })} />
+              </span><span className="provider-plugin-model-chevron" aria-hidden="true"><IconSymbol name="chevron-down" strokeLinecap="round" strokeLinejoin="round" /></span></summary>
+              <label>{t('plugins.modelName')}<Input value={model.name} onChange={event => updateModel(i, { ...model, name: event.target.value })} /></label>
+              <label>{t('plugins.upstreamModel')}<Input value={model.upstreamModel ?? model.id} onChange={event => updateModel(i, { ...model, upstreamModel: event.target.value })} /></label>
+              <Button type="text" size="small" onClick={() => { setModelIndex(i); setModelJson(JSON.stringify(model, null, 2)); }}>{t('plugins.modelCapabilities')}</Button>
+              {modelIndex === i && <div className="provider-plugin-dialog"><Input.TextArea aria-label={t('plugins.modelCapabilities')} value={modelJson} onChange={event => setModelJson(event.target.value)} autoSize={{ minRows: 8, maxRows: 16 }} /><Button onClick={() => {
+                try { const value = JSON.parse(modelJson); updateModel(i, { ...value, id: model.id }); setModelIndex(null); } catch (cause) { setError(String(cause)); }
+              }}>{t('plugins.save')}</Button></div>}
+            </details>;
+          })}
+          </div>
+        </section>
+        {Boolean(selected.manifest.capabilities?.length) && <section className="provider-plugin-tools-panel"><div className="provider-plugin-section-heading"><h3>{t('pluginActions.menu')}</h3><span className="provider-plugin-count">{selected.manifest.capabilities!.length}</span></div><div className="provider-plugin-tool-grid">{selected.manifest.capabilities!.map(capability => <div className="provider-plugin-tool-card" key={capability.id}><IconSymbol name="blocks" /><div><strong>{capability.name}</strong><p>{capability.description}</p></div></div>)}</div></section>}
+        <section className="provider-plugin-advanced"><div className="provider-plugin-advanced-header"><div><h3>{t('plugins.advanced')}</h3><small>{selected.manifest.id} · v{selected.manifest.version}</small></div><Button danger disabled={busy} onClick={() => setConfirmRemove(true)}>{t('plugins.remove')}</Button></div><p>{t('plugins.retentionHint')}</p>
           {selected.history.length > 0 && <Select aria-label={t('plugins.rollback')} placeholder={t('plugins.rollback')} value={undefined} disabled={busy} options={selected.history.map(item => ({ value: item.manifest.version, label: item.manifest.version }))} onChange={version => void run(async () => { await mutateProviderPlugin('rollback', { id: selected.manifest.id, version }); await saveAppSettings(); })} />}
-          {<Button danger disabled={busy} onClick={() => setConfirmRemove(true)}>{t('plugins.remove')}</Button>}
           {confirmRemove && <div className="provider-plugin-confirm"><p>{t('plugins.removeHint')}</p><Button onClick={() => setConfirmRemove(false)}>{t('plugins.cancel')}</Button><Button danger disabled={busy} onClick={() => void run(async () => { await mutateProviderPlugin('remove', { id: selected.manifest.id }); setSelectedId(''); })}>{t('plugins.remove')}</Button></div>}
-        </details>
+        </section>
+      </div>}
         </>}
         {!editing && errorNotice}
       </div>}
     </Modal>
 
-    <Modal title={editing?.name || t('plugins.addConnection')} open={Boolean(editing)} onCancel={() => { if (!busy) setEditing(null); }} footer={null} width={600}>
-      {editing && <div className="provider-plugin-dialog">
-        <label>{t('plugins.connectionName')}<Input value={editing.name} onChange={event => setEditing({ ...editing, name: event.target.value })} /></label>
-        <label>{t('plugins.endpoint')}<Input value={baseUrl} onChange={event => setBaseUrl(event.target.value)} /></label>
-        <label>API Key<Input.Password value={apiKey} onChange={event => setApiKey(event.target.value)} autoComplete="off" /></label>
-        <section className="provider-plugin-detail-section"><div className="provider-plugin-section-heading"><h3>{t('plugins.availableModels')}</h3><Button size="small" disabled={!enabledProtocols.length} onClick={addModel}><IconSymbol name="plus" />{t('plugins.addModel')}</Button></div>
-          {editing.models?.map((model, i) => {
-            const protocol = plugins.find(plugin => plugin.manifest.id === model.protocolPlugin);
-            return <details className="provider-plugin-model-editor" key={model.id}><summary>{model.name || t('plugins.newModel')} · {protocol?.manifest.name || t('plugins.protocol')}</summary>
-              <div className="provider-plugin-section-heading"><strong>{model.name || t('plugins.newModel')}</strong><Button size="small" danger onClick={() => setEditing({ ...editing, models: editing.models?.filter((_, index) => index !== i) || [] })}>{t('plugins.deleteModel')}</Button></div>
-              <label>{t('plugins.modelName')}<Input value={model.name} onChange={event => updateModel(i, { ...model, name: event.target.value })} /></label>
-              <label>{t('plugins.upstreamModel')}<Input value={model.upstreamModel ?? model.id} onChange={event => updateModel(i, { ...model, upstreamModel: event.target.value })} /></label>
-              <label>{t('plugins.protocol')}<Select value={model.protocolPlugin || null} options={plugins.filter(plugin => plugin.manifest.kind === 'protocol').map(plugin => ({ value: plugin.manifest.id, label: plugin.manifest.name, disabled: !plugin.enabled }))} onChange={id => {
-                const manifest = plugins.find(plugin => plugin.manifest.id === id)!.manifest;
-                updateModel(i, bindProtocolModel(manifest, manifest.protocols[0] ? [manifest.protocols[0].id] : [], model));
-              }} /></label>
-              {protocol && <label>{t('plugins.operations')}<Select mode="multiple" value={Object.values(model.protocolModes || {})} options={protocol.manifest.protocols.map(operation => ({ value: operation.id, label: `${catalogLabel(operation.mode.label, operation.mode.labelKey)} · ${operation.description || operation.mode.endpoint.path}` }))} onChange={operations => updateModel(i, bindProtocolModel(protocol.manifest, operations, model))} /></label>}
-              <Button type="text" size="small" onClick={() => { setModelIndex(i); setModelJson(JSON.stringify(model, null, 2)); }}>{t('plugins.modelCapabilities')}</Button>
-            </details>;
-          })}
-        </section>
-        {errorNotice}
-        <div className="provider-plugin-actions"><Button onClick={() => setEditing(null)}>{t('plugins.cancel')}</Button><Button type="primary" disabled={busy || !editing.name.trim()} onClick={() => void run(async () => {
-          const first = editing.models?.find(model => model.protocolPlugin);
-          await saveProviderConnection({ ...editing, name: editing.name.trim(), baseUrl, pluginId: first?.protocolPlugin || editing.pluginId, presetId: first ? 'protocol' : editing.presetId });
-          await saveAppSettings({ providerConfigs: { ...settingsStore.providerConfigs, [editing.id]: { apiKey, baseUrl } } });
-          showSuccessToast(t('plugins.saved')); setEditing(null);
-        })}>{t('plugins.save')}</Button></div>
-      </div>}
-    </Modal>
-
-    <Modal title={t('plugins.modelCapabilities')} open={modelIndex !== null && Boolean(editing)} onCancel={() => setModelIndex(null)} onOk={() => {
-      try { const model = JSON.parse(modelJson); if (modelIndex !== null && editing?.models?.[modelIndex]) updateModel(modelIndex, { ...model, id: editing.models[modelIndex].id }); setModelIndex(null); } catch (cause) { setError(String(cause)); }
-    }}><Input.TextArea aria-label={t('plugins.modelCapabilities')} value={modelJson} onChange={event => setModelJson(event.target.value)} autoSize={{ minRows: 10, maxRows: 20 }} />{errorNotice}</Modal>
 
   </section>;
 }

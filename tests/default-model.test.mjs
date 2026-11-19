@@ -14,7 +14,7 @@ let normalization;
 let availability;
 
 before(async () => {
-  env = await createRendererEnv({ storage: new Map(), withWindow: true });
+  env = await createRendererEnv({ includeStarrouter: true, storage: new Map(), withWindow: true });
   nodeStore = await env.load('store/nodeStore');
   ({ store } = await env.load('store/projectStore'));
   ({ settingsStore } = await env.load('store/settingsStore'));

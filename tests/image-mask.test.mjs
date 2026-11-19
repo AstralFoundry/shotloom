@@ -3,7 +3,7 @@ import { after, test } from 'node:test';
 import { createRendererEnv } from './helpers/rendererSsr.mjs';
 import { readSource } from './helpers/sourceContract.mjs';
 
-const env = await createRendererEnv({ storage: new Map(), withWindow: true });
+const env = await createRendererEnv({ includeStarrouter: true, storage: new Map(), withWindow: true });
 after(() => env.dispose());
 
 const mask = await env.load('domain/graph/imageMask');
