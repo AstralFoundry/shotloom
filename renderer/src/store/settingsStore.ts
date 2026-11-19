@@ -2,6 +2,7 @@ import { t } from '../i18n/index.ts';
 import { getLocale, normalizeLocale } from '@/i18n';
 import { reactive, toRaw } from '@/store/domainReactivity';
 import { desktopApi } from '@/services/desktopApi';
+import { cloudEnabled } from '@/services/cloudRequest';
 import { normalizeCanvasActionShortcuts } from '@/utils/canvasActionShortcuts';
 import { normalizeCanvasAppearance } from '@/utils/canvasAppearance';
 import {
@@ -151,7 +152,7 @@ function toPlainSettings(patch: AnyRecord = {}) {
   return clonePlainData(next);
 }
 
-function applySettings(settings: AnyRecord) {
+function applySettings(settings: AnyRecord, preferencesOnly = false) {
   settingsStore.storageVersion = settings.storageVersion;
   settingsStore.locale = normalizeLocale(settings.locale);
   settingsStore.providerConfigs = normalizeProviderConfigs(toRaw(settings.providerConfigs) || {});
@@ -176,9 +177,9 @@ function applySettings(settings: AnyRecord) {
   settingsStore.agentReasoningEffort = typeof settings.agentReasoningEffort === 'string'
     ? settings.agentReasoningEffort.trim()
     : '';
-  settingsStore.agentPreferredTextModel = normalizePreferredTextModel(settings.agentPreferredTextModel);
-  settingsStore.agentPreferredImageModel = normalizePreferredImageModel(settings.agentPreferredImageModel);
-  settingsStore.agentPreferredVideoModel = normalizePreferredVideoModel(settings.agentPreferredVideoModel);
+  settingsStore.agentPreferredTextModel = preferencesOnly && typeof settings.agentPreferredTextModel === 'string' ? settings.agentPreferredTextModel.trim() : normalizePreferredTextModel(settings.agentPreferredTextModel);
+  settingsStore.agentPreferredImageModel = preferencesOnly && typeof settings.agentPreferredImageModel === 'string' ? settings.agentPreferredImageModel.trim() : normalizePreferredImageModel(settings.agentPreferredImageModel);
+  settingsStore.agentPreferredVideoModel = preferencesOnly && typeof settings.agentPreferredVideoModel === 'string' ? settings.agentPreferredVideoModel.trim() : normalizePreferredVideoModel(settings.agentPreferredVideoModel);
   settingsStore.canvasActionShortcuts = normalizeCanvasActionShortcuts(settings.canvasActionShortcuts);
   settingsStore.canvasToolbarCustomization = normalizeCanvasToolbarCustomization(settings.canvasToolbarCustomization);
   settingsStore.canvasAppearance = normalizeCanvasAppearance(settings.canvasAppearance);
@@ -191,10 +192,11 @@ function applySettings(settings: AnyRecord) {
   settingsStore.updatedAt = settings.updatedAt || '';
 }
 
-export async function loadAppSettings() {
+export async function loadAppSettings({ preferencesOnly = false } = {}) {
   settingsStore.loading = true;
   try {
-    let settings: AnyRecord = await desktopApi.settings.get();
+    const deferredAccount = cloudEnabled && preferencesOnly;
+    let settings: AnyRecord = deferredAccount ? await (await import('@/services/cloudApi')).loadCloudPreferences() : await desktopApi.settings.get();
     if (desktopApi.platform !== 'browser') {
       const requestedRoot = String(settings.projectRootDir || '');
       const ensuredRoot = await desktopApi.project.ensureRoot?.(requestedRoot);
@@ -202,7 +204,7 @@ export async function loadAppSettings() {
         settings = await desktopApi.settings.set({ ...settings, projectRootDir: ensuredRoot });
       }
     }
-    applySettings(settings);
+    applySettings(settings, deferredAccount);
     // Rust 网关生成时只从设置文件读取 baseUrl，因此加载后要把适配器算出的生效地址写回磁盘。
     if (desktopApi.platform !== 'browser' && providerConfigsNeedWrite(settings.providerConfigs)) {
       await saveAppSettings({ providerConfigs: toRaw(settingsStore.providerConfigs) });
@@ -210,6 +212,12 @@ export async function loadAppSettings() {
   } finally {
     settingsStore.loading = false;
   }
+}
+
+export async function refreshCloudAccountSettings() {
+  if (!cloudEnabled) return;
+  const account = await (await import('@/services/cloudApi')).loadCloudAccountSettings();
+  Object.assign(settingsStore, account, { providerConfigs: normalizeProviderConfigs(account.providerConfigs) });
 }
 
 function providerConfigsNeedWrite(stored: unknown) {

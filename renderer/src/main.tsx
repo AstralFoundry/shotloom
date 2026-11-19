@@ -1,7 +1,7 @@
 import { lazy, StrictMode, Suspense } from 'react';
 import { createRoot } from 'react-dom/client';
-import { AntdProvider } from './app/ui/antd/AntdProvider';
 import { CloudSession } from './app/CloudSession';
+import { readNativeWorkspaceBootstrap } from './app/nativeWorkspaceBootstrap';
 import '../styles/tokens.css';
 import '../styles/cloud.css';
 import '../styles/agent-theme.css';
@@ -28,13 +28,28 @@ import '../styles/creation-view.css';
 import '../styles/skills.css';
 import '../styles/responsive.css';
 
-if (new URLSearchParams(location.search).get('native') === 'embedded') document.documentElement.dataset.nativeEmbedded = 'true';
+if (new URLSearchParams(location.search).get('native') === 'embedded') {
+  performance.mark('shotloom-renderer-start');
+  document.documentElement.dataset.nativeEmbedded = 'true';
+}
+const nativeBootstrap = readNativeWorkspaceBootstrap();
+if (nativeBootstrap?.locale) {
+  try { localStorage.setItem('shotloom:locale', nativeBootstrap.locale); } catch { /* Storage can be unavailable. */ }
+}
 
 const container = document.getElementById('app');
 if (!container) throw new Error('Shotloom renderer root is missing');
-const ModelAdmin = lazy(() => import('./app/views/ModelAdmin').then(module => ({ default: module.ModelAdmin })));
-const ReactWorkbench = lazy(() => import('./app/ReactWorkbench').then(module => ({ default: module.ReactWorkbench })));
+const ModelAdmin = lazy(async () => {
+  const [{ ModelAdmin }, { AntdProvider }] = await Promise.all([import('./app/views/ModelAdmin'), import('./app/ui/antd/AntdProvider')]);
+  return { default: () => <AntdProvider><ModelAdmin /></AntdProvider> };
+});
+const loadWorkbench = async () => {
+  const [{ ReactWorkbench }, { AntdProvider }] = await Promise.all([import('./app/ReactWorkbench'), import('./app/ui/antd/AntdProvider')]);
+  return { default: () => <AntdProvider><ReactWorkbench /></AntdProvider> };
+};
+const ReactWorkbench = lazy(loadWorkbench);
 const isAdmin = location.pathname === '/admin' || location.pathname.startsWith('/admin/');
 const NativeSessionBridge = lazy(() => import('./app/NativeSessionBridge').then(module => ({ default: module.NativeSessionBridge })));
 const isNativeBridge = location.pathname === '/native';
-createRoot(container).render(<StrictMode><AntdProvider><CloudSession><Suspense fallback={null}>{isNativeBridge ? <NativeSessionBridge /> : isAdmin ? <ModelAdmin /> : <ReactWorkbench />}</Suspense></CloudSession></AntdProvider></StrictMode>);
+if (new URLSearchParams(location.search).get('native') === 'embedded' && !isAdmin && !isNativeBridge) void loadWorkbench().catch(() => {});
+createRoot(container).render(<StrictMode><CloudSession><Suspense fallback={null}>{isNativeBridge ? <NativeSessionBridge /> : isAdmin ? <ModelAdmin /> : <ReactWorkbench />}</Suspense></CloudSession></StrictMode>);

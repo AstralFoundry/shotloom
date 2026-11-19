@@ -1,7 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 capture() {
-  adb logcat -d | python3 -c 'import os,sys; cookie=os.environ.get("TEST_SESSION_COOKIE", ""); text=sys.stdin.read(); print(text.replace(cookie,"<REDACTED>").replace(cookie.partition("=")[2],"<REDACTED>") if cookie else text)' > acceptance/launch-log.txt
+  adb logcat -d | python3 -c '
+import base64,json,os,sys
+text=sys.stdin.read()
+cookie=os.environ.get("TEST_SESSION_COOKIE", "")
+native=os.environ.get("TEST_NATIVE_SESSION", "")
+for value in [cookie,cookie.partition("=")[2],native,base64.b64encode(native.encode()).decode(),json.loads(native).get("token", "") if native else ""]:
+    if value: text=text.replace(value,"<REDACTED>")
+print(text)
+' > acceptance/launch-log.txt
   adb exec-out screencap -p > acceptance/android-current.png
 }
 trap capture EXIT
@@ -49,9 +57,12 @@ adb shell am start -W -n com.shotloom.app.preview/.MainActivity
 wait_for_ui window 'new-api|让创作|Sign in|Log in'
 adb exec-out screencap -p > acceptance/android-launch.png
 test -n "$TEST_SESSION_COOKIE"
+native_session=$(printf '%s' "${TEST_NATIVE_SESSION:-}" | base64 -w0)
+session_args=()
+if [ -n "$native_session" ]; then session_args=(-e sessionBase64 "$native_session"); fi
 adb shell am force-stop com.shotloom.app.preview
 adb install acceptance/Shotloom-Session-Test.apk
-adb shell am instrument -w -e cookie "$TEST_SESSION_COOKIE" com.shotloom.acceptance/com.shotloom.acceptance.SessionInstrumentation > acceptance/session-setup.txt
+adb shell am instrument -w -e cookie "$TEST_SESSION_COOKIE" "${session_args[@]}" com.shotloom.acceptance/com.shotloom.acceptance.SessionInstrumentation > acceptance/session-setup.txt
 grep 'Test session installed' acceptance/session-setup.txt
 adb shell am start -W -n com.shotloom.app.preview/.MainActivity
 if [ -n "$BASELINE_RUN" ]; then
@@ -88,6 +99,12 @@ PY
 )
   adb shell input tap $coords
 }
+source .github/scripts/native-layout-acceptance.sh
+if [ "${LAYOUT_ONLY:-false}" = true ]; then
+  verify_native_layout
+  exit 0
+fi
+
 tap_text '^我的$|^My account$'
 wait_for_ui account '可用积分|Available credits'
 adb exec-out screencap -p > acceptance/android-account.png
@@ -175,9 +192,10 @@ capture
 
 # Inspect the same signed release; only the separate test APK enables CDP.
 adb shell am force-stop com.shotloom.app.preview
-adb shell am instrument -w -e cookie "$TEST_SESSION_COOKIE" -e debug 1 com.shotloom.acceptance/com.shotloom.acceptance.SessionInstrumentation > acceptance/canvas-instrumentation.txt &
+adb shell am instrument -w -e cookie "$TEST_SESSION_COOKIE" "${session_args[@]}" -e debug 1 com.shotloom.acceptance/com.shotloom.acceptance.SessionInstrumentation > acceptance/canvas-instrumentation.txt &
 wait_for_ui canvas-library 'Android Canvas Acceptance'
 pid=$(adb shell pidof com.shotloom.app.preview | tr -d '\r')
+if [ -z "${TEST_NATIVE_SESSION:-}" ]; then
 adb forward tcp:9222 "localabstract:webview_devtools_remote_$pid"
 node .github/scripts/native-session-reload-cdp.mjs > acceptance/session-reload-cdp.txt 2>&1 &
 reload_check=$!
@@ -211,6 +229,7 @@ for attempt in {1..30}; do
   sleep 1
 done
 test -f acceptance/pages-attached.marker
+fi
 tap_text '^我的$|^My account$'
 wait_for_ui account '可用积分|Available credits'
 tap_text '^设置$|^Settings$'
@@ -235,6 +254,7 @@ tap_text '^技能$|^Skills$'
 wait_for_ui skills 'Native Acceptance Skill'
 tap_text '^项目库$|^Project library$' last
 wait_for_ui canvas-library 'Android Canvas Acceptance'
+if [ -z "${TEST_NATIVE_SESSION:-}" ]; then
 touch acceptance/pages-warm.marker
 for attempt in {1..15}; do
   if [ -f acceptance/pages-counting.marker ]; then break; fi
@@ -251,6 +271,10 @@ for roundtrip in 1 2; do
 done
 touch acceptance/pages-roundtrip.marker
 wait "$pages_check"
+fi
+# Native sessions have no background WebView to inspect; exercise the actual workspace below.
+pid=$(adb shell pidof com.shotloom.app.preview | tr -d '\r')
+adb forward tcp:9222 "localabstract:webview_devtools_remote_$pid"
 node .github/scripts/native-canvas-cdp.mjs > acceptance/canvas-cdp.txt 2>&1 &
 canvas_check=$!
 tap_text 'Android Canvas Acceptance'
@@ -288,3 +312,5 @@ wait_for_ui canvas-reopen '110%'
 touch acceptance/canvas-reopen.marker
 wait "$canvas_check"
 adb exec-out screencap -p > acceptance/android-canvas-reopen.png
+
+verify_native_layout

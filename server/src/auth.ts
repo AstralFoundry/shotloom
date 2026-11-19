@@ -15,16 +15,18 @@ import {
   fetchUsageLogs,
 } from "./lib/gateway";
 import {
-  admin,
   upsertUser,
   createSession,
   loadSession,
   updateSessionTokens,
   deleteSession,
+  type DecryptedSession,
 } from "./lib/supabase";
-import { HttpError, unauthorized, supabaseError, badRequest } from "./lib/errors";
+import { HttpError, unauthorized, badRequest } from "./lib/errors";
 import { envelope } from "./lib/respond";
 import type { AppEnv } from "./lib/types";
+import { nativeCallback, nativeSession, issueNativeTicket, consumeNativeTicket, issueNativeToken } from './lib/nativeAuth';
+import { workspacePreloadFiles, workspacePreloadHtml } from './lib/workspacePreload';
 
 // 会话 Cookie 名与站点前缀统一从环境读取。
 function cookieOptions(maxAge?: number) {
@@ -56,11 +58,11 @@ function issueSessionCookie(c: Context<AppEnv>, sessionId: string): void {
 
 // Refresh rotation must be shared by concurrent requests in this server process.
 const refreshes = new Map<string, Promise<string>>();
-export function refreshSession(sessionId: string): Promise<string> {
+export function refreshSession(sessionId: string, authenticatedSession?: DecryptedSession): Promise<string> {
   const pending = refreshes.get(sessionId);
   if (pending) return pending;
   const refresh = (async () => {
-    const session = await loadSession(sessionId);
+    const session = authenticatedSession ?? await loadSession(sessionId);
     if (!session?.refreshToken) throw unauthorized();
     const tokens = await refreshAccessToken(session.refreshToken);
     await updateSessionTokens(sessionId, {
@@ -82,7 +84,7 @@ export function nativeRelaySession(c: Context<AppEnv>): string | undefined {
 }
 
 export const requireAuth: MiddlewareHandler<AppEnv> = async (c, next) => {
-  const sessionId = getCookie(c, env.COOKIE_NAME) || nativeRelaySession(c);
+  const sessionId = nativeSession(c) || getCookie(c, env.COOKIE_NAME) || nativeRelaySession(c);
   if (!sessionId) throw unauthorized();
 
   const session = await loadSession(sessionId);
@@ -96,7 +98,7 @@ export const requireAuth: MiddlewareHandler<AppEnv> = async (c, next) => {
   if (session.expiresAt - Date.now() < 60_000) {
     if (!session.refreshToken) throw unauthorized();
     try {
-      accessToken = await refreshSession(sessionId);
+      accessToken = await refreshSession(sessionId, session);
     } catch (error) {
       if (error instanceof HttpError && error.code === 'INVALID_GRANT') {
         await deleteSession(sessionId);
@@ -108,6 +110,7 @@ export const requireAuth: MiddlewareHandler<AppEnv> = async (c, next) => {
   }
 
   c.set("userId", session.userId);
+  c.set('user', session.user);
   c.set("accessToken", accessToken);
   c.set("sessionId", session.sessionId);
   await next();
@@ -118,28 +121,36 @@ export const authApp = new Hono<AppEnv>();
 // Supabase owns OAuth state, PKCE, identity verification and Auth cookies.
 authApp.get("/login", async c => {
   const redirect = sanitizeRedirect(c.req.query('redirect'));
+  const native = c.req.query('native_challenge') !== undefined || c.req.query('native_state') !== undefined
+    ? z.object({ challenge: z.string().regex(/^[A-Za-z0-9_-]{43}$/), state: z.string().uuid() }).safeParse({ challenge: c.req.query('native_challenge'), state: c.req.query('native_state') }) : undefined;
+  if (native && !native.success) throw badRequest('原生登录参数无效');
   const client = authClient(c);
   const { data, error } = await client.auth.signInWithOAuth({
     provider: env.SUPABASE_AUTH_PROVIDER as Provider,
     options: { redirectTo: new URL('/api/auth/callback', env.FRONTEND_URL).toString(), skipBrowserRedirect: true },
   });
   if (error || !data.url) throw new HttpError(502, 'AUTH_UNAVAILABLE', '登录服务暂不可用');
-  setCookie(c, 'shotloom_oauth', encrypt(JSON.stringify({ redirect, createdAt: Date.now() })), cookieOptions(600));
+  setCookie(c, 'shotloom_oauth', encrypt(JSON.stringify({ redirect, createdAt: Date.now(), ...(native?.success ? { native: native.data } : {}) })), cookieOptions(600));
   return c.redirect(data.url, 302);
 });
 
 authApp.get('/callback', async c => {
   const flow = getCookie(c, 'shotloom_oauth');
   deleteCookie(c, 'shotloom_oauth', { path: '/' });
-  const failed = (reason: string) => c.redirect(`${env.FRONTEND_URL}/?auth=error&reason=${reason}`, 302);
+  let native: { challenge: string; state: string } | undefined;
+  const failed = (reason: string) => c.redirect(native ? `${nativeCallback}?state=${native.state}&error=${reason}` : `${env.FRONTEND_URL}/?auth=error&reason=${reason}`, 302);
   const code = c.req.query('code');
-  if (!code || !flow || c.req.query('error')) return failed('invalid_state');
+  if (!flow) return failed('invalid_state');
   let redirect: string;
   try {
     const payload = JSON.parse(decrypt(flow));
     if (!Number.isFinite(payload.createdAt) || Date.now() - payload.createdAt > 600_000 || payload.createdAt > Date.now()) return failed('invalid_state');
     redirect = sanitizeRedirect(payload.redirect);
+    if (payload.native) {
+      native = z.object({ challenge: z.string().regex(/^[A-Za-z0-9_-]{43}$/), state: z.string().uuid() }).parse(payload.native);
+    }
   } catch { return failed('invalid_state'); }
+  if (!code || c.req.query('error')) return failed('invalid_state');
   const client = authClient(c);
   try {
     const { data, error } = await client.auth.exchangeCodeForSession(code);
@@ -157,6 +168,11 @@ authApp.get('/callback', async c => {
       tokenType: 'Bearer',
       expiresAt: Date.now() + 3600_000,
     });
+    if (native) {
+      const ticket = issueNativeTicket({ kind: 'login', sessionId, challenge: native.challenge });
+      c.header('Referrer-Policy', 'no-referrer');
+      return c.redirect(`${nativeCallback}?code=${ticket}&state=${native.state}`, 302);
+    }
     issueSessionCookie(c, sessionId);
     return c.redirect(redirect, 302);
   } catch {
@@ -165,11 +181,44 @@ authApp.get('/callback', async c => {
   }
 });
 
+authApp.post('/native/exchange', async c => {
+  const body = z.object({ code: z.string().regex(/^[A-Za-z0-9_-]{43}$/), verifier: z.string().min(43).max(128) }).strict().safeParse(await c.req.json().catch(() => null));
+  if (!body.success) throw badRequest('登录凭据无效');
+  const ticket = consumeNativeTicket(body.data.code, 'login', body.data.verifier);
+  const session = await loadSession(ticket.sessionId);
+  if (!session) throw unauthorized();
+  return c.json(envelope({ token: issueNativeToken(ticket.sessionId), userId: session.userId }));
+});
+
+authApp.post('/native/workspace-ticket', requireAuth, async c => {
+  const body = z.object({ redirect: z.string().max(2048) }).strict().safeParse(await c.req.json().catch(() => null));
+  if (!body.success) throw badRequest('工作区地址无效');
+  let target: URL;
+  try { target = new URL(body.data.redirect, env.FRONTEND_URL); }
+  catch { throw badRequest('工作区地址无效'); }
+  if (target.origin !== new URL(env.FRONTEND_URL).origin || target.pathname !== '/' || target.hash) throw badRequest('工作区地址无效');
+  const code = issueNativeTicket({ kind: 'workspace', sessionId: c.get('sessionId'), redirect: target.toString() });
+  return c.json(envelope({ code }));
+});
+
+authApp.post('/native/workspace', async c => {
+  const body = await c.req.parseBody();
+  if (typeof body.code !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(body.code)) throw badRequest('工作区凭据无效');
+  const ticket = consumeNativeTicket(body.code, 'workspace');
+  if (ticket.kind !== 'workspace') throw unauthorized();
+  const session = await loadSession(ticket.sessionId);
+  if (!session) throw unauthorized();
+  issueSessionCookie(c, ticket.sessionId);
+  c.header('Referrer-Policy', 'no-referrer');
+  c.header('Cache-Control', 'no-store');
+  if (new URL(ticket.redirect).searchParams.get('native') === 'prewarm') {
+    return c.html(workspacePreloadHtml(session.userId, await workspacePreloadFiles()));
+  }
+  return c.redirect(ticket.redirect, 303);
+});
+
 authApp.get("/me", requireAuth, async (c) => {
-  const userId = c.get("userId");
-  const { data, error } = await admin.from("users").select("*").eq("id", userId).single();
-  if (error) throw supabaseError(error.message);
-  return c.json(envelope({ id: data.id, sub: data.sub, username: data.username, email: data.email }));
+  return c.json(envelope(c.get('user')));
 });
 
 authApp.get('/account', requireAuth, async c => c.json(envelope(await fetchUserInfo(c.get('accessToken')))));
@@ -192,14 +241,15 @@ authApp.post('/topup', requireAuth, async c => {
 });
 
 authApp.post("/logout", async (c) => {
-  const sessionId = getCookie(c, env.COOKIE_NAME);
+  const nativeId = nativeSession(c);
+  const sessionId = nativeId || getCookie(c, env.COOKIE_NAME);
   if (sessionId) {
     (await import('./agent')).closeAgentSession(sessionId);
     const session = await loadSession(sessionId);
     if (session?.refreshToken) await revokeToken(session.refreshToken);
     await deleteSession(sessionId);
   }
-  const { error } = await authClient(c).auth.signOut({ scope: 'local' });
+  const { error } = nativeId ? { error: null } : await authClient(c).auth.signOut({ scope: 'local' });
   deleteCookie(c, env.COOKIE_NAME, { path: "/" });
   if (error) throw new HttpError(502, 'LOGOUT_FAILED', '退出登录未完成，请重试');
   return c.json(envelope(null, "已登出"));

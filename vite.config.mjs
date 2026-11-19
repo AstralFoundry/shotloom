@@ -23,6 +23,7 @@ export default defineConfig({
     },
   },
   build: {
+    manifest: true,
     outDir: path.join(rootDir, 'dist', 'renderer'),
     emptyOutDir: true,
     // 桌面端从本地磁盘加载 dist/renderer，百万字节级的 vendor chunk 不是网络问题；
@@ -31,6 +32,8 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: path.join(rootDir, 'renderer', 'index.html'),
+        home: path.join(rootDir, 'renderer', 'home.html'),
+        download: path.join(rootDir, 'renderer', 'download.html'),
       },
       output: {
         // React 与 antd 各自独立：组件库升级不会让 React 缓存失效，反之亦然。

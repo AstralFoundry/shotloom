@@ -42,7 +42,7 @@ test('the native login gate reports expired or unavailable sessions after a back
     builder.onResolve({ filter: /services\/cloudRequest$/ }, () => ({ path: 'network', namespace: 'fixture' }));
     builder.onResolve({ filter: /^\.\.\/i18n$/ }, () => ({ path: 'i18n', namespace: 'fixture' }));
     builder.onResolve({ filter: /components\/SocialAuth$/ }, () => ({ path: 'social', namespace: 'fixture' }));
-    builder.onLoad({ filter: /.*/, namespace: 'fixture' }, ({path}) => ({ contents: path==='network' ? `exports.cloudEnabled=true;exports.cloudOrigin='https://shotloom.0xfiang.com';exports.bindCloudUser=()=>true;` : path==='i18n' ? `exports.t=x=>x;` : `exports.SocialAuth=()=>null;` }));
+    builder.onLoad({ filter: /.*/, namespace: 'fixture' }, ({path}) => ({ contents: path==='network' ? `exports.cloudEnabled=true;exports.cloudOrigin='https://shotloom.0xfiang.com';exports.bindCloudUser=()=>true;exports.readCloudSession=async()=>{const response=await fetch('/api/auth/me');if(!response.ok)throw Object.assign(new Error('Unavailable'),{status:response.status});return (await response.json()).data};` : path==='i18n' ? `exports.t=x=>x;` : `exports.SocialAuth=()=>null;` }));
   } }] });
   const module = { exports: {} as { CloudSession: React.ComponentType<React.PropsWithChildren> } };
   new Function('require','module','exports',result.outputFiles[0]!.text)(createRequire(import.meta.url),module,module.exports);

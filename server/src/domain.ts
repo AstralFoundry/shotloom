@@ -12,6 +12,10 @@ import * as store from "./lib/store";
 import { pickMobileSettings } from '../../shared/mobileSettings';
 import { relayPath } from './lib/relay';
 import { remoteMedia } from './lib/remoteMedia';
+import { readdirSync } from 'node:fs';
+import { nativeSession } from './lib/nativeAuth';
+
+const systemSkillIds = readdirSync(new URL('../../renderer/src/agent/content/skills/', import.meta.url), { withFileTypes: true }).filter(entry => entry.isDirectory()).map(entry => entry.name);
 
 // ---------------------------------------------------------------------------
 // 校验辅助
@@ -220,10 +224,14 @@ domainApp.put("/settings/token-group", async (c) => {
 // ---------------------------------------------------------------------------
 // 目录（skills / recipes / assets / materials）
 // ---------------------------------------------------------------------------
-domainApp.get("/catalog/:kind", async (c) => {
+domainApp.get("/catalog/:kind", async (c): Promise<Response> => {
   const userId = c.get("userId");
   const kind = parseOrBadRequest(kindSchema, c.req.param("kind"));
-  return c.json(envelope(await store.loadCatalog(userId, kind, CATALOG_FALLBACKS[kind] ?? {})));
+  const catalog = await store.loadCatalog(userId, kind, CATALOG_FALLBACKS[kind] ?? {});
+  if (kind === 'skills' && nativeSession(c) && catalog && typeof catalog === 'object' && !Array.isArray(catalog)) {
+    return c.json(envelope({ ...catalog, systemSkillIds }));
+  }
+  return c.json(envelope(catalog));
 });
 
 domainApp.put("/catalog/:kind", async (c) => {

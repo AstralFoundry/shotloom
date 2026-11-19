@@ -6,7 +6,7 @@ import type { MobileSettings } from '../../../shared/mobileSettings';
 
 declare global {
   interface Window {
-    ReactNativeWebView?: { postMessage: (message: string) => void };
+    ReactNativeWebView?: { postMessage: (message: string) => void; injectedObjectJson?: () => string };
     __shotloomNativeRequest?: (request: NativeRequest) => void;
   }
 }

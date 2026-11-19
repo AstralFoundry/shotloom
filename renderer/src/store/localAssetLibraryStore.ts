@@ -41,17 +41,20 @@ async function persistCatalog() {
   localAssetLibrary.catalog = normalizeCatalog(await desktopApi.localAssets.setCatalog(snapshot));
 }
 
-export async function loadLocalAssetLibrary(force = false) {
-  if (localAssetLibrary.loaded && !force) return localAssetLibrary.catalog;
-  if (localAssetLibrary.loading) return localAssetLibrary.catalog;
+let catalogRead: Promise<ReturnType<typeof emptyCatalog>> | undefined;
+export function loadLocalAssetLibrary(force = false): Promise<ReturnType<typeof emptyCatalog>> {
+  if (catalogRead) return catalogRead;
+  if (localAssetLibrary.loaded && !force) return Promise.resolve(localAssetLibrary.catalog);
   localAssetLibrary.loading = true;
-  try {
+  catalogRead = (async () => {
     localAssetLibrary.catalog = normalizeCatalog(await desktopApi.localAssets.getCatalog());
     localAssetLibrary.loaded = true;
     return localAssetLibrary.catalog;
-  } finally {
+  })().finally(() => {
+    catalogRead = undefined;
     localAssetLibrary.loading = false;
-  }
+  });
+  return catalogRead;
 }
 
 function extensionFor(material: AnyRecord) {
@@ -240,8 +243,8 @@ export async function releaseAllLocalAssetReferences(projectKey: string) {
   if (before !== localAssetLibrary.catalog.references.length) await persistCatalog();
 }
 
-export async function reconcileCurrentProjectLocalAssetReferences() {
-  await loadLocalAssetLibrary(true);
+export async function reconcileCurrentProjectLocalAssetReferences(refresh = true) {
+  await loadLocalAssetLibrary(refresh);
   const identity = projectIdentity();
   const before = JSON.stringify(localAssetLibrary.catalog.references);
   const materials = (store.project.materials || []).filter((material: AnyRecord) => (

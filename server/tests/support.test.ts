@@ -19,6 +19,7 @@ test('feedback, administrator reply and inbox persist through the HTTP boundary 
   const originalFetch = globalThis.fetch;
   const user = randomUUID(), other = randomUUID(), admin = randomUUID(), foreign = randomUUID();
   const sessions = new Map([[randomUUID(), user], [randomUUID(), other], [randomUUID(), admin], [randomUUID(), foreign]]);
+  let sessionReads = 0;
   try {
     await db.exec(`create role anon; create role authenticated; create role service_role bypassrls;
       create schema shotloom;
@@ -36,9 +37,12 @@ test('feedback, administrator reply and inbox persist through the HTTP boundary 
       const url = new URL(String(input));
       const table = url.pathname.split('/').at(-1);
       if (table === 'sessions') {
+        sessionReads++;
         const sessionId = url.searchParams.get('id')?.slice(3) || '';
         const userId = sessions.get(sessionId);
-        return Response.json(userId ? { id: sessionId, user_id: userId, access_token_cipher: encrypt('token'),
+        assert.equal(url.searchParams.get('owner.client_id'), 'eq.nac_test');
+        const owner = await db.query('select id from shotloom.users where id=$1 and client_id=$2', [userId, 'nac_test']);
+        return Response.json(owner.rows[0] ? { id: sessionId, user_id: userId, owner: { ...owner.rows[0], sub: '1', username: null, email: null }, access_token_cipher: encrypt('token'),
           refresh_token_cipher: null, created_at: new Date().toISOString(), expires_at: new Date(Date.now() + 3600000).toISOString() } : null);
       }
       if (table === 'users') {
@@ -68,7 +72,9 @@ test('feedback, administrator reply and inbox persist through the HTTP boundary 
       ...(value === undefined ? {} : { body: JSON.stringify(value) }),
     });
     const data = async (response: Response, status = 200) => { const body = await response.json(); assert.equal(response.status, status, JSON.stringify(body)); return body.data; };
-    assert.equal((await app.request('/api/feedback')).status, 401);
+    for (const path of ['/feedback', `/feedback/${randomUUID()}`, '/notifications', '/admin/feedback', `/admin/feedback/${randomUUID()}`]) {
+      assert.equal((await app.request(`/api${path}`)).status, 401, `${path} must remain authenticated`);
+    }
     assert.equal((await request(foreign, '/feedback')).status, 401);
     assert.equal((await request(user, '/feedback', 'POST', { description: '' })).status, 400);
     assert.equal((await request(user, '/feedback', 'POST', { id: randomUUID(), kind: 'feedback', description: 'ok', user_id: other })).status, 400);
@@ -76,7 +82,9 @@ test('feedback, administrator reply and inbox persist through the HTTP boundary 
     const saved = await data(await request(user, '/feedback', 'POST', submission), 201);
     assert.equal(saved.user_id, user); assert.equal(saved.status, 'pending');
     await data(await request(user, '/feedback', 'POST', submission), 201);
+    const beforeList = sessionReads;
     assert.equal((await data(await request(user, '/feedback'))).total, 1);
+    assert.equal(sessionReads - beforeList, 1, 'feedback list must authenticate exactly once');
     assert.equal((await request(user, '/feedback', 'POST', { ...submission, description: 'changed' })).status, 409);
     assert.equal((await data(await request(other, '/feedback'))).total, 0);
     assert.equal((await request(other, `/feedback/${saved.id}`)).status, 404);
@@ -89,7 +97,9 @@ test('feedback, administrator reply and inbox persist through the HTTP boundary 
     const thread = await data(await request(user, `/feedback/${saved.id}`));
     assert.equal(thread.replies.length, 1); assert.equal(thread.replies[0].body, reply.body);
     assert.equal(thread.item.revision, 2);
+    const beforeInbox = sessionReads;
     const inbox = await data(await request(user, '/notifications'));
+    assert.equal(sessionReads - beforeInbox, 1, 'notification list must authenticate exactly once');
     assert.equal(inbox.unread, 1); assert.equal(inbox.total, 1); assert.equal(inbox.items[0].feedback_id, saved.id);
     assert.equal((await data(await request(other, '/notifications'))).total, 0);
     assert.equal((await request(other, `/notifications/${inbox.items[0].id}/read`, 'PUT')).status, 404);

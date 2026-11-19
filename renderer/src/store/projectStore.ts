@@ -741,9 +741,10 @@ export async function trashProjectLibraryFolder(folderDir: string, projects: Arr
   }
 }
 
-export async function loadBoundWindowProject() {
+export async function loadBoundWindowProject(beforeApply?: () => Promise<boolean>) {
   const projectDir = await desktopApi.project.getWindowProjectDir?.();
   if (!projectDir) {
+    if (beforeApply && !await beforeApply()) return false;
     // 浏览器预览没有窗口级项目绑定，以项目库记录校验恢复会话，避免清空项目库后
     // localStorage 里的旧项目仍然点得进“继续创作”。
     if (desktopApi.platform === 'browser' && hasOpenProject()) {
@@ -759,6 +760,9 @@ export async function loadBoundWindowProject() {
   // skipping the read in that case lets the stale session overwrite disk on
   // the first touch/autosave.
   const filePath = `${projectDir.replace(/[\\/]$/, '')}/project.sqlite`;
+  const catalogReady = cloudEnabled && new URLSearchParams(window.location.search).get('native') === 'embedded'
+    ? import('@/store/localAssetLibraryStore').then(module => module.loadLocalAssetLibrary(true)) : undefined;
+  void catalogReady?.catch(() => {});
   let timer: number | undefined;
   let project: AnyRecord;
   try {
@@ -769,6 +773,7 @@ export async function loadBoundWindowProject() {
       }),
     ]);
   } catch (error) {
+    if (beforeApply && !await beforeApply()) return false;
     // 仅当磁盘上的项目文件仍然存在时，才允许使用同一路径的本地快照应对临时
     // 读取超时。项目已经被移动或删除时必须解除绑定，不能显示一个幽灵项目。
     const fileStillExists = await desktopApi.file.pathExists(filePath).catch(() => false);
@@ -788,7 +793,9 @@ export async function loadBoundWindowProject() {
   } finally {
     if (timer) window.clearTimeout(timer);
   }
-  return applyOpenedProject({ project, filePath, projectDir });
+  // Network reads can overlap settings; project changes must wait for their validation.
+  if (beforeApply && !await beforeApply()) return false;
+  return applyOpenedProject({ project, filePath, projectDir }, catalogReady);
 }
 
 /**
@@ -825,7 +832,7 @@ export async function restoreProjectSnapshot(snapshotId: string) {
   return { ok: true as const };
 }
 
-async function applyOpenedProject(result: AnyRecord) {
+async function applyOpenedProject(result: AnyRecord, catalogReady?: Promise<unknown>) {
   if (!canChangeProjectContext()) return false;
   stopActiveTaskPolling();
   store.project = normalizeProject(result.project);
@@ -840,7 +847,7 @@ async function applyOpenedProject(result: AnyRecord) {
     '@/store/localAssetLibraryStore'
   );
   const [references, restoredFiles] = await Promise.allSettled([
-    reconcileCurrentProjectLocalAssetReferences(),
+    (catalogReady || Promise.resolve()).then(() => reconcileCurrentProjectLocalAssetReferences(!catalogReady)),
     restoreMissingGeneratedFiles(store.project),
   ]);
   if (references.status === 'rejected') throw references.reason;
@@ -859,14 +866,16 @@ async function applyOpenedProject(result: AnyRecord) {
   if (restoration.failures.length) {
     showErrorMessage(t('project.restoreFailed', { count: restoration.failures.length }), t('project.restorePartial'));
   }
-  await desktopApi.recent.add({
+  const recent = desktopApi.recent.add({
     name: store.project.name,
     folderName: store.project.library?.name || '',
     seriesName: store.project.series?.name || '',
     filePath: store.filePath,
     projectDir: store.projectDir,
-  });
-  await loadRecentProjects();
+  }).then(() => loadRecentProjects());
+  if (cloudEnabled && new URLSearchParams(window.location.search).get('native') === 'embedded') {
+    void recent.catch((cause: unknown) => showErrorMessage(String(cause)));
+  } else await recent;
   persistSession();
   showToast(t('project.opened'), 'success');
   return true;

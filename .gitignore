@@ -14,6 +14,7 @@ mobile/src-tauri/gen/
 mobile/src-tauri/icons/
 mobile/build/
 mobile/native/.expo/
+mobile/native/dist-audit/
 mobile/native/android/
 mobile/native/ios/
 src-tauri/browser/

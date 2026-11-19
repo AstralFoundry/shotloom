@@ -141,7 +141,10 @@ export type Database = {
       agent_events: Table<{ user_id: string; session_id: string; seq: number; payload: Json }>;
       agent_state: Table<{ user_id: string; scope: string; key: string; payload: Json }>;
       users: Table<UserRow>;
-      sessions: Table<SessionRow>;
+      sessions: Omit<Table<SessionRow>, 'Relationships'> & { Relationships: [{
+        foreignKeyName: 'sessions_user_id_fkey'; columns: ['user_id']; isOneToOne: false;
+        referencedRelation: 'users'; referencedColumns: ['id'];
+      }] };
       projects: Table<ProjectRow>;
       nodes: Table<ProjectCollectionRow>;
       edges: Table<ProjectCollectionRow>;

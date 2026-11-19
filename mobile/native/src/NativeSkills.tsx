@@ -34,7 +34,7 @@ export function NativeSkills({ api, active: pageActive = true }: { api: NativeAp
       .catch(cause => { if (active) setError(String(cause.message || cause)); }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [api, revision, pageActive]));
-  const all = (catalog?.skills || []).filter(skill => !skill.builtIn);
+  const all = (catalog?.skills || []).filter(skill => !skill.builtIn && !catalog?.systemSkillIds?.includes(skill.id));
   const needle = query.trim().toLocaleLowerCase();
   const items = all.filter(skill => [skill.name, skill.id, skill.description, skill.category].join(' ').toLocaleLowerCase().includes(needle)).sort((a, b) => Number(b.enabled !== false) - Number(a.enabled !== false) || a.name.localeCompare(b.name));
   const run = async (operation: () => Promise<void>) => {
@@ -55,6 +55,7 @@ export function NativeSkills({ api, active: pageActive = true }: { api: NativeAp
   const patch = (value: Partial<Skill>) => setEditor(current => current ? { ...current, draft: { ...current.draft, ...value } } : current);
   const save = () => run(async () => {
     if (!editor) return;
+    if (editor.original && JSON.stringify(editor.draft) === editor.baseline) { setEditor(undefined); return; }
     setCatalog(await saveSkills(api, [editor.draft], { create: !editor.original, expected: editor.original }));
     setEditor(undefined);
   });

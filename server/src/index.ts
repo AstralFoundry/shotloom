@@ -2,10 +2,8 @@ import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { bodyLimit } from "hono/body-limit";
-import { serveStatic } from "@hono/node-server/serve-static";
 import { fileURLToPath } from 'node:url';
-import { relative } from 'node:path';
-import { existsSync } from 'node:fs';
+import { createSiteApp } from './site';
 import { authApp, nativeRelaySession } from "./auth";
 import { domainApp } from "./domain";
 import { modelsApp } from './models';
@@ -15,6 +13,7 @@ import { env } from "./env";
 import { HttpError } from "./lib/errors";
 import { envelope } from "./lib/respond";
 import type { AppEnv } from "./lib/types";
+import { nativeSession } from './lib/nativeAuth';
 
 export const app = new Hono<AppEnv>();
 
@@ -25,7 +24,10 @@ app.use("/api/*", async (c, next) => {
   c.header("X-Content-Type-Options", "nosniff");
   if (!["GET", "HEAD", "OPTIONS"].includes(c.req.method)) {
     const origin = c.req.header("origin");
-    if ((!origin || origin !== new URL(env.FRONTEND_URL).origin) && !nativeRelaySession(c)) {
+    // Android's initial WebView POST has an opaque origin; its one-time code authorizes only this handoff.
+    const handoff = c.req.method === 'POST' && ((!origin && c.req.path === '/api/auth/native/exchange')
+      || ((!origin || origin === 'null') && c.req.path === '/api/auth/native/workspace'));
+    if ((!origin || origin !== new URL(env.FRONTEND_URL).origin) && !nativeRelaySession(c) && !nativeSession(c) && !handoff) {
       return c.json({ success: false, message: "请求来源无效", data: null }, 403);
     }
   }
@@ -39,18 +41,7 @@ app.route('/api', modelsApp);
 app.route('/api', supportApp);
 app.route("/api", domainApp);
 const rendererDirectory = fileURLToPath(new URL('../../dist/renderer/', import.meta.url));
-if (existsSync(rendererDirectory)) {
-  const root = relative(process.cwd(), rendererDirectory).replace(/\\/g, '/');
-  app.get('/*', async (c, next) => {
-    // Stable runtime and HTML URLs must revalidate when a release changes their contents.
-    if (!c.req.path.startsWith('/api/')) c.header('Cache-Control', 'no-cache');
-    return serveStatic({ root })(c, next);
-  });
-  app.get('/*', async (c, next) => {
-    if (c.req.path.startsWith('/api/') || !c.req.header('accept')?.includes('text/html')) return next();
-    return serveStatic({ root, path: 'index.html' })(c, next);
-  });
-}
+app.route('/', createSiteApp(rendererDirectory));
 
 app.notFound((c) =>
   c.json({ success: false, message: "接口不存在", data: null }, 404),

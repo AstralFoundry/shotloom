@@ -36,7 +36,7 @@ test('model publication APIs enforce administrator membership, app scope, config
       generated++; return Response.json({ choices: [{ message: { content: 'ok' } }] });
     }
     const table = url.pathname.split('/').at(-1);
-    if (table === 'sessions') return Response.json({ id: sessionId, user_id: userId,
+    if (table === 'sessions') return Response.json({ id: sessionId, user_id: userId, owner: { id: userId, sub: '1', username: null, email: null },
       access_token_cipher: encrypt('private-oauth-token'), refresh_token_cipher: null,
       created_at: new Date().toISOString(), expires_at: new Date(Date.now() + 3600000).toISOString() });
     if (table === 'users') { assert.equal(url.searchParams.get('client_id'), 'eq.nac_test'); return Response.json({ id: userId }); }

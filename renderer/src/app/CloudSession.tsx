@@ -1,36 +1,45 @@
 import { type ReactNode, useEffect, useState } from 'react';
-import { bindCloudUser, cloudEnabled, cloudOrigin, cloudRequest } from '../services/cloudRequest';
+import { bindCloudUser, cloudEnabled, cloudRequest, readCloudSession } from '../services/cloudRequest';
+import { readNativeWorkspaceBootstrap } from './nativeWorkspaceBootstrap';
 import { t } from '../i18n';
 import { SocialAuth } from './components/SocialAuth';
 
 export function CloudSession({ children }: { children: ReactNode }) {
-  const [status, setStatus] = useState<'loading' | 'ready' | 'login' | 'error' | 'account'>(cloudEnabled ? 'loading' : 'ready');
-  const [opened, setOpened] = useState(!cloudEnabled);
+  const [nativeUser] = useState(() => {
+    const user = cloudEnabled ? readNativeWorkspaceBootstrap()?.userId : undefined;
+    return user && bindCloudUser(user) ? user : undefined;
+  });
+  const [status, setStatus] = useState<'loading' | 'ready' | 'login' | 'error' | 'account'>(!cloudEnabled || nativeUser ? 'ready' : 'loading');
+  const [opened, setOpened] = useState(!cloudEnabled || Boolean(nativeUser));
   const [retry, setRetry] = useState(0);
   useEffect(() => {
-    if (new URLSearchParams(location.search).get('native') === 'embedded' && ['login', 'account', 'error'].includes(status)) window.ReactNativeWebView?.postMessage(JSON.stringify({ type: 'workspace-blocked' }));
+    if (new URLSearchParams(location.search).get('native') === 'embedded' && ['login', 'account', 'error'].includes(status)) window.ReactNativeWebView?.postMessage(JSON.stringify({ type: 'workspace-blocked', status }));
     if (location.pathname !== '/native') return;
     if (status === 'login' || status === 'account') window.ReactNativeWebView?.postMessage(JSON.stringify({ type: 'login' }));
     else if (status === 'error') window.ReactNativeWebView?.postMessage(JSON.stringify({ type: 'error', error: t('cloud.login.unavailable') }));
   }, [status]);
   useEffect(() => {
     if (!cloudEnabled) return;
+    if (nativeUser && !bindCloudUser(nativeUser)) { setStatus('account'); return; }
     let active = true;
     const expired = () => setStatus('login');
     window.addEventListener('shotloom-session-expired', expired);
     const check = () => {
-      void fetch(`${cloudOrigin}/api/auth/me`, { credentials: 'include' }).then(async response => {
-        const user = response.ok ? (await response.json()).data as { id: string } : undefined;
+      void readCloudSession().then(user => {
         if (!active) return;
-        if (user && !bindCloudUser(user.id)) { setStatus('account'); return; }
-        setStatus(response.ok ? 'ready' : response.status === 401 ? 'login' : 'error');
-        if (response.ok) setOpened(true);
-      }).catch(() => { if (active) setStatus('error'); });
+        if (!bindCloudUser(user.id)) { setStatus('account'); return; }
+        setStatus('ready'); setOpened(true);
+      }).catch(cause => {
+        if (!active) return;
+        if (cause.code === 'ACCOUNT_CHANGED') setStatus('account');
+        else if (cause.status === 401) setStatus('login');
+        else setStatus(previous => previous === 'ready' ? previous : 'error');
+      });
     };
     check();
     window.addEventListener('focus', check);
     return () => { active = false; window.removeEventListener('shotloom-session-expired', expired); window.removeEventListener('focus', check); };
-  }, [retry]);
+  }, [retry, nativeUser]);
   if (status === 'loading' && !opened) return <main className="cloud-session-loading" role="status" aria-live="polite">
     <img src="/shotloom-logo.png" alt="Shotloom" width="48" height="48" />
     <span className="cloud-session-progress" aria-hidden="true" />

@@ -1,12 +1,12 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, AppState, BackHandler, FlatList, KeyboardAvoidingView, Modal, Platform, Pressable, RefreshControl, ScrollView, StatusBar, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, AppState, BackHandler, FlatList, Image, KeyboardAvoidingView, Modal, Platform, Pressable, RefreshControl, ScrollView, StatusBar, Text, TextInput, View } from 'react-native';
 import { NavigationContainer, useFocusEffect } from '@react-navigation/native';
 import { createNativeStackNavigator, type NativeStackScreenProps } from '@react-navigation/native-stack';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import { randomUUID } from 'expo-crypto';
-import { NativeApi } from './api';
-import { isSessionSource } from './sessionSource';
+import { NativeApi, createNativeApi } from './api';
+import { restoreSession, clearSession, login, workspaceSource, type NativeSession } from './session';
 import { SvgXml } from 'react-native-svg';
 import { colors, styles, Icon, IconButton, Button as Action } from './ui';
 import { noProjectIllustration } from './illustration';
@@ -23,6 +23,8 @@ const Stack = createNativeStackNavigator<Routes>();
 const SettingsChanged = createContext({ revision: 0, changed: () => {} });
 const PageActive = createContext(true);
 const ApiContext = createContext<NativeApi | null>(null);
+const SessionContext = createContext<(NativeSession & { expire: () => void }) | null>(null);
+const WorkspaceCookieReady = createContext(false);
 function useApi() { const value = useContext(ApiContext); if (!value) throw new Error('Session unavailable'); return value; }
 const errorText = (value: unknown) => value instanceof Error ? value.message : String(value);
 const date = (value: string) => new Date(value).toLocaleString(language);
@@ -34,21 +36,32 @@ function useRemote<T>(path: string) {
   const api = useApi();
   const pageActive = useContext(PageActive);
   const force = useRef(false);
+  const showRefresh = useRef(false);
+  const dataVersion = useRef(0);
   const [data, setData] = useState<T | undefined>(() => api.cached<T>(path));
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => api.cached(path) === undefined);
   const [revision, setRevision] = useState(0);
-  const refresh = useCallback(() => { force.current = true; setRevision(value => value + 1); }, []);
+  const updateData = useCallback<typeof setData>(value => { dataVersion.current++; setData(value); }, []);
+  const refresh = useCallback(() => { force.current = true; showRefresh.current = true; setRevision(value => value + 1); }, []);
   useFocusEffect(useCallback(() => {
     if (!pageActive) return;
     let active = true;
+    const version = dataVersion.current;
     const bypass = force.current; force.current = false;
-    setLoading(api.cached(path) === undefined || bypass); setError('');
-    void api.read<T>(path, bypass).then(value => { if (active) setData(value); }).catch(cause => { if (active) setError(errorText(cause)); }).finally(() => { if (active) setLoading(false); });
-    const subscription = AppState.addEventListener('change', state => { if (state === 'active') refresh(); });
+    const cached = api.cached<T>(path);
+    setLoading(cached === undefined || showRefresh.current); showRefresh.current = false; setError('');
+    if (cached !== undefined) setData(cached);
+    const read = path === '/auth/me' && cached !== undefined && !bypass ? Promise.resolve(cached) : api.read<T>(path, bypass);
+    void read.then(value => { if (active && version === dataVersion.current) setData(value); }).catch(cause => { if (active && version === dataVersion.current) setError(errorText(cause)); }).finally(() => { if (active) setLoading(false); });
+    let previousState = AppState.currentState;
+    const subscription = AppState.addEventListener('change', state => {
+      if (state === 'active' && previousState !== 'active') { force.current = true; setRevision(value => value + 1); }
+      previousState = state;
+    });
     return () => { active = false; subscription.remove(); };
   }, [api, path, revision, refresh, pageActive]));
-  return { data, error, loading, refresh };
+  return { data, error, loading, refresh, setData: updateData };
 }
 type Project = { id: string; name: string; cloudFolderId?: string | null; updatedAt?: string; nodeCount?: number };
 type Folder = { id: string; parentId: string | null; name: string };
@@ -127,7 +140,7 @@ function Home({ navigation }: NativeStackScreenProps<Routes, 'Home'>) {
   const [currentProject, setCurrentProject] = useState<Project>();
   const [visited, setVisited] = useState(['projects']);
   useEffect(() => { setVisited(value => value.includes(tab) ? value : [...value, tab]); }, [tab]);
-  const open = (project: Project) => { setCurrentProject(current => current?.id === project.id ? current : project); setTab('creation'); };
+  const open = (project: Project) => { performance.mark('shotloom-native-canvas-open'); setCurrentProject(current => current?.id === project.id ? current : project); setTab('creation'); };
   useFocusEffect(useCallback(() => {
     if (tab !== 'creation') return;
     const listener = BackHandler.addEventListener('hardwareBackPress', () => { setTab('projects'); return true; });
@@ -140,10 +153,10 @@ function Home({ navigation }: NativeStackScreenProps<Routes, 'Home'>) {
     { id: 'account', label: t('account.title'), icon: 'user' },
   ];
   return <SafeAreaView style={styles.screen}><StatusBar barStyle="dark-content" backgroundColor={colors.background} /><View style={styles.grow}>
-    {visited.includes('projects') && <View style={[styles.screen, tab !== 'projects' && styles.parkedWorkspace]}><PageActive.Provider value={tab === 'projects'}><Projects navigation={navigation} onOpen={open} /></PageActive.Provider></View>}
-    {visited.includes('account') && <View style={[styles.screen, tab !== 'account' && styles.parkedWorkspace]}><PageActive.Provider value={tab === 'account'}><Account navigation={navigation} /></PageActive.Provider></View>}
-    {visited.includes('skills') && <View style={[styles.screen, tab !== 'skills' && styles.parkedWorkspace]}><NativeSkills api={api} active={tab === 'skills'} /></View>}
-    {currentProject && <View style={[styles.screen, tab !== 'creation' && styles.parkedWorkspace]} pointerEvents={tab === 'creation' ? 'auto' : 'none'} accessibilityElementsHidden={tab !== 'creation'} importantForAccessibility={tab === 'creation' ? 'auto' : 'no-hide-descendants'}><WebContent key={currentProject.id} params={currentProject} /></View>}
+    {visited.includes('projects') && <View style={[styles.screen, tab !== 'projects' && styles.parkedWorkspace]} pointerEvents={tab === 'projects' ? 'auto' : 'none'} accessibilityElementsHidden={tab !== 'projects'} importantForAccessibility={tab === 'projects' ? 'auto' : 'no-hide-descendants'}><PageActive.Provider value={tab === 'projects'}><Projects navigation={navigation} onOpen={open} /></PageActive.Provider></View>}
+    {visited.includes('account') && <View style={[styles.screen, tab !== 'account' && styles.parkedWorkspace]} pointerEvents={tab === 'account' ? 'auto' : 'none'} accessibilityElementsHidden={tab !== 'account'} importantForAccessibility={tab === 'account' ? 'auto' : 'no-hide-descendants'}><PageActive.Provider value={tab === 'account'}><Account navigation={navigation} /></PageActive.Provider></View>}
+    {visited.includes('skills') && <View style={[styles.screen, tab !== 'skills' && styles.parkedWorkspace]} pointerEvents={tab === 'skills' ? 'auto' : 'none'} accessibilityElementsHidden={tab !== 'skills'} importantForAccessibility={tab === 'skills' ? 'auto' : 'no-hide-descendants'}><NativeSkills api={api} active={tab === 'skills'} /></View>}
+    {currentProject && <View style={[styles.screen, tab !== 'creation' && styles.parkedWorkspace]} pointerEvents={tab === 'creation' ? 'auto' : 'none'} accessibilityElementsHidden={tab !== 'creation'} importantForAccessibility={tab === 'creation' ? 'auto' : 'no-hide-descendants'}><WebContent key={currentProject.id} params={currentProject} active={tab === 'creation'} /></View>}
   </View><View accessibilityRole="tablist" style={styles.tabs}>{tabs.map(item => <Pressable key={item.id} accessibilityRole="tab" accessibilityState={{ selected: tab === item.id, disabled: item.id === 'creation' && !currentProject }} disabled={item.id === 'creation' && !currentProject} onPress={() => { if (item.id === 'creation') { if (currentProject) open(currentProject); } else setTab(item.id); }} style={({ pressed }) => [styles.tab, tab === item.id && styles.tabActive, item.id === 'creation' && !currentProject && styles.disabled, pressed && styles.pressed]}><Icon name={item.icon} color={tab === item.id ? colors.accent : colors.muted} /><Text style={[styles.tabText, tab === item.id && styles.tabTextActive]}>{item.label}</Text></Pressable>)}</View></SafeAreaView>;
 }
 function SupportTabs({ active, navigation }: { active: 'Compose' | 'Records'; navigation: Pick<NativeStackScreenProps<Routes, 'Home'>['navigation'], 'navigate'> }) {
@@ -194,6 +207,8 @@ function Compose({ navigation }: NativeStackScreenProps<Routes, 'Compose'>) {
       const payload = JSON.stringify(value);
       if (attempt.current?.payload !== payload) attempt.current = { payload, id: randomUUID() };
       const saved = await api.request<Feedback>('/feedback', 'POST', { ...value, id: attempt.current.id });
+      // Revision 1 has no replies; a retried submission may already have a reply and needs a fresh detail.
+      if (saved.revision === 1) api.setCached<FeedbackDetail>(`/feedback/${saved.id}`, { item: saved, replies: [] });
       navigation.replace('Feedback', { id: saved.id });
     } catch (cause) { setError(errorText(cause)); } finally { setBusy(false); }
   };
@@ -212,39 +227,83 @@ function Compose({ navigation }: NativeStackScreenProps<Routes, 'Compose'>) {
 function Notifications({ navigation }: NativeStackScreenProps<Routes, 'Notifications'>) {
   const api = useApi();
   const [page, setPage] = useState(0);
-  const { data, error, loading, refresh } = useRemote<InboxPage>(`/notifications?offset=${page * 20}&limit=20`);
+  const { data, error, loading, refresh, setData } = useRemote<InboxPage>(`/notifications?offset=${page * 20}&limit=20`);
   const [failure, setFailure] = useState('');
   const [busy, setBusy] = useState(false);
   const running = useRef(false);
   const run = async (operation: () => Promise<void>) => {
     if (running.current) return;
     running.current = true; setBusy(true); setFailure('');
-    try { await operation(); refresh(); } catch (cause) { setFailure(errorText(cause)); }
+    try { await operation(); } catch (cause) { setFailure(errorText(cause)); }
     finally { running.current = false; setBusy(false); }
+  };
+  const markRead = async (id?: string) => {
+    const asOf = data!.asOf;
+    await api.request(id ? `/notifications/${id}/read` : '/notifications/read-all', 'PUT', id ? undefined : { asOf });
+    const readAt = new Date().toISOString();
+    setData(current => {
+      if (!current || (!id && current.asOf !== asOf)) return current;
+      const count = id ? current.items.filter(item => item.id === id && !item.read_at).length : current.unread;
+      return { ...current, unread: Math.max(0, current.unread - count), items: current.items.map(item =>
+        (!id || item.id === id) && !item.read_at ? { ...item, read_at: readAt } : item) };
+    });
   };
   return <SafeAreaView edges={['bottom']} style={styles.screen}>
     <View style={styles.inboxHead}><Text style={styles.secondary}>{local('处理进度与后台回复，都在这里。', 'Follow updates and replies here.')}</Text>
-      <View style={styles.between}><View style={styles.inline}><Text style={styles.title}>{local('全部消息', 'All messages')}</Text>{data ? <View style={styles.inboxCount}><Text style={styles.small}>{data.total}</Text></View> : null}</View>
-        <View style={styles.inline}>{data?.unread ? <Pressable accessibilityRole="button" accessibilityLabel={t('support.readAll')} disabled={busy} onPress={() => void run(async () => { await api.request('/notifications/read-all', 'PUT', { asOf: data.asOf }); })} style={({ pressed }) => [styles.inboxTextAction, pressed && styles.pressed, busy && styles.disabled]}><Icon name="check" size={16} color={colors.accent} /><Text style={styles.inboxActionText}>{t('support.readAll')}</Text></Pressable> : null}<IconButton name="refresh" label={t('support.refresh')} disabled={loading || busy} onPress={refresh} /></View>
+      <View style={styles.inboxToolbar}><View style={styles.inline}><Text style={styles.title}>{local('全部消息', 'All messages')}</Text>{data ? <View style={styles.inboxCount}><Text style={styles.small}>{data.total}</Text></View> : null}</View>
+        <View style={styles.inline}>{data?.unread ? <Pressable accessibilityRole="button" accessibilityLabel={t('support.readAll')} disabled={busy} onPress={() => void run(() => markRead())} style={({ pressed }) => [styles.inboxTextAction, pressed && styles.pressed, busy && styles.disabled]}><Icon name="check" size={16} color={colors.accent} /><Text style={styles.inboxActionText}>{t('support.readAll')}</Text></Pressable> : null}<IconButton name="refresh" label={t('support.refresh')} disabled={loading || busy} onPress={refresh} /></View>
       </View>{data?.unread ? <Text style={styles.small}>{local(`${data.unread} 条未读`, `${data.unread} unread`)}</Text> : null}
     </View>
     {(error || failure) ? <ErrorNotice text={error || failure} retry={refresh} /> : null}
     <FlatList data={data?.items || []} keyExtractor={item => item.id} refreshing={loading} onRefresh={refresh} contentContainerStyle={styles.inboxList}
       ListEmptyComponent={loading ? <ActivityIndicator color={colors.accent} style={{ marginTop: 32 }} /> : !error ? <View style={styles.inboxEmpty}><View style={styles.inboxEmptyIcon}><Icon name="bell" size={32} color={colors.accent} /></View><Text style={styles.title}>{local('暂无通知', 'No notifications')}</Text><Text style={styles.inboxEmptyHint}>{local('反馈有了新回复或处理进展，\n会在这里及时告诉你。', 'New replies and updates to your feedback\nwill appear here.')}</Text></View> : null}
       renderItem={({ item }) => <View style={[styles.inboxCard, !item.read_at && styles.inboxUnread]}>
-        <Pressable accessibilityRole="button" accessibilityLabel={`${t('support.replyReceived')}, ${item.body}`} disabled={busy} onPress={() => void run(async () => { if (!item.read_at) await api.request(`/notifications/${item.id}/read`, 'PUT'); navigation.navigate('Feedback', { id: item.feedback_id }); })} style={({ pressed }) => [styles.inboxMessage, pressed && styles.pressed]}>
+        <Pressable accessibilityRole="button" accessibilityLabel={`${t('support.replyReceived')}, ${item.body}`} disabled={busy} onPress={() => void run(async () => { if (!item.read_at) await markRead(item.id); api.invalidate([`/feedback/${item.feedback_id}`]); navigation.navigate('Feedback', { id: item.feedback_id }); })} style={({ pressed }) => [styles.inboxMessage, pressed && styles.pressed]}>
           <View style={styles.recordIcon}><Icon name="scan-text" size={18} color={colors.accent} /></View><View style={[styles.grow, { gap: 8 }]}><View style={styles.between}><Text style={[styles.inboxTitle, !item.read_at && styles.inboxUnreadTitle]}>{t('support.replyReceived')}</Text>{!item.read_at ? <View accessibilityLabel={local('未读', 'Unread')} style={styles.unreadDot} /> : null}</View><Text numberOfLines={3} style={styles.secondary}>{item.body}</Text></View>
         </Pressable>
-        <View style={styles.inboxFooter}><Text style={[styles.small, styles.grow]}>{date(item.created_at)}</Text>{!item.read_at ? <Pressable accessibilityRole="button" disabled={busy} accessibilityLabel={t('support.read')} style={({ pressed }) => [styles.inboxTextAction, pressed && styles.pressed]} onPress={() => void run(async () => { await api.request(`/notifications/${item.id}/read`, 'PUT'); })}><Icon name="check" size={14} color={colors.muted} /><Text style={styles.small}>{t('support.read')}</Text></Pressable> : <View style={styles.inline}><Text style={styles.small}>{local('查看回复', 'View reply')}</Text><Icon name="chevron-right" size={14} color={colors.muted} /></View>}</View>
+        <View style={styles.inboxFooter}><Text style={[styles.small, styles.grow]}>{date(item.created_at)}</Text>{!item.read_at ? <Pressable accessibilityRole="button" disabled={busy} accessibilityLabel={t('support.read')} style={({ pressed }) => [styles.inboxTextAction, pressed && styles.pressed]} onPress={() => void run(() => markRead(item.id))}><Icon name="check" size={14} color={colors.muted} /><Text style={styles.small}>{t('support.read')}</Text></Pressable> : <View style={styles.inline}><Text style={styles.small}>{local('查看回复', 'View reply')}</Text><Icon name="chevron-right" size={14} color={colors.muted} /></View>}</View>
       </View>} />
     {(data?.total || 0) > 20 && <View style={styles.pager}><Action ghost title={local('上一页', 'Previous')} disabled={!page || loading || busy} onPress={() => setPage(value => value - 1)} /><Text style={styles.small}>{page + 1} / {Math.ceil((data?.total || 0) / 20)}</Text><Action ghost title={local('下一页', 'Next')} disabled={loading || busy || (page + 1) * 20 >= (data?.total || 0)} onPress={() => setPage(value => value + 1)} /></View>}
   </SafeAreaView>;
 }
-function WebContent({ params }: { params: Routes['Workspace'] }) {
+function WorkspaceSession({ session, children }: { session: NativeSession; children: React.ReactNode }) {
+  const [source, setSource] = useState<Awaited<ReturnType<typeof workspaceSource>>>();
+  const [readyToken, setReadyToken] = useState('');
+  useEffect(() => {
+    let active = true;
+    setSource(undefined); setReadyToken('');
+    // Warm only the cookie store and WebView engine; this page contains no workspace or account data.
+    const timer = setTimeout(() => { active = false; setSource(undefined); }, 15000);
+    void workspaceSource(origin, session.token, `${origin}/?native=prewarm`).then(value => { if (active) setSource(value); }).catch(() => {});
+    return () => { active = false; clearTimeout(timer); };
+  }, [session.token]);
+  return <WorkspaceCookieReady.Provider value={readyToken === session.token}>{children}
+    {source && <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={{ position: 'absolute', width: 1, height: 1, opacity: 0 }}>
+      <WebView source={source} sharedCookiesEnabled thirdPartyCookiesEnabled={false} mixedContentMode="never" setSupportMultipleWindows={false}
+        onMessage={event => {
+          try {
+            if (new URL(event.nativeEvent.url).origin !== origin) return;
+            const value = JSON.parse(event.nativeEvent.data);
+            if (['workspace-cookie-ready', 'workspace-session-ready'].includes(value.type) && value.userId === session.userId) {
+              setReadyToken(session.token);
+              performance.mark(value.type === 'workspace-cookie-ready' ? 'shotloom-native-cookie-ready' : 'shotloom-native-preload-complete');
+              if (value.type === 'workspace-session-ready') setSource(undefined);
+            }
+          } catch { /* A failed warmup falls back to the normal one-time handoff. */ }
+        }} onError={() => setSource(undefined)} onHttpError={() => setSource(undefined)} />
+    </View>}
+  </WorkspaceCookieReady.Provider>;
+}
+function WebContent({ params, active = true }: { params: Routes['Workspace']; active?: boolean }) {
   const api = useApi();
+  const session = useContext(SessionContext)!;
+  const cookieReady = useContext(WorkspaceCookieReady);
   const webview = useRef<WebView>(null);
   const { revision } = useContext(SettingsChanged);
   const [ready, setReady] = useState(false);
+  useEffect(() => {
+    if (active && ready) webview.current?.injectJavaScript("performance.mark('shotloom-workspace-reveal');requestAnimationFrame(()=>requestAnimationFrame(()=>{performance.mark('shotloom-workspace-visible');window.ReactNativeWebView?.postMessage(JSON.stringify({type:'workspace-visible'}));}));true;");
+  }, [active, ready]);
   useEffect(() => { if (revision) webview.current?.injectJavaScript("window.dispatchEvent(new Event('shotloom-native-settings-changed')); true;"); }, [revision]);
   const [error, setError] = useState('');
   const [retry, setRetry] = useState(0);
@@ -254,12 +313,39 @@ function WebContent({ params }: { params: Routes['Workspace'] }) {
   if (params.panel) query.set('panel', params.panel);
   if (params.folder) query.set('folder', params.folder);
   query.set('native', 'embedded');
+  const target = `${origin}/?${query}`;
+  const [source, setSource] = useState<Awaited<ReturnType<typeof workspaceSource>> | { uri: string }>();
+  const reuseCookie = useRef(cookieReady);
+  const document = useRef({ target: '', retry: -1 });
+  useEffect(() => {
+    let active = true;
+    const recovering = Boolean(webview.current && document.current.target === target && document.current.retry === retry);
+    if (!recovering) { setSource(undefined); setReady(false); }
+    setError('');
+    if (!recovering && reuseCookie.current && retry === 0) {
+      document.current = { target, retry }; setSource({ uri: target });
+      return () => { active = false; };
+    }
+    void workspaceSource(origin, session.token, target).then(value => {
+      if (!active) return;
+      if (recovering) {
+        // Refresh HttpOnly cookies in place so reauthentication preserves unsaved canvas state.
+        webview.current?.injectJavaScript(`(async()=>{if(location.origin!==${JSON.stringify(origin)})return;try{const r=await fetch(${JSON.stringify(value.uri)},{method:'POST',credentials:'include',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:${JSON.stringify(value.body)}});if(!r.ok)throw new Error('HTTP '+r.status);window.dispatchEvent(new Event('focus'));}catch(e){window.ReactNativeWebView?.postMessage(JSON.stringify({type:'workspace-session-error',error:String(e.message||e)}));}})();true;`);
+      } else {
+        document.current = { target, retry }; setSource(value);
+      }
+    })
+      .catch(cause => { if (active) { setError(errorText(cause)); if (cause.status === 401 || cause.code === 'ACCOUNT_CHANGED') session.expire(); } });
+    return () => { active = false; };
+  }, [session.token, target, retry]);
   // The workspace can report display readiness, but has no API/tool request bridge.
   const injected = `window.__SHOTLOOM_MOBILE__ = true; try { localStorage.setItem('shotloom:locale', ${JSON.stringify(language)}); } catch {} document.documentElement.dataset.nativeEmbedded='true'; true;`;
   return <View style={styles.screen}>{error && <ErrorNotice text={error} retry={() => { setError(''); setReady(false); setRetry(value => value + 1); }} />}
-    <WebView ref={webview} key={retry} source={{ uri: `${origin}/?${query}` }} style={[styles.screen, !ready && !error && { opacity: 0 }]} sharedCookiesEnabled thirdPartyCookiesEnabled={false} contentInsetAdjustmentBehavior="never"
-      onMessage={event => { try { if (new URL(event.nativeEvent.url).origin !== origin) return; const value = JSON.parse(event.nativeEvent.data); if (value.type === 'workspace-ready' || value.type === 'workspace-blocked') setReady(true); else if (value.type === 'workspace-mutated') api.invalidate(); } catch {} }}
-      mixedContentMode="never" setSupportMultipleWindows={false} injectedJavaScriptBeforeContentLoaded={injected} onLoadStart={event => { try { const url = new URL(event.nativeEvent.url); setReady(url.origin !== origin || url.searchParams.get('native') !== 'embedded'); } catch { setReady(true); } }} onError={event => setError(event.nativeEvent.description)} onHttpError={event => setError(`HTTP ${event.nativeEvent.statusCode}`)} />
+    {source && <WebView ref={webview} key={retry} source={source} style={[styles.screen, !ready && !error && { opacity: 0 }]} sharedCookiesEnabled thirdPartyCookiesEnabled={false} contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} contentInset={{ top: 0, bottom: 0, left: 0, right: 0 }}
+      injectedJavaScriptObject={{ userId: session.userId, locale: language }}
+      onLoadStart={() => performance.mark('shotloom-native-document-start')} onLoadEnd={() => performance.mark('shotloom-native-document-loaded')}
+      onMessage={event => { try { if (new URL(event.nativeEvent.url).origin !== origin) return; const value = JSON.parse(event.nativeEvent.data); if (value.type === 'workspace-blocked' && value.status === 'login' && reuseCookie.current && retry === 0 && !ready) { reuseCookie.current = false; setRetry(value => value + 1); return; } if (value.type === 'workspace-visible') { performance.mark('shotloom-native-canvas-visible'); return; } if (value.type === 'workspace-ready' || value.type === 'workspace-blocked') { setReady(true); if (value.status === 'login' || value.status === 'account') session.expire(); } else if (value.type === 'workspace-session-error') setError(String(value.error)); else if (value.type === 'workspace-mutated') api.invalidateWrite(typeof value.path === 'string' ? value.path : ''); } catch {} }}
+      mixedContentMode="never" setSupportMultipleWindows={false} injectedJavaScriptBeforeContentLoaded={injected} onError={event => setError(event.nativeEvent.description)} onHttpError={event => setError(`HTTP ${event.nativeEvent.statusCode}`)} />}
     {!ready && !error && <View style={[styles.empty, { position: 'absolute', inset: 0, backgroundColor: colors.background }]}><ActivityIndicator color={colors.accent} /><Text style={styles.secondary}>{params.id ? local('正在打开画布…', 'Opening canvas…') : local('正在打开页面…', 'Opening page…')}</Text></View>}
   </View>;
 }
@@ -272,34 +358,66 @@ function Workspace({ route }: NativeStackScreenProps<Routes, 'Workspace'>) {
   return <SafeAreaView edges={route.params.id ? ['top', 'bottom'] : ['bottom']} style={styles.screen}><WebContent params={route.params} /></SafeAreaView>;
 }
 export default function App() {
-  const webview = useRef<WebView>(null);
-  const sessionDocument = useRef(`${origin}/native`);
-  const user = useRef<string | null>(null);
+  const [session, setSession] = useState<NativeSession | null>(null);
   const loggingOut = useRef(false);
+  const signingIn = useRef(false);
+  const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [settingsRevision, setSettingsRevision] = useState(0);
   const changed = useCallback(() => setSettingsRevision(value => value + 1), []);
   const [opened, setOpened] = useState(false);
   const [authenticated, setAuthenticated] = useState(false);
   const [failure, setFailure] = useState('');
-  const api = useMemo(() => new NativeApi(request => {
-    if (!webview.current) throw new Error('Session unavailable');
-    webview.current.injectJavaScript(`window.__shotloomNativeRequest?.(${JSON.stringify(request)}); true;`);
-  }, randomUUID), []);
-  useEffect(() => () => api.disconnect(), [api]);
-  const finishLogout = () => {
-    api.invalidate(); loggingOut.current = false; user.current = null; setOpened(false); setAuthenticated(false); setFailure('');
-    webview.current?.reload();
+  const api = useMemo(() => {
+    if (!session) return null;
+    const value = createNativeApi(origin, session.token, randomUUID, () => { value.pause(); setAuthenticated(false); });
+    return value;
+  }, [session]);
+  useEffect(() => {
+    let active = true;
+    void restoreSession(origin).then(value => { if (active) setSession(value); })
+      .catch(cause => { if (active) setFailure(errorText(cause)); }).finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, []);
+  useEffect(() => {
+    if (!api || !session) return;
+    let active = true;
+    setLoading(true);
+    void api.read<{ locale?: string }>('/settings/mobile').then(preferences => {
+      if (active && preferences.locale) { setLanguage(preferences.locale); changed(); }
+    }).catch(() => {});
+    void api.read<{ id: string }>('/auth/me').then(user => {
+      if (!active) return;
+      if (user.id !== session.userId) throw new Error(t('cloud.login.accountChanged'));
+      setAuthenticated(true); setOpened(true); setFailure('');
+    }).catch(cause => { if (active) { setAuthenticated(false); setFailure(errorText(cause)); } })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; api.invalidate(); api.disconnect(); };
+  }, [api, session, changed]);
+  const signIn = async () => {
+    if (signingIn.current) return;
+    signingIn.current = true; setBusy(true); setFailure('');
+    try {
+      const value = await login(origin, opened ? session?.userId : undefined);
+      if (value) setSession(value);
+    } catch (cause) { setFailure(errorText(cause)); }
+    finally { signingIn.current = false; setBusy(false); }
   };
   const logout = async () => {
-    if (loggingOut.current) return;
-    loggingOut.current = true; setFailure('');
-    try { await api.request('/auth/logout', 'POST'); if (loggingOut.current) finishLogout(); }
-    catch (cause) { if (loggingOut.current) setFailure(errorText(cause)); }
-    finally { loggingOut.current = false; }
+    if (loggingOut.current || !api) return;
+    loggingOut.current = true; setBusy(true); setFailure('');
+    try {
+      api.disconnect(); api.resume();
+      try { await api.request('/auth/logout', 'POST'); }
+      catch (cause) { if (![401, 403].includes((cause as { status?: number }).status || 0)) throw cause; }
+      await clearSession(origin);
+      api.invalidate(); api.disconnect(); setSession(null); setOpened(false); setAuthenticated(false);
+    } catch (cause) { setFailure(errorText(cause)); }
+    finally { loggingOut.current = false; setBusy(false); }
   };
-  return <SafeAreaProvider><View style={styles.screen}><ApiContext.Provider value={api}><SettingsChanged.Provider value={{ revision: settingsRevision, changed }}><LogoutContext.Provider value={() => void logout()}>
-    {authenticated && failure ? <ErrorNotice text={failure} retry={() => { setFailure(''); webview.current?.reload(); }} /> : null}
-    {opened && <NavigationContainer linking={{ prefixes: ['shotloom-preview://'], config: { screens: { Feedback: 'feedback/:id', Notifications: 'notifications' } } }}>
+  return <SafeAreaProvider><View style={styles.screen}><ApiContext.Provider value={api}><SessionContext.Provider value={session ? { ...session, expire: () => { api?.pause(); setAuthenticated(false); } } : null}><SettingsChanged.Provider value={{ revision: settingsRevision, changed }}><LogoutContext.Provider value={() => void logout()}>
+    {authenticated && failure ? <ErrorNotice text={failure} /> : null}
+    {opened && session && <WorkspaceSession session={session}><View style={styles.screen} pointerEvents={authenticated ? 'auto' : 'none'} accessibilityElementsHidden={!authenticated} importantForAccessibility={authenticated ? 'auto' : 'no-hide-descendants'}><NavigationContainer linking={{ prefixes: ['shotloom-preview://'], config: { screens: { Feedback: 'feedback/:id', Notifications: 'notifications' } } }}>
       <Stack.Navigator screenOptions={{ headerBackButtonDisplayMode: 'minimal', contentStyle: styles.screen, headerShadowVisible: false, headerStyle: { backgroundColor: colors.background }, headerTintColor: colors.text, headerTitleStyle: { fontSize: 16, fontWeight: '500' } }}>
         <Stack.Screen name="Home" component={Home} options={{ headerShown: false }} />
         <Stack.Screen name="Settings" component={Settings} options={{ title: t('account.settings') }} />
@@ -309,32 +427,17 @@ export default function App() {
         <Stack.Screen name="Notifications" component={Notifications} options={{ title: t('support.notifications') }} />
         <Stack.Screen name="Workspace" component={Workspace} options={({ route }) => ({ title: route.params.name, headerShown: !route.params.id })} />
       </Stack.Navigator>
-    </NavigationContainer>}
-    <View style={authenticated ? styles.hiddenBridge : styles.loginBridge} pointerEvents={authenticated ? 'none' : 'auto'} accessibilityElementsHidden={authenticated} importantForAccessibility={authenticated ? 'no-hide-descendants' : 'auto'}>
-      <SafeAreaView style={styles.screen}>
-        {failure && <ErrorNotice text={failure} retry={() => { setFailure(''); webview.current?.reload(); }} />}
-        <WebView ref={webview} source={{ uri: `${origin}/native` }} sharedCookiesEnabled thirdPartyCookiesEnabled={false} mixedContentMode="never" setSupportMultipleWindows={false}
-          onLoadStart={event => { sessionDocument.current = event.nativeEvent.url; api.pause(); }} onError={event => { api.pause(); setFailure(event.nativeEvent.description); }}
-          onHttpError={event => { api.pause(); setFailure(`HTTP ${event.nativeEvent.statusCode}`); if (event.nativeEvent.statusCode === 401) setAuthenticated(false); }}
-          onMessage={event => {
-            // OAuth provider pages and workspace content never get native bridge privileges.
-            if (!isSessionSource(event.nativeEvent.url, sessionDocument.current, origin)) return;
-            try {
-              const value = JSON.parse(event.nativeEvent.data);
-              if (value.type === 'ready' && typeof value.userId === 'string') {
-                if (user.current && user.current !== value.userId) { setFailure(t('cloud.login.accountChanged')); api.pause(); setAuthenticated(false); return; }
-                setLanguage(value.locale);
-                user.current = value.userId; api.resume(); setOpened(true); setAuthenticated(true); setFailure('');
-              } else if (value.type === 'login') {
-                // Session expiry may reach native before the logout request's reply.
-                if (loggingOut.current) finishLogout();
-                setAuthenticated(false); api.pause();
-              }
-              else if (value.type === 'error') { api.pause(); setFailure(typeof value.error === 'string' ? value.error : local('连接失败，请重试。', 'Connection failed. Please retry.')); }
-              else if (value.type === 'response' && typeof value.id === 'string') api.receive(value);
-            } catch { setFailure(local('会话响应无效，请重试。', 'Invalid session response. Please retry.')); }
-          }} />
-      </SafeAreaView>
-    </View>
-  </LogoutContext.Provider></SettingsChanged.Provider></ApiContext.Provider></View></SafeAreaProvider>;
+    </NavigationContainer></View></WorkspaceSession>}
+    {!authenticated && <SafeAreaView style={styles.loginBridge}><ScrollView contentContainerStyle={[styles.list, { justifyContent: 'center' }]}>
+      <View style={[styles.row, { padding: 28, gap: 24 }]}>
+        <View style={styles.inline}><Image source={require('../assets/shotloom-logo.png')} style={{ width: 44, height: 44, borderRadius: 12 }} /><Text style={styles.heading}>Shotloom</Text></View>
+        <Text style={styles.heading}>{t('cloud.login.title')}</Text>
+        <Text style={styles.secondary}>{opened ? local('登录已过期，请使用原账号继续。', 'Your session expired. Sign in with the same account to continue.') : t('cloud.login.description')}</Text>
+        {failure ? <Text accessibilityRole="alert" style={styles.error}>{failure}</Text> : null}
+        {(loading || busy) && <ActivityIndicator color={colors.accent} />}
+        <Action title={busy ? t('cloud.login.loading') : t('cloud.login.action')} disabled={loading || busy} onPress={() => void signIn()} />
+        {opened && <Action title={t('cloud.logout')} ghost disabled={loading || busy} onPress={() => void logout()} />}
+      </View>
+    </ScrollView></SafeAreaView>}
+  </LogoutContext.Provider></SettingsChanged.Provider></SessionContext.Provider></ApiContext.Provider></View></SafeAreaProvider>;
 }

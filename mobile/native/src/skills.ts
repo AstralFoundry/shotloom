@@ -21,7 +21,7 @@ export function parseSkillImport(payload: unknown): Skill[] {
   if (!items.length) throw new Error('No skills in this file');
   return items.map(normalizeSkill);
 }
-export async function saveSkills(api: Pick<NativeApi, 'request'>, edits: Skill[], options: { remove?: Skill; expected?: Skill; create?: boolean } = {}): Promise<SkillCatalog> {
+export async function saveSkills(api: Pick<NativeApi, 'request' | 'setCached'>, edits: Skill[], options: { remove?: Skill; expected?: Skill; create?: boolean } = {}): Promise<SkillCatalog> {
   const catalog = await api.request<SkillCatalog>('/catalog/skills');
   const skills = catalog.skills || [];
   const normalized = edits.map(normalizeSkill);
@@ -36,5 +36,7 @@ export async function saveSkills(api: Pick<NativeApi, 'request'>, edits: Skill[]
   const { systemSkillIds, ...stored } = catalog;
   const value = { ...stored, storageVersion: catalog.storageVersion || 1, skills: [...next.values()] };
   await api.request('/catalog/skills', 'PUT', value);
-  return { ...value, systemSkillIds };
+  const saved = { ...value, systemSkillIds };
+  api.setCached('/catalog/skills', saved);
+  return saved;
 }

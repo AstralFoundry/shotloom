@@ -2,6 +2,87 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createRendererEnv } from './helpers/rendererSsr.mjs';
 
+test('embedded preferences do not wait for upstream services and account refresh preserves edits', async () => {
+  const env = await createRendererEnv({ storageMode: 'cloud', withWindow: true });
+  const original = globalThis.fetch;
+  const calls = [];
+  let release;
+  const gate = new Promise(resolve => { release = resolve; });
+  globalThis.fetch = async url => {
+    calls.push(url);
+    if (url === '/api/settings') return Response.json({ success: true, data: { locale: 'en-US', agentCanRunNodes: false, agentPreferredTextModel: 'custom-model' } });
+    await gate;
+    return Response.json({ success: true, data: url === '/api/models' ? { publications: [], upstreamModels: [] } : { app_quota: 123 } });
+  };
+  try {
+    const { loadAppSettings, refreshCloudAccountSettings, settingsStore } = await env.load('store/settingsStore');
+    await Promise.race([loadAppSettings({ preferencesOnly: true }), new Promise((_, reject) => setTimeout(() => reject(new Error('Preferences are blocked by upstream requests')), 1000))]);
+    assert.deepEqual(calls, ['/api/settings']);
+    assert.equal(settingsStore.agentPreferredTextModel, 'custom-model');
+    assert.equal(settingsStore.apiKeyValid, false, 'generation stays unavailable until model authorization is loaded');
+    const pending = refreshCloudAccountSettings();
+    settingsStore.agentCanRunNodes = true;
+    release();
+    await pending;
+    assert.equal(settingsStore.agentCanRunNodes, true, 'late account responses cannot overwrite user edits');
+    assert.equal(settingsStore.agentPreferredTextModel, 'custom-model');
+    assert.equal(settingsStore.rawQuota, 123);
+    assert.equal(calls.filter(url => url === '/api/settings').length, 1);
+  } finally { release(); globalThis.fetch = original; await env.dispose(); }
+});
+
+test('upstream account and model failures preserve stored preferences and allow workspace initialization', async () => {
+  const env = await createRendererEnv({ storageMode: 'cloud', withWindow: true });
+  const originalFetch = globalThis.fetch;
+  let expired = 0;
+  window.dispatchEvent = () => { expired++; return true; };
+  globalThis.fetch = async url => {
+    if (url === '/api/settings') return Response.json({ success: true, data: { locale: 'en-US', agentCanRunNodes: false } });
+    if (url === '/api/auth/me') return Response.json({ success: true, data: { id: 'user' } });
+    return Response.json({ success: false, message: 'Gateway authorization unavailable' }, { status: url === '/api/models' ? 401 : 502 });
+  };
+  try {
+    const { createCloudApi } = await env.load('services/cloudApi');
+    const api = createCloudApi({ project: {}, file: {}, settings: {} });
+    const settings = await api.settings.get();
+    assert.equal(settings.locale, 'en-US');
+    assert.equal(settings.agentCanRunNodes, false);
+    assert.equal(settings.apiKeyValid, false);
+    assert.match(settings.accountSyncError, /Gateway authorization unavailable/);
+    assert.deepEqual(settings.upstreamModels, []);
+    assert.ok(Object.values(settings.providerConfigs).every(provider => !provider.allowedModelIds.length));
+    assert.equal(expired, 0);
+    const { loadAppSettings, settingsStore } = await env.load('store/settingsStore');
+    await loadAppSettings();
+    assert.equal(settingsStore.agentCanRunNodes, false);
+    assert.match(settingsStore.accountSyncError, /Gateway authorization unavailable/);
+    globalThis.fetch = async () => Response.json({ success: false, message: 'Preferences unavailable' }, { status: 503 });
+    await assert.rejects(api.settings.get(), /Preferences unavailable/, 'stored preferences remain required');
+  } finally { globalThis.fetch = originalFetch; await env.dispose(); }
+});
+
+test('model relay and agent connection errors verify the application session before expiring it', async () => {
+  const env = await createRendererEnv({ storageMode: 'cloud', withWindow: true });
+  const originalFetch = globalThis.fetch;
+  let expired = 0, checked = 0;
+  window.dispatchEvent = () => { expired++; return true; };
+  globalThis.fetch = async url => {
+    if (url === '/api/auth/me') { checked++; return Response.json({ success: true, data: { id: 'user' } }); }
+    if (url === '/api/agent/connect') return Response.json({ success: true, data: { id: 'connection' } });
+    return Response.json({ success: false, message: 'Upstream unavailable' }, { status: 401 });
+  };
+  try {
+    const { createCloudApi } = await env.load('services/cloudApi');
+    const api = createCloudApi({ project: {}, file: {}, settings: {} });
+    await assert.rejects(api.model.chatCompletion({ model: 'fixture', messages: [] }));
+    assert.equal(expired, 0, 'a model token failure cannot expire the application');
+    const { connectCloudHarness } = await env.load('app/agent-session/cloudHarnessTransport');
+    await assert.rejects(connectCloudHarness());
+    assert.equal(expired, 0);
+    assert.equal(checked, 2);
+  } finally { globalThis.fetch = originalFetch; await env.dispose(); }
+});
+
 test('cloud settings install published upstream models as the runtime catalog without persisting server configuration', async () => {
   const env = await createRendererEnv({ storageMode: 'cloud' });
   const originalFetch = globalThis.fetch;

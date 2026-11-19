@@ -1,4 +1,4 @@
-import { cloudOrigin, cloudRequest, cloudUserHeaders } from '../../services/cloudRequest';
+import { cloudOrigin, cloudRequest, cloudUserHeaders, verifyCloudSession } from '../../services/cloudRequest';
 import type { executeProductRequest } from '../../services/harnessProductTools';
 
 type ToolRequest = Parameters<typeof executeProductRequest>[0];
@@ -21,7 +21,7 @@ export async function connectCloudHarness(): Promise<string> {
       credentials: 'include', headers: cloudUserHeaders(), signal: control.signal,
     });
     if (!response.ok || !response.body) {
-      if (response.status === 401 || response.status === 409) window.dispatchEvent(new window.Event('shotloom-session-expired'));
+      if (response.status === 401 || response.status === 409) await verifyCloudSession();
       throw new Error(`Agent connection failed: ${response.status}`);
     }
     connection = id;

@@ -1,4 +1,4 @@
-// Native screens can only access the user-facing APIs through the authenticated WebView.
+// Native screens and legacy WebView bridges share this user-facing API boundary.
 export function nativeRequestAllowed(method: string, path: string): boolean {
   const [pathname, query] = path.split('?');
   if (!pathname || path.includes('#') || path.includes('\\')) return false;

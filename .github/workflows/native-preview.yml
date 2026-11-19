@@ -33,7 +33,7 @@ jobs:
         with:
           packages: platform-tools
       - run: npm ci
-      - run: npm run typecheck && npm test && npm audit --audit-level=moderate
+      - run: npm run typecheck && npm test && npm run audit:build
       - name: Generate Android project
         run: npx expo prebuild --platform android --no-install
       - name: Compile standalone release APK

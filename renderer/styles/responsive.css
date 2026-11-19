@@ -307,6 +307,7 @@
 }
 
 /* The native shell owns safe areas and tab navigation. */
-html[data-native-embedded="true"] .app-shell { display: block; height: 100dvh; padding: 0; }
+html[data-native-embedded="true"] .app-shell,
+html[data-native-embedded="true"] .app-shell:has(> .topbar.is-browser) { display: block; height: 100dvh; padding: 0; }
 html[data-native-embedded="true"] .app-shell :is(.sidebar-shell, .topbar, .mobile-navigation) { display: none; }
 html[data-native-embedded="true"] .app-shell .workspace { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); padding: 0; gap: 0; }

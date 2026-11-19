@@ -1,9 +1,10 @@
 {
   "name": "shotloom-native",
-  "version": "0.9.6",
+  "version": "0.9.11",
   "private": true,
   "main": "index.ts",
   "scripts": {
+    "audit:build": "node ../../scripts/audit-native-build.mjs",
     "start": "expo start --dev-client",
     "android": "expo run:android",
     "ios": "expo run:ios",
@@ -20,7 +21,9 @@
     "expo-document-picker": "~57.0.3",
     "expo-file-system": "~57.0.7",
     "expo-localization": "~57.0.2",
+    "expo-secure-store": "~57.0.4",
     "expo-sharing": "~57.0.26",
+    "expo-web-browser": "~57.0.3",
     "react": "19.2.3",
     "react-native": "0.86.3",
     "react-native-safe-area-context": "~5.7.0",

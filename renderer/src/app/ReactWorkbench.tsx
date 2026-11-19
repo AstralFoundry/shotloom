@@ -19,7 +19,7 @@ import {
   store,
   touchProject,
 } from "../store/projectStore.ts";
-import { loadAppSettings, settingsStore } from "../store/settingsStore.ts";
+import { loadAppSettings, refreshCloudAccountSettings, settingsStore } from "../store/settingsStore.ts";
 import { loadGlobalRecipes } from "../store/recipesStore.ts";
 import { loadGlobalSkills } from "../store/skillsStore.ts";
 import { resumeRemoteTasks } from "../store/taskStore.ts";
@@ -109,6 +109,7 @@ export function ReactWorkbench() {
     if (navigationStatus !== 'ready') return;
     const ready = () => {
       if (appRoute === 'creation' && !document.querySelector('.react-flow__viewport')) return;
+      performance.mark('shotloom-workspace-ready');
       window.ReactNativeWebView?.postMessage(JSON.stringify({ type: 'workspace-ready' }));
       observer.disconnect();
     };
@@ -121,6 +122,7 @@ export function ReactWorkbench() {
     if (new URLSearchParams(location.search).get('native') !== 'embedded') return;
     const refreshSettings = () => {
       void loadAppSettings().then(async () => {
+        if (settingsStore.accountSyncError) showToast(settingsStore.accountSyncError);
         if (settingsStore.locale !== getLocale()) {
           if (hasOpenProject() && !await flushAutoSave()) return;
           window.localStorage.setItem(LOCALE_STORAGE_KEY, settingsStore.locale);
@@ -172,23 +174,40 @@ export function ReactWorkbench() {
       if (desktopApi.platform !== "browser") {
         void startHarnessIntegration().catch(error => showToast(String(error)));
       }
-      await loadAppSettings();
+      const embeddedProject = cloudEnabled && new URLSearchParams(location.search).get('native') === 'embedded' && new URLSearchParams(location.search).has('project');
+      if (embeddedProject) performance.mark('shotloom-preferences-start');
+      const preferencesReady = loadAppSettings(embeddedProject ? { preferencesOnly: true } : undefined);
+      if (embeddedProject) performance.mark('shotloom-project-start');
+      const boundProject = embeddedProject ? loadBoundWindowProject(async () => {
+        await preferencesReady;
+        return !cancelled && settingsStore.locale === getLocale();
+      }) : undefined;
+      // Observe early read failures while settings load; the result is awaited below.
+      void boundProject?.catch(() => {});
+      await preferencesReady;
+      if (embeddedProject) performance.mark('shotloom-preferences-ready');
+      if (settingsStore.accountSyncError) showToast(settingsStore.accountSyncError);
       if (settingsStore.locale !== getLocale()) {
         window.localStorage.setItem(LOCALE_STORAGE_KEY, settingsStore.locale);
         window.location.reload();
         return;
       }
       document.documentElement.lang = settingsStore.locale;
-      await Promise.all([
-        loadGlobalSkills(),
-        loadGlobalRecipes(),
-        loadRecentProjects(),
-        initializeResourceLibraries(),
-      ]);
-      await loadBoundWindowProject();
+      if (embeddedProject) {
+        if (!await boundProject && !cancelled) await loadRecentProjects();
+        performance.mark('shotloom-project-ready');
+      } else {
+        await Promise.all([loadGlobalSkills(), loadGlobalRecipes(), loadRecentProjects(), initializeResourceLibraries()]);
+        await loadBoundWindowProject();
+      }
       if (cancelled) return;
       if (requestedRoute) navigateToRoute(requestedRoute, { notify: false });
       setNavigationStatus('ready');
+      if (embeddedProject) {
+        void Promise.all([loadGlobalSkills(), loadGlobalRecipes(), refreshCloudAccountSettings()]).then(() => {
+          if (!cancelled && settingsStore.accountSyncError) showToast(settingsStore.accountSyncError);
+        }).catch(cause => { if (!cancelled) showErrorMessage(String(cause)); });
+      }
       if (desktopApi.platform !== "browser") {
         const recovery = await invoke<any>("recovery_status").catch(() => null);
         const previous = recovery?.previousUnclean;

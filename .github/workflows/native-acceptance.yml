@@ -2,6 +2,14 @@ name: Native Android acceptance smoke
 on:
   workflow_dispatch:
     inputs:
+      performance:
+        description: Measure delivered APK page and API latency
+        type: boolean
+        default: false
+      performance_login_only:
+        description: Measure only the native login homepage without authorizing
+        type: boolean
+        default: false
       preview_run:
         description: 'Signed preview build run to verify; empty selects the latest completed build'
         required: false
@@ -10,11 +18,16 @@ on:
         description: 'Optional old preview run to reproduce the login hang before upgrading'
         required: false
         default: ''
+      layout_only:
+        description: 'Verify native settings and English large-font layout on the pinned APK'
+        type: boolean
+        default: false
 permissions:
   contents: read
   actions: read
 jobs:
   launch:
+    if: inputs.performance != true
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -65,6 +78,8 @@ jobs:
       - uses: reactivecircus/android-emulator-runner@v2
         env:
           TEST_SESSION_COOKIE: ${{ secrets.SHOTLOOM_ACCEPTANCE_SESSION }}
+          TEST_NATIVE_SESSION: ${{ secrets.SHOTLOOM_ACCEPTANCE_NATIVE_SESSION }}
+          LAYOUT_ONLY: ${{ inputs.layout_only }}
           BASELINE_RUN: ${{ inputs.baseline_run }}
         with:
           api-level: 35
@@ -106,6 +121,8 @@ jobs:
             acceptance/session-*.xml
             acceptance/session-reload-cdp.txt
             acceptance/android-settings*.png
+            acceptance/android-home*.png
+            acceptance/home-large.xml
             acceptance/settings*.xml
             acceptance/pages-*.json
             acceptance/pages-cdp.txt
@@ -122,4 +139,82 @@ jobs:
             acceptance/records.xml
             acceptance/notifications.xml
           if-no-files-found: warn
+          retention-days: 14
+
+  measure:
+    if: inputs.performance == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.19.0'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+      - name: Download delivered release and compile external measurement APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PREVIEW_RUN: ${{ inputs.preview_run }}
+        run: |
+          set -euo pipefail
+          mkdir -p acceptance perf/classes perf/dex
+          run="${PREVIEW_RUN:-44067880610}"
+          gh run view "$run" --repo "$GITHUB_REPOSITORY" --json headSha,conclusion > perf/preview-source.json
+          jq -e '.conclusion == "success"' perf/preview-source.json
+          gh run download "$run" --repo "$GITHUB_REPOSITORY" --name Shotloom-Android-Preview --dir acceptance
+          grep -Fx "Commit: $(jq -r .headSha perf/preview-source.json)" acceptance/build.txt
+          (cd acceptance && sha256sum --check SHA256SUMS)
+          platform="$ANDROID_HOME/platforms/android-35/android.jar"
+          tools="$ANDROID_HOME/build-tools/35.0.0"
+          javac -source 8 -target 8 -classpath "$platform" -d perf/classes .github/scripts/NativePerformance.java
+          "$tools/d8" --lib "$platform" --output perf/dex perf/classes/com/shotloom/performance/NativePerformance.class
+          cat > perf/AndroidManifest.xml <<'EOF'
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.shotloom.performance">
+            <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="35" />
+            <uses-permission android:name="android.permission.INTERNET" />
+            <queries><package android:name="com.shotloom.app.preview" /></queries>
+            <application android:label="Latency measurement" />
+            <instrumentation android:name="com.shotloom.performance.NativePerformance" android:targetPackage="com.shotloom.performance" />
+          </manifest>
+          EOF
+          "$tools/aapt" package -f -M perf/AndroidManifest.xml -I "$platform" -F perf/unsigned.apk
+          (cd perf/dex && "$tools/aapt" add ../unsigned.apk classes.dex)
+          keytool -genkeypair -keystore perf/test.jks -storepass testpass -keypass testpass -alias measure -keyalg RSA -dname CN=Measurement -validity 1
+          "$tools/zipalign" -f 4 perf/unsigned.apk perf/aligned.apk
+          "$tools/apksigner" sign --ks perf/test.jks --ks-pass pass:testpass --key-pass pass:testpass --out perf/measure.apk perf/aligned.apk
+      - name: Enable emulator DNS
+        run: |
+          sudo chmod 666 /dev/kvm
+          sudo python3 .github/scripts/emulator-dns.py > perf/dns.log 2>&1 &
+          for i in {1..15}; do if python3 .github/scripts/emulator-dns.py --probe; then break; fi; sleep 1; done
+          python3 .github/scripts/emulator-dns.py --probe
+      - uses: reactivecircus/android-emulator-runner@v2
+        env:
+          TEST_SESSION_COOKIE: ${{ secrets.SHOTLOOM_ACCEPTANCE_SESSION }}
+          TEST_NATIVE_SESSION: ${{ secrets.SHOTLOOM_ACCEPTANCE_NATIVE_SESSION }}
+          TEST_FIXTURE: ${{ secrets.SHOTLOOM_PERFORMANCE_FIXTURE }}
+          LOGIN_ONLY: ${{ inputs.performance_login_only }}
+        with:
+          api-level: 35
+          system-image-api-level: 35-ext15
+          arch: x86_64
+          target: google_apis
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none -dns-server 127.0.0.1
+          disable-animations: false
+          script: bash .github/scripts/native-performance.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Native-performance-results
+          path: |
+            perf/results*.json
+            perf/device.txt
+            perf/failure.png
+            perf/dns.log
           retention-days: 14

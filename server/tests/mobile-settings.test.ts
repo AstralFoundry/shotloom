@@ -16,7 +16,7 @@ test('mobile settings validate single-field updates, preserve other settings and
   const settings = new Map<string, unknown>([['agentCanRunNodes', false], ['locale', 'zh-CN'], ['agentAutoEval', 'legacy-invalid'], ['agentPreferredTextModel', { legacy: true }], ['providerConfigs', { private: 'secret' }], ['customSetting', 42]]);
   globalThis.fetch = async (input, init) => {
     const url = new URL(String(input)); const table = url.pathname.split('/').at(-1);
-    if (table === 'sessions') return Response.json({ id: session, user_id: user, access_token_cipher: encrypt('token'), refresh_token_cipher: null, created_at: new Date().toISOString(), expires_at: new Date(Date.now() + 3600000).toISOString() });
+    if (table === 'sessions') return Response.json({ id: session, user_id: user, owner: { id: user, sub: '1', username: null, email: null }, access_token_cipher: encrypt('token'), refresh_token_cipher: null, created_at: new Date().toISOString(), expires_at: new Date(Date.now() + 3600000).toISOString() });
     if (table === 'users') return Response.json({ id: user });
     assert.equal(table, 'settings');
     if (init?.method === 'POST') {

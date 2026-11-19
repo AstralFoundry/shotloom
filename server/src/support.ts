@@ -35,12 +35,9 @@ async function action(actor: string, name: string, value: unknown) {
   return data;
 }
 export const supportApp = new Hono<AppEnv>();
-supportApp.use('/feedback', requireAuth);
 supportApp.use('/feedback/*', requireAuth);
-supportApp.use('/notifications', requireAuth);
 supportApp.use('/notifications/*', requireAuth);
 // Administrator membership is checked inside the same transaction as each operation.
-supportApp.use('/admin/feedback', requireAuth);
 supportApp.use('/admin/feedback/*', requireAuth);
 supportApp.post('/feedback', async c => c.json(envelope(await action(c.get('userId'), 'submit', parse(z.object({
   id: idSchema, kind: kindSchema, description: z.string().trim().min(1).max(10000),
