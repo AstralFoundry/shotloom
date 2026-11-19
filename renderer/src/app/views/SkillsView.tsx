@@ -75,13 +75,6 @@ export function SkillsView({ data, controller }: SkillsViewProps) {
         showDescription
         flat
       >
-        <label className="search">
-          <SearchInput
-            value={data.query}
-            onChange={controller.setQuery}
-            placeholder={t("ui.SkillsView.placeholder.15dfafe9")}
-          />
-        </label>
         <div className="skills-tools">
           <Upload
             accept=".json,application/json"
@@ -112,27 +105,38 @@ export function SkillsView({ data, controller }: SkillsViewProps) {
       </ProjectScopeHeader>
       <div className="skills-workspace">
         <section className="skills-list-pane" aria-label={t("ui.SkillsView.arialabel.c0e4b0f5")}>
-          <div className="skills-list-summary">
-            <Checkbox
-              className="skills-select-all"
-              checked={allSelected}
-              onChange={() => controller.setSelection(
-                allSelected ? [] : data.items.map((item) => item.id),
-              )}
-            >
-              {t("ui.SkillsView.text.3e44b2a9")}
-            </Checkbox>
-            <span>
-              {t(data.items.length === 1 ? 'skill.summary.one' : 'skill.summary.other', {
-                count: data.items.length, enabled: enabledCount,
-              })}</span>
+          <div className="skills-list-toolbar">
+            <label className="skills-search">
+              <SearchInput
+                value={data.query}
+                onChange={controller.setQuery}
+                placeholder={t("ui.SkillsView.placeholder.15dfafe9")}
+              />
+            </label>
+            <div className="skills-list-summary">
+              <Checkbox
+                className="skills-select-all"
+                indeterminate={data.selectedIds.length > 0 && !allSelected}
+                checked={allSelected}
+                onChange={() => controller.setSelection(
+                  allSelected ? [] : data.items.map((item) => item.id),
+                )}
+              >
+                {t("ui.SkillsView.text.3e44b2a9")}
+              </Checkbox>
+              <span>
+                {t(data.items.length === 1 ? 'skill.summary.one' : 'skill.summary.other', {
+                  count: data.items.length, enabled: enabledCount,
+                })}
+              </span>
+            </div>
           </div>
           {data.items.map((item) => (
             <div
               key={item.id}
               className={`skills-row${item.enabled === false ? " disabled" : ""}${
                 data.editor?.draft.id === item.id ? " active" : ""
-              }`}
+              }${selectedIds.has(item.id) ? " selected" : ""}`}
             >
               <Checkbox
                 className="skills-row-select"
@@ -146,20 +150,17 @@ export function SkillsView({ data, controller }: SkillsViewProps) {
                 onClick={() => controller.openSkill(item.id)}
               >
                 <span className="skills-row-name">
-                  <strong>{item.name}</strong>
-                  {item.builtIn && <span>{t("ui.SkillsView.text.09ceea76")}</span>}
-                  <span>v{item.version || 1}</span>
+                  <strong title={`${item.id} · v${item.version || 1}${item.builtIn ? ` · ${t("ui.SkillsView.text.09ceea76")}` : ""}`}>{item.name}</strong>
                   {item.category && <span>{skillDisplayCategory(item)}</span>}
                 </span>
-                <span className="skills-row-agents" aria-label={t("ui.SkillsView.arialabel.f3249e29")}>
-                  {skillAgentLabels(item.id, item.agentIds).map((agent) => (
-                    <span key={agent}>{agent}</span>
-                  ))}
-                  {!skillAgentLabels(item.id, item.agentIds).length && <span>{t("ui.SkillsView.text.1700cbab")}</span>}
-                </span>
                 <span className="skills-row-description">{skillDisplayDescription(item) || t("ui.SkillsView.text.6dd28f40")}</span>
-                <span className="skills-row-id">{item.id}</span>
               </button>
+              <span className="skills-row-agents" aria-label={t("ui.SkillsView.arialabel.f3249e29")}>
+                {skillAgentLabels(item.id, item.agentIds).map((agent) => (
+                  <span key={agent}>{agent}</span>
+                ))}
+                {!skillAgentLabels(item.id, item.agentIds).length && <span>{t("ui.SkillsView.text.1700cbab")}</span>}
+              </span>
               <Switch
                 className="skills-enable-toggle"
                 size="small"
@@ -168,6 +169,7 @@ export function SkillsView({ data, controller }: SkillsViewProps) {
                 onChange={() => controller.toggleSkill(item.id)}
               />
               <button
+                aria-label={item.builtIn ? t("ui.CameraControlPanel.text.a191935b") : t("ui.MaterialGrid.title.3755f56f")}
                 className={`icon-action${item.builtIn ? "" : " danger"}`}
                 title={item.builtIn ? t("ui.CameraControlPanel.text.a191935b") : t("ui.MaterialGrid.title.3755f56f")}
                 onClick={() => (item.builtIn

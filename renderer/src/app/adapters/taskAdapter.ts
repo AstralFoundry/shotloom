@@ -1,4 +1,5 @@
 import { t } from '@/i18n';
+import { getModelInfo } from '../../domain/catalog/ModelCatalog';
 import { isActiveTaskStatus } from '../../domain/tasks/TaskStatus';
 import {
   adoptRemoteTask,
@@ -15,6 +16,7 @@ import { store } from "../../store/projectStore.ts";
 import type { GenerationTask } from "../views/TasksView";
 
 export const taskTypeLabels: Record<string, string> = {
+  pluginProcessing: t("tasks.pluginProcessing"),
   imageGeneration: t("ui.taskAdapter.imageGeneration.1f6a9dab"),
   videoGeneration: t("ui.taskAdapter.videoGeneration.19978a8d"),
   audioGeneration: t("ui.taskAdapter.audioGeneration.d371481a"),
@@ -35,6 +37,7 @@ export function taskSearchText(task: GenerationTask) {
     task.historical ? statusLabel("historical") : "",
     task.status,
     task.model,
+    task.modelLabel,
     task.error,
     task.nodeId,
     task.id ? `#${String(task.id).slice(-8)}` : "",
@@ -73,6 +76,7 @@ export function splitTaskError(error: string) {
 export function taskViewData(): GenerationTask[] {
   return (store.project.tasks || []).map((task: GenerationTask) => ({
     ...task,
+    modelLabel: task.model ? getModelInfo(task.model)?.name || task.model : undefined,
     locateNodeId: task.sourceNodeIds ? task.sourceNodeIds.find(id => store.project.nodes.some((node: { id: string }) => node.id === id)) || '' : task.nodeId || '',
     historical: isHistoricalModelTask(task),
     canRetry: canRetryTask(task),

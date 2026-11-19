@@ -124,7 +124,7 @@ const skillCategoryKeys = {
   '商业广告': 'commercial', '专业影视': 'film', '动画': 'animation',
   '创意实验': 'experimental', '教育': 'education', '短剧漫剧': 'drama',
   '平台工具': 'platform', video: 'video', general: 'general', text: 'text',
-  social: 'social', marketing: 'marketing', ecommerce: 'ecommerce',
+  film: 'film', social: 'social', marketing: 'marketing', ecommerce: 'ecommerce',
 } as const;
 
 export function skillDisplayCategory(skill: { id: string; category?: string; builtIn?: boolean }): string {

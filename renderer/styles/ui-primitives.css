@@ -468,57 +468,48 @@ tr:last-child td {
   pointer-events: none;
 }
 
-/* 版本记录抽屉：左侧列表、右侧只读预览。 */
-.version-history-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
-  gap: 16px;
-}
-
-.version-history-hint {
-  margin-top: 0;
-  color: var(--muted);
-  font-size: var(--text-body-12);
-  line-height: var(--text-body-12--line-height);
-}
-
-.version-history-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  width: 100%;
-}
-
-.version-history-meta {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--muted);
-}
-
-.version-history-nodes {
-  max-height: 320px;
-  overflow: auto;
-  padding-left: 18px;
-}
-
-.version-history-preview {
-  min-width: 0;
-}
-
-.version-history-grid .ant-list-item {
-  cursor: pointer;
-  padding-inline: 8px;
-  border-radius: var(--radius-sm);
-}
-
-.version-history-grid .ant-list-item.is-selected {
-  background: var(--surface-2);
-}
-
+/* Version history: independent list and preview scroll, with persistent restore controls. */
+.version-history-drawer .ant-drawer-header { border-bottom: 0; }
+.version-history-drawer .ant-drawer-body { display: flex; flex-direction: column; gap: 20px; padding: 24px; overflow: hidden; }
+.version-history-grid { flex: 1; min-height: 0; display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: 32px; }
+.version-history-sidebar { min-height: 0; display: flex; flex-direction: column; }
+.version-history-section-title { display: flex; justify-content: space-between; gap: 12px; padding: 0 10px 12px; font-size: var(--text-body-12); color: var(--muted); }
+.version-history-section-title > span:last-child { color: var(--faint); font-variant-numeric: tabular-nums; }
+.version-history-list { min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; padding: 0; }
+.version-history-row { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 40px; padding: 8px 12px; border: 0; border-radius: var(--radius-md); background: transparent; color: var(--text); text-align: left; cursor: pointer; transition: background var(--duration-fast) var(--ease-std), border-color var(--duration-fast) var(--ease-std); }
+.version-history-row:hover { background: var(--surface-2); }
+.version-history-row.is-selected { background: var(--brand-accent-wash); color: var(--brand-accent); }
+.version-history-row:focus-visible { outline: 2px solid var(--brand-accent); outline-offset: -2px; }
+.version-history-row:disabled { cursor: default; }
+.version-history-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin: 8px 0 0; color: var(--faint); font-size: var(--text-caption-11); font-weight: 400; }
+.version-history-preview { min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+.version-history-preview-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 0 20px; }
+.version-history-preview-head h3 { margin: 0; font-size: var(--text-body-14); font-weight: 500; }
+.version-history-preview-body { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 12px; overflow: auto; padding: 0; }
+.version-history-preview .snapshot-canvas { flex: 1; min-height: 240px; height: auto; border: 0; border-radius: var(--radius-md); background: var(--surface-2); }
+.version-history-node-details { padding-top: 0; flex-shrink: 0; }
+.version-history-node-details summary { cursor: pointer; color: var(--muted); font-size: var(--text-body-12); }
+.version-history-nodes { margin: 12px 0 0; padding-left: 20px; font-size: var(--text-body-12); color: var(--muted); line-height: 1.8; overflow-wrap: anywhere; }
+.version-history-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 20px 0 0; }
+.version-history-footer > span { display: inline-flex; align-items: center; gap: 6px; color: var(--faint); font-size: var(--text-caption-11); }
+.version-history-footer svg { width: var(--icon-sm); height: var(--icon-sm); }
+.version-history-footer .ant-btn { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; }
+.version-history-hint { color: var(--muted); font-size: var(--text-body-12); line-height: 1.6; }
+.version-history-empty { flex: 1; min-height: 200px; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: var(--muted); font-size: var(--text-body-12); }
+.version-history-error { margin: 0; color: var(--bad); font-size: var(--text-body-12); }
 @media (max-width: 720px) {
-  .version-history-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
+  .version-history-drawer .ant-drawer-body { padding: 16px; gap: 16px; overflow-y: auto; }
+  .version-history-grid { flex: none; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .version-history-list { max-height: 220px; }
+  .version-history-preview-body { flex: none; }
+  .version-history-preview .snapshot-canvas { flex: none; height: 320px; }
+  .version-history-preview-head { padding-bottom: 16px; }
+  .version-history-footer { padding-top: 16px; }
 }
+
+.version-history-date { padding: 20px 12px 8px; font-size: var(--text-caption-11); color: var(--faint); }
+.version-history-date:first-child { padding-top: 8px; }
+.version-history-row time { font-size: var(--text-body-12); font-variant-numeric: tabular-nums; }
+.version-history-reason { max-width: 100px; font-size: var(--text-caption-11); color: var(--faint); text-align: right; }
+.version-history-row.is-selected .version-history-reason { color: var(--brand-accent); }
+.version-history-readonly { color: var(--faint); font-size: var(--text-caption-11); flex-shrink: 0; }

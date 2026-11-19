@@ -21,64 +21,38 @@
   overflow: auto;
 }
 
-.skills-list-summary {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  padding: 10px 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  border-bottom: 1px solid var(--line);
-  color: var(--muted);
-  background: var(--bg);
-  font-size: var(--text-caption-11);
-}
-.skills-select-all { color: var(--muted); font-size: var(--text-caption-11); }
-
-/* 启用开关沿用设置页 Agent 开关的胶囊形态，行内不需要再解释勾选含义。 */
+.skills-list-toolbar { position: sticky; top: 0; z-index: 1; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 0 16px; background: var(--bg); }
+.skills-search { flex: 0 1 320px; min-width: 180px; }
+.skills-search .ant-input-affix-wrapper { height: 36px; padding: 0 12px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface); }
+.skills-search .ant-input-affix-wrapper:focus-within { border-color: var(--brand-accent); }
+.skills-search .ant-input-prefix { color: var(--faint); margin-inline-end: 8px; }
+.skills-search svg { width: var(--icon-sm); height: var(--icon-sm); }
+.skills-search input { font-size: var(--text-body-12); }
+.skills-list-summary { display: flex; align-items: center; gap: 20px; color: var(--faint); font-size: var(--text-body-12); }
+.skills-select-all { color: var(--muted); font-size: var(--text-body-12); }
 .skills-enable-toggle { justify-self: end; }
-
-.skills-row {
-  padding: 12px 0;
-  display: grid;
-  grid-template-columns: 22px minmax(0, 1fr) 38px 28px;
-  align-items: center;
-  gap: 12px;
-  border-bottom: 1px solid var(--line);
-  transition: background var(--duration-fast) var(--ease-std);
-}
-.skills-row:last-of-type { border-bottom: 0; }
+.skills-row { padding: 16px 12px; display: grid; grid-template-columns: 20px minmax(0, 1fr) 180px 32px 28px; align-items: center; gap: 20px; border-radius: var(--radius-md); transition: background var(--duration-fast) var(--ease-std); }
 .skills-row:hover { background: var(--wash-hover); }
-.skills-row.active { background: var(--brand-soft); box-shadow: inset 2px 0 var(--brand); }
-.skills-row.disabled .skills-row-main { opacity: .54; }
+.skills-row.active,.skills-row.selected { background: var(--brand-accent-wash); }
+.skills-row.disabled .skills-row-name strong { color: var(--muted); }
 .skills-row-select { justify-self: center; }
-
-.skills-row-main {
-  min-width: 0;
-  padding: 0;
-  display: grid;
-  gap: 4px;
-  border: 0;
-  background: transparent;
-  color: var(--type-primary);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
+.skills-row-main { min-width: 0; padding: 0; display: grid; gap: 7px; border: 0; background: transparent; color: var(--type-primary); font: inherit; text-align: left; cursor: pointer; }
+.skills-row-main:focus-visible { outline: 2px solid var(--brand-accent); outline-offset: 4px; border-radius: var(--radius-sm); }
+.skills-row-name { min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; }
+.skills-row-name strong { color: var(--type-primary); font-size: var(--text-body-14); line-height: var(--text-body-14--line-height); font-weight: 500; overflow-wrap: anywhere; }
+.skills-row-name > span { color: var(--faint); font-size: var(--text-caption-11); font-weight: 400; }
+.skills-row-agents { display: flex; flex-direction: column; gap: 4px; color: var(--muted); font-size: var(--text-body-12); line-height: 1.5; }
+.skills-row-description { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; color: var(--muted); font-size: var(--text-body-12); line-height: 1.6; }
+.skills-row > .icon-action { border: 0; background: transparent; color: var(--faint); }
+.skills-row > .icon-action:hover { color: var(--text); background: var(--surface-2); }
+@media (max-width: 900px) {
+  .skills-row { grid-template-columns: 20px minmax(0, 1fr) 32px 28px; gap: 12px; }
+  .skills-row-agents { grid-column: 2; grid-row: 2; flex-direction: row; flex-wrap: wrap; font-size: var(--text-caption-11); }
+  .skills-row > .skills-enable-toggle { grid-column: 3; grid-row: 1; }
+  .skills-row > .icon-action { grid-column: 4; grid-row: 1; }
+  .skills-search { flex-basis: 100%; }
+  .skills-list-summary { width: 100%; justify-content: space-between; }
 }
-.skills-row-name { display: flex; align-items: center; gap: 8px; }
-.skills-row-name strong {
-  color: var(--type-primary);
-  font-size: var(--text-body-14);
-  line-height: var(--text-body-14--line-height);
-  font-weight: 500;
-}
-.skills-row-name span { padding: 1px 6px; border: 1px solid var(--line); border-radius: var(--radius-sm); color: var(--muted); background: var(--bg); font-size: var(--text-caption-11); font-weight: 500; }
-.skills-row-agents { display: flex; flex-wrap: wrap; gap: 4px; }
-.skills-row-agents span { padding: 1px 6px; border: 1px solid var(--line); border-radius: var(--radius-sm); color: var(--good); background: var(--good-wash); font-size: var(--text-caption-11); line-height: 1.4; }
-.skills-row-description { overflow: hidden; color: var(--muted); font-size: var(--text-body-12); line-height: var(--text-body-12--line-height); text-overflow: ellipsis; white-space: nowrap; }
-.skills-row-id { color: var(--faint); font-size: var(--text-caption-11); line-height: var(--text-caption-11--line-height); }
 
 .skills-empty { padding: 26px 0; color: var(--faint); font-size: var(--text-body-12); }
 

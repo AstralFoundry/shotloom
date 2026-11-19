@@ -23,6 +23,7 @@ export interface GenerationTask {
   status: string;
   progress?: number;
   model?: string;
+  modelLabel?: string;
   nodeId?: string;
   sourceNodeIds?: string[];
   locateNodeId?: string;
@@ -50,6 +51,7 @@ const typeIcons: Record<string, IconName> = {
   videoGeneration: "play",
   audioGeneration: "waveform",
   textGeneration: "chat",
+  pluginProcessing: "blocks",
 };
 
 export function TasksView(
@@ -155,15 +157,7 @@ export function TasksView(
         onClick={() => setMenu(null)}
         onContextMenu={openMenu}
       >
-        <label className="task-search">
-          <SearchInput
-            value={keyword}
-            onChange={setKeyword}
-            placeholder={t("ui.TasksView.placeholder.365b1b3e")}
-          />
-        </label>
         <div className="task-list-summary">
-          <span>{t("ui.taskAdapter.text.cafe3d5c")}</span>
           <Segmented
             className="task-filter"
             aria-label={t("ui.taskAdapter.text.cafe3d5c")}
@@ -180,6 +174,13 @@ export function TasksView(
               ),
             }))}
           />
+          <label className="task-search">
+            <SearchInput
+              value={keyword}
+              onChange={setKeyword}
+              placeholder={t("ui.TasksView.placeholder.365b1b3e")}
+            />
+          </label>
         </div>
         {!filtered.length
           ? (
@@ -205,20 +206,19 @@ export function TasksView(
                 const failure = task.error ? splitTaskError(task.error) : null;
                 const detailOpen = Boolean(openErrors[task.id]);
                 return (
-                  <article key={task.id} className={`task-record is-${status}`}>
+                  <article key={task.id} className={`task-record is-${status}`} title={`#${task.id}`}>
                     <div className="task-record-icon" title={typeLabel}>
                       <IconSymbol name={typeIcons[task.type || ""] || "task"} />
                     </div>
                     <div className="task-record-main">
                       <div className="task-record-title">
                         <strong>{task.title || typeLabel}</strong>
-                        <StatusPill status={status} />
                       </div>
                       <div className="task-record-meta">
                         <span className={`task-record-note${
                           failure ? (task.historical ? " is-stale" : " is-error") : ""
                         }`}>
-                          {failure ? failure.summary : task.model || typeLabel}
+                          {failure ? failure.summary : task.modelLabel || task.model || typeLabel}
                         </span>
                         {Boolean(failure?.detail) && (
                           <button
@@ -240,11 +240,6 @@ export function TasksView(
                           </em>
                         )}
                         <time>{formatTime(task.createdAt)}</time>
-                        <span className="task-record-ref">
-                          {task.id
-                            ? `#${String(task.id).slice(-8)}`
-                            : t("ui.TasksView.text.0e5b861a")}
-                        </span>
                       </div>
                       {adoptTaskId === task.id && (
                         <div className="task-adopt" onClick={(event) => event.stopPropagation()}>
@@ -301,6 +296,7 @@ export function TasksView(
                       )}
                     </div>
                     <div className="task-record-actions">
+                      <StatusPill status={status} />
                       {(task.locateNodeId ?? task.nodeId) && (
                         <button
                           className="icon-button"
@@ -308,7 +304,7 @@ export function TasksView(
                           aria-label={t("ui.TasksView.text.477b3c92", { value0: task.title || typeLabel })}
                           onClick={() => void onLocate((task.locateNodeId ?? task.nodeId)!)}
                         >
-                          <IconSymbol name="maximize" />
+                          <IconSymbol name="target" />
                         </button>
                       )}
                       {task.status === "running" && (

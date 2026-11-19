@@ -1,4 +1,9 @@
 {
+  "project.version.saved": "已保存版本",
+  "project.version.readOnly": "只读预览",
+  "project.version.nodeList": "节点清单",
+  "project.version.backupNotice": "恢复前自动备份当前画布",
+  "tasks.pluginProcessing": "插件工具",
   "canvas.gesture.pan": "移动画布",
   "canvas.gesture.panKeys": "双指滑动 · 空格拖动 · 中键拖动",
   "canvas.gesture.zoom": "缩放画布",
@@ -933,7 +938,7 @@
   "ui.SettingsPanel.text.b79aff63": "可用于 Agent",
   "ui.SettingsPanel.text.fcf0100d": "仅画布",
   "ui.SettingsPanel.text.6a802e97": "让 Agent 按任务选择方法",
-  "ui.SkillsView.description.0d36078e": "启用的技能供有权限的 Agent 按任务选择；标签会显示每个技能实际可用的 Agent。你也可以在对话中指定技能。",
+  "ui.SkillsView.description.0d36078e": "技能供有权限的 Agent 使用，也可以在对话中指定。",
   "ui.SettingsPanel.text.fc80254b": "按需使用",
   "ui.SkillsView.placeholder.15dfafe9": "搜索技能",
   "ui.SkillsView.arialabel.c0e4b0f5": "技能列表",

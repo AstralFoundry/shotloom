@@ -1,4 +1,9 @@
 {
+  "project.version.saved": "Saved versions",
+  "project.version.readOnly": "Read-only",
+  "project.version.nodeList": "Node list",
+  "project.version.backupNotice": "Current canvas is backed up before restoring",
+  "tasks.pluginProcessing": "Plugin tool",
   "canvas.gesture.pan": "Pan canvas",
   "canvas.gesture.panKeys": "Two-finger scroll · Space drag · Middle-button drag",
   "canvas.gesture.zoom": "Zoom canvas",
@@ -935,7 +940,7 @@
   "ui.SettingsPanel.text.b79aff63": "Available to Agent",
   "ui.SettingsPanel.text.fcf0100d": "Canvas only",
   "ui.SettingsPanel.text.6a802e97": "Let the Agent choose methods for each task",
-  "ui.SkillsView.description.0d36078e": "Enabled skills are available to authorized Agents. Labels show which Agents can use each skill. You can also specify a skill in the conversation.",
+  "ui.SkillsView.description.0d36078e": "Skills are available to authorized agents. You can also request a skill in chat.",
   "ui.SettingsPanel.text.fc80254b": "Use as needed",
   "ui.SkillsView.placeholder.15dfafe9": "Search skills",
   "ui.SkillsView.arialabel.c0e4b0f5": "Skill list",
