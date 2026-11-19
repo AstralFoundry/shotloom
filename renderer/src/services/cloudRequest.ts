@@ -9,6 +9,17 @@ let sessionVersion = 0;
 type CloudUser = { id: string; username?: string; email?: string };
 let sessionRead: Promise<CloudUser> | undefined;
 let cachedSession: { user: CloudUser; expires: number } | undefined;
+const hintKey = `shotloom:session-user:${cloudOrigin}`;
+// A tab-local user ID is only a display hint; HttpOnly cookies still authorize every request.
+export function readCloudUserHint(): string | undefined {
+  try { return window.sessionStorage.getItem(hintKey) || undefined; } catch { return; }
+}
+function rememberCloudUser(id?: string) {
+  try {
+    if (id) window.sessionStorage.setItem(hintKey, id);
+    else window.sessionStorage.removeItem(hintKey);
+  } catch { /* Storage restrictions must not block session recovery. */ }
+}
 export function bindCloudUser(id: string): boolean {
   if (sessionUserId && sessionUserId !== id) return false;
   sessionUserId = id;
@@ -26,6 +37,7 @@ function expireSession() {
   if (sessionExpired || typeof window === 'undefined') return;
   sessionExpired = true;
   cachedSession = undefined;
+  rememberCloudUser();
   window.dispatchEvent(new Event('shotloom-session-expired'));
 }
 
@@ -42,9 +54,15 @@ export function readCloudSession(force = false): Promise<CloudUser> {
       throw Object.assign(new Error(result.message || `HTTP ${response.status}`), { status: response.status, code: result.code });
     }
     if (sessionUserId && result.data.id !== sessionUserId) throw Object.assign(new Error('Account changed'), { status: 409, code: 'ACCOUNT_CHANGED' });
-    if (version === sessionVersion) cachedSession = { user: result.data, expires: Date.now() + 30000 };
+    if (version === sessionVersion) {
+      cachedSession = { user: result.data, expires: Date.now() + 30000 };
+      rememberCloudUser(result.data.id);
+    }
     return result.data as CloudUser;
-  })().finally(() => { if (sessionRead === read) sessionRead = undefined; });
+  })().catch(error => {
+    if (version === sessionVersion && (error.status === 401 || error.code === 'ACCOUNT_CHANGED')) expireSession();
+    throw error;
+  }).finally(() => { if (sessionRead === read) sessionRead = undefined; });
   sessionRead = read;
   return read;
 }
@@ -80,6 +98,7 @@ export async function cloudRequest<T>(path: string, method = 'GET', value?: unkn
   if (version === sessionVersion && response.status === 409 && (result as { code?: string }).code === 'ACCOUNT_CHANGED') expireSession();
   if (version === sessionVersion && path === '/auth/me' && response.ok && result.success) sessionExpired = false;
   if (!response.ok || !result.success) throw Object.assign(new Error(result.message || `HTTP ${response.status}`), { status: response.status });
+  if (path === '/auth/logout') { rememberCloudUser(); cachedSession = undefined; }
   if (method !== 'GET' && typeof window !== 'undefined' && new URLSearchParams(window.location?.search).get('native') === 'embedded') window.ReactNativeWebView?.postMessage(JSON.stringify({ type: 'workspace-mutated', path }));
   return result.data;
 }

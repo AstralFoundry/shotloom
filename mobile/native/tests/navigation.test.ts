@@ -17,6 +17,8 @@ exports.ScrollView='ScrollView'; exports.RefreshControl='RefreshControl';
 exports.Modal=({visible,children})=>visible?React.createElement('Modal',null,children):null;
 exports.StyleSheet={create:x=>x,absoluteFillObject:{}}; exports.Platform={OS:'android'};
 state.foreground=new Set();exports.AppState={currentState:'active',addEventListener:(_,fn)=>{state.foreground.add(fn);return {remove(){state.foreground.delete(fn)}}}};
+state.links=new Set();exports.Linking={addEventListener:(_,fn)=>{state.links.add(fn);return {remove(){state.links.delete(fn)}}}};
+exports.openBrowserAsync=async url=>{(state.browserUrls??=[]).push(url);return await state.browserResult||{type:'opened'}};exports.dismissBrowser=async()=>{};
 exports.BackHandler={addEventListener:(_,fn)=>{state.back=fn;return {remove(){if(state.back===fn)state.back=null}}}};
 exports.Alert={alert(){}};
 exports.WebView=React.forwardRef((props,ref)=>{React.useEffect(()=>{if(props.source?.uri?.includes('project='))state.mounts++;if(props.source?.uri?.includes('native=prewarm')&&!state.holdWarmup)props.onMessage({nativeEvent:{url:props.source.uri,data:JSON.stringify({type:'workspace-session-ready',userId:state.session.userId})}});},[]);React.useImperativeHandle(ref,()=>({injectJavaScript(script){state.send?.(script)},reload(){state.reload?.()}}));return React.createElement('WebView',props)});
@@ -41,7 +43,7 @@ exports.File=class {};exports.Paths={cache:'cache'};
 async function loadApp() {
   (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
   const result = await build({ entryPoints: ['src/App.tsx'], absWorkingDir: fileURLToPath(new URL('..', import.meta.url)), bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react'], loader: { '.png': 'dataurl' }, define: { __DEV__: 'false' }, plugins: [{ name: 'native-test-platform', setup(builder) {
-    builder.onResolve({ filter: /^(react-native|react-native-webview|react-native-safe-area-context|react-native-svg|@react-navigation\/native|@react-navigation\/native-stack|expo-crypto|expo-localization|expo-document-picker|expo-file-system|expo-sharing)$/ }, () => ({ path: 'platform', namespace: 'fixture' }));
+    builder.onResolve({ filter: /^(react-native|react-native-webview|react-native-safe-area-context|react-native-svg|@react-navigation\/native|@react-navigation\/native-stack|expo-crypto|expo-localization|expo-document-picker|expo-file-system|expo-sharing|expo-web-browser)$/ }, () => ({ path: 'platform', namespace: 'fixture' }));
     builder.onResolve({ filter: /^\.\/(api|session)$/ }, () => ({ path: 'platform', namespace: 'fixture' }));
     builder.onLoad({ filter: /.*/, namespace: 'fixture' }, () => ({ contents: platform, loader: 'js' }));
   } }] });
@@ -88,6 +90,56 @@ test('slow preferences do not block home; tab switches reuse the profile and for
     await act(async () => { for (const listener of [...state.foreground] as ((value: string) => void)[]) listener('active'); });
     assert.ok(state.requests.filter((path: string) => path === '/auth/me').length > 1, 'foreground still checks the actual session');
   } finally { await act(async () => { release(); }); await act(async () => tree.unmount()); }
+});
+
+test('stored sessions open home while verification is pending and stay open through a network failure', async () => {
+  const App = await loadApp(); const state = (globalThis as any).__nativeUi;
+  let reject!: (error: Error) => void;
+  const verification = new Promise<void>((_, fail) => { reject = fail; });
+  state.beforeRequest = (path: string) => path === '/auth/me' ? verification : undefined;
+  let tree!: ReturnType<typeof create>;
+  await act(async () => { tree = create(React.createElement(App)); });
+  try {
+    const tabs = () => tree.root.findAllByType('Pressable' as any).filter(node => node.props.accessibilityRole === 'tab');
+    const login = () => tree.root.findAllByType('Pressable' as any).filter(node => node.findAllByType('Text' as any).some(text => text.props.children === 'Sign in with new-api'));
+    assert.equal(tabs().length, 4, 'home must not wait for the network login check');
+    assert.equal(login().length, 0);
+    await act(async () => { reject(new Error('Network unavailable')); });
+    assert.equal(tabs().length, 4, 'a transport error cannot invalidate the stored session');
+    assert.equal(login().length, 0);
+  } finally { await act(async () => { reject(new Error('cleanup')); tree.unmount(); }); }
+});
+
+test('account top-up is native, prevents duplicate orders, reuses checkout and refreshes actual balance after return', async () => {
+  const App = await loadApp(); const state = (globalThis as any).__nativeUi;
+  state.responses = { '/auth/account': { app_quota: 100000, app_used_quota: 0 }, '/auth/topup/options': { quotaPerAmount: 500000 } };
+  state.writeResponses = { '/auth/topup': { checkoutUrl: 'https://payments.example/checkout/one' } };
+  let closeBrowser!: () => void;
+  state.browserResult = new Promise<void>(resolve => { closeBrowser = resolve; });
+  let tree!: ReturnType<typeof create>;
+  await act(async () => { tree = create(React.createElement(App)); });
+  const button = (label: string) => tree.root.findAllByType('Pressable' as any).find(node => node.findAllByType('Text' as any).some(text => text.props.children === label))!;
+  try {
+    await act(async () => tree.root.findAllByType('Pressable' as any).filter(node => node.props.accessibilityRole === 'tab')[3]!.props.onPress());
+    await act(async () => button('Top up credits').props.onPress());
+    assert.equal(tree.root.findAllByType('WebView' as any).length, 0);
+    const pay = button('Continue to payment');
+    await act(async () => { pay.props.onPress(); pay.props.onPress(); });
+    assert.deepEqual(state.writes.filter((item: any) => item.path === '/auth/topup'), [{ path: '/auth/topup', method: 'POST', value: { amount: 10 } }]);
+    assert.deepEqual(state.browserUrls, ['https://payments.example/checkout/one']);
+    await act(async () => { closeBrowser(); });
+    await act(async () => button('Resume payment').props.onPress());
+    assert.equal(state.writes.filter((item: any) => item.path === '/auth/topup').length, 1);
+    const before = state.requests.filter((path: string) => path === '/auth/account').length;
+    await act(async () => { for (const listener of state.links as Set<(event: any) => void>) listener({ url: 'shotloom-preview://payment/return?status=success' }); });
+    assert.ok(state.requests.filter((path: string) => path === '/auth/account').length > before);
+    assert.equal(tree.root.findAllByType('Text' as any).some(text => text.props.children === 'Payment successful'), false, 'a return URL is not a payment receipt');
+    const input = tree.root.findAllByType('TextInput' as any).find(node => node.props.accessibilityLabel === 'Custom units')!;
+    for (const amount of ['0', '-1', '1.5', '1000001', 'NaN']) {
+      await act(async () => input.props.onChangeText(amount));
+      assert.equal(button('Continue to payment').props.disabled, true);
+    }
+  } finally { await act(async () => { closeBrowser(); tree.unmount(); }); }
 });
 
 test('project search and the same canvas survive tab roundtrips without creating a session WebView', async () => {

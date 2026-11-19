@@ -15,10 +15,11 @@ import type { Feedback, FeedbackDetail, FeedbackKind, InboxPage, Page } from '..
 import { language, local, setLanguage, t } from './i18n';
 import { NativeSkills } from './NativeSkills';
 import { NativeSettings } from './NativeSettings';
+import { NativeTopup } from './NativeTopup';
 const origin = (process.env.EXPO_PUBLIC_CLOUD_URL || 'https://shotloom.0xfiang.com').replace(/\/$/, '');
 const parsedOrigin = new URL(origin);
 if (parsedOrigin.origin !== origin || (parsedOrigin.protocol !== 'https:' && !(__DEV__ && parsedOrigin.protocol === 'http:'))) throw new Error('EXPO_PUBLIC_CLOUD_URL must be an HTTPS origin');
-type Routes = { Home: undefined; Settings: undefined; Records: undefined; Compose: undefined; Feedback: { id: string }; Notifications: undefined; Workspace: { id: string; name: string; page?: 'projects' | 'account'; panel?: 'settings' | 'topup'; folder?: string } };
+type Routes = { Home: undefined; Settings: undefined; Topup: undefined; Records: undefined; Compose: undefined; Feedback: { id: string }; Notifications: undefined; Workspace: { id: string; name: string; page?: 'projects' | 'account'; panel?: 'settings' | 'topup'; folder?: string } };
 const Stack = createNativeStackNavigator<Routes>();
 const SettingsChanged = createContext({ revision: 0, changed: () => {} });
 const PageActive = createContext(true);
@@ -121,7 +122,7 @@ function Account({ navigation }: { navigation: NativeStackScreenProps<Routes, 'H
   const [page, setPage] = useState(1);
   const usage = useRemote<Usage>(`/auth/usage?page=${page}&page_size=10`);
   const refresh = () => { account.refresh(); usage.refresh(); me.refresh(); };
-  const openPanel = (panel: 'settings' | 'topup') => panel === 'settings' ? navigation.navigate('Settings') : navigation.navigate('Workspace', { id: '', name: t('account.topup'), page: 'account', panel });
+  const openPanel = (panel: 'settings' | 'topup') => navigation.navigate(panel === 'settings' ? 'Settings' : 'Topup');
   const action = (icon: IconName, title: string, description: string, onPress: () => void) => <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.accountAction, pressed && styles.pressed]}><View style={styles.actionIcon}><Icon name={icon} /></View><View style={styles.grow}><Text style={styles.title}>{title}</Text><Text style={styles.actionDescription}>{description}</Text></View><Icon name="chevron-right" /></Pressable>;
   return <ScrollView contentContainerStyle={styles.account} refreshControl={<RefreshControl refreshing={account.loading} onRefresh={refresh} />}>
     <View style={styles.accountHeader}><Text style={styles.heading}>{t('account.title')}</Text><Text style={styles.secondary}>{t('account.description')}</Text></View>
@@ -357,6 +358,10 @@ function Settings() {
 function Workspace({ route }: NativeStackScreenProps<Routes, 'Workspace'>) {
   return <SafeAreaView edges={route.params.id ? ['top', 'bottom'] : ['bottom']} style={styles.screen}><WebContent params={route.params} /></SafeAreaView>;
 }
+function Topup() {
+  const api = useApi();
+  return <SafeAreaView edges={['bottom']} style={styles.screen}><NativeTopup api={api} /></SafeAreaView>;
+}
 export default function App() {
   const [session, setSession] = useState<NativeSession | null>(null);
   const loggingOut = useRef(false);
@@ -375,31 +380,39 @@ export default function App() {
   }, [session]);
   useEffect(() => {
     let active = true;
-    void restoreSession(origin).then(value => { if (active) setSession(value); })
+    void restoreSession(origin).then(value => {
+      if (!active || !value) return;
+      setSession(value); setAuthenticated(true); setOpened(true);
+    })
       .catch(cause => { if (active) setFailure(errorText(cause)); }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, []);
   useEffect(() => {
     if (!api || !session) return;
     let active = true;
-    setLoading(true);
     void api.read<{ locale?: string }>('/settings/mobile').then(preferences => {
       if (active && preferences.locale) { setLanguage(preferences.locale); changed(); }
     }).catch(() => {});
-    void api.read<{ id: string }>('/auth/me').then(user => {
+    const verify = () => void api.read<{ id: string }>('/auth/me', true).then(user => {
       if (!active) return;
-      if (user.id !== session.userId) throw new Error(t('cloud.login.accountChanged'));
-      setAuthenticated(true); setOpened(true); setFailure('');
-    }).catch(cause => { if (active) { setAuthenticated(false); setFailure(errorText(cause)); } })
-      .finally(() => { if (active) setLoading(false); });
-    return () => { active = false; api.invalidate(); api.disconnect(); };
+      if (user.id !== session.userId) {
+        api.pause(); setAuthenticated(false); setFailure(t('cloud.login.accountChanged'));
+      }
+    }).catch(() => { /* Only a confirmed invalid session pauses the API; transport errors keep the native UI available. */ });
+    verify();
+    let previousState = AppState.currentState;
+    const subscription = AppState.addEventListener('change', state => {
+      if (state === 'active' && previousState !== 'active') verify();
+      previousState = state;
+    });
+    return () => { active = false; subscription.remove(); api.invalidate(); api.disconnect(); };
   }, [api, session, changed]);
   const signIn = async () => {
     if (signingIn.current) return;
     signingIn.current = true; setBusy(true); setFailure('');
     try {
       const value = await login(origin, opened ? session?.userId : undefined);
-      if (value) setSession(value);
+      if (value) { setSession(value); setAuthenticated(true); setOpened(true); }
     } catch (cause) { setFailure(errorText(cause)); }
     finally { signingIn.current = false; setBusy(false); }
   };
@@ -417,10 +430,11 @@ export default function App() {
   };
   return <SafeAreaProvider><View style={styles.screen}><ApiContext.Provider value={api}><SessionContext.Provider value={session ? { ...session, expire: () => { api?.pause(); setAuthenticated(false); } } : null}><SettingsChanged.Provider value={{ revision: settingsRevision, changed }}><LogoutContext.Provider value={() => void logout()}>
     {authenticated && failure ? <ErrorNotice text={failure} /> : null}
-    {opened && session && <WorkspaceSession session={session}><View style={styles.screen} pointerEvents={authenticated ? 'auto' : 'none'} accessibilityElementsHidden={!authenticated} importantForAccessibility={authenticated ? 'auto' : 'no-hide-descendants'}><NavigationContainer linking={{ prefixes: ['shotloom-preview://'], config: { screens: { Feedback: 'feedback/:id', Notifications: 'notifications' } } }}>
+    {opened && session && <WorkspaceSession session={session}><View style={styles.screen} pointerEvents={authenticated ? 'auto' : 'none'} accessibilityElementsHidden={!authenticated} importantForAccessibility={authenticated ? 'auto' : 'no-hide-descendants'}><NavigationContainer linking={{ prefixes: ['shotloom-preview://'], config: { screens: { Feedback: 'feedback/:id', Notifications: 'notifications', Topup: 'payment/return' } } }}>
       <Stack.Navigator screenOptions={{ headerBackButtonDisplayMode: 'minimal', contentStyle: styles.screen, headerShadowVisible: false, headerStyle: { backgroundColor: colors.background }, headerTintColor: colors.text, headerTitleStyle: { fontSize: 16, fontWeight: '500' } }}>
         <Stack.Screen name="Home" component={Home} options={{ headerShown: false }} />
         <Stack.Screen name="Settings" component={Settings} options={{ title: t('account.settings') }} />
+        <Stack.Screen name="Topup" component={Topup} getId={() => 'topup'} options={{ title: t('account.topup') }} />
         <Stack.Screen name="Compose" component={Compose} options={{ title: t('support.title'), headerStyle: { backgroundColor: colors.surface } }} />
         <Stack.Screen name="Records" component={Records} options={{ title: t('support.history') }} />
         <Stack.Screen name="Feedback" component={Thread} options={{ title: t('support.title') }} />
@@ -428,7 +442,8 @@ export default function App() {
         <Stack.Screen name="Workspace" component={Workspace} options={({ route }) => ({ title: route.params.name, headerShown: !route.params.id })} />
       </Stack.Navigator>
     </NavigationContainer></View></WorkspaceSession>}
-    {!authenticated && <SafeAreaView style={styles.loginBridge}><ScrollView contentContainerStyle={[styles.list, { justifyContent: 'center' }]}>
+    {loading && <SafeAreaView style={[styles.loginBridge, { alignItems: 'center', justifyContent: 'center' }]}><Image accessibilityLabel="Shotloom" source={require('../assets/shotloom-logo.png')} style={{ width: 64, height: 64, borderRadius: 18 }} /></SafeAreaView>}
+    {!authenticated && !loading && <SafeAreaView style={styles.loginBridge}><ScrollView contentContainerStyle={[styles.list, { justifyContent: 'center' }]}>
       <View style={[styles.row, { padding: 28, gap: 24 }]}>
         <View style={styles.inline}><Image source={require('../assets/shotloom-logo.png')} style={{ width: 44, height: 44, borderRadius: 12 }} /><Text style={styles.heading}>Shotloom</Text></View>
         <Text style={styles.heading}>{t('cloud.login.title')}</Text>

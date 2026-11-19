@@ -15,6 +15,36 @@ const { issueNativeTicket, consumeNativeTicket, issueNativeToken } = await impor
 const verifier = 'a'.repeat(64);
 const challenge = createHash('sha256').update(verifier).digest('base64url');
 
+test('native top-up uses the same authenticated app wallet and rejects invalid amounts and arbitrary return targets', async () => {
+  const original = globalThis.fetch;
+  const sessionId = randomUUID(), userId = randomUUID();
+  let checkouts = 0;
+  globalThis.fetch = async (input, init) => {
+    const path = new URL(String(input)).pathname;
+    if (path.endsWith('/sessions')) return Response.json({ id: sessionId, user_id: userId, owner: { id: userId, sub: '1' }, access_token_cipher: encrypt('private-provider-token'), refresh_token_cipher: null, created_at: new Date().toISOString(), expires_at: new Date(Date.now() + 3600000).toISOString() });
+    if (path === '/api/status') return Response.json({ success: true, data: { quota_per_unit: 500000, quota_display_type: 'USD' } });
+    assert.equal(path, '/oauth/topup/checkout');
+    assert.equal(new Headers(init?.headers).get('authorization'), 'Bearer private-provider-token');
+    assert.deepEqual(JSON.parse(String(init?.body)), { amount: 10, payment_method: 'waffo_pancake' });
+    checkouts++;
+    return Response.json({ checkout_url: 'https://payments.example/order/one' });
+  };
+  const headers = { authorization: `Bearer ${issueNativeToken(sessionId)}`, 'content-type': 'application/json' };
+  try {
+    const options = await app.request('/api/auth/topup/options', { headers });
+    assert.equal(options.status, 200);
+    assert.equal((await options.json()).data.quotaPerAmount, 500000);
+    for (const body of [{ amount: 0 }, { amount: 1.5 }, { amount: 1000001 }, { amount: 10, redirect: 'https://attacker.example' }]) {
+      assert.equal((await app.request('/api/auth/topup', { method: 'POST', headers, body: JSON.stringify(body) })).status, 400);
+    }
+    const response = await app.request('/api/auth/topup', { method: 'POST', headers, body: '{"amount":10}' });
+    assert.equal(response.status, 200);
+    assert.deepEqual((await response.json()).data, { checkoutUrl: 'https://payments.example/order/one' });
+    assert.equal(checkouts, 1);
+    assert.equal((await app.request('/api/auth/topup', { method: 'POST', headers: { ...headers, origin: 'https://attacker.example' }, body: '{"amount":10}' })).status, 403);
+  } finally { globalThis.fetch = original; }
+});
+
 test('native OAuth keeps Supabase PKCE and only accepts a fixed app callback with bound challenge and state', async () => {
   const state = randomUUID();
   const response = await app.request(`/api/auth/login?native_challenge=${challenge}&native_state=${state}&redirect=https://attacker.example`);

@@ -22,7 +22,8 @@ export class NativeApi {
     }
   }
   invalidateWrite(path: string) {
-    if (path.startsWith('/notifications/')) this.invalidate(['/notifications']);
+    if (path === '/auth/topup') this.invalidate(['/auth/account', '/auth/usage']);
+    else if (path.startsWith('/notifications/')) this.invalidate(['/notifications']);
     else if (path === '/feedback') this.invalidate(['/feedback', '/notifications']);
     else if (path === '/library-folders') this.invalidate(['/library-folders', '/projects']);
     else if (path.startsWith('/project/')) this.invalidate(['/projects']);

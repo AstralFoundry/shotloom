@@ -1,16 +1,16 @@
 import { type ReactNode, useEffect, useState } from 'react';
-import { bindCloudUser, cloudEnabled, cloudRequest, readCloudSession } from '../services/cloudRequest';
+import { bindCloudUser, cloudEnabled, cloudRequest, readCloudSession, readCloudUserHint } from '../services/cloudRequest';
 import { readNativeWorkspaceBootstrap } from './nativeWorkspaceBootstrap';
 import { t } from '../i18n';
 import { SocialAuth } from './components/SocialAuth';
 
 export function CloudSession({ children }: { children: ReactNode }) {
-  const [nativeUser] = useState(() => {
-    const user = cloudEnabled ? readNativeWorkspaceBootstrap()?.userId : undefined;
+  const [initialUser] = useState(() => {
+    const user = cloudEnabled ? readNativeWorkspaceBootstrap()?.userId || readCloudUserHint() : undefined;
     return user && bindCloudUser(user) ? user : undefined;
   });
-  const [status, setStatus] = useState<'loading' | 'ready' | 'login' | 'error' | 'account'>(!cloudEnabled || nativeUser ? 'ready' : 'loading');
-  const [opened, setOpened] = useState(!cloudEnabled || Boolean(nativeUser));
+  const [status, setStatus] = useState<'loading' | 'ready' | 'login' | 'error' | 'account'>(!cloudEnabled || initialUser ? 'ready' : 'loading');
+  const [opened, setOpened] = useState(!cloudEnabled || Boolean(initialUser));
   const [retry, setRetry] = useState(0);
   useEffect(() => {
     if (new URLSearchParams(location.search).get('native') === 'embedded' && ['login', 'account', 'error'].includes(status)) window.ReactNativeWebView?.postMessage(JSON.stringify({ type: 'workspace-blocked', status }));
@@ -20,7 +20,7 @@ export function CloudSession({ children }: { children: ReactNode }) {
   }, [status]);
   useEffect(() => {
     if (!cloudEnabled) return;
-    if (nativeUser && !bindCloudUser(nativeUser)) { setStatus('account'); return; }
+    if (initialUser && !bindCloudUser(initialUser)) { setStatus('account'); return; }
     let active = true;
     const expired = () => setStatus('login');
     window.addEventListener('shotloom-session-expired', expired);
@@ -39,7 +39,7 @@ export function CloudSession({ children }: { children: ReactNode }) {
     check();
     window.addEventListener('focus', check);
     return () => { active = false; window.removeEventListener('shotloom-session-expired', expired); window.removeEventListener('focus', check); };
-  }, [retry, nativeUser]);
+  }, [retry, initialUser]);
   if (status === 'loading' && !opened) return <main className="cloud-session-loading" role="status" aria-live="polite">
     <img src="/shotloom-logo.png" alt="Shotloom" width="48" height="48" />
     <span className="cloud-session-progress" aria-hidden="true" />

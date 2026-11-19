@@ -18,8 +18,9 @@ test('a confirmed write snapshot replaces cache and fences an older in-flight de
 });
 
 test('native requests only expose the user-facing API, never admin, relay or arbitrary URLs', () => {
-  for (const path of ['/auth/me', '/auth/account', '/auth/usage?page=2&page_size=10', '/projects', '/library-folders', '/feedback?offset=20&limit=20', '/notifications']) assert.ok(nativeRequestAllowed('GET', path));
+  for (const path of ['/auth/me', '/auth/account', '/auth/topup/options', '/auth/usage?page=2&page_size=10', '/projects', '/library-folders', '/feedback?offset=20&limit=20', '/notifications']) assert.ok(nativeRequestAllowed('GET', path));
   assert.ok(nativeRequestAllowed('POST', '/library-folders'));
+  assert.ok(nativeRequestAllowed('POST', '/auth/topup'));
   assert.ok(nativeRequestAllowed('GET', '/catalog/skills'));
   assert.ok(nativeRequestAllowed('PUT', '/catalog/skills'));
   assert.ok(nativeRequestAllowed('GET', '/settings/mobile'));
@@ -28,7 +29,7 @@ test('native requests only expose the user-facing API, never admin, relay or arb
   assert.equal(nativeRequestAllowed('GET', '/settings'), false);
   assert.equal(nativeRequestAllowed('PUT', '/settings'), false);
   for (const path of ['/catalog/recipes', '/catalog/assets', '/catalog/skills?userId=other', '/catalog/skills/../settings']) assert.equal(nativeRequestAllowed('PUT', path), false);
-  for (const [method, path] of [['GET', '/admin/feedback'], ['POST', '/relay/chat/completions'], ['GET', 'https://attacker.example/feedback'], ['GET', '//attacker.example'], ['GET', '/feedback/../admin'], ['GET', '/feedback?redirect=evil'], ['DELETE', '/feedback'], ['GET', '/auth/account?redirect=evil'], ['GET', '/auth/usage?access_token=secret'], ['GET', '/library-folders?parentId=other'], ['DELETE', '/library-folders'], ['POST', '/auth/topup']]) assert.equal(nativeRequestAllowed(method!, path!), false);
+  for (const [method, path] of [['GET', '/admin/feedback'], ['POST', '/relay/chat/completions'], ['GET', 'https://attacker.example/feedback'], ['GET', '//attacker.example'], ['GET', '/feedback/../admin'], ['GET', '/feedback?redirect=evil'], ['DELETE', '/feedback'], ['GET', '/auth/account?redirect=evil'], ['GET', '/auth/usage?access_token=secret'], ['GET', '/library-folders?parentId=other'], ['DELETE', '/library-folders'], ['POST', '/auth/topup?redirect=evil'], ['DELETE', '/auth/topup']]) assert.equal(nativeRequestAllowed(method!, path!), false);
 });
 
 test('HTTP transport sends native credentials directly, reports expiry, and ignores late replies after disconnect', async () => {

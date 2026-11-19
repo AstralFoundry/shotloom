@@ -21,6 +21,7 @@ export function createSiteApp(directory: string) {
     return serveStatic({ root, path: 'home.html' })(c, next);
   });
   site.get('/download', serveStatic({ root, path: 'download.html' }));
+  site.get('/payment/return', serveStatic({ root, path: 'payment-return.html' }));
   site.get('/app', serveStatic({ root, path: 'index.html' }));
   site.get('/download/', c => c.redirect(`/download${new URL(c.req.url).search}`, 308));
   site.get('/app/', c => c.redirect(`/app${new URL(c.req.url).search}`, 308));
