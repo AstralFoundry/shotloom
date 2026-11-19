@@ -5,9 +5,9 @@ import { createRendererEnv } from './helpers/rendererSsr.mjs';
 
 function startup(dependencies, search = '?native=embedded&project=fixture', cloudEnabled = true) {
   const source = readSource('renderer/src/app/ReactWorkbench.tsx');
-  const start = source.indexOf('      const embeddedProject =');
-  const end = source.indexOf('      if (cancelled) return;', start);
-  const context = { cancelled: false, cloudEnabled, location: { search }, settingsStore: { locale: 'en-US' }, getLocale: () => 'en-US', document: { documentElement: {} }, ...dependencies };
+  const start = source.indexOf('      const directProject =');
+  const end = source.indexOf('      if (desktopApi.platform !== "browser")', start);
+  const context = { cancelled: false, cloudEnabled, location: { search }, requestedRoute: new URLSearchParams(search).get('route'), settingsStore: { locale: 'en-US' }, getLocale: () => 'en-US', document: { documentElement: {} }, navigateToRoute: () => {}, setNavigationStatus: () => {}, loadGlobalSkills: async () => {}, loadGlobalRecipes: async () => {}, refreshCloudAccountSettings: async () => {}, showErrorMessage: () => {}, ...dependencies };
   const run = new (Object.getPrototypeOf(async function () {}).constructor)(...Object.keys(context), source.slice(start, end));
   return run(...Object.values(context));
 }
@@ -134,8 +134,8 @@ test('missing embedded project still refreshes the library', async () => {
   assert.ok(calls.indexOf('loadRecentProjects') > calls.indexOf('loadBoundWindowProject'));
 });
 
-test('ordinary web and desktop startup retain library initialization before opening a project', async () => {
-  for (const cloud of [true, false]) {
+test('desktop startup retains library initialization after settings and before opening a project', async () => {
+  for (const cloud of [false]) {
     const calls = [];
     const names = ['loadAppSettings', 'loadGlobalSkills', 'loadGlobalRecipes', 'loadRecentProjects', 'initializeResourceLibraries', 'loadBoundWindowProject'];
     await startup(Object.fromEntries(names.map(name => [name, async () => { calls.push(name); }])), '?route=projects', cloud);
@@ -143,6 +143,46 @@ test('ordinary web and desktop startup retain library initialization before open
     assert.equal(calls.at(-1), 'loadBoundWindowProject');
     assert.equal(calls.length, names.length);
   }
+});
+
+test('web canvas becomes ready while unrelated catalogs and account remain pending', async () => {
+  const pending = new Promise(() => {});
+  const calls = [];
+  await startup({
+    loadAppSettings: async options => { assert.equal(options.preferencesOnly, true); calls.push('preferences'); },
+    loadBoundWindowProject: async beforeApply => { calls.push('project'); assert.equal(await beforeApply(), true); return true; },
+    loadGlobalSkills: () => { calls.push('skills'); return pending; },
+    loadGlobalRecipes: () => { calls.push('recipes'); return pending; },
+    refreshCloudAccountSettings: () => { calls.push('account'); return pending; },
+    setNavigationStatus: status => calls.push(status),
+  }, '?route=creation&project=fixture');
+  assert.deepEqual(calls, ['preferences', 'project', 'ready', 'skills', 'recipes', 'account']);
+});
+
+test('web library reads overlap settings, but project application and page readiness wait for both', async () => {
+  let releaseSettings, releaseLibraries;
+  const settings = new Promise(resolve => { releaseSettings = resolve; });
+  const libraries = new Promise(resolve => { releaseLibraries = resolve; });
+  const calls = [];
+  const running = startup({
+    loadAppSettings: async options => { assert.equal(options.preferencesOnly, true); calls.push('preferences'); await settings; },
+    loadGlobalSkills: async () => { calls.push('skills'); await libraries; },
+    loadGlobalRecipes: async () => { calls.push('recipes'); await libraries; },
+    loadRecentProjects: async () => { calls.push('recent'); await libraries; },
+    initializeResourceLibraries: async () => { calls.push('assets'); await libraries; },
+    loadBoundWindowProject: async beforeApply => { calls.push('read-project'); assert.equal(await beforeApply(), true); calls.push('apply-project'); return true; },
+    refreshCloudAccountSettings: async () => { calls.push('account'); },
+    setNavigationStatus: status => calls.push(status),
+  }, '?route=skills&project=fixture');
+  try {
+    await new Promise(resolve => setImmediate(resolve));
+    assert.deepEqual(calls, ['preferences', 'skills', 'recipes', 'recent', 'assets', 'read-project']);
+    releaseSettings(); await new Promise(resolve => setImmediate(resolve));
+    assert.equal(calls.includes('ready'), false);
+    releaseLibraries(); await running;
+    assert(calls.indexOf('apply-project') > calls.indexOf('read-project'));
+    assert.deepEqual(calls.slice(-3), ['apply-project', 'ready', 'account']);
+  } finally { releaseSettings(); releaseLibraries(); await running; }
 });
 
 test('bound project opening waits for the asset catalog before reconciling references', async () => {

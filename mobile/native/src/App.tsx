@@ -77,6 +77,9 @@ function Projects({ navigation, onOpen }: { navigation: NativeStackScreenProps<R
   const api = useApi();
   const projects = useRemote<Project[]>('/projects');
   const folders = useRemote<Folder[]>('/library-folders');
+  useEffect(() => {
+    if (projects.data) void api.read('/catalog/skills').catch(() => {});
+  }, [api, projects.data]);
   const [parents, setParents] = useState<Folder[]>([]);
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<'updated' | 'name'>('updated');

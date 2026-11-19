@@ -174,18 +174,22 @@ export function ReactWorkbench() {
       if (desktopApi.platform !== "browser") {
         void startHarnessIntegration().catch(error => showToast(String(error)));
       }
-      const embeddedProject = cloudEnabled && new URLSearchParams(location.search).get('native') === 'embedded' && new URLSearchParams(location.search).has('project');
-      if (embeddedProject) performance.mark('shotloom-preferences-start');
-      const preferencesReady = loadAppSettings(embeddedProject ? { preferencesOnly: true } : undefined);
-      if (embeddedProject) performance.mark('shotloom-project-start');
-      const boundProject = embeddedProject ? loadBoundWindowProject(async () => {
+      const directProject = cloudEnabled && new URLSearchParams(location.search).has('project') && (new URLSearchParams(location.search).get('native') === 'embedded' || requestedRoute === 'creation');
+      if (directProject) performance.mark('shotloom-preferences-start');
+      const preferencesReady = loadAppSettings(cloudEnabled ? { preferencesOnly: true } : undefined);
+      const librariesReady = cloudEnabled && !directProject
+        ? Promise.all([loadGlobalSkills(), loadGlobalRecipes(), loadRecentProjects(), initializeResourceLibraries()]) : undefined;
+      void librariesReady?.catch(() => {});
+      if (directProject) performance.mark('shotloom-project-start');
+      const boundProject = cloudEnabled ? loadBoundWindowProject(async () => {
         await preferencesReady;
+        await librariesReady;
         return !cancelled && settingsStore.locale === getLocale();
       }) : undefined;
       // Observe early read failures while settings load; the result is awaited below.
       void boundProject?.catch(() => {});
       await preferencesReady;
-      if (embeddedProject) performance.mark('shotloom-preferences-ready');
+      if (directProject) performance.mark('shotloom-preferences-ready');
       if (settingsStore.accountSyncError) showToast(settingsStore.accountSyncError);
       if (settingsStore.locale !== getLocale()) {
         window.localStorage.setItem(LOCALE_STORAGE_KEY, settingsStore.locale);
@@ -193,9 +197,12 @@ export function ReactWorkbench() {
         return;
       }
       document.documentElement.lang = settingsStore.locale;
-      if (embeddedProject) {
+      if (directProject) {
         if (!await boundProject && !cancelled) await loadRecentProjects();
         performance.mark('shotloom-project-ready');
+      } else if (cloudEnabled) {
+        await librariesReady;
+        await boundProject;
       } else {
         await Promise.all([loadGlobalSkills(), loadGlobalRecipes(), loadRecentProjects(), initializeResourceLibraries()]);
         await loadBoundWindowProject();
@@ -203,8 +210,8 @@ export function ReactWorkbench() {
       if (cancelled) return;
       if (requestedRoute) navigateToRoute(requestedRoute, { notify: false });
       setNavigationStatus('ready');
-      if (embeddedProject) {
-        void Promise.all([loadGlobalSkills(), loadGlobalRecipes(), refreshCloudAccountSettings()]).then(() => {
+      if (cloudEnabled) {
+        void Promise.all([...(directProject ? [loadGlobalSkills(), loadGlobalRecipes()] : []), refreshCloudAccountSettings()]).then(() => {
           if (!cancelled && settingsStore.accountSyncError) showToast(settingsStore.accountSyncError);
         }).catch(cause => { if (!cancelled) showErrorMessage(String(cause)); });
       }

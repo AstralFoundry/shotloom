@@ -29,6 +29,8 @@ export function NativeSkills({ api, active: pageActive = true }: { api: NativeAp
     if (!pageActive) return;
     let active = true;
     const bypass = force.current; force.current = false;
+    const cached = api.cached<SkillCatalog>('/catalog/skills');
+    if (cached) setCatalog(cached);
     setLoading(api.cached('/catalog/skills') === undefined || bypass); setError('');
     void api.read<SkillCatalog>('/catalog/skills', bypass).then(value => { if (active) setCatalog(value); })
       .catch(cause => { if (active) setError(String(cause.message || cause)); }).finally(() => { if (active) setLoading(false); });

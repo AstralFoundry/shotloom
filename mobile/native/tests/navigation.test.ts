@@ -76,6 +76,25 @@ test('native login has no WebView, supports cancellation, and restores a stored 
   } finally { await act(async () => tree.unmount()); }
 });
 
+test('home prefetches skills without waiting and first skill entry reuses the result', async () => {
+  const App = await loadApp(); const state = (globalThis as any).__nativeUi;
+  let release!: () => void, started = false;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  state.responses = { '/catalog/skills': { skills: [{ id: 'prefetched', name: 'Prefetched skill', description: '', instructions: '', category: 'general', version: 1 }] } };
+  state.beforeRequest = (path: string) => { if (path === '/catalog/skills') { started = true; return gate; } };
+  let tree!: ReturnType<typeof create>;
+  await act(async () => { tree = create(React.createElement(App)); });
+  const tabs = () => tree.root.findAllByType('Pressable' as any).filter(node => node.props.accessibilityRole === 'tab');
+  try {
+    assert.equal(started, true, 'skill fetch starts after the home project list arrives');
+    assert.equal(tabs().length, 4, 'pending skills cannot block home');
+    await act(async () => { release(); });
+    await act(async () => tabs()[2]!.props.onPress());
+    assert.equal(state.requests.filter((path: string) => path === '/catalog/skills').length, 1);
+    assert.ok(tree.root.findAllByType('Text' as any).some(text => text.props.children === 'Prefetched skill'));
+  } finally { await act(async () => { release(); tree.unmount(); }); }
+});
+
 test('slow preferences do not block home; tab switches reuse the profile and foreground verifies it', async () => {
   const App = await loadApp();
   const state = (globalThis as any).__nativeUi;

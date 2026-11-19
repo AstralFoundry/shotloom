@@ -112,10 +112,9 @@ function FullDirectorWorkspace({ data }: { data: CreationViewData }) {
 function CreationCanvas({ data, controller }: { data: CreationViewData; controller: CreationViewController }) {
   const { modal } = App.useApp();
   const [canvasReady, setCanvasReady] = useState(false);
-  const [agentStatus, setAgentStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const markCanvasReady = useCallback(() => setCanvasReady(true), []);
   const [agentPanelVisible, setAgentPanelVisible] = useState(() => !window.matchMedia('(max-width: 700px), (max-width: 920px) and (max-height: 500px)').matches);
-  const starting = !canvasReady || (agentPanelVisible && agentStatus === 'loading');
+  const starting = !canvasReady;
   const [versionHistoryOpen, setVersionHistoryOpen] = useState(false);
   const [agentPanelWidth, setAgentPanelWidth] = useState(() => {
     const saved = Number(window.localStorage.getItem("shotloom:agent-panel-width-v4"));
@@ -357,7 +356,7 @@ function CreationCanvas({ data, controller }: { data: CreationViewData; controll
             onKeyDown={resizeAgentPanelWithKeyboard}
           />
         )}
-        <HarnessChatPanel hidden={!agentPanelVisible} agentId={CANVAS_AGENT_ID} onStatusChange={setAgentStatus} onClose={() => setAgentPanelVisible(false)} />
+        <HarnessChatPanel hidden={!agentPanelVisible} agentId={CANVAS_AGENT_ID} onClose={() => setAgentPanelVisible(false)} />
       <ProjectVersionHistory
         open={versionHistoryOpen}
         onClose={() => setVersionHistoryOpen(false)}

@@ -1,13 +1,14 @@
 import { t } from '@/i18n';
 import { editorLocalMedia } from "../editor/editorLocalMedia";
-import { memo, useContext, useMemo, useState } from "react";
+import { lazy, memo, Suspense, useContext, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useStore } from "@xyflow/react";
 import { store, touchProject } from "../../store/projectStore";
 import { getAgentProjectFenceKey } from "../../services/agentProjectIdentity";
 import { IconSymbol } from "../components/IconSymbol";
-import { VideoEditorWorkspace } from "../editor/VideoEditorWorkspace";
 import { CanvasNodeLabelRootContext, type WorkflowNodeRenderer } from "./WorkflowCanvas";
+
+const VideoEditorWorkspace = lazy(() => import("../editor/VideoEditorWorkspace").then(module => ({ default: module.VideoEditorWorkspace })));
 
 /** One stable native timeline per node; selection only toggles the floating preview. */
 export const ClipStudioNode: WorkflowNodeRenderer = memo(({ node, selected, actions }) => {
@@ -39,8 +40,8 @@ export const ClipStudioNode: WorkflowNodeRenderer = memo(({ node, selected, acti
       <span>{String(node.title || t("ui.videoEditorActions.text.801f1d23"))}</span>
     </div>, labelRoot)}
     <div className="clip-studio-placeholder" role="status">{t("ui.ClipStudioNode.text.f46bb8e2")}</div>
-    <VideoEditorWorkspace key={getAgentProjectFenceKey()} nodeId={node.id} expanded={expanded} canvasNode selected={selected && !dragging}
+    <Suspense fallback={null}><VideoEditorWorkspace key={getAgentProjectFenceKey()} nodeId={node.id} expanded={expanded} canvasNode selected={selected && !dragging}
       title={String(node.title || t("ui.videoEditorActions.text.801f1d23"))} project={node.videoEditProject as Record<string, unknown>}
-      controller={controller} agentPanel />
+      controller={controller} agentPanel /></Suspense>
   </div>;
 });
