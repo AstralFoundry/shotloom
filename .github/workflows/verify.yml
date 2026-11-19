@@ -12,6 +12,15 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-project
       - run: npm run verify:product
+      # Reuse the acquired Mac instead of queuing a second macOS runner.
+      - run: node --test tests/electron-recovery.test.mjs
+      - run: npm run typecheck:electron
+      - run: npm run prepare:plugins
+      - run: npm run prepare:harness
+      - run: npm run prepare:media
+      - name: Smoke test Electron on macOS
+        run: npm run smoke:electron
+      - run: npm run harness:verify-package
       - name: Share verified frontend with native tests
         uses: actions/upload-artifact@v4
         with:
@@ -26,7 +35,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-15, windows-2022]
+        os: [windows-2022]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     steps:
