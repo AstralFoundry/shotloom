@@ -32,6 +32,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-project
+      - run: node --test tests/electron-recovery.test.mjs
       - run: npm run typecheck:electron
       - run: npm run prepare:plugins
       - run: npm run prepare:harness

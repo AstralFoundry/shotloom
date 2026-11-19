@@ -1,6 +1,7 @@
 import { app, BrowserWindow } from 'electron';
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
+import { freemem } from 'node:os';
 import { withDatabase } from './db';
 import { appDataFile } from './paths';
 import { loadRecovery, saveRecovery } from './storage';
@@ -49,9 +50,13 @@ function processRssKb(): number | null {
   return Math.round(process.memoryUsage().rss / 1024);
 }
 
-/** macOS 的 vm_stat / Linux 的 /proc/meminfo：与 Rust 侧取同一组可用内存口径。 */
+/** Windows uses available physical memory; macOS/Linux retain their existing accounting. */
 function availableMemoryKb(): number | null {
   try {
+    if (process.platform === 'win32') {
+      const bytes = freemem();
+      return Number.isFinite(bytes) && bytes >= 0 ? Math.floor(bytes / 1024) : null;
+    }
     if (process.platform === 'darwin') {
       const text = execFileSync('vm_stat', { encoding: 'utf8' });
       const pageSize = Number(/page size of (\d+)/.exec(text)?.[1] ?? 0);
