@@ -153,7 +153,7 @@ export function pluginManifestAt(ref: PluginReference): ProviderPluginManifest |
   const installed = snapshot.plugins.find(plugin => plugin.manifest.id === ref.id);
   const manifest = [installed?.manifest, ...(installed?.history || []).map(item => item.manifest)]
     .find(manifest => manifest?.version === ref.version);
-  return manifest && localizeProviderPluginManifest(manifest);
+  return manifest;
 }
 
 function legacyProviderAt(ref: PluginReference): RegisteredProvider | undefined {
@@ -215,6 +215,7 @@ export function resolvePluginProvider(ref: PluginReference): RegisteredProvider 
   return (manifest && presets(manifest).find(provider => provider.id === ref.providerId)) || legacyProviderAt(ref);
 }
 export function expandProviderModels(provider: RegisteredProvider, manifest: ProviderPluginManifest): CatalogModel[] {
+  manifest = localizeProviderPluginManifest(manifest);
   return provider.models.map(rawModel => {
     const model = localizePluginMetadata(rawModel, manifest.i18n, getLocale());
     if (model.protocolPlugin || (manifest.kind === 'vendor' && model.protocolModes)) {

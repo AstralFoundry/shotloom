@@ -1,4 +1,4 @@
-import { allProviderPlugins, providerConnections, type PluginReference } from './ProviderPlugins';
+import { allProviderPlugins, pluginManifestAt, providerConnections, type PluginReference } from './ProviderPlugins';
 import { capabilityParameterErrors, type PluginCapability } from '../../../../../shared/pluginCapabilities';
 import { selectedNodeMedia } from '../../../utils/nodeMedia';
 export type { PluginCapability, CapabilityParameter, CapabilityMediaType } from '../../../../../shared/pluginCapabilities';
@@ -79,8 +79,12 @@ export function preparePluginAction({ key, connectionId, inputs, parameters = {}
       else bound[slot.id]!.push(media);
     }
   }
-  const plugin = allProviderPlugins().find(p => p.manifest.id === reference.id)!;
-  const operation = plugin.manifest.protocols.find(p => p.id === capability.operation);
-  const contract: ProcessingContract = { ...registered, contractVersion: 1, connectionId, operation, inputs: bound, parameters: values };
+  // Freeze the installed package's original data, not translated display metadata.
+  // The native host verifies these objects against the pinned package verbatim.
+  const manifest = pluginManifestAt(reference);
+  const originalCapability = manifest?.capabilities?.find(item => item.id === capability.id);
+  const operation = manifest?.protocols.find(item => item.id === originalCapability?.operation);
+  if (!originalCapability || !operation) return { ready: false, errors: [...errors, 'Pinned plugin capability or operation is unavailable'] };
+  const contract: ProcessingContract = { ...registered, capability: originalCapability, contractVersion: 1, connectionId, operation, inputs: bound, parameters: values };
   return { ready: !errors.length, errors, contract: JSON.parse(JSON.stringify(contract)) };
 }

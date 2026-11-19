@@ -81,7 +81,7 @@ test('upgrade preserves removals, deleted defaults, custom model overrides and d
 });
 
 // Exercise the real native registry, ORM transaction, credential lookup and isolated runtime.
-test('native vendor tools use the generation key and old processing tasks can still poll after upgrade', async t => {
+for (const locale of ['zh-CN', 'en-US']) test(`native vendor tools preserve pinned contracts and old tasks after upgrade (${locale})`, async t => {
   const root = mkdtempSync(join(tmpdir(), 'shotloom-vendor-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const built = await build({ stdin: { contents: "export * from './electron/core/plugins'; export { withDatabase } from './electron/core/db'; export { saveSettings, loadSettings } from './electron/core/storage';", resolveDir: process.cwd() }, bundle: true, platform: 'node', format: 'esm', write: false });
@@ -114,12 +114,17 @@ test('native vendor tools use the generation key and old processing tasks can st
   native.withDatabase(nativeEnv.databaseFile, db => native.saveSettings(db, { providerConfigs: { starrouter: { apiKey: 'shared-fixture-key', baseUrl }, 'starrouter.processing': { apiKey: 'shared-fixture-key', baseUrl } } }));
   const state = (await native.listProviderPlugins(nativeEnv)).state;
   assert.equal(state.connections.filter(c => c.pluginId === 'vendor.starrouter').length, 1);
-  const env = await createRendererEnv({ includeStarrouter: true, storage: new Map() }); t.after(() => env.dispose());
+  const env = await createRendererEnv({ includeStarrouter: true, storage: new Map([['shotloom:locale', locale]]) }); t.after(() => env.dispose());
   const registry = await env.load('domain/provider/plugins/ProviderPlugins'); registry.setProviderPluginSnapshot(state);
   const capabilities = await env.load('domain/provider/plugins/PluginCapabilities');
   const prepared = capabilities.preparePluginAction({ key: 'plugin:vendor.starrouter:video-upscale', connectionId: 'starrouter', inputs: { source: ['input'] } }, { nodes: [{ id: 'input', type: 'videoGeneration', uploadedFile: { url: 'https://example.com/input.mp4' } }] });
   assert.equal(prepared.ready, true, prepared.errors.join('\n'));
   const contract = prepared.contract;
+  const installed = state.plugins.find(plugin => plugin.manifest.id === contract.reference.id).manifest;
+  assert.equal(capabilities.registeredCapabilities()[0].capability.name, locale === 'en-US' ? 'Video upscale' : '视频超分');
+  assert.deepEqual(contract.capability, installed.capabilities[0]);
+  assert.deepEqual(contract.operation, installed.protocols.find(operation => operation.id === contract.capability.operation));
+  assert.deepEqual(registry.pluginManifestAt(contract.reference), installed);
   assert.equal(registry.resolvePluginProvider(contract.reference).engine, 'module');
   const catalog = await env.load('domain/catalog/ModelCatalog');
   const video = registry.registeredModels().find(model => model.provider === 'starrouter' && model.type === 'videoGeneration');
@@ -131,6 +136,10 @@ test('native vendor tools use the generation key and old processing tasks can st
   assert.equal(result.remoteTaskId, 'fixture_task');
   assert.equal(requests[0].key, 'Bearer shared-fixture-key');
   assert.equal(requests[0].body.model, 'comfly/1849');
+  const tampered = structuredClone(contract);
+  tampered.capability.inputs[0].required = false;
+  await assert.rejects(native.callProviderPlugin(nativeEnv, { requestId: 'tampered', reference: contract.reference, providerId: 'starrouter', method: 'submit', input: { submissionId: 'tampered', processingContract: tampered }, timeoutMs: 10000 }), /Invalid pinned processing contract/);
+  assert.equal(requests.length, 1);
   const oldContract = { ...contract, reference: { id: old.id, version: old.version, providerId: 'protocol' }, connectionId: 'starrouter.processing', digest: checked.digest, capability: old.capabilities[0], operation: old.protocols[0] };
   assert.equal((await native.callProviderPlugin(nativeEnv, { requestId: 'old', reference: oldContract.reference, providerId: oldContract.connectionId, method: 'poll', input: { remoteTaskId: 'fixture_task', processingContract: oldContract }, timeoutMs: 10000 })).status, 'running');
   assert.equal(requests.length, 2);

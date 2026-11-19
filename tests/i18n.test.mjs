@@ -4,6 +4,8 @@ import { readSource } from './helpers/sourceContract.mjs';
 import { createRendererEnv } from './helpers/rendererSsr.mjs';
 import { installDesktopBridge } from './helpers/desktopBridge.mjs';
 import { readdirSync } from 'node:fs';
+import { loadTestPluginPackages } from './helpers/modelCatalog.mjs';
+import { localizePluginMetadata, pluginI18nErrors } from '../shared/pluginI18n.ts';
 
 const env = await createRendererEnv();
 after(() => env.dispose());
@@ -25,52 +27,67 @@ test('中英文文案键与参数保持一致，参数内容不再次参与模�
   assert.equal(t('project.copied', { name: '测试 {name} $&' }), '已复制项目「测试 {name} $&」');
 });
 
-test('厂商目录所有翻译键存在，英文展示不改变模型协议与提交选项值', async () => {
-  const { default: zh } = await env.load('i18n/locales/zh-CN.json');
-  const { default: en } = await env.load('i18n/locales/en-US.json');
-  const { getCatalogModels } = await env.load('domain/catalog/ModelCatalog');
-  const models = getCatalogModels();
+test('插件自带翻译词条，英文展示不改变模型协议与提交选项值', async () => {
   let references = 0;
-  function verify(value) {
-    if (!value || typeof value !== 'object') return;
-    if (value.labelKey) {
-      assert.equal(zh[value.labelKey], value.label);
-      assert.ok(en[value.labelKey]);
-      references++;
+  for (const { manifest } of loadTestPluginPackages({ includeStarrouter: true })) {
+    const { messages } = manifest.i18n;
+    function verify(value) {
+      if (!value || typeof value !== 'object') return;
+      for (const key of [value.labelKey, value.nameKey, value.descriptionKey, ...Object.values(value.optionLabelKeys || {})].filter(Boolean)) {
+        assert.ok(messages['zh-CN'][key]?.trim(), `${manifest.id}: missing Chinese ${key}`);
+        assert.ok(messages['en-US'][key]?.trim(), `${manifest.id}: missing English ${key}`);
+        references++;
+      }
+      for (const [key, entry] of Object.entries(value)) if (key !== 'i18n') verify(entry);
     }
-    for (const [option, key] of Object.entries(value.optionLabelKeys || {})) {
-      assert.equal(zh[key], value.optionLabels[option]);
-      assert.ok(en[key]);
-      references++;
-    }
-    for (const entry of Object.values(value)) verify(entry);
+    verify(manifest);
   }
-  models.forEach(verify);
   assert.ok(references > 0);
+  const { getCatalogModels, modelCatalog: chineseCatalog } = await env.load('domain/catalog/ModelCatalog');
   const english = await createRendererEnv({ storage: new Map([['shotloom:locale', 'en-US']]) });
   try {
     const { modelCatalog } = await english.load('domain/catalog/ModelCatalog');
-    const { modelCatalog: chineseCatalog } = await env.load('domain/catalog/ModelCatalog');
-    const { catalogLabel } = await english.load('i18n/index');
-    assert.equal(catalogLabel('Custom label', 'unregistered.user.key'), 'Custom label');
-    for (const model of models) {
-      for (const mode of model.modes) {
-        const runtime = modelCatalog.getModeConfig(model.id, mode.id);
-        assert.deepEqual(runtime.requestTemplate, chineseCatalog.getModeConfig(model.id, mode.id).requestTemplate);
-        assert.deepEqual(runtime.endpoint, chineseCatalog.getModeConfig(model.id, mode.id).endpoint);
-        const displayed = modelCatalog.getModelModes(model.id).find(item => item.id === mode.id);
-        assert.equal(displayed.label, mode.labelKey ? en[mode.labelKey] : mode.label);
-        const schema = modelCatalog.getModelSchema(model.type, model.id, mode.id);
-        for (const param of mode.params || []) {
-          const presented = schema.params.find(item => item.key === param.key);
-          assert.equal(presented.label, param.labelKey ? en[param.labelKey] : param.label || param.key);
-          assert.deepEqual(presented.default, param.default);
-          assert.deepEqual(presented.options, (param.options || []).map(value => value && typeof value === 'object' ? value.value : value));
-          for (const [option, key] of Object.entries(param.optionLabelKeys || {})) assert.equal(presented.optionLabels[option], en[key]);
-        }
+    let translated = 0;
+    for (const model of getCatalogModels()) for (const mode of model.modes) {
+      const chineseRuntime = chineseCatalog.getModeConfig(model.id, mode.id);
+      const runtime = modelCatalog.getModeConfig(model.id, mode.id);
+      assert.deepEqual(runtime.requestTemplate, chineseRuntime.requestTemplate);
+      assert.deepEqual(runtime.endpoint, chineseRuntime.endpoint);
+      const displayed = modelCatalog.getModelModes(model.id).find(item => item.id === mode.id);
+      if (displayed.label !== mode.label) translated++;
+      const schema = modelCatalog.getModelSchema(model.type, model.id, mode.id);
+      const original = chineseCatalog.getModelSchema(model.type, model.id, mode.id);
+      for (const param of original.params) {
+        const presented = schema.params.find(item => item.key === param.key);
+        assert.ok(presented.label);
+        assert.deepEqual(presented.default, param.default);
+        assert.deepEqual(presented.options, param.options);
       }
     }
+    assert.ok(translated > 0, 'English mode labels must come from the packages');
   } finally { await english.dispose(); }
+});
+
+test('插件同名词条隔离，缺失译文回退且原始契约不被翻译', () => {
+  const raw = { label: '原标签', labelKey: 'catalog.label.promptExtend', params: [{ label: '质量', labelKey: 'quality', default: 'high', options: ['high'], optionLabels: { high: '高清' }, optionLabelKeys: { high: 'high' } }], requestTemplate: { labelKey: 'quality', label: 'wire' } };
+  const original = structuredClone(raw);
+  const messages = { 'zh-CN': { quality: '质量' }, en: { high: 'High' }, 'en-US': { 'catalog.label.promptExtend': 'Plugin A' } };
+  const dictionary = { defaultLocale: 'zh-CN', messages };
+  const a = localizePluginMetadata(raw, dictionary, 'en-US');
+  const b = localizePluginMetadata(raw, { messages: { 'en-US': { 'catalog.label.promptExtend': 'Plugin B' } } }, 'en-US');
+  assert.equal(a.label, 'Plugin A');
+  assert.equal(b.label, 'Plugin B');
+  assert.equal(a.params[0].label, '质量');
+  assert.equal(a.params[0].optionLabels.high, 'High');
+  assert.equal(a.params[0].default, 'high');
+  assert.deepEqual(a.params[0].options, ['high']);
+  assert.deepEqual(a.requestTemplate, raw.requestTemplate);
+  assert.deepEqual(raw, original);
+  assert.equal(a.labelKey, undefined);
+  assert.equal(localizePluginMetadata(raw, { messages: {} }, 'en-US').label, '原标签');
+  assert.deepEqual(pluginI18nErrors({ i18n: dictionary }), []);
+  assert.ok(pluginI18nErrors({ i18n: { messages: { en: { broken: 1 } } } }).length);
+  assert.ok(pluginI18nErrors({ i18n: { defaultLocale: 'missing', messages: {} } }).length);
 });
 
 test('英文任务状态改变标签但保持状态值与颜色语义', async () => {
