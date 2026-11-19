@@ -3,7 +3,7 @@
   "kind": "vendor",
   "id": "vendor.qwen",
   "name": "阿里云百炼 Qwen / Wan",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "shotloom": ">=0.9.2, <1.0.0",
   "iconId": "qwen",
   "description": "阿里云百炼 Qwen / Wan 厂商插件，统一提供模型和画布工具，共用连接与 API Key。",
@@ -3136,5 +3136,58 @@
       }
     ]
   },
-  "icon": "icon.png"
+  "icon": "icon.png",
+  "i18n": {
+    "defaultLocale": "zh-CN",
+    "messages": {
+      "zh-CN": {
+        "catalog.label.058dddf225": "生成同步声音",
+        "catalog.label.0b835958b8": "文生图",
+        "catalog.label.29d0552d2e": "时长",
+        "catalog.label.2f0bb12387": "提示词",
+        "catalog.label.33abb92abd": "张数",
+        "catalog.label.41d852e209": "首帧图生视频",
+        "catalog.label.8c31cdcb5d": "分镜生成",
+        "catalog.label.8f963ce0de": "语义拆分",
+        "catalog.label.94a6711f24": "尺寸",
+        "catalog.label.9612898b53": "文本生成",
+        "catalog.label.c27f341ce5": "比例",
+        "catalog.label.c6f7a87b1e": "最大长度",
+        "catalog.label.cde9b52b23": "分辨率",
+        "catalog.label.d108de51ea": "全模态参考生视频",
+        "catalog.label.d5b5b1fde9": "首尾帧",
+        "catalog.label.dd6f194c41": "文生视频",
+        "catalog.label.f6bbf9b630": "AI 水印",
+        "catalog.label.promptExtend": "智能改写提示词",
+        "catalog.option.duration.auto": "智能时长",
+        "editor.motion.contents.param.seed": "随机种子",
+        "provider.copy.0f2051023f": "阿里云百炼 Qwen / Wan",
+        "provider.copy.8fc2f0af91": "Qwen 文本、图片与 Wan 视频官方工作空间接口"
+      },
+      "en-US": {
+        "catalog.label.058dddf225": "Generate synchronized audio",
+        "catalog.label.0b835958b8": "Text to image",
+        "catalog.label.29d0552d2e": "Duration",
+        "catalog.label.2f0bb12387": "Prompt",
+        "catalog.label.33abb92abd": "Image count",
+        "catalog.label.41d852e209": "First frame to video",
+        "catalog.label.8c31cdcb5d": "Storyboard generation",
+        "catalog.label.8f963ce0de": "Semantic segmentation",
+        "catalog.label.94a6711f24": "Size",
+        "catalog.label.9612898b53": "Text generation",
+        "catalog.label.c27f341ce5": "Aspect ratio",
+        "catalog.label.c6f7a87b1e": "Maximum length",
+        "catalog.label.cde9b52b23": "Resolution",
+        "catalog.label.d108de51ea": "Multimodal reference to video",
+        "catalog.label.d5b5b1fde9": "First and last frames",
+        "catalog.label.dd6f194c41": "Text to video",
+        "catalog.label.f6bbf9b630": "AI watermark",
+        "catalog.label.promptExtend": "Enhance prompt",
+        "catalog.option.duration.auto": "Automatic duration",
+        "editor.motion.contents.param.seed": "Seed",
+        "provider.copy.0f2051023f": "Alibaba Cloud Model Studio Qwen / Wan",
+        "provider.copy.8fc2f0af91": "Official workspace endpoints for Qwen text, images and Wan video"
+      }
+    }
+  }
 }

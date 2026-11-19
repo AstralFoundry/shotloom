@@ -5,7 +5,7 @@
 - 新增或修改词条时同步两份 JSON，键保持稳定，不将中文原文作为键。
 - 修改含参数词条后运行 `node scripts/generate-i18n-types.mjs`，再运行 `npm run check:i18n` 和 `node --test tests/i18n.test.mjs`。
 - 语言在“设置 → 通用 → 界面语言”中切换。切换前保存当前工程，刷新后统一应用模块级标签和独立 iframe 的语言。
-- 厂商模型目录的 `labelKey`、`optionLabelKeys` 只控制展示。新增目录标签需同步 JSON 译文，提交协议与参数值不翻译。
+- 插件的 `labelKey`、`nameKey`、`descriptionKey`、`optionLabelKeys` 从插件 manifest 的 `i18n.messages` 读取，不向应用语言表登记新词条。按当前语言、插件默认语言、原始标签回退；提交协议与参数值不翻译。应用中已有的目录词条只兼容旧版插件和应用自身共用文案。
 - 官方 Harness 文案通过官方 locale 服务处理；Shotloom 的自有界面复用本目录字典。聊天 iframe 的译文和文档 `lang` 统一由 URL hash 的 `shotloomLocale` 决定，不读取 iframe 自身的语言缓存；未知或缺失参数回退中文。聊天嵌入客户端的启动失败和缺失组件提示也使用该字典，插件 ID、目录阶段和上游错误作为参数保留。三维导演台只导入纯文案函数，不导入产品状态。
 - OpenReel 产品桥接的导入、恢复、重关联、导出提示与默认名称同样复用 JSON 字典；独立运行时按宿主语言配置翻译，局部文档同步 lang/title。共享字典纳入嵌入产物的构建哈希。上游英文界面和中文覆盖层保持各自的语言入口。
 - 剪辑运行时验证：在 `vendor/openreel/apps/web` 运行 `npx vitest run src/shotloom-mode.test.ts src/shotloom-bridge.recovery.test.ts src/shotloom-i18n.test.ts src/embedded/dom.test.ts`，覆盖语言隔离、导入/字幕导出错误和原始文件名/错误详情保留。

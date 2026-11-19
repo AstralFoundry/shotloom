@@ -3,7 +3,7 @@
   "kind": "vendor",
   "id": "vendor.fal",
   "name": "fal.ai",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "shotloom": ">=0.9.2, <1.0.0",
   "iconId": "fal",
   "description": "fal.ai 厂商插件，统一提供模型和画布工具，共用连接与 API Key。",
@@ -354,5 +354,28 @@
       }
     ]
   },
-  "icon": "icon.png"
+  "icon": "icon.png",
+  "i18n": {
+    "defaultLocale": "zh-CN",
+    "messages": {
+      "zh-CN": {
+        "catalog.label.0b835958b8": "文生图",
+        "catalog.label.dd6f194c41": "文生视频",
+        "plugins.parameter.aspectRatio": "画面比例",
+        "plugins.parameter.duration": "时长",
+        "plugins.parameter.generationCount": "数量",
+        "plugins.parameter.resolution": "分辨率",
+        "plugins.provider.fal": "fal.ai 图片与视频队列任务"
+      },
+      "en-US": {
+        "catalog.label.0b835958b8": "Text to image",
+        "catalog.label.dd6f194c41": "Text to video",
+        "plugins.parameter.aspectRatio": "Aspect ratio",
+        "plugins.parameter.duration": "Duration",
+        "plugins.parameter.generationCount": "Count",
+        "plugins.parameter.resolution": "Resolution",
+        "plugins.provider.fal": "Queued image and video models on fal.ai"
+      }
+    }
+  }
 }

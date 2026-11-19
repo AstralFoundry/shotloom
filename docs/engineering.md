@@ -47,7 +47,7 @@ Agent Host 发行资源由 `scripts/prepare-harness.mjs` 在临时目录准备�
 
 `vendorMigration` 仅对发行来源生效，合并旧连接与工具条入口；旧包和 `legacyConnections` 保留给已冻结任务，凭据与目录迁移在同一 SQLite 事务内保存。`defaultConnections` 只在新插件安装时填充模型与连接预设，用户的地址、Key、参数覆盖和显式删除不会在每次启动时被重置。首次从旧内置目录迁移时，已保存的连接完整优先；旧禁用标记只迁移一次。历史任务通过冻结的操作契约和插件历史版本恢复；旧适配器身份通过包内 `legacyProviders` 的显式元数据兼容，不再加载旧厂商模型目录。历史目录只作为 `tests/fixtures/legacy-model-catalog/` 中的迁移证据，不进入发行包。
 
-`domain/provider/plugins/ProviderPlugins.ts` 统一装配目录；任务保存实际插件 ID、版本和操作契约。每个厂商包使用 `kind: vendor`，普通模型和画布工具共用连接；模型只引用本包内部操作。连接只能覆盖模型能力参数，不能覆盖传输字段。旧协议包仅供迁移和历史任务恢复，不进入默认界面目录。Key 只存用户设置。包经 `electron/core/plugins.ts` 检查、解包和持久化，代码由独立 Node 进程执行。代码插件不是权限沙箱，不得宣称隔离了文件或网络权限。
+`domain/provider/plugins/ProviderPlugins.ts` 统一装配目录；任务保存实际插件 ID、版本和操作契约。每个厂商包使用 `kind: vendor`，普通模型和画布工具共用连接；模型只引用本包内部操作。连接只能覆盖模型能力参数，不能覆盖传输字段。旧协议包仅供迁移和历史任务恢复，不进入默认界面目录。插件多语言词条由包内 `manifest.i18n.messages` 提供，按插件作用域解析展示字段，不能依赖应用语言表新增厂商词条。Key 只存用户设置。包经 `electron/core/plugins.ts` 检查、解包和持久化，代码由独立 Node 进程执行。代码插件不是权限沙箱，不得宣称隔离了文件或网络权限。
 
 插件开发、打包与索引格式见 [provider-plugins.md](./provider-plugins.md)。
 

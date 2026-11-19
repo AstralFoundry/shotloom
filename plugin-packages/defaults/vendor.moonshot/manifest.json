@@ -3,7 +3,7 @@
   "kind": "vendor",
   "id": "vendor.moonshot",
   "name": "Moonshot Kimi",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "shotloom": ">=0.9.2, <1.0.0",
   "iconId": "moonshot",
   "description": "Moonshot Kimi 厂商插件，统一提供模型和画布工具，共用连接与 API Key。",
@@ -801,5 +801,40 @@
       }
     ]
   },
-  "icon": "icon.png"
+  "icon": "icon.png",
+  "i18n": {
+    "defaultLocale": "zh-CN",
+    "messages": {
+      "zh-CN": {
+        "catalog.label.0869071c92": "中",
+        "catalog.label.2cd489b0a5": "最高",
+        "catalog.label.4d9492c5f8": "极简",
+        "catalog.label.66778fdee4": "推理强度",
+        "catalog.label.6c14bd7f6f": "关闭",
+        "catalog.label.8c31cdcb5d": "分镜生成",
+        "catalog.label.8f963ce0de": "语义拆分",
+        "catalog.label.9612898b53": "文本生成",
+        "catalog.label.b096b3f5ac": "高",
+        "catalog.label.b9ee259b7f": "低",
+        "catalog.label.c34687da2b": "极高",
+        "catalog.label.c6f7a87b1e": "最大长度",
+        "provider.copy.df53d63456": "Kimi 官方 OpenAI 兼容接口"
+      },
+      "en-US": {
+        "catalog.label.0869071c92": "Medium",
+        "catalog.label.2cd489b0a5": "Maximum",
+        "catalog.label.4d9492c5f8": "Minimal",
+        "catalog.label.66778fdee4": "Reasoning effort",
+        "catalog.label.6c14bd7f6f": "Off",
+        "catalog.label.8c31cdcb5d": "Storyboard generation",
+        "catalog.label.8f963ce0de": "Semantic segmentation",
+        "catalog.label.9612898b53": "Text generation",
+        "catalog.label.b096b3f5ac": "High",
+        "catalog.label.b9ee259b7f": "Low",
+        "catalog.label.c34687da2b": "Very high",
+        "catalog.label.c6f7a87b1e": "Maximum length",
+        "provider.copy.df53d63456": "Official Kimi OpenAI-compatible API"
+      }
+    }
+  }
 }

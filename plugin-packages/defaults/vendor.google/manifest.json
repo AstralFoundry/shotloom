@@ -3,7 +3,7 @@
   "kind": "vendor",
   "id": "vendor.google",
   "name": "Google Gemini",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "shotloom": ">=0.9.2, <1.0.0",
   "iconId": "gemini",
   "description": "Google Gemini 厂商插件，统一提供模型和画布工具，共用连接与 API Key。",
@@ -1888,5 +1888,50 @@
       }
     ]
   },
-  "icon": "icon.png"
+  "icon": "icon.png",
+  "i18n": {
+    "defaultLocale": "zh-CN",
+    "messages": {
+      "zh-CN": {
+        "catalog.label.0869071c92": "中",
+        "catalog.label.0b835958b8": "文生图",
+        "catalog.label.2f0bb12387": "提示词",
+        "catalog.label.4d9492c5f8": "极简",
+        "catalog.label.5f6ab300dd": "清晰度",
+        "catalog.label.66778fdee4": "推理强度",
+        "catalog.label.8c31cdcb5d": "分镜生成",
+        "catalog.label.8f963ce0de": "语义拆分",
+        "catalog.label.9612898b53": "文本生成",
+        "catalog.label.a038dfa6cd": "图片编辑",
+        "catalog.label.b096b3f5ac": "高",
+        "catalog.label.b9ee259b7f": "低",
+        "catalog.label.c27f341ce5": "比例",
+        "catalog.label.c6f7a87b1e": "最大长度",
+        "catalog.label.dd6f194c41": "文生视频",
+        "plugins.parameter.aspectRatio": "画面比例",
+        "plugins.parameter.duration": "时长",
+        "provider.copy.aa9b734d17": "Gemini / Imagen / Veo 官方接口"
+      },
+      "en-US": {
+        "catalog.label.0869071c92": "Medium",
+        "catalog.label.0b835958b8": "Text to image",
+        "catalog.label.2f0bb12387": "Prompt",
+        "catalog.label.4d9492c5f8": "Minimal",
+        "catalog.label.5f6ab300dd": "Definition",
+        "catalog.label.66778fdee4": "Reasoning effort",
+        "catalog.label.8c31cdcb5d": "Storyboard generation",
+        "catalog.label.8f963ce0de": "Semantic segmentation",
+        "catalog.label.9612898b53": "Text generation",
+        "catalog.label.a038dfa6cd": "Image editing",
+        "catalog.label.b096b3f5ac": "High",
+        "catalog.label.b9ee259b7f": "Low",
+        "catalog.label.c27f341ce5": "Aspect ratio",
+        "catalog.label.c6f7a87b1e": "Maximum length",
+        "catalog.label.dd6f194c41": "Text to video",
+        "plugins.parameter.aspectRatio": "Aspect ratio",
+        "plugins.parameter.duration": "Duration",
+        "provider.copy.aa9b734d17": "Official Gemini / Imagen / Veo API"
+      }
+    }
+  }
 }

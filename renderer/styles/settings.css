@@ -583,8 +583,6 @@
 .provider-plugin-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
 .provider-plugin-row strong { font-size: var(--text-body-14); font-weight: 500; }
 .provider-plugin-advanced > p, .provider-plugin-advanced > small, .provider-plugin-advanced > .ant-select { margin-bottom: 12px; }
-.provider-plugin-confirm { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
-.provider-plugin-confirm > p { flex-basis: 100%; }
 .provider-plugin-error, .provider-plugin-dialog .provider-plugin-error { color: var(--bad); font-size: var(--text-body-12); white-space: pre-wrap; overflow-wrap: anywhere; }
 @media (max-width: 760px) {
   .provider-plugin-page { padding: 20px; }
@@ -625,19 +623,10 @@
 .provider-plugin-tool-card > svg { width: 18px; height: 18px; flex: none; margin-top: 2px; color: var(--muted); }
 .provider-plugin-tool-card strong { font-size: var(--text-body-14); font-weight: 500; }
 .provider-plugin-tool-card p { margin-top: 4px; font-size: var(--text-body-12); }
-.provider-plugin-model-editor { min-width: 0; padding: 0 14px; border: 1px solid var(--line); border-radius: var(--radius-md); }
-.provider-plugin-model-editor > summary { display: flex; align-items: center; gap: 10px; min-height: 52px; list-style: none; color: var(--type-primary); }
-.provider-plugin-model-editor > summary::-webkit-details-marker { display: none; }
-.provider-plugin-model-name { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: var(--text-body-14); line-height: 1.5; }
-.provider-plugin-model-actions { display: inline-flex; align-items: center; height: 28px; gap: 10px; flex: none; }
-.provider-plugin-model-chevron { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; flex: none; color: var(--muted); transition: transform var(--duration-fast) var(--ease-std); }
-.provider-plugin-model-chevron svg { display: block; width: 16px; height: 16px; }
-.provider-plugin-model-editor[open] > summary .provider-plugin-model-chevron { transform: rotate(180deg); }
-.provider-plugin-dialog .provider-plugin-model-editor[open] > summary { margin-bottom: 16px; border-bottom: 1px solid var(--line); }
-.provider-plugin-model-editor[open] { padding-bottom: 16px; }
-.provider-plugin-model-editor > label { margin-bottom: 16px; }
-.provider-plugin-dialog .ant-checkbox-wrapper { display: inline-flex; align-items: center; gap: 0; }
-.provider-plugin-model-editor .provider-plugin-section-heading { justify-content: space-between; }
+.provider-plugin-model-card > .ant-switch { flex: none; }
+.provider-plugin-model-card { min-width: 0; display: flex; align-items: center; gap: 16px; min-height: 52px; padding: 0 14px; border: 1px solid var(--line); border-radius: var(--radius-md); }
+.provider-plugin-model-name { display: block; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 .provider-plugin-settings-content .provider-plugin-advanced { padding-top: 16px; }
 .provider-plugin-advanced-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 12px; }
 .provider-plugin-advanced-header small { margin-top: 6px; }

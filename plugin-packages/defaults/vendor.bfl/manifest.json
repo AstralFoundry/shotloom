@@ -3,7 +3,7 @@
   "kind": "vendor",
   "id": "vendor.bfl",
   "name": "Black Forest Labs",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "shotloom": ">=0.9.2, <1.0.0",
   "iconId": "bfl",
   "description": "Black Forest Labs 厂商插件，统一提供模型和画布工具，共用连接与 API Key。",
@@ -1173,5 +1173,34 @@
       }
     ]
   },
-  "icon": "icon.png"
+  "icon": "icon.png",
+  "i18n": {
+    "defaultLocale": "zh-CN",
+    "messages": {
+      "zh-CN": {
+        "catalog.label.0b835958b8": "文生图",
+        "catalog.label.7a36e3422a": "图生视频",
+        "catalog.label.a038dfa6cd": "图片编辑",
+        "catalog.label.dd6f194c41": "文生视频",
+        "plugins.parameter.aspectRatio": "画面比例",
+        "plugins.parameter.duration": "时长",
+        "plugins.parameter.height": "高度",
+        "plugins.parameter.resolution": "分辨率",
+        "plugins.parameter.width": "宽度",
+        "plugins.provider.bfl": "FLUX 图片与视频生成"
+      },
+      "en-US": {
+        "catalog.label.0b835958b8": "Text to image",
+        "catalog.label.7a36e3422a": "Image to video",
+        "catalog.label.a038dfa6cd": "Image editing",
+        "catalog.label.dd6f194c41": "Text to video",
+        "plugins.parameter.aspectRatio": "Aspect ratio",
+        "plugins.parameter.duration": "Duration",
+        "plugins.parameter.height": "Height",
+        "plugins.parameter.resolution": "Resolution",
+        "plugins.parameter.width": "Width",
+        "plugins.provider.bfl": "FLUX image and video generation"
+      }
+    }
+  }
 }

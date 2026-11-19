@@ -3,6 +3,7 @@ export type CapabilityMediaType = 'image' | 'video' | 'audio';
 export interface CapabilitySlot {
   id: string;
   label: string;
+  labelKey?: string;
   type: CapabilityMediaType;
   required?: boolean;
   multiple?: boolean;
@@ -10,6 +11,7 @@ export interface CapabilitySlot {
 export interface CapabilityParameter {
   id: string;
   label: string;
+  labelKey?: string;
   type: 'string' | 'number' | 'boolean';
   required?: boolean;
   default?: string | number | boolean;
@@ -21,7 +23,9 @@ export interface CapabilityParameter {
 export interface PluginCapability {
   id: string;
   name: string;
+  nameKey?: string;
   description: string;
+  descriptionKey?: string;
   operation: string;
   inputs: CapabilitySlot[];
   outputs: CapabilitySlot[];

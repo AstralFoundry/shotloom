@@ -3,7 +3,7 @@
   "kind": "vendor",
   "id": "vendor.zhipu",
   "name": "智谱 GLM",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "shotloom": ">=0.9.2, <1.0.0",
   "iconId": "zhipu",
   "description": "智谱 GLM 厂商插件，统一提供模型和画布工具，共用连接与 API Key。",
@@ -728,5 +728,44 @@
       }
     ]
   },
-  "icon": "icon.png"
+  "icon": "icon.png",
+  "i18n": {
+    "defaultLocale": "zh-CN",
+    "messages": {
+      "zh-CN": {
+        "catalog.label.0b835958b8": "文生图",
+        "catalog.label.29fb3cf809": "约 9:16",
+        "catalog.label.2f0bb12387": "提示词",
+        "catalog.label.4388778a77": "约 16:9",
+        "catalog.label.8546cca0b1": "文生/图生视频",
+        "catalog.label.8c31cdcb5d": "分镜生成",
+        "catalog.label.8f963ce0de": "语义拆分",
+        "catalog.label.94a6711f24": "尺寸",
+        "catalog.label.9612898b53": "文本生成",
+        "catalog.label.973f0cc4ef": "输出模式",
+        "catalog.label.9d0e1e49c6": "约 2:3",
+        "catalog.label.bf857688b1": "约 3:2",
+        "catalog.label.c6f7a87b1e": "最大长度",
+        "provider.copy.5e4d6369b1": "智谱 GLM",
+        "provider.copy.ad5133e7c8": "GLM / GLM-Image / CogVideoX 官方接口"
+      },
+      "en-US": {
+        "catalog.label.0b835958b8": "Text to image",
+        "catalog.label.29fb3cf809": "Approx. 9:16",
+        "catalog.label.2f0bb12387": "Prompt",
+        "catalog.label.4388778a77": "Approx. 16:9",
+        "catalog.label.8546cca0b1": "Text / image to video",
+        "catalog.label.8c31cdcb5d": "Storyboard generation",
+        "catalog.label.8f963ce0de": "Semantic segmentation",
+        "catalog.label.94a6711f24": "Size",
+        "catalog.label.9612898b53": "Text generation",
+        "catalog.label.973f0cc4ef": "Output mode",
+        "catalog.label.9d0e1e49c6": "Approx. 2:3",
+        "catalog.label.bf857688b1": "Approx. 3:2",
+        "catalog.label.c6f7a87b1e": "Maximum length",
+        "provider.copy.5e4d6369b1": "Zhipu GLM",
+        "provider.copy.ad5133e7c8": "Official GLM / GLM-Image / CogVideoX API"
+      }
+    }
+  }
 }

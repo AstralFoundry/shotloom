@@ -1,3 +1,4 @@
+import { pluginI18nErrors } from '../../shared/pluginI18n';
 import { withNpmPluginIcons } from '../../shared/npmPluginIcons';
 import { pluginIconPath, pluginIconSource, packagedPluginIcon } from '../../shared/pluginIcon';
 import { migrateVendorPlugins, vendorInstallState, vendorMigrationErrors, type VendorMigrationState, type VendorMigrationSettings } from '../../shared/vendorPluginMigration';
@@ -267,7 +268,7 @@ function rangeMatches(range: string, version: string): boolean {
 function validateManifest(manifest: unknown, appVersion: string): void {
   if (field(manifest, 'icon') !== undefined && !pluginIconPath(field(manifest, 'icon'))) throw new Error('Plugin icon must be a relative raster asset path');
   if (field(manifest, 'iconData') !== undefined && !pluginIconSource(field(manifest, 'iconData'))) throw new Error('Invalid resolved plugin icon');
-  const capabilityErrors = pluginCapabilityErrors(manifest);
+  const capabilityErrors = [...pluginI18nErrors(manifest), ...pluginCapabilityErrors(manifest)];
   if (capabilityErrors.length) throw new Error(capabilityErrors.join('\n'));
   for (const key of ['description', 'author', 'homepage', 'license', 'readme']) {
     const value = field(manifest, key);

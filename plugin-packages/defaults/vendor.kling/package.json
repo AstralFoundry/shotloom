@@ -1,6 +1,6 @@
 {
   "name": "@shotloom/shotloom-plugin-kling",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Kling AI（可灵） 厂商插件，统一提供模型和画布工具，共用连接与 API Key。",
   "keywords": [
     "shotloom-plugin"

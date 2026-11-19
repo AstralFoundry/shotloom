@@ -3,7 +3,7 @@
   "kind": "vendor",
   "id": "vendor.bytedance",
   "name": "Seedance（火山方舟）",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "shotloom": ">=0.9.2, <1.0.0",
   "iconId": "volcengine",
   "description": "Seedance（火山方舟） 厂商插件，统一提供模型和画布工具，共用连接与 API Key。",
@@ -1115,5 +1115,42 @@
       }
     ]
   },
-  "icon": "icon.png"
+  "icon": "icon.png",
+  "i18n": {
+    "defaultLocale": "zh-CN",
+    "messages": {
+      "zh-CN": {
+        "catalog.label.058dddf225": "生成同步声音",
+        "catalog.label.0b835958b8": "文生图",
+        "catalog.label.29d0552d2e": "时长",
+        "catalog.label.2f0bb12387": "提示词",
+        "catalog.label.a038dfa6cd": "图片编辑",
+        "catalog.label.c27f341ce5": "比例",
+        "catalog.label.cde9b52b23": "分辨率",
+        "catalog.label.d108de51ea": "全模态参考生视频",
+        "catalog.label.d5b5b1fde9": "首尾帧",
+        "catalog.label.dd6f194c41": "文生视频",
+        "catalog.label.f6bbf9b630": "AI 水印",
+        "plugins.parameter.size": "尺寸",
+        "provider.copy.3602189b22": "Seedance 官方模型服务；模型 ID 以方舟控制台实际开放项为准",
+        "provider.copy.538cae2139": "Seedance（火山方舟）"
+      },
+      "en-US": {
+        "catalog.label.058dddf225": "Generate synchronized audio",
+        "catalog.label.0b835958b8": "Text to image",
+        "catalog.label.29d0552d2e": "Duration",
+        "catalog.label.2f0bb12387": "Prompt",
+        "catalog.label.a038dfa6cd": "Image editing",
+        "catalog.label.c27f341ce5": "Aspect ratio",
+        "catalog.label.cde9b52b23": "Resolution",
+        "catalog.label.d108de51ea": "Multimodal reference to video",
+        "catalog.label.d5b5b1fde9": "First and last frames",
+        "catalog.label.dd6f194c41": "Text to video",
+        "catalog.label.f6bbf9b630": "AI watermark",
+        "plugins.parameter.size": "Size",
+        "provider.copy.3602189b22": "Official Seedance model service; use model IDs available in the Ark console",
+        "provider.copy.538cae2139": "Seedance (Volcano Ark)"
+      }
+    }
+  }
 }

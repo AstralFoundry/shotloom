@@ -1,10 +1,11 @@
+import { localizePluginMetadata, pluginI18nErrors, type PluginI18n } from '../../../../../shared/pluginI18n';
 import { pluginIconPath, pluginIconSource } from '../../../../../shared/pluginIcon';
 import { vendorMigrationErrors, type VendorMigration } from '../../../../../shared/vendorPluginMigration';
 import { setPluginToolbarTools, type NodeToolbarScope, type NodeToolDefinition } from '../../../utils/canvasNodeToolbar';
 import { pluginCapabilityErrors, type PluginCapability } from '../../../../../shared/pluginCapabilities';
 import { satisfies, valid, validRange } from 'semver';
 import appPackage from '../../../../../package.json';
-import { catalogLabel } from '../../../i18n/index.ts';
+import { catalogLabel, getLocale } from '../../../i18n/index.ts';
 import type { CatalogMode, CatalogModel } from '../../catalog/ModelCatalog';
 
 export interface PluginReference { id: string; version: string; providerId: string; }
@@ -30,6 +31,9 @@ export interface ProviderPreset {
   models: PluginModel[];
 }
 export interface ProviderPluginManifest {
+  i18n?: PluginI18n;
+  nameKey?: string;
+  descriptionKey?: string;
   apiVersion: 1 | 2;
   capabilities?: PluginCapability[];
   kind?: 'vendor' | 'protocol';
@@ -125,7 +129,7 @@ export const providerPluginSnapshot = () => snapshot;
 export function setProviderPluginSnapshot(next: ProviderPluginSnapshot) {
   snapshot = structuredClone(next);
   const tools: Partial<Record<NodeToolbarScope, NodeToolDefinition[]>> = {};
-  for (const plugin of snapshot.plugins.filter(p => p.enabled && !p.removed && !p.retired)) for (const capability of plugin.manifest.capabilities || []) {
+  for (const plugin of allProviderPlugins().filter(p => p.enabled && !p.removed && !p.retired)) for (const capability of plugin.manifest.capabilities || []) {
     if (!capability.surfaces.includes('toolbar')) continue;
     for (const scope of new Set(capability.inputs.map(slot => slot.type))) {
       if (scope !== 'image' && scope !== 'video' && scope !== 'audio') continue;
@@ -135,11 +139,21 @@ export function setProviderPluginSnapshot(next: ProviderPluginSnapshot) {
   setPluginToolbarTools(tools);
   revision++;
 }
-export function allProviderPlugins() { return snapshot.plugins; }
+const localizedManifests = new WeakMap<ProviderPluginManifest, { locale: string; manifest: ProviderPluginManifest }>();
+export function localizeProviderPluginManifest(manifest: ProviderPluginManifest): ProviderPluginManifest {
+  const locale = getLocale();
+  const cached = localizedManifests.get(manifest);
+  if (cached?.locale === locale) return cached.manifest;
+  const localized = localizePluginMetadata(manifest, manifest.i18n, locale);
+  localizedManifests.set(manifest, { locale, manifest: localized });
+  return localized;
+}
+export function allProviderPlugins() { return snapshot.plugins.map(plugin => ({ ...plugin, manifest: localizeProviderPluginManifest(plugin.manifest) })); }
 export function pluginManifestAt(ref: PluginReference): ProviderPluginManifest | undefined {
   const installed = snapshot.plugins.find(plugin => plugin.manifest.id === ref.id);
-  return [installed?.manifest, ...(installed?.history || []).map(item => item.manifest)]
+  const manifest = [installed?.manifest, ...(installed?.history || []).map(item => item.manifest)]
     .find(manifest => manifest?.version === ref.version);
+  return manifest && localizeProviderPluginManifest(manifest);
 }
 
 function legacyProviderAt(ref: PluginReference): RegisteredProvider | undefined {
@@ -159,8 +173,9 @@ function presets(manifest: ProviderPluginManifest): RegisteredProvider[] {
 export function registeredProviders(): RegisteredProvider[] {
   const active = allProviderPlugins().filter(plugin => plugin.enabled && !plugin.removed && !plugin.retired);
   const oldPresets = active.filter(plugin => !plugin.manifest.kind).flatMap(plugin => presets(plugin.manifest));
-  const connections = providerConnections().filter(connection => connection.enabled !== false).flatMap(connection => {
-    const owner = active.find(plugin => plugin.manifest.id === connection.pluginId)?.manifest;
+  const connections = providerConnections().filter(connection => connection.enabled !== false).flatMap(rawConnection => {
+    const owner = active.find(plugin => plugin.manifest.id === rawConnection.pluginId)?.manifest;
+    const connection = localizePluginMetadata(rawConnection, owner?.i18n, getLocale());
     if (owner?.kind === 'vendor') return [{ id: connection.id, name: connection.name, baseUrl: connection.baseUrl || '',
       iconId: connection.iconId || owner.iconId || 'custom', description: connection.description || owner.description || '',
       authRequired: connection.authRequired, baseUrlRequired: connection.baseUrl === '', models: connection.models || [], presetId: 'vendor',
@@ -200,7 +215,8 @@ export function resolvePluginProvider(ref: PluginReference): RegisteredProvider 
   return (manifest && presets(manifest).find(provider => provider.id === ref.providerId)) || legacyProviderAt(ref);
 }
 export function expandProviderModels(provider: RegisteredProvider, manifest: ProviderPluginManifest): CatalogModel[] {
-  return provider.models.map(model => {
+  return provider.models.map(rawModel => {
+    const model = localizePluginMetadata(rawModel, manifest.i18n, getLocale());
     if (model.protocolPlugin || (manifest.kind === 'vendor' && model.protocolModes)) {
       const protocolManifest = manifest.kind === 'vendor' ? manifest : allProviderPlugins().find(plugin => plugin.manifest.id === model.protocolPlugin)?.manifest;
       if (!protocolManifest || !['protocol', 'vendor'].includes(protocolManifest.kind || '')) throw new Error(`Missing protocol plugin: ${model.protocolPlugin}`);
@@ -241,7 +257,7 @@ export function providerManifestErrors(value: unknown, appVersion = appPackage.v
   const errors: string[] = [];
   if (m.icon !== undefined && !pluginIconPath(m.icon)) errors.push('Plugin icon must be a relative raster asset path');
   if (m.iconData !== undefined && !pluginIconSource(m.iconData)) errors.push('Invalid resolved plugin icon');
-  errors.push(...pluginCapabilityErrors(m), ...vendorMigrationErrors(m));
+  errors.push(...pluginI18nErrors(m), ...pluginCapabilityErrors(m), ...vendorMigrationErrors(m));
   for (const key of ['description', 'author', 'homepage', 'license', 'readme'] as const) {
     if (m[key] !== undefined && typeof m[key] !== 'string') errors.push(`${key} must be a string`);
   }

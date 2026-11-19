@@ -3,7 +3,7 @@
   "kind": "vendor",
   "id": "vendor.runninghub",
   "name": "RunningHub",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "shotloom": ">=0.9.2, <1.0.0",
   "iconId": "runninghub",
   "description": "RunningHub 厂商插件，统一提供模型和画布工具，共用连接与 API Key。",
@@ -387,5 +387,26 @@
   "runtime": {
     "entry": "runtime/index.mjs"
   },
-  "icon": "icon.png"
+  "icon": "icon.png",
+  "i18n": {
+    "defaultLocale": "zh-CN",
+    "messages": {
+      "zh-CN": {
+        "catalog.label.29d0552d2e": "时长",
+        "catalog.label.2f0bb12387": "提示词",
+        "catalog.label.547d519bc0": "文本/多模态参考生视频",
+        "catalog.label.c27f341ce5": "比例",
+        "catalog.label.cde9b52b23": "分辨率",
+        "provider.copy.cf5cb38935": "RunningHub 工作流生成服务"
+      },
+      "en-US": {
+        "catalog.label.29d0552d2e": "Duration",
+        "catalog.label.2f0bb12387": "Prompt",
+        "catalog.label.547d519bc0": "Text / multimodal reference to video",
+        "catalog.label.c27f341ce5": "Aspect ratio",
+        "catalog.label.cde9b52b23": "Resolution",
+        "provider.copy.cf5cb38935": "RunningHub workflow generation service"
+      }
+    }
+  }
 }

@@ -3,7 +3,7 @@
   "kind": "vendor",
   "id": "vendor.runway",
   "name": "Runway",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "shotloom": ">=0.9.2, <1.0.0",
   "iconId": "runway",
   "description": "Runway 厂商插件，统一提供模型和画布工具，共用连接与 API Key。",
@@ -473,5 +473,24 @@
       }
     ]
   },
-  "icon": "icon.png"
+  "icon": "icon.png",
+  "i18n": {
+    "defaultLocale": "zh-CN",
+    "messages": {
+      "zh-CN": {
+        "catalog.label.7a36e3422a": "图生视频",
+        "catalog.label.dd6f194c41": "文生视频",
+        "plugins.parameter.aspectRatio": "画面比例",
+        "plugins.parameter.duration": "时长",
+        "plugins.provider.runway": "Runway 视频生成与图片动画"
+      },
+      "en-US": {
+        "catalog.label.7a36e3422a": "Image to video",
+        "catalog.label.dd6f194c41": "Text to video",
+        "plugins.parameter.aspectRatio": "Aspect ratio",
+        "plugins.parameter.duration": "Duration",
+        "plugins.provider.runway": "Runway video generation and animation"
+      }
+    }
+  }
 }

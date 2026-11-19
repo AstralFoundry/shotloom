@@ -199,3 +199,25 @@ node --test tests/plugin-icons.test.mjs tests/provider-plugins.test.mjs tests/pl
 | 生成成功但没有结果节点 | 命名输出、结果 URL 是否可下载、项目归档是否成功、源节点是否仍存在 |
 
 查看真实样例：[本地多输出工具](../plugin-packages/examples/canvas-actions/)、[StarRouter 模型与超分](../plugin-packages/vendor.starrouter/)、[默认插件目录](../plugin-packages/defaults/index.json)。`examples/async-module` 等旧 `kind: "protocol"` 样例仅用于兼容测试，新插件从本文的厂商包结构开始。
+
+## 插件自带多语言
+
+插件展示文案随 `manifest.json` 分发，无需修改或注册到 Shotloom 的语言表。语言表作用域限于当前插件，同名 key 不会影响其他插件。模型模式、参数、选项和画布工具均适用：
+
+```json
+{
+  "i18n": {
+    "defaultLocale": "zh-CN",
+    "messages": {
+      "zh-CN": { "mode.generate": "文生图", "param.quality": "质量", "quality.high": "高清" },
+      "en-US": { "mode.generate": "Text to image", "param.quality": "Quality", "quality.high": "High" }
+    }
+  }
+}
+```
+
+模式填写 `"label": "文生图", "labelKey": "mode.generate"`；参数填写 `labelKey`，选项通过 `"optionLabelKeys": { "high": "quality.high" }` 指定译文。插件、厂商预设和工具可填写 `nameKey`、`descriptionKey`，输入输出槽位可填写 `labelKey`。
+
+应用按当前完整语言（如 `en-US`）、对应基础语言（如 `en`）、插件 `defaultLocale`（省略时用 `zh-CN`）、原始文案回退。翻译只作用于展示字段；模型 ID、请求模板、接口路径、默认参数和选项真实值保持原样。应用保存的安装快照和包摘要仍基于原始 manifest，展示译文不写回包内容。未声明 `i18n` 的旧包保留旧行为；新包应携带自己的词条。
+
+修改已发行包的语言表后需提高 manifest 与 package.json 的版本号，再打包或发布。应用默认包和按需安装的 npm 包遵循同一规则。
