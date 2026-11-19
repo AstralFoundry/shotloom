@@ -111,6 +111,14 @@ npm run dev:web
 
 开发前请阅读 [AGENTS.md](./AGENTS.md) 与 [工程约定](./docs/engineering.md)。模型负责意图与制作判断，代码守住权限和数据完整性；领域状态与界面状态保持分离。从 `develop` 创建分支，完成检查后提 PR 回 `develop`。
 
+## 贡献者
+
+感谢社区贡献者帮助改进 Shotloom。
+
+<a href="https://github.com/piomeer"><img src="https://avatars.githubusercontent.com/u/77386616?v=4&amp;s=64" width="48" height="48" alt="piomeer"></a>
+
+[MA HE (@piomeer)](https://github.com/piomeer) — 修复 Windows 内存压力监控和 Agent 客户端 CSP 兼容性问题，并补充回归测试：[PR #1](https://github.com/AstralFoundry/shotloom/pull/1)、[PR #2](https://github.com/AstralFoundry/shotloom/pull/2)。
+
 ## 许可证
 
 仓库根目录尚未声明 LICENSE，默认保留所有权利。第三方代码遵循各自目录中的许可证；使用与分发前请核对对应条款。

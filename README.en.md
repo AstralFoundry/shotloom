@@ -111,6 +111,14 @@ React, TypeScript and Vite power the frontend; Electron / Node provide the deskt
 
 Read [AGENTS.md](./AGENTS.md) and the [engineering guide](./docs/engineering.md) before contributing. The model owns intent and production decisions; code enforces permissions and data integrity. Keep domain and UI state separate. Branch from `develop`, run the checks and open a PR against `develop`.
 
+## Contributors
+
+Thanks to our community contributors for helping improve Shotloom.
+
+<a href="https://github.com/piomeer"><img src="https://avatars.githubusercontent.com/u/77386616?v=4&amp;s=64" width="48" height="48" alt="piomeer"></a>
+
+[MA HE (@piomeer)](https://github.com/piomeer) — Fixed Windows memory-pressure monitoring and Agent client CSP compatibility, with regression tests: [PR #1](https://github.com/AstralFoundry/shotloom/pull/1) and [PR #2](https://github.com/AstralFoundry/shotloom/pull/2).
+
 ## Licensing
 
 The repository root does not currently declare a LICENSE; all rights are reserved by default. Third-party code retains the licenses in its respective directories. Check those terms before use or distribution.
