@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 import React from 'react';
 import { act, create } from 'react-test-renderer';
+import { getStateFromPath, StackRouter } from '@react-navigation/core';
 
 // Exercise the real App tree; only platform rendering, navigation and network are fixtures.
 const platform = `
@@ -24,12 +25,14 @@ exports.Alert={alert(){}};
 exports.WebView=React.forwardRef((props,ref)=>{React.useEffect(()=>{if(props.source?.uri?.includes('project='))state.mounts++;if(props.source?.uri?.includes('native=prewarm')&&!state.holdWarmup)props.onMessage({nativeEvent:{url:props.source.uri,data:JSON.stringify({type:'workspace-session-ready',userId:state.session.userId})}});},[]);React.useImperativeHandle(ref,()=>({injectJavaScript(script){state.send?.(script)},reload(){state.reload?.()}}));return React.createElement('WebView',props)});
 exports.SafeAreaProvider=exports.SafeAreaView=({children,...props})=>React.createElement('View',props,children);
 exports.SvgXml='SvgXml'; exports.getLocales=()=>[{languageCode:'en'}]; exports.randomUUID=()=> '11111111-1111-4111-8111-111111111111';
-exports.NavigationContainer=({children})=>children; exports.useFocusEffect=fn=>React.useEffect(fn,[fn]);
+const Focus=React.createContext(true);
+exports.NavigationContainer=({children,linking})=>{state.linking=linking;return children};
+exports.useFocusEffect=fn=>{const focused=React.useContext(Focus);React.useEffect(()=>focused?fn():undefined,[focused,fn])};
 exports.createNativeStackNavigator=()=>({Screen:()=>null,Navigator:({children})=>{
  const [routes,setRoutes]=React.useState([{name:'Home'}]);const specs=React.Children.toArray(children);
  const navigation=React.useMemo(()=>({navigate(name,params){setRoutes(old=>[...old,{name,params}])},replace(name,params){setRoutes(old=>[...old.slice(0,-1),{name,params}])},goBack(){setRoutes(old=>old.slice(0,-1))}}),[]);
  state.navigate=navigation.navigate;state.goBack=navigation.goBack;
- return routes.map((route,index)=>{const spec=specs.find(x=>x.props.name===route.name);return React.createElement(spec.props.component,{key:index,route,navigation})});
+ return routes.map((route,index)=>{const spec=specs.find(x=>x.props.name===route.name);return React.createElement(Focus.Provider,{key:index,value:index===routes.length-1},React.createElement(spec.props.component,{route,navigation}))});
 }});
 exports.NativeApi=class {cache=new Map();cached(path){return this.cache.get(path)} setCached(path,value){this.cache.set(path,value)} invalidate(paths){state.invalidated=paths;for(const key of this.cache.keys())if(!paths||paths.includes(key))this.cache.delete(key)} async read(path,force){if(!force&&this.cache.has(path))return this.cache.get(path);const value=await this.request(path);this.cache.set(path,value);return value} disconnect(){} pause(){} resume(){} receive(){} async request(path,method='GET',value){state.requests.push(path);if(method==='GET'&&state.responses?.[path])return state.responses[path];if(state.failLogout&&path==='/auth/logout')throw new Error('Logout failed');if(path==='/auth/me')return {id:state.session.userId};if(method!=='GET')state.writes.push({path,method,value});if(method!=='GET'&&state.writeResponses?.[path])return state.writeResponses[path];if(path==='/settings/mobile'){if(state.failSave&&method==='PATCH')throw new Error('Save unavailable');if(method==='PATCH')Object.assign(state.settings,value);return {...state.settings};}if(path==='/models')return {publications:[]};if(path==='/projects')return [{id:'22222222-2222-4222-8222-222222222222',name:'Fixture project'}];if(path==='/library-folders')return [];if(path.startsWith('/catalog/'))return {skills:[]};return {items:[],total:0,unread:0,asOf:'2026-11-16T00:00:00Z'}}};
 exports.createNativeApi=(_origin,_token,_uuid,expired)=>{state.expire=expired;return new exports.NativeApi()};
@@ -140,6 +143,47 @@ test('account top-up is native, prevents duplicate orders, reuses checkout and r
       assert.equal(button('Continue to payment').props.disabled, true);
     }
   } finally { await act(async () => { closeBrowser(); tree.unmount(); }); }
+});
+
+test('a cold payment return keeps Home behind Topup and supports back navigation', async () => {
+  const App = await loadApp(); const state = (globalThis as any).__nativeUi;
+  let tree!: ReturnType<typeof create>;
+  await act(async () => { tree = create(React.createElement(App)); });
+  try {
+    const parsed = getStateFromPath('payment/return', state.linking.config)!;
+    const router = StackRouter({ initialRouteName: 'Home' });
+    const options = { routeNames: ['Home', 'Settings', 'Topup', 'Records', 'Compose', 'Feedback', 'Notifications', 'Workspace'], routeParamList: {}, routeGetIdList: {} };
+    const restored = router.getRehydratedState(parsed as Parameters<typeof router.getRehydratedState>[0], options);
+    assert.deepEqual(restored.routes.map(route => route.name), ['Home', 'Topup']);
+    const back = router.getStateForAction(restored, { type: 'GO_BACK' }, options);
+    assert.deepEqual(back?.routes.map(route => route.name), ['Home']);
+  } finally { await act(async () => tree.unmount()); }
+});
+
+test('an order finishing while Topup is blurred remains resumable without reopening the browser or locking payment', async () => {
+  const App = await loadApp(); const state = (globalThis as any).__nativeUi;
+  state.responses = { '/auth/account': { app_quota: 100000 }, '/auth/topup/options': { quotaPerAmount: 500000 } };
+  state.writeResponses = { '/auth/topup': { checkoutUrl: 'https://payments.example/checkout/one' } };
+  let release!: () => void;
+  const pending = new Promise<void>(resolve => { release = resolve; });
+  state.beforeRequest = (path: string) => path === '/auth/topup' ? pending : undefined;
+  let tree!: ReturnType<typeof create>;
+  await act(async () => { tree = create(React.createElement(App)); });
+  const button = (label: string) => tree.root.findAllByType('Pressable' as any).find(node => node.findAllByType('Text' as any).some(text => text.props.children === label))!;
+  try {
+    await act(async () => state.navigate('Topup'));
+    await act(async () => button('Continue to payment').props.onPress());
+    await act(async () => state.navigate('Notifications'));
+    await act(async () => release());
+    assert.equal(state.browserUrls?.length || 0, 0, 'a blurred screen cannot unexpectedly open payment');
+    await act(async () => state.goBack());
+    const resume = button('Resume payment');
+    assert.ok(resume, 'retain the created checkout while the screen is blurred');
+    assert.equal(resume.props.disabled, false, 'the completed request must clear busy state');
+    await act(async () => resume.props.onPress());
+    assert.equal(state.writes.filter((item: any) => item.path === '/auth/topup').length, 1);
+    assert.deepEqual(state.browserUrls, ['https://payments.example/checkout/one']);
+  } finally { await act(async () => { release(); tree.unmount(); }); }
 });
 
 test('project search and the same canvas survive tab roundtrips without creating a session WebView', async () => {

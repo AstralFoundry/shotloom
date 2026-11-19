@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, AppState, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { dismissBrowser, openBrowserAsync } from 'expo-web-browser';
@@ -18,6 +18,8 @@ export function NativeTopup({ api }: { api: NativeApi }) {
   const [error, setError] = useState('');
   const paying = useRef(false);
   const mounted = useRef(false);
+  const focused = useRef(false);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const validAmount = /^\d+$/.test(amount) && Number.isInteger(Number(amount)) && Number(amount) >= 1 && Number(amount) <= 1_000_000;
   const refresh = useCallback(async () => {
     if (mounted.current) { setRefreshing(true); setError(''); }
@@ -28,7 +30,7 @@ export function NativeTopup({ api }: { api: NativeApi }) {
     finally { if (mounted.current) setRefreshing(false); }
   }, [api]);
   useFocusEffect(useCallback(() => {
-    mounted.current = true;
+    focused.current = true;
     void refresh();
     void api.read<{ quotaPerAmount: number }>('/auth/topup/options').then(value => {
       if (!Number.isFinite(value.quotaPerAmount) || value.quotaPerAmount <= 0) throw new Error('Invalid rate');
@@ -47,7 +49,7 @@ export function NativeTopup({ api }: { api: NativeApi }) {
         void refresh();
       } catch { /* Unrelated or malformed links cannot affect a checkout. */ }
     });
-    return () => { mounted.current = false; foreground.remove(); returned.remove(); };
+    return () => { focused.current = false; foreground.remove(); returned.remove(); };
   }, [api, refresh]));
   const pay = async () => {
     if (!validAmount || paying.current || !rate) return;
@@ -62,6 +64,7 @@ export function NativeTopup({ api }: { api: NativeApi }) {
         if (!mounted.current) return;
         setCheckout({ url, amount });
       }
+      if (!focused.current) return;
       await openBrowserAsync(url);
       if (mounted.current) await refresh();
     } catch { if (mounted.current) setError(t('account.topupFailed')); }
