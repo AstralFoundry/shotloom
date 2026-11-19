@@ -8,4 +8,10 @@ Android 0.9.13 / versionCode 14 修复充值页两个生命周期问题。
 
 验证：新增两个可复现原问题的回归用例，原生完整测试 39 项通过，TypeScript 检查通过。测试使用真实链接解析器和导航路由器，并让界面测试区分失焦与卸载。
 
-发布包与线上下载入口在构建完成后补充。未进行真实付款或 Android／iOS 真机验收。
+Android／iOS 资源打包与原生依赖检查通过。CI 构建 44504826582 成功，源码 cacbedc8332a7641bd08f7a48594607ae430d32f。
+
+APK 为 52,109,668 字节（49.7 MiB），SHA-256：2fa5a8d9474fe337e521ce04fd4cfe911999fea5c6afa8576edcc74a4ebc1c02。包名 com.shotloom.app.preview，签名 SHA-256 与此前 Preview 一致：157f5eb35b46341e5255df404c0b92a98d4535622c43c5e49b2ea77a02b2c675。
+
+对象存储发布键 android/0.9.13/Shotloom-0.9.13.apk，完整匿名下载核对哈希通过。官网下载入口与校验文件已同步，元数据部署 20261119-topup-return-lifecycle-0913；候选和公网首页、下载页、静态资源、7 条工作台入口、三个安装包的大小与范围请求验证通过。服务健康，工作台入口保持 main--W8CZWKm.js。本次修复需要安装新版 APP。
+
+未进行真实付款或 Android／iOS 真机验收；未重跑此前会卡住的根目录全量测试。
