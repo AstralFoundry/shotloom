@@ -186,6 +186,64 @@ test('an order finishing while Topup is blurred remains resumable without reopen
   } finally { await act(async () => { release(); tree.unmount(); }); }
 });
 
+test('project menu and long press edit the selected entry without opening a workspace', async () => {
+  const App = await loadApp(); const state = (globalThis as any).__nativeUi;
+  const id = '22222222-2222-4222-8222-222222222222', path = `/project/${id}`;
+  const project = { id, name: 'Fixture project', storageRevision: 7, nodes: [{ id: 'keep' }] };
+  state.responses = { [path]: project };
+  let tree!: ReturnType<typeof create>;
+  await act(async () => { tree = create(React.createElement(App)); });
+  const button = (title: string) => tree.root.findAllByType('Pressable' as any).find(n => n.findAllByType('Text' as any).some(t => t.props.children === title))!;
+  const more = () => tree.root.findAllByType('Pressable' as any).find(n => n.props.accessibilityLabel === 'Manage project')!;
+  try {
+    assert.equal(button('Import'), undefined);
+    await act(async () => more().props.onPress());
+    assert.equal(tree.root.findAllByType('WebView' as any).length, 0);
+    await act(async () => button('Rename').props.onPress());
+    const name = () => tree.root.findAllByType('TextInput' as any).find(n => n.props.accessibilityLabel === 'Name')!;
+    await act(async () => name().props.onChangeText('Renamed'));
+    state.beforeRequest = (_path: string, method: string) => { if (method === 'PUT') throw new Error('Save unavailable'); };
+    await act(async () => button('Save').props.onPress());
+    assert.equal(name().props.value, 'Renamed', 'failed saves keep the draft available');
+    state.beforeRequest = undefined;
+    await act(async () => button('Save').props.onPress());
+    assert.deepEqual(state.writes.at(-1), { path, method: 'PUT', value: { ...project, name: 'Renamed' } });
+    assert.equal(tree.root.findAllByType('Modal' as any).length, 0);
+    const card = tree.root.findAllByType('Pressable' as any).find(n => n.props.onLongPress)!;
+    await act(async () => card.props.onLongPress());
+    await act(async () => button('Delete').props.onPress());
+    assert.equal(state.writes.filter((w: any) => w.method === 'DELETE').length, 0, 'deletion requires confirmation');
+    await act(async () => button('Cancel').props.onPress());
+    await act(async () => more().props.onPress());
+    await act(async () => button('Delete').props.onPress());
+    await act(async () => button('Confirm delete').props.onPress());
+    assert.deepEqual(state.writes.at(-1), { path, method: 'DELETE', value: undefined });
+    assert.equal(tree.root.findAllByType('WebView' as any).length, 0);
+  } finally { await act(async () => tree.unmount()); }
+});
+
+test('folder menu renames and deletes the selected folder using its existing endpoints', async () => {
+  const App = await loadApp(); const state = (globalThis as any).__nativeUi;
+  const id = '33333333-3333-4333-8333-333333333333';
+  state.responses = { '/library-folders': [{ id, parentId: null, name: 'Folder' }] };
+  let tree!: ReturnType<typeof create>;
+  await act(async () => { tree = create(React.createElement(App)); });
+  const button = (title: string) => tree.root.findAllByType('Pressable' as any).find(n => n.findAllByType('Text' as any).some(t => t.props.children === title))!;
+  const menu = async () => act(async () => tree.root.findAllByType('Pressable' as any).find(n => n.props.onLongPress && n.findAllByType('Text' as any).some(t => t.props.children === 'Folder'))!.props.onLongPress());
+  try {
+    await menu();
+    await act(async () => button('Rename').props.onPress());
+    await act(async () => tree.root.findAllByType('TextInput' as any).find(n => n.props.accessibilityLabel === 'Name')!.props.onChangeText('Renamed folder'));
+    await act(async () => button('Save').props.onPress());
+    assert.deepEqual(state.writes.at(-1), { path: `/library-folders/${id}`, method: 'PATCH', value: { name: 'Renamed folder' } });
+    await menu();
+    await act(async () => button('Delete').props.onPress());
+    await act(async () => button('Confirm delete').props.onPress());
+    assert.deepEqual(state.writes.at(-1), { path: `/library-folders/${id}`, method: 'DELETE', value: undefined });
+    assert.equal(tree.root.findAllByType('WebView' as any).length, 0);
+  } finally { await act(async () => tree.unmount()); }
+});
+
 test('project search and the same canvas survive tab roundtrips without creating a session WebView', async () => {
   const App = await loadApp();
   let tree!: ReturnType<typeof create>;
