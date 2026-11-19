@@ -9,5 +9,7 @@ export default (): ExpoConfig => ({
     icon: './assets/android-icon.png',
     adaptiveIcon: { foregroundImage: './assets/android-icon-foreground.png', backgroundColor: '#B5A8FF', monochromeImage: './assets/android-icon-monochrome.png' },
   },
-  plugins: ['expo-localization', 'expo-sharing', 'expo-web-browser', 'expo-secure-store'],
+  plugins: ['expo-localization', 'expo-sharing', 'expo-web-browser', 'expo-secure-store',
+    ['expo-splash-screen', { image: './assets/android-icon.png', imageWidth: 72, resizeMode: 'contain', backgroundColor: '#fafafa' }],
+  ],
 });
