@@ -16,7 +16,7 @@ import { isImeKeyEvent } from "./imeComposition";
 import { generationMediaKind, useGenerationLocalPreview } from "./generationNodeMedia";
 import { editorCaretOffset, editorPrompt, referenceLabels, renderPromptEditor, setEditorCaret } from "./promptReferenceEditor";
 import { findSmartReferences } from "@/utils/smartPromptReference";
-import { Modal, Segmented, Input as AntInput } from "antd";
+import { Drawer, Modal, Segmented, Input as AntInput } from "antd";
 import { OPTIMIZER_MODES, type OptimizerMode, type OptimizerResult } from "@/domain/prompt/optimizer";
 import { optimizePrompt } from "@/services/promptOptimizerService";
 import { recordCanvasHistory } from "@/store/canvasHistoryStore";
@@ -127,6 +127,14 @@ export function GenerationNodeComposer({
   promptRef: RefObject<HTMLDivElement | null>;
 }) {
   const [openMenu, setOpenMenu] = useState("");
+  const settingsTriggerRef = useRef<HTMLButtonElement>(null);
+  const mobileMedia = useMemo(() => window.matchMedia('(max-width: 700px), (max-width: 920px) and (max-height: 500px)'), []);
+  const [mobile, setMobile] = useState(mobileMedia.matches);
+  useEffect(() => {
+    const update = () => setMobile(mobileMedia.matches);
+    mobileMedia.addEventListener('change', update);
+    return () => mobileMedia.removeEventListener('change', update);
+  }, [mobileMedia]);
   const [mention, setMention] = useState<{ query: string; start: number; end: number; index: number } | null>(null);
   const composing = useRef(false);
   const lastRenderedReferences = useRef("");
@@ -287,6 +295,10 @@ export function GenerationNodeComposer({
       setEditorCaret(element, result.caret);
     });
   }
+
+  const generationSettings = (
+    <GenerationSettingsPanel nodeId={node.id} state={state} actions={actions} onConfigChange={setConfig} />
+  );
 
   return (
     <div
@@ -543,25 +555,39 @@ export function GenerationNodeComposer({
           <button
             type="button"
             className={`generation-settings-trigger${openMenu === "generationSettings" ? " active" : ""}`}
+            ref={settingsTriggerRef}
             title={t("ui.GenerationNodeComposer.title.8da679fb")}
+            aria-label={t("ui.GenerationNodeComposer.title.8da679fb")}
+            aria-expanded={openMenu === "generationSettings"}
+            aria-haspopup={mobile ? "dialog" : undefined}
             onClick={() => setOpenMenu(openMenu === "generationSettings" ? "" : "generationSettings")}
           >
-            {activeInputMode && <span>{activeInputMode.label}</span>}
-            {summaryParams.slice(0, 4).map((param) => (
+            {mobile && <span>{t("ui.GenerationNodeComposer.title.8da679fb")}</span>}
+            {!mobile && activeInputMode && <span>{activeInputMode.label}</span>}
+            {!mobile && summaryParams.slice(0, 4).map((param) => (
               <span key={param.key}>
                 {paramSummary(param, config[param.key] ?? param.default)}
               </span>
             ))}
             <IconSymbol name="chevron-down" />
           </button>
-          {openMenu === "generationSettings" && (
-            <GenerationSettingsPanel
-              nodeId={node.id}
-              state={state}
-              actions={actions}
-              onConfigChange={setConfig}
-            />
-          )}
+          {mobile ? (
+            <Drawer
+              rootClassName="generation-settings-sheet"
+              title={t("ui.GenerationNodeComposer.title.8da679fb")}
+              placement="bottom"
+              size="min(76dvh, 640px)"
+              open={openMenu === "generationSettings"}
+              onClose={() => {
+                setOpenMenu("");
+                requestAnimationFrame(() => settingsTriggerRef.current?.focus({ preventScroll: true }));
+              }}
+              focusable={{ focusTriggerAfterClose: false }}
+              destroyOnHidden
+            >
+              {generationSettings}
+            </Drawer>
+          ) : openMenu === "generationSettings" && generationSettings}
         </div>
         {node.type === "imageGeneration" && (
           <button
