@@ -130,7 +130,7 @@ commands 只列出你应当使用的命令；已由 batch 覆盖的搭景命令�
 素材有 200 多条，默认不返回：不传参数时只给 groups（分组名、条目数、示例 id）和 assetTotal。要找具体的墙、门窗、建筑、家具时按需筛：
 - group 传分组名（例如 "建筑构件"、"建筑外壳"、"通行构件"、"家具"、"人物"），返回该组完整条目；
 - query 传关键词（可中英文，例如 wall、墙、building、楼、door、桌），按 id／名称／分组／别名匹配；
-两个都给时取交集。每条含 id、name、kind、group、defaultSize（实测默认几何宽高深）、parameters（默认值、范围、单位、步长与 choices）与 params（可调的尺寸参数名，有 params 的用 parameters 写真实尺寸而不是 scale）。`,
+两个都给时取交集。每条含 id、name、kind、group、defaultSize（实测默认几何宽高深）、parameters（默认值、范围、单位、步长与 choices）与 params（可调的尺寸参数名，有 params 的用 parameters 写真实尺寸而不是 scale）。batchOperations 列出每种批量操作实际接受的字段及受限 patch 字段；valueTypes 给出向量、等比缩放和 AnimatedNumber 的 JSON 示例。光影 patchFields 的 minimum/maximum 同时约束静态数值和关键帧 value；AnimatedNumber 使用数值或 {keys:[{time,value}]}，不是直接数组。`,
     effect: 'read',
     activity: 'inspect',
     inputSchema: {
@@ -201,7 +201,7 @@ commands 只列出你应当使用的命令；已由 batch 覆盖的搭景命令�
 edits 按顺序执行，支持：
 - align_surface：entityId + targetEntityId + 可选 anchorId（省略则沿实体到目标中心射线测量表面），把物体局部 +Z 对齐接触点法线，并让背面贴合表面。
 - place_on_surface：entityId + targetEntityId + 可选 anchorId，按真实几何落到下方目标表面。seat_on_surface 使用同样参数且必须指定座面 anchorId，按人体坐姿计算位置。align_facing：entityId + targetEntityId，将实体正面（+Z）水平朝向目标。
-- add_asset：assetId（取 catalog.assets[].id）+ 可选 name、position:[x,y,z]、rotationDegrees:[x,y,z]、scale:[x,y,z]、parameters；回执含新 entityId。素材原点在底面中心，position 的 y 就是落地高度（y=0 正好站在地面），默认尺寸见 catalog.assets[].defaultSize，不必先加再量。
+- add_asset：assetId（取 catalog.assets[].id）+ 可选 name、position:[x,y,z]、rotationDegrees:[x,y,z]、scale:[x,y,z]、parameters、color:#rrggbb；回执含新 entityId。scale 可传正数 s 表示 [s,s,s]，回执会说明规范化；position/rotationDegrees 必须为三元数组。素材尺寸须在 catalog.assets[].parameters 对应 min/max 内；不能把 0 当作禁用参数或静默截断越界尺寸。素材原点在底面中心，position 的 y 就是落地高度（y=0 正好站在地面），默认尺寸见 catalog.assets[].defaultSize，不必先加再量。
 - add_prop：目录里没有的物体用它拼，而不是拿外形无关的道具改名冒充。parts:[{ shape, at:[x,y,z], size?:[w,h,d], rotationDegrees?, color? }]（1–32 个部件，shape 取形状素材 shape-*，尺寸单位米）+ 可选 name、position:[x,y,z]、rotationDegrees、scale、color（整件的基础色，默认 #d5d5d0；说明是灰模，尽量用灰阶）。部件位置是相对基座的米制坐标，且每个部件的 at 指它的底面中心（和实体本身同一约定）：一个高 0.18 米的柱体放在 y=0 才会贴地，放在 y=0.09 就会悬空 0.09 米。适合灰模示意（篝火、简易乐器、特定家具、道具堆），不适合需要精细曲面的主体；拼完用 inspect_model 看形状、再用场景预览确认它在镜头里的比例与落地关系。
 - add_room：minX + maxX + minZ + maxZ（矩形房间范围，米）+ 可选 height（默认 3）、thickness（默认 0.18）、y（底面高度，默认 0）、name、floor:true（同时铺一块楼板地板）。四面墙自动首尾对齐、墙角按半个墙厚避让。可选 openings:[{ side:"south"|"north"|"east"|"west", width, height?, sill?, offset? }] 在对应墙面开门窗；offset 是沿墙段方向的偏移（0 居中），是负数就朝起始端偏。回执的 entities 按「南、北、西、东（、地板）」给出各面墙的 id。同一面墙只能开一个洞，需要多个就用 add_wall 把该侧拆段。
 - add_wall：from:[x,z] + to:[x,z]（俯视平面上的墙体线段，米）+ 可选 height（默认 3）、thickness（默认 0.18）、opening:{ width, height?, sill?, offset? }（门窗洞；offset 为沿墙段方向的偏移，0 居中）、y（底面高度，默认 0）、name。一面墙一项，中心、朝向和长度由线段直接算出，不需要手算 scale 或角度；孤立的单面墙或非矩形墙体时用它。
@@ -211,7 +211,7 @@ edits 按顺序执行，支持：
 - set_rotation_animation：entityId + pivot:[x,y,z]（物体局部坐标，单位米，随物体缩放）+ keys:[{ timeSec, rotationDegrees:[x,y,z], easing? }]（至少 2 个，时间严格递增；角度是相对实体基础朝向的增量）。它让任意实体围绕指定轴心随时间旋转，并可与位置路径同时使用。内置 prop door 的局部原点就在左侧门轴，可用 pivot:[0,0,0]、0 秒 [0,0,0]、2 秒 [0,90,0]；带框的 structure-door 是整件实体，旋转它会连门框一起转，应把门扇单独作为实体。要移除动画，传 keys:null（此时不需要 pivot）。先从 snapshot 查询实体尺寸与朝向，轴心不能凭空猜。提交后在开始、中间和结束时间预览核验。
 - set_entity：entityId + patch；字段 name、color、position:[x,y,z]（米，世界坐标，整条路径平移）、rotationDegrees:[x,y,z]（度）、scale:[x,y,z]、parameters、visible、height、build、gender。parameters 是素材的真实尺寸参数（米），键名取自 catalog.assets[].params，例如墙的 width/height/depth/openingWidth；有参数的素材优先改参数而不是 scale，scale 会把门洞和墙厚一起拉伸。内置人偶的 color 是身体及服装整体改色；服装款式用支持服装参数的 human-* 素材，先查 catalog.params，再设置 parameters.outfit / headwear / backpack（按目录 choices 取值）。person / woman 不支持这些换装参数。跟随机位不能直接设位置或旋转，手持道具不能直接设位置。
 - set_camera / set_light：entityId + patch；字段从 director_desk_catalog.patchFields.set_camera_field / set_light_field 取。
-- set_lighting / set_room / set_project：patch；字段分别从 catalog.patchFields.set_lighting_field / update_room / update_project_settings 取。
+- set_lighting / set_room / set_project：patch；字段分别从 catalog.patchFields.set_lighting_field / update_room / update_project_settings 取。AnimatedNumber 为数值或 {keys:[{time:0,value:1},{time:2,value:2}]}，不是直接数组；value 遵循目录 minimum/maximum，例如 sunIntensity 为 0—100。拿不准时 validateOnly:true 只预检，不写入、不推进 revision；失败后按返回的 editIndex、parameters、patchFields 修正，不能原样循环重试。
 - add_shot：timeSec（切入秒）+ cameraId + 可选 name、subjectIds（镜头明确要出现的角色 ID，[] 为无指定主体）、patch（camera 合法字段）、points/smooth（机位路径）。同批可引用新机位，原子设置构图、运镜和切镜。镜头出点为下一切镜或场景结束；用多个 add_shot 编排完整段落，不强制固定镜头数。
 - add_action：entityId + action（取 catalog.actions）+ 可选 atSec（秒，默认 0）；放在该时点之后第一个不重叠位置，返回新 clipId。已有待机片段可能把新动作推到其末尾。可用 startSec/endSec 精确指定时段（重叠时提示先修复），speed:0.1–5、blendIn:0–2、loop:boolean 控制速度、衔接与循环；actionTiming 返回默认时长和循环属性。
 - set_clip：entityId + clipId + patch；只支持 start、end、speed、blendIn（入场过渡秒数，0—2）、loop。
@@ -234,7 +234,7 @@ edits 按顺序执行，支持：
           timesSec: { type: 'array', minItems: 1, maxItems: 8, items: { type: 'number' } },
           cameraId: { type: 'string' }, plan: { type: 'boolean' },
         } },
-        validateOnly: { type: 'boolean' },
+        validateOnly: { type: 'boolean', description: '按真实提交规则预检，不写入、不推进 revision；修正具体失败项后再提交。' },
         edits: {
           type: 'array', minItems: 1,
           items: {
@@ -252,9 +252,9 @@ edits 按顺序执行，支持：
               ref: { type: 'string' }, startSec: { type: 'number', minimum: 0 }, endSec: { type: 'number', minimum: 0 }, speed: { type: 'number', minimum: 0.1, maximum: 5 }, blendIn: { type: 'number', minimum: 0, maximum: 2 }, loop: { type: 'boolean' }, subjectIds: { type: 'array', items: { type: 'string' } },
               entityId: { type: 'string' }, clipId: { type: 'string' }, action: { type: 'string' }, atSec: { type: 'number' },
               assetId: { type: 'string' }, name: { type: 'string' }, cameraId: { type: 'string' },
-              position: { type: 'array', items: { type: 'number' } },
-              rotationDegrees: { type: 'array', items: { type: 'number' } },
-              scale: { type: 'array', items: { type: 'number' } },
+              position: { type: 'array', items: { type: 'number' }, minItems: 3, maxItems: 3 },
+              rotationDegrees: { type: 'array', items: { type: 'number' }, minItems: 3, maxItems: 3 },
+              scale: { description: '正数 s 表示等比 [s,s,s]，每个分量必须大于 0。', oneOf: [{ type: 'number', minimum: 0 }, { type: 'array', items: { type: 'number', minimum: 0 }, minItems: 3, maxItems: 3 }] },
               parameters: { type: 'object', additionalProperties: { type: 'number' } },
               from: { type: 'array', items: { type: 'number' }, minItems: 2, maxItems: 2 },
               to: { type: 'array', items: { type: 'number' }, minItems: 2, maxItems: 2 },
@@ -330,7 +330,11 @@ edits 按顺序执行，支持：
                   },
                 ],
               },
-              patch: { type: 'object', additionalProperties: true },
+              patch: { type: 'object', additionalProperties: true, properties: {
+                scale: { description: '正数 s 表示等比 [s,s,s]，每个分量必须大于 0。', oneOf: [{ type: 'number', minimum: 0 }, { type: 'array', items: { type: 'number', minimum: 0 }, minItems: 3, maxItems: 3 }] },
+                position: { type: 'array', items: { type: 'number' }, minItems: 3, maxItems: 3 },
+                rotationDegrees: { type: 'array', items: { type: 'number' }, minItems: 3, maxItems: 3 },
+              } },
             },
           },
         },

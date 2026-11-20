@@ -1,12 +1,18 @@
 ---
 name: director-desk-staging
-description: 在 Shotloom 3D 导演台中布景、设计机位与动作，并依据真实渲染画面核验预演效果。只适用于当前打开的导演台工程。
-metadata: {"category":"film","version":1}
+description: 在 Shotloom 3D 导演台中进行镜头设计、构图、光影、表演走位与切镜编排，并依据真实渲染画面核验预演效果。只适用于当前打开的导演台工程。
+metadata: {"category":"film","version":2}
 ---
 
 # 3D 导演台创作与画面核验
 
 本 Skill 负责导演判断和完成标准。实际可执行操作、字段、素材和 ID 以当前 `director_desk_snapshot` 与 `director_desk_catalog` 为准；不要把其他导演台产品的方法当作本工程的能力。
+
+## 按任务选读
+
+- 设计分镜、构图、光影、表演或跨镜连续性时，读取 [镜头设计](references/shot-design.md)。把导演目的落成观众能看到的信息变化，镜数与时长由事件决定，不按固定间隔切镜。
+- 设置跟随、摇摄、焦距、路径、转身或动作叠加时，读取 [相机与动作合同](references/camera-and-motion.md)，先核对控制优先级与当前写入格式。
+- 追逐掉头、双人对白、发现线索、道具交接、碰撞恢复或动物运动时，读取 [编排案例](references/staging-examples.md)，按真实素材能力改编，不机械复制时长或坐标。
 
 ## 把需求变成可拍的场景
 
@@ -25,6 +31,7 @@ metadata: {"category":"film","version":1}
 ## 核验与修正
 
 - 每次快照中的 `sessionId` 与 `revision` 是一对写入依据。批量修改分别传入 `expectedSessionId` 与 `expectedRevision`；重新打开导演台后 revision 可能变小，这不是内容丢失的证据。会话变化或版本冲突时重读快照并核对受影响对象，利用 `revisionDiff` 定位增删改；不要只换版本号重放旧批次。
+- 写入前按目录核对 `batchOperations` 的合法字段、素材 `parameters` 的 min/max/choices 和 `patchFields` 的类型与范围；`valueTypes` 提供真实 JSON 格式。`AnimatedNumber` 是数值或 `{keys:[{time,value}]}`，`focalKeys` 才直接使用数组。尺寸越界需重新设计或选素材；拿不准可用 `validateOnly:true` 预检。失败时依据具体项和回执合同修正，不原样循环重试。
 - 优先让代码测量几何：用 `director_desk_query` 的 `entity_relations` 查询指定时刻的相对方向、距离、机位中心视线遮挡与接触锚点。用批量 `place_on_surface` 落面、`seat_on_surface` 对齐显式座面锚点、`align_facing` 面向目标、`align_surface` 贴合表面。这些宏支持内置人物与道具；按回执处理不支持的模型。几何测量和中心视线都不能替代画面核验。
 - 批量修改可带 `autoPreview: { timesSec: [0, 2], plan: true }`，成功后直接查看回执中的真实预览附件。若 `applied: true` 且有 `previewErrors`，修改已经生效，只重试取帧，不要重做整批写入。
 - 写入回执证明命令被接受，场景文档证明结构，`spatial_check` 证明它采样范围内的机械问题，`render_plan` 的俯视平面图证明布局与路线是否对得上参考，真实渲染帧才支持关于构图、遮挡、光影、姿态和外观的判断。这些证据不能相互替代。

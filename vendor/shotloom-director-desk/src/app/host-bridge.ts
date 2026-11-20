@@ -20,12 +20,12 @@ import { videoFilename } from '@/core/exporting/plan.ts';
 import { safeFilename } from '@/core/exporting/filename.ts';
 import { createScene } from '@/core/scene-templates.ts';
 import { FRAMING_NAMES } from '@/state/commands/scene.ts';
-import { patchFieldCatalog } from '@/core/editor/patch-fields.ts';
+import { patchFieldCatalog, patchValueTypes } from '@/core/editor/patch-fields.ts';
 import * as THREE from 'three';
 import { setReferenceBackdrop } from '@/state/reference-backdrop.ts';
 import { setLanguage } from '@/shared/i18n/locale.ts';
 import type { BatchEdit } from '@/state/batch-edits.ts';
-import { ASSET_ORIGIN } from '@/state/batch-edits.ts';
+import { ASSET_ORIGIN, batchOperationCatalog } from '@/state/batch-edits.ts';
 import { DirectorCommandError, classifyDirectorError } from '@/core/errors.ts';
 import { isInFrame } from '@/core/spatial/checks.ts';
 import { worldContactAnchors } from '@/core/assets/contact-anchors.ts';
@@ -984,6 +984,8 @@ export function initializeHostBridge() {
                         commandKinds: ['view', 'edit', 'export'],
                         // patch 类命令的合法键名：类型来自真实接口，字段增删会在这里同步。
                         patchFields: patchFieldCatalog,
+                        valueTypes: patchValueTypes,
+                        batchOperations: batchOperationCatalog,
                     };
                 } else {
                     const operation = string(payload.operation);

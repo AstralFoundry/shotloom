@@ -18,7 +18,9 @@ try {
 export { createStarterProject } from './vendor/shotloom-director-desk/src/state/starter-project.ts';
 export { directorContext } from './vendor/shotloom-director-desk/src/core/director-context.ts';
 export { pathPosition } from './vendor/shotloom-director-desk/src/core/timeline.ts';
-export { assertProject } from './vendor/shotloom-director-desk/src/core/model.ts';
+export { assertProject, entity } from './vendor/shotloom-director-desk/src/core/model.ts';
+export { patchFieldCatalog, patchValueTypes } from './vendor/shotloom-director-desk/src/core/editor/patch-fields.ts';
+export { assertLighting, assertLightEntity, defaultLighting } from './vendor/shotloom-director-desk/src/core/lighting/model.ts';
 export { surfaceDropPosition } from './vendor/shotloom-director-desk/src/core/editor/object-snapping.ts';
 export { BoxGeometry, Mesh, MeshBasicMaterial } from 'three';`,
       resolveDir: root,
@@ -35,6 +37,85 @@ export { BoxGeometry, Mesh, MeshBasicMaterial } from 'three';`,
 
 const starter = () => domain.createStarterProject();
 const actorOf = (project) => project.entities.find(entity => entity.kind === 'actor');
+
+test('新增目录素材支持颜色，统一缩放按等比展开并在回执说明', () => {
+  const project = starter();
+  const [receipt] = domain.applyBatchEdits(project, [{ operation: 'add_asset', assetId: 'furniture-counter', color: '#446688', scale: 0.5 }]);
+  const created = project.entities.find(entity => entity.id === receipt.entityId);
+  assert.equal(created.color, '#446688');
+  assert.deepEqual(created.scale, [0.5, 0.5, 0.5]);
+  assert.ok(receipt.warnings.length);
+  domain.applyBatchEdits(project, [{ operation: 'set_entity', entityId: created.id, patch: { scale: 2 } }]);
+  assert.deepEqual(created.scale, [2, 2, 2]);
+  domain.assertProject(project);
+  for (const scale of [0, -1, NaN, Infinity, [1, 2], { x: 1, y: 1, z: 1 }]) {
+    assert.throws(() => domain.applyBatchEdits(project, [{ operation: 'set_entity', entityId: created.id, patch: { scale } }]));
+  }
+});
+
+test('尺寸越界回执包含失败项、真实素材范围与修复入口，不静默截断', () => {
+  const project = starter();
+  assert.throws(() => domain.applyBatchEdits(project, [
+    { operation: 'set_room', patch: { width: 9 } },
+    { operation: 'add_asset', assetId: 'furniture-counter', parameters: { width: 0 } },
+  ]), error => {
+    assert.match(error.message, /第 2 项 add_asset 失败/);
+    assert.equal(error.facts?.editIndex, 2);
+    assert.equal(error.facts?.assetId, 'furniture-counter');
+    assert.ok(error.facts?.parameters.width.min > 0);
+    assert.ok(error.hint?.includes('validateOnly'));
+    return true;
+  });
+  assert.equal(project.entities.some(entity => entity.asset === 'furniture-counter'), false);
+});
+
+test('光影目录给出范围及 keys 外壳，错误保留批次项与字段合同', () => {
+  const field = domain.patchFieldCatalog.set_lighting_field.sunIntensity;
+  assert.equal(field.minimum, 0);
+  assert.equal(field.maximum, 100);
+  const project = starter();
+  for (const sunIntensity of [101, [{ time: 0, value: 2 }]]) {
+    assert.throws(() => {
+      domain.applyBatchEdits(project, [{ operation: 'set_lighting', patch: { sunIntensity } }]);
+      domain.assertProject(project);
+    }, error => {
+      assert.equal(error.facts?.editIndex, 1);
+      assert.equal(error.facts?.patchFields.sunIntensity.maximum, 100);
+      return true;
+    });
+  }
+  domain.applyBatchEdits(project, [{ operation: 'set_lighting', patch: { sunIntensity: field.example } }]);
+  domain.assertProject(project);
+});
+
+test('目录中的光影数值边界及动画示例与真实验证器一致', () => {
+  const lighting = domain.defaultLighting();
+  const light = domain.entity('prop', 'light-spot', '灯');
+  for (const [fields, target, validate] of [
+    [domain.patchFieldCatalog.set_lighting_field, lighting, () => domain.assertLighting(lighting)],
+    [domain.patchFieldCatalog.set_light_field, light.light, () => domain.assertLightEntity(light)],
+  ]) {
+    for (const [key, field] of Object.entries(fields)) {
+      if (field.minimum === undefined) continue;
+      const previous = target[key];
+      for (const value of [field.minimum, field.maximum]) {
+        target[key] = value;
+        assert.doesNotThrow(validate, key);
+        if (field.type.startsWith('AnimatedNumber')) {
+          target[key] = { keys: [{ time: 0, value }] };
+          assert.doesNotThrow(validate, key);
+        }
+      }
+      for (const value of [field.minimum - 0.001, field.maximum + 0.001]) {
+        target[key] = value;
+        assert.throws(validate, undefined, key);
+      }
+      target[key] = previous;
+    }
+  }
+  lighting.sunIntensity = domain.patchValueTypes.AnimatedNumber.example;
+  domain.assertLighting(lighting);
+});
 
 test('导演台批量设置可移除默认待机、添加动作并调整角色，结果仍是合法工程', () => {
   const project = starter();

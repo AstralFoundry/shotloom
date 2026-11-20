@@ -32,6 +32,8 @@ React Native 预览客户端采用独立 npm 安装，复用 shared 中的纯接
 
 ## 官方 Harness 客户端隔离
 
+导演台 `director-desk-staging` Skill v2 吸收自 `vvicat-ai-short-studio` 的 `integrate/browser-dsh-staging-20261120`（`eeacfeb7b91d4053de9c85c47f60d13f0bc3b5d0`）：`director-desk-craft.md`、`professional-directing.md`、`director-composition.md` 与 `shot-transitions.md`。镜头设计、相机动作优先级和六类案例按需读取；保留 Shotloom 的批量工具、会话基线与真实预览合同，不迁入源项目 CLI、整文档替换或人工导出限制。目录 `batchOperations` 来自批量执行器的实际字段表，光影范围与数值动画示例随目录返回；非法参数回执带具体项和真实合同，整批仍由副本预检后原子提交。
+
 `harness/host/client/` 直接复用官方 Harness 的 UI、状态、投影与 React 依赖，以 App 级单例在 Shotloom 页面内挂载，使用 ShadowRoot 隔离样式，不使用 iframe。它不接管 Shotloom 领域状态，不导入 renderer/store，不将官方状态引擎扩散到产品模块。
 
 Web、桌面和移动 WebView 的 Agent 循环统一运行于 Dedicated Worker；`harness/host/browser/` 复用现有角色、Skill、审批、工具装配与持久层合同。工程切换、关页与登录失效销毁 Worker；收起面板继续运行。IndexedDB 按账号和工程隔离本地会话、事件、附件、设置与业务回执，Web Locks 保证同工程只有一个窗口持有写入权。模型或产品工具调用前必须等待持久化屏障；失败停止执行，结果未知的写入不能自动重放。恢复历史不会自动续跑，需用户发送消息或继续目标。

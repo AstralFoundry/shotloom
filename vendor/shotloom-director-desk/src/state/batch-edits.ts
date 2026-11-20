@@ -10,7 +10,8 @@ import {
 import { actionDuration } from '@/core/animation/action-timing.ts';
 import { nextFreeStart } from '@/core/clip-editing.ts';
 import { addCut, shiftPath } from '@/core/timeline.ts';
-import { defaultLighting } from '@/core/lighting/model.ts';
+import { assertLighting, assertLightEntity, defaultLighting } from '@/core/lighting/model.ts';
+import { DirectorCommandError } from '@/core/errors.ts';
 import { patchFieldCatalog } from '@/core/editor/patch-fields.ts';
 import { validateAssetParameters } from '@/core/assets/parameters.ts';
 
@@ -86,7 +87,7 @@ const operationFields: Record<BatchEdit['operation'], readonly string[]> = {
     remove_clip: ['operation', 'entityId', 'clipId'],
     set_path: ['operation', 'entityId', 'points', 'smooth'],
     set_rotation_animation: ['operation', 'entityId', 'pivot', 'keys'],
-    add_asset: ['operation', 'assetId', 'name', 'position', 'rotationDegrees', 'scale', 'parameters'],
+    add_asset: ['operation', 'assetId', 'name', 'position', 'rotationDegrees', 'scale', 'parameters', 'color'],
     add_wall: ['operation', 'from', 'to', 'height', 'thickness', 'opening', 'y', 'name'],
     add_room: ['operation', 'minX', 'maxX', 'minZ', 'maxZ', 'height', 'thickness', 'y', 'openings', 'name', 'floor'],
     add_prop: ['operation', 'parts', 'name', 'position', 'rotationDegrees', 'color', 'scale'],
@@ -95,6 +96,10 @@ const operationFields: Record<BatchEdit['operation'], readonly string[]> = {
     delete_entity: ['operation', 'entityId'],
     duplicate_entity: ['operation', 'entityId', 'name', 'position', 'rotationDegrees'],
 };
+export const batchOperationCatalog = Object.fromEntries(Object.entries(operationFields).map(([operation, fields]) => [operation, {
+    fields: [...fields, 'ref'],
+    ...(operation === 'set_entity' ? { patchFields: entityFields } : operation === 'set_clip' ? { patchFields: clipFields } : {}),
+}]));
 /** Catalogue props sit on the centre of their base; catalog conventions and the floating check rely on it. */
 export const ASSET_ORIGIN = 'base-center';
 const isRecord = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
@@ -156,9 +161,13 @@ const placeNewEntity = (e: Entity, edit: BatchEdit) => {
     if (edit.position !== undefined) e.position = vec3(edit.position, 'position');
     if (edit.rotationDegrees !== undefined) e.rotation = degreesToRadians(edit.rotationDegrees);
     if (edit.scale !== undefined) e.scale = positiveScale(edit.scale);
+    if (edit.color !== undefined) {
+        if (typeof edit.color !== 'string' || !/^#[0-9a-f]{6}$/i.test(edit.color)) throw Error('color 必须是 #rrggbb');
+        e.color = edit.color;
+    }
 };
 const positiveScale = (value: unknown): Vec3 => {
-    const scale = vec3(value, 'scale');
+    const scale = vec3(typeof value === 'number' ? [value, value, value] : value, 'scale');
     if (scale.some(v => v <= 0)) throw Error('scale 的三个分量都必须大于 0');
     return scale;
 };
@@ -189,6 +198,7 @@ const applyParameters = (e: Entity, input: unknown) => {
 };
 
 export type BatchReceipt = {
+    warnings?: string[];
     index: number;
     ref?: string;
     operation: string;
@@ -307,11 +317,15 @@ export function applyBatchEdits(project: Project, edits: BatchEdit[]): BatchRece
                 if (field === 'camera') {
                     e.camera = { ...e.camera!, ...patch } as CameraConfig;
                     if (patch.focal !== undefined && patch.focalKeys === undefined) delete e.camera.focalKeys;
-                } else e.light = { ...e.light!, ...patch };
+                } else {
+                    e.light = { ...e.light!, ...patch };
+                    assertLightEntity(e);
+                }
                 receipt.entityId = e.id;
             } else if (edit.operation === 'set_lighting') {
                 const patch = patchFor(edit, Object.keys(patchFieldCatalog.set_lighting_field));
                 project.lighting = { ...(project.lighting ?? defaultLighting()), ...patch };
+                assertLighting(project.lighting);
             } else if (edit.operation === 'set_room') {
                 const patch = patchFor(edit, Object.keys(patchFieldCatalog.update_room));
                 project.room = { ...project.room, ...patch } as Project['room'];
@@ -652,9 +666,22 @@ export function applyBatchEdits(project: Project, edits: BatchEdit[]): BatchRece
                 receipt.sourceEntityId = source.id;
                 receipt.name = copy.name;
             } else throw Error(`不支持操作：${String(edit.operation)}`);
+            if (typeof edit.scale === 'number' || typeof edit.patch?.scale === 'number')
+                receipt.warnings = ['scale 数值已按等比缩放展开为 [s,s,s]；尺寸参数仍按素材目录校验。'];
             receipts.push(receipt);
         } catch (error) {
-            throw Error(`第 ${index + 1} 项 ${String(edit?.operation ?? '')} 失败：${error instanceof Error ? error.message : String(error)}`);
+            const assetId = edit?.assetId ?? project.entities.find(e => e.id === edit?.entityId)?.asset;
+            const patchFields = ({ set_camera: patchFieldCatalog.set_camera_field, set_light: patchFieldCatalog.set_light_field,
+                set_lighting: patchFieldCatalog.set_lighting_field, set_room: patchFieldCatalog.update_room,
+                set_project: patchFieldCatalog.update_project_settings } as Record<string, unknown>)[edit?.operation];
+            throw new DirectorCommandError(`第 ${index + 1} 项 ${String(edit?.operation ?? '')} 失败：${error instanceof Error ? error.message : String(error)}`, {
+                hint: '本批次未写入。按返回的字段、范围与 catalog 修正参数；可用 validateOnly:true 预检。保持最新 snapshot 的会话与版本基线，不要原样重试失败参数。',
+                facts: { editIndex: index + 1, operation: edit?.operation,
+                    allowedFields: batchOperationCatalog[edit?.operation]?.fields,
+                    ...(patchFields ? { patchFields } : {}),
+                    ...(assetId ? { assetId, parameters: findAsset(assetId)?.parameters ?? {} } : {}),
+                },
+            });
         }
     }
     return receipts;
