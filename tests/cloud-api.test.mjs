@@ -22,6 +22,32 @@ test('bulk cloud checks coalesce duplicate references, warm playback URLs and pr
   } finally {globalThis.fetch=original;await env.dispose();}
 });
 
+test('concurrent preview and source reads share download bytes and retry after failure', async () => {
+  const env = await createRendererEnv({withWindow:true}), original = globalThis.fetch;
+  let downloads = 0, release;
+  globalThis.fetch = async url => {
+    if (String(url).startsWith('/api/files/sign?')) return Response.json({success:true,data:{url:'https://storage.example/shared'}});
+    downloads++;
+    return new Promise(resolve => { release = resolve; });
+  };
+  try {
+    const {createCloudApi} = await env.load('services/cloudApi');
+    const api = createCloudApi({});
+    const first = api.file.readImagePreview('cloud://media/shared.png');
+    const second = api.file.readArrayBuffer('cloud://media/shared.png');
+    await new Promise(resolve => setTimeout(resolve, 50));
+    assert.equal(downloads, 1);
+    release(new Response('denied', {status:403}));
+    const results = await Promise.allSettled([first, second]);
+    assert.ok(results.every(result => result.status === 'rejected' && /403/.test(result.reason.message)));
+    const retry = api.file.readArrayBuffer('cloud://media/shared.png');
+    await new Promise(resolve => setTimeout(resolve, 50));
+    assert.equal(downloads, 2);
+    release(new Response('image'));
+    assert.equal((await retry).byteLength, 5);
+  } finally { globalThis.fetch = original; await env.dispose(); }
+});
+
 test('preview bytes reuse the batch signature without signing the same object again', async () => {
   const env = await createRendererEnv({withWindow:true}), original=globalThis.fetch;
   const calls=[];

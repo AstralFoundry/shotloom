@@ -62,7 +62,16 @@ export function createCloudApi(local: PlatformApi): PlatformApi {
     }
     catch { /* Invalid links open the project library. */ }
   }
-  const readBlob = async (source: string): Promise<Blob> => {
+  const blobReads = new Map<string, Promise<Blob>>();
+  const readBlob = (source: string): Promise<Blob> => {
+    const key = JSON.stringify([source, cloudUserHeaders()]);
+    const existing = blobReads.get(key);
+    if (existing) return existing;
+    const read = downloadBlob(source).finally(() => { blobReads.delete(key); });
+    blobReads.set(key, read);
+    return read;
+  };
+  const downloadBlob = async (source: string): Promise<Blob> => {
     if (source.startsWith('cloud://')) {
       const ref = new URL(source);
       const url = cachedSignedMedia(source) || (await cloudRequest<{ url: string }>(`/files/sign?bucket=${encodeURIComponent(ref.hostname)}&key=${encodeURIComponent(ref.pathname.slice(1))}`)).url;
