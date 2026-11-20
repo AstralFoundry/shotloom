@@ -161,6 +161,12 @@ export async function saveSettings(userId: string, value: Json): Promise<void> {
   if (error) throw supabaseError(error.message);
 }
 
+export async function patchSettings(userId: string, value: JsonObject): Promise<JsonObject> {
+  const { data, error } = await admin.rpc('patch_settings', { p_user_id: userId, p_value: value });
+  if (error) throw supabaseError(error.message);
+  return data as JsonObject;
+}
+
 export async function getSettingField(userId: string, key: string): Promise<Json | null> {
   const { data, error } = await admin
     .from("settings")
@@ -187,6 +193,13 @@ export async function loadCatalog(userId: string, kind: string, fallback: Json):
   if (error?.code === "22023") throw badRequest(error.message);
   if (error) throw supabaseError(error.message);
   return data ?? fallback;
+}
+
+export async function loadVersionedCatalog(userId: string, kind: string, fallback: Json) {
+  const { data, error } = await admin.rpc('read_catalog_versioned', { p_user_id: userId, p_kind: kind });
+  if (error) throw supabaseError(error.message);
+  const value = data as { catalog: Json | null; revision: number };
+  return { catalog: value.catalog ?? fallback, revision: value.revision };
 }
 
 export async function saveCatalog(userId: string, kind: string, value: Json): Promise<void> {

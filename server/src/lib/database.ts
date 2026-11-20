@@ -187,9 +187,18 @@ export type Database = {
       list_library_folders: { Args: { p_user_id: string }; Returns: Json };
       load_project: { Args: { p_user_id: string; p_id: string }; Returns: Json | null };
       load_catalog: { Args: { p_user_id: string; p_kind: string }; Returns: Json | null };
+      read_catalog_versioned: { Args: { p_user_id: string; p_kind: string }; Returns: Json };
+      patch_catalog: { Args: { p_user_id: string; p_kind: string; p_expected: number; p_changes: Json; p_metadata: Json }; Returns: Json };
+      list_catalog_page: { Args: { p_user_id: string; p_kind: string; p_search: string; p_sort: string; p_offset: number; p_limit: number; p_categories: string[] }; Returns: Json };
+      catalog_detail: { Args: { p_user_id: string; p_kind: string; p_id: string }; Returns: Json | null };
       save_catalog: { Args: { p_user_id: string; p_kind: string; p_value: Json }; Returns: undefined };
       save_project: { Args: { p_user_id: string; p_client_id: string; p_id: string; p_value: Json }; Returns: Json };
       save_settings: { Args: { p_user_id: string; p_value: Json }; Returns: undefined };
+      patch_settings: { Args: { p_user_id: string; p_value: Json }; Returns: Json };
+      unread_notifications: { Args: { p_user_id: string; p_client_id: string }; Returns: Json };
+      check_media_objects: { Args: { p_user_id: string; p_client_id: string; p_objects: Json }; Returns: Json };
+      list_project_page: { Args: { p_user_id: string; p_folder_id: string | null; p_search: string; p_sort: string; p_offset: number; p_limit: number }; Returns: Json };
+      rename_project: { Args: { p_user_id: string; p_id: string; p_name: string; p_expected: number }; Returns: Json };
     };
   };
 };

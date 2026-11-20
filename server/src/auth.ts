@@ -1,3 +1,6 @@
+import { timed } from './lib/requestMetrics';
+import { forceRead } from './lib/requestMetrics';
+import { cachedRead, invalidateReads, userReadKey } from './lib/readCache';
 import { Hono } from "hono";
 import type { Provider } from '@supabase/supabase-js';
 import { z } from 'zod';
@@ -87,7 +90,7 @@ export const requireAuth: MiddlewareHandler<AppEnv> = async (c, next) => {
   const sessionId = nativeSession(c) || getCookie(c, env.COOKIE_NAME) || nativeRelaySession(c);
   if (!sessionId) throw unauthorized();
 
-  const session = await loadSession(sessionId);
+  const session = await timed('auth', () => loadSession(sessionId));
   if (!session) throw unauthorized();
   const expectedUser = c.req.header('x-shotloom-user');
   if (expectedUser && expectedUser !== session.userId) {
@@ -221,7 +224,10 @@ authApp.get("/me", requireAuth, async (c) => {
   return c.json(envelope(c.get('user')));
 });
 
-authApp.get('/account', requireAuth, async c => c.json(envelope(await fetchUserInfo(c.get('accessToken')))));
+authApp.get('/account', requireAuth, async c => c.json(envelope(await cachedRead(
+  userReadKey(c.get('userId'), c.get('sessionId'), c.get('accessToken')) + 'account', 5000,
+  () => fetchUserInfo(c.get('accessToken')), forceRead(),
+))));
 
 authApp.get('/usage', requireAuth, async c => {
   const query = z.object({
@@ -229,14 +235,20 @@ authApp.get('/usage', requireAuth, async c => {
     page_size: z.coerce.number().int().min(1).max(100).default(10),
   }).strict().safeParse(c.req.query());
   if (!query.success) throw badRequest('消费记录分页参数无效');
-  return c.json(envelope(await fetchUsageLogs(c.get('accessToken'), query.data.page, query.data.page_size)));
+  return c.json(envelope(await cachedRead(
+    userReadKey(c.get('userId'), c.get('sessionId'), c.get('accessToken')) + `usage:${query.data.page}:${query.data.page_size}`, 5000,
+    () => fetchUsageLogs(c.get('accessToken'), query.data.page, query.data.page_size), forceRead(),
+  )));
 });
 
-authApp.get('/topup/options', requireAuth, async c => c.json(envelope(await fetchTopupOptions())));
+authApp.get('/topup/options', requireAuth, async c => c.json(envelope(await cachedRead(
+  `topup-options:${env.GATEWAY_CLIENT_ID}`, 300000, fetchTopupOptions, forceRead(),
+))));
 
 authApp.post('/topup', requireAuth, async c => {
   const body = z.object({ amount: z.number().int().min(1).max(1_000_000) }).strict().safeParse(await c.req.json().catch(() => null));
   if (!body.success) throw badRequest('充值金额必须是 1 到 1000000 之间的整数');
+  invalidateReads(`user:${c.get('userId')}:`);
   return c.json(envelope({ checkoutUrl: await createTopup(c.get('accessToken'), body.data.amount) }));
 });
 
@@ -246,6 +258,7 @@ authApp.post("/logout", async (c) => {
   if (sessionId) {
     (await import('./agent')).closeAgentSession(sessionId);
     const session = await loadSession(sessionId);
+    if (session) invalidateReads(`user:${session.userId}:${sessionId}:`);
     if (session?.refreshToken) await revokeToken(session.refreshToken);
     await deleteSession(sessionId);
   }

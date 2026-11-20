@@ -41,9 +41,9 @@ test('canvas startup authenticates once, reads dependencies concurrently and pre
     const body = JSON.parse(String(init?.body));
     assert.equal(body.p_user_id, user);
     if (table === 'load_project') return Response.json(body.p_id === projectId ? project : null);
-    assert.equal(table, 'load_catalog');
+    assert.equal(table, 'read_catalog_versioned');
     assert.equal(body.p_kind, 'assets');
-    return failedCatalog ? Response.json({ message: 'unavailable', code: 'XX000' }, { status: 500 }) : Response.json(assets);
+    return failedCatalog ? Response.json({ message: 'unavailable', code: 'XX000' }, { status: 500 }) : Response.json({catalog:assets,revision:3});
   };
   const request = (id = projectId, expected = user) => app.request(`/api/project/${id}/startup`, {
     headers: { cookie: `shotloom_session=${session}`, 'x-shotloom-user': expected },
@@ -54,14 +54,14 @@ test('canvas startup authenticates once, reads dependencies concurrently and pre
     assert.equal((await app.request(`/api/project/${projectId}/startup`, { headers: { authorization: `Bearer ${issueNativeToken(session)}` } })).status, 401);
     pending = request();
     for (let i = 0; i < 100 && started.length < 3; i++) await new Promise(resolve => setTimeout(resolve, 5));
-    assert.deepEqual([...started].sort(), ['load_catalog', 'load_project', 'settings']);
+    assert.deepEqual([...started].sort(), ['load_project', 'read_catalog_versioned', 'settings']);
     assert.equal(sessionReads, 1);
     release();
     const response = await pending;
     assert.equal(response.status, 200);
     assert.equal(response.headers.get('cache-control'), 'no-store');
     for (const name of ['project', 'settings', 'assets']) assert.match(response.headers.get('server-timing')!, new RegExp(`${name};dur=\\d+\\.\\d+`));
-    assert.deepEqual((await response.json()).data, { project, settings: { locale: 'en-US', agentCanRunNodes: false }, assets });
+    assert.deepEqual((await response.json()).data, { project, settings: { locale: 'en-US', agentCanRunNodes: false }, assets: { ...assets, __catalogRevision: 3 } });
     assert.equal((await request('invalid')).status, 400);
     assert.equal((await request(missing)).status, 404);
     const readsBeforeMismatch = started.length;
@@ -69,6 +69,9 @@ test('canvas startup authenticates once, reads dependencies concurrently and pre
     assert.equal(started.length, readsBeforeMismatch);
     failedCatalog = true;
     assert.equal((await request()).status, 500, 'never replace a failed asset read with an empty catalog');
+    const minimal = await app.request(`/api/project/${projectId}/startup?parts=project,settings`, { headers: { cookie: `shotloom_session=${session}` } });
+    assert.equal(minimal.status,200,'an unrelated catalog failure cannot block the project/settings startup');
+    assert.deepEqual((await minimal.json()).data,{project,settings:{locale:'en-US',agentCanRunNodes:false}});
     validSession = false;
     assert.equal((await request()).status, 401, 'completed startup responses cannot cache revoked authentication');
   } finally { release(); await pending?.catch(() => {}); globalThis.fetch = original; }

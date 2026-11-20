@@ -1,6 +1,13 @@
 import { env } from "../env";
 import { HttpError } from "./errors";
 import { z } from 'zod';
+import { requestSignal, timed } from './requestMetrics';
+
+function upstreamFetch(input: string | URL, init: RequestInit = {}) {
+  const parent = init.signal || requestSignal();
+  const timeout = AbortSignal.timeout(15000);
+  return timed('upstream', () => fetch(input, { ...init, signal: parent ? AbortSignal.any([parent, timeout]) : timeout }));
+}
 
 export interface TokenResponse {
   access_token: string;
@@ -37,7 +44,7 @@ async function gatewayFetch(path: string, init: RequestInit = {}): Promise<Respo
   if (init.body && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/x-www-form-urlencoded");
   }
-  return fetch(new URL(path, env.GATEWAY_BASE_URL).toString(), { ...init, headers });
+  return upstreamFetch(new URL(path, env.GATEWAY_BASE_URL), { ...init, headers });
 }
 
 function parseToken(body: string): TokenResponse {
@@ -101,7 +108,7 @@ export async function revokeToken(token: string): Promise<void> {
 }
 
 export async function fetchUserInfo(accessToken: string): Promise<GatewayUser> {
-  const res = await fetch(new URL("/oauth/userinfo", env.GATEWAY_BASE_URL).toString(), {
+  const res = await upstreamFetch(new URL("/oauth/userinfo", env.GATEWAY_BASE_URL), {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
   const text = await res.text();
@@ -162,7 +169,7 @@ export async function fetchUsageLogs(accessToken: string, page: number, pageSize
   const url = new URL('/oauth/logs', env.GATEWAY_BASE_URL);
   url.searchParams.set('page', String(page));
   url.searchParams.set('page_size', String(pageSize));
-  const response = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+  const response = await upstreamFetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
   if (!response.ok) throw new HttpError(502, 'GATEWAY_USAGE_ERROR', '消费记录暂不可用，请稍后重试');
   const result = usagePage.safeParse(await response.json().catch(() => null));
   if (!result.success) throw new HttpError(502, 'GATEWAY_USAGE_ERROR', '消费记录格式异常，请稍后重试');

@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { timed, requestSignal } from './requestMetrics';
 import { env } from "../env";
 import { encrypt, decrypt } from "./crypto";
 import { badRequest, supabaseError } from "./errors";
@@ -10,6 +11,10 @@ export const admin = createClient<Database, "shotloom">(
   env.SUPABASE_URL,
   env.SUPABASE_SERVICE_ROLE_KEY,
   {
+    global: { fetch: (input, init) => {
+      const budget = requestSignal();
+      return timed('db', () => fetch(input, { ...init, ...(budget ? { signal: init?.signal ? AbortSignal.any([budget, init.signal]) : budget } : {}) }));
+    } },
     auth: { persistSession: false, autoRefreshToken: false },
     db: { schema: "shotloom" },
   },

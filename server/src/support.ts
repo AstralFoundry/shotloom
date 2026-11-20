@@ -56,6 +56,11 @@ supportApp.put('/admin/feedback/:id/status', async c => c.json(envelope(await ac
   id: parse(idSchema, c.req.param('id')),
 }))));
 supportApp.get('/notifications', async c => c.json(envelope(await action(c.get('userId'), 'inbox', parse(pageSchema.pick({ offset: true, limit: true }), c.req.query())))));
+supportApp.get('/notifications/unread', async c => {
+  const { data, error } = await admin.rpc('unread_notifications', { p_user_id: c.get('userId'), p_client_id: env.GATEWAY_CLIENT_ID });
+  if (error) throw supabaseError('无法读取未读通知');
+  return c.json(envelope(data));
+});
 supportApp.put('/notifications/read-all', async c => c.json(envelope(await action(c.get('userId'), 'read_all',
   parse(z.object({ asOf: z.string().datetime({ offset: true }) }).strict(), await body(c.req))))));
 supportApp.put('/notifications/:id/read', async c => c.json(envelope(await action(c.get('userId'), 'read', { id: parse(idSchema, c.req.param('id')) }))));

@@ -8,6 +8,8 @@ import { envelope } from './lib/respond';
 import { relayPath } from './lib/relay';
 import type { AppEnv, Json } from './lib/types';
 import { compilePublication, executionTemplates, modelTypes } from '../../shared/modelPublications';
+import { cachedRead, invalidateReads, userReadKey } from './lib/readCache';
+import { forceRead, requestSignal, timed } from './lib/requestMetrics';
 
 const upstreamSchema = z.object({ data: z.array(z.object({
   id: z.string().min(1).refine(id => id.trim() === id && !/[\x00-\x20\\?#%]/.test(id)),
@@ -25,9 +27,10 @@ function parse<T>(schema: z.ZodType<T>, value: unknown): T {
   return result.data;
 }
 export async function fetchUpstreamModels(accessToken: string, sessionId: string) {
-  const request = (token: string) => fetch(new URL('/v1/models', env.GATEWAY_BASE_URL), {
-    headers: { Authorization: `Bearer ${token}` }, redirect: 'error', signal: AbortSignal.timeout(30000),
-  });
+  const signal = requestSignal() || AbortSignal.timeout(15000);
+  const request = (token: string) => timed('upstream', () => fetch(new URL('/v1/models', env.GATEWAY_BASE_URL), {
+    headers: { Authorization: `Bearer ${token}` }, redirect: 'error', signal,
+  }));
   let response = await request(accessToken);
   if (response.status === 401) { await response.body?.cancel(); response = await request(await refreshSession(sessionId)); }
   if (!response.ok) throw new HttpError(502, 'UPSTREAM_MODELS', '无法读取当前账号的上游模型');
@@ -35,9 +38,11 @@ export async function fetchUpstreamModels(accessToken: string, sessionId: string
   return [...new Map(value.data.map(item => [item.id, item])).values()];
 }
 async function publications() {
+  return cachedRead(`publications:${env.GATEWAY_CLIENT_ID}`, 60000, async () => {
   const { data, error } = await admin.from('model_publications').select('*').eq('client_id', env.GATEWAY_CLIENT_ID).order('sort_order').order('id');
   if (error) throw supabaseError('无法读取模型发布配置');
   return data.map(({ client_id: _, ...row }) => row);
+  }, forceRead());
 }
 async function mutate(userId: string, action: string, value: unknown) {
   const { data, error } = await admin.rpc('manage_models', {
@@ -45,13 +50,18 @@ async function mutate(userId: string, action: string, value: unknown) {
   });
   if (error?.code === '40001') throw conflict('模型已被修改或同步，请刷新后重试');
   if (error) throw supabaseError('无法保存模型配置');
+  invalidateReads(`publications:${env.GATEWAY_CLIENT_ID}`);
+  invalidateReads('user:');
   return data;
 }
 export const modelsApp = new Hono<AppEnv>();
 modelsApp.use('/models', requireAuth);
 modelsApp.use('/admin/*', requireAuth);
 modelsApp.get('/models', async c => {
-  const [rows, upstream] = await Promise.all([publications(), fetchUpstreamModels(c.get('accessToken'), c.get('sessionId'))]);
+  const [rows, upstream] = await Promise.all([publications(), cachedRead(
+    userReadKey(c.get('userId'), c.get('sessionId'), c.get('accessToken')) + 'models', 30000,
+    () => fetchUpstreamModels(c.get('accessToken'), c.get('sessionId')), forceRead(),
+  )]);
   const available = new Map(upstream.map(model => [model.id, model]));
   const published = rows.filter(row => available.has(row.id) && compilePublication(row));
   return c.json(envelope({ publications: published, upstreamModels: published.map(row => available.get(row.id)!) }));
