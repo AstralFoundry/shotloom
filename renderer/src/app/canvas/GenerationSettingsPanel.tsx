@@ -45,6 +45,7 @@ export function GenerationSettingsPanel({
           <p>{t("ui.GenerationSettingsPanel.text.9d48527d")}</p>
           <Segmented
             size="small"
+            aria-label={t("ui.GenerationSettingsPanel.text.9d48527d")}
             value={activeInputMode?.value}
             onChange={(value) => actions.setInputMode(nodeId, String(value))}
             options={inputModes.map((mode) => ({ value: mode.value, label: mode.label }))}
@@ -69,6 +70,7 @@ export function GenerationSettingsPanel({
                 <div className="generation-settings-chips">
                   <Segmented
                     size="small"
+                    aria-label={param.label}
                     value={Boolean(current) ? "on" : "off"}
                     onChange={(value) => onConfigChange(param.key, value === "on")}
                     options={[
@@ -92,6 +94,7 @@ export function GenerationSettingsPanel({
                 <div className="generation-settings-slider">
                   <Slider
                     className="nodrag nopan"
+                    aria-label={param.label}
                     min={domain.min}
                     max={domain.max}
                     step={domain.step}
@@ -114,6 +117,7 @@ export function GenerationSettingsPanel({
                 <button
                   type="button"
                   className="generation-settings-input generation-settings-voice nodrag nopan"
+                  aria-label={param.label}
                   onClick={() => setVoicePickerKey(param.key)}
                 >
                   <span>{optionLabel(param, current)}</span>
@@ -163,6 +167,7 @@ export function GenerationSettingsPanel({
                 {numeric ? (
                   <InputNumber
                     className="generation-settings-input nodrag nopan"
+                    aria-label={param.label}
                     {...(Number.isFinite(Number(presentation.min)) ? { min: Number(presentation.min) } : {})}
                     {...(Number.isFinite(Number(presentation.max)) ? { max: Number(presentation.max) } : {})}
                     {...(Number.isFinite(Number(presentation.step)) ? { step: Number(presentation.step) } : {})}
@@ -173,6 +178,7 @@ export function GenerationSettingsPanel({
                   <input
                     className="generation-settings-input nodrag nopan"
                     type="text"
+                    aria-label={param.label}
                     value={String(current ?? "")}
                     onChange={(event) => onConfigChange(param.key, event.target.value)}
                   />
@@ -196,6 +202,7 @@ export function GenerationSettingsPanel({
                       key={String(value)}
                       type="button"
                       className={active ? "active" : ""}
+                      aria-pressed={active}
                       onClick={() => onConfigChange(param.key, value)}
                     >
                       {(control === "ratio" || isAspectRatioParam(param)) && (
