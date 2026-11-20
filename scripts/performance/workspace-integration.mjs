@@ -35,6 +35,8 @@ if(node.directorData.project.version!==3){
 records.push({check:'director fixture schema and model SHA256',passed:true});
 const page=await connectPage(process.env.SHOTLOOM_QA_CDP);
 const requests=[];
+const modelReads=[];
+page.on('Network.requestWillBeSent',event=>{const path=new URL(event.request.url).pathname;if(path.includes('director-model.json'))modelReads.push(path);});
 page.on('Network.responseReceived',event=>{const url=new URL(event.response.url);if(url.pathname.startsWith('/api/'))requests.push({path:url.pathname,status:event.response.status});});
 try{
  await page.send('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:false});
@@ -53,13 +55,21 @@ try{
  assert.deepEqual(after.mediaLibrary.items.map(item=>item.id).sort(),before.mediaLibrary.items.map(item=>item.id).sort());
  assert.equal(after.timeline.tracks[0].clips[0].mediaId,before.timeline.tracks[0].clips[0].mediaId);
  records.push({check:'editor close/save preserves all 48 stable media IDs and clip reference',passed:true});
+ requests.length=0;
  await page.send('Page.navigate',{url:`${fixture.origin}/?route=creation&project=${fixture.directorProjectId}`});
  await page.wait(`!!document.querySelector('.director-node-open-button')`);
- records.push({check:'director canvas defers model package download',passed:!requests.some(r=>r.path.includes('director-model'))});
+ assert.equal(modelReads.length,0);
+ records.push({check:'director canvas defers model package download',passed:true});
  await page.evaluate(`document.querySelector('.director-node-open-button').click()`);
  await page.wait(`!!document.querySelector('.director-detail-frame')`,60000);
- await page.wait(`document.querySelector('.director-detail-frame')?.contentDocument?.querySelector('canvas')!==null`,60000);
+ await page.wait(`!!document.querySelector('.director-detail-frame')?.contentDocument?.querySelector('canvas')`,60000);
+ await page.wait(`performance.getEntriesByType('resource').some(entry=>entry.name.includes('director-model.json'))`);
+ assert.ok(modelReads.length>0,'Opening the director must hydrate its cloud model');
  records.push({check:'director detail mounts renderer',passed:true});
+ await new Promise(resolve=>setTimeout(resolve,22000));
+ await request(snapshotPath);
+ assert.equal(requests.filter(request=>request.path==='/api/agent/connect').length,1,'The first heartbeat must not reconnect with an expired HTTP budget');
+ records.push({check:'Agent heartbeat remains connected and authenticated snapshot reads succeed after the original HTTP budget expires',passed:true});
  await writeFile(process.env.SHOTLOOM_QA_EVIDENCE,JSON.stringify({checks:records,requests},null,2));
  console.log(JSON.stringify(records));
 }finally{page.close();}

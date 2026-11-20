@@ -23,5 +23,15 @@ try{
  assert.equal(after.timeOrigin,before.timeOrigin,'Returning to the same project must retain its WebView document');
  assert.equal(after.viewport,before.viewport,'Returning must retain the canvas viewport');
  await writeFile('perf/media-preserved.json',JSON.stringify({before,after},null,2));
- console.log('Real 1080p first frame and same-project WebView retention passed');
+ let resumed=false;
+ for(let i=0;i<120;i++){
+  try{await access('perf/media-resumed.marker');resumed=true;break;}catch{await pause(500);}
+ }
+ assert.ok(resumed,'The native background/foreground sequence must complete');
+ await page.wait(`document.visibilityState==='visible'`);
+ const foreground=await inspect();
+ assert.equal(foreground.timeOrigin,before.timeOrigin,'Foreground return must preserve the WebView document');
+ assert.equal(foreground.viewport,before.viewport);
+ await writeFile('perf/media-foreground.json',JSON.stringify(foreground,null,2));
+ console.log('Real 1080p first frame, same-project retention and background/foreground return passed');
 }finally{page.close();}

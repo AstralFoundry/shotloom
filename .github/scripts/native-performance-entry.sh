@@ -109,6 +109,16 @@ adb exec-out screencap -p > perf/media-first-frame.png
 adb shell am instrument -w -e mode return-media -e retain true -e origin "$CANDIDATE_ORIGIN" com.shotloom.performance/com.shotloom.performance.NativePerformance > /tmp/media-return-output.txt
 grep -q 'PERFORMANCE_JSON' /tmp/media-return-output.txt
 touch perf/media-return.marker
+for attempt in {1..60}; do
+  if [ -f perf/media-preserved.json ]; then break; fi
+  if ! kill -0 "$media_check" 2>/dev/null; then cat perf/media-evidence.log; exit 1; fi
+  sleep 1
+done
+test -f perf/media-preserved.json
+adb shell input keyevent KEYCODE_HOME
+sleep 2
+adb shell am start -W -n com.shotloom.app.preview/.MainActivity
+touch perf/media-resumed.marker
 wait "$media_check"
 cat perf/media-evidence.log
 adb shell am force-stop com.shotloom.app.preview
