@@ -31,6 +31,8 @@ import { isInFrame } from '@/core/spatial/checks.ts';
 import { worldContactAnchors } from '@/core/assets/contact-anchors.ts';
 import { modelNodeHidden } from '@/core/resources/model-node-visibility.ts';
 import { DirectorHostSession } from '@/core/host-session.ts';
+import { configurePolyfork, downloadPolyforkModel, getPolyforkModel, polyforkModelBundle, searchPolyforkModels } from '@/core/resources/polyfork.ts';
+import { inspectImportedModel, placeImportedModel, pruneImportedModels } from '@/features/model-import/import-model.ts';
 
 type Input = Record<string, unknown>;
 /** 一次筛选最多返回的素材条数：够覆盖"建筑构件"这类最大分组，又不至于把回执撑回几十 KB。 */
@@ -114,6 +116,14 @@ interface CommandSpec {
 }
 
 const commandSpecs: Record<string, CommandSpec> = {
+    search_polyfork_models: { kind: 'view', args: { query: 'string，可选，英文关键词；省略时浏览免费低模', page: 'number，可选，页码从 1 开始，每页 24 项' } },
+    get_polyfork_model: { kind: 'view', args: { id: 'string，取自 search_polyfork_models 的 assets[].id；读取尺寸、署名和来源' } },
+    download_polyfork_model: { kind: 'export', args: { id: 'string，真实 Polyfork 模型 ID；按需下载 GLB 与许可到保留的 ZIP 产物，回执含 artifactId 和下载 URL；不改场景。可用 export_artifact_deliver 的 download 模式保存到设备' } },
+    import_polyfork_model: { kind: 'edit', args: {
+        id: 'string，真实 Polyfork 模型 ID；按需下载免费 GLB 并放入场景，保留来源和署名',
+        expectedSessionId: 'string，必填，来自最新 snapshot.sessionId', expectedRevision: 'number，必填，来自最新 snapshot.revision',
+        name: 'string，可选；默认模型名称', position: '[x,y,z]，可选，米；默认放在当前视野中心地面',
+    } },
     undo: { kind: 'edit' },
     redo: { kind: 'edit' },
     reset_project: { kind: 'edit' },
@@ -310,6 +320,40 @@ const commandSpecs: Record<string, CommandSpec> = {
 };
 
 const commands: Record<string, (input: Input) => unknown> = {
+    search_polyfork_models: i => searchPolyforkModels(string(i.query), i.page === undefined ? 1 : number(i.page)),
+    get_polyfork_model: i => getPolyforkModel(string(i.id)),
+    download_polyfork_model: async i => {
+        const owner = artifactOwner();
+        const { asset, resource } = await downloadPolyforkModel(string(i.id));
+        if (owner !== artifactOwner()) throw Error('工程已切换，请在原工程重新下载');
+        const file = await artifacts.retain(owner, polyforkModelBundle(resource), `${asset.id}.zip`, 'bundle', { provider: 'polyfork', modelId: asset.id, copyright: resource.copyright, license: resource.license, source: resource.source });
+        return { ...await artifacts.read(owner, file.id), artifactId: file.id, downloaded: true, sceneChanged: false };
+    },
+    import_polyfork_model: async i => {
+        const assertCurrent = () => {
+            const revision = useEditorStore.getState().revision;
+            hostSession.assertCurrent(i.expectedSessionId, revision);
+            if (!Number.isInteger(i.expectedRevision) || i.expectedRevision !== revision)
+                throw new DirectorCommandError('场景已变化，请重读快照后重新导入', {
+                    code: 'REVISION_MISMATCH', hint: '读取 snapshot 并核对当前场景，再使用最新的 sessionId 和 revision。',
+                    facts: { currentRevision: revision, expectedRevision: i.expectedRevision },
+                });
+        };
+        assertCurrent();
+        if (useEditorStore.getState().busy) throw Error('导演台正在执行其他任务');
+        const position = i.position === undefined ? undefined : vector(i.position);
+        const original = session.project;
+        session.setBusy(true);
+        try {
+            const { resource } = await downloadPolyforkModel(string(i.id));
+            assertCurrent();
+            if (session.project !== original) throw Error('工程已切换，请重新导入');
+            await inspectImportedModel(resource);
+            assertCurrent();
+            session.setBusy(false);
+            return placeImportedModel(resource, { name: i.name === undefined ? undefined : string(i.name), position });
+        } finally { session.setBusy(false); pruneImportedModels(); }
+    },
     undo: () => session.undo(), redo: () => session.redo(),
     record_position_key: () => session.recordPositionKeyAtPlayhead(),
     record_focal_key: () => session.recordFocalKeyAtPlayhead(),
@@ -795,6 +839,7 @@ export function initializeHostBridge() {
         const message = event.data as { type: string; payload?: Input };
         const payload = message.payload ?? {};
         if (message.type === 'storyai:director-desk-session') {
+            configurePolyfork(string(payload.modelLibraryOrigin));
             setLanguage(payload.locale === 'en-US' ? 'en' : 'zh-CN');
             // The host decides how the desk is embedded, so its theme wins over the URL and
             // over whatever this browser stored from a previous standalone run.

@@ -1,5 +1,6 @@
 import { store } from '../../store/projectStore';
 import { desktopApi } from '../../services/desktopApi';
+import { cloudOrigin } from '../../utils/cloudConfig';
 import { mediaSourceUrl } from '../../services/mediaPoster';
 import { getLocale, t } from '@/i18n';
 import { memo, useCallback, useContext, useEffect, useRef, useState } from "react";
@@ -71,6 +72,7 @@ export const ThreeDDirectorNode: WorkflowNodeRenderer = memo(
       sendDirectorDeskSession(detailIframeRef.current, {
         instanceId: node.id,
         artifactScope: store.project.id,
+        modelLibraryOrigin: cloudOrigin,
         theme: "light",
         locale: getLocale(),
         project: readDirectorProject(node),

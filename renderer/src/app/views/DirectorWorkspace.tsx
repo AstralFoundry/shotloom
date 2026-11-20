@@ -13,7 +13,7 @@ import { store, touchProject } from '../../store/projectStore';
 import { showToast } from '../../store/notificationStore';
 import { nodeActions } from '../adapters/canvasAdapter';
 import { recordDiagnosticEvent } from '../../services/diagnosticsService';
-import { cloudEnabled } from '../../utils/cloudConfig';
+import { cloudEnabled, cloudOrigin } from '../../utils/cloudConfig';
 
 /**
  * 整页 3D 导演台工作区（侧栏「3D导演台」入口）：iframe 运行 vendored 导演台，
@@ -76,7 +76,7 @@ export function DirectorWorkspace({ src, onReady, onExit, onOpenAgent }: { src: 
       store.project.directorWorkspaceSavedAt = backup.savedAt;
       touchProject();
     }
-    sendDirectorDeskSession(frameRef.current, { instanceId: `workspace-${projectId}`, artifactScope: projectId, theme: 'light', locale: getLocale(), project });
+    sendDirectorDeskSession(frameRef.current, { instanceId: `workspace-${projectId}`, artifactScope: projectId, modelLibraryOrigin: cloudOrigin, theme: 'light', locale: getLocale(), project });
   }, [projectId, storageKey]);
 
   useEffect(() => {

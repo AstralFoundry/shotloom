@@ -2,6 +2,17 @@ import { assetEnglish } from './en-assets.ts';
 import { panelEnglish } from './en-panels.ts';
 /** Product terminology: Scene = independent scene; Shot = a camera cut. */
 export const english: Record<string, string> = {
+    '本地文件': 'Local files',
+    '在线模型 · Polyfork': 'Online models · Polyfork',
+    '模型来自 Polyfork。免费低模；下载包包含模型、署名和 CC BY 4.0 许可。': 'Free low-poly models from Polyfork. Downloads include the model, credit and CC BY 4.0 licence.',
+    '搜索在线模型': 'Search online models',
+    '输入英文关键词，如 chair、tree、car': 'Search in English, e.g. chair, tree, car',
+    '在线模型搜索结果': 'Online model search results',
+    '三角面': 'triangles',
+    '模型详情': 'Model details',
+    '查看来源与许可': 'View source and licence',
+    '下载模型包': 'Download model package',
+    '下载并导入': 'Download and import',
     '更多工具': 'More tools',
     '时间线选项': 'Timeline options',
     '基础控制': 'Basic controls',
