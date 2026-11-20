@@ -1,0 +1,350 @@
+[
+  {
+    "id": "newapi-runninghub-minimax-h3-reference-to-video",
+    "name": "MiniMax H3 Reference to Video（RunningHub / New API）",
+    "provider": "openai",
+    "type": "videoGeneration",
+    "enabled": true,
+    "sortOrder": 0,
+    "defaultMode": "text-to-video",
+    "modes": [
+      {
+        "id": "text-to-video",
+        "label": "文生视频",
+        "labelKey": "catalog.label.dd6f194c41",
+        "endpoint": {
+          "method": "POST",
+          "path": "/videos",
+          "scope": "v1"
+        },
+        "taskEndpoint": {
+          "method": "GET",
+          "path": "/videos/{taskId}",
+          "scope": "v1"
+        },
+        "resultEndpoint": {
+          "method": "GET",
+          "path": "/videos/{taskId}/content",
+          "scope": "v1",
+          "mimeType": "video/mp4",
+          "fileExtension": "mp4"
+        },
+        "isAsync": true,
+        "inputConstraints": {
+          "images": {
+            "min": 0,
+            "max": 0
+          }
+        },
+        "outputConstraints": {
+          "durations": [
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15
+          ],
+          "defaultDuration": 5,
+          "formats": [
+            "mp4"
+          ]
+        },
+        "params": [
+          {
+            "key": "prompt",
+            "label": "提示词",
+            "labelKey": "catalog.label.2f0bb12387",
+            "type": "text",
+            "required": true
+          },
+          {
+            "key": "duration",
+            "label": "时长",
+            "labelKey": "catalog.label.29d0552d2e",
+            "type": "select",
+            "default": 5,
+            "options": [
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15
+            ],
+            "numeric": true
+          },
+          {
+            "key": "aspectRatio",
+            "label": "比例",
+            "labelKey": "catalog.label.c27f341ce5",
+            "type": "select",
+            "default": "16:9",
+            "options": [
+              "16:9",
+              "9:16"
+            ]
+          },
+          {
+            "key": "resolution",
+            "label": "分辨率",
+            "labelKey": "catalog.label.cde9b52b23",
+            "type": "select",
+            "default": "1K",
+            "options": [
+              "480p",
+              "720p",
+              "1K",
+              "2K"
+            ]
+          }
+        ],
+        "auth": {
+          "type": "bearer"
+        },
+        "requestTemplate": {
+          "model": "{{model}}",
+          "prompt": "{{prompt}}",
+          "seconds": "{{duration}}",
+          "aspect_ratio": "{{aspectRatio}}",
+          "resolution": "{{resolution}}"
+        },
+        "taskIdPath": "id",
+        "statusPath": "status",
+        "progressPath": "progress",
+        "errorPath": "error.message",
+        "pollStatusMap": {
+          "queued": "queued",
+          "in_progress": "running",
+          "completed": "completed",
+          "failed": "failed"
+        }
+      },
+      {
+        "id": "reference-to-video",
+        "label": "参考图生视频",
+        "endpoint": {
+          "method": "POST",
+          "path": "/videos",
+          "scope": "v1"
+        },
+        "taskEndpoint": {
+          "method": "GET",
+          "path": "/videos/{taskId}",
+          "scope": "v1"
+        },
+        "resultEndpoint": {
+          "method": "GET",
+          "path": "/videos/{taskId}/content",
+          "scope": "v1",
+          "mimeType": "video/mp4",
+          "fileExtension": "mp4"
+        },
+        "isAsync": true,
+        "inputConstraints": {
+          "images": {
+            "min": 1,
+            "max": 4,
+            "roles": [
+              "referenceImage"
+            ],
+            "formats": [
+              "jpg",
+              "jpeg",
+              "png"
+            ]
+          }
+        },
+        "outputConstraints": {
+          "durations": [
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15
+          ],
+          "defaultDuration": 5,
+          "formats": [
+            "mp4"
+          ]
+        },
+        "params": [
+          {
+            "key": "prompt",
+            "label": "提示词",
+            "labelKey": "catalog.label.2f0bb12387",
+            "type": "text",
+            "required": true
+          },
+          {
+            "key": "duration",
+            "label": "时长",
+            "labelKey": "catalog.label.29d0552d2e",
+            "type": "select",
+            "default": 5,
+            "options": [
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15
+            ],
+            "numeric": true
+          },
+          {
+            "key": "aspectRatio",
+            "label": "比例",
+            "labelKey": "catalog.label.c27f341ce5",
+            "type": "select",
+            "default": "16:9",
+            "options": [
+              "16:9",
+              "9:16"
+            ]
+          },
+          {
+            "key": "resolution",
+            "label": "分辨率",
+            "labelKey": "catalog.label.cde9b52b23",
+            "type": "select",
+            "default": "1K",
+            "options": [
+              "480p",
+              "720p",
+              "1K",
+              "2K"
+            ]
+          }
+        ],
+        "auth": {
+          "type": "bearer"
+        },
+        "requestTemplate": {
+          "model": "{{model}}",
+          "prompt": "{{prompt}}",
+          "seconds": "{{duration}}",
+          "aspect_ratio": "{{aspectRatio}}",
+          "resolution": "{{resolution}}"
+        },
+        "taskIdPath": "id",
+        "statusPath": "status",
+        "progressPath": "progress",
+        "errorPath": "error.message",
+        "pollStatusMap": {
+          "queued": "queued",
+          "in_progress": "running",
+          "completed": "completed",
+          "failed": "failed"
+        },
+        "inputMode": "reference",
+        "inputSlots": [
+          "reference"
+        ],
+        "inputFormat": "multipart",
+        "requestFields": {
+          "multipartImage": "input_reference"
+        }
+      }
+    ]
+  },
+  {
+    "id": "newapi-runninghub-krea2-normal-v1",
+    "name": "Krea2 Normal v1（RunningHub / New API）",
+    "provider": "openai",
+    "type": "imageGeneration",
+    "enabled": true,
+    "sortOrder": 0,
+    "defaultMode": "text-to-image",
+    "modes": [
+      {
+        "id": "text-to-image",
+        "label": "文生图",
+        "endpoint": {
+          "method": "POST",
+          "path": "/images/generations",
+          "scope": "v1"
+        },
+        "inputConstraints": {
+          "images": {
+            "min": 0,
+            "max": 0
+          }
+        },
+        "outputConstraints": {
+          "maxCount": 1,
+          "formats": [
+            "png"
+          ]
+        },
+        "params": [
+          {
+            "key": "prompt",
+            "label": "提示词",
+            "labelKey": "catalog.label.2f0bb12387",
+            "type": "text",
+            "required": true
+          },
+          {
+            "key": "aspectRatio",
+            "label": "比例",
+            "labelKey": "catalog.label.c27f341ce5",
+            "type": "select",
+            "default": "1:1",
+            "options": [
+              "1:1",
+              "16:9",
+              "9:16",
+              "3:4",
+              "4:3",
+              "2:3",
+              "3:2"
+            ]
+          },
+          {
+            "key": "resolution",
+            "label": "分辨率",
+            "labelKey": "catalog.label.cde9b52b23",
+            "type": "select",
+            "default": "2K",
+            "options": [
+              "1K",
+              "2K"
+            ]
+          }
+        ],
+        "auth": {
+          "type": "bearer"
+        },
+        "requestTemplate": {
+          "model": "{{model}}",
+          "prompt": "{{prompt}}",
+          "aspect_ratio": "{{aspectRatio}}",
+          "resolution": "{{resolution}}"
+        },
+        "resultUrlPath": "data.*.url"
+      }
+    ]
+  }
+]

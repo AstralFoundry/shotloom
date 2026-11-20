@@ -7,11 +7,11 @@
     "glm-4v", "glm-4v-plus", "glm-5"
   ],
   "imageGeneration": [
-    "gpt-image-2", "gpt-image-2.5-flare", "gpt-image-2.6-sunburst", "gemini-2.5-flash-image",
+    "krea2-normal-v1", "gpt-image-2", "gpt-image-2.5-flare", "gpt-image-2.6-sunburst", "gemini-2.5-flash-image",
     "gemini-3.1-flash-image", "gemini-3.1-flash-lite-image", "gemini-nano-banana-2.1"
   ],
   "videoGeneration": [
-    "MiniMax-H3", "veo-3.0-fast-generate-001", "veo-3.0-generate-001",
+    "minimax-h3-reference-to-video", "MiniMax-H3", "veo-3.0-fast-generate-001", "veo-3.0-generate-001",
     "veo-3.1-fast-generate-preview", "veo-3.1-generate-preview"
   ],
   "audioGeneration": ["gemini-3.8-flash-tts", "gemini-3.8-flash-lite-tts"]

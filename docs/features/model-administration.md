@@ -62,3 +62,42 @@ join shotloom.users u on u.id = a.user_id and u.client_id = a.client_id;
 验证：`server/tests/admin-users.sql` 在当前 Supabase 项目内以回滚事务覆盖应用隔离、普通用户拒绝访问、最后管理员保护、角色冲突、自我撤权与审计；HTTP 回归测试覆盖参数验证及数据库错误状态映射。
 
 浏览器验证覆盖 375、768、1024、1440 像素宽度、手机横屏、深色主题与减少动画设置；模型搜索、用户搜索及模型编辑预填均已检查，三个管理页面没有整页横向溢出。
+
+## RunningHub 网关模板
+
+后台新增两个 New API 兼容模板：
+
+| 上游模型 ID | 类型 | 执行模板 ID |
+| --- | --- | --- |
+| `minimax-h3-reference-to-video` | 视频 | `newapi-runninghub-minimax-h3-reference-to-video` |
+| `krea2-normal-v1` | 图片 | `newapi-runninghub-krea2-normal-v1` |
+
+模板保存在 `shared/runninghubGatewayTemplates.json`，复用 OpenAI 声明式适配器，通过当前用户的 New API 凭据调用网关。原有 RunningHub 直连工作流模板不进入后台发布列表。部署后，管理员同步上游模型并选择对应模板发布；本次代码变更不自动发布模型。
+
+MiniMax H3 使用 `/v1/videos`，支持 5–15 秒、16:9 / 9:16、480p / 720p / 1K / 2K，提供纯文本和最多 4 张参考图片两种模式。参考图通过 multipart 文件上传，不把 URL 当作已经上传的文件；当前模板不开放视频和音频参考输入。任务通过 `GET /v1/videos/{taskId}` 轮询，完成后经带身份校验的 `/v1/videos/{taskId}/content` 下载。Krea2 使用 `/v1/images/generations`，支持单张图片、1K / 2K 和插件声明的七种比例。
+
+渠道使用 RunningHub Task Plugin，内置“渠道测试”不支持此类型。需实际提交最小生成请求验证，并继续检查任务结果；有错误回执时不能宣称已生成成功。还需在 New API 配置计费。RunningHub Task Plugin 1.0.5 直接提交完整工作流，无需配置保存的 workflow ID 或渠道模型映射。
+
+验证：`tests/runninghub-gateway.test.mjs` 覆盖实际适配器的图片提交、多参考图 multipart、视频轮询、失败信息和鉴权下载描述；`server/tests/runninghub-templates.test.ts` 覆盖发布编译与允许的网关路由。
+
+2026-11-21 初次线上渠道检查（随后由插件升级解决，见下方复测）：渠道 12（RunningHub，type 61）配置了这两个模型；Task Plugin 已为 1.0.1，使用渠道保存的 `.cn` 地址。经用户授权，仅新增 `billing_setting.plugin_billing_expr` 的两条规则，初始售价为 $0.002/RH 币：
+
+```text
+runninghub::minimax-h3-reference-to-video = tier("RH coins", (u("coins") ?? 200) * 0.002)
+runninghub::krea2-normal-v1 = tier("RH coins", (u("coins") ?? 15) * 0.002)
+```
+
+提交时插件尚未提供币耗，分别预扣 $0.40 / $0.03（最终还应用账号分组倍率），完成后用实际币耗重新结算；成功任务缺少币耗回执时保留预扣价。该价格是本站初始售价，不是已核实的上游采购成本。
+
+价格配置回读及最小生成请求均已验证。当时生成被工作流映射阻塞：未配置映射时返回 RunningHub `404 NOT_FOUND`；仓库旧 H3 workflow ID `2086743729407733762` 返回 `380 workflow not exists`，测试后已撤销该无效映射。该阻塞随后由插件 1.0.5 的完整工作流提交解决。最近失败请求的网关日志 quota 均为 0；没有成功任务或媒体产物，实际币耗结算尚未实测。未部署本次 Shotloom 模板变更，也未发布线上模型。
+
+同日插件升级到 1.0.5 后复测通过：插件直接提交完整工作流，保留空模型映射即可。两个任务均已成功完成，并核验实际文件：
+
+| 模型 | 任务 ID | 结果 | 当前最终扣费（default 分组） |
+| --- | --- | --- | --- |
+| `krea2-normal-v1` | `task_7A60cdOGXLTm9hwuBzcplvjxUlDeOOwX` | 1024×1024 PNG，841089 字节，内容符合红球提示词 | $0.03（15000 quota） |
+| `minimax-h3-reference-to-video` | `task_ZVB4F9aYXMtyWCsGtvElRbI8O9lYlxOA` | MP4，864×480、5.167 秒，H.264 + AAC；鉴权 `/v1/videos/{id}/content` 返回 200，299532 字节 | $0.40（200000 quota） |
+
+注意：Krea2 成功回执中的 `consumeCoins` 为空，`chargedPoint` 为 6.12，因此本次实际保留的是 $0.03 预扣价。两个任务的最终 quota 均未从预扣值调整；不能将此结果宣称为“按真实 RH 币结算验证通过”。POINT 到 RH 币的换算及计量适配尚未验证。生成成功与文件下载已经验证，本次 Shotloom 代码仍仅在开发分支，尚未部署或修改线上发布配置。
+
+开发验证：前端 RunningHub 网关适配器测试、已有目录与 RunningHub 测试共 38 项通过；服务端全量测试 46 项通过、4 项在线集成测试跳过（使用本地测试环境变量）。前后端 TypeScript 检查、模块分层、测试架构和 i18n 类型检查通过。
