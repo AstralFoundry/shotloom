@@ -1,6 +1,7 @@
 import { t } from '@/i18n';
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { App, Button, Input, InputNumber, Modal, Select, Tooltip } from 'antd';
+import { IconSymbol } from '../components/IconSymbol';
 import { getDomainRevision, subscribeDomain } from '@/store/domainReactivity';
 import { store, touchProject } from '@/store/projectStore';
 import { modelCatalog } from '@/domain/catalog/ModelCatalog';
@@ -15,7 +16,7 @@ import {
   setStoryboardGenerationSettings,
   storyboardShots,
   updateStoryboardShot,
-} from './storyboardScriptActions';
+} from '@/services/storyboardScriptService';
 
 type AnyRecord = Record<string, any>;
 type ShotField = 'durationSeconds' | 'plot' | 'shotSize' | 'camera' | 'motion' | 'imagePrompt' | 'videoPrompt' | 'dialogue' | 'sound' | 'characters' | 'negativePrompt';
@@ -129,6 +130,7 @@ export function StoryboardScriptEditor({ open, nodeId, onClose, autoOpenAi = fal
       style={{ top: 0, maxWidth: '100vw', paddingBottom: 0 }}
       title={(
         <div className="storyboard-editor-title">
+          <IconSymbol name="film" />
           <span>{t('canvas.storyboard.editorTitle')}</span>
           <Input
             className="storyboard-editor-name"

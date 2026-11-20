@@ -24,7 +24,7 @@ import {
   runBatchTable,
   setBatchOperation,
   setBatchTableSettings,
-} from './batchTableActions';
+} from '@/services/batchTableService';
 import {
   BATCH_CONCURRENCY_OPTIONS,
   batchRowReady,

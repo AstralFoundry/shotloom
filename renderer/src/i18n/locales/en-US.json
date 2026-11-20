@@ -10721,5 +10721,17 @@
   "canvas.storyboard.editorEmptyTitle": "Start with the first shot",
   "canvas.storyboard.editorEmptyBody": "Add a shot and dialogue, then attach references; or let AI split the story.",
   "canvas.batch.columnHandle": "Reference {index} connection",
-  "canvas.storyboard.aiDuration": "Shot duration"
+  "canvas.storyboard.aiDuration": "Shot duration",
+  "tool.title.canvas_storyboard": "Read or edit storyboard script",
+  "tool.title.canvas_batch_table": "Read or edit batch table",
+  "tool.title.canvas_generate_storyboard": "Generate storyboard",
+  "tool.title.canvas_run_batch_table": "Run batch table",
+  "tool.feedback.canvas.storyboardModel": "The model is not an available text model; verify its ID with inspect_model_catalog",
+  "tool.feedback.canvas.missingStoryboard": "Storyboard script node not found; verify the real node ID with canvas_list_nodes",
+  "tool.feedback.canvas.missingBatchTable": "Batch table node not found; verify the real node ID with canvas_list_nodes",
+  "tool.feedback.canvas.unknownOperation": "Unsupported operation; use an action declared in the tool schema",
+  "tool.feedback.canvas.generationRejected": "Generation did not start; inspect the node error and fix the model or prompt",
+  "tool.feedback.canvas.invalidBatchReferences": "Batch rows reference missing image nodes: {value0}",
+  "tool.title.canvas_get_storyboard": "Read storyboard script",
+  "tool.title.canvas_get_batch_table": "Read batch table"
 }

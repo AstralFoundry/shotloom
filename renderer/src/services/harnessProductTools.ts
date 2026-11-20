@@ -1,6 +1,7 @@
 import { registerPluginActionTools } from '../agent/tools/pluginActionTools';
 import { t } from '../i18n/index.ts';
 import { registerCanvasTools } from '../agent/tools/canvasTools';
+import { registerCanvasSuiteTools } from '../agent/tools/canvasSuiteTools';
 import { agentDefinition, CANVAS_AGENT_ID, DIRECTOR_AGENT_ID, EDITOR_AGENT_ID, type AgentId } from '../agent/agents/definitions';
 import { registerCatalogTools } from '../agent/tools/catalogTools';
 import { registerProductionPlanTools } from '../agent/tools/productionPlanTools';
@@ -42,7 +43,7 @@ export function registerDirectorSessionBinder(binder: (nodeId?: string) => Promi
 
 function register() {
   if (hasAgentTool('canvas_list_nodes')) return;
-  registerPluginActionTools(); registerCanvasTools(); registerCatalogTools(); registerProductionPlanTools();
+  registerPluginActionTools(); registerCanvasTools(); registerCanvasSuiteTools(); registerCatalogTools(); registerProductionPlanTools();
   registerTextDraftTools(); registerVideoEditorTools(); registerDirectorTools();
   registerAgentTool({ id: 'canvas_prepare_editor', title: t('agent.role.editor'),
     description: '为剪辑委派打开并绑定真实剪辑工程。nodeId 指定现有剪辑节点；省略时打开独立剪辑工作台。不表示已完成剪辑；使用 delegate_editor 派发剪辑子 Agent。',

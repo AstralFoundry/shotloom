@@ -81,8 +81,8 @@ import {
   openWorkspaceVideoEditor,
   createClipNode,
 } from "./canvas/videoEditorActions";
-import { createStoryboardScriptNode } from "../canvas/storyboardScriptActions";
-import { isCanvasImageNode } from "../canvas/batchTableActions";
+import { createStoryboardScriptNode } from "@/services/storyboardScriptService";
+import { isCanvasImageNode } from "@/services/batchTableService";
 
 const store: any = rawStore;
 // 画布挂载后到布局稳定之间的一小段，跨路由定位要等它过去再推视口。

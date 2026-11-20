@@ -35,12 +35,14 @@ export interface AgentDefinition {
 
 const canvasReadTools = [
   'canvas_list_nodes', 'canvas_get_node', 'canvas_media_frame', 'canvas_media_image', 'canvas_focus_nodes', 'inspect_tasks',
+  'canvas_get_storyboard', 'canvas_get_batch_table',
 ];
 const canvasWriteTools = [
   'canvas_create_node', 'canvas_update_node', 'canvas_connect_nodes', 'canvas_layout_nodes', 'canvas_manage_section',
   'canvas_delete_node', 'canvas_update_edge', 'undo_canvas', 'redo_canvas',
+  'canvas_storyboard', 'canvas_batch_table',
 ];
-const generationTools = ['canvas_start_generation', 'run_plugin_action'];
+const generationTools = ['canvas_start_generation', 'run_plugin_action', 'canvas_generate_storyboard', 'canvas_run_batch_table'];
 const catalogTools = ['inspect_plugin_capabilities', 'prepare_plugin_action', 'inspect_runtime_capabilities', 'inspect_model_catalog', 'inspect_assets', 'list_recipes', 'load_recipe', 'inspect_skills', 'save_skill'];
 const productionPlanWriteTools = ['plan_write', 'plan_patch_stage', 'plan_update_stage_state'];
 const productionPlanReadTools = ['plan_get_stage_status', 'plan_get_stage_detail'];

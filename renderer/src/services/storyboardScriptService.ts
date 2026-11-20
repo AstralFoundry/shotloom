@@ -1,6 +1,7 @@
 import { t } from '@/i18n';
 import { store, touchProject } from '@/store/projectStore';
 import { addNode, ensureGenerationConfig } from '@/store/nodeStore';
+import { selectedNodeMedia } from '@/utils/nodeMedia';
 import { addCanvasEdge } from '@/store/canvasGraphStore';
 import { recordCanvasHistory } from '@/store/canvasHistoryStore';
 import { runNode } from '@/store/taskStore';
@@ -149,12 +150,40 @@ function incomingReferenceNodes(scriptNode: AnyRecord): AnyRecord[] {
     if (edge.target !== scriptNode.id || edge.data?.skipTaskInput === true) continue;
     const source = nodeById.get(edge.source);
     if (!source || source.archived || seen.has(source.id)) continue;
-    if (!String(source.uploadedFile?.path || source.filePath || source.content || '').trim()) continue;
-    if (String(source.resourceType || source.uploadedFile?.resourceType || '').toLowerCase() !== 'image') continue;
+    const media = selectedNodeMedia(source, store.project);
+    const path = String(media?.filePath || media?.path || '');
+    if (!path) continue;
+    const isImage = source.type === 'imageGeneration'
+      || String(source.resourceType || source.uploadedFile?.resourceType || '').toLowerCase() === 'image';
+    if (!isImage) continue;
     seen.add(source.id);
     result.push(source);
   }
   return result;
+}
+
+function connectShotImage(output: AnyRecord, imageNodeId: string): void {
+  const imageNode = projectNode(imageNodeId);
+  if (!imageNode || imageNode.archived) return;
+  // 镜头视频本来就应该从这一镜的分镜图开始；用户手工连的其他参考仍保留。
+  const edges = store.project.edges as AnyRecord[];
+  for (let index = edges.length - 1; index >= 0; index -= 1) {
+    const edge = edges[index];
+    if (!edge || edge.target !== output.id || !edge.data?.storyboardShotImage) continue;
+    if (edge.source !== imageNodeId) edges.splice(index, 1);
+  }
+  if (edges.some((edge) => edge.target === output.id && edge.source === imageNodeId && edge.data?.storyboardShotImage)) return;
+  const modes = getGenerationInputModes(String(output.model || ''));
+  const mode = modes.find((item) => item.maxImages > 0);
+  if (!mode) return;
+  output.inputMode = mode.value;
+  const slot = mode.slots.includes('firstFrame') ? 'firstFrame' : 'reference';
+  addCanvasEdge(store.project, imageNodeId, output.id, {
+    edge: {
+      kind: 'typed-input',
+      data: { inputRole: 'referenceImage', inputSlot: slot, required: true, creationSource: 'storyboard-script', storyboardShotImage: true },
+    },
+  });
 }
 
 function connectShotNode(scriptNode: AnyRecord, output: AnyRecord): void {
@@ -165,7 +194,7 @@ function connectShotNode(scriptNode: AnyRecord, output: AnyRecord): void {
     const edge = edges[index];
     if (!edge) continue;
     if (edge?.target !== output.id || edge.data?.creationSource !== 'storyboard-script') continue;
-    if (edge.data?.inputRole !== 'referenceImage') continue;
+    if (edge.data?.inputRole !== 'referenceImage' || edge.data?.storyboardShotImage) continue;
     if (!references.some((source) => source.id === edge.source)) edges.splice(index, 1);
   }
   addCanvasEdge(store.project, scriptNode.id, output.id, {
@@ -220,6 +249,7 @@ export function ensureStoryboardShotNode(scriptNodeId: string, shotId: string, k
   shot[field] = output.id;
   scriptNode.storyboardShots = shots;
   connectShotNode(scriptNode, output);
+  if (kind === 'video' && shot.imageNodeId) connectShotImage(output, shot.imageNodeId);
   touchProject();
   return output;
 }

@@ -10721,5 +10721,17 @@
   "canvas.storyboard.editorEmptyTitle": "从第一个镜头开始",
   "canvas.storyboard.editorEmptyBody": "添加画面和台词，再为镜头配置参考资产；也可以让 AI 按剧情拆分。",
   "canvas.batch.columnHandle": "参考图 {index} 连线点",
-  "canvas.storyboard.aiDuration": "单镜时长"
+  "canvas.storyboard.aiDuration": "单镜时长",
+  "tool.title.canvas_storyboard": "读取或编辑分镜脚本",
+  "tool.title.canvas_batch_table": "读取或编辑批量创作表",
+  "tool.title.canvas_generate_storyboard": "生成分镜",
+  "tool.title.canvas_run_batch_table": "运行批量创作",
+  "tool.feedback.canvas.storyboardModel": "指定的模型不是可用的文本模型；先用 inspect_model_catalog 核对模型 ID",
+  "tool.feedback.canvas.missingStoryboard": "没有找到这个分镜脚本节点，请先用 canvas_list_nodes 核对真实节点 ID",
+  "tool.feedback.canvas.missingBatchTable": "没有找到这个批量创作表节点，请先用 canvas_list_nodes 核对真实节点 ID",
+  "tool.feedback.canvas.unknownOperation": "不支持的操作；请使用工具 schema 中声明的 action",
+  "tool.feedback.canvas.generationRejected": "生成没有启动，请查看节点错误并先修正模型或提示词",
+  "tool.feedback.canvas.invalidBatchReferences": "批量行引用的图片节点不存在或没有真实图片文件：{value0}",
+  "tool.title.canvas_get_storyboard": "读取分镜脚本",
+  "tool.title.canvas_get_batch_table": "读取批量创作表"
 }

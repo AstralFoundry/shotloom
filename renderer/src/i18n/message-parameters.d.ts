@@ -1266,4 +1266,5 @@ export interface MessageParameters {
   "canvas.batch.referenceCountMax": Record<"count" | "max", string | number>;
   "canvas.pose.poseCount": Record<"count", string | number>;
   "canvas.batch.columnHandle": Record<"index", string | number>;
+  "tool.feedback.canvas.invalidBatchReferences": Record<"value0", string | number>;
 }

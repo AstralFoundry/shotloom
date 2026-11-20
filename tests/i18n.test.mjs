@@ -484,7 +484,7 @@ test('全部产品工具标题切换语言，工具协议与草稿正文保持�
     const instance = await createRendererEnv({ storage: new Map([['shotloom:locale', locale]]) });
     try {
       for (const [module, register] of [
-        ['canvasTools', 'registerCanvasTools'], ['catalogTools', 'registerCatalogTools'],
+        ['canvasTools', 'registerCanvasTools'], ['canvasSuiteTools', 'registerCanvasSuiteTools'], ['catalogTools', 'registerCatalogTools'],
         ['productionPlanTools', 'registerProductionPlanTools'], ['videoEditorTools', 'registerVideoEditorTools'],
         ['directorTools', 'registerDirectorTools'],
         ['textTools', 'registerTextDraftTools'],

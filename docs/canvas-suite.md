@@ -28,6 +28,15 @@
 - **版权**：仓库与发行包不携带图片。默认数据源中的图片版权归原作者，`ai-pose-gallery-zh` 的 MIT 许可不覆盖图片；商业使用前请自行确认来源授权，或导入自建姿势包。
 - **网络**：远程图片和目录受 CSP 限制，默认只允许 `raw.githubusercontent.com`；若自定义姿势包使用其他图片域名，需要在 `renderer/index.html` 的 `img-src` 中显式加入该域名。
 
+## Agent 工具
+
+- `canvas_storyboard`：创建或更新分镜脚本节点与镜头行；`canvas_get_storyboard` 只读读取真实行。
+- `canvas_generate_storyboard`：启动真实的分镜文本拆镜或逐镜图片/视频生成，受「允许 Agent 运行节点」设置约束。
+- `canvas_batch_table`：创建或更新批量表的任务类型、并发、全局提示词、参考列与任务行；`canvas_get_batch_table` 只读读取真实行列。
+- `canvas_run_batch_table`：启动批量任务，受同一运行开关约束。
+
+这些工具只写入真实节点/行数据并返回真实 ID；不会用文字冒充已生成媒体。生成后使用 `inspect_tasks` 核验终态。
+
 ## 相关实现
 
 | 边界 | 入口 |

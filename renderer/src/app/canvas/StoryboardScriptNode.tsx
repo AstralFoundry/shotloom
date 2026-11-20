@@ -18,7 +18,7 @@ import {
   setStoryboardGenerationSettings,
   storyboardShots,
   updateStoryboardShot,
-} from './storyboardScriptActions';
+} from '@/services/storyboardScriptService';
 import { MAX_STORYBOARD_SHOTS, storyboardShotSummary, type StoryboardShot } from '@/domain/graph/StoryboardScript';
 import { StoryboardScriptEditor } from './StoryboardScriptEditor';
 
