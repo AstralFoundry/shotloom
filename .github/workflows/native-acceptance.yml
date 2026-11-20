@@ -252,6 +252,7 @@ jobs:
         with:
           name: Native-performance-results
           path: |
+            perf/layout-validation.json
             perf/results*.json
             perf/device.txt
             perf/diagnostics.txt

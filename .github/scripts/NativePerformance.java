@@ -29,6 +29,12 @@ public final class NativePerformance extends Instrumentation {
         for (int i=0; i<node.getChildCount(); i++) { AccessibilityNodeInfo hit=find(node.getChild(i),label); if(hit!=null)return hit; }
         return null;
     }
+    private boolean hasWebView(AccessibilityNodeInfo node) {
+        if(node==null)return false;
+        if(String.valueOf(node.getClassName()).contains("WebView"))return true;
+        for(int i=0;i<node.getChildCount();i++)if(hasWebView(node.getChild(i)))return true;
+        return false;
+    }
     private boolean spinning(AccessibilityNodeInfo node) {
         if(node==null)return false;
         if(node.isVisibleToUser() && String.valueOf(node.getClassName()).contains("ProgressBar"))return true;
@@ -120,6 +126,17 @@ public final class NativePerformance extends Instrumentation {
             launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TASK);getContext().startActivity(launch);
             waitReady("Android Canvas Acceptance");
             pages.put(new JSONObject().put("page","startup_authenticated").put("round",0).put("ms",SystemClock.elapsedRealtime()-start));
+            if("layout".equals(args.getString("mode"))) {
+                page("account_large","My account","Available credits",0);
+                page("settings_large","Settings","Preferences",0);
+                if(hasWebView(ui.getRootInActiveWindow()))throw new Exception("Settings unexpectedly uses WebView");
+                click("简体中文");waitReady("偏好设置");
+                click("English");waitReady("Preferences");
+                click("Default models");
+                if(getContext().getResources().getConfiguration().fontScale < 1.29f)throw new Exception("Large font was not applied");
+                report.put("pages",pages).put("apis",apis).put("failure",JSONObject.NULL).put("chineseAndEnglish",true).put("nativeSettings",true).put("fontScale",getContext().getResources().getConfiguration().fontScale);
+                result.putString("stream","PERFORMANCE_JSON "+report.toString()+"\n");finish(-1,result);return;
+            }
             page("canvas_immediate","Android Canvas Acceptance","100%",0);
             page("projects_return","Project library","Android Canvas Acceptance",0);
             for(int round=0;round<Integer.parseInt(args.getString("rounds", "5"));round++) {

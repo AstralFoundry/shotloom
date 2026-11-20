@@ -63,3 +63,27 @@ PY
     done
   done
 done
+
+# Functional checks run after all timed pairs and are excluded from their statistics.
+adb shell am force-stop com.shotloom.app.preview
+sleep 2
+adb uninstall com.shotloom.acceptance >/dev/null
+adb uninstall com.shotloom.app.preview >/dev/null
+adb install --no-incremental acceptance/Shotloom-Preview.apk
+adb install --no-incremental acceptance/Shotloom-Session-Test.apk
+adb shell am instrument -w -e origin "$CANDIDATE_ORIGIN" -e cookie "$TEST_SESSION_COOKIE" -e sessionBase64 "$native_session" com.shotloom.acceptance/com.shotloom.acceptance.SessionInstrumentation > /tmp/session-seeded.txt
+grep -q 'Test session installed' /tmp/session-seeded.txt
+adb shell settings put system font_scale 1.3
+adb shell am instrument -w -e mode layout -e origin "$CANDIDATE_ORIGIN" com.shotloom.performance/com.shotloom.performance.NativePerformance > /tmp/layout-output.txt
+python3 - <<'PY'
+import json
+text=open('/tmp/layout-output.txt').read()
+line=next((s.split('PERFORMANCE_JSON ',1)[1] for s in text.splitlines() if 'PERFORMANCE_JSON ' in s),None)
+assert line is not None, 'Layout validation output missing'
+result=json.loads(line)
+with open('perf/layout-validation.json','w') as f: json.dump(result,f,indent=2)
+assert result['failure'] is None and result['chineseAndEnglish'] and result['nativeSettings'] and result['fontScale'] >= 1.29
+print('Large-font native settings and Chinese/English preference save passed')
+PY
+adb exec-out screencap -p > perf/layout-large.png
+adb shell settings put system font_scale 1.0
