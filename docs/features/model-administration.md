@@ -62,3 +62,20 @@ join shotloom.users u on u.id = a.user_id and u.client_id = a.client_id;
 验证：`server/tests/admin-users.sql` 在当前 Supabase 项目内以回滚事务覆盖应用隔离、普通用户拒绝访问、最后管理员保护、角色冲突、自我撤权与审计；HTTP 回归测试覆盖参数验证及数据库错误状态映射。
 
 浏览器验证覆盖 375、768、1024、1440 像素宽度、手机横屏、深色主题与减少动画设置；模型搜索、用户搜索及模型编辑预填均已检查，三个管理页面没有整页横向溢出。
+
+## RunningHub 网关模板
+
+后台新增两个 New API 兼容模板：
+
+| 上游模型 ID | 类型 | 执行模板 ID |
+| --- | --- | --- |
+| `minimax-h3-reference-to-video` | 视频 | `newapi-runninghub-minimax-h3-reference-to-video` |
+| `krea2-normal-v1` | 图片 | `newapi-runninghub-krea2-normal-v1` |
+
+模板保存在 `shared/runninghubGatewayTemplates.json`，复用 OpenAI 声明式适配器，通过当前用户的 New API 凭据调用网关。原有 RunningHub 直连工作流模板不进入后台发布列表。部署后，管理员同步上游模型并选择对应模板发布；本次代码变更不自动发布模型。
+
+MiniMax H3 使用 `/v1/videos`，支持 5–15 秒、16:9 / 9:16、480p / 720p / 1K / 2K，提供纯文本和最多 4 张参考图片两种模式。参考图通过 multipart 文件上传，不把 URL 当作已经上传的文件；当前模板不开放视频和音频参考输入。任务通过 `GET /v1/videos/{taskId}` 轮询，完成后经带身份校验的 `/v1/videos/{taskId}/content` 下载。Krea2 使用 `/v1/images/generations`，支持单张图片、1K / 2K 和插件声明的七种比例。
+
+渠道使用 RunningHub Task Plugin，内置“渠道测试”不支持此类型。需实际提交最小生成请求验证，并继续检查任务结果；有错误回执时不能宣称已生成成功。还需在 New API 配置计费，并把两个模型映射到真实 RunningHub workflow ID。
+
+验证：`tests/runninghub-gateway.test.mjs` 覆盖实际适配器的图片提交、多参考图 multipart、视频轮询、失败信息和鉴权下载描述；`server/tests/runninghub-templates.test.ts` 覆盖发布编译与允许的网关路由。

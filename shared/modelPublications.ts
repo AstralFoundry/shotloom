@@ -1,3 +1,4 @@
+import runninghubGatewayTemplates from './runninghubGatewayTemplates.json';
 import { modelCatalogV2 } from '../renderer/src/config/model-catalog-v2/index';
 
 export const modelTypes = ['textGeneration', 'imageGeneration', 'videoGeneration', 'audioGeneration'] as const;
@@ -32,7 +33,7 @@ const chatTemplate = {
     requestTemplate: { model: '{{model}}', messages: '{{messages}}' }, resultTextPath: 'choices.0.message.content',
   }],
 };
-export const executionTemplates: ExecutionTemplate[] = [chatTemplate, ...(modelCatalogV2.models as unknown as ExecutionTemplate[]).filter(model =>
+export const executionTemplates: ExecutionTemplate[] = [chatTemplate, ...runninghubGatewayTemplates, ...(modelCatalogV2.models as unknown as ExecutionTemplate[]).filter(model =>
   model.enabled !== false && model.provider !== 'runninghub' && model.modes.every(mode =>
     gatewayPaths.has(mode.endpoint.path) && (mode.requestTemplate as { model?: unknown })?.model === '{{model}}'))];
 
