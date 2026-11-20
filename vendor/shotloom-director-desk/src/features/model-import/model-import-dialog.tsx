@@ -1,15 +1,15 @@
 import { InboxOutlined } from '@ant-design/icons';
-import { Alert, Button, Col, Input, InputNumber, Modal, Row, Select, Upload } from 'antd';
+import { Alert, Button, Col, Input, InputNumber, Modal, Row, Select, Tabs, Upload } from 'antd';
 import { useEffect, useRef, useState } from 'react';
-import { clone, entity, type Vec3 } from '@/core/model.ts';
-import { workingElevation } from '@/core/building/floors.ts';
+import { type Vec3 } from '@/core/model.ts';
 import { packModelFilesAsync } from '@/core/resources/model-import-worker.ts';
 import { modelResourceId, type ModelResource } from '@/core/resources/project-resources.ts';
 import type { SceneModels } from '@/core/resources/scene-models.ts';
 import { useTranslation } from '@/shared/i18n/use-translation.ts';
 import { notifyError, notifySuccess } from '@/shared/ui/feedback.ts';
 import { session } from '@/state/editor-session.ts';
-import { useEditorStore } from '@/state/editor-store.ts';
+import { inspectImportedModel, placeImportedModel, pruneImportedModels } from './import-model.ts';
+import { PolyforkBrowser } from './polyfork-browser.tsx';
 
 type Inspection = ReturnType<SceneModels['inspection']>;
 
@@ -38,6 +38,7 @@ export function ModelImportDialog({ open, onClose }: { open: boolean; onClose: (
     const [files, setFiles] = useState<File[]>([]);
     const [entry, setEntry] = useState('');
     const [step, setStep] = useState<'pick' | 'place'>('pick');
+    const [sourceTab, setSourceTab] = useState('local');
     const [resource, setResource] = useState<ModelResource | null>(null);
     const [inspection, setInspection] = useState<Inspection | null>(null);
     const [size, setSize] = useState<Vec3 | null>(null);
@@ -58,11 +59,7 @@ export function ModelImportDialog({ open, onClose }: { open: boolean; onClose: (
 
     const entries = files.map(filePath).filter((path) => MODEL_EXTENSION.test(path));
 
-    const prune = () => {
-        const engine = session.engineOrNull;
-        if (!engine) return;
-        engine.externalModels.retain([session.project, ...session.history.undoStack, ...session.history.redoStack]);
-    };
+    const prune = pruneImportedModels;
 
     const addFiles = (incoming: File[]) => {
         setFiles((previous) => {
@@ -103,10 +100,10 @@ export function ModelImportDialog({ open, onClose }: { open: boolean; onClose: (
         onClose();
     };
 
-    async function readModel() {
+    async function readModel(downloaded?: ModelResource) {
         const engine = session.engineOrNull;
         if (!engine || reading) return;
-        if (!entry) {
+        if (!downloaded && !entry) {
             setError(t('请先选择模型主文件'));
             return;
         }
@@ -119,34 +116,18 @@ export function ModelImportDialog({ open, onClose }: { open: boolean; onClose: (
         setError('');
         session.setBusy(true);
         try {
-            const source: Array<{ path: string; bytes: Uint8Array }> = [];
-            for (const file of files) {
-                controller.signal.throwIfAborted();
-                source.push({ path: filePath(file), bytes: new Uint8Array(await file.arrayBuffer()) });
+            let nextResource = downloaded;
+            if (!nextResource) {
+                const source: Array<{ path: string; bytes: Uint8Array }> = [];
+                for (const file of files) {
+                    controller.signal.throwIfAborted();
+                    source.push({ path: filePath(file), bytes: new Uint8Array(await file.arrayBuffer()) });
+                }
+                const pack = await packModelFilesAsync(entry, source, controller.signal);
+                nextResource = { id: await modelResourceId(pack, controller.signal), name: entry.split('/').at(-1)!.replace(MODEL_EXTENSION, ''), package: pack, copyright: '', license: '', source: '' };
             }
-            controller.signal.throwIfAborted();
-            const pack = await packModelFilesAsync(entry, source, controller.signal);
-            const id = await modelResourceId(pack, controller.signal);
-            controller.signal.throwIfAborted();
-            const nextResource: ModelResource = {
-                id,
-                name: entry.split('/').at(-1)!.replace(MODEL_EXTENSION, ''),
-                package: pack,
-                copyright: '',
-                license: '',
-                source: '',
-            };
-            const next = {
-                ...session.project,
-                version: 2 as const,
-                resources: [...(session.project.resources ?? []).filter((item) => item.id !== id), nextResource],
-            };
-            await engine.externalModels.prepare(next, controller.signal);
-            if (session.project !== original) throw new Error('读取期间工程已变化，请重新导入');
-            const info = engine.externalModels.inspection(nextResource);
-            if (!info.meshes) throw new Error('这是独立动作文件，不能作为场景模型放置');
-            nextResource.copyright = info.copyright;
-            const measured = engine.externalModels.measure(nextResource, 1, [0, 0, 0]);
+            if (session.project !== original) throw Error('读取期间工程已变化，请重新导入');
+            const { inspection: info, size: measured } = await inspectImportedModel(nextResource, controller.signal);
             setResource(nextResource);
             setInspection(info);
             setSize(measured);
@@ -154,8 +135,8 @@ export function ModelImportDialog({ open, onClose }: { open: boolean; onClose: (
                 ...current,
                 name: nextResource.name,
                 kind: info.skins ? 'actor' : 'prop',
-                license: '',
-                source: '',
+                license: nextResource.license,
+                source: nextResource.source,
             }));
             setStep('place');
         } catch (cause) {
@@ -171,50 +152,16 @@ export function ModelImportDialog({ open, onClose }: { open: boolean; onClose: (
     function place() {
         const engine = session.engineOrNull;
         if (!engine || !resource) return;
-        const rotation = orientation();
-        const unitScale = Number(form.units);
-        const measured = engine.externalModels.measure(resource, unitScale, rotation);
-        const target = engine.orbit.target;
-        const elevation = workingElevation(session.project);
-        const kind = form.kind;
-        const model = entity(
-            kind,
-            'external-model',
-            form.name.trim() || resource.name,
-            engine.snapPosition([target.x, elevation, target.z]),
-        );
-        model.position[1] = elevation;
-        model.external = {
-            resourceId: resource.id,
-            appearance: form.appearance,
-            unitScale,
-            orientation: rotation,
-        };
-        if (kind === 'actor') model.height = measured[1];
         resource.license = form.license;
         resource.source = form.source;
-
-        const placed = session.change(() => {
-            const project = session.project;
-            project.version = 2;
-            project.resources ??= [];
-            const existing = project.resources.findIndex((item) => item.id === resource.id);
-            if (existing < 0) project.resources.push(clone(resource));
-            else project.resources[existing] = clone(resource);
-            project.entities.push(model);
-            useEditorStore.getState().patch({
-                selected: model.id,
-                inspectorTab: 'base',
-                sidebarTab: 'scene',
-            });
-        });
-        if (!placed) {
-            notifyError('未能放入场景，请检查模型规格');
+        try {
+            placeImportedModel(resource, { name: form.name, kind: form.kind, appearance: form.appearance, unitScale: Number(form.units), orientation: orientation() });
+        } catch (cause) {
+            notifyError((cause as Error).message);
             prune();
             return;
         }
         placedRef.current = true;
-        engine.focus(model.id);
         notifySuccess('模型已添加');
         close();
     }
@@ -245,9 +192,9 @@ export function ModelImportDialog({ open, onClose }: { open: boolean; onClose: (
                         <Button onClick={close} disabled={reading}>
                             {t('取消')}
                         </Button>
-                        <Button type="primary" loading={reading} disabled={!entry} onClick={() => void readModel()}>
+                        {sourceTab === 'local' && <Button type="primary" loading={reading} disabled={!entry} onClick={() => void readModel()}>
                             {t('读取模型')}
-                        </Button>
+                        </Button>}
                     </>
                 ) : (
                     <>
@@ -261,6 +208,11 @@ export function ModelImportDialog({ open, onClose }: { open: boolean; onClose: (
         >
             {step === 'pick' ? (
                 <div className="stack">
+                    <Tabs activeKey={sourceTab} onChange={setSourceTab} items={[
+                        { key: 'local', label: t('本地文件'), disabled: reading },
+                        { key: 'polyfork', label: t('在线模型 · Polyfork'), disabled: reading },
+                    ]} />
+                    {sourceTab === 'polyfork' ? <PolyforkBrowser disabled={reading} onImport={readModel} /> : <>
                     <Alert
                         type="info"
                         showIcon
@@ -310,6 +262,7 @@ export function ModelImportDialog({ open, onClose }: { open: boolean; onClose: (
                     <p className="muted small">
                         {t('已选择')} {files.length} {t('个文件')}
                     </p>
+                    </>}
                     {error ? <Alert type="error" showIcon title={error} /> : null}
                 </div>
             ) : (

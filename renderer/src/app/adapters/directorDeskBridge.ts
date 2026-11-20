@@ -126,7 +126,7 @@ function plainMessage<T>(message: T): T {
 
 export function sendDirectorDeskSession(
   frame: HTMLIFrameElement | null,
-  session: { instanceId: string; artifactScope?: string; theme: DirectorDeskTheme; locale: 'zh-CN' | 'en-US'; project: unknown },
+  session: { instanceId: string; artifactScope?: string; modelLibraryOrigin?: string; theme: DirectorDeskTheme; locale: 'zh-CN' | 'en-US'; project: unknown },
 ) {
   post(frame, { type: messageType.session, payload: session });
 }

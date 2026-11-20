@@ -160,9 +160,10 @@ commands 只列出你应当使用的命令；已由 batch 覆盖的搭景命令�
     id: 'director_desk_query',
     icon: 'list',
     title: t('tool.title.director_desk_query'),
-    description: '只读查询：scene_list 列出戏段，scene_read 读取指定戏段，history_status 查询撤销重做，export_video_job 查询视频导出任务进度，scene_summary 取人数/机位数/镜头数与时长，spatial_check 按时间区间采样检查重叠、过近、出画、机位卡在墙体内部与主体被遮挡（参数见 snapshot 中该命令的 args）。entity_relations 查询 sourceId、targetId 在 seconds 时刻的相对坐标、距离、朝向差、机位视锥与中心遮挡，并返回目标接触锚点；可选 cameraIds。空间关系均为测量事实。这些查询不修改工程。',
+    description: '只读查询：search_polyfork_models 搜索 Polyfork 免费低模（query 用英文关键词，page 从 1 开始）；get_polyfork_model 读真实模型 ID 的尺寸、来源与许可。scene_list 列出戏段，scene_read 读取指定戏段，history_status 查询撤销重做，export_video_job 查询视频导出任务进度，scene_summary 取人数/机位数/镜头数与时长，spatial_check 按时间区间采样检查重叠、过近、出画、机位卡在墙体内部与主体被遮挡（参数见 snapshot 中该命令的 args）。entity_relations 查询 sourceId、targetId 在 seconds 时刻的相对坐标、距离、朝向差、机位视锥与中心遮挡，并返回目标接触锚点；可选 cameraIds。空间关系均为测量事实。这些查询不修改工程。',
     effect: 'read',
     activity: 'inspect',
+    timeoutMs: 130_000,
     inputSchema: {
       type: 'object',
       required: ['operation'],
@@ -170,7 +171,7 @@ commands 只列出你应当使用的命令；已由 batch 覆盖的搭景命令�
         operation: {
           type: 'string',
           // 只读命令都可以走这条通道，不必经过写审批。
-          enum: ['scene_list', 'scene_read', 'history_status', 'export_video_job', 'export_artifact_list', 'export_artifact_read', 'shot_list', 'scene_summary', 'spatial_check', 'entity_relations'],
+          enum: ['search_polyfork_models', 'get_polyfork_model', 'scene_list', 'scene_read', 'history_status', 'export_video_job', 'export_artifact_list', 'export_artifact_read', 'shot_list', 'scene_summary', 'spatial_check', 'entity_relations'],
         },
         args: { type: 'object', additionalProperties: true },
       },
@@ -380,6 +381,7 @@ edits 按顺序执行，支持：
 - 核验：render_preview_sheet 一次返回最多 8 个真实时间点的带时码拼图，优先用于检查动作、运镜和切镜连续性；render_preview 返回单帧画面；render_plan 返回整套布景的俯视平面图（剖切掉顶板，带米制坐标网格、人物路径和机位），用来对照俯视的布局参考图；inspect_model 只支持建筑和道具（人物请用场景预览），返回多视角拼图、局部部件尺寸和包围盒；spatial_check 返回区间内的重叠、过近、出画、机位卡墙、主体被遮挡与悬空列表。这些命令都不改工程。
 - 关键帧：remove_focal_key 删除焦距关键帧；新增位置路径用 director_desk_batch.set_path，运镜焦距可用 set_campath。
 - 交付：export_shot 按切镜序号导出单镜静帧；export_video_start 支持指定区间与机位。
+- 在线模型：search_polyfork_models 用英文关键词分页查询免费低模；get_polyfork_model 读详情；download_polyfork_model 下载带署名许可的 ZIP 产物，不改场景；import_polyfork_model 按需下载并放入场景，须带最新快照的 expectedSessionId / expectedRevision。来源为 Polyfork，保留每项署名。下载和导入回执含真实文件或实体后再声明完成。
 
 逐轴命令（set_position_axis / set_rotation_axis / set_scale_axis）只服务编辑器内交互；要改坐标、朝向或尺寸，用 director_desk_batch 的 set_entity 向量补丁（position、rotationDegrees、scale），不要逐轴拼。
 
@@ -388,6 +390,7 @@ edits 按顺序执行，支持：
 只读性质的查看命令请用 director_desk_query 或直接读 snapshot。`,
     effect: 'project_write',
     activity: 'canvas',
+    timeoutMs: 130_000,
     // 查看类命令（seek、toggle_play、set_view 等）按只读执行，不触发写操作审批；
     // 分级来自 iframe 命令表的 kind，见上方 commandEffect。
     resolveEffect: (input) => commandEffect(String(input.operation || '')),

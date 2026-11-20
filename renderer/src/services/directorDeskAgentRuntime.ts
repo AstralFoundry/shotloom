@@ -82,7 +82,7 @@ export function runDirectorDeskCommand(operation: string, args: Record<string, u
     const timer = window.setTimeout(() => {
       pending.delete(requestId);
       reject(new DirectorDeskError('导演台未响应，请检查画布是否已加载'));
-    }, 20_000);
+    }, ['search_polyfork_models', 'get_polyfork_model', 'download_polyfork_model', 'import_polyfork_model'].includes(operation) ? 120_000 : 20_000);
     pending.set(requestId, { resolve, reject, timer });
     target.postMessage({ type: requestType, payload: { requestId, operation, args } }, window.location.origin);
   });
