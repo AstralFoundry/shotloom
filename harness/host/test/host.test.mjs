@@ -599,6 +599,78 @@ test('official pi-ai adapter receives a configured product route and real wire t
   assert.equal(desktop.host.ctx.sessionProjections.stateOf(desktop.host.ctx.agents.get(sessionId).session, 'modelSelection').pending.model, 'wire-model');
 });
 
+test('Responses caching keeps the Session key, forwards retention and projects provider cache usage', { timeout: 15000 }, async t => {
+  const { startDesktopHost } = await import('../dist/desktopHost.js');
+  const requests = [];
+  const server = createServer(async (req, res) => {
+    let raw = ''; for await (const chunk of req) raw += chunk;
+    requests.push(JSON.parse(raw));
+    res.writeHead(200, { 'content-type': 'text/event-stream' });
+    const response = { id: `resp-${requests.length}`, status: 'completed', output: [],
+      usage: { input_tokens: 1312, input_tokens_details: { cached_tokens: 1024 }, output_tokens: 4, total_tokens: 1316 } };
+    res.end(`data: ${JSON.stringify({ type: 'response.completed', response })}\n\n`);
+  });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => new Promise(resolve => server.close(resolve)));
+  const dataRoot = await mkdtemp(join(tmpdir(), 'shotloom-cache-'));
+  const desktop = await startDesktopHost({ ...options(dataRoot), distIndex: join(root, 'harness/host/client-dist/index.html'), bridge: { url: 'http://127.0.0.1:1', token: 'cache-test' } });
+  t.after(async () => { await desktop.host.dispose(); await rm(dataRoot, { recursive: true, force: true }); });
+  const profile = { api: 'openai-responses', baseURL: `http://127.0.0.1:${server.address().port}/v1`, cacheRetention: 'long',
+    models: [{ id: 'cache-model', name: 'Cache model', input: ['text'] }] };
+  const providers = { 'shotloom-cache': { key: 'local-test-key', profile } };
+  const defaultModel = { provider: 'shotloom-cache', model: 'cache-model' };
+  const { sessionId } = await desktop.bind({ binding, tools: [], skills: [], providers, defaultModel });
+  const agent = desktop.host.ctx.agents.get(sessionId);
+  await send(agent, 'first cache inspection');
+  assert.equal(requests[0].prompt_cache_key, sessionId);
+  assert.equal(requests[0].prompt_cache_retention, '24h');
+  const { cacheRetention: _retention, ...automatic } = profile;
+  await desktop.bind({ binding, sessionId, tools: [], skills: [], defaultModel,
+    providers: { 'shotloom-cache': { key: 'local-test-key', profile: automatic } } });
+  await send(agent, 'second cache inspection');
+  assert.equal(requests[1].prompt_cache_key, sessionId);
+  assert.equal(requests[1].prompt_cache_retention, undefined);
+  const usage = desktop.host.ctx.sessionProjections.snapshot(agent.session).values.tokenUsage;
+  assert.equal(usage.cacheReadTokens, 2048);
+  assert.equal(usage.uncachedInputTokens, 576);
+  assert.equal(usage.outputTokens, 8);
+});
+
+test('official Chat Completions adapter normalizes standard, DeepSeek and Kimi cache receipts', { timeout: 15000 }, async t => {
+  const { startDesktopHost } = await import('../dist/desktopHost.js');
+  const shapes = [{ prompt_tokens_details: { cached_tokens: 1024 } }, { prompt_cache_hit_tokens: 1024 }, { cached_tokens: 1024 }];
+  let count = 0;
+  const server = createServer(async (req, res) => {
+    let raw = ''; for await (const chunk of req) raw += chunk;
+    const request = JSON.parse(raw);
+    assert.equal(request.prompt_cache_retention, undefined);
+    assert.equal(request.stream_options.include_usage, true);
+    res.writeHead(200, { 'content-type': 'text/event-stream' });
+    const chunk = { id: `cache-${count}`, object: 'chat.completion.chunk', created: 1, model: 'cache-model',
+      choices: [{ index: 0, delta: { content: 'verified' }, finish_reason: 'stop' }],
+      usage: { prompt_tokens: 1312, completion_tokens: 4, total_tokens: 1316, ...shapes[count++] } };
+    res.end(`data: ${JSON.stringify(chunk)}\n\ndata: [DONE]\n\n`);
+  });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => new Promise(resolve => server.close(resolve)));
+  const dataRoot = await mkdtemp(join(tmpdir(), 'shotloom-vendor-cache-'));
+  const desktop = await startDesktopHost({ ...options(dataRoot), distIndex: join(root, 'harness/host/client-dist/index.html'), bridge: { url: 'http://127.0.0.1:1', token: 'cache-test' } });
+  t.after(async () => { await desktop.host.dispose(); await rm(dataRoot, { recursive: true, force: true }); });
+  const { sessionId } = await desktop.bind({ binding, tools: [], skills: [],
+    providers: { 'vendor-cache': { key: 'local-test-key', profile: { api: 'openai-completions',
+      baseURL: `http://127.0.0.1:${server.address().port}/v1`, cacheRetention: 'long',
+      models: [{ id: 'cache-model', name: 'Cache model', input: ['text'], compat: { supportsLongCacheRetention: false } }] } } },
+    defaultModel: { provider: 'vendor-cache', model: 'cache-model' } });
+  const agent = desktop.host.ctx.agents.get(sessionId);
+  for (let i = 0; i < shapes.length; i++) {
+    await send(agent, `inspect usage shape ${i}`);
+    const usage = desktop.host.ctx.sessionProjections.snapshot(agent.session).values.tokenUsage;
+    assert.equal(usage.cacheReadTokens, 1024 * (i + 1));
+    assert.equal(usage.uncachedInputTokens, 288 * (i + 1));
+  }
+  assert.equal(count, 3);
+});
+
 test('durable mutation receipts survive Host restart and uncertain dispatches never replay', { timeout: 15000 }, async t => {
   const dataRoot = await mkdtemp(join(tmpdir(), 'shotloom-receipts-'));
   let writes = 0;

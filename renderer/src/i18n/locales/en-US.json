@@ -1,4 +1,12 @@
 {
+  "catalog.validation.agentCompat": "{value0}: agent.compat contains unsupported protocol fields or values",
+  "plugins.cacheRetention": "Agent prompt cache",
+  "plugins.cacheRetentionAuto": "Automatic (default)",
+  "plugins.cacheRetentionShort": "Short retention",
+  "plugins.cacheRetentionLong": "Long retention",
+  "plugins.cacheRetentionHint": "Applies to Agent requests only. Long retention requires plugin support (24 hours for OpenAI, 1 hour for Claude). Other providers keep their automatic caching behavior. Actual hits come from usage receipts.",
+  "agent.usageDetails": "Usage details",
+  "agent.usageDetailsHint": "Toggle detailed turn and session usage. Click a token count to inspect cache reads, uncached input and output.",
   "project.version.saved": "Saved versions",
   "project.version.readOnly": "Read-only",
   "project.version.nodeList": "Node list",

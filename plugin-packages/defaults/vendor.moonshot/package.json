@@ -1,6 +1,6 @@
 {
   "name": "@shotloom/shotloom-plugin-moonshot",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Moonshot Kimi 厂商插件，统一提供模型和画布工具，共用连接与 API Key。",
   "keywords": [
     "shotloom-plugin"

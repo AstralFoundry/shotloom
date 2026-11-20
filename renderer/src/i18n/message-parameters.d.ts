@@ -1,5 +1,6 @@
 // 从 locales/zh-CN.json 生成；请运行 node scripts/generate-i18n-types.mjs。
 export interface MessageParameters {
+  "catalog.validation.agentCompat": Record<"value0", string | number>;
   "agent.skillRefreshFailed": Record<"error", string | number>;
   "project.copied": Record<"name", string | number>;
   "project.exported": Record<"count", string | number>;

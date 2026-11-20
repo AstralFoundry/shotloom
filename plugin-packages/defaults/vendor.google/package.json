@@ -1,6 +1,6 @@
 {
   "name": "@shotloom/shotloom-plugin-google",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Google Gemini 厂商插件，统一提供模型和画布工具，共用连接与 API Key。",
   "keywords": [
     "shotloom-plugin"

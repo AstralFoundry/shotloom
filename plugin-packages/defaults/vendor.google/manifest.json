@@ -3,7 +3,7 @@
   "kind": "vendor",
   "id": "vendor.google",
   "name": "Google Gemini",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "shotloom": ">=0.9.2, <1.0.0",
   "iconId": "gemini",
   "description": "Google Gemini 厂商插件，统一提供模型和画布工具，共用连接与 API Key。",
@@ -23,7 +23,13 @@
         },
         "agent": {
           "transport": "provider-default",
-          "supportsTools": true
+          "supportsTools": true,
+          "compat": {
+            "supportsLongCacheRetention": false,
+            "supportsStore": false,
+            "supportsDeveloperRole": false,
+            "maxTokensField": "max_tokens"
+          }
         },
         "auth": {
           "type": "bearer"
@@ -112,7 +118,13 @@
         },
         "agent": {
           "transport": "provider-default",
-          "supportsTools": true
+          "supportsTools": true,
+          "compat": {
+            "supportsLongCacheRetention": false,
+            "supportsStore": false,
+            "supportsDeveloperRole": false,
+            "maxTokensField": "max_tokens"
+          }
         },
         "auth": {
           "type": "bearer"

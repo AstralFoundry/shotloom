@@ -3,7 +3,7 @@
   "kind": "vendor",
   "id": "vendor.minimax",
   "name": "MiniMax",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "shotloom": ">=0.9.2, <1.0.0",
   "iconId": "minimax",
   "description": "MiniMax 厂商插件，统一提供模型和画布工具，共用连接与 API Key。",
@@ -1143,6 +1143,12 @@
             "path": "/v1/chat/completions",
             "method": "POST",
             "scope": "root"
+          },
+          "compat": {
+            "supportsLongCacheRetention": false,
+            "supportsStore": false,
+            "supportsDeveloperRole": false,
+            "maxTokensField": "max_tokens"
           }
         },
         "auth": {

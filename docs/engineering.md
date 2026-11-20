@@ -28,6 +28,8 @@ Agent Host 发行资源由 `scripts/prepare-harness.mjs` 在临时目录准备�
 
 ## Agent 工具的暴露与可见性
 
+Agent 模型请求由官方 `dsh-llm-pi-ai` 适配器序列化。连接级 `providerConfigs.cacheRetention` 只保存 `short` / `long`；省略表示适配器默认值，不能把省略或 `none` 宣称为关闭服务端自动缓存。长期保留需要渠道和模型支持；OpenAI Responses 由适配器映射为 `prompt_cache_retention: "24h"`。会话 ID、缓存键及缓存 token 回执继续交给官方插件处理。聊天顶部的用量明细开关复用官方 `performance-usage` 设置，展示官方每轮及会话用量，不另建统计状态或推测命中。
+
 工具可见性有四层判定，全部在 `renderer/src/agent/core/visibility.ts` 与 `renderer/src/services/harnessProductTools.ts` 里实现：
 
 1. `agent/agents/definitions.ts` 的 tools 白名单（fail-closed，新工具默认对所有 Agent 不可见）。

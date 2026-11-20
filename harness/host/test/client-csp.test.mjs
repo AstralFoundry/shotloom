@@ -18,7 +18,7 @@ test('built Harness carrier imports when JavaScript code generation is disabled'
 
       const moduleUrl = 'shotloom://app/harness/client.js';
       const context = vm.createContext({
-        console, URL, URLSearchParams, TextEncoder, TextDecoder,
+        console, URL, URLSearchParams, TextEncoder, TextDecoder, AbortController,
         queueMicrotask, structuredClone, setTimeout, clearTimeout, setInterval, clearInterval, addEventListener() {}, removeEventListener() {},
         navigator: { language: 'en-US' },
         document: { compatMode: 'CSS1Compat', createElement: () => ({ style: {}, setAttribute() {} }) }, location: { href: 'shotloom://app/index.html' },
@@ -27,7 +27,7 @@ test('built Harness carrier imports when JavaScript code generation is disabled'
       context.self = context;
       const code = readFileSync(process.argv[2], 'utf8');
       // Test-only export of the actual loader configuration function in the bundled module.
-      const carrier = new vm.SourceTextModule(code + '\nexport { interpolate as testInterpolate };', {
+      const carrier = new vm.SourceTextModule(code + '\nexport { interpolate as testInterpolate, chatLayout as testChatLayout, SlotCore as TestSlotCore };', {
         context, identifier: moduleUrl,
         initializeImportMeta(meta) { meta.url = moduleUrl; },
       });
@@ -41,6 +41,17 @@ test('built Harness carrier imports when JavaScript code generation is disabled'
       assert.throws(() => carrier.namespace.testInterpolate({}, expression), {
         message: /Dynamic YAML expressions are unavailable in the native Harness client/,
       });
+      // Exercise the actual embedded layout with the official slot registry:
+      // preference contributions must be available without a General page.
+      const slots = new carrier.namespace.TestSlotCore();
+      carrier.namespace.testChatLayout({
+        slots: { register: slots.register.bind(slots), provideRoot() {} },
+        reflect: { provide() {} }, effect() {}, inject() {},
+      });
+      assert.equal(slots.specDynamic('settings.general.item')?.kind, 'list');
+      assert.equal(slots.specDynamic('settings.general.item')?.scope, 'root');
+      slots.register({ name: 'settings.general.item', id: 'performance-usage' }, () => null);
+      assert.equal(slots.entriesOfSlot('settings.general.item')[0].options.id, 'performance-usage');
     `,
   });
   assert.ifError(result.error);

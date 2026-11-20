@@ -48,6 +48,7 @@ export function ProviderPluginsPanel({ standalone = false }: { standalone?: bool
   const [editing, setEditing] = useState<ProviderConnection | null>(null);
   const [apiKey, setApiKey] = useState('');
   const [baseUrl, setBaseUrl] = useState('');
+  const [cacheRetention, setCacheRetention] = useState<'auto' | 'short' | 'long'>('auto');
   const [confirmRemove, setConfirmRemove] = useState(false);
   const selected = plugins.find(plugin => plugin.manifest.id === selectedId);
   const connections = providerConnections();
@@ -83,6 +84,7 @@ export function ProviderPluginsPanel({ standalone = false }: { standalone?: bool
     setEditing(next);
     const config = settingsStore.providerConfigs[next.id];
     setApiKey(config?.apiKey || ''); setBaseUrl(config?.baseUrl || next.baseUrl || ''); setError('');
+    setCacheRetention(config?.cacheRetention || 'auto');
   }
   function updateModel(index: number, model: PluginModel) {
     if (!editing) return;
@@ -163,7 +165,9 @@ export function ProviderPluginsPanel({ standalone = false }: { standalone?: bool
 
     <Modal className="provider-plugin-settings-modal" centered title={selected ? <div className="provider-plugin-settings-title"><ProviderBrandIcon src={selected.manifest.iconData} icon={selected.manifest.iconId || selected.manifest.providers[0]?.iconId || 'custom'} /><span>{selected.manifest.name}<small>v{selected.manifest.version}</small></span></div> : t('plugins.settings')} open={Boolean(selected)} onCancel={() => { if (!busy) { setSelectedId(''); setEditing(null); } }} footer={selectedView === 'settings' && editing ? <div className="provider-plugin-settings-footer">{errorNotice}<Button disabled={busy} onClick={() => { setEditing(null); setSelectedId(''); }}>{t('plugins.cancel')}</Button><Button type="primary" loading={busy} disabled={busy || !editing.name.trim()} onClick={() => void run(async () => {
       await saveProviderConnection({ ...editing, name: editing.name.trim(), baseUrl, pluginId: editing.pluginId, presetId: editing.presetId });
-      await saveAppSettings({ providerConfigs: { ...settingsStore.providerConfigs, [editing.id]: { apiKey, baseUrl } } });
+      await saveAppSettings({ providerConfigs: { ...settingsStore.providerConfigs, [editing.id]: { ...settingsStore.providerConfigs[editing.id], apiKey, baseUrl,
+        cacheRetention: cacheRetention === 'auto' ? undefined : cacheRetention,
+      } } });
       showSuccessToast(t('plugins.saved'));
     })}>{t('plugins.save')}</Button></div> : null} width={1000}>
       {selected && <div className="provider-plugin-dialog provider-plugin-inspector">
@@ -178,6 +182,14 @@ export function ProviderPluginsPanel({ standalone = false }: { standalone?: bool
         <label>{t('plugins.connectionName')}<Input value={editing.name} onChange={event => setEditing({ ...editing, name: event.target.value })} /></label>
         <label>{t('plugins.endpoint')}<Input value={baseUrl} onChange={event => setBaseUrl(event.target.value)} /></label>
         <label className="provider-plugin-key-field">API Key<Input.Password value={apiKey} onChange={event => setApiKey(event.target.value)} autoComplete="off" /></label>
+        {editing.models?.some(model => model.type === 'textGeneration') && <label>{t('plugins.cacheRetention')}<Select
+          aria-label={t('plugins.cacheRetention')} value={cacheRetention} onChange={setCacheRetention} disabled={busy}
+          options={[
+            { value: 'auto', label: t('plugins.cacheRetentionAuto') },
+            { value: 'short', label: t('plugins.cacheRetentionShort') },
+            { value: 'long', label: t('plugins.cacheRetentionLong') },
+          ]}
+        /><small>{t('plugins.cacheRetentionHint')}</small></label>}
         </div>
         </section>
 

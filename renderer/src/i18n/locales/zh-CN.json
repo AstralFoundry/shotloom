@@ -1,4 +1,12 @@
 {
+  "catalog.validation.agentCompat": "{value0} 的 agent.compat 含不支持的协议字段或值",
+  "plugins.cacheRetention": "Agent 提示词缓存",
+  "plugins.cacheRetentionAuto": "自动（默认）",
+  "plugins.cacheRetentionShort": "短期保留",
+  "plugins.cacheRetentionLong": "长期保留",
+  "plugins.cacheRetentionHint": "仅影响 Agent 请求。长期保留需插件声明支持（OpenAI 为 24 小时，Claude 为 1 小时）；其余厂商保留自动缓存机制。实际命中以用量回执为准。",
+  "agent.usageDetails": "用量明细",
+  "agent.usageDetailsHint": "切换每轮用量及会话统计明细；点击用量数字可查看缓存读取、普通输入和输出。",
   "project.version.saved": "已保存版本",
   "project.version.readOnly": "只读预览",
   "project.version.nodeList": "节点清单",

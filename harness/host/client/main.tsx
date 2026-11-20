@@ -169,6 +169,20 @@ function installEmbeddedChat(ctx: ClientContext) {
     ctx.slots.register({ name: 'shotloom.stats', id, inject: entry.inject, store: entry.store, locale: entry.locale } as never, entry.component as never);
     ctx.slots.register({ name: 'conversation.composer.dock', id, priority: -100 }, () => null);
   }
+  const usageSetting = ctx.slots.entriesOfSlot('settings.general.item').find(row => row.options.id === 'performance-usage');
+  if (!usageSetting) throw new Error(t('agent.client.statisticMissing', { id: 'performance-usage' }));
+  function UsageDetails({ usePerformanceUsage, setPerformanceUsage }: {
+    usePerformanceUsage<T>(selector: (mode: 'compact' | 'detailed') => T): T;
+    setPerformanceUsage(mode: 'compact' | 'detailed'): void;
+  }) {
+    const detailed = usePerformanceUsage(mode => mode === 'detailed');
+    return <button type="button" className="shotloom-composer-control" aria-pressed={detailed}
+      title={t('agent.usageDetailsHint')} onClick={() => setPerformanceUsage(detailed ? 'compact' : 'detailed')}>
+      {t('agent.usageDetails')}
+    </button>;
+  }
+  ctx.slots.register({ name: 'shotloom.stats', id: 'usage-details', order: 20,
+    inject: usageSetting.inject, store: usageSetting.store, locale: usageSetting.locale } as never, UsageDetails as never);
 }
 
 // Only Shotloom's containing layout. Official plugins own every chat surface.
@@ -189,6 +203,9 @@ function chatLayout(ctx: ClientContext) {
   ctx.slots.register({ name: 'root', children: {
     main: { kind: 'keyed', scope: 'root' },
     'shell.overlay': { kind: 'list', scope: 'root' },
+    // The embedded shell omits General settings. Declare its contribution slot
+    // so official preference hooks register before we reuse them in the header.
+    'settings.general.item': { kind: 'list', scope: 'root' },
   } }, ({ renderSlot }: PropsRenderSlots<'main' | 'shell.overlay'>) => (
     <div className="shotloom-agent-overlays">{renderSlot('main', {}, { entryKey: 'conversation' })}{renderSlot('shell.overlay', {})}</div>
   ));

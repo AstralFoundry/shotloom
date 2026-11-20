@@ -230,6 +230,8 @@ RunningHub's upload, workflow and polling code lives in its package runtime and 
 
 ## 插件市场 / Plugin marketplace
 
+Agent 文本请求的厂商缓存能力、设置、统计边界与验证方式见 [Agent 提示词缓存](./agent-prompt-cache.md)。
+
 分类栏的「插件市场」默认进入 npm 社区搜索，仅展示包名符合 `shotloom-plugin-xxx` 或 `@scope/shotloom-plugin-xxx` 的结果。支持搜索、分页和安装前检查；搜索结果不代表已验证的兼容插件。下载源默认使用 npm 官方源，也可选择 npmmirror，搜索、版本解析和安装使用同一个选定源。市场不维护内置推荐清单，也不会自动安装搜索结果。
 
 The marketplace opens npm community search by default and filters package names to the Shotloom plugin naming convention. It supports pagination and package inspection before installation. Choose the official npm registry (default) or npmmirror for search and installation. Search results are not compatibility endorsements.

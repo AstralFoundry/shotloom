@@ -3,7 +3,7 @@
   "kind": "vendor",
   "id": "vendor.zhipu",
   "name": "智谱 GLM",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "shotloom": ">=0.9.2, <1.0.0",
   "iconId": "zhipu",
   "description": "智谱 GLM 厂商插件，统一提供模型和画布工具，共用连接与 API Key。",
@@ -20,7 +20,13 @@
         },
         "agent": {
           "transport": "provider-default",
-          "supportsTools": true
+          "supportsTools": true,
+          "compat": {
+            "supportsLongCacheRetention": false,
+            "supportsStore": false,
+            "supportsDeveloperRole": false,
+            "maxTokensField": "max_tokens"
+          }
         },
         "auth": {
           "type": "bearer"

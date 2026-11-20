@@ -97,6 +97,15 @@ export interface CatalogAgentProtocol {
   supportsTools: boolean;
   endpoint?: CatalogEndpoint;
   requestOptions?: Record<string, unknown>;
+  /** Explicit wire capabilities forwarded to the official Harness adapter. */
+  compat?: {
+    supportsLongCacheRetention?: boolean;
+    supportsCacheControlOnTools?: boolean;
+    supportsStore?: boolean;
+    supportsDeveloperRole?: boolean;
+    supportsReasoningEffort?: boolean;
+    maxTokensField?: 'max_tokens' | 'max_completion_tokens';
+  };
 }
 
 export interface CatalogMode {
@@ -290,6 +299,12 @@ export function catalogModelValidationErrors(
         if (requestOptions !== undefined && (!isRecord(requestOptions) ||
           !isJsonValue(requestOptions))) {
           errors.push(t('catalog.validation.agentOptions', { value0: location }));
+        }
+        const compat = mode.agent.compat;
+        if (compat !== undefined && (!isRecord(compat) || Object.entries(compat).some(([key, value]) =>
+          key === 'maxTokensField' ? value !== 'max_tokens' && value !== 'max_completion_tokens'
+            : !['supportsLongCacheRetention', 'supportsCacheControlOnTools', 'supportsStore', 'supportsDeveloperRole', 'supportsReasoningEffort'].includes(key) || typeof value !== 'boolean'))) {
+          errors.push(t('catalog.validation.agentCompat', { value0: location }));
         }
       }
     }
