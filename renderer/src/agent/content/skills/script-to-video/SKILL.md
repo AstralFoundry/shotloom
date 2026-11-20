@@ -1,7 +1,7 @@
 ---
 name: script-to-video
 description: 从用户上传或画布中已有的完整剧本出发，连续完成成片规格、忠实故事板、元素与镜头 Prompt Draft，再按实际模型能力生成一致性元素图、剧情镜头和声音交接内容。
-metadata: {"category":"video","version":9}
+metadata: {"category":"video","version":10}
 contracts:
   - safety-rules
   - production-governance
@@ -25,6 +25,8 @@ contracts:
 - 任一写入发生 revision 冲突时重新读取相关节点，只修复尚未成功的动作；已经返回成功 `nodeIds`、`edgeIds` 或 `taskIds` 的操作不得整批重放。
 
 ## 原生阶段
+
+剧本进入镜头制作、已有资产改版或生成中断时，加载 `video-production`，再用 `read_skill_reference` 读取其 [导演意图、版本交接与恢复](video-production/references/drama-production-handoffs.md)；name 使用该 Skill 名，file 使用相对于该 Skill 目录的路径。本 Skill 继续负责执行，沿用现有计划和真实节点，只复核受影响依赖。
 
 ### 1. 剧本准备与成片规格
 
@@ -80,7 +82,7 @@ contracts:
 
 ### 7. 声音与剪辑交接
 
-依据故事板生成对白、旁白、音乐和拟音。存在兼容音频模型时使用 `video-audio-design`；不存在时创建 `video-audio-production-sheet` 文本节点，明确它是声音后期执行单而不是已生成音频。用户已上传音色参考时，将真实音频输入绑定到相应角色，不能用文字说明冒充连接。声音节点或执行单就绪后继续整理剪辑交接；用户明确要求试听或审阅时才暂停。
+先试听当前采用视频的实际音轨，核对台词、说话者、可懂度、同步与现场声；合格原声继续复用。依据故事板和实际缺口补充对白、旁白、音乐与拟音，不因进入声音阶段而整轨重配。存在兼容音频模型时使用 `video-audio-design`；不存在时创建 `video-audio-production-sheet` 文本节点，明确它是声音后期执行单而不是已生成音频。用户已上传音色参考时，将真实音频输入绑定到相应角色，不能用文字说明冒充连接。声音节点或执行单就绪后继续整理剪辑交接；用户明确要求试听或审阅时才暂停。
 
 Shotloom 的画布工具不直接操作剪辑时间线；剪辑工作区的 Agent 拥有独立时间线工具。所有镜头和声音就绪后，按故事板顺序整理节点，把最终剪辑执行单写入本阶段的制作计划描述并在回复中完整给出，写明镜头顺序、入出点、对白/旁白/BGM/拟音位置、转场和导出规格，然后引导用户从视频节点进入剪辑工作区完成组装与导出。没有真实编辑器成品或成功导出回执时，不得声称完整视频已经合成。
 

@@ -42,6 +42,8 @@ Web、桌面和移动 WebView 的 Agent 循环统一运行于 Dedicated Worker�
 
 ## 生产发布与流式连接
 
+短剧流程参考同一源分支 `eeacfeb7b91d4053de9c85c47f60d13f0bc3b5d0` 的 `short-drama`：导演本、制作计划、声音设计、恢复与剪辑交付方法，汇入 `video-production/references/drama-production-handoffs.md` 及现有剧本生视频、剪辑 Skill。保留场次意图到逐镜验收、受影响依赖复核、未知提交先查原任务、原声复用与最终声轨字幕；不迁入固定九阶段门禁、版本账本服务、厂商特例或 Remotion 专用工具。
+
 `mail` 上发布必须先启动并验证独立候选容器，再用 `scripts/activate-production.sh <release目录> <候选容器名> <候选端口>` 切换。脚本先重载 nginx，让新请求进入候选，等待旧 nginx worker 退出、已有模型流完成后才重建正式容器；正式容器验证通过后切回，再排空候选连接。排空超时保留两个容器，不强制终止流。不要在用户使用时直接 `compose up --force-recreate` 替换正在接流量的容器。
 
 发布目录需包含源码和构建产物 `build/`、`revision`、`release.before`、`previous-image.txt`、`image.txt`、`compose.production.yaml`、候选验证结果 `candidate-smoke.json` 与可运行的 `smoke.mjs`。脚本校验旧版本和镜像身份，保留旧 hash 静态资源并记录 nginx/Compose 配置备份。服务端收到停止信号后等待现有响应结束，Compose 提供 16 分钟退出宽限期；不自动重放模型或付费工具调用。

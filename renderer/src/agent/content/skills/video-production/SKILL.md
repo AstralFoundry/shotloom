@@ -1,7 +1,7 @@
 ---
 name: video-production
 description: 统筹短片、MV、预告和品牌影像制作，组织真实画布节点与输入依赖，并按任务范围推进生成和核验。
-metadata: {"category":"video","version":17}
+metadata: {"category":"video","version":18}
 ---
 
 # 全流程影像制作
@@ -9,6 +9,8 @@ metadata: {"category":"video","version":17}
 这是视频制作的编排 Skill，不承载所有写作、视觉设计、音频设计和模型参数细节。先识别输入成熟度与用户要交付的层级，再组织制作；本 Skill 负责选择顺序、建立依赖、写入画布和核验结果。若本轮已经加载本 Skill，就由它继续完成用户目标；新建具名人物身份资产时，调用 `skill` 加载 `character-board`；为场景、道具或分镜静帧写图片提示词时，调用 `skill` 加载 `visual-prompt-craft`；为视频镜头写提示词，或创建、配置、更新任何视频生成节点时，必须调用 `skill` 加载 `short-drama-video-prompt`，不能因为用户没有明确说“提示词”而跳过。辅助 Skill 只负责对应内容标准，执行仍回到本流程。
 
 ## 编排流程
+
+短剧从剧本进入镜头制作、上游改版或生成中断时，读取 [短剧制作交接与恢复](references/drama-production-handoffs.md)，把导演意图、受影响依赖与实际任务结果写回现有计划。
 
 1. 判断当前输入是主题、小说/长篇、梗概、剧本、分镜、参考素材还是已有成片，并确认用户要分析、规划、生成还是完整执行。
 2. 只补下一项必要工作：不把小说直接当分镜，不重做已有剧本或镜头表，也不因为流程完整而创建无用文档。
