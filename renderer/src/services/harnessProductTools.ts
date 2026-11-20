@@ -100,11 +100,11 @@ export function bindProductSession(binding: ProductBinding) {
 export async function executeProductRequest(request: {
   requestId: string; binding: ProductBinding; toolName: string; input: JsonObject;
   phase?: string; approvedByHarness?: boolean; authorizedByFullAccess?: boolean;
-}): Promise<unknown> {
+}, signal?: AbortSignal): Promise<unknown> {
   const registered = bindings.get(request.binding?.sessionId);
   if (!registered || (['sessionId', 'projectKey', 'conversationId', 'agentId', 'nodeId'] as const).some(key => registered.binding[key] !== request.binding[key])) throw new Error(t('agent.bindingUnknown'));
   const { binding, context } = registered;
-  const callContext = { ...context, requestId: request.requestId, turnId: request.requestId, agentSessionId: binding.sessionId };
+  const callContext = { ...context, signal: signal || context.signal, requestId: request.requestId, turnId: request.requestId, agentSessionId: binding.sessionId };
   assertAgentProject(context.projectKey, context.projectInstanceId, context.projectGeneration);
   const conversation = store.project.harnessSessions?.find((item: { id?: string }) => item.id === binding.conversationId);
   if (!conversation || conversation.agentId !== binding.agentId) throw new Error(t('agent.bindingChanged'));

@@ -11,7 +11,7 @@ import { modelResponseError, parseModelResponseText } from '../utils/modelRespon
 import { createChatCompletionStreamAccumulator, parseChatCompletionSseLine } from '../utils/chatCompletionStream';
 import { createAgentProtocolAccumulator, normalizeAgentProtocolResponse } from '../utils/agentProtocolStream';
 import { probeEditorMedia, inferEditorMediaType } from '../utils/editorMediaImport';
-import { captureVideoFrame, cropImage, type CropRect } from './browserMedia';
+import { captureVideoFrame, cropImage, imagePreview, type CropRect } from './browserMedia';
 import { projectBundle, mapProjectMedia, exportProjectPackage, readProjectPackage, type ProjectBundle } from './cloudProjectPackage';
 import { createCloudDirectorModels } from './cloudDirectorModels';
 import { createCloudCatalogs } from './cloudCatalogs';
@@ -509,7 +509,7 @@ export function createCloudApi(local: PlatformApi): PlatformApi {
         const [file] = await pickFiles(`${type}/*`); return file ? upload(file, file.name) : null;
       },
       readArrayBuffer: async (path: string) => (await readBlob(path)).arrayBuffer(),
-      readImagePreview: async (path: string) => (await readBlob(path)).arrayBuffer(),
+      readImagePreview: async (path: string, maxSize = 960) => (await imagePreview(await readBlob(path), maxSize)).arrayBuffer(),
       cropImageToProject: async (path: string, name = 'cropped-image.png', crop: CropRect) => upload(await cropImage(await readBlob(path), crop), name),
       captureVideoFrameToProject: async (path: string, seconds: number, name = 'frame.png') => upload(await captureVideoFrame(mediaFileUrl(path), seconds), name),
       applyColoredPencil: (source: string, name = 'colored-pencil.png') => nativeJob(async (directory, stage) => {

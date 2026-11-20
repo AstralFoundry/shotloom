@@ -87,6 +87,60 @@ test('named product catalog covers workbenches and excludes generic forwarding a
   assert.ok(!clip.some(tool => tool.name === 'canvas_create_node'));
 });
 
+test('inspect_tasks can wait for real terminal state in one call and cancel without changing tasks', async () => {
+  const { binding } = fixture();
+  projects.store.project.tasks = [{ id: 'wait-task', status: 'running', progress: 10 }];
+  const waiting = tools.executeProductRequest(request(binding, 'inspect_tasks', { taskIds: ['wait-task'], waitMs: 1000 }));
+  const timer = setTimeout(() => { projects.store.project.tasks[0].status = 'completed'; }, 20);
+  try {
+    const receipt = await waiting;
+    assert.equal(receipt.result.complete, true, JSON.stringify(receipt.result));
+    assert.equal(receipt.result.tasks[0].status, 'completed');
+    projects.store.project.tasks[0].status = 'running';
+    const control = new AbortController();
+    const cancelled = tools.executeProductRequest(request(binding, 'inspect_tasks', { taskIds: ['wait-task'], waitMs: 1000 }), control.signal);
+    control.abort(new Error('user stopped'));
+    await assert.rejects(cancelled, /user stopped/);
+    assert.equal(projects.store.project.tasks[0].status, 'running');
+  } finally { clearTimeout(timer); }
+});
+
+test('task waiting returns real failures, timeouts and missing IDs and rejects project changes', async () => {
+  const { binding } = fixture();
+  projects.store.project.tasks = [{ id: 'task-a', status: 'running', prompt: 'large prompt stays out of status receipts' }, { id: 'task-b', status: 'queued' }];
+  const inspect = input => tools.executeProductRequest(request(binding, 'inspect_tasks', input));
+  const immediate = await inspect({ taskIds: ['task-a'] });
+  assert.equal(immediate.result.tasks[0].status, 'running');
+  assert.equal('prompt' in immediate.result.tasks[0], false);
+  const timed = await inspect({ taskIds: ['task-a'], waitMs: 10 });
+  assert.equal(timed.result.complete, false);
+  assert.equal(timed.result.tasks[0].status, 'running', 'waiting must not time out the generation itself');
+  const missing = await inspect({ taskIds: ['missing'], waitMs: 1000 });
+  assert.deepEqual(missing.result.missingTaskIds, ['missing']);
+  const failed = inspect({ taskIds: ['task-a', 'task-b'], waitMs: 1000 });
+  projects.store.project.tasks[0].status = 'failed';
+  projects.store.project.tasks[0].error = 'upstream rejected input';
+  assert.equal((await failed).result.tasks[0].error, 'upstream rejected input');
+  const changed = inspect({ taskIds: ['task-b'], waitMs: 1000 });
+  projects.store.project = normalization.createProject('another project');
+  await assert.rejects(changed, /工程|project/i);
+});
+
+test('task waiting spans intermediate completions in a batch and wakes on cancellation', async () => {
+  const { binding } = fixture();
+  projects.store.project.tasks = [{ id: 'first', status: 'running' }, { id: 'second', status: 'queued' }];
+  let settled = false;
+  const waiting = tools.executeProductRequest(request(binding, 'inspect_tasks', { taskIds: ['first', 'second'], waitMs: 1000 }))
+    .then(receipt => { settled = true; return receipt; });
+  projects.store.project.tasks[0].status = 'completed';
+  await new Promise(resolve => setTimeout(resolve, 10));
+  assert.equal(settled, false);
+  projects.store.project.tasks[1].status = 'cancelled';
+  const receipt = await waiting;
+  assert.equal(receipt.result.complete, false);
+  assert.equal(receipt.result.tasks[1].status, 'cancelled');
+});
+
 test('canvas, editor and director all receive video frame tool with file path and contact sheet options', () => {
   for (const agentId of ['canvas-primary', 'editor-primary', 'director-primary']) {
     const { catalog } = fixture(agentId);

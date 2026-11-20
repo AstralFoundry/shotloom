@@ -128,6 +128,45 @@ test('canvas_media_image 对非图片、无文件和已消失节点分别返回�
   }
 });
 
+test('cloud PNG preview reaches the attachment bridge as actual JPEG bytes without changing the canvas', async () => {
+  const { BrowserAttachments } = await import('../harness/host/browser/attachments.mjs');
+  const { createCloudApi } = await env.load('services/cloudApi');
+  const previous = { fetch: globalThis.fetch, createImageBitmap: globalThis.createImageBitmap, OffscreenCanvas: globalThis.OffscreenCanvas, readImagePreview: desktopApi.file.readImagePreview };
+  const png = new Uint8Array(4.5 * 1024 * 1024);
+  png.set([137, 80, 78, 71, 13, 10, 26, 10]);
+  let closed = 0;
+  globalThis.fetch = async url => url.startsWith('/api/files/sign?')
+    ? Response.json({ success: true, data: { url: 'https://cdn.example/large.png' } })
+    : new Response(png, { headers: { 'Content-Type': 'image/png' } });
+  globalThis.createImageBitmap = async () => ({ width: 4096, height: 2048, close() { closed++; } });
+  globalThis.OffscreenCanvas = class {
+    constructor(width, height) { this.width = width; this.height = height; }
+    getContext() { return { drawImage() {}, fillRect() {}, fillStyle: '' }; }
+    async convertToBlob({ type }) {
+      assert.ok(this.width <= 2048 && this.height <= 2048);
+      return new Blob([type === 'image/jpeg' ? new Uint8Array([255, 216, 255, 224]) : new Uint8Array([82, 73, 70, 70, 0, 0, 0, 0, 87, 69, 66, 80])], { type });
+    }
+  };
+  const project = resetProject();
+  project.nodes = [{ id: 'png-node', type: 'imageGeneration', title: 'PNG', generatedOutputs: [{ filePath: 'cloud://media/large.png', resourceType: 'image', selected: true }] }];
+  const before = JSON.stringify(project);
+  try {
+    desktopApi.file.readImagePreview = createCloudApi({}).file.readImagePreview;
+    const { result } = await call('canvas-primary', 'canvas_media_image', { nodeIds: ['png-node'] });
+    assert.equal(result.success, true, JSON.stringify(result));
+    const attachment = result.__toolAttachments[0];
+    await BrowserAttachments.prototype.validateImage.call({}, { data: new Uint8Array(Buffer.from(attachment.url.split(',')[1], 'base64')), mediaType: attachment.mime });
+    assert.equal(attachment.mime, 'image/jpeg');
+    assert.ok(closed >= 1, 'decoded image resources must be released');
+    assert.equal(JSON.stringify(project), before);
+  } finally {
+    globalThis.fetch = previous.fetch;
+    globalThis.createImageBitmap = previous.createImageBitmap;
+    globalThis.OffscreenCanvas = previous.OffscreenCanvas;
+    desktopApi.file.readImagePreview = previous.readImagePreview;
+  }
+});
+
 test('canvas_media_frame 可从本地文件路径逐张读取，并保留原有节点方式', async () => {
   const project = resetProject();
   project.nodes = [{ id: 'video-1', type: 'videoGeneration', title: '镜头', generatedOutputs: [
