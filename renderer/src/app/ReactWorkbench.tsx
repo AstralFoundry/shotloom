@@ -4,7 +4,7 @@ import { editorLocalMedia } from "./editor/editorLocalMedia";
 import type { VideoEditorIntent } from "./editor/openReel/types";
 import { Modal } from "antd";
 import { ConfirmHost } from "./ui/confirm/ConfirmHost";
-import { useEffect, useReducer, useState, useSyncExternalStore } from "react";
+import { lazy, Suspense, useEffect, useReducer, useRef, useState, useSyncExternalStore } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { registerWindowCloseGuard } from "./windowCloseGuard";
@@ -66,14 +66,30 @@ import { ToastHost } from "./components/ToastHost";
 import { ProjectSearch } from "./components/ProjectSearch";
 import { UpdateDialog } from "./components/UpdateDialog";
 import { CanvasStartup } from "./canvas/CanvasStartup";
-import { CreationView } from "./views/CreationView";
-import { AssetsView } from "./views/AssetsView";
-import { MaterialsView } from "./views/MaterialsView";
-import { ProjectsView } from "./views/ProjectsView";
-import { SettingsFeature } from "./views/SettingsFeature";
-import { AccountView } from './views/AccountView';
-import { SkillsFeature } from "./views/SkillsFeature";
-import { TasksView } from "./views/TasksView";
+const featureModules = {
+  creation: () => import("./views/CreationView"),
+  assets: () => import("./views/AssetsView"),
+  materials: () => import("./views/MaterialsView"),
+  projects: () => import("./views/ProjectsView"),
+  settings: () => import("./views/SettingsFeature"),
+  account: () => import("./views/AccountView"),
+  skills: () => import("./views/SkillsFeature"),
+  tasks: () => import("./views/TasksView"),
+};
+const CreationView = lazy(() => featureModules.creation().then(module => ({ default: module.CreationView })));
+const AssetsView = lazy(() => featureModules.assets().then(module => ({ default: module.AssetsView })));
+const MaterialsView = lazy(() => featureModules.materials().then(module => ({ default: module.MaterialsView })));
+const ProjectsView = lazy(() => featureModules.projects().then(module => ({ default: module.ProjectsView })));
+const SettingsFeature = lazy(() => featureModules.settings().then(module => ({ default: module.SettingsFeature })));
+const AccountView = lazy(() => featureModules.account().then(module => ({ default: module.AccountView })));
+const SkillsFeature = lazy(() => featureModules.skills().then(module => ({ default: module.SkillsFeature })));
+const TasksView = lazy(() => featureModules.tasks().then(module => ({ default: module.TasksView })));
+if (typeof window !== 'undefined' && window.location?.search) {
+  const query = new URLSearchParams(window.location.search);
+  const route = (query.get('route') || (query.has('project') ? 'creation' : 'projects')) as keyof typeof featureModules;
+  void featureModules[route]?.().catch(() => {});
+  if (query.get('panel') === 'settings') void featureModules.settings().catch(() => {});
+}
 import { showToast, showErrorMessage } from "../store/notificationStore";
 import { registerVideoEditorLauncher } from '../services/videoEditorSession';
 import { startHarnessIntegration } from "./agent-session/harnessIntegration";
@@ -91,6 +107,7 @@ export function ReactWorkbench() {
   const [, refresh] = useReducer((value) => value + 1, 0);
   const [settingsOpen, setSettingsOpen] = useState(cloudEnabled && new URLSearchParams(location.search).get('panel') === 'settings');
   const [navigationStatus, setNavigationStatus] = useState<'loading' | 'ready' | 'error'>(cloudEnabled ? 'loading' : 'ready');
+  const loadedPage = useRef(new URLSearchParams(location.search).get('route') || 'projects');
   const [searchOpen, setSearchOpen] = useState(false);
   const [editorNodeId, setEditorNodeId] = useState("");
   const [editorExpanded, setEditorExpanded] = useState(true);
@@ -178,7 +195,7 @@ export function ReactWorkbench() {
       if (directProject) performance.mark('shotloom-preferences-start');
       const preferencesReady = loadAppSettings(cloudEnabled ? { preferencesOnly: true } : undefined);
       const librariesReady = cloudEnabled && !directProject
-        ? Promise.all([loadGlobalSkills(), loadGlobalRecipes(), loadRecentProjects(), initializeResourceLibraries()]) : undefined;
+        ? Promise.all(!requestedRoute || requestedRoute === 'projects' ? [loadRecentProjects()] : []) : undefined;
       void librariesReady?.catch(() => {});
       if (directProject) performance.mark('shotloom-project-start');
       const boundProject = cloudEnabled ? loadBoundWindowProject(async () => {
@@ -209,9 +226,11 @@ export function ReactWorkbench() {
       }
       if (cancelled) return;
       if (requestedRoute) navigateToRoute(requestedRoute, { notify: false });
+      useAppStore.setState({ route: store.route as AppRoute });
       setNavigationStatus('ready');
       if (cloudEnabled) {
-        void Promise.all([...(directProject ? [loadGlobalSkills(), loadGlobalRecipes()] : []), refreshCloudAccountSettings()]).then(() => {
+        void Promise.allSettled([refreshCloudAccountSettings()]).then(results => {
+          for (const result of results) if (!cancelled && result.status === 'rejected') showErrorMessage(String(result.reason));
           if (!cancelled && settingsStore.accountSyncError) showToast(settingsStore.accountSyncError);
         }).catch(cause => { if (!cancelled) showErrorMessage(String(cause)); });
       }
@@ -276,6 +295,14 @@ export function ReactWorkbench() {
       disposeMediaCachePressure?.();
     };
   }, []);
+
+  useEffect(() => {
+    if (!cloudEnabled || navigationStatus !== 'ready' || loadedPage.current === appRoute) return;
+    loadedPage.current = appRoute;
+    const read = appRoute === 'projects' ? loadRecentProjects()
+      : Promise.resolve();
+    void read.catch(cause => showErrorMessage(String(cause)));
+  }, [appRoute, navigationStatus]);
 
   useEffect(() => {
     const opened = hasOpenProject();
@@ -513,7 +540,7 @@ export function ReactWorkbench() {
     <>
       <AppShell
         platform={desktopApi.platform}
-        view={activeView}
+        view={<Suspense fallback={<div role="status">{t('canvas.preparing')}</div>}>{activeView}</Suspense>}
         onVideoEdit={() => canvasCommands.openBlankVideoEditor()}
         onUpdate={onUpdate}
         onNavigationBlocked={() => showToast(t("project.openFirst"))}
@@ -537,7 +564,7 @@ export function ReactWorkbench() {
             },
           }}
         >
-          <SettingsFeature />
+          <Suspense fallback={<div role="status">{t('canvas.preparing')}</div>}><SettingsFeature /></Suspense>
           <footer className="settings-workbench-footer">
             <button
               className="button primary settings-workbench-close"

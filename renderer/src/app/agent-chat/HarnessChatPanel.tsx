@@ -68,6 +68,7 @@ export function HarnessChatPanel({ agentId, nodeId, onClose, onStatusChange, dir
   }, []);
   useEffect(() => {
     let active = true;
+    const control = new AbortController();
     onStatusChange?.('loading');
     setReadyKey('');
     setPanel({ key });
@@ -75,13 +76,13 @@ export function HarnessChatPanel({ agentId, nodeId, onClose, onStatusChange, dir
     const timeout = window.setTimeout(() => {
       if (active) { setFrameError(t('agent.connectionTimeout')); onStatusChange?.('error'); }
     }, 45_000);
-    void openHarnessPanel(agentId, nodeId, selected?.id).then(result => {
+    void openHarnessPanel(agentId, nodeId, selected?.id, control.signal).then(result => {
       if (active) {
         window.clearTimeout(timeout);
         setPanel({ key, sessionId: result.sessionId, tools: result.tools, toolTitles: result.toolTitles });
       }
     }).catch(error => { if (active) { window.clearTimeout(timeout); setPanel({ key, error: String(error) }); onStatusChange?.('error'); } });
-    return () => { active = false; window.clearTimeout(timeout); };
+    return () => { active = false; control.abort(); window.clearTimeout(timeout); };
   }, [key, agentId, nodeId, selected?.id, retry, onStatusChange]);
   useEffect(() => {
     if (panel?.key !== key || !panel.sessionId || !surface.current) return;

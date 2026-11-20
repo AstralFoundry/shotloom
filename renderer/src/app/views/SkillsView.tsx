@@ -1,5 +1,5 @@
 import { t } from '@/i18n';
-import { Checkbox, Drawer, Empty, Switch, Upload } from "antd";
+import { Alert, Checkbox, Drawer, Empty, Pagination, Spin, Switch, Upload } from "antd";
 import { useEffect, useState } from "react";
 import { IconSymbol } from "../components/IconSymbol";
 import { ProjectScopeHeader } from "../components/ProjectScopeHeader";
@@ -34,6 +34,12 @@ export interface SkillsData {
   query: string;
   selectedIds: string[];
   editor: SkillsEditorState | null;
+  page?: number;
+  total?: number;
+  busy?: boolean;
+  error?: string;
+  onPageChange?: (page: number) => void;
+  onRefresh?: () => void;
 }
 
 export interface SkillsController extends SkillEditorController {
@@ -110,6 +116,8 @@ export function SkillsView({ data, controller }: SkillsViewProps) {
       </ProjectScopeHeader>
       <div className="skills-workspace">
         <section className="skills-list-pane" aria-label={t("ui.SkillsView.arialabel.c0e4b0f5")}>
+          {data.error && <Alert type="error" title={data.error} action={<button className="button ghost compact" onClick={data.onRefresh}>{t('support.refresh')}</button>} />}
+          {data.busy && <Spin />}
           <div className="skills-list-summary">
             <Checkbox
               className="skills-select-all"
@@ -176,13 +184,14 @@ export function SkillsView({ data, controller }: SkillsViewProps) {
               </div>
             </div>
           ))}
-          {!data.items.length && (
+          {!data.items.length && !data.busy && !data.error && (
             <Empty
               className="skills-empty"
               image={Empty.PRESENTED_IMAGE_SIMPLE}
               description={t(data.query.trim() ? "ui.SkillsView.text.51c77281" : "skill.empty.user")}
             />
           )}
+          {data.page !== undefined && <Pagination current={data.page} total={data.total || 0} pageSize={20} showSizeChanger={false} onChange={page => data.onPageChange?.(page)} />}
         </section>
         <Drawer
           open={Boolean(data.editor)}

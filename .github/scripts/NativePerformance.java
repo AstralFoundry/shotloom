@@ -29,6 +29,12 @@ public final class NativePerformance extends Instrumentation {
         for (int i=0; i<node.getChildCount(); i++) { AccessibilityNodeInfo hit=find(node.getChild(i),label); if(hit!=null)return hit; }
         return null;
     }
+    private boolean hasWebView(AccessibilityNodeInfo node) {
+        if(node==null)return false;
+        if(String.valueOf(node.getClassName()).contains("WebView"))return true;
+        for(int i=0;i<node.getChildCount();i++)if(hasWebView(node.getChild(i)))return true;
+        return false;
+    }
     private boolean spinning(AccessibilityNodeInfo node) {
         if(node==null)return false;
         if(node.isVisibleToUser() && String.valueOf(node.getClassName()).contains("ProgressBar"))return true;
@@ -70,6 +76,13 @@ public final class NativePerformance extends Instrumentation {
         AccessibilityNodeInfo node=null;
         for(int i=0;i<5;i++){ node=find(ui.getRootInActiveWindow(),label);if(node!=null)break;swipe(); }
         if(node==null)throw new Exception("Target missing: "+label);
+        activate(node);
+    }
+    private void activate(AccessibilityNodeInfo node) {
+        // Accessibility activation survives layout and scrolling between lookup and input.
+        AccessibilityNodeInfo target=node;
+        while(target!=null && !target.isClickable())target=target.getParent();
+        if(target!=null && target.performAction(AccessibilityNodeInfo.ACTION_CLICK))return;
         Rect bounds=new Rect();node.getBoundsInScreen(bounds);
         long down=SystemClock.uptimeMillis();pointer(bounds.centerX(),bounds.centerY(),MotionEvent.ACTION_DOWN,down);pointer(bounds.centerX(),bounds.centerY(),MotionEvent.ACTION_UP,down);
     }
@@ -82,24 +95,24 @@ public final class NativePerformance extends Instrumentation {
         AccessibilityNodeInfo node=null;
         for(int i=0;i<5;i++){node=find(ui.getRootInActiveWindow(),target);if(node!=null)break;swipe();}
         if(node==null)throw new Exception("Target missing: "+target);
-        Rect bounds=new Rect();node.getBoundsInScreen(bounds);
-        long start=SystemClock.elapsedRealtime(),down=SystemClock.uptimeMillis();
-        pointer(bounds.centerX(),bounds.centerY(),MotionEvent.ACTION_DOWN,down);pointer(bounds.centerX(),bounds.centerY(),MotionEvent.ACTION_UP,down);waitReady(ready);
-        JSONObject row=new JSONObject().put("page",name).put("round",round).put("ms",SystemClock.elapsedRealtime()-start).put("atMs",SystemClock.elapsedRealtime());
+        long start=SystemClock.elapsedRealtime();
+        activate(node);waitReady(ready);
+        JSONObject row=new JSONObject().put("page",name).put("round",round).put("ms",SystemClock.elapsedRealtime()-start).put("atMs",SystemClock.elapsedRealtime()).put("atUnixMs",System.currentTimeMillis());
         if(name.equals("account"))row.put("upstreamError",find(ui.getRootInActiveWindow(),"Could not load your balance. Please try again.")!=null);
         pages.put(row);
         SystemClock.sleep(120);
     }
     private void api(String path,int round) throws Exception {
-        long start=SystemClock.elapsedRealtime();HttpURLConnection conn=(HttpURLConnection)new URL("https://shotloom.0xfiang.com/api"+path).openConnection();
+        long start=SystemClock.elapsedRealtime();HttpURLConnection conn=(HttpURLConnection)new URL(args.getString("origin", "https://shotloom.0xfiang.com")+"/api"+path).openConnection();
         if(path.startsWith("/project/"))conn.setRequestProperty("Cookie",args.getString("cookie"));else conn.setRequestProperty("Authorization","Bearer "+args.getString("token"));conn.setConnectTimeout(30000);conn.setReadTimeout(30000);
         int status=conn.getResponseCode();long headers=SystemClock.elapsedRealtime();int bytes=0;
         InputStream stream=status>=400?conn.getErrorStream():conn.getInputStream();
         if(stream!=null){byte[] buffer=new byte[8192];int n;while((n=stream.read(buffer))!=-1)bytes+=n;stream.close();}
-        apis.put(new JSONObject().put("path",path).put("round",round).put("status",status).put("ttfbMs",headers-start).put("totalMs",SystemClock.elapsedRealtime()-start).put("bytes",bytes));conn.disconnect();
+        apis.put(new JSONObject().put("path",path).put("round",round).put("status",status).put("ttfbMs",headers-start).put("totalMs",SystemClock.elapsedRealtime()-start).put("bytes",bytes).put("serverTiming",conn.getHeaderField("Server-Timing")).put("requestId",conn.getHeaderField("X-Request-Id")));conn.disconnect();
     }
     @Override public void onStart() {
         Bundle result=new Bundle();JSONObject report=new JSONObject();String failure=null;
+        long uiStartedAtUnixMs=System.currentTimeMillis();
         try {
             ui=getUiAutomation();
             if("login".equals(args.getString("mode"))) {
@@ -113,14 +126,40 @@ public final class NativePerformance extends Instrumentation {
                 report.put("pages",pages).put("apis",apis).put("failure",JSONObject.NULL);
                 result.putString("stream","PERFORMANCE_JSON "+report.toString()+"\n");finish(-1,result);return;
             }
-            ui.executeShellCommand("am force-stop com.shotloom.app.preview").close();SystemClock.sleep(300);
+            if("return-media".equals(args.getString("mode"))) {
+                page("projects_return","Project library","Android Canvas Acceptance",0);
+                page("media_return","QA Media","100%",0);
+                report.put("pages",pages).put("apis",apis).put("failure",JSONObject.NULL);
+                result.putString("stream","PERFORMANCE_JSON "+report.toString()+"\n");finish(-1,result);return;
+            }
+            if(!"true".equals(args.getString("retain"))) {
+                ui.executeShellCommand("am force-stop com.shotloom.app.preview").close();SystemClock.sleep(2000);
+            }
             long start=SystemClock.elapsedRealtime();
             Intent launch=getContext().getPackageManager().getLaunchIntentForPackage("com.shotloom.app.preview");
             if(launch==null)throw new Exception("Release APK is missing");
-            launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TASK);getContext().startActivity(launch);
+            if(!"true".equals(args.getString("retain"))) { launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TASK);getContext().startActivity(launch); }
             waitReady("Android Canvas Acceptance");
-            pages.put(new JSONObject().put("page","startup_authenticated").put("round",0).put("ms",SystemClock.elapsedRealtime()-start));
-            for(int round=0;round<5;round++) {
+            pages.put(new JSONObject().put("page","startup_authenticated").put("round",0).put("ms",SystemClock.elapsedRealtime()-start).put("atUnixMs",System.currentTimeMillis()));
+            if("media".equals(args.getString("mode"))) {
+                page("media_canvas","QA Media","100%",0);
+                report.put("pages",pages).put("apis",apis).put("failure",JSONObject.NULL);
+                result.putString("stream","PERFORMANCE_JSON "+report.toString()+"\n");finish(-1,result);return;
+            }
+            if("layout".equals(args.getString("mode"))) {
+                page("account_large","My account","Available credits",0);
+                page("settings_large","Settings","Preferences",0);
+                if(hasWebView(ui.getRootInActiveWindow()))throw new Exception("Settings unexpectedly uses WebView");
+                click("简体中文");waitReady("偏好设置");
+                click("English");waitReady("Preferences");
+                click("Default models");
+                if(getContext().getResources().getConfiguration().fontScale < 1.29f)throw new Exception("Large font was not applied");
+                report.put("pages",pages).put("apis",apis).put("failure",JSONObject.NULL).put("chineseAndEnglish",true).put("nativeSettings",true).put("fontScale",getContext().getResources().getConfiguration().fontScale);
+                result.putString("stream","PERFORMANCE_JSON "+report.toString()+"\n");finish(-1,result);return;
+            }
+            page("canvas_immediate","Android Canvas Acceptance","100%",0);
+            page("projects_return","Project library","Android Canvas Acceptance",0);
+            for(int round=0;round<Integer.parseInt(args.getString("rounds", "5"));round++) {
                 page("skills","Skills","Native Acceptance Skill",round);
                 page("projects","Project library","Android Canvas Acceptance",round);
                 page("account","My account","Available credits",round);
@@ -131,14 +170,15 @@ public final class NativePerformance extends Instrumentation {
                 page("feedback_detail","Latency_test_record","Replies",round);back();back();back();accountTop();waitReady("Available credits");
                 page("projects","Project library","Android Canvas Acceptance",round);
             }
-            for(int round=0;round<5;round++) {
+            for(int round=0;round<Integer.parseInt(args.getString("rounds", "5"));round++) {
                 page("canvas","Android Canvas Acceptance","100%",round);
                 page("projects","Project library","Android Canvas Acceptance",round);
             }
         } catch(Exception error) {failure=error.getMessage();}
         try {
+            report.put("uiStartedAtUnixMs",uiStartedAtUnixMs).put("uiEndedAtUnixMs",System.currentTimeMillis());
             String[] paths={"/auth/me","/projects","/library-folders","/catalog/skills","/auth/account","/auth/usage?page=1&page_size=10","/notifications?offset=0&limit=1","/notifications?offset=0&limit=20","/settings/mobile","/models","/feedback?offset=0&limit=20","/feedback/"+args.getString("feedbackId"),"/project/"+args.getString("projectId")};
-            if(!"login".equals(args.getString("mode")))for(int round=0;round<5;round++)for(String path:paths)api(path,round);
+            if(!"login".equals(args.getString("mode")))for(int round=0;round<Integer.parseInt(args.getString("rounds", "5"));round++)for(String path:paths)api(path,round);
             report.put("pages",pages).put("apis",apis).put("failure",failure==null?JSONObject.NULL:failure).put("pollIntervalMs",25);
             result.putString("stream","PERFORMANCE_JSON "+report.toString()+"\n");
         }catch(Exception error){result.putString("stream","PERFORMANCE_FAILED "+error.getMessage()+"\n");failure=error.getMessage();}

@@ -20,9 +20,10 @@ export default defineConfig({
       const entry = path.join(directory, 'index.html');
       const html = await readFile(entry, 'utf8');
       const files = collectWorkspacePreloads(manifest);
+      const pages = Object.fromEntries(['CreationView', 'ProjectsView', 'SkillsFeature', 'AccountView', 'SettingsFeature', 'AssetsView', 'MaterialsView', 'TasksView'].map(name => [name, collectWorkspacePreloads(manifest, ['ReactWorkbench', 'AntdProvider', name])]));
       if (!files.includes(manifest['index.html']?.file) || !html.includes('</head>')) throw new Error('Workspace preload metadata is incomplete');
       // Ship metadata with its page so partial deployments cannot warm a previous release.
-      await writeFile(entry, html.replace('</head>', `<script id="shotloom-workspace-preloads" type="application/json">${JSON.stringify(files)}</script>\n  </head>`));
+      await writeFile(entry, html.replace('</head>', `<script id="shotloom-workspace-preloads" type="application/json">${JSON.stringify(files)}</script>\n<script id="shotloom-page-preloads" type="application/json">${JSON.stringify(pages)}</script>\n  </head>`));
     },
   }],
   base: './',
@@ -53,6 +54,7 @@ export default defineConfig({
       output: {
         // React 与 antd 各自独立：组件库升级不会让 React 缓存失效，反之亦然。
         manualChunks(id) {
+          if (id.includes('/src/i18n/locales/')) return id.includes('/en-US.') ? 'locale-en-US' : 'locale-zh-CN';
           if (!id.includes('node_modules')) return undefined;
           if (
             id.includes('/react/')

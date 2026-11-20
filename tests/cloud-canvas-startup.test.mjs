@@ -6,6 +6,22 @@ const id = '12345678-1234-4234-8234-123456789abc';
 const data = { settings: { locale: 'en-US', agentCanRunNodes: false }, project: { id, nodes: [], storageRevision: 7 }, assets: { assets: [], materials: [], references: [] } };
 const json = value => Response.json({ success: true, data: value });
 
+test('page summary prefetch overlaps workbench code and is reused by the page', async () => {
+  const env = await createRendererEnv({storageMode:'cloud',withWindow:true});
+  const original=globalThis.fetch,calls=[];
+  globalThis.fetch=async url=>{calls.push(url);return json({items:[],total:0,revision:1});};
+  try {
+    window.location={search:'?route=skills'};
+    const {preloadCloudPageStartup}=await env.load('services/cloudCanvasStartup');
+    preloadCloudPageStartup();
+    await new Promise(resolve=>setImmediate(resolve));
+    assert.deepEqual(calls,['/api/catalog/skills/page?search=&offset=0&limit=20']);
+    const {readCatalogPage}=await env.load('services/cloudCatalogPages');
+    await readCatalogPage('skills','search=&offset=0&limit=20');
+    assert.equal(calls.length,1);
+  } finally {globalThis.fetch=original;await env.dispose();}
+});
+
 test('direct canvas consumes one startup response, then refreshes each dependency without stale reuse', async () => {
   const env = await createRendererEnv({ storageMode: 'cloud', withWindow: true });
   const original = globalThis.fetch, calls = [];
@@ -14,9 +30,9 @@ test('direct canvas consumes one startup response, then refreshes each dependenc
   globalThis.fetch = async (url, options) => {
     calls.push(url);
     assert.equal(options.credentials, 'include');
-    if (url.endsWith('/startup')) { await gate; return json(data); }
+    if (url.includes('/startup')) { await gate; return json(data); }
     if (url === '/api/settings') return json({ locale: 'zh-CN' });
-    if (url === '/api/catalog/assets') return json({ assets: [{ id: 'new' }] });
+    if (url === '/api/catalog/assets/versioned') return json({ catalog: { assets: [{ id: 'new' }] }, revision: 1 });
     if (url === `/api/project/${id}`) return json({ ...data.project, storageRevision: 8 });
     assert.fail(`Unexpected request: ${url}`);
   };
@@ -27,7 +43,7 @@ test('direct canvas consumes one startup response, then refreshes each dependenc
     const api = createCloudApi({ project: {}, file: {}, settings: {} });
     pending = Promise.all([loadCloudPreferences(), api.project.readFile(`cloud/projects/${id}/project.sqlite`), api.localAssets.getCatalog()]);
     await new Promise(resolve => setImmediate(resolve));
-    assert.deepEqual(calls, [`/api/project/${id}/startup`]);
+    assert.deepEqual(calls, [`/api/project/${id}/startup?parts=project,settings`]);
     release();
     const [settings, project, assets] = await pending;
     assert.equal(settings.agentCanRunNodes, false);
@@ -47,9 +63,9 @@ test('startup supports old servers, while server failures stay visible and permi
     const original = globalThis.fetch, calls = [];
     globalThis.fetch = async url => {
       calls.push(url);
-      if (url.endsWith('/startup')) return Response.json({ success: false, message: 'Startup unavailable' }, { status });
+      if (url.includes('/startup')) return Response.json({ success: false, message: 'Startup unavailable' }, { status });
       if (url === '/api/settings') return json(data.settings);
-      if (url === '/api/catalog/assets') return json(data.assets);
+      if (url === '/api/catalog/assets/versioned') return json({ catalog:data.assets,revision:0 });
       if (url === `/api/project/${id}`) return json(data.project);
       assert.fail(`Unexpected request: ${url}`);
     };
@@ -58,7 +74,7 @@ test('startup supports old servers, while server failures stay visible and permi
       const { createCloudApi, loadCloudPreferences } = await env.load('services/cloudApi');
       const api = createCloudApi({ project: {}, file: {}, settings: {} });
       const results = await Promise.allSettled([loadCloudPreferences(), api.project.readFile(id), api.localAssets.getCatalog()]);
-      assert.equal(calls.filter(url => url.endsWith('/startup')).length, 1);
+      assert.equal(calls.filter(url => url.includes('/startup')).length, 1);
       if (status === 503) {
         assert.ok(results.every(result => result.status === 'rejected' && /Startup unavailable/.test(result.reason.message)));
         assert.equal(calls.length, 1, 'do not hide backend failures by issuing a second request wave');
@@ -77,7 +93,7 @@ test('canvas startup keeps other projects, ordinary pages and account bindings i
   const original = globalThis.fetch, calls = [];
   globalThis.fetch = async (url, options) => {
     calls.push([url, options.headers['x-shotloom-user']]);
-    return json(url.endsWith('/startup') ? data : {});
+    return json(url.includes('/startup') ? data : {});
   };
   try {
     window.location = { search: `?route=skills&project=${id}` };
@@ -92,10 +108,10 @@ test('canvas startup keeps other projects, ordinary pages and account bindings i
     assert.equal(calls.at(-1)[0], `/api/project/${other}`);
     assert.equal(bindCloudUser('original-user'), true);
     await loadCloudPreferences();
-    assert.deepEqual(calls.at(-1), [`/api/project/${id}/startup`, 'original-user']);
+    assert.deepEqual(calls.at(-1), [`/api/project/${id}/startup?parts=project,settings`, 'original-user']);
     assert.equal(bindCloudUser('different-user'), false, 'an open workspace cannot switch account');
     await api.localAssets.getCatalog();
-    assert.equal(calls.filter(([url]) => url.endsWith('/startup')).length, 1);
+    assert.equal(calls.filter(([url]) => url.includes('/startup')).length, 1);
   } finally { globalThis.fetch = original; await env.dispose(); }
 });
 
@@ -117,7 +133,7 @@ test('canvas data preloads before the full cloud adapter loads and is consumed w
     const { preloadCloudCanvasStartup } = await env.load('services/cloudCanvasStartup');
     preloadCloudCanvasStartup();
     preloadCloudCanvasStartup();
-    assert.deepEqual(calls, [`/api/project/${id}/startup`]);
+    assert.deepEqual(calls, [`/api/project/${id}/startup?parts=project,settings`]);
     const { createCloudApi, loadCloudPreferences } = await env.load('services/cloudApi');
     const api = createCloudApi({ project: {}, file: {}, settings: {} });
     const pending = Promise.all([loadCloudPreferences(), api.project.readFile(id), api.localAssets.getCatalog()]);
@@ -130,4 +146,51 @@ test('canvas data preloads before the full cloud adapter loads and is consumed w
     preloadCloudCanvasStartup();
     assert.equal(calls.length, 1, 'focus checks cannot restart a consumed startup preload');
   } finally { release(); globalThis.fetch = original; await env.dispose(); }
+});
+
+
+test('workbench locale is prepared before module evaluation and its preferences are reused', async () => {
+  const env=await createRendererEnv({storageMode:'cloud',storage:new Map(),withWindow:true});
+  const original=globalThis.fetch,calls=[];
+  globalThis.fetch=async url=>{calls.push(url);return json({locale:'en-US',agentCanRunNodes:false});};
+  try{
+    window.location={search:'?route=projects'};
+    const {prepareCloudLocale}=await env.load('services/cloudCanvasStartup');
+    await prepareCloudLocale();
+    assert.equal(localStorage.getItem('shotloom:locale'),'en-US');
+    const {loadCloudPreferences}=await env.load('services/cloudApi');
+    assert.equal((await loadCloudPreferences()).locale,'en-US');
+    assert.deepEqual(calls,['/api/settings']);
+  }finally{globalThis.fetch=original;await env.dispose();}
+});
+
+test('a failed locale prefetch does not poison later workbench preferences or canvas startup', async () => {
+  for (const query of ['?route=projects', `?route=creation&project=${id}`]) {
+    const env=await createRendererEnv({storageMode:'cloud',storage:new Map(),withWindow:true});
+    const original=globalThis.fetch;
+    let calls=0;
+    globalThis.fetch=async url=>{
+      if(++calls===1)throw new DOMException('prefetch timed out','TimeoutError');
+      return json(String(url).includes('/startup')?data:data.settings);
+    };
+    try {
+      window.location={search:query};
+      const {prepareCloudLocale}=await env.load('services/cloudCanvasStartup');
+      await assert.rejects(prepareCloudLocale(),/prefetch timed out/);
+      const {loadCloudPreferences}=await env.load('services/cloudApi');
+      assert.equal((await loadCloudPreferences()).locale,'en-US');
+      assert.equal(calls,2,'The mounted workbench must issue a fresh read after the optional prefetch failed');
+    } finally {globalThis.fetch=original;await env.dispose();}
+  }
+});
+
+test('a known document locale does not serialize warm workbench evaluation behind a preferences read', async () => {
+  const env=await createRendererEnv({storageMode:'cloud',storage:new Map([['shotloom:locale','en-US']]),withWindow:true});
+  const original=globalThis.fetch;
+  globalThis.fetch=async()=>assert.fail('Warm locale preparation must not add a request barrier');
+  try {
+    window.location={search:'?route=creation'};
+    const {prepareCloudLocale}=await env.load('services/cloudCanvasStartup');
+    await prepareCloudLocale();
+  }finally{globalThis.fetch=original;await env.dispose();}
 });

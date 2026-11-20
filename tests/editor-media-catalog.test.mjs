@@ -291,3 +291,39 @@ test('宿主选择器与 Agent 共用同一份目录，添加媒体不再默认�
   assert.doesNotMatch(bridge, /controller\.importAssets\??\.\(/, '默认路径不再直接开原生文件框');
   assert.match(workspace, /<AssetPickerDialog/, '添加媒体由宿主资源选择器承接');
 });
+
+test('剪辑恢复先读原生时间线，库内未可见媒体保留完整引用而不读取字节', async () => {
+  const bridge=await env.load('app/editor/openReel/projectBridge');
+  const original=desktopApi.file.readArrayBuffer,calls=[];
+  desktopApi.file.readArrayBuffer=async path=>{calls.push(path);return new ArrayBuffer(1);};
+  const summary={name:'Edit',settings:{width:640,height:360,fps:30},tracks:[],assets:['used','library'].map(id=>({id,name:id,type:'image',sourceFile:`/${id}.png`}))};
+  const native={id:'editor',mediaLibrary:{items:[{id:'m1',shotloomAssetId:'used',type:'image'},{id:'m2',shotloomAssetId:'library',type:'image',metadata:{custom:'keep'}}]},timeline:{tracks:[{clips:[{id:'clip',mediaId:'m1'}]}]}};
+  const before=structuredClone(native);
+  try {
+    const result=await bridge.buildLoadPayload(summary,[],native,true);
+    assert.deepEqual(calls,['/used.png']);
+    assert.deepEqual(result.payload.deferredMediaKeys,['library']);
+    assert.deepEqual(result.payload.nativeProject,before);
+    assert.deepEqual(native,before);
+  } finally {desktopApi.file.readArrayBuffer=original;}
+});
+
+test('可见媒体按原 id 恢复；读取期间切工程或删除媒体不会写回', async()=>{
+  const bridge=await env.load('app/editor/openReel/projectBridge');
+  const original=desktopApi.file.readArrayBuffer;
+  const project={assets:[{id:'asset',name:'Image',type:'image',sourceFile:'/image.png'}]};
+  for(const mode of ['success','switch','delete']) {
+    let release,current=true,exists=true,writes=0;
+    const gate=new Promise(resolve=>{release=resolve;});
+    desktopApi.file.readArrayBuffer=async()=>{await gate;return new ArrayBuffer(1);};
+    const runtime={getState:async()=>({native:{mediaLibrary:{items:exists?[{id:'media',shotloomAssetId:'asset',shotloomDeferred:true}]:[]}}}),relinkMedia:async(id,payload)=>{writes++;assert.equal(id,'media');assert.equal(payload.key,'asset');return {success:true,state:{native:{}}};}};
+    try {
+      const loading=bridge.hydrateEditorMedia(runtime,project,[],'media',()=>current);
+      await new Promise(resolve=>setImmediate(resolve));
+      if(mode==='switch')current=false;
+      if(mode==='delete')exists=false;
+      release();await loading;
+      assert.equal(writes,mode==='success'?1:0);
+    } finally {release();desktopApi.file.readArrayBuffer=original;}
+  }
+});

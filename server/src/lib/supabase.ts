@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { timed, requestSignal, sharedRead } from './requestMetrics';
 import { env } from "../env";
 import { encrypt, decrypt } from "./crypto";
 import { badRequest, supabaseError } from "./errors";
@@ -10,6 +11,10 @@ export const admin = createClient<Database, "shotloom">(
   env.SUPABASE_URL,
   env.SUPABASE_SERVICE_ROLE_KEY,
   {
+    global: { fetch: (input, init) => {
+      const budget = requestSignal();
+      return timed('db', () => fetch(input, { ...init, ...(budget ? { signal: init?.signal ? AbortSignal.any([budget, init.signal]) : budget } : {}) }));
+    } },
     auth: { persistSession: false, autoRefreshToken: false },
     db: { schema: "shotloom" },
   },
@@ -93,9 +98,9 @@ export async function loadSession(sessionId: string): Promise<DecryptedSession |
   if (!/^[0-9a-f-]{36}$/i.test(sessionId)) return null;
   const pending = sessionReads.get(sessionId);
   if (pending) return pending;
-  const read: Promise<DecryptedSession | null> = Promise.resolve(admin.from("sessions")
+  const read: Promise<DecryptedSession | null> = sharedRead(() => Promise.resolve(admin.from("sessions")
     .select('*,owner:users!inner(id,sub,username,email)')
-    .eq('id', sessionId).eq('owner.client_id', env.GATEWAY_CLIENT_ID).maybeSingle()).then(({ data, error }) => {
+    .eq('id', sessionId).eq('owner.client_id', env.GATEWAY_CLIENT_ID).maybeSingle())).then(({ data, error }) => {
     if (sessionReads.get(sessionId) !== read) return loadSession(sessionId);
     if (error) throw supabaseError(error.message);
     if (!data) return null;

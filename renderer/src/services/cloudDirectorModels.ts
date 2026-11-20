@@ -16,27 +16,46 @@ async function digest(blob: Blob): Promise<string> {
   return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', await blob.arrayBuffer())), byte => byte.toString(16).padStart(2, '0')).join('');
 }
 
-/** Keep portable model packages in the runtime and private object references on the wire. */
+function assertReference(value: RecordValue): asserts value is RecordValue & { path: string; sha256: string } {
+  if (value.version !== 1 || typeof value.path !== 'string' || !/^cloud:\/\/media\/[^?#]+$/.test(value.path)
+    || typeof value.sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(value.sha256)) throw new Error('导演台模型存储引用无效');
+}
+
+export function hasCloudDirectorModels(value: unknown): boolean {
+  if (Array.isArray(value)) return value.some(hasCloudDirectorModels);
+  return record(value) && (value.storage === marker || Object.values(value).some(hasCloudDirectorModels));
+}
+
+/** Resolve package bytes only when opening a director scene or making a portable export. */
 export function createCloudDirectorModels(upload: (blob: Blob, name: string) => Promise<{ filePath: string }>, read: (path: string) => Promise<Blob>) {
   const uploaded = new Map<string, Promise<string>>();
   const packages = new Map<string, WeakRef<{ json: string; sha256: string }>>();
+  const loading = new Map<string, Promise<RecordValue>>();
   const loadPackage = async (value: RecordValue): Promise<RecordValue> => {
     if (value.storage !== marker) return value;
-    if (value.version !== 1 || typeof value.path !== 'string' || !/^cloud:\/\/media\/[^?#]+$/.test(value.path)
-      || typeof value.sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(value.sha256)) throw new Error('导演台模型存储引用无效');
-    const cached = packages.get(value.path)?.deref();
+    assertReference(value);
+    const path = value.path;
+    const cached = packages.get(path)?.deref();
     if (cached?.sha256 === value.sha256) return JSON.parse(cached.json) as RecordValue;
-    const blob = await read(value.path);
-    if (await digest(blob) !== value.sha256) throw new Error('导演台模型包校验失败');
-    const json = await blob.text();
-    const data: unknown = JSON.parse(json);
-    assertPackage(data);
-    packages.set(value.path, new WeakRef({ json, sha256: value.sha256 }));
-    uploaded.set(value.sha256, Promise.resolve(value.path));
-    return data;
+    const key = `${path}\0${value.sha256}`;
+    let pending = loading.get(key);
+    if (!pending) {
+      pending = (async () => {
+        const blob = await read(path);
+        if (await digest(blob) !== value.sha256) throw new Error('导演台模型包校验失败');
+        const json = await blob.text();
+        const data: unknown = JSON.parse(json);
+        assertPackage(data);
+        packages.set(path, new WeakRef({ json, sha256: value.sha256 }));
+        uploaded.set(value.sha256, Promise.resolve(path));
+        return data;
+      })().finally(() => loading.delete(key));
+      loading.set(key, pending);
+    }
+    return structuredClone(await pending);
   };
   const savePackage = async (value: RecordValue): Promise<RecordValue> => {
-    if (value.storage === marker) { await loadPackage(value); return value; }
+    if (value.storage === marker) { assertReference(value); return value; }
     assertPackage(value);
     const json = JSON.stringify(value);
     const blob = new Blob([json], { type: 'application/json' });
@@ -62,5 +81,9 @@ export function createCloudDirectorModels(upload: (blob: Blob, name: string) => 
     }
     return result as T;
   };
-  return { save: <T>(value: T) => map(value, savePackage), load: <T>(value: T) => map(value, loadPackage) };
+  return {
+    save: <T>(value: T) => map(value, savePackage),
+    load: <T>(value: T) => map(value, async item => { if (item.storage === marker) assertReference(item); else assertPackage(item); return item; }),
+    hydrate: <T>(value: T) => map(value, loadPackage),
+  };
 }

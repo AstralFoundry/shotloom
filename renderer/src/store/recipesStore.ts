@@ -22,6 +22,8 @@ export interface RecipeRecord {
   [key: string]: unknown;
 }
 
+let catalogMetadata: AnyRecord = {};
+
 export const recipesStore = reactive({
   storageVersion: 1,
   recipes: [] as RecipeRecord[],
@@ -40,16 +42,21 @@ function recipeId(name = '') {
 
 export async function loadGlobalRecipes() {
   const storage = await desktopApi.recipes.getGlobal();
+  const { recipes: _items, ...metadata } = storage;
+  catalogMetadata = metadata;
   recipesStore.storageVersion = Number(storage.storageVersion) || 1;
   recipesStore.recipes = Array.isArray(storage.recipes) ? storage.recipes : [];
 }
 
 export async function saveGlobalRecipes() {
   const snapshot = JSON.parse(JSON.stringify({
+    ...catalogMetadata,
     storageVersion: recipesStore.storageVersion,
     recipes: recipesStore.recipes,
   }));
   const storage = await desktopApi.recipes.setGlobal(snapshot);
+  const { recipes: _items, ...metadata } = storage;
+  catalogMetadata = metadata;
   recipesStore.storageVersion = Number(storage.storageVersion) || 1;
   recipesStore.recipes = Array.isArray(storage.recipes) ? storage.recipes : [];
 }

@@ -2,6 +2,10 @@ name: Native Android acceptance smoke
 on:
   workflow_dispatch:
     inputs:
+      web_performance:
+        description: Run only the isolated full-page Web benchmark
+        type: boolean
+        default: false
       performance:
         description: Measure delivered APK page and API latency
         type: boolean
@@ -18,6 +22,20 @@ on:
         description: 'Optional old preview run to reproduce the login hang before upgrading'
         required: false
         default: ''
+      paired:
+        description: Run ten alternating isolated baseline/candidate pairs
+        type: boolean
+        default: false
+      pairs:
+        description: Alternating pair count (1 for smoke, 10 for acceptance)
+        type: number
+        default: 10
+      candidate_origin:
+        description: Isolated candidate HTTPS origin for paired measurements
+        default: ''
+      baseline_origin:
+        description: Isolated baseline HTTPS origin for paired measurements
+        default: ''
       layout_only:
         description: 'Verify native settings and English large-font layout on the pinned APK'
         type: boolean
@@ -26,10 +44,14 @@ permissions:
   contents: read
   actions: read
 jobs:
+  web:
+    if: inputs.web_performance == true
+    uses: ./.github/workflows/page-performance.yml
+    secrets: inherit
   launch:
-    if: inputs.performance != true
+    if: inputs.performance != true && inputs.web_performance != true
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 55
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -82,6 +104,7 @@ jobs:
           LAYOUT_ONLY: ${{ inputs.layout_only }}
           BASELINE_RUN: ${{ inputs.baseline_run }}
         with:
+          emulator-build: 14472402
           api-level: 35
           system-image-api-level: 35-ext15
           arch: x86_64
@@ -142,9 +165,9 @@ jobs:
           retention-days: 14
 
   measure:
-    if: inputs.performance == true
+    if: inputs.performance == true && inputs.web_performance != true
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 55
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -188,6 +211,23 @@ jobs:
           keytool -genkeypair -keystore perf/test.jks -storepass testpass -keypass testpass -alias measure -keyalg RSA -dname CN=Measurement -validity 1
           "$tools/zipalign" -f 4 perf/unsigned.apk perf/aligned.apk
           "$tools/apksigner" sign --ks perf/test.jks --ks-pass pass:testpass --key-pass pass:testpass --out perf/measure.apk perf/aligned.apk
+      - name: Download paired baseline
+        if: inputs.paired
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASELINE_RUN: ${{ inputs.baseline_run }}
+          CANDIDATE_ORIGIN: ${{ inputs.candidate_origin }}
+          BASELINE_ORIGIN: ${{ inputs.baseline_origin }}
+        run: |
+          test -n "$BASELINE_RUN"
+          python3 - <<'PY'
+          import os, urllib.parse
+          for name in ['CANDIDATE_ORIGIN','BASELINE_ORIGIN']:
+              url=urllib.parse.urlsplit(os.environ[name])
+              assert url.scheme == 'https' and url.port in [14433,14434] and url.path == ''
+          PY
+          gh run download "$BASELINE_RUN" --repo "$GITHUB_REPOSITORY" --name Shotloom-Android-Preview --dir baseline
+          (cd baseline && sha256sum --check SHA256SUMS)
       - name: Enable emulator DNS
         run: |
           sudo chmod 666 /dev/kvm
@@ -200,21 +240,34 @@ jobs:
           TEST_NATIVE_SESSION: ${{ secrets.SHOTLOOM_ACCEPTANCE_NATIVE_SESSION }}
           TEST_FIXTURE: ${{ secrets.SHOTLOOM_PERFORMANCE_FIXTURE }}
           LOGIN_ONLY: ${{ inputs.performance_login_only }}
+          PAIRED: ${{ inputs.paired }}
+          PAIRS: ${{ inputs.pairs }}
+          CANDIDATE_ORIGIN: ${{ inputs.candidate_origin }}
+          BASELINE_ORIGIN: ${{ inputs.baseline_origin }}
         with:
+          ram-size: 2048M
+          heap-size: 256M
+          emulator-build: 14472402
           api-level: 35
           system-image-api-level: 35-ext15
           arch: x86_64
           target: google_apis
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none -dns-server 127.0.0.1 -feature -Vulkan
           disable-animations: false
-          script: bash .github/scripts/native-performance.sh
+          script: bash .github/scripts/native-performance-entry.sh
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: Native-performance-results
           path: |
+            perf/layout-validation.json
+            perf/media-*.json
+            perf/media-evidence.log
             perf/results*.json
             perf/device.txt
+            perf/diagnostics.txt
+            perf/*.png
+            perf/*.xml
             perf/failure.png
             perf/dns.log
           retention-days: 14

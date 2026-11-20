@@ -28,6 +28,8 @@ test('feedback, administrator reply and inbox persist through the HTTP boundary 
       grant select on shotloom.users to service_role;`);
     await db.exec(await readFile(new URL('../../supabase/migrations/20261115131802_shotloom_model_administration.sql', import.meta.url), 'utf8'));
     await db.exec(await readFile(new URL('../../supabase/migrations/20261116060731_shotloom_support_notifications.sql', import.meta.url), 'utf8'));
+    await db.exec('create table shotloom.settings(user_id uuid, key text, payload jsonb, primary key(user_id,key));');
+    await db.exec(await readFile(new URL('../../supabase/migrations/20261120055657_page_performance_reads.sql', import.meta.url), 'utf8'));
     for (const [id, client] of [[user, 'nac_test'], [other, 'nac_test'], [admin, 'nac_test'], [foreign, 'other-app']]) {
       await db.query('insert into shotloom.users values($1,$2)', [id, client]);
     }
@@ -63,6 +65,11 @@ test('feedback, administrator reply and inbox persist through the HTTP boundary 
         } catch (error) {
           return Response.json({ code: (error as { code: string }).code, message: 'database rejected request' }, { status: 400 });
         }
+      }
+      if (table === 'unread_notifications') {
+        const args = JSON.parse(String(init?.body));
+        const value = await db.query<{ value: unknown }>('select shotloom.unread_notifications($1,$2) as value', [args.p_user_id, args.p_client_id]);
+        return Response.json(value.rows[0]!.value);
       }
       assert.fail(`Unexpected fetch ${url}`);
     };
@@ -101,11 +108,14 @@ test('feedback, administrator reply and inbox persist through the HTTP boundary 
     const inbox = await data(await request(user, '/notifications'));
     assert.equal(sessionReads - beforeInbox, 1, 'notification list must authenticate exactly once');
     assert.equal(inbox.unread, 1); assert.equal(inbox.total, 1); assert.equal(inbox.items[0].feedback_id, saved.id);
+    assert.deepEqual(await data(await request(user, '/notifications/unread')), { unread: 1 });
+    assert.deepEqual(await data(await request(other, '/notifications/unread')), { unread: 0 });
     assert.equal((await data(await request(other, '/notifications'))).total, 0);
     assert.equal((await request(other, `/notifications/${inbox.items[0].id}/read`, 'PUT')).status, 404);
     await data(await request(user, `/notifications/${inbox.items[0].id}/read`, 'PUT'));
     await data(await request(user, `/notifications/${inbox.items[0].id}/read`, 'PUT'));
     assert.equal((await data(await request(user, '/notifications'))).unread, 0);
+    assert.deepEqual(await data(await request(user, '/notifications/unread')), { unread: 0 });
     await data(await request(admin, `/admin/feedback/${saved.id}/replies`, 'POST', { replyId: randomUUID(), body: 'Second reply' }), 201);
     await data(await request(user, '/notifications/read-all', 'PUT', { asOf: inbox.asOf }));
     assert.equal((await data(await request(user, '/notifications'))).unread, 1, 'mark all must not consume later replies');

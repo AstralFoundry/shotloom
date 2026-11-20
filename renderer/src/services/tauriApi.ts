@@ -809,6 +809,7 @@ export function createTauriApi(browserFallback: BrowserFallback): BrowserFallbac
       trashLibraryFolder: (path: string) => command('project:trash-library-folder', path),
       createEpisodeFolder: (parent: string, shared: unknown, name: string) => command('project:create-episode-folder', parent, shared, name),
       save: (directory: string, project: unknown) => command('project:save', directory, project),
+      hydrateDirectorModels: async <T>(value: T): Promise<T> => value,
       snapshotList: (directory: string) => command('project:snapshot-list', directory),
       snapshotCreate: (directory: string, record: unknown) => command('project:snapshot-create', directory, record),
       snapshotRead: (directory: string, id: string) => command('project:snapshot-read', directory, id),
@@ -909,6 +910,10 @@ export function createTauriApi(browserFallback: BrowserFallback): BrowserFallbac
       getGlobalAssetRoot: () => command('file:global-asset-root'),
       trash: (path: string) => command('file:trash', path),
       pathExists: (path: string) => command('file:path-exists', path),
+      checkPaths: (paths: string[]): Promise<import('../../../shared/mediaFiles').FileCheck[]> => Promise.all([...new Set(paths)].map(async path => {
+        try { return { path, status: await command('file:path-exists', path) ? 'exists' : 'missing' }; }
+        catch (error) { return { path, status: 'error', error: String(error) }; }
+      })),
       resolveUniqueFilePath: (directory: string, name: string) => command('file:resolve-unique-path', directory, name),
       writeFileToPath: (path: string, buffer: ArrayBuffer | Uint8Array) => writeBytes(path, buffer),
       writeFileChunk: (path: string, buffer: ArrayBuffer | Uint8Array, append = true) => writeBytes(path, buffer, append),

@@ -2,6 +2,7 @@
 // 与产品之间唯一的通道就是 postMessage。这里拥有那份私有协议：消息名、消息构造、
 // 来源校验和回执整形都只写一次，画布组件只消费类型化的回调。
 // 对端见 vendor/shotloom-director-desk/src/app/host-bridge.ts。
+import { hasCloudDirectorModels } from '../../services/cloudDirectorModels.ts';
 
 export type DirectorDeskTheme = "light" | "dark";
 export type DirectorDeskAgentMode = 'compact' | 'input' | 'expanded';
@@ -93,7 +94,7 @@ export function sendDirectorDeskSceneLoad(
   document: unknown,
   label?: string,
 ) {
-  post(frame, { type: messageType.sceneLoad, payload: { document, ...(label ? { label } : {}) } });
+  postScene(frame, { type: messageType.sceneLoad, payload: { document, ...(label ? { label } : {}) } });
 }
 
 export function directorDeskFrameSrc(instanceId: string, theme: DirectorDeskTheme) {
@@ -108,6 +109,20 @@ export function directorDeskWorkspaceSrc(instanceId = ''): string {
 
 function post(frame: HTMLIFrameElement | null, message: { type: string; payload?: unknown }) {
   frame?.contentWindow?.postMessage(plainMessage(message), window.location.origin);
+}
+
+const sceneRequests = new WeakMap<HTMLIFrameElement, object>();
+const sceneErrors = new WeakMap<HTMLIFrameElement, (error: string) => void>();
+function postScene(frame: HTMLIFrameElement | null, message: { type: string; payload?: unknown }) {
+  if (!frame) return;
+  const request = {}, source = frame.contentWindow, src = frame.src;
+  sceneRequests.set(frame, request);
+  const snapshot = plainMessage(message);
+  if (!hasCloudDirectorModels(snapshot)) { post(frame, snapshot); return; }
+  const current = () => sceneRequests.get(frame) === request && frame.contentWindow === source && frame.src === src && frame.isConnected !== false;
+  void import('../../services/desktopApi').then(({ desktopApi }) => desktopApi.project.hydrateDirectorModels(snapshot))
+    .then(value => { if (current()) post(frame, value); })
+    .catch(error => { if (current()) sceneErrors.get(frame)?.(String(error)); });
 }
 
 /**
@@ -128,7 +143,7 @@ export function sendDirectorDeskSession(
   frame: HTMLIFrameElement | null,
   session: { instanceId: string; artifactScope?: string; modelLibraryOrigin?: string; theme: DirectorDeskTheme; locale: 'zh-CN' | 'en-US'; project: unknown },
 ) {
-  post(frame, { type: messageType.session, payload: session });
+  postScene(frame, { type: messageType.session, payload: session });
 }
 
 // 没有上游图片时必须显式清除，否则导演台会一直留着上一次的全景图。
@@ -162,6 +177,8 @@ export function subscribeDirectorDesk(
   handlers: DirectorDeskHandlers,
 ) {
   let latestRevision: unknown;
+  const frame = getFrame();
+  if (frame && handlers.onError) sceneErrors.set(frame, handlers.onError);
   const handleMessage = (event: MessageEvent) => {
     // 只接受同源且确实来自当前导演台窗口的消息；其他 iframe 或扩展发来同名消息不算协议。
     if (event.origin !== window.location.origin || event.source !== getFrame()?.contentWindow) return;
@@ -220,7 +237,10 @@ export function subscribeDirectorDesk(
     }
   };
   window.addEventListener("message", handleMessage);
-  return () => window.removeEventListener("message", handleMessage);
+  return () => {
+    window.removeEventListener("message", handleMessage);
+    if (frame) { sceneRequests.delete(frame); sceneErrors.delete(frame); }
+  };
 }
 
 function readSummary(value: unknown): DirectorDeskSummary | null {

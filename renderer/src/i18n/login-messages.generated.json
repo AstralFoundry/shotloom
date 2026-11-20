@@ -1,0 +1,26 @@
+{
+  "zh-CN": {
+    "cloud.login.title": "让创作，随处继续",
+    "cloud.login.description": "登录 new-api，访问你的工程与素材。",
+    "cloud.login.loading": "正在检查登录状态…",
+    "cloud.login.unavailable": "暂时无法连接服务，请稍后重试。",
+    "cloud.login.retry": "重试",
+    "cloud.login.action": "使用 new-api 登录",
+    "cloud.login.failed": "登录未完成，请重新尝试。",
+    "cloud.logout": "退出登录",
+    "cloud.logout.failed": "退出失败，请重试",
+    "cloud.login.accountChanged": "当前工作区属于原账号。请重新登录原账号后继续，未保存的内容仍保留在页面中。"
+  },
+  "en-US": {
+    "cloud.login.title": "Create wherever you are",
+    "cloud.login.description": "Sign in with new-api to access your projects and media.",
+    "cloud.login.loading": "Checking your session…",
+    "cloud.login.unavailable": "The service is unavailable. Please try again.",
+    "cloud.login.retry": "Try again",
+    "cloud.login.action": "Sign in with new-api",
+    "cloud.login.failed": "Sign-in did not complete. Please try again.",
+    "cloud.logout": "Sign out",
+    "cloud.logout.failed": "Sign-out failed. Please try again.",
+    "cloud.login.accountChanged": "This workspace belongs to your previous account. Sign in with that account to continue; your unsaved work is still open."
+  }
+}

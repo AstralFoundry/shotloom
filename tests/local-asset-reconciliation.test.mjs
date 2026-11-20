@@ -36,3 +36,22 @@ test('opening a project only writes changed library references and preserves exi
     assert.deepEqual(catalog.references, [{ id: 'other', projectKey: 'other-project', materialId: 'other' }]);
   } finally { await env.dispose(); }
 });
+
+test('catalog conflicts cannot delete media and delayed reference housekeeping cannot mutate a newly opened project',async()=>{
+ const env=await createRendererEnv({storage:new Map(),withWindow:true});
+ try{
+  const {desktopApi}=await env.load('services/desktopApi');
+  const {store}=await env.load('store/projectStore');
+  const library=await env.load('store/localAssetLibraryStore');
+  const catalog={assets:[{id:'asset',materialId:'m'}],materials:[{id:'m',path:'/retained.png'}],references:[]};
+  desktopApi.localAssets.getCatalog=async()=>structuredClone(catalog);
+  desktopApi.localAssets.setCatalog=async()=>{throw Object.assign(new Error('conflict'),{status:409});};
+  let deleted=0;desktopApi.file.trash=async()=>{deleted++;};
+  await assert.rejects(library.deleteLocalLibraryAsset('asset'),error=>error.status===409);assert.equal(deleted,0);
+  let release;desktopApi.localAssets.getCatalog=()=>new Promise(resolve=>{release=resolve;});
+  store.project={id:'old',materials:[]};const read=library.reconcileCurrentProjectLocalAssetReferences();
+  store.project={id:'new',materials:[{id:'new-material',storageScope:'library',localLibraryMaterialId:'m'}]};
+  release(structuredClone(catalog));await read;
+  assert.deepEqual(library.localAssetLibrary.catalog.references,[]);
+ }finally{await env.dispose();}
+});

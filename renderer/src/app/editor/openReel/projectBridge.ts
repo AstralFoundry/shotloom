@@ -15,6 +15,7 @@ import type {
   OpenReelAssetPayload,
   OpenReelBridgeState,
   OpenReelNativeState,
+  ClipStudioRuntimeController,
 } from "../../../../../vendor/openreel/apps/web/src/embedded/runtime-types";
 
 type AnyRecord = Record<string, any>;
@@ -54,6 +55,7 @@ export type OpenReelLoadPayload = {
     }>;
   }>;
   nativeProject?: OpenReelNativeState | null;
+  deferredMediaKeys?: string[];
 };
 
 export function mimeForAsset(asset: VideoEditorAsset) {
@@ -205,6 +207,21 @@ export async function buildAssetPayload(asset: VideoEditorAsset): Promise<OpenRe
   return payload;
 }
 
+export async function hydrateEditorMedia(runtime: ClipStudioRuntimeController, project: VideoEditorProject, extraAssets: VideoEditorAsset[], mediaId: string, isCurrent: () => boolean) {
+  const state = await runtime.getState();
+  const media = ((state.native?.mediaLibrary as AnyRecord | undefined)?.items || []).find((item: AnyRecord) => item.id === mediaId);
+  if (!isCurrent() || !media?.shotloomDeferred) return;
+  const asset = collectEditorAssets(project, extraAssets).find(item => item.id === media.shotloomAssetId);
+  if (!asset) throw new Error(t('ui.projectBridge.text.a869d7d5', {value0: media.name || mediaId}));
+  const payload = await buildAssetPayload(asset);
+  if (!isCurrent()) return;
+  const latest = await runtime.getState();
+  if (!isCurrent() || !((latest.native?.mediaLibrary as AnyRecord | undefined)?.items || []).some((item: AnyRecord) => item.id === mediaId && item.shotloomDeferred && item.shotloomAssetId === asset.id)) return;
+  const result = await runtime.relinkMedia(mediaId, payload);
+  if (!result.success) throw new Error(result.error || t('ui.projectBridge.text.a869d7d5', {value0: asset.name}));
+  return result.state;
+}
+
 function summaryTracks(project: VideoEditorProject) {
   const transitionClips = project.tracks
     .filter((track) => track.type === "transition")
@@ -260,14 +277,21 @@ export async function buildLoadPayload(
   project: VideoEditorProject,
   extraAssets: VideoEditorAsset[],
   nativeProject: OpenReelNativeState | null,
+  deferLibrary = false,
 ): Promise<{ payload: OpenReelLoadPayload; transfer: ArrayBuffer[]; warnings: string[] }> {
   const allAssets = collectEditorAssets(project, extraAssets);
   const assetsById = new Map(allAssets.map((asset) => [asset.id, asset]));
   const tracks = summaryTracks(project);
   const used = new Set<string>();
-  for (const track of tracks) {
-    for (const clip of track.clips) used.add(clip.mediaKey);
-  }
+  const nativeItems = ((nativeProject?.mediaLibrary as AnyRecord | undefined)?.items || []) as AnyRecord[];
+  if (nativeProject) {
+    const keys = new Map(nativeItems.map(item => [item.id, item.shotloomAssetId]));
+    for (const track of (nativeProject.timeline as AnyRecord | undefined)?.tracks || []) for (const clip of track.clips || []) {
+      const key = keys.get(clip.mediaId);
+      if (key) used.add(key);
+    }
+  } else for (const track of tracks) for (const clip of track.clips) used.add(clip.mediaKey);
+  const deferredMediaKeys: string[] = [];
   const payloadAssets: OpenReelAssetPayload[] = [];
   const transfer: ArrayBuffer[] = [];
   const warnings: string[] = [];
@@ -295,12 +319,12 @@ export async function buildLoadPayload(
   }
   // 原生快照里的素材可能暂时不在时间线上，也要导入以便恢复媒体库。
   if (nativeProject) {
-    const items = (((nativeProject.mediaLibrary || {}) as AnyRecord).items || []) as AnyRecord[];
-    for (const item of items) {
+    for (const item of nativeItems) {
       const key = String(item.shotloomAssetId || "");
       if (!key) continue;
       const asset = assetsById.get(key);
-      if (asset) await pushAsset(asset);
+      if (asset && deferLibrary && !used.has(key)) deferredMediaKeys.push(key);
+      else if (asset) await pushAsset(asset);
     }
   }
   return {
@@ -313,6 +337,7 @@ export async function buildLoadPayload(
       assets: payloadAssets,
       tracks,
       nativeProject,
+      ...(deferLibrary ? {deferredMediaKeys: [...new Set(deferredMediaKeys)]} : {}),
     },
     transfer,
     warnings,

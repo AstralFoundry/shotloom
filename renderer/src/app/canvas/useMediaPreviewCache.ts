@@ -73,7 +73,7 @@ export function useMediaPreviewCache(input: {
   const raw = String(input.fallbackUrl || "");
   const fallbackUrl = /^(https?:|blob:|data:|file:)/i.test(raw) ? raw : "";
   return {
-    url: cachedUrl || streamUrl || fallbackUrl,
+    url: input.enabled === false ? '' : cachedUrl || streamUrl || fallbackUrl,
     buffered,
     retryBuffered() {
       if (path && (kind === "video" || kind === "audio") && !buffered) {

@@ -1,6 +1,7 @@
 import { t } from '@/i18n';
 import { memo, useEffect, useRef, useState } from "react";
 import { formatSize } from "../../utils/format.ts";
+import { observeNearViewport } from "../canvas/previewLoadQueue";
 import { useMediaPreviewCache } from "../canvas/useMediaPreviewCache";
 import { type IconName, IconSymbol } from "./IconSymbol";
 
@@ -114,37 +115,6 @@ function remoteUrl(file: MaterialItem, kind: Kind) {
       .map((value) => String(value || "").trim())
       .find((value) => /^(https?:|blob:|data:)/i.test(value)) || ""
   );
-}
-
-const previewActivators = new Map<Element, () => void>();
-let sharedPreviewObserver: IntersectionObserver | null = null;
-
-function observeNearViewport(element: Element, activate: () => void) {
-  if (typeof IntersectionObserver === "undefined") {
-    activate();
-    return () => {};
-  }
-  if (!sharedPreviewObserver) {
-    sharedPreviewObserver = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (!entry.isIntersecting) continue;
-          const callback = previewActivators.get(entry.target);
-          if (!callback) continue;
-          previewActivators.delete(entry.target);
-          sharedPreviewObserver?.unobserve(entry.target);
-          callback();
-        }
-      },
-      { rootMargin: "360px 0px" },
-    );
-  }
-  previewActivators.set(element, activate);
-  sharedPreviewObserver.observe(element);
-  return () => {
-    previewActivators.delete(element);
-    sharedPreviewObserver?.unobserve(element);
-  };
 }
 
 const MaterialPreview = memo(function MaterialPreview({

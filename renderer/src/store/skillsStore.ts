@@ -25,6 +25,8 @@ export interface SkillRecord {
   [key: string]: unknown;
 }
 
+let catalogMetadata: AnyRecord = {};
+
 export const skillsStore = reactive({
   storageVersion: 1,
   skills: [] as SkillRecord[],
@@ -33,6 +35,8 @@ export const skillsStore = reactive({
 
 export async function loadGlobalSkills() {
   const storage = await desktopApi.skills.getGlobal();
+  const { skills: _items, ...metadata } = storage;
+  catalogMetadata = metadata;
   skillsStore.storageVersion = storage.storageVersion || 1;
   skillsStore.skills = Array.isArray(storage.skills) ? storage.skills : [];
   if (!skillsStore.skills.some((skill) => skill.id === skillsStore.selectedSkillId)) {
@@ -42,13 +46,17 @@ export async function loadGlobalSkills() {
 
 export async function saveGlobalSkills() {
   const snapshot = JSON.parse(JSON.stringify({
+    ...catalogMetadata,
     storageVersion: skillsStore.storageVersion,
     skills: skillsStore.skills,
   }));
   const storage = await desktopApi.skills.setGlobal({
+    ...snapshot,
     storageVersion: snapshot.storageVersion,
     skills: snapshot.skills,
   });
+  const { skills: _items, ...metadata } = storage;
+  catalogMetadata = metadata;
   skillsStore.storageVersion = storage.storageVersion || 1;
   skillsStore.skills = storage.skills || [];
 }
@@ -77,11 +85,10 @@ export async function updateSkill(skill: SkillRecord, patch: AnyRecord) {
   await saveGlobalSkills();
 }
 
-export async function upsertSkill(input: AnyRecord) {
+export function normalizeSkill(input: AnyRecord, existing?: SkillRecord) {
   if (!isUserSkill({ id: String(input.id || '').trim(), builtIn: input.builtIn })) {
     throw new Error(t('skill.error.systemReadOnly'));
   }
-  const existing = skillsStore.skills.find((item) => item.id === String(input.id || '').trim());
   const skill = {
     id: String(input.id || '').trim(),
     name: String(input.name || '').trim(),
@@ -101,12 +108,20 @@ export async function upsertSkill(input: AnyRecord) {
     throw new Error(t("errors.fec86750c8"));
   }
   if (!skill.name || !skill.description || !skill.instructions) throw new Error(t("errors.85603499bf"));
+  return skill as SkillRecord;
+}
+
+export async function upsertSkill(input: AnyRecord) {
+  const existing = skillsStore.skills.find((item) => item.id === String(input.id || '').trim());
+  const skill = normalizeSkill(input, existing);
   const index = skillsStore.skills.findIndex((item) => item.id === skill.id);
   const next = skillsStore.skills.map(item => JSON.parse(JSON.stringify(item)) as SkillRecord);
   if (index >= 0) next[index] = skill as SkillRecord;
   else next.push(skill as SkillRecord);
   // Publish only persisted data: failed writes must not create a phantom Skill.
-  const storage = await desktopApi.skills.setGlobal({ storageVersion: skillsStore.storageVersion, skills: next });
+  const storage = await desktopApi.skills.setGlobal({ ...catalogMetadata, storageVersion: skillsStore.storageVersion, skills: next });
+  const { skills: _items, ...metadata } = storage;
+  catalogMetadata = metadata;
   skillsStore.storageVersion = storage.storageVersion || 1;
   skillsStore.skills = storage.skills || [];
   return skillsStore.skills.find(item => item.id === skill.id)!;

@@ -24,6 +24,8 @@ import type {
   ProjectsController,
 } from "../views/ProjectsView";
 import { confirmAction } from "../ui/confirm/confirmService";
+import { cloudEnabled } from '../../services/cloudRequest';
+import { readCloudProjectPage, projectSummaryEntry } from '../../services/cloudProjectPages';
 
 function replacePathPrefix(value: unknown, oldDir: string, newDir: string) {
   if (typeof value !== "string") return value;
@@ -70,6 +72,7 @@ function findProjectFolderPath(
     if (entry.kind !== "folder") continue;
     const children = entry.children || [];
     if (
+      (cloudEnabled && filePath.startsWith(`${entry.folderDir}/`)) ||
       children.some((child) =>
         child.kind === "project" && child.filePath === filePath
       )
@@ -93,6 +96,12 @@ export function projectLibraryData() {
 }
 
 export const projectLibraryController: ProjectsController = {
+  ...(cloudEnabled ? { listPage: async ({ folderDir, search, sort, offset, limit }: { folderDir: string | null; search: string; sort: string; offset: number; limit: number }) => {
+    const query = new URLSearchParams({ search, sort, offset: String(offset), limit: String(limit) });
+    if (folderDir) query.set('folder', folderDir.split('/').at(-1)!);
+    const result = await readCloudProjectPage(query);
+    return { items: result.items.map(projectSummaryEntry), total: result.total };
+  } } : {}),
   async importPackage() {
     await importProjectPackage();
   },

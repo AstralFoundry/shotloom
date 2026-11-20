@@ -22,16 +22,20 @@ import org.json.JSONObject;
 /** Test APK only: seeds an isolated session; shipped app has no test credential entry point. */
 public final class SessionInstrumentation extends Instrumentation {
     private Bundle arguments;
+    private String origin;
     @Override public void onCreate(Bundle args) { arguments = args; start(); }
     @Override public void onStart() {
         Bundle result = new Bundle();
         try {
+            origin = arguments.getString("origin", "https://shotloom.0xfiang.com");
+            java.net.URI target = new java.net.URI(origin);
+            if (!"https".equals(target.getScheme()) || target.getHost() == null || target.getRawUserInfo() != null || target.getRawQuery() != null || target.getRawFragment() != null || (target.getPath() != null && !target.getPath().isEmpty())) throw new IllegalArgumentException("Invalid test origin");
             CountDownLatch saved = new CountDownLatch(1);
             String cookie = arguments.getString("cookie");
             if (cookie == null || cookie.isEmpty()) throw new IllegalArgumentException("Missing test session");
             boolean[] accepted = {false};
             runOnMainSync(() -> CookieManager.getInstance().setCookie(
-                "https://shotloom.0xfiang.com", cookie + "; Path=/; Secure; HttpOnly; SameSite=Lax",
+                origin, cookie + "; Path=/; Secure; HttpOnly; SameSite=Lax",
                 ok -> { accepted[0] = ok; saved.countDown(); }));
             if (!saved.await(10, TimeUnit.SECONDS) || !accepted[0]) throw new IllegalStateException("Cookie setup failed");
             runOnMainSync(() -> CookieManager.getInstance().flush());
@@ -76,7 +80,7 @@ public final class SessionInstrumentation extends Instrumentation {
             .put("ct", Base64.encodeToString(cipher.doFinal(session.getBytes(StandardCharsets.UTF_8)), Base64.NO_WRAP))
             .put("iv", Base64.encodeToString(spec.getIV(), Base64.NO_WRAP)).put("tlen", spec.getTLen());
         StringBuilder hash = new StringBuilder();
-        for (byte part : MessageDigest.getInstance("SHA-256").digest("https://shotloom.0xfiang.com".getBytes(StandardCharsets.UTF_8))) hash.append(String.format("%02x", part & 255));
+        for (byte part : MessageDigest.getInstance("SHA-256").digest(origin.getBytes(StandardCharsets.UTF_8))) hash.append(String.format("%02x", part & 255));
         if (!getTargetContext().getSharedPreferences("SecureStore", Context.MODE_PRIVATE).edit()
             .putString("key_v1-shotloom.session." + hash, encrypted.toString()).commit()) throw new IllegalStateException("Secure storage setup failed");
     }

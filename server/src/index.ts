@@ -16,8 +16,11 @@ import { envelope } from "./lib/respond";
 import type { AppEnv } from "./lib/types";
 import { nativeSession } from './lib/nativeAuth';
 
+import { requestMetrics } from './lib/requestMetrics';
+
 export const app = new Hono<AppEnv>();
 
+app.use("/api/*", requestMetrics);
 app.use("/api/*", cors({ origin: new URL(env.FRONTEND_URL).origin, credentials: true }));
 app.use("/api/*", bodyLimit({ maxSize: 32 * 1024 * 1024 }));
 app.use("/api/*", async (c, next) => {
@@ -56,6 +59,7 @@ app.onError((err, c) => {
       { status: err.status },
     );
   }
+  if (err.name === 'TimeoutError' || err.name === 'AbortError') return c.json({ success: false, code: 'REQUEST_TIMEOUT', message: '请求超时，请重试', data: null }, 504);
   console.error("[unhandled]", err.name);
   return Response.json(
     { success: false, code: "INTERNAL_ERROR", message: "服务器内部错误", data: null },

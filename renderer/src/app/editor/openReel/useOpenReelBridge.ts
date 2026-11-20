@@ -29,6 +29,7 @@ import {
 } from "../../../../../vendor/openreel/apps/web/src/embedded/runtime-types";
 import {
   buildAssetPayload,
+  hydrateEditorMedia,
   buildLoadPayload,
   summaryFromNative,
   withSummaryAssets,
@@ -121,6 +122,8 @@ export function useOpenReelBridge({
   const [relinkError, setRelinkError] = useState("");
   const [relinking, setRelinking] = useState(false);
   const relinkingRef = useRef(false);
+  const mediaReads = useRef(new Map<string, Promise<void>>());
+  const mediaQueue = useRef(Promise.resolve());
   const [exportRecoveries, setExportRecoveries] = useState<ClipExportDelivery[]>(() => pendingClipExportDeliveries(nodeId));
   const [deliveryBusy, setDeliveryBusy] = useState(false);
   const deliveryBusyRef = useRef(false);
@@ -318,6 +321,7 @@ export function useOpenReelBridge({
         summaryRef.current,
         extraAssetsRef.current,
         native,
+        true,
       );
       if (!isCurrent()) return;
       await runtime.load({ ...payload, session: stateRef.current?.session });
@@ -811,6 +815,25 @@ export function useOpenReelBridge({
     },
     requestImport: async () => { callbacksRef.current.openMediaPicker(); },
     requestRelink: async (mediaId: string) => { await callbacksRef.current.recoverMedia(mediaId); },
+    requestMedia: (mediaId: string): Promise<void> => {
+      const pending = mediaReads.current.get(mediaId);
+      if (pending) return pending;
+      const runtime = runtimeRef.current, owner = store.project, directory = store.projectDir;
+      if (!runtime) return Promise.resolve();
+      const isCurrent = () => !closedRef.current && runtimeRef.current === runtime && store.project === owner && store.projectDir === directory && (!canvasNode || owner.nodes.some((item: any) => item.id === nodeId));
+      const read = mediaQueue.current.then(async () => {
+        if (!isCurrent()) return;
+        try {
+          const state = await hydrateEditorMedia(runtime, summaryRef.current, extraAssetsRef.current, mediaId, isCurrent);
+          if (state && isCurrent()) callbacksRef.current.applyState(state);
+        } catch (cause) { if (isCurrent()) throw cause; }
+      });
+      mediaQueue.current = read.catch(() => {});
+      mediaReads.current.set(mediaId, read);
+      const finished = () => { if (mediaReads.current.get(mediaId) === read) mediaReads.current.delete(mediaId); };
+      void read.then(finished, finished);
+      return read;
+    },
     requestExport: async (options: { anchor?: { x: number; y: number; top?: number } }) => {
       callbacksRef.current.controller.activate?.(); callbacksRef.current.openExportMenu(options.anchor);
     },

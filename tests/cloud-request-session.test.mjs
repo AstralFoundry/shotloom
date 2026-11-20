@@ -2,6 +2,78 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createRendererEnv } from './helpers/rendererSsr.mjs';
 
+test('short summary cache is bounded by expiry, writes, refresh and session identity', async () => {
+  const env = await createRendererEnv({ withWindow: true });
+  const original = globalThis.fetch;
+  let calls = 0, fail = false;
+  globalThis.fetch = async () => { calls++; return Response.json({success: !fail, data: {items: [{id: 'one'}]}}, {status: fail ? 503 : 200}); };
+  try {
+    const {cloudRequest, bindCloudUser} = await env.load('services/cloudRequest');
+    bindCloudUser('owner');
+    const read = options => cloudRequest('/catalog/skills/page?limit=20', 'GET', undefined, {cacheMs: 5000, ...options});
+    const first = await read(); first.items.length = 0;
+    assert.equal((await read()).items.length, 1, 'caller mutation cannot corrupt cached summaries');
+    assert.equal(calls, 1);
+    await read({force: true}); assert.equal(calls, 2);
+    await cloudRequest('/catalog/skills', 'PATCH', {}); await read(); assert.equal(calls, 4);
+    bindCloudUser('owner', true); await read(); assert.equal(calls, 5);
+    fail = true;
+    await assert.rejects(read({force: true}), error => error.status === 503);
+    await assert.rejects(read(), error => error.status === 503);
+    assert.equal(calls, 7, 'failed refresh cannot leave an old success cached');
+    fail = false;
+    await read({cacheMs: 1}); await new Promise(resolve => setTimeout(resolve, 10));
+    await read(); assert.equal(calls, 9);
+  } finally { globalThis.fetch = original; await env.dispose(); }
+});
+
+test('concurrent reads share transport but writes and session recovery fence old reads', async () => {
+  const env = await createRendererEnv({ withWindow: true });
+  const original = globalThis.fetch;
+  const sent = [];
+  globalThis.fetch = (url, init) => new Promise(resolve => sent.push({ url, init, resolve }));
+  try {
+    const { cloudRequest, bindCloudUser } = await env.load('services/cloudRequest');
+    bindCloudUser('owner');
+    const a = cloudRequest('/settings'), b = cloudRequest('/settings');
+    assert.equal(sent.length, 1, 'same-account reads should share one network request');
+    bindCloudUser('owner');
+    assert.equal(cloudRequest('/settings'), a, 'silent confirmation of the same account preserves in-flight reads');
+    assert.ok(sent[0].init.signal instanceof AbortSignal);
+    const write = cloudRequest('/settings/preferences', 'PATCH', { locale: 'en-US' });
+    const afterWrite = cloudRequest('/settings');
+    assert.equal(sent.length, 3, 'a read after a mutation cannot reuse an older in-flight read');
+    bindCloudUser('owner', true);
+    const afterRecovery = cloudRequest('/settings');
+    assert.equal(sent.length, 4);
+    for (const request of sent) request.resolve(Response.json({ success: true, data: { ok: true } }));
+    const results = await Promise.allSettled([a, b, write, afterWrite, afterRecovery]);
+    assert.equal(results[0].reason.code, 'STALE_RESPONSE');
+    assert.equal(results[1].reason.code, 'STALE_RESPONSE');
+    assert.equal(results[2].status, 'fulfilled', 'writes are never replayed');
+    assert.equal(results[3].reason.code, 'STALE_RESPONSE');
+    globalThis.fetch = (_url, init) => new Promise((_, reject) => init.signal.addEventListener('abort', () => reject(init.signal.reason), { once: true }));
+    const keepAlive = setTimeout(() => {}, 100);
+    await assert.rejects(cloudRequest('/auth/account', 'GET', undefined, { timeoutMs: 5 }), error => error.name === 'TimeoutError');
+    clearTimeout(keepAlive);
+  } finally { globalThis.fetch = original; await env.dispose(); }
+});
+
+test('a slow session confirmation cannot extend the original GET budget', async () => {
+  const env = await createRendererEnv({ withWindow: true });
+  const original = globalThis.fetch;
+  let release;
+  globalThis.fetch = async url => String(url).endsWith('/auth/me')
+    ? new Promise(resolve => { release = () => resolve(Response.json({ success: true, data: { id: 'owner' } })); })
+    : Response.json({ success: false }, { status: 401 });
+  const keepAlive = setTimeout(() => {}, 1000);
+  try {
+    const { cloudRequest, bindCloudUser } = await env.load('services/cloudRequest');
+    bindCloudUser('owner');
+    await assert.rejects(cloudRequest('/models', 'GET', undefined, { timeoutMs: 10 }), error => error.name === 'TimeoutError');
+  } finally { release?.(); clearTimeout(keepAlive); globalThis.fetch = original; await env.dispose(); }
+});
+
 test('session reads reuse a short memory cache but forced checks detect revocation and account changes', async () => {
   const env = await createRendererEnv({ withWindow: true });
   const original = globalThis.fetch;
@@ -79,7 +151,7 @@ test('upstream failures verify the cookie session once without logging out or re
     bindCloudUser('user');
     const stale = assert.rejects(cloudRequest('/models'));
     await new Promise(resolve => setImmediate(resolve));
-    bindCloudUser('user');
+    bindCloudUser('user', true);
     release(); await stale;
     assert.equal(events.length, 2, 'old auth checks cannot expire a recovered session');
     globalThis.fetch = async () => Response.json({ success: false }, { status: 401 });

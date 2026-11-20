@@ -69,6 +69,19 @@ async function load(value: unknown): Promise<Array<{type: string; error?: string
 }
 
 describe("native media recovery through the direct runtime API", () => {
+  it("retains deferred library identities and metadata in snapshots without calling them missing", async () => {
+    const value = payload() as any;
+    value.nativeProject.mediaLibrary.items.push({id:'library-only',shotloomAssetId:'library-asset',type:'image',name:'Library',metadata:{custom:'keep'}});
+    value.deferredMediaKeys=['library-asset'];
+    await runtime().load(value);
+    const saved = collectShotloomState().native as any;
+    const library = saved.mediaLibrary.items.find((item: any) => item.id === 'library-only');
+    expect(library.shotloomDeferred).toBe(true);
+    expect(library.shotloomAssetId).toBe('library-asset');
+    expect(library.metadata.custom).toBe('keep');
+    expect(library.shotloomOfflineReason).toBeUndefined();
+    expect(saved.timeline.tracks[0].clips[0].mediaId).toBe('original-media');
+  });
   beforeEach(() => { fixture.state.importMedia.mockReset(); fixture.state.actionHistory.restoreEntries.mockClear(); });
 
   it("localizes runtime failures without translating user filenames or upstream errors", async () => {

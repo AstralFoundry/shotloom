@@ -30,12 +30,13 @@ function canvasPreviewMaxSize(semanticZoom: number) {
   if (needed > 960) return 1536;
   return 960;
 }
-export function useGenerationLocalPreview(item: Record<string, unknown> | null, kind: string, previewZoom: number) {
+export function useGenerationLocalPreview(item: Record<string, unknown> | null, kind: string, previewZoom: number, enabled = true) {
   const path = String(item?.filePath || item?.path || "");
   const raw = String(item?.previewUrl || item?.url || item?.content || "");
   return useMediaPreviewCache({
     path,
     kind,
+    enabled,
     mimeType: String(item?.mimeType || item?.type || ""),
     maxSize: kind === "image" ? canvasPreviewMaxSize(previewZoom) : undefined,
     revision: String(item?.restoredAt || item?.updatedAt || item?.createdAt || item?.id || ""),

@@ -36,10 +36,9 @@ export function NativeSettings({ api, onChanged }: { api: NativeApi; onChanged: 
   const refresh = useCallback(async (force = false) => {
     setLoading(force || !api.cached('/settings/mobile')); setError(''); setModelError('');
     await Promise.all([
-      api.read<MobileSettings>('/settings/mobile', force).then(value => { setSettings(value); setLoaded(true); }).catch(cause => setError(cause.message)),
+      api.read<MobileSettings>('/settings/mobile', force).then(value => { setSettings(value); setLoaded(true); }).catch(cause => setError(cause.message)).finally(() => setLoading(false)),
       api.read<{ publications: ModelPublication[] }>('/models', force).then(setCatalog).catch(cause => setModelError(cause.message)),
     ]);
-    setLoading(false);
   }, [api]);
   useFocusEffect(useCallback(() => { void refresh(); }, [refresh]));
   const save = async (patch: MobileSettings) => {

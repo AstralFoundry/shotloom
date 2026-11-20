@@ -81,6 +81,7 @@ let hostUI: ClipStudioHost["ui"] | undefined;
 export function bindShotloomHost(ui: ClipStudioHost["ui"], ingest?: typeof ingestHostFiles) { hostUI = ui; ingestHostFiles = ingest; }
 export async function requestShotloomFiles(files: Array<{name: string; mime?: string; bytes: ArrayBuffer}>) { if (!ingestHostFiles) throw new Error(shotloomMessage('editor.runtime.hostNotReady')); await ingestHostFiles(files); }
 export function requestShotloomRelink(id: string) { void hostUI?.requestRelink(id); }
+export async function requestShotloomMedia(id: string) { await hostUI?.requestMedia?.(id); }
 let editorReady = false;
 let readyWaiters: Array<() => void> = [];
 

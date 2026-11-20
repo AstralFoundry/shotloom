@@ -1,6 +1,6 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { configureShotloomLocale } from "../../shotloom-mode";
+import { configureShotloomLocale, bindShotloomHost } from "../../shotloom-mode";
 import { AssetsPanel } from "./AssetsPanel";
 import { createEmptyProject } from "../../stores/project/project-helpers";
 import { useProjectStore } from "../../stores/project-store";
@@ -12,9 +12,28 @@ vi.mock("../../shotloom-mode", async importOriginal => {
 });
 
 afterEach(() => {
+  vi.unstubAllGlobals(); bindShotloomHost({} as any);
   cleanup(); configureShotloomLocale("en-US");
   useNotificationStore.getState().clearAll();
   useProjectStore.setState({ hasOpenProject: false });
+});
+
+it('requests deferred bytes only for intersecting library cards and preserves the full records', async()=>{
+  const observers: Array<IntersectionObserverCallback> = [];
+  vi.stubGlobal('IntersectionObserver',class {constructor(callback: IntersectionObserverCallback){observers.push(callback);}observe(){}disconnect(){}});
+  const requestMedia=vi.fn(async()=>{});
+  bindShotloomHost({requestMedia} as any);
+  const source=createEmptyProject('Deferred');
+  const items=['first','second'].map(id=>({id,name:id,type:'image',blob:null,fileHandle:null,isPlaceholder:true,shotloomDeferred:true,shotloomAssetId:`asset-${id}`,metadata:{custom:'keep'}}));
+  useProjectStore.setState({hasOpenProject:true,project:{...source,mediaLibrary:{items}} as any});
+  render(<AssetsPanel/>);
+  expect(requestMedia).not.toHaveBeenCalled();
+  expect(observers).toHaveLength(2);
+  observers[0]([{isIntersecting:true}] as IntersectionObserverEntry[],{} as IntersectionObserver);
+  observers[1]([{isIntersecting:false}] as IntersectionObserverEntry[],{} as IntersectionObserver);
+  await waitFor(()=>expect(requestMedia).toHaveBeenCalledTimes(1));
+  expect(requestMedia).toHaveBeenCalledWith('first');
+  expect(useProjectStore.getState().project.mediaLibrary.items).toEqual(items);
 });
 
 describe.each(["en-US", "zh-CN"] as const)("Embedded media recovery feedback (%s)", locale => {

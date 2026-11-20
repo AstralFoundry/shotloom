@@ -1,5 +1,5 @@
 import { t } from '@/i18n';
-import { useContext, useRef, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 import { reconcileMediaNodeDimensions } from "../../domain/graph/CanvasNodeDimensions";
 import { desktopApi } from "../../services/desktopApi.ts";
 import { showToast } from "../../store/notificationStore";
@@ -12,6 +12,8 @@ import { formatMediaTime, GenerationAudioPreview } from "./GenerationAudioPrevie
 import { CanvasPreviewZoomContext, type WorkflowNodeActions, type WorkflowNodeData } from "./WorkflowCanvas";
 import { useGenerationLocalPreview } from "./generationNodeMedia";
 import type { GenerationNodeState } from "./generationNodeState";
+import { observeNearViewport } from "./previewLoadQueue";
+import { recordPerformanceMetric } from '../../services/performanceMetrics';
 
 /**
  * 空文本节点的快捷入口只写入提示词，不触发运行，
@@ -93,11 +95,31 @@ export function GenerationNodePreview({
   const [imageSize, setImageSize] = useState({ width: 1, height: 1 });
   const annotationAnchorRef = useRef<HTMLDivElement>(null);
   const previewZoom = useContext(CanvasPreviewZoomContext);
+  const [previewActive, setPreviewActive] = useState(false);
+  useEffect(() => {
+    const element = annotationAnchorRef.current;
+    if (!element || previewActive) return;
+    return observeNearViewport(element, () => setPreviewActive(true));
+  }, [previewActive]);
   const {
     url: previewUrl,
     retryBuffered: retryBufferedPreview,
     buffered: bufferedPreview,
-  } = useGenerationLocalPreview(previewItem, activeKind, previewZoom);
+  } = useGenerationLocalPreview(previewItem, activeKind, previewZoom, previewActive);
+  const frameMetric = useRef({ path: activeFilePath, started: performance.now(), recorded: false });
+  if (frameMetric.current.path !== activeFilePath) frameMetric.current = { path: activeFilePath, started: performance.now(), recorded: false };
+  function firstFrame(element: HTMLImageElement | HTMLVideoElement) {
+    const metric = frameMetric.current;
+    const record = () => {
+      const bounds = element.getBoundingClientRect();
+      if (frameMetric.current !== metric || metric.recorded || !element.isConnected || bounds.right <= 0 || bounds.bottom <= 0 || bounds.left >= window.innerWidth || bounds.top >= window.innerHeight) return;
+      metric.recorded = true;
+      performance.mark('shotloom-media-first-frame', { detail: { kind: activeKind, nodeId: node.id } });
+      recordPerformanceMetric('canvas-media-first-frame', metric.started, { kind: activeKind, nodeId: node.id, navigationMs: performance.now() });
+    };
+    if (element instanceof HTMLVideoElement && element.requestVideoFrameCallback) element.requestVideoFrameCallback(record);
+    else requestAnimationFrame(() => requestAnimationFrame(record));
+  }
 
   function openDetail(withTextAgent: boolean) {
     if (activeKind === "image" || activeKind === "video") {
@@ -214,6 +236,7 @@ export function GenerationNodePreview({
               alt={String(node.title || metaLabel)}
               onLoad={(event) => {
                 const image = event.currentTarget;
+                firstFrame(image);
                 setImageSize({ width: image.naturalWidth, height: image.naturalHeight });
                 const dimensions = reconcileMediaNodeDimensions(
                   node,
@@ -254,6 +277,7 @@ export function GenerationNodePreview({
                 }
               }}
               onLoadedData={(event) => {
+                firstFrame(event.currentTarget);
                 const video = event.currentTarget;
                 if (video.paused && video.currentTime === 0 && video.duration > 0) {
                   video.currentTime = Math.min(1 / 30, Math.max(0, video.duration - 0.04));

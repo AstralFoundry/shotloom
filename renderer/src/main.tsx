@@ -2,6 +2,8 @@ import { lazy, StrictMode, Suspense } from 'react';
 import { createRoot } from 'react-dom/client';
 import { CloudSession } from './app/CloudSession';
 import { readNativeWorkspaceBootstrap } from './app/nativeWorkspaceBootstrap';
+import { prepareCloudLocale } from './services/cloudCanvasStartup';
+import { cloudEnabled } from './utils/cloudConfig';
 import '../styles/tokens.css';
 import '../styles/cloud.css';
 import '../styles/agent-theme.css';
@@ -44,6 +46,20 @@ const ModelAdmin = lazy(async () => {
   return { default: () => <AntdProvider><ModelAdmin /></AntdProvider> };
 });
 const loadWorkbench = async () => {
+  if (cloudEnabled) {
+    const query = new URLSearchParams(location.search);
+    const names: Record<string, string> = {creation:'CreationView', projects:'ProjectsView', skills:'SkillsFeature', account:'AccountView', assets:'AssetsView', materials:'MaterialsView', tasks:'TasksView'};
+    const metadata = document.getElementById('shotloom-page-preloads');
+    if (metadata) {
+      const pages = JSON.parse(metadata.textContent || '{}') as Record<string, string[]>;
+      const routes = [names[query.get('route') || (query.has('project') ? 'creation' : 'projects')] || 'ProjectsView', ...(query.get('panel') === 'settings' ? ['SettingsFeature'] : [])];
+      for (const file of new Set(routes.flatMap(route => pages[route] || []))) {
+        if (!/^assets\/[a-zA-Z0-9_.-]+\.js$/.test(file) || document.querySelector(`link[href="/${file}"]`)) continue;
+        const link = document.createElement('link'); link.rel = 'modulepreload'; link.href = `/${file}`; document.head.append(link);
+      }
+    }
+    await prepareCloudLocale().catch(() => {});
+  }
   const [{ ReactWorkbench }, { AntdProvider }] = await Promise.all([import('./app/ReactWorkbench'), import('./app/ui/antd/AntdProvider')]);
   return { default: () => <AntdProvider><ReactWorkbench /></AntdProvider> };
 };

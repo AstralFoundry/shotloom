@@ -70,6 +70,19 @@ function originalMedia(): MediaItem {
 }
 
 describe("Media slice asynchronous imports", () => {
+  it("restoring deferred bytes retains names and metadata edited while decoding", async () => {
+    const waiting = deferred<ReturnType<typeof decodedAudio>>();
+    bridge.importFile.mockReturnValueOnce(waiting.promise);
+    const empty = createEmptyProject('Deferred');
+    const initial = {...empty, mediaLibrary:{...empty.mediaLibrary,items:[originalMedia()]}};
+    const store = createMediaStore(initial);
+    const loading = store.getState().replaceMediaAsset('existing-media',new File(['a'],'source.wav'),undefined,true);
+    store.setState({project:{...initial,mediaLibrary:{items:[{...originalMedia(),name:'User title',metadata:{...originalMedia().metadata,custom:'keep'} as any}]}}});
+    waiting.resolve(decodedAudio());
+    expect((await loading).success).toBe(true);
+    expect(store.getState().project.mediaLibrary.items[0].name).toBe('User title');
+    expect(store.getState().project.mediaLibrary.items[0].metadata).toMatchObject({custom:'keep'});
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     bridge.importFile.mockReset();
