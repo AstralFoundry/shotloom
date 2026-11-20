@@ -21,6 +21,7 @@ before(async () => {
 after(async () => { await server?.close(); });
 
 for (const [name, script] of [
+    ['Polyfork import and offline local models', 'smoke-polyfork.mjs'],
     ['agent production, export recovery and delivery package', 'smoke-agent-production.mjs'],
     ['editor workflows and recovery', 'smoke.mjs'],
     ['timeline controls and responsive layout', 'smoke-timeline.mjs'],

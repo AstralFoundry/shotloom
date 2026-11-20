@@ -15,6 +15,19 @@ export {
 export function editorThemeConfig(value: EditorTheme): ThemeConfig {
     const tokens = editorThemeTokens[value];
     const dark = value === 'dark';
+    const fieldBorders = {
+        hoverBorderColor: tokens['wash-6'],
+        activeBorderColor: tokens['text-muted'],
+    };
+    const fieldSizing = {
+        controlHeightSM: 32,
+        controlHeight: 36,
+        controlHeightLG: 40,
+        controlPaddingHorizontalSM: 9,
+        controlPaddingHorizontal: 12,
+        fontSize: 13,
+        fontSizeSM: 13,
+    };
     return {
         algorithm: dark ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,
         token: {
@@ -65,9 +78,11 @@ export function editorThemeConfig(value: EditorTheme): ThemeConfig {
                 primaryShadow: 'none',
                 defaultShadow: 'none',
                 fontWeight: 400,
-                contentFontSize: 12,
+                controlHeight: 32,
+                controlHeightLG: 36,
+                contentFontSize: 13,
                 contentFontSizeSM: 12,
-                contentFontSizeLG: 13,
+                contentFontSizeLG: 14,
             },
             Tabs: {
                 itemColor: tokens['text-secondary'],
@@ -86,20 +101,22 @@ export function editorThemeConfig(value: EditorTheme): ThemeConfig {
                 trackPadding: 3,
             },
             Input: {
-                activeBorderColor: tokens.accent,
-                hoverBorderColor: tokens['wash-6'],
+                ...fieldSizing,
+                ...fieldBorders,
                 activeShadow: 'none',
-                paddingInline: 9,
-                inputFontSize: 12,
-                inputFontSizeSM: 12,
+                paddingInlineSM: fieldSizing.controlPaddingHorizontalSM,
+                paddingInline: fieldSizing.controlPaddingHorizontal,
+                inputFontSize: fieldSizing.fontSize,
+                inputFontSizeSM: fieldSizing.fontSizeSM,
             },
             InputNumber: {
-                activeBorderColor: tokens.accent,
-                hoverBorderColor: tokens['wash-6'],
+                ...fieldSizing,
+                ...fieldBorders,
                 activeShadow: 'none',
-                paddingInline: 9,
-                inputFontSize: 12,
-                inputFontSizeSM: 12,
+                paddingInlineSM: fieldSizing.controlPaddingHorizontalSM,
+                paddingInline: fieldSizing.controlPaddingHorizontal,
+                inputFontSize: fieldSizing.fontSize,
+                inputFontSizeSM: fieldSizing.fontSizeSM,
             },
             Slider: {
                 railBg: tokens['wash-3'],
@@ -112,6 +129,10 @@ export function editorThemeConfig(value: EditorTheme): ThemeConfig {
                 dotActiveBorderColor: tokens.accent,
             },
             Select: {
+                ...fieldSizing,
+                ...fieldBorders,
+                activeOutlineColor: 'transparent',
+                optionSelectedColor: tokens['text-strong'],
                 optionSelectedBg: tokens['gp-selected'],
                 optionActiveBg: tokens['gp-field-hover'],
             },

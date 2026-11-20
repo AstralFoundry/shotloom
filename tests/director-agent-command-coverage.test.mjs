@@ -127,9 +127,9 @@ test('导演台只在载入宿主文档之后才写回，未载入时拒绝 Agen
     bridge.indexOf("message.type === 'storyai:director-desk-session'"),
     bridge.indexOf("message.type === 'storyai:director-desk-panorama'"),
   );
-  assert.ok(sessionHandler.includes('loadProject(payload.project)'), '会话消息必须载入宿主文档');
+  assert.ok(sessionHandler.includes('loadProject(payload.project, signal)'), '会话消息必须载入宿主文档');
   assert.ok(
-    sessionHandler.includes('await hostSession.initialize(string(payload.instanceId), async () => {') && sessionHandler.includes('await loadProject(payload.project)'),
+    sessionHandler.includes('await hostSession.initialize(string(payload.instanceId), async signal => {') && sessionHandler.includes('await loadProject(payload.project, signal)'),
     '加载必须经过幂等会话绑定；加载成功后才连接，失败可以重试',
   );
   const agent = bridge.slice(bridge.indexOf("message.type === 'storyai:director-desk-agent-request'"));

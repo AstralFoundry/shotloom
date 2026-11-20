@@ -2,11 +2,13 @@ import { strToU8, zipSync } from 'fflate';
 import { packModelFilesAsync } from './model-import-worker.ts';
 import { decodeModelBytes } from './model-package.ts';
 import { modelResourceId, type ModelResource } from './project-resources.ts';
+import { readLocalModel, saveLocalModel } from './local-model-library.ts';
 
 export interface PolyforkAsset {
     id: string;
     title: string;
     free: boolean;
+    class?: string | null;
     thumbnail?: string | null;
     triangles?: number | null;
     size_m?: { x: number; y: number; z: number } | null;
@@ -62,6 +64,30 @@ export async function downloadPolyforkModel(id: string, signal?: AbortSignal) {
         source: `${asset.source}\n${asset.download.glb}\nRetrieved: ${new Date().toISOString()}`,
     };
     return { asset, resource };
+}
+export async function obtainPolyforkModel(id: string, signal?: AbortSignal): Promise<ModelResource> {
+    const key = modelId(id);
+    const existing = await readLocalModel(key);
+    signal?.throwIfAborted();
+    if (existing) return existing;
+    const { asset, resource } = await downloadPolyforkModel(key, signal);
+    signal?.throwIfAborted();
+    try {
+        await saveLocalModel(key, resource, asset.class ?? undefined);
+    } catch {
+        throw Error('本地模型保存失败，请检查磁盘空间后重试');
+    }
+    return resource;
+}
+
+export async function rememberProjectPolyforkModels(resources: readonly ModelResource[]) {
+    for (const resource of resources) {
+        const id = /^https:\/\/polyfork\.dev\/asset\/([a-z0-9][a-z0-9-]{0,159})$/.exec(resource.source.split('\n')[0])?.[1];
+        if (id && resource.package.entry === `${id}.glb` && resource.copyright.includes('CC BY 4.0') &&
+            resource.license.startsWith('CC BY 4.0\n') && !(await readLocalModel(id))) {
+            await saveLocalModel(id, resource);
+        }
+    }
 }
 export function polyforkModelBundle(resource: ModelResource) {
     const files = Object.fromEntries(resource.package.files.map(file => [file.path, decodeModelBytes(file.data)]));

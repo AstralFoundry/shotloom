@@ -14,7 +14,7 @@ test('Polyfork queries and downloads require auth, constrain upstream URLs and p
   const original = globalThis.fetch;
   const user = randomUUID(), session = randomUUID();
   const id = 'armchair-980c7c';
-  const asset = { id, title: 'Armchair', free: true, thumbnail: null, triangles: null, size_m: null, credit: 'Armchair by Polyfork, CC BY 4.0', license: 'Mesh files: CC BY 4.0', download: { glb: `https://polyfork.dev/cdn/${id}.glb` } };
+  const asset = { id, title: 'Armchair', free: true, class: 'furniture', thumbnail: null, triangles: null, size_m: null, credit: 'Armchair by Polyfork, CC BY 4.0', license: 'Mesh files: CC BY 4.0', download: { glb: `https://polyfork.dev/cdn/${id}.glb` } };
   const requests: URL[] = [];
   let detail: unknown = asset, mode = 'ok';
   const glb = Buffer.alloc(24); glb.write('glTF'); glb.writeUInt32LE(2, 4); glb.writeUInt32LE(24, 8);
@@ -42,10 +42,13 @@ test('Polyfork queries and downloads require auth, constrain upstream URLs and p
     assert.equal((await app.request('/api/polyfork/assets')).status, 401);
     const list = await request('/assets?q=chair&page=2&url=https://evil.example/');
     assert.equal(list.status, 200);
-    assert.equal((await list.json()).data.assets[0].triangles, null);
+    const listed = (await list.json()).data.assets[0];
+    assert.equal(listed.triangles, null);
+    assert.equal(listed.class, 'furniture');
     assert.equal(requests[0]!.searchParams.get('free'), '1');
     assert.equal(requests[0]!.searchParams.has('url'), false);
     const info = (await (await request(`/assets/${id}`)).json()).data;
+    assert.equal(info.class, asset.class);
     assert.equal(info.credit, asset.credit); assert.equal(info.source, `https://polyfork.dev/asset/${id}`);
     assert.equal(info.licenseUrl, 'https://creativecommons.org/licenses/by/4.0/');
     const file = await request(`/assets/${id}/model`);

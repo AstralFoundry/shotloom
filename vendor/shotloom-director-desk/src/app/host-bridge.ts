@@ -8,6 +8,7 @@ import { session } from '@/state/editor-session.ts';
 import { useEditorStore } from '@/state/editor-store.ts';
 import { readSceneDocument } from '@/core/scenes/sequence-project.ts';
 import { prepareDocumentModels } from '@/core/scenes/document-models.ts';
+import type { Engine } from '@/core/engine.ts';
 import { ACTIONS, ASPECTS, BUILDS, FRAME_RATES, GENDERS, type Joint, type Vec3 } from '@/core/model.ts';
 import { assetGroups, searchAssets } from '@/core/asset-catalog.ts';
 import { CAMERA_PLACEMENTS } from '@/core/cinematography/camera-placements.ts';
@@ -21,7 +22,6 @@ import { createScene } from '@/core/scene-templates.ts';
 import { FRAMING_NAMES } from '@/state/commands/scene.ts';
 import { patchFieldCatalog } from '@/core/editor/patch-fields.ts';
 import * as THREE from 'three';
-import { setEditorTheme } from '@/core/editor/theme-state.ts';
 import { setReferenceBackdrop } from '@/state/reference-backdrop.ts';
 import { setLanguage } from '@/shared/i18n/locale.ts';
 import type { BatchEdit } from '@/state/batch-edits.ts';
@@ -31,7 +31,7 @@ import { isInFrame } from '@/core/spatial/checks.ts';
 import { worldContactAnchors } from '@/core/assets/contact-anchors.ts';
 import { modelNodeHidden } from '@/core/resources/model-node-visibility.ts';
 import { DirectorHostSession } from '@/core/host-session.ts';
-import { configurePolyfork, downloadPolyforkModel, getPolyforkModel, polyforkModelBundle, searchPolyforkModels } from '@/core/resources/polyfork.ts';
+import { configurePolyfork, obtainPolyforkModel, getPolyforkModel, polyforkModelBundle, rememberProjectPolyforkModels, searchPolyforkModels } from '@/core/resources/polyfork.ts';
 import { inspectImportedModel, placeImportedModel, pruneImportedModels } from '@/features/model-import/import-model.ts';
 
 type Input = Record<string, unknown>;
@@ -72,6 +72,9 @@ const exportJobs = new Map<string, ExportJobState>();
 const send = (type: string, payload: Input = {}) => parent.postMessage({ type: `storyai:director-desk-${type}`, payload }, origin);
 export function requestHostClose() {
     if (parent !== window) send('close');
+}
+export function reportHostModelImport(open: boolean) {
+    if (parent !== window) send('model-import-visibility', { open });
 }
 export function requestHostAgentOpen(entityId?: string) {
     if (parent !== window) send('open-agent', entityId ? { entityId } : {});
@@ -324,9 +327,10 @@ const commands: Record<string, (input: Input) => unknown> = {
     get_polyfork_model: i => getPolyforkModel(string(i.id)),
     download_polyfork_model: async i => {
         const owner = artifactOwner();
-        const { asset, resource } = await downloadPolyforkModel(string(i.id));
+        const id = string(i.id);
+        const resource = await obtainPolyforkModel(id);
         if (owner !== artifactOwner()) throw Error('工程已切换，请在原工程重新下载');
-        const file = await artifacts.retain(owner, polyforkModelBundle(resource), `${asset.id}.zip`, 'bundle', { provider: 'polyfork', modelId: asset.id, copyright: resource.copyright, license: resource.license, source: resource.source });
+        const file = await artifacts.retain(owner, polyforkModelBundle(resource), `${id}.zip`, 'bundle', { provider: 'polyfork', modelId: id, copyright: resource.copyright, license: resource.license, source: resource.source });
         return { ...await artifacts.read(owner, file.id), artifactId: file.id, downloaded: true, sceneChanged: false };
     },
     import_polyfork_model: async i => {
@@ -345,7 +349,7 @@ const commands: Record<string, (input: Input) => unknown> = {
         const original = session.project;
         session.setBusy(true);
         try {
-            const { resource } = await downloadPolyforkModel(string(i.id));
+            const resource = await obtainPolyforkModel(string(i.id));
             assertCurrent();
             if (session.project !== original) throw Error('工程已切换，请重新导入');
             await inspectImportedModel(resource);
@@ -792,13 +796,29 @@ function startVideoExport(input: Input) {
     return { jobId, filename, status: job.status, phase: job.phase, width, height, fps, frameCount: job.frameCount, codec: job.codec, note: 'export_video_job 返回分阶段状态和 artifact.id；delivery_failed 可用 export_artifact_deliver 重试入库或下载，不必重编码。completed 是否入库请看 artifact.ingestion。' };
 }
 
-async function loadProject(project: unknown) {
+async function loadProject(project: unknown, signal: AbortSignal) {
     if (!project) return;
     const document = readSceneDocument(project);
-    await prepareDocumentModels(session.engine.externalModels, document);
+    if (document.resources.length) {
+        const engine = session.engineOrNull ?? await new Promise<Engine>((resolve, reject) => {
+            signal.throwIfAborted();
+            const abort = () => { unsubscribe(); reject(signal.reason); };
+            const unsubscribe = useEditorStore.subscribe(() => {
+                if (!session.engineOrNull) return;
+                unsubscribe();
+                signal.removeEventListener('abort', abort);
+                resolve(session.engineOrNull);
+            });
+            signal.addEventListener('abort', abort, { once: true });
+        });
+        await prepareDocumentModels(engine.externalModels, document, signal);
+        if (session.engineOrNull !== engine) throw Error('导演台画布已重新加载，请重新打开');
+    }
+    signal.throwIfAborted();
     const restored = session.history.reset(document);
     useEditorStore.getState().patch({ project: restored, selected: restored.entities[0]?.id ?? '', time: 0 });
     session.changed(true);
+    void rememberProjectPolyforkModels(document.resources).catch(error => console.warn('本地模型补录失败', error));
 }
 
 function setPanorama(url: string, meta: { edgeId?: string; name?: string; sourceNodeId?: string } = {}) {
@@ -844,20 +864,22 @@ export function initializeHostBridge() {
             // The host decides how the desk is embedded, so its theme wins over the URL and
             // over whatever this browser stored from a previous standalone run.
             const theme = string(payload.theme);
-            if (theme === 'light' || theme === 'dark') setEditorTheme(theme, false);
+            if (theme === 'light' || theme === 'dark') session.setTheme(theme, false);
             try {
-                const initialized = await hostSession.initialize(string(payload.instanceId), async () => {
+                const initialized = await hostSession.initialize(string(payload.instanceId), async signal => {
                     window.clearTimeout(saveTimer);
-                    await loadProject(payload.project);
+                    await loadProject(payload.project, signal);
                 });
                 // Bound only once the host's document is the one on screen. A desk that failed
                 // to load still shows its starter scene, and writing that back would replace
                 // the scene the host saved; staying unbound keeps the saved scene recoverable.
                 // A fresh canvas node owns its own starter document from the first opening,
                 // even if the user closes it without making an edit.
-                artifactHostScope = string(payload.artifactScope) || string(payload.instanceId);
-                if (initialized) send('project-changed', { project: session.history.document(), revision: useEditorStore.getState().revision });
-                scheduleCover();
+                if (initialized) {
+                    artifactHostScope = string(payload.artifactScope) || string(payload.instanceId);
+                    send('project-changed', { project: session.history.document(), revision: useEditorStore.getState().revision });
+                    scheduleCover();
+                }
             } catch (error) { send('error', { error: String(error) }); }
             return;
         }

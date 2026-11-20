@@ -13,7 +13,7 @@ const querySchema = z.object({
   per_page: z.coerce.number().int().min(1).max(100).default(24),
 });
 const assetSchema = z.object({
-  id: idSchema, title: z.string(), free: z.boolean(),
+  id: idSchema, title: z.string(), free: z.boolean(), class: z.string().nullish(),
   thumbnail: z.string().nullish(), triangles: z.number().nonnegative().nullish(),
   size_m: z.object({ x: z.number(), y: z.number(), z: z.number() }).nullish(),
   has_skeleton: z.boolean().nullish(),

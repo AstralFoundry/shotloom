@@ -7,6 +7,21 @@ import { useEditorStore } from '@/state/editor-store.ts';
 export function pruneImportedModels() {
     session.engineOrNull?.externalModels.retain([session.project, ...session.history.undoStack, ...session.history.redoStack]);
 }
+export async function addDownloadedModelToScene(resource: ModelResource, signal?: AbortSignal) {
+    if (useEditorStore.getState().busy) throw Error('导演台正在执行其他任务');
+    try {
+        session.setBusy(true);
+        try {
+            await inspectImportedModel(resource, signal);
+            signal?.throwIfAborted();
+        } finally {
+            session.setBusy(false);
+        }
+        return placeImportedModel(resource);
+    } finally {
+        pruneImportedModels();
+    }
+}
 export async function inspectImportedModel(resource: ModelResource, signal?: AbortSignal) {
     signal?.throwIfAborted();
     const engine = session.engineOrNull;

@@ -3,9 +3,9 @@ import { DirectorCommandError } from './errors.ts';
 /** A revision is local to one loaded iframe session, never a persistent document version. */
 export class DirectorHostSession {
     private instanceId: string | null = null;
+    private loading: AbortController | null = null;
     private token = crypto.randomUUID();
     connected = false;
-    private initialization = Promise.resolve(false);
     private versions = new Map<number, { entities: Map<string, string>; sections: Map<string, string> }>();
 
     record(revision: number, document: Record<string, unknown>): void {
@@ -36,20 +36,26 @@ export class DirectorHostSession {
     get id() { return this.token; }
 
     /** ready and iframe load both deliver initialization; only the first may load the document. */
-    initialize(instanceId: string, load: () => void | Promise<void>): Promise<boolean> {
-        const pending = this.initialization.then(async () => {
-            if (this.connected && this.instanceId === instanceId) return false;
-            this.connected = false;
-            this.instanceId = null;
-            this.token = crypto.randomUUID();
-            this.versions.clear();
-            await load();
-            this.instanceId = instanceId;
+    async initialize(instanceId: string, load: (signal: AbortSignal) => void | Promise<void>): Promise<boolean> {
+        if ((this.connected || this.loading) && this.instanceId === instanceId) return false;
+        this.loading?.abort();
+        const controller = new AbortController();
+        this.loading = controller;
+        this.connected = false;
+        this.instanceId = instanceId;
+        this.token = crypto.randomUUID();
+        this.versions.clear();
+        try {
+            await load(controller.signal);
+            if (controller.signal.aborted) return false;
             this.connected = true;
             return true;
-        });
-        this.initialization = pending.catch(() => false);
-        return pending;
+        } catch (error) {
+            if (controller.signal.aborted) return false;
+            throw error;
+        } finally {
+            if (this.loading === controller) this.loading = null;
+        }
     }
 
     assertCurrent(expectedSessionId: unknown, currentRevision: number): void {

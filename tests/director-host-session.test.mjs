@@ -96,3 +96,26 @@ test('revision diff 区分增删改、场景属性与历史过期', async () => 
     assert.equal(binding.diff(1, 35).complete, false);
   } finally { await env.dispose(); }
 });
+
+test('等待模型资源时不重复加载，也不让已切换的旧会话重新连接', async () => {
+  const env = await createRendererEnv();
+  try {
+    const { DirectorHostSession } = await env.loadVendor('shotloom-director-desk/src/core/host-session.ts');
+    const binding = new DirectorHostSession();
+    const pending = Promise.withResolvers();
+    const first = binding.initialize('node-a', async signal => {
+      await pending.promise;
+      assert.equal(signal.aborted, true);
+    });
+    assert.equal(binding.connected, false);
+    assert.equal(await binding.initialize('node-a', () => assert.fail('duplicated load')), false);
+    const next = Promise.withResolvers();
+    const second = binding.initialize('node-b', () => next.promise);
+    pending.resolve();
+    assert.equal(await first, false);
+    assert.equal(binding.connected, false);
+    next.resolve();
+    assert.equal(await second, true);
+    assert.equal(binding.connected, true);
+  } finally { await env.dispose(); }
+});

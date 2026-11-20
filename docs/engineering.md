@@ -28,6 +28,8 @@ React Native 预览客户端采用独立 npm 安装，复用 shared 中的纯接
 
 导演台 `revision` 是 iframe 会话内计数；批量写入必须同时携带快照的 `sessionId`（`expectedSessionId`）和 `revision`（`expectedRevision`）。重复 ready/load 初始化必须幂等，不能重新载入旧文档。冲突回执附带最近 32 个版本范围内的 `revisionDiff`；缓存缺失时明确标记不完整。`autoPreview` 在写入成功后取帧，预览失败保留 `applied: true`，避免调用方重复应用批次。导出媒体的 `directorContext` 只保存导出时的工程事实，并随素材和画布节点传递；由模型根据这些事实与真实画面编写下游提示词，应用不猜测景别、剧情或内容质量。
 
+导演台资产侧栏通过现有云端 `/api/polyfork/` 搜索和下载模型，保留宿主传入的接口地址与登录校验。下载成功后写入同源 IndexedDB，「本地 → 已下载」可离线复用；目录与模型文件分别存储，缩略图仅在进入视口时加载。场景与下载 ZIP 保留逐模型署名和许可，工程保存独立资源副本，重开时先准备模型再载入场景。
+
 ## 官方 Harness 客户端隔离
 
 `harness/host/client/` 直接复用官方 Harness 的 UI、状态、投影与 React 依赖，以 App 级单例运行时在 Shotloom 页面内挂载，使用 ShadowRoot 隔离样式，不使用 iframe。它不接管 Shotloom 领域状态，不导入 renderer/store，不将官方状态引擎扩散到产品模块。桌面客户端通过原生 IPC 与父进程私有管道连接 Host，不使用 Cookie 登录或浏览器认证跳转；原生调用边界、项目绑定、Tool Bridge 和工具权限校验继续生效。切换项目只切换会话，工具、Skill、模型配置内容未变时不得重复复制或挂载。产品导航和画布引用通过显式适配接口协作；renderer 内仍严格遵守以上两类状态引擎约定。

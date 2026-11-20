@@ -1,6 +1,7 @@
 import { InboxOutlined } from '@ant-design/icons';
-import { Alert, Button, Col, Input, InputNumber, Modal, Row, Select, Tabs, Upload } from 'antd';
-import { useEffect, useRef, useState } from 'react';
+import { Alert, Button, Col, ConfigProvider, Input, InputNumber, Modal, Row, Select, Upload, type ThemeConfig } from 'antd';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { reportHostModelImport } from '@/app/host-bridge.ts';
 import { type Vec3 } from '@/core/model.ts';
 import { packModelFilesAsync } from '@/core/resources/model-import-worker.ts';
 import { modelResourceId, type ModelResource } from '@/core/resources/project-resources.ts';
@@ -9,7 +10,6 @@ import { useTranslation } from '@/shared/i18n/use-translation.ts';
 import { notifyError, notifySuccess } from '@/shared/ui/feedback.ts';
 import { session } from '@/state/editor-session.ts';
 import { inspectImportedModel, placeImportedModel, pruneImportedModels } from './import-model.ts';
-import { PolyforkBrowser } from './polyfork-browser.tsx';
 
 type Inspection = ReturnType<SceneModels['inspection']>;
 
@@ -26,6 +26,18 @@ interface PlacementForm {
 
 const MODEL_EXTENSION = /\.(glb|gltf|fbx|obj)$/i;
 const filePath = (file: File) => (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name;
+const importControlSize = { height: 40, fontSize: 14 };
+const importActionStyle = { ...importControlSize, paddingInline: 20 };
+const mainFileSelectTheme: ThemeConfig = {
+    components: {
+        Select: {
+            controlHeight: importControlSize.height,
+            fontSize: importControlSize.fontSize,
+            optionHeight: importControlSize.height,
+            optionFontSize: importControlSize.fontSize,
+        },
+    },
+};
 
 /**
  * Import GLB / glTF / FBX / OBJ with their sidecar files.
@@ -38,7 +50,6 @@ export function ModelImportDialog({ open, onClose }: { open: boolean; onClose: (
     const [files, setFiles] = useState<File[]>([]);
     const [entry, setEntry] = useState('');
     const [step, setStep] = useState<'pick' | 'place'>('pick');
-    const [sourceTab, setSourceTab] = useState('local');
     const [resource, setResource] = useState<ModelResource | null>(null);
     const [inspection, setInspection] = useState<Inspection | null>(null);
     const [size, setSize] = useState<Vec3 | null>(null);
@@ -56,6 +67,12 @@ export function ModelImportDialog({ open, onClose }: { open: boolean; onClose: (
     });
     const abortRef = useRef<AbortController | null>(null);
     const placedRef = useRef(false);
+
+    useLayoutEffect(() => {
+        if (!open) return;
+        reportHostModelImport(true);
+        return () => reportHostModelImport(false);
+    }, [open]);
 
     const entries = files.map(filePath).filter((path) => MODEL_EXTENSION.test(path));
 
@@ -100,10 +117,10 @@ export function ModelImportDialog({ open, onClose }: { open: boolean; onClose: (
         onClose();
     };
 
-    async function readModel(downloaded?: ModelResource) {
+    async function readModel() {
         const engine = session.engineOrNull;
         if (!engine || reading) return;
-        if (!downloaded && !entry) {
+        if (!entry) {
             setError(t('请先选择模型主文件'));
             return;
         }
@@ -116,16 +133,13 @@ export function ModelImportDialog({ open, onClose }: { open: boolean; onClose: (
         setError('');
         session.setBusy(true);
         try {
-            let nextResource = downloaded;
-            if (!nextResource) {
-                const source: Array<{ path: string; bytes: Uint8Array }> = [];
-                for (const file of files) {
-                    controller.signal.throwIfAborted();
-                    source.push({ path: filePath(file), bytes: new Uint8Array(await file.arrayBuffer()) });
-                }
-                const pack = await packModelFilesAsync(entry, source, controller.signal);
-                nextResource = { id: await modelResourceId(pack, controller.signal), name: entry.split('/').at(-1)!.replace(MODEL_EXTENSION, ''), package: pack, copyright: '', license: '', source: '' };
+            const source: Array<{ path: string; bytes: Uint8Array }> = [];
+            for (const file of files) {
+                controller.signal.throwIfAborted();
+                source.push({ path: filePath(file), bytes: new Uint8Array(await file.arrayBuffer()) });
             }
+            const pack = await packModelFilesAsync(entry, source, controller.signal);
+            const nextResource = { id: await modelResourceId(pack, controller.signal), name: entry.split('/').at(-1)!.replace(MODEL_EXTENSION, ''), package: pack, copyright: '', license: '', source: '' };
             if (session.project !== original) throw Error('读取期间工程已变化，请重新导入');
             const { inspection: info, size: measured } = await inspectImportedModel(nextResource, controller.signal);
             setResource(nextResource);
@@ -189,17 +203,19 @@ export function ModelImportDialog({ open, onClose }: { open: boolean; onClose: (
             footer={
                 step === 'pick' ? (
                     <>
-                        <Button onClick={close} disabled={reading}>
+                        <Button style={importActionStyle} onClick={close} disabled={reading}>
                             {t('取消')}
                         </Button>
-                        {sourceTab === 'local' && <Button type="primary" loading={reading} disabled={!entry} onClick={() => void readModel()}>
+                        <Button style={importActionStyle} type="primary" loading={reading} disabled={!entry} onClick={() => void readModel()}>
                             {t('读取模型')}
-                        </Button>}
+                        </Button>
                     </>
                 ) : (
                     <>
-                        <Button onClick={() => setStep('pick')}>{t('返回')}</Button>
-                        <Button type="primary" onClick={place}>
+                        <Button style={importActionStyle} onClick={() => setStep('pick')}>
+                            {t('返回')}
+                        </Button>
+                        <Button style={importActionStyle} type="primary" onClick={place}>
                             {t('放入场景')}
                         </Button>
                     </>
@@ -208,11 +224,6 @@ export function ModelImportDialog({ open, onClose }: { open: boolean; onClose: (
         >
             {step === 'pick' ? (
                 <div className="stack">
-                    <Tabs activeKey={sourceTab} onChange={setSourceTab} items={[
-                        { key: 'local', label: t('本地文件'), disabled: reading },
-                        { key: 'polyfork', label: t('在线模型 · Polyfork'), disabled: reading },
-                    ]} />
-                    {sourceTab === 'polyfork' ? <PolyforkBrowser disabled={reading} onImport={readModel} /> : <>
                     <Alert
                         type="info"
                         showIcon
@@ -229,7 +240,7 @@ export function ModelImportDialog({ open, onClose }: { open: boolean; onClose: (
                                     return false;
                                 }}
                             >
-                                <Button block icon={<InboxOutlined />}>
+                                <Button block style={importActionStyle} icon={<InboxOutlined />}>
                                     {t('选择文件')}
                                 </Button>
                             </Upload>
@@ -244,7 +255,7 @@ export function ModelImportDialog({ open, onClose }: { open: boolean; onClose: (
                                     return false;
                                 }}
                             >
-                                <Button block icon={<InboxOutlined />}>
+                                <Button block style={importActionStyle} icon={<InboxOutlined />}>
                                     {t('选择文件夹')}
                                 </Button>
                             </Upload>
@@ -252,17 +263,18 @@ export function ModelImportDialog({ open, onClose }: { open: boolean; onClose: (
                     </Row>
                     <label className="export-field">
                         <span>{t('模型主文件')}</span>
-                        <Select
-                            value={entry || undefined}
-                            placeholder={entries.length ? t('选择主文件') : t('先选择文件')}
-                            onChange={(value) => setEntry(value)}
-                            options={entries.map((path) => ({ value: path, label: path }))}
-                        />
+                        <ConfigProvider theme={mainFileSelectTheme}>
+                            <Select
+                                value={entry || undefined}
+                                placeholder={entries.length ? t('选择主文件') : t('先选择文件')}
+                                onChange={(value) => setEntry(value)}
+                                options={entries.map((path) => ({ value: path, label: path }))}
+                            />
+                        </ConfigProvider>
                     </label>
                     <p className="muted small">
                         {t('已选择')} {files.length} {t('个文件')}
                     </p>
-                    </>}
                     {error ? <Alert type="error" showIcon title={error} /> : null}
                 </div>
             ) : (
