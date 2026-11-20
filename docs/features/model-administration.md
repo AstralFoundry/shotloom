@@ -117,6 +117,8 @@ runninghub::krea2-normal-v1 = tier("RH coins", (u("coins") ?? 15) * 0.002)
 
 用户反馈 Krea2 参考图被拒绝，以及 H3 上游成功但画布无视频。已核对网关 RunningHub 插件 1.0.6：Krea2 工作流只构建文生图，未接入图片输入；保留真实能力边界，未添加会丢弃参考图片的虚假 mode。回归证明 Krea2 纯文本输入通过、参考图输入被拒绝。
 
+以上结论仅描述插件 1.0.6 的接入范围，不代表 RunningHub 上游没有参考图能力。插件 1.0.7 已接入最多 3 张参考图，Shotloom 对应新增 `reference-to-image` 模式：`POST /v1/images/edits`，multipart `image` / `image[]`，支持 JPG / PNG / WebP。沿用已有媒体读取与上传流程，链接、本地文件和云端素材统一发送图片内容；纯文生图仍走 `/v1/images/generations`。回归覆盖画布输入 1–3 张通过、第 4 张拒绝，以及三种来源的真实图片内容进入云端转发请求。
+
 H3 任务 `task_sJvz3qwYdnR4EJdUApv5OlvHrAxDzxzq` 在网关已 SUCCESS，应用任务却归档了 0 字节 MP4。根因是云端 `downloadUrlToProject` 丢弃第三个参数 downloadAuth：模板回执只有鉴权结果端点、没有公开 URL，最终以空路径调用浏览器本地读取替身，上传了空文件。修复复用已有 BFF relay 请求，按结果端点下载 Blob 再上传 Storage，并拒绝空下载；HTTP 失败不得上传或提交素材。回归从真实适配器轮询贯通云端下载和归档，覆盖成功、403 和空内容。
 
 已从原任务只读下载视频，验证 H.264/AAC、480×864、5.167 秒、716474 字节；核对用户、工程、任务和素材关系以及原对象为 0 字节后，将正常 MP4 恢复到原来的租户隔离存储路径。签名下载复核字节数及 SHA-256 `7d53fb4d452bbb80e065d04fcd90268195c9948c580d25926567c706ac7beb1b` 一致。未重发付费生成，未修改工程或任务 JSON；历史素材大小字段仍保留原值，Storage 对象大小已正确，刷新工程会重新读取恢复的视频。

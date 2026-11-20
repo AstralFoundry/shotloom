@@ -17,7 +17,7 @@ test('RunningHub templates are publishable through supported gateway routes', ()
     for (const mode of model.modes) {
       assert.equal((mode.requestTemplate as { model: string }).model, '{{model}}');
       assert.equal(relayPath(mode.endpoint.path, model.provider, mode.endpoint.scope),
-        type === 'videoGeneration' ? '/v1/videos' : '/v1/images/generations');
+        type === 'videoGeneration' ? '/v1/videos' : mode.inputMode === 'reference' ? '/v1/images/edits' : '/v1/images/generations');
     }
     assert.equal(compilePublication({ ...publication, published: false }), null);
     assert.equal(compilePublication({ ...publication, available: false }), null);

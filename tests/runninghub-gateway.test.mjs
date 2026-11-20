@@ -5,7 +5,7 @@ import { createRendererEnv } from './helpers/rendererSsr.mjs';
 
 const templates = JSON.parse(readSource('shared/runninghubGatewayTemplates.json'));
 
-test('published Krea2 accepts text input and rejects unsupported reference images', async () => {
+test('published Krea2 accepts text and up to three reference images', async () => {
   const env = await createRendererEnv();
   try {
     const { modelCatalog } = await env.load('domain/catalog/ModelCatalog');
@@ -16,10 +16,14 @@ test('published Krea2 accepts text input and rejects unsupported reference image
     const project = { nodes: [target, source], edges: [], tasks: [], materials: [] };
     assert.deepEqual(generationUpstreamReadiness(target, project).issues, []);
     target.inputMode = 'reference';
-    project.edges.push({ source: 'source', target: 'target', data: { inputRole: 'referenceImage' } });
-    const readiness = generationUpstreamReadiness(target, project);
-    assert.equal(readiness.ready, false);
-    assert.match(readiness.issues.join('；'), /不支持参考图片/);
+    project.edges.push({ source: 'source', target: 'target', data: { inputRole: 'referenceImage', inputSlot: 'reference' } });
+    assert.deepEqual(generationUpstreamReadiness(target, project).issues, []);
+    for (let index = 2; index <= 4; index++) {
+      project.nodes.push({ ...source, id: `source-${index}` });
+      project.edges.push({ source: `source-${index}`, target: 'target', data: { inputRole: 'referenceImage', inputSlot: 'reference' } });
+      const readiness = generationUpstreamReadiness(target, project);
+      assert.equal(readiness.ready, index <= 3, readiness.issues.join('；'));
+    }
   } finally { await env.dispose(); }
 });
 
@@ -57,6 +61,10 @@ test('RunningHub gateway templates submit images, poll videos and download authe
         assert.equal(sent.resolution, '1K');
         assert.equal(sent.__endpointPath, mode.endpoint.path);
         if (model.type === 'imageGeneration') {
+          if (images.length) {
+            assert.equal(sent.__multipart, true);
+            assert.deepEqual(sent.__inputImages.map(file => file.fieldName), ['image[]', 'image[]']);
+          }
           assert.equal(task.status, 'completed');
           assert.equal(task.result.files[0].url, 'https://cdn.example/result.png');
           continue;
@@ -86,6 +94,52 @@ test('RunningHub gateway templates submit images, poll videos and download authe
       }
     }
   } finally { await env.dispose(); }
+});
+
+test('Krea2 reference mode sends local, URL and cloud image bytes through the cloud relay', async () => {
+  const env = await createRendererEnv({ withWindow: true });
+  const previousFetch = globalThis.fetch;
+  let submitted = false;
+  globalThis.fetch = async (url, init) => {
+    if (url === '/api/files/sign?bucket=media&key=reference.png') return Response.json({ success: true, data: { url: 'https://storage.example/reference.png' } });
+    if (url === 'https://cdn.example/reference.png' || url === 'https://storage.example/reference.png') {
+      return new Response(url, { headers: { 'Content-Type': 'image/png' } });
+    }
+    assert.equal(url, '/api/relay/images/edits');
+    assert.equal(init.method, 'POST');
+    assert.equal(init.headers.get('x-shotloom-provider'), 'openai');
+    const form = init.body;
+    assert.ok(form instanceof FormData);
+    assert.equal(form.get('model'), 'krea2-normal-v1');
+    assert.equal(form.get('prompt'), 'Use these references');
+    assert.deepEqual(await Promise.all(form.getAll('image[]').map(file => file.text())), [
+      'local image bytes', 'https://cdn.example/reference.png', 'https://storage.example/reference.png',
+    ]);
+    submitted = true;
+    return Response.json({ data: [{ url: 'https://cdn.example/result.png' }] });
+  };
+  try {
+    const { createCloudApi } = await env.load('services/cloudApi');
+    const { desktopApi } = await env.load('services/desktopApi');
+    const { modelCatalog } = await env.load('domain/catalog/ModelCatalog');
+    const { getProviderAdapter } = await env.load('domain/provider/adapters/index');
+    const api = createCloudApi({ file: { readArrayBuffer: async path => {
+      assert.equal(path, '/local-reference.png');
+      return new TextEncoder().encode('local image bytes').buffer;
+    } } });
+    desktopApi.file.readArrayBuffer = api.file.readArrayBuffer;
+    desktopApi.model.imageGeneration = api.model.imageGeneration;
+    const contract = modelCatalog.buildRuntimeContract({ ...templates[1], id: 'krea2-normal-v1' }, 'reference-to-image');
+    const adapter = getProviderAdapter('openai');
+    const result = await adapter.submit(adapter.compileRequest({
+      taskType: 'imageGeneration', model: 'krea2-normal-v1', prompt: 'Use these references', modelContract: contract,
+      params: { aspectRatio: '1:1', resolution: '1K' },
+      modelInputs: { images: ['/local-reference.png', 'https://cdn.example/reference.png', 'cloud://media/reference.png']
+        .map(filePath => ({ filePath, fileName: 'reference.png', mimeType: 'image/png', inputSlot: 'reference' })) },
+    }));
+    assert.equal(submitted, true);
+    assert.equal(result.result.files[0].url, 'https://cdn.example/result.png');
+  } finally { globalThis.fetch = previousFetch; await env.dispose(); }
 });
 
 test('completed H3 video downloads through the cloud relay before archiving to canvas', async () => {

@@ -344,6 +344,90 @@
           "resolution": "{{resolution}}"
         },
         "resultUrlPath": "data.*.url"
+      },
+      {
+        "id": "reference-to-image",
+        "label": "参考图生图",
+        "endpoint": {
+          "method": "POST",
+          "path": "/images/edits",
+          "scope": "v1"
+        },
+        "inputConstraints": {
+          "images": {
+            "min": 1,
+            "max": 3,
+            "roles": [
+              "referenceImage"
+            ],
+            "formats": [
+              "jpg",
+              "jpeg",
+              "png",
+              "webp"
+            ]
+          }
+        },
+        "outputConstraints": {
+          "maxCount": 1,
+          "formats": [
+            "png"
+          ]
+        },
+        "params": [
+          {
+            "key": "prompt",
+            "label": "提示词",
+            "labelKey": "catalog.label.2f0bb12387",
+            "type": "text",
+            "required": true
+          },
+          {
+            "key": "aspectRatio",
+            "label": "比例",
+            "labelKey": "catalog.label.c27f341ce5",
+            "type": "select",
+            "default": "1:1",
+            "options": [
+              "1:1",
+              "16:9",
+              "9:16",
+              "3:4",
+              "4:3",
+              "2:3",
+              "3:2"
+            ]
+          },
+          {
+            "key": "resolution",
+            "label": "分辨率",
+            "labelKey": "catalog.label.cde9b52b23",
+            "type": "select",
+            "default": "2K",
+            "options": [
+              "1K",
+              "2K"
+            ]
+          }
+        ],
+        "auth": {
+          "type": "bearer"
+        },
+        "requestTemplate": {
+          "model": "{{model}}",
+          "prompt": "{{prompt}}",
+          "aspect_ratio": "{{aspectRatio}}",
+          "resolution": "{{resolution}}"
+        },
+        "resultUrlPath": "data.*.url",
+        "inputMode": "reference",
+        "inputSlots": [
+          "reference"
+        ],
+        "inputFormat": "multipart",
+        "requestFields": {
+          "multipartImage": "image"
+        }
       }
     ]
   }
