@@ -1,8 +1,9 @@
 name: CI
 on:
   pull_request:
+    branches-ignore: [supabase]
   push:
-    branches: [main, supabase]
+    branches: [main]
   workflow_dispatch:
 permissions:
   contents: read
