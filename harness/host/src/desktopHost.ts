@@ -60,7 +60,8 @@ export async function startDesktopHost(options: {
   host.ctx.effect(() => () => database?.close());
   try {
     await startClientServices(host, options);
-    const owners = new Map<string, Awaited<ReturnType<typeof host.create>>>();
+    type Owner = Pick<Awaited<ReturnType<typeof host.create>>, 'agent' | 'binding'>;
+    const owners = new Map<string, Owner>();
     // This queue serializes composition and catalog writes, never model turns.
     let composition = Promise.resolve();
     let modelPlugin: Awaited<ReturnType<Context['plugin']>> | undefined;
@@ -68,7 +69,7 @@ export async function startDesktopHost(options: {
     const sessionCrud = options.persistence?.sessions ?? new SessionCrud(database!);
     const providerConfigs = new Map<string, string>();
     const skillVersions = new Map<string, string>();
-    async function seedDefaultModel(owner: Awaited<ReturnType<typeof host.create>>, model?: { provider: string; model: string; reasoningEffort?: string }, providers?: Record<string, ProviderConfig>) {
+    async function seedDefaultModel(owner: Owner, model?: { provider: string; model: string; reasoningEffort?: string }, providers?: Record<string, ProviderConfig>) {
       const selection = host.ctx.sessionProjections.stateOf(owner.agent.session, 'modelSelection');
       const selected = selection?.pending ?? selection?.lastUsed;
       const removed = selected && providers && !providers[selected.provider]?.profile.models?.some(item => item.id === selected.model);
@@ -126,6 +127,12 @@ export async function startDesktopHost(options: {
               await writeFile(join(directory, 'SKILL.md'), `---\nname: ${skill.id}\ndescription: ${JSON.stringify(skill.description || skill.id)}\n${metadata}---\n${skill.instructions}`, { mode: 0o600 });
             }
           }
+          if (request.sessionId && !owners.has(request.sessionId)) {
+            // Share the controller's in-flight resume and existing writer, including history activation.
+            const resolved = await host.ctx.sessionController.resolveAgent(SessionId(request.sessionId));
+            if ('error' in resolved) throw resolved.error;
+            owners.set(request.sessionId, { agent: resolved.agent, binding: host.binding(request.sessionId)! });
+          }
           const existing = [...owners.values()].find(owner => key(owner.binding) === catalogKey);
           if (existing) {
             if (request.sessionId && existing.binding.sessionId !== request.sessionId) throw new Error('Conversation already has a live session');
@@ -154,7 +161,7 @@ export async function startDesktopHost(options: {
           const defaultModel = request.defaultModel && { ...request.defaultModel,
             reasoningEffort: request.defaultModel.reasoningEffort === undefined ? undefined : ReasoningEffortId(request.defaultModel.reasoningEffort),
           };
-          const owner = request.sessionId ? await host.resume(request.sessionId, defaultModel) : await host.create(binding, defaultModel);
+          const owner = await host.create(binding, defaultModel);
           // The official browser controller installs its own model selection.
           // Seed that selection through its public API: AgentOptions alone are
           // otherwise overridden by the controller's deployment default.

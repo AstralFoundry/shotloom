@@ -531,6 +531,41 @@ test('native composition validates bindings, caches configuration, scopes Skills
   assert.match(JSON.stringify(resumedAdapter.requests[0].messages), /native scoped response/);
 });
 
+test('product binding shares cold Session ownership with the official controller', { timeout: 15000 }, async t => {
+  const { startDesktopHost } = await import('../dist/desktopHost.js');
+  const dataRoot = await mkdtemp(join(tmpdir(), 'shotloom-controller-resume-'));
+  const config = { ...options(dataRoot), distIndex: '', clientToolsOnly: true, bridge: { authorize: true, dispatch: async () => ({ success: true }) } };
+  let desktop = await startDesktopHost(config);
+  desktop.host.ctx.llm.registerAdapter(['test'], new ScriptedAdapter([]));
+  t.after(async () => { await desktop.host.dispose(); await rm(dataRoot, { recursive: true, force: true }); });
+  const tool = { name: 'canvas_resume_read', description: 'Read the bound project', parameters: { type: 'object', properties: {} }, roles: [binding.agentId], effect: 'read' };
+  const payload = { binding, tools: [tool], skills: [], defaultModel: route };
+  const { sessionId } = await desktop.bind(payload);
+  for (const concurrent of [false, true]) {
+    await desktop.host.dispose();
+    desktop = await startDesktopHost(config);
+    desktop.host.ctx.llm.registerAdapter(['test'], new ScriptedAdapter([]));
+    const resolve = desktop.host.ctx.sessionController.resolveAgent(sessionId);
+    if (!concurrent) {
+      const resolved = await resolve;
+      assert.ok('agent' in resolved, resolved.error?.message);
+      assert.ok(desktop.host.ctx.tools.schemas(resolved.agent).some(row => row.name === tool.name));
+    }
+    const updatedTool = { ...tool, name: `${tool.name}_updated` };
+    const skill = { id: 'resumed-project', instructions: 'Read the actual project before editing.' };
+    const [resolved, rebound] = await Promise.all([resolve, desktop.bind({ ...payload, sessionId, tools: [updatedTool], skills: [skill] })]);
+    assert.equal(rebound.sessionId, sessionId);
+    assert.ok('agent' in resolved, resolved.error?.message);
+    assert.equal(desktop.host.ctx.agents.get(sessionId), resolved.agent);
+    assert.ok(desktop.host.ctx.tools.schemas(resolved.agent).some(row => row.name === updatedTool.name));
+    assert.equal(desktop.host.ctx.tools.schemas(resolved.agent).some(row => row.name === tool.name), false);
+    assert.match((await desktop.host.ctx.skills.get(skill.id, { scope: resolved.agent })).content, /actual project/);
+    assert.equal(desktop.host.ctx.sessionProjections.stateOf(resolved.agent.session, 'modelSelection').pending.model, route.model);
+    await assert.rejects(desktop.bind({ ...payload, sessionId, binding: { ...binding, projectKey: 'other-project' } }), /binding mismatch/);
+    await desktop.bind({ ...payload, sessionId });
+  }
+});
+
 test('native IPC routes official RPC and streams, rejects external routes and preserves project binding', { timeout: 15000 }, async t => {
   const { startDesktopHost } = await import('../dist/desktopHost.js');
   const { nativeTransport } = await import('../dist/nativeTransport.js');

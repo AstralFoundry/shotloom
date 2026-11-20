@@ -234,6 +234,7 @@ export async function createHost(options: HostOptions) {
   let disposed = false;
   const live = new Map<string, AgentHandle>();
   const resuming = new Set<string>();
+  const configured = new Set<string>();
   const workspace = (id: string) => join(dataRoot, 'workspaces', options.clientToolsOnly ? createHash('sha256').update(id).digest('hex') : id);
   async function persistBindings() {
     await hostCrud.saveBindings(bindings as unknown as Record<string, unknown>[]);
@@ -361,10 +362,13 @@ export async function createHost(options: HostOptions) {
         // on this child's own scope remain available. Only global names belong here.
         scope.tools.restrict({ allow: ['send_message', 'skill', 'ask_user_question'] });
       }
+      scope.effect(() => {
+        configured.add(binding.sessionId);
+        return () => { configured.delete(binding.sessionId); };
+      });
     };
   }
-  // The official continuation manager awaits this hook before the first turn,
-  // including cold resumes. Only children with persisted trusted bindings get editor tools.
+  // Official history and continuation resumes must install the same trusted product scope.
   ctx.on('agent/created', async ({ agent }) => {
     if (options.clientToolsOnly) {
       const cwd = workspace(String(agent.session.id));
@@ -372,7 +376,7 @@ export async function createHost(options: HostOptions) {
       if (ctx.workingDirectory.get(agent.session) !== cwd) await ctx.workingDirectory.set(agent, cwd);
     }
     const binding = bindings.find(item => item.sessionId === String(agent.session.id));
-    if (binding?.toolSessionId) {
+    if (binding && !configured.has(binding.sessionId)) {
       await setup(Object.freeze({ ...binding }), agent)(agent.ctx);
     }
     return undefined;
