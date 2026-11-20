@@ -79,3 +79,14 @@ MiniMax H3 使用 `/v1/videos`，支持 5–15 秒、16:9 / 9:16、480p / 720p /
 渠道使用 RunningHub Task Plugin，内置“渠道测试”不支持此类型。需实际提交最小生成请求验证，并继续检查任务结果；有错误回执时不能宣称已生成成功。还需在 New API 配置计费，并把两个模型映射到真实 RunningHub workflow ID。
 
 验证：`tests/runninghub-gateway.test.mjs` 覆盖实际适配器的图片提交、多参考图 multipart、视频轮询、失败信息和鉴权下载描述；`server/tests/runninghub-templates.test.ts` 覆盖发布编译与允许的网关路由。
+
+2026-11-21 线上渠道检查：渠道 12（RunningHub，type 61）配置了这两个模型；Task Plugin 已为 1.0.1，使用渠道保存的 `.cn` 地址。经用户授权，仅新增 `billing_setting.plugin_billing_expr` 的两条规则，初始售价为 $0.002/RH 币：
+
+```text
+runninghub::minimax-h3-reference-to-video = tier("RH coins", (u("coins") ?? 200) * 0.002)
+runninghub::krea2-normal-v1 = tier("RH coins", (u("coins") ?? 15) * 0.002)
+```
+
+提交时插件尚未提供币耗，分别预扣 $0.40 / $0.03（最终还应用账号分组倍率），完成后用实际币耗重新结算；成功任务缺少币耗回执时保留预扣价。该价格是本站初始售价，不是已核实的上游采购成本。
+
+价格配置回读及最小生成请求均已验证。当前生成仍被工作流映射阻塞：未配置映射时返回 RunningHub `404 NOT_FOUND`；仓库旧 H3 workflow ID `2086743729407733762` 返回 `380 workflow not exists`，测试后已撤销该无效映射。尚需两个模型当前账号可访问的真实 workflow ID。最近失败请求的网关日志 quota 均为 0；没有成功任务或媒体产物，实际币耗结算尚未实测。未部署本次 Shotloom 模板变更，也未发布线上模型。
