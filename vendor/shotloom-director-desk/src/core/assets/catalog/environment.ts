@@ -22,6 +22,7 @@ export const PLANT_ASSETS: readonly AssetDefinition[] = plants.map(([style, name
     name,
     group: '植物',
     family: 'plant-v1',
+    defaults: { color: '#61794d' },
     aliases: [style, '植物'],
     parameters: {
         width: lengthField('冠幅／宽度', width),
@@ -32,6 +33,16 @@ export const PLANT_ASSETS: readonly AssetDefinition[] = plants.map(([style, name
     },
 }));
 
+const TERRAIN_COLORS: Record<string, string> = {
+    ground: '#8c9570',
+    slope: '#9c997b',
+    hill: '#8e9b71',
+    rock: '#92938c',
+    cliff: '#969185',
+    ditch: '#9b927c',
+    riverbed: '#9d9785',
+    water: '#72989d',
+};
 const terrains = [
     ['ground', '地面块', 10, 0.2, 10],
     ['slope', '土坡', 5, 2, 5],
@@ -48,6 +59,7 @@ export const TERRAIN_ASSETS: readonly AssetDefinition[] = terrains.map(([style, 
     name,
     group: '地形自然',
     family: 'terrain-v1',
+    defaults: { color: TERRAIN_COLORS[style] },
     aliases: [style, '地形'],
     parameters: {
         width: lengthField('宽度', width),

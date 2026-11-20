@@ -5,7 +5,7 @@ import { QUADRUPED_SHAPES } from './catalog/animals.ts';
 import { material, sphere, cylinder, box, mesh } from './geometry.ts';
 import { scaleHuman } from './humanoid.ts';
 export { poseAnimal as poseQuadruped } from './rig-pose.ts';
-import { addAnimalDetails } from './animal-details.ts';
+import { addAnimalDetails, finishAnimalCoat } from './animal-details.ts';
 import { makePrimate } from './primate.ts';
 import { animalShape } from './animal-parameters.ts';
 
@@ -19,6 +19,9 @@ export function makeQuadruped(e: Entity): Rig {
     root.add(hips);
     const skin = material(e.color),
         jointSkin = material(new T.Color(e.color).multiplyScalar(0.91));
+    const muzzleSkin = material('#d5c6aa');
+    const eyeSkin = material('#222826');
+    eyeSkin.roughness = 0.3;
     const joints: Record<string, T.Group> = {};
     const joint = (name: string, parent: T.Object3D, x: number, y: number, z: number) => {
         const g = new T.Group();
@@ -38,19 +41,61 @@ export function makeQuadruped(e: Entity): Rig {
     sphere(torso, skin, 0, p.neck / 2 + 0.06, p.body * 0.42, p.width * 0.6, p.neck / 2 + 0.1, p.width * 0.65);
     const head = joint('head', torso, 0, p.neck + 0.1, p.body * 0.46);
     sphere(head, skin, 0, p.head * 0.45, 0.04, p.head * 0.7, p.head * 0.9, p.head);
-    sphere(head, skin, 0, p.head * 0.15, p.head + p.muzzle * 0.45, p.head * 0.54, p.head * 0.48, p.muzzle);
+    if (p.species !== 'elephant') {
+        sphere(
+            head,
+            muzzleSkin,
+            0,
+            p.head * 0.15,
+            p.head + p.muzzle * 0.45,
+            p.head * 0.54,
+            p.head * 0.48,
+            Math.max(p.muzzle, p.head * 0.24),
+        );
+        sphere(
+            head,
+            eyeSkin,
+            0,
+            p.head * 0.23,
+            p.head + Math.max(p.muzzle * 1.35, p.head * 0.25),
+            p.head * (p.species === 'pig' ? 0.37 : 0.19),
+            p.head * 0.13,
+            p.head * 0.1,
+        );
+    } else muzzleSkin.dispose();
     for (const sign of [-1, 1]) {
+        sphere(
+            head,
+            eyeSkin,
+            sign * p.head * 0.58,
+            p.head * 0.72,
+            p.head * 0.64,
+            p.head * 0.115,
+            p.head * 0.13,
+            p.head * 0.1,
+        );
         if (p.ear > 0) {
-            const ear = sphere(
-                head,
-                skin,
-                sign * p.head * 0.52,
-                p.head * 1.1 + p.ear / 2,
-                -0.005,
-                p.head * 0.21,
-                p.ear / 2,
-                0.035,
-            );
+            const pointed = ['cat', 'dog'].includes(p.species) && e.asset !== 'animal-dog-small';
+            const ear = pointed
+                ? mesh(
+                      head,
+                      new T.ConeGeometry(p.head * 0.35, p.ear, 4),
+                      skin,
+                      sign * p.head * 0.52,
+                      p.head * 1.1 + p.ear / 2,
+                      -0.005,
+                  )
+                : sphere(
+                      head,
+                      skin,
+                      sign * p.head * 0.52,
+                      p.head * 1.1 + p.ear / 2,
+                      -0.005,
+                      p.head * 0.21,
+                      p.ear / 2,
+                      0.035,
+                  );
+            if (pointed) ear.scale.z = 0.42;
             ear.rotation.z = sign * -0.2;
         }
         if (p.horn) {
@@ -93,13 +138,15 @@ export function makeQuadruped(e: Entity): Rig {
                           ? 0.04
                           : 0.036;
             cylinder(upper, skin, radius * 1.5, radius, p.leg * 0.5, 0, -p.leg * 0.25);
+            if (front || ['rabbit', 'cat', 'dog', 'lion', 'tiger'].includes(p.species))
+                sphere(upper, skin, 0, -p.leg * 0.12, 0, radius * 1.65, p.leg * 0.3, radius * 1.7);
             const lower = joint(side + (front ? 'Elbow' : 'Knee'), upper, 0, -p.leg * 0.5, 0);
             sphere(lower, jointSkin, 0, 0, 0, radius);
             cylinder(lower, skin, radius, radius * 0.75, p.leg * 0.5, 0, -p.leg * 0.25);
             if (p.hoof) box(lower, jointSkin, radius * 2.2, hoof, radius * 3, 0, -p.leg * 0.5, radius * 0.4, 0.012);
             else sphere(lower, skin, 0, -p.leg * 0.5, radius * 0.4, radius * 1.3, hoof / 2, radius * 1.75);
         }
-    if (p.tail > 0) {
+    if (p.tail > 0 && !['cat', 'dog', 'lion', 'tiger', 'pig'].includes(p.species)) {
         const tail = sphere(
             torso,
             skin,
@@ -122,6 +169,7 @@ export function makeQuadruped(e: Entity): Rig {
                 sphere(torso, skin, x, p.width * 0.5, z * (p.body / 0.8), p.width * 0.62, p.width * 0.8, 0.2);
     }
     addAnimalDetails(torso, head, p, skin);
+    finishAnimalCoat(root, torso, head, p, e, skin);
     root.updateMatrixWorld(true);
     const bounds = new T.Box3().setFromObject(root, true);
     // Short-legged pets may have a belly below the foot baseline; lift the whole rig.

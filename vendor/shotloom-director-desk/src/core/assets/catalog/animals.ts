@@ -451,6 +451,33 @@ export const QUADRUPED_JOINTS = {
     leftKnee: '左后腿下段',
     rightKnee: '右后腿下段',
 };
+/** Neutral, editable coat colors instead of the human mannequin blue. */
+const COAT_COLORS: Record<string, string> = {
+    'dog-small': '#bc9366',
+    'dog-large': '#9f7954',
+    cat: '#a58d76',
+    rabbit: '#d7cdc0',
+    hamster: '#c09b6c',
+    guineapig: '#aa7850',
+    horse: '#8e6041',
+    donkey: '#928c80',
+    cow: '#d5cfc0',
+    sheep: '#ddd3bb',
+    goat: '#ae9c83',
+    pig: '#cfa39a',
+    deer: '#b08a57',
+    wolf: '#8b938e',
+    fox: '#c37c3d',
+    turtle: '#7c8754',
+    lizard: '#7d9661',
+    camel: '#bb9b68',
+    bear: '#705849',
+    lion: '#bc985e',
+    tiger: '#c9914b',
+    elephant: '#91928c',
+    giraffe: '#c7ae71',
+    gorilla: '#575854',
+};
 export const ANIMAL_ASSETS: readonly AssetDefinition[] = presets.map((p) => ({
     id: p.id,
     name: p.name,
@@ -460,7 +487,7 @@ export const ANIMAL_ASSETS: readonly AssetDefinition[] = presets.map((p) => ({
     family: 'quadruped-v1',
     aliases: p.aliases,
     parameters: quadrupedParameterSchema(QUADRUPED_SHAPES[p.id]),
-    defaults: { height: p.height },
+    defaults: { height: p.height, color: COAT_COLORS[p.id.replace('animal-', '')] },
     joints: QUADRUPED_JOINTS,
     capabilities: { rig: 'quadruped', actions: ['idle'], pose: true, path: true },
 }));

@@ -32,6 +32,12 @@ export function makePrimate(e: Entity): Rig {
     sphere(head, skin, 0, 0.02, 0, 0.18, 0.22, 0.17);
     sphere(head, skin, 0, -0.065, 0.1, 0.145, 0.135, 0.13);
     sphere(head, skin, 0, 0.055, 0.14, 0.17, 0.042, 0.035);
+    const face = material('#696a61'),
+        eye = material('#202725');
+    sphere(head, face, 0, -0.07, 0.16, 0.13, 0.11, 0.09);
+    sphere(head, eye, 0, -0.015, 0.235, 0.065, 0.03, 0.023);
+    for (const sign of [-1, 1]) sphere(head, eye, sign * 0.075, 0.035, 0.163, 0.018, 0.014, 0.012);
+    sphere(torso, face, 0, 0.35 * body, 0.305 * body, 0.22 * width, 0.19 * body, 0.025);
     for (const [side, sign] of [
         ['left', -1],
         ['right', 1],

@@ -93,6 +93,16 @@ const presets: Array<{ name: string; aliases: string[]; shape: CreatureShape }> 
 export const CREATURE_SHAPES: Readonly<Record<string, CreatureShape>> = Object.fromEntries(
     presets.map((p) => ['animal-' + p.shape.species, p.shape]),
 );
+const CREATURE_COLORS: Record<string, string> = {
+    chicken: '#c6a07a',
+    duck: '#9ba597',
+    pigeon: '#929d9d',
+    eagle: '#796956',
+    pterosaur: '#879078',
+    fish: '#b5a073',
+    shark: '#7c969c',
+    snake: '#7d8c56',
+};
 export const CREATURE_ASSETS: readonly AssetDefinition[] = presets.map((p) => ({
     id: 'animal-' + p.shape.species,
     name: p.name,
@@ -101,7 +111,7 @@ export const CREATURE_ASSETS: readonly AssetDefinition[] = presets.map((p) => ({
     group: '飞禽水生幻想',
     icon: '♧',
     family: p.shape.rig + '-v1',
-    defaults: { height: p.shape.height },
+    defaults: { height: p.shape.height, color: CREATURE_COLORS[p.shape.species] },
     capabilities: { rig: p.shape.rig, actions: ['idle'], pose: true, path: true },
     parameters: creatureParameterSchema(p.shape),
     joints: p.shape.rig === 'bird' ? BIRD_JOINTS : p.shape.rig === 'fish' ? FISH_JOINTS : SERPENT_JOINTS,

@@ -9,6 +9,8 @@ import { animalShape } from './animal-parameters.ts';
 
 interface Builder {
     skin: T.Material;
+    accent: T.Material;
+    pale: T.Material;
     joints: Record<string, T.Group>;
     joint: (name: string, parent: T.Object3D, x: number, y: number, z: number) => T.Group;
 }
@@ -25,21 +27,25 @@ function membrane(parent: T.Object3D, skin: T.Material, vertices: number[][], ax
 }
 
 function bird(b: Builder, torso: T.Group, p: CreatureShape) {
-    const { skin, joint } = b;
+    const { skin, joint, accent, pale } = b;
     sphere(torso, skin, 0, 0, 0, p.width, p.width * 1.15, p.body * 0.55);
     sphere(torso, skin, 0, p.neck * 0.4, p.body * 0.3, p.width * 0.5, p.neck * 0.7 + 0.07, p.width * 0.52);
     const head = joint('head', torso, 0, p.neck + 0.07, p.body * 0.36);
     const h = p.width * 0.58;
-    sphere(head, skin, 0, h * 0.3, 0, h, h * 1.08, h);
-    if (p.species === 'duck') box(head, skin, h * 1.3, h * 0.3, h * 1.65, 0, 0, h * 1.22);
+    sphere(head, p.species === 'eagle' ? pale : skin, 0, h * 0.3, 0, h, h * 1.08, h);
+    if (p.species === 'duck') sphere(head, material('#466c59'), 0, h * 0.35, -0.005, h * 0.99, h * 1.06, h * 0.98);
+    if (p.species === 'duck') box(head, accent, h * 1.3, h * 0.3, h * 1.65, 0, 0, h * 1.22);
     else {
         const length = h * (p.species === 'pterosaur' ? 4.3 : 1.5);
-        const beak = mesh(head, new T.ConeGeometry(h * 0.5, length, 4), skin, 0, 0, h + length / 2);
+        const beak = mesh(head, new T.ConeGeometry(h * 0.5, length, 4), accent, 0, 0, h + length / 2);
         beak.rotation.x = Math.PI / 2;
-        if (p.species === 'eagle') sphere(head, skin, 0, -h * 0.28, h * 2.1, h * 0.23, h * 0.48, h * 0.26);
+        if (p.species === 'eagle') sphere(head, accent, 0, -h * 0.28, h * 2.1, h * 0.23, h * 0.48, h * 0.26);
     }
-    if (p.species === 'chicken')
-        for (const z of [-0.04, 0, 0.04]) sphere(head, skin, 0, h * 1.38, z, 0.025, 0.05, 0.035);
+    if (p.species === 'chicken') {
+        const comb = material('#a64e3c');
+        for (const z of [-0.04, 0, 0.04]) sphere(head, comb, 0, h * 1.38, z, 0.025, 0.05, 0.035);
+        sphere(head, comb, 0, -h * 0.55, h * 0.65, h * 0.3, h * 0.5, h * 0.2);
+    }
     if (p.species === 'pterosaur')
         membrane(
             head,
@@ -70,14 +76,29 @@ function bird(b: Builder, torso: T.Group, p: CreatureShape) {
             p.species === 'pterosaur' ? 0.012 : 0.03,
         );
         sphere(wing, skin, sign * p.wing * 0.3, 0, -p.body * 0.12, p.wing * 0.34, 0.035, p.body * 0.18);
+        if (p.species !== 'pterosaur')
+            for (let feather = 0; feather < 6; feather++) {
+                const t = feather / 6;
+                membrane(
+                    wing,
+                    skin,
+                    [
+                        [sign * p.wing * (0.24 + t * 0.63), -0.04, -p.body * (0.2 + t * 0.02)],
+                        [sign * p.wing * (0.38 + t * 0.63), -0.06, -p.body * (0.33 + t * 0.05)],
+                        [sign * p.wing * (0.3 + t * 0.63), -0.07, -p.body * (0.57 - t * 0.12)],
+                    ],
+                    'y',
+                    0.012,
+                );
+            }
         const hip = joint(side + 'Hip', torso, sign * p.width * 0.55, -p.width * 0.7, 0);
-        cylinder(hip, skin, 0.029, 0.023, p.leg * 0.5, 0, -p.leg * 0.25);
+        cylinder(hip, accent, 0.029, 0.023, p.leg * 0.5, 0, -p.leg * 0.25);
         const knee = joint(side + 'Knee', hip, 0, -p.leg * 0.5, 0);
-        cylinder(knee, skin, 0.022, 0.015, p.leg * 0.5, 0, -p.leg * 0.25);
+        cylinder(knee, accent, 0.022, 0.015, p.leg * 0.5, 0, -p.leg * 0.25);
         if (p.species === 'duck')
             membrane(
                 knee,
-                skin,
+                accent,
                 [
                     [0, -p.leg * 0.5, -0.025],
                     [-0.07, -p.leg * 0.5, 0.1],
@@ -88,7 +109,7 @@ function bird(b: Builder, torso: T.Group, p: CreatureShape) {
             );
         else
             for (const x of [-0.035, 0, 0.035]) {
-                const toe = box(knee, skin, 0.018, 0.024, 0.12, x, -p.leg * 0.5, 0.04, 0.007);
+                const toe = box(knee, accent, 0.018, 0.024, 0.12, x, -p.leg * 0.5, 0.04, 0.007);
                 toe.rotation.y = x * 4;
             }
     }
@@ -216,6 +237,10 @@ export function makeCreature(e: Entity): Rig {
     root.add(hips);
     const skin = material(e.color),
         joints: Record<string, T.Group> = {};
+    const accent = material('#b88a4e'),
+        pale = material('#d6d2ba'),
+        eye = material('#1e2928');
+    eye.roughness = 0.24;
     const joint: Builder['joint'] = (name, parent, x, y, z) => {
         const g = new T.Group();
         g.position.set(x, y, z);
@@ -224,13 +249,57 @@ export function makeCreature(e: Entity): Rig {
         return g;
     };
     const torso = joint('torso', hips, 0, 0, 0),
-        builder = { skin, joints, joint };
+        builder = { skin, joints, joint, accent, pale };
     const head =
         p.rig === 'bird'
             ? bird(builder, torso, p)
             : p.rig === 'fish'
               ? fish(builder, torso, p)
               : serpent(builder, torso, p);
+    const eyeSize = p.rig === 'bird' ? p.width * 0.065 : p.width * 0.1;
+    for (const sign of [-1, 1]) {
+        const pos =
+            p.rig === 'bird'
+                ? new T.Vector3(sign * p.width * 0.51, p.width * 0.3, p.width * 0.24)
+                : p.rig === 'fish'
+                  ? new T.Vector3(sign * p.width * 0.7, p.width * 0.22, p.body * 0.105)
+                  : new T.Vector3(sign * p.width * 0.92, p.width * 0.4, p.width * 0.95);
+        sphere(head, eye, pos.x, pos.y, pos.z, eyeSize);
+        sphere(
+            head,
+            pale,
+            pos.x + sign * eyeSize * 0.3,
+            pos.y + eyeSize * 0.35,
+            pos.z + eyeSize * 0.75,
+            eyeSize * 0.24,
+        );
+    }
+    // A light belly, dorsal shading and bands live on the geometry, so they follow rig joints.
+    skin.vertexColors = true;
+    root.updateMatrixWorld(true);
+    const inverse = torso.matrixWorld.clone().invert();
+    root.traverse((object) => {
+        if (!(object instanceof T.Mesh) || object.material !== skin) return;
+        const g = object.geometry,
+            pos = g.attributes.position,
+            colors = [];
+        const transform = new T.Matrix4().multiplyMatrices(inverse, object.matrixWorld);
+        for (let i = 0; i < pos.count; i++) {
+            const v = new T.Vector3().fromBufferAttribute(pos, i).applyMatrix4(transform);
+            let shade = v.y < 0 ? 1.22 : 0.9;
+            if (p.rig === 'serpent') shade = Math.sin(v.z * 52 + v.x * 9) > 0.35 ? 0.62 : 1.05;
+            if (p.rig === 'bird') shade = 0.85 + 0.15 * Math.cos((v.z / p.body) * 8);
+            colors.push(shade, shade, shade);
+        }
+        g.setAttribute('color', new T.Float32BufferAttribute(colors, 3));
+    });
+    for (const surface of [accent, pale, eye]) {
+        let used = false;
+        root.traverse((o) => {
+            if (o instanceof T.Mesh && o.material === surface) used = true;
+        });
+        if (!used) surface.dispose();
+    }
     root.updateMatrixWorld(true);
     hips.position.y -= new T.Box3().setFromObject(root, true).min.y;
     root.updateMatrixWorld(true);

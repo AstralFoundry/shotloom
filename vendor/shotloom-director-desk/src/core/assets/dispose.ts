@@ -4,6 +4,7 @@ export function disposeTree(root: T.Object3D) {
         materials = new Set<T.Material>();
     root.traverse((o) => {
         if (o instanceof T.Light) o.dispose();
+        if (o instanceof T.InstancedMesh) o.dispose();
         const m = o as T.Mesh;
         if (m.geometry && !m.geometry.userData.referenceShared) geometries.add(m.geometry);
         if (m.material) for (const x of Array.isArray(m.material) ? m.material : [m.material]) materials.add(x);
