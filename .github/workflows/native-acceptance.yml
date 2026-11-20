@@ -96,6 +96,7 @@ jobs:
           LAYOUT_ONLY: ${{ inputs.layout_only }}
           BASELINE_RUN: ${{ inputs.baseline_run }}
         with:
+          emulator-build: 14472402
           api-level: 35
           system-image-api-level: 35-ext15
           arch: x86_64
@@ -238,6 +239,7 @@ jobs:
         with:
           ram-size: 2048M
           heap-size: 256M
+          emulator-build: 14472402
           api-level: 35
           system-image-api-level: 35-ext15
           arch: x86_64
