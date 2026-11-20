@@ -296,14 +296,14 @@ function BasePanel({ entity }: { entity: Entity }) {
             <div className="field-pair">
                 <FieldRow label={t('可见')}>
                     <Switch
-                        size="small"
+                        aria-label={t('可见')}
                         checked={entity.visible}
                         onChange={(checked) => session.setEntityFlag('visible', checked)}
                     />
                 </FieldRow>
                 <FieldRow label={t('锁定')}>
                     <Switch
-                        size="small"
+                        aria-label={t('锁定')}
                         checked={entity.locked}
                         onChange={(checked) => session.setEntityFlag('locked', checked)}
                     />

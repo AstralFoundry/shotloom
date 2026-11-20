@@ -99,7 +99,7 @@
 
 .search {
   width: 260px;
-  height: 32px;
+  height: var(--control-height-large);
   display: block;
 }
 
@@ -159,7 +159,7 @@ textarea::placeholder {
 }
 
 .button {
-  min-height: var(--control-height);
+  min-height: var(--control-height-large);
   border-radius: var(--radius-control);
   display: inline-flex;
   align-items: center;

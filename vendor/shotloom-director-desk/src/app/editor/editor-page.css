@@ -1159,19 +1159,6 @@
     display: none;
 }
 
-.inspector .ant-input,
-.inspector .ant-input-number,
-.inspector .ant-select-single .ant-select-selector {
-    font-size: 12px;
-}
-
-.inspector .ant-input-number-input {
-    height: 22px;
-}
-.inspector .ant-select-single .ant-select-selection-item {
-    line-height: 22px;
-}
-
 .inspector--actor .transform-matrix,
 .inspector--crowd .transform-matrix,
 .inspector--camera .transform-matrix,
@@ -1283,7 +1270,7 @@
 .field-row__label {
     overflow: hidden;
     color: var(--ed-text-secondary);
-    font-size: 12px;
+    font-size: 13px;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
@@ -1335,8 +1322,8 @@
 }
 
 .inspector .field-row__content > .inline:has(.ant-color-picker-trigger) {
-    min-height: 28px;
-    gap: 6px;
+    min-height: 36px;
+    gap: 8px;
     padding: 1px 6px;
     border: 1px solid var(--ed-line-strong);
     border-radius: 8px;
@@ -1344,15 +1331,19 @@
 }
 
 .inspector .field-row__content > .inline .ant-color-picker-trigger {
-    width: 24px;
-    height: 24px;
-    min-width: 24px;
-    min-height: 24px;
+    width: 30px;
+    height: 30px;
+    min-width: 30px;
+    min-height: 30px;
     display: grid;
     place-items: center;
     padding: 2px;
     border: 0;
     background: transparent;
+}
+
+.inspector .field-row__content > .inline:has(.ant-color-picker-trigger) .muted {
+    font-size: 12px;
 }
 
 .transform-matrix {

@@ -18,6 +18,7 @@ import { useEffect, useState, type ReactNode } from "react";
  */
 // 与 tokens.css 的 --brand-accent 同值：浅色 #6d6cff，暗色 #8b8aff。
 const SHOTLOOM_PRIMARY = { light: "#6d6cff", dark: "#8b8aff" };
+const standardControlSize = { controlHeight: 36, controlHeightLG: 40 };
 
 function useDarkTheme() {
   const [dark, setDark] = useState(
@@ -67,8 +68,12 @@ export function AntdProvider({ children }: { children: ReactNode }) {
             paddingContentHorizontalLG: 24,
           },
           Button: {
+            ...standardControlSize,
             fontWeight: 500,
           },
+          Input: standardControlSize,
+          InputNumber: standardControlSize,
+          Select: standardControlSize,
         },
       }}
     >

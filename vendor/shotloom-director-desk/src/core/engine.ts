@@ -134,8 +134,6 @@ export class Engine {
     pickingEnabled = true;
     gridVisible = true;
     private cameraMarkerBounds = new T.Box3();
-    private lightGroundPreview = false;
-    private lightShotFloor: T.Mesh | null = null;
     placementSnap = 0;
     objectSnapEnabled = false;
     objectSnapTarget = '';
@@ -891,10 +889,6 @@ export class Engine {
     }
     refreshHelpers() {
         this.needsRender = true;
-        if (this.lightShotFloor) {
-            disposeTree(this.lightShotFloor);
-            this.lightShotFloor = null;
-        }
         this.contactMarker.root?.removeFromParent();
         while (this.helpers.children.length) disposeTree(this.helpers.children[0]);
         while (this.pathHelpers.children.length) disposeTree(this.pathHelpers.children[0]);
@@ -903,44 +897,32 @@ export class Engine {
         // Editor-only spatial reference. It is not a scene entity, so deleting a
         // placed ground prop never removes the floor/grid used for navigation.
         const workingY = workingElevation(this.project);
-        const visibleGround = this.project.entities.filter(
-            (entity) => entity.asset === 'ground' && editorEntityVisible(this.project, entity),
-        );
-        const groundTop = visibleGround.reduce<number | null>((highest, entity) => {
+        const lightTheme = getEditorTheme() === 'light';
+        let groundTop: number | null = null;
+        for (const entity of this.project.entities) {
+            if (entity.asset !== 'ground') continue;
             const model = this.models.get(entity.id);
-            if (!model) return highest;
+            if (!model) continue;
+            if (!entity.external && !entity.parts?.length && entity.color.toLowerCase() === '#1d2127') {
+                const color = lightTheme ? vpToken('vp-floor') : entity.color;
+                model.traverse((object) => {
+                    if (object instanceof T.Mesh && object.material instanceof T.MeshStandardMaterial)
+                        object.material.color.set(color);
+                });
+            }
+            if (!editorEntityVisible(this.project, entity)) continue;
             model.updateWorldMatrix(true, true);
             const top = new T.Box3().setFromObject(model).max.y;
-            return highest === null ? top : Math.max(highest, top);
-        }, null);
-        // The starter ground is dark scene content. In the light editor, use a
-        // temporary floor for the stage and the live shot preview.
-        // `groundTop` is null until the ground models finish loading, so a ground entity that
-        // exists but has no model yet must not count: `groundTop!` would otherwise place the
-        // floor at NaN metres.
-        this.lightGroundPreview =
-            getEditorTheme() === 'light' &&
-            groundTop !== null &&
-            visibleGround.length > 0 &&
-            visibleGround.every((entity) => entity.color.toLowerCase() === '#1d2127');
-        if (groundTop === null || this.lightGroundPreview) {
+            groundTop = groundTop === null ? top : Math.max(groundTop, top);
+        }
+        if (groundTop === null) {
             const floor = new T.Mesh(
                 new T.PlaneGeometry(160, 160),
                 new T.MeshBasicMaterial({ color: vpToken('vp-floor'), side: T.DoubleSide, depthWrite: false }),
             );
             floor.rotation.x = -Math.PI / 2;
-            floor.position.y = this.lightGroundPreview ? groundTop! + 0.006 : workingY - 0.025;
+            floor.position.y = workingY - 0.025;
             this.helpers.add(floor);
-        }
-        if (this.lightGroundPreview) {
-            this.lightShotFloor = new T.Mesh(
-                new T.PlaneGeometry(160, 160),
-                new T.MeshBasicMaterial({ color: vpToken('vp-floor'), side: T.DoubleSide }),
-            );
-            this.lightShotFloor.rotation.x = -Math.PI / 2;
-            this.lightShotFloor.position.y = groundTop! + 0.006;
-            this.lightShotFloor.visible = false;
-            this.scene.add(this.lightShotFloor);
         }
         const grid = new T.GridHelper(
             this.project.room.enabled ? 20 : 80,
@@ -1036,9 +1018,8 @@ export class Engine {
             const root = this.models.get(e.id);
             if (!root) continue;
             root.visible = editor
-                ? editorEntityVisible(this.project, e) && !(this.lightGroundPreview && e.asset === 'ground')
-                : shotEntityVisible(this.project, e, cameraEntity.camera) &&
-                  !(this.lightGroundPreview && e.asset === 'ground');
+                ? editorEntityVisible(this.project, e)
+                : shotEntityVisible(this.project, e, cameraEntity.camera);
             // A camera captured from the current view surrounds the editor's eye.
             // Hide its solid marker only while the eye intersects it, otherwise its
             // body/lens occludes the whole stage. The shot camera remains available.
@@ -1047,7 +1028,6 @@ export class Engine {
                 if (this.cameraMarkerBounds.containsPoint(this.editorCamera.position)) root.visible = false;
             }
         }
-        if (this.lightShotFloor) this.lightShotFloor.visible = !editor;
         this.contactMarker.update(this.project.entities, this.models);
         const room = this.project.room;
         this.roomGroup.visible = room.enabled;
@@ -1398,12 +1378,6 @@ export class Engine {
         disposeTree(this.roomGroup);
         disposeTree(this.helpers);
         disposeTree(this.pathHelpers);
-        // The light-theme floor lives on the scene, not in `helpers`, so nothing above releases
-        // it; `scene.clear()` only detaches, leaving its geometry and material on the GPU.
-        if (this.lightShotFloor) {
-            disposeTree(this.lightShotFloor);
-            this.lightShotFloor = null;
-        }
         this.selectionBox?.dispose();
         this.scene.clear();
         this.effects.forEach(effect => effect.dispose());

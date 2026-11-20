@@ -1124,19 +1124,13 @@ export class EditorSession {
     /**
      * Switch the desk theme.
      *
-     * The 3D viewports read their colours from the theme tokens at build time, so a theme
-     * change has to rebuild the helper geometry (floor, grid) and repaint the background.
-     * The scene graph itself is untouched, so this stays cheap and keeps undo history intact.
+     * Refresh viewport colors without changing the project or undo history.
      */
     setTheme(value: 'light' | 'dark', persist = true): void {
         setEditorTheme(value, persist);
         const engine = this.engineRef;
         if (engine) {
             engine.rebuild(this.project);
-            // The light theme swaps the ground for a temporary floor that lives on the scene.
-            // `rebuild` alone would leave the previous theme's floor in place, so the helpers are
-            // rebuilt too — that is what creates and disposes the theme-specific floor.
-            engine.refreshHelpers();
             engine.requestResize();
         }
     }
