@@ -13,6 +13,7 @@ import { INDUSTRIAL_ASSETS, THEMED_ASSETS, VEHICLE_ASSETS } from './assets/catal
 import type { AssetDefinition } from './assets/catalog/types.ts';
 import { ROOM_PART_ASSETS } from './assets/catalog/room-parts.ts';
 import { LIGHT_ASSETS } from './assets/catalog/lights.ts';
+import { englishText } from '../shared/i18n/locale.ts';
 const legacyAssets = [
     { id: 'ground', name: '地面 · 可调尺寸', kind: 'prop', group: '搭建', icon: '▱' },
     { id: 'road', name: '道路 · 可调尺寸', kind: 'prop', group: '室外', icon: 'Ⅱ' },
@@ -84,14 +85,31 @@ export const findAsset = (id: string) => assetsById.get(id);
 export const isAnimalAsset = (id: string) =>
     ['quadruped', 'bird', 'fish', 'serpent'].includes(findAsset(id)?.capabilities?.rig ?? '');
 export const assetJoints = (id: string) => findAsset(id)?.joints ?? HUMAN_JOINTS;
+const searchText = (text: string) => text.normalize('NFKC').toLocaleLowerCase().trim();
+/** Literal and ordered partial-letter matches only; this does not infer production intent. */
+export function assetSearchScore(query: string, labels: string[]): number {
+    const words = searchText(query).split(/\s+/).filter(Boolean);
+    const terms = labels.flatMap(label => [searchText(label), searchText(englishText(label))]);
+    let score = 0;
+    for (const word of words) {
+        const matches = terms.map(term => {
+            if (term === word) return 0;
+            if (term.includes(word)) return 1;
+            if (word.length < 4) return Infinity;
+            return Math.min(...term.split(/[^\p{L}\p{N}]+/u).map(token => {
+                let index = 0;
+                for (const letter of token) if (letter === word[index]) index++;
+                return index === word.length && token.length - word.length <= 2 ? 2 : Infinity;
+            }));
+        });
+        score += Math.min(...matches);
+    }
+    return score;
+}
 export function searchAssets(query: string, group = '全部') {
-    const words = query.toLocaleLowerCase().trim().split(/\s+/).filter(Boolean);
-    const source = words.length ? ASSETS.filter((asset) => !asset.libraryRetired) : LIBRARY_ASSETS;
-    return source.filter(
-        (a) =>
-            (group === '全部' || a.group === group) &&
-            words.every((word) =>
-                [a.id, a.name, a.group, ...(a.aliases ?? [])].join(' ').toLocaleLowerCase().includes(word),
-            ),
-    );
+    const source = query.trim() ? ASSETS.filter(asset => !asset.libraryRetired) : LIBRARY_ASSETS;
+    const selectedGroup = searchText(group);
+    return source.filter(asset => ['全部', 'all'].includes(selectedGroup) || [asset.group, englishText(asset.group)].some(label => searchText(label) === selectedGroup))
+        .map(asset => ({ asset, score: assetSearchScore(query, [asset.id, asset.name, asset.group, ...(asset.aliases ?? [])]) }))
+        .filter(match => Number.isFinite(match.score)).sort((a, b) => a.score - b.score).map(match => match.asset);
 }

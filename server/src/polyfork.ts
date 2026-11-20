@@ -11,6 +11,7 @@ const querySchema = z.object({
   q: z.string().trim().max(200).default(''),
   page: z.coerce.number().int().min(1).max(10000).default(1),
   per_page: z.coerce.number().int().min(1).max(100).default(24),
+  class: z.string().trim().regex(/^[a-z][a-z0-9_-]{0,63}$/).optional(),
 });
 const assetSchema = z.object({
   id: idSchema, title: z.string(), free: z.boolean(), class: z.string().nullish(),
@@ -97,10 +98,15 @@ polyforkApp.use('/polyfork/*', requireAuth);
 polyforkApp.get('/polyfork/assets', async c => {
   const query = parse(querySchema, c.req.query());
   const params = new URLSearchParams({ q: query.q, page: String(query.page), per_page: String(query.per_page), free: '1' });
-  const result = z.object({ total: z.number().int().nonnegative(), page: z.number().int().positive(), per_page: z.number().int().positive(), assets: z.array(assetSchema) })
+  if (query.class) params.set('class', query.class);
+  const result = z.object({ total: z.number().int().nonnegative(), page: z.number().int().positive(), per_page: z.number().int().positive(), assets: z.array(assetSchema),
+    coverage: z.string().optional(), strong_matches: z.number().int().nonnegative().optional(), full_matches: z.number().int().nonnegative().optional(),
+    coverage_note: z.string().max(2000).optional(), before_reporting: z.object({ did_you_mean: z.string().max(200).optional() }).optional(),
+  })
     .safeParse(await json(`/api/assets?${params}`, c.req.raw.signal));
   if (!result.success) throw new HttpError(502, 'POLYFORK_RESPONSE', 'Polyfork 模型列表无效');
-  return c.json(envelope({ ...result.data, assets: result.data.assets.filter(asset => asset.free).map(asset => ({ ...asset,
+  const { before_reporting, ...data } = result.data;
+  return c.json(envelope({ ...data, source: 'polyfork', ...(before_reporting?.did_you_mean ? { suggestedQuery: before_reporting.did_you_mean } : {}), assets: result.data.assets.filter(asset => asset.free).map(asset => ({ ...asset,
     thumbnail: asset.thumbnail?.startsWith(`${origin}/`) ? asset.thumbnail : null,
   })) }));
 });

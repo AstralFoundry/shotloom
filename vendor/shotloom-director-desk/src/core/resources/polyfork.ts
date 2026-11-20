@@ -21,7 +21,12 @@ export interface PolyforkDetail extends PolyforkAsset {
     source: string;
     download: { glb: string };
 }
-export interface PolyforkResults { assets: PolyforkAsset[]; total: number; page: number; per_page: number }
+export const POLYFORK_CATEGORIES: Record<string, string> = {
+    vehicle: '载具', tool: '工具', prop: '道具', furniture: '家具', building: '建筑',
+    character: '角色', animal: '动物', plant: '植物', nature: '自然', terrain: '地形',
+};
+export const polyforkCategory = (category: string) => Object.keys(POLYFORK_CATEGORIES).find(key => key === category.toLocaleLowerCase() || POLYFORK_CATEGORIES[key] === category) ?? category;
+export interface PolyforkResults { assets: PolyforkAsset[]; total: number; page: number; per_page: number; source?: 'polyfork'; coverage?: string; strong_matches?: number; full_matches?: number; coverage_note?: string; suggestedQuery?: string }
 let apiOrigin = '';
 export function configurePolyfork(origin: string) {
     apiOrigin = origin.replace(/\/$/, '');
@@ -45,9 +50,11 @@ function modelId(id: string) {
     if (!/^[a-z0-9][a-z0-9-]{0,159}$/.test(id)) throw Error('Polyfork 模型 ID 无效');
     return id;
 }
-export function searchPolyforkModels(query = '', page = 1, signal?: AbortSignal): Promise<PolyforkResults> {
+export function searchPolyforkModels(query = '', page = 1, signal?: AbortSignal, category = ''): Promise<PolyforkResults> {
     if (!Number.isSafeInteger(page) || page < 1) throw Error('模型页码无效');
-    return json(`/assets?${new URLSearchParams({ q: query, page: String(page), per_page: '24' })}`, signal);
+    const params = new URLSearchParams({ q: query, page: String(page), per_page: '24' });
+    if (category) params.set('class', polyforkCategory(category));
+    return json(`/assets?${params}`, signal);
 }
 export function getPolyforkModel(id: string, signal?: AbortSignal): Promise<PolyforkDetail> {
     return json(`/assets/${modelId(id)}`, signal);

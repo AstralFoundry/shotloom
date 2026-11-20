@@ -139,6 +139,7 @@ export interface PreparedAgentToolCall {
   definition: AgentToolDefinition;
   input: JsonObject;
   inputSummary: string;
+  inputWarnings?: string[];
 }
 
 export interface CanvasActionToolInput extends JsonObject {

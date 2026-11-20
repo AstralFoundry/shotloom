@@ -140,7 +140,7 @@ export async function executeProductRequest(request: {
   try { prepared = prepareAgentToolCall(request.toolName, JSON.stringify(request.input), callContext); }
   catch (error) {
     if (!(error instanceof AgentToolInputError)) throw error;
-    return { success: false, code: 'INVALID_TOOL_INPUT', applied: false, error: error.message, issues: error.issues,
+    return { success: false, code: 'INVALID_TOOL_INPUT', applied: false, error: error.message, issues: error.issues, receivedInput: request.input,
       hint: '按当前工具 schema 修正参数后重新提交。' };
   }
   const effect = prepared.definition.resolveEffect?.(prepared.input, callContext) ?? prepared.definition.effect;
@@ -153,7 +153,9 @@ export async function executeProductRequest(request: {
   if (existing) return existing;
   const operation = (async () => {
     callContext.signal.throwIfAborted();
-    const result = await prepared.definition.execute(prepared.input, callContext);
+    const executed = await prepared.definition.execute(prepared.input, callContext);
+    const result = prepared.inputWarnings?.length && executed && typeof executed === 'object' && !Array.isArray(executed)
+      ? { ...executed, inputWarnings: prepared.inputWarnings } : executed;
     assertAgentProject(context.projectKey, context.projectInstanceId, context.projectGeneration);
     if (effect !== 'read') touchProject();
     const data = result && typeof result === 'object' ? result as Record<string, unknown> : {};

@@ -21,6 +21,25 @@ const inputSchema = z.object({
     width: z.number().int().positive().max(16384), height: z.number().int().positive().max(16384), name: z.string().max(256).optional(),
   })).max(8).default([]),
 });
+const modelFailureMessages: Record<string, string> = {
+  CONTEXT_WINDOW_EXCEEDED: '模型上下文已满，需要压缩历史后继续。',
+  IMAGE_OFFLOAD_REQUIRED: '模型图片上下文超限，需要减少历史图片后继续。',
+  QUOTA: '模型额度不足，请检查当前模型或账户额度。',
+  ACCOUNT_QUOTA: '账户额度不足，请检查账户余额。',
+  INVALID_CREDENTIAL: '模型认证失败，请检查模型访问权限。',
+  TIMEOUT: '模型响应超时，请稍后重试。',
+  EMPTY_RESPONSE: '模型返回了空响应，请重试本轮。',
+  ABORTED: '模型调用已中断。',
+};
+function publicModelFailure(error: unknown) {
+  const failure = error && typeof error === 'object' ? error as Record<string, unknown> : {};
+  const code = typeof failure.code === 'string' && Object.hasOwn(modelFailureMessages, failure.code) ? failure.code : 'MODEL_REQUEST_FAILED';
+  return { code, message: modelFailureMessages[code] || '模型调用失败，请核对模型权限、额度和网络后重试。',
+    ...(Number.isInteger(failure.status) && Number(failure.status) >= 400 && Number(failure.status) <= 599 ? { status: Number(failure.status) } : {}),
+    ...(typeof failure.providerRetryAfterMs === 'number' && Number.isFinite(failure.providerRetryAfterMs) && failure.providerRetryAfterMs >= 0 ? { providerRetryAfterMs: failure.providerRetryAfterMs } : {}),
+    ...(Number.isSafeInteger(failure.offloadImages) && Number(failure.offloadImages) > 0 ? { offloadImages: Number(failure.offloadImages) } : {}),
+  };
+}
 export const agentApp = new Hono<AppEnv>();
 agentApp.use('*', requireAuth);
 agentApp.post('/model', async c => {
@@ -45,14 +64,19 @@ agentApp.post('/model', async c => {
       if (c.req.raw.signal.aborted) control.abort();
       for await (const chunk of relay.stream({ ...request, provider: 'shotloom', signal: control.signal } as GenerateOptions)) {
         if (chunk.type === 'finish' && (chunk.reason.kind === 'error' || chunk.reason.kind === 'aborted')) {
-          throw new Error('Model stream failed');
+          // Keep the Harness recovery signal while withholding upstream text and credentials.
+          await output.writeln(JSON.stringify({ version: 1, chunk: { type: 'finish', reason: { kind: chunk.reason.kind, failure: publicModelFailure(chunk.reason.failure) } } }));
+          continue;
         }
         await output.writeln(JSON.stringify({ version: 1, chunk }));
       }
       await output.writeln(JSON.stringify({ version: 1, done: true }));
-    } catch {
+    } catch (error) {
       // 上游异常可能携带 URL、请求或 Key，不回传原始异常内容。
-      if (!control.signal.aborted) await output.writeln(JSON.stringify({ version: 1, error: { code: 'MODEL_REQUEST_FAILED', message: '模型调用失败，请核对模型权限、额度和网络后重试。' } }));
+      if (!control.signal.aborted) {
+        await output.writeln(JSON.stringify({ version: 1, chunk: { type: 'finish', reason: { kind: 'error', failure: publicModelFailure(error) } } }));
+        await output.writeln(JSON.stringify({ version: 1, done: true }));
+      }
     } finally { c.req.raw.signal.removeEventListener('abort', abort); control.abort(); await relay.dispose(); }
   });
 });

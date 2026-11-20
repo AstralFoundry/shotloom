@@ -45,6 +45,25 @@ test('catalog retains each tool execution deadline including unlimited exports',
   assert.equal(catalog.find(tool => tool.name === 'director_desk_query').timeoutMs, 130000);
 });
 
+test('director product schema normalizes numeric strings, keyframes and nested vectors before strict validation', async () => {
+  const { catalog } = fixture('director-primary');
+  const registry = await env.load('agent/core/toolRegistry');
+  const schema = catalog.find(tool => tool.name === 'director_desk_batch').parameters;
+  const raw = { expectedSessionId: 'session', expectedRevision: 1, validateOnly: true, edits: [
+    { operation: 'set_lighting', patch: { ambient: '0.85', exposure: { keys: [{ time: '0', value: '1' }] }, sunIntensity: '1.4', sunDirection: [['-4', 8, -6]] } },
+    { operation: 'set_entity', entityId: 'actor', patch: { scale: [['1', 2, 3]] } },
+  ] };
+  const fixed = registry.normalizeToolInput(schema, raw);
+  registry.validateToolInput(schema, fixed.input);
+  assert.equal(fixed.input.edits[0].patch.ambient, 0.85);
+  assert.deepEqual(fixed.input.edits[0].patch.sunDirection, [-4, 8, -6]);
+  assert.deepEqual(fixed.input.edits[0].patch.exposure.keys, [{ time: 0, value: 1 }]);
+  assert.deepEqual(fixed.input.edits[1].patch.scale, [1, 2, 3]);
+  assert.ok(fixed.warnings.length >= 5);
+  raw.edits[0].patch.ambient = '21';
+  assert.throws(() => registry.validateToolInput(schema, registry.normalizeToolInput(schema, raw).input));
+});
+
 test('unavailable workspaces, foreign tools and invalid arguments return actionable receipts before dispatch', async () => {
   const { binding } = fixture('text-primary', 'closed-text');
   projects.store.project.nodes.push({ id: 'closed-text', type: 'text' });

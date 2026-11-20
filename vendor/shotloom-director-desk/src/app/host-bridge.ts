@@ -10,7 +10,7 @@ import { readSceneDocument } from '@/core/scenes/sequence-project.ts';
 import { prepareDocumentModels } from '@/core/scenes/document-models.ts';
 import type { Engine } from '@/core/engine.ts';
 import { ACTIONS, ASPECTS, BUILDS, FRAME_RATES, GENDERS, type Joint, type Vec3 } from '@/core/model.ts';
-import { assetGroups, searchAssets } from '@/core/asset-catalog.ts';
+import { assetGroups, assetSearchScore, searchAssets } from '@/core/asset-catalog.ts';
 import { CAMERA_PLACEMENTS } from '@/core/cinematography/camera-placements.ts';
 import { CAMERA_PRESETS } from '@/core/cinematography/camera-presets.ts';
 import { exportVideo, type ExportOptions } from '@/core/export.ts';
@@ -32,6 +32,8 @@ import { worldContactAnchors } from '@/core/assets/contact-anchors.ts';
 import { modelNodeHidden } from '@/core/resources/model-node-visibility.ts';
 import { DirectorHostSession } from '@/core/host-session.ts';
 import { configurePolyfork, obtainPolyforkModel, getPolyforkModel, polyforkModelBundle, rememberProjectPolyforkModels, searchPolyforkModels } from '@/core/resources/polyfork.ts';
+import { listLocalModels, readLocalModel } from '@/core/resources/local-model-library.ts';
+import { POLYFORK_CATEGORIES, polyforkCategory } from '@/core/resources/polyfork.ts';
 import { inspectImportedModel, placeImportedModel, pruneImportedModels } from '@/features/model-import/import-model.ts';
 
 type Input = Record<string, unknown>;
@@ -119,7 +121,7 @@ interface CommandSpec {
 }
 
 const commandSpecs: Record<string, CommandSpec> = {
-    search_polyfork_models: { kind: 'view', args: { query: 'string，可选，英文关键词；省略时浏览免费低模', page: 'number，可选，页码从 1 开始，每页 24 项' } },
+    search_polyfork_models: { kind: 'view', args: { query: 'string，可选，英文关键词；中文需求先译英文；检查 coverage 和 suggestedQuery，勿把兜底视为匹配', category: 'string，可选，中英分类，如动物 / animal、建筑 / building', page: 'number，可选，页码从 1 开始，每页 24 项' } },
     get_polyfork_model: { kind: 'view', args: { id: 'string，取自 search_polyfork_models 的 assets[].id；读取尺寸、署名和来源' } },
     download_polyfork_model: { kind: 'export', args: { id: 'string，真实 Polyfork 模型 ID；按需下载 GLB 与许可到保留的 ZIP 产物，回执含 artifactId 和下载 URL；不改场景。可用 export_artifact_deliver 的 download 模式保存到设备' } },
     import_polyfork_model: { kind: 'edit', args: {
@@ -127,6 +129,7 @@ const commandSpecs: Record<string, CommandSpec> = {
         expectedSessionId: 'string，必填，来自最新 snapshot.sessionId', expectedRevision: 'number，必填，来自最新 snapshot.revision',
         name: 'string，可选；默认模型名称', position: '[x,y,z]，可选，米；默认放在当前视野中心地面',
     } },
+    import_local_model: { kind: 'edit', args: { id: 'string，catalog source=downloaded 返回的真实 ID', expectedSessionId: 'string，最新 snapshot.sessionId', expectedRevision: 'number，最新 snapshot.revision', name: 'string，可选', position: '[x,y,z]，可选，米' } },
     undo: { kind: 'edit' },
     redo: { kind: 'edit' },
     reset_project: { kind: 'edit' },
@@ -322,8 +325,35 @@ const commandSpecs: Record<string, CommandSpec> = {
     export_video_cancel: { kind: 'export', args: { jobId: 'string' } },
 };
 
+async function importLibraryModel(i: Input, source: 'polyfork' | 'downloaded') {
+    const assertCurrent = () => {
+        const revision = useEditorStore.getState().revision;
+        hostSession.assertCurrent(i.expectedSessionId, revision);
+        if (!Number.isInteger(i.expectedRevision) || i.expectedRevision !== revision)
+            throw new DirectorCommandError('场景已变化，请重读快照后重新导入', {
+                code: 'REVISION_MISMATCH', hint: '读取 snapshot 并核对当前场景，再使用最新的 sessionId 和 revision。',
+                facts: { currentRevision: revision, expectedRevision: i.expectedRevision },
+            });
+    };
+    assertCurrent();
+    if (useEditorStore.getState().busy) throw Error('导演台正在执行其他任务');
+    const position = i.position === undefined ? undefined : vector(i.position);
+    const original = session.project;
+    session.setBusy(true);
+    try {
+        const resource = source === 'polyfork' ? await obtainPolyforkModel(string(i.id)) : await readLocalModel(string(i.id));
+        if (!resource) throw Error('本地模型不存在，请重新查询 downloaded 资产目录');
+        assertCurrent();
+        if (session.project !== original) throw Error('工程已切换，请重新导入');
+        await inspectImportedModel(resource);
+        assertCurrent();
+        session.setBusy(false);
+        return placeImportedModel(resource, { name: i.name === undefined ? undefined : string(i.name), position });
+    } finally { session.setBusy(false); pruneImportedModels(); }
+}
+
 const commands: Record<string, (input: Input) => unknown> = {
-    search_polyfork_models: i => searchPolyforkModels(string(i.query), i.page === undefined ? 1 : number(i.page)),
+    search_polyfork_models: i => searchPolyforkModels(string(i.query), i.page === undefined ? 1 : number(i.page), undefined, string(i.category)),
     get_polyfork_model: i => getPolyforkModel(string(i.id)),
     download_polyfork_model: async i => {
         const owner = artifactOwner();
@@ -333,31 +363,8 @@ const commands: Record<string, (input: Input) => unknown> = {
         const file = await artifacts.retain(owner, polyforkModelBundle(resource), `${id}.zip`, 'bundle', { provider: 'polyfork', modelId: id, copyright: resource.copyright, license: resource.license, source: resource.source });
         return { ...await artifacts.read(owner, file.id), artifactId: file.id, downloaded: true, sceneChanged: false };
     },
-    import_polyfork_model: async i => {
-        const assertCurrent = () => {
-            const revision = useEditorStore.getState().revision;
-            hostSession.assertCurrent(i.expectedSessionId, revision);
-            if (!Number.isInteger(i.expectedRevision) || i.expectedRevision !== revision)
-                throw new DirectorCommandError('场景已变化，请重读快照后重新导入', {
-                    code: 'REVISION_MISMATCH', hint: '读取 snapshot 并核对当前场景，再使用最新的 sessionId 和 revision。',
-                    facts: { currentRevision: revision, expectedRevision: i.expectedRevision },
-                });
-        };
-        assertCurrent();
-        if (useEditorStore.getState().busy) throw Error('导演台正在执行其他任务');
-        const position = i.position === undefined ? undefined : vector(i.position);
-        const original = session.project;
-        session.setBusy(true);
-        try {
-            const resource = await obtainPolyforkModel(string(i.id));
-            assertCurrent();
-            if (session.project !== original) throw Error('工程已切换，请重新导入');
-            await inspectImportedModel(resource);
-            assertCurrent();
-            session.setBusy(false);
-            return placeImportedModel(resource, { name: i.name === undefined ? undefined : string(i.name), position });
-        } finally { session.setBusy(false); pruneImportedModels(); }
-    },
+    import_polyfork_model: i => importLibraryModel(i, 'polyfork'),
+    import_local_model: i => importLibraryModel(i, 'downloaded'),
     undo: () => session.undo(), redo: () => session.redo(),
     record_position_key: () => session.recordPositionKeyAtPlayhead(),
     record_focal_key: () => session.recordFocalKeyAtPlayhead(),
@@ -951,7 +958,18 @@ export function initializeHostBridge() {
                     // 少了任何一项，对应命令就只能靠猜参数（例如 apply_framing 的中文构图名）。
                     const args = (payload.args && typeof payload.args === 'object' && !Array.isArray(payload.args) ? payload.args : {}) as Input;
                     const query = string(args.query).trim();
-                    const group = string(args.group).trim();
+                    const group = string(args.category ?? args.group).trim();
+                    const source = string(args.source || 'builtin');
+                    if (!['builtin', 'downloaded', 'polyfork'].includes(source)) throw Error('资产来源必须为 builtin、downloaded 或 polyfork');
+                    if (source === 'polyfork') {
+                        result = await searchPolyforkModels(query, args.page === undefined ? 1 : number(args.page), undefined, group);
+                    } else if (source === 'downloaded') {
+                        const category = polyforkCategory(group);
+                        const assets = (await listLocalModels()).map(asset => ({ asset, score: assetSearchScore(query, [asset.id, asset.name, asset.category ?? '', POLYFORK_CATEGORIES[asset.category ?? ''] ?? '']) }))
+                            .filter(({ asset, score }) => Number.isFinite(score) && (!category || category === 'all' || category === '全部' || asset.category === category))
+                            .sort((a, b) => a.score - b.score).map(({ asset }) => asset);
+                        result = { source, assets: assets.slice(0, CATALOG_MATCH_LIMIT), matched: assets.length, truncated: Math.max(0, assets.length - CATALOG_MATCH_LIMIT), categories: POLYFORK_CATEGORIES, importOperation: 'import_local_model' };
+                    } else {
                     const filtered = Boolean(query || group);
                     const matches = filtered ? searchAssets(query, group || '全部').map(describeAsset) : [];
                     // 全量素材序列化后接近 28 KB，而一次会话通常只用十几条：默认只给分组概览。
@@ -969,6 +987,7 @@ export function initializeHostBridge() {
                                 groups: assetGroups(),
                                 hint: 'assets 未返回：用 group（分组名）或 query（关键词，如 wall、墙、building）筛出具体素材；一次只取需要的那一组。',
                             }),
+                        source, sources: ['builtin', 'downloaded', 'polyfork'],
                         assetConventions: {
                             unit: '米',
                             origin: ASSET_ORIGIN,
@@ -987,6 +1006,7 @@ export function initializeHostBridge() {
                         valueTypes: patchValueTypes,
                         batchOperations: batchOperationCatalog,
                     };
+                    }
                 } else {
                     const operation = string(payload.operation);
                     const command = commands[operation];

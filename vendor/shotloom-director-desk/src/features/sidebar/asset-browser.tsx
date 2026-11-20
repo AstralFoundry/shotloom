@@ -1,7 +1,7 @@
 import { Modal, Slider } from 'antd';
 import { Empty, Select } from 'antd';
 import { useEffect, useRef, useState } from 'react';
-import { ASSET_GROUPS, searchAssets } from '@/core/asset-catalog.ts';
+import { ASSET_GROUPS, assetSearchScore, searchAssets } from '@/core/asset-catalog.ts';
 import { assetDimensions, localModelThumbnail, thumbnail } from '@/core/assets/thumbnails.ts';
 import type { AssetDefinition } from '@/core/assets/catalog/types.ts';
 import { listLocalModels, readLocalModel, subscribeLocalModels, type LocalModel } from '@/core/resources/local-model-library.ts';
@@ -11,14 +11,11 @@ import { useTranslation } from '@/shared/i18n/use-translation.ts';
 import { session } from '@/state/editor-session.ts';
 import { useEditorStore } from '@/state/editor-store.ts';
 import { PolyforkBrowser } from './polyfork-browser.tsx';
+import { POLYFORK_CATEGORIES } from '@/core/resources/polyfork.ts';
 
 export type AssetSource = 'builtin' | 'polyfork';
 
-const categoryNames: Record<string, string> = {
-    vehicle: '载具', tool: '工具', prop: '道具', furniture: '家具', building: '建筑',
-    character: '角色', animal: '动物', plant: '植物', nature: '自然', terrain: '地形',
-};
-const categoryLabel = (category?: string) => category ? categoryNames[category] ?? category : '未分类';
+const categoryLabel = (category?: string) => category ? POLYFORK_CATEGORIES[category] ?? category : '未分类';
 const downloadCategoryPrefix = 'download:';
 
 function LocalModelPreview({ id }: { id: string }) {
@@ -157,13 +154,12 @@ export function AssetBrowser({ source, onSourceChange, onlineQuery }: { source: 
         return () => { request++; unsubscribe(); };
     }, [source, t]);
     const categoryFilter = filter.startsWith(downloadCategoryPrefix) ? filter.slice(downloadCategoryPrefix.length) : null;
-    const needle = query.trim().toLocaleLowerCase();
     const localModels = source === 'builtin' ? downloads.filter(model => {
         const category = categoryLabel(model.category);
         const matchesFilter = categoryFilter === null
             ? filter === '全部' || filter === '已下载' || filter === category
             : (model.category ?? '') === categoryFilter;
-        return matchesFilter && `${model.name} ${t(category)}`.toLocaleLowerCase().includes(needle);
+        return matchesFilter && Number.isFinite(assetSearchScore(query, [model.id, model.name, category, model.category ?? '']));
     }) : [];
     const categories = [...new Set(downloads.map(model => model.category ?? ''))]
         .filter(category => !ASSET_GROUPS.includes(categoryLabel(category))).sort();

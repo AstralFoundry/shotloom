@@ -1,7 +1,7 @@
-import { Alert, Button, Empty, Modal, Pagination, Spin } from 'antd';
+import { Alert, Button, Empty, Modal, Pagination, Select, Spin } from 'antd';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { reportHostModelImport } from '@/app/host-bridge.ts';
-import { obtainPolyforkModel, getPolyforkModel, polyforkModelBundle, searchPolyforkModels, type PolyforkAsset, type PolyforkDetail, type PolyforkResults } from '@/core/resources/polyfork.ts';
+import { POLYFORK_CATEGORIES, obtainPolyforkModel, getPolyforkModel, polyforkModelBundle, searchPolyforkModels, type PolyforkAsset, type PolyforkDetail, type PolyforkResults } from '@/core/resources/polyfork.ts';
 import { readLocalModelInfo, updateLocalModelCategory } from '@/core/resources/local-model-library.ts';
 import { download } from '@/core/storage.ts';
 import { addDownloadedModelToScene } from '@/features/model-import/import-model.ts';
@@ -21,6 +21,8 @@ export function PolyforkBrowser({ query }: { query: string }) {
     const [selected, setSelected] = useState<PolyforkAsset | null>(null);
     const [detailError, setDetailError] = useState('');
     const [saved, setSaved] = useState(false);
+    const [category, setCategory] = useState('');
+    const [searchQuery, setSearchQuery] = useState(query);
     const searchControl = useRef<AbortController | null>(null);
     const detailControl = useRef<AbortController | null>(null);
     const downloadControl = useRef<AbortController | null>(null);
@@ -29,13 +31,14 @@ export function PolyforkBrowser({ query }: { query: string }) {
         searchControl.current?.abort(); detailControl.current?.abort();
         const controller = new AbortController(); searchControl.current = controller;
         setLoading(true); setError(''); setDetail(null); setResults(null);
+        setSearchQuery(value);
         try {
-            const next = await searchPolyforkModels(value, page, controller.signal);
+            const next = await searchPolyforkModels(value, page, controller.signal, category);
             if (!controller.signal.aborted) setResults(next);
         }
         catch (cause) { if (!controller.signal.aborted) setError((cause as Error).message); }
         finally { if (!controller.signal.aborted) setLoading(false); }
-    }, []);
+    }, [category]);
     useEffect(() => {
         setLoading(true); setError(''); setDetail(null); setResults(null);
         const timer = window.setTimeout(() => void search(query), query ? 300 : 0);
@@ -93,7 +96,11 @@ export function PolyforkBrowser({ query }: { query: string }) {
         finally { if (!controller.signal.aborted) setWorking(false); }
     }
     return <div className="stack">
+        <Select value={category} aria-label={t('资产分组')} onChange={setCategory}
+            options={[{ value: '', label: t('全部') }, ...Object.entries(POLYFORK_CATEGORIES).map(([value, label]) => ({ value, label: t(label) }))]} />
         <p className="muted small">{t('模型来自 Polyfork。免费低模；下载包包含模型、署名和 CC BY 4.0 许可。')}</p>
+        {(results?.coverage === 'poor' || results?.coverage === 'none') && <Alert type="warning" showIcon title={t('匹配不完整，请尝试英文关键词或分类筛选。')} />}
+        {results?.suggestedQuery && <Button onClick={() => void search(results.suggestedQuery!)}>{results.suggestedQuery}</Button>}
         {error && <Alert type="error" showIcon title={t(error)} />}
         {selected && <Modal open centered width={440} title={selected.title} onCancel={close}
             closable={!working} keyboard={!working} mask={{ closable: false }}
@@ -122,6 +129,6 @@ export function PolyforkBrowser({ query }: { query: string }) {
             </div> : results && <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('没有匹配的资产')} />}
         </Spin>
         {results && <Pagination simple current={results.page} total={results.total} pageSize={results.per_page} disabled={working || loading}
-            onChange={page => void search(query, page)} size="small" />}
+            onChange={page => void search(searchQuery, page)} size="small" />}
     </div>;
 }

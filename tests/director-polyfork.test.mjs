@@ -22,6 +22,8 @@ test('online model search and download share the BFF, pack validated GLB bytes a
     };
     assert.equal((await api.searchPolyforkModels('oak & chair')).assets[0].id, id);
     assert.equal(requests[0].searchParams.get('q'), 'oak & chair');
+    await api.searchPolyforkModels('cat', 2, undefined, 'animal');
+    assert.equal(requests.at(-1).searchParams.get('class'), 'animal');
     const { resource } = await api.downloadPolyforkModel(id);
     assert.match(resource.id, /^model-[a-f0-9]{64}$/);
     assert.equal(resource.copyright, asset.credit); assert.match(resource.license, /CC BY 4.0/);

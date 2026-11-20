@@ -30,7 +30,7 @@ test('Polyfork queries and downloads require auth, constrain upstream URLs and p
     assert.equal(new Headers(init?.headers).has('authorization'), false);
     requests.push(url);
     if (mode === 'rate') return new Response(null, { status: 429, headers: { 'retry-after': '120' } });
-    if (url.pathname === '/api/assets') return Response.json({ assets: [asset], total: 1, page: 2, per_page: 24 });
+    if (url.pathname === '/api/assets') return Response.json({ assets: [asset], total: 1, page: 2, per_page: 24, coverage: 'poor', strong_matches: 0, full_matches: 0, coverage_note: 'partial matches', before_reporting: { did_you_mean: 'chair', search: 'https://untrusted.example' } });
     if (url.pathname.startsWith('/api/assets/')) return Response.json(detail);
     assert.equal(url.pathname, `/cdn/${id}.glb`);
     if (mode === 'oversized') return new Response('x', { headers: { 'content-length': String(33 * 1024 * 1024) } });
@@ -40,12 +40,18 @@ test('Polyfork queries and downloads require auth, constrain upstream URLs and p
   const request = (path: string) => app.request(`/api/polyfork${path}`, { headers: { cookie: `shotloom_session=${session}` } });
   try {
     assert.equal((await app.request('/api/polyfork/assets')).status, 401);
-    const list = await request('/assets?q=chair&page=2&url=https://evil.example/');
+    const list = await request('/assets?q=chair&page=2&class=furniture&url=https://evil.example/');
     assert.equal(list.status, 200);
-    const listed = (await list.json()).data.assets[0];
+    const data = (await list.json()).data;
+    const listed = data.assets[0];
+    assert.equal(data.coverage, 'poor');
+    assert.equal(data.strong_matches, 0);
+    assert.equal(data.suggestedQuery, 'chair');
+    assert.equal(data.before_reporting, undefined);
     assert.equal(listed.triangles, null);
     assert.equal(listed.class, 'furniture');
     assert.equal(requests[0]!.searchParams.get('free'), '1');
+    assert.equal(requests[0]!.searchParams.get('class'), 'furniture');
     assert.equal(requests[0]!.searchParams.has('url'), false);
     const info = (await (await request(`/assets/${id}`)).json()).data;
     assert.equal(info.class, asset.class);

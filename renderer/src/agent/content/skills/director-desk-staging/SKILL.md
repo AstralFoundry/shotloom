@@ -1,7 +1,7 @@
 ---
 name: director-desk-staging
 description: 在 Shotloom 3D 导演台中进行镜头设计、构图、光影、表演走位与切镜编排，并依据真实渲染画面核验预演效果。只适用于当前打开的导演台工程。
-metadata: {"category":"film","version":3}
+metadata: {"category":"film","version":4}
 ---
 
 # 3D 导演台创作与画面核验
@@ -23,6 +23,9 @@ metadata: {"category":"film","version":3}
 - 对建筑、墙体、门窗、楼梯及复杂道具，先确定外轮廓、比例、开口、部件相接关系和人物尺度，再检查细节。调用 `inspect_model` 看多视角、尺寸和部件；模型单独好看仍不能证明它在场景里放得正确，随后要看含人物与机位的场景帧。
 
 ## 机位与时间线
+
+- 资产按来源查询：`director_desk_catalog` 的 `source` 为 `builtin`（默认，支持中文、英文和漏字匹配）、`downloaded`（本设备已下载）或 `polyfork`（远程免费模型）。`category` / `group` 与 `query` 可组合；远程 `page` 从 1 开始。各来源分类不同，以返回目录为准。
+- 中文需求查询 Polyfork 时先按语义转成英文关键词，可用中英分类缩小范围。检查返回的 `coverage`、`strong_matches`、`full_matches` 与 `suggestedQuery`；`poor` / `none` 时不可把兜底结果当成目标资产，改词或分类后再查。`get_polyfork_model` 核对尺寸、来源和许可；`import_polyfork_model` 下载并导入，`import_local_model` 复用 downloaded 的真实 ID。两种导入均传最新会话和版本，保留署名；成功后读取快照并看预览。
 
 - 先判断镜头是要交代空间、突出表演，还是展示物体。选择景别、角度和视线方向，让重要动作无遮挡且观众能读懂；优先调整机位与构图，避免仅为填满画面而挪走角色。
 - 动作、路径和切镜应围绕可辨认的事件节拍安排。走位优先用一次声明的路径（批量的 `set_path`）写清每个时点的位置，让速度由时间点决定，而不是靠反复微调单点漂移。路径结束时检查角色最终朝向；转身、接近、交接、坐下等动作要在画面中成立，不能只凭时间线片段名判断。

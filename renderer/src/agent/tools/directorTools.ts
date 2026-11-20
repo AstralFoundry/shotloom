@@ -185,6 +185,8 @@ commands 只列出你应当使用的命令；已由 batch 覆盖的搭景命令�
     title: t('tool.title.director_desk_catalog'),
     description: `读取导演台可添加的素材、可选动作、运镜预设、画幅与帧率。准备 add_asset、add_action、apply_camera_preset 或 export_video_start 时先调用它取真实 ID 与合法枚举。assetConventions 说明单位与原点约定（原点在底面中心，position.y 即落地高度）。改 patch 类命令（set_camera_field / set_light_field / set_lighting_field / update_room / update_project_settings / set_clip_field）前，先查 catalog.patchFields 拿到该命令的合法字段名与类型——不要从现有对象反推，空字段推不出来。
 
+source 可选 builtin（默认，内置）、downloaded（已下载本地模型）、polyfork（远程免费模型）。本地支持中英名称、别名和漏字模糊匹配；group 支持中英分类。远程使用 query、category、page；将中文需求译成简洁英文关键词，category 可用 animal/动物、building/建筑等。coverage=poor/none 表示部分或兜底结果，不可当作准确命中；suggestedQuery 是拼写建议。内置用 batch add_asset；已下载模型用 director_desk_command import_local_model；远程先 get_polyfork_model 核对 ID、尺寸与许可再 import_polyfork_model，二者导入都携带最新 expectedSessionId/expectedRevision。
+
 素材有 200 多条，默认不返回：不传参数时只给 groups（分组名、条目数、示例 id）和 assetTotal。要找具体的墙、门窗、建筑、家具时按需筛：
 - group 传分组名（例如 "建筑构件"、"建筑外壳"、"通行构件"、"家具"、"人物"），返回该组完整条目；
 - query 传关键词（可中英文，例如 wall、墙、building、楼、door、桌），按 id／名称／分组／别名匹配；
@@ -194,8 +196,11 @@ commands 只列出你应当使用的命令；已由 batch 覆盖的搭景命令�
     inputSchema: {
       type: 'object',
       properties: {
+        source: { type: 'string', enum: ['builtin', 'downloaded', 'polyfork'] },
         query: { type: 'string' },
         group: { type: 'string' },
+        category: { type: 'string' },
+        page: { type: 'integer', minimum: 1 },
       },
       additionalProperties: false,
     },
@@ -204,6 +209,9 @@ commands 只列出你应当使用的命令；已由 batch 覆盖的搭景命令�
       if (!directorDeskAvailable()) return directorUnavailable();
       try {
         const args = {
+          ...(input.source ? { source: input.source } : {}),
+          ...(input.category ? { category: input.category } : {}),
+          ...(input.page !== undefined ? { page: input.page } : {}),
           ...(typeof input.query === 'string' && input.query.trim() ? { query: input.query.trim() } : {}),
           ...(typeof input.group === 'string' && input.group.trim() ? { group: input.group.trim() } : {}),
         };
@@ -218,7 +226,7 @@ commands 只列出你应当使用的命令；已由 batch 覆盖的搭景命令�
     id: 'director_desk_query',
     icon: 'list',
     title: t('tool.title.director_desk_query'),
-    description: '只读查询：search_polyfork_models 搜索 Polyfork 免费低模（query 用英文关键词，page 从 1 开始）；get_polyfork_model 读真实模型 ID 的尺寸、来源与许可。scene_list 列出戏段，scene_read 读取指定戏段，history_status 查询撤销重做，export_video_job 查询视频导出任务进度，scene_summary 取人数/机位数/镜头数与时长，spatial_check 按时间区间采样检查重叠、过近、出画、机位卡在墙体内部与主体被遮挡（参数见 snapshot 中该命令的 args）。entity_relations 查询 sourceId、targetId 在 seconds 时刻的相对坐标、距离、朝向差、机位视锥与中心遮挡，并返回目标接触锚点；可选 cameraIds。空间关系均为测量事实。这些查询不修改工程。',
+    description: '只读查询：search_polyfork_models 搜索 Polyfork 免费低模（query 用英文关键词，中文需求先翻译；category 支持中英分类，page 从 1 开始；检查 coverage、suggestedQuery，勿把无关兜底视为匹配）；get_polyfork_model 读真实模型 ID 的尺寸、来源与许可。scene_list 列出戏段，scene_read 读取指定戏段，history_status 查询撤销重做，export_video_job 查询视频导出任务进度，scene_summary 取人数/机位数/镜头数与时长，spatial_check 按时间区间采样检查重叠、过近、出画、机位卡在墙体内部与主体被遮挡（参数见 snapshot 中该命令的 args）。entity_relations 查询 sourceId、targetId 在 seconds 时刻的相对坐标、距离、朝向差、机位视锥与中心遮挡，并返回目标接触锚点；可选 cameraIds。空间关系均为测量事实。这些查询不修改工程。',
     effect: 'read',
     activity: 'inspect',
     timeoutMs: 130_000,
@@ -439,7 +447,7 @@ edits 按顺序执行，支持：
 - 核验：render_preview_sheet 一次返回最多 8 个真实时间点的带时码拼图，优先用于检查动作、运镜和切镜连续性；render_preview 返回单帧画面；render_plan 返回整套布景的俯视平面图（剖切掉顶板，带米制坐标网格、人物路径和机位），用来对照俯视的布局参考图；inspect_model 只支持建筑和道具（人物请用场景预览），返回多视角拼图、局部部件尺寸和包围盒；spatial_check 返回区间内的重叠、过近、出画、机位卡墙、主体被遮挡与悬空列表。这些命令都不改工程。
 - 关键帧：remove_focal_key 删除焦距关键帧；新增位置路径用 director_desk_batch.set_path，运镜焦距可用 set_campath。
 - 交付：export_shot 按切镜序号导出单镜静帧；export_video_start 支持指定区间与机位。
-- 在线模型：search_polyfork_models 用英文关键词分页查询免费低模；get_polyfork_model 读详情；download_polyfork_model 下载带署名许可的 ZIP 产物，不改场景；import_polyfork_model 按需下载并放入场景，须带最新快照的 expectedSessionId / expectedRevision。来源为 Polyfork，保留每项署名。下载和导入回执含真实文件或实体后再声明完成。
+- 在线模型：search_polyfork_models 用英文关键词分页查询免费低模；get_polyfork_model 读详情；download_polyfork_model 下载带署名许可的 ZIP 产物，不改场景；import_polyfork_model 按需下载并放入场景，须带最新快照的 expectedSessionId / expectedRevision。catalog source=builtin 查询内置中英素材，source=downloaded 查询已下载模型，source=polyfork 查询远程；import_local_model 将 downloaded 返回的真实 ID 放入场景，同样需要最新会话和版本。来源为 Polyfork，保留每项署名。下载和导入回执含真实文件或实体后再声明完成。
 
 逐轴命令（set_position_axis / set_rotation_axis / set_scale_axis）只服务编辑器内交互；要改坐标、朝向或尺寸，用 director_desk_batch 的 set_entity 向量补丁（position、rotationDegrees、scale），不要逐轴拼。
 

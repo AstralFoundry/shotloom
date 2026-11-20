@@ -8,10 +8,32 @@ import {
   canRequestAgentClarification,
   clearAgentToolsForTests,
   listAgentTools,
+  normalizeToolInput,
   prepareAgentToolCall,
   registerAgentTool,
   validateToolInput,
 } from '../renderer/src/agent/core/toolRegistry.ts';
+
+test('按 schema 修复明确的数值和多套一层的向量，同时保留范围和语义边界', () => {
+  const schema = { type: 'object', properties: {
+    ambient: { oneOf: [{ type: 'number', minimum: 0, maximum: 20 }, { type: 'object', required: ['keys'], additionalProperties: false, properties: { keys: { type: 'array', items: { type: 'object', properties: { value: { type: 'number' } } } } } }] },
+    scale: { oneOf: [{ type: 'number', minimum: 0 }, { type: 'array', minItems: 3, maxItems: 3, items: { type: 'number' } }] },
+    id: { type: 'string' }, enabled: { type: 'boolean' },
+  } };
+  const raw = { ambient: '0.85', scale: [['1', 2, 3]], id: '001' };
+  const fixed = normalizeToolInput(schema, raw);
+  assert.deepEqual(fixed.input, { ambient: 0.85, scale: [1, 2, 3], id: '001' });
+  assert.ok(fixed.warnings.some(w => w.includes('$.ambient')));
+  assert.ok(fixed.warnings.some(w => w.includes('$.scale')));
+  assert.deepEqual(raw, { ambient: '0.85', scale: [['1', 2, 3]], id: '001' });
+  assert.deepEqual(normalizeToolInput(schema, { ambient: { keys: [{ value: '1.5' }] } }).input, { ambient: { keys: [{ value: 1.5 }] } });
+  for (const ambient of ['21', '1米', '', true, null, { value: 1 }]) {
+    assert.throws(() => validateToolInput(schema, normalizeToolInput(schema, { ambient }).input));
+  }
+  assert.throws(() => validateToolInput(schema, normalizeToolInput(schema, { enabled: 'false' }).input));
+  const union = { oneOf: [{ type: 'string' }, { type: 'number' }] };
+  assert.deepEqual(normalizeToolInput(union, '001'), { input: '001', warnings: [] });
+});
 
 test('工具数值边界与动态数值字段在入口校验，不转换字符串或放行非有限数', () => {
   const schema = { type: 'object', properties: {

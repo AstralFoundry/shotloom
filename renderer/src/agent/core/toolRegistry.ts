@@ -75,6 +75,60 @@ export function validateToolInput(schema: JsonSchema, value: JsonValue): void {
   if (issues.length) throw new AgentToolInputError(issues);
 }
 
+/** Only repair representations whose numeric/array meaning is fixed by the schema. */
+export function normalizeToolInput(schema: JsonSchema, value: JsonValue): { input: JsonValue; warnings: string[] } {
+  const warnings: string[] = [];
+  const valid = (shape: JsonSchema, candidate: JsonValue) => {
+    const issues: string[] = [];
+    matches(shape, candidate, '$', issues);
+    return issues.length === 0;
+  };
+  function normalize(shape: JsonSchema, input: JsonValue, path: string, notes: string[]): JsonValue {
+    const choices = shape.oneOf || shape.anyOf;
+    if (choices) {
+      if (choices.some(choice => valid(choice, input))) return input;
+      const candidates = choices.map(choice => {
+        const branchNotes: string[] = [];
+        const candidate = normalize(choice, input, path, branchNotes);
+        return { candidate, branchNotes, valid: valid(choice, candidate) };
+      }).filter(candidate => candidate.valid);
+      if (candidates.length === 1) {
+        notes.push(...candidates[0]!.branchNotes);
+        return candidates[0]!.candidate;
+      }
+      return input;
+    }
+    if ((shape.type === 'number' || shape.type === 'integer') && typeof input === 'string') {
+      try {
+        const candidate: unknown = JSON.parse(input);
+        if (typeof candidate === 'number' && Number.isFinite(candidate)) {
+          notes.push(`${path}: 字符串数字已转换为 JSON 数值`);
+          return candidate;
+        }
+      } catch { /* Leave invalid representations for the normal validator. */ }
+    }
+    if (shape.type === 'array' && Array.isArray(input)) {
+      if (shape.minItems && shape.minItems === shape.maxItems && shape.minItems > 1 && input.length === 1 && Array.isArray(input[0])) {
+        const nestedNotes: string[] = [];
+        const candidate = normalize(shape, input[0], path, nestedNotes);
+        if (valid(shape, candidate)) {
+          notes.push(`${path}: 已移除向量多余的一层数组`, ...nestedNotes);
+          return candidate;
+        }
+      }
+      return input.map((item, index) => shape.items ? normalize(shape.items, item, `${path}[${index}]`, notes) : item);
+    }
+    if (shape.type === 'object' && input && typeof input === 'object' && !Array.isArray(input)) {
+      return Object.fromEntries(Object.entries(input).map(([key, item]) => {
+        const child = shape.properties?.[key] || (typeof shape.additionalProperties === 'object' ? shape.additionalProperties : undefined);
+        return [key, child && item !== undefined ? normalize(child, item, `${path}.${key}`, notes) : item];
+      }));
+    }
+    return input;
+  }
+  return { input: normalize(schema, value, '$', warnings), warnings };
+}
+
 export function canRequestAgentClarification(): boolean {
   return true;
 }
@@ -215,10 +269,14 @@ export function prepareAgentToolCall(name: string, rawArguments: string, context
   }
   // 动态 schema 同时用于模型暴露和本地校验，防止模型复用旧历史中的
   // 已关闭能力绕过当前设置。
-  validateToolInput(definition.resolveInputSchema?.(context) || definition.inputSchema, input);
+  const schema = definition.resolveInputSchema?.(context) || definition.inputSchema;
+  const normalized = normalizeToolInput(schema, input);
+  input = normalized.input as JsonObject;
+  validateToolInput(schema, input);
   return {
     definition,
     input,
+    inputWarnings: normalized.warnings,
     inputSummary: definition.summarizeInput?.(input) || Object.keys(input).join(', ') || 'no arguments',
   };
 }

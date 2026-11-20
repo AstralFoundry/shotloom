@@ -2,6 +2,7 @@ import { assetEnglish } from './en-assets.ts';
 import { panelEnglish } from './en-panels.ts';
 /** Product terminology: Scene = independent scene; Shot = a camera cut. */
 export const english: Record<string, string> = {
+    '匹配不完整，请尝试英文关键词或分类筛选。': 'Partial matches. Try English keywords or a category filter.',
     '资产来源': 'Asset source',
     '本地': 'Local',
     '搜索本地资产': 'Search local assets',

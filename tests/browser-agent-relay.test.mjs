@@ -16,7 +16,7 @@ async function fixture() {
         auth: `export const requireAuth=async(c,next)=>{if(!c.req.header('x-test-owner'))return c.json({message:'unauthorized'},401);c.set('accessToken','server-only-key');await next();};`,
         env: `export const env={GATEWAY_BASE_URL:'https://gateway.invalid'};`,
         models: `export async function assertPublishedRelay(request,path){globalThis.__shotloomRelayProbe.checks.push({path,body:await request.json()});}`,
-        model: `export async function createBrowserModelRelay(...args){const state=globalThis.__shotloomRelayProbe;state.calls.push(args);return {async *stream(){if(state.fail)throw new Error('secret-upstream-key');if(state.errorFinish)yield {type:'finish',reason:{kind:'error',failure:{message:'secret-upstream-key'}}};else yield {type:'text-delta',index:0,text:'relay-passed'};},dispose:async()=>{state.disposed=true;}};}`,
+        model: `export async function createBrowserModelRelay(...args){const state=globalThis.__shotloomRelayProbe;state.calls.push(args);return {async *stream(){if(state.fail)throw new Error('secret-upstream-key');if(state.errorFinish)yield {type:'finish',reason:{kind:'error',failure:{message:'secret-upstream-key',...state.failure}}};else yield {type:'text-delta',index:0,text:'relay-passed'};},dispose:async()=>{state.disposed=true;}};}`,
       }[args.path], loader: 'js' }));
     } }],
   });
@@ -45,6 +45,23 @@ test('browser relay authenticates, enforces published endpoints, and ignores cli
     assert.equal(state.calls.at(-1)[1], 'server-only-key');
   }
   assert.equal((await app.request('/connect', { method: 'POST', headers: { 'x-test-owner': 'test' } })).status, 404);
+  delete globalThis.__shotloomRelayProbe;
+});
+
+test('模型错误保留 Harness 恢复所需分类，移除供应商文本和任意字段', async () => {
+  const { state, input, request } = await fixture();
+  state.errorFinish = true;
+  for (const code of ['CONTEXT_WINDOW_EXCEEDED', 'QUOTA', 'INVALID_CREDENTIAL', 'TIMEOUT', 'IMAGE_OFFLOAD_REQUIRED']) {
+    state.failure = { code, status: 429, providerRetryAfterMs: 1200, offloadImages: 2, key: 'secret-upstream-key' };
+    const frames = (await (await request(input)).text()).trim().split('\n').map(JSON.parse);
+    const finish = frames.find(frame => frame.chunk?.type === 'finish');
+    assert.equal(finish?.chunk.reason.failure.code, code);
+    assert.equal(finish.chunk.reason.failure.status, 429);
+    assert.equal(finish.chunk.reason.failure.providerRetryAfterMs, 1200);
+    assert.equal(finish.chunk.reason.failure.offloadImages, 2);
+    assert.doesNotMatch(JSON.stringify(frames), /secret-upstream-key|server-only-key/);
+    assert.equal(frames.at(-1).done, true);
+  }
   delete globalThis.__shotloomRelayProbe;
 });
 
