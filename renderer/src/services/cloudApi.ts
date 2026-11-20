@@ -1,4 +1,4 @@
-import type { createTauriApi } from './tauriApi';
+import type { createTauriApi, DownloadAuth } from './tauriApi';
 import type { ModelPublication } from '../../../shared/modelPublications';
 import { cloudOrigin, cloudRequest, cloudUserHeaders, verifyCloudSession } from './cloudRequest';
 import { mediaFileUrl, rememberSignedMedia, cachedSignedMedia } from '../utils/mediaFileUrl';
@@ -280,6 +280,7 @@ export function createCloudApi(local: PlatformApi): PlatformApi {
     });
     if (response.status === 401 || response.status === 409) await verifyCloudSession();
     if (!response.ok) throw new Error(modelResponseError(parseModelResponseText(await response.text()), response.status));
+    if (body.__responseEncoding === 'blob') return response.blob();
     if (onTextDelta && response.body && response.headers.get('content-type')?.includes('text/event-stream')) {
       const protocol = String(body.__agentProtocol || 'openai-chat-completions');
       const accumulator = protocol === 'openai-chat-completions' ? createChatCompletionStreamAccumulator(onTextDelta) : createAgentProtocolAccumulator(protocol, onTextDelta);
@@ -541,7 +542,16 @@ export function createCloudApi(local: PlatformApi): PlatformApi {
       copyToProject: copy,
       copyToDirectory: (source: string, _directory: string, name?: string) => copy(source, name),
       saveDataUrlToProject: async (url: string, name = 'image.png') => upload(await readBlob(url), name),
-      downloadUrlToProject: async (url: string, name = 'media.bin') => copy(url, name),
+      downloadUrlToProject: async (url: string, name = 'media.bin', downloadAuth: DownloadAuth | null = null) => {
+        if (!downloadAuth?.endpointPath) return copy(url, name);
+        const blob = await requestModel(downloadAuth.endpointPath, {
+          __endpointMethod: downloadAuth.endpointMethod || 'GET', __endpointScope: downloadAuth.endpointScope || 'root',
+          __providerId: downloadAuth.providerId, __headers: downloadAuth.headers,
+          __timeoutMs: 900_000, __responseEncoding: 'blob',
+        });
+        if (!blob.size) throw new Error('Generated media download is empty');
+        return upload(blob, name);
+      },
       writeFileToPath: (path: string, bytes: ArrayBuffer | Uint8Array<ArrayBuffer>) => upload(new Blob([bytes]), path.split('/').at(-1) || 'media.bin'),
       saveArrayBuffer: (name: string, bytes: ArrayBuffer | Uint8Array<ArrayBuffer>) => download(name, new Blob([bytes])),
       exportFile: async (source: string, name?: string) => download(name || source.split('/').at(-1) || 'media.bin', await readBlob(source)),

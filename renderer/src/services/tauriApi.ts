@@ -239,7 +239,7 @@ interface GatewayRequestOptions {
   signal?: unknown;
   responseEncoding?: string;
 }
-interface DownloadAuth extends NativeRecord {
+export interface DownloadAuth extends NativeRecord {
   providerId?: string;
   endpointPath?: string;
   endpointScope?: string;
