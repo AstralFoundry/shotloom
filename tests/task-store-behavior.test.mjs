@@ -85,3 +85,24 @@ test('stopActiveTaskPolling 清理进行中任务的本地定时器（切换项�
   // 不应抛异常，且不改变任务/节点状态（远端任务由远端轮询续跑决定）。
   assert.doesNotThrow(() => taskStore.stopActiveTaskPolling());
 });
+
+test('background polling backs off, foreground resumes immediately and cancellation removes listeners', async () => {
+  const {getProviderAdapter} = await env.load('domain/provider/adapters/index');
+  const adapter=getProviderAdapter('openai'), poll=adapter.poll, interval=window.setInterval, documentBefore=globalThis.document, clock=Date.now;
+  let now=clock(), tick, reads=0;
+  const listeners=new Set();
+  globalThis.document={hidden:false,addEventListener(_name,fn){listeners.add(fn);},removeEventListener(_name,fn){listeners.delete(fn);}};
+  Date.now=()=>now;
+  window.setInterval=fn=>{tick=fn;return 1;};
+  adapter.poll=async()=>{reads++;return {status:'running',progress:40};};
+  try {
+    seedProject({remoteTaskId:'existing-task'});
+    Object.assign(store.project.tasks[0],{createdAt:new Date(now).toISOString(),timeoutMs:120000,requestPayload:{modelContract:{isAsync:true,provider:'openai',taskEndpoint:{path:'/tasks/{id}'}}}});
+    assert.equal(taskStore.resumeRemoteTasks(),1);
+    await new Promise(resolve=>setImmediate(resolve)); assert.equal(reads,1);
+    document.hidden=true;now+=1500;await tick();assert.equal(reads,1);
+    now+=30000;await tick();assert.equal(reads,2);
+    document.hidden=false;for(const fn of listeners)fn();await new Promise(resolve=>setImmediate(resolve));assert.equal(reads,3);
+    taskStore.cancelTask('task-1');assert.equal(listeners.size,0);
+  } finally {taskStore.stopActiveTaskPolling();adapter.poll=poll;window.setInterval=interval;Date.now=clock;if(documentBefore===undefined)delete globalThis.document;else globalThis.document=documentBefore;}
+});

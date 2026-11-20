@@ -255,6 +255,7 @@ export function createMediaSlice(set: Set, get: Get): MediaSlice {
       mediaId: string,
       file: File,
       sourceFolder?: string,
+      restoreOnly = false,
     ) => {
       const { project } = get();
       const replacementKey = `${project.id}:${mediaId}`;
@@ -342,7 +343,7 @@ export function createMediaSlice(set: Set, get: Get): MediaSlice {
           }
         }
 
-        const updatedItem: MediaItem = {
+        let updatedItem: MediaItem = {
           ...project.mediaLibrary.items.find((item) => item.id === mediaId),
           id: mediaId,
           name: file.name,
@@ -402,6 +403,11 @@ export function createMediaSlice(set: Set, get: Get): MediaSlice {
           }
         }
 
+        if (restoreOnly) {
+          updatedItem = { ...updatedItem, name: currentItem.name,
+            metadata: {...updatedItem.metadata, ...currentItem.metadata},
+            sourceFile: currentItem.sourceFile || updatedItem.sourceFile };
+        }
         const updatedItems = currentProject.mediaLibrary.items.map((item) =>
           item.id === mediaId ? { ...item, ...updatedItem } : item,
         );

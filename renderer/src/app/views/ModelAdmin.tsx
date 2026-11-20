@@ -14,6 +14,8 @@ export function ModelAdmin() {
   const [models, setModels] = useState<ModelPublication[]>([]);
   const [templates, setTemplates] = useState<Template[]>([]);
   const [audit, setAudit] = useState<Audit[]>([]);
+  const [auditBusy, setAuditBusy] = useState(false);
+  const [auditError, setAuditError] = useState('');
   const [busy, setBusy] = useState(false);
   const [authorized, setAuthorized] = useState(false);
   const [currentUserId, setCurrentUserId] = useState('');
@@ -26,11 +28,14 @@ export function ModelAdmin() {
   const selectedPublished = Form.useWatch('published', form);
   const typeOptions = ['textGeneration', 'imageGeneration', 'videoGeneration', 'audioGeneration'].map(value => ({ value, label: t(`admin.models.${value}` as Parameters<typeof t>[0]) }));
   const reload = async () => {
-    const [value, logs] = await Promise.all([
-      cloudRequest<{ models: ModelPublication[]; templates: Template[] }>('/admin/models'),
-      cloudRequest<Audit[]>('/admin/audit'),
-    ]);
-    setModels(value.models); setTemplates(value.templates); setAudit(logs);
+    const value = await cloudRequest<{ models: ModelPublication[]; templates: Template[] }>('/admin/models', 'GET', undefined, { force: true });
+    setModels(value.models); setTemplates(value.templates);
+  };
+  const reloadAudit = async () => {
+    setAuditBusy(true); setAuditError('');
+    try { setAudit(await cloudRequest<Audit[]>('/admin/audit', 'GET', undefined, { force: true })); }
+    catch (cause) { setAuditError(cause instanceof Error ? cause.message : String(cause)); }
+    finally { setAuditBusy(false); }
   };
   const run = async (action: () => Promise<void>) => {
     setBusy(true); setError('');
@@ -68,7 +73,7 @@ export function ModelAdmin() {
         {typeOptions.map((option, index) => <div className="admin-stat" key={option.value}><span className="admin-stat-icon"><IconSymbol name={icons[index] || 'layers'} /></span><div><span>{option.label}</span><strong>{models.filter(model => model.type === option.value && model.available).length}</strong></div></div>)}
       </section>
       <section className="admin-panel">
-      <Tabs items={[{ key: 'models', label: <span className="admin-tab"><IconSymbol name="layers" />{t('admin.models.list')}</span>, children: <>
+      <Tabs onChange={key => { if (key === 'audit') void reloadAudit(); }} items={[{ key: 'models', label: <span className="admin-tab"><IconSymbol name="layers" />{t('admin.models.list')}</span>, children: <>
         <div className="admin-section-header"><div><h2>{t('admin.models.list')}</h2><p>{t('admin.models.overview', { total: models.length, published: models.filter(model => model.available && model.published).length })}</p></div>
           <div className="model-admin-actions"><Button disabled={busy} icon={<IconSymbol name="refresh" />} onClick={() => void run(reload)}>{t('admin.models.refresh')}</Button>
           <Button type="primary" loading={busy} icon={<IconSymbol name="link" />} onClick={() => void run(async () => { await cloudRequest('/admin/models/sync', 'POST'); await reload(); })}>{t('admin.models.sync')}</Button></div></div>
@@ -85,8 +90,9 @@ export function ModelAdmin() {
       ]} /></> }, { key: 'users', label: <span className="admin-tab"><IconSymbol name="user" />{t('admin.users.title')}</span>, children: <AdminUsers currentUserId={currentUserId} onChanged={reload} onRevoked={() => {
         setAuthorized(false); setError(t('admin.users.revoked'));
       }} /> }, { key: 'feedback', label: t('support.title'), children: <AdminFeedback /> }, { key: 'audit', label: <span className="admin-tab"><IconSymbol name="clock" />{t('admin.models.audit')}</span>, children: <>
-        <div className="admin-section-header"><div><h2>{t('admin.models.audit')}</h2><p>{t('admin.audit.description')}</p></div><Button disabled={busy} icon={<IconSymbol name="refresh" />} onClick={() => void run(reload)}>{t('admin.models.refresh')}</Button></div>
-        <Table<Audit> className="admin-table" rowKey="id" dataSource={audit} pagination={{ defaultPageSize: 20 }} columns={[
+        <div className="admin-section-header"><div><h2>{t('admin.models.audit')}</h2><p>{t('admin.audit.description')}</p></div><Button disabled={auditBusy} icon={<IconSymbol name="refresh" />} onClick={() => void reloadAudit()}>{t('admin.models.refresh')}</Button></div>
+        {auditError && <Alert type="error" showIcon title={auditError} />}
+        <Table<Audit> loading={auditBusy} className="admin-table" rowKey="id" dataSource={audit} pagination={{ defaultPageSize: 20 }} columns={[
         { title: t('admin.models.time'), onCell: cell(t('admin.models.time')), render: (_, row) => new Date(row.created_at).toLocaleString() },
         { title: t('admin.models.actor'), dataIndex: 'actor_id', onCell: cell(t('admin.models.actor')) },
         { title: t('admin.models.actions'), dataIndex: 'action', onCell: cell(t('admin.models.actions')) },

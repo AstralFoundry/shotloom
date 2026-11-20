@@ -28,7 +28,7 @@ test('embedded canvas waits only for preferences and project data before becomin
   assert.ok(!calls.includes('initializeResourceLibraries'), 'project reconciliation already awaits a fresh asset catalog');
 });
 
-test('embedded startup reads project and assets while settings load, then applies the project after settings', async () => {
+test('embedded startup reads project while settings load and defers unrelated catalogs', async () => {
   const env = await createRendererEnv({ storageMode: 'cloud', storage: new Map(), withWindow: true });
   let releaseSettings, projectStarted, catalogStarted;
   const settingsGate = new Promise(resolve => { releaseSettings = resolve; });
@@ -48,7 +48,7 @@ test('embedded startup reads project and assets while settings load, then applie
     desktopApi.recent.list = async () => [];
     desktopApi.project.listRoot = async () => [];
     pending = startup({ loadBoundWindowProject, loadAppSettings: async () => { await settingsGate; appliedSettings = true; } });
-    await Promise.race([Promise.all([projectRead, catalogRead]), new Promise((_, reject) => setTimeout(() => reject(new Error('Reads blocked on settings')), 1000))]);
+    await Promise.race([projectRead, new Promise((_, reject) => setTimeout(() => reject(new Error('Reads blocked on settings')), 1000))]);
     await new Promise(resolve => setImmediate(resolve));
     assert.equal(store.project.id, initialProject, 'prefetched project cannot apply before settings');
     assert.equal(recentWrites, 0);
@@ -156,33 +156,23 @@ test('web canvas becomes ready while unrelated catalogs and account remain pendi
     refreshCloudAccountSettings: () => { calls.push('account'); return pending; },
     setNavigationStatus: status => calls.push(status),
   }, '?route=creation&project=fixture');
-  assert.deepEqual(calls, ['preferences', 'project', 'ready', 'skills', 'recipes', 'account']);
+  assert.deepEqual(calls, ['preferences', 'project', 'ready', 'account']);
 });
 
-test('web library reads overlap settings, but project application and page readiness wait for both', async () => {
-  let releaseSettings, releaseLibraries;
-  const settings = new Promise(resolve => { releaseSettings = resolve; });
-  const libraries = new Promise(resolve => { releaseLibraries = resolve; });
-  const calls = [];
-  const running = startup({
-    loadAppSettings: async options => { assert.equal(options.preferencesOnly, true); calls.push('preferences'); await settings; },
-    loadGlobalSkills: async () => { calls.push('skills'); await libraries; },
-    loadGlobalRecipes: async () => { calls.push('recipes'); await libraries; },
-    loadRecentProjects: async () => { calls.push('recent'); await libraries; },
-    initializeResourceLibraries: async () => { calls.push('assets'); await libraries; },
-    loadBoundWindowProject: async beforeApply => { calls.push('read-project'); assert.equal(await beforeApply(), true); calls.push('apply-project'); return true; },
-    refreshCloudAccountSettings: async () => { calls.push('account'); },
-    setNavigationStatus: status => calls.push(status),
-  }, '?route=skills&project=fixture');
-  try {
-    await new Promise(resolve => setImmediate(resolve));
-    assert.deepEqual(calls, ['preferences', 'skills', 'recipes', 'recent', 'assets', 'read-project']);
-    releaseSettings(); await new Promise(resolve => setImmediate(resolve));
-    assert.equal(calls.includes('ready'), false);
-    releaseLibraries(); await running;
-    assert(calls.indexOf('apply-project') > calls.indexOf('read-project'));
-    assert.deepEqual(calls.slice(-3), ['apply-project', 'ready', 'account']);
-  } finally { releaseSettings(); releaseLibraries(); await running; }
+test('ordinary web pages do not wait for unrelated catalogs', async () => {
+  for (const route of ['account', 'tasks', 'skills', 'projects', 'assets', 'materials']) {
+    const calls = [];
+    const pending = new Promise(() => {});
+    const relevant = route === 'skills' ? 'skills' : route === 'projects' ? 'recent' : ['assets', 'materials'].includes(route) ? 'assets' : '';
+    const read = name => async () => { calls.push(name); return name === relevant ? undefined : pending; };
+    const ready = startup({
+      loadAppSettings: async () => {}, loadBoundWindowProject: async before => { await before(); return false; },
+      loadGlobalSkills: read('skills'), loadGlobalRecipes: read('recipes'), loadRecentProjects: read('recent'), initializeResourceLibraries: read('assets'),
+      setNavigationStatus: value => calls.push(value),
+    }, `?route=${route}`);
+    await Promise.race([ready, new Promise((_, reject) => setTimeout(() => reject(new Error(`${route} blocked by unrelated catalog`)), 100))]);
+    assert.ok(calls.includes('ready'));
+  }
 });
 
 test('bound project opening waits for the asset catalog before reconciling references', async () => {
@@ -212,7 +202,7 @@ test('bound project opening waits for the asset catalog before reconciling refer
   } finally { release(); await opening; await env.dispose(); }
 });
 
-test('embedded startup overlaps project and asset reads, shares pending loads and reconciles only after both finish', async () => {
+test('embedded startup shares the required library read and waits before reconciling references', async () => {
   const env = await createRendererEnv({ storageMode: 'cloud', storage: new Map(), withWindow: true });
   let releaseProject, releaseCatalog;
   const projectGate = new Promise(resolve => { releaseProject = resolve; });
@@ -225,7 +215,7 @@ test('embedded startup overlaps project and asset reads, shares pending loads an
     const { loadLocalAssetLibrary, localAssetLibrary } = await env.load('store/localAssetLibraryStore');
     let projectReads = 0, catalogReads = 0, done = false;
     desktopApi.project.getWindowProjectDir = async () => 'cloud/projects/fixture';
-    desktopApi.project.readFile = async () => { projectReads++; await projectGate; return { id:'fixture', schema:'shotloom-project', schemaVersion:2, nodes:[], edges:[], assets:[], materials:[], tasks:[] }; };
+    desktopApi.project.readFile = async () => { projectReads++; await projectGate; return { id:'fixture', schema:'shotloom-project', schemaVersion:2, nodes:[], edges:[], assets:[], materials:[{id:'material', storageScope:'library', localLibraryMaterialId:'library-material'}], tasks:[] }; };
     desktopApi.localAssets.getCatalog = async () => { catalogReads++; await catalogGate; return { assets:[], materials:[], references:[] }; };
     desktopApi.recent.add = async () => [];
     desktopApi.recent.list = async () => [];
@@ -233,7 +223,10 @@ test('embedded startup overlaps project and asset reads, shares pending loads an
     opening = loadBoundWindowProject().then(value => { done = true; return value; });
     await new Promise(resolve => setTimeout(resolve, 30));
     assert.equal(projectReads, 1);
-    assert.equal(catalogReads, 1, 'asset read starts while project read is still pending');
+    assert.equal(catalogReads, 0, 'project determines whether a catalog is required');
+    releaseProject();
+    for (let i = 0; i < 100 && !catalogReads; i++) await new Promise(resolve => setTimeout(resolve, 10));
+    assert.equal(catalogReads, 1);
     const concurrent = loadLocalAssetLibrary(true);
     assert.equal(catalogReads, 1);
     let catalogDone = false; void concurrent.then(() => { catalogDone = true; });
@@ -241,8 +234,7 @@ test('embedded startup overlaps project and asset reads, shares pending loads an
     assert.equal(catalogDone, false, 'concurrent callers cannot receive a stale catalog');
     releaseCatalog(); await concurrent;
     assert.equal(localAssetLibrary.loaded, true);
-    assert.equal(done, false, 'catalog alone cannot open the project');
-    releaseProject(); assert.equal(await opening, true);
+    assert.equal(await opening, true);
     assert.equal(catalogReads, 1, 'reconciliation reuses the prefetched catalog even when it finished first');
   } finally { releaseCatalog(); releaseProject(); await opening?.catch(() => {}); await env.dispose(); }
 });

@@ -7,9 +7,9 @@ test('director model objects survive a fresh client, retain portable exports and
   try {
     const { createCloudDirectorModels } = await env.load('services/cloudDirectorModels');
     const objects = new Map();
-    let writes = 0;
+    let writes = 0, reads = 0;
     const upload = async blob => { const filePath = `cloud://media/${++writes}.json`; objects.set(filePath, blob); return { filePath }; };
-    const read = async path => { assert(objects.has(path)); return objects.get(path); };
+    const read = async path => { reads++; assert(objects.has(path)); return objects.get(path); };
     const resource = { id: `model-${'a'.repeat(64)}`, name: 'Triangle', package: { version: 1, format: 'gltf', entry: 'triangle.gltf', files: [{ path: 'triangle.gltf', data: 'e30=' }] } };
     const project = { nodes: [{ directorData: { project: { format: 'director-desk', version: 3, scenes: [{ state: { resources: [resource] } }] } } }], directorWorkspaceProject: { resources: [resource] } };
     const original = structuredClone(project);
@@ -21,13 +21,17 @@ test('director model objects survive a fresh client, retain portable exports and
     assert.deepEqual(project, original, 'serialization never replaces the live runtime package');
 
     const nextClient = createCloudDirectorModels(upload, read);
-    const restored = await nextClient.load(structuredClone(stored));
+    assert.deepEqual(await nextClient.load(structuredClone(stored)), stored);
+    assert.deepEqual(await nextClient.save(stored), stored);
+    assert.equal(reads, 0, 'ordinary opens and saves preserve cloud references without downloading models');
+    const restored = await nextClient.hydrate(structuredClone(stored));
+    assert.equal(reads,1,'duplicate model references share one verified download');
     assert.deepEqual(restored, original, 'a new client restores all package bytes for scene loading and portable export');
     assert.deepEqual(await nextClient.save(restored), stored);
     assert.equal(writes, 1, 'loading then editing scene metadata must not upload an unchanged model again');
 
     const reference = stored.directorWorkspaceProject.resources[0].package;
-    await assert.rejects(createCloudDirectorModels(upload, async () => new Blob(['corrupt'])).load(stored), /校验失败/);
+    await assert.rejects(createCloudDirectorModels(upload, async () => new Blob(['corrupt'])).hydrate(stored), /校验失败/);
     const foreign = structuredClone(stored);
     foreign.directorWorkspaceProject.resources[0].package.path = 'https://untrusted.example/model.json';
     await assert.rejects(nextClient.load(foreign), /存储引用无效/);

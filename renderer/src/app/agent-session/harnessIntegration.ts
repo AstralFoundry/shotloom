@@ -12,6 +12,8 @@ import { store, touchProject } from '../../store/projectStore';
 import { initializeHarnessClient } from './harnessClient';
 export { setHarnessSessionsArchived } from '../../services/harnessArchive';
 import { cloudEnabled } from '../../utils/cloudConfig';
+import { loadGlobalSkills } from '../../store/skillsStore';
+import { loadGlobalRecipes } from '../../store/recipesStore';
 import { bindCloudHarness, respondCloudTool, registerCloudToolHandler, connectCloudHarness } from './cloudHarnessTransport';
 
 // This integration owns native Harness calls, which bypass desktopApi's IPC boundary.
@@ -96,6 +98,10 @@ export function startHarnessIntegration(): Promise<void> {
 export async function openHarnessPanel(role: ProductBinding['agentId'], nodeId?: string, conversationId?: string) {
   await startHarnessIntegration();
   const identity = getAgentProjectIdentity();
+  if (cloudEnabled) {
+    await Promise.all([loadGlobalSkills(), loadGlobalRecipes()]);
+    assertAgentProject(identity.projectKey, identity.instanceId, identity.generation);
+  }
   const selected = store.project.harnessSessions?.find((item: { id?: string; agentId?: string; textNodeId?: string; editorNodeId?: string; directorNodeId?: string }) => item.id === conversationId && item.agentId === role && (item.textNodeId || item.editorNodeId || item.directorNodeId) === nodeId);
   const conversation = selected ?? (role === CANVAS_AGENT_ID ? canvasHarnessSession(store.project)
     : role === DIRECTOR_AGENT_ID ? directorHarnessSession(store.project, nodeId)

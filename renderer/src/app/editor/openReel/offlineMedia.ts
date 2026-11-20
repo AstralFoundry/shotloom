@@ -7,7 +7,7 @@ export type OfflineEditorMedia = { id: string; assetId: string; name: string; ty
 export function offlineEditorMedia(native: OpenReelNativeState | null): OfflineEditorMedia[] {
   const project = native as Record<string, any> | null;
   const clips = (project?.timeline?.tracks || []).flatMap((track: any) => track.clips || []);
-  return (project?.mediaLibrary?.items || []).filter((item: any) => item.isPlaceholder === true).map((item: any) => ({
+  return (project?.mediaLibrary?.items || []).filter((item: any) => item.isPlaceholder === true && !item.shotloomDeferred).map((item: any) => ({
     id: item.id, assetId: item.shotloomAssetId || item.id, name: item.name || t("ui.offlineMedia.text.6db23b97"), type: item.type,
     ...(item.shotloomOfflineReason ? { reason: String(item.shotloomOfflineReason) } : {}),
     requiredDuration: Math.max(0, ...clips.filter((clip: any) => clip.mediaId === item.id).map((clip: any) =>

@@ -1,6 +1,9 @@
 import { t } from '@/i18n';
-import { type MouseEvent, useMemo, useRef, useState } from "react";
-import { App, Input, Modal, Segmented, type InputRef, type MenuProps } from "antd";
+import { type MouseEvent, useEffect, useMemo, useRef, useState } from "react";
+import { Alert, App, Input, Modal, Pagination, Segmented, Spin, type InputRef, type MenuProps } from "antd";
+import { cloudEnabled } from '../../utils/cloudConfig';
+import { readCatalogPage } from '../../services/cloudCatalogPages';
+import type { CatalogPage } from '../../../../shared/catalogPages';
 import { ContextMenu } from "../components/ContextMenu";
 import { EmptyState } from "../components/EmptyState";
 import { IconSymbol } from "../components/IconSymbol";
@@ -51,6 +54,11 @@ export function AssetsView({
   const renameInput = useRef<InputRef>(null);
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
   const [moving, setMoving] = useState(false);
+  const [page, setPage] = useState(1);
+  const [remote, setRemote] = useState<CatalogPage<MaterialItem>>();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [refresh, setRefresh] = useState(0);
   const category = useAppStore((state) => state.assetCategory);
   const keyword = useAppStore((state) => state.assetKeyword);
   const setRoute = useAppStore((state) => state.setRoute);
@@ -58,6 +66,23 @@ export function AssetsView({
     assetCategories.find((item) =>
       item.id === category || item.aliases.includes(category)
     ) || defaultAssetCategory;
+  const remoteScope = cloudEnabled && scope === 'local';
+  useEffect(() => { setPage(1); setSelectedKeys(new Set()); }, [category, keyword]);
+  useEffect(() => {
+    if (!remoteScope) return;
+    let active = true;
+    setBusy(true); setError(''); setRemote(undefined);
+    const timer = window.setTimeout(() => {
+      const query = new URLSearchParams({ search: keyword.trim(), offset: String((page - 1) * 20), limit: '20' });
+      for (const value of [categoryInfo.id, ...categoryInfo.aliases]) query.append('category', value);
+      void readCatalogPage<MaterialItem>('assets', query.toString()).then(value => {
+        if (!active) return;
+        setRemote(value);
+        if (page > 1 && (page - 1) * 20 >= value.total) setPage(Math.max(1, Math.ceil(value.total / 20)));
+      }).catch(cause => { if (active) setError(String(cause.message || cause)); }).finally(() => { if (active) setBusy(false); });
+    }, 200);
+    return () => { active = false; window.clearTimeout(timer); };
+  }, [remoteScope, category, keyword, page, refresh]);
   const setKeyword = (value: string) =>
     useAppStore.setState({ assetKeyword: value });
   const filter = (items: MaterialItem[]) =>
@@ -71,8 +96,8 @@ export function AssetsView({
             .join(" ").toLowerCase().includes(keyword.trim().toLowerCase()));
     });
   const displayed = useMemo(
-    () => filter(scope === "project" ? projectAssets : localAssets),
-    [scope, projectAssets, localAssets, category, keyword],
+    () => remoteScope ? (remote?.items || []).map(item => ({ ...item, assetId: String(item.id), localLibraryAssetId: String(item.id), localLibraryMaterialId: item.materialId, storageScope: 'library', inCurrentProject: projectAssets.some(asset => asset.localLibraryAssetId === item.id), scopeLabel: t('ui.resourceLibraryAdapter.text.1a0fdce8') })) : filter(scope === "project" ? projectAssets : localAssets),
+    [scope, projectAssets, localAssets, category, keyword, remote],
   );
   const selectedItems = displayed.filter((item) => selectedKeys.has(String(item.id || item.path || item.name || "")));
 
@@ -96,6 +121,7 @@ export function AssetsView({
           } catch { failed.add(String(item.id || item.path || item.name || "")); }
         }
         setSelectedKeys(failed);
+        setRefresh(value => value + 1);
       },
     });
   }
@@ -117,8 +143,8 @@ export function AssetsView({
   function action(name: string, item: MaterialItem) {
     if (name === "show-file") void controller.showFile(item);
     if (name === "promote-local") void controller.promoteLocal(item);
-    if (name === "reference-project") void controller.referenceProject(item);
-    if (name === "copy-project") void controller.copyProject(item);
+    if (name === "reference-project") void Promise.resolve(controller.referenceProject(item)).then(() => setRefresh(value => value + 1)).catch(cause => setError(String(cause.message || cause)));
+    if (name === "copy-project") void Promise.resolve(controller.copyProject(item)).then(() => setRefresh(value => value + 1)).catch(cause => setError(String(cause.message || cause)));
     if (name === "rename-item") {
       setRenameItem(item);
       setRenameDraft(String(item.name || ""));
@@ -130,10 +156,11 @@ export function AssetsView({
       modal.confirm({
         title: message,
         okButtonProps: { danger: true },
-        onOk: () => {
-          void (scope === "project"
+        onOk: async () => {
+          await (scope === "project"
             ? controller.deleteProjectAsset(item)
             : controller.deleteLocalAsset(item));
+          setRefresh(value => value + 1);
         },
       });
     }
@@ -210,7 +237,7 @@ export function AssetsView({
                 value: "local",
                 label: (
                   <span className="asset-scope-tab">
-                    {t("ui.AssetsView.text.e1003961")}<span>{localAssets.length}</span>
+                    {t("ui.AssetsView.text.e1003961")}<span>{cloudEnabled ? remote?.total ?? '…' : localAssets.length}</span>
                   </span>
                 ),
               },
@@ -222,7 +249,9 @@ export function AssetsView({
               : t("ui.AssetsView.text.d45356a3")}
           </p>
         </div>
-        {!displayed.length
+        {remoteScope && error && <Alert type="error" title={error} action={<button className="button ghost compact" onClick={() => setRefresh(value => value + 1)}>{t('support.refresh')}</button>} />}
+        {remoteScope && busy && <Spin />}
+        {!displayed.length && !(remoteScope && (busy || error))
           ? (
             <EmptyState
               icon="box"
@@ -247,6 +276,7 @@ export function AssetsView({
               onAction={action}
             />
           )}
+        {remoteScope && <Pagination current={page} total={remote?.total || 0} pageSize={20} showSizeChanger={false} onChange={setPage} />}
         <ContextMenu
           point={menu}
           items={menuItems}

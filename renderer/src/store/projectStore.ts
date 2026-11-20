@@ -65,6 +65,7 @@ const AUTO_SAVE_MAX_DELAY_MS = 30_000;
 let autoSaveTimer: number | null = null;
 let autoSaveQueuedAt = 0;
 let sessionPersistTimer: number | null = null;
+let restoringProject: Promise<unknown> | undefined;
 const savedRevisions = new Map<string, number>();
 const projectSaveQueue = new LatestSaveQueue(
   async ({ directory, snapshot }: AnyRecord) => {
@@ -133,6 +134,7 @@ export function navigateToRoute(route: string, { notify = true }: { notify?: boo
 }
 
 function canChangeProjectContext() {
+  if (restoringProject) { showToast(t('canvas.preparing')); return false; }
   const reason = projectOperationBlockReason(store.project);
   if (reason) showToast(reason);
   return !reason;
@@ -251,6 +253,7 @@ function scheduleAutoSave(delay = AUTO_SAVE_DELAY_MS) {
 }
 
 async function writeProjectFile({ updateRecent = false }: { updateRecent?: boolean } = {}) {
+  await restoringProject;
   const snapshot = projectPersistenceSnapshot();
   const hash = JSON.stringify({ ...snapshot, updatedAt: '' });
   const directory = store.projectDir;
@@ -331,7 +334,7 @@ export function initProjectCloneProgressListener() {
 export async function loadRecentProjects() {
   try {
     const [rootEntries, recentProjects] = await Promise.all([
-      ensureProjectRoot().then(async root => (await desktopApi.project.listRoot?.(root)) || []),
+      cloudEnabled ? (await import('../services/cloudProjectPages')).loadCloudProjectLibrary() : ensureProjectRoot().then(async root => (await desktopApi.project.listRoot?.(root)) || []),
       desktopApi.recent.list(),
     ]);
     const flattenProjects = (entries: AnyRecord[] = []): AnyRecord[] =>
@@ -346,7 +349,8 @@ export async function loadRecentProjects() {
       ...externalRecent.map((project: AnyRecord) => ({ ...project, kind: 'project' })),
     ];
     store.recentProjects = uniqueProjects([...rootedProjects, ...recentProjects]);
-  } catch {
+  } catch (error) {
+    if (cloudEnabled) throw error;
     store.recentProjects = [];
     store.projectLibraryEntries = [];
   }
@@ -760,9 +764,6 @@ export async function loadBoundWindowProject(beforeApply?: () => Promise<boolean
   // skipping the read in that case lets the stale session overwrite disk on
   // the first touch/autosave.
   const filePath = `${projectDir.replace(/[\\/]$/, '')}/project.sqlite`;
-  const catalogReady = cloudEnabled
-    ? import('@/store/localAssetLibraryStore').then(module => module.loadLocalAssetLibrary(true)) : undefined;
-  void catalogReady?.catch(() => {});
   let timer: number | undefined;
   let project: AnyRecord;
   try {
@@ -795,7 +796,7 @@ export async function loadBoundWindowProject(beforeApply?: () => Promise<boolean
   }
   // Network reads can overlap settings; project changes must wait for their validation.
   if (beforeApply && !await beforeApply()) return false;
-  return applyOpenedProject({ project, filePath, projectDir }, catalogReady);
+  return applyOpenedProject({ project, filePath, projectDir });
 }
 
 /**
@@ -832,7 +833,7 @@ export async function restoreProjectSnapshot(snapshotId: string) {
   return { ok: true as const };
 }
 
-async function applyOpenedProject(result: AnyRecord, catalogReady?: Promise<unknown>) {
+async function applyOpenedProject(result: AnyRecord) {
   if (!canChangeProjectContext()) return false;
   stopActiveTaskPolling();
   store.project = normalizeProject(result.project);
@@ -843,13 +844,19 @@ async function applyOpenedProject(result: AnyRecord, catalogReady?: Promise<unkn
   store.selectedEdgeId = null;
   store.connectFromId = null;
   store.route = 'creation';
-  const { reconcileCurrentProjectLocalAssetReferences } = await import(
-    '@/store/localAssetLibraryStore'
-  );
-  const [references, restoredFiles] = await Promise.allSettled([
-    (catalogReady || Promise.resolve()).then(() => reconcileCurrentProjectLocalAssetReferences(!catalogReady)),
+  const { reconcileCurrentProjectLocalAssetReferences } = await import('@/store/localAssetLibraryStore');
+  const referencesRead = reconcileCurrentProjectLocalAssetReferences();
+  const needsReferences = !cloudEnabled || store.project.materials.some((material: AnyRecord) => material.storageScope === 'library' && material.localLibraryMaterialId);
+  // Reference housekeeping cannot hold up a project that has no library media.
+  if (!needsReferences) void referencesRead.catch(cause => showErrorMessage(String(cause)));
+  const restorationRead = Promise.allSettled([
+    needsReferences ? referencesRead : Promise.resolve(),
     restoreMissingGeneratedFiles(store.project),
   ]);
+  restoringProject = restorationRead;
+  const [references, restoredFiles] = await restorationRead.finally(() => {
+    if (restoringProject === restorationRead) restoringProject = undefined;
+  });
   if (references.status === 'rejected') throw references.reason;
   if (restoredFiles.status === 'rejected') throw restoredFiles.reason;
   const restoration = restoredFiles.value;

@@ -1,9 +1,9 @@
 import { type ReactNode, useEffect, useState } from 'react';
 import { bindCloudUser, cloudEnabled, cloudRequest, readCloudSession, readCloudUserHint } from '../services/cloudRequest';
 import { readNativeWorkspaceBootstrap } from './nativeWorkspaceBootstrap';
-import { t } from '../i18n';
+import { t } from '../i18n/login';
 import { SocialAuth } from './components/SocialAuth';
-import { preloadCloudCanvasStartup } from '../services/cloudCanvasStartup';
+import { preloadCloudPageStartup } from '../services/cloudCanvasStartup';
 
 export function CloudSession({ children }: { children: ReactNode }) {
   const [initialUser] = useState(() => {
@@ -26,11 +26,11 @@ export function CloudSession({ children }: { children: ReactNode }) {
     const expired = () => setStatus('login');
     window.addEventListener('shotloom-session-expired', expired);
     const check = () => {
-      if (initialUser) preloadCloudCanvasStartup();
+      if (initialUser) preloadCloudPageStartup();
       void readCloudSession().then(user => {
         if (!active) return;
         if (!bindCloudUser(user.id)) { setStatus('account'); return; }
-        preloadCloudCanvasStartup();
+        preloadCloudPageStartup();
         setStatus('ready'); setOpened(true);
       }).catch(cause => {
         if (!active) return;

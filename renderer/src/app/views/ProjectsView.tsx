@@ -1,5 +1,5 @@
 import { t } from '@/i18n';
-import { Dropdown, Select, Spin, type MenuProps } from "antd";
+import { Alert, Dropdown, Pagination, Select, Spin, type MenuProps } from "antd";
 import { type MouseEvent, useEffect, useMemo, useRef, useState } from "react";
 import { formatTime, formatItemCount } from "../../utils/format.ts";
 import { showErrorMessage } from "../../store/notificationStore";
@@ -27,6 +27,7 @@ export interface ProjectFolderEntry {
 export type LibraryEntry = ProjectLibraryEntry | ProjectFolderEntry;
 
 export interface ProjectsController {
+  listPage?: (query: { folderDir: string | null; search: string; sort: string; offset: number; limit: number }) => Promise<{ items: ProjectLibraryEntry[]; total: number }>;
   importPackage: () => Promise<void>;
   createFolder: (parentDir: string | null, name: string) => Promise<void>;
   createProject: (name: string, folder: ProjectFolderEntry) => Promise<void>;
@@ -104,6 +105,10 @@ export function ProjectsView(
   const [query, setQuery] = useState('');
   const [entryFilter, setEntryFilter] = useState<"all" | "project" | "folder">("all");
   const [sortOrder, setSortOrder] = useState<SortOrder>('updated');
+  const [page, setPage] = useState(1);
+  const [projectPage, setProjectPage] = useState<{ items: ProjectLibraryEntry[]; total: number }>();
+  const [pageLoading, setPageLoading] = useState(false);
+  const [pageError, setPageError] = useState('');
   const [openingPath, setOpeningPath] = useState<string | null>(null);
   const opening = useRef(false);
   const createInput = useRef<HTMLInputElement>(null);
@@ -114,15 +119,39 @@ export function ProjectsView(
     : null;
   const visibleEntries = useMemo(() => {
     const keyword = query.trim().toLocaleLowerCase();
-    return (currentFolder?.children || entries)
+    const source = controller.listPage ? [...(currentFolder?.children || entries).filter(entry => entry.kind === 'folder'), ...(projectPage?.items || [])] : currentFolder?.children || entries;
+    return source
       .filter(entry => entryFilter === "all" || entry.kind === entryFilter)
       .filter(entry => (entry.name || '').toLocaleLowerCase().includes(keyword))
       .slice().sort((a, b) => {
+        if (controller.listPage) {
+          if (a.kind !== b.kind) return a.kind === 'folder' ? -1 : 1;
+          if (a.kind === 'project') return 0;
+        }
         if (sortOrder === 'name') return (a.name || '').localeCompare(b.name || '', 'zh-CN', { numeric: true, sensitivity: 'base' });
         return entryTime(sortOrder === 'created' ? b.createdAt : b.updatedAt || b.lastOpenedAt)
           - entryTime(sortOrder === 'created' ? a.createdAt : a.updatedAt || a.lastOpenedAt);
       });
-  }, [currentFolder, entries, query, sortOrder, entryFilter]);
+  }, [currentFolder, entries, query, sortOrder, entryFilter, controller.listPage, projectPage]);
+
+  useEffect(() => { setPage(1); }, [query, sortOrder, currentFolder?.folderDir]);
+  useEffect(() => {
+    if (!controller.listPage) return;
+    let active = true;
+    setPageLoading(true); setPageError(''); setProjectPage(undefined);
+    const timer = window.setTimeout(() => {
+      void controller.listPage!({ folderDir: currentFolder?.folderDir || null, search: query.trim(), sort: sortOrder, offset: (page - 1) * 20, limit: 20 })
+        .then(value => {
+          if (!active) return;
+          const lastPage = Math.max(1, Math.ceil(value.total / 20));
+          if (page > lastPage) setPage(lastPage);
+          else setProjectPage(value);
+        })
+        .catch(error => { if (active) setPageError(String(error)); })
+        .finally(() => { if (active) setPageLoading(false); });
+    }, query.trim() ? 200 : 0);
+    return () => { active = false; window.clearTimeout(timer); };
+  }, [controller.listPage, currentFolder?.folderDir, query, sortOrder, page, entries]);
 
   useEffect(() => {
     createInput.current?.focus();
@@ -409,6 +438,9 @@ export function ProjectsView(
               </Dropdown>
             </div>
           </header>
+          {pageError && <Alert type="error" title={pageError} />}
+          {pageLoading && <Spin />}
+          {controller.listPage && <Pagination current={page} total={projectPage?.total || 0} pageSize={20} onChange={setPage} showSizeChanger={false} hideOnSinglePage disabled={pageLoading} />}
           {(visibleEntries.length > 0 || draft)
             ? (
               <div className="project-card-grid">

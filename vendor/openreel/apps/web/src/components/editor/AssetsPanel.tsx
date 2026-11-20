@@ -34,7 +34,7 @@ import { useTtsAudioStore } from "../../stores/tts-store";
 import { toast } from "../../stores/notification-store";
 import { saveFileHandle, saveDirectoryHandle } from "../../services/media-storage";
 import { ToolcraftIconButton as IconButton } from "@openreel/ui";
-import { isShotloomMode, requestShotloomImport, requestShotloomFiles, requestShotloomRelink } from "../../shotloom-mode";
+import { isShotloomMode, requestShotloomImport, requestShotloomFiles, requestShotloomRelink, requestShotloomMedia } from "../../shotloom-mode";
 import { ToolcraftSelectableCard as SelectableCard } from "@openreel/ui";
 import { ToolcraftText as Text } from "@openreel/ui";
 import { KieAIImageDialog } from "./kieai/KieAIImageDialog";
@@ -318,7 +318,7 @@ const MediaThumbnail: React.FC<{
   onKieAI?: () => void;
   onRetryKieAI?: () => void;
 }> = ({
-  item,
+  item: sourceItem,
   isSelected,
   viewMode,
   onSelect,
@@ -330,6 +330,29 @@ const MediaThumbnail: React.FC<{
   onRetryKieAI,
 }) => {
   const [isHovered, setIsHovered] = useState(false);
+  const deferred = Boolean((sourceItem as MediaItem & {shotloomDeferred?: boolean}).shotloomDeferred);
+  const item = deferred ? {...sourceItem, isPending: true, isPlaceholder: false} : sourceItem;
+  const card = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!deferred || !card.current || !isShotloomMode) return;
+    let active = true, requested = false;
+    const owner = useProjectStore.getState().project.id;
+    const load = () => {
+      if (requested) return;
+      requested = true;
+      void requestShotloomMedia(item.id).catch(cause => {
+        const state = useProjectStore.getState();
+        if (!active || state.project.id !== owner) return;
+        const items = state.project.mediaLibrary.items.map(entry => entry.id === item.id
+          ? {...entry, shotloomDeferred: false, shotloomOfflineReason: cause instanceof Error ? cause.message : String(cause)} : entry);
+        useProjectStore.setState({project: {...state.project, mediaLibrary: {...state.project.mediaLibrary, items}}});
+      });
+    };
+    if (typeof IntersectionObserver === 'undefined') { load(); return () => { active = false; }; }
+    const observer = new IntersectionObserver(entries => { if (entries.some(entry => entry.isIntersecting)) load(); });
+    observer.observe(card.current);
+    return () => { active = false; observer.disconnect(); };
+  }, [item.id, deferred, viewMode]);
 
   const getIcon = () => {
     switch (item.type) {
@@ -417,7 +440,7 @@ const MediaThumbnail: React.FC<{
           <PanelIconButton
             label={editorMessage("editor.assets.addTimeline")}
             icon={<Plus size={14} className="text-primary" />}
-            onClick={(e) => { e.stopPropagation(); onAddToTimeline(); }}
+            onClick={(e) => { e.stopPropagation(); if (!deferred) onAddToTimeline(); }}
             className="p-2 bg-primary/20 rounded-full hover:bg-primary/40 backdrop-blur-sm transition-colors"
           />
           <PanelIconButton
@@ -435,10 +458,11 @@ const MediaThumbnail: React.FC<{
   if (viewMode === "list") {
     return (
       <div
-        draggable
+        ref={card}
+        draggable={!deferred}
         onDragStart={onDragStart}
         onClick={onSelect}
-        onDoubleClick={(e) => { e.stopPropagation(); onAddToTimeline(); }}
+        onDoubleClick={(e) => { e.stopPropagation(); if (!deferred) onAddToTimeline(); }}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
         className={`relative flex items-center gap-3 px-2.5 py-2 rounded-xl border cursor-pointer transition-all group ${borderClass}`}
@@ -502,7 +526,7 @@ const MediaThumbnail: React.FC<{
                 className="p-1 bg-red-500/20 rounded hover:bg-red-500/40 transition-colors"
               />
             ) : item.isPending ? (
-              <div className="p-1" title={editorMessage("editor.assets.generating")}>
+              <div className="p-1" title={editorMessage(deferred ? "editor.runtime.importing" : "editor.assets.generating")}>
                 <div className="h-3 w-3 animate-spin rounded-full border-2 border-primary border-t-transparent" />
               </div>
             ) : item.isPlaceholder ? (
@@ -533,7 +557,7 @@ const MediaThumbnail: React.FC<{
                 <PanelIconButton
                   label={editorMessage("editor.assets.addTimeline")}
                   icon={<Plus size={12} className="text-primary" />}
-                  onClick={(e) => { e.stopPropagation(); onAddToTimeline(); }}
+                  onClick={(e) => { e.stopPropagation(); if (!deferred) onAddToTimeline(); }}
                   className="p-1 bg-primary/20 rounded hover:bg-primary/40 transition-colors"
                 />
                 <PanelIconButton
@@ -557,15 +581,15 @@ const MediaThumbnail: React.FC<{
   const thumbnailIconSize = viewMode === "small" ? 16 : 24;
 
   return (
-    <div className="flex flex-col">
+    <div ref={card} className="flex flex-col">
       {/* Thumbnail container */}
       <div
-        draggable
+        draggable={!deferred}
         onDragStart={onDragStart}
         onClick={onSelect}
         onDoubleClick={(e) => {
           e.stopPropagation();
-          onAddToTimeline();
+          if (!deferred) onAddToTimeline();
         }}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
@@ -788,12 +812,12 @@ export const AssetsPanel: React.FC = () => {
 
   // Count missing assets
   const missingAssetsCount = mediaItems.filter(
-    (item) => item.isPlaceholder,
+    (item) => item.isPlaceholder && !(item as MediaItem & {shotloomDeferred?: boolean}).shotloomDeferred,
   ).length;
 
   // Filter media items by the missing-assets toggle, then optional sort
   const baseFilteredItems = mediaItems.filter((item) =>
-    showOnlyMissing ? item.isPlaceholder : true,
+    showOnlyMissing ? item.isPlaceholder && !(item as MediaItem & {shotloomDeferred?: boolean}).shotloomDeferred : true,
   );
   const searchedItems = mediaSearch.trim()
     ? baseFilteredItems.filter((item) =>
@@ -963,7 +987,7 @@ export const AssetsPanel: React.FC = () => {
     }
 
     const { project } = useProjectStore.getState();
-    const placeholders = project.mediaLibrary.items.filter((item) => item.isPlaceholder);
+    const placeholders = project.mediaLibrary.items.filter((item) => item.isPlaceholder && !(item as MediaItem & {shotloomDeferred?: boolean}).shotloomDeferred);
     if (placeholders.length === 0) return;
 
     // Persist the directory handle for future auto-restore

@@ -53,6 +53,7 @@ export default defineConfig({
       output: {
         // React 与 antd 各自独立：组件库升级不会让 React 缓存失效，反之亦然。
         manualChunks(id) {
+          if (id.includes('/src/i18n/locales/')) return id.includes('/en-US.') ? 'locale-en-US' : 'locale-zh-CN';
           if (!id.includes('node_modules')) return undefined;
           if (
             id.includes('/react/')

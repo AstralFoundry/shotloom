@@ -11,7 +11,7 @@ export function collectWorkspacePreloads(chunks: Record<string, Chunk>): string[
     for (const dependency of chunk.imports || []) collect(dependency);
   }
   for (const [key, chunk] of Object.entries(chunks)) {
-    if (key === 'index.html' || chunk.name === 'ReactWorkbench' || chunk.name === 'AntdProvider') collect(key);
+    if (key === 'index.html' || ['ReactWorkbench', 'AntdProvider', 'CreationView'].includes(chunk.name || '')) collect(key);
   }
   return [...files];
 }

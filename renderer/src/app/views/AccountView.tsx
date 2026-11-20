@@ -39,7 +39,7 @@ export function AccountView({ onSettings, onUpdate }: { onSettings: () => void; 
     if (!cloudEnabled) return;
     let active = true;
     setUsageLoading(true); setUsageError(''); setUsage(undefined);
-    void cloudRequest<UsagePage>(`/auth/usage?page=${page}&page_size=10`)
+    void cloudRequest<UsagePage>(`/auth/usage?page=${page}&page_size=10`, 'GET', undefined, { force: retry > 0, cacheMs: 5000 })
       .then(value => { if (active) setUsage(value); })
       .catch(() => { if (active) setUsageError(t('account.usageFailed')); })
       .finally(() => { if (active) setUsageLoading(false); });
@@ -48,9 +48,9 @@ export function AccountView({ onSettings, onUpdate }: { onSettings: () => void; 
   useEffect(() => {
     if (!cloudEnabled) return;
     let active = true;
-    const refresh = () => {
+    const refresh = (event?: Event) => {
       setLoading(true); setError('');
-      void cloudRequest<Account>('/auth/account').then(value => { if (active) setAccount(value); })
+      void cloudRequest<Account>('/auth/account', 'GET', undefined, { force: Boolean(event) || retry > 0, cacheMs: 5000 }).then(value => { if (active) setAccount(value); })
         .catch(() => { if (active) setError(t('account.loadFailed')); })
         .finally(() => { if (active) setLoading(false); });
     };

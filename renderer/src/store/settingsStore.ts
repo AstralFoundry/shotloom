@@ -227,7 +227,7 @@ function providerConfigsNeedWrite(stored: unknown) {
 
 export async function saveAppSettings(patch: AnyRecord = {}) {
   const next = await desktopApi.settings.set(toPlainSettings(patch));
-  applySettings(next);
+  applySettings(cloudEnabled ? { ...next, upstreamModels: toRaw(settingsStore.upstreamModels) } : next, cloudEnabled);
 }
 
 export async function refreshBalance() {

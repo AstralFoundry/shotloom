@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { cloudOrigin } from '../../services/cloudRequest';
-import { t } from '../../i18n';
+import { t } from '../../i18n/login';
 
 // Supabase UI Social Auth, adapted to the BFF and Shotloom's controls.
 // https://supabase.com/ui/r/social-auth-react.json

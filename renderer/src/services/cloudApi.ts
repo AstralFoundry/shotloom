@@ -1,7 +1,8 @@
 import type { createTauriApi } from './tauriApi';
 import type { ModelPublication } from '../../../shared/modelPublications';
 import { cloudOrigin, cloudRequest, cloudUserHeaders, verifyCloudSession } from './cloudRequest';
-import { mediaFileUrl } from '../utils/mediaFileUrl';
+import { mediaFileUrl, rememberSignedMedia } from '../utils/mediaFileUrl';
+import type { FileCheck } from '../../../shared/mediaFiles';
 import { mediaExtension, MEDIA_MIME_BY_EXTENSION } from '../utils/mediaType';
 import { withBuiltInSkills, withoutBuiltInSkills } from './builtInSkills';
 import { withBuiltInRecipes, withoutBuiltInRecipes } from './builtInRecipes';
@@ -13,6 +14,7 @@ import { probeEditorMedia, inferEditorMediaType } from '../utils/editorMediaImpo
 import { captureVideoFrame, cropImage, type CropRect } from './browserMedia';
 import { projectBundle, mapProjectMedia, exportProjectPackage, readProjectPackage, type ProjectBundle } from './cloudProjectPackage';
 import { createCloudDirectorModels } from './cloudDirectorModels';
+import { createCloudCatalogs } from './cloudCatalogs';
 import { cloudProjectId, readCanvasStartup } from './cloudCanvasStartup';
 export { cloudProjectId } from './cloudCanvasStartup';
 
@@ -24,12 +26,12 @@ export async function loadCloudPreferences() {
   return { ...await readCanvasStartup<RecordValue>('settings', '/settings'), projectRootDir: root, apiKeyValid: false };
 }
 
-export async function loadCloudAccountSettings() {
+export async function loadCloudAccountSettings(force = false) {
   const errors: string[] = [];
   const unavailable = (cause: unknown) => { errors.push(cause instanceof Error ? cause.message : String(cause)); return null; };
   const [{ getProviderAdapters }, account, models, { getCatalogModels, modelCatalog }, { parseUpstreamModels }, { compilePublication }] = await Promise.all([
-    import('../domain/provider/adapters'), cloudRequest<RecordValue>('/auth/account').catch(unavailable),
-    cloudRequest<{ publications: ModelPublication[]; upstreamModels: unknown }>('/models').catch(unavailable), import('../domain/catalog/ModelCatalog'),
+    import('../domain/provider/adapters'), cloudRequest<RecordValue>('/auth/account', 'GET', undefined, { force, cacheMs: 5000 }).catch(unavailable),
+    cloudRequest<{ publications: ModelPublication[]; upstreamModels: unknown }>('/models', 'GET', undefined, { force }).catch(unavailable), import('../domain/catalog/ModelCatalog'),
     import('../domain/provider/UpstreamModels'), import('../../../shared/modelPublications'),
   ]);
   const upstreamModels = models ? parseUpstreamModels(models.upstreamModels) : [];
@@ -89,6 +91,46 @@ export function createCloudApi(local: PlatformApi): PlatformApi {
     return { path, filePath: path, bucket: 'media', storagePath: key, name, size: blob.size, mimeType: blob.type };
   };
   const directorModels = createCloudDirectorModels(upload, readBlob);
+  const pathExists = async (path: string): Promise<boolean> => {
+    let url = mediaFileUrl(path);
+    if (path.startsWith('cloud://')) {
+      const ref = new URL(path);
+      ({ url } = await cloudRequest<{ url: string }>(`/files/sign?bucket=${encodeURIComponent(ref.hostname)}&key=${encodeURIComponent(ref.pathname.slice(1))}`));
+    }
+    const response = await fetch(url, { method: 'HEAD', credentials: path.startsWith('cloud://') ? 'omit' : 'include', signal: AbortSignal.timeout(15000) });
+    if (response.status === 404) return false;
+    if (!response.ok) throw Object.assign(new Error(`Media check failed: ${response.status}`), { status: response.status });
+    return true;
+  };
+  const checkPaths = async (paths: string[]): Promise<FileCheck[]> => {
+    const unique = [...new Set(paths)], results: FileCheck[] = [];
+    const cloud = unique.filter(path => path.startsWith('cloud://'));
+    for (let offset = 0; offset < cloud.length; offset += 200) {
+      const batch = cloud.slice(offset, offset + 200);
+      try {
+        const objects = batch.map(path => { const ref = new URL(path); return { bucket: ref.hostname, key: ref.pathname.slice(1) }; });
+        const checked = await cloudRequest<Array<{ bucket: string; key: string; status: FileCheck['status']; url?: string; error?: string }>>('/files/sign-batch', 'POST', { objects });
+        for (const path of batch) {
+          const object = checked.find(item => `cloud://${item.bucket}/${item.key}` === path);
+          if (object?.url && object.status === 'exists') rememberSignedMedia(path, object.url);
+          results.push(object ? { path, status: object.status, ...(object.error ? { error: object.error } : {}) } : { path, status: 'error', error: 'Incomplete media check' });
+        }
+      } catch (cause) {
+        if (![404, 405].includes((cause as { status: number }).status)) {
+          results.push(...batch.map(path => ({ path, status: 'error' as const, error: String(cause) }))); continue;
+        }
+        results.push(...await Promise.all(batch.map(async (path: string): Promise<FileCheck> => {
+          try { return { path, status: await pathExists(path) ? 'exists' : 'missing' }; }
+          catch (error) { return { path, status: 'error', error: String(error) }; }
+        })));
+      }
+    }
+    results.push(...await Promise.all(unique.filter(path => !path.startsWith('cloud://')).map(async (path: string): Promise<FileCheck> => {
+      try { return { path, status: await pathExists(path) ? 'exists' : 'missing' }; }
+      catch (error) { return { path, status: 'error', error: String(error) }; }
+    })));
+    return results;
+  };
   const uploadLocal = async (source: string, name: string) => {
     const extension = mediaExtension(name);
     const key = `${crypto.randomUUID()}${extension ? `.${extension}` : ''}`;
@@ -258,7 +300,8 @@ export function createCloudApi(local: PlatformApi): PlatformApi {
     if (onTextDelta && typeof text === 'string') onTextDelta(text);
     return data;
   };
-  const catalog = (kind: string) => cloudRequest<RecordValue>(`/catalog/${kind}`);
+  const catalogs = createCloudCatalogs();
+  const catalog = catalogs.read;
   const settings = async () => {
     const [preferences, account] = await Promise.all([loadCloudPreferences(), loadCloudAccountSettings()]);
     return { ...preferences, ...account };
@@ -343,6 +386,7 @@ export function createCloudApi(local: PlatformApi): PlatformApi {
     },
     project: {
       ...local.project,
+      hydrateDirectorModels: directorModels.hydrate,
       openDialog: openCloudProject,
       openFolderDialog: openCloudProject,
       getDefaultRoot: async () => root, ensureRoot: async () => root, selectRoot: async () => root,
@@ -360,7 +404,7 @@ export function createCloudApi(local: PlatformApi): PlatformApi {
         return { ...projectLocation(id, parent as string | null), project: saved };
       },
       readFile: (path: string) => readCanvasStartup('project', `/project/${cloudProjectId(path)}`).then(value => directorModels.load(value)),
-      readBundle: (dir: string) => cloudRequest(`/project/${cloudProjectId(dir)}/bundle`).then(value => directorModels.load(value)),
+      readBundle: (dir: string) => cloudRequest(`/project/${cloudProjectId(dir)}/bundle`).then(value => directorModels.hydrate(value)),
       listRoot: listTree,
       openFolder: async (dir: string) => {
         const project = await directorModels.load(await cloudRequest<RecordValue>(`/project/${cloudProjectId(dir)}`));
@@ -379,14 +423,21 @@ export function createCloudApi(local: PlatformApi): PlatformApi {
           await cloudRequest(`/library-folders/${id}`, 'PATCH', { name });
           return { oldDir: directory, newDir: directory, name };
         }
-        const project = await cloudRequest<RecordValue>(`/project/${id}`);
-        const saved = await cloudRequest<RecordValue>(`/project/${id}`, 'PUT', { ...project, name });
+        let saved: RecordValue;
+        try {
+          const summary = await cloudRequest<{ storageRevision: number }>(`/project/${id}/summary`);
+          saved = await cloudRequest<RecordValue>(`/project/${id}`, 'PATCH', { name, expectedRevision: summary.storageRevision });
+        } catch (error) {
+          if (![404,405].includes((error as { status: number }).status)) throw error;
+          const project = await cloudRequest<RecordValue>(`/project/${id}`);
+          saved = await cloudRequest<RecordValue>(`/project/${id}`, 'PUT', { ...project, name });
+        }
         return { oldDir: directory, newDir: directory, name, storageRevision: saved.storageRevision };
       },
       trashFolder: async (directory: string) => { await cloudRequest(`/project/${cloudProjectId(directory)}`, 'DELETE'); return { ok: true }; },
       cloneFolder: (directory: string, name: string) => cloneProject(directory, { name }),
       exportPackage: async (directory: string, name = 'project') => download(`${name.replace(/[\\/:*?"<>|]/g, '-')}.zip`,
-        await exportProjectPackage(projectBundle(await directorModels.load(await cloudRequest(`/project/${cloudProjectId(directory)}/bundle`))), readBlob)),
+        await exportProjectPackage(projectBundle(await directorModels.hydrate(await cloudRequest(`/project/${cloudProjectId(directory)}/bundle`))), readBlob)),
       importPackage: async () => {
         if (!local.nativeMedia) return openCloudProject();
         const workspace = await local.nativeMedia.workspace();
@@ -409,18 +460,26 @@ export function createCloudApi(local: PlatformApi): PlatformApi {
       remove: (path: string) => cloudRequest(`/recent/${cloudProjectId(path)}`, 'DELETE'),
     },
     settings: { ...local.settings, get: settings,
-      set: async (value: RecordValue) => { const { providerConfigs: _providers, upstreamModels: _models, ...preferences } = value; await cloudRequest('/settings', 'PUT', preferences); return settings(); },
+      set: async (value: RecordValue) => {
+        const { providerConfigs: _providers, upstreamModels: _models, rawQuota: _quota, usedQuota: _used, balance: _balance, apiKeyValid: _valid, accountSyncError: _error, projectRootDir: _root, ...preferences } = value;
+        try { return { ...value, ...await cloudRequest<RecordValue>('/settings/preferences', 'PATCH', preferences) }; }
+        catch (error) {
+          if (![404, 405].includes((error as { status: number }).status)) throw error;
+          await cloudRequest('/settings', 'PUT', preferences);
+          return { ...value, ...await loadCloudPreferences() };
+        }
+      },
       setTokenGroup: async (id: string) => { await cloudRequest('/settings/token-group', 'PUT', { activeTokenGroupId: id }); return settings(); },
-      refreshBalance: settings,
+      refreshBalance: () => loadCloudAccountSettings(true),
     },
-    localAssets: { getCatalog: () => readCanvasStartup<RecordValue>('assets', '/catalog/assets'), setCatalog: async (value: RecordValue) => { await cloudRequest('/catalog/assets', 'PUT', value); return value; } },
+    localAssets: { getCatalog: () => catalog('assets'), setCatalog: (value: RecordValue) => catalogs.save('assets', value) },
     skills: {
       getGlobal: async () => withBuiltInSkills(await catalog('skills')),
-      setGlobal: async (value: RecordValue) => { await cloudRequest('/catalog/skills', 'PUT', withoutBuiltInSkills(value)); return withBuiltInSkills(value); },
+      setGlobal: async (value: RecordValue) => withBuiltInSkills(await catalogs.save('skills', withoutBuiltInSkills(value))),
     },
     recipes: {
       getGlobal: async () => withBuiltInRecipes(await catalog('recipes')),
-      setGlobal: async (value: RecordValue) => { await cloudRequest('/catalog/recipes', 'PUT', withoutBuiltInRecipes(value)); return withBuiltInRecipes(value); },
+      setGlobal: async (value: RecordValue) => withBuiltInRecipes(await catalogs.save('recipes', withoutBuiltInRecipes(value))),
     },
     file: {
       ...local.file,
@@ -469,16 +528,7 @@ export function createCloudApi(local: PlatformApi): PlatformApi {
         return uploadLocal(result.path, name);
       }),
       getGlobalAssetRoot: async () => 'cloud://media',
-      pathExists: async (path: string) => {
-        try {
-          if (path.startsWith('cloud://')) {
-            const ref = new URL(path);
-            const { url } = await cloudRequest<{ url: string }>(`/files/sign?bucket=${encodeURIComponent(ref.hostname)}&key=${encodeURIComponent(ref.pathname.slice(1))}`);
-            return (await fetch(url, { method: 'HEAD', credentials: 'omit' })).ok;
-          }
-          return (await fetch(mediaFileUrl(path), { method: 'HEAD', credentials: 'include' })).ok;
-        } catch { return false; }
-      },
+      pathExists, checkPaths,
       copyToProject: copy,
       copyToDirectory: (source: string, _directory: string, name?: string) => copy(source, name),
       saveDataUrlToProject: async (url: string, name = 'image.png') => upload(await readBlob(url), name),

@@ -136,6 +136,7 @@ export function clearActiveTaskForNode(nodeId: string) {
   if (!active) return;
   if (active.timer) window.clearInterval(active.timer);
   if (active.timeout) window.clearTimeout(active.timeout);
+  active.removeVisibilityListener?.();
   active.controller?.abort();
   activeTaskTimers.delete(nodeId);
 }
@@ -350,6 +351,8 @@ function attachRemoteTaskPolling(node: AnyRecord, task: AnyRecord, controller: A
       return;
     }
     if (active.polling || !task.remoteTaskId || !isActiveTaskStatus(task.status)) return;
+    if (typeof document !== 'undefined' && document.hidden && active.pollStartedAt
+      && Date.now() - active.pollStartedAt < Math.max(intervalMs, 30000)) return;
     active.polling = true;
     active.pollStartedAt = Date.now();
     try {
@@ -376,6 +379,11 @@ function attachRemoteTaskPolling(node: AnyRecord, task: AnyRecord, controller: A
       active.pollSettledAt = Date.now();
     }
   };
+  if (typeof document !== 'undefined') {
+    const visible = () => { if (!document.hidden) void poll(); };
+    document.addEventListener('visibilitychange', visible);
+    active.removeVisibilityListener = () => document.removeEventListener('visibilitychange', visible);
+  }
   active.timer = window.setInterval(poll, intervalMs);
   if (immediate) poll();
 }

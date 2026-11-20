@@ -113,6 +113,7 @@ type ShotloomSession = Pick<ReturnType<typeof useProjectStore.getState>,
 };
 
 type ShotloomLoadPayload = {
+  deferredMediaKeys?: string[];
   name: string;
   width: number;
   height: number;
@@ -313,6 +314,7 @@ async function restoreNativeMedia(
   projectId: string,
   imported: Map<string, { mediaId: string; item: Record<string, unknown> }>,
   failures: Map<string, string>,
+  deferred: Set<string>,
 ) {
   const nativeLibrary = (nativeProject.mediaLibrary || {}) as {
     items?: NativeMediaItem[];
@@ -363,7 +365,8 @@ async function restoreNativeMedia(
         thumbnailUrl: null,
         filmstripThumbnails: undefined,
         isPlaceholder: true,
-        shotloomOfflineReason: (key && failures.get(key)) || shotloomMessage('editor.runtime.offline'),
+        shotloomDeferred: Boolean(key && deferred.has(key)),
+        shotloomOfflineReason: key && deferred.has(key) ? undefined : (key && failures.get(key)) || shotloomMessage('editor.runtime.offline'),
       });
     }
   }
@@ -430,7 +433,7 @@ async function loadProject(payload: ShotloomLoadPayload) {
   if (native) {
     status(shotloomMessage('editor.runtime.restoring'));
     const projectId = String(native.id || empty.id);
-    const mediaItems = await restoreNativeMedia(native, projectId, imported, failures);
+    const mediaItems = await restoreNativeMedia(native, projectId, imported, failures, new Set(payload.deferredMediaKeys));
     const restored: Project = {
       ...(native as unknown as Project),
       id: projectId,
@@ -505,12 +508,14 @@ function collectNativeSnapshot() {
   const project = useProjectStore.getState().getFullProject();
   const serialized = JSON.parse(serializeProjectForAutoSave(project)) as Record<string, unknown>;
   const library = (serialized.mediaLibrary || {}) as { items?: NativeMediaItem[] };
+  const deferred = new Set(project.mediaLibrary.items.filter(item => (item as unknown as NativeMediaItem).shotloomDeferred).map(item => item.id));
   if (Array.isArray(library.items)) {
     serialized.mediaLibrary = {
       ...library,
       items: library.items.map((item) => ({
         ...item,
         shotloomAssetId: reverseMediaKeys.get(item.id) || item.shotloomAssetId || null,
+        shotloomDeferred: deferred.has(item.id),
       })),
     };
   }
@@ -593,11 +598,11 @@ async function relinkMedia(mediaId: string, asset: ShotloomAssetPayload): Promis
   const before = useProjectStore.getState().project;
   const item = before.mediaLibrary.items.find((entry) => entry.id === mediaId) as NativeMediaItem | undefined;
   if (!item || !item.isPlaceholder || item.type !== asset.type || (item.shotloomAssetId && item.shotloomAssetId !== asset.key)) throw new Error(shotloomMessage('editor.runtime.relinkChanged'));
-  const result = await useProjectStore.getState().replaceMediaAsset(mediaId, new File([asset.bytes], asset.name, { type: mimeOf(asset) }));
+  const result = await useProjectStore.getState().replaceMediaAsset(mediaId, new File([asset.bytes], asset.name, { type: mimeOf(asset) }), undefined, Boolean(item.shotloomDeferred));
   if (!result.success) throw new Error(result.error?.message || shotloomMessage('editor.runtime.relinkFailed'));
   const current = useProjectStore.getState().project;
   if (current.id !== before.id) throw new Error(shotloomMessage('editor.runtime.restoreProjectChanged'));
-  useProjectStore.setState({ project: { ...current, mediaLibrary: { ...current.mediaLibrary, items: current.mediaLibrary.items.map((entry) => entry.id === mediaId ? { ...entry, shotloomAssetId: asset.key } : entry) } } });
+  useProjectStore.setState({ project: { ...current, mediaLibrary: { ...current.mediaLibrary, items: current.mediaLibrary.items.map((entry) => entry.id === mediaId ? { ...entry, shotloomAssetId: asset.key, shotloomDeferred: false } : entry) } } });
   reverseMediaKeys.set(mediaId, asset.key);
   void getPlaybackBridge().seek(useTimelineStore.getState().playheadPosition).catch(fail);
 }

@@ -328,6 +328,7 @@ function createBrowserFallback() {
       showItemInFolder: async () => ({ ok: false, error: t("browser.unsupported.revealFile") }),
       openPath: async () => ({ ok: false, error: t("browser.unsupported.openFile") }),
       pathExists: async () => false,
+      checkPaths: async (paths: string[]) => paths.map(path => ({ path, status: 'missing' as const })),
       resolveUniqueFilePath: async (_dir: string, fileName: string) => fileName,
       writeFileToPath: async (filePath: string, buffer: ArrayBuffer | Uint8Array) => ({ filePath, size: buffer?.byteLength || 0 }),
       copyToProject: async (sourcePath: string, preferredName?: string) => ({

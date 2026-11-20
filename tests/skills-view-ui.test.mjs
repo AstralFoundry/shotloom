@@ -73,8 +73,8 @@ test('切换或新建技能前先保住未保存的草稿', () => {
   assert.match(skillsFeature, /const dirty = Boolean\(open && JSON\.stringify\(open\.draft\) !== open\.baseline\)/);
   assert.match(skillsFeature, /function confirmDiscard\(action: \(\) => void\)/);
   assert.match(skillsFeature, /modal\.confirm\(\{\s*title:/);
-  assert.match(skillsFeature, /confirmDiscard\(\(\) => \{\s*const item = readSkills\(\)/);
-  assert.match(skillsFeature, /confirmDiscard\(\(\) => \{\s*const draft = createSkillDraft/);
+  assert.match(skillsFeature, /confirmDiscard\(\(\) => \{\s*const request = \+\+editorEpoch\.current;\s*const expected = latestRevision\.current;\s*void run\(async \(\) => \{\s*const item = cloudEnabled \? await readCatalogItem/);
+  assert.match(skillsFeature, /confirmDiscard\(\(\) => \{\s*editorEpoch\.current \+= 1;\s*const draft = createSkillDraft/);
 });
 
 test('抽屉三条关闭路径都在，且 Esc 不会静默丢掉草稿', () => {

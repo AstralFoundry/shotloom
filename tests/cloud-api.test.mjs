@@ -2,6 +2,47 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createRendererEnv } from './helpers/rendererSsr.mjs';
 
+test('bulk cloud checks coalesce duplicate references, warm playback URLs and preserve per-item errors', async () => {
+  const env=await createRendererEnv({withWindow:true}), original=globalThis.fetch;
+  const calls=[];
+  globalThis.fetch=async(url,init)=>{
+    calls.push(url); assert.equal(url,'/api/files/sign-batch');
+    assert.deepEqual(JSON.parse(init.body).objects,[{bucket:'media',key:'good.png'},{bucket:'media',key:'bad.png'}]);
+    return Response.json({success:true,data:[{bucket:'media',key:'good.png',status:'exists',url:'https://storage.example/signed.png'}, {bucket:'media',key:'bad.png',status:'error',error:'Forbidden'}]});
+  };
+  try {
+    const {createCloudApi}=await env.load('services/cloudApi');
+    const api=createCloudApi({});
+    assert.deepEqual(await api.file.checkPaths(['cloud://media/good.png','cloud://media/good.png','cloud://media/bad.png']),[{path:'cloud://media/good.png',status:'exists'},{path:'cloud://media/bad.png',status:'error',error:'Forbidden'}]);
+    assert.equal(calls.length,1);
+    const {mediaFileUrl}=await env.load('utils/mediaFileUrl');
+    assert.equal(mediaFileUrl('cloud://media/good.png'),'https://storage.example/signed.png');
+    const {bindCloudUser}=await env.load('services/cloudRequest');bindCloudUser('owner');
+    assert.ok(mediaFileUrl('cloud://media/good.png').startsWith('/api/files/content?'),'session binding clears previous signed URLs');
+  } finally {globalThis.fetch=original;await env.dispose();}
+});
+
+test('saving preferences completes without reading account or models and only falls back on missing endpoints', async () => {
+  const env = await createRendererEnv({ withWindow: true });
+  const original = globalThis.fetch, calls = [];
+  let status = 200;
+  globalThis.fetch = async (url, init) => {
+    calls.push([url, init.method]);
+    return Response.json({ success: status === 200, data: { locale: 'en-US' } }, { status });
+  };
+  try {
+    const { createCloudApi } = await env.load('services/cloudApi');
+    const api = createCloudApi({});
+    const value = await api.settings.set({ locale: 'en-US', rawQuota: 30, providerConfigs: {} });
+    assert.equal(value.locale, 'en-US');
+    assert.equal(value.rawQuota, 30);
+    assert.deepEqual(calls, [['/api/settings/preferences', 'PATCH']]);
+    status = 503;
+    await assert.rejects(api.settings.set({ locale: 'en-US' }), error => error.status === 503);
+    assert.equal(calls.length, 2, 'outages must not trigger a second write');
+  } finally { globalThis.fetch = original; await env.dispose(); }
+});
+
 test('embedded preferences do not wait for upstream services and account refresh preserves edits', async () => {
   const env = await createRendererEnv({ storageMode: 'cloud', withWindow: true });
   const original = globalThis.fetch;
@@ -118,7 +159,7 @@ test('cloud settings install published upstream models as the runtime catalog wi
     assert.equal(getCatalogModels().some(model => model.id === 'zero-order-text'), false);
     assert.deepEqual(settingsStore.upstreamModels, models);
     globalThis.fetch = async (url, init) => {
-      if (url === '/api/settings' && init.method === 'PUT') {
+      if (url === '/api/settings/preferences' && init.method === 'PATCH') {
         assert.equal('upstreamModels' in JSON.parse(init.body), false);
         return Response.json({ success: true, data: {} });
       }
@@ -181,16 +222,18 @@ test('cloud director models use signed Storage objects across save, a fresh clie
     const project = { id, nodes: [{ id: 'director', directorData: { project: { resources: [{ id: `model-${'c'.repeat(64)}`, package: { version: 1, format: 'obj', entry: 'cube.obj', files: [{ path: 'cube.obj', data: 'diAwIDAgMAo=' }] } }] } } }] };
     const first = createCloudApi(local);
     const result = await first.project.save(directory, project);
-    assert.deepEqual(result.project.nodes, project.nodes);
+    assert.deepEqual((await first.project.hydrateDirectorModels(result.project)).nodes, project.nodes);
     assert.equal(saved.nodes[0].directorData.project.resources[0].package.storage, 'shotloom-director-model');
     assert.equal(JSON.stringify(saved).includes('diAwIDAgMAo='), false);
     assert.equal(uploads, 1);
     const fresh = createCloudApi(local);
-    assert.deepEqual((await fresh.project.readFile(`${directory}/project.sqlite`)).nodes, project.nodes);
+    const opened = await fresh.project.readFile(`${directory}/project.sqlite`);
+    assert.deepEqual(opened.nodes, saved.nodes);
+    assert.deepEqual((await fresh.project.hydrateDirectorModels(opened)).nodes, project.nodes);
     assert.deepEqual((await fresh.project.readBundle(directory)).project.nodes, project.nodes);
     await fresh.clipboard.stageWorkflow({ snapshotId: 'director-test', nodes: project.nodes, edges: [], resources: [] });
     assert.equal(clipboard.nodes[0].directorData.project.resources[0].package.storage, 'shotloom-director-model');
-    assert.deepEqual((await fresh.clipboard.loadStagedPayload('director-test')).nodes, project.nodes);
+    assert.deepEqual((await fresh.project.hydrateDirectorModels(await fresh.clipboard.loadStagedPayload('director-test'))).nodes, project.nodes);
     assert.equal(uploads, 1, 'loading and staging must reuse the uploaded package');
   } finally {
     globalThis.fetch = originalFetch;

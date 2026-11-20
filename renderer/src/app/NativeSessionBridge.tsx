@@ -20,7 +20,7 @@ export function NativeSessionBridge() {
         || typeof request.path !== 'string' || !nativeRequestAllowed(request.method, request.path)) {
         post({ type: 'response', id: request?.id, error: 'Request is unavailable', status: 403 }); return;
       }
-      void cloudRequest(request.path, request.method, request.value)
+      void cloudRequest(request.path, request.method, request.value, { force: request.force === true })
         .then(async data => {
           if (request.method === 'GET' && request.path === '/catalog/skills') {
             const { builtInSkills, withoutBuiltInSkills } = await import('../services/builtInSkills');

@@ -145,10 +145,16 @@ export function SupportCenter() {
   useEffect(() => {
     if (!cloudEnabled) return;
     let active = true;
-    void cloudRequest<InboxPage>(`/notifications?offset=${(page - 1) * 20}&limit=20`).then(value => { if (active) { setInbox(value); setError(''); } })
+    const controller = new AbortController();
+    const listOpen = open && center === 'notifications';
+    const path = listOpen ? `/notifications?offset=${(page - 1) * 20}&limit=20` : '/notifications/unread';
+    void cloudRequest<InboxPage>(path, 'GET', undefined, { signal: controller.signal }).catch(cause => {
+      if (listOpen || ![404, 405].includes(cause.status)) throw cause;
+      return cloudRequest<InboxPage>('/notifications?offset=0&limit=1', 'GET', undefined, { signal: controller.signal });
+    }).then(value => { if (active) { if (listOpen) setInbox(value); setError(''); } })
       .catch(cause => { if (active) setError(message(cause)); });
-    return () => { active = false; };
-  }, [refresh, page]);
+    return () => { active = false; controller.abort(); };
+  }, [refresh, page, open, center]);
   if (!cloudEnabled) return null;
   const run = async (operation: () => Promise<void>) => {
     setBusy(true); setError('');

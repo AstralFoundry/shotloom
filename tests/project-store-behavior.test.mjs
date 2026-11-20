@@ -173,3 +173,23 @@ test('renaming an open SQLite project carries the committed revision into the ne
     desktopApi.project.save = originalSave;
   }
 });
+
+test('saving waits for media restoration and preserves every original material', async () => {
+  const read = desktopApi.project.readFile, save = desktopApi.project.save, check = desktopApi.file.checkPaths;
+  const project = (await env.load('store/projectNormalization')).createProject('restoration guard');
+  project.materials = [{ id:'keep',path:'/existing.png',remoteUrl:'https://fixture.test/image.png',source:'generation' }];
+  let release, started, writes = 0;
+  const gate = new Promise(resolve => {release=resolve;}), checking = new Promise(resolve => {started=resolve;});
+  let opening, saving;
+  try {
+    desktopApi.project.readFile = async () => project;
+    desktopApi.file.checkPaths = async paths => { started(); await gate; return paths.map(path=>({path,status:'exists'})); };
+    desktopApi.project.save = async (_dir,snapshot) => { writes++; assert.deepEqual(snapshot.materials,project.materials); return {project:snapshot,filePath:'/restoring/project.sqlite'}; };
+    opening = projectStore.openRecentProject('/restoring/project.sqlite');
+    await checking;
+    saving = projectStore.flushAutoSave();
+    await new Promise(resolve=>setImmediate(resolve));
+    assert.equal(writes,0,'restoration must settle before persistence captures a snapshot');
+    release(); await opening; assert.equal(await saving,true); assert.equal(writes,1);
+  } finally {release();await opening?.catch(()=>{});await saving?.catch(()=>{});desktopApi.project.readFile=read;desktopApi.project.save=save;desktopApi.file.checkPaths=check;}
+});

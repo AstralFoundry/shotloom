@@ -62,6 +62,7 @@ export type ClipStudioLayout = { row: number; rail: number; ruler: number; previ
 export type ClipStudioAction = { type: string; params?: Record<string, unknown> };
 export type ClipStudioExportOptions = { target?: "canvas" | "local"; presetId?: string; format?: "video" | "srt"; anchor?: ClipStudioAnchor };
 export type ClipStudioLoadPayload = {
+  deferredMediaKeys?: string[];
   name: string; width: number; height: number; fps: number; duration: number;
   assets: OpenReelAssetPayload[]; tracks: Array<{
     id: string; type: "video" | "audio" | "image" | "text" | "graphics";
@@ -104,6 +105,7 @@ export type ClipStudioHost = {
     requestExport: (options: ClipStudioExportOptions) => Promise<void> | void;
     requestExpand: () => void; requestActivate: () => void; requestClose: () => void;
     requestRelink: (mediaId: string) => Promise<void> | void;
+    requestMedia?: (mediaId: string) => Promise<void>;
     ingestFiles: (files: Array<{ name: string; mime?: string; bytes: ArrayBuffer }>) => Promise<OpenReelAssetPayload[]>;
     exitFullscreen?: () => void;
   };

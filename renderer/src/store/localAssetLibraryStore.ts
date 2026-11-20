@@ -20,6 +20,7 @@ export const localAssetLibrary = reactive({
 
 function normalizeCatalog(value: AnyRecord | null | undefined) {
   return {
+    ...value,
     storageVersion: 1,
     updatedAt: String(value?.updatedAt || ''),
     materials: Array.isArray(value?.materials) ? value.materials : [],
@@ -70,8 +71,7 @@ async function sha256For(material: AnyRecord) {
   return checked;
 }
 
-function cardFor(asset: AnyRecord, material: AnyRecord) {
-  const usageCount = localAssetLibrary.catalog.references.filter((item: AnyRecord) => item.assetId === asset.id).length;
+function cardFor(asset: AnyRecord, material: AnyRecord, usageCount = localAssetLibrary.catalog.references.filter((item: AnyRecord) => item.assetId === asset.id).length) {
   return {
     ...material,
     id: material.id,
@@ -90,8 +90,10 @@ function cardFor(asset: AnyRecord, material: AnyRecord) {
 
 export const localAssetCards = computed(() => {
   const materials = new Map(localAssetLibrary.catalog.materials.map((item: AnyRecord) => [item.id, item] as const));
+  const usages = new Map<string, number>();
+  for (const reference of localAssetLibrary.catalog.references) usages.set(reference.assetId, (usages.get(reference.assetId) || 0) + 1);
   return localAssetLibrary.catalog.assets
-    .map((asset: AnyRecord) => cardFor(asset, materials.get(asset.materialId) || {}))
+    .map((asset: AnyRecord) => cardFor(asset, materials.get(asset.materialId) || {}, usages.get(asset.id) || 0))
     .filter((item: AnyRecord) => item.path);
 });
 
@@ -244,8 +246,10 @@ export async function releaseAllLocalAssetReferences(projectKey: string) {
 }
 
 export async function reconcileCurrentProjectLocalAssetReferences(refresh = true) {
-  await loadLocalAssetLibrary(refresh);
+  const owner = store.project;
   const identity = projectIdentity();
+  await loadLocalAssetLibrary(refresh);
+  if (store.project !== owner) return;
   const before = JSON.stringify(localAssetLibrary.catalog.references);
   const materials = (store.project.materials || []).filter((material: AnyRecord) => (
     material.storageScope === 'library' && material.localLibraryMaterialId
@@ -278,12 +282,15 @@ export async function deleteLocalLibraryAsset(assetId: string) {
   }
   localAssetLibrary.catalog.assets = localAssetLibrary.catalog.assets.filter((item: AnyRecord) => item.id !== asset.id);
   const materialStillUsed = localAssetLibrary.catalog.assets.some((item: AnyRecord) => item.materialId === asset.materialId);
+  let removedPath: string | undefined;
   if (!materialStillUsed) {
     const material = localAssetLibrary.catalog.materials.find((item: AnyRecord) => item.id === asset.materialId);
     localAssetLibrary.catalog.materials = localAssetLibrary.catalog.materials.filter((item: AnyRecord) => item.id !== asset.materialId);
-    if (material?.path) await desktopApi.file.trash(material.path);
+    removedPath = material?.path;
   }
   await persistCatalog();
+  // A rejected catalog revision must never delete the still-referenced media.
+  if (removedPath) await desktopApi.file.trash(removedPath);
   return { ok: true };
 }
 
