@@ -46,6 +46,14 @@ test('编辑镜头只覆盖可编辑字段，保留行 ID、产出节点与状�
   assert.equal(patched.imagePrompt, '图');
 });
 
+test('镜头行保留去重后的关联参考图，编辑其它字段不会清空关联', async () => {
+  const { normalizeStoryboardShots, patchStoryboardShot } = await env.load('domain/graph/StoryboardScript');
+  const rows = normalizeStoryboardShots([{ plot: 'A', referenceNodeIds: ['img-1', 'img-1', 'img-2'] }]);
+  assert.deepEqual(rows[0].referenceNodeIds, ['img-1', 'img-2']);
+  const patched = patchStoryboardShot(rows[0], { dialogue: '台词' });
+  assert.deepEqual(patched.referenceNodeIds, ['img-1', 'img-2']);
+});
+
 test('单镜提示词优先专用提示词，缺失时退回画面、景别、台词', async () => {
   const { createStoryboardShot, storyboardShotPrompt } = await env.load('domain/graph/StoryboardScript');
   const shot = createStoryboardShot(1, {

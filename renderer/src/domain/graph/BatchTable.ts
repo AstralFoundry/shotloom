@@ -217,16 +217,24 @@ export function batchColumnInputs(
 ): string[][] {
   const result = table.columns.map(() => [] as string[]);
   const columnIndex = new Map(table.columns.map((column, index) => [column.id, index]));
-  const seen = new Set<string>();
+  const explicitSeen = table.columns.map(() => new Set<string>());
+  const legacySeen = new Set<string>();
   const legacy: string[] = [];
   for (const edge of edges) {
     if (edge.target !== tableNodeId || !edge.source || edge.data?.skipTaskInput === true) continue;
-    if (seen.has(edge.source) || !isReferenceNode(edge.source)) continue;
-    seen.add(edge.source);
+    if (!isReferenceNode(edge.source)) continue;
     const explicit = typeof edge.data?.batchColumnId === 'string' ? String(edge.data.batchColumnId) : '';
     const index = explicit ? columnIndex.get(explicit) : undefined;
-    if (index !== undefined) result[index]?.push(edge.source);
-    else legacy.push(edge.source);
+    if (index !== undefined) {
+      const seen = explicitSeen[index];
+      if (!seen || seen.has(edge.source)) continue;
+      seen.add(edge.source);
+      result[index]?.push(edge.source);
+    } else {
+      if (legacySeen.has(edge.source)) continue;
+      legacySeen.add(edge.source);
+      legacy.push(edge.source);
+    }
   }
   let legacyIndex = 0;
   result.forEach((column) => {

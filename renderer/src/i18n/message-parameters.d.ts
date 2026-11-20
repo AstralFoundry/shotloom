@@ -1267,4 +1267,6 @@ export interface MessageParameters {
   "canvas.pose.poseCount": Record<"count", string | number>;
   "canvas.batch.columnHandle": Record<"index", string | number>;
   "tool.feedback.canvas.invalidBatchReferences": Record<"value0", string | number>;
+  "canvas.storyboard.assetPickerTitle": Record<"index", string | number>;
+  "tool.feedback.canvas.invalidStoryboardReferences": Record<"value0", string | number>;
 }

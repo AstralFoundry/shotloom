@@ -85,7 +85,7 @@ export function PoseLibraryModal({ open, onClose }: { open: boolean; onClose: ()
   }, [keyword, system, category, angle]);
 
   function shownItem(pose: Pose): PoseItem | undefined {
-    return defaultPoseAngle(pose, shownAngles[pose.key] || angle);
+    return defaultPoseAngle(pose, angle || shownAngles[pose.key]);
   }
 
   function toggle(pose: Pose, item: PoseItem) {

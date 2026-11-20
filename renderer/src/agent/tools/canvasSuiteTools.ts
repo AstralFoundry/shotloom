@@ -20,6 +20,8 @@ import {
 import {
   MAX_BATCH_REFERENCE_COLUMNS,
   MAX_BATCH_ROWS,
+  batchRowReady,
+  batchRowReferences,
   normalizeBatchTable,
   type BatchRow,
   type BatchTableData,
@@ -87,8 +89,16 @@ function storyboardResult(node: AnyRecord) {
       shotNumber: shot.shotNumber,
       durationSeconds: shot.durationSeconds,
       plot: shot.plot,
+      shotSize: shot.shotSize,
+      camera: shot.camera,
+      motion: shot.motion,
+      imagePrompt: shot.imagePrompt,
       videoPrompt: shot.videoPrompt,
       dialogue: shot.dialogue,
+      sound: shot.sound,
+      characters: shot.characters,
+      negativePrompt: shot.negativePrompt,
+      referenceNodeIds: shot.referenceNodeIds,
       imageNodeId: shot.imageNodeId,
       videoNodeId: shot.videoNodeId,
       status: shot.status,
@@ -196,6 +206,7 @@ export function registerCanvasSuiteTools(): void {
               sound: { type: 'string' },
               characters: { type: 'string' },
               negativePrompt: { type: 'string' },
+              referenceNodeIds: { type: 'array', items: { type: 'string' } },
             },
             additionalProperties: false,
           },
@@ -225,6 +236,8 @@ export function registerCanvasSuiteTools(): void {
         node.storyboardShotDuration = Number(input.shotDuration) > 0 ? Number(input.shotDuration) : 0;
         node.storyboardExtraRequirement = String(input.extraRequirement || '');
         node.storyboardShots = Array.isArray(input.shots) ? normalizeStoryboardShots(input.shots) : [];
+        const invalid = validateStoryboardReferences(node);
+        if (invalid) { deleteNodeById(String(node.id)); return { success: false, error: invalid }; }
         if (input.model) {
           if (!isModelForType('textGeneration', String(input.model))) {
             deleteNodeById(String(node.id));
@@ -244,13 +257,29 @@ export function registerCanvasSuiteTools(): void {
       }
       assertWriteFence(context);
       recordCanvasHistory(t('canvas.storyboard.edit'));
+      const previousShots = node.storyboardShots;
+      const previousTitle = node.title;
+      const previousTitleOverride = node.titleOverride;
       if (input.title !== undefined) { node.title = String(input.title); node.titleOverride = node.title; }
       if (input.source !== undefined) node.prompt = String(input.source);
       if (input.extraRequirement !== undefined) node.storyboardExtraRequirement = String(input.extraRequirement);
       if (input.shotCount !== undefined) node.storyboardShotCount = Number(input.shotCount) > 0 ? Math.min(MAX_STORYBOARD_SHOTS, Number(input.shotCount)) : 0;
       if (input.shotDuration !== undefined) node.storyboardShotDuration = Number(input.shotDuration) > 0 ? Number(input.shotDuration) : 0;
       if (input.model) node.model = String(input.model);
-      if (Array.isArray(input.shots)) node.storyboardShots = normalizeStoryboardShots(input.shots);
+      if (Array.isArray(input.shots)) {
+        const previous = new Map(storyboardShots(node).map((shot) => [shot.id, shot]));
+        node.storyboardShots = normalizeStoryboardShots(input.shots).map((shot) => {
+          const old = previous.get(shot.id);
+          return old ? { ...shot, imageNodeId: old.imageNodeId, videoNodeId: old.videoNodeId, status: old.status, error: old.error } : shot;
+        });
+      }
+      const invalidShots = validateStoryboardReferences(node);
+      if (invalidShots) {
+        node.storyboardShots = previousShots;
+        node.title = previousTitle;
+        node.titleOverride = previousTitleOverride;
+        return { success: false, error: invalidShots };
+      }
       touchProject();
       advanceWriteFence(context);
       return storyboardResult(node);
@@ -404,7 +433,9 @@ export function registerCanvasSuiteTools(): void {
       if (!getAvailableModelIdsByType('imageGeneration').length) return { success: false, error: t('canvas.batch.noModel') };
       const rowIds = Array.isArray(input.rowIds) ? input.rowIds.map(String) : undefined;
       const table = batchTableData(node);
-      const targets = table.rows.filter((row) => (rowIds ? rowIds.includes(row.id) : row.enabled));
+      const defaults = batchReferenceDefaults(String(node.id));
+      const targets = table.rows.filter((row) => (rowIds ? rowIds.includes(row.id) : row.enabled))
+        .filter((row) => batchRowReady(table, row, batchRowReferences(row, defaults)));
       if (!targets.length) return { success: false, error: t('canvas.batch.nothingToRun') };
       void runBatchTable(String(node.id), { ...(rowIds ? { rowIds } : {}), force: Boolean(rowIds) });
       return { success: true, started: targets.length, nodeId: String(node.id) };
@@ -424,7 +455,14 @@ function applyBatchPatch(node: AnyRecord, input: JsonObject): void {
     current.columns[index] || { id: `column-${index + 1}-${Math.random().toString(36).slice(2, 8)}`, label: `参考图 ${index + 1}` }
   )).map((column, index) => ({ ...column, label: `参考图 ${index + 1}` }));
   const rows = Array.isArray(input.rows)
-    ? normalizeBatchTable({ operation, concurrency, globalPrompt: input.globalPrompt ?? current.globalPrompt, columns, rows: input.rows }).rows
+    ? (() => {
+      const previous = new Map(current.rows.map((row) => [row.id, row]));
+      return normalizeBatchTable({ operation, concurrency, globalPrompt: input.globalPrompt ?? current.globalPrompt, columns, rows: input.rows }).rows
+        .map((row) => {
+          const old = previous.get(row.id);
+          return old && !row.outputNodeId ? { ...row, outputNodeId: old.outputNodeId } : row;
+        });
+    })()
     : current.rows.map((row) => ({ ...row, referenceNodeIds: row.referenceNodeIds.slice(0, columnCount) }));
   node.batchTable = {
     ...current,
@@ -434,6 +472,13 @@ function applyBatchPatch(node: AnyRecord, input: JsonObject): void {
     columns,
     rows,
   } satisfies BatchTableData;
+}
+
+function validateStoryboardReferences(node: AnyRecord): string {
+  const invalid = storyboardShots(node)
+    .flatMap((shot) => shot.referenceNodeIds)
+    .filter((id) => !isCanvasImageNode(id));
+  return invalid.length ? t('tool.feedback.canvas.invalidStoryboardReferences', { value0: [...new Set(invalid)].join(', ') }) : '';
 }
 
 function validateBatchReferences(node: AnyRecord): string {

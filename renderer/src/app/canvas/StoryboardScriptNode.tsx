@@ -1,7 +1,7 @@
 import { t } from '@/i18n';
 import { memo, useContext, useState, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
-import { App, Button, Dropdown, Input, Select, Tooltip } from 'antd';
+import { App, Button, Checkbox, Dropdown, Input, Modal, Select, Tooltip } from 'antd';
 import { IconSymbol } from '../components/IconSymbol';
 import { NodeThumb } from './NodeThumb';
 import { CanvasNodeLabelRootContext, type WorkflowNodeRenderer } from './WorkflowCanvas';
@@ -16,9 +16,11 @@ import {
   runStoryboardScriptGeneration,
   runStoryboardShots,
   setStoryboardGenerationSettings,
+  setStoryboardShotReferences,
   storyboardShots,
   updateStoryboardShot,
 } from '@/services/storyboardScriptService';
+import { canvasImageNodes } from '@/services/batchTableService';
 import { MAX_STORYBOARD_SHOTS, storyboardShotSummary, type StoryboardShot } from '@/domain/graph/StoryboardScript';
 import { StoryboardScriptEditor } from './StoryboardScriptEditor';
 
@@ -43,20 +45,22 @@ function shotOutput(shot: StoryboardShot, kind: 'image' | 'video') {
   return { label, tone, nodeId: String(output.id) };
 }
 
-function referenceNames(scriptNodeId: string): string[] {
+function scriptReferences(scriptNodeId: string): Array<{ id: string; title: string }> {
   const nodes = store.project.nodes as AnyRecord[];
   const byId = new Map(nodes.map((node) => [node.id, node]));
-  const names: string[] = [];
+  const result: Array<{ id: string; title: string }> = [];
+  const seen = new Set<string>();
   for (const edge of store.project.edges as AnyRecord[]) {
     if (edge.target !== scriptNodeId || edge.data?.skipTaskInput === true) continue;
     const source = byId.get(edge.source);
-    if (!source || source.archived) continue;
+    if (!source || source.archived || seen.has(source.id)) continue;
     const media = selectedNodeMedia(source, store.project);
     const path = String(media?.filePath || media?.path || source.filePath || source.uploadedFile?.path || '');
     if (!path) continue;
-    names.push(String(source.title || t('canvas.storyboard.referenceFallback')));
+    seen.add(source.id);
+    result.push({ id: String(source.id), title: String(source.title || t('canvas.storyboard.referenceFallback')) });
   }
-  return [...new Set(names)];
+  return result;
 }
 
 function PipelineDot({ tone }: { tone: string }) {
@@ -73,6 +77,8 @@ export const StoryboardScriptNode: WorkflowNodeRenderer = memo(({ node, selected
   const [editorStartsAi, setEditorStartsAi] = useState(false);
   const [view, setView] = useState<StoryboardView>('script');
   const [sending, setSending] = useState(false);
+  const [assetShotId, setAssetShotId] = useState<string | null>(null);
+  const [assetDraft, setAssetDraft] = useState<string[]>([]);
   const shots = storyboardShots(data);
   const summary = storyboardShotSummary(shots);
   const busy = data.status === 'running' || data.status === 'queued';
@@ -82,7 +88,7 @@ export const StoryboardScriptNode: WorkflowNodeRenderer = memo(({ node, selected
   const currentModel = String(data.model || textModels[0] || '');
   const countValue = Number(data.storyboardShotCount) > 0 ? Number(data.storyboardShotCount) : 'auto';
   const durationValue = Number(data.storyboardShotDuration) > 0 ? Number(data.storyboardShotDuration) : 'auto';
-  const references = referenceNames(String(node.id));
+  const inheritedReferences = scriptReferences(String(node.id));
   const imageShots = shots.filter((shot) => Boolean(shot.imageNodeId));
   const videoShots = shots.filter((shot) => Boolean(shot.videoNodeId));
   const readyImages = shots.filter((shot) => shotOutput(shot, 'image').tone === 'good').length;
@@ -222,7 +228,11 @@ export const StoryboardScriptNode: WorkflowNodeRenderer = memo(({ node, selected
               <span role="columnheader">{t('canvas.storyboard.column.dialogueFull')}</span>
               <span role="columnheader">{t('canvas.storyboard.column.assets')}</span>
             </div>
-            {shots.length ? shots.map((shot) => (
+            {shots.length ? shots.map((shot) => {
+              const shotReferences = shot.referenceNodeIds.length
+                ? shot.referenceNodeIds.map((id) => ({ id, title: (store.project.nodes as AnyRecord[]).find((item) => item.id === id)?.title || t('canvas.storyboard.referenceFallback') }))
+                : inheritedReferences;
+              return (
               <div className="storyboard-table-row" role="row" key={shot.id}>
                 <span role="cell" className="storyboard-shot-number">
                   {shot.shotNumber}
@@ -252,17 +262,21 @@ export const StoryboardScriptNode: WorkflowNodeRenderer = memo(({ node, selected
                   />
                 </span>
                 <span role="cell" className="storyboard-assets-cell">
-                  {references.length ? (
-                    <Tooltip title={references.join('、')}>
-                      <span>{t('canvas.storyboard.referenceCount', { count: references.length })}</span>
+                  {shotReferences.length ? (
+                    <Tooltip title={shotReferences.map((item) => item.title).join('、')}>
+                      <span>{t('canvas.storyboard.referenceCount', { count: shotReferences.length })}</span>
                     </Tooltip>
                   ) : (
                     <span className="is-empty">{t('canvas.storyboard.noAssets')}</span>
                   )}
-                  <Button size="small" type="link" onClick={() => setEditorOpen(true)}>{t('canvas.storyboard.editAssets')}</Button>
+                  <Button size="small" type="link" onClick={(event) => {
+                    event.stopPropagation();
+                    setAssetShotId(shot.id);
+                    setAssetDraft(shot.referenceNodeIds);
+                  }}>{t('canvas.storyboard.editAssets')}</Button>
                 </span>
               </div>
-            )) : (
+            );}) : (
               <button
                 type="button"
                 className="storyboard-empty"
@@ -389,6 +403,45 @@ export const StoryboardScriptNode: WorkflowNodeRenderer = memo(({ node, selected
         </div>
       ) : null}
 
+      <Modal
+        open={Boolean(assetShotId)}
+        onCancel={() => setAssetShotId(null)}
+        title={t('canvas.storyboard.assetPickerTitle', { index: shots.find((shot) => shot.id === assetShotId)?.shotNumber || '' })}
+        okText={t('canvas.storyboard.assetPickerApply')}
+        cancelText={t('canvas.storyboard.cancel')}
+        onOk={() => {
+          if (assetShotId) setStoryboardShotReferences(String(node.id), assetShotId, assetDraft);
+          setAssetShotId(null);
+        }}
+        destroyOnHidden
+      >
+        <div className="storyboard-asset-picker">
+          <p>{t('canvas.storyboard.assetPickerHint')}</p>
+          {canvasImageNodes().length ? (
+            <div className="storyboard-asset-grid">
+              {canvasImageNodes().map((imageNode) => {
+                const id = String(imageNode.id);
+                const checked = assetDraft.includes(id);
+                return (
+                  <label key={id} className={`storyboard-asset-card${checked ? ' is-selected' : ''}`}>
+                    <Checkbox
+                      checked={checked}
+                      onChange={(event) => setAssetDraft((current) => (
+                        event.target.checked ? [...new Set([...current, id])] : current.filter((item) => item !== id)
+                      ))}
+                    />
+                    <NodeThumb nodeId={id} className="storyboard-asset-thumb" />
+                    <span>{String(imageNode.title || t('canvas.storyboard.referenceFallback'))}</span>
+                  </label>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="storyboard-asset-empty">{t('canvas.storyboard.noImages')}</div>
+          )}
+          <Button size="small" onClick={() => setAssetDraft([])}>{t('canvas.storyboard.inheritUpstream')}</Button>
+        </div>
+      </Modal>
       {error ? <div className="storyboard-script-error">{error}</div> : null}
       <div className="storyboard-node-foot">
         <span>{t('canvas.storyboard.footNote')}</span>

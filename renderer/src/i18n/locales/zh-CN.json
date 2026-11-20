@@ -10733,5 +10733,11 @@
   "tool.feedback.canvas.generationRejected": "生成没有启动，请查看节点错误并先修正模型或提示词",
   "tool.feedback.canvas.invalidBatchReferences": "批量行引用的图片节点不存在或没有真实图片文件：{value0}",
   "tool.title.canvas_get_storyboard": "读取分镜脚本",
-  "tool.title.canvas_get_batch_table": "读取批量创作表"
+  "tool.title.canvas_get_batch_table": "读取批量创作表",
+  "canvas.storyboard.assetPickerTitle": "镜头 {index} · 关联资产",
+  "canvas.storyboard.assetPickerApply": "应用",
+  "canvas.storyboard.assetPickerHint": "为这一镜选择参考图；不选时继承分镜节点已连接的参考图。",
+  "canvas.storyboard.noImages": "画布上还没有可用图片；先上传或生成一张。",
+  "canvas.storyboard.inheritUpstream": "使用上游参考",
+  "tool.feedback.canvas.invalidStoryboardReferences": "镜头关联的图片节点不存在或没有真实图片文件：{value0}"
 }

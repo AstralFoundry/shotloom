@@ -89,6 +89,16 @@ export function removeStoryboardShot(nodeId: string, shotId: string): void {
   touchProject();
 }
 
+export function setStoryboardShotReferences(nodeId: string, shotId: string, referenceNodeIds: string[]): void {
+  const node = projectNode(nodeId);
+  if (!node) return;
+  recordCanvasHistory(t('canvas.storyboard.editAssets'));
+  node.storyboardShots = storyboardShots(node).map((shot) => (
+    shot.id === shotId ? { ...shot, referenceNodeIds: [...new Set(referenceNodeIds)] } : shot
+  ));
+  touchProject();
+}
+
 export function moveStoryboardShot(nodeId: string, shotId: string, direction: -1 | 1): void {
   const node = projectNode(nodeId);
   if (!node) return;
@@ -141,6 +151,13 @@ export function runStoryboardScriptGeneration(nodeId: string): AnyRecord | null 
   return runNode(node);
 }
 
+function isStoryboardImageNode(node: AnyRecord): boolean {
+  if (node.archived) return false;
+  if (node.type !== 'imageGeneration' && String(node.resourceType || node.uploadedFile?.resourceType || '').toLowerCase() !== 'image') return false;
+  const media = selectedNodeMedia(node, store.project);
+  return Boolean(String(media?.filePath || media?.path || ''));
+}
+
 function incomingReferenceNodes(scriptNode: AnyRecord): AnyRecord[] {
   const nodes = store.project.nodes as AnyRecord[];
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
@@ -186,8 +203,7 @@ function connectShotImage(output: AnyRecord, imageNodeId: string): void {
   });
 }
 
-function connectShotNode(scriptNode: AnyRecord, output: AnyRecord): void {
-  const references = incomingReferenceNodes(scriptNode);
+function connectShotNode(scriptNode: AnyRecord, output: AnyRecord, references: AnyRecord[]): void {
   // 用户手工加的参考边不动；只同步本功能以前写入、现已不存在的参考。
   const edges = store.project.edges as AnyRecord[];
   for (let index = edges.length - 1; index >= 0; index -= 1) {
@@ -248,7 +264,10 @@ export function ensureStoryboardShotNode(scriptNodeId: string, shotId: string, k
   output.canvasSectionId = scriptNode.canvasSectionId ?? null;
   shot[field] = output.id;
   scriptNode.storyboardShots = shots;
-  connectShotNode(scriptNode, output);
+  const shotReferences = shot.referenceNodeIds
+    .map((id) => projectNode(id))
+    .filter((item): item is AnyRecord => Boolean(item) && isStoryboardImageNode(item as AnyRecord));
+  connectShotNode(scriptNode, output, shotReferences.length ? shotReferences : incomingReferenceNodes(scriptNode));
   if (kind === 'video' && shot.imageNodeId) connectShotImage(output, shot.imageNodeId);
   touchProject();
   return output;
@@ -280,7 +299,9 @@ export async function runStoryboardShots(scriptNodeId: string, kind: 'image' | '
   const scriptNode = projectNode(scriptNodeId);
   if (!scriptNode) return;
   const project = store.project;
-  const targets = storyboardShots(scriptNode).filter((shot) => !shotIds || shotIds.includes(shot.id));
+  const targets = storyboardShots(scriptNode)
+    .filter((shot) => !shotIds || shotIds.includes(shot.id))
+    .filter((shot) => Boolean(storyboardShotPrompt(shot, kind).trim()));
   const runnable = targets.filter((shot) => {
     if (kind === 'image' ? shot.imageNodeId : shot.videoNodeId) {
       if (shotIds) return true;

@@ -10733,5 +10733,11 @@
   "tool.feedback.canvas.generationRejected": "Generation did not start; inspect the node error and fix the model or prompt",
   "tool.feedback.canvas.invalidBatchReferences": "Batch rows reference missing image nodes: {value0}",
   "tool.title.canvas_get_storyboard": "Read storyboard script",
-  "tool.title.canvas_get_batch_table": "Read batch table"
+  "tool.title.canvas_get_batch_table": "Read batch table",
+  "canvas.storyboard.assetPickerTitle": "Shot {index} · linked assets",
+  "canvas.storyboard.assetPickerApply": "Apply",
+  "canvas.storyboard.assetPickerHint": "Pick references for this shot; empty means the node’s linked references.",
+  "canvas.storyboard.noImages": "No canvas images yet; upload or generate one first.",
+  "canvas.storyboard.inheritUpstream": "Use linked references",
+  "tool.feedback.canvas.invalidStoryboardReferences": "Shot references missing canvas image nodes: {value0}"
 }

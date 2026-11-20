@@ -107,7 +107,6 @@ export function StoryboardScriptEditor({ open, nodeId, onClose, autoOpenAi = fal
     setRunningAll(kind);
     try {
       await runStoryboardShots(nodeId, kind);
-      message.success(kind === 'image' ? t('canvas.storyboard.allImagesQueued') : t('canvas.storyboard.allVideosQueued'));
     } finally {
       setRunningAll('');
     }

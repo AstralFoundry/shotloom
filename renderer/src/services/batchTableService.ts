@@ -226,7 +226,8 @@ export async function runBatchTable(nodeId: string, options: { rowIds?: string[]
   const rowIds = options.rowIds ? new Set(options.rowIds) : null;
   const targets = table.rows
     .map((row, index) => ({ row, index }))
-    .filter(({ row }) => (rowIds ? rowIds.has(row.id) : batchRowReady(table, row, batchRowReferences(row, defaults))));
+    .filter(({ row }) => (rowIds ? rowIds.has(row.id) : true))
+    .filter(({ row }) => batchRowReady(table, row, batchRowReferences(row, defaults)));
   if (!targets.length) {
     showToast(t('canvas.batch.nothingToRun'));
     return;
@@ -247,7 +248,7 @@ export async function runBatchTable(nodeId: string, options: { rowIds?: string[]
       const current = batchTableData(tableNode);
       const currentRow = current.rows.find((item) => item.id === row.id);
       const defaultsNow = batchReferenceDefaults(nodeId);
-      if (!currentRow || (!rowIds && !batchRowReady(current, currentRow, batchRowReferences(currentRow, defaultsNow)))) continue;
+      if (!currentRow || !batchRowReady(current, currentRow, batchRowReferences(currentRow, defaultsNow))) continue;
       const output = ensureRowOutput(tableNode, current, currentRow, index);
       if (!output) continue;
       const references = batchRowReferences(currentRow, defaults).filter(Boolean);

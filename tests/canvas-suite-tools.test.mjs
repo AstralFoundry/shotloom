@@ -44,13 +44,17 @@ test('画布 Agent 可以创建、读取并更新分镜脚本与批量表节点'
   assert.equal(created.result.success, true);
   const nodeId = created.result.nodeId;
   assert.equal(created.result.rows.length, 1);
+  const firstShot = created.result.rows[0];
+  const nodeInProject = projects.store.project.nodes.find((node) => node.id === nodeId);
+  nodeInProject.storyboardShots[0].imageNodeId = 'existing-image';
   const updated = await tools.executeProductRequest(request(binding, 'canvas_storyboard', {
     action: 'update', nodeId,
     shots: [
-      { plot: '屋檐下', videoPrompt: '雨丝落下', dialogue: '等等' },
+      { id: firstShot.id, plot: '屋檐下', videoPrompt: '雨丝落下', dialogue: '等等' },
       { plot: '街角', videoPrompt: '横移', durationSeconds: 6 },
     ],
   }, { approvedByHarness: true }));
+  assert.equal(updated.result.rows[0].imageNodeId, 'existing-image', '整表更新保留已有产出节点');
   assert.equal(updated.result.rows.length, 2);
   assert.equal(updated.result.totalDuration, 10);
   const read = await tools.executeProductRequest(request(binding, 'canvas_get_storyboard', { nodeId }));
@@ -73,6 +77,16 @@ test('画布 Agent 可以创建、读取并更新分镜脚本与批量表节点'
   assert.equal(batchUpdate.result.operation, 'creative');
   assert.equal(batchUpdate.result.rows.length, 2);
   assert.equal(batchUpdate.result.globalPrompt, '统一冷色');
+});
+
+test('分镜行同样拒绝不存在的参考图，并回滚创建', async () => {
+  const binding = fixture();
+  const created = await tools.executeProductRequest(request(binding, 'canvas_storyboard', {
+    action: 'create', source: '画面', shots: [{ plot: '镜头', referenceNodeIds: ['missing-image'] }],
+  }, { approvedByHarness: true }));
+  assert.equal(created.result.success, false);
+  assert.match(created.result.error, /missing-image/);
+  assert.equal(projects.store.project.nodes.some((node) => node.canvasView === 'storyboard-script'), false);
 });
 
 test('批量表拒绝引用不存在的图片节点，生成工具遵守运行节点开关', async () => {

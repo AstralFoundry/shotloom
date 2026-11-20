@@ -27,6 +27,8 @@ export interface StoryboardShot {
   sound: string;
   characters: string;
   negativePrompt: string;
+  /** 这一镜自己关联的参考图；为空时继承分镜节点的上游参考。 */
+  referenceNodeIds: string[];
   imageNodeId: string;
   videoNodeId: string;
   status: StoryboardShotStatus;
@@ -91,7 +93,7 @@ export function createStoryboardShot(shotNumber: number, patch: StoryboardShotPa
   }, shotNumber);
 }
 
-function normalizeShotFields(source: UnknownRecord): Omit<StoryboardShot, 'id' | 'shotNumber' | 'status' | 'imageNodeId' | 'videoNodeId' | 'error'> {
+function normalizeShotFields(source: UnknownRecord): Omit<StoryboardShot, 'id' | 'shotNumber' | 'status' | 'referenceNodeIds' | 'imageNodeId' | 'videoNodeId' | 'error'> {
   return {
     durationSeconds: positiveNumber(source.durationSeconds, 4),
     plot: firstText(source, ['plot', 'plotDescription', 'content', '画面', '画面描述', '镜头内容', 'description']),
@@ -115,6 +117,9 @@ function normalizeStoryboardShot(source: UnknownRecord, fallbackNumber: number):
     id,
     shotNumber: Number.isFinite(number) && number > 0 ? Math.round(number) : fallbackNumber,
     ...normalizeShotFields(source),
+    referenceNodeIds: Array.isArray(source.referenceNodeIds)
+      ? [...new Set(source.referenceNodeIds.map((id) => text(id)).filter(Boolean))]
+      : [],
     imageNodeId: text(source.imageNodeId),
     videoNodeId: text(source.videoNodeId),
     status: status === 'running' || status === 'completed' || status === 'failed' ? status : 'idle',
@@ -167,12 +172,19 @@ export function parseStoryboardScriptResult(value: unknown): StoryboardShot[] | 
   const root = record(payload);
   const rows = Array.isArray(payload) ? payload : Array.isArray(root?.shots) ? root.shots : null;
   if (!rows?.length) return null;
+  const seenIds = new Set<string>();
   const shots = rows
     .map((item, index) => {
       const entry = record(item);
       return entry ? normalizeStoryboardShot(entry, index + 1) : null;
     })
-    .filter((shot): shot is StoryboardShot => Boolean(shot));
+    .filter((shot): shot is StoryboardShot => Boolean(shot))
+    .map((shot) => {
+      if (!seenIds.has(shot.id)) { seenIds.add(shot.id); return shot; }
+      const next = { ...shot, id: uid() };
+      seenIds.add(next.id);
+      return next;
+    });
   return shots.length ? renumberStoryboardShots(shots.slice(0, MAX_STORYBOARD_SHOTS)) : null;
 }
 
