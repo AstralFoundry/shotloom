@@ -85,7 +85,7 @@ public final class NativePerformance extends Instrumentation {
         Rect bounds=new Rect();node.getBoundsInScreen(bounds);
         long start=SystemClock.elapsedRealtime(),down=SystemClock.uptimeMillis();
         pointer(bounds.centerX(),bounds.centerY(),MotionEvent.ACTION_DOWN,down);pointer(bounds.centerX(),bounds.centerY(),MotionEvent.ACTION_UP,down);waitReady(ready);
-        JSONObject row=new JSONObject().put("page",name).put("round",round).put("ms",SystemClock.elapsedRealtime()-start).put("atMs",SystemClock.elapsedRealtime());
+        JSONObject row=new JSONObject().put("page",name).put("round",round).put("ms",SystemClock.elapsedRealtime()-start).put("atMs",SystemClock.elapsedRealtime()).put("atUnixMs",System.currentTimeMillis());
         if(name.equals("account"))row.put("upstreamError",find(ui.getRootInActiveWindow(),"Could not load your balance. Please try again.")!=null);
         pages.put(row);
         SystemClock.sleep(120);
@@ -120,6 +120,8 @@ public final class NativePerformance extends Instrumentation {
             launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TASK);getContext().startActivity(launch);
             waitReady("Android Canvas Acceptance");
             pages.put(new JSONObject().put("page","startup_authenticated").put("round",0).put("ms",SystemClock.elapsedRealtime()-start));
+            page("canvas_immediate","Android Canvas Acceptance","100%",0);
+            page("projects_return","Project library","Android Canvas Acceptance",0);
             for(int round=0;round<Integer.parseInt(args.getString("rounds", "5"));round++) {
                 page("skills","Skills","Native Acceptance Skill",round);
                 page("projects","Project library","Android Canvas Acceptance",round);

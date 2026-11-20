@@ -3,7 +3,12 @@ set -euo pipefail
 if [ "${PAIRED:-false}" != true ]; then
   exec bash .github/scripts/native-performance.sh
 fi
-trap 'adb exec-out screencap -p > perf/failure.png' ERR
+diagnostics() {
+  { free -m; df -h; sudo dmesg | tail -80; } > perf/diagnostics.txt
+  adb exec-out screencap -p > perf/failure.png || true
+}
+trap diagnostics ERR
+[[ "${PAIRS:-10}" =~ ^([1-9]|10)$ ]]
 adb shell wm size 750x1624
 adb shell wm density 320
 adb shell settings put global private_dns_mode off
@@ -24,7 +29,7 @@ native_session=$(printf '%s' "$TEST_NATIVE_SESSION" | base64 -w0)
 token=$(printf '%s' "$TEST_NATIVE_SESSION" | python3 -c 'import json,sys;print(json.load(sys.stdin)["token"])')
 project=$(printf '%s' "$TEST_FIXTURE" | python3 -c 'import json,sys;print(json.load(sys.stdin)["projectId"])')
 feedback=$(printf '%s' "$TEST_FIXTURE" | python3 -c 'import json,sys;print(json.load(sys.stdin)["feedbackId"])')
-for pair in {1..10}; do
+for ((pair=1;pair<=${PAIRS:-10};pair++)); do
   # Alternate order to reduce systematic cache and time-of-run bias.
   order='baseline candidate'
   if (( pair % 2 == 0 )); then order='candidate baseline'; fi
@@ -52,6 +57,7 @@ print('Pair',sys.argv[1],sys.argv[2],sys.argv[3],len(result['pages']),'page samp
 assert result['failure'] is None, result['failure']
 assert all(row['status']==200 for row in result['apis']), 'API error during measurement'
 PY
+      adb exec-out screencap -p > "perf/screen-$pair-$version-$state.png"
     done
   done
 done
