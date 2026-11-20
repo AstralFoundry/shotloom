@@ -17,7 +17,9 @@ export function PrevisMiniViewport({ scene }: { scene: PrevisScene }) {
     return (
         <div className="relative h-full w-full overflow-hidden rounded-[inherit] bg-[radial-gradient(circle_at_50%_35%,#2e3949_0%,#151b25_58%,#0d1118_100%)]">
             <Canvas className="previs-mini-viewport-canvas" gl={{ alpha: true, antialias: true }} dpr={[1, 1.5]}>
-                <OrthographicCamera makeDefault position={[0, 10, 0]} zoom={46} up={[0, 0, -1]} />
+                {/* Upstream passes `up` without rotating the camera, so it still looks along -Z and the
+                    scene falls outside the frustum. Rotate down -Y so the top view shows objects. */}
+                <OrthographicCamera makeDefault position={[0, 10, 0]} rotation={[-Math.PI / 2, 0, 0]} zoom={46} up={[0, 0, -1]} />
                 <ambientLight intensity={0.72} />
                 <directionalLight position={[4, 8, 4]} intensity={1.1} />
                 <Suspense fallback={null}>

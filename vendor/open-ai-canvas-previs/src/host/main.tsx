@@ -69,19 +69,19 @@ function PrevisHostApp() {
     }, []);
 
     useEffect(() => {
-        const dispose = installPrevisBridge({
-            onInit: adopt,
-            onSceneChanged: (next) => {
-                setScene((current) => (current && current.id === next.id ? next : current));
-                previsBridge.sceneChanged(next);
-            },
-            onReady: () => previsBridge.ready(INSTANCE_ID),
-            onClose: () => previsBridge.close(),
-            onError: (message) => previsBridge.error(message),
-        });
+        const dispose = installPrevisBridge({ onInit: adopt });
         previsBridge.ready(INSTANCE_ID);
         return dispose;
     }, [adopt]);
+
+    /**
+     * Every committed scene edit must reach Shotloom: the canvas card and the saved project
+     * are derived from this message. `setScene` alone only updates the engine's own render.
+     */
+    const handleSceneChange = useCallback((next: PrevisScene) => {
+        setScene((current) => (current && current.id === next.id ? next : current));
+        previsBridge.sceneChanged(next);
+    }, []);
 
     const handleClose = useCallback(() => previsBridge.close(), []);
     const noopNode = useCallback(() => undefined, []);
@@ -89,6 +89,7 @@ function PrevisHostApp() {
     /** 「回写构图/白膜/深度」：把该镜头本次渲染的所有产物交回画布。 */
     const applyOutput = useCallback(async (output: PrevisSceneOutput) => {
         setScene(output.scene);
+        previsBridge.sceneChanged(output.scene);
         const shotName = output.shot.name || "镜头";
         const captures = (await Promise.all([
             capture(output.beauty, `${shotName}-构图.png`, "image"),
@@ -127,7 +128,7 @@ function PrevisHostApp() {
                     imageNodes={imageNodes}
                     onboardingScope={BOOT_PARAMS.get("onboardingScope") || "shotloom-world-engine"}
                     onClose={handleClose}
-                    onChange={setScene}
+                    onChange={handleSceneChange}
                     onApply={applyOutput}
                     onAddToCanvas={addToCanvas}
                     onDeleteImageNode={noopNode}

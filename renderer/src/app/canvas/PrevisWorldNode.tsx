@@ -10,7 +10,10 @@ import {
   type WorkflowNodeRenderer,
 } from "./WorkflowCanvas";
 import {
+  previsCardSrc,
   previsWorldFrameSrc,
+  sendPrevisCardScene,
+  subscribePrevisCardReady,
   previsWorldSummary,
   readPrevisScene,
   sendPrevisImages,
@@ -41,7 +44,11 @@ export const PrevisWorldNode: WorkflowNodeRenderer = memo(
     const [incomingImages, setIncomingImages] = useState<IncomingImage[]>([]);
     const [interacting, setInteracting] = useState(false);
     const [detailOpen, setDetailOpen] = useState(false);
-    const summary = previsWorldSummary(readNodeScene(node));
+    const scene = readNodeScene(node);
+    const summary = previsWorldSummary(scene);
+    const miniScene = scene && scene.objects.length > 0 ? scene : null;
+    const miniFrameRef = useRef<HTMLIFrameElement>(null);
+    const sentMiniRef = useRef<string>("");
     const detailIframeRef = useRef<HTMLIFrameElement>(null);
     const getFrame = useCallback(() => detailIframeRef.current, []);
 
@@ -85,6 +92,24 @@ export const PrevisWorldNode: WorkflowNodeRenderer = memo(
     useEffect(() => {
       sendImages();
     }, [incomingImages, sendImages]);
+
+    // The card page posts a handshake once its listener is installed; the scene may have
+    // changed between iframe load and that point, so this is the reliable sync point.
+    useEffect(() => subscribePrevisCardReady(() => miniFrameRef.current, () => {
+      sendPrevisCardScene(miniFrameRef.current, miniScene, getLocale());
+      if (miniScene) sentMiniRef.current = `${miniScene.id}:${miniScene.updatedAt}`;
+    }), [miniScene]);
+
+    // Keep the card's mini viewport in sync with the saved scene; the iframe is lazy and
+    // only exists once the scene has at least one object.
+    useEffect(() => {
+      const frame = miniFrameRef.current;
+      if (!frame || !miniScene) return;
+      const signature = `${miniScene.id}:${miniScene.updatedAt}`;
+      if (sentMiniRef.current === signature) return;
+      sentMiniRef.current = signature;
+      sendPrevisCardScene(frame, miniScene, getLocale());
+    }, [miniScene]);
 
     useEffect(() => {
       const unsubscribe = subscribePrevisWorld(getFrame, {
@@ -180,27 +205,44 @@ export const PrevisWorldNode: WorkflowNodeRenderer = memo(
                 </div>
                 <span className="previs-card-duration"><IconSymbol name="clock" aria-hidden="true" />{summary?.shotDuration ?? 0}s</span>
               </div>
-              <button
-                type="button"
-                className="previs-card-preview nodrag"
-                title={t("ui.previsWorld.open")}
-                onPointerDown={(event) => event.stopPropagation()}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  actions.select(node.id);
-                  setInteracting(true);
-                  setDetailOpen(true);
-                }}
-              >
-                <span className="previs-card-empty">
-                  <span className="previs-card-empty-mark"><IconSymbol name="film" aria-hidden="true" /></span>
-                  <strong>{t("ui.previsWorld.emptyTitle")}</strong>
-                  <span>{t("ui.previsWorld.emptyHint")}</span>
-                </span>
+              <div className="previs-card-preview-shell">
+                <button
+                  type="button"
+                  className="previs-card-preview nodrag"
+                  title={t("ui.previsWorld.open")}
+                  onPointerDown={(event) => event.stopPropagation()}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    actions.select(node.id);
+                    setInteracting(true);
+                    setDetailOpen(true);
+                  }}
+                >
+                  {miniScene ? null : (
+                    <span className="previs-card-empty">
+                      <span className="previs-card-empty-mark"><IconSymbol name="film" aria-hidden="true" /></span>
+                      <strong>{t("ui.previsWorld.emptyTitle")}</strong>
+                      <span>{t("ui.previsWorld.emptyHint")}</span>
+                    </span>
+                  )}
+                </button>
+                {miniScene ? (
+                  <iframe
+                    ref={miniFrameRef}
+                    className="previs-card-mini"
+                    title={t("ui.previsWorld.previewLabel")}
+                    src={previsCardSrc(node.id, getLocale())}
+                    onLoad={() => {
+                      const frame = miniFrameRef.current;
+                      if (frame) sendPrevisCardScene(frame, miniScene, getLocale());
+                      sentMiniRef.current = `${miniScene.id}:${miniScene.updatedAt}`;
+                    }}
+                  />
+                ) : null}
                 <span className="previs-card-cta"><IconSymbol name="film" aria-hidden="true" />{t("ui.previsWorld.open")}</span>
-              </button>
+              </div>
               <footer className="previs-card-footer">
-                <span className="previs-card-stat" title={`${summary?.props ?? 0} ${t("ui.previsWorld.objectCount")}`}><IconSymbol name="box" aria-hidden="true" /><b>{summary?.props ?? 0}</b><span>{t("ui.previsWorld.objectCount")}</span></span>
+                <span className="previs-card-stat" title={`${summary?.objects ?? 0} ${t("ui.previsWorld.objectCount")}`}><IconSymbol name="box" aria-hidden="true" /><b>{summary?.objects ?? 0}</b><span>{t("ui.previsWorld.objectCount")}</span></span>
                 <span className="previs-card-stat" title={`${summary?.cameras ?? 0} ${t("ui.previsWorld.cameraCount")}`}><IconSymbol name="camera" aria-hidden="true" /><b>{summary?.cameras ?? 0}</b><span>{t("ui.previsWorld.cameraCount")}</span></span>
                 <span className="previs-card-stat" title={`${summary?.lights ?? 0} ${t("ui.previsWorld.lightCount")}`}><IconSymbol name="sun" aria-hidden="true" /><b>{summary?.lights ?? 0}</b><span>{t("ui.previsWorld.lightCount")}</span></span>
                 <span className="previs-card-footer-action"><IconSymbol name="cursor" aria-hidden="true" />{t("ui.previsWorld.doubleClick")}</span>

@@ -187,6 +187,7 @@
   "ui.previsWorld.noShot": "未设置镜头",
   "ui.previsWorld.objectCount": "对象",
   "ui.previsWorld.open": "打开世界引擎",
+  "ui.previsWorld.previewLabel": "世界引擎场景预览",
   "ui.previsWorld.titleLabel": "世界引擎标题",
   "ui.videoEditorActions.text.801f1d23": "剪辑",
   "ui.videoEditorActions.text.8fcdad5e": "视频编辑器尚未就绪，请稍后重试",

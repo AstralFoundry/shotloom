@@ -18,7 +18,9 @@
 
 世界引擎的文档是一份纯 JSON 场景（`PrevisScene`）：镜头、机位、灯光、天空/天气/地面和关键帧都在其中，产品只保存与转交，不解释渲染。画布节点、整页工作区与后台恢复共用同一份协议；节点数据存在 `directorData.scene`（沿用历史字段名以兼容既有工程），节点类型标识仍为 `threeDDirector`。
 
-引擎 → 宿主只有四类回执：`ready`、`scene-changed`（保存场景）、`captures`（构图/深度/法线/骨骼截图与白膜/深度视频，宿主用 `nodeActions.exportDirectorAsset` 落成节点）、`add-canvas`（把单张截图加入画布）。宿主 → 引擎只有 `init`、`scene`、`images` 三条下发。导出媒体不携带应用猜测的景别或剧情，模型需要据此编写下游提示词时必须自己读取真实画面。
+引擎 → 宿主只有四类回执：`ready`、`scene-changed`（每次提交后的完整场景，节点据此保存并驱动卡片）、`captures`（构图/深度/法线/骨骼截图与白膜/深度视频，宿主用 `nodeActions.exportDirectorAsset` 落成节点）、`add-canvas`（把单张截图加入画布）。宿主 → 引擎只有 `init`、`scene`、`images` 三条下发。导出媒体不携带应用猜测的景别或剧情，模型需要据此编写下游提示词时必须自己读取真实画面。
+
+画布节点卡片用上游的 PREVIS 布局：场景有对象时，嵌入 `card.html` 的迷你俯视视口（场景通过 `shotloom:previs-card` 下发，iframe 只渲染缩略图并禁用指针事件，点击仍由卡片打开工作台）；没有对象时显示「尚未生成预览」。这样卡片外观与参考项目一致，也不需要把 vendored 渲染器导入产品模块。
 
 世界引擎的 3D 素材库属于引擎自身：导入的 glb/gltf 与截图产物写进 iframe 内的 IndexedDB（`host/files.ts`），场景文档只存 storageKey，因此仍是可移植的 JSON。引擎自带的程序化布景、天气与天空不依赖联网，也不需要 Polyfork 或云端登录；历史导演台的 Polyfork 在线模型服务随旧引擎一并移除。
 

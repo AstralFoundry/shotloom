@@ -152,6 +152,7 @@
   "ui.previsWorld.noShot": "No shot set",
   "ui.previsWorld.objectCount": "Objects",
   "ui.previsWorld.open": "Open world engine",
+  "ui.previsWorld.previewLabel": "World engine scene preview",
   "ui.previsWorld.titleLabel": "World engine title",
   "ui.videoEditorActions.text.801f1d23": "Edit",
   "ui.canvasAdapter.text.2c056f18": "Connection failed",

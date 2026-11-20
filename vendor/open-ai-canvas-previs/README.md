@@ -21,9 +21,15 @@
    - `files.ts`、`assets.ts`、`appearance.ts`、`persistence.ts`、`media.ts`、`diagnostics.ts`、
      `state-storage.ts`：文件上传/解析、3D 素材库、品牌名、保存回执、视频转码、诊断、KV 存储。
    - `ui/`：`tooltip`、`switch`、`select`、`cached-resource-image` 四个基础控件的本地实现。
-3. `src/host/main.tsx`：iframe 宿主壳。工作台常驻 `open`，宿主通过 `shotloom:previs-*` 协议
-   下发场景与画布图片，引擎回传场景变更。
-4. `src/host/index.css`：Tailwind 只扫描本包源码；补齐工作台依赖的语义色 token。
+3. `src/host/main.tsx`：工作台 iframe 宿主壳。工作台常驻 `open`，宿主通过 `shotloom:previs-*`
+   协议下发场景与画布图片，引擎在每次提交后回传完整场景；截图、白膜、深度与「加入画布」
+   通过 captures / add-canvas 回执交回宿主。
+4. `src/host/card.tsx` + `card.html`：画布节点卡片的迷你俯视图入口，只挂载
+   `PrevisMiniViewport`，由 `shotloom:previs-card` 接收场景，不加载工作台外壳。
+5. `src/host/messages.ts`：工作台实际用到的上游中英文词条，按上游 `{{param}}` 形式插值。
+6. `src/host/index.css`：Tailwind 只扫描本包源码；补齐工作台与卡片依赖的宿主设计 token。
+7. `previs-mini-viewport.tsx`：上游只传 `up` 未旋转正交相机，相机仍朝 -Z，俯视内容落在
+   视锥外；这里补 `rotation={[-Math.PI/2,0,0]}`，让卡片真正显示俯视场景。
 
 ## 构建
 

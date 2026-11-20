@@ -30,16 +30,12 @@ export type PrevisBridgeInit = {
 /** One rendered artifact handed back to the host canvas as a data URL. */
 export type PrevisBridgeCapture = { dataUrl: string; fileName: string; kind: "image" | "video" };
 
+/**
+ * Host → engine messages. Scene changes, captures and close/error travel the other way
+ * through `previsBridge`, so they are not handlers here.
+ */
 export type PrevisBridgeHandlers = {
     onInit(init: PrevisBridgeInit): void;
-    onSceneChanged(scene: PrevisScene): void;
-    onReady?(): void;
-    onClose?(): void;
-    onError?(message: string): void;
-    /** Beauty/depth/normal/pose screenshots and clay/depth videos written back to the host. */
-    onCaptures?(captures: PrevisBridgeCapture[]): void;
-    /** A single screenshot the user asked to add to the canvas. */
-    onAddToCanvas?(capture: PrevisBridgeCapture): void;
 };
 
 const PREFIX = "shotloom:previs";

@@ -36,6 +36,7 @@ export type PrevisWorldCapture = { dataUrl: string; fileName: string; kind: "ima
 export type PrevisWorldSummary = {
   actors: number;
   props: number;
+  objects: number;
   cameras: number;
   lights: number;
   shots: number;
@@ -58,6 +59,26 @@ const PREFIX = "shotloom:previs";
 
 export function previsWorldFrameSrc(instanceId: string, theme: PrevisWorldTheme) {
   return `./previs-world-app/index.html?instanceId=${encodeURIComponent(instanceId)}&theme=${theme}`;
+}
+
+/** Canvas card preview: only the top-down mini viewport, never the workbench chrome. */
+export function previsCardSrc(instanceId: string, locale: string) {
+  return `./previs-world-app/card.html?instanceId=${encodeURIComponent(instanceId)}&locale=${encodeURIComponent(locale)}`;
+}
+
+export function sendPrevisCardScene(frame: HTMLIFrameElement | null, scene: PrevisSceneDocument | null, locale?: string) {
+  frame?.contentWindow?.postMessage(plainMessage({ type: "shotloom:previs-card", payload: { scene, ...(locale ? { locale } : {}) } }), window.location.origin);
+}
+
+/** The card page posts this once its listener is installed; only then can it receive a scene. */
+export function subscribePrevisCardReady(getFrame: () => HTMLIFrameElement | null, onReady: () => void) {
+  const receive = (event: MessageEvent) => {
+    if (event.origin !== window.location.origin || event.source !== getFrame()?.contentWindow) return;
+    if ((event.data as { type?: unknown } | null)?.type !== "shotloom:previs-card-ready") return;
+    onReady();
+  };
+  window.addEventListener("message", receive);
+  return () => window.removeEventListener("message", receive);
 }
 
 /**
@@ -144,6 +165,7 @@ export function previsWorldSummary(scene: PrevisSceneDocument | null): PrevisWor
   return {
     actors: scene.objects.filter((object) => object.kind === "actor" || object.primitive === "character").length,
     props: scene.objects.filter((object) => object.kind !== "actor" && object.primitive !== "character").length,
+    objects: scene.objects.filter((object) => object.visible !== false).length,
     cameras: scene.cameras.length,
     lights: scene.lights.length,
     shots: shots.length,

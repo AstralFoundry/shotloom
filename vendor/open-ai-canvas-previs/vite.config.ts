@@ -14,5 +14,12 @@ export default {
     outDir: "dist",
     emptyOutDir: true,
     chunkSizeWarningLimit: 4096,
+    rollupOptions: {
+      // The workbench is the full editor; the card entry only renders the node thumbnail.
+      input: {
+        index: fileURLToPath(new URL("./index.html", import.meta.url)),
+        card: fileURLToPath(new URL("./card.html", import.meta.url)),
+      },
+    },
   },
 };
