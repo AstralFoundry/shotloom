@@ -38,6 +38,12 @@ for(const bucket of ['shotloom-media','shotloom-assets'])for(const id of ids){
  const remaining=await admin.storage.from(bucket).list(prefix,{limit:1});
  assert.equal(remaining.error,null);assert.equal(remaining.data?.length,0);
 }
+// Replies reference their actor without cascading; delete the synthetic feedback first.
+const feedback=await admin.from('feedback').delete().in('user_id',ids).eq('client_id',env.GATEWAY_CLIENT_ID);
+assert.equal(feedback.error,null);
+const audit=await admin.from('admin_audit').select('id').in('actor_id',ids).eq('client_id',env.GATEWAY_CLIENT_ID);
+assert.equal(audit.error,null);
+assert.equal(audit.data?.length,0,'Remove this QA client’s synthetic audit rows through the isolated database owner first');
 const removed=await admin.from('users').delete().in('id',ids).eq('client_id',env.GATEWAY_CLIENT_ID).select('id');
 assert.equal(removed.error,null);assert.equal(removed.data?.length,ids.length);
 for(const table of ['users','sessions','projects'] as const){
