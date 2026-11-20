@@ -9,6 +9,7 @@ import {
   parseSemanticSplitResult,
   parseStoryboardResult,
 } from '@/utils/textGenerationModes';
+import { isStoryboardScriptNode, parseStoryboardScriptResult, STORYBOARD_SCRIPT_SUBTASK } from '@/domain/graph/StoryboardScript';
 import { extractGeneratedFiles, extractGeneratedText } from '@/utils/generatedOutputParsing.ts';
 import {
   extensionForGeneratedFile,
@@ -189,8 +190,29 @@ export async function archiveGeneratedOutput({ project, node, task, output }: {
   const text = extractGeneratedText(output);
   if (node.type === 'textGeneration' && text) {
     const subtask = normalizeTextSubtask(task.requestPayload?.textSubtask || node.config?.textSubtask);
+    const storyboardScript = isStoryboardScriptNode(node) || subtask === STORYBOARD_SCRIPT_SUBTASK;
     node.textSubtask = subtask;
     node.textResultParseError = '';
+    if (storyboardScript) {
+      // 分镜脚本的解析结果落在镜头行上；原始文本保留一份，解析失败时仍能找回模型回执。
+      const shots = parseStoryboardScriptResult(text);
+      node.storyboardRawText = text;
+      node.storyboardParseError = '';
+      if (shots?.length) {
+        node.storyboardShots = shots;
+        node.storyboardLastGeneratedAt = new Date().toISOString();
+      } else {
+        node.storyboardParseError = t("generation.result.invalidStoryboardScript");
+      }
+      return {
+        archivedFiles,
+        resultNodes,
+        text,
+        textSubtask: subtask,
+        storyboardShots: node.storyboardShots || [],
+        parseError: node.storyboardParseError || '',
+      };
+    }
     if (subtask === TEXT_SUBTASKS.SEMANTIC_SPLIT) {
       // 解析器已经过滤掉无效条目，类型上仍带 null，这里按松散记录读取。
       const segments = parseSemanticSplitResult(text) as AnyRecord[] | null;

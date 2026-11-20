@@ -11,6 +11,7 @@ import { defaultGenerationModel } from '@/config/defaultGenerationModels';
 import { compileGenerationNodeConfig } from '@/domain/graph/GenerationNodeContract';
 import { inputSlotOrder, isSlotValidForMode } from '@/domain/graph/GenerationInputContract';
 import { textNodeContent } from '@/utils/textNodeContent.ts';
+import { isStoryboardScriptNode, storyboardScriptInstruction, STORYBOARD_SCRIPT_SUBTASK } from './StoryboardScript.ts';
 
 // 节点、任务与素材记录来自尚未类型化的 store/JS 调用方，这里按本文件真实读取的字段建模；
 // 可选字段一律显式允许 undefined，避免为了通过检查而使用 any 或非空断言。
@@ -390,9 +391,31 @@ export function buildGenerationPayload(node: CanvasNode, project: CanvasProject 
   }
 
   if (node.type === 'textGeneration') {
+    const textSubtask = String(config.textSubtask || node.textSubtask || '');
+    const storyboardScript = isStoryboardScriptNode(node) || textSubtask === STORYBOARD_SCRIPT_SUBTASK;
+    if (!storyboardScript) {
+      return {
+        ...payload,
+        ...schemaParams,
+        ...(textSubtask ? { textSubtask } : {}),
+      };
+    }
+    const requestedCount = Number(node.storyboardShotCount);
+    const requestedDuration = Number(node.storyboardShotDuration);
+    const extra = String(node.storyboardExtraRequirement || '');
+    const instruction = storyboardScriptInstruction(
+      Number.isFinite(requestedCount) && requestedCount > 0 ? requestedCount : 'auto',
+      extra,
+      Number.isFinite(requestedDuration) && requestedDuration > 0 ? requestedDuration : 'auto',
+    );
+    const source = payload.prompt.trim();
+    const upstream = payload.upstreamContext.trim();
     return {
       ...payload,
+      prompt: [instruction, source ? `【剧情/创意】\n${source}` : '', upstream ? `【上游文本约束】\n${upstream}` : '']
+        .filter(Boolean).join('\n\n'),
       ...schemaParams,
+      textSubtask: STORYBOARD_SCRIPT_SUBTASK,
     };
   }
 

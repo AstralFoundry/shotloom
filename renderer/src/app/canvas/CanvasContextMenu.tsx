@@ -3,10 +3,11 @@ import { IconSymbol } from "../components/IconSymbol";
 import { nodeTypes } from "../constants/navigation";
 
 export function CanvasContextMenu(
-  { x, y, onCreate }: {
+  { x, y, onCreate, onOpenPoseLibrary }: {
     x: number;
     y: number;
     onCreate: (type: string) => void | Promise<void>;
+    onOpenPoseLibrary?: (() => void) | undefined;
   },
 ) {
   return (
@@ -28,6 +29,11 @@ export function CanvasContextMenu(
         <button type="button" role="menuitem" onClick={() => void onCreate('canvasSection')}>
           <i><IconSymbol name="layers" /></i><span>{t('canvas.section.create')}</span>
         </button>
+        {onOpenPoseLibrary ? (
+          <button type="button" role="menuitem" onClick={() => { onOpenPoseLibrary(); }}>
+            <i><IconSymbol name="user" /></i><span>{t('canvas.pose.title')}</span>
+          </button>
+        ) : null}
       </div>
       <div className="canvas-context-menu-section" role="group" aria-labelledby="canvas-menu-nodes">
         <span id="canvas-menu-nodes" className="canvas-context-menu-label">{t("ui.CanvasContextMenu.text.7976e0d9")}</span>

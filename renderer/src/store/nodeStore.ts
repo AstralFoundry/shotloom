@@ -16,6 +16,7 @@ import type { AgentNode, AgentProject } from '@/services/agentTypes';
 import { resolveProjectDefaultModel } from '@/config/projectModelDefaults.ts';
 import { getAvailableModelIdsByType, getModelCredentialStatus } from '@/store/settingsStore';
 import { defaultCanvasNodeDimensions } from '@/domain/graph/CanvasNodeDimensions.ts';
+import { defaultBatchTable } from '@/domain/graph/BatchTable.ts';
 
 // projectStore → taskStore → 本模块 → projectStore 是循环引用：本模块求值时它的 `store`
 // 绑定可能还在 TDZ 里，所以只能在函数调用时读取，不能在模块作用域快照一份。
@@ -70,6 +71,7 @@ const NODE_TYPE_LABELS: Record<string, string> = {
   resource: t("ui.CanvasNodes.text.64586ce4"),
   threeDDirector: t("ui.navigation.label.1386e28f"),
   clipStudio: t("ui.videoEditorActions.text.801f1d23"),
+  batchTable: t("canvas.batch.title"),
 };
 
 /** 将节点类型标识映射为中文标签。 */
@@ -137,6 +139,7 @@ export function addNode(type = 'imageGeneration', options: { select?: boolean } 
     node.clipNodeVersion = 1;
     node.videoEditProject = createVideoEditorProject();
   }
+  if (type === 'batchTable') node.batchTable = defaultBatchTable();
   if (isDirector) {
     node.directorData = {};
   }

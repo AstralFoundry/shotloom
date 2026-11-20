@@ -462,13 +462,15 @@ function CanvasNode({ data, selected, dragging }: NodeProps<FlowNode>) {
   const [labelRoot, setLabelRoot] = useState<HTMLElement | null>(null);
   const Renderer = registry[item.type] || FallbackNode;
   const resizable =
-    item.type === "textGeneration" ||
+    item.type === "textGeneration" || item.type === "batchTable" ||
     item.type === "threeDDirector" || item.type === "clipStudio";
   const defaultSize = defaultCanvasNodeDimensions(item.type);
+  const storyboardScript = item.type === "textGeneration" && item.canvasView === "storyboard-script";
   const minimum =
     item.type === "threeDDirector" || item.type === "clipStudio"
       ? { ...defaultSize, width: item.type === "clipStudio" ? 720 : defaultSize.width }
-      : { width: 195, height: 135 };
+      : storyboardScript ? { width: 640, height: 300 }
+        : item.type === "batchTable" ? { width: 760, height: 380 } : { width: 195, height: 135 };
   const dimensions = nodeDimensions(item);
   const semanticZoom = data.semanticZoom;
   if (item.type === 'canvasSection') return <CanvasSectionNode node={item} selected={Boolean(selected)} dragging={dragging} zoom={semanticZoom} actions={actions} />;
@@ -650,8 +652,8 @@ type CanvasMenuLayerHandle = {
   close: () => void;
 };
 const CanvasMenuLayer = memo(
-  forwardRef<CanvasMenuLayerHandle, { controller: WorkflowCanvasController }>(
-    function CanvasMenuLayer({ controller }, ref) {
+  forwardRef<CanvasMenuLayerHandle, { controller: WorkflowCanvasController; onOpenPoseLibrary?: (() => void) | undefined }>(
+    function CanvasMenuLayer({ controller, onOpenPoseLibrary }, ref) {
       const [menu, setMenu] = useState<CanvasMenuState | null>(null);
       useImperativeHandle(
         ref,
@@ -677,6 +679,7 @@ const CanvasMenuLayer = memo(
             });
             setMenu(null);
           }}
+          onOpenPoseLibrary={onOpenPoseLibrary ? () => { onOpenPoseLibrary(); setMenu(null); } : undefined}
         />
       );
     },
@@ -706,6 +709,7 @@ export function WorkflowCanvas({
   controller,
   overlay,
   addNodeMention,
+  onOpenPoseLibrary,
   onReady,
   onAutoLayout,
 }: {
@@ -717,6 +721,7 @@ export function WorkflowCanvas({
   controller: WorkflowCanvasController;
   overlay?: ReactNode;
   addNodeMention?: (nodeId: string) => void;
+  onOpenPoseLibrary?: (() => void) | undefined;
   onReady?: () => void;
   onAutoLayout?: (options?: { mode?: AgentLayoutMode; includeConnected?: boolean }) => boolean;
 }) {
@@ -1469,7 +1474,7 @@ export function WorkflowCanvas({
               </div>
             </div>
           )}
-          <CanvasMenuLayer ref={menuLayer} controller={controller} />
+          <CanvasMenuLayer ref={menuLayer} controller={controller} onOpenPoseLibrary={onOpenPoseLibrary} />
           {layoutSelection.length > 1 && <div className="canvas-selection-layout" onPointerDown={event => event.stopPropagation()}>
             <Dropdown menu={{ items: (['left', 'centerX', 'right', 'top', 'centerY', 'bottom', 'distributeX', 'distributeY'] as const).map(mode => ({
               key: mode, label: t(`canvas.selection.${mode}`), disabled: mode.startsWith('distribute') && layoutSelection.length < 3,

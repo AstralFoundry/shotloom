@@ -5,12 +5,14 @@ export const TEXT_SUBTASKS = Object.freeze({
   GENERATE: 'text-generation',
   SEMANTIC_SPLIT: 'semantic-split',
   STORYBOARD: 'storyboard-generation',
+  STORYBOARD_SCRIPT: 'storyboard-script',
 });
 
 export const TEXT_SUBTASK_OPTIONS = Object.freeze([
   { value: TEXT_SUBTASKS.GENERATE, label: '文本生成' },
   { value: TEXT_SUBTASKS.SEMANTIC_SPLIT, label: '语义拆分' },
   { value: TEXT_SUBTASKS.STORYBOARD, label: '分镜生成' },
+  { value: TEXT_SUBTASKS.STORYBOARD_SCRIPT, label: '分镜脚本' },
 ]);
 
 export function normalizeTextSubtask(value: unknown) {
@@ -217,6 +219,13 @@ export function textModeSystemPrompt(payload: AnyRecord = {}) {
       '请按语义完整性、场景变化、行动转折和叙事节奏拆分用户文本。',
       '只输出合法 JSON 数组，不要使用 Markdown 代码块或补充解释。',
       '每项格式必须是 {"id": 1, "summary": "简短标题", "content": "保留完整语义的原文或改写文本"}。',
+    ].join('\n');
+  }
+  if (subtask === TEXT_SUBTASKS.STORYBOARD_SCRIPT) {
+    return [
+      '你是专业的影视分镜师。请把用户内容拆成可逐镜拍摄和生成的连续镜头。',
+      '只输出合法 JSON，不要使用 Markdown 代码块或补充解释。',
+      '结构必须是 {"shots":[{"shotNumber":1,"durationSeconds":4,"plot":"画面事件与动作","shotSize":"景别","camera":"机位","motion":"运动","imagePrompt":"图片提示词","videoPrompt":"视频提示词","dialogue":"台词","sound":"音效","characters":"角色","negativePrompt":"负面提示词"}]}。',
     ].join('\n');
   }
   if (subtask === TEXT_SUBTASKS.STORYBOARD) {

@@ -81,6 +81,8 @@ import {
   openWorkspaceVideoEditor,
   createClipNode,
 } from "./canvas/videoEditorActions";
+import { createStoryboardScriptNode } from "../canvas/storyboardScriptActions";
+import { isCanvasImageNode } from "../canvas/batchTableActions";
 
 const store: any = rawStore;
 // 画布挂载后到布局稳定之间的一小段，跨路由定位要等它过去再推视口。
@@ -267,6 +269,41 @@ export const canvasController: WorkflowCanvasController = {
       if (!result.ok) showToast(result.error);
       return result.ok;
     }
+    if (target?.type === 'batchTable') {
+      if (source?.type !== 'imageGeneration' || !isCanvasImageNode(String(source.id))) {
+        showToast(t('canvas.batch.onlyImages'));
+        return false;
+      }
+      const targetHandle = String(connection.targetHandle || '');
+      const columnId = targetHandle.startsWith('batch-reference:') ? targetHandle.slice('batch-reference:'.length) : '';
+      if (columnId) {
+        const table = target.batchTable || {};
+        if (!Array.isArray(table.columns) || !table.columns.some((column: any) => String(column.id) === columnId)) {
+          showToast(t('canvas.batch.onlyImages'));
+          return false;
+        }
+        const exists = (store.project.edges || []).some((edge: any) => edge.source === connection.source
+          && edge.target === connection.target && edge.data?.batchColumnId === columnId);
+        if (exists) return true;
+        store.project.edges.push({
+          id: uid(),
+          source: connection.source,
+          target: connection.target,
+          kind: 'typed-input',
+          data: { inputRole: 'referenceImage', batchColumnId: columnId, creationSource: 'batch-table-connection' },
+        });
+        touchProject();
+        return true;
+      }
+      const result = addCanvasEdge(store.project, connection.source, connection.target, {
+        edge: {
+          kind: 'typed-input',
+          data: { inputRole: 'referenceImage', creationSource: 'batch-table-connection' },
+        },
+      });
+      if (!result.ok) showToast(result.error || t('canvas.batch.onlyImages'));
+      return result.ok;
+    }
     const validation = validateAgentInputRole(store.project, source, target, "auto");
     if (!validation.valid) {
       showToast(validation.error || t("ui.canvasAdapter.text.2c056f18"));
@@ -304,6 +341,12 @@ export const canvasController: WorkflowCanvasController = {
   },
   async createNodeAt(type, position) {
     if (type === 'canvasSection') { this.createSection?.(position); return; }
+    if (type === 'storyboardScript') {
+      const node: any = createStoryboardScriptNode(position);
+      node.canvasSectionId = canvasSectionDropTarget(node, store.project.nodes)?.id ?? null;
+      touchProject();
+      return;
+    }
     if (type === "__upload__") {
       const file = await desktopApi.file.pickResource();
       if (file) {

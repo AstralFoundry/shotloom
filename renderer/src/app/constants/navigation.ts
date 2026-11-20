@@ -36,6 +36,8 @@ export const applicationItems: NavigationItem[] = [
 ];
 
 export const nodeTypes = [
+  { id: "storyboardScript", label: t("canvas.storyboard.title"), icon: "text" as const },
+  { id: "batchTable", label: t("canvas.batch.title"), icon: "table" as const },
   { id: "clipStudio", label: t("ui.videoEditorActions.text.801f1d23"), icon: "scissors" as const },
   { id: "imageGeneration", label: t("ui.taskAdapter.imageGeneration.1f6a9dab"), icon: "image" as const },
   { id: "videoGeneration", label: t("ui.taskAdapter.videoGeneration.19978a8d"), icon: "film" as const },

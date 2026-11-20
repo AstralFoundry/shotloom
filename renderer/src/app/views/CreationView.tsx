@@ -20,6 +20,7 @@ import { DirectorWorkspace } from "./DirectorWorkspace";
 import { DirectorAgentPane } from '../agent-chat/DirectorAgentPane';
 import { directorDeskWorkspaceSrc } from "../adapters/directorDeskBridge";
 import { BottomModeBar } from "../canvas/BottomModeBar";
+import { PoseLibraryModal } from "../canvas/PoseLibraryModal";
 import { ProjectVersionHistory } from "../components/ProjectVersionHistory";
 import {
   WorkflowCanvas,
@@ -115,6 +116,7 @@ function CreationCanvas({ data, controller }: { data: CreationViewData; controll
   const [agentPanelVisible, setAgentPanelVisible] = useState(true);
   const starting = !canvasReady || (agentPanelVisible && agentStatus === 'loading');
   const [versionHistoryOpen, setVersionHistoryOpen] = useState(false);
+  const [poseLibraryOpen, setPoseLibraryOpen] = useState(false);
   const [agentPanelWidth, setAgentPanelWidth] = useState(() => {
     const saved = Number(window.localStorage.getItem("shotloom:agent-panel-width-v4"));
     const preferred = Math.round(window.innerWidth * 0.4);
@@ -318,6 +320,7 @@ function CreationCanvas({ data, controller }: { data: CreationViewData; controll
           addNodeMention={(nodeId) => {
             window.dispatchEvent(new CustomEvent("shotloom:mention-node", { detail: nodeId }));
           }}
+          onOpenPoseLibrary={() => setPoseLibraryOpen(true)}
           overlay={
             <>
             <BottomModeBar
@@ -329,10 +332,12 @@ function CreationCanvas({ data, controller }: { data: CreationViewData; controll
               onMaterialPicker={openPicker}
               onMergeVideos={controller.mergeVideos}
               onOpenHistory={() => setVersionHistoryOpen(true)}
+              onOpenPoseLibrary={() => setPoseLibraryOpen(true)}
             />
             </>
           }
         />
+        <PoseLibraryModal open={poseLibraryOpen} onClose={() => setPoseLibraryOpen(false)} />
         {agentPanelVisible && (
           <div
             className="forge-workspace-divider"

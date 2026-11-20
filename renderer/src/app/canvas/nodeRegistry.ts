@@ -1,5 +1,6 @@
 import { PluginProcessingNode } from './PluginProcessingNode';
 import { ClipStudioNode } from "./ClipStudioNode";
+import { BatchTableNode } from "./BatchTableNode";
 import { defaultNodeRenderers } from "./CanvasNodes";
 import { generationNodeRenderers } from "./GenerationNode";
 import { ThreeDDirectorNode } from "./ThreeDDirectorNode";
@@ -10,5 +11,6 @@ export const workflowNodeRenderers: Record<string, WorkflowNodeRenderer> = {
   ...generationNodeRenderers,
   threeDDirector: ThreeDDirectorNode,
   clipStudio: ClipStudioNode,
+  batchTable: BatchTableNode,
   pluginProcessing: PluginProcessingNode,
 };

@@ -6,6 +6,7 @@ export const NodeType = {
   Resource: 'resource',
   ThreeDDirector: 'threeDDirector',
   ClipStudio: 'clipStudio',
+  BatchTable: 'batchTable',
   CanvasSection: 'canvasSection',
   PluginProcessing: 'pluginProcessing',
 } as const;
@@ -13,7 +14,7 @@ export const NodeType = {
 export type NodeType = typeof NodeType[keyof typeof NodeType];
 export const GENERATION_NODE_TYPES = [NodeType.ImageGeneration, NodeType.VideoGeneration, NodeType.AudioGeneration, NodeType.TextGeneration] as const;
 export type GenerationNodeType = typeof GENERATION_NODE_TYPES[number];
-export const UTILITY_NODE_TYPES = [NodeType.ThreeDDirector, NodeType.ClipStudio, NodeType.CanvasSection, NodeType.PluginProcessing] as const;
+export const UTILITY_NODE_TYPES = [NodeType.ThreeDDirector, NodeType.ClipStudio, NodeType.BatchTable, NodeType.CanvasSection, NodeType.PluginProcessing] as const;
 export const CANVAS_NODE_TYPES = [...GENERATION_NODE_TYPES, ...UTILITY_NODE_TYPES] as const;
 const generationTypes: ReadonlySet<unknown> = new Set(GENERATION_NODE_TYPES);
 

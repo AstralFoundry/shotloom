@@ -12,6 +12,8 @@ import { GenerationNodePreview } from "./GenerationNodePreview";
 import { GenerationNodeComposer } from "./GenerationNodeComposer";
 import { generationNodeState } from "./generationNodeState";
 import { setEditorCaret } from "./promptReferenceEditor";
+import { isStoryboardScriptNode } from "@/domain/graph/StoryboardScript";
+import { StoryboardScriptNode } from "./StoryboardScriptNode";
 
 const generationTypes = new Set([
   "imageGeneration",
@@ -249,6 +251,12 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({
   );
 });
 
-export const generationNodeRenderers = Object.fromEntries(
-  [...generationTypes].map((type) => [type, GenerationNode]),
-);
+/** 文本节点按画布视图分流：分镜脚本用镜头行编辑器，其余继续使用标准生成节点。 */
+const TextGenerationNode: WorkflowNodeRenderer = memo((props) => (
+  isStoryboardScriptNode(props.node) ? <StoryboardScriptNode {...props} /> : <GenerationNode {...props} />
+));
+
+export const generationNodeRenderers = {
+  ...Object.fromEntries([...generationTypes].map((type) => [type, GenerationNode])),
+  textGeneration: TextGenerationNode,
+};

@@ -11,6 +11,7 @@ interface BottomModeBarProps {
   onMaterialPicker: () => void;
   onMergeVideos: () => void;
   onOpenHistory?: () => void;
+  onOpenPoseLibrary?: () => void;
 }
 export function BottomModeBar(
   {
@@ -22,6 +23,7 @@ export function BottomModeBar(
     onMaterialPicker,
     onMergeVideos,
     onOpenHistory,
+    onOpenPoseLibrary,
   }: BottomModeBarProps,
 ) {
   const [help, setHelp] = useState(false);
@@ -65,6 +67,11 @@ export function BottomModeBar(
       </div>
       <div className="bottom-mode-divider" />
       <div className="bottom-mode-group">
+        {onOpenPoseLibrary ? (
+          <button title={t("canvas.pose.title")} aria-label={t("canvas.pose.title")} onClick={onOpenPoseLibrary}>
+            <IconSymbol name="user" />
+          </button>
+        ) : null}
         <button title={t("ui.BottomModeBar.title.18ba6fed")} onClick={onMergeVideos}>
           <IconSymbol name="link" />
         </button>

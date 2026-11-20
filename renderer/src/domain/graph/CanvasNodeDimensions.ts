@@ -20,6 +20,7 @@ export function defaultCanvasNodeDimensions(type: string) {
   if (type === "audioGeneration") return { width: scaled(350), height: scaled(125) };
   if (type === "textGeneration") return { width: scaled(350), height: scaled(500) };
   if (type === "resource") return { width: scaled(350), height: scaled(150) };
+  if (type === "batchTable") return { width: 1280, height: 560 };
   if (type === "clipStudio") return { width: 960, height: clipNodeHeight(null) };
   if (type === "threeDDirector") return { width: scaled(540), height: scaled(330) };
   return { width: scaled(370), height: scaled(270) };
