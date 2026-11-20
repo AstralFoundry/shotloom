@@ -78,7 +78,6 @@ export function startHarnessIntegration(): Promise<void> {
     if (cloudEnabled) {
       registerCloudToolHandler(handleToolRequest);
       await connectCloudHarness();
-      await initializeHarnessClient();
       return;
     }
     if (!bridgeListening) await listen<Parameters<typeof executeProductRequest>[0]>('harness://tool-request', event => handleToolRequest(event.payload));
@@ -95,11 +94,15 @@ export function startHarnessIntegration(): Promise<void> {
   return startup;
 }
 
-export async function openHarnessPanel(role: ProductBinding['agentId'], nodeId?: string, conversationId?: string) {
-  await startHarnessIntegration();
+export async function openHarnessPanel(role: ProductBinding['agentId'], nodeId?: string, conversationId?: string, signal?: AbortSignal) {
   const identity = getAgentProjectIdentity();
+  signal?.throwIfAborted();
+  await startHarnessIntegration();
+  signal?.throwIfAborted();
+  assertAgentProject(identity.projectKey, identity.instanceId, identity.generation);
   if (cloudEnabled) {
     await Promise.all([loadGlobalSkills(), loadGlobalRecipes()]);
+    signal?.throwIfAborted();
     assertAgentProject(identity.projectKey, identity.instanceId, identity.generation);
   }
   const selected = store.project.harnessSessions?.find((item: { id?: string; agentId?: string; textNodeId?: string; editorNodeId?: string; directorNodeId?: string }) => item.id === conversationId && item.agentId === role && (item.textNodeId || item.editorNodeId || item.directorNodeId) === nodeId);

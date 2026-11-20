@@ -10,11 +10,15 @@ function parse(line) {
 function collect(requests,run) {
   const port=run.version==='candidate'?14433:14434;
   const rows=requests.filter(r=>r.port===port&&r.startMs>=run.uiStartedAtUnixMs&&r.startMs<run.uiEndedAtUnixMs);
-  return {requests:rows.length,bodyBytes:rows.reduce((n,r)=>n+r.bytes,0),apiRequests:rows.filter(r=>r.path.startsWith('/api/')).length,errors:rows.filter(r=>r.status>=400).map(({method,path,status})=>({method,path,status}))};
+  const detail=({method,path,status})=>({method,path,status});
+  return {requests:rows.length,bodyBytes:rows.reduce((n,r)=>n+r.bytes,0),apiRequests:rows.filter(r=>r.path.startsWith('/api/')).length,cancelled:rows.filter(r=>r.status===499).map(detail),errors:rows.filter(r=>r.status>=400&&r.status!==499).map(detail)};
 }
 if(process.argv.includes('--self-test')){
   const rows=[parse('127.0.0.1 [20/Nov/2026:12:00:00 +0000] GET /api/projects/page 200 100 0.100 10.200 14433 "okhttp/4.12"'),parse('127.0.0.1 [20/Nov/2026:12:00:00 +0000] GET / 200 900 0.100 10.200 14433 "Chrome Windows"')].filter(Boolean);
-  assert.deepEqual(collect(rows,{version:'candidate',uiStartedAtUnixMs:10000,uiEndedAtUnixMs:11000}),{requests:1,bodyBytes:100,apiRequests:1,errors:[]});
+  assert.deepEqual(collect(rows,{version:'candidate',uiStartedAtUnixMs:10000,uiEndedAtUnixMs:11000}),{requests:1,bodyBytes:100,apiRequests:1,cancelled:[],errors:[]});
+  const cancelled=parse('127.0.0.1 [20/Nov/2026:12:00:00 +0000] GET /api/agent/events 499 0 0.100 10.200 14433 "okhttp/4.12"');
+  const cancelledRun=collect([cancelled],{version:'candidate',uiStartedAtUnixMs:10000,uiEndedAtUnixMs:11000});
+  assert.equal(cancelledRun.cancelled.length,1);assert.equal(cancelledRun.errors.length,0);
   assert.equal(collect(rows,{version:'baseline',uiStartedAtUnixMs:10000,uiEndedAtUnixMs:11000}).requests,0);
   console.log('Native request window and user-agent isolation self-check passed');process.exit(0);
 }

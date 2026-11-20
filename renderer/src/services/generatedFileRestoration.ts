@@ -28,7 +28,7 @@ export async function restoreMissingGeneratedFiles(
     candidates.sort((a: AnyRecord, b: AnyRecord) => Number(visiblePaths.has(b.path || b.filePath)) - Number(visiblePaths.has(a.path || a.filePath)));
   }
   const checks = new Map<string, Promise<boolean>>();
-  const paths = [...new Set<string>([...candidates, ...(project?.materials || [])].map((material: AnyRecord) => material.path || material.filePath).filter(Boolean))];
+  const paths = [...new Set<string>(candidates.map((material: AnyRecord) => material.path || material.filePath).filter(Boolean))];
   if (fileApi.checkPaths && paths.length) {
     const results = await fileApi.checkPaths(paths).catch((error: unknown) => paths.map(path => ({ path, status: 'error', error: String(error) })));
     const byPath = new Map(results.map((item: AnyRecord) => [item.path, item]));

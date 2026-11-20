@@ -2,6 +2,20 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { restoreMissingGeneratedFiles } from '../renderer/src/services/generatedFileRestoration.ts';
 
+test('startup checks only restorable generated files, without waiting for unrelated uploads', async () => {
+  const checked = [];
+  const generated = { id: 'generated', path: '/generated.png', source: 'generation', remoteUrl: 'https://example.test/result' };
+  const uploaded = { id: 'uploaded', path: '/uploaded.png', source: 'upload' };
+  const fileApi = {
+    async checkPaths(paths) { checked.push(paths); return paths.map(path => ({ path, status: 'exists' })); },
+    async downloadUrlToProject() { assert.fail('existing files must not download'); },
+  };
+  assert.deepEqual(await restoreMissingGeneratedFiles({ materials: [uploaded] }, fileApi), { restored: 0, failures: [] });
+  assert.deepEqual(checked, []);
+  await restoreMissingGeneratedFiles({ materials: [uploaded, generated] }, fileApi);
+  assert.deepEqual(checked, [['/generated.png']]);
+});
+
 test('permission and network failures preserve references without triggering downloads; duplicate paths share checks', async () => {
   const materials = ['a', 'b', 'c'].map(id => ({ id, path: id === 'c' ? '/denied' : '/offline', source: 'generation', remoteUrl: `https://example.test/${id}` }));
   const checked = [];

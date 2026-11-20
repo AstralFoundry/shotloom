@@ -76,6 +76,13 @@ public final class NativePerformance extends Instrumentation {
         AccessibilityNodeInfo node=null;
         for(int i=0;i<5;i++){ node=find(ui.getRootInActiveWindow(),label);if(node!=null)break;swipe(); }
         if(node==null)throw new Exception("Target missing: "+label);
+        activate(node);
+    }
+    private void activate(AccessibilityNodeInfo node) {
+        // Accessibility activation survives layout and scrolling between lookup and input.
+        AccessibilityNodeInfo target=node;
+        while(target!=null && !target.isClickable())target=target.getParent();
+        if(target!=null && target.performAction(AccessibilityNodeInfo.ACTION_CLICK))return;
         Rect bounds=new Rect();node.getBoundsInScreen(bounds);
         long down=SystemClock.uptimeMillis();pointer(bounds.centerX(),bounds.centerY(),MotionEvent.ACTION_DOWN,down);pointer(bounds.centerX(),bounds.centerY(),MotionEvent.ACTION_UP,down);
     }
@@ -88,9 +95,8 @@ public final class NativePerformance extends Instrumentation {
         AccessibilityNodeInfo node=null;
         for(int i=0;i<5;i++){node=find(ui.getRootInActiveWindow(),target);if(node!=null)break;swipe();}
         if(node==null)throw new Exception("Target missing: "+target);
-        Rect bounds=new Rect();node.getBoundsInScreen(bounds);
-        long start=SystemClock.elapsedRealtime(),down=SystemClock.uptimeMillis();
-        pointer(bounds.centerX(),bounds.centerY(),MotionEvent.ACTION_DOWN,down);pointer(bounds.centerX(),bounds.centerY(),MotionEvent.ACTION_UP,down);waitReady(ready);
+        long start=SystemClock.elapsedRealtime();
+        activate(node);waitReady(ready);
         JSONObject row=new JSONObject().put("page",name).put("round",round).put("ms",SystemClock.elapsedRealtime()-start).put("atMs",SystemClock.elapsedRealtime()).put("atUnixMs",System.currentTimeMillis());
         if(name.equals("account"))row.put("upstreamError",find(ui.getRootInActiveWindow(),"Could not load your balance. Please try again.")!=null);
         pages.put(row);

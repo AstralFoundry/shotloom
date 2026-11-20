@@ -80,7 +80,7 @@ export function AssetsView({
         setRemote(value);
         if (page > 1 && (page - 1) * 20 >= value.total) setPage(Math.max(1, Math.ceil(value.total / 20)));
       }).catch(cause => { if (active) setError(String(cause.message || cause)); }).finally(() => { if (active) setBusy(false); });
-    }, 200);
+    }, keyword.trim() ? 200 : 0);
     return () => { active = false; window.clearTimeout(timer); };
   }, [remoteScope, category, keyword, page, refresh]);
   const setKeyword = (value: string) =>

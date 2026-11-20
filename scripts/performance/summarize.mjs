@@ -3,7 +3,7 @@ import {readFile,readdir,writeFile} from 'node:fs/promises';
 import {join} from 'node:path';
 const median=values=>{const a=[...values].sort((x,y)=>x-y);return (a[Math.floor((a.length-1)/2)]+a[Math.floor(a.length/2)])/2;};
 assert.equal(median([4,1,3,2]),2.5);assert.equal(median([3,1,2]),2);
-const stats=values=>({median:median(values),max:Math.max(...values)});
+const stats=values=>values.length?({median:median(values),max:Math.max(...values)}):null;
 const readinessStats=rows=>{
  const completed=rows.filter(row=>!row.readinessFailure);
  return {ready:completed.length,timeouts:rows.length-completed.length,ms:completed.length?stats(completed.map(row=>row.durationMs)):null,timeoutWaitMs:rows.some(row=>row.readinessFailure)?stats(rows.filter(row=>row.readinessFailure).map(row=>row.durationMs)):null};
@@ -23,6 +23,7 @@ function groups(rows,key,measure){
  return [...buckets].map(([key,rows])=>({key,n:rows.length,...measure(rows)})).sort((a,b)=>a.key.localeCompare(b.key));
 }
 if(process.argv.includes('--self-test')){
+ assert.equal(stats([]),null);
  assert.deepEqual(readinessStats([{durationMs:90000,readinessFailure:'timeout'}]),{ready:0,timeouts:1,ms:null,timeoutWaitMs:{median:90000,max:90000}});
  assert.equal(readinessStats([{durationMs:10},{durationMs:90000,readinessFailure:'timeout'}]).ms.median,10);
  assert.deepEqual(parseTiming('auth;dur=12.5, cache;desc="hit=2 miss=1", total;dur=20'),{timings:{auth:12.5,total:20},hits:2,misses:1});
@@ -50,6 +51,7 @@ const runs=await Promise.all(files.map(async p=>JSON.parse(await readFile(join(r
 assert.equal(runs.length,40,'Ten pairs with cold/warm baseline/candidate runs are required');
 assert.ok(runs.every(r=>r.failure===null));
 const pages=runs.flatMap(r=>r.pages.map(p=>({...p,pair:r.pair,version:r.version,state:r.state})));
+assert.ok(pages.filter(row=>row.page==='account').every(row=>row.upstreamError===false),'A failed balance read is not a successful account page');
 const native=groups(pages,r=>[r.page,r.state,r.version].join('/'),rows=>({ms:stats(rows.map(r=>r.ms)),pairs:new Set(rows.map(r=>r.pair)).size}));
 assert.ok(native.every(r=>r.pairs===10));
 const apis=runs.flatMap(r=>r.apis.map(p=>({...p,pair:r.pair,version:r.version,state:r.state})));
