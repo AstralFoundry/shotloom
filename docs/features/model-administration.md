@@ -101,3 +101,14 @@ runninghub::krea2-normal-v1 = tier("RH coins", (u("coins") ?? 15) * 0.002)
 注意：Krea2 成功回执中的 `consumeCoins` 为空，`chargedPoint` 为 6.12，因此本次实际保留的是 $0.03 预扣价。两个任务的最终 quota 均未从预扣值调整；不能将此结果宣称为“按真实 RH 币结算验证通过”。POINT 到 RH 币的换算及计量适配尚未验证。生成成功与文件下载已经验证，本次 Shotloom 代码仍仅在开发分支，尚未部署或修改线上发布配置。
 
 开发验证：前端 RunningHub 网关适配器测试、已有目录与 RunningHub 测试共 38 项通过；服务端全量测试 46 项通过、4 项在线集成测试跳过（使用本地测试环境变量）。前后端 TypeScript 检查、模块分层、测试架构和 i18n 类型检查通过。
+
+### 2026-11-21 生产部署
+
+已将 `codex/runninghub-models-20261120` 的 `c34b062deec73c50372961b25432da9a28f6feba` 部署至 `https://shotloom.0xfiang.com`，镜像 `shotloom:runninghub-c34b062`。线上原版本与开发基线均为 `f5b3b52`；复用该镜像的 Harness、OpenReel、导演台及历史静态资源，更新共享执行模板与 Vite 前端产物，无数据库迁移。
+
+- 候选容器检查后仅重建生产 `app` 服务，容器健康。公网健康、应用、后台 HTML、下载页、静态资源及匿名接口鉴权共 9 项检查通过；后台 HTML 请求需带 `Accept: text/html`。
+- 网关模型发现接口不检查插件专属计费表达式，因此补充通用 `ModelPrice`：`minimax-h3-reference-to-video` 为 0.40 USD，`krea2-normal-v1` 为 0.03 USD；其余价格条目和部署时已有的插件计费表达式均保留。随后 `/v1/models` 返回两个模型。
+- 通过已有 `manage_models` RPC 同步目标模型并配置发布，沿用已授权管理员（New API 用户 ID 1）的审计身份。同步保留已有模型可用状态；核对其他 39 个模型除同步递增 revision 外字段一致。两个新模型均为 available/published，使用本页所列执行模板。
+- 生产模块校验两个 POST 接口均通过发布约束；公网模板 JS 与容器文件 SHA-256 一致并包含两个模板 ID。未重复发起付费生成，未进行登录后的浏览器交互验收，部署时网关插件表达式的实际扣费未复测。
+
+发布材料与模型配置备份：`/opt/shotloom-releases/runninghub-20261121-c34b062/`。旧镜像 `shotloom:before-runninghub-c34b062`；恢复该目录 `compose.before.yaml` 对应镜像即可回滚应用。若同时撤回模型发布，需另行通过后台下架这两个模型；应用镜像回滚不回滚发布表。
