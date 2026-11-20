@@ -98,3 +98,36 @@ test('canvas startup keeps other projects, ordinary pages and account bindings i
     assert.equal(calls.filter(([url]) => url.endsWith('/startup')).length, 1);
   } finally { globalThis.fetch = original; await env.dispose(); }
 });
+
+test('canvas data preloads before the full cloud adapter loads and is consumed without another request', async () => {
+  const env = await createRendererEnv({ storageMode: 'cloud', withWindow: true });
+  const original = globalThis.fetch, calls = [];
+  let release;
+  const gate = new Promise(resolve => { release = resolve; });
+  globalThis.fetch = async (url, options) => {
+    calls.push(url);
+    assert.equal(options.headers['x-shotloom-user'], 'original-user');
+    await gate;
+    return json(data);
+  };
+  try {
+    window.location = { search: `?route=creation&project=${id}` };
+    const { bindCloudUser } = await env.load('services/cloudRequest');
+    bindCloudUser('original-user');
+    const { preloadCloudCanvasStartup } = await env.load('services/cloudCanvasStartup');
+    preloadCloudCanvasStartup();
+    preloadCloudCanvasStartup();
+    assert.deepEqual(calls, [`/api/project/${id}/startup`]);
+    const { createCloudApi, loadCloudPreferences } = await env.load('services/cloudApi');
+    const api = createCloudApi({ project: {}, file: {}, settings: {} });
+    const pending = Promise.all([loadCloudPreferences(), api.project.readFile(id), api.localAssets.getCatalog()]);
+    release();
+    const [settings, project, assets] = await pending;
+    assert.equal(settings.agentCanRunNodes, false);
+    assert.deepEqual(project, data.project);
+    assert.deepEqual(assets, data.assets);
+    assert.equal(calls.length, 1);
+    preloadCloudCanvasStartup();
+    assert.equal(calls.length, 1, 'focus checks cannot restart a consumed startup preload');
+  } finally { release(); globalThis.fetch = original; await env.dispose(); }
+});

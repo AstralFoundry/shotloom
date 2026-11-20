@@ -13,40 +13,12 @@ import { probeEditorMedia, inferEditorMediaType } from '../utils/editorMediaImpo
 import { captureVideoFrame, cropImage, type CropRect } from './browserMedia';
 import { projectBundle, mapProjectMedia, exportProjectPackage, readProjectPackage, type ProjectBundle } from './cloudProjectPackage';
 import { createCloudDirectorModels } from './cloudDirectorModels';
+import { cloudProjectId, readCanvasStartup } from './cloudCanvasStartup';
+export { cloudProjectId } from './cloudCanvasStartup';
 
 type RecordValue = Record<string, unknown>;
 type PlatformApi = ReturnType<typeof createTauriApi>;
 const root = 'cloud/projects';
-
-type CanvasStartup = { project: RecordValue; settings: RecordValue; assets: RecordValue };
-let canvasStartup: { key: string; consumed: Set<keyof CanvasStartup>; read?: Promise<CanvasStartup | null> } | undefined;
-
-async function readCanvasStartup<T>(part: keyof CanvasStartup, path: string): Promise<T> {
-  const query = new URLSearchParams(typeof window === 'undefined' ? '' : window.location?.search);
-  const requested = query.get('project');
-  let id: string | undefined;
-  try { if (requested) id = cloudProjectId(requested); } catch { /* Invalid links use normal reads. */ }
-  if (!id || (query.get('native') !== 'embedded' && query.get('route') !== 'creation')
-    || (part === 'project' && path !== `/project/${id}`)) return cloudRequest<T>(path);
-  const key = JSON.stringify([id, cloudUserHeaders()]);
-  if (!canvasStartup || canvasStartup.key !== key) {
-    canvasStartup = {
-      key, consumed: new Set(),
-      read: cloudRequest<CanvasStartup>(`/project/${id}/startup`).catch(error => {
-        // Older servers keep serving the existing endpoints during a rolling deployment.
-        if (error.status === 404 || error.status === 405) return null;
-        throw error;
-      }),
-    };
-  }
-  if (canvasStartup.consumed.has(part)) return cloudRequest<T>(path);
-  // Consume before awaiting: only the first startup read may reuse this response.
-  canvasStartup.consumed.add(part);
-  const read = canvasStartup.read!;
-  if (canvasStartup.consumed.size === 3) delete canvasStartup.read;
-  const data = await read;
-  return data ? data[part] as T : cloudRequest<T>(path);
-}
 
 export async function loadCloudPreferences() {
   return { ...await readCanvasStartup<RecordValue>('settings', '/settings'), projectRootDir: root, apiKeyValid: false };
@@ -71,12 +43,6 @@ export async function loadCloudAccountSettings() {
       allowedModelIds: getCatalogModels(adapter.id).filter(model => available.has(model.upstreamModel || model.id)).map(model => model.id),
     }])),
   };
-}
-
-export function cloudProjectId(path: string): string {
-  const id = path.replace(/\\/g, '/').replace(/\/project\.sqlite$/, '').split('/').at(-1) || '';
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) throw new Error('Invalid cloud project reference');
-  return id;
 }
 
 function projectLocation(id: string, folderId?: string | null) {

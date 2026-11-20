@@ -51,5 +51,6 @@ const ReactWorkbench = lazy(loadWorkbench);
 const isAdmin = location.pathname === '/admin' || location.pathname.startsWith('/admin/');
 const NativeSessionBridge = lazy(() => import('./app/NativeSessionBridge').then(module => ({ default: module.NativeSessionBridge })));
 const isNativeBridge = location.pathname === '/native';
-if (new URLSearchParams(location.search).get('native') === 'embedded' && !isAdmin && !isNativeBridge) void loadWorkbench().catch(() => {});
+const startupQuery = new URLSearchParams(location.search);
+if (!isAdmin && !isNativeBridge && (startupQuery.get('native') === 'embedded' || (startupQuery.get('route') === 'creation' && startupQuery.has('project')))) void loadWorkbench().catch(() => {});
 createRoot(container).render(<StrictMode><CloudSession><Suspense fallback={null}>{isNativeBridge ? <NativeSessionBridge /> : isAdmin ? <ModelAdmin /> : <ReactWorkbench />}</Suspense></CloudSession></StrictMode>);
