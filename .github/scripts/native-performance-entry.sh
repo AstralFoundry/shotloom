@@ -24,7 +24,7 @@ done
 adb shell am force-stop com.google.android.apps.nexuslauncher
 sleep 3
 adb shell getprop ro.build.fingerprint > perf/device.txt
-adb install perf/measure.apk
+adb install --no-incremental perf/measure.apk
 native_session=$(printf '%s' "$TEST_NATIVE_SESSION" | base64 -w0)
 token=$(printf '%s' "$TEST_NATIVE_SESSION" | python3 -c 'import json,sys;print(json.load(sys.stdin)["token"])')
 project=$(printf '%s' "$TEST_FIXTURE" | python3 -c 'import json,sys;print(json.load(sys.stdin)["projectId"])')
@@ -36,11 +36,13 @@ for ((pair=1;pair<=${PAIRS:-10};pair++)); do
   for version in $order; do
     directory=acceptance; origin="$CANDIDATE_ORIGIN"
     if [ "$version" = baseline ]; then directory=baseline; origin="$BASELINE_ORIGIN"; fi
+    adb shell am force-stop com.shotloom.app.preview
+    sleep 2
     adb uninstall com.shotloom.acceptance >/dev/null 2>&1 || true
     adb uninstall com.shotloom.app.preview >/dev/null 2>&1 || true
-    adb install "$directory/Shotloom-Preview.apk"
+    adb install --no-incremental "$directory/Shotloom-Preview.apk"
     # Both apps have the same signing identity; the new test APK supports isolated origins.
-    adb install acceptance/Shotloom-Session-Test.apk
+    adb install --no-incremental acceptance/Shotloom-Session-Test.apk
     adb shell am instrument -w -e origin "$origin" -e cookie "$TEST_SESSION_COOKIE" -e sessionBase64 "$native_session" com.shotloom.acceptance/com.shotloom.acceptance.SessionInstrumentation > /tmp/session-seeded.txt
     grep -q 'Test session installed' /tmp/session-seeded.txt
     for state in cold warm; do

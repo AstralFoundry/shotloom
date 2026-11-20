@@ -113,7 +113,7 @@ public final class NativePerformance extends Instrumentation {
                 report.put("pages",pages).put("apis",apis).put("failure",JSONObject.NULL);
                 result.putString("stream","PERFORMANCE_JSON "+report.toString()+"\n");finish(-1,result);return;
             }
-            ui.executeShellCommand("am force-stop com.shotloom.app.preview").close();SystemClock.sleep(300);
+            ui.executeShellCommand("am force-stop com.shotloom.app.preview").close();SystemClock.sleep(2000);
             long start=SystemClock.elapsedRealtime();
             Intent launch=getContext().getPackageManager().getLaunchIntentForPackage("com.shotloom.app.preview");
             if(launch==null)throw new Exception("Release APK is missing");
