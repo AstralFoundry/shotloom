@@ -87,3 +87,29 @@ print('Large-font native settings and Chinese/English preference save passed')
 PY
 adb exec-out screencap -p > perf/layout-large.png
 adb shell settings put system font_scale 1.0
+
+# Inspect real media using only the separately signed instrumentation's CDP switch.
+adb shell am force-stop com.shotloom.app.preview
+adb shell am instrument -w -e debug 1 -e origin "$CANDIDATE_ORIGIN" -e cookie "$TEST_SESSION_COOKIE" -e sessionBase64 "$native_session" com.shotloom.acceptance/com.shotloom.acceptance.SessionInstrumentation > /tmp/media-debug-session.txt &
+debug_seed=$!
+sleep 3
+adb shell am instrument -w -e mode media -e retain true -e origin "$CANDIDATE_ORIGIN" com.shotloom.performance/com.shotloom.performance.NativePerformance > /tmp/media-output.txt
+grep -q 'PERFORMANCE_JSON' /tmp/media-output.txt
+pid=$(adb shell pidof com.shotloom.app.preview | tr -d '\r')
+adb forward tcp:9222 "localabstract:webview_devtools_remote_$pid"
+node .github/scripts/native-media-evidence.mjs > perf/media-evidence.log 2>&1 &
+media_check=$!
+for attempt in {1..120}; do
+  if [ -f perf/media-ready.json ]; then break; fi
+  if ! kill -0 "$media_check" 2>/dev/null; then cat perf/media-evidence.log; exit 1; fi
+  sleep 1
+done
+test -f perf/media-ready.json
+adb exec-out screencap -p > perf/media-first-frame.png
+adb shell am instrument -w -e mode return-media -e retain true -e origin "$CANDIDATE_ORIGIN" com.shotloom.performance/com.shotloom.performance.NativePerformance > /tmp/media-return-output.txt
+grep -q 'PERFORMANCE_JSON' /tmp/media-return-output.txt
+touch perf/media-return.marker
+wait "$media_check"
+cat perf/media-evidence.log
+adb shell am force-stop com.shotloom.app.preview
+wait "$debug_seed" || true

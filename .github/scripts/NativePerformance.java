@@ -119,13 +119,26 @@ public final class NativePerformance extends Instrumentation {
                 report.put("pages",pages).put("apis",apis).put("failure",JSONObject.NULL);
                 result.putString("stream","PERFORMANCE_JSON "+report.toString()+"\n");finish(-1,result);return;
             }
-            ui.executeShellCommand("am force-stop com.shotloom.app.preview").close();SystemClock.sleep(2000);
+            if("return-media".equals(args.getString("mode"))) {
+                page("projects_return","Project library","Android Canvas Acceptance",0);
+                page("media_return","QA Media","100%",0);
+                report.put("pages",pages).put("apis",apis).put("failure",JSONObject.NULL);
+                result.putString("stream","PERFORMANCE_JSON "+report.toString()+"\n");finish(-1,result);return;
+            }
+            if(!"true".equals(args.getString("retain"))) {
+                ui.executeShellCommand("am force-stop com.shotloom.app.preview").close();SystemClock.sleep(2000);
+            }
             long start=SystemClock.elapsedRealtime();
             Intent launch=getContext().getPackageManager().getLaunchIntentForPackage("com.shotloom.app.preview");
             if(launch==null)throw new Exception("Release APK is missing");
-            launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TASK);getContext().startActivity(launch);
+            if(!"true".equals(args.getString("retain"))) { launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TASK);getContext().startActivity(launch); }
             waitReady("Android Canvas Acceptance");
-            pages.put(new JSONObject().put("page","startup_authenticated").put("round",0).put("ms",SystemClock.elapsedRealtime()-start));
+            pages.put(new JSONObject().put("page","startup_authenticated").put("round",0).put("ms",SystemClock.elapsedRealtime()-start).put("atUnixMs",System.currentTimeMillis()));
+            if("media".equals(args.getString("mode"))) {
+                page("media_canvas","QA Media","100%",0);
+                report.put("pages",pages).put("apis",apis).put("failure",JSONObject.NULL);
+                result.putString("stream","PERFORMANCE_JSON "+report.toString()+"\n");finish(-1,result);return;
+            }
             if("layout".equals(args.getString("mode"))) {
                 page("account_large","My account","Available credits",0);
                 page("settings_large","Settings","Preferences",0);
