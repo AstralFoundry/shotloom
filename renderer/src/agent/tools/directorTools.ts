@@ -3,7 +3,7 @@ import { listEditorMediaCandidates } from '@/services/editorMediaCatalog';
 import { directorEditingHandoff, type EditingHandoff } from '@/services/directorEditingHandoff';
 import { t } from '@/i18n/index';
 import { registerAgentTool } from '../core/toolRegistry';
-import type { AgentToolContext, AgentToolEffect, JsonObject } from '../core/types';
+import type { AgentToolContext, AgentToolEffect, JsonObject, JsonSchema } from '../core/types';
 import {
   DirectorDeskError,
   directorCommandKind,
@@ -44,6 +44,64 @@ function directorFailure(error: unknown) {
 
 /** 命令表版本号：宿主带上一次的版本，未变化时快照不再重复返回 8.6KB 的静态契约。 */
 let knownCommandsVersion = '';
+
+const vectorSchema: JsonSchema = { type: 'array', items: { type: 'number' }, minItems: 3, maxItems: 3 };
+const easingSchema: JsonSchema = { oneOf: [
+  { type: 'string', enum: ['linear', 'smooth', 'ease-in', 'ease-out', 'hold', 'whip'] },
+  { type: 'object', required: ['bezier'], additionalProperties: false, properties: {
+    bezier: { type: 'array', minItems: 4, maxItems: 4, items: { type: 'number', minimum: 0, maximum: 1 } },
+  } },
+] };
+const numberKeysSchema = (minimum: number, maximum: number): JsonSchema => ({
+  type: 'array', minItems: 1, items: { type: 'object', required: ['time', 'value'], additionalProperties: false, properties: {
+    time: { type: 'number', minimum: 0 }, value: { type: 'number', minimum, maximum }, easing: easingSchema,
+  } },
+});
+const animatedNumberSchema = (minimum: number, maximum: number): JsonSchema => ({
+  description: 'JSON 数值（不加引号）或 {keys:[{time:0,value:1}]}；time 为秒且严格递增。',
+  oneOf: [
+    { type: 'number', minimum, maximum },
+    { type: 'object', required: ['keys'], additionalProperties: false, properties: { keys: numberKeysSchema(minimum, maximum) } },
+  ],
+});
+// 类型在模型声明与本地入口同时生效；具体操作的字段白名单与跨字段约束仍由导演台校验。
+const directorPatchSchema: JsonSchema = { type: 'object', additionalProperties: false, properties: {
+  name: { type: 'string' }, color: { type: 'string' }, visible: { type: 'boolean' },
+  position: vectorSchema, rotationDegrees: vectorSchema,
+  scale: { oneOf: [{ type: 'number', minimum: 0 }, { ...vectorSchema, items: { type: 'number', minimum: 0 } }] },
+  parameters: { type: 'object', additionalProperties: { type: 'number' } },
+  height: { type: 'number' }, build: { type: 'string' }, gender: { type: 'string' },
+  aim: { type: 'string', enum: ['target', 'manual'] }, focal: { type: 'number', minimum: 8, maximum: 300 },
+  focalKeys: numberKeysSchema(8, 300), target: vectorSchema, targetId: { type: 'string' },
+  targetHeight: { type: 'number' }, mode: { type: 'string', enum: ['free', 'follow', 'pov'] }, offset: vectorSchema,
+  inheritRotation: { type: 'boolean' }, hideWalls: { type: 'array', items: { type: 'string' } },
+  hiddenEntityIds: { type: 'array', items: { type: 'string' } },
+  targetPath: { oneOf: [{ type: 'null' }, { type: 'object', required: ['smooth', 'points'], additionalProperties: false, properties: {
+    smooth: { type: 'boolean' }, interpolation: { type: 'string', enum: ['continuous'] },
+    points: { type: 'array', minItems: 1, items: { type: 'object', required: ['time', 'position'], additionalProperties: false, properties: {
+      time: { type: 'number', minimum: 0 }, position: vectorSchema, easing: easingSchema, stop: { type: 'boolean' },
+    } } },
+  } }] },
+  intensity: animatedNumberSchema(0, 100000), temperature: animatedNumberSchema(1000, 15000),
+  range: { type: 'number', minimum: 0.1, maximum: 10000 }, angle: { type: 'number', minimum: 1, maximum: 89 },
+  penumbra: { type: 'number', minimum: 0, maximum: 1 }, width: { type: 'number' },
+  shadows: { type: 'boolean' }, throughWalls: { type: 'boolean' },
+  colorKeys: { type: 'array', items: { type: 'object', required: ['time', 'color'], additionalProperties: false, properties: {
+    time: { type: 'number', minimum: 0 }, color: { type: 'string' }, easing: easingSchema,
+  } } },
+  flicker: { oneOf: [{ type: 'null' }, { type: 'object', required: ['strength', 'frequency', 'seed'], additionalProperties: false, properties: {
+    strength: { type: 'number', minimum: 0, maximum: 1 }, frequency: { type: 'number', minimum: 0, maximum: 100 }, seed: { type: 'integer' }, start: { type: 'number', minimum: 0 },
+  } }] },
+  defaultLights: { type: 'boolean' }, ambient: animatedNumberSchema(0, 20), exposure: animatedNumberSchema(0.05, 10),
+  background: { type: 'string' }, groundColor: { type: 'string' }, quality: { type: 'string', enum: ['off', 'low', 'medium', 'high'] },
+  sunColor: { type: 'string' }, sunIntensity: animatedNumberSchema(0, 100), sunDirection: vectorSchema,
+  fog: { oneOf: [{ type: 'null' }, { type: 'object', required: ['color', 'density'], additionalProperties: false, properties: {
+    color: { type: 'string' }, density: animatedNumberSchema(0, 0.5),
+  } }] },
+  enabled: { type: 'boolean' }, depth: { type: 'number' }, aspect: { type: 'string' }, fps: { type: 'number' },
+  start: { type: 'number', minimum: 0 }, end: { type: 'number', minimum: 0 }, speed: { type: 'number', minimum: 0.1, maximum: 5 },
+  blendIn: { type: 'number', minimum: 0, maximum: 2 }, loop: { type: 'boolean' },
+} };
 
 /**
  * 导演台命令的副作用分级。`kind` 由 iframe 的命令表提供（见 host-bridge.ts 的 commandSpecs），
@@ -330,11 +388,7 @@ edits 按顺序执行，支持：
                   },
                 ],
               },
-              patch: { type: 'object', additionalProperties: true, properties: {
-                scale: { description: '正数 s 表示等比 [s,s,s]，每个分量必须大于 0。', oneOf: [{ type: 'number', minimum: 0 }, { type: 'array', items: { type: 'number', minimum: 0 }, minItems: 3, maxItems: 3 }] },
-                position: { type: 'array', items: { type: 'number' }, minItems: 3, maxItems: 3 },
-                rotationDegrees: { type: 'array', items: { type: 'number' }, minItems: 3, maxItems: 3 },
-              } },
+              patch: directorPatchSchema,
             },
           },
         },

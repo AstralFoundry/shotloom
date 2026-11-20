@@ -31,11 +31,17 @@ test('real browser runs official UI, tool continuation and durable Worker histor
   await page.waitForFunction(() => window.probe && (probe.ready || probe.errors.length), undefined, { timeout: 30000 });
   assert.deepEqual(await evaluate('probe.errors'), []);
   const sessionId = await evaluate('probe.sessionId');
+  const toolInput = { edits: [{ operation: 'set_lighting', patch: {
+    ambient: 0.85, exposure: 1, sunIntensity: { keys: [{ time: 0, value: 1.4 }, { time: 2, value: 2 }] },
+    sunDirection: [-4, 8, -6], defaultLights: false,
+  } }], validateOnly: true };
+  await page.evaluate(input => { probe.toolInput = input; }, toolInput);
   await evaluate('probe.prompt()');
   await page.waitForFunction(() => probe.models >= 2 || probe.errors.length > 0, undefined, { timeout: 30000 });
   await page.waitForFunction(() => document.getElementById("chat").shadowRoot?.textContent.includes("Worker tool roundtrip passed") || probe.errors.length > 0, undefined, { timeout: 30000 });
   assert.deepEqual(await evaluate('probe.errors'), []);
   assert.equal(await evaluate('probe.tools'), 1);
+  assert.deepEqual(await evaluate('probe.lastToolInput'), toolInput, 'Worker preserves JSON numbers, keys, vectors and booleans');
   await evaluate('window.persistenceCheck = setInterval(() => { probe.files().then(rows => { probe.persisted = rows.some(row => row.content.includes("Worker tool roundtrip passed")); }); }, 100)');
   await page.waitForFunction(() => probe.persisted === true || probe.errors.length > 0, undefined, { timeout: 30000 });
   assert.equal(await evaluate('(await probe.files()).some(row => row.content.includes("Worker tool roundtrip passed"))'), true, JSON.stringify(await evaluate('({errors:probe.errors,paths:(await probe.files()).map(row=>row.path)})')));

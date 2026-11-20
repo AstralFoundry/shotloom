@@ -26,7 +26,7 @@ probe.start = async () => {
     } else if (message.type === 'event') callbacks.get(message.value.requestId)?.(message.value);
     else if (message.type === 'fatal') probe.errors.push(message.error);
     else if (message.type === 'host-request' && message.method === 'tool') {
-      if (message.payload.phase !== 'authorize') probe.tools++;
+      if (message.payload.phase !== 'authorize') { probe.tools++; probe.lastToolInput = message.payload.input; }
       worker.postMessage({ type: 'host-result', id: message.id, value: message.payload.phase === 'authorize'
         ? { success: true, approvalRequired: false } : { requestId: message.payload.requestId, sessionId: probe.sessionId, toolName: message.payload.toolName,
           result: { success: true, sessionId: 'director-runtime-probe', revision: 1, proof: 'real-tool-bridge' } } });
@@ -49,14 +49,14 @@ probe.start = async () => {
         { type: 'finish', reason: { kind: 'stop' } },
       ] : [
         { type: 'block-start', index: 0, blockType: 'tool-call' },
-        { type: 'tool-call-delta', index: 0, id: 'probe-call', name: 'probe_inspect', argumentsDelta: '{}' },
-        { type: 'block-end', index: 0, block: { type: 'tool-call', id: 'probe-call', name: 'probe_inspect', arguments: '{}' } },
+        { type: 'tool-call-delta', index: 0, id: 'probe-call', name: 'probe_inspect', argumentsDelta: JSON.stringify(probe.toolInput ?? {}) },
+        { type: 'block-end', index: 0, block: { type: 'tool-call', id: 'probe-call', name: 'probe_inspect', arguments: JSON.stringify(probe.toolInput ?? {}) } },
         { type: 'finish', reason: { kind: 'tool-calls' } },
       ]);
     }
   };
   await call('boot', scope);
-  const bound = await call('bind', { binding, tools: [{ name: 'probe_inspect', description: 'Inspect test project', parameters: { type: 'object', properties: {} }, roles: ['canvas-primary'], effect: 'read' }], skills: [],
+  const bound = await call('bind', { binding, tools: [{ name: 'probe_inspect', description: 'Inspect test project', parameters: { type: 'object', properties: {}, additionalProperties: true }, roles: ['canvas-primary'], effect: 'read' }], skills: [],
     providers: { probe: { key: 'ephemeral-test-key', profile: { api: 'openai-completions', displayName: 'Probe', models: [{ id: 'probe', name: 'Probe', input: ['text', 'image'], contextWindow: 100000, maxTokens: 1024 }] } } },
     defaultModel: { provider: 'probe', model: 'probe' },
   });

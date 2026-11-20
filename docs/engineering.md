@@ -28,6 +28,8 @@ React Native 预览客户端采用独立 npm 安装，复用 shared 中的纯接
 
 导演台 `revision` 是 iframe 会话内计数；批量写入必须同时携带快照的 `sessionId`（`expectedSessionId`）和 `revision`（`expectedRevision`）。重复 ready/load 初始化必须幂等，不能重新载入旧文档。冲突回执附带最近 32 个版本范围内的 `revisionDiff`；缓存缺失时明确标记不完整。`autoPreview` 在写入成功后取帧，预览失败保留 `applied: true`，避免调用方重复应用批次。导出媒体的 `directorContext` 只保存导出时的工程事实，并随素材和画布节点传递；由模型根据这些事实与真实画面编写下游提示词，应用不猜测景别、剧情或内容质量。
 
+导演台批量 `patch` 在产品工具 schema 中声明实际字段类型，覆盖数值/动画、向量、灯具、机位与素材参数；执行器继续负责按操作的字段白名单、真实范围与跨字段完整性。通用工具入口执行数值有限性、minimum/maximum 及动态字段的子 schema。执行器拒绝时返回 `receivedEdit`，保留失败项的实际 JSON 类型，避免将字符串数字或嵌套向量误诊为 AnimatedNumber 不接受数值。真实 Chrome Worker 回环测试验证数值、关键帧、向量与布尔值不会在传输中被改型。
+
 导演台资产侧栏通过现有云端 `/api/polyfork/` 搜索和下载模型，保留宿主传入的接口地址与登录校验。下载成功后写入同源 IndexedDB，「本地 → 已下载」可离线复用；目录与模型文件分别存储，缩略图仅在进入视口时加载。场景与下载 ZIP 保留逐模型署名和许可，工程保存独立资源副本，重开时先准备模型再载入场景。
 
 ## 官方 Harness 客户端隔离

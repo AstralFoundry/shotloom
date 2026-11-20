@@ -43,6 +43,13 @@ function matches(schema: JsonSchema, value: JsonValue | undefined, path: string,
     issues.push(`${path} must be ${schema.type}`);
     return;
   }
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) issues.push(`${path} must be finite`);
+    else {
+      if (schema.minimum !== undefined && value < schema.minimum) issues.push(`${path} must be >= ${schema.minimum}`);
+      if (schema.maximum !== undefined && value > schema.maximum) issues.push(`${path} must be <= ${schema.maximum}`);
+    }
+  }
   if (schema.type === 'object' && value && !Array.isArray(value)) {
     const record = value as Record<string, JsonValue | undefined>;
     for (const key of schema.required || []) if (record[key] === undefined) issues.push(`${path}.${key} is required`);
@@ -51,6 +58,8 @@ function matches(schema: JsonSchema, value: JsonValue | undefined, path: string,
     }
     if (schema.additionalProperties === false) {
       for (const key of Object.keys(record)) if (!schema.properties?.[key]) issues.push(`${path}.${key} is not allowed`);
+    } else if (schema.additionalProperties && typeof schema.additionalProperties === 'object') {
+      for (const key of Object.keys(record)) if (!schema.properties?.[key]) matches(schema.additionalProperties, record[key], `${path}.${key}`, issues);
     }
   }
   if (schema.type === 'array' && Array.isArray(value)) {

@@ -675,8 +675,9 @@ export function applyBatchEdits(project: Project, edits: BatchEdit[]): BatchRece
                 set_lighting: patchFieldCatalog.set_lighting_field, set_room: patchFieldCatalog.update_room,
                 set_project: patchFieldCatalog.update_project_settings } as Record<string, unknown>)[edit?.operation];
             throw new DirectorCommandError(`第 ${index + 1} 项 ${String(edit?.operation ?? '')} 失败：${error instanceof Error ? error.message : String(error)}`, {
-                hint: '本批次未写入。按返回的字段、范围与 catalog 修正参数；可用 validateOnly:true 预检。保持最新 snapshot 的会话与版本基线，不要原样重试失败参数。',
+                hint: '本批次未写入。receivedEdit 是实际收到的失败项，先核对 JSON 类型（数值不能加引号，向量不能多套数组），再按字段、范围与 catalog 修正；可用 validateOnly:true 预检。保持最新 snapshot 的会话与版本基线，不要原样重试失败参数。',
                 facts: { editIndex: index + 1, operation: edit?.operation,
+                    receivedEdit: raw,
                     allowedFields: batchOperationCatalog[edit?.operation]?.fields,
                     ...(patchFields ? { patchFields } : {}),
                     ...(assetId ? { assetId, parameters: findAsset(assetId)?.parameters ?? {} } : {}),

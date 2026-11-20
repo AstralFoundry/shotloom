@@ -117,6 +117,17 @@ test('目录中的光影数值边界及动画示例与真实验证器一致', ()
   domain.assertLighting(lighting);
 });
 
+test('数值和向量拒绝时回传实际收到的失败项，避免把字符串错误误判成格式不支持', () => {
+  for (const patch of [{ ambient: '0.85' }, { exposure: '1' }, { ambient: { keys: [{ time: 0, value: '1' }] } }, { sunDirection: [[-4, 8, -6]] }]) {
+    const edit = { operation: 'set_lighting', patch };
+    assert.throws(() => domain.applyBatchEdits(starter(), [edit]), error => {
+      assert.deepEqual(error.facts.receivedEdit, edit);
+      assert.equal(error.facts.editIndex, 1);
+      return true;
+    });
+  }
+});
+
 test('导演台批量设置可移除默认待机、添加动作并调整角色，结果仍是合法工程', () => {
   const project = starter();
   const actor = actorOf(project);

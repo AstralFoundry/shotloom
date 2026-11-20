@@ -10,7 +10,18 @@ import {
   listAgentTools,
   prepareAgentToolCall,
   registerAgentTool,
+  validateToolInput,
 } from '../renderer/src/agent/core/toolRegistry.ts';
+
+test('工具数值边界与动态数值字段在入口校验，不转换字符串或放行非有限数', () => {
+  const schema = { type: 'object', properties: {
+    gain: { type: 'number', minimum: 0.05, maximum: 10 },
+    parameters: { type: 'object', additionalProperties: { type: 'number', minimum: 0 } },
+  } };
+  for (const gain of [0.05, 1, 10]) assert.doesNotThrow(() => validateToolInput(schema, { gain, parameters: { width: 2 } }));
+  for (const gain of [0, 11, NaN, Infinity, '1']) assert.throws(() => validateToolInput(schema, { gain }));
+  for (const width of [-1, '2', Infinity]) assert.throws(() => validateToolInput(schema, { parameters: { width } }));
+});
 import { createAgentRunFacts, createAgentSessionState } from './helpers/productFacts.mjs';
 import { agentDefinition } from '../renderer/src/agent/agents/definitions.ts';
 import { readSource } from './helpers/sourceContract.mjs';
