@@ -1,4 +1,5 @@
 import type { NativeApi } from './api';
+import { catalogChanges } from '../../../shared/catalogChanges';
 
 export type Skill = { id: string; name: string; description: string; category: string; version: number; instructions: string; enabled: boolean; agentIds?: string[]; updatedAt?: string; builtIn?: boolean; [key: string]: unknown };
 export type SkillCatalog = { storageVersion?: number; skills?: Skill[]; systemSkillIds?: string[]; [key: string]: unknown };
@@ -22,7 +23,15 @@ export function parseSkillImport(payload: unknown): Skill[] {
   return items.map(normalizeSkill);
 }
 export async function saveSkills(api: Pick<NativeApi, 'request' | 'setCached'>, edits: Skill[], options: { remove?: Skill; expected?: Skill; create?: boolean } = {}): Promise<SkillCatalog> {
-  const catalog = await api.request<SkillCatalog>('/catalog/skills');
+  let catalog: SkillCatalog, revision: number | undefined;
+  try {
+    const value = await api.request<{catalog: SkillCatalog; revision: number}>('/catalog/skills/versioned');
+    catalog = value.catalog; revision = value.revision;
+    if (!catalog || !Number.isSafeInteger(revision)) throw new Error('Invalid versioned catalog response');
+  } catch (error) {
+    if (![404,405].includes((error as {status:number}).status)) throw error;
+    catalog = await api.request<SkillCatalog>('/catalog/skills');
+  }
   const skills = catalog.skills || [];
   const normalized = edits.map(normalizeSkill);
   const ids = [...normalized.map(skill => skill.id), ...(options.remove ? [options.remove.id] : [])];
@@ -35,7 +44,13 @@ export async function saveSkills(api: Pick<NativeApi, 'request' | 'setCached'>, 
   for (const skill of normalized) next.set(skill.id, { ...skill, updatedAt: new Date().toISOString() });
   const { systemSkillIds, ...stored } = catalog;
   const value = { ...stored, storageVersion: catalog.storageVersion || 1, skills: [...next.values()] };
-  await api.request('/catalog/skills', 'PUT', value);
+  try {
+    if (revision === undefined) await api.request('/catalog/skills', 'PUT', value);
+    else await api.request('/catalog/skills', 'PATCH', { expectedRevision: revision, ...catalogChanges('skills', catalog, value) });
+  } catch (error) {
+    if (revision === undefined || ![404,405].includes((error as {status:number}).status)) throw error;
+    await api.request('/catalog/skills', 'PUT', value);
+  }
   const saved = { ...value, systemSkillIds };
   api.setCached('/catalog/skills', saved);
   return saved;

@@ -16,6 +16,7 @@ import { language, local, setLanguage, t } from './i18n';
 import { NativeSkills } from './NativeSkills';
 import { NativeSettings } from './NativeSettings';
 import { NativeTopup } from './NativeTopup';
+import type { ProjectPage, ProjectSummary } from '../../../shared/projectPages';
 const origin = (process.env.EXPO_PUBLIC_CLOUD_URL || 'https://shotloom.0xfiang.com').replace(/\/$/, '');
 const parsedOrigin = new URL(origin);
 if (parsedOrigin.origin !== origin || (parsedOrigin.protocol !== 'https:' && !(__DEV__ && parsedOrigin.protocol === 'http:'))) throw new Error('EXPO_PUBLIC_CLOUD_URL must be an HTTPS origin');
@@ -52,7 +53,7 @@ function useRemote<T>(path: string) {
     const bypass = force.current; force.current = false;
     const cached = api.cached<T>(path);
     setLoading(cached === undefined || showRefresh.current); showRefresh.current = false; setError('');
-    if (cached !== undefined) setData(cached);
+    setData(cached);
     const read = path === '/auth/me' && cached !== undefined && !bypass ? Promise.resolve(cached) : api.read<T>(path, bypass);
     void read.then(value => { if (active && version === dataVersion.current) setData(value); }).catch(cause => { if (active && version === dataVersion.current) setError(errorText(cause)); }).finally(() => { if (active) setLoading(false); });
     let previousState = AppState.currentState;
@@ -64,7 +65,7 @@ function useRemote<T>(path: string) {
   }, [api, path, revision, refresh, pageActive]));
   return { data, error, loading, refresh, setData: updateData };
 }
-type Project = { id: string; name: string; cloudFolderId?: string | null; updatedAt?: string; nodeCount?: number };
+type Project = ProjectSummary;
 type Folder = { id: string; parentId: string | null; name: string };
 type Account = { username?: string; email?: string; app_quota: number; app_used_quota: number };
 type Usage = { total: number; page_size: number; items: { id: number; model_name: string; quota: number; created_at: number }[] };
@@ -75,25 +76,35 @@ function EmptyState({ title, description, artwork = false }: { title: string; de
 }
 function Projects({ navigation, onOpen }: { navigation: NativeStackScreenProps<Routes, 'Home'>['navigation']; onOpen: (project: Project) => void }) {
   const api = useApi();
-  const projects = useRemote<Project[]>('/projects');
   const folders = useRemote<Folder[]>('/library-folders');
-  useEffect(() => {
-    if (projects.data) void api.read('/catalog/skills').catch(() => {});
-  }, [api, projects.data]);
   const [parents, setParents] = useState<Folder[]>([]);
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<'updated' | 'name'>('updated');
   const [draft, setDraft] = useState<string | null>(null);
-  const [editing, setEditing] = useState<{ entry: (Project | Folder) & { kind: 'project' | 'folder' }; action: 'menu' | 'rename' | 'delete'; name: string } | null>(null);
+  const [editing, setEditing] = useState<{ entry: (Project & { kind: 'project' }) | (Folder & { kind: 'folder' }); action: 'menu' | 'rename' | 'delete'; name: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState('');
   const parent = parents.at(-1);
+  const [page, setPage] = useState(0);
+  const [search, setSearch] = useState('');
+  useEffect(() => { const timer = setTimeout(() => { setSearch(query.trim()); setPage(0); }, 200); return () => clearTimeout(timer); }, [query]);
+  useEffect(() => { setPage(0); }, [parent?.id, sort]);
+  const pageQuery = new URLSearchParams({ search, sort, offset: String(page * 20), limit: '20' });
+  if (parent) pageQuery.set('folder', parent.id);
+  const projects = useRemote<ProjectPage>(`/projects/page?${pageQuery}`);
+  useEffect(() => {
+    if (projects.data) void api.read('/catalog/skills/page?search=&offset=0&limit=20').catch(() => {});
+  }, [api, projects.data]);
   const refresh = () => { projects.refresh(); folders.refresh(); };
   const manage = () => navigation.navigate('Workspace', { id: '', name: t('ui.ProjectScopeHeader.text.79b705bd'), page: 'projects', ...(parent ? { folder: `cloud/projects/folders/${parent.id}` } : {}) });
   const entries = [
     ...(folders.data || []).filter(folder => folder.parentId === (parent?.id || null)).map(folder => ({ ...folder, kind: 'folder' as const })),
-    ...(projects.data || []).filter(project => (project.cloudFolderId || null) === (parent?.id || null)).map(project => ({ ...project, kind: 'project' as const })),
-  ].filter(entry => entry.name.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())).sort((a, b) => sort === 'name' ? a.name.localeCompare(b.name, language) : new Date('updatedAt' in b ? b.updatedAt || 0 : 0).getTime() - new Date('updatedAt' in a ? a.updatedAt || 0 : 0).getTime());
+    ...(projects.data?.items || []).filter(project => (project.cloudFolderId || null) === (parent?.id || null)).map(project => ({ ...project, kind: 'project' as const })),
+  ].filter(entry => entry.name.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())).sort((a, b) => {
+    if (a.kind !== b.kind) return a.kind === 'folder' ? -1 : 1;
+    if (a.kind === 'project') return 0;
+    return a.name.localeCompare(b.name, language);
+  });
   const createFolder = async () => {
     if (!draft?.trim() || busy) return;
     setBusy(true); setFailure('');
@@ -109,14 +120,21 @@ function Projects({ navigation, onOpen }: { navigation: NativeStackScreenProps<R
       if (action === 'delete') await api.request(path, 'DELETE');
       else if (entry.kind === 'folder') await api.request(path, 'PATCH', { name: name.trim() });
       else {
-        const project = await api.request<Record<string, unknown>>(path);
-        await api.request(path, 'PUT', { ...project, name: name.trim() });
+        try {
+          const revision = entry.storageRevision ?? (await api.request<{ storageRevision: number }>(`${path}/summary`)).storageRevision;
+          await api.request(path, 'PATCH', { name: name.trim(), expectedRevision: revision });
+        } catch (error) {
+          if (![404,405].includes((error as { status: number }).status)) throw error;
+          const project = await api.request<Record<string, unknown>>(path);
+          await api.request(path, 'PUT', { ...project, name: name.trim() });
+        }
       }
       setEditing(null); refresh();
     } catch (cause) { setFailure(errorText(cause)); } finally { setBusy(false); }
   };
   return <View style={styles.screen}>
     <FlatList data={entries} keyExtractor={item => item.id} refreshing={projects.loading || folders.loading} onRefresh={refresh} contentContainerStyle={styles.projectList}
+      ListFooterComponent={<View style={styles.between}><Action ghost title={local('上一页','Previous')} disabled={page === 0 || projects.loading} onPress={() => setPage(value => value - 1)} /><Text style={styles.small}>{page + 1} / {Math.max(1, Math.ceil((projects.data?.total || 0) / 20))}</Text><Action ghost title={local('下一页','Next')} disabled={projects.loading || (page + 1) * 20 >= (projects.data?.total || 0)} onPress={() => setPage(value => value + 1)} /></View>}
       ListHeaderComponent={<><View style={styles.projectHead}>
         {parent && <Pressable accessibilityRole="button" style={[styles.inline, { minHeight: 48 }]} onPress={() => { setParents(value => value.slice(0, -1)); setQuery(''); }}><Icon name="chevron-left" /><Text style={styles.secondary}>{t('ui.ProjectScopeHeader.text.79b705bd')}</Text></Pressable>}
         <Text style={{ fontSize: 20, lineHeight: 28, fontWeight: '700', color: '#292929' }}>{parent?.name || t('ui.ProjectScopeHeader.text.79b705bd')}</Text>
@@ -147,7 +165,7 @@ function Account({ navigation }: { navigation: NativeStackScreenProps<Routes, 'H
   const logout = useContext(LogoutContext);
   const account = useRemote<Account>('/auth/account');
   const me = useRemote<{ username?: string; email?: string }>('/auth/me');
-  const inbox = useRemote<InboxPage>('/notifications?offset=0&limit=1');
+  const inbox = useRemote<{ unread: number }>('/notifications/unread');
   const [page, setPage] = useState(1);
   const usage = useRemote<Usage>(`/auth/usage?page=${page}&page_size=10`);
   const refresh = () => { account.refresh(); usage.refresh(); me.refresh(); };

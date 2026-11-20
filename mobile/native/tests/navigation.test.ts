@@ -34,7 +34,7 @@ exports.createNativeStackNavigator=()=>({Screen:()=>null,Navigator:({children})=
  state.navigate=navigation.navigate;state.goBack=navigation.goBack;
  return routes.map((route,index)=>{const spec=specs.find(x=>x.props.name===route.name);return React.createElement(Focus.Provider,{key:index,value:index===routes.length-1},React.createElement(spec.props.component,{route,navigation}))});
 }});
-exports.NativeApi=class {cache=new Map();cached(path){return this.cache.get(path)} setCached(path,value){this.cache.set(path,value)} invalidate(paths){state.invalidated=paths;for(const key of this.cache.keys())if(!paths||paths.includes(key))this.cache.delete(key)} async read(path,force){if(!force&&this.cache.has(path))return this.cache.get(path);const value=await this.request(path);this.cache.set(path,value);return value} disconnect(){} pause(){} resume(){} receive(){} async request(path,method='GET',value){state.requests.push(path);if(method==='GET'&&state.responses?.[path])return state.responses[path];if(state.failLogout&&path==='/auth/logout')throw new Error('Logout failed');if(path==='/auth/me')return {id:state.session.userId};if(method!=='GET')state.writes.push({path,method,value});if(method!=='GET'&&state.writeResponses?.[path])return state.writeResponses[path];if(path==='/settings/mobile'){if(state.failSave&&method==='PATCH')throw new Error('Save unavailable');if(method==='PATCH')Object.assign(state.settings,value);return {...state.settings};}if(path==='/models')return {publications:[]};if(path==='/projects')return [{id:'22222222-2222-4222-8222-222222222222',name:'Fixture project'}];if(path==='/library-folders')return [];if(path.startsWith('/catalog/'))return {skills:[]};return {items:[],total:0,unread:0,asOf:'2026-11-16T00:00:00Z'}}};
+exports.NativeApi=class {cache=new Map();cached(path){return this.cache.get(path)} setCached(path,value){this.cache.set(path,value)} invalidate(paths){state.invalidated=paths;for(const key of this.cache.keys())if(!paths||paths.includes(key))this.cache.delete(key)} async read(path,force){if(!force&&this.cache.has(path))return this.cache.get(path);const value=await this.request(path);this.cache.set(path,value);return value} disconnect(){} pause(){} resume(){} receive(){} async request(path,method='GET',value){state.requests.push(path);if(method==='GET'&&state.responses?.[path])return state.responses[path];if(state.failLogout&&path==='/auth/logout')throw new Error('Logout failed');if(path==='/auth/me')return {id:state.session.userId};if(method!=='GET')state.writes.push({path,method,value});if(method!=='GET'&&state.writeResponses?.[path])return state.writeResponses[path];if(path==='/settings/mobile'){if(state.failSave&&method==='PATCH')throw new Error('Save unavailable');if(method==='PATCH')Object.assign(state.settings,value);return {...state.settings};}if(path==='/models')return {publications:[]};if(path==='/projects')return [{id:'22222222-2222-4222-8222-222222222222',name:'Fixture project'}];if(path.startsWith('/projects/page?'))return {items:[{id:'22222222-2222-4222-8222-222222222222',name:'Fixture project',storageRevision:7}],total:1,offset:0,limit:20};if(path==='/library-folders')return [];if(path.startsWith('/catalog/skills/page?'))return {items:[],total:0,offset:0,limit:20,projection:true};if(path.startsWith('/catalog/'))return {skills:[]};return {items:[],total:0,unread:0,asOf:'2026-11-16T00:00:00Z'}}};
 exports.createNativeApi=(_origin,_token,_uuid,expired)=>{state.expire=expired;return new exports.NativeApi()};
 const request=exports.NativeApi.prototype.request;exports.NativeApi.prototype.request=async function(...args){await state.beforeRequest?.(...args);return request.apply(this,args)};
 exports.restoreSession=async()=>state.session;exports.clearSession=async()=>{state.session=null};exports.login=async(_origin,expected)=>{state.logins++;if(state.cancel)return null;if(expected&&expected!==state.loginUser)throw new Error('Account changed');return state.session={token:'fresh-token',userId:state.loginUser}};
@@ -80,8 +80,8 @@ test('home prefetches skills without waiting and first skill entry reuses the re
   const App = await loadApp(); const state = (globalThis as any).__nativeUi;
   let release!: () => void, started = false;
   const gate = new Promise<void>(resolve => { release = resolve; });
-  state.responses = { '/catalog/skills': { skills: [{ id: 'prefetched', name: 'Prefetched skill', description: '', instructions: '', category: 'general', version: 1 }] } };
-  state.beforeRequest = (path: string) => { if (path === '/catalog/skills') { started = true; return gate; } };
+  state.responses = { '/catalog/skills/page?search=&offset=0&limit=20': { total:1,projection:false,items: [{ id: 'prefetched', name: 'Prefetched skill', description: '', instructions: '', category: 'general', version: 1 }] } };
+  state.beforeRequest = (path: string) => { if (path === '/catalog/skills/page?search=&offset=0&limit=20') { started = true; return gate; } };
   let tree!: ReturnType<typeof create>;
   await act(async () => { tree = create(React.createElement(App)); });
   const tabs = () => tree.root.findAllByType('Pressable' as any).filter(node => node.props.accessibilityRole === 'tab');
@@ -90,7 +90,7 @@ test('home prefetches skills without waiting and first skill entry reuses the re
     assert.equal(tabs().length, 4, 'pending skills cannot block home');
     await act(async () => { release(); });
     await act(async () => tabs()[2]!.props.onPress());
-    assert.equal(state.requests.filter((path: string) => path === '/catalog/skills').length, 1);
+    assert.equal(state.requests.filter((path: string) => path === '/catalog/skills/page?search=&offset=0&limit=20').length, 1);
     assert.ok(tree.root.findAllByType('Text' as any).some(text => text.props.children === 'Prefetched skill'));
   } finally { await act(async () => { release(); tree.unmount(); }); }
 });
@@ -221,12 +221,12 @@ test('project menu and long press edit the selected entry without opening a work
     await act(async () => button('Rename').props.onPress());
     const name = () => tree.root.findAllByType('TextInput' as any).find(n => n.props.accessibilityLabel === 'Name')!;
     await act(async () => name().props.onChangeText('Renamed'));
-    state.beforeRequest = (_path: string, method: string) => { if (method === 'PUT') throw new Error('Save unavailable'); };
+    state.beforeRequest = (_path: string, method: string) => { if (method === 'PATCH') throw new Error('Save unavailable'); };
     await act(async () => button('Save').props.onPress());
     assert.equal(name().props.value, 'Renamed', 'failed saves keep the draft available');
     state.beforeRequest = undefined;
     await act(async () => button('Save').props.onPress());
-    assert.deepEqual(state.writes.at(-1), { path, method: 'PUT', value: { ...project, name: 'Renamed' } });
+    assert.deepEqual(state.writes.at(-1), { path, method: 'PATCH', value: { name: 'Renamed', expectedRevision: 7 } });
     assert.equal(tree.root.findAllByType('Modal' as any).length, 0);
     const card = tree.root.findAllByType('Pressable' as any).find(n => n.props.onLongPress)!;
     await act(async () => card.props.onLongPress());
@@ -279,7 +279,7 @@ test('project search and the same canvas survive tab roundtrips without creating
     await act(async () => state.back());
     assert.equal(tree.root.findAllByType('TextInput' as any)[0]!.props.value, 'Fixture');
     await open(); assert.equal(state.mounts, 1);
-    assert.equal(state.requests.filter((x: string) => x === '/projects').length, 1);
+    assert.equal(state.requests.filter((x: string) => x.startsWith('/projects/page?')).length, 1);
     const workspace = tree.root.findAllByType('WebView' as any)[0]!;
     assert.equal(workspace.props.automaticallyAdjustContentInsets, false, 'native safe area owns the inset');
     assert.deepEqual(workspace.props.contentInset, { top: 0, bottom: 0, left: 0, right: 0 });
@@ -469,7 +469,7 @@ test('an older inbox refresh cannot overwrite a confirmed read acknowledgement',
 
 test('saving an unchanged native skill closes the editor without any request', async () => {
   const App = await loadApp(); const state = (globalThis as any).__nativeUi;
-  state.responses = { '/catalog/skills': { skills: [{ id:'story', name:'Story', description:'Plan', instructions:'Outline', category:'text', version:1, enabled:true }] } };
+  state.responses = { '/catalog/skills/page?search=&offset=0&limit=20': { total:1,projection:false,items: [{ id:'story', name:'Story', description:'Plan', instructions:'Outline', category:'text', version:1, enabled:true }] } };
   let tree!: ReturnType<typeof create>;
   await act(async () => { tree = create(React.createElement(App)); });
   try {

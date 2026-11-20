@@ -6,7 +6,7 @@ const skill: Skill = { id: 'story-outline', name: 'Story outline', description: 
 function fixture(catalog: SkillCatalog, fail = false) {
   const writes: SkillCatalog[] = [];
   const cache = new Map<string, unknown>();
-  return { writes, cache, api: { setCached(path: string, value: unknown) { cache.set(path, value); }, async request<T>(_path: string, method = 'GET', value?: unknown): Promise<T> { if (method === 'GET') return structuredClone(catalog) as T; if (fail) throw new Error('Unavailable'); writes.push(value as SkillCatalog); return null as T; } } };
+  return { writes, cache, api: { setCached(path: string, value: unknown) { cache.set(path, value); }, async request<T>(_path: string, method = 'GET', value?: unknown): Promise<T> { if (_path.endsWith('/versioned')) throw Object.assign(new Error('Not found'), {status:404}); if (method === 'GET') return structuredClone(catalog) as T; if (fail) throw new Error('Unavailable'); writes.push(value as SkillCatalog); return null as T; } } };
 }
 test('editing one native skill preserves other skills, metadata and catalog fields', async () => {
   const other = { ...skill, id: 'other-skill' };

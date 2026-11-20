@@ -1,4 +1,6 @@
 import { nativeRequestAllowed, type NativeReply, type NativeRequest } from '../../../shared/nativeBridge';
+import { legacyProjectPage, type ProjectSummary } from '../../../shared/projectPages';
+import { legacyCatalogPage } from '../../../shared/catalogPages';
 
 export class NativeApi {
   private cache = new Map<string, { value: unknown; expires: number }>();
@@ -34,8 +36,13 @@ export class NativeApi {
     const cached = this.cache.get(path);
     if (path !== '/auth/me' && !force && cached && cached.expires > Date.now()) return Promise.resolve(cached.value as T);
     const pending = this.reads.get(path);
-    if (pending) return pending as Promise<T>;
-    const request = this.request<T>(path).then(value => {
+    if (pending && !force) return pending as Promise<T>;
+    const request = this.request<T>(path, 'GET', undefined, force).catch(error => {
+      if (path.startsWith('/catalog/skills/page?') && [404,405].includes(error.status)) return this.request<Record<string, unknown>>('/catalog/skills', 'GET', undefined, force).then(catalog => legacyCatalogPage(catalog, 'skills', new URLSearchParams(path.split('?')[1])) as T);
+      if (path.startsWith('/projects/page?') && [404,405].includes(error.status)) return this.request<ProjectSummary[]>('/projects', 'GET', undefined, force).then(items => legacyProjectPage(items, new URLSearchParams(path.split('?')[1])) as T);
+      if (path !== '/notifications/unread' || ![404, 405].includes(error.status)) throw error;
+      return this.request<T>('/notifications?offset=0&limit=1', 'GET', undefined, force);
+    }).then(value => {
       if (this.reads.get(path) === request) {
         if (this.cache.size >= 64) this.cache.delete(this.cache.keys().next().value!);
         this.cache.set(path, { value, expires: Date.now() + 60000 });
@@ -45,14 +52,14 @@ export class NativeApi {
     this.reads.set(path, request);
     return request;
   }
-  request<T>(path: string, method = 'GET', value?: unknown): Promise<T> {
+  request<T>(path: string, method = 'GET', value?: unknown, force = false): Promise<T> {
     if (!nativeRequestAllowed(method, path)) return Promise.reject(new Error('Request is unavailable'));
     if (method !== 'GET') this.invalidateWrite(path);
     const id = this.uuid();
     const response = new Promise<T>((resolve, reject) => {
-      const timer = setTimeout(() => { this.pending.delete(id); this.queued.delete(id); reject(new Error('Connection timed out. Please retry.')); }, 30000);
+      const timer = setTimeout(() => { this.pending.delete(id); this.queued.delete(id); reject(new Error('Connection timed out. Please retry.')); }, method === 'GET' ? 15000 : 30000);
       this.pending.set(id, { resolve: result => resolve(result as T), reject, timer });
-      const request = { id, method, path, ...(value === undefined ? {} : { value }) };
+      const request = { id, method, path, ...(value === undefined ? {} : { value }), ...(force ? { force: true } : {}) };
       if (this.suspended) this.queued.set(id, request); else this.dispatch(request);
     });
     return method === 'GET' ? response : response.finally(() => this.invalidateWrite(path));
@@ -81,13 +88,13 @@ export class NativeApi {
   }
 }
 
-export async function nativeFetch<T>(origin: string, path: string, method = 'GET', value?: unknown, token?: string): Promise<T> {
+export async function nativeFetch<T>(origin: string, path: string, method = 'GET', value?: unknown, token?: string, force = false): Promise<T> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 30000);
+  const timer = setTimeout(() => controller.abort(), method === 'GET' ? 15000 : 30000);
   try {
     const response = await fetch(`${origin}/api${path}`, {
       method, credentials: 'omit', signal: controller.signal,
-      headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(value === undefined ? {} : { 'Content-Type': 'application/json' }) },
+      headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(force ? { 'Cache-Control': 'no-cache' } : {}), ...(value === undefined ? {} : { 'Content-Type': 'application/json' }) },
       ...(value === undefined ? {} : { body: JSON.stringify(value) }),
     });
     const result = await response.json();
@@ -98,7 +105,7 @@ export async function nativeFetch<T>(origin: string, path: string, method = 'GET
 
 export function createNativeApi(origin: string, token: string, uuid: () => string, expired: () => void): NativeApi {
   const api = new NativeApi(request => {
-    void nativeFetch(origin, request.path, request.method, request.value, token)
+    void nativeFetch(origin, request.path, request.method, request.value, token, request.force)
       .then(data => api.receive({ type: 'response', id: request.id, data }))
       .catch(error => {
         if (!api.receive({ type: 'response', id: request.id, error: error.message, status: error.status })) return;

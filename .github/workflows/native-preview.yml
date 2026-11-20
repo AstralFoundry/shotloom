@@ -1,25 +1,36 @@
 name: Native Android preview
 on:
   workflow_dispatch:
+    inputs:
+      cloud_origin:
+        description: 'HTTPS BFF origin for this candidate APK'
+        type: string
+        default: 'https://shotloom.0xfiang.com'
+      source_ref:
+        description: 'Optional pinned source commit for a paired baseline build'
+        type: string
+        default: ''
   push:
     branches: ['codex/**']
-    paths: ['mobile/native/**', 'shared/nativeBridge.ts', '.github/workflows/native-preview.yml']
+    paths: ['mobile/native/**', 'shared/nativeBridge.ts', 'shared/catalogChanges.ts', 'shared/catalogPages.ts', 'shared/projectPages.ts', '.github/workflows/native-preview.yml']
 permissions:
   contents: read
 concurrency:
-  group: native-preview-${{ github.ref }}
+  group: native-preview-${{ github.ref }}-${{ inputs.source_ref }}
   cancel-in-progress: true
 jobs:
   android:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
-      EXPO_PUBLIC_CLOUD_URL: https://shotloom.0xfiang.com
+      EXPO_PUBLIC_CLOUD_URL: ${{ inputs.cloud_origin || 'https://shotloom.0xfiang.com' }}
     defaults:
       run:
         working-directory: mobile/native
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_ref || github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version-file: .node-version
@@ -33,6 +44,8 @@ jobs:
         with:
           packages: platform-tools
       - run: npm ci
+      - name: Validate candidate origin
+        run: node -e "const u=new URL(process.env.EXPO_PUBLIC_CLOUD_URL);if(u.protocol!=='https:'||u.origin!==process.env.EXPO_PUBLIC_CLOUD_URL)throw Error('Expected an HTTPS origin');"
       - run: npm run typecheck && npm test && npm run audit:build
       - name: Generate Android project
         run: npx expo prebuild --platform android --no-install
@@ -68,7 +81,7 @@ jobs:
             --out acceptance/Shotloom-Session-Test.apk "$RUNNER_TEMP/session-test/aligned.apk"
           cd acceptance
           sha256sum Shotloom-Preview.apk > SHA256SUMS
-          printf 'Commit: %s\nOrigin: %s\n' "$GITHUB_SHA" "$EXPO_PUBLIC_CLOUD_URL" > build.txt
+          printf 'Commit: %s\nOrigin: %s\n' "$(git rev-parse HEAD)" "$EXPO_PUBLIC_CLOUD_URL" > build.txt
       - uses: actions/upload-artifact@v4
         with:
           name: Shotloom-Android-Preview
