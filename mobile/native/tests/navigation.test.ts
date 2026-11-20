@@ -55,6 +55,56 @@ async function loadApp() {
   return module.exports.default;
 }
 
+test('new canvas in a native project folder saves a project and refreshes the list without opening a WebView', async () => {
+  const App = await loadApp(); const state = (globalThis as any).__nativeUi;
+  const folderId = '33333333-3333-4333-8333-333333333333';
+  const pagePath = `/projects/page?search=&sort=updated&offset=0&limit=20&folder=${folderId}`;
+  state.responses = { '/library-folders': [{ id: folderId, name: 'My folder', parentId: null }], [pagePath]: { items: [], total: 0 } };
+  let tree!: ReturnType<typeof create>;
+  const button = (label: string) => tree.root.findAllByType('Pressable' as any).find(node => node.findAllByType('Text' as any).some(text => text.props.children === label))!;
+  await act(async () => { tree = create(React.createElement(App)); });
+  try {
+    await act(async () => button('My folder').props.onPress());
+    await act(async () => button('New canvas').props.onPress());
+    assert.equal(tree.root.findAllByType('WebView' as any).length, 0, 'creating a canvas must stay on the native page');
+    const input = tree.root.findAllByType('TextInput' as any).find(node => node.props.accessibilityLabel === 'Canvas name')!;
+    assert.ok(input, 'new canvas opens a name form');
+    await act(async () => input.props.onChangeText('  New film  '));
+    let attemptedPath = '';
+    state.beforeRequest = (path: string, method: string) => {
+      if (method === 'PUT') { attemptedPath = path; throw new Error('Save unavailable'); }
+    };
+    await act(async () => button('Create').props.onPress());
+    assert.ok(tree.root.findAllByType('Text' as any).some(node => node.props.children === 'Save unavailable'));
+    assert.equal(tree.root.findAllByType('TextInput' as any).find(node => node.props.accessibilityLabel === 'Canvas name')!.props.value, '  New film  ', 'failed creation preserves the name for retry');
+    assert.equal(button('Create').props.disabled, false);
+    let finish!: () => void;
+    const saving = new Promise<void>(resolve => { finish = resolve; });
+    state.beforeRequest = async (path: string, method: string, value: any) => {
+      if (method !== 'PUT') return;
+      await saving;
+      state.responses[pagePath] = { items: [{ id: value.id, name: value.name, cloudFolderId: folderId }], total: 1 };
+    };
+    await act(async () => { button('Create').props.onPress(); });
+    assert.equal(button('Create').props.disabled, true, 'pending creation cannot be submitted twice');
+    await act(async () => { finish(); });
+    const writes = state.writes.filter((write: any) => write.path.startsWith('/project/'));
+    assert.equal(writes.length, 1);
+    assert.equal(writes[0].method, 'PUT');
+    assert.equal(writes[0].path, attemptedPath, 'retry keeps the same project identity');
+    assert.equal(writes[0].path, `/project/${writes[0].value.id}`);
+    assert.equal(writes[0].value.name, 'New film');
+    assert.equal(writes[0].value.cloudFolderId, folderId);
+    assert.equal(writes[0].value.schema, 'shotloom-project');
+    assert.equal(writes[0].value.schemaVersion, 2);
+    assert.deepEqual(writes[0].value.nodes, []);
+    assert.deepEqual(writes[0].value.library, { enabled: true, name: 'My folder', rootDir: `cloud/projects/folders/${folderId}`, assetRootDir: `cloud/projects/folders/${folderId}/assets` });
+    assert.ok(button('New film'), 'the saved project appears in its folder');
+    assert.equal(tree.root.findAllByType('Modal' as any).length, 0);
+    assert.equal(tree.root.findAllByType('WebView' as any).length, 0);
+  } finally { await act(async () => tree.unmount()); }
+});
+
 test('native login has no WebView, supports cancellation, and restores a stored session', async () => {
   const App = await loadApp();
   const state = (globalThis as any).__nativeUi;
