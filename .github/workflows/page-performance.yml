@@ -1,0 +1,58 @@
+name: Isolated Web page performance
+on:
+  workflow_dispatch:
+  workflow_call:
+permissions:
+  contents: read
+jobs:
+  pages:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.15.0'
+      - name: Prepare private isolated fixture
+        env:
+          TEST_FIXTURE: ${{ secrets.SHOTLOOM_PERFORMANCE_FIXTURE }}
+          TEST_SESSION_COOKIE: ${{ secrets.SHOTLOOM_ACCEPTANCE_SESSION }}
+        run: |
+          mkdir -p perf
+          node --input-type=module - <<'JS'
+          import assert from 'node:assert/strict';
+          import {writeFile} from 'node:fs/promises';
+          const fixture=JSON.parse(process.env.TEST_FIXTURE);
+          assert.equal(new URL(fixture.origin).port,'14433');
+          fixture.cookie=process.env.TEST_SESSION_COOKIE;
+          assert.ok(fixture.cookie.includes('='));
+          await writeFile('perf/private.json',JSON.stringify(fixture),{mode:0o600});
+          JS
+      - name: Measure alternating baseline and candidate
+        env:
+          SHOTLOOM_QA_FIXTURE: perf/private.json
+          SHOTLOOM_QA_CDP: http://127.0.0.1:9222
+          SHOTLOOM_QA_PAIRS: '10'
+        run: |
+          google-chrome --version > perf/browser.txt
+          git rev-parse HEAD > perf/tool-revision.txt
+          google-chrome --headless=new --no-sandbox --disable-dev-shm-usage --use-gl=angle --use-angle=swiftshader --enable-unsafe-swiftshader --remote-debugging-port=9222 --user-data-dir="$RUNNER_TEMP/shotloom-performance" https://shotloom.0xfiang.com:14433/health > "$RUNNER_TEMP/shotloom-chrome.log" 2>&1 &
+          chrome_pid=$!
+          trap 'kill "$chrome_pid" 2>/dev/null || true; rm -f perf/private.json' EXIT
+          for attempt in {1..60}; do
+            if curl --silent --fail http://127.0.0.1:9222/json/version >/dev/null; then break; fi
+            sleep 1
+          done
+          SHOTLOOM_QA_SUITE=core SHOTLOOM_QA_EVIDENCE=perf/browser-accepted node scripts/performance/browser-paired.mjs > perf/browser-core.log 2>&1
+          SHOTLOOM_QA_SUITE=extended SHOTLOOM_QA_EVIDENCE=perf/browser-extended node scripts/performance/browser-paired.mjs > perf/browser-extended.log 2>&1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Web-performance-results
+          path: |
+            perf/browser-accepted/
+            perf/browser-extended/
+            perf/browser-core.log
+            perf/browser-extended.log
+            perf/browser.txt
+            perf/tool-revision.txt

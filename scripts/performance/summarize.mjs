@@ -8,6 +8,15 @@ const readinessStats=rows=>{
  const completed=rows.filter(row=>!row.readinessFailure);
  return {ready:completed.length,timeouts:rows.length-completed.length,ms:completed.length?stats(completed.map(row=>row.durationMs)):null,timeoutWaitMs:rows.some(row=>row.readinessFailure)?stats(rows.filter(row=>row.readinessFailure).map(row=>row.durationMs)):null};
 };
+function parseTiming(header='') {
+ const timings={};
+ for(const metric of header.split(',')){
+  const match=metric.trim().match(/^([\w-]+);dur=([\d.]+)/);
+  if(match)timings[match[1]]=Number(match[2]);
+ }
+ const cache=header.match(/hit=(\d+) miss=(\d+)/);
+ return {timings,hits:Number(cache?.[1]||0),misses:Number(cache?.[2]||0)};
+}
 function groups(rows,key,measure){
  const buckets=new Map();
  for(const row of rows){const id=key(row), bucket=buckets.get(id)||[];bucket.push(row);buckets.set(id,bucket);}
@@ -16,6 +25,7 @@ function groups(rows,key,measure){
 if(process.argv.includes('--self-test')){
  assert.deepEqual(readinessStats([{durationMs:90000,readinessFailure:'timeout'}]),{ready:0,timeouts:1,ms:null,timeoutWaitMs:{median:90000,max:90000}});
  assert.equal(readinessStats([{durationMs:10},{durationMs:90000,readinessFailure:'timeout'}]).ms.median,10);
+ assert.deepEqual(parseTiming('auth;dur=12.5, cache;desc="hit=2 miss=1", total;dur=20'),{timings:{auth:12.5,total:20},hits:2,misses:1});
  console.log('Median, grouping and censored readiness self-check passed');process.exit(0);
 }
 const root=process.argv[2]||'output/performance-20261120';
@@ -29,6 +39,11 @@ const web=groups(browser,r=>[r.scenario,r.width,r.state,r.version].join('/'),row
  assert.ok(rows.every(r=>!r.readinessFailure||r.version==='baseline'),'Candidate readiness failures cannot pass acceptance');
  return {...readinessStats(rows),httpRequests:stats(rows.map(r=>r.resources.filter(v=>['http:','https:'].includes(v.scheme)).length)),bytesToReady:stats(rows.map(r=>r.resources.filter(v=>['http:','https:'].includes(v.scheme)).reduce((n,v)=>n+v.bytes,0))),apiRequests:stats(rows.map(r=>r.apiRequests.length))};
 });
+const http=browser.flatMap(row=>row.apiRequests.map(request=>({...request,version:row.version,parsed:parseTiming(request.serverTiming)})));
+const phases=groups(http,row=>`${row.version}/${row.path.replace(/[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}/gi,':id')}`,rows=>{
+ const stages=[...new Set(rows.flatMap(row=>Object.keys(row.parsed.timings)))];
+ return {clientMs:stats(rows.map(row=>row.durationMs)),ttfbMs:stats(rows.filter(row=>Number.isFinite(row.ttfbMs)).map(row=>row.ttfbMs)),stages:Object.fromEntries(stages.map(stage=>[stage,stats(rows.filter(row=>stage in row.parsed.timings).map(row=>row.parsed.timings[stage]))])),cacheHits:rows.reduce((n,row)=>n+row.parsed.hits,0),cacheMisses:rows.reduce((n,row)=>n+row.parsed.misses,0),errors:rows.filter(row=>row.status>=400).length};
+});
 const files=(await readdir(join(root,'android-final-performance'),{recursive:true})).filter(p=>/results-.*\.json$/.test(p));
 const runs=await Promise.all(files.map(async p=>JSON.parse(await readFile(join(root,'android-final-performance',p),'utf8'))));
 assert.equal(runs.length,40,'Ten pairs with cold/warm baseline/candidate runs are required');
@@ -39,7 +54,7 @@ assert.ok(native.every(r=>r.pairs===10));
 const apis=runs.flatMap(r=>r.apis.map(p=>({...p,pair:r.pair,version:r.version,state:r.state})));
 assert.ok(apis.every(r=>r.status===200));
 const api=groups(apis,r=>[r.path,r.state,r.version].join('/'),rows=>({ms:stats(rows.map(r=>r.totalMs)),ttfb:stats(rows.map(r=>r.ttfbMs)),decodedBytes:stats(rows.map(r=>r.bytes))}));
-const summary={webSamples:browser.length,coreWebSamples:core.length,extendedWebSamples:extended.length,androidRuns:runs.length,androidPageSamples:pages.length,androidApiSamples:apis.length,web,native,api};
+const summary={webSamples:browser.length,coreWebSamples:core.length,extendedWebSamples:extended.length,androidRuns:runs.length,androidPageSamples:pages.length,androidApiSamples:apis.length,web,phases,native,api};
 await writeFile(join(root,'summary.json'),JSON.stringify(summary,null,2));
 const fmt=n=>Math.round(n);
 const table=(headers,rows)=>[headers.join(' | '),headers.map(()=>'---').join(' | '),...rows.map(r=>r.join(' | '))].map(s=>'| '+s+' |').join('\n');

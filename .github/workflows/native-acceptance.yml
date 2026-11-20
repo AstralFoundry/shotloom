@@ -2,6 +2,10 @@ name: Native Android acceptance smoke
 on:
   workflow_dispatch:
     inputs:
+      web_performance:
+        description: Run only the isolated full-page Web benchmark
+        type: boolean
+        default: false
       performance:
         description: Measure delivered APK page and API latency
         type: boolean
@@ -40,8 +44,12 @@ permissions:
   contents: read
   actions: read
 jobs:
+  web:
+    if: inputs.web_performance == true
+    uses: ./.github/workflows/page-performance.yml
+    secrets: inherit
   launch:
-    if: inputs.performance != true
+    if: inputs.performance != true && inputs.web_performance != true
     runs-on: ubuntu-latest
     timeout-minutes: 55
     steps:
@@ -157,7 +165,7 @@ jobs:
           retention-days: 14
 
   measure:
-    if: inputs.performance == true
+    if: inputs.performance == true && inputs.web_performance != true
     runs-on: ubuntu-latest
     timeout-minutes: 55
     steps:
