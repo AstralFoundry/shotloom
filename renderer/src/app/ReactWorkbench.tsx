@@ -226,6 +226,7 @@ export function ReactWorkbench() {
       }
       if (cancelled) return;
       if (requestedRoute) navigateToRoute(requestedRoute, { notify: false });
+      useAppStore.setState({ route: store.route as AppRoute });
       setNavigationStatus('ready');
       if (cloudEnabled) {
         void Promise.allSettled([refreshCloudAccountSettings()]).then(results => {

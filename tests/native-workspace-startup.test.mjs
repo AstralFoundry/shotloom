@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import ts from 'typescript';
 import { readSource } from './helpers/sourceContract.mjs';
 import { createRendererEnv } from './helpers/rendererSsr.mjs';
 
@@ -7,10 +8,20 @@ function startup(dependencies, search = '?native=embedded&project=fixture', clou
   const source = readSource('renderer/src/app/ReactWorkbench.tsx');
   const start = source.indexOf('      const directProject =');
   const end = source.indexOf('      if (desktopApi.platform !== "browser")', start);
-  const context = { cancelled: false, cloudEnabled, location: { search }, requestedRoute: new URLSearchParams(search).get('route'), settingsStore: { locale: 'en-US' }, getLocale: () => 'en-US', document: { documentElement: {} }, navigateToRoute: () => {}, setNavigationStatus: () => {}, loadGlobalSkills: async () => {}, loadGlobalRecipes: async () => {}, refreshCloudAccountSettings: async () => {}, showErrorMessage: () => {}, ...dependencies };
-  const run = new (Object.getPrototypeOf(async function () {}).constructor)(...Object.keys(context), source.slice(start, end));
+  const context = { cancelled: false, cloudEnabled, location: { search }, requestedRoute: new URLSearchParams(search).get('route'), store: {route:'projects'}, useAppStore: {setState:()=>{}}, settingsStore: { locale: 'en-US' }, getLocale: () => 'en-US', document: { documentElement: {} }, navigateToRoute: () => {}, setNavigationStatus: () => {}, loadGlobalSkills: async () => {}, loadGlobalRecipes: async () => {}, refreshCloudAccountSettings: async () => {}, showErrorMessage: () => {}, ...dependencies };
+  const body = ts.transpileModule(source.slice(start, end), {compilerOptions:{target:ts.ScriptTarget.ESNext,module:ts.ModuleKind.ESNext}}).outputText;
+  const run = new (Object.getPrototypeOf(async function () {}).constructor)(...Object.keys(context), body);
   return run(...Object.values(context));
 }
+
+test('the requested page owns UI routing before startup becomes ready', async () => {
+  const domain={route:'projects'},ui={route:'projects'};
+  await startup({store:domain,useAppStore:{setState:value=>Object.assign(ui,value)},
+    navigateToRoute:route=>{domain.route=route;},loadAppSettings:async()=>{},loadBoundWindowProject:async()=>false,
+    loadRecentProjects:async()=>assert.fail('Skill startup must not read project lists'),
+    setNavigationStatus:status=>{if(status==='ready')assert.equal(ui.route,'skills');},
+  },'?route=skills');
+});
 
 test('embedded canvas waits only for preferences and project data before becoming ready', async () => {
   const calls = [];
