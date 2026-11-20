@@ -55,3 +55,13 @@ Worker 镜像、OpenReel wasm 与嵌入式运行时、主应用 Vite 生产编�
 测试工程最初显式关闭了自动保存，刷新后缺少工程中的会话索引；保留 Worker 日志，并将实际会话索引保存到该测试工程、启用自动保存后，刷新恢复相同回复与所选模型，资源记录中没有新增 `/api/agent/model` 请求。该验证以工程索引已保存为前提，不代表关闭自动保存后未保存的工程改动会自动恢复。
 
 另一次 `glm-4.7-flash` 的真实调用失败，直接业务 relay 交叉请求也收到上游 HTTP 401“身份验证失败”；MiniMax 同账号成功，因此未把 GLM 通道标记为验收通过。截图及脱敏请求证据位于忽略目录 `output/agent-worker-live-{success,restored}.png`、`output/agent-worker-live-evidence.json`。
+
+### 合并与生产部署（2026-11-21）
+
+已合入并推送 `AstralFoundry/shotloom` 的 `supabase`，部署提交 `5cc1dc0d79b7a47fe088844e1accae70cb6e6865`。合并保留已发布的 RunningHub 模板和 Android 0.9.17 页面及原生修复。独立发布 worktree 为 `shotloom-supabase-release-20261121`，原开发目录不切换分支。
+
+生产地址 `https://shotloom.0xfiang.com`，镜像 `shotloom:worker-5cc1dc0`，容器 `shotloom-app-1` 健康。候选及公网各 16 项检查通过，核对 HTML、Worker 镜像与模块、聊天 UI、入口脚本的 SHA256、脚本 MIME、重新验证缓存和未登录模型调用拒绝。合并后 29 项相关回归、4 项 Worker/真实浏览器测试、renderer/server 类型检查及工程门禁通过。
+
+正式域名下通过 QA 账号和实际聊天 UI 调用 `MiniMax-M3.1-Flash`，约 7.6 秒返回 `Worker 部署验收成功。`，HTTP 200，`finish.stop`、`done: true`，无流错误；上游报告 input 21893、output 8、cacheRead 128、total 22029 tokens。脱敏证据保存在发布 worktree 的 `output/production-model-verification.json`。
+
+旧镜像、原 Compose 覆盖配置和静态资源备份位于 `/opt/shotloom-releases/worker-20261121-5cc1dc0/`；当前 Compose 使用该目录的 `compose.production.yaml`。保留原 Agent cache 卷；本次不执行数据库迁移，不发布新的桌面或移动安装包。
