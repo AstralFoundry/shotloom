@@ -205,7 +205,7 @@ export function registerCanvasTools(): void {
     id: 'canvas_media_frame',
     icon: 'film',
     title: t('tool.title.canvas_media_frame'),
-    description: '读取画布视频节点或本地视频文件路径，在指定时间点用 FFmpeg 抽帧。nodeId 与 filePath 二选一；一次最多 24 个时间点。多时间点概览优先传 outputMode=contact_sheet，将帧拼成一张紧凑图片并逐格标秒数；需要检查单帧细节时用 frames（省略时的默认值）逐张返回。仅根据实际返回的画面判断内容。',
+    description: '读取画布视频节点或本地视频文件路径，在指定时间点用 FFmpeg 抽帧。nodeId 与 filePath 二选一；contact_sheet 一次最多 24 个时间点，frames 一次最多 8 个。多时间点概览优先传 outputMode=contact_sheet，将帧拼成一张紧凑图片并逐格标秒数；需要检查单帧细节时用 frames（省略时的默认值）逐张返回。仅根据实际返回的画面判断内容。',
     effect: 'read',
     inputSchema: {
       type: 'object',
@@ -246,10 +246,14 @@ export function registerCanvasTools(): void {
       const times = [...new Set((Array.isArray(input.timesSec) ? input.timesSec : [])
         .map((value) => Number(value)).filter((value) => Number.isFinite(value) && value >= 0))];
       if (!times.length) return { success: false, error: t('tool.feedback.canvas.noTimes') };
+      // Harness 每条消息最多 8 张图；超量须由模型选择拼图或分批读取。
+      if (input.outputMode !== 'contact_sheet' && times.length > 8) return { success: false, applied: false, code: 'IMAGE_ATTACHMENT_LIMIT',
+        error: 'frames 模式一次最多返回 8 张图片。', hint: '改用 outputMode=contact_sheet 查看最多 24 个时间点，或每批读取不超过 8 帧。' };
       const attachments: JsonObject[] = [];
       const frames: JsonObject[] = [];
       const previews: Array<{ seconds: number; dataUrl: string }> = [];
       for (const seconds of times) {
+        context.signal.throwIfAborted();
         try {
           const frame = await desktopApi.file.captureVideoFrameToProject(source, seconds, `agent-frame-${crypto.randomUUID()}-${seconds.toFixed(3)}.jpg`);
           const path = String(frame?.filePath || frame?.path || '');

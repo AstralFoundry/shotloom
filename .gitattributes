@@ -2,6 +2,7 @@
 
 *.js text eol=lf working-tree-encoding=UTF-8
 *.mjs text eol=lf working-tree-encoding=UTF-8
+*.sh text eol=lf working-tree-encoding=UTF-8
 *.vue text eol=lf working-tree-encoding=UTF-8
 *.css text eol=lf working-tree-encoding=UTF-8
 *.html text eol=lf working-tree-encoding=UTF-8

@@ -742,6 +742,27 @@ test('product references and uploaded text stay inside the bound official Sessio
   assert.equal(foreign.code, 'ATTACHMENT_NOT_IN_SESSION');
 });
 
+test('product execution honors per-tool deadlines and unlimited tasks while preflight stays bounded', async t => {
+  const { host } = await fixture(t, { registerTools: (scope, bound) => registerProductTools(scope, bound,
+    [0, 1000, undefined].map((timeoutMs, index) => ({ name: `deadline_${index}`, description: 'Test deadline',
+      roles: ['canvas-primary'], effect: 'read', parameters: { type: 'object', properties: {} }, timeoutMs })),
+    { timeoutMs: 5, authorize: true, dispatch: async (request, signal) => {
+      if (request.phase === 'authorize') return { success: true, result: { success: true, approvalRequired: false } };
+      await new Promise((resolve, reject) => {
+        const timer = setTimeout(resolve, 30);
+        signal.addEventListener('abort', () => { clearTimeout(timer); reject(signal.reason); }, { once: true });
+      });
+      return { success: true, result: { result: { success: true } } };
+    } }) });
+  const { agent } = await host.create(binding, route);
+  for (let index = 0; index < 3; index++) {
+    const tool = agent.ctx.tools.get(`deadline_${index}`, agent);
+    const result = await tool.execute({}, { agent, callId: `deadline-${index}`, signal: new AbortController().signal });
+    assert.equal(result.success, index < 2, JSON.stringify(result));
+    if (index === 2) assert.equal(result.code, 'BRIDGE_UNAVAILABLE');
+  }
+});
+
 test('product media receipts become durable official image blocks instead of base64 JSON', async t => {
   const data = (await readFile(join(root, 'src-tauri/icons/app.png'))).toString('base64');
   const server = createServer((_req, res) => {

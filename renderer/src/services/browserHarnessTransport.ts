@@ -9,12 +9,12 @@ type ToolRequest = Parameters<typeof executeProductRequest>[0];
 type Reply = { resolve(value: unknown): void; reject(error: Error): void };
 let active: { worker: Worker; project: string; user: string; pending: Map<string, Reply>; listeners: Map<string, (event: TransportEvent) => void>; controllers: Map<string, AbortController>; dispose(): void } | undefined;
 let connecting: Promise<void> | undefined;
-let toolHandler: ((request: ToolRequest) => Promise<void>) | undefined;
+let toolHandler: ((request: ToolRequest, signal: AbortSignal) => Promise<void>) | undefined;
 const toolReplies = new Map<string, (response: { result?: unknown; error?: string }) => void>();
 // Store 可能返回 Proxy；沿用原 HTTP/IPC 边界的 JSON 语义后再交给 Worker。
 const jsonValue = (value: unknown) => value === undefined ? undefined : JSON.parse(JSON.stringify(value));
 
-export function registerBrowserToolHandler(handler: (request: ToolRequest) => Promise<void>) { toolHandler = handler; }
+export function registerBrowserToolHandler(handler: (request: ToolRequest, signal: AbortSignal) => Promise<void>) { toolHandler = handler; }
 export async function respondBrowserTool(response: { requestId: string; result?: unknown; error?: string }) {
   const reply = toolReplies.get(response.requestId);
   if (!reply) throw new Error(t('agent.worker.toolInterrupted'));
@@ -88,7 +88,7 @@ export async function connectBrowserHarness(): Promise<void> {
               const abort = () => { toolReplies.delete(id); reject(control.signal.reason); };
               control.signal.addEventListener('abort', abort, { once: true });
               toolReplies.set(id, response => { control.signal.removeEventListener('abort', abort); response.error ? reject(new Error(response.error)) : resolve(response.result); });
-              void toolHandler!(message.payload).catch(error => { toolReplies.delete(id); control.signal.removeEventListener('abort', abort); reject(error); });
+              void toolHandler!(message.payload, control.signal).catch(error => { toolReplies.delete(id); control.signal.removeEventListener('abort', abort); reject(error); });
             });
             worker.postMessage({ type: 'host-result', id: message.id, value: jsonValue(value) });
           } else if (message.method === 'model') {

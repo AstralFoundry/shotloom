@@ -154,6 +154,10 @@ test('canvas_media_frame 可从本地文件路径逐张读取，并保留原有�
     const ambiguous = await call('director-primary', 'canvas_media_frame', { nodeId: 'video-1', filePath: '/tmp/uploaded.mp4', timesSec: [0] });
     assert.equal(ambiguous.result.success, false);
     assert.equal(captures.length, 3);
+    const tooMany = await call('director-primary', 'canvas_media_frame', { filePath: '/tmp/uploaded.mp4', timesSec: Array.from({ length: 9 }, (_, i) => i) });
+    assert.equal(tooMany.result.code, 'IMAGE_ATTACHMENT_LIMIT');
+    assert.match(tooMany.result.hint, /contact_sheet/);
+    assert.equal(captures.length, 3, 'reject unsupported attachment batches before extracting frames');
   } finally {
     desktopApi.file.captureVideoFrameToProject = previousCapture;
     desktopApi.file.readImagePreview = previousRead;

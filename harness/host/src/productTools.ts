@@ -18,6 +18,8 @@ export interface ProductTool {
   effect: 'read' | 'write' | 'generation' | 'delete' | 'overwrite' | 'export';
   /** Set by the product catalog, never by model arguments. */
   approvalRequired?: boolean;
+  /** 0 leaves execution unbounded; user cancellation still applies. */
+  timeoutMs?: number;
 }
 
 export interface ProductBridge {
@@ -44,8 +46,8 @@ export function registerProductTools(
     throw new Error('Shotloom Tool Bridge must be loopback HTTP');
   }
   if (!bridge.dispatch && !bridge.token) throw new Error('Missing Shotloom Tool Bridge credential');
-  async function exchange(request: Record<string, unknown>, signal: AbortSignal) {
-    signal = AbortSignal.any([signal, AbortSignal.timeout(bridge.timeoutMs ?? 120_000)]);
+  async function exchange(request: Record<string, unknown>, signal: AbortSignal, timeoutMs = bridge.timeoutMs ?? 120_000) {
+    if (timeoutMs > 0) signal = AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)]);
     if (bridge.dispatch) return { ok: true, receipt: await bridge.dispatch(request, signal) };
     const response = await fetch(new URL('/tool', target!), {
       method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${bridge.token}` },
@@ -143,7 +145,7 @@ export function registerProductTools(
         // The desktop revalidates project/node existence and current settings.
         try {
           if (persistReceipt && !await receiptCrud!.claimReceipt(requestId)) return { success: false, code: 'TOOL_OUTCOME_UNKNOWN', requestId };
-          const response = await exchange({ op: 'tool', requestId, binding, toolName: tool.name, input, approvedByHarness, authorizedByFullAccess: fullAccessGrant }, exec.signal);
+          const response = await exchange({ op: 'tool', requestId, binding, toolName: tool.name, input, approvedByHarness, authorizedByFullAccess: fullAccessGrant }, exec.signal, tool.timeoutMs);
           const receipt = response.receipt;
           if (!receipt || typeof receipt !== 'object' || Array.isArray(receipt)) {
             throw new Error('Bridge did not return a structured receipt');

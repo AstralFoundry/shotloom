@@ -38,7 +38,7 @@ test('archiving an unopened project uses its own Worker scope and always release
     load(id) { if (id.startsWith('\0lifecycle:')) return modules[id.slice(11)]; },
   }] });
   try {
-    const { archiveBrowserHarness, connectBrowserHarness, bindBrowserHarness } = await env.load('services/browserHarnessTransport');
+    const { archiveBrowserHarness, connectBrowserHarness, bindBrowserHarness, registerBrowserToolHandler } = await env.load('services/browserHarnessTransport');
     assert.deepEqual(await archiveBrowserHarness('unopened', ['local-session'], true), { sessionIds: ['local-session'] });
     assert.deepEqual(workers[0].messages, [
       { type: 'boot', id: 'boot', payload: { userId: 'local', projectKey: 'unopened' } },
@@ -64,6 +64,13 @@ test('archiving an unopened project uses its own Worker scope and always release
     await heartbeat();
     await new Promise(resolve => setImmediate(resolve));
     assert.equal(workers[3].terminated, false, 'a transient auth heartbeat network error must not terminate the active run');
+    let signal;
+    registerBrowserToolHandler(async (_request, value) => { signal = value; });
+    workers[3].onmessage({ data: { type: 'host-request', id: 'cancellable-tool', method: 'tool', payload: { requestId: 'tool-call' } } });
+    assert.equal(signal?.aborted, false);
+    workers[3].onmessage({ data: { type: 'host-abort', id: 'cancellable-tool' } });
+    assert.equal(signal.aborted, true, 'Worker cancellation must reach the product handler');
+    await new Promise(resolve => setImmediate(resolve));
     workers[3].onmessage({ data: { type: 'fatal', error: 'test teardown' } });
   } finally {
     await env.dispose();
