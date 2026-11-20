@@ -115,7 +115,8 @@ export function runDirectorDeskCommand(operation: string, args: Record<string, u
   }));
   const requestId = crypto.randomUUID();
   return new Promise((resolve, reject) => {
-    const timer = window.setTimeout(() => { pending.delete(requestId); reject(new DirectorDeskError('导演台未响应，请检查场景是否已加载')); }, 20_000);
+    const timeout = ['search_polyfork_models', 'get_polyfork_model', 'download_polyfork_model', 'import_polyfork_model'].includes(operation) ? 120_000 : 20_000;
+    const timer = window.setTimeout(() => { pending.delete(requestId); reject(new DirectorDeskError('导演台未响应，请检查场景是否已加载')); }, timeout);
     pending.set(requestId, { source: target, resultType: entry.result, resolve, reject, timer });
     target.postMessage({ type: entry.request, payload: { requestId, operation, args } }, window.location.origin);
   });

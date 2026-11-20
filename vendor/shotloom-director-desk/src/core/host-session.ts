@@ -3,6 +3,7 @@ import { DirectorCommandError } from './errors.ts';
 /** A revision is local to one loaded iframe session, never a persistent document version. */
 export class DirectorHostSession {
     private instanceId: string | null = null;
+    private loading: AbortController | null = null;
     private token = crypto.randomUUID();
     connected = false;
     private versions = new Map<number, { entities: Map<string, string>; sections: Map<string, string> }>();
@@ -35,16 +36,26 @@ export class DirectorHostSession {
     get id() { return this.token; }
 
     /** ready and iframe load both deliver initialization; only the first may load the document. */
-    initialize(instanceId: string, load: () => void): boolean {
-        if (this.connected && this.instanceId === instanceId) return false;
+    async initialize(instanceId: string, load: (signal: AbortSignal) => void | Promise<void>): Promise<boolean> {
+        if ((this.connected || this.loading) && this.instanceId === instanceId) return false;
+        this.loading?.abort();
+        const controller = new AbortController();
+        this.loading = controller;
         this.connected = false;
-        this.instanceId = null;
+        this.instanceId = instanceId;
         this.token = crypto.randomUUID();
         this.versions.clear();
-        load();
-        this.instanceId = instanceId;
-        this.connected = true;
-        return true;
+        try {
+            await load(controller.signal);
+            if (controller.signal.aborted) return false;
+            this.connected = true;
+            return true;
+        } catch (error) {
+            if (controller.signal.aborted) return false;
+            throw error;
+        } finally {
+            if (this.loading === controller) this.loading = null;
+        }
     }
 
     assertCurrent(expectedSessionId: unknown, currentRevision: number): void {

@@ -7,6 +7,17 @@ export type DirectorDeskTheme = "light" | "dark";
 export type DirectorDeskAgentMode = 'compact' | 'input' | 'expanded';
 export type DirectorDeskAgentAnchor = { x: number; y: number; width: number; height: number; toolbarWidth: number; toolbarHeight: number };
 
+export function listenDirectorDeskModelImport(frame: HTMLIFrameElement, onVisibility: (open: boolean) => void) {
+  const receive = (event: MessageEvent) => {
+    if (event.source !== frame.contentWindow || event.origin !== window.location.origin || event.data?.type !== 'storyai:director-desk-model-import-visibility') return;
+    if (typeof event.data.payload?.open === 'boolean') onVisibility(event.data.payload.open);
+  };
+  const reset = () => onVisibility(false);
+  window.addEventListener('message', receive);
+  frame.addEventListener('load', reset);
+  return () => { window.removeEventListener('message', receive); frame.removeEventListener('load', reset); };
+}
+
 export function sendDirectorDeskAgentLayout(frame: HTMLIFrameElement, layout: { mode: DirectorDeskAgentMode; width: number; stacked: boolean }) {
   post(frame, { type: 'storyai:director-desk-agent-layout', payload: layout });
 }

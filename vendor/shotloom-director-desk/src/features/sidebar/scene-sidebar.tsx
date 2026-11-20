@@ -9,7 +9,7 @@ import { CAMERA_PLACEMENTS } from '@/core/cinematography/camera-placements.ts';
 import type { SidebarTab } from '@/state/editor-store.ts';
 import type { Entity } from '@/core/model.ts';
 import { CameraMovesPanel } from './camera-moves-panel.tsx';
-import { AssetBrowser } from './asset-browser.tsx';
+import { AssetBrowser, type AssetSource } from './asset-browser.tsx';
 import { ModelImportDialog } from '@/features/model-import/model-import-dialog.tsx';
 import { ShotList } from '@/features/shots/shot-list.tsx';
 
@@ -77,11 +77,14 @@ export function SceneSidebar({ resize }: { resize?: React.ReactNode }) {
     const selected = useEditorStore((state) => state.selected);
     const tab = useEditorStore((state) => state.sidebarTab);
     const query = useEditorStore((state) => state.query);
+    const [assetSource, setAssetSource] = useState<AssetSource>('builtin');
+    const [onlineQuery, setOnlineQuery] = useState('');
     const [modelImportOpen, setModelImportOpen] = useState(false);
     const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
 
     const needle = query.trim().toLowerCase();
     const entities = project.entities.filter((entity) => !needle || entity.name.toLowerCase().includes(needle));
+    const onlineAssets = tab === 'assets' && assetSource === 'polyfork';
 
     return (
         <aside id="director-sidebar" className="sidebar" aria-label={t('侧栏')}>
@@ -113,12 +116,14 @@ export function SceneSidebar({ resize }: { resize?: React.ReactNode }) {
                 {(tab === 'scene' || tab === 'assets') ? (
                     <Input
                         id="scene-search"
-                        size="small"
                         allowClear
                         prefix={<SearchIcon />}
-                        placeholder={tab === 'assets' ? t('搜索白模资产') : t('搜索场景对象')}
-                        value={query}
-                        onChange={(event) => useEditorStore.getState().patch({ query: event.target.value })}
+                        placeholder={onlineAssets ? t('输入英文关键词，如 chair、tree、car') : tab === 'assets' ? t('搜索本地资产') : t('搜索场景对象')}
+                        value={onlineAssets ? onlineQuery : query}
+                        onChange={(event) => {
+                            if (onlineAssets) setOnlineQuery(event.target.value);
+                            else useEditorStore.getState().patch({ query: event.target.value });
+                        }}
                     />
                 ) : null}
 
@@ -142,7 +147,7 @@ export function SceneSidebar({ resize }: { resize?: React.ReactNode }) {
                     ) : tab === 'shots' ? (
                         <ShotList onExport={(shot) => session.exportShot(shot)} />
                     ) : tab === 'assets' ? (
-                        <AssetBrowser />
+                        <AssetBrowser source={assetSource} onSourceChange={setAssetSource} onlineQuery={onlineQuery} />
                     ) : (
                         <div className="scene-groups">
                             {SCENE_GROUPS.map((group) => {

@@ -3,7 +3,7 @@ import { t } from '@/i18n';
 import { DIRECTOR_AGENT_ID } from '../../agent/agents/definitions';
 import { IconSymbol } from '../components/IconSymbol';
 import { HarnessChatPanel } from './HarnessChatPanel';
-import { listenDirectorDeskAgentAnchor, sendDirectorDeskAgentLayout, type DirectorDeskAgentAnchor } from '../adapters/directorDeskBridge';
+import { listenDirectorDeskAgentAnchor, listenDirectorDeskModelImport, sendDirectorDeskAgentLayout, type DirectorDeskAgentAnchor } from '../adapters/directorDeskBridge';
 
 /** Floating director conversation. Keep the official client mounted in every state. */
 export function DirectorAgentPane({
@@ -17,6 +17,7 @@ export function DirectorAgentPane({
   onEntityRequestHandled?: (nonce: number) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [modelImportOpen, setModelImportOpen] = useState(false);
   const expand = useCallback(() => {
     onCollapsedChange(false);
     setExpanded(true);
@@ -26,6 +27,10 @@ export function DirectorAgentPane({
   }, [expand]);
   const mode = collapsed ? 'compact' : expanded ? 'expanded' : 'input';
   const dock = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const frame = dock.current?.parentElement?.querySelector('iframe');
+    if (frame) return listenDirectorDeskModelImport(frame, setModelImportOpen);
+  }, []);
   const motion = useRef<{ mode: string; boxes: Map<Element, DOMRect> } | undefined>(undefined);
   const animations = useRef<Animation[]>([]);
   useEffect(() => () => { for (const animation of animations.current) animation.cancel(); }, []);
@@ -97,7 +102,7 @@ export function DirectorAgentPane({
     return () => { observer.disconnect(); stopListening(); frame.removeEventListener('load', request); };
   }, [mode, collapsed]);
   return (
-    <aside ref={dock} className={`${className} director-agent-dock`} data-director-mode={mode} aria-label={t('director.agent.label')}
+    <aside ref={dock} className={`${className} director-agent-dock`} data-director-mode={mode} hidden={modelImportOpen} aria-label={t('director.agent.label')}
       style={{ '--shotloom-director-placeholder': JSON.stringify(t('director.agent.placeholder')) } as CSSProperties}
       onDoubleClickCapture={event => {
         if (collapsed && event.nativeEvent.composedPath().some(target => target instanceof HTMLElement && target.matches('[data-input-scroll], [data-composer-input], [data-composer-placeholder]'))) {

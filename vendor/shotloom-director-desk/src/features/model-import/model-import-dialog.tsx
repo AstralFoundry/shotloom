@@ -1,15 +1,15 @@
 import { InboxOutlined } from '@ant-design/icons';
-import { Alert, Button, Col, Input, InputNumber, Modal, Row, Select, Upload } from 'antd';
-import { useEffect, useRef, useState } from 'react';
-import { clone, entity, type Vec3 } from '@/core/model.ts';
-import { workingElevation } from '@/core/building/floors.ts';
+import { Alert, Button, Col, ConfigProvider, Input, InputNumber, Modal, Row, Select, Upload, type ThemeConfig } from 'antd';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { reportHostModelImport } from '@/app/host-bridge.ts';
+import { type Vec3 } from '@/core/model.ts';
 import { packModelFilesAsync } from '@/core/resources/model-import-worker.ts';
 import { modelResourceId, type ModelResource } from '@/core/resources/project-resources.ts';
 import type { SceneModels } from '@/core/resources/scene-models.ts';
 import { useTranslation } from '@/shared/i18n/use-translation.ts';
 import { notifyError, notifySuccess } from '@/shared/ui/feedback.ts';
 import { session } from '@/state/editor-session.ts';
-import { useEditorStore } from '@/state/editor-store.ts';
+import { inspectImportedModel, placeImportedModel, pruneImportedModels } from './import-model.ts';
 
 type Inspection = ReturnType<SceneModels['inspection']>;
 
@@ -26,6 +26,18 @@ interface PlacementForm {
 
 const MODEL_EXTENSION = /\.(glb|gltf|fbx|obj)$/i;
 const filePath = (file: File) => (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name;
+const importControlSize = { height: 40, fontSize: 14 };
+const importActionStyle = { ...importControlSize, paddingInline: 20 };
+const mainFileSelectTheme: ThemeConfig = {
+    components: {
+        Select: {
+            controlHeight: importControlSize.height,
+            fontSize: importControlSize.fontSize,
+            optionHeight: importControlSize.height,
+            optionFontSize: importControlSize.fontSize,
+        },
+    },
+};
 
 /**
  * Import GLB / glTF / FBX / OBJ with their sidecar files.
@@ -56,13 +68,15 @@ export function ModelImportDialog({ open, onClose }: { open: boolean; onClose: (
     const abortRef = useRef<AbortController | null>(null);
     const placedRef = useRef(false);
 
+    useLayoutEffect(() => {
+        if (!open) return;
+        reportHostModelImport(true);
+        return () => reportHostModelImport(false);
+    }, [open]);
+
     const entries = files.map(filePath).filter((path) => MODEL_EXTENSION.test(path));
 
-    const prune = () => {
-        const engine = session.engineOrNull;
-        if (!engine) return;
-        engine.externalModels.retain([session.project, ...session.history.undoStack, ...session.history.redoStack]);
-    };
+    const prune = pruneImportedModels;
 
     const addFiles = (incoming: File[]) => {
         setFiles((previous) => {
@@ -124,29 +138,10 @@ export function ModelImportDialog({ open, onClose }: { open: boolean; onClose: (
                 controller.signal.throwIfAborted();
                 source.push({ path: filePath(file), bytes: new Uint8Array(await file.arrayBuffer()) });
             }
-            controller.signal.throwIfAborted();
             const pack = await packModelFilesAsync(entry, source, controller.signal);
-            const id = await modelResourceId(pack, controller.signal);
-            controller.signal.throwIfAborted();
-            const nextResource: ModelResource = {
-                id,
-                name: entry.split('/').at(-1)!.replace(MODEL_EXTENSION, ''),
-                package: pack,
-                copyright: '',
-                license: '',
-                source: '',
-            };
-            const next = {
-                ...session.project,
-                version: 2 as const,
-                resources: [...(session.project.resources ?? []).filter((item) => item.id !== id), nextResource],
-            };
-            await engine.externalModels.prepare(next, controller.signal);
-            if (session.project !== original) throw new Error('读取期间工程已变化，请重新导入');
-            const info = engine.externalModels.inspection(nextResource);
-            if (!info.meshes) throw new Error('这是独立动作文件，不能作为场景模型放置');
-            nextResource.copyright = info.copyright;
-            const measured = engine.externalModels.measure(nextResource, 1, [0, 0, 0]);
+            const nextResource = { id: await modelResourceId(pack, controller.signal), name: entry.split('/').at(-1)!.replace(MODEL_EXTENSION, ''), package: pack, copyright: '', license: '', source: '' };
+            if (session.project !== original) throw Error('读取期间工程已变化，请重新导入');
+            const { inspection: info, size: measured } = await inspectImportedModel(nextResource, controller.signal);
             setResource(nextResource);
             setInspection(info);
             setSize(measured);
@@ -154,8 +149,8 @@ export function ModelImportDialog({ open, onClose }: { open: boolean; onClose: (
                 ...current,
                 name: nextResource.name,
                 kind: info.skins ? 'actor' : 'prop',
-                license: '',
-                source: '',
+                license: nextResource.license,
+                source: nextResource.source,
             }));
             setStep('place');
         } catch (cause) {
@@ -171,50 +166,16 @@ export function ModelImportDialog({ open, onClose }: { open: boolean; onClose: (
     function place() {
         const engine = session.engineOrNull;
         if (!engine || !resource) return;
-        const rotation = orientation();
-        const unitScale = Number(form.units);
-        const measured = engine.externalModels.measure(resource, unitScale, rotation);
-        const target = engine.orbit.target;
-        const elevation = workingElevation(session.project);
-        const kind = form.kind;
-        const model = entity(
-            kind,
-            'external-model',
-            form.name.trim() || resource.name,
-            engine.snapPosition([target.x, elevation, target.z]),
-        );
-        model.position[1] = elevation;
-        model.external = {
-            resourceId: resource.id,
-            appearance: form.appearance,
-            unitScale,
-            orientation: rotation,
-        };
-        if (kind === 'actor') model.height = measured[1];
         resource.license = form.license;
         resource.source = form.source;
-
-        const placed = session.change(() => {
-            const project = session.project;
-            project.version = 2;
-            project.resources ??= [];
-            const existing = project.resources.findIndex((item) => item.id === resource.id);
-            if (existing < 0) project.resources.push(clone(resource));
-            else project.resources[existing] = clone(resource);
-            project.entities.push(model);
-            useEditorStore.getState().patch({
-                selected: model.id,
-                inspectorTab: 'base',
-                sidebarTab: 'scene',
-            });
-        });
-        if (!placed) {
-            notifyError('未能放入场景，请检查模型规格');
+        try {
+            placeImportedModel(resource, { name: form.name, kind: form.kind, appearance: form.appearance, unitScale: Number(form.units), orientation: orientation() });
+        } catch (cause) {
+            notifyError((cause as Error).message);
             prune();
             return;
         }
         placedRef.current = true;
-        engine.focus(model.id);
         notifySuccess('模型已添加');
         close();
     }
@@ -242,17 +203,19 @@ export function ModelImportDialog({ open, onClose }: { open: boolean; onClose: (
             footer={
                 step === 'pick' ? (
                     <>
-                        <Button onClick={close} disabled={reading}>
+                        <Button style={importActionStyle} onClick={close} disabled={reading}>
                             {t('取消')}
                         </Button>
-                        <Button type="primary" loading={reading} disabled={!entry} onClick={() => void readModel()}>
+                        <Button style={importActionStyle} type="primary" loading={reading} disabled={!entry} onClick={() => void readModel()}>
                             {t('读取模型')}
                         </Button>
                     </>
                 ) : (
                     <>
-                        <Button onClick={() => setStep('pick')}>{t('返回')}</Button>
-                        <Button type="primary" onClick={place}>
+                        <Button style={importActionStyle} onClick={() => setStep('pick')}>
+                            {t('返回')}
+                        </Button>
+                        <Button style={importActionStyle} type="primary" onClick={place}>
                             {t('放入场景')}
                         </Button>
                     </>
@@ -277,7 +240,7 @@ export function ModelImportDialog({ open, onClose }: { open: boolean; onClose: (
                                     return false;
                                 }}
                             >
-                                <Button block icon={<InboxOutlined />}>
+                                <Button block style={importActionStyle} icon={<InboxOutlined />}>
                                     {t('选择文件')}
                                 </Button>
                             </Upload>
@@ -292,7 +255,7 @@ export function ModelImportDialog({ open, onClose }: { open: boolean; onClose: (
                                     return false;
                                 }}
                             >
-                                <Button block icon={<InboxOutlined />}>
+                                <Button block style={importActionStyle} icon={<InboxOutlined />}>
                                     {t('选择文件夹')}
                                 </Button>
                             </Upload>
@@ -300,12 +263,14 @@ export function ModelImportDialog({ open, onClose }: { open: boolean; onClose: (
                     </Row>
                     <label className="export-field">
                         <span>{t('模型主文件')}</span>
-                        <Select
-                            value={entry || undefined}
-                            placeholder={entries.length ? t('选择主文件') : t('先选择文件')}
-                            onChange={(value) => setEntry(value)}
-                            options={entries.map((path) => ({ value: path, label: path }))}
-                        />
+                        <ConfigProvider theme={mainFileSelectTheme}>
+                            <Select
+                                value={entry || undefined}
+                                placeholder={entries.length ? t('选择主文件') : t('先选择文件')}
+                                onChange={(value) => setEntry(value)}
+                                options={entries.map((path) => ({ value: path, label: path }))}
+                            />
+                        </ConfigProvider>
                     </label>
                     <p className="muted small">
                         {t('已选择')} {files.length} {t('个文件')}

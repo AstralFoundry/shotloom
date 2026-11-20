@@ -8,10 +8,10 @@ test('导演台重复 ready/load 初始化不会回灌旧场景或清空已产�
     const { DirectorHostSession } = await env.loadVendor('shotloom-director-desk/src/core/host-session.ts');
     const binding = new DirectorHostSession();
     let scene = { color: 'white', revision: 0 };
-    assert.equal(binding.initialize('node-a', () => { scene = { color: 'white', revision: 1 }; }), true);
+    assert.equal(await binding.initialize('node-a', () => { scene = { color: 'white', revision: 1 }; }), true);
     const id = binding.id;
     scene = { color: 'blue', revision: 2 };
-    assert.equal(binding.initialize('node-a', () => { scene = { color: 'white', revision: 1 }; }), false);
+    assert.equal(await binding.initialize('node-a', () => { scene = { color: 'white', revision: 1 }; }), false);
     assert.deepEqual(scene, { color: 'blue', revision: 2 });
     assert.equal(binding.id, id);
     assert.doesNotThrow(() => binding.assertCurrent(id, scene.revision));
@@ -23,9 +23,9 @@ test('重建 iframe 后即使 revision 相同，也拒绝旧会话批次和缺�
   try {
     const { DirectorHostSession } = await env.loadVendor('shotloom-director-desk/src/core/host-session.ts');
     const first = new DirectorHostSession();
-    first.initialize('node-a', () => {});
+    await first.initialize('node-a', () => {});
     const reopened = new DirectorHostSession();
-    reopened.initialize('node-a', () => {});
+    await reopened.initialize('node-a', () => {});
     for (const stale of [first.id, undefined, '']) {
       assert.throws(() => reopened.assertCurrent(stale, 2), error => {
         assert.equal(error.code, 'SESSION_MISMATCH');
@@ -43,12 +43,12 @@ test('切换节点必须重新绑定；加载失败保持未连接且可以重�
   try {
     const { DirectorHostSession } = await env.loadVendor('shotloom-director-desk/src/core/host-session.ts');
     const binding = new DirectorHostSession();
-    binding.initialize('node-a', () => {});
+    await binding.initialize('node-a', () => {});
     const oldId = binding.id;
-    assert.throws(() => binding.initialize('node-b', () => { throw Error('invalid document'); }), /invalid document/);
+    await assert.rejects(binding.initialize('node-b', () => { throw Error('invalid document'); }), /invalid document/);
     assert.equal(binding.connected, false);
     assert.throws(() => binding.assertCurrent(oldId, 2), { code: 'SESSION_MISMATCH' });
-    assert.equal(binding.initialize('node-b', () => {}), true);
+    assert.equal(await binding.initialize('node-b', () => {}), true);
     assert.equal(binding.connected, true);
     assert.notEqual(binding.id, oldId);
   } finally { await env.dispose(); }
@@ -60,7 +60,7 @@ test('revision diff 区分增删改、场景属性与历史过期', async () => 
   try {
     const { DirectorHostSession } = await env.loadVendor('shotloom-director-desk/src/core/host-session.ts');
     const binding = new DirectorHostSession();
-    binding.initialize('node-a', () => {});
+    await binding.initialize('node-a', () => {});
     const doc = entities => ({ scenes: [{ id: 'scene-a', state: { entities, duration: 5 } }] });
     binding.record(1, doc([{ id: 'a', color: 'red' }, { id: 'b' }]));
     binding.record(2, doc([{ id: 'a', color: 'blue' }, { id: 'c' }]));
@@ -75,5 +75,28 @@ test('revision diff 区分增删改、场景属性与历史过期', async () => 
     assert.deepEqual(binding.diff(3, 4).modifiedEntityIds, ['a']);
     for (let i = 3; i < 36; i++) binding.record(i, doc([]));
     assert.equal(binding.diff(1, 35).complete, false);
+  } finally { await env.dispose(); }
+});
+
+test('等待模型资源时不重复加载，也不让已切换的旧会话重新连接', async () => {
+  const env = await createRendererEnv();
+  try {
+    const { DirectorHostSession } = await env.loadVendor('shotloom-director-desk/src/core/host-session.ts');
+    const binding = new DirectorHostSession();
+    const pending = Promise.withResolvers();
+    const first = binding.initialize('node-a', async signal => {
+      await pending.promise;
+      assert.equal(signal.aborted, true);
+    });
+    assert.equal(binding.connected, false);
+    assert.equal(await binding.initialize('node-a', () => assert.fail('duplicated load')), false);
+    const next = Promise.withResolvers();
+    const second = binding.initialize('node-b', () => next.promise);
+    pending.resolve();
+    assert.equal(await first, false);
+    assert.equal(binding.connected, false);
+    next.resolve();
+    assert.equal(await second, true);
+    assert.equal(binding.connected, true);
   } finally { await env.dispose(); }
 });

@@ -20,6 +20,8 @@
 
 导演台 `revision` 是 iframe 会话内计数；批量写入必须同时携带快照的 `sessionId`（`expectedSessionId`）和 `revision`（`expectedRevision`）。重复 ready/load 初始化必须幂等，不能重新载入旧文档。冲突回执附带最近 32 个版本范围内的 `revisionDiff`；缓存缺失时明确标记不完整。`autoPreview` 在写入成功后取帧，预览失败保留 `applied: true`，避免调用方重复应用批次。导出媒体的 `directorContext` 只保存导出时的工程事实，并随素材和画布节点传递；由模型根据这些事实与真实画面编写下游提示词，应用不猜测景别、剧情或内容质量。
 
+导演台在线模型走同源 `/api/polyfork/`，Electron 主进程与 Vite 开发服务共用 `electron/core/polyfork.ts`。处理器按需从固定的 Polyfork 主机获取免费 CC BY 4.0 GLB，不依赖云端登录或 Supabase。下载成功后写入同源 IndexedDB，资产侧栏「本地 → 已下载」可离线复用，且目录读取不加载模型文件。场景资源与下载 ZIP 均保留逐模型署名和许可；工程保存独立副本，重开导演台时先准备模型资源再载入场景，不依赖本地资产库或联网。
+
 ## 官方 Harness 客户端隔离
 
 Agent Host 发行资源由 `scripts/prepare-harness.mjs` 在临时目录准备后原子替换。依赖按锁文件中的 `dev` 标记排除纯开发包及其命令入口，保留生产依赖和许可证；不复制依赖的 JS 源码映射、类型声明及其他平台的 node-pty 预编译文件。只精简发行副本，不修改开发依赖目录；变更后运行资源装配测试和 `npm run harness:verify-package`。

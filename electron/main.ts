@@ -20,6 +20,7 @@ import './ipc/commands/videoExport';
 import './ipc/commands/agentE2e';
 import { initializeRecovery, markCleanExit } from './core/recovery';
 import { shutdownHarnessRuntime } from './core/harness';
+import { handlePolyforkRequest, polyforkPrefix } from './core/polyfork';
 import { cancelUpdateDownload, checkForUpdate, downloadUpdate, installUpdate } from './core/updater';
 
 const isDevelopment = Boolean(process.env.SHOTLOOM_DEV_URL);
@@ -147,6 +148,7 @@ function assetResponse(request: Request): Response {
 async function handleProtocolRequest(request: Request): Promise<Response> {
   const url = new URL(request.url);
   if (url.hostname === 'asset') return assetResponse(request);
+  if (url.hostname === 'app' && url.pathname.startsWith(polyforkPrefix)) return handlePolyforkRequest(request);
   const file = rendererFile(url.pathname);
   if (!file) return new Response('Not Found', { status: 404 });
   return new Response(await readFile(file), { status: 200, headers: { 'content-type': mimeType(file) } });

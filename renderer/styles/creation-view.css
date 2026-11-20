@@ -555,6 +555,7 @@
   color: var(--director-dock-text);
   transform: translateX(-50%);
 }
+.director-agent-dock[hidden] { display: none; }
 .director-agent-dock[data-director-mode="compact"] { width: min(360px, calc(100% - 48px)); }
 .director-agent-card {
   position: relative;

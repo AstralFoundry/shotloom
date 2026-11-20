@@ -1,11 +1,38 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readSource, sourceExists } from './helpers/sourceContract.mjs';
+import { listenDirectorDeskModelImport } from '../renderer/src/app/adapters/directorDeskBridge.ts';
 
 const chrome = readSource('renderer/src/app/adapters/directorDeskHostChrome.ts');
 const chromeStyles = readSource('renderer/src/app/adapters/directorDeskHostChrome.css');
 const directorNode = readSource('renderer/src/app/canvas/ThreeDDirectorNode.tsx');
 const directorWorkspace = readSource('renderer/src/app/views/DirectorWorkspace.tsx');
+
+test('导入弹窗的可见性只由当前导演台 iframe 控制，重新加载或关闭时恢复输入框', (context) => {
+  const origin = 'http://localhost:5173';
+  const host = Object.assign(new EventTarget(), { location: { origin } });
+  const frame = Object.assign(new EventTarget(), { contentWindow: {} });
+  globalThis.window = host;
+  context.after(() => { delete globalThis.window; });
+  const observed = [];
+  const stop = listenDirectorDeskModelImport(frame, open => observed.push(open));
+  const report = (open, source = frame.contentWindow, senderOrigin = origin) => {
+    host.dispatchEvent(Object.assign(new Event('message'), {
+      source, origin: senderOrigin, data: { type: 'storyai:director-desk-model-import-visibility', payload: { open } },
+    }));
+  };
+  report(true, {});
+  report(true, frame.contentWindow, 'https://example.com');
+  report('true');
+  report(true);
+  report(false);
+  report(true);
+  frame.dispatchEvent(new Event('load'));
+  stop();
+  report(true);
+  frame.dispatchEvent(new Event('load'));
+  assert.deepEqual(observed, [true, false, true, false]);
+});
 
 test('导演台宿主样式在 iframe 加载后注入且不改 vendor 源码', () => {
   assert.match(chrome, /directorDeskHostChrome\.css\?raw/);
