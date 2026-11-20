@@ -112,3 +112,13 @@ runninghub::krea2-normal-v1 = tier("RH coins", (u("coins") ?? 15) * 0.002)
 - 生产模块校验两个 POST 接口均通过发布约束；公网模板 JS 与容器文件 SHA-256 一致并包含两个模板 ID。未重复发起付费生成，未进行登录后的浏览器交互验收，部署时网关插件表达式的实际扣费未复测。
 
 发布材料与模型配置备份：`/opt/shotloom-releases/runninghub-20261121-c34b062/`。旧镜像 `shotloom:before-runninghub-c34b062`；恢复该目录 `compose.before.yaml` 对应镜像即可回滚应用。若同时撤回模型发布，需另行通过后台下架这两个模型；应用镜像回滚不回滚发布表。
+
+### 2026-11-21 H3 云端归档修复与原任务恢复
+
+用户反馈 Krea2 参考图被拒绝，以及 H3 上游成功但画布无视频。已核对网关 RunningHub 插件 1.0.6：Krea2 工作流只构建文生图，未接入图片输入；保留真实能力边界，未添加会丢弃参考图片的虚假 mode。回归证明 Krea2 纯文本输入通过、参考图输入被拒绝。
+
+H3 任务 `task_sJvz3qwYdnR4EJdUApv5OlvHrAxDzxzq` 在网关已 SUCCESS，应用任务却归档了 0 字节 MP4。根因是云端 `downloadUrlToProject` 丢弃第三个参数 downloadAuth：模板回执只有鉴权结果端点、没有公开 URL，最终以空路径调用浏览器本地读取替身，上传了空文件。修复复用已有 BFF relay 请求，按结果端点下载 Blob 再上传 Storage，并拒绝空下载；HTTP 失败不得上传或提交素材。回归从真实适配器轮询贯通云端下载和归档，覆盖成功、403 和空内容。
+
+已从原任务只读下载视频，验证 H.264/AAC、480×864、5.167 秒、716474 字节；核对用户、工程、任务和素材关系以及原对象为 0 字节后，将正常 MP4 恢复到原来的租户隔离存储路径。签名下载复核字节数及 SHA-256 `7d53fb4d452bbb80e065d04fcd90268195c9948c580d25926567c706ac7beb1b` 一致。未重发付费生成，未修改工程或任务 JSON；历史素材大小字段仍保留原值，Storage 对象大小已正确，刷新工程会重新读取恢复的视频。
+
+修复提交 `5dd6d2c`，发布前发现线上已更新为 Agent Worker `5cc1dc0`，因此合并该版本后发布 `0b3908f22f49c0e74832d222eed3ff0bce838aa5`，保留 Worker 和 Android 0.9.17 下载页。镜像 `shotloom:runninghub-download-0b3908f`；发布目录 `/opt/shotloom-releases/runninghub-download-20261121-0b3908f/`，回滚配置 `compose.before.yaml` 指向先前 Worker 镜像。候选、公网 9 项检查、Worker 资源 200、修复前端资源哈希、renderer 类型检查和工程门禁通过；合并后云端及适配器 24 项测试通过，另补 Krea2 能力回归通过。未进行用户登录后的画布播放验收。

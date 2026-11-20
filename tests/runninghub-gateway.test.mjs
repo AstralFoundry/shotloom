@@ -5,6 +5,24 @@ import { createRendererEnv } from './helpers/rendererSsr.mjs';
 
 const templates = JSON.parse(readSource('shared/runninghubGatewayTemplates.json'));
 
+test('published Krea2 accepts text input and rejects unsupported reference images', async () => {
+  const env = await createRendererEnv();
+  try {
+    const { modelCatalog } = await env.load('domain/catalog/ModelCatalog');
+    const { generationUpstreamReadiness } = await env.load('domain/graph/generationPayload');
+    modelCatalog.replacePublishedModels([{ ...templates[1], id: 'krea2-normal-v1' }]);
+    const target = { id: 'target', title: '图片生成', type: 'imageGeneration', model: 'krea2-normal-v1', prompt: 'A red ball', config: {} };
+    const source = { id: 'source', type: 'imageGeneration', uploadedFile: { path: '/reference.png', name: 'reference.png', type: 'image/png', resourceType: 'image' } };
+    const project = { nodes: [target, source], edges: [], tasks: [], materials: [] };
+    assert.deepEqual(generationUpstreamReadiness(target, project).issues, []);
+    target.inputMode = 'reference';
+    project.edges.push({ source: 'source', target: 'target', data: { inputRole: 'referenceImage' } });
+    const readiness = generationUpstreamReadiness(target, project);
+    assert.equal(readiness.ready, false);
+    assert.match(readiness.issues.join('；'), /不支持参考图片/);
+  } finally { await env.dispose(); }
+});
+
 test('RunningHub gateway templates submit images, poll videos and download authenticated content', async () => {
   const env = await createRendererEnv();
   try {
