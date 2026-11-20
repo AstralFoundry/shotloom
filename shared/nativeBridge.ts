@@ -6,10 +6,11 @@ export function nativeRequestAllowed(method: string, path: string): boolean {
   if (query && [...new URLSearchParams(query).keys()].some(key => !queryKeys.includes(key))) return false;
   const uuid = '[0-9a-fA-F-]{36}';
   if (method === 'GET') return ['/auth/me', '/auth/account', '/auth/usage', '/auth/topup/options', '/projects', '/library-folders', '/catalog/skills', '/feedback', '/notifications', '/settings/mobile', '/models'].includes(pathname)
-    || new RegExp(`^/feedback/${uuid}$`).test(pathname);
+    || new RegExp(`^/(feedback|project)/${uuid}$`).test(pathname);
   if (method === 'POST') return ['/feedback', '/auth/logout', '/auth/topup', '/library-folders'].includes(pathname);
-  if (method === 'PATCH') return pathname === '/settings/mobile';
-  return method === 'PUT' && (pathname === '/catalog/skills' || pathname === '/notifications/read-all' || new RegExp(`^/notifications/${uuid}/read$`).test(pathname));
+  if (method === 'PATCH') return pathname === '/settings/mobile' || new RegExp(`^/library-folders/${uuid}$`).test(pathname);
+  if (method === 'DELETE') return new RegExp(`^/(project|library-folders)/${uuid}$`).test(pathname);
+  return method === 'PUT' && (pathname === '/catalog/skills' || pathname === '/notifications/read-all' || new RegExp(`^/project/${uuid}$`).test(pathname) || new RegExp(`^/notifications/${uuid}/read$`).test(pathname));
 }
 export type NativeRequest = { id: string; method: string; path: string; value?: unknown };
 export type NativeReply = { type: 'response'; id: string; data?: unknown; error?: string; status?: number };

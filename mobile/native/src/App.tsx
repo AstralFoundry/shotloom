@@ -84,6 +84,7 @@ function Projects({ navigation, onOpen }: { navigation: NativeStackScreenProps<R
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<'updated' | 'name'>('updated');
   const [draft, setDraft] = useState<string | null>(null);
+  const [editing, setEditing] = useState<{ entry: (Project | Folder) & { kind: 'project' | 'folder' }; action: 'menu' | 'rename' | 'delete'; name: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState('');
   const parent = parents.at(-1);
@@ -99,21 +100,46 @@ function Projects({ navigation, onOpen }: { navigation: NativeStackScreenProps<R
     try { await api.request('/library-folders', 'POST', { name: draft.trim(), parentId: parent?.id || null }); setDraft(null); refresh(); }
     catch (cause) { setFailure(errorText(cause)); } finally { setBusy(false); }
   };
+  const editEntry = async () => {
+    if (!editing || busy || (editing.action === 'rename' && !editing.name.trim())) return;
+    setBusy(true); setFailure('');
+    const { entry, action, name } = editing;
+    const path = `/${entry.kind === 'folder' ? 'library-folders' : 'project'}/${entry.id}`;
+    try {
+      if (action === 'delete') await api.request(path, 'DELETE');
+      else if (entry.kind === 'folder') await api.request(path, 'PATCH', { name: name.trim() });
+      else {
+        const project = await api.request<Record<string, unknown>>(path);
+        await api.request(path, 'PUT', { ...project, name: name.trim() });
+      }
+      setEditing(null); refresh();
+    } catch (cause) { setFailure(errorText(cause)); } finally { setBusy(false); }
+  };
   return <View style={styles.screen}>
     <FlatList data={entries} keyExtractor={item => item.id} refreshing={projects.loading || folders.loading} onRefresh={refresh} contentContainerStyle={styles.projectList}
       ListHeaderComponent={<><View style={styles.projectHead}>
         {parent && <Pressable accessibilityRole="button" style={[styles.inline, { minHeight: 48 }]} onPress={() => { setParents(value => value.slice(0, -1)); setQuery(''); }}><Icon name="chevron-left" /><Text style={styles.secondary}>{t('ui.ProjectScopeHeader.text.79b705bd')}</Text></Pressable>}
         <Text style={{ fontSize: 20, lineHeight: 28, fontWeight: '700', color: '#292929' }}>{parent?.name || t('ui.ProjectScopeHeader.text.79b705bd')}</Text>
         {!parent && <Text style={{ fontSize: 13, lineHeight: 20, color: colors.muted }}>{t('ui.ProjectsView.text.f5b63ec3')}</Text>}
-        <View style={styles.projectActions}>{parent && <Action title={t('ui.ProjectsView.text.afb7afc7')} icon="grid" onPress={manage} />}<Action title={t('ui.ProjectsView.text.95cf3cd4')} icon="folder" ghost={Boolean(parent)} onPress={() => setDraft('')} /><Action title={t('ui.CreationView.text.60e2bcad')} icon="upload" ghost onPress={manage} /></View>
+        <View style={styles.projectActions}>{parent && <Action title={t('ui.ProjectsView.text.afb7afc7')} icon="grid" onPress={manage} />}<Action title={t('ui.ProjectsView.text.95cf3cd4')} icon="folder" ghost={Boolean(parent)} onPress={() => { setFailure(''); setDraft(''); }} /></View>
       </View><View style={styles.libraryHead}>
         <View style={styles.inline}><Text style={{ fontSize: 12, lineHeight: 18, fontWeight: '500', color: '#292929' }}>{parent?.name || t('ui.ProjectsView.text.f095b12b')}</Text><Text style={styles.small}>{local(`${entries.length} 项`, `${entries.length} items`)}</Text></View>
         <View style={styles.inline}><View style={styles.search}><Icon name="search" size={16} color={colors.muted} /><TextInput accessibilityLabel={t('ui.ProjectSearch.text.b617f05c')} placeholder={t('ui.ProjectSearch.text.b617f05c')} placeholderTextColor="#808080" value={query} onChangeText={setQuery} style={styles.searchInput} /></View><Action ghost title={sort === 'updated' ? local('最近更新', 'Recent') : local('名称', 'Name')} onPress={() => setSort(value => value === 'updated' ? 'name' : 'updated')} /></View>
       </View>{(projects.error || folders.error) ? <ErrorNotice text={projects.error || folders.error} retry={refresh} /> : null}</>}
       ListEmptyComponent={!projects.loading && !folders.loading && !projects.error && !folders.error ? <EmptyState artwork title={t(query.trim() ? 'ui.ProjectsView.text.ede67948' : 'ui.ProjectsView.text.a3dba20f')} description={!query.trim() ? t('ui.ProjectsView.text.f4ca1241') : undefined} /> : null}
-      renderItem={({ item }) => <View style={styles.projectCard}><Pressable accessibilityRole="button" style={[styles.inline, styles.grow]} onPress={() => { if (item.kind === 'folder') { setParents(value => [...value, item]); setQuery(''); } else onOpen(item); }}>
+      renderItem={({ item }) => <View style={styles.projectCard}><Pressable accessibilityRole="button" style={[styles.inline, styles.grow]} onLongPress={() => { setFailure(''); setEditing({ entry: item, action: 'menu', name: item.name }); }} onPress={() => { if (item.kind === 'folder') { setParents(value => [...value, item]); setQuery(''); } else onOpen(item); }}>
         <View style={styles.projectPreview}><Icon name={item.kind === 'folder' ? 'folder' : 'grid'} size={30} color={colors.accent} /></View><View style={styles.grow}><Text numberOfLines={2} style={styles.projectName}>{item.name}</Text><Text style={styles.small}>{item.kind === 'folder' ? local('文件夹', 'Folder') : local('画布', 'Canvas')}</Text>{'updatedAt' in item && item.updatedAt ? <Text style={styles.small}>{date(item.updatedAt)}</Text> : null}</View>
-      </Pressable><IconButton name="more" label={local('管理项目', 'Manage project')} onPress={manage} /></View>} />
+      </Pressable><IconButton name="more" label={local('管理项目', 'Manage project')} onPress={() => { setFailure(''); setEditing({ entry: item, action: 'menu', name: item.name }); }} /></View>} />
+    <Modal visible={editing !== null} transparent animationType="fade" onRequestClose={() => { if (!busy) setEditing(null); }}><KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', padding: 24 }}><View style={[styles.row, { gap: 20 }]}>
+      <Text style={styles.title}>{editing?.entry.name}</Text>
+      {editing?.action === 'menu' ? <>
+        <Action ghost title={local('重命名', 'Rename')} icon="pencil" onPress={() => setEditing({ ...editing, action: 'rename' })} />
+        <Action ghost title={local('删除', 'Delete')} icon="trash" onPress={() => setEditing({ ...editing, action: 'delete' })} />
+      </> : editing?.action === 'rename' ? <TextInput autoFocus accessibilityLabel={local('名称', 'Name')} value={editing.name} onChangeText={name => setEditing({ ...editing, name })} maxLength={200} editable={!busy} style={styles.input} onSubmitEditing={() => void editEntry()} /> : <Text style={styles.body}>{local('确认删除？此操作无法撤销，文件夹内的项目也会被删除。', 'Delete permanently? This cannot be undone. Projects inside a folder will also be deleted.')}</Text>}
+      {failure ? <ErrorNotice text={failure} /> : null}
+      {editing && editing.action !== 'menu' && <Action disabled={busy || (editing.action === 'rename' && !editing.name.trim())} title={editing.action === 'rename' ? local('保存', 'Save') : local('确认删除', 'Confirm delete')} onPress={() => void editEntry()} />}
+      <Action ghost disabled={busy} title={local('取消', 'Cancel')} onPress={() => setEditing(null)} />
+    </View></KeyboardAvoidingView></Modal>
     <Modal visible={draft !== null} transparent animationType="fade" onRequestClose={() => { if (!busy) setDraft(null); }}><KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', padding: 24 }}><View style={[styles.row, { gap: 20 }]}><Text style={styles.title}>{t('ui.ProjectsView.text.95cf3cd4')}</Text><TextInput autoFocus accessibilityLabel={local('文件夹名称', 'Folder name')} placeholder={local('文件夹名称', 'Folder name')} value={draft || ''} onChangeText={setDraft} maxLength={200} editable={!busy} style={styles.input} onSubmitEditing={() => void createFolder()} />{failure ? <ErrorNotice text={failure} /> : null}<View style={styles.inline}><View style={styles.grow}><Action ghost disabled={busy} title={local('取消', 'Cancel')} onPress={() => setDraft(null)} /></View><View style={styles.grow}><Action disabled={busy || !draft?.trim()} title={local('创建', 'Create')} onPress={() => void createFolder()} /></View></View></View></KeyboardAvoidingView></Modal>
   </View>;
 }

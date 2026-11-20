@@ -18,6 +18,12 @@ test('a confirmed write snapshot replaces cache and fences an older in-flight de
 });
 
 test('native requests only expose the user-facing API, never admin, relay or arbitrary URLs', () => {
+  const id = '11111111-1111-4111-8111-111111111111';
+  for (const method of ['GET', 'PUT', 'DELETE']) assert.ok(nativeRequestAllowed(method, `/project/${id}`));
+  for (const method of ['PATCH', 'DELETE']) assert.ok(nativeRequestAllowed(method, `/library-folders/${id}`));
+  for (const method of ['GET', 'PUT', 'PATCH', 'DELETE']) {
+    for (const path of ['/project', '/project/invalid', `/project/${id}/bundle`, `/project/${id}/editor/node/key`, `/project/${id}?userId=other`, '/library-folders/invalid']) assert.equal(nativeRequestAllowed(method, path), false);
+  }
   for (const path of ['/auth/me', '/auth/account', '/auth/topup/options', '/auth/usage?page=2&page_size=10', '/projects', '/library-folders', '/feedback?offset=20&limit=20', '/notifications']) assert.ok(nativeRequestAllowed('GET', path));
   assert.ok(nativeRequestAllowed('POST', '/library-folders'));
   assert.ok(nativeRequestAllowed('POST', '/auth/topup'));
