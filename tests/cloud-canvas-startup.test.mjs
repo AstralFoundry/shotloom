@@ -164,6 +164,26 @@ test('workbench locale is prepared before module evaluation and its preferences 
   }finally{globalThis.fetch=original;await env.dispose();}
 });
 
+test('a failed locale prefetch does not poison later workbench preferences or canvas startup', async () => {
+  for (const query of ['?route=projects', `?route=creation&project=${id}`]) {
+    const env=await createRendererEnv({storageMode:'cloud',storage:new Map(),withWindow:true});
+    const original=globalThis.fetch;
+    let calls=0;
+    globalThis.fetch=async url=>{
+      if(++calls===1)throw new DOMException('prefetch timed out','TimeoutError');
+      return json(String(url).includes('/startup')?data:data.settings);
+    };
+    try {
+      window.location={search:query};
+      const {prepareCloudLocale}=await env.load('services/cloudCanvasStartup');
+      await assert.rejects(prepareCloudLocale(),/prefetch timed out/);
+      const {loadCloudPreferences}=await env.load('services/cloudApi');
+      assert.equal((await loadCloudPreferences()).locale,'en-US');
+      assert.equal(calls,2,'The mounted workbench must issue a fresh read after the optional prefetch failed');
+    } finally {globalThis.fetch=original;await env.dispose();}
+  }
+});
+
 test('a known document locale does not serialize warm workbench evaluation behind a preferences read', async () => {
   const env=await createRendererEnv({storageMode:'cloud',storage:new Map([['shotloom:locale','en-US']]),withWindow:true});
   const original=globalThis.fetch;

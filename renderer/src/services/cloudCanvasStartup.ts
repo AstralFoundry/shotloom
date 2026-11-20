@@ -45,7 +45,14 @@ export async function prepareCloudLocale() {
     if (locale === 'zh-CN' || locale === 'en-US') return;
   } catch { /* Unknown language follows the normal preferences read. */ }
   const canvas = canvasStartupRead();
-  const settings = (canvas && (await canvas.read)?.settings) || await (pagePreferences ||= cloudRequest<RecordValue>('/settings'));
+  let settings: RecordValue;
+  try {
+    settings = (canvas && (await canvas.read)?.settings) || await (pagePreferences ||= cloudRequest<RecordValue>('/settings'));
+  } catch (error) {
+    pagePreferences = undefined;
+    if (startup === canvas) startup = undefined;
+    throw error;
+  }
   try { localStorage.setItem(LOCALE_STORAGE_KEY, normalizeLocale(settings.locale)); } catch { /* Storage restrictions must not block the workspace. */ }
 }
 
