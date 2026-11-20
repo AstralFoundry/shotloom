@@ -163,3 +163,14 @@ test('workbench locale is prepared before module evaluation and its preferences 
     assert.deepEqual(calls,['/api/settings']);
   }finally{globalThis.fetch=original;await env.dispose();}
 });
+
+test('a known document locale does not serialize warm workbench evaluation behind a preferences read', async () => {
+  const env=await createRendererEnv({storageMode:'cloud',storage:new Map([['shotloom:locale','en-US']]),withWindow:true});
+  const original=globalThis.fetch;
+  globalThis.fetch=async()=>assert.fail('Warm locale preparation must not add a request barrier');
+  try {
+    window.location={search:'?route=creation'};
+    const {prepareCloudLocale}=await env.load('services/cloudCanvasStartup');
+    await prepareCloudLocale();
+  }finally{globalThis.fetch=original;await env.dispose();}
+});

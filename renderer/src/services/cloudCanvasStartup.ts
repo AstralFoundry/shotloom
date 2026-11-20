@@ -40,6 +40,10 @@ export function preloadCloudCanvasStartup() {
 
 // Resolve the saved language before translated module constants are evaluated.
 export async function prepareCloudLocale() {
+  try {
+    const locale = localStorage.getItem(LOCALE_STORAGE_KEY);
+    if (locale === 'zh-CN' || locale === 'en-US') return;
+  } catch { /* Unknown language follows the normal preferences read. */ }
   const canvas = canvasStartupRead();
   const settings = (canvas && (await canvas.read)?.settings) || await (pagePreferences ||= cloudRequest<RecordValue>('/settings'));
   try { localStorage.setItem(LOCALE_STORAGE_KEY, normalizeLocale(settings.locale)); } catch { /* Storage restrictions must not block the workspace. */ }
