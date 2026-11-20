@@ -45,3 +45,26 @@ test('nested shared reads retain the original deadline instead of renewing fifte
   });
   assert.equal((await app.request('/fixture')).status,200);
 });
+
+test('background work after a response cannot lend an expired request deadline to a shared read', async () => {
+  const app=new Hono();app.use('*',requestMetrics);
+  let resume!:()=>void;
+  const gate=new Promise<void>(resolve=>{resume=resolve;});
+  let background!:Promise<AbortSignal>;
+  app.get('/fixture',c=>{
+    background=gate.then(()=>{
+      const now=Date.now;
+      try {
+        Date.now=()=>now()+20000;
+        assert.equal(requestSignal(),undefined,'completed HTTP work must not constrain independent background reads');
+        return sharedRead(()=>requestSignal()!);
+      }finally{Date.now=now;}
+    });
+    return c.json({ok:true});
+  });
+  await app.request('/fixture');
+  resume();
+  const signal=await background;
+  await new Promise(resolve=>setTimeout(resolve,25));
+  assert.equal(signal.aborted,false);
+});

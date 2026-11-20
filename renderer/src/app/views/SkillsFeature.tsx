@@ -128,7 +128,7 @@ export function SkillsFeature() {
   }
 
   function openSkill(id: string) {
-    if (open?.draft.id === id) return;
+    if (open?.draft.id === id) { editorEpoch.current += 1; return; }
     confirmDiscard(() => {
       const request = ++editorEpoch.current;
       const expected = latestRevision.current;

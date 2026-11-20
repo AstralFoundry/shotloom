@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import ts from 'typescript';
 import { readLocalizedSource as readSource, sourceExists } from './helpers/sourceContract.mjs';
 
 const sidebar = readSource('renderer/src/app/layout/SideBar.tsx');
@@ -14,6 +15,23 @@ const settingsPanel = readSource('renderer/src/app/views/SettingsPanel.tsx');
 const settingsFeature = readSource('renderer/src/app/views/SettingsFeature.tsx');
 const skillsStyles = readSource('renderer/styles/skills.css');
 const tokenStyles = readSource('renderer/styles/tokens.css');
+
+test('returning to the open Skill cancels another pending detail selection', async () => {
+  const start=skillsFeature.indexOf('  function openSkill(');
+  const end=skillsFeature.indexOf('  function createSkill(',start);
+  const source=ts.transpileModule(skillsFeature.slice(start,end),{compilerOptions:{target:ts.ScriptTarget.ESNext}}).outputText;
+  let release;
+  const pending=new Promise(resolve=>{release=resolve;});
+  let current={draft:{id:'a'}};
+  const tasks=[];
+  const context={open:current,editorEpoch:{current:0},latestRevision:{current:1},confirmDiscard:fn=>fn(),run:fn=>tasks.push(fn()),cloudEnabled:true,readCatalogItem:()=>pending,toDraft:item=>item,setOpen:value=>{current=value;}};
+  const select=new Function(...Object.keys(context),`${source}; return openSkill;`)(...Object.values(context));
+  select('b');
+  select('a');
+  release({id:'b'});
+  await Promise.all(tasks);
+  assert.equal(current.draft.id,'a');
+});
 
 test('技能是应用级路由，未打开工程也能进入且能被恢复', () => {
   assert.match(projectNavigation, /APPLICATION_ROUTES = new Set\(\['projects', 'skills', [^\]]*\.\.\.PROJECT_WORKSPACE_ROUTES\]\)/);

@@ -38,7 +38,8 @@ const model={version:1,format:'obj',entry:'triangle.obj',files:[{path:'triangle.
 const bytes=Buffer.from(JSON.stringify(model)),hash=createHash('sha256').update(bytes).digest('hex'),key='qa/director-model.json';
 const uploaded=await admin.storage.from('shotloom-media').upload(scopedKey(user.id,key),bytes,{contentType:'application/json',upsert:true});if(uploaded.error)throw uploaded.error;
 const scene=JSON.parse(readFileSync('/qa/director-scene.json','utf8'));
-scene.version=2;scene.resources=[{id:`model-${hash}`,name:'QA triangle',copyright:'QA fixture',license:'CC0',source:'Synthetic',package:{storage:'shotloom-director-model',version:1,path:`cloud://media/${key}`,sha256:hash}}];
+assert.equal(scene.version,3,'Generate the fixture with readSceneDocument(createScene())');
+scene.resources=[{id:`model-${hash}`,name:'QA triangle',copyright:'QA fixture',license:'CC0',source:'Synthetic',package:{storage:'shotloom-director-model',version:1,path:`cloud://media/${key}`,sha256:hash}}];
 director.nodes.push({id:randomUUID(),type:'threeDDirector',title:'QA director',x:0,y:0,directorData:{project:scene}});
 projects[0].name='Android Canvas Acceptance';
 for(const project of projects)await saveProject(user.id,project.id,project);
