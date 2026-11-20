@@ -2,6 +2,8 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readFile, writeFile } from 'node:fs/promises';
+import { collectWorkspacePreloads } from './shared/workspacePreloads.ts';
 import { readShotloomConfig } from './scripts/shotloom-config.mjs';
 
 const rootDir = path.dirname(fileURLToPath(import.meta.url));
@@ -9,7 +11,20 @@ const { development } = readShotloomConfig();
 
 export default defineConfig({
   root: path.join(rootDir, 'renderer'),
-  plugins: [react()],
+  plugins: [react(), {
+    name: 'workspace-preload-metadata',
+    apply: 'build',
+    async writeBundle() {
+      const directory = path.join(rootDir, 'dist', 'renderer');
+      const manifest = JSON.parse(await readFile(path.join(directory, '.vite/manifest.json'), 'utf8'));
+      const entry = path.join(directory, 'index.html');
+      const html = await readFile(entry, 'utf8');
+      const files = collectWorkspacePreloads(manifest);
+      if (!files.includes(manifest['index.html']?.file) || !html.includes('</head>')) throw new Error('Workspace preload metadata is incomplete');
+      // Ship metadata with its page so partial deployments cannot warm a previous release.
+      await writeFile(entry, html.replace('</head>', `<script id="shotloom-workspace-preloads" type="application/json">${JSON.stringify(files)}</script>\n  </head>`));
+    },
+  }],
   base: './',
   server: {
     host: development.webHost,

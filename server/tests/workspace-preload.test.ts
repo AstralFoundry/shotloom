@@ -1,7 +1,25 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { collectWorkspacePreloads, workspacePreloadHtml } from '../src/lib/workspacePreload';
+import { collectWorkspacePreloads, workspacePreloadFiles, workspacePreloadHtml } from '../src/lib/workspacePreload';
 import { runInNewContext } from 'node:vm';
+import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
+
+test('prewarm uses metadata shipped with the current HTML even if a deployment retained an older manifest', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'shotloom-preload-'));
+  try {
+    await mkdir(join(directory, '.vite'));
+    await writeFile(join(directory, '.vite/manifest.json'), JSON.stringify({ 'index.html': { file: 'assets/main-old.js' } }));
+    await writeFile(join(directory, 'index.html'), '<script type="module" src="./assets/main-new.js"></script><script id="shotloom-workspace-preloads" type="application/json">["assets/main-new.js","assets/workbench-new.js"]</script>');
+    assert.deepEqual(await workspacePreloadFiles(pathToFileURL(directory + '/')), ['assets/main-new.js', 'assets/workbench-new.js']);
+    await writeFile(join(directory, 'index.html'), '<script type="module" src="./assets/main-new.js"></script>');
+    assert.deepEqual(await workspacePreloadFiles(pathToFileURL(directory + '/')), [], 'stale manifests cannot report successful warming of old code');
+    await writeFile(join(directory, '.vite/manifest.json'), JSON.stringify({ 'index.html': { file: 'assets/main-new.js' } }));
+    assert.deepEqual(await workspacePreloadFiles(pathToFileURL(directory + '/')), ['assets/main-new.js'], 'matching legacy builds remain supported');
+  } finally { await rm(directory, { recursive: true, force: true }); }
+});
 
 test('workspace warming follows static build dependencies without loading optional editors or remote URLs', () => {
   const chunks = {
