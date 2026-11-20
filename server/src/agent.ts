@@ -27,6 +27,12 @@ const modelFailureMessages: Record<string, string> = {
   QUOTA: '模型额度不足，请检查当前模型或账户额度。',
   ACCOUNT_QUOTA: '账户额度不足，请检查账户余额。',
   INVALID_CREDENTIAL: '模型认证失败，请检查模型访问权限。',
+  AUTH: '模型访问被拒绝，请检查模型权限。',
+  RATE_LIMIT: '模型请求限流，请稍后重试。',
+  SERVER: '模型服务暂时异常，请稍后重试。',
+  TRANSPORT: '模型连接中断，请稍后重试。',
+  INVALID_REQUEST: '模型不接受当前请求，请检查模型能力与参数。',
+  PI_AI_ERROR: '模型供应商返回异常，请稍后重试。',
   TIMEOUT: '模型响应超时，请稍后重试。',
   EMPTY_RESPONSE: '模型返回了空响应，请重试本轮。',
   ABORTED: '模型调用已中断。',
@@ -36,7 +42,7 @@ function publicModelFailure(error: unknown) {
   const code = typeof failure.code === 'string' && Object.hasOwn(modelFailureMessages, failure.code) ? failure.code : 'MODEL_REQUEST_FAILED';
   return { code, message: modelFailureMessages[code] || '模型调用失败，请核对模型权限、额度和网络后重试。',
     ...(Number.isInteger(failure.status) && Number(failure.status) >= 400 && Number(failure.status) <= 599 ? { status: Number(failure.status) } : {}),
-    ...(typeof failure.providerRetryAfterMs === 'number' && Number.isFinite(failure.providerRetryAfterMs) && failure.providerRetryAfterMs >= 0 ? { providerRetryAfterMs: failure.providerRetryAfterMs } : {}),
+    ...(typeof failure.providerRetryAfterMs === 'number' && Number.isFinite(failure.providerRetryAfterMs) && failure.providerRetryAfterMs > 0 ? { providerRetryAfterMs: failure.providerRetryAfterMs } : {}),
     ...(Number.isSafeInteger(failure.offloadImages) && Number(failure.offloadImages) > 0 ? { offloadImages: Number(failure.offloadImages) } : {}),
   };
 }

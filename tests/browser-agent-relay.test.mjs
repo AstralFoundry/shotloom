@@ -51,7 +51,7 @@ test('browser relay authenticates, enforces published endpoints, and ignores cli
 test('模型错误保留 Harness 恢复所需分类，移除供应商文本和任意字段', async () => {
   const { state, input, request } = await fixture();
   state.errorFinish = true;
-  for (const code of ['CONTEXT_WINDOW_EXCEEDED', 'QUOTA', 'INVALID_CREDENTIAL', 'TIMEOUT', 'IMAGE_OFFLOAD_REQUIRED']) {
+  for (const code of ['CONTEXT_WINDOW_EXCEEDED', 'QUOTA', 'INVALID_CREDENTIAL', 'TIMEOUT', 'IMAGE_OFFLOAD_REQUIRED', 'RATE_LIMIT', 'SERVER', 'TRANSPORT', 'AUTH', 'INVALID_REQUEST', 'PI_AI_ERROR']) {
     state.failure = { code, status: 429, providerRetryAfterMs: 1200, offloadImages: 2, key: 'secret-upstream-key' };
     const frames = (await (await request(input)).text()).trim().split('\n').map(JSON.parse);
     const finish = frames.find(frame => frame.chunk?.type === 'finish');
