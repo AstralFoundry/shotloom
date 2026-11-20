@@ -2,6 +2,10 @@
 
 本文收录只对开发者有意义的实现约定。`AGENTS.md` 只保留 Agent 行为规则，因为它会被拼进每个模型的系统提示词；这里的内容不会注入模型，改动前请先读本文。
 
+## 开发分支
+
+云端、Tauri 桌面和 React Native App 的日常开发统一提交到 `AstralFoundry/shotloom` 的 `supabase` 分支，功能分支以它为基线，PR 目标也选 `supabase`。上游 `main` 保留独立的 Electron 架构。
+
 ## 状态引擎
 
 `renderer/src/store/domainReactivity.ts` 与 zustand 各自只服务一类状态，新增第三种引擎必须先改这份契约：

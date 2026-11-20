@@ -2,13 +2,15 @@
 
 日常功能开发无需修改 CI、Release 工作流或逐项列出新增功能。所有入口都构建当前源码，依赖由锁文件安装，发布说明由 GitHub 自动生成。
 
+云端与原生 App 的开发和发布基线为 `AstralFoundry/shotloom` 的 `supabase` 分支；PR 目标选择 `supabase`。本地保留 fork 为 `origin` 时，向上游推送使用 `upstream`。迁移仓库后，Actions 的签名及镜像凭据需要在上游仓库单独配置。`supabase` 提交自动运行完整 CI；Android 预览仍由功能分支或手动触发，配置 Android 签名凭据后再启用该分支自动出包。
+
 ## 日常发布
 
 提交功能后，创建并推送新版本标签：
 
 ```sh
 git tag v0.2.0
-git push origin v0.2.0
+git push upstream v0.2.0
 ```
 
 标签可使用 `v0.2.0` 或 `0.2.0`；工作流保留实际标签名称，不自动添加前缀。标签是本次发布的版本来源。工作流自动在临时构建目录同步 package.json、package-lock.json、Tauri 配置及 Cargo.toml/Cargo.lock，不要求先手改这些文件，也不向源分支提交自动修改。
@@ -25,7 +27,7 @@ npm run release:version -- 0.2.0
 
 ## 自动执行的工作
 
-- PR 和 main 提交：产品检查、Harness 测试、完整前端构建及打包运行时启动验证；macOS/Windows Rust 测试。
+- PR 和 main / supabase 提交：产品检查、Harness 测试、完整前端构建及打包运行时启动验证；macOS/Windows Rust 测试。
 - Release：复用上述检查，再构建 macOS Apple Silicon、Windows x64 安装包、Android ARM64 APK 和未签名 iOS ARM64 IPA；不构建 Intel Mac 版本。
 - 每个平台按本次构建产物生成清单，确认安装包及更新签名存在。
 - 汇总所有目标，验证版本、文件完整性及 SHA-256，生成 `latest.json` 和 `SHA256SUMS`。
@@ -69,7 +71,7 @@ crpi-045itdvshm4mk2lq.cn-beijing.personal.cr.aliyuncs.com/aigc-work/shotloom:<ta
 
 ```sh
 git tag v0.9.2
-git push origin v0.9.2
+git push upstream v0.9.2
 ```
 
 创建 tag 前必须先提交工作流、`server/Dockerfile`、`.dockerignore` 及其依赖源码；CI 只能构建 tag 指向的已提交内容。同一版本 tag 也可能触发现有桌面 Release 流程，其签名配置和结果独立。
