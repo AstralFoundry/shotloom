@@ -18,8 +18,38 @@ type RecordValue = Record<string, unknown>;
 type PlatformApi = ReturnType<typeof createTauriApi>;
 const root = 'cloud/projects';
 
+type CanvasStartup = { project: RecordValue; settings: RecordValue; assets: RecordValue };
+let canvasStartup: { key: string; consumed: Set<keyof CanvasStartup>; read?: Promise<CanvasStartup | null> } | undefined;
+
+async function readCanvasStartup<T>(part: keyof CanvasStartup, path: string): Promise<T> {
+  const query = new URLSearchParams(typeof window === 'undefined' ? '' : window.location?.search);
+  const requested = query.get('project');
+  let id: string | undefined;
+  try { if (requested) id = cloudProjectId(requested); } catch { /* Invalid links use normal reads. */ }
+  if (!id || (query.get('native') !== 'embedded' && query.get('route') !== 'creation')
+    || (part === 'project' && path !== `/project/${id}`)) return cloudRequest<T>(path);
+  const key = JSON.stringify([id, cloudUserHeaders()]);
+  if (!canvasStartup || canvasStartup.key !== key) {
+    canvasStartup = {
+      key, consumed: new Set(),
+      read: cloudRequest<CanvasStartup>(`/project/${id}/startup`).catch(error => {
+        // Older servers keep serving the existing endpoints during a rolling deployment.
+        if (error.status === 404 || error.status === 405) return null;
+        throw error;
+      }),
+    };
+  }
+  if (canvasStartup.consumed.has(part)) return cloudRequest<T>(path);
+  // Consume before awaiting: only the first startup read may reuse this response.
+  canvasStartup.consumed.add(part);
+  const read = canvasStartup.read!;
+  if (canvasStartup.consumed.size === 3) delete canvasStartup.read;
+  const data = await read;
+  return data ? data[part] as T : cloudRequest<T>(path);
+}
+
 export async function loadCloudPreferences() {
-  return { ...await cloudRequest<RecordValue>('/settings'), projectRootDir: root, apiKeyValid: false };
+  return { ...await readCanvasStartup<RecordValue>('settings', '/settings'), projectRootDir: root, apiKeyValid: false };
 }
 
 export async function loadCloudAccountSettings() {
@@ -363,7 +393,7 @@ export function createCloudApi(local: PlatformApi): PlatformApi {
         const saved = await directorModels.load(await cloudRequest<RecordValue>(`/project/${id}`, 'PUT', await directorModels.save({ ...project, cloudFolderId: parent })));
         return { ...projectLocation(id, parent as string | null), project: saved };
       },
-      readFile: (path: string) => cloudRequest(`/project/${cloudProjectId(path)}`).then(value => directorModels.load(value)),
+      readFile: (path: string) => readCanvasStartup('project', `/project/${cloudProjectId(path)}`).then(value => directorModels.load(value)),
       readBundle: (dir: string) => cloudRequest(`/project/${cloudProjectId(dir)}/bundle`).then(value => directorModels.load(value)),
       listRoot: listTree,
       openFolder: async (dir: string) => {
@@ -417,7 +447,7 @@ export function createCloudApi(local: PlatformApi): PlatformApi {
       setTokenGroup: async (id: string) => { await cloudRequest('/settings/token-group', 'PUT', { activeTokenGroupId: id }); return settings(); },
       refreshBalance: settings,
     },
-    localAssets: { getCatalog: () => catalog('assets'), setCatalog: async (value: RecordValue) => { await cloudRequest('/catalog/assets', 'PUT', value); return value; } },
+    localAssets: { getCatalog: () => readCanvasStartup<RecordValue>('assets', '/catalog/assets'), setCatalog: async (value: RecordValue) => { await cloudRequest('/catalog/assets', 'PUT', value); return value; } },
     skills: {
       getGlobal: async () => withBuiltInSkills(await catalog('skills')),
       setGlobal: async (value: RecordValue) => { await cloudRequest('/catalog/skills', 'PUT', withoutBuiltInSkills(value)); return withBuiltInSkills(value); },

@@ -90,6 +90,26 @@ domainApp.get("/project/:id", async (c) => {
   return c.json(envelope(value));
 });
 
+// Only canvas dependencies belong here; upstream account/model calls stay in the background.
+domainApp.get('/project/:id/startup', async c => {
+  const userId = c.get('userId');
+  const projectId = parseOrBadRequest(uuidSchema, c.req.param('id'));
+  const timings: string[] = [];
+  const timed = async <T>(name: string, read: () => Promise<T>) => {
+    const start = performance.now();
+    try { return await read(); }
+    finally { timings.push(`${name};dur=${(performance.now() - start).toFixed(1)}`); }
+  };
+  const [project, settings, assets] = await Promise.all([
+    timed('project', () => store.loadProject(userId, projectId)),
+    timed('settings', () => store.loadSettings(userId)),
+    timed('assets', () => store.loadCatalog(userId, 'assets', CATALOG_FALLBACKS.assets!)),
+  ]);
+  if (project === null) throw notFound('工程不存在或无权访问');
+  c.header('Server-Timing', timings.join(', '));
+  return c.json(envelope({ project, settings, assets }));
+});
+
 domainApp.put("/project/:id", async (c) => {
   const userId = c.get("userId");
   const projectId = parseOrBadRequest(uuidSchema, c.req.param("id"));
