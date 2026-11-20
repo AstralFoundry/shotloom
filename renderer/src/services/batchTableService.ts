@@ -20,10 +20,12 @@ import {
   batchRowsFromColumns,
   batchTableSummary,
   defaultBatchTable,
+  moveBatchReferenceCell,
   moveBatchRow,
   normalizeBatchTable,
   removeBatchColumn,
   removeBatchRow,
+  reorderBatchColumns,
   updateBatchRow,
   type BatchOperation,
   type BatchRow,
@@ -33,6 +35,11 @@ import {
 type AnyRecord = Record<string, any>;
 
 const cancelledTables = new Set<string>();
+const runningTables = new Set<string>();
+
+export function isBatchTableRunActive(nodeId: string): boolean {
+  return runningTables.has(nodeId);
+}
 
 function projectNode(nodeId: string): AnyRecord | null {
   return (store.project.nodes as AnyRecord[]).find((node) => node.id === nodeId) || null;
@@ -80,7 +87,7 @@ export function fillBatchRowsFromColumns(nodeId: string): number {
   }
   const rows = batchRowsFromColumns(table, columns);
   updateBatchTable(nodeId, (current) => ({ ...current, rows }), { history: true });
-  return rows.length;
+  return Math.max(0, ...columns.map((column) => column.length));
 }
 
 export function deleteBatchRow(nodeId: string, rowId: string): void {
@@ -94,6 +101,14 @@ export function patchBatchRow(nodeId: string, rowId: string, patch: Partial<Batc
   touchProject({ sessionDelay: 250, coalesceSession: true });
 }
 
+export function moveBatchColumn(nodeId: string, fromColumnId: string, toColumnId: string): void {
+  updateBatchTable(nodeId, (table) => reorderBatchColumns(table, fromColumnId, toColumnId), { history: true });
+}
+
+export function moveBatchCell(nodeId: string, sourceRowId: string, sourceColumn: number, targetRowId: string, targetColumn: number): void {
+  updateBatchTable(nodeId, (table) => moveBatchReferenceCell(table, sourceRowId, sourceColumn, targetRowId, targetColumn), { history: true });
+}
+
 export function reorderBatchRow(nodeId: string, rowId: string, direction: -1 | 1): void {
   updateBatchTable(nodeId, (table) => moveBatchRow(table, rowId, direction), { history: true });
 }
@@ -103,6 +118,19 @@ export function appendBatchColumn(nodeId: string): void {
 }
 
 export function deleteBatchColumn(nodeId: string): void {
+  const node = projectNode(nodeId);
+  if (!node) return;
+  const table = batchTableData(node);
+  if (table.columns.length <= 1) return;
+  const removedId = table.columns.at(-1)?.id;
+  if (removedId) {
+    const edges = store.project.edges as AnyRecord[];
+    for (let index = edges.length - 1; index >= 0; index -= 1) {
+      const edge = edges[index];
+      if (!edge || edge.target !== nodeId) continue;
+      if (edge.data?.batchColumnId === removedId) edges.splice(index, 1);
+    }
+  }
   updateBatchTable(nodeId, removeBatchColumn, { history: true });
 }
 
@@ -216,6 +244,10 @@ export function cancelBatchTableRun(nodeId: string): void {
 export async function runBatchTable(nodeId: string, options: { rowIds?: string[]; force?: boolean } = {}): Promise<void> {
   const tableNode = projectNode(nodeId);
   if (!tableNode) return;
+  if (runningTables.has(nodeId)) {
+    showToast(t('canvas.batch.runBusy'));
+    return;
+  }
   const project = store.project;
   const table = batchTableData(tableNode);
   if (!getAvailableModelIdsByType('imageGeneration').length) {
@@ -233,6 +265,7 @@ export async function runBatchTable(nodeId: string, options: { rowIds?: string[]
     return;
   }
   cancelledTables.delete(nodeId);
+  runningTables.add(nodeId);
   const runState = { running: true, startedAt: new Date().toISOString(), total: targets.length, done: 0, failed: 0, cancelled: false };
   tableNode.batchTable = { ...table, runState };
   touchProject();
@@ -273,6 +306,7 @@ export async function runBatchTable(nodeId: string, options: { rowIds?: string[]
   try {
     await Promise.all(Array.from({ length: concurrency }, worker));
   } finally {
+    runningTables.delete(nodeId);
     const finalTable = batchTableData(tableNode);
     tableNode.batchTable = {
       ...finalTable,

@@ -1,5 +1,5 @@
 import { t } from '@/i18n';
-import { memo, useContext, useState, useSyncExternalStore } from 'react';
+import { memo, useContext, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
 import { App, Button, Input, Modal, Segmented, Tooltip } from 'antd';
 import { Handle, Position } from '@xyflow/react';
@@ -19,6 +19,9 @@ import {
   deleteBatchColumn,
   deleteBatchRow,
   fillBatchRowsFromColumns,
+  isBatchTableRunActive,
+  moveBatchCell,
+  moveBatchColumn,
   patchBatchRow,
   reorderBatchRow,
   runBatchTable,
@@ -106,7 +109,14 @@ export const BatchTableNode: WorkflowNodeRenderer = memo(({ node, selected, acti
   const labelRoot = useContext(CanvasNodeLabelRootContext);
   const [picker, setPicker] = useState<{ rowId: string; column: number } | null>(null);
   const [expandedRowId, setExpandedRowId] = useState<string | null>(null);
-  const running = Boolean(table.runState?.running);
+  const [draggingCell, setDraggingCell] = useState<{ rowId: string; column: number } | null>(null);
+  const dragStart = useRef<{ x: number; y: number; pointerId: number; rowId: string; column: number } | null>(null);
+  const draggingRef = useRef<{ rowId: string; column: number } | null>(null);
+  const suppressClick = useRef(false);
+  const running = Boolean(table.runState?.running) && (isBatchTableRunActive(String(node.id)) || table.rows.some((row) => {
+    const status = nodeById(row.outputNodeId)?.status;
+    return status === 'running' || status === 'queued';
+  }));
   const imageCount = (store.project.materials as AnyRecord[]).filter((material) => material.resourceType === 'image').length;
   const connected = new Set((store.project.edges as AnyRecord[])
     .filter((edge) => edge.target === node.id && nodeById(String(edge.source))?.type === 'imageGeneration')
@@ -119,6 +129,50 @@ export const BatchTableNode: WorkflowNodeRenderer = memo(({ node, selected, acti
   const completed = table.rows.filter((row) => outputState(row).tone === 'good').length;
   const expandedRow = table.rows.find((row) => row.id === expandedRowId);
   const summary = batchTableSummary(table, defaults);
+
+  useEffect(() => {
+    const handleMove = (event: PointerEvent) => {
+      const start = dragStart.current;
+      if (!start || start.pointerId !== event.pointerId) return;
+      if (!draggingRef.current && Math.hypot(event.clientX - start.x, event.clientY - start.y) < 5) return;
+      if (!draggingRef.current) {
+        draggingRef.current = { rowId: start.rowId, column: start.column };
+        suppressClick.current = true;
+        setDraggingCell(draggingRef.current);
+      }
+    };
+    const handleUp = (event: PointerEvent) => {
+      const start = dragStart.current;
+      if (!start || start.pointerId !== event.pointerId) return;
+      const source = draggingRef.current;
+      if (source) {
+        const target = document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>('[data-batch-cell]');
+        const targetRowId = target?.dataset.rowId;
+        const targetColumn = Number(target?.dataset.columnIndex);
+        if (targetRowId && Number.isInteger(targetColumn)) {
+          moveBatchCell(String(node.id), source.rowId, source.column, targetRowId, targetColumn);
+        }
+        window.setTimeout(() => { suppressClick.current = false; }, 0);
+      }
+      dragStart.current = null;
+      draggingRef.current = null;
+      setDraggingCell(null);
+    };
+    const cancel = () => {
+      dragStart.current = null;
+      draggingRef.current = null;
+      suppressClick.current = false;
+      setDraggingCell(null);
+    };
+    window.addEventListener('pointermove', handleMove);
+    window.addEventListener('pointerup', handleUp);
+    window.addEventListener('pointercancel', cancel);
+    return () => {
+      window.removeEventListener('pointermove', handleMove);
+      window.removeEventListener('pointerup', handleUp);
+      window.removeEventListener('pointercancel', cancel);
+    };
+  }, [node.id]);
 
   function setCell(row: BatchRow, column: number, value: string) {
     const references = [...row.referenceNodeIds];
@@ -231,7 +285,27 @@ export const BatchTableNode: WorkflowNodeRenderer = memo(({ node, selected, acti
         <div className="batch-table-grid" style={{ gridTemplateColumns }}>
           <span className="batch-table-head-cell batch-table-head-number">#</span>
           {table.columns.map((column) => (
-            <span className="batch-table-head-cell" key={column.id}>{column.label}</span>
+            <span
+              className="batch-table-head-cell batch-table-column-head"
+              key={column.id}
+              draggable
+              title={t('canvas.batch.reorderColumn')}
+              onDragStart={(event) => {
+                event.dataTransfer.setData('text/x-shotloom-batch-column', column.id);
+                event.dataTransfer.effectAllowed = 'move';
+              }}
+              onDragOver={(event) => {
+                if (!event.dataTransfer.types.includes('text/x-shotloom-batch-column')) return;
+                event.preventDefault();
+                event.dataTransfer.dropEffect = 'move';
+              }}
+              onDrop={(event) => {
+                const from = event.dataTransfer.getData('text/x-shotloom-batch-column');
+                if (!from || from === column.id) return;
+                event.preventDefault();
+                moveBatchColumn(String(node.id), from, column.id);
+              }}
+            >{column.label}</span>
           ))}
           <span className="batch-table-head-cell">{t('canvas.batch.promptColumn')}</span>
           <span className="batch-table-head-cell">{t('canvas.batch.outputColumn')}</span>
@@ -250,8 +324,19 @@ export const BatchTableNode: WorkflowNodeRenderer = memo(({ node, selected, acti
                     <span key={column.id} className="batch-table-cell batch-table-ref-cell">
                       <button
                         type="button"
-                        className={`batch-table-ref${rowOverride ? ' is-row' : refId ? ' is-linked' : ''}`}
-                        onClick={() => setPicker({ rowId: row.id, column: columnIndex })}
+                        data-batch-cell
+                        data-row-id={row.id}
+                        data-column-index={columnIndex}
+                        className={`batch-table-ref${rowOverride ? ' is-row' : refId ? ' is-linked' : ''}${draggingCell?.rowId === row.id && draggingCell.column === columnIndex ? ' is-dragging' : ''}`}
+                        onClick={() => {
+                          if (suppressClick.current) { suppressClick.current = false; return; }
+                          setPicker({ rowId: row.id, column: columnIndex });
+                        }}
+                        onPointerDown={(event) => {
+                          if (event.button !== 0 || (event.target as HTMLElement).closest('.batch-ref-clear')) return;
+                          event.stopPropagation();
+                          dragStart.current = { x: event.clientX, y: event.clientY, pointerId: event.pointerId, rowId: row.id, column: columnIndex };
+                        }}
                         title={refId ? t('canvas.batch.replaceReference') : t('canvas.batch.pickReference')}
                       >
                         {refId ? <NodeThumb nodeId={refId} className="batch-thumb" empty="+" /> : <span className="batch-table-ref-empty">+</span>}
@@ -281,6 +366,19 @@ export const BatchTableNode: WorkflowNodeRenderer = memo(({ node, selected, acti
                       }
                     }}
                   />
+                  <div className="batch-prompt-refs">
+                    {table.columns.map((column, columnIndex) => (
+                      <button
+                        key={column.id}
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          const token = t('canvas.batch.mentionToken', { index: columnIndex + 1 });
+                          patchBatchRow(String(node.id), row.id, { prompt: `${row.prompt}${row.prompt && !row.prompt.endsWith(' ') ? ' ' : ''}${token}` });
+                        }}
+                      >@{t('canvas.batch.referenceIndex', { index: columnIndex + 1 })}</button>
+                    ))}
+                  </div>
                   <div className="batch-prompt-foot">
                     <span>{table.globalPrompt.trim() ? t('canvas.batch.globalActiveHint') : t('canvas.batch.rowPromptHint')}</span>
                     <button type="button" aria-label={t('canvas.batch.expandPrompt')} onClick={() => setExpandedRowId(row.id)}>
@@ -341,8 +439,8 @@ export const BatchTableNode: WorkflowNodeRenderer = memo(({ node, selected, acti
       <div className="batch-table-foot">
         <span>{t('canvas.batch.summary', { total: summary.total, enabled: summary.enabled })}</span>
         {table.runState ? (
-          <span className={table.runState.cancelled ? 'status-muted' : table.runState.running ? 'status-warn' : 'status-good'}>
-            {table.runState.running
+          <span className={table.runState.cancelled ? 'status-muted' : running ? 'status-warn' : 'status-good'}>
+            {running
               ? t('canvas.batch.progress', { done: table.runState.done, total: table.runState.total })
               : table.runState.cancelled ? t('canvas.batch.cancelled') : t('canvas.batch.finished', { failed: table.runState.failed })}
           </span>

@@ -2,6 +2,7 @@ import { t } from '@/i18n';
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { App, Button, Input, InputNumber, Modal, Select, Tooltip } from 'antd';
 import { IconSymbol } from '../components/IconSymbol';
+import { SearchInput } from '../components/SearchInput';
 import { getDomainRevision, subscribeDomain } from '@/store/domainReactivity';
 import { store, touchProject } from '@/store/projectStore';
 import { modelCatalog } from '@/domain/catalog/ModelCatalog';
@@ -50,6 +51,7 @@ export function StoryboardScriptEditor({ open, nodeId, onClose, autoOpenAi = fal
   const [aiExtra, setAiExtra] = useState('');
   const [aiDuration, setAiDuration] = useState<number | 'auto'>('auto');
   const [runningAll, setRunningAll] = useState<'image' | 'video' | ''>('');
+  const [query, setQuery] = useState('');
   const [autoOpened, setAutoOpened] = useState(false);
   useEffect(() => {
     if (!open) { setAutoOpened(false); return; }
@@ -118,7 +120,11 @@ export function StoryboardScriptEditor({ open, nodeId, onClose, autoOpenAi = fal
     touchProject({ sessionDelay: 250, coalesceSession: true });
   }
 
-  const visibleShots = shots;
+  const keyword = query.trim().toLowerCase();
+  const visibleShots = keyword
+    ? shots.filter((shot) => [shot.plot, shot.dialogue, shot.videoPrompt, shot.imagePrompt, shot.characters]
+      .join(' ').toLowerCase().includes(keyword))
+    : shots;
   return (
     <Modal
       open={open}
@@ -190,6 +196,11 @@ export function StoryboardScriptEditor({ open, nodeId, onClose, autoOpenAi = fal
           />
           {node.storyboardParseError ? <p className="storyboard-editor-error">{String(node.storyboardParseError)}</p> : null}
           {busy ? <p className="storyboard-editor-live">{t('canvas.storyboard.generating')}</p> : null}
+        </div>
+        <div className="storyboard-editor-toolbar">
+          <SearchInput value={query} onChange={setQuery} placeholder={t('canvas.storyboard.searchShots')} />
+          <span>{t('canvas.storyboard.showingShots', { shown: visibleShots.length, total: shots.length })}</span>
+          <Button onClick={() => addStoryboardShot(nodeId)}>{t('canvas.storyboard.addShot')}</Button>
         </div>
         {visibleShots.length ? (
           <div className="storyboard-editor-table" role="table" aria-label={t('canvas.storyboard.tableLabel')}>
@@ -291,11 +302,17 @@ export function StoryboardScriptEditor({ open, nodeId, onClose, autoOpenAi = fal
           </div>
         ) : (
           <div className="storyboard-editor-empty">
-            <strong>{t('canvas.storyboard.editorEmptyTitle')}</strong>
-            <span>{t('canvas.storyboard.editorEmptyBody')}</span>
+            <strong>{shots.length ? t('canvas.storyboard.noMatchTitle') : t('canvas.storyboard.editorEmptyTitle')}</strong>
+            <span>{shots.length ? t('canvas.storyboard.noMatchBody') : t('canvas.storyboard.editorEmptyBody')}</span>
             <div className="storyboard-editor-empty-actions">
-              <Button onClick={() => addStoryboardShot(nodeId)}>{t('canvas.storyboard.addShot')}</Button>
-              <Button type="primary" onClick={openAi}>{t('canvas.storyboard.aiGenerate')}</Button>
+              {shots.length ? (
+                <Button onClick={() => setQuery('')}>{t('canvas.storyboard.clearSearch')}</Button>
+              ) : (
+                <>
+                  <Button onClick={() => addStoryboardShot(nodeId)}>{t('canvas.storyboard.addShot')}</Button>
+                  <Button type="primary" onClick={openAi}>{t('canvas.storyboard.aiGenerate')}</Button>
+                </>
+              )}
             </div>
           </div>
         )}

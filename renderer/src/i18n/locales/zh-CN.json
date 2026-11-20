@@ -10739,5 +10739,15 @@
   "canvas.storyboard.assetPickerHint": "为这一镜选择参考图；不选时继承分镜节点已连接的参考图。",
   "canvas.storyboard.noImages": "画布上还没有可用图片；先上传或生成一张。",
   "canvas.storyboard.inheritUpstream": "使用上游参考",
-  "tool.feedback.canvas.invalidStoryboardReferences": "镜头关联的图片节点不存在或没有真实图片文件：{value0}"
+  "tool.feedback.canvas.invalidStoryboardReferences": "镜头关联的图片节点不存在或没有真实图片文件：{value0}",
+  "canvas.storyboard.runBusy": "这一批分镜正在生成，请等当前任务结束",
+  "canvas.batch.runBusy": "这批任务正在运行，请等当前任务结束",
+  "canvas.batch.mentionToken": "@参考图{index}",
+  "canvas.batch.referenceIndex": "参考图{index}",
+  "canvas.batch.reorderColumn": "拖动调整参考列顺序",
+  "canvas.storyboard.searchShots": "搜索画面、台词、提示词或角色",
+  "canvas.storyboard.showingShots": "显示 {shown}/{total} 个镜头",
+  "canvas.storyboard.noMatchTitle": "没有符合条件的镜头",
+  "canvas.storyboard.noMatchBody": "清除搜索，继续查看完整分镜。",
+  "canvas.storyboard.clearSearch": "清除搜索"
 }

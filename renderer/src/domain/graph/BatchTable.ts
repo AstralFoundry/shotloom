@@ -171,6 +171,51 @@ export function removeBatchRow(table: BatchTableData, rowId: string): BatchTable
   return { ...table, rows: table.rows.filter((row) => row.id !== rowId) };
 }
 
+/** 调整参考列顺序，并同步重排每行按列保存的参考图。 */
+export function reorderBatchColumns(table: BatchTableData, fromColumnId: string, toColumnId: string): BatchTableData {
+  const fromIndex = table.columns.findIndex((column) => column.id === fromColumnId);
+  const toIndex = table.columns.findIndex((column) => column.id === toColumnId);
+  if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) return table;
+  const columns = [...table.columns];
+  const [moved] = columns.splice(fromIndex, 1);
+  if (!moved) return table;
+  columns.splice(toIndex, 0, moved);
+  const order = columns.map((column) => table.columns.findIndex((item) => item.id === column.id));
+  return {
+    ...table,
+    columns: columns.map((column, index) => ({ ...column, label: `参考图 ${index + 1}` })),
+    rows: table.rows.map((row) => ({
+      ...row,
+      referenceNodeIds: order.map((oldIndex) => row.referenceNodeIds[oldIndex] || ''),
+    })),
+  };
+}
+
+/** 在行与列之间交换参考图；不改变提示词和产出。 */
+export function moveBatchReferenceCell(
+  table: BatchTableData,
+  sourceRowId: string,
+  sourceColumnIndex: number,
+  targetRowId: string,
+  targetColumnIndex: number,
+): BatchTableData {
+  if (sourceRowId === targetRowId && sourceColumnIndex === targetColumnIndex) return table;
+  if (sourceColumnIndex < 0 || targetColumnIndex < 0 || targetColumnIndex >= table.columns.length) return table;
+  const rows = table.rows.map((row) => ({
+    ...row,
+    referenceNodeIds: Array.from({ length: table.columns.length }, (_, index) => row.referenceNodeIds[index] || ''),
+  }));
+  const sourceRow = rows.find((row) => row.id === sourceRowId);
+  const targetRow = rows.find((row) => row.id === targetRowId);
+  if (!sourceRow || !targetRow) return table;
+  const source = sourceRow.referenceNodeIds[sourceColumnIndex] || '';
+  if (!source) return table;
+  const target = targetRow.referenceNodeIds[targetColumnIndex] || '';
+  targetRow.referenceNodeIds[targetColumnIndex] = source;
+  sourceRow.referenceNodeIds[sourceColumnIndex] = target;
+  return { ...table, rows };
+}
+
 export function updateBatchRow(table: BatchTableData, rowId: string, patch: Partial<BatchRow>): BatchTableData {
   return {
     ...table,
@@ -225,7 +270,8 @@ export function batchColumnInputs(
     if (!isReferenceNode(edge.source)) continue;
     const explicit = typeof edge.data?.batchColumnId === 'string' ? String(edge.data.batchColumnId) : '';
     const index = explicit ? columnIndex.get(explicit) : undefined;
-    if (index !== undefined) {
+    if (explicit) {
+      if (index === undefined) continue;
       const seen = explicitSeen[index];
       if (!seen || seen.has(edge.source)) continue;
       seen.add(edge.source);

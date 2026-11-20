@@ -25,6 +25,12 @@ import {
 
 type AnyRecord = Record<string, any>;
 
+const runningStoryboards = new Set<string>();
+
+export function isStoryboardRunActive(nodeId: string): boolean {
+  return runningStoryboards.has(nodeId);
+}
+
 function projectNode(nodeId: string): AnyRecord | null {
   return (store.project.nodes as AnyRecord[]).find((node) => node.id === nodeId) || null;
 }
@@ -247,9 +253,15 @@ export function ensureStoryboardShotNode(scriptNodeId: string, shotId: string, k
   const field = kind === 'image' ? 'imageNodeId' : 'videoNodeId';
   const existing = projectNode(shot[field]);
   const outputType = kind === 'image' ? 'imageGeneration' : 'videoGeneration';
+  const shotReferences = shot.referenceNodeIds
+    .map((id) => projectNode(id))
+    .filter((item): item is AnyRecord => Boolean(item) && isStoryboardImageNode(item as AnyRecord));
+  const references = shotReferences.length ? shotReferences : incomingReferenceNodes(scriptNode);
   if (existing && existing.type === outputType) {
     existing.prompt = storyboardShotPrompt(shot, kind);
     existing.title ||= t(kind === 'image' ? 'canvas.storyboard.imageNodeTitle' : 'canvas.storyboard.videoNodeTitle', { index: shot.shotNumber });
+    connectShotNode(scriptNode, existing, references);
+    if (kind === 'video' && shot.imageNodeId) connectShotImage(existing, shot.imageNodeId);
     touchProject();
     return existing;
   }
@@ -264,10 +276,7 @@ export function ensureStoryboardShotNode(scriptNodeId: string, shotId: string, k
   output.canvasSectionId = scriptNode.canvasSectionId ?? null;
   shot[field] = output.id;
   scriptNode.storyboardShots = shots;
-  const shotReferences = shot.referenceNodeIds
-    .map((id) => projectNode(id))
-    .filter((item): item is AnyRecord => Boolean(item) && isStoryboardImageNode(item as AnyRecord));
-  connectShotNode(scriptNode, output, shotReferences.length ? shotReferences : incomingReferenceNodes(scriptNode));
+  connectShotNode(scriptNode, output, references);
   if (kind === 'video' && shot.imageNodeId) connectShotImage(output, shot.imageNodeId);
   touchProject();
   return output;
@@ -298,6 +307,10 @@ function waitForNode(nodeId: string, project: AnyRecord, timeoutMs = 15 * 60 * 1
 export async function runStoryboardShots(scriptNodeId: string, kind: 'image' | 'video', shotIds?: string[]): Promise<void> {
   const scriptNode = projectNode(scriptNodeId);
   if (!scriptNode) return;
+  if (runningStoryboards.has(scriptNodeId)) {
+    showToast(t('canvas.storyboard.runBusy'));
+    return;
+  }
   const project = store.project;
   const targets = storyboardShots(scriptNode)
     .filter((shot) => !shotIds || shotIds.includes(shot.id))
@@ -318,12 +331,17 @@ export async function runStoryboardShots(scriptNodeId: string, kind: 'image' | '
     showToast(t('canvas.storyboard.noModel'));
     return;
   }
-  for (const shot of runnable) {
-    if (store.project !== project) return;
-    const output = ensureStoryboardShotNode(scriptNodeId, shot.id, kind);
-    if (!output) continue;
-    if (output.status === 'completed' && shotIds) continue;
-    runNode(output);
-    await waitForNode(output.id, project);
+  runningStoryboards.add(scriptNodeId);
+  try {
+    for (const shot of runnable) {
+      if (store.project !== project) return;
+      const output = ensureStoryboardShotNode(scriptNodeId, shot.id, kind);
+      if (!output) continue;
+      if (output.status === 'completed' && shotIds) continue;
+      runNode(output);
+      await waitForNode(output.id, project);
+    }
+  } finally {
+    runningStoryboards.delete(scriptNodeId);
   }
 }

@@ -10739,5 +10739,15 @@
   "canvas.storyboard.assetPickerHint": "Pick references for this shot; empty means the node’s linked references.",
   "canvas.storyboard.noImages": "No canvas images yet; upload or generate one first.",
   "canvas.storyboard.inheritUpstream": "Use linked references",
-  "tool.feedback.canvas.invalidStoryboardReferences": "Shot references missing canvas image nodes: {value0}"
+  "tool.feedback.canvas.invalidStoryboardReferences": "Shot references missing canvas image nodes: {value0}",
+  "canvas.storyboard.runBusy": "This storyboard batch is already running",
+  "canvas.batch.runBusy": "This batch is already running",
+  "canvas.batch.mentionToken": "@reference{index}",
+  "canvas.batch.referenceIndex": "reference{index}",
+  "canvas.batch.reorderColumn": "Drag to reorder reference columns",
+  "canvas.storyboard.searchShots": "Search plot, dialogue, prompts or characters",
+  "canvas.storyboard.showingShots": "Showing {shown}/{total} shots",
+  "canvas.storyboard.noMatchTitle": "No matching shots",
+  "canvas.storyboard.noMatchBody": "Clear the search to see all shots.",
+  "canvas.storyboard.clearSearch": "Clear search"
 }

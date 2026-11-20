@@ -1269,4 +1269,7 @@ export interface MessageParameters {
   "tool.feedback.canvas.invalidBatchReferences": Record<"value0", string | number>;
   "canvas.storyboard.assetPickerTitle": Record<"index", string | number>;
   "tool.feedback.canvas.invalidStoryboardReferences": Record<"value0", string | number>;
+  "canvas.batch.mentionToken": Record<"index", string | number>;
+  "canvas.batch.referenceIndex": Record<"index", string | number>;
+  "canvas.storyboard.showingShots": Record<"shown" | "total", string | number>;
 }

@@ -399,6 +399,11 @@
   align-items: center;
   gap: 10px;
 }
+.storyboard-editor-title > svg {
+  flex: none;
+  width: var(--icon-lg);
+  height: var(--icon-lg);
+}
 .storyboard-editor-name {
   width: 260px;
 }
@@ -1522,4 +1527,57 @@
   padding: 24px;
   color: var(--faint);
   text-align: center;
+}
+
+.batch-table-ref.is-dragging {
+  opacity: .55;
+  border-style: dashed;
+  border-color: var(--brand-accent);
+}
+
+.batch-prompt-refs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  min-height: 16px;
+}
+.batch-prompt-refs button {
+  padding: 0 4px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xs);
+  background: var(--surface-2);
+  color: var(--faint);
+  font-size: var(--text-caption-10);
+  cursor: pointer;
+}
+.batch-prompt-refs button:hover {
+  border-color: var(--brand-accent-border);
+  color: var(--brand-accent);
+}
+
+.batch-table-column-head {
+  cursor: grab;
+}
+.batch-table-column-head:active {
+  cursor: grabbing;
+}
+
+.storyboard-editor-toolbar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 10px;
+}
+.storyboard-editor-toolbar > .ant-input-affix-wrapper,
+.storyboard-editor-toolbar > *:first-child {
+  flex: 0 1 320px;
+  min-width: 180px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-field);
+  background: var(--surface);
+}
+.storyboard-editor-toolbar > span {
+  color: var(--muted);
+  font-size: var(--text-caption-11);
 }

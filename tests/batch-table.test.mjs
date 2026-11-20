@@ -65,6 +65,24 @@ test('每列端口连线按 batchColumnId 归位，普通连线按顺序补齐�
   assert.deepEqual(columns[2], ['c1']);
   assert.deepEqual(batchColumnReferences(table, edges, 'table', () => true), ['b1', 'a1', 'c1']);
   assert.deepEqual(batchColumnInputs(table, edges, 'table', (id) => id !== 'a2')[1], ['a1']);
+  assert.deepEqual(batchColumnInputs(table, [{ source: 'x', target: 'table', data: { batchColumnId: 'removed-column' } }], 'table', () => true)[0], []);
+});
+
+test('参考图可在行与列间交换，调整列顺序会同步重排行内参考', async () => {
+  const { defaultBatchTable, moveBatchReferenceCell, reorderBatchColumns } = await env.load('domain/graph/BatchTable');
+  const table = {
+    ...defaultBatchTable(),
+    rows: [
+      { id: 'r1', enabled: true, prompt: 'A', referenceNodeIds: ['a1', 'a2', 'a3'], outputNodeId: '' },
+      { id: 'r2', enabled: true, prompt: 'B', referenceNodeIds: ['b1', 'b2', 'b3'], outputNodeId: '' },
+    ],
+  };
+  const moved = moveBatchReferenceCell(table, 'r1', 0, 'r2', 2);
+  assert.deepEqual(moved.rows[0].referenceNodeIds, ['b3', 'a2', 'a3']);
+  assert.deepEqual(moved.rows[1].referenceNodeIds, ['b1', 'b2', 'a1']);
+  const reordered = reorderBatchColumns(table, table.columns[0].id, table.columns[2].id);
+  assert.deepEqual(reordered.rows[0].referenceNodeIds, ['a2', 'a3', 'a1']);
+  assert.equal(reordered.columns[2].label, '参考图 3');
 });
 
 test('全局提示词统一覆盖各行原文，可运行行同时校验启用、提示词与最低参考数', async () => {

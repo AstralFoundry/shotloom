@@ -27,8 +27,8 @@ import {
   type BatchTableData,
 } from '@/domain/graph/BatchTable';
 import { batchReferenceDefaults, batchTableData, ensureBatchTableData, isCanvasImageNode } from '@/services/batchTableService';
-import { runStoryboardScriptGeneration, runStoryboardShots, storyboardShots } from '@/services/storyboardScriptService';
-import { runBatchTable } from '@/services/batchTableService';
+import { isStoryboardRunActive, runStoryboardScriptGeneration, runStoryboardShots, storyboardShots } from '@/services/storyboardScriptService';
+import { isBatchTableRunActive, runBatchTable } from '@/services/batchTableService';
 
 type AnyRecord = Record<string, any>;
 
@@ -404,6 +404,7 @@ export function registerCanvasSuiteTools(): void {
       if (!getAvailableModelIdsByType(kind === 'image' ? 'imageGeneration' : 'videoGeneration').length) {
         return { success: false, error: t('canvas.storyboard.noModel') };
       }
+      if (isStoryboardRunActive(String(node.id))) return { success: false, error: t('canvas.storyboard.runBusy') };
       void runStoryboardShots(String(node.id), kind, shotIds);
       return { success: true, started: shots.length, nodeId: String(node.id), kind };
     },
@@ -431,6 +432,7 @@ export function registerCanvasSuiteTools(): void {
       const node = findBatchTable(resolveNodeId(input.nodeId));
       if (!node) return { success: false, error: t('tool.feedback.canvas.missingBatchTable') };
       if (!getAvailableModelIdsByType('imageGeneration').length) return { success: false, error: t('canvas.batch.noModel') };
+      if (isBatchTableRunActive(String(node.id))) return { success: false, error: t('canvas.batch.runBusy') };
       const rowIds = Array.isArray(input.rowIds) ? input.rowIds.map(String) : undefined;
       const table = batchTableData(node);
       const defaults = batchReferenceDefaults(String(node.id));
