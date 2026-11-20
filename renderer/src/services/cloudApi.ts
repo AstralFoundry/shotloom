@@ -13,13 +13,15 @@ import { probeEditorMedia, inferEditorMediaType } from '../utils/editorMediaImpo
 import { captureVideoFrame, cropImage, type CropRect } from './browserMedia';
 import { projectBundle, mapProjectMedia, exportProjectPackage, readProjectPackage, type ProjectBundle } from './cloudProjectPackage';
 import { createCloudDirectorModels } from './cloudDirectorModels';
+import { cloudProjectId, readCanvasStartup } from './cloudCanvasStartup';
+export { cloudProjectId } from './cloudCanvasStartup';
 
 type RecordValue = Record<string, unknown>;
 type PlatformApi = ReturnType<typeof createTauriApi>;
 const root = 'cloud/projects';
 
 export async function loadCloudPreferences() {
-  return { ...await cloudRequest<RecordValue>('/settings'), projectRootDir: root, apiKeyValid: false };
+  return { ...await readCanvasStartup<RecordValue>('settings', '/settings'), projectRootDir: root, apiKeyValid: false };
 }
 
 export async function loadCloudAccountSettings() {
@@ -41,12 +43,6 @@ export async function loadCloudAccountSettings() {
       allowedModelIds: getCatalogModels(adapter.id).filter(model => available.has(model.upstreamModel || model.id)).map(model => model.id),
     }])),
   };
-}
-
-export function cloudProjectId(path: string): string {
-  const id = path.replace(/\\/g, '/').replace(/\/project\.sqlite$/, '').split('/').at(-1) || '';
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) throw new Error('Invalid cloud project reference');
-  return id;
 }
 
 function projectLocation(id: string, folderId?: string | null) {
@@ -363,7 +359,7 @@ export function createCloudApi(local: PlatformApi): PlatformApi {
         const saved = await directorModels.load(await cloudRequest<RecordValue>(`/project/${id}`, 'PUT', await directorModels.save({ ...project, cloudFolderId: parent })));
         return { ...projectLocation(id, parent as string | null), project: saved };
       },
-      readFile: (path: string) => cloudRequest(`/project/${cloudProjectId(path)}`).then(value => directorModels.load(value)),
+      readFile: (path: string) => readCanvasStartup('project', `/project/${cloudProjectId(path)}`).then(value => directorModels.load(value)),
       readBundle: (dir: string) => cloudRequest(`/project/${cloudProjectId(dir)}/bundle`).then(value => directorModels.load(value)),
       listRoot: listTree,
       openFolder: async (dir: string) => {
@@ -417,7 +413,7 @@ export function createCloudApi(local: PlatformApi): PlatformApi {
       setTokenGroup: async (id: string) => { await cloudRequest('/settings/token-group', 'PUT', { activeTokenGroupId: id }); return settings(); },
       refreshBalance: settings,
     },
-    localAssets: { getCatalog: () => catalog('assets'), setCatalog: async (value: RecordValue) => { await cloudRequest('/catalog/assets', 'PUT', value); return value; } },
+    localAssets: { getCatalog: () => readCanvasStartup<RecordValue>('assets', '/catalog/assets'), setCatalog: async (value: RecordValue) => { await cloudRequest('/catalog/assets', 'PUT', value); return value; } },
     skills: {
       getGlobal: async () => withBuiltInSkills(await catalog('skills')),
       setGlobal: async (value: RecordValue) => { await cloudRequest('/catalog/skills', 'PUT', withoutBuiltInSkills(value)); return withBuiltInSkills(value); },

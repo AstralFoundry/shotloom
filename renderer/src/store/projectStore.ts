@@ -760,7 +760,7 @@ export async function loadBoundWindowProject(beforeApply?: () => Promise<boolean
   // skipping the read in that case lets the stale session overwrite disk on
   // the first touch/autosave.
   const filePath = `${projectDir.replace(/[\\/]$/, '')}/project.sqlite`;
-  const catalogReady = cloudEnabled && new URLSearchParams(window.location.search).get('native') === 'embedded'
+  const catalogReady = cloudEnabled
     ? import('@/store/localAssetLibraryStore').then(module => module.loadLocalAssetLibrary(true)) : undefined;
   void catalogReady?.catch(() => {});
   let timer: number | undefined;
@@ -873,7 +873,7 @@ async function applyOpenedProject(result: AnyRecord, catalogReady?: Promise<unkn
     filePath: store.filePath,
     projectDir: store.projectDir,
   }).then(() => loadRecentProjects());
-  if (cloudEnabled && new URLSearchParams(window.location.search).get('native') === 'embedded') {
+  if (cloudEnabled) {
     void recent.catch((cause: unknown) => showErrorMessage(String(cause)));
   } else await recent;
   persistSession();

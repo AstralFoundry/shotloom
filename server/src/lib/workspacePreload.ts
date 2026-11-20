@@ -1,26 +1,19 @@
 import { readFile } from 'node:fs/promises';
 
-type Chunk = { file: string; name?: string; imports?: string[]; css?: string[] };
-const manifest = readFile(new URL('../../../dist/renderer/.vite/manifest.json', import.meta.url), 'utf8').then(value => JSON.parse(value) as Record<string, Chunk>).catch(() => ({} as Record<string, Chunk>));
+import { collectWorkspacePreloads } from '../../../shared/workspacePreloads';
+export { collectWorkspacePreloads } from '../../../shared/workspacePreloads';
 
-export function collectWorkspacePreloads(chunks: Record<string, Chunk>): string[] {
-  const visited = new Set<string>(), files = new Set<string>();
-  function collect(key: string) {
-    if (visited.has(key) || !chunks[key]) return;
-    visited.add(key);
-    const chunk = chunks[key];
-    for (const file of [chunk.file, ...(chunk.css || [])]) {
-      if (/^assets\/[a-zA-Z0-9_.-]+\.(js|css)$/.test(file)) files.add(file);
-    }
-    for (const dependency of chunk.imports || []) collect(dependency);
-  }
-  for (const [key, chunk] of Object.entries(chunks)) {
-    if (key === 'index.html' || chunk.name === 'ReactWorkbench' || chunk.name === 'AntdProvider') collect(key);
-  }
-  return [...files];
+export async function workspacePreloadFiles(directory = new URL('../../../dist/renderer/', import.meta.url)) {
+  try {
+    const html = await readFile(new URL('index.html', directory), 'utf8');
+    const entry = html.match(/<script\b[^>]*\bsrc=["']\.\/(assets\/[^"']+\.js)["']/)?.[1];
+    const embedded = html.match(/<script id="shotloom-workspace-preloads" type="application\/json">([^<]*)<\/script>/)?.[1];
+    const files: unknown = embedded ? JSON.parse(embedded) : collectWorkspacePreloads(JSON.parse(await readFile(new URL('.vite/manifest.json', directory), 'utf8')));
+    if (Array.isArray(files) && entry && files.includes(entry) && files.every(file => typeof file === 'string' && /^assets\/[a-zA-Z0-9_.-]+\.(js|css)$/.test(file))) return files as string[];
+    console.warn('[workspace-preload] Page and preload metadata do not match');
+  } catch { console.warn('[workspace-preload] Preload metadata unavailable'); }
+  return [];
 }
-
-export async function workspacePreloadFiles() { return collectWorkspacePreloads(await manifest); }
 
 export function workspacePreloadHtml(userId: string, files: string[]) {
   const identity = JSON.stringify(userId).replace(/</g, '\\u003c');
