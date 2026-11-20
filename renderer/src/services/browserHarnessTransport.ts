@@ -9,12 +9,12 @@ type ToolRequest = Parameters<typeof executeProductRequest>[0];
 type Reply = { resolve(value: unknown): void; reject(error: Error): void };
 let active: { worker: Worker; project: string; user: string; pending: Map<string, Reply>; listeners: Map<string, (event: TransportEvent) => void>; controllers: Map<string, AbortController>; dispose(): void } | undefined;
 let connecting: Promise<void> | undefined;
-let toolHandler: ((request: ToolRequest, signal?: AbortSignal) => Promise<void>) | undefined;
+let toolHandler: ((request: ToolRequest, signal: AbortSignal) => Promise<void>) | undefined;
 const toolReplies = new Map<string, (response: { result?: unknown; error?: string }) => void>();
 // Store 可能返回 Proxy；沿用原 HTTP/IPC 边界的 JSON 语义后再交给 Worker。
 const jsonValue = (value: unknown) => value === undefined ? undefined : JSON.parse(JSON.stringify(value));
 
-export function registerBrowserToolHandler(handler: (request: ToolRequest, signal?: AbortSignal) => Promise<void>) { toolHandler = handler; }
+export function registerBrowserToolHandler(handler: (request: ToolRequest, signal: AbortSignal) => Promise<void>) { toolHandler = handler; }
 export async function respondBrowserTool(response: { requestId: string; result?: unknown; error?: string }) {
   const reply = toolReplies.get(response.requestId);
   if (!reply) throw new Error(t('agent.worker.toolInterrupted'));
@@ -49,7 +49,7 @@ export async function connectBrowserHarness(): Promise<void> {
       owner.pending.clear(); owner.listeners.clear();
     };
     const unsubscribe = subscribeDomain(() => { if (getAgentProjectIdentity().fenceKey !== identity.fenceKey) dispose(); });
-    const heartbeat = cloudEnabled ? setInterval(() => { void readCloudSession(true).catch(() => dispose()); }, 20_000) : undefined;
+    const heartbeat = cloudEnabled ? setInterval(() => { void verifyCloudSession(); }, 20_000) : undefined;
     function dispose() {
       if (disposed) return;
       disposed = true;

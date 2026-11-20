@@ -72,7 +72,7 @@ if (env.NODE_ENV !== 'test') {
     console.log(`Shotloom BFF 已启动：http://localhost:${info.port}`);
   });
   for (const signal of ['SIGTERM', 'SIGINT']) process.once(signal, () => {
-    server.close();
-    process.exit(0);
+    // 流式模型响应必须写完再退出；部署先切流，Docker 的宽限期负责兜底。
+    server.close(() => process.exit(0));
   });
 }

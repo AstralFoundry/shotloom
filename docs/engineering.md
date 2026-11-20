@@ -38,6 +38,12 @@ Web、桌面和移动 WebView 的 Agent 循环统一运行于 Dedicated Worker�
 
 服务器仅通过 `/api/agent/model` 转换单次模型请求，复用登录、发布模型与协议校验，凭据和供应商地址不返回客户端；不创建 Agent Host 或持久化聊天。产品工具仍在 renderer 的真实绑定、项目代际、节点存在性和用户设置边界内执行。`prepare:harness` 生成聊天 UI 和 Worker 镜像，桌面不再打包 Node Agent Host。旧 SQLite/云端历史保留，切换本地会话时保留 `legacyHarnessSessionId`，不自动迁移。详细实现与验证见 [客户端 Worker](features/agent-client-worker.md)。
 
+## 生产发布与流式连接
+
+`mail` 上发布必须先启动并验证独立候选容器，再用 `scripts/activate-production.sh <release目录> <候选容器名> <候选端口>` 切换。脚本先重载 nginx，让新请求进入候选，等待旧 nginx worker 退出、已有模型流完成后才重建正式容器；正式容器验证通过后切回，再排空候选连接。排空超时保留两个容器，不强制终止流。不要在用户使用时直接 `compose up --force-recreate` 替换正在接流量的容器。
+
+发布目录需包含源码和构建产物 `build/`、`revision`、`release.before`、`previous-image.txt`、`image.txt`、`compose.production.yaml`、候选验证结果 `candidate-smoke.json` 与可运行的 `smoke.mjs`。脚本校验旧版本和镜像身份，保留旧 hash 静态资源并记录 nginx/Compose 配置备份。服务端收到停止信号后等待现有响应结束，Compose 提供 16 分钟退出宽限期；不自动重放模型或付费工具调用。
+
 ## Agent 工具的暴露与可见性
 
 工具可见性有四层判定，全部在 `renderer/src/agent/core/visibility.ts` 与 `renderer/src/services/harnessProductTools.ts` 里实现：

@@ -4,7 +4,13 @@ import { createRendererEnv } from './helpers/rendererSsr.mjs';
 
 test('archiving an unopened project uses its own Worker scope and always releases it', async () => {
   const workers = [];
-  const originals = new Map(['Worker', 'document', 'isSecureContext', 'indexedDB', 'OffscreenCanvas', 'navigator'].map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
+  const originals = new Map(['Worker', 'document', 'isSecureContext', 'indexedDB', 'OffscreenCanvas', 'navigator', 'setInterval'].map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
+  let heartbeat;
+  const setInterval = globalThis.setInterval;
+  globalThis.setInterval = (callback, ms, ...args) => {
+    if (ms === 20000) heartbeat = callback;
+    return setInterval(callback, ms, ...args);
+  };
   globalThis.document = { baseURI: 'http://localhost/' };
   globalThis.Worker = class {
     messages = [];
@@ -20,7 +26,9 @@ test('archiving an unopened project uses its own Worker scope and always release
     terminate() { this.terminated = true; }
   };
   const modules = {
-    './cloudRequest': 'export const cloudEnabled=false,cloudOrigin="",cloudUserHeaders=()=>({}),readCloudSession=()=>{},verifyCloudSession=()=>{};',
+    './cloudRequest': `export const cloudEnabled=true,cloudOrigin="",cloudUserHeaders=()=>({});
+      export async function readCloudSession(force){if(force)throw new TypeError('network error');return {id:'local'};}
+      export async function verifyCloudSession(){try{await readCloudSession(true);}catch{}}`,
     './agentProjectIdentity': 'export const getAgentProjectIdentity=()=>({projectKey:"current",fenceKey:"current:1"});',
     '../store/domainReactivity': 'export const subscribeDomain=()=>()=>{};',
   };
@@ -30,7 +38,7 @@ test('archiving an unopened project uses its own Worker scope and always release
     load(id) { if (id.startsWith('\0lifecycle:')) return modules[id.slice(11)]; },
   }] });
   try {
-    const { archiveBrowserHarness, connectBrowserHarness, bindBrowserHarness } = await env.load('services/browserHarnessTransport');
+    const { archiveBrowserHarness, connectBrowserHarness, bindBrowserHarness, registerBrowserToolHandler } = await env.load('services/browserHarnessTransport');
     assert.deepEqual(await archiveBrowserHarness('unopened', ['local-session'], true), { sessionIds: ['local-session'] });
     assert.deepEqual(workers[0].messages, [
       { type: 'boot', id: 'boot', payload: { userId: 'local', projectKey: 'unopened' } },
@@ -53,6 +61,16 @@ test('archiving an unopened project uses its own Worker scope and always release
     assert.deepEqual(workers[3].messages.at(-1).payload, { binding: 'new-worker' });
     assert.equal(workers.length, 4, 'late failures must not dispose the replacement Worker');
     assert.equal(workers[3].terminated, false);
+    await heartbeat();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(workers[3].terminated, false, 'a transient auth heartbeat network error must not terminate the active run');
+    let signal;
+    registerBrowserToolHandler(async (_request, value) => { signal = value; });
+    workers[3].onmessage({ data: { type: 'host-request', id: 'cancellable-tool', method: 'tool', payload: { requestId: 'tool-call' } } });
+    assert.equal(signal?.aborted, false);
+    workers[3].onmessage({ data: { type: 'host-abort', id: 'cancellable-tool' } });
+    assert.equal(signal.aborted, true, 'Worker cancellation must reach the product handler');
+    await new Promise(resolve => setImmediate(resolve));
     workers[3].onmessage({ data: { type: 'fatal', error: 'test teardown' } });
   } finally {
     await env.dispose();

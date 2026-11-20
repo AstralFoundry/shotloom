@@ -18,6 +18,8 @@ export interface ProductTool {
   effect: 'read' | 'write' | 'generation' | 'delete' | 'overwrite' | 'export';
   /** Set by the product catalog, never by model arguments. */
   approvalRequired?: boolean;
+  /** 0 leaves execution unbounded; user cancellation still applies. */
+  timeoutMs?: number;
 }
 
 export interface ProductBridge {
@@ -44,8 +46,8 @@ export function registerProductTools(
     throw new Error('Shotloom Tool Bridge must be loopback HTTP');
   }
   if (!bridge.dispatch && !bridge.token) throw new Error('Missing Shotloom Tool Bridge credential');
-  async function exchange(request: Record<string, unknown>, signal: AbortSignal) {
-    signal = AbortSignal.any([signal, AbortSignal.timeout(bridge.timeoutMs ?? 120_000)]);
+  async function exchange(request: Record<string, unknown>, signal: AbortSignal, timeoutMs = bridge.timeoutMs ?? 120_000) {
+    if (timeoutMs > 0) signal = AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)]);
     if (bridge.dispatch) return { ok: true, receipt: await bridge.dispatch(request, signal) };
     const response = await fetch(new URL('/tool', target!), {
       method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${bridge.token}` },
@@ -70,11 +72,15 @@ export function registerProductTools(
           // The model only needs the tool's own answer. requestId/sessionId/toolName are host
           // bookkeeping that repeated on every call, and the inner `result` envelope made a
           // failed write read as `success: true` one level too deep — flatten both here.
-          const envelope = value as { images?: ImageAttachmentRef[] };
+          const envelope = value as Record<string, unknown> & { images?: ImageAttachmentRef[] };
           const images = envelope.images ?? [];
-          const { requestId: _requestId, sessionId: _sessionId, toolName: _toolName, references, images: _images, result, ...rest } = value as Record<string, unknown>;
+          // HTTP 和 Worker 都在产品回执外包一层传输结果；先拆它，避免聊天 sessionId 冒充场景 sessionId。
+          const inner = envelope.result as Record<string, unknown> | undefined;
+          const receipt = inner && typeof inner === 'object' && typeof inner.toolName === 'string' ? inner : envelope;
+          const { requestId: _requestId, sessionId: _sessionId, toolName: _toolName, references, images: _images, result, ...rest } = receipt;
           const linked = references as { nodeIds?: string[]; taskIds?: string[] } | undefined;
           const payload = {
+            ...(typeof envelope.success === 'boolean' ? { success: envelope.success } : {}),
             ...rest,
             ...(result !== undefined && typeof result === 'object' && result !== null && !Array.isArray(result) ? result as Record<string, unknown> : { result }),
             ...(linked?.nodeIds?.length || linked?.taskIds?.length ? { references: linked } : {}),
@@ -139,7 +145,7 @@ export function registerProductTools(
         // The desktop revalidates project/node existence and current settings.
         try {
           if (persistReceipt && !await receiptCrud!.claimReceipt(requestId)) return { success: false, code: 'TOOL_OUTCOME_UNKNOWN', requestId };
-          const response = await exchange({ op: 'tool', requestId, binding, toolName: tool.name, input, approvedByHarness, authorizedByFullAccess: fullAccessGrant }, exec.signal);
+          const response = await exchange({ op: 'tool', requestId, binding, toolName: tool.name, input, approvedByHarness, authorizedByFullAccess: fullAccessGrant }, exec.signal, tool.timeoutMs);
           const receipt = response.receipt;
           if (!receipt || typeof receipt !== 'object' || Array.isArray(receipt)) {
             throw new Error('Bridge did not return a structured receipt');

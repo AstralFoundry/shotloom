@@ -5,7 +5,7 @@ import { registerCatalogTools } from '../agent/tools/catalogTools';
 import { registerProductionPlanTools } from '../agent/tools/productionPlanTools';
 import { registerTextDraftTools } from '../agent/tools/textTools';
 import { registerVideoEditorTools } from '../agent/tools/videoEditorTools';
-import { allAgentTools, hasAgentTool, prepareAgentToolCall, registerAgentTool } from '../agent/core/toolRegistry';
+import { AgentToolInputError, allAgentTools, hasAgentTool, prepareAgentToolCall, registerAgentTool } from '../agent/core/toolRegistry';
 import type { AgentToolContext, AgentRunFacts, JsonObject } from '../agent/core/types';
 import { getAgentProjectIdentity, assertAgentProject } from './agentProjectIdentity';
 import { store, touchProject, saveProject, exportProjectPackage } from '../store/projectStore';
@@ -90,6 +90,7 @@ export function productToolCatalog(binding: Omit<ProductBinding, 'sessionId'>) {
     name: tool.id, title: tool.title, description: tool.description, parameters: tool.resolveInputSchema?.(context) || tool.inputSchema,
     roles: [binding.agentId], effect: tool.effect === 'read' ? 'read' : tool.effect === 'media_generation' ? 'generation' : 'write',
     approvalRequired: tool.approvalRequired === true,
+    ...(tool.timeoutMs !== undefined ? { timeoutMs: tool.timeoutMs } : {}),
   }));
 }
 export function bindProductSession(binding: ProductBinding) {
@@ -104,7 +105,8 @@ export async function executeProductRequest(request: {
   const registered = bindings.get(request.binding?.sessionId);
   if (!registered || (['sessionId', 'projectKey', 'conversationId', 'agentId', 'nodeId'] as const).some(key => registered.binding[key] !== request.binding[key])) throw new Error(t('agent.bindingUnknown'));
   const { binding, context } = registered;
-  const callContext = { ...context, signal: signal || context.signal, requestId: request.requestId, turnId: request.requestId, agentSessionId: binding.sessionId };
+  const callContext = { ...context, signal: signal ?? context.signal, requestId: request.requestId, turnId: request.requestId, agentSessionId: binding.sessionId };
+  callContext.signal.throwIfAborted();
   assertAgentProject(context.projectKey, context.projectInstanceId, context.projectGeneration);
   const conversation = store.project.harnessSessions?.find((item: { id?: string }) => item.id === binding.conversationId);
   if (!conversation || conversation.agentId !== binding.agentId) throw new Error(t('agent.bindingChanged'));
@@ -116,10 +118,31 @@ export async function executeProductRequest(request: {
     if (!node || boundNodeId !== binding.nodeId) throw new Error(t('agent.bindingNodeMissing'));
   }
   context.capabilities.nodeExecution = settingsStore.agentCanRunNodes === true;
-  if (!supportsEditorTool(request.toolName, desktopApi.platform !== 'browser' && Boolean(store.projectDir))) {
-    throw new Error(t('agent.toolUnavailable', { name: request.toolName }));
+  const definition = allAgentTools().find(tool => tool.id === request.toolName);
+  const allowed = agentDefinition(binding.agentId);
+  if (definition && (!allowed.tools.includes(definition.id) || !allowed.effects.includes(definition.effect))) {
+    return { success: false, code: 'TOOL_NOT_ALLOWED', applied: false, error: '当前 Agent 无权调用此工具。', hint: '使用当前会话工具目录，或委派给有权限的 Agent。' };
   }
-  const prepared = prepareAgentToolCall(request.toolName, JSON.stringify(request.input), callContext);
+  if (!definition || !supportsEditorTool(request.toolName, desktopApi.platform !== 'browser' && Boolean(store.projectDir))) {
+    return { success: false, code: 'TOOL_UNAVAILABLE', applied: false, error: t('agent.toolUnavailable', { name: request.toolName }),
+      hint: '工具或运行后端不可用；检查当前端支持的工具目录，不要重复提交旧工具调用。' };
+  }
+  // 在 isAvailable 拒绝前返回真实权限原因，避免被桥接层误报为断连。
+  if (!context.capabilities.nodeExecution && definition.effect === 'media_generation') {
+    return { success: false, code: 'NODE_EXECUTION_DISABLED', applied: false,
+      error: '当前已关闭“允许 Agent 运行节点”，未启动生成。', hint: '需要实际生成时，请用户在设置中开启“允许 Agent 运行节点”，然后重新提交；全权限模式不会覆盖此设置。' };
+  }
+  if (definition.isAvailable?.(callContext) === false) {
+    return { success: false, code: 'TOOL_UNAVAILABLE', applied: false, error: t('agent.toolUnavailable', { name: request.toolName }),
+      hint: '检查绑定的编辑器是否打开；原生剪辑工具可先用 editor_find_tools 查询并解锁，再按当前状态调用。' };
+  }
+  let prepared;
+  try { prepared = prepareAgentToolCall(request.toolName, JSON.stringify(request.input), callContext); }
+  catch (error) {
+    if (!(error instanceof AgentToolInputError)) throw error;
+    return { success: false, code: 'INVALID_TOOL_INPUT', applied: false, error: error.message, issues: error.issues,
+      hint: '按当前工具 schema 修正参数后重新提交。' };
+  }
   const effect = prepared.definition.resolveEffect?.(prepared.input, callContext) ?? prepared.definition.effect;
   if (effect === 'media_generation' && !context.capabilities.nodeExecution) return { success: false, code: 'NODE_EXECUTION_DISABLED', applied: false };
   const approvalRequired = prepared.definition.approvalRequired === true ||
@@ -129,6 +152,7 @@ export async function executeProductRequest(request: {
   const existing = calls.get(request.requestId);
   if (existing) return existing;
   const operation = (async () => {
+    callContext.signal.throwIfAborted();
     const result = await prepared.definition.execute(prepared.input, callContext);
     assertAgentProject(context.projectKey, context.projectInstanceId, context.projectGeneration);
     if (effect !== 'read') touchProject();

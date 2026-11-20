@@ -35,6 +35,53 @@ function request(binding, toolName, input = {}, extra = {}) {
   return { requestId: crypto.randomUUID(), binding, toolName, input, ...extra };
 }
 
+test('catalog retains each tool execution deadline including unlimited exports', async () => {
+  const { binding, catalog } = fixture('director-primary');
+  const registry = await env.load('agent/core/toolRegistry');
+  for (const item of catalog) {
+    assert.equal(item.timeoutMs, registry.allAgentTools().find(tool => tool.id === item.name).timeoutMs, item.name);
+  }
+  assert.equal(catalog.find(tool => tool.name === 'director_editing_handoff').timeoutMs, 0);
+  assert.equal(catalog.find(tool => tool.name === 'director_desk_query').timeoutMs, 130000);
+});
+
+test('unavailable workspaces, foreign tools and invalid arguments return actionable receipts before dispatch', async () => {
+  const { binding } = fixture('text-primary', 'closed-text');
+  projects.store.project.nodes.push({ id: 'closed-text', type: 'text' });
+  const closed = await tools.executeProductRequest(request(binding, 'text_draft_read', {}, { phase: 'authorize' }));
+  assert.equal(closed.code, 'TOOL_UNAVAILABLE');
+  assert.equal(closed.applied, false);
+  assert.ok(closed.hint);
+  const foreign = await tools.executeProductRequest(request(binding, 'canvas_create_node', {}));
+  assert.equal(foreign.code, 'TOOL_NOT_ALLOWED');
+  const canvas = fixture();
+  const invalid = await tools.executeProductRequest(request(canvas.binding, 'canvas_get_node', {}, { phase: 'authorize' }));
+  assert.equal(invalid.code, 'INVALID_TOOL_INPUT');
+  assert.equal(invalid.applied, false);
+  assert.ok(invalid.issues.some(issue => issue.includes('nodeId')));
+});
+
+test('product tools receive the live cancellation signal before later writes', async () => {
+  const { binding } = fixture();
+  const registry = await env.load('agent/core/toolRegistry');
+  const tool = registry.allAgentTools().find(tool => tool.id === 'project_save');
+  const original = tool.execute;
+  const control = new AbortController();
+  let begin;
+  const started = new Promise(resolve => { begin = resolve; });
+  let release;
+  const wait = new Promise(resolve => { release = resolve; });
+  let wrote = false;
+  tool.execute = async (_input, context) => { begin(); await wait; context.signal.throwIfAborted(); wrote = true; return { success: true }; };
+  try {
+    const operation = tools.executeProductRequest(request(binding, 'project_save', {}, { approvedByHarness: true }), control.signal);
+    await started;
+    control.abort(); release();
+    await assert.rejects(operation, { name: 'AbortError' });
+    assert.equal(wrote, false);
+  } finally { tool.execute = original; }
+});
+
 test('skill authoring requires approval, persists readback, detects stale edits and protects built-ins', async () => {
   const library = await env.load('store/skillsStore');
   await library.loadGlobalSkills();
@@ -262,7 +309,7 @@ test('unsupported backends stay hidden and stale desktop calls cannot run after 
     for (const name of Object.keys(policy.excludedTools)) {
       assert.equal(names.includes(`openreel_${name}`), false, name);
       assert.equal(registry.hasAgentTool(`openreel_${name}`), false, name);
-      await assert.rejects(tools.executeProductRequest(request(binding, `openreel_${name}`, {}, { approvedByHarness: true })), { message: translate('agent.toolUnavailable', { name: `openreel_${name}` }) });
+      assert.equal((await tools.executeProductRequest(request(binding, `openreel_${name}`, {}, { approvedByHarness: true }))).code, 'TOOL_UNAVAILABLE');
     }
     for (const name of policy.desktopProjectTools) assert.ok(names.includes(`openreel_${name}`), name);
     // bake_creation_asset 不在核心集里：解锁前不下发。这条断言只能跑一次，
@@ -272,7 +319,7 @@ test('unsupported backends stay hidden and stale desktop calls cannot run after 
       const current = tools.productToolCatalog(binding);
       for (const name of [...policy.desktopProjectTools.map(name => `openreel_${name}`), 'video_project_export', 'video_project_frame']) {
         assert.equal(current.some(tool => tool.name === name), false, name);
-        await assert.rejects(tools.executeProductRequest(request(binding, name, {}, { approvedByHarness: true })), { message: translate('agent.toolUnavailable', { name }) }, name);
+        assert.equal((await tools.executeProductRequest(request(binding, name, {}, { approvedByHarness: true }))).code, 'TOOL_UNAVAILABLE', name);
       }
       assert.ok(current.some(tool => tool.name === 'openreel_add_track'));
       assert.ok(current.some(tool => tool.name === 'openreel_inspect_3d_model'));
@@ -287,7 +334,9 @@ test('unsupported backends stay hidden and stale desktop calls cannot run after 
     openReel.unlockNativeTools(['bake_creation_asset'], binding.conversationId);
     const unlocked = tools.productToolCatalog(binding);
     assert.deepEqual(unlocked.find(tool => tool.name === 'openreel_bake_creation_asset').parameters.properties.includeGltf.enum, [false]);
-    await assert.rejects(tools.executeProductRequest(request(binding, 'openreel_bake_creation_asset', { assetId: 'asset', includeGltf: true }, { approvedByHarness: true })), /includeGltf/);
+    const invalid = await tools.executeProductRequest(request(binding, 'openreel_bake_creation_asset', { assetId: 'asset', includeGltf: true }, { approvedByHarness: true }));
+    assert.equal(invalid.code, 'INVALID_TOOL_INPUT');
+    assert.match(invalid.error, /includeGltf/);
     api.platform = 'tauri';
     assert.ok(tools.productToolCatalog(binding).some(tool => tool.name === 'openreel_export_video'));
   } finally { release?.(); api.platform = platform; }
@@ -336,7 +385,16 @@ test('Harness advertises StarRouter DeepSeek Flash reasoning levels and Agent de
 test('product boundary rejects forged bindings, switched project instances and disabled generation', async () => {
   const { binding } = fixture();
   await assert.rejects(tools.executeProductRequest(request({ ...binding, projectKey: 'forged' }, 'canvas_list_nodes')), { message: translate('agent.bindingUnknown') });
-  await assert.rejects(tools.executeProductRequest(request(binding, 'canvas_start_generation', { type: 'start_generation', nodeId: 'missing' })), /unavailable/);
+  for (const phase of ['authorize', undefined]) {
+    const denied = await tools.executeProductRequest(request(binding, 'canvas_start_generation', { type: 'start_generation', nodeId: 'missing' }, { phase, authorizedByFullAccess: true }));
+    assert.equal(denied.code, 'NODE_EXECUTION_DISABLED');
+    assert.equal(denied.applied, false);
+    assert.match(denied.error, /允许 Agent 运行节点/);
+  }
+  settings.agentCanRunNodes = true;
+  const enabled = await tools.executeProductRequest(request(binding, 'canvas_start_generation', { type: 'start_generation', nodeId: 'missing' }, { phase: 'authorize' }));
+  assert.equal(enabled.success, true, 'enabling execution after binding must use the live setting');
+  assert.equal(enabled.approvalRequired, true, 'full access does not silently enable the execution setting');
   // The same path and project id with a new mounted instance is still a different owner.
   projects.store.project = { ...projects.store.project };
   await assert.rejects(tools.executeProductRequest(request(binding, 'canvas_list_nodes')), /项目已经切换/);
@@ -467,7 +525,7 @@ test('editor reads canvas subtitle sources, imports the matching video and stays
     assert.equal(receipt.result.mediaId, 'native-real-media');
     assert.equal(imported[0].sourceFile, '/harness-project/assets/real.mp4');
     assert.equal(imported[0].duration, 3);
-    await assert.rejects(tools.executeProductRequest(request(binding, 'canvas_create_node', {})));
+    assert.equal((await tools.executeProductRequest(request(binding, 'canvas_create_node', {}))).code, 'TOOL_NOT_ALLOWED');
     // Another active editor must not silently replace this conversation's target.
     const other = editor.registerActiveVideoEditor({ projectKey: binding.projectKey, nodeId: 'other-clip', importAsset: async () => { throw new Error('wrong editor'); } });
     try {
@@ -475,7 +533,7 @@ test('editor reads canvas subtitle sources, imports the matching video and stays
       assert.equal(again.result.mediaId, 'native-real-media');
     } finally { other(); }
     release();
-    await assert.rejects(tools.executeProductRequest(request(binding, 'video_project_import_media', { assetId: source.id }, { approvedByHarness: true })));
+    assert.equal((await tools.executeProductRequest(request(binding, 'video_project_import_media', { assetId: source.id }, { approvedByHarness: true }))).code, 'TOOL_UNAVAILABLE');
   } finally { release(); api.file.probeMedia = probe; }
 });
 

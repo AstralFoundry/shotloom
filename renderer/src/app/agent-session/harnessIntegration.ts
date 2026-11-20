@@ -29,7 +29,7 @@ export function startHarnessIntegration(): Promise<void> {
     return { sessionId: result.sessionId, projectKey: getAgentProjectIdentity().projectKey, conversationId: conversation.id!, agentId: EDITOR_AGENT_ID, nodeId };
   });
   startup = (async () => {
-    const handleToolRequest = async (payload: Parameters<typeof executeProductRequest>[0], signal?: AbortSignal) => {
+    const handleToolRequest = async (payload: Parameters<typeof executeProductRequest>[0], signal: AbortSignal) => {
       try {
         const result = await executeProductRequest(payload, signal);
         // 工具目录在绑定会话时一次性下发，所以两类工具必须在返回结果前重新下发，
