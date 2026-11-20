@@ -88,7 +88,7 @@ export const assetJoints = (id: string) => findAsset(id)?.joints ?? HUMAN_JOINTS
 const searchText = (text: string) => text.normalize('NFKC').toLocaleLowerCase().trim();
 /** Literal and ordered partial-letter matches only; this does not infer production intent. */
 export function assetSearchScore(query: string, labels: string[]): number {
-    const words = searchText(query).split(/\s+/).filter(Boolean);
+    const words = searchText(englishText(query)).split(/\s+/).filter(Boolean);
     const terms = labels.flatMap(label => [searchText(label), searchText(englishText(label))]);
     let score = 0;
     for (const word of words) {

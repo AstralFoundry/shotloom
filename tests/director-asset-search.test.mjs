@@ -5,7 +5,9 @@ import { createRendererEnv } from './helpers/rendererSsr.mjs';
 test('资产模糊搜索支持中英名称、漏字和英文分组，精确命中排前且保留分类交集', async () => {
   const env = await createRendererEnv();
   try {
-    const { searchAssets } = await env.loadVendor('shotloom-director-desk/src/core/asset-catalog.ts');
+    const { searchAssets, assetSearchScore } = await env.loadVendor('shotloom-director-desk/src/core/asset-catalog.ts');
+    assert.ok(Number.isFinite(assetSearchScore('猫', ['cat-base', 'Cat'])));
+    assert.ok(Number.isFinite(assetSearchScore('棕榈树', ['Tropical Palm Tree'])));
     assert.ok(searchAssets('棕榈').some(asset => asset.id === 'plant-palm'));
     assert.ok(searchAssets('palm tree').some(asset => asset.id === 'plant-palm'));
     assert.ok(searchAssets('bulding').some(asset => asset.id.startsWith('building-')));
