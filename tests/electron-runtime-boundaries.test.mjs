@@ -54,6 +54,31 @@ function request(path = '/start') {
   return { requestId: 'audit', providerId: 'audit', path, scope: 'root', method: 'GET', headers: [], formFields: [], resources: [], timeoutMs: 5000, auth: { type: 'header', name: 'x-api-key' } };
 }
 
+test('gateway waits past 15 seconds for response headers within the request budget', async t => {
+  const received = Promise.withResolvers();
+  const provider = await listen(t, (_req, res) => received.resolve(res));
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const result = api.runGenerationRequest(
+    { ...request(), timeoutMs: 30_000 },
+    environment('slow-response-headers', provider),
+  );
+  const response = await received.promise;
+  t.mock.timers.tick(16_000);
+  response.end('done');
+  assert.equal((await result).body, 'done');
+});
+
+test('gateway still enforces the request budget while waiting for response headers', async t => {
+  const received = Promise.withResolvers();
+  const provider = await listen(t, () => received.resolve());
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const result = api.runGenerationRequest(request(), environment('response-deadline', provider));
+  const rejected = assert.rejects(result, /请求超时/);
+  await received.promise;
+  t.mock.timers.tick(5_000);
+  await rejected;
+});
+
 test('gateway blocks redirects to forbidden hosts before sending custom credentials', async t => {
   let reached = false;
   const target = await listen(t, (_req, res) => { reached = true; res.end('private'); });

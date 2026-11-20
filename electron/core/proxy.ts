@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { fetch as undiciFetch, ProxyAgent, type Dispatcher } from 'undici';
+import { Agent, Client, fetch as undiciFetch, ProxyAgent } from 'undici';
 
 /**
  * 系统代理：与迁移前的 Rust 网关一致，优先读取环境变量，macOS 再读 scutil。
@@ -85,38 +85,44 @@ function isLoopback(hostname: string): boolean {
     || /^127\./.test(host) || host.endsWith('.localhost');
 }
 
-let proxyDispatcher: Dispatcher | null = null;
+const CONNECT_TIMEOUT_MS = 15_000;
+const responseTimeouts = { headersTimeout: 0, bodyTimeout: 0 };
+const directAgent = new Agent({ ...responseTimeouts, connectTimeout: CONNECT_TIMEOUT_MS });
 
 /**
  * 与 reqwest 的 `Proxy::custom` 一致：只对非回环目标使用代理。
- * 没有代理时走全局 fetch（保持原来的连接复用与超时行为）。
+ * 建连独立限时，连接后的响应等待由网关 AbortSignal 管理。
  */
 export async function fetchThroughSystemProxy(
   url: string,
-  init: RequestInit & { dispatcher?: Dispatcher } = {},
+  init: RequestInit,
 ): Promise<Response> {
   const proxy = resolvedSystemProxyUrl();
   if (proxy !== cachedAgentUrl) {
     void cachedAgent?.close().catch(() => undefined);
     cachedAgent = null;
-    proxyDispatcher = null;
     cachedAgentUrl = proxy;
   }
   let hostname = '';
   try { hostname = new URL(url).hostname; } catch { hostname = ''; }
-  if (!proxy || !hostname || isLoopback(hostname)) return fetch(url, init);
-  if (!proxyDispatcher) {
-    cachedAgent = new ProxyAgent(proxy);
-    proxyDispatcher = cachedAgent;
+  let dispatcher: Agent | ProxyAgent = directAgent;
+  if (proxy && hostname && !isLoopback(hostname)) {
+    cachedAgent ??= new ProxyAgent({
+      uri: proxy,
+      ...responseTimeouts,
+      proxyTls: { timeout: CONNECT_TIMEOUT_MS },
+      requestTls: { timeout: CONNECT_TIMEOUT_MS },
+      clientFactory: (origin, options) => new Client(origin, { ...options, headersTimeout: CONNECT_TIMEOUT_MS }),
+    });
+    dispatcher = cachedAgent;
   }
-  return undiciFetch(url, { ...init, dispatcher: proxyDispatcher } as never) as unknown as Promise<Response>;
+  return undiciFetch(url, { ...init, dispatcher } as never) as unknown as Promise<Response>;
 }
 
 /** 进程退出/代理变更时释放连接池。 */
 export function closeProxyAgent(): void {
   void cachedAgent?.close().catch(() => undefined);
   cachedAgent = null;
-  proxyDispatcher = null;
   cachedUrl = undefined;
   cachedAgentUrl = null;
   cacheExpiresAt = 0;

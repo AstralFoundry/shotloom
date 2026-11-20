@@ -501,8 +501,6 @@ async function resourceBytes(
 
 // ── HTTP 传输 ───────────────────────────────────────────────────────────────
 
-const CONNECT_TIMEOUT_MS = 15_000;
-
 function clampTimeout(timeoutMs: number): number {
   const whole = Number.isFinite(timeoutMs) ? Math.trunc(timeoutMs) : 0;
   return Math.min(Math.max(whole, 1_000), 1_800_000);
@@ -537,7 +535,7 @@ function readFailureOf(opened: OpenResponse, error: unknown): Error {
 }
 
 /**
- * 单次出网请求：连接超时 15s、总超时按 Rust 的 clamp(1s, 30min) 处理；
+ * 建连超时由 HTTP 传输层处理；等待响应头和读取响应体共用请求总时限（1 秒至 30 分钟）。
  * 取消与超时都通过 AbortController 终止在途 HTTP，响应体由调用方流式读取。
  */
 async function openResponse(outgoing: OutgoingRequest, timeoutMs: number, cancel?: CancelState): Promise<OpenResponse> {
@@ -548,11 +546,9 @@ async function openResponse(outgoing: OutgoingRequest, timeoutMs: number, cancel
     abortFailure = reason;
     controller.abort(reason);
   };
-  const connectTimer = setTimeout(() => abortWith(new GatewayTimeoutError('连接超时')), CONNECT_TIMEOUT_MS);
   const totalTimer = setTimeout(() => abortWith(new GatewayTimeoutError('请求超时')), clampTimeout(timeoutMs));
   const onCancel = (): void => abortWith(new GatewayCancelledError());
   const cleanup = (): void => {
-    clearTimeout(connectTimer);
     clearTimeout(totalTimer);
     cancel?.controller.signal.removeEventListener('abort', onCancel);
   };
@@ -600,8 +596,6 @@ async function openResponse(outgoing: OutgoingRequest, timeoutMs: number, cancel
     cleanup();
     throw abortFailure ?? asError(error);
   }
-  clearTimeout(connectTimer);
-
   let consumed = false;
   let disposed = false;
   const dispose = (): void => {
