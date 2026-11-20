@@ -146,14 +146,13 @@ test('upstream account and model failures preserve stored preferences and allow 
   } finally { globalThis.fetch = originalFetch; await env.dispose(); }
 });
 
-test('model relay and agent connection errors verify the application session before expiring it', async () => {
+test('model relay errors verify the application session before expiring it', async () => {
   const env = await createRendererEnv({ storageMode: 'cloud', withWindow: true });
   const originalFetch = globalThis.fetch;
   let expired = 0, checked = 0;
   window.dispatchEvent = () => { expired++; return true; };
   globalThis.fetch = async url => {
     if (url === '/api/auth/me') { checked++; return Response.json({ success: true, data: { id: 'user' } }); }
-    if (url === '/api/agent/connect') return Response.json({ success: true, data: { id: 'connection' } });
     return Response.json({ success: false, message: 'Upstream unavailable' }, { status: 401 });
   };
   try {
@@ -161,10 +160,7 @@ test('model relay and agent connection errors verify the application session bef
     const api = createCloudApi({ project: {}, file: {}, settings: {} });
     await assert.rejects(api.model.chatCompletion({ model: 'fixture', messages: [] }));
     assert.equal(expired, 0, 'a model token failure cannot expire the application');
-    const { connectCloudHarness } = await env.load('app/agent-session/cloudHarnessTransport');
-    await assert.rejects(connectCloudHarness());
-    assert.equal(expired, 0);
-    assert.equal(checked, 2);
+    assert.equal(checked, 1);
   } finally { globalThis.fetch = originalFetch; await env.dispose(); }
 });
 
@@ -202,6 +198,17 @@ test('cloud settings install published upstream models as the runtime catalog wi
     await loadAppSettings();
     assert.equal(getCatalogModels().some(model => model.id === 'zero-order-text'), false);
     assert.deepEqual(settingsStore.upstreamModels, models);
+    const { harnessModelConfig } = await env.load('services/harnessModelConfig');
+    const originalLocation = globalThis.location;
+    let config;
+    try {
+      globalThis.location = { origin: 'http://localhost' };
+      config = harnessModelConfig();
+    } finally {
+      if (originalLocation === undefined) delete globalThis.location; else globalThis.location = originalLocation;
+    }
+    assert.equal(config.defaultModel.model, 'upstream-only-model');
+    assert.equal(config.providers[config.defaultModel.provider].profile.api, 'openai-completions');
     globalThis.fetch = async (url, init) => {
       if (url === '/api/settings/preferences' && init.method === 'PATCH') {
         assert.equal('upstreamModels' in JSON.parse(init.body), false);
@@ -286,18 +293,21 @@ test('cloud director models use signed Storage objects across save, a fresh clie
   }
 });
 
-test('cloud session archive and immediate undo reach the server in order on browser clients', async () => {
-  const env = await createRendererEnv({ storageMode: 'cloud' });
-  const originalFetch = globalThis.fetch;
+test('session archive and immediate undo reach the Worker in order on all clients', async () => {
+  const env = await createRendererEnv({ storageMode: 'cloud', plugins: [{
+    name: 'archive-worker', enforce: 'pre',
+    resolveId(source, importer) {
+      if (importer?.endsWith('/services/harnessArchive.ts') && source === './browserHarnessTransport') return '\0archive-worker';
+    },
+    load(id) { if (id === '\0archive-worker') return 'export const archiveBrowserHarness=(...args)=>globalThis.__archiveWorker(...args);'; },
+  }] });
   const writes = [];
   let finishArchive;
   const archiveStarted = new Promise(resolve => { finishArchive = resolve; });
   let releaseArchive;
   const archiveGate = new Promise(resolve => { releaseArchive = resolve; });
-  globalThis.fetch = async (url, init) => {
-    assert.equal(url, '/api/agent/sessions/archive');
-    assert.equal(init.credentials, 'include');
-    const input = JSON.parse(init.body);
+  globalThis.__archiveWorker = async (projectKey, sessionIds, archived) => {
+    const input = { projectKey, sessionIds, archived };
     writes.push(input);
     if (input.archived) { finishArchive(); await archiveGate; }
     return Response.json({ success: true, data: { sessionIds: ['session'] } });
@@ -314,7 +324,7 @@ test('cloud session archive and immediate undo reach the server in order on brow
       { projectKey: 'project', sessionIds: ['session'], archived: true },
       { projectKey: 'project', sessionIds: ['session'], archived: false },
     ]);
-  } finally { releaseArchive(); globalThis.fetch = originalFetch; await env.dispose(); }
+  } finally { releaseArchive(); delete globalThis.__archiveWorker; await env.dispose(); }
 });
 
 for (const mode of ['project', 'nested folder']) test(`cloud ${mode} copies preserve editor snapshots and records`, async () => {

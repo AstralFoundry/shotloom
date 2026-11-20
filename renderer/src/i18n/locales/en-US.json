@@ -10437,5 +10437,13 @@
   "admin.models.search": "Search models, IDs or providers",
   "admin.models.allTypes": "All model types",
   "admin.audit.description": "Recent changes to model configuration and administrator access.",
-  "admin.audit.target": "Target"
+  "admin.audit.target": "Target",
+  "agent.worker.toolInterrupted": "The Agent tool call was interrupted.",
+  "agent.worker.notConnected": "The Agent Worker is not connected.",
+  "agent.worker.projectChanged": "The Agent project has changed.",
+  "agent.worker.unsupported": "This client requires a secure context, Worker, IndexedDB, Web Locks and OffscreenCanvas to run the local Agent.",
+  "agent.worker.stopped": "The Agent Worker stopped. Reopen the conversation to continue.",
+  "agent.worker.startFailed": "Failed to start the Agent Worker.",
+  "agent.worker.toolsNotReady": "Agent tools are not ready.",
+  "agent.worker.modelFailed": "The Agent model request failed ({status})."
 }

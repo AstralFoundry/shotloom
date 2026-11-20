@@ -49,8 +49,7 @@
     "resources": [
       "resources/FFmpeg-GPL-3.0.txt",
       "resources/FFmpeg-SOURCE.txt",
-      "zh-Hans.lproj/InfoPlist.strings",
-      "resources/agent-host/"
+      "zh-Hans.lproj/InfoPlist.strings"
     ],
     "targets": "all",
     "createUpdaterArtifacts": true,

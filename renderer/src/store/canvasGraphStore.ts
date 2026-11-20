@@ -4,7 +4,6 @@ import { uid } from '@/utils/format';
 import { assertProjectOperationIdle } from '@/services/projectOperationGuards';
 import { trashBoundHarnessSessions } from '@/services/harnessSessionStore';
 import { getAgentProjectKey } from '@/services/agentProjectIdentity';
-import { desktopApi } from '@/services/desktopApi';
 import { setHarnessSessionsArchived } from '@/services/harnessArchive';
 
 // projectStore 的顶层字段只有最小类型，画布图对象在这里放宽为 any 边界。
@@ -53,7 +52,7 @@ export function deleteCanvasNodeData(nodeId: string, { touch = true }: { touch?:
   }
   if (current.connectFromId === nodeId) current.connectFromId = null;
   if (touch) touchProject();
-  if (desktopApi.platform !== 'browser' && before.size) void setHarnessSessionsArchived(projectKey, [...before] as string[], true)
+  if (before.size) void setHarnessSessionsArchived(projectKey, [...before] as string[], true)
     .catch(error => console.error('Failed to archive deleted node sessions', error));
   return true;
 }
