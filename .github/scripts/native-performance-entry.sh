@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+set -euo pipefail
+if [ "${PAIRED:-false}" != true ]; then
+  exec bash .github/scripts/native-performance.sh
+fi
+trap 'adb exec-out screencap -p > perf/failure.png' ERR
+adb shell wm size 750x1624
+adb shell wm density 320
+adb shell settings put global private_dns_mode off
+adb shell settings put system font_scale 1.0
+adb shell getprop ro.build.fingerprint > perf/device.txt
+adb install perf/measure.apk
+native_session=$(printf '%s' "$TEST_NATIVE_SESSION" | base64 -w0)
+token=$(printf '%s' "$TEST_NATIVE_SESSION" | python3 -c 'import json,sys;print(json.load(sys.stdin)["token"])')
+project=$(printf '%s' "$TEST_FIXTURE" | python3 -c 'import json,sys;print(json.load(sys.stdin)["projectId"])')
+feedback=$(printf '%s' "$TEST_FIXTURE" | python3 -c 'import json,sys;print(json.load(sys.stdin)["feedbackId"])')
+for pair in {1..10}; do
+  # Alternate order to reduce systematic cache and time-of-run bias.
+  order='baseline candidate'
+  if (( pair % 2 == 0 )); then order='candidate baseline'; fi
+  for version in $order; do
+    directory=acceptance; origin="$CANDIDATE_ORIGIN"
+    if [ "$version" = baseline ]; then directory=baseline; origin="$BASELINE_ORIGIN"; fi
+    adb uninstall com.shotloom.acceptance >/dev/null 2>&1 || true
+    adb uninstall com.shotloom.app.preview >/dev/null 2>&1 || true
+    adb install "$directory/Shotloom-Preview.apk"
+    # Both apps have the same signing identity; the new test APK supports isolated origins.
+    adb install acceptance/Shotloom-Session-Test.apk
+    adb shell am instrument -w -e origin "$origin" -e cookie "$TEST_SESSION_COOKIE" -e sessionBase64 "$native_session" com.shotloom.acceptance/com.shotloom.acceptance.SessionInstrumentation > /tmp/session-seeded.txt
+    grep -q 'Test session installed' /tmp/session-seeded.txt
+    for state in cold warm; do
+      adb shell am instrument -w -e origin "$origin" -e rounds 1 -e token "$token" -e cookie "$TEST_SESSION_COOKIE" -e projectId "$project" -e feedbackId "$feedback" com.shotloom.performance/com.shotloom.performance.NativePerformance > /tmp/performance-output.txt
+      python3 - "$pair" "$version" "$state" <<'PY'
+import json,sys
+text=open('/tmp/performance-output.txt').read()
+line=next((s.split('PERFORMANCE_JSON ',1)[1] for s in text.splitlines() if 'PERFORMANCE_JSON ' in s),None)
+assert line is not None, 'Measurement output missing'
+result=json.loads(line)
+result.update(pair=int(sys.argv[1]),version=sys.argv[2],state=sys.argv[3])
+with open('perf/results-'+ '-'.join(sys.argv[1:])+'.json','w') as f: json.dump(result,f,indent=2)
+print('Pair',sys.argv[1],sys.argv[2],sys.argv[3],len(result['pages']),'page samples; failure:',result['failure'])
+assert result['failure'] is None, result['failure']
+assert all(row['status']==200 for row in result['apis']), 'API error during measurement'
+PY
+    done
+  done
+done

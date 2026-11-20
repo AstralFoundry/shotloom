@@ -91,12 +91,12 @@ public final class NativePerformance extends Instrumentation {
         SystemClock.sleep(120);
     }
     private void api(String path,int round) throws Exception {
-        long start=SystemClock.elapsedRealtime();HttpURLConnection conn=(HttpURLConnection)new URL("https://shotloom.0xfiang.com/api"+path).openConnection();
+        long start=SystemClock.elapsedRealtime();HttpURLConnection conn=(HttpURLConnection)new URL(args.getString("origin", "https://shotloom.0xfiang.com")+"/api"+path).openConnection();
         if(path.startsWith("/project/"))conn.setRequestProperty("Cookie",args.getString("cookie"));else conn.setRequestProperty("Authorization","Bearer "+args.getString("token"));conn.setConnectTimeout(30000);conn.setReadTimeout(30000);
         int status=conn.getResponseCode();long headers=SystemClock.elapsedRealtime();int bytes=0;
         InputStream stream=status>=400?conn.getErrorStream():conn.getInputStream();
         if(stream!=null){byte[] buffer=new byte[8192];int n;while((n=stream.read(buffer))!=-1)bytes+=n;stream.close();}
-        apis.put(new JSONObject().put("path",path).put("round",round).put("status",status).put("ttfbMs",headers-start).put("totalMs",SystemClock.elapsedRealtime()-start).put("bytes",bytes));conn.disconnect();
+        apis.put(new JSONObject().put("path",path).put("round",round).put("status",status).put("ttfbMs",headers-start).put("totalMs",SystemClock.elapsedRealtime()-start).put("bytes",bytes).put("serverTiming",conn.getHeaderField("Server-Timing")).put("requestId",conn.getHeaderField("X-Request-Id")));conn.disconnect();
     }
     @Override public void onStart() {
         Bundle result=new Bundle();JSONObject report=new JSONObject();String failure=null;
@@ -120,7 +120,7 @@ public final class NativePerformance extends Instrumentation {
             launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TASK);getContext().startActivity(launch);
             waitReady("Android Canvas Acceptance");
             pages.put(new JSONObject().put("page","startup_authenticated").put("round",0).put("ms",SystemClock.elapsedRealtime()-start));
-            for(int round=0;round<5;round++) {
+            for(int round=0;round<Integer.parseInt(args.getString("rounds", "5"));round++) {
                 page("skills","Skills","Native Acceptance Skill",round);
                 page("projects","Project library","Android Canvas Acceptance",round);
                 page("account","My account","Available credits",round);
@@ -131,14 +131,14 @@ public final class NativePerformance extends Instrumentation {
                 page("feedback_detail","Latency_test_record","Replies",round);back();back();back();accountTop();waitReady("Available credits");
                 page("projects","Project library","Android Canvas Acceptance",round);
             }
-            for(int round=0;round<5;round++) {
+            for(int round=0;round<Integer.parseInt(args.getString("rounds", "5"));round++) {
                 page("canvas","Android Canvas Acceptance","100%",round);
                 page("projects","Project library","Android Canvas Acceptance",round);
             }
         } catch(Exception error) {failure=error.getMessage();}
         try {
             String[] paths={"/auth/me","/projects","/library-folders","/catalog/skills","/auth/account","/auth/usage?page=1&page_size=10","/notifications?offset=0&limit=1","/notifications?offset=0&limit=20","/settings/mobile","/models","/feedback?offset=0&limit=20","/feedback/"+args.getString("feedbackId"),"/project/"+args.getString("projectId")};
-            if(!"login".equals(args.getString("mode")))for(int round=0;round<5;round++)for(String path:paths)api(path,round);
+            if(!"login".equals(args.getString("mode")))for(int round=0;round<Integer.parseInt(args.getString("rounds", "5"));round++)for(String path:paths)api(path,round);
             report.put("pages",pages).put("apis",apis).put("failure",failure==null?JSONObject.NULL:failure).put("pollIntervalMs",25);
             result.putString("stream","PERFORMANCE_JSON "+report.toString()+"\n");
         }catch(Exception error){result.putString("stream","PERFORMANCE_FAILED "+error.getMessage()+"\n");failure=error.getMessage();}
