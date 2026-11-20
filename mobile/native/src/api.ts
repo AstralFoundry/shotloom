@@ -37,11 +37,13 @@ export class NativeApi {
     if (path !== '/auth/me' && !force && cached && cached.expires > Date.now()) return Promise.resolve(cached.value as T);
     const pending = this.reads.get(path);
     if (pending && !force) return pending as Promise<T>;
+    const deadline = Date.now() + 15000;
+    const legacyRead = <V>(legacyPath: string) => this.request<V>(legacyPath, 'GET', undefined, force, Math.max(1, deadline - Date.now()));
     const request = this.request<T>(path, 'GET', undefined, force).catch(error => {
-      if (path.startsWith('/catalog/skills/page?') && [404,405].includes(error.status)) return this.request<Record<string, unknown>>('/catalog/skills', 'GET', undefined, force).then(catalog => legacyCatalogPage(catalog, 'skills', new URLSearchParams(path.split('?')[1])) as T);
-      if (path.startsWith('/projects/page?') && [404,405].includes(error.status)) return this.request<ProjectSummary[]>('/projects', 'GET', undefined, force).then(items => legacyProjectPage(items, new URLSearchParams(path.split('?')[1])) as T);
+      if (path.startsWith('/catalog/skills/page?') && [404,405].includes(error.status)) return legacyRead<Record<string, unknown>>('/catalog/skills').then(catalog => legacyCatalogPage(catalog, 'skills', new URLSearchParams(path.split('?')[1])) as T);
+      if (path.startsWith('/projects/page?') && [404,405].includes(error.status)) return legacyRead<ProjectSummary[]>('/projects').then(items => legacyProjectPage(items, new URLSearchParams(path.split('?')[1])) as T);
       if (path !== '/notifications/unread' || ![404, 405].includes(error.status)) throw error;
-      return this.request<T>('/notifications?offset=0&limit=1', 'GET', undefined, force);
+      return legacyRead<T>('/notifications?offset=0&limit=1');
     }).then(value => {
       if (this.reads.get(path) === request) {
         if (this.cache.size >= 64) this.cache.delete(this.cache.keys().next().value!);
@@ -52,12 +54,12 @@ export class NativeApi {
     this.reads.set(path, request);
     return request;
   }
-  request<T>(path: string, method = 'GET', value?: unknown, force = false): Promise<T> {
+  request<T>(path: string, method = 'GET', value?: unknown, force = false, timeoutMs?: number): Promise<T> {
     if (!nativeRequestAllowed(method, path)) return Promise.reject(new Error('Request is unavailable'));
     if (method !== 'GET') this.invalidateWrite(path);
     const id = this.uuid();
     const response = new Promise<T>((resolve, reject) => {
-      const timer = setTimeout(() => { this.pending.delete(id); this.queued.delete(id); reject(new Error('Connection timed out. Please retry.')); }, method === 'GET' ? 15000 : 30000);
+      const timer = setTimeout(() => { this.pending.delete(id); this.queued.delete(id); reject(new Error('Connection timed out. Please retry.')); }, timeoutMs ?? (method === 'GET' ? 15000 : 30000));
       this.pending.set(id, { resolve: result => resolve(result as T), reject, timer });
       const request = { id, method, path, ...(value === undefined ? {} : { value }), ...(force ? { force: true } : {}) };
       if (this.suspended) this.queued.set(id, request); else this.dispatch(request);

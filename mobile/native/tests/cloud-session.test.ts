@@ -9,8 +9,8 @@ import { act, create } from 'react-test-renderer';
 test('web reloads and embedded canvases render behind silent verification; only confirmed expiry blocks them', async () => {
   (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
   const result = await build({ entryPoints: ['renderer/src/app/CloudSession.tsx'], absWorkingDir: fileURLToPath(new URL('../../..', import.meta.url)), bundle: true, write: false, platform: 'node', format: 'cjs', jsx: 'automatic', external: ['react', 'react/jsx-runtime'], define: { 'import.meta.env.VITE_STORAGE_MODE': '"cloud"', 'import.meta.env.VITE_SERVER_URL': '""' }, plugins: [{ name: 'web-session-platform', setup(builder) {
-    builder.onResolve({ filter: /components\/SocialAuth$|store\/projectStore$|^\.\.\/i18n$/ }, () => ({ path: 'platform', namespace: 'fixture' }));
-    builder.onLoad({ filter: /.*/, namespace: 'fixture' }, () => ({ contents: `exports.t=key=>key;exports.SocialAuth=()=>null;` }));
+    builder.onResolve({ filter: /services\/cloudCanvasStartup$|components\/SocialAuth$|store\/projectStore$|^\.\.\/i18n$/ }, () => ({ path: 'platform', namespace: 'fixture' }));
+    builder.onLoad({ filter: /.*/, namespace: 'fixture' }, () => ({ contents: `exports.t=key=>key;exports.SocialAuth=()=>null;exports.preloadCloudPageStartup=()=>{};` }));
   } }] });
   const originalFetch = globalThis.fetch;
   const storage = new Map<string, string>();

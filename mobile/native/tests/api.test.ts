@@ -176,3 +176,20 @@ test('upstream 401 verifies the application session without retrying writes or e
     assert.equal(expired, 1);
   } finally { api.disconnect(); globalThis.fetch = original; }
 });
+
+
+test('legacy fallback shares the initial interaction deadline', async t => {
+  t.mock.timers.enable({apis:['Date','setTimeout'],now:0});
+  const sent: NativeRequest[]=[];let id=0;
+  const api=new NativeApi(request=>sent.push(request),()=>String(++id));
+  const read=api.read('/projects/page?offset=0&limit=20');
+  let timedOut=false;
+  const settled=read.catch(error=>{timedOut=/timed out/.test(error.message);});
+  t.mock.timers.tick(14000);
+  api.receive({type:'response',id:sent[0]!.id,error:'Old server',status:404});
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(sent.length,2);
+  t.mock.timers.tick(1001);
+  await new Promise(resolve=>setImmediate(resolve));
+  try {assert.equal(timedOut,true);} finally {api.disconnect();await settled;}
+});
