@@ -28,3 +28,31 @@ test('display caches reduce upstream reads, isolate sessions, honour refresh and
     revoked=true; assert.equal((await request()).status,401); assert.equal(upstream,2);
   } finally {globalThis.fetch=original;}
 });
+
+
+test('cancelling the first page cannot abort a shared session read for the next page', async () => {
+  const original=globalThis.fetch,user=randomUUID(),session=randomUUID();
+  let auth=0,release!:()=>void;
+  globalThis.fetch=async(input,init)=>{
+    const url=new URL(String(input));
+    if(url.hostname==='gateway.example.com')return Response.json({sub:'1',app_quota:10});
+    auth++;
+    return new Promise((resolve,reject)=>{
+      const signal=init?.signal;
+      signal?.addEventListener('abort',()=>reject(signal.reason),{once:true});
+      release=()=>resolve(Response.json({id:session,user_id:user,owner:{id:user,sub:'1'},access_token_cipher:encrypt('token'),refresh_token_cipher:null,created_at:new Date().toISOString(),expires_at:new Date(Date.now()+3600000).toISOString()}));
+    });
+  };
+  const cancelled=new AbortController();
+  const request=(signal?:AbortSignal)=>app.request('/api/auth/account',{signal,headers:{cookie:`shotloom_session=${session}`}});
+  try {
+    const first=request(cancelled.signal);
+    while(!release)await new Promise(resolve=>setImmediate(resolve));
+    const next=request();
+    await new Promise(resolve=>setImmediate(resolve));
+    cancelled.abort();release();
+    assert.equal((await next).status,200);
+    await first;
+    assert.equal(auth,1,'overlapping auth reads still share one query');
+  }finally{globalThis.fetch=original;}
+});

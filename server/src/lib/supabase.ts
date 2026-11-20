@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import { timed, requestSignal } from './requestMetrics';
+import { timed, requestSignal, sharedRead } from './requestMetrics';
 import { env } from "../env";
 import { encrypt, decrypt } from "./crypto";
 import { badRequest, supabaseError } from "./errors";
@@ -98,9 +98,9 @@ export async function loadSession(sessionId: string): Promise<DecryptedSession |
   if (!/^[0-9a-f-]{36}$/i.test(sessionId)) return null;
   const pending = sessionReads.get(sessionId);
   if (pending) return pending;
-  const read: Promise<DecryptedSession | null> = Promise.resolve(admin.from("sessions")
+  const read: Promise<DecryptedSession | null> = sharedRead(() => Promise.resolve(admin.from("sessions")
     .select('*,owner:users!inner(id,sub,username,email)')
-    .eq('id', sessionId).eq('owner.client_id', env.GATEWAY_CLIENT_ID).maybeSingle()).then(({ data, error }) => {
+    .eq('id', sessionId).eq('owner.client_id', env.GATEWAY_CLIENT_ID).maybeSingle())).then(({ data, error }) => {
     if (sessionReads.get(sessionId) !== read) return loadSession(sessionId);
     if (error) throw supabaseError(error.message);
     if (!data) return null;

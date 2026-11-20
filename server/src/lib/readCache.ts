@@ -1,6 +1,6 @@
 // Internal display data only; authentication and execution checks never use this cache.
 import { createHash } from 'node:crypto';
-import { cacheResult } from './requestMetrics';
+import { cacheResult, sharedRead } from './requestMetrics';
 export function userReadKey(user: string, session: string, token: string) {
   return `user:${user}:${session}:${createHash('sha256').update(token).digest('hex')}:`;
 }
@@ -14,7 +14,7 @@ export function cachedRead<T>(key: string, ttlMs: number, load: () => Promise<T>
   cacheResult(false);
   if (reads.size >= 256) reads.delete(reads.keys().next().value!);
   const entry = { promise: undefined as unknown as Promise<T>, expires: Infinity };
-  entry.promise = Promise.resolve().then(load).then(value => {
+  entry.promise = Promise.resolve().then(() => sharedRead(load)).then(value => {
     if (reads.get(key) === entry) entry.expires = Date.now() + ttlMs;
     return value;
   }).catch(error => {

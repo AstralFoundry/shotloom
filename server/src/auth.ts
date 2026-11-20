@@ -1,5 +1,4 @@
-import { timed } from './lib/requestMetrics';
-import { forceRead } from './lib/requestMetrics';
+import { sharedRead, timed, forceRead } from './lib/requestMetrics';
 import { cachedRead, invalidateReads, userReadKey } from './lib/readCache';
 import { Hono } from "hono";
 import type { Provider } from '@supabase/supabase-js';
@@ -64,7 +63,7 @@ const refreshes = new Map<string, Promise<string>>();
 export function refreshSession(sessionId: string, authenticatedSession?: DecryptedSession): Promise<string> {
   const pending = refreshes.get(sessionId);
   if (pending) return pending;
-  const refresh = (async () => {
+  const refresh = sharedRead(async () => {
     const session = authenticatedSession ?? await loadSession(sessionId);
     if (!session?.refreshToken) throw unauthorized();
     const tokens = await refreshAccessToken(session.refreshToken);
@@ -75,7 +74,7 @@ export function refreshSession(sessionId: string, authenticatedSession?: Decrypt
       expiresAt: Date.now() + (tokens.expires_in ?? 3600) * 1000,
     });
     return tokens.access_token;
-  })().finally(() => refreshes.delete(sessionId));
+  }).finally(() => refreshes.delete(sessionId));
   refreshes.set(sessionId, refresh);
   return refresh;
 }
