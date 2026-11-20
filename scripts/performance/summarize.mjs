@@ -37,7 +37,8 @@ const browser=[...core,...extended];
 const web=groups(browser,r=>[r.scenario,r.width,r.state,r.version].join('/'),rows=>{
  assert.equal(rows.length,10);assert.equal(new Set(rows.map(r=>r.pair)).size,10);
  assert.ok(rows.every(r=>!r.readinessFailure||r.version==='baseline'),'Candidate readiness failures cannot pass acceptance');
- return {...readinessStats(rows),httpRequests:stats(rows.map(r=>r.resources.filter(v=>['http:','https:'].includes(v.scheme)).length)),bytesToReady:stats(rows.map(r=>r.resources.filter(v=>['http:','https:'].includes(v.scheme)).reduce((n,v)=>n+v.bytes,0))),apiRequests:stats(rows.map(r=>r.apiRequests.length))};
+ assert.ok(rows.every(r=>Array.isArray(r.initiatedRequests)),'Started requests, including pending work, must be recorded');
+ return {...readinessStats(rows),httpRequests:stats(rows.map(r=>r.initiatedRequests.filter(v=>['http:','https:'].includes(v.scheme)).length)),pendingHttpRequests:stats(rows.map(r=>r.initiatedRequests.filter(v=>['http:','https:'].includes(v.scheme)&&!v.completed).length)),bytesToReady:stats(rows.map(r=>r.resources.filter(v=>['http:','https:'].includes(v.scheme)).reduce((n,v)=>n+v.bytes,0))),apiRequests:stats(rows.map(r=>r.initiatedRequests.filter(v=>v.path.startsWith('/api/')).length))};
 });
 const http=browser.flatMap(row=>row.apiRequests.map(request=>({...request,version:row.version,parsed:parseTiming(request.serverTiming)})));
 const phases=groups(http,row=>`${row.version}/${row.path.replace(/[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}/gi,':id')}`,rows=>{

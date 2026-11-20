@@ -22,9 +22,9 @@ const scenarios=allScenarios.filter(value=>!process.env.SHOTLOOM_QA_SCENARIOS ||
 const separator=fixture.cookie.indexOf('=');
 await page.send('Network.setCookie',{name:fixture.cookie.slice(0,separator),value:fixture.cookie.slice(separator+1),url:fixture.origin,path:'/',secure:true,httpOnly:true,sameSite:'Lax'});
 let rows=process.env.SHOTLOOM_QA_RESUME==='1' ? JSON.parse(await readFile(`${directory}/samples.json`,'utf8')) : [],requests=[],responses=new Map(),eligible=new Map(),active=false;
-page.on('Network.requestWillBeSent',value=>{if(active)eligible.set(value.requestId,value.timestamp);});
+page.on('Network.requestWillBeSent',value=>{if(active){const url=new URL(value.request.url);eligible.set(value.requestId,{timestamp:value.timestamp,path:url.pathname,scheme:url.protocol});}});
 page.on('Network.responseReceived',value=>{if(active&&eligible.has(value.requestId))responses.set(value.requestId,{path:new URL(value.response.url).pathname,scheme:new URL(value.response.url).protocol,status:value.response.status,serverTiming:Object.entries(value.response.headers).find(([key])=>key.toLowerCase()==='server-timing')?.[1],requestId:Object.entries(value.response.headers).find(([key])=>key.toLowerCase()==='x-request-id')?.[1],ttfbMs:value.response.timing?.receiveHeadersStart,cached:value.response.fromDiskCache||value.response.fromServiceWorker||false});});
-page.on('Network.loadingFinished',value=>{if(active&&responses.has(value.requestId))requests.push({...responses.get(value.requestId),durationMs:(value.timestamp-eligible.get(value.requestId))*1000,bytes:value.encodedDataLength});});
+page.on('Network.loadingFinished',value=>{if(active&&responses.has(value.requestId))requests.push({...responses.get(value.requestId),networkId:value.requestId,durationMs:(value.timestamp-eligible.get(value.requestId).timestamp)*1000,bytes:value.encodedDataLength});});
 async function sample(scenario,version,width,pair,state) {
  const origin=fixture.origin.replace(':14433',version==='baseline'?':14434':':14433');
  if(state!=='return'){
@@ -60,7 +60,9 @@ async function sample(scenario,version,width,pair,state) {
  const durationMs=performance.now()-start;
  const metrics=await page.evaluate(`({firstFrame:performance.getEntriesByName('shotloom-media-first-frame').map(e=>e.startTime),resources:performance.getEntriesByType('resource').length,overflow:document.documentElement.scrollWidth>innerWidth+1})`);
  active=false;
- const row={pair,version,width,state,scenario:scenario.name,durationMs,...(readinessFailure?{readinessFailure}:{}),requests:requests.length,bytes:requests.reduce((sum,r)=>sum+r.bytes,0),resources:requests,apiRequests:requests.filter(r=>r.path.startsWith('/api/')),metrics};
+ const completed=new Set(requests.map(request=>request.networkId));
+ const initiatedRequests=[...eligible].map(([networkId,{path,scheme}])=>({networkId,path,scheme,status:responses.get(networkId)?.status??null,completed:completed.has(networkId)}));
+ const row={pair,version,width,state,scenario:scenario.name,durationMs,...(readinessFailure?{readinessFailure}:{}),requests:initiatedRequests.length,completedRequests:requests.length,initiatedRequests,bytes:requests.reduce((sum,r)=>sum+r.bytes,0),resources:requests,apiRequests:requests.filter(r=>r.path.startsWith('/api/')),metrics};
  rows.push(row);await writeFile(`${directory}/samples.json`,JSON.stringify(rows,null,2));
  console.log(pair,version,width,state,scenario.name,Math.round(durationMs),row.requests,row.bytes,readinessFailure?'BASELINE_TIMEOUT':'');
 }
