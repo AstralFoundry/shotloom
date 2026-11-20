@@ -69,3 +69,60 @@ test('RunningHub gateway templates submit images, poll videos and download authe
     }
   } finally { await env.dispose(); }
 });
+
+test('completed H3 video downloads through the cloud relay before archiving to canvas', async () => {
+  const env = await createRendererEnv({ withWindow: true });
+  const previousFetch = globalThis.fetch;
+  const calls = [];
+  let downloadStatus = 200;
+  globalThis.fetch = async (url, init) => {
+    calls.push(url);
+    if (url === '/api/relay/videos/task-existing') return Response.json({ id: 'task-existing', status: 'completed', progress: 100 });
+    if (url === '/api/relay/videos/task-existing/content') {
+      assert.equal(init.method, 'GET');
+      assert.equal(init.credentials, 'include');
+      assert.equal(init.headers.get('x-shotloom-provider'), 'openai');
+      assert.equal(init.headers.get('x-shotloom-scope'), 'v1');
+      return downloadStatus === 204 ? new Response(null, { status: 204 })
+        : downloadStatus === 200 ? new Response('video bytes', { headers: { 'Content-Type': 'video/mp4' } })
+        : Response.json({ error: { message: 'content denied' } }, { status: downloadStatus });
+    }
+    if (url === '/api/files/upload-url') return Response.json({ success: true, data: { url: 'https://storage.example/upload' } });
+    if (url === 'https://storage.example/upload') {
+      assert.equal(init.method, 'PUT');
+      assert.equal(init.headers['Content-Type'], 'video/mp4');
+      assert.equal(await init.body.text(), 'video bytes');
+      return new Response(null, { status: 200 });
+    }
+    assert.fail(`Unexpected request ${url}`);
+  };
+  try {
+    const { createCloudApi } = await env.load('services/cloudApi');
+    const { desktopApi } = await env.load('services/desktopApi');
+    const { modelCatalog } = await env.load('domain/catalog/ModelCatalog');
+    const { getProviderAdapter } = await env.load('domain/provider/adapters/index');
+    const { archiveGeneratedOutput } = await env.load('services/generatedResultArchive');
+    const api = createCloudApi({ file: { readArrayBuffer: () => assert.fail('Authenticated video must not fall back to a local file') } });
+    desktopApi.model.videoTask = api.model.videoTask;
+    desktopApi.file.downloadUrlToProject = api.file.downloadUrlToProject;
+    const model = { ...templates[0], id: 'minimax-h3-reference-to-video' };
+    const contract = modelCatalog.buildRuntimeContract(model, 'text-to-video');
+    const remote = await getProviderAdapter('openai').poll({ remoteTaskId: 'task-existing' }, contract);
+    const project = { materials: [] };
+    const node = { id: 'video-node', type: 'videoGeneration', title: 'H3 video' };
+    const task = { id: 'canvas-task', model: model.id, remoteTaskId: 'task-existing' };
+    const archived = await archiveGeneratedOutput({ project, node, task, output: remote.result });
+    assert.equal(archived.archivedFiles.length, 1);
+    assert.match(archived.archivedFiles[0].path, /^cloud:\/\/media\/.+\.mp4$/);
+    assert.equal(project.materials[0].remoteTaskId, 'task-existing');
+    assert.equal(project.materials[0].mimeType, 'video/mp4');
+    const uploadCount = calls.filter(url => url === '/api/files/upload-url').length;
+    downloadStatus = 403;
+    await assert.rejects(archiveGeneratedOutput({ project, node, task, output: remote.result }), /content denied/);
+    assert.equal(calls.filter(url => url === '/api/files/upload-url').length, uploadCount);
+    assert.equal(project.materials.length, 1, 'failed downloads cannot add a canvas result');
+    downloadStatus = 204;
+    await assert.rejects(archiveGeneratedOutput({ project, node, task, output: remote.result }), /download is empty/);
+    assert.equal(calls.filter(url => url === '/api/files/upload-url').length, uploadCount);
+  } finally { globalThis.fetch = previousFetch; await env.dispose(); }
+});
