@@ -8,7 +8,7 @@ test('fresh desktop startup prepares screenshot CSS and invokes npm through Node
   const calls = [];
   try {
     ensureElectronResources({ exists: () => false, run: (...args) => { calls.push(args); return { status: 0 }; } });
-    assert.deepEqual(calls.map(([, args]) => args.at(-1)), ['prepare:director-desk', 'prepare:plugins', 'prepare:harness', 'config:generate', 'prepare:screenshots']);
+    assert.deepEqual(calls.map(([, args]) => args.at(-1)), ['prepare:previs-world', 'prepare:plugins', 'prepare:harness', 'config:generate', 'prepare:screenshots']);
     for (const [command, args, options] of calls) {
       assert.equal(command, process.execPath);
       assert.deepEqual(args.slice(0, 2), [process.env.npm_execpath, 'run']);
@@ -32,5 +32,5 @@ test('existing desktop resources need no preparation, while missing screenshot C
 test('failed desktop preparation reports the actual process error and stops startup', () => {
   const error = new Error('spawn npm ENOENT');
   assert.throws(() => ensureElectronResources({ exists: () => false, run: () => ({ error, status: null }) }), value => value === error);
-  assert.throws(() => ensureElectronResources({ exists: () => false, run: () => ({ status: 1 }) }), /prepare:director-desk failed/);
+  assert.throws(() => ensureElectronResources({ exists: () => false, run: () => ({ status: 1 }) }), /prepare:previs-world failed/);
 });

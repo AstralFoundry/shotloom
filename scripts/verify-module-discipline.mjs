@@ -6,7 +6,7 @@ import path from 'node:path';
 import process from 'node:process';
 
 const root = path.resolve(import.meta.dirname, '../renderer/src');
-const directorVendorRoot = path.resolve(import.meta.dirname, '../vendor/shotloom-director-desk/src');
+const previsVendorRoot = path.resolve(import.meta.dirname, '../vendor/open-ai-canvas-previs/src');
 
 const LAYERS = {
   app: ['app', 'agent', 'services', 'desktop', 'store', 'domain', 'config', 'utils', 'i18n', 'assets'],
@@ -53,11 +53,11 @@ const ZUSTAND_STORE_EXCEPTIONS = new Set(['store/notificationStore.ts']);
 const TRANSPORT_BOUNDARY = new Set(['desktopApi', 'tauriApi']);
 const TRANSPORT_ALLOWED_FROM = new Set(['domain']);
 
-// vendored 3D 导演台保留上游源码，只能通过自己的 HTML 入口以 iframe 运行，产品侧唯一的
+// vendored 世界引擎保留上游源码，只能通过自己的 HTML 入口以 iframe 运行，产品侧唯一的
 // 通道是那份私有 postMessage 协议。协议名或入口地址散落到界面代码里，等于每个消费者
 // 各自维护一份上游契约，上游更新时不会有任何地方提醒；所以两者只允许出现在宿主适配层。
-const DIRECTOR_DESK_HOST = 'app/adapters/directorDeskBridge.ts';
-const DIRECTOR_DESK_CONTRACT = ['storyai:director-desk-', 'director-desk-app/index.html'];
+const PREVIS_WORLD_HOST = 'app/adapters/previsBridge.ts';
+const PREVIS_WORLD_CONTRACT = ['shotloom:previs-', 'previs-world-app/index.html'];
 
 function isTransportBoundary(source, targetPath) {
   if (!TRANSPORT_ALLOWED_FROM.has(source)) return false;
@@ -78,13 +78,13 @@ function relativeToRoot(file) {
   return path.relative(root, file).replace(/\\/g, '/');
 }
 
-function isDirectorSource(file) {
-  const relative = path.relative(directorVendorRoot, file);
+function isPrevisSource(file) {
+  const relative = path.relative(previsVendorRoot, file);
   return relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
 }
 
 function layerOf(file) {  const relative = path.relative(root, file);
-  if (isDirectorSource(file)) return 'vendor';
+  if (isPrevisSource(file)) return 'vendor';
   // 相对路径可以指向 node_modules 里的外部包（如 react-screenshots 的源码导入），
   // 那些文件不属于本项目的分层体系。
   if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) return null;
@@ -93,7 +93,7 @@ function layerOf(file) {  const relative = path.relative(root, file);
 
 function specifierFile(from, specifier) {
   const base = specifier.startsWith('@/')
-    ? path.join(isDirectorSource(from) ? directorVendorRoot : root, specifier.slice(2))
+    ? path.join(isPrevisSource(from) ? previsVendorRoot : root, specifier.slice(2))
     : path.resolve(path.dirname(from), specifier);
   for (const name of ['', '.ts', '.tsx', '.js', '.jsx', '.mjs',
     `${path.sep}index.ts`, `${path.sep}index.tsx`, `${path.sep}index.js`, `${path.sep}index.mjs`]) {
@@ -189,7 +189,7 @@ function resolvesInternalSpecifier(from, specifier) {
   // ?raw / ?no-inline 是构建工具的资产导入，只确认磁盘上真有这个文件。
   if (query !== undefined) {
     const base = pathPart.startsWith('@/')
-      ? path.join(isDirectorSource(from) ? directorVendorRoot : root, pathPart.slice(2))
+      ? path.join(isPrevisSource(from) ? previsVendorRoot : root, pathPart.slice(2))
       : path.resolve(path.dirname(from), pathPart);
     try {
       return statSync(base).isFile();
@@ -210,7 +210,7 @@ for (const name of readdirSync(root)) {
   if (!SOURCE_EXTENSIONS.has(path.extname(name)) || ROOT_SOURCE_ENTRIES.has(name)) continue;
   violations.push(`src/${name} 直接放在源根目录（只能属于某个分层目录）`);
 }
-const sourceFiles = [...sources(root), ...sources(directorVendorRoot)];
+const sourceFiles = [...sources(root), ...sources(previsVendorRoot)];
 for (const file of sourceFiles) {
   if (!UNTYPED_SOURCE_EXTENSIONS.has(path.extname(file))) continue;
   violations.push(`${relativeToRoot(file)} 是无类型 JS（renderer/src 只允许 .ts/.tsx，tsc 不检查 JS 文件）`);
@@ -218,11 +218,11 @@ for (const file of sourceFiles) {
 const texts = new Map(sourceFiles.map((file) => [file, readFileSync(file, 'utf8')]));
 for (const file of sourceFiles) {
   const fromPath = relativeToRoot(file);
-  if (isDirectorSource(file) || fromPath === DIRECTOR_DESK_HOST) continue;
+  if (isPrevisSource(file) || fromPath === PREVIS_WORLD_HOST) continue;
   const text = texts.get(file);
-  for (const token of DIRECTOR_DESK_CONTRACT) {
+  for (const token of PREVIS_WORLD_CONTRACT) {
     if (!text.includes(token)) continue;
-    violations.push(`${fromPath} 出现了 ${token}（vendored 导演台契约只允许写在 ${DIRECTOR_DESK_HOST}）`);
+    violations.push(`${fromPath} 出现了 ${token}（vendored 世界引擎契约只允许写在 ${PREVIS_WORLD_HOST}）`);
   }
 }
 for (const file of sourceFiles) {
@@ -247,7 +247,7 @@ for (const file of sourceFiles) {
     }
     let target = null;
     if (specifier.startsWith('@/')) {
-      target = path.join(isDirectorSource(file) ? directorVendorRoot : root, specifier.slice(2));
+      target = path.join(isPrevisSource(file) ? previsVendorRoot : root, specifier.slice(2));
     } else if (specifier.startsWith('.')) {
       target = specifierFile(file, specifier) ?? path.resolve(path.dirname(file), specifier);
     }

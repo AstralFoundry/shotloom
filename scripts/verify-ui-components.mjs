@@ -13,7 +13,7 @@ const SOURCE_EXTENSION = /\.(tsx|ts)$/;
 // 自绘对话框白名单：弹层锚在画布坐标系里，或内部是像素级手势画布。
 const HANDWRITTEN_DIALOG_EXCEPTIONS = new Set([
   'canvas/CanvasDisplaySettings.tsx',
-  'canvas/ThreeDDirectorNode.tsx',
+  'canvas/PrevisWorldNode.tsx',
   // 机位/打光面板跟着节点屏幕矩形走，宽度也比节点大得多，Modal 的居中与遮罩都不适用。
   'canvas/ImageRecipePanelFrame.tsx',
   'components/ImageWatermarkEditor.tsx',
@@ -27,7 +27,7 @@ const NATIVE_INPUT_EXCEPTIONS = new Map([
 
 // 自绘遮罩白名单：只剩媒体灯箱和 3D 导演台详情，它们需要压在画布/素材上。
 const HANDWRITTEN_BACKDROP_EXCEPTIONS = new Set([
-  'canvas/ThreeDDirectorNode.tsx',
+  'canvas/PrevisWorldNode.tsx',
   'components/MediaViewer.tsx',
 ]);
 

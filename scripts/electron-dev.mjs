@@ -20,7 +20,7 @@ const require = createRequire(import.meta.url);
  */
 export function ensureElectronResources({ exists = existsSync, run = spawnSync } = {}) {
   const required = [
-    { file: ['renderer', 'public', 'director-desk-app', 'index.html'], script: 'prepare:director-desk' },
+    { file: ['renderer', 'public', 'previs-world-app', 'index.html'], script: 'prepare:previs-world' },
     { file: ['electron', 'resources', 'provider-plugins', 'index.json'], script: 'prepare:plugins' },
     { file: ['electron', 'resources', 'agent-host', 'dist', 'main.js'], script: 'prepare:harness' },
     { file: ['renderer', 'src', 'config', 'shotloom-defaults.generated.json'], script: 'config:generate' },

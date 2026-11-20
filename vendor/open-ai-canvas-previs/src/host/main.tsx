@@ -5,16 +5,18 @@ import { createRoot } from "react-dom/client";
 import "./index.css";
 import { CanvasPrevisWorkbench } from "@/components/previs/canvas-previs-workbench";
 import { setPrevisBrandName } from "@/host/appearance";
-import { installPrevisBridge, previsBridge, type PrevisBridgeContentNode, type PrevisBridgeInit } from "@/host/bridge";
+import { installPrevisBridge, previsBridge, type PrevisBridgeCapture, type PrevisBridgeContentNode, type PrevisBridgeInit } from "@/host/bridge";
+import { setPrevisLocale } from "@/host/i18n";
+import type { PrevisCanvasExport, PrevisScene, PrevisSceneOutput } from "@/types/previs";
 import { createPrevisScene } from "@/lib/previs/previs-scene";
-import type { PrevisScene } from "@/types/previs";
 
 /**
  * Shotloom host shell for the world engine.
  *
  * The engine's workbench is a modal component that owns its scene document and reports every
  * change through callbacks. Inside the iframe there is no canvas behind it, so this shell
- * mounts it permanently open and forwards its scene to Shotloom over the bridge.
+ * mounts it permanently open and forwards its scene, captures and exports to Shotloom over
+ * the bridge.
  */
 
 const BOOT_PARAMS = new URLSearchParams(window.location.search);
@@ -28,6 +30,20 @@ function toContentNodes(nodes: PrevisBridgeContentNode[] | undefined) {
     }));
 }
 
+function readBlob(blob: Blob): Promise<string> {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result ?? ""));
+        reader.onerror = () => reject(reader.error ?? new Error("读取输出文件失败"));
+        reader.readAsDataURL(blob);
+    });
+}
+
+async function capture(blob: Blob | undefined, fileName: string, kind: PrevisBridgeCapture["kind"]): Promise<PrevisBridgeCapture | null> {
+    if (!blob) return null;
+    return { dataUrl: await readBlob(blob), fileName, kind };
+}
+
 function PrevisHostApp() {
     const [scene, setScene] = useState<PrevisScene | null>(null);
     const [imageNodes, setImageNodes] = useState<ReturnType<typeof toContentNodes>>([]);
@@ -36,6 +52,7 @@ function PrevisHostApp() {
     /** Adopt a host scene exactly once per scene id; same-id echoes must not rebuild the session. */
     const adopt = useCallback((init: PrevisBridgeInit) => {
         if (init.brandName) setPrevisBrandName(init.brandName);
+        if (init.locale) setPrevisLocale(init.locale);
         setImageNodes(toContentNodes(init.imageNodes));
         const incomingId = init.scene?.id ?? null;
         if (incomingId && incomingId !== sceneIdRef.current) {
@@ -67,8 +84,29 @@ function PrevisHostApp() {
     }, [adopt]);
 
     const handleClose = useCallback(() => previsBridge.close(), []);
-    const noop = useCallback(async () => undefined, []);
     const noopNode = useCallback(() => undefined, []);
+
+    /** 「回写构图/白膜/深度」：把该镜头本次渲染的所有产物交回画布。 */
+    const applyOutput = useCallback(async (output: PrevisSceneOutput) => {
+        setScene(output.scene);
+        const shotName = output.shot.name || "镜头";
+        const captures = (await Promise.all([
+            capture(output.beauty, `${shotName}-构图.png`, "image"),
+            capture(output.depth, `${shotName}-深度.png`, "image"),
+            capture(output.normal, `${shotName}-法线.png`, "image"),
+            capture(output.pose, `${shotName}-骨骼.png`, "image"),
+            capture(output.clayVideo, `${shotName}-白膜.mp4`, "video"),
+            capture(output.depthVideo, `${shotName}-深度.mp4`, "video"),
+        ])).filter((item): item is PrevisBridgeCapture => item !== null);
+        previsBridge.captures(captures);
+    }, []);
+
+    /** 「加入画布」：单张截图或纯提示词，由宿主决定落成哪个节点。 */
+    const addToCanvas = useCallback(async (output: PrevisCanvasExport) => {
+        if (output.kind !== "screenshot") return;
+        const shot = await capture(output.image, `${output.title || "构图"}.png`, "image");
+        if (shot) previsBridge.addToCanvas(shot);
+    }, []);
 
     if (!scene) {
         return (
@@ -90,8 +128,8 @@ function PrevisHostApp() {
                     onboardingScope={BOOT_PARAMS.get("onboardingScope") || "shotloom-world-engine"}
                     onClose={handleClose}
                     onChange={setScene}
-                    onApply={noop}
-                    onAddToCanvas={noop}
+                    onApply={applyOutput}
+                    onAddToCanvas={addToCanvas}
                     onDeleteImageNode={noopNode}
                 />
             </div>

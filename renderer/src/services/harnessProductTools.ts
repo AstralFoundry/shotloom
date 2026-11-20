@@ -1,7 +1,7 @@
 import { registerPluginActionTools } from '../agent/tools/pluginActionTools';
 import { t } from '../i18n/index.ts';
 import { registerCanvasTools } from '../agent/tools/canvasTools';
-import { agentDefinition, CANVAS_AGENT_ID, DIRECTOR_AGENT_ID, EDITOR_AGENT_ID, type AgentId } from '../agent/agents/definitions';
+import { agentDefinition, CANVAS_AGENT_ID, EDITOR_AGENT_ID, type AgentId } from '../agent/agents/definitions';
 import { registerCatalogTools } from '../agent/tools/catalogTools';
 import { registerProductionPlanTools } from '../agent/tools/productionPlanTools';
 import { registerTextDraftTools } from '../agent/tools/textTools';
@@ -19,9 +19,6 @@ import { createNodeMediaCatalog, selectedNodeMedia, localMediaPath } from '../ut
 import { inferMediaType } from '../utils/mediaType';
 import { prepareVideoEditor, WORKSPACE_VIDEO_EDITOR_ID } from './videoEditorSession';
 import { settingsStore } from '../store/settingsStore';
-import { registerDirectorTools } from '../agent/tools/directorTools';
-import { directorDeskAvailable, prepareDirectorDesk, runDirectorDeskCommand } from './directorDeskAgentRuntime';
-import { directorReferenceCatalog, resolveDirectorReference } from './agent/directorReferences';
 
 export interface ProductBinding {
   sessionId: string; projectKey: string; conversationId: string;
@@ -35,15 +32,10 @@ export function registerEditorSessionBinder(binder: (nodeId: string) => Promise<
   editorSessionBinder = binder;
 }
 
-let directorSessionBinder: ((nodeId?: string) => Promise<ProductBinding>) | undefined;
-export function registerDirectorSessionBinder(binder: (nodeId?: string) => Promise<ProductBinding>) {
-  directorSessionBinder = binder;
-}
-
 function register() {
   if (hasAgentTool('canvas_list_nodes')) return;
   registerPluginActionTools(); registerCanvasTools(); registerCatalogTools(); registerProductionPlanTools();
-  registerTextDraftTools(); registerVideoEditorTools(); registerDirectorTools();
+  registerTextDraftTools(); registerVideoEditorTools();
   registerAgentTool({ id: 'canvas_prepare_editor', title: t('agent.role.editor'),
     description: '为剪辑委派打开并绑定真实剪辑工程。nodeId 指定现有剪辑节点；省略时打开独立剪辑工作台。不表示已完成剪辑；使用 delegate_editor 派发剪辑子 Agent。',
     effect: 'agent_state_write', inputSchema: { type: 'object', properties: { nodeId: { type: 'string' } }, additionalProperties: false },
@@ -56,22 +48,6 @@ function register() {
       await prepareVideoEditor(nodeId, context);
       assertAgentProject(context.projectKey, context.projectInstanceId, context.projectGeneration);
       const binding = await editorSessionBinder(nodeId);
-      assertAgentProject(context.projectKey, context.projectInstanceId, context.projectGeneration);
-      return { success: true, binding };
-    },
-  });
-  registerAgentTool({ id: 'canvas_prepare_director', title: t('agent.role.director'),
-    description: '为 delegate_director 准备并绑定真实导演台场景；nodeId 指定已有节点，省略时绑定独立场景。后台加载，不改变用户界面，不表示已完成制作。',
-    effect: 'agent_state_write', inputSchema: { type: 'object', properties: { nodeId: { type: 'string' } }, additionalProperties: false },
-    async execute(input, context) {
-      const nodeId = typeof input.nodeId === 'string' && input.nodeId ? input.nodeId : undefined;
-      if (nodeId && !store.project.nodes.some((node: AgentNode) => node.id === nodeId && node.type === 'threeDDirector' && !node.archived)) {
-        return { success: false, error: 'The requested director scene does not exist' };
-      }
-      if (!directorSessionBinder) return { success: false, error: 'Director session binding is unavailable' };
-      await prepareDirectorDesk(nodeId, context);
-      assertAgentProject(context.projectKey, context.projectInstanceId, context.projectGeneration);
-      const binding = await directorSessionBinder(nodeId);
       assertAgentProject(context.projectKey, context.projectInstanceId, context.projectGeneration);
       return { success: true, binding };
     },
@@ -133,8 +109,7 @@ export async function executeProductRequest(request: {
   if (binding.nodeId) {
     const node = binding.agentId === EDITOR_AGENT_ID && binding.nodeId === WORKSPACE_VIDEO_EDITOR_ID
       ? store.project.videoEditorSession : store.project.nodes.find((item: { id: string }) => item.id === binding.nodeId);
-    const boundNodeId = binding.agentId === EDITOR_AGENT_ID ? conversation.editorNodeId
-      : binding.agentId === DIRECTOR_AGENT_ID ? conversation.directorNodeId : conversation.textNodeId;
+    const boundNodeId = binding.agentId === EDITOR_AGENT_ID ? conversation.editorNodeId : conversation.textNodeId;
     if (!node || boundNodeId !== binding.nodeId) throw new Error(t('agent.bindingNodeMissing'));
   }
   context.capabilities.nodeExecution = settingsStore.agentCanRunNodes === true;
@@ -169,24 +144,11 @@ export function productToolCount() { register(); return allAgentTools().length; 
 /** Composer references use the same live project/session/role fence as tools. */
 export async function readHarnessCanvasReference(sessionId: string, nodeId?: string, withImage = false) {
   const registered = bindings.get(sessionId);
-  if (!registered || ![CANVAS_AGENT_ID, EDITOR_AGENT_ID, DIRECTOR_AGENT_ID].includes(registered.binding.agentId)) throw new Error(t('agent.reference.forbidden'));
+  if (!registered || ![CANVAS_AGENT_ID, EDITOR_AGENT_ID].includes(registered.binding.agentId)) throw new Error(t('agent.reference.forbidden'));
   const { binding, context } = registered;
   assertAgentProject(context.projectKey, context.projectInstanceId, context.projectGeneration);
   const conversation = store.project.harnessSessions?.find((item: { id: string; agentId: string }) => item.id === binding.conversationId);
   if (!conversation || conversation.agentId !== binding.agentId) throw new Error(t('agent.reference.expired'));
-  const director = binding.agentId === DIRECTOR_AGENT_ID;
-  const directorState = async () => {
-    if (!directorDeskAvailable(binding.nodeId)) throw new Error('当前导演台场景不可用');
-    const [snapshot, catalog] = await Promise.all([
-      runDirectorDeskCommand('snapshot', {}, binding.nodeId), runDirectorDeskCommand('catalog', {}, binding.nodeId),
-    ]);
-    assertAgentProject(context.projectKey, context.projectInstanceId, context.projectGeneration);
-    return { snapshot, catalog };
-  };
-  if (director && nodeId?.startsWith('director:')) {
-    const { snapshot, catalog } = await directorState();
-    return resolveDirectorReference(nodeId, snapshot, catalog);
-  }
   const nodes: AgentNode[] = store.project.nodes.filter((node: AgentNode) => !node.archived);
   const mediaCatalog = createNodeMediaCatalog(store.project);
   const describe = (node: typeof nodes[number]) => {
@@ -199,15 +161,7 @@ export async function readHarnessCanvasReference(sessionId: string, nodeId?: str
       mediaRevision: `${identity.length}:${(revision >>> 0).toString(16)}` };
   };
   if (nodeId === undefined) {
-    const canvasNodes = nodes.map(node => ({ ...describe(node), referenceScope: 'canvas' as const }));
-    if (!director) return { nodes: canvasNodes };
-    try {
-      const { snapshot, catalog } = await directorState();
-      return { nodes: [...directorReferenceCatalog(snapshot, catalog), ...canvasNodes] };
-    } catch {
-      assertAgentProject(context.projectKey, context.projectInstanceId, context.projectGeneration);
-      return { nodes: canvasNodes };
-    }
+    return { nodes: nodes.map(node => ({ ...describe(node), referenceScope: 'canvas' as const })) };
   }
   const node = nodes.find(item => item.id === nodeId);
   if (!node) throw new Error(t('agent.reference.unavailable'));

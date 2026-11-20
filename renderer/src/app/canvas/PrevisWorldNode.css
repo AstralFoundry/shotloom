@@ -1,0 +1,515 @@
+.previs-node {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+  border: 1px solid var(--line-solid);
+  border-radius: var(--radius);
+  background: var(--elevated-surface);
+  box-shadow: var(--shadow);
+}
+
+.previs-node-label {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: calc(4px * var(--node-label-zoom, 1));
+  padding: 0 calc(2px * var(--node-label-zoom, 1));
+  color: var(--muted);
+  pointer-events: none;
+}
+
+.previs-node-label > svg {
+  width: calc(var(--canvas-node-icon-size) * var(--node-label-zoom, 1));
+  height: calc(var(--canvas-node-icon-size) * var(--node-label-zoom, 1));
+  flex: 0 0 auto;
+}
+
+.previs-node-label > .previs-node-drag-handle {
+  width: calc(var(--canvas-node-action-size) * var(--node-label-zoom, 1));
+  height: calc(var(--canvas-node-action-size) * var(--node-label-zoom, 1));
+  flex: 0 0 auto;
+  pointer-events: auto;
+}
+
+.previs-node-label input {
+  min-width: 0;
+  flex: 1;
+  height: calc(var(--canvas-node-action-size) * var(--node-label-zoom, 1));
+  padding: 0;
+  border: 0;
+  outline: 0;
+  color: inherit;
+  background: transparent;
+  font-size: calc(var(--canvas-node-title-size) * var(--node-label-zoom, 1));
+  font-weight: 600;
+  pointer-events: auto;
+}
+
+.previs-node-label button {
+  width: calc(var(--canvas-node-action-size) * var(--node-label-zoom, 1));
+  height: calc(var(--canvas-node-action-size) * var(--node-label-zoom, 1));
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: calc(6px * var(--node-label-zoom, 1));
+  padding: 0;
+  color: var(--muted);
+  background: transparent;
+  pointer-events: auto;
+}
+
+.previs-node-label button:hover { color: var(--bad); background: var(--bad-wash); }
+.previs-node-label button svg {
+  width: calc(var(--canvas-node-icon-size) * var(--node-label-zoom, 1));
+  height: calc(var(--canvas-node-icon-size) * var(--node-label-zoom, 1));
+}
+
+.previs-node-label > .previs-node-drag-handle::before {
+  width: calc(3px * var(--node-label-zoom, 1));
+  height: calc(3px * var(--node-label-zoom, 1));
+  box-shadow:
+    0 calc(5px * var(--node-label-zoom, 1)) currentColor,
+    calc(5px * var(--node-label-zoom, 1)) 0 currentColor,
+    calc(5px * var(--node-label-zoom, 1)) calc(5px * var(--node-label-zoom, 1)) currentColor;
+}
+
+.previs-node-head {
+  position: relative;
+  z-index: 1;
+  height: var(--canvas-node-head-height);
+  flex: 0 0 var(--canvas-node-head-height);
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  padding: 0 6px 0 4px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg);
+}
+
+.previs-node-drag-handle {
+  width: var(--canvas-node-action-size);
+  height: var(--canvas-node-action-size);
+  flex: none;
+  display: grid;
+  place-items: center;
+  color: var(--faint);
+  cursor: grab;
+  touch-action: none;
+}
+
+.previs-node-drag-handle::before {
+  content: "";
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow:
+    0 5px currentColor,
+    5px 0 currentColor,
+    5px 5px currentColor;
+}
+
+.previs-node-drag-handle:hover {
+  color: var(--muted);
+}
+
+.previs-node-drag-handle:active {
+  cursor: grabbing;
+}
+
+.previs-node-kind {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--muted);
+}
+
+.previs-node-kind svg {
+  width: var(--canvas-node-icon-size);
+  height: var(--canvas-node-icon-size);
+}
+
+.previs-node-kind input {
+  min-width: 0;
+  flex: 1;
+  height: var(--canvas-node-action-size);
+  padding: 0;
+  border: 0;
+  outline: 0;
+  color: var(--muted);
+  background: transparent;
+  font-size: var(--canvas-node-title-size);
+  font-weight: 600;
+}
+
+.previs-node-head button {
+  width: var(--canvas-node-action-size);
+  height: var(--canvas-node-action-size);
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+  background: transparent;
+}
+
+.previs-node-head button:hover {
+  color: var(--bad);
+  background: var(--bad-wash);
+}
+
+.previs-node-head button svg {
+  width: var(--canvas-node-icon-size);
+  height: var(--canvas-node-icon-size);
+}
+
+.previs-node-workspace {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  flex: 1 1 auto;
+  box-sizing: border-box;
+  margin: 0;
+  overflow: hidden;
+  display: block;
+  background: var(--surface);
+}
+
+.previs-node.selected {
+  border-color: var(--canvas-node-border-selected);
+  box-shadow: 0 0 0 1px var(--line);
+}
+
+/* PREVIS node card — mirrors the open-ai-canvas node panel so the project UI matches. */
+.previs-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 14px 16px;
+  overflow: hidden;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--type-primary) 2%, transparent), transparent 60%);
+  color: var(--type-primary);
+  text-align: left;
+}
+
+.previs-card-header,
+.previs-card-title-row,
+.previs-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.previs-card-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: var(--text-caption-11);
+  font-weight: 600;
+  letter-spacing: var(--tracking-widest);
+}
+
+.previs-card-mark {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  color: var(--muted);
+}
+
+.previs-card-mark svg { width: 14px; height: 14px; }
+
+.previs-card-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--muted);
+  font-size: var(--text-caption-11);
+  white-space: nowrap;
+}
+
+.previs-card-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--good);
+}
+
+.previs-card-title-row { align-items: flex-end; }
+.previs-card-title-block { min-width: 0; }
+
+.previs-card-title {
+  margin: 0;
+  overflow: hidden;
+  color: var(--type-primary);
+  font-size: var(--text-body-15);
+  font-weight: 600;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.previs-card-shot {
+  margin: 4px 0 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: var(--text-caption-11);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.previs-card-duration {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--muted);
+  font-size: var(--text-caption-11);
+  white-space: nowrap;
+}
+
+.previs-card-duration svg { width: 12px; height: 12px; }
+
+.previs-card-preview {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 110px;
+  width: 100%;
+  overflow: hidden;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface-2);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.previs-card-preview:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+
+.previs-card-empty {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 12px;
+  text-align: center;
+}
+
+.previs-card-empty-mark {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border-radius: var(--radius-2xl);
+  background: var(--button-subtle-bg);
+  color: var(--muted);
+}
+
+.previs-card-empty-mark svg { width: 16px; height: 16px; }
+
+.previs-card-empty strong {
+  color: var(--type-primary);
+  font-size: var(--text-body-12);
+  font-weight: 600;
+}
+
+.previs-card-empty > span:last-child {
+  max-width: 220px;
+  color: var(--muted);
+  font-size: var(--text-caption-11);
+  line-height: 1.45;
+}
+
+.previs-card-cta {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  display: flex;
+  height: 38px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  color: var(--type-primary);
+  font-size: var(--text-caption-11);
+  font-weight: 600;
+  opacity: 0;
+  transition: opacity var(--duration-base) var(--ease-out);
+  backdrop-filter: blur(4px);
+}
+
+.previs-card-preview:hover .previs-card-cta,
+.previs-card-preview:focus-visible .previs-card-cta { opacity: 1; }
+
+.previs-card-cta svg { width: 14px; height: 14px; }
+
+.previs-card-handoff {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: var(--text-caption-10);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.previs-card-footer {
+  min-height: 24px;
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
+  color: var(--muted);
+  font-size: var(--text-caption-11);
+}
+
+.previs-card-stat {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+}
+
+.previs-card-stat svg { width: 12px; height: 12px; }
+.previs-card-stat b { color: var(--type-primary); font-variant-numeric: tabular-nums; }
+
+.previs-card-footer-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  color: var(--faint);
+  white-space: nowrap;
+}
+
+.previs-card-footer-action svg { width: 12px; height: 12px; }
+
+.previs-node-head button.previs-node-done-button {
+  width: auto;
+  min-width: 34px;
+  height: var(--canvas-node-action-size);
+  padding: 0 6px;
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+  background: var(--surface-2);
+  font-size: var(--canvas-node-title-size);
+  cursor: pointer;
+}
+
+.previs-node-head button.previs-node-done-button:hover {
+  color: var(--type-primary);
+  background: var(--button-subtle-hover);
+}
+
+/* An iframe owns a separate pointer event surface. Disable it during an outer
+   node resize so the React Flow resizer always receives mouseup and can leave
+   the horizontal/vertical resize cursor state cleanly. */
+.previs-node.resizing .previs-node-workspace iframe {
+  pointer-events: none;
+}
+.previs-detail-backdrop {
+  /* 导演台详情和剪辑台一样是内容区里的工作面：铺满、不压暗、不画悬浮卡片。 */
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  background: var(--surface);
+}
+.previs-detail-window {
+  /* 导演台自带顶栏（标题、视角切换、导出、关闭），这里不再叠一层宿主标题栏。 */
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  overflow: hidden;
+  background: var(--surface);
+  position: relative;
+}
+.previs-detail-frame {
+  display: block;
+  flex: 1;
+  width: 0;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  border: 0;
+  background: var(--surface-2);
+}
+
+/* Card summary: tells the difference between an untouched node and a built scene. */
+.previs-node-summary {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px 8px;
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-caption-10);
+  font-variant-numeric: tabular-nums;
+}
+
+.previs-node-selection {
+  margin: 0;
+  color: var(--faint);
+  font-size: var(--text-caption-10);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.previs-node-warning {
+  margin: 0;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--warn-wash);
+  color: var(--warn);
+  font-size: var(--text-caption-10);
+}
+
+/* Optional import of the full-page workspace scene into this node. */
+.previs-node-handoff {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.previs-node-handoff button {
+  height: 22px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: var(--text-caption-10);
+  cursor: pointer;
+}
+
+.previs-node-handoff button:hover {
+  border-color: var(--faint);
+  background: var(--button-subtle-bg);
+  color: var(--text);
+}
+

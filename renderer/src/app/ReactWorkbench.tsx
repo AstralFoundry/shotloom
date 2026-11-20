@@ -1,4 +1,3 @@
-import { getAgentProjectIdentity } from '../services/agentProjectIdentity';
 import { mountAppTheme } from '../services/appTheme';
 import { ProviderPluginsPanel } from './views/ProviderPluginsPanel';
 import { getLocale, LOCALE_STORAGE_KEY } from '@/i18n';
@@ -77,12 +76,10 @@ import { TasksView } from "./views/TasksView";
 import { showToast, showErrorMessage } from "../store/notificationStore";
 import { registerVideoEditorLauncher } from '../services/videoEditorSession';
 import { startHarnessIntegration } from "./agent-session/harnessIntegration";
-import { useDirectorWorkspaceStore } from "./store/directorWorkspaceStore";
 import { type AppRoute, useAppStore } from "./store/appStore";
 import { installMediaPreviewCacheMemoryPressureListener } from "../services/mediaPreviewCache";
 import { installAgentE2eHook } from "./agent-session/agentE2eHook";
 import { recordDiagnosticEvent } from "../services/diagnosticsService";
-import { DirectorBackgroundHost } from "./views/DirectorBackgroundHost";
 
 /**
  * React 主工作台根；领域状态通过框架无关订阅同步到视图。
@@ -100,10 +97,7 @@ export function ReactWorkbench() {
   const openingProjectPath = useAppStore(state => state.openingProjectPath);
   const appRoute = useAppStore((state) => state.route);
   const currentProjectId = useAppStore((state) => state.currentProject?.id);
-  const directorWorkspaceOpen = useDirectorWorkspaceStore((state) => state.open);
-  const setDirectorWorkspaceOpen = useDirectorWorkspaceStore((state) => state.setOpen);
   useEffect(() => {
-    if (currentProjectId) useDirectorWorkspaceStore.getState().restoreForProject(currentProjectId);
   }, [currentProjectId]);
   const domainRevision = useSyncExternalStore(
     subscribeDomain,
@@ -384,8 +378,6 @@ export function ReactWorkbench() {
         key={`${store.project.id}:${store.filePath || ""}`}
         data={{
           ...canvas!,
-          fullDirectorWorkspace: directorWorkspaceOpen,
-          onLeaveFullDirectorWorkspace: () => setDirectorWorkspaceOpen(false),
           artifactNodes: [
             ...canvas!.nodes,
             ...store.project.nodes.filter(
@@ -447,7 +439,6 @@ export function ReactWorkbench() {
         onUpdate={() => void updateDialogController.check()}
         onNavigationBlocked={() => showToast(t("project.openFirst"))}
       />
-      <DirectorBackgroundHost key={getAgentProjectIdentity().fenceKey} />
       {searchOpen && <ProjectSearch onClose={() => setSearchOpen(false)} />}
       {settingsOpen && (
         <Modal

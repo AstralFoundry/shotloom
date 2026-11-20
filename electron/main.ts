@@ -20,7 +20,6 @@ import './ipc/commands/videoExport';
 import './ipc/commands/agentE2e';
 import { initializeRecovery, markCleanExit } from './core/recovery';
 import { shutdownHarnessRuntime } from './core/harness';
-import { handlePolyforkRequest, polyforkPrefix } from './core/polyfork';
 import { cancelUpdateDownload, checkForUpdate, downloadUpdate, installUpdate } from './core/updater';
 
 const isDevelopment = Boolean(process.env.SHOTLOOM_DEV_URL);
@@ -148,7 +147,6 @@ function assetResponse(request: Request): Response {
 async function handleProtocolRequest(request: Request): Promise<Response> {
   const url = new URL(request.url);
   if (url.hostname === 'asset') return assetResponse(request);
-  if (url.hostname === 'app' && url.pathname.startsWith(polyforkPrefix)) return handlePolyforkRequest(request);
   const file = rendererFile(url.pathname);
   if (!file) return new Response('Not Found', { status: 404 });
   return new Response(await readFile(file), { status: 200, headers: { 'content-type': mimeType(file) } });
@@ -330,21 +328,34 @@ async function runSmoke(window: BrowserWindow): Promise<void> {
         }
         const added = await invoke('recent_add', { project: { filePath: saved.ok ? saved.value.filePath : '', name: 'Smoke Project' } });
         const removed = await invoke('recent_remove', { path: saved.ok ? saved.value.filePath : '' });
-        // 独立导演台有自己的依赖树，主页面能启动不代表其 React 与渲染引擎可用。
-        const director = await new Promise(resolve => {
+        // 世界引擎有自己的依赖树，主页面能启动不代表其 React 与 three.js 渲染可用。
+        // 引擎要收到一份完整场景文档才会挂载视口，所以这里模拟宿主下发最小场景。
+        const worldEngine = await new Promise(resolve => {
           const frame = document.createElement('iframe');
           frame.style.cssText = 'position:fixed;inset:0;width:1280px;height:800px';
           let ready = false;
+          const now = new Date().toISOString();
+          const scene = {
+            id: 'smoke-scene', version: 1, title: 'Smoke', background: '#d8dde3', environmentIntensity: 0.7,
+            environment: { mode: 'color' }, gridVisible: true, objects: [],
+            cameras: [{ id: 'cam', name: 'Camera', transform: { position: [4.8, 2.7, 6.8], rotation: [0, 0, 0], scale: [1, 1, 1] }, target: [0, 1, 0], focalLength: 35, fov: 50, aperture: 2.8, focusDistance: 5, near: 0.05, far: 500, keyframes: [] }],
+            lights: [{ id: 'light', name: 'Key', type: 'directional', transform: { position: [4, 6, 4], rotation: [0, 0, 0], scale: [1, 1, 1] }, color: '#ffffff', intensity: 2.4, angle: Math.PI / 4, penumbra: 0.35, castShadow: true }],
+            shots: [{ id: 'shot', name: 'Shot 1', cameraId: 'cam', duration: 5, fps: 24, aspectRatio: '9:16', shotSize: 'medium', cameraMove: 'static', prompt: '' }],
+            activeShotId: 'shot', createdAt: now, updatedAt: now,
+          };
           const receive = event => {
-            if (event.source === frame.contentWindow && event.origin === location.origin
-              && event.data?.type === 'storyai:director-desk-ready') ready = true;
+            if (event.source !== frame.contentWindow || event.origin !== location.origin) return;
+            if (event.data?.type === 'shotloom:previs-ready') {
+              ready = true;
+              frame.contentWindow?.postMessage({ type: 'shotloom:previs-init', payload: { instanceId: 'smoke', scene, imageNodes: [] } }, location.origin);
+            }
           };
           window.addEventListener('message', receive);
-          frame.src = './director-desk-app/index.html?workspace=smoke';
+          frame.src = './previs-world-app/index.html?instanceId=smoke';
           document.body.append(frame);
           const deadline = Date.now() + 15000;
           const timer = setInterval(() => {
-            const editor = Boolean(frame.contentDocument?.querySelector('.editor'));
+            const editor = Boolean(frame.contentDocument?.querySelector('.previs-desk'));
             const canvases = frame.contentDocument?.querySelectorAll('canvas').length || 0;
             if (!(ready && editor && canvases) && Date.now() < deadline) return;
             clearInterval(timer);
@@ -354,7 +365,7 @@ async function runSmoke(window: BrowserWindow): Promise<void> {
           }, 100);
         });
         return {
-          director,
+          worldEngine,
           bridge: Boolean(window.shotloomDesktop),
           platform: await invoke('platform'),
           appHtmlLength: document.querySelector('#app')?.innerHTML.length ?? 0,
@@ -382,7 +393,7 @@ async function runSmoke(window: BrowserWindow): Promise<void> {
       console.log(`[smoke] ${JSON.stringify(report)}`);
       if (consoleErrors.length) console.log(`[smoke] console errors: ${JSON.stringify(consoleErrors.slice(0, 5))}`);
       const passed = report.bridge && report.platform?.ok === true && report.platform.value === process.platform && report.appHtmlLength > 0
-        && report.director?.ready && report.director.editor && report.director.canvases > 0
+        && report.worldEngine?.ready && report.worldEngine.editor && report.worldEngine.canvases > 0
         && report.settingsVersion === 7 && typeof report.projectsRoot === 'string' && typeof report.recentCount === 'number'
         && report.storageOk && typeof report.diagnosticsBytes === 'number' && report.diagnosticsBytes > 0
         && report.savedNodes === 1 && report.readRevision === 1 && report.historyEntries === 1

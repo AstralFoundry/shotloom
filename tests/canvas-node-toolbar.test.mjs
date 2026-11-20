@@ -11,7 +11,7 @@ const cropEditor = readSource('renderer/src/app/components/ImageCropEditor.tsx')
 const annotationEditor = readSource('renderer/src/app/components/ImageAnnotationEditor.tsx');
 const generation = readGenerationNodeSource();
 const basicNodes = readSource('renderer/src/app/canvas/CanvasNodes.tsx');
-const director = readSource('renderer/src/app/canvas/ThreeDDirectorNode.tsx');
+const director = readSource('renderer/src/app/canvas/PrevisWorldNode.tsx');
 const styles = ['canvas.css', 'media-overlays.css']
   .map((name) => readSource(`../renderer/styles/${name}`))
   .join('\n');

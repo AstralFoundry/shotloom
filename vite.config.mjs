@@ -2,34 +2,15 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { Readable } from 'node:stream';
 import { readShotloomConfig } from './scripts/shotloom-config.mjs';
-import { handlePolyforkRequest, polyforkPrefix } from './electron/core/polyfork.ts';
 
 const rootDir = path.dirname(fileURLToPath(import.meta.url));
 const { development } = readShotloomConfig();
 
 export default defineConfig({
   root: path.join(rootDir, 'renderer'),
-  plugins: [react(), {
-    name: 'shotloom-polyfork',
-    configureServer(server) {
-      server.middlewares.use(async (req, res, next) => {
-        if (!req.url?.startsWith(polyforkPrefix)) return next();
-        const abort = new AbortController();
-        res.once('close', () => abort.abort());
-        try {
-          const response = await handlePolyforkRequest(new Request(`http://localhost${req.url}`, {
-            method: req.method, headers: req.headers, signal: abort.signal,
-          }));
-          if (res.destroyed) return;
-          res.writeHead(response.status, Object.fromEntries(response.headers));
-          if (response.body) Readable.fromWeb(response.body).on('error', error => res.destroy(error)).pipe(res);
-          else res.end();
-        } catch (error) { next(error); }
-      });
-    },
-  }],
+  plugins: [react()],
+
   base: './',
   server: {
     host: development.webHost,

@@ -1,10 +1,11 @@
 import { useSyncExternalStore } from "react";
 
 /**
- * Model library host port.
+ * Model library port.
  *
- * Imported .glb/.gltf files must survive the session, so they live in the embedding
- * application's asset library rather than in engine state. The host installs read/add.
+ * The engine keeps its own model list so imported glb/gltf files remain available after a
+ * reload (their bytes live in the engine-local blob store, see `host/files.ts`). The list is
+ * metadata only and is restored from localStorage on first read.
  */
 
 export type PrevisModelAsset = {
@@ -13,21 +14,51 @@ export type PrevisModelAsset = {
     data: { url: string; storageKey?: string; bytes: number; mimeType: string; fileName: string };
 };
 
+const STORAGE_KEY = "shotloom.previs-world:model-assets";
+
+function readStored(): PrevisModelAsset[] {
+    try {
+        const value = JSON.parse(window.localStorage.getItem(STORAGE_KEY) || "[]");
+        return Array.isArray(value) ? value.filter((item) => item && typeof item.id === "string" && item.data) : [];
+    } catch {
+        return [];
+    }
+}
+
+function writeStored(assets: PrevisModelAsset[]) {
+    try {
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(assets));
+    } catch {
+        /* storage unavailable: the list stays in memory for this session */
+    }
+}
+
+let assets: PrevisModelAsset[] = readStored();
+const listeners = new Set<() => void>();
+
 type ModelAssetStore = {
     assets: PrevisModelAsset[];
     addAsset: (asset: { title: string; data: PrevisModelAsset["data"] }) => PrevisModelAsset;
 };
 
-const EMPTY: ModelAssetStore = {
-    addAsset: (asset) => ({ id: `local-${Date.now().toString(36)}`, title: asset.title, data: asset.data }),
-    assets: [],
+const localStore: ModelAssetStore = {
+    get assets() {
+        return assets;
+    },
+    addAsset(asset) {
+        const created: PrevisModelAsset = { id: `model-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`, ...asset };
+        assets = [created, ...assets];
+        writeStored(assets);
+        for (const listener of listeners) listener();
+        return created;
+    },
 };
 
-let store: ModelAssetStore = EMPTY;
-const listeners = new Set<() => void>();
+let store: ModelAssetStore = localStore;
 
+/** Hosts may replace the library; the default is the engine-local model list. */
 export function setPrevisAssetStore(next: ModelAssetStore | null) {
-    store = next ?? EMPTY;
+    store = next ?? localStore;
     for (const listener of listeners) listener();
 }
 
@@ -42,10 +73,8 @@ function read() {
     return store;
 }
 
-/** Model assets, echoed as the host's own object so callers can read `.id` back. */
 export function useModelAssets(): PrevisModelAsset[] {
-    const current = useSyncExternalStore(subscribe, read, read);
-    return current.assets;
+    return useSyncExternalStore(subscribe, read, read).assets;
 }
 
 export function addPrevisModelAsset(asset: { title: string; data: PrevisModelAsset["data"] }): PrevisModelAsset {
@@ -58,7 +87,8 @@ export function findPrevisModelAsset(id: string): PrevisModelAsset | undefined {
     return store.assets.find((item) => item.id === id);
 }
 
-export function setPrevisModelAssets(assets: PrevisModelAsset[]) {
-    store = { ...store, assets };
+export function setPrevisModelAssets(next: PrevisModelAsset[]) {
+    assets = next;
+    writeStored(next);
     for (const listener of listeners) listener();
 }

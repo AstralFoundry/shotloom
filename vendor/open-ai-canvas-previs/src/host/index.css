@@ -53,6 +53,64 @@
     --button-ghost-hover-bg: oklch(0.97 0 0);
     --button-ghost-active-bg: oklch(0.94 0 0);
     --button-danger-fg: #dc2626;
+    --button-primary-shadow: inset 0 1px 0 rgb(255 255 255 / 0.12), 0 1px 2px rgb(16 16 20 / 0.2);
+    --button-primary-active-shadow: inset 0 1px 0 rgb(255 255 255 / 0.04);
+
+    /*
+     * Host design tokens the previs workbench reads.
+     *
+     * Upstream these come from the open-ai-canvas globals; the engine was written against them,
+     * so the light values are carried here instead of linking the whole product stylesheet.
+     */
+    --color-neutral-200: oklch(0.922 0.004 286);
+    --color-neutral-500: oklch(0.556 0.007 286);
+    --color-neutral-950: oklch(0.145 0.005 286);
+    --palette-status-warning: #d97706;
+    --status-warning: var(--palette-status-warning);
+    --border-semantic: var(--color-neutral-200);
+    --cn-text: var(--color-neutral-950);
+    --cn-muted: var(--color-neutral-500);
+    --cn-stroke: var(--color-neutral-200);
+    --workspace-accent: #171717;
+    --btn-solid-fg: #ffffff;
+    --control-selected-bg: rgba(17, 17, 17, 0.09);
+    --control-selected-border: rgba(17, 17, 17, 0.18);
+    --control-selected-fg: #171717;
+    --control-disabled-fg: rgba(17, 17, 17, 0.36);
+    --control-focus-ring: color-mix(in srgb, var(--ring) 72%, transparent);
+    --focus-ring-width: 2px;
+    --stroke-1: 1px;
+    --stroke-2: 2px;
+    --r-sm: 8px;
+    --r-md: 8px;
+    --r-lg: 12px;
+    --r-full: 9999px;
+    --r-2xl: 16px;
+    --panel-radius: var(--r-2xl);
+    --dock-item-radius: var(--r-md);
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-6: 24px;
+    --space-8: 32px;
+    --fs-nano: 7px;
+    --fs-label: 11px;
+    --fs-micro: var(--fs-label);
+    --fs-tiny: var(--fs-label);
+    --fs-caption: 12px;
+    --elevation-overlay: 0 24px 60px rgba(0, 0, 0, 0.2), 0 3px 10px rgba(0, 0, 0, 0.09);
+    --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --z-toast: 500;
+    --z-toolbar: 30;
+    --previs-danger: #f87171;
+    --previs-danger-soft: rgba(248, 113, 113, 0.14);
+    --previs-swatch-inset: rgba(0, 0, 0, 0.18);
+    --previs-sequencer-min-height: 180px;
+    --pd-a-on-theme: #ffffff;
+    --pd-a-bg-theme: rgba(29, 32, 38, 0.06);
+    --pd-a-bd-theme: rgba(29, 32, 38, 0.55);
+    --pd-accent-rgb: 29 32 38;
+    --previs-accent: #1d2026;
 }
 
 @theme inline {

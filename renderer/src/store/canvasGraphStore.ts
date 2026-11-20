@@ -40,7 +40,7 @@ export function deleteCanvasNodeData(nodeId: string, { touch = true }: { touch?:
   if (!node) return false;
   const projectKey = getAgentProjectKey();
   const before = new Set((current.project.harnessSessions || []).filter((session: any) =>
-    session.textNodeId === nodeId || session.editorNodeId === nodeId || session.directorNodeId === nodeId,
+    session.textNodeId === nodeId || session.editorNodeId === nodeId,
   ).map((session: any) => session.harnessSessionId).filter(Boolean));
   trashBoundHarnessSessions(current.project, nodeId);
   for (const member of current.project.nodes) {

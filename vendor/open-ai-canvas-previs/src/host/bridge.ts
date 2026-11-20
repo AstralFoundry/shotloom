@@ -27,12 +27,19 @@ export type PrevisBridgeInit = {
     imageNodes?: PrevisBridgeContentNode[];
 };
 
+/** One rendered artifact handed back to the host canvas as a data URL. */
+export type PrevisBridgeCapture = { dataUrl: string; fileName: string; kind: "image" | "video" };
+
 export type PrevisBridgeHandlers = {
     onInit(init: PrevisBridgeInit): void;
     onSceneChanged(scene: PrevisScene): void;
     onReady?(): void;
     onClose?(): void;
     onError?(message: string): void;
+    /** Beauty/depth/normal/pose screenshots and clay/depth videos written back to the host. */
+    onCaptures?(captures: PrevisBridgeCapture[]): void;
+    /** A single screenshot the user asked to add to the canvas. */
+    onAddToCanvas?(capture: PrevisBridgeCapture): void;
 };
 
 const PREFIX = "shotloom:previs";
@@ -86,6 +93,12 @@ export const previsBridge = {
     },
     sceneChanged(scene: PrevisScene) {
         send("scene-changed", { scene, sceneId: scene.id, updatedAt: scene.updatedAt });
+    },
+    captures(captures: PrevisBridgeCapture[]) {
+        if (captures.length) send("captures", { captures });
+    },
+    addToCanvas(capture: PrevisBridgeCapture) {
+        send("add-canvas", { capture });
     },
     error(message: string) {
         send("error", { message });

@@ -37,23 +37,23 @@ test('状态引擎按职责分流且例外必须登记', () => {
     /domainReactivity/.test(read(`renderer/src/app/store/${name}`))), []);
 });
 
-test('vendored 导演台的契约只属于宿主适配层', () => {
+test('vendored 世界引擎的契约只属于宿主适配层', () => {
   const script = read('scripts/verify-module-discipline.mjs');
   // 产品层不再允许 import vendor：第三方源码只能经自己的 HTML 入口以 iframe 运行。
   assert.doesNotMatch(script, /^ {2}app: \[.*'vendor'.*\],/m);
   assert.ok(script.includes("source === 'vendor' ? ['vendor', 'i18n'] : LAYERS[source]"));
   // 私有协议名与入口地址只允许出现在一个产品文件里，否则上游改协议时不会有地方提醒。
-  assert.match(script, /DIRECTOR_DESK_HOST = 'app\/adapters\/directorDeskBridge\.ts'/);
-  assert.match(script, /'storyai:director-desk-'/);
-  assert.match(script, /'director-desk-app\/index\.html'/);
-  assert.match(script, /vendored 导演台契约只允许写在/);
+  assert.match(script, /PREVIS_WORLD_HOST = 'app\/adapters\/previsBridge\.ts'/);
+  assert.match(script, /'shotloom:previs-'/);
+  assert.match(script, /'previs-world-app\/index\.html'/);
+  assert.match(script, /vendored 世界引擎契约只允许写在/);
   execFileSync(process.execPath, ['scripts/verify-module-discipline.mjs'], {
     cwd: repoRoot,
     stdio: 'pipe',
   });
-  const bridge = read('renderer/src/app/adapters/directorDeskBridge.ts');
-  assert.ok(bridge.includes('storyai:director-desk-session'));
-  assert.match(read('renderer/src/app/canvas/ThreeDDirectorNode.tsx'), /from "\.\.\/adapters\/directorDeskBridge"/);
+  const bridge = read('renderer/src/app/adapters/previsBridge.ts');
+  assert.ok(bridge.includes('const PREFIX = "shotloom:previs"'));
+  assert.match(read('renderer/src/app/canvas/PrevisWorldNode.tsx'), /from "\.\.\/adapters\/previsBridge"/);
 });
 
 test('目录清单由分层表登记，不再有按语法形态分装的杂物层', () => {

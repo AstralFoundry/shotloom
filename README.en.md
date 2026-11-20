@@ -29,7 +29,7 @@ Arrange text, images, video and audio on one canvas. Use sections to organize sc
 
 Agents can use project context to help develop ideas and operate the workspace through tools. Draft briefs, scripts and storyboards; create canvas nodes; stage scenes; and edit media. Review and adjust the resulting work in the interface.
 
-Canvas, text, director and editing Agents serve their respective workspaces. The skill library lets you enable, import, export and create reusable production methods. Project tasks provide a central view of generation progress and results.
+Canvas, text and editing Agents serve their respective workspaces; the world engine is reached from a canvas node or the sidebar workspace. The skill library lets you enable, import, export and create reusable production methods. Project tasks provide a central view of generation progress and results.
 
 <details>
 <summary>View the skill library</summary>
@@ -38,15 +38,13 @@ Canvas, text, director and editing Agents serve their respective workspaces. The
 
 </details>
 
-### 3D director desk: explore your shots first
+### World engine: explore your shots first
 
-Build scenes in 3D, position characters, props and lights, and plan actor movement and camera motion. Use the timeline and live preview to check framing, spatial relationships and timing before taking the previs into further production.
+Stage shot scenes under a real sky, sun and weather: pick the ground and horizon, place characters, props and lights, and check framing, spatial relationships and timing across cameras and a timeline. Clay, depth, normal and pose views line up with generation models, and framing, clay and depth outputs can be written back as canvas nodes.
 
-Work with multiple cameras, focal-length keyframes, character actions, motion paths and camera movement presets. Adjust scenes manually or ask the director Agent to help stage and sequence shots.
+The engine is the performance-previs workbench from [open-ai-canvas](https://github.com/ddcat-ai/open-ai-canvas), built separately and embedded through an iframe; a shot scene is plain JSON saved with the project.
 
-![3D director desk](./docs/images/director-homebound-zh.png)
-
-[Watch the 24-second Homebound 3D previs](./docs/demos/homebound/homebound-final.mp4) · [Example scene](./docs/demos/homebound/homebound.scene.json)
+![World engine](./docs/images/previs-world-en.png)
 
 ### Video editor: assemble your footage
 
@@ -82,7 +80,7 @@ Developers can add providers or media workflows through plugins that define mode
 ## A typical workflow
 
 1. **Collect ideas**: Create a project and bring briefs, scripts and references onto the canvas.
-2. **Plan the visuals**: Develop character and scene references, using the director desk to explore composition and camera motion when useful.
+2. **Plan the visuals**: Develop character and scene references, using the world engine to explore composition and camera motion when useful.
 3. **Produce media**: Generate images, video or sound with your chosen models, then compare and iterate on the canvas.
 4. **Edit and deliver**: Assemble media on the timeline, adjust pacing, subtitles and sound, then export the video.
 
@@ -96,7 +94,7 @@ Download a macOS Apple Silicon or Windows x64 installer from [Releases](https://
 2. Enable a provider plugin in **Plugin center**, then open its settings to enter your API key and select available models.
 3. Choose a model and configure inputs in a generation node, or open an Agent to start working.
 
-You can organize media on the canvas and build scenes in the director desk without connecting a generation model. Model access, usage limits and charges are determined by the service provider.
+You can organize media on the canvas and build scenes in the world engine without connecting a generation model. Model access, usage limits and charges are determined by the service provider.
 
 ## Run from source
 
@@ -107,7 +105,7 @@ git clone https://github.com/AstralFoundry/shotloom.git
 cd shotloom
 npm ci
 npm ci --prefix harness/host
-npm ci --ignore-scripts --prefix vendor/shotloom-director-desk
+npm ci --ignore-scripts --prefix vendor/open-ai-canvas-previs
 npm run dev
 ```
 

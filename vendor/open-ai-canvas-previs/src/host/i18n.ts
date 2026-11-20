@@ -1,25 +1,40 @@
 import { useSyncExternalStore } from "react";
 
+import { detectPrevisLocale, previsMessage, type PrevisLocale } from "@/host/messages";
+
 /**
  * Locale host port.
  *
- * The workbench borrows the embedding application's translation dictionary instead of
- * shipping a second one. The host installs a resolver once; until then keys render as
- * their own last segment so a missing host never blanks out the UI.
+ * By default the engine resolves its own keys against the upstream open-ai-canvas strings
+ * (see `host/messages.ts`), and the host may replace the translator or switch the locale.
  */
 export type PrevisTranslate = (key: string, params?: Record<string, string | number>) => string;
 
-const FALLBACK: PrevisTranslate = (key, params) => {
-    const label = key.split(".").pop() || key;
-    return params ? `${label} ${Object.values(params).join(" ")}` : label;
-};
-
-let translate: PrevisTranslate = FALLBACK;
+let locale: PrevisLocale = detectPrevisLocale();
+let customTranslate = false;
+let translate: PrevisTranslate = (key, params) => previsMessage(locale, key, params);
 const listeners = new Set<() => void>();
 
-export function setPrevisTranslate(next: PrevisTranslate | null) {
-    translate = next ?? FALLBACK;
+function notify() {
     for (const listener of listeners) listener();
+}
+
+/** Switch the engine locale; the translator falls back to the built-in catalog. */
+export function setPrevisLocale(next: unknown) {
+    locale = next === "en-US" || next === "zh-CN" ? next : detectPrevisLocale();
+    try {
+        window.localStorage.setItem("shotloom.previs-world:locale", locale);
+    } catch {
+        /* storage unavailable */
+    }
+    if (!customTranslate) translate = (key, params) => previsMessage(locale, key, params);
+    notify();
+}
+
+export function setPrevisTranslate(next: PrevisTranslate | null) {
+    customTranslate = Boolean(next);
+    translate = next ?? ((key, params) => previsMessage(locale, key, params));
+    notify();
 }
 
 function subscribe(listener: () => void) {
