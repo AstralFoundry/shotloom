@@ -21,6 +21,7 @@ try {
   let authenticated = false;
   let releaseSession;
   let sessionGate = new Promise(resolve => { releaseSession = resolve; });
+  await page.route('**/harness/worker/worker.mjs', () => {}); // Hold Worker startup to inspect the loading UI.
   await page.route('**/api/**', async route => {
     const path = new URL(route.request().url()).pathname.replace(/^\/api/, '');
     let data;
@@ -38,7 +39,6 @@ try {
     else if (path === '/library-folders') data = [{ id: folderId, parentId: null, name: 'QA folder' }];
     else if (path.startsWith('/catalog/')) data = {};
     else if (path === `/project/${id}`) data = project;
-    else if (path === '/agent/connect') return; // Keep the actual connection UI loading.
     else { unexpected.push(path); return route.fulfill({ status: 500, json: { success: false, message: `Unexpected QA request: ${path}` } }); }
     return route.fulfill({ json: { success: true, data } });
   });

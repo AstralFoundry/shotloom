@@ -9,7 +9,7 @@ import { domainApp } from "./domain";
 import { modelsApp } from './models';
 import { supportApp } from './support';
 import { polyforkApp } from './polyfork';
-import { agentApp, disposeAgentHosts } from './agent';
+import { agentApp } from './agent';
 import { env } from "./env";
 import { HttpError } from "./lib/errors";
 import { envelope } from "./lib/respond";
@@ -73,6 +73,6 @@ if (env.NODE_ENV !== 'test') {
   });
   for (const signal of ['SIGTERM', 'SIGINT']) process.once(signal, () => {
     server.close();
-    void disposeAgentHosts().then(() => process.exit(0), () => process.exit(1));
+    process.exit(0);
   });
 }

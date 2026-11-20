@@ -266,33 +266,12 @@ test('英文状态提示覆盖更新重试、画布错误与执行评估，不�
   } finally { await instance.dispose(); }
 });
 
-test('Agent 启动的直接 IPC 与状态错误均使用界面语言，未登记错误保持原值', async () => {
+test('所有端的 Agent Worker 启动能力错误使用界面语言', async () => {
   const instance = await createRendererEnv({ withWindow: true, storage: new Map([['shotloom:locale', 'en-US']]) });
   try {
-    const detail = 'spawn /用户/Agent {error}: ENOENT';
-    const envelope = JSON.stringify({ type: 'shotloom:localized-error', key: 'native.harness.startFailed', params: { error: detail }, fallback: '启动失败' });
-    let mode = 'reject';
-    window.__TAURI_INTERNALS__ = {
-      metadata: { currentWindow: { label: 'main' } },
-      transformCallback: () => 1,
-      invoke: async command => {
-        if (command === 'plugin:event|listen') return 1;
-        if (command === 'start_harness_runtime') {
-          if (mode === 'reject') throw envelope;
-          if (mode === 'status') return { running: false, error: envelope };
-          throw '厂商返回原始错误 {error}';
-        }
-        throw new Error(`Unexpected test command: ${command}`);
-      },
-    };
-    const { desktopApi } = await instance.load('services/desktopApi');
-    desktopApi.platform = 'macos';
     const { startHarnessIntegration } = await instance.load('app/agent-session/harnessIntegration');
-    await assert.rejects(startHarnessIntegration(), { message: `Failed to start DeepSeek Harness: ${detail}` });
-    mode = 'status';
-    await assert.rejects(startHarnessIntegration(), { message: `Failed to start DeepSeek Harness: ${detail}` });
-    mode = 'raw';
-    await assert.rejects(startHarnessIntegration(), error => error === '厂商返回原始错误 {error}');
+    await assert.rejects(startHarnessIntegration(), { message: 'This client requires a secure context, Worker, IndexedDB, Web Locks and OffscreenCanvas to run the local Agent.' });
+    await assert.rejects(startHarnessIntegration(), { message: 'This client requires a secure context, Worker, IndexedDB, Web Locks and OffscreenCanvas to run the local Agent.' });
   } finally { await instance.dispose(); }
 });
 

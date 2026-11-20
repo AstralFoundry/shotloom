@@ -255,7 +255,6 @@ authApp.post("/logout", async (c) => {
   const nativeId = nativeSession(c);
   const sessionId = nativeId || getCookie(c, env.COOKIE_NAME);
   if (sessionId) {
-    (await import('./agent')).closeAgentSession(sessionId);
     const session = await loadSession(sessionId);
     if (session) invalidateReads(`user:${session.userId}:${sessionId}:`);
     if (session?.refreshToken) await revokeToken(session.refreshToken);

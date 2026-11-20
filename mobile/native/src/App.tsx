@@ -74,13 +74,13 @@ const credits = (quota: number) => (quota / 10000).toLocaleString(language, { ma
 function EmptyState({ title, description, artwork = false }: { title: string; description?: string; artwork?: boolean }) {
   return <View style={styles.empty}>{artwork ? <SvgXml xml={noProjectIllustration} width={134} height={134} /> : <Icon name="box" size={40} color="#bfbfbf" />}<Text style={styles.title}>{title}</Text>{description ? <Text style={[styles.secondary, { textAlign: 'center' }]}>{description}</Text> : null}</View>;
 }
-function Projects({ navigation, onOpen }: { navigation: NativeStackScreenProps<Routes, 'Home'>['navigation']; onOpen: (project: Project) => void }) {
+function Projects({ onOpen }: { onOpen: (project: Project) => void }) {
   const api = useApi();
   const folders = useRemote<Folder[]>('/library-folders');
   const [parents, setParents] = useState<Folder[]>([]);
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<'updated' | 'name'>('updated');
-  const [draft, setDraft] = useState<string | null>(null);
+  const [draft, setDraft] = useState<{ type: 'folder' | 'canvas'; name: string; id: string } | null>(null);
   const [editing, setEditing] = useState<{ entry: (Project & { kind: 'project' }) | (Folder & { kind: 'folder' }); action: 'menu' | 'rename' | 'delete'; name: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState('');
@@ -96,7 +96,6 @@ function Projects({ navigation, onOpen }: { navigation: NativeStackScreenProps<R
     if (projects.data) void api.read('/catalog/skills/page?search=&offset=0&limit=20').catch(() => {});
   }, [api, projects.data]);
   const refresh = () => { projects.refresh(); folders.refresh(); };
-  const manage = () => navigation.navigate('Workspace', { id: '', name: t('ui.ProjectScopeHeader.text.79b705bd'), page: 'projects', ...(parent ? { folder: `cloud/projects/folders/${parent.id}` } : {}) });
   const entries = [
     ...(folders.data || []).filter(folder => folder.parentId === (parent?.id || null)).map(folder => ({ ...folder, kind: 'folder' as const })),
     ...(projects.data?.items || []).filter(project => (project.cloudFolderId || null) === (parent?.id || null)).map(project => ({ ...project, kind: 'project' as const })),
@@ -105,10 +104,22 @@ function Projects({ navigation, onOpen }: { navigation: NativeStackScreenProps<R
     if (a.kind === 'project') return 0;
     return a.name.localeCompare(b.name, language);
   });
-  const createFolder = async () => {
-    if (!draft?.trim() || busy) return;
+  const createEntry = async () => {
+    if (!draft?.name.trim() || busy) return;
     setBusy(true); setFailure('');
-    try { await api.request('/library-folders', 'POST', { name: draft.trim(), parentId: parent?.id || null }); setDraft(null); refresh(); }
+    try {
+      const name = draft.name.trim();
+      if (draft.type === 'folder') await api.request('/library-folders', 'POST', { name, parentId: parent?.id || null });
+      else {
+        const folderDir = parent ? `cloud/projects/folders/${parent.id}` : '';
+        await api.request(`/project/${draft.id}`, 'PUT', {
+          id: draft.id, schema: 'shotloom-project', schemaVersion: 2, name, cloudFolderId: parent?.id || null,
+          nodes: [], edges: [], tasks: [], assets: [], materials: [], harnessSessions: [],
+          ...(parent ? { library: { enabled: true, name: parent.name, rootDir: folderDir, assetRootDir: `${folderDir}/assets` } } : {}),
+        });
+      }
+      setDraft(null); refresh();
+    }
     catch (cause) { setFailure(errorText(cause)); } finally { setBusy(false); }
   };
   const editEntry = async () => {
@@ -139,7 +150,7 @@ function Projects({ navigation, onOpen }: { navigation: NativeStackScreenProps<R
         {parent && <Pressable accessibilityRole="button" style={[styles.inline, { minHeight: 48 }]} onPress={() => { setParents(value => value.slice(0, -1)); setQuery(''); }}><Icon name="chevron-left" /><Text style={styles.secondary}>{t('ui.ProjectScopeHeader.text.79b705bd')}</Text></Pressable>}
         <Text style={{ fontSize: 20, lineHeight: 28, fontWeight: '700', color: '#292929' }}>{parent?.name || t('ui.ProjectScopeHeader.text.79b705bd')}</Text>
         {!parent && <Text style={{ fontSize: 13, lineHeight: 20, color: colors.muted }}>{t('ui.ProjectsView.text.f5b63ec3')}</Text>}
-        <View style={styles.projectActions}>{parent && <Action title={t('ui.ProjectsView.text.afb7afc7')} icon="grid" onPress={manage} />}<Action title={t('ui.ProjectsView.text.95cf3cd4')} icon="folder" ghost={Boolean(parent)} onPress={() => { setFailure(''); setDraft(''); }} /></View>
+        <View style={styles.projectActions}>{parent && <Action title={t('ui.ProjectsView.text.afb7afc7')} icon="grid" onPress={() => { setFailure(''); setDraft({ type: 'canvas', name: '', id: randomUUID() }); }} />}<Action title={t('ui.ProjectsView.text.95cf3cd4')} icon="folder" ghost={Boolean(parent)} onPress={() => { setFailure(''); setDraft({ type: 'folder', name: '', id: randomUUID() }); }} /></View>
       </View><View style={styles.libraryHead}>
         <View style={styles.inline}><Text style={{ fontSize: 12, lineHeight: 18, fontWeight: '500', color: '#292929' }}>{parent?.name || t('ui.ProjectsView.text.f095b12b')}</Text><Text style={styles.small}>{local(`${entries.length} 项`, `${entries.length} items`)}</Text></View>
         <View style={styles.inline}><View style={styles.search}><Icon name="search" size={16} color={colors.muted} /><TextInput accessibilityLabel={t('ui.ProjectSearch.text.b617f05c')} placeholder={t('ui.ProjectSearch.text.b617f05c')} placeholderTextColor="#808080" value={query} onChangeText={setQuery} style={styles.searchInput} /></View><Action ghost title={sort === 'updated' ? local('最近更新', 'Recent') : local('名称', 'Name')} onPress={() => setSort(value => value === 'updated' ? 'name' : 'updated')} /></View>
@@ -158,7 +169,7 @@ function Projects({ navigation, onOpen }: { navigation: NativeStackScreenProps<R
       {editing && editing.action !== 'menu' && <Action disabled={busy || (editing.action === 'rename' && !editing.name.trim())} title={editing.action === 'rename' ? local('保存', 'Save') : local('确认删除', 'Confirm delete')} onPress={() => void editEntry()} />}
       <Action ghost disabled={busy} title={local('取消', 'Cancel')} onPress={() => setEditing(null)} />
     </View></KeyboardAvoidingView></Modal>
-    <Modal visible={draft !== null} transparent animationType="fade" onRequestClose={() => { if (!busy) setDraft(null); }}><KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', padding: 24 }}><View style={[styles.row, { gap: 20 }]}><Text style={styles.title}>{t('ui.ProjectsView.text.95cf3cd4')}</Text><TextInput autoFocus accessibilityLabel={local('文件夹名称', 'Folder name')} placeholder={local('文件夹名称', 'Folder name')} value={draft || ''} onChangeText={setDraft} maxLength={200} editable={!busy} style={styles.input} onSubmitEditing={() => void createFolder()} />{failure ? <ErrorNotice text={failure} /> : null}<View style={styles.inline}><View style={styles.grow}><Action ghost disabled={busy} title={local('取消', 'Cancel')} onPress={() => setDraft(null)} /></View><View style={styles.grow}><Action disabled={busy || !draft?.trim()} title={local('创建', 'Create')} onPress={() => void createFolder()} /></View></View></View></KeyboardAvoidingView></Modal>
+    <Modal visible={draft !== null} transparent animationType="fade" onRequestClose={() => { if (!busy) setDraft(null); }}><KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', padding: 24 }}><View style={[styles.row, { gap: 20 }]}><Text style={styles.title}>{t(draft?.type === 'canvas' ? 'ui.ProjectsView.text.afb7afc7' : 'ui.ProjectsView.text.95cf3cd4')}</Text><TextInput autoFocus accessibilityLabel={draft?.type === 'canvas' ? local('画布名称', 'Canvas name') : local('文件夹名称', 'Folder name')} placeholder={draft?.type === 'canvas' ? local('画布名称', 'Canvas name') : local('文件夹名称', 'Folder name')} value={draft?.name || ''} onChangeText={name => setDraft(value => value ? { ...value, name } : null)} maxLength={200} editable={!busy} style={styles.input} onSubmitEditing={() => void createEntry()} />{failure ? <ErrorNotice text={failure} /> : null}<View style={styles.inline}><View style={styles.grow}><Action ghost disabled={busy} title={local('取消', 'Cancel')} onPress={() => setDraft(null)} /></View><View style={styles.grow}><Action disabled={busy || !draft?.name.trim()} title={local('创建', 'Create')} onPress={() => void createEntry()} /></View></View></View></KeyboardAvoidingView></Modal>
   </View>;
 }
 function Account({ navigation }: { navigation: NativeStackScreenProps<Routes, 'Home'>['navigation'] }) {
@@ -201,7 +212,7 @@ function Home({ navigation }: NativeStackScreenProps<Routes, 'Home'>) {
     { id: 'account', label: t('account.title'), icon: 'user' },
   ];
   return <SafeAreaView style={styles.screen}><StatusBar barStyle="dark-content" backgroundColor={colors.background} /><View style={styles.grow}>
-    {visited.includes('projects') && <View style={[styles.screen, tab !== 'projects' && styles.parkedWorkspace]} pointerEvents={tab === 'projects' ? 'auto' : 'none'} accessibilityElementsHidden={tab !== 'projects'} importantForAccessibility={tab === 'projects' ? 'auto' : 'no-hide-descendants'}><PageActive.Provider value={tab === 'projects'}><Projects navigation={navigation} onOpen={open} /></PageActive.Provider></View>}
+    {visited.includes('projects') && <View style={[styles.screen, tab !== 'projects' && styles.parkedWorkspace]} pointerEvents={tab === 'projects' ? 'auto' : 'none'} accessibilityElementsHidden={tab !== 'projects'} importantForAccessibility={tab === 'projects' ? 'auto' : 'no-hide-descendants'}><PageActive.Provider value={tab === 'projects'}><Projects onOpen={open} /></PageActive.Provider></View>}
     {visited.includes('account') && <View style={[styles.screen, tab !== 'account' && styles.parkedWorkspace]} pointerEvents={tab === 'account' ? 'auto' : 'none'} accessibilityElementsHidden={tab !== 'account'} importantForAccessibility={tab === 'account' ? 'auto' : 'no-hide-descendants'}><PageActive.Provider value={tab === 'account'}><Account navigation={navigation} /></PageActive.Provider></View>}
     {visited.includes('skills') && <View style={[styles.screen, tab !== 'skills' && styles.parkedWorkspace]} pointerEvents={tab === 'skills' ? 'auto' : 'none'} accessibilityElementsHidden={tab !== 'skills'} importantForAccessibility={tab === 'skills' ? 'auto' : 'no-hide-descendants'}><NativeSkills api={api} active={tab === 'skills'} /></View>}
     {currentProject && <View style={[styles.screen, tab !== 'creation' && styles.parkedWorkspace]} pointerEvents={tab === 'creation' ? 'auto' : 'none'} accessibilityElementsHidden={tab !== 'creation'} importantForAccessibility={tab === 'creation' ? 'auto' : 'no-hide-descendants'}><WebContent key={currentProject.id} params={currentProject} active={tab === 'creation'} /></View>}
