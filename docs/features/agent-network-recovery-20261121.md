@@ -16,3 +16,5 @@
 相关根测试 56 项、选定 Host 回归 4 项、真实浏览器 Worker 测试 1 项通过；renderer/server/Host 类型检查、模块/存储/测试架构检查、Worker 镜像与 Vite 构建通过。生产切换流程见 `docs/engineering.md` 和 `scripts/activate-production.sh`。
 
 本次不自动重试付费操作、不解除权限校验、不修改导演台会话比较逻辑，不发布原生安装包。
+
+后续全工具审计补齐了可用性/参数错误分类、每工具超时、取消信号和抽帧附件数量边界。最终上线版本、真实模型工具续轮及验证限制见 `agent-tool-boundary-audit-20261121.md`。
