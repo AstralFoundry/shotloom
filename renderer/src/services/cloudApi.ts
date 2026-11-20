@@ -1,7 +1,7 @@
 import type { createTauriApi } from './tauriApi';
 import type { ModelPublication } from '../../../shared/modelPublications';
 import { cloudOrigin, cloudRequest, cloudUserHeaders, verifyCloudSession } from './cloudRequest';
-import { mediaFileUrl, rememberSignedMedia } from '../utils/mediaFileUrl';
+import { mediaFileUrl, rememberSignedMedia, cachedSignedMedia } from '../utils/mediaFileUrl';
 import type { FileCheck } from '../../../shared/mediaFiles';
 import { mediaExtension, MEDIA_MIME_BY_EXTENSION } from '../utils/mediaType';
 import { withBuiltInSkills, withoutBuiltInSkills } from './builtInSkills';
@@ -65,7 +65,7 @@ export function createCloudApi(local: PlatformApi): PlatformApi {
   const readBlob = async (source: string): Promise<Blob> => {
     if (source.startsWith('cloud://')) {
       const ref = new URL(source);
-      const { url } = await cloudRequest<{ url: string }>(`/files/sign?bucket=${encodeURIComponent(ref.hostname)}&key=${encodeURIComponent(ref.pathname.slice(1))}`);
+      const url = cachedSignedMedia(source) || (await cloudRequest<{ url: string }>(`/files/sign?bucket=${encodeURIComponent(ref.hostname)}&key=${encodeURIComponent(ref.pathname.slice(1))}`)).url;
       const response = await fetch(url, { credentials: 'omit' });
       if (!response.ok) throw new Error(`Media download failed: ${response.status}`);
       return response.blob();

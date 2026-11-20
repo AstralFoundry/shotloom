@@ -22,6 +22,24 @@ test('bulk cloud checks coalesce duplicate references, warm playback URLs and pr
   } finally {globalThis.fetch=original;await env.dispose();}
 });
 
+test('preview bytes reuse the batch signature without signing the same object again', async () => {
+  const env = await createRendererEnv({withWindow:true}), original=globalThis.fetch;
+  const calls=[];
+  globalThis.fetch=async (url,init)=>{
+    calls.push(url);
+    if(url==='/api/files/sign-batch')return Response.json({success:true,data:[{bucket:'media',key:'visible.png',status:'exists',url:'https://storage.example/visible'}]});
+    if(url==='https://storage.example/visible'){assert.equal(init.credentials,'omit');return new Response('image');}
+    assert.fail('Unexpected second signing request: '+url);
+  };
+  try {
+    const {createCloudApi}=await env.load('services/cloudApi');
+    const api=createCloudApi({});
+    await api.file.checkPaths(['cloud://media/visible.png']);
+    assert.equal((await api.file.readImagePreview('cloud://media/visible.png')).byteLength,5);
+    assert.deepEqual(calls,['/api/files/sign-batch','https://storage.example/visible']);
+  }finally{globalThis.fetch=original;await env.dispose();}
+});
+
 test('saving preferences completes without reading account or models and only falls back on missing endpoints', async () => {
   const env = await createRendererEnv({ withWindow: true });
   const original = globalThis.fetch, calls = [];

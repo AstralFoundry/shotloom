@@ -43,3 +43,34 @@ export function schedulePreviewLoad(run: () => Promise<void>) {
     job.cancelled = true;
   };
 }
+
+const previewActivators = new Map<Element, () => void>();
+let sharedPreviewObserver: IntersectionObserver | null = null;
+
+export function observeNearViewport(element: Element, activate: () => void) {
+  if (typeof IntersectionObserver === "undefined") {
+    activate();
+    return () => {};
+  }
+  if (!sharedPreviewObserver) {
+    sharedPreviewObserver = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          const callback = previewActivators.get(entry.target);
+          if (!callback) continue;
+          previewActivators.delete(entry.target);
+          sharedPreviewObserver?.unobserve(entry.target);
+          callback();
+        }
+      },
+      { rootMargin: "360px 0px" },
+    );
+  }
+  previewActivators.set(element, activate);
+  sharedPreviewObserver.observe(element);
+  return () => {
+    previewActivators.delete(element);
+    sharedPreviewObserver?.unobserve(element);
+  };
+}

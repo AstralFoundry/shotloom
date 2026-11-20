@@ -1,5 +1,5 @@
 import { t } from '@/i18n';
-import { useContext, useRef, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 import { reconcileMediaNodeDimensions } from "../../domain/graph/CanvasNodeDimensions";
 import { desktopApi } from "../../services/desktopApi.ts";
 import { showToast } from "../../store/notificationStore";
@@ -12,6 +12,7 @@ import { formatMediaTime, GenerationAudioPreview } from "./GenerationAudioPrevie
 import { CanvasPreviewZoomContext, type WorkflowNodeActions, type WorkflowNodeData } from "./WorkflowCanvas";
 import { useGenerationLocalPreview } from "./generationNodeMedia";
 import type { GenerationNodeState } from "./generationNodeState";
+import { observeNearViewport } from "./previewLoadQueue";
 import { recordPerformanceMetric } from '../../services/performanceMetrics';
 
 /**
@@ -94,11 +95,17 @@ export function GenerationNodePreview({
   const [imageSize, setImageSize] = useState({ width: 1, height: 1 });
   const annotationAnchorRef = useRef<HTMLDivElement>(null);
   const previewZoom = useContext(CanvasPreviewZoomContext);
+  const [previewActive, setPreviewActive] = useState(false);
+  useEffect(() => {
+    const element = annotationAnchorRef.current;
+    if (!element || previewActive) return;
+    return observeNearViewport(element, () => setPreviewActive(true));
+  }, [previewActive]);
   const {
     url: previewUrl,
     retryBuffered: retryBufferedPreview,
     buffered: bufferedPreview,
-  } = useGenerationLocalPreview(previewItem, activeKind, previewZoom);
+  } = useGenerationLocalPreview(previewItem, activeKind, previewZoom, previewActive);
   const frameMetric = useRef({ path: activeFilePath, started: performance.now(), recorded: false });
   if (frameMetric.current.path !== activeFilePath) frameMetric.current = { path: activeFilePath, started: performance.now(), recorded: false };
   function firstFrame(element: HTMLImageElement | HTMLVideoElement) {

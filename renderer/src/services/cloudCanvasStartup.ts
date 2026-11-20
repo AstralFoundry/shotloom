@@ -1,8 +1,10 @@
 import { cloudRequest, cloudUserHeaders } from './cloudRequest';
+import { LOCALE_STORAGE_KEY, normalizeLocale } from '../i18n/locale';
 
 type RecordValue = Record<string, unknown>;
 type CanvasStartup = { project: RecordValue; settings: RecordValue; assets?: RecordValue };
 let startup: { key: string; consumed: Set<keyof CanvasStartup>; read?: Promise<CanvasStartup | null> } | undefined;
+let pagePreferences: Promise<RecordValue> | undefined;
 
 export function cloudProjectId(path: string): string {
   const id = path.replace(/\\/g, '/').replace(/\/project\.sqlite$/, '').split('/').at(-1) || '';
@@ -36,6 +38,13 @@ export function preloadCloudCanvasStartup() {
   void canvasStartupRead()?.read?.catch(() => {});
 }
 
+// Resolve the saved language before translated module constants are evaluated.
+export async function prepareCloudLocale() {
+  const canvas = canvasStartupRead();
+  const settings = (canvas && (await canvas.read)?.settings) || await (pagePreferences ||= cloudRequest<RecordValue>('/settings'));
+  try { localStorage.setItem(LOCALE_STORAGE_KEY, normalizeLocale(settings.locale)); } catch { /* Storage restrictions must not block the workspace. */ }
+}
+
 export function preloadCloudPageStartup(route = new URLSearchParams(window.location.search).get('route')) {
   preloadCloudCanvasStartup();
   if (route === 'skills') void cloudRequest('/catalog/skills/page?search=&offset=0&limit=20', 'GET', undefined, {cacheMs: 5000}).catch(() => {});
@@ -47,6 +56,11 @@ export function preloadCloudPageStartup(route = new URLSearchParams(window.locat
 
 export async function readCanvasStartup<T>(part: keyof CanvasStartup, path: string): Promise<T> {
   const value = canvasStartupRead(part === 'project' ? path : undefined);
+  if (!value && part === 'settings' && pagePreferences) {
+    const read = pagePreferences;
+    pagePreferences = undefined;
+    return await read as T;
+  }
   if (!value || value.consumed.has(part)) return cloudRequest<T>(path);
   // Consume before awaiting: only the first startup read may reuse this response.
   value.consumed.add(part);

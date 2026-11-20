@@ -1,5 +1,5 @@
 type Chunk = { file: string; name?: string; imports?: string[]; css?: string[] };
-export function collectWorkspacePreloads(chunks: Record<string, Chunk>): string[] {
+export function collectWorkspacePreloads(chunks: Record<string, Chunk>, names = ['ReactWorkbench', 'AntdProvider', 'CreationView']): string[] {
   const visited = new Set<string>(), files = new Set<string>();
   function collect(key: string) {
     if (visited.has(key) || !chunks[key]) return;
@@ -11,7 +11,7 @@ export function collectWorkspacePreloads(chunks: Record<string, Chunk>): string[
     for (const dependency of chunk.imports || []) collect(dependency);
   }
   for (const [key, chunk] of Object.entries(chunks)) {
-    if (key === 'index.html' || ['ReactWorkbench', 'AntdProvider', 'CreationView'].includes(chunk.name || '')) collect(key);
+    if (key === 'index.html' || names.includes(chunk.name || '')) collect(key);
   }
   return [...files];
 }

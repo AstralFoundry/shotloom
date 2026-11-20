@@ -4,12 +4,13 @@ import test from 'node:test';
 import { readSource } from './helpers/sourceContract.mjs';
 
 const grid = readSource('renderer/src/app/components/MaterialGrid.tsx');
+const queue = readSource('renderer/src/app/canvas/previewLoadQueue.ts');
 const styles = readSource('renderer/styles/project-materials.css');
 const cacheHook = readSource('renderer/src/app/canvas/useMediaPreviewCache.ts');
 
 test('素材图片接近可视区域后才读取缓存缩略图', () => {
-  assert.match(grid, /sharedPreviewObserver = new IntersectionObserver/);
-  assert.match(grid, /rootMargin: "360px 0px"/);
+  assert.match(queue, /sharedPreviewObserver = new IntersectionObserver/);
+  assert.match(queue, /rootMargin: "360px 0px"/);
   assert.match(grid, /useMediaPreviewCache/);
   assert.match(grid, /maxSize: 640/);
   assert.match(cacheHook, /schedulePreviewLoad/);

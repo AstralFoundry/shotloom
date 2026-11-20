@@ -147,3 +147,19 @@ test('canvas data preloads before the full cloud adapter loads and is consumed w
     assert.equal(calls.length, 1, 'focus checks cannot restart a consumed startup preload');
   } finally { release(); globalThis.fetch = original; await env.dispose(); }
 });
+
+
+test('workbench locale is prepared before module evaluation and its preferences are reused', async () => {
+  const env=await createRendererEnv({storageMode:'cloud',storage:new Map(),withWindow:true});
+  const original=globalThis.fetch,calls=[];
+  globalThis.fetch=async url=>{calls.push(url);return json({locale:'en-US',agentCanRunNodes:false});};
+  try{
+    window.location={search:'?route=projects'};
+    const {prepareCloudLocale}=await env.load('services/cloudCanvasStartup');
+    await prepareCloudLocale();
+    assert.equal(localStorage.getItem('shotloom:locale'),'en-US');
+    const {loadCloudPreferences}=await env.load('services/cloudApi');
+    assert.equal((await loadCloudPreferences()).locale,'en-US');
+    assert.deepEqual(calls,['/api/settings']);
+  }finally{globalThis.fetch=original;await env.dispose();}
+});
