@@ -106,6 +106,7 @@ public final class NativePerformance extends Instrumentation {
     }
     @Override public void onStart() {
         Bundle result=new Bundle();JSONObject report=new JSONObject();String failure=null;
+        long uiStartedAtUnixMs=System.currentTimeMillis();
         try {
             ui=getUiAutomation();
             if("login".equals(args.getString("mode"))) {
@@ -169,6 +170,7 @@ public final class NativePerformance extends Instrumentation {
             }
         } catch(Exception error) {failure=error.getMessage();}
         try {
+            report.put("uiStartedAtUnixMs",uiStartedAtUnixMs).put("uiEndedAtUnixMs",System.currentTimeMillis());
             String[] paths={"/auth/me","/projects","/library-folders","/catalog/skills","/auth/account","/auth/usage?page=1&page_size=10","/notifications?offset=0&limit=1","/notifications?offset=0&limit=20","/settings/mobile","/models","/feedback?offset=0&limit=20","/feedback/"+args.getString("feedbackId"),"/project/"+args.getString("projectId")};
             if(!"login".equals(args.getString("mode")))for(int round=0;round<Integer.parseInt(args.getString("rounds", "5"));round++)for(String path:paths)api(path,round);
             report.put("pages",pages).put("apis",apis).put("failure",failure==null?JSONObject.NULL:failure).put("pollIntervalMs",25);
