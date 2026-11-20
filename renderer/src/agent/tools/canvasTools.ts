@@ -8,7 +8,7 @@ import {
   getAgentCanvasSnapshot,
   layoutAgentCanvasNodes,
 } from '@/services/agent/agentCanvasExecutor';
-import type { AgentAction, AgentActionRequest, JsonObject } from '@/services/agentTypes';
+import type { AgentAction, AgentActionRequest, AgentTask, JsonObject } from '@/services/agentTypes';
 import { registerAgentTool } from '../core/toolRegistry';
 import type { AgentToolContext, CanvasActionToolInput } from '../core/types';
 import { assertAgentProject } from '@/services/agentProjectIdentity';
@@ -26,6 +26,8 @@ import {
 } from '@/utils/canvasMutationFingerprint.ts';
 import { desktopApi } from '@/services/desktopApi';
 import { videoContactSheet } from './videoContactSheet';
+import { subscribeDomain } from '@/store/domainReactivity';
+import { isTerminalTaskStatus, isFailedTaskStatus } from '@/domain/tasks/TaskStatus';
 
 function imageDataUrl(bytes: ArrayBuffer) {
   const data = new Uint8Array(bytes);
@@ -501,7 +503,7 @@ export function registerCanvasTools(): void {
     id: 'canvas_start_generation',
     icon: 'play',
     title: t('tool.title.canvas_start_generation'),
-    description: '启动一个已配置完整的生成节点。返回 taskId 后使用 inspect_tasks 核验真实状态，不要重复启动。',
+    description: '启动一个已配置完整的生成节点。返回 taskId 后使用 inspect_tasks({taskIds,waitMs:60000}) 等待真实结果，不要重复启动或高频查询。',
     effect: 'media_generation',
     isAvailable: (context) => context.capabilities.nodeExecution && settingsStore.agentCanRunNodes === true,
     inputSchema: focusedActionSchema(['start_generation']),
@@ -545,18 +547,49 @@ export function registerCanvasTools(): void {
     id: 'inspect_tasks',
     icon: 'task',
     title: t('tool.title.inspect_tasks'),
-    description: '读取指定生成任务的当前真实状态。该工具不会等待或推测结果；complete=false 时不得构造依赖实际媒体输出的下游阶段。',
+    description: '读取生成任务的真实状态。等待生成时传 taskIds 和 waitMs:60000，在工具内部等待全部任务终态、任一任务失败/取消或超时后返回，不消耗中间模型轮次。waitMs:0 立即查询；超时仍运行可继续等待，complete=false 不代表成功。',
     effect: 'read',
     inputSchema: {
       type: 'object',
-      properties: { taskIds: { type: 'array', items: { type: 'string' } } },
+      properties: {
+        taskIds: { type: 'array', items: { type: 'string' } },
+        waitMs: { type: 'integer', minimum: 0, maximum: 60000 },
+      },
       additionalProperties: false,
     },
-    execute: (input, context) => {
+    execute: async (input, context) => {
       assertContextProject(context);
-      const snapshot = getAgentCanvasSnapshot({ view: 'summary' }) as JsonObject;
       const ids = new Set((input.taskIds as string[] | undefined) || []);
-      const tasks = ((snapshot.tasks as JsonObject[] | undefined) || []).filter((task) => !ids.size || ids.has(String(task.id)));
+      const currentTasks = () => (projectStore.project.tasks || []) as AgentTask[];
+      const waitMs = Number(input.waitMs || 0);
+      if (waitMs > 0) {
+        if (!ids.size) for (const task of currentTasks()) ids.add(task.id);
+        await new Promise<void>((resolve, reject) => {
+          let unsubscribe = () => {};
+          const finish = (error?: unknown) => {
+            clearTimeout(timer);
+            unsubscribe();
+            context.signal.removeEventListener('abort', abort);
+            error ? reject(error) : resolve();
+          };
+          const abort = () => finish(context.signal.reason);
+          const check = () => {
+            try {
+              assertContextProject(context);
+              const tasks = currentTasks().filter(task => ids.has(task.id));
+              if (tasks.length !== ids.size || tasks.every(task => isTerminalTaskStatus(task.status))
+                || tasks.some(task => isFailedTaskStatus(task.status) || task.status === 'cancelled')) finish();
+            } catch (error) { finish(error); }
+          };
+          const timer = setTimeout(() => finish(), waitMs);
+          unsubscribe = subscribeDomain(check);
+          context.signal.addEventListener('abort', abort, { once: true });
+          if (context.signal.aborted) abort(); else check();
+        });
+      }
+      assertContextProject(context);
+      const tasks = currentTasks().filter(task => !ids.size || ids.has(task.id))
+        .map(({ id, nodeId, status, progress, remoteTaskId, error, result }) => ({ id, nodeId, status, progress, remoteTaskId, error, result }));
       const foundIds = new Set(tasks.map((task) => String(task.id)));
       const missingTaskIds = [...ids].filter((id) => !foundIds.has(id));
       const success = missingTaskIds.length === 0;

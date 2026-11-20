@@ -1,5 +1,19 @@
 export interface CropRect { x: number; y: number; width: number; height: number }
 
+export async function imagePreview(blob: Blob, maxSize = 960): Promise<Blob> {
+  const image = await createImageBitmap(blob);
+  try {
+    const ratio = Math.min(1, maxSize / Math.max(image.width, image.height));
+    const canvas = new OffscreenCanvas(Math.max(1, Math.round(image.width * ratio)), Math.max(1, Math.round(image.height * ratio)));
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('Image processing is unavailable');
+    context.fillStyle = '#fff';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    return await canvas.convertToBlob({ type: 'image/jpeg', quality: .85 });
+  } finally { image.close(); }
+}
+
 export function cropPixels(width: number, height: number, crop: CropRect) {
   if (![width, height, crop.x, crop.y, crop.width, crop.height].every(Number.isFinite)
     || width <= 0 || height <= 0 || crop.width <= 0 || crop.height <= 0) throw new Error('Invalid image crop');
