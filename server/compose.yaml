@@ -4,6 +4,7 @@ services:
       context: ..
       dockerfile: server/Dockerfile
     restart: unless-stopped
+    stop_grace_period: 16m
     env_file: .env
     environment:
       TMPDIR: /var/cache/shotloom

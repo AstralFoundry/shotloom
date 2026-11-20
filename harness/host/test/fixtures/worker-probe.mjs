@@ -28,11 +28,20 @@ probe.start = async () => {
     else if (message.type === 'host-request' && message.method === 'tool') {
       if (message.payload.phase !== 'authorize') probe.tools++;
       worker.postMessage({ type: 'host-result', id: message.id, value: message.payload.phase === 'authorize'
-        ? { success: true, approvalRequired: false } : { result: { success: true, proof: 'real-tool-bridge' } } });
+        ? { success: true, approvalRequired: false } : { requestId: message.payload.requestId, sessionId: probe.sessionId, toolName: message.payload.toolName,
+          result: { success: true, sessionId: 'director-runtime-probe', revision: 1, proof: 'real-tool-bridge' } } });
     } else if (message.type === 'host-request' && message.method === 'model') {
       probe.models++;
       probe.images += message.payload.images.length;
       const hasTool = message.payload.request.messages.some(message => message.role === 'tool');
+      if (hasTool) {
+        const receipt = JSON.parse(message.payload.request.messages.findLast(message => message.role === 'tool').content.find(block => block.type === 'text').text);
+        if (receipt.sessionId !== 'director-runtime-probe' || receipt.revision !== 1 || receipt.toolName) {
+          probe.errors.push('Worker leaked the Harness receipt instead of the director runtime snapshot');
+          worker.postMessage({ type: 'host-result', id: message.id, error: probe.errors.at(-1) });
+          return;
+        }
+      }
       respondModel(message.id, hasTool ? [
         { type: 'block-start', index: 0, blockType: 'text' },
         { type: 'text-delta', index: 0, text: 'Worker tool roundtrip passed' },

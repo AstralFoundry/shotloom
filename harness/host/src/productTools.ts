@@ -70,11 +70,15 @@ export function registerProductTools(
           // The model only needs the tool's own answer. requestId/sessionId/toolName are host
           // bookkeeping that repeated on every call, and the inner `result` envelope made a
           // failed write read as `success: true` one level too deep — flatten both here.
-          const envelope = value as { images?: ImageAttachmentRef[] };
+          const envelope = value as Record<string, unknown> & { images?: ImageAttachmentRef[] };
           const images = envelope.images ?? [];
-          const { requestId: _requestId, sessionId: _sessionId, toolName: _toolName, references, images: _images, result, ...rest } = value as Record<string, unknown>;
+          // HTTP 和 Worker 都在产品回执外包一层传输结果；先拆它，避免聊天 sessionId 冒充场景 sessionId。
+          const inner = envelope.result as Record<string, unknown> | undefined;
+          const receipt = inner && typeof inner === 'object' && typeof inner.toolName === 'string' ? inner : envelope;
+          const { requestId: _requestId, sessionId: _sessionId, toolName: _toolName, references, images: _images, result, ...rest } = receipt;
           const linked = references as { nodeIds?: string[]; taskIds?: string[] } | undefined;
           const payload = {
+            ...(typeof envelope.success === 'boolean' ? { success: envelope.success } : {}),
             ...rest,
             ...(result !== undefined && typeof result === 'object' && result !== null && !Array.isArray(result) ? result as Record<string, unknown> : { result }),
             ...(linked?.nodeIds?.length || linked?.taskIds?.length ? { references: linked } : {}),

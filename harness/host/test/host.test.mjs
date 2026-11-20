@@ -766,6 +766,35 @@ test('product media receipts become durable official image blocks instead of bas
   assert.ok(JSON.stringify(adapter.requests.at(-1)).includes(image.attachment.attachmentId));
 });
 
+test('product snapshot exposes the director runtime session instead of the Harness receipt session', async t => {
+  let applied = false;
+  const { host } = await fixture(t, { registerTools: (scope, bound) => registerProductTools(scope, bound, [
+    { name: 'test_director_snapshot', description: 'Read director snapshot', roles: ['canvas-primary'], effect: 'read', parameters: { type: 'object', properties: {} } },
+    { name: 'test_director_batch', description: 'Edit director scene', roles: ['canvas-primary'], effect: 'write', parameters: { type: 'object', properties: { expectedSessionId: { type: 'string' }, expectedRevision: { type: 'integer' } } } },
+  ], { dispatch: async request => {
+    const result = request.toolName === 'test_director_snapshot'
+      ? { success: true, sessionId: 'director-runtime-session', revision: 1 }
+      : (applied = request.input.expectedSessionId === 'director-runtime-session' && request.input.expectedRevision === 1,
+        { success: applied, applied, ...(applied ? {} : { code: 'SESSION_MISMATCH' }) });
+    return { success: true, result: { requestId: request.requestId, sessionId: bound.sessionId, toolName: request.toolName,
+      references: { nodeIds: ['real-director-node'], taskIds: [] }, result } };
+  } }) });
+  const adapter = new ScriptedAdapter([call('test_director_snapshot', {}), request => {
+    const snapshot = JSON.parse(request.messages.findLast(message => message.role === 'tool').content.find(block => block.type === 'text').text);
+    return call('test_director_batch', { expectedSessionId: snapshot.sessionId, expectedRevision: snapshot.revision });
+  }, text('scene verified')]);
+  host.ctx.llm.registerAdapter(['test'], adapter);
+  const { agent } = await host.create(binding, route);
+  await send(agent, 'Read the director snapshot and submit one edit using its session and revision');
+  const event = agent.session.snapshotEvents().find(event => event.type === 'tool/result');
+  const snapshot = JSON.parse(event.data.message.content.find(block => block.type === 'text').text);
+  assert.equal(snapshot.sessionId, 'director-runtime-session');
+  assert.equal(snapshot.revision, 1);
+  assert.equal(snapshot.toolName, undefined);
+  assert.deepEqual(snapshot.references, { nodeIds: ['real-director-node'], taskIds: [] });
+  assert.equal(applied, true);
+});
+
 test('official Bash executes approved commands in the Session workspace and scrubs bridge credentials', { timeout: 20000 }, async t => {
   const { host, dataRoot } = await fixture(t);
   const previous = process.env.SHOTLOOM_BRIDGE_TOKEN;

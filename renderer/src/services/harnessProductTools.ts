@@ -119,6 +119,11 @@ export async function executeProductRequest(request: {
   if (!supportsEditorTool(request.toolName, desktopApi.platform !== 'browser' && Boolean(store.projectDir))) {
     throw new Error(t('agent.toolUnavailable', { name: request.toolName }));
   }
+  // 在 isAvailable 拒绝前返回真实权限原因，避免被桥接层误报为断连。
+  if (!context.capabilities.nodeExecution && allAgentTools().find(tool => tool.id === request.toolName)?.effect === 'media_generation') {
+    return { success: false, code: 'NODE_EXECUTION_DISABLED', applied: false,
+      error: '当前已关闭“允许 Agent 运行节点”，未启动生成。', hint: '需要实际生成时，请用户在设置中开启“允许 Agent 运行节点”，然后重新提交；全权限模式不会覆盖此设置。' };
+  }
   const prepared = prepareAgentToolCall(request.toolName, JSON.stringify(request.input), callContext);
   const effect = prepared.definition.resolveEffect?.(prepared.input, callContext) ?? prepared.definition.effect;
   if (effect === 'media_generation' && !context.capabilities.nodeExecution) return { success: false, code: 'NODE_EXECUTION_DISABLED', applied: false };

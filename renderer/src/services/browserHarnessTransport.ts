@@ -49,7 +49,7 @@ export async function connectBrowserHarness(): Promise<void> {
       owner.pending.clear(); owner.listeners.clear();
     };
     const unsubscribe = subscribeDomain(() => { if (getAgentProjectIdentity().fenceKey !== identity.fenceKey) dispose(); });
-    const heartbeat = cloudEnabled ? setInterval(() => { void readCloudSession(true).catch(() => dispose()); }, 20_000) : undefined;
+    const heartbeat = cloudEnabled ? setInterval(() => { void verifyCloudSession(); }, 20_000) : undefined;
     function dispose() {
       if (disposed) return;
       disposed = true;

@@ -282,7 +282,16 @@ test('Harness advertises StarRouter DeepSeek Flash reasoning levels and Agent de
 test('product boundary rejects forged bindings, switched project instances and disabled generation', async () => {
   const { binding } = fixture();
   await assert.rejects(tools.executeProductRequest(request({ ...binding, projectKey: 'forged' }, 'canvas_list_nodes')), { message: translate('agent.bindingUnknown') });
-  await assert.rejects(tools.executeProductRequest(request(binding, 'canvas_start_generation', { type: 'start_generation', nodeId: 'missing' })), /unavailable/);
+  for (const phase of ['authorize', undefined]) {
+    const denied = await tools.executeProductRequest(request(binding, 'canvas_start_generation', { type: 'start_generation', nodeId: 'missing' }, { phase, authorizedByFullAccess: true }));
+    assert.equal(denied.code, 'NODE_EXECUTION_DISABLED');
+    assert.equal(denied.applied, false);
+    assert.match(denied.error, /允许 Agent 运行节点/);
+  }
+  settings.agentCanRunNodes = true;
+  const enabled = await tools.executeProductRequest(request(binding, 'canvas_start_generation', { type: 'start_generation', nodeId: 'missing' }, { phase: 'authorize' }));
+  assert.equal(enabled.success, true, 'enabling execution after binding must use the live setting');
+  assert.equal(enabled.approvalRequired, true, 'full access does not silently enable the execution setting');
   // The same path and project id with a new mounted instance is still a different owner.
   projects.store.project = { ...projects.store.project };
   await assert.rejects(tools.executeProductRequest(request(binding, 'canvas_list_nodes')), /项目已经切换/);
