@@ -17,3 +17,6 @@ runs:
       shell: bash
     - run: npm ci --ignore-scripts --prefix vendor/shotloom-director-desk
       shell: bash
+    - name: Install browser for Worker package verification
+      run: node vendor/shotloom-director-desk/node_modules/playwright-core/cli.js install chromium
+      shell: bash

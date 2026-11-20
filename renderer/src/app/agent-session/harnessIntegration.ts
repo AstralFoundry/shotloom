@@ -1,35 +1,26 @@
-import { t, localizeNativeError } from '@/i18n';
+import { t } from '@/i18n';
 import { CANVAS_AGENT_ID, DIRECTOR_AGENT_ID, EDITOR_AGENT_ID } from '../../agent/agents/definitions';
-import { invoke as nativeInvoke, type InvokeArgs } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
 import { harnessModelConfig } from '../../services/harnessModelConfig';
 import { availableAgentSkills } from '../../agent/tools/catalogTools';
-import { desktopApi } from '../../services/desktopApi';
 import { productToolCatalog, bindProductSession, registerEditorSessionBinder, executeProductRequest, type ProductBinding } from '../../services/harnessProductTools';
 import { canvasHarnessSession, directorHarnessSession, editorHarnessSession, textHarnessSession } from '../../services/harnessSessionStore';
 import { getAgentProjectIdentity, assertAgentProject } from '../../services/agentProjectIdentity';
 import { store, touchProject } from '../../store/projectStore';
-import { initializeHarnessClient } from './harnessClient';
 export { setHarnessSessionsArchived } from '../../services/harnessArchive';
 import { cloudEnabled } from '../../utils/cloudConfig';
+import { refreshCloudAccountSettings } from '../../store/settingsStore';
 import { loadGlobalSkills } from '../../store/skillsStore';
 import { loadGlobalRecipes } from '../../store/recipesStore';
-import { bindCloudHarness, respondCloudTool, registerCloudToolHandler, connectCloudHarness } from './cloudHarnessTransport';
+import { bindBrowserHarness, respondBrowserTool, registerBrowserToolHandler, connectBrowserHarness } from '../../services/browserHarnessTransport';
 
-// This integration owns native Harness calls, which bypass desktopApi's IPC boundary.
-async function invoke<T>(command: string, args?: InvokeArgs): Promise<T> {
-  if (cloudEnabled && command === 'harness_bind_session') return bindCloudHarness<T>((args as { config: unknown }).config);
-  if (cloudEnabled && command === 'harness_tool_respond') { await respondCloudTool((args as { response: Parameters<typeof respondCloudTool>[0] }).response); return undefined as T; }
-  try { return await nativeInvoke<T>(command, args); }
-  catch (error) {
-    const message = localizeNativeError(error);
-    if (message === undefined) throw error;
-    throw new Error(message);
-  }
+// 所有端共用 Worker；产品工具仍通过现有绑定与权限边界执行。
+async function invoke<T>(command: string, args: { config?: unknown; response?: Parameters<typeof respondBrowserTool>[0] }): Promise<T> {
+  if (command === 'harness_bind_session') return bindBrowserHarness<T>(args.config);
+  if (command === 'harness_tool_respond') { await respondBrowserTool(args.response!); return undefined as T; }
+  throw new Error(`Unknown Agent operation: ${command}`);
 }
 
 let startup: Promise<void> | undefined;
-let bridgeListening = false;
 export function startHarnessIntegration(): Promise<void> {
   if (startup) return startup;
   registerEditorSessionBinder(async nodeId => {
@@ -38,7 +29,6 @@ export function startHarnessIntegration(): Promise<void> {
     return { sessionId: result.sessionId, projectKey: getAgentProjectIdentity().projectKey, conversationId: conversation.id!, agentId: EDITOR_AGENT_ID, nodeId };
   });
   startup = (async () => {
-    if (!cloudEnabled && desktopApi.platform === 'browser') throw new Error(t('agent.desktopRequired'));
     const handleToolRequest = async (payload: Parameters<typeof executeProductRequest>[0]) => {
       try {
         const result = await executeProductRequest(payload);
@@ -75,21 +65,8 @@ export function startHarnessIntegration(): Promise<void> {
         await invoke('harness_tool_respond', { response: { requestId: payload.requestId, error: String(error) } }).catch(() => {});
       }
     };
-    if (cloudEnabled) {
-      registerCloudToolHandler(handleToolRequest);
-      await connectCloudHarness();
-      return;
-    }
-    if (!bridgeListening) await listen<Parameters<typeof executeProductRequest>[0]>('harness://tool-request', event => handleToolRequest(event.payload));
-    bridgeListening = true;
-    let status = await invoke<{ running: boolean; ready: boolean; error?: string }>('start_harness_runtime', { options: {} });
-    const deadline = Date.now() + 30_000;
-    while (!status.ready) {
-      if (!status.running || Date.now() >= deadline) throw new Error(localizeNativeError(status.error) ?? status.error ?? t('agent.hostNotReady'));
-      await new Promise(resolve => setTimeout(resolve, 100));
-      status = await invoke('harness_runtime_status');
-    }
-    await initializeHarnessClient();
+    registerBrowserToolHandler(handleToolRequest);
+    await connectBrowserHarness();
   })().catch(error => { startup = undefined; throw error; });
   return startup;
 }
@@ -101,7 +78,7 @@ export async function openHarnessPanel(role: ProductBinding['agentId'], nodeId?:
   signal?.throwIfAborted();
   assertAgentProject(identity.projectKey, identity.instanceId, identity.generation);
   if (cloudEnabled) {
-    await Promise.all([loadGlobalSkills(), loadGlobalRecipes()]);
+    await Promise.all([loadGlobalSkills(), loadGlobalRecipes(), refreshCloudAccountSettings()]);
     signal?.throwIfAborted();
     assertAgentProject(identity.projectKey, identity.instanceId, identity.generation);
   }
@@ -117,6 +94,9 @@ export async function openHarnessPanel(role: ProductBinding['agentId'], nodeId?:
   } });
   assertAgentProject(identity.projectKey, identity.instanceId, identity.generation);
   bindProductSession({ ...binding, sessionId: result.sessionId });
+  if (conversation.harnessSessionId && conversation.harnessSessionId !== result.sessionId && !conversation.legacyHarnessSessionId) {
+    conversation.legacyHarnessSessionId = conversation.harnessSessionId;
+  }
   conversation.harnessSessionId = result.sessionId;
   touchProject({ sessionDelay: 0, coalesceSession: false });
   return result;

@@ -62,8 +62,9 @@ async function prepareHarness() {
   if (built.status !== 0) process.exit(built.status ?? 1);
   const client = spawnSync(process.execPath, [join(root, 'scripts/build-client.mjs')], { stdio: 'inherit' });
   if (client.status !== 0) process.exit(client.status ?? 1);
-  await stageHarnessResources();
-  console.log(`Prepared Shotloom Agent Host (${process.platform}/${process.arch})`);
+  const worker = spawnSync(process.execPath, [join(root, 'scripts/build-worker.mjs')], { stdio: 'inherit' });
+  if (worker.status !== 0) process.exit(worker.status ?? 1);
+  console.log('Prepared Shotloom Agent Worker and official chat UI');
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) await prepareHarness();

@@ -30,6 +30,7 @@ const chatTemplate = {
   modes: [{ id: 'text-generation', label: 'Chat Completions',
     endpoint: { method: 'POST', path: '/chat/completions', scope: 'v1' },
     inputConstraints: {}, outputConstraints: { supportsStreaming: true }, params: [],
+    agent: { transport: 'provider-default', supportsTools: true },
     requestTemplate: { model: '{{model}}', messages: '{{messages}}' }, resultTextPath: 'choices.0.message.content',
   }],
 };

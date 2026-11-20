@@ -32,7 +32,11 @@ React Native 预览客户端采用独立 npm 安装，复用 shared 中的纯接
 
 ## 官方 Harness 客户端隔离
 
-`harness/host/client/` 直接复用官方 Harness 的 UI、状态、投影与 React 依赖，以 App 级单例运行时在 Shotloom 页面内挂载，使用 ShadowRoot 隔离样式，不使用 iframe。它不接管 Shotloom 领域状态，不导入 renderer/store，不将官方状态引擎扩散到产品模块。桌面客户端通过原生 IPC 与父进程私有管道连接 Host，不使用 Cookie 登录或浏览器认证跳转；原生调用边界、项目绑定、Tool Bridge 和工具权限校验继续生效。切换项目只切换会话，工具、Skill、模型配置内容未变时不得重复复制或挂载。产品导航和画布引用通过显式适配接口协作；renderer 内仍严格遵守以上两类状态引擎约定。
+`harness/host/client/` 直接复用官方 Harness 的 UI、状态、投影与 React 依赖，以 App 级单例在 Shotloom 页面内挂载，使用 ShadowRoot 隔离样式，不使用 iframe。它不接管 Shotloom 领域状态，不导入 renderer/store，不将官方状态引擎扩散到产品模块。
+
+Web、桌面和移动 WebView 的 Agent 循环统一运行于 Dedicated Worker；`harness/host/browser/` 复用现有角色、Skill、审批、工具装配与持久层合同。工程切换、关页与登录失效销毁 Worker；收起面板继续运行。IndexedDB 按账号和工程隔离本地会话、事件、附件、设置与业务回执，Web Locks 保证同工程只有一个窗口持有写入权。模型或产品工具调用前必须等待持久化屏障；失败停止执行，结果未知的写入不能自动重放。恢复历史不会自动续跑，需用户发送消息或继续目标。
+
+服务器仅通过 `/api/agent/model` 转换单次模型请求，复用登录、发布模型与协议校验，凭据和供应商地址不返回客户端；不创建 Agent Host 或持久化聊天。产品工具仍在 renderer 的真实绑定、项目代际、节点存在性和用户设置边界内执行。`prepare:harness` 生成聊天 UI 和 Worker 镜像，桌面不再打包 Node Agent Host。旧 SQLite/云端历史保留，切换本地会话时保留 `legacyHarnessSessionId`，不自动迁移。详细实现与验证见 [客户端 Worker](features/agent-client-worker.md)。
 
 ## Agent 工具的暴露与可见性
 

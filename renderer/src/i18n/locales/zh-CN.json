@@ -10437,5 +10437,13 @@
   "admin.models.search": "搜索模型名称、ID 或厂商",
   "admin.models.allTypes": "全部模型类型",
   "admin.audit.description": "查看模型配置和管理员权限的最近变更。",
-  "admin.audit.target": "操作对象"
+  "admin.audit.target": "操作对象",
+  "agent.worker.toolInterrupted": "Agent 工具调用已中断",
+  "agent.worker.notConnected": "Agent Worker 尚未连接",
+  "agent.worker.projectChanged": "Agent 工程已切换",
+  "agent.worker.unsupported": "当前客户端不支持本地 Agent，需要安全上下文、Worker、IndexedDB、Web Locks 和 OffscreenCanvas",
+  "agent.worker.stopped": "Agent Worker 已停止，请重新打开会话后继续",
+  "agent.worker.startFailed": "Agent Worker 启动失败",
+  "agent.worker.toolsNotReady": "Agent 工具尚未就绪",
+  "agent.worker.modelFailed": "Agent 模型请求失败 ({status})"
 }

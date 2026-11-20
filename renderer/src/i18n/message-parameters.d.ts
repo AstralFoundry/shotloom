@@ -1217,4 +1217,5 @@ export interface MessageParameters {
   "account.usagePage": Record<"page" | "pages", string | number>;
   "canvas.selectionCount": Record<"count", string | number>;
   "admin.models.overview": Record<"total" | "published", string | number>;
+  "agent.worker.modelFailed": Record<"status", string | number>;
 }
