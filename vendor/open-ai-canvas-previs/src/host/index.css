@@ -1,0 +1,193 @@
+@import "tailwindcss" source(none);
+
+/*
+ * Scans only the world engine (never the Shotloom product, which has its own Tailwind setup)
+ * so utility classes used by the workbench are generated here.
+ */
+@source "..";
+@source "../../node_modules/lucide-react/dist";
+
+/*
+ * Design tokens.
+ *
+ * The workbench is pinned to the light canvas theme, so the system palette is always light.
+ * `--button-*` mirrors the product's button tokens: until Shotloom installs its own values the
+ * fallbacks here keep the Ant Design buttons readable.
+ */
+:root {
+    --background: oklch(1 0 0);
+    --foreground: oklch(0.145 0 0);
+    --border: oklch(0.922 0 0);
+    --ring: oklch(0.708 0 0);
+    --input: oklch(0.922 0 0);
+    --destructive: #dc2626;
+    --card: oklch(1 0 0);
+    --card-foreground: oklch(0.145 0 0);
+    --popover: oklch(1 0 0);
+    --popover-foreground: oklch(0.145 0 0);
+    --primary: oklch(0.205 0 0);
+    --primary-foreground: oklch(0.985 0 0);
+    --secondary: oklch(0.97 0 0);
+    --secondary-foreground: oklch(0.205 0 0);
+    --muted: oklch(0.97 0 0);
+    --muted-foreground: oklch(0.556 0 0);
+    --accent: oklch(0.97 0 0);
+    --accent-foreground: oklch(0.205 0 0);
+    --surface: oklch(1 0 0);
+    --surface-hover: oklch(0.97 0 0);
+    --surface-active: oklch(0.94 0 0);
+    --surface-secondary: oklch(0.97 0 0);
+    --surface-tertiary: oklch(0.96 0 0);
+    --surface-strong: #ffffff;
+    --radius: 0.5rem;
+    --z-tooltip: 1000;
+
+    --button-secondary-bg: #ffffff;
+    --button-secondary-fg: oklch(0.145 0 0);
+    --button-secondary-border: oklch(0.922 0 0);
+    --button-secondary-hover-bg: oklch(0.97 0 0);
+    --button-secondary-hover-border: oklch(0.87 0 0);
+    --button-secondary-active-bg: oklch(0.94 0 0);
+    --button-ghost-fg: oklch(0.205 0 0);
+    --button-ghost-hover-fg: oklch(0.145 0 0);
+    --button-ghost-hover-bg: oklch(0.97 0 0);
+    --button-ghost-active-bg: oklch(0.94 0 0);
+    --button-danger-fg: #dc2626;
+}
+
+@theme inline {
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+    --color-border: var(--border);
+    --color-ring: var(--ring);
+    --color-input: var(--input);
+    --color-destructive: var(--destructive);
+    --color-card: var(--card);
+    --color-card-foreground: var(--card-foreground);
+    --color-popover: var(--popover);
+    --color-popover-foreground: var(--popover-foreground);
+    --color-primary: var(--primary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-secondary: var(--secondary);
+    --color-secondary-foreground: var(--secondary-foreground);
+    --color-muted: var(--muted);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-accent: var(--accent);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-surface: var(--surface);
+    --color-surface-hover: var(--surface-hover);
+    --color-surface-active: var(--surface-active);
+    --color-surface-secondary: var(--surface-secondary);
+    --color-surface-tertiary: var(--surface-tertiary);
+    --color-surface-strong: var(--surface-strong);
+    --radius-lg: var(--radius);
+    --radius-md: calc(var(--radius) - 2px);
+    --radius-sm: calc(var(--radius) - 4px);
+}
+
+@layer base {
+    * {
+        border-color: var(--border);
+    }
+    html,
+    body,
+    #previs-root {
+        height: 100%;
+    }
+    body {
+        margin: 0;
+        background: var(--background);
+        color: var(--foreground);
+        font-family: Inter, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+        font-size: 13px;
+        -webkit-font-smoothing: antialiased;
+    }
+    button {
+        font: inherit;
+    }
+}
+
+/* Host chrome: the workbench fills the iframe. */
+.previs-host-root {
+    height: 100%;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.previs-host-boot {
+    height: 100%;
+    display: grid;
+    place-items: center;
+    gap: 10px;
+    color: var(--muted-foreground);
+    font-size: 13px;
+}
+
+.previs-host-boot__dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    margin-right: 8px;
+    border-radius: 999px;
+    background: var(--foreground);
+    animation: previs-host-pulse 1.1s ease-in-out infinite;
+}
+
+@keyframes previs-host-pulse {
+    0%,
+    100% {
+        opacity: 0.25;
+    }
+    50% {
+        opacity: 1;
+    }
+}
+
+/* Ported host controls (tooltip, switch, select) keep Ant-like sizing without product CSS. */
+.previs-host-tooltip {
+    z-index: var(--z-tooltip);
+    max-width: 16rem;
+    padding: 4px 8px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface-strong);
+    color: var(--foreground);
+    font-size: 12px;
+    line-height: 1.5;
+    box-shadow: 0 4px 12px rgb(15 23 42 / 0.12);
+    pointer-events: none;
+}
+
+.ra-pop-in {
+    animation: previs-host-pop-in 120ms ease-out;
+}
+
+@keyframes previs-host-pop-in {
+    from {
+        opacity: 0;
+        transform: scale(0.98);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.pv-switch[data-state="on"] {
+    background: var(--primary);
+}
+
+.pv-switch[data-state="off"] {
+    background: var(--surface-tertiary);
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--foreground) 15%, transparent);
+}
+
+.pv-switch__thumb {
+    background: var(--primary-foreground);
+    box-shadow: 0 1px 2px rgb(15 23 42 / 0.2);
+}
+
+.pv-switch[data-state="off"] .pv-switch__thumb {
+    background: var(--surface-strong);
+}
