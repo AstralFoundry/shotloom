@@ -1,124 +1,143 @@
 <p align="center"><img src="./electron/build/icons/app.png" width="80" alt="Shotloom"></p>
 <h1 align="center">Shotloom</h1>
-<p align="center">A desktop workspace for ideas, 3D previsualization, generated media and editing.</p>
-<p align="center"><a href="./README.md">简体中文</a> · English · <a href="https://github.com/AstralFoundry/shotloom/releases">Downloads</a></p>
+<p align="center">From ideas to moving images, on one canvas.</p>
+<p align="center"><a href="./README.md">简体中文</a> · English · <a href="https://github.com/AstralFoundry/shotloom/releases">Download</a> · <a href="https://github.com/AstralFoundry/shotloom/issues">Feedback</a></p>
 
-![Creative canvas with character references, a brief and generation nodes — Chinese interface](./docs/images/creative-canvas-zh.png)
+![Shotloom creative canvas](./docs/images/creative-canvas-zh.png)
 
-Shotloom organizes prompts, references, images, video and audio on an infinite canvas. Block a scene in the 3D director desk, plan actor movement and cameras, then continue with generation nodes and the embedded editor. Connections preserve the context and dependencies behind each iteration.
+Shotloom is a desktop workspace for AI filmmaking, bringing an infinite canvas, AI generation, 3D previsualization and video editing into one project. Connect references and ideas, then work with Agents on scripts, storyboards and production.
+
+## Keep the whole production in one project
+
+Making a video often means switching between chats, reference folders, generation platforms and editing software. Shotloom brings the work onto a shared canvas: briefs, character references, source media and generated results sit side by side, with connections that preserve their relationships as you iterate.
+
+Start with a piece of writing, import existing media, or explore a composition in 3D before moving on to generation and editing.
 
 ## Features
 
-Protocols and model presets come from independent plugins, installed offline with the release. Removed plugins stay removed after restart. Protocol plugins support npm, file or URL installation, toggles and version rollback. Double-click a plugin card to read its documentation, endpoints and parameter details. Provider connections separately configure endpoints, keys and models, with a protocol selected per model. See [Protocol plugins](./docs/provider-plugins.md). See [media protocol coverage](./docs/media-protocols.md) for supported operations and validation.
+### Infinite canvas and media generation
 
-| Workspace | Capabilities |
-| :-- | :-- |
-| Creative canvas | Text, image, video, audio and tool nodes; reference connections, sections, selection, undo and automatic layout |
-| 3D director desk | Characters, props, lighting, actions and motion paths; multiple cameras, cuts, focal keyframes, camera movement presets, timeline and live preview |
-| Agent assistant | Project tools to inspect context, create and edit nodes, stage scenes, plan movement, check spatial relationships and render evidence; the full assistant requires the desktop Harness runtime |
-| Media generation | Bring your own providers and models for text, image, video and audio; results return to the project |
-| Video editor | Embedded OpenReel with multitrack editing, subtitles, graphics, transitions, image and volume adjustments, and export |
-| Projects and assets | Local projects, reference definitions, media and project packages; Chinese and English interfaces |
+Arrange text, images, video and audio on one canvas. Use sections to organize scenes or production stages and connect nodes to pass reference inputs. Select a generation node to edit its prompt, choose a model and adjust parameters.
 
-## From idea to delivery
+- Place images, video and audio as media nodes or use them as inputs for further generation.
+- Keep text, image, video and audio generation in the context of the project, with results saved back to it.
+- Organize a growing canvas with multiselection, automatic layout, undo and redo.
 
-These current screenshots show the local web app with character references and the Homebound previs from this repository. The generation node shows inputs and configuration; no paid generation was started. The skill library shows real skills and Agent assignments. Full Agent conversations require the desktop runtime. Screenshots use the Chinese interface; the application also supports English.
+![Generation node with prompt, model and reference inputs](./docs/images/generation-node-zh.png)
 
-### Canvas and media generation
+### Work with Agents
 
-Keep briefs, character references, image nodes and video nodes on one infinite canvas. Connect nodes to pass references, then edit prompts, choose models and configure aspect ratios and inputs in place. Text, image, video and audio nodes can form a connected production workflow.
+Agents can use project context to help develop ideas and operate the workspace through tools. Draft briefs, scripts and storyboards; create canvas nodes; stage scenes; and edit media. Review and adjust the resulting work in the interface.
 
-![Image generation node with prompt, model and reference inputs](./docs/images/generation-node-zh.png)
-
-### Asset library
-
-Collect character and scene references in the project library, find them by name or category and reuse them on the canvas. Shared assets support reuse across projects. Reference definitions remain linked to their source media.
-
-![Project asset library with character and expression references](./docs/images/asset-library-zh.png)
-
-### Agents and skills
-
-Canvas, text, director and editing Agents use real product tools in their respective workspaces. The skill library shows descriptions, versions, enabled states and Agent assignments. Import, export or create skills for scripts, storyboards, character references, ecommerce and social content. Project tasks provide a view of generation jobs and execution status.
-
-![Skill library with built-in skills, enabled states and Agent assignments](./docs/images/skills-zh.png)
-
-### Video editor
-
-Embedded OpenReel brings media into a multitrack timeline with a player for reviewing timing. Add text, subtitles, graphics, effects and transitions; adjust images and audio, then create a video node. This screenshot shows the existing Homebound video loaded into an actual editing timeline.
-
-![Video editor with Homebound media, player and multitrack timeline](./docs/images/video-editor-zh.png)
-
-### 3D director desk
-
-Check framing, actor movement and camera motion in space before continuing production. Stage scenes, animate characters and use camera movement presets, multicamera cuts and timeline preview.
-
-![Homebound in the 3D director desk](./docs/images/director-homebound-zh.png)
+Canvas, text, director and editing Agents serve their respective workspaces. The skill library lets you enable, import, export and create reusable production methods. Project tasks provide a central view of generation progress and results.
 
 <details>
-<summary>View camera movement presets</summary>
+<summary>View the skill library</summary>
 
-![Director camera movement presets](./docs/images/director-motion-zh.png)
+![Skill library](./docs/images/skills-zh.png)
 
 </details>
 
-## Real demo: Homebound
+### 3D director desk: explore your shots first
 
-[Watch the 24-second previsualization](./docs/demos/homebound/homebound-final.mp4) · [Director scene](./docs/demos/homebound/homebound.scene.json) · [Production notes and tool limitations](./docs/demos/homebound/README.md)
+Build scenes in 3D, position characters, props and lights, and plan actor movement and camera motion. Use the timeline and live preview to check framing, spatial relationships and timing before taking the previs into further production.
 
-Two characters, a neighborhood street and five cameras: an establishing crane shot, lateral tracking, a greeting close-up, a two-shot and a rising departure. Scene construction, animation, paths, cameras and cuts were created through the existing Agent tool execution entry point. The contact sheet contains actual rendered frames.
+Work with multiple cameras, focal-length keyframes, character actions, motion paths and camera movement presets. Adjust scenes manually or ask the director Agent to help stage and sequence shots.
 
-![Seven rendered moments from Homebound](./docs/demos/homebound/storyboard.jpg)
+![3D director desk](./docs/images/director-homebound-zh.png)
 
-This is a silent 3D previs, not a generative finished film. The exercise called the real product tool dispatcher in a browser test session; it did not run a desktop model conversation. Video encoding succeeded, but saving the output as a canvas asset node failed in the browser. See the production notes for evidence and limitations.
+[Watch the 24-second Homebound 3D previs](./docs/demos/homebound/homebound-final.mp4) · [Example scene](./docs/demos/homebound/homebound.scene.json)
 
-Director tools now support named batch references, shot composition, timed actions, retained export recovery, delivery packages and audio/subtitle editing handoff. See [capabilities and verification scope](./docs/director-agent-capabilities.md).
+### Video editor: assemble your footage
+
+The built-in editor, based on OpenReel, provides a multitrack timeline and player. Add text, subtitles, graphics, transitions and effects, adjust the picture and audio, then export a video.
+
+Editing and the canvas belong to the same project, making it easier to iterate between generating media, replacing shots and adjusting the timeline.
+
+![Video editor](./docs/images/video-editor-zh.png)
+
+### Projects and assets
+
+Collect character, scene and other reference definitions in the asset library. Find them by name or category and reuse them on the canvas. Shared assets support reuse across projects, while project assets stay with the current work.
+
+Autosave, version history and project package import/export help you revisit earlier canvas states or move a project. Chinese and English interfaces are available.
+
+<details>
+<summary>View the asset library</summary>
+
+![Project asset library](./docs/images/asset-library-zh.png)
+
+</details>
+
+## Plugins and models
+
+Shotloom connects to AI services through provider plugins. A single plugin can supply both generation models and canvas tools using the same connection and API key. Install plugins from npm, a local file or a URL, and enable, disable or uninstall them in Plugin center.
+
+- **Generation models** appear in the relevant node's model list for text, image, video and audio generation.
+- **Canvas tools** offer actions for selected media, such as upscaling an existing video. Available capabilities depend on the installed plugin.
+- **Bring your own API key**: Configure the service credentials and endpoint in the plugin settings, then enable the models you need.
+
+Developers can add providers or media workflows through plugins that define models, parameters and canvas actions. See [Using plugins](./docs/provider-plugins.md) and [Plugin development](./docs/plugin-development.md).
+
+## A typical workflow
+
+1. **Collect ideas**: Create a project and bring briefs, scripts and references onto the canvas.
+2. **Plan the visuals**: Develop character and scene references, using the director desk to explore composition and camera motion when useful.
+3. **Produce media**: Generate images, video or sound with your chosen models, then compare and iterate on the canvas.
+4. **Edit and deliver**: Assemble media on the timeline, adjust pacing, subtitles and sound, then export the video.
+
+Work manually at any stage, or use the relevant Agents and skills to help.
 
 ## Getting started
 
-Download macOS Apple Silicon or Windows x64 builds from [Releases](https://github.com/AstralFoundry/shotloom/releases). Add your provider credentials and model configuration in **Plugin center** before using generation. The canvas and director desk can be used without a model connection.
+Download a macOS Apple Silicon or Windows x64 installer from [Releases](https://github.com/AstralFoundry/shotloom/releases).
 
-For development, install Node.js ≥ 22.19.0 and npm ≥ 10. The desktop shell is Electron; no Rust toolchain is required.
+1. Create a project, import reference media or add canvas nodes.
+2. Enable a provider plugin in **Plugin center**, then open its settings to enter your API key and select available models.
+3. Choose a model and configure inputs in a generation node, or open an Agent to start working.
+
+You can organize media on the canvas and build scenes in the director desk without connecting a generation model. Model access, usage limits and charges are determined by the service provider.
+
+## Run from source
+
+Requires Node.js ≥ 22.19.0 and npm ≥ 10.
 
 ```bash
 git clone https://github.com/AstralFoundry/shotloom.git
 cd shotloom
 npm ci
+npm ci --prefix harness/host
+npm ci --ignore-scripts --prefix vendor/shotloom-director-desk
 npm run dev
 ```
 
-To inspect the web interface only:
+The first launch prepares the required resources and may take some time. Use `npm run dev:web` to preview the web interface; use the desktop app for the full experience.
 
-```bash
-npm run dev:web
-```
-
-The browser does not offer the complete desktop experience. Agent Host, native file saving, some media exports and editor integration require the desktop runtime. `shotloom.yml` controls development services, window configuration and new-project defaults. Existing user settings take priority; restart after changing configuration.
-
-## Development
+Common development commands:
 
 | Command | Purpose |
-| :-- | :-- |
-| `npm run check` | Configuration, types, translations, storage, layers, styles, UI and regression tests |
-| `npm run harness:test` | Harness host tests |
-| `npm --prefix vendor/shotloom-director-desk test` | Director browser, timeline and depth tests |
-| `corepack pnpm -C vendor/openreel test:run` | OpenReel workspace tests |
-| `npm run prepare:director-desk` | Build the iframe director desk |
-| `npm run prepare:openreel` | Build the embedded editor |
-| `npm run build:desktop` | Build desktop installers (electron-builder) |
-| `npm run smoke:electron` | Boot Electron and exercise the native channels |
+| --- | --- |
+| `npm run dev` | Start desktop development |
+| `npm run dev:web` | Start the web preview |
+| `npm run check` | Run static checks and product tests |
+| `npm run verify:product` | Run full product verification and build |
+| `npm run build:desktop` | Build desktop installers |
 
-React, TypeScript and Vite power the frontend; Electron / Node provide the desktop shell. Native capabilities (files, media, generation gateway, Agent Host, plugin host) live in the main process and the renderer only calls `window.shotloomDesktop`. React Flow powers the canvas and Three.js / React Three Fiber power 3D. The director lives in `vendor/shotloom-director-desk/`, isolated through iframe / postMessage. OpenReel lives in `vendor/openreel/` and is embedded through ShadowRoot. The Harness client does not own product domain state.
+## Documentation and contributions
 
-Read [AGENTS.md](./AGENTS.md) and the [engineering guide](./docs/engineering.md) before contributing. The model owns intent and production decisions; code enforces permissions and data integrity. Keep domain and UI state separate. Branch from `develop`, run the checks and open a PR against `develop`.
+- [Using plugins](./docs/provider-plugins.md)
+- [Plugin development](./docs/plugin-development.md)
+- [Engineering guide](./docs/engineering.md)
+- [Issues and suggestions](https://github.com/AstralFoundry/shotloom/issues)
 
-## Contributors
+Bug reports, documentation improvements and code contributions are welcome. For code changes, branch from `develop`, run `npm run verify:product` and open a PR against `develop`. When reporting a problem, include your OS, app version, reproduction steps and relevant screenshots or logs.
 
-Thanks to our community contributors for helping improve Shotloom.
+## Acknowledgements
 
-<a href="https://github.com/piomeer"><img src="https://avatars.githubusercontent.com/u/77386616?v=4&amp;s=64" width="48" height="48" alt="piomeer"></a>
+Thanks to [all contributors](https://github.com/AstralFoundry/shotloom/graphs/contributors), and to [MA HE (@piomeer)](https://github.com/piomeer) for improving Windows compatibility.
 
-[MA HE (@piomeer)](https://github.com/piomeer) — Fixed Windows memory-pressure monitoring and Agent client CSP compatibility, with regression tests: [PR #1](https://github.com/AstralFoundry/shotloom/pull/1) and [PR #2](https://github.com/AstralFoundry/shotloom/pull/2).
+Shotloom's canvas, 3D and editing capabilities also benefit from projects including [React Flow](https://github.com/xyflow/xyflow), [Three.js](https://github.com/mrdoob/three.js) and the integrated OpenReel source.
 
-## Licensing
+## License
 
-The repository root does not currently declare a LICENSE; all rights are reserved by default. Third-party code retains the licenses in its respective directories. Check those terms before use or distribution.
+Shotloom's original code is available under the [MIT License](./LICENSE), allowing use, modification, commercial use and distribution with the copyright and permission notice retained. Third-party code and assets retain their own licenses; see [Third-party notices](./THIRD_PARTY_NOTICES.md).

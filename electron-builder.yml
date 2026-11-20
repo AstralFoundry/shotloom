@@ -15,6 +15,10 @@ files:
 # agent-host 由 scripts/electron-after-pack.mjs 完整拷贝（含 node_modules 与 node 运行时）。
 afterPack: scripts/electron-after-pack.mjs
 extraResources:
+  - from: LICENSE
+    to: licenses/Shotloom-MIT.txt
+  - from: THIRD_PARTY_NOTICES.md
+    to: licenses/THIRD_PARTY_NOTICES.md
   - from: electron/resources/provider-plugins
     to: resources/provider-plugins
   - from: electron/resources/FFmpeg-GPL-3.0.txt

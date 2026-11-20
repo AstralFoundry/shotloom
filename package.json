@@ -92,5 +92,6 @@
   "main": "dist/electron/main.cjs",
   "author": {
     "name": "Shotloom"
-  }
+  },
+  "license": "MIT"
 }
