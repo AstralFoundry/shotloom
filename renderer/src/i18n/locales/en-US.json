@@ -144,7 +144,6 @@
   "ui.previsWorld.doubleClick": "Double-click to open",
   "ui.previsWorld.dragTitle": "Drag world engine",
   "ui.previsWorld.emptyHint": "Write a framing back from the world engine to preview it",
-  "ui.previsWorld.emptyHint": "Write a framing back from the world engine to preview it",
   "ui.previsWorld.emptyTitle": "No preview yet",
   "ui.previsWorld.lightCount": "Lights",
   "ui.previsWorld.loadWorkspace": "Load workspace scene",

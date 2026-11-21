@@ -179,7 +179,6 @@
   "ui.previsWorld.doubleClick": "双击打开",
   "ui.previsWorld.dragTitle": "拖动世界引擎",
   "ui.previsWorld.emptyHint": "进入世界引擎并回写构图后显示",
-  "ui.previsWorld.emptyHint": "进入世界引擎并回写构图后显示",
   "ui.previsWorld.emptyTitle": "尚未生成预览",
   "ui.previsWorld.lightCount": "灯光",
   "ui.previsWorld.loadWorkspace": "载入工作区场景",

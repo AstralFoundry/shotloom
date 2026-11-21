@@ -60,6 +60,7 @@ import {
     CloudRain,
     CloudFog,
     Snowflake,
+    LoaderCircle,
 } from "lucide-react";
 import { PrevisCanvasDock } from "./previs-canvas-dock";
 import { PrevisAddDialog, type PrevisAddKind, type PrevisAddResult } from "./previs-add-dialog";
@@ -185,6 +186,7 @@ export function CanvasPrevisWorkbench({
     const [depthExporting, setDepthExporting] = useState(false);
     /** 白膜 / 深度输出的当前阶段（录制、转码百分比、上传），显示在对应按钮上。 */
     const [outputStage, setOutputStage] = useState<string | null>(null);
+    const [outputProgress, setOutputProgress] = useState<number | null>(null);
     const outputLockRef = useRef(false);
     const [screenRecording, setScreenRecording] = useState<"shot" | "window" | null>(null);
     const [shortcutHelpOpen, setShortcutHelpOpen] = useState(false);
@@ -656,18 +658,23 @@ export function CanvasPrevisWorkbench({
 
     const uploadModel = async (file?: File) => {
         if (!file || !/\.(glb|gltf)$/i.test(file.name)) return;
-        const uploaded = await uploadMediaFile(file, "model");
-        // The model library (host-owned) keeps the file; the engine only keeps a reference.
-        const asset = addPrevisModelAsset({
-            title: file.name.replace(/\.(glb|gltf)$/i, ""),
-            data: { url: uploaded.url, storageKey: uploaded.storageKey, bytes: uploaded.bytes, mimeType: uploaded.mimeType, fileName: file.name },
-        });
-        if (asset) addModelAsset(asset);
         try {
-            await saveRemoteUserDataNow();
-            message.success("3D 模型已加入场景和素材库");
+            const uploaded = await uploadMediaFile(file, "model");
+            // The model library keeps the bytes; the scene keeps a persistent reference.
+            const asset = addPrevisModelAsset({
+                title: file.name.replace(/\.(glb|gltf)$/i, ""),
+                data: { url: uploaded.url, storageKey: uploaded.storageKey, bytes: uploaded.bytes, mimeType: uploaded.mimeType, fileName: file.name },
+            });
+            if (asset) addModelAsset(asset);
+            try {
+                const saved = await saveRemoteUserDataNow();
+                if (!saved.ok) throw new Error(saved.message);
+                message.success("3D 模型已加入场景和素材库");
+            } catch (error) {
+                message.warning(localSavedRemotePendingMessage("3D 模型已加入场景和本机素材库", error));
+            }
         } catch (error) {
-            message.warning(localSavedRemotePendingMessage("3D 模型已加入场景和本机素材库", error));
+            message.error(error instanceof Error ? error.message : "3D 模型导入失败，请重试");
         }
     };
 
@@ -1069,13 +1076,20 @@ export function CanvasPrevisWorkbench({
     const releaseOutputLock = () => {
         outputLockRef.current = false;
         setOutputStage(null);
+        setOutputProgress(null);
     };
 
     /** 浏览器录到的 WebM 在浏览器里转成固定帧率、裁到镜头时长的 MP4；转码进度显示在按钮上。 */
-    const recordingToMp4 = (recorded: Blob, shot: PrevisShot) =>
-        recorded.type === "video/mp4"
+    const recordingToMp4 = (recorded: Blob, shot: PrevisShot) => {
+        setOutputStage("加载转码组件…");
+        setOutputProgress(null);
+        return recorded.type === "video/mp4"
             ? Promise.resolve(recorded)
-            : transcodeVideoToMp4(recorded, { fps: shot.fps, duration: shot.duration, onProgress: ({ phase, progress }) => setOutputStage(phase === "loading" ? "加载转码组件…" : `转码 ${progress}%`) });
+            : transcodeVideoToMp4(recorded, { fps: shot.fps, duration: shot.duration, onProgress: ({ phase, progress }) => {
+                setOutputStage(phase === "loading" ? "加载转码组件…" : "转码 MP4…");
+                setOutputProgress(phase === "loading" ? null : progress);
+            } });
+    };
 
     /**
      * 输出流程：先从同一快照截构图，再实时录制；录制期间场景必须不变（帧是按实时草稿渲染的）。
@@ -1099,14 +1113,17 @@ export function CanvasPrevisWorkbench({
         const shot = activeShot;
         const expected = { scene: current, shotId: shot.id };
         setRecording(true);
+        setOutputStage("准备构图画面…");
+        setOutputProgress(null);
         try {
             const beauty = await viewportRef.current.capture("beauty");
             setOutputStage(`录制 ${shot.duration} 秒…`);
             // 录制按镜头时间独立求值，不再借用播放头：编辑状态与时间轴位置保持不变。
-            const recordedVideo = await viewportRef.current.recordVideo(shot.duration, shot.fps, "clay");
+            const recordedVideo = await viewportRef.current.recordVideo(shot.duration, shot.fps, "clay", { onProgress: setOutputProgress });
             if (!isPrevisOutputSnapshotCurrent(draftRef.current, expected)) throw new Error("录制期间场景或镜头已变化，请重试");
             const clayVideo = await recordingToMp4(recordedVideo, shot);
-            setOutputStage("上传中…");
+            setOutputStage("保存文件并回写画布…");
+            setOutputProgress(null);
             const next = publishOutputScene(current, shot.id);
             await onApply({ scene: next, shot, prompt: compilePrevisPrompt(current, shot), beauty, clayVideo, clayVideoMimeType: clayVideo.type });
             setLastClayExport({ shotId: expected.shotId, at: Date.now() });
@@ -1141,14 +1158,17 @@ export function CanvasPrevisWorkbench({
         const expected = { scene: current, shotId: shot.id };
         const range = resolveShotDepthRange();
         setDepthExporting(true);
+        setOutputStage("准备构图与深度图…");
+        setOutputProgress(null);
         try {
             const beauty = await viewportRef.current.capture("beauty");
             const depth = await viewportRef.current.capture("depth", { depthNear: range.near, depthFar: range.far });
             setOutputStage(`录制 ${shot.duration} 秒…`);
-            const recordedDepth = await viewportRef.current.recordVideo(shot.duration, shot.fps, "depth", { depthNear: range.near, depthFar: range.far });
+            const recordedDepth = await viewportRef.current.recordVideo(shot.duration, shot.fps, "depth", { depthNear: range.near, depthFar: range.far, onProgress: setOutputProgress });
             if (!isPrevisOutputSnapshotCurrent(draftRef.current, expected)) throw new Error("捕捉期间场景或镜头已变化，请重试");
             const depthVideo = await recordingToMp4(recordedDepth, shot);
-            setOutputStage("上传中…");
+            setOutputStage("保存文件并回写画布…");
+            setOutputProgress(null);
             const next = publishOutputScene(current, shot.id);
             await onApply({ scene: next, shot, prompt: compilePrevisPrompt(current, shot), beauty, depth, depthVideo });
             message.success(`深度图与深度视频已回写画布（${range.near}–${range.far} 米，近白远黑）`);
@@ -1811,9 +1831,24 @@ export function CanvasPrevisWorkbench({
                     </div>
                 </header>
 
+                {(recording || depthExporting) && (
+                    <section className="pv-export-progress" aria-label={recording ? "白膜导出进度" : "深度导出进度"}>
+                        <div className="pv-export-progress__heading">
+                            <LoaderCircle className="pv-export-spinner" aria-hidden />
+                            <strong>{recording ? "正在导出白膜视频" : "正在导出深度图与视频"}</strong>
+                            {outputProgress !== null && <span>{outputProgress}%</span>}
+                        </div>
+                        <p role="status">{outputStage || "准备导出…"}</p>
+                        <div className={`pv-export-progress__track${outputProgress === null ? " is-indeterminate" : ""}`} role="progressbar" aria-label="当前阶段进度" aria-valuemin={0} aria-valuemax={100} aria-valuenow={outputProgress ?? undefined}>
+                            <span style={outputProgress === null ? undefined : { width: `${outputProgress}%` }} />
+                        </div>
+                        <small>录制期间请保持窗口可见，完成后会自动加入画布。</small>
+                    </section>
+                )}
                 <div className={`pv-layout ${sceneDocked ? "" : "is-scene-collapsed"} ${inspectorDocked ? "" : "is-inspector-collapsed"}`}>
                     <PrevisWorldToolbar
                         busy={recording || depthExporting}
+                        exporting={recording ? "clay" : depthExporting ? "depth" : null}
                         active={{
                             world: !selectedObject && !selectedLight && sceneTab === "world" && inspectorDocked,
                             shot: !selectedObject && !selectedLight && sceneTab === "shot" && inspectorDocked,

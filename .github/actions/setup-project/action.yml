@@ -10,10 +10,10 @@ runs:
         cache-dependency-path: |
           package-lock.json
           harness/host/package-lock.json
-          vendor/open-ai-canvas-previs/package-lock.json
+          vendor/canvas-previs/package-lock.json
     - run: npm ci
       shell: bash
     - run: npm ci --prefix harness/host
       shell: bash
-    - run: npm ci --ignore-scripts --prefix vendor/open-ai-canvas-previs
+    - run: npm ci --ignore-scripts --prefix vendor/canvas-previs
       shell: bash

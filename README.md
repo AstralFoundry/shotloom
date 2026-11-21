@@ -105,7 +105,7 @@ git clone https://github.com/AstralFoundry/shotloom.git
 cd shotloom
 npm ci
 npm ci --prefix harness/host
-npm ci --ignore-scripts --prefix vendor/open-ai-canvas-previs
+npm ci --ignore-scripts --prefix vendor/canvas-previs
 npm run dev
 ```
 

@@ -3,7 +3,7 @@ import { Grid, OrbitControls } from "@react-three/drei";
 import { ColorPicker, Modal, Slider } from "antd";
 import { Box, Building2, Camera, FileUp, Lightbulb, Shuffle, UserRound, Users } from "lucide-react";
 import { Suspense, useEffect, useMemo, useState } from "react";
-import { Color, Object3D, type PerspectiveCamera } from "three";
+import { Color, Object3D, Vector3, type PerspectiveCamera } from "three";
 
 import { PrevisLayoutVisual, PrevisPropVisual } from "./previs-prop-view";
 import { usePrevisPropThumbnails } from "./previs-prop-thumbnails";
@@ -335,7 +335,8 @@ export function PrevisAddDialog({
                     </div>
                     <div className="previs-add-dialog__preview">
                         <div className="previs-add-dialog__preview-label">{kind === "camera" ? "机位画面预览" : kind === "light" ? "灯光效果预览（参考演员）" : kind === "layout" ? "布景鸟瞰 · 拖动旋转、滚轮缩放" : "预览 · 拖动旋转"}</div>
-                        <Canvas key={kind === "layout" ? "layout" : "stage"} shadows dpr={[1, 1.75]} camera={{ position: [2.6, 1.7, 3.4], fov: 40, far: 8000 }} gl={{ antialias: true, preserveDrawingBuffer: false }}>
+                        {/* Modal opening scales the panel; measure its layout size, not the animated bounds. */}
+                        <Canvas key={kind === "layout" ? "layout" : "stage"} resize={{ offsetSize: true }} shadows dpr={[1, 1.75]} camera={{ position: [2.6, 1.7, 3.4], fov: 40, far: 8000 }} gl={{ antialias: true, preserveDrawingBuffer: false }}>
                             <color attach="background" args={["#d8dde3"]} />
                             <Suspense fallback={null}>
                                 {kind === "actor" ? <ActorPreview actor={previewActor} /> : null}
@@ -542,9 +543,14 @@ function PropPreview({ objects, size, spread }: { objects: PrevisObject[]; size:
         }),
         [span],
     );
+    const left = -size[0] / 2;
+    const right = Math.max(size[0] / 2, reference.transform.position[0] + 0.4);
+    const height = Math.max(1.83, size[1]);
+    const target: [number, number, number] = [(left + right) / 2, height / 2, 0];
+    const radius = Math.hypot((right - left) / 2, height / 2, size[2] / 2);
     return (
-        <Stage target={[span * 0.2, Math.min(size[1] * 0.45, 30), 0]} maxDistance={Math.max(14, span * 4)}>
-            <FitCamera distance={Math.max(4, span * 1.6, size[1] * 1.4)} />
+        <Stage target={target} maxDistance={Math.max(14, radius * 12)}>
+            <FitCamera distance={Math.max(4, span * 1.6, size[1] * 1.4)} radius={radius} target={target} />
             <directionalLight
                 position={[span * 1.5 + 3, span * 2 + 5, span + 4]}
                 intensity={1.8}
@@ -566,12 +572,19 @@ function PropPreview({ objects, size, spread }: { objects: PrevisObject[]; size:
     );
 }
 
-function FitCamera({ distance }: { distance: number }) {
+function FitCamera({ distance, radius, target = [0, 0, 0] }: { distance: number; radius?: number; target?: [number, number, number] }) {
     const camera = useThree((state) => state.camera);
+    const size = useThree((state) => state.size);
     useEffect(() => {
-        const direction = camera.position.clone().normalize();
-        camera.position.copy(direction.multiplyScalar(distance));
-    }, [camera, distance]);
+        const center = new Vector3(...target);
+        const direction = new Vector3(2.6, 1.7, 3.4).normalize();
+        const perspective = camera as PerspectiveCamera;
+        const vertical = perspective.fov * Math.PI / 360;
+        const horizontal = Math.atan(Math.tan(vertical) * size.width / Math.max(1, size.height));
+        const fitted = radius === undefined ? distance : Math.max(distance, radius / Math.sin(Math.min(vertical, horizontal)) * 1.1);
+        camera.position.copy(center.add(direction.multiplyScalar(fitted)));
+        if (radius !== undefined) camera.lookAt(...target);
+    }, [camera, distance, radius, size.width, size.height, target[0], target[1], target[2]]);
     return null;
 }
 

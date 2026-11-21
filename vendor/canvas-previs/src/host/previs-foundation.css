@@ -1,0 +1,535 @@
+/* World-engine base rules from open-ai-canvas web/src/styles/globals.css (0dcf3f6). */
+
+
+.previs-sequencer {
+    position: relative;
+    color: rgba(255, 255, 255, 0.86);
+    font-size: var(--fs-caption);
+}
+
+.previs-viewport-shell {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+}
+
+.previs-viewport-notice {
+    position: absolute;
+    /* 可恢复故障必须压过右上角的新手引导，否则真实点击会被引导卡片截获。 */
+    z-index: var(--z-toast);
+    display: grid;
+    gap: var(--space-2);
+    padding: var(--space-4);
+    border: var(--stroke-1) solid var(--previs-sequencer-border);
+    border-radius: var(--r-lg);
+    background: var(--previs-dock-surface);
+    box-shadow: var(--shadow-xl);
+    color: var(--previs-dock-fg-strong);
+}
+
+.previs-viewport-notice.is-cover {
+    inset: 50% auto auto 50%;
+    max-width: 320px;
+    justify-items: start;
+    text-align: left;
+    transform: translate(-50%, -50%);
+}
+
+.previs-viewport-notice.is-corner {
+    top: var(--space-3);
+    right: var(--space-3);
+    max-width: 280px;
+}
+
+.previs-viewport-notice-title {
+    font-size: var(--fs-label);
+    font-weight: 600;
+}
+
+.previs-viewport-notice-text {
+    margin: 0;
+    color: var(--previs-dock-fg);
+    font-size: var(--fs-tiny);
+    line-height: 1.5;
+}
+
+.previs-viewport-notice-action {
+    height: var(--space-8);
+    padding: 0 var(--space-3);
+    justify-self: start;
+    border: var(--stroke-1) solid var(--previs-sequencer-border);
+    border-radius: var(--r-sm);
+    background: var(--previs-dock-active-surface);
+    color: var(--previs-dock-fg-strong);
+    font-size: var(--fs-tiny);
+    transition: background var(--motion-dur-fast) var(--motion-ease-out);
+}
+
+.previs-viewport-notice-action:hover {
+    background: var(--previs-control-hover);
+}
+
+.previs-viewport-dock {
+    position: absolute;
+    z-index: var(--z-toolbar);
+    bottom: var(--previs-dock-bottom);
+    left: 50%;
+    display: flex;
+    max-width: calc(100% - var(--space-6));
+    align-items: center;
+    gap: var(--space-half);
+    padding: var(--space-1);
+    overflow-x: auto;
+    border: var(--stroke-1) solid var(--previs-sequencer-border);
+    border-radius: var(--r-lg);
+    background: var(--previs-dock-surface);
+    box-shadow: var(--shadow-xl);
+    color: var(--previs-dock-fg);
+    transform: translateX(-50%);
+    backdrop-filter: blur(var(--space-4));
+}
+
+.previs-viewport-dock-button {
+    display: grid;
+    width: var(--previs-dock-button-size);
+    height: var(--previs-dock-button-size);
+    flex: 0 0 var(--previs-dock-button-size);
+    place-items: center;
+    border-radius: var(--r-md);
+    transition:
+        background var(--motion-dur-fast) var(--motion-ease-out),
+        color var(--motion-dur-fast) var(--motion-ease-out),
+        transform var(--motion-dur-fast) var(--motion-ease-out);
+}
+
+.previs-viewport-dock-button > svg {
+    width: var(--space-4);
+    height: var(--space-4);
+}
+
+.previs-viewport-dock-button:hover {
+    background: var(--previs-control-hover);
+    color: var(--previs-dock-fg-strong);
+}
+
+.previs-viewport-dock-button.is-active {
+    background: var(--previs-dock-active-surface);
+    color: var(--previs-dock-fg-strong);
+    box-shadow: inset 0 0 0 var(--stroke-1) var(--previs-sequencer-border);
+}
+
+.previs-viewport-dock-divider {
+    width: var(--stroke-1);
+    height: var(--space-5);
+    flex: 0 0 var(--stroke-1);
+    margin: 0 var(--space-half);
+    background: var(--previs-sequencer-border);
+}
+
+.previs-mode-switch {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: var(--space-half);
+}
+
+.previs-mode-switch-button {
+    height: var(--space-6);
+    padding: 0 var(--space-2);
+    border: var(--stroke-1) solid transparent;
+    border-radius: var(--r-sm);
+    color: var(--foreground);
+    font-size: var(--fs-tiny);
+    opacity: 0.62;
+    transition:
+        background var(--motion-dur-fast-calc) var(--motion-ease-out),
+        opacity var(--motion-dur-fast-calc) var(--motion-ease-out);
+}
+
+.previs-mode-switch-button:hover {
+    background: var(--surface-card-hover);
+    opacity: 1;
+}
+
+.previs-mode-switch-button.is-active {
+    border-color: var(--control-selected-border);
+    background: var(--control-selected-bg);
+    color: var(--control-selected-fg);
+    opacity: 1;
+}
+
+.previs-mode-switch-button:focus-visible {
+    outline: var(--stroke-2) solid var(--control-focus-ring);
+    outline-offset: 1px;
+}
+
+.previs-template-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-2);
+}
+
+.previs-template-card {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-1);
+    padding: var(--space-3);
+    border: var(--stroke-1) solid var(--card-border);
+    border-radius: var(--r-md);
+    background: var(--card-surface);
+    color: var(--foreground);
+    text-align: left;
+    transition: background var(--motion-dur-fast-calc) var(--motion-ease-out);
+}
+
+.previs-template-card:hover {
+    border-color: var(--control-selected-border);
+    background: var(--card-surface-hover);
+}
+
+.previs-template-card:focus-visible {
+    outline: var(--stroke-2) solid var(--control-focus-ring);
+    outline-offset: 1px;
+}
+
+.previs-template-card-name {
+    font-size: var(--fs-body);
+    font-weight: 500;
+}
+
+.previs-template-card-summary {
+    color: var(--control-selected-fg);
+    font-size: var(--fs-micro);
+    opacity: 0.72;
+}
+
+.previs-template-card-description {
+    font-size: var(--fs-tiny);
+    line-height: 1.5;
+    opacity: 0.6;
+}
+
+.previs-actor-colors {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.previs-actor-color {
+    width: var(--previs-color-swatch-size);
+    height: var(--previs-color-swatch-size);
+    flex: 0 0 var(--previs-color-swatch-size);
+    border: var(--stroke-1) solid var(--previs-sequencer-border);
+    border-radius: var(--r-full);
+    box-shadow: inset 0 0 0 var(--stroke-1) var(--previs-swatch-inset);
+}
+
+.previs-actor-color.is-active {
+    outline: var(--stroke-2) solid var(--workspace-accent);
+    outline-offset: var(--space-half);
+}
+
+.previs-pose-section {
+    display: grid;
+    gap: var(--space-2);
+}
+
+.previs-inspector-section-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    color: var(--cn-muted);
+    font-size: var(--fs-label);
+}
+
+.previs-inspector-section-title > span:last-child {
+    color: var(--workspace-accent);
+}
+
+.previs-pose-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--space-1);
+}
+
+.previs-pose-button {
+    min-width: 0;
+    height: var(--previs-pose-button-height);
+    padding: 0 var(--space-1);
+    overflow: hidden;
+    border: var(--stroke-1) solid var(--cn-stroke);
+    border-radius: var(--r-sm);
+    color: var(--cn-muted);
+    font-size: var(--fs-tiny);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    transition:
+        border-color var(--motion-dur-fast) var(--motion-ease-out),
+        background var(--motion-dur-fast) var(--motion-ease-out),
+        color var(--motion-dur-fast) var(--motion-ease-out);
+}
+
+.previs-pose-button:hover {
+    border-color: var(--workspace-accent);
+    color: var(--cn-text);
+}
+
+.previs-pose-button.is-active {
+    border-color: var(--workspace-accent);
+    background: var(--workspace-accent-soft);
+    color: var(--workspace-accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .previs-viewport-dock-button,
+    .previs-viewport-notice-action,
+    .previs-pose-button {
+        transition: none;
+    }
+}
+
+.previs-sequencer-resizer {
+    position: absolute;
+    z-index: 2;
+    inset: -4px 0 auto;
+    height: 8px;
+    cursor: ns-resize;
+}
+
+.previs-sequencer-resizer::after {
+    content: "";
+    position: absolute;
+    top: 3px;
+    left: 50%;
+    width: 44px;
+    height: 2px;
+    border-radius: var(--r-full);
+    background: rgba(255, 255, 255, 0.28);
+    transform: translateX(-50%);
+    opacity: 0;
+    transition: opacity var(--motion-dur-fast) var(--motion-ease-out);
+}
+
+.previs-sequencer:hover .previs-sequencer-resizer::after,
+.previs-sequencer-resizer:focus-visible::after {
+    opacity: 1;
+}
+
+.previs-sequencer-body {
+    position: relative;
+    height: calc(100% - 40px);
+    min-height: 0;
+}
+
+.previs-sequencer-grid {
+    position: relative;
+    display: grid;
+    min-width: calc(var(--previs-sequencer-base-width) * var(--previs-sequencer-track-scale, 1));
+    grid-template-columns: var(--previs-sequencer-label-width) minmax(640px, 1fr);
+}
+
+.previs-sequencer-global-playhead {
+    position: absolute;
+    z-index: 1;
+    top: 28px;
+    bottom: 0;
+    right: 0;
+    left: var(--previs-sequencer-label-width);
+    pointer-events: none;
+}
+
+.previs-sequencer-global-playhead > i {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: #f0b36a;
+}
+
+.previs-sequencer-label,
+.previs-sequencer-track {
+    min-width: 0;
+    height: var(--previs-sequencer-row-height);
+    border-bottom: 1px solid var(--previs-sequencer-border);
+}
+
+.previs-sequencer-row {
+    display: contents;
+}
+
+.previs-sequencer-label {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    width: var(--previs-sequencer-label-width);
+    padding: 0 var(--space-3);
+    color: rgba(255, 255, 255, 0.64);
+    text-align: left;
+    white-space: nowrap;
+    transition:
+        background var(--motion-dur-fast) var(--motion-ease-out),
+        color var(--motion-dur-fast) var(--motion-ease-out);
+}
+
+.previs-sequencer-label:hover,
+.previs-sequencer-row.is-selected > .previs-sequencer-label {
+    background: rgba(255, 255, 255, 0.075);
+    color: rgba(255, 255, 255, 0.96);
+}
+
+.previs-sequencer-label.is-indent {
+    padding-left: var(--space-6);
+    color: rgba(255, 255, 255, 0.46);
+}
+
+.previs-sequencer-ruler-label,
+.previs-sequencer-ruler {
+    height: 28px;
+    border-bottom-color: var(--previs-sequencer-border);
+    background: var(--previs-sequencer-surface-raised);
+}
+
+.previs-sequencer-ruler-label {
+    padding-left: var(--space-3);
+    color: rgba(255, 255, 255, 0.42);
+    font-size: var(--fs-micro);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.previs-sequencer-ruler {
+    position: relative;
+    cursor: ew-resize;
+    background-image: repeating-linear-gradient(to right, transparent 0, transparent calc(20% - 1px), var(--previs-sequencer-grid) 20%);
+}
+
+.previs-sequencer-tick {
+    position: absolute;
+    top: var(--space-2);
+    color: rgba(255, 255, 255, 0.38);
+    font-size: var(--fs-micro);
+    transform: translateX(-50%);
+}
+
+.previs-sequencer-playhead {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: #f0b36a;
+    pointer-events: none;
+}
+
+.previs-sequencer-track {
+    position: relative;
+    overflow: hidden;
+    background-image: repeating-linear-gradient(to right, transparent 0, transparent calc(20% - 1px), var(--previs-sequencer-grid) 20%);
+}
+
+.previs-sequencer-track-content {
+    position: absolute;
+    inset: 0;
+}
+
+.previs-sequencer-key {
+    position: absolute;
+    top: 50%;
+    width: 8px;
+    height: 8px;
+    border-radius: var(--r-xs);
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.38);
+    transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.previs-sequencer-key.is-actionable {
+    padding: 0;
+    border: 0;
+    outline-offset: 2px;
+    cursor: pointer;
+    transition: outline-color var(--motion-dur-fast-calc) var(--motion-ease-out);
+}
+
+.previs-sequencer-key.is-actionable::after {
+    position: absolute;
+    inset: -5px;
+    content: "";
+}
+
+.previs-sequencer-key.is-actionable:hover {
+    outline: var(--stroke-2) solid color-mix(in srgb, var(--control-focus-ring) 55%, transparent);
+}
+
+.previs-sequencer-key.is-actionable:focus-visible {
+    outline: var(--stroke-2) solid var(--control-focus-ring);
+}
+
+.previs-sequencer-key.is-actionable.is-selected {
+    outline: var(--stroke-2) solid var(--control-focus-ring);
+    outline-offset: 2px;
+}
+
+.previs-sequencer-clip {
+    position: absolute;
+    top: 5px;
+    bottom: 5px;
+    display: flex;
+    align-items: center;
+    min-width: 30px;
+    padding: 0 var(--space-2);
+    overflow: hidden;
+    border: 1px solid;
+    border-radius: var(--r-xs);
+    font-size: var(--fs-micro);
+}
+
+.previs-sequencer-transport,
+.previs-sequencer-icon,
+.previs-sequencer-tool {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: var(--space-8);
+    border-radius: var(--r-sm);
+    color: rgba(255, 255, 255, 0.62);
+    transition:
+        background var(--motion-dur-fast) var(--motion-ease-out),
+        color var(--motion-dur-fast) var(--motion-ease-out);
+}
+
+.previs-sequencer-transport,
+.previs-sequencer-icon {
+    width: var(--space-8);
+}
+
+.previs-sequencer-tool {
+    gap: var(--space-1);
+    padding: 0 var(--space-2);
+    font-size: var(--fs-micro);
+}
+
+.previs-sequencer-shot-select {
+    width: var(--previs-sequencer-shot-select-width);
+    height: var(--space-8);
+    padding: 0 var(--space-2);
+    overflow: hidden;
+    border: 1px solid var(--previs-sequencer-border);
+    border-radius: var(--r-sm);
+    background: var(--previs-sequencer-surface-raised);
+    color: rgba(255, 255, 255, 0.72);
+    font-size: var(--fs-micro);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.previs-sequencer-transport:hover,
+.previs-sequencer-icon:hover,
+.previs-sequencer-tool:hover,
+.previs-sequencer-icon.is-active,
+.previs-sequencer-tool.is-active {
+    background: rgba(255, 255, 255, 0.1);
+    color: #ffffff;
+}

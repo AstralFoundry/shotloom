@@ -4147,3 +4147,114 @@
     outline: 2px solid var(--ad-accent);
     outline-offset: 1px;
 }
+
+/* Animation steps share the inspector's spacing and surfaces. */
+.previs-anim-guide {
+    display: grid;
+    gap: 12px;
+    min-width: 0;
+}
+.pv-export-progress {
+    position: absolute;
+    z-index: 60;
+    top: 78px;
+    left: 50%;
+    width: min(360px, calc(100% - 32px));
+    padding: 16px;
+    transform: translateX(-50%);
+    border: 1px solid var(--pd-b1);
+    border-radius: 12px;
+    background: var(--pd-s1);
+    color: var(--pd-t0);
+    box-shadow: 0 8px 28px rgb(17 24 39 / 0.15);
+}
+.pv-export-progress__heading {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+}
+.pv-export-progress__heading strong { flex: 1; }
+.pv-export-progress__heading > svg { width: 16px; height: 16px; }
+.pv-export-progress p { margin: 10px 0; font-size: 12px; color: var(--pd-t1); }
+.pv-export-progress small { display: block; margin-top: 10px; color: var(--pd-t2); font-size: 11px; }
+.pv-export-progress__track { height: 4px; overflow: hidden; border-radius: 4px; background: var(--pd-b1); }
+.pv-export-progress__track > span { display: block; height: 100%; background: var(--pd-t0); transition: width 120ms linear; }
+.pv-export-progress__track.is-indeterminate > span { width: 35%; animation: pv-export-pending 1.2s ease-in-out infinite; }
+.pv-export-spinner { animation: pv-export-spin 1s linear infinite; }
+@keyframes pv-export-spin { to { transform: rotate(360deg); } }
+@keyframes pv-export-pending { from { transform: translateX(-100%); } to { transform: translateX(290%); } }
+@media (prefers-reduced-motion: reduce) {
+    .pv-export-spinner, .pv-export-progress__track.is-indeterminate > span { animation: none; }
+    .pv-export-progress__track > span { transition: none; }
+}
+.previs-anim-step {
+    display: grid;
+    gap: 10px;
+    min-width: 0;
+    padding: 12px;
+    border: 1px solid var(--pd-b1);
+    border-radius: var(--pd-r-md);
+    background: var(--pd-s1);
+}
+.previs-anim-step__head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.previs-anim-step__index {
+    display: grid;
+    flex: 0 0 22px;
+    width: 22px;
+    height: 22px;
+    place-items: center;
+    border: 1px solid var(--pd-b1);
+    border-radius: 50%;
+    color: var(--pd-t1);
+    font-size: var(--pd-ts-sm);
+}
+.previs-anim-step__title {
+    flex: 1;
+    color: var(--pd-t0);
+    font-weight: 600;
+}
+.previs-anim-step__state {
+    color: var(--pd-t2);
+    font-size: var(--pd-ts-sm);
+}
+.previs-anim-step__hint {
+    margin: 0;
+    color: var(--pd-t1);
+    font-size: var(--pd-ts-sm);
+    line-height: 1.65;
+    overflow-wrap: anywhere;
+}
+.previs-anim-guide__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+.previs-desk .previs-sequencer,
+.previs-desk .previs-sequencer-label,
+.previs-desk .previs-sequencer-transport,
+.previs-desk .previs-sequencer-icon,
+.previs-desk .previs-sequencer-tool,
+.previs-desk .previs-sequencer-shot-select {
+    color: var(--pd-t1);
+}
+.previs-desk .previs-sequencer-label.is-indent,
+.previs-desk .previs-sequencer-ruler-label,
+.previs-desk .previs-sequencer-tick {
+    color: var(--pd-t2);
+}
+.previs-desk .previs-sequencer-label:hover,
+.previs-desk .previs-sequencer-row.is-selected > .previs-sequencer-label,
+.previs-desk .previs-sequencer-transport:hover,
+.previs-desk .previs-sequencer-icon:hover,
+.previs-desk .previs-sequencer-tool:hover,
+.previs-desk .previs-sequencer-icon.is-active,
+.previs-desk .previs-sequencer-tool.is-active {
+    background: var(--pd-a-bg);
+    color: var(--pd-t0);
+}

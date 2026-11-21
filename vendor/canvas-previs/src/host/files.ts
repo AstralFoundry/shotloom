@@ -48,7 +48,11 @@ async function writeBlob(key: string, blob: Blob) {
             transaction.objectStore(STORE_NAME).put(blob, key);
             transaction.oncomplete = () => resolve(true);
             transaction.onerror = () => resolve(false);
+            transaction.onabort = () => resolve(false);
+            transaction.addEventListener("complete", () => db.close());
+            transaction.addEventListener("abort", () => db.close());
         } catch {
+            db.close();
             resolve(false);
         }
     });
@@ -63,7 +67,10 @@ async function readBlob(key: string): Promise<Blob | null> {
             const request = transaction.objectStore(STORE_NAME).get(key);
             request.onsuccess = () => resolve(request.result instanceof Blob ? request.result : null);
             request.onerror = () => resolve(null);
+            transaction.oncomplete = () => db.close();
+            transaction.onabort = () => { db.close(); resolve(null); };
         } catch {
+            db.close();
             resolve(null);
         }
     });
@@ -71,12 +78,11 @@ async function readBlob(key: string): Promise<Blob | null> {
 
 const localUpload: PrevisUpload = async (blob, prefix) => {
     const storageKey = `${prefix}:${Date.now().toString(36)}:${Math.random().toString(36).slice(2, 8)}`;
-    // A failed IndexedDB write still leaves the blob usable for this session: the object URL
-    // stays alive, and the user is told the file will need re-importing after a reload.
     const persisted = await writeBlob(storageKey, blob);
+    if (!persisted) throw new Error("无法保存世界引擎素材，请检查本机存储空间和浏览器存储权限后重试");
     const url = URL.createObjectURL(blob);
     objectUrls.set(storageKey, url);
-    return { url, storageKey: persisted ? storageKey : `${storageKey}:session`, bytes: blob.size, mimeType: blob.type };
+    return { url, storageKey, bytes: blob.size, mimeType: blob.type };
 };
 
 const localResolve: PrevisResolveUrl = async (storageKey, fallback = "") => {

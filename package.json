@@ -27,7 +27,7 @@
     "dist:electron": "node scripts/electron-package.mjs",
     "check": "npm run config:check && npm run typecheck && npm run typecheck:electron && npm run check:i18n && npm run check:storage && npm run check:layers && npm run check:styles && npm run check:ui && npm run check:tests && npm test",
     "test": "node --test tests/*.test.mjs",
-    "typecheck": "tsc --noEmit -p tsconfig.json && npm --prefix vendor/open-ai-canvas-previs run typecheck",
+    "typecheck": "tsc --noEmit -p tsconfig.json && npm --prefix vendor/canvas-previs run typecheck",
     "harness:build": "npm --prefix harness/host run build",
     "harness:test": "npm run harness:build && npm --prefix harness/host test",
     "harness:verify-package": "node scripts/verify-harness-package.mjs",

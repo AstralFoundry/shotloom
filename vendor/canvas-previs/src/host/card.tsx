@@ -27,7 +27,7 @@ function CardPreview() {
 
     useEffect(() => {
         const receive = (event: MessageEvent) => {
-            if (event.origin !== window.location.origin) return;
+            if (event.origin !== window.location.origin || event.source !== window.parent) return;
             const data = event.data as { type?: string; payload?: { scene?: unknown; locale?: string } } | null;
             if (!data || data.type !== "shotloom:previs-card") return;
             if (data.payload?.locale) setPrevisLocale(data.payload.locale);

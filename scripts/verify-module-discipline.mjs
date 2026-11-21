@@ -6,7 +6,7 @@ import path from 'node:path';
 import process from 'node:process';
 
 const root = path.resolve(import.meta.dirname, '../renderer/src');
-const previsVendorRoot = path.resolve(import.meta.dirname, '../vendor/open-ai-canvas-previs/src');
+const previsVendorRoot = path.resolve(import.meta.dirname, '../vendor/canvas-previs/src');
 
 const LAYERS = {
   app: ['app', 'agent', 'services', 'desktop', 'store', 'domain', 'config', 'utils', 'i18n', 'assets'],

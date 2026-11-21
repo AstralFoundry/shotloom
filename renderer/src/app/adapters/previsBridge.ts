@@ -1,7 +1,7 @@
-// 世界引擎（open-ai-canvas 性能预演工作台）从 vendor/open-ai-canvas-previs 独立构建，
+// 世界引擎（open-ai-canvas 性能预演工作台）从 vendor/canvas-previs 独立构建，
 // 通过 iframe 运行，与产品之间唯一的通道就是 postMessage。这里拥有那份私有协议：
 // 消息名、消息构造、来源校验和回执整形都只写一次，画布与工作区只消费类型化的回调。
-// 对端见 vendor/open-ai-canvas-previs/src/host/bridge.ts。
+// 对端见 vendor/canvas-previs/src/host/bridge.ts。
 
 export type PrevisWorldTheme = "light" | "dark";
 
@@ -30,7 +30,7 @@ export type PrevisWorldImageNode = {
   metadata?: { content?: string; storageKey?: string; url?: string };
 };
 
-export type PrevisWorldCapture = { dataUrl: string; fileName: string; kind: "image" | "video" };
+export type PrevisWorldCapture = { dataUrl: string; fileName: string; kind: "image" | "video"; prompt?: string; renderMode?: string };
 
 /** Compact description the canvas card can render without opening the engine. */
 export type PrevisWorldSummary = {
@@ -49,8 +49,10 @@ export type PrevisWorldSummary = {
 export type PrevisWorldHandlers = {
   onReady(): void;
   onSceneChanged(scene: PrevisSceneDocument): void;
-  onCaptures(captures: PrevisWorldCapture[]): void;
-  onAddToCanvas(capture: PrevisWorldCapture): void;
+  onCaptures(captures: PrevisWorldCapture[]): void | Promise<void>;
+  onAddToCanvas(capture: PrevisWorldCapture): void | Promise<void>;
+  onAddPrompt(title: string, prompt: string): void | Promise<void>;
+  onFlush(): void | Promise<void>;
   onClose?(): void;
   onError?(message: string): void;
 };
@@ -120,6 +122,17 @@ function plainMessage<T>(message: T): T {
 
 // 详情窗口会随开合挂载和卸载，所以按取值器读取当前 frame，注册期间换窗口也不会漏消息。
 export function subscribePrevisWorld(getFrame: () => HTMLIFrameElement | null, handlers: PrevisWorldHandlers) {
+  const respond = (payload: Record<string, unknown>, operation: () => void | Promise<void>) => {
+    const frame = getFrame();
+    void Promise.resolve().then(operation).then(
+      () => post(frame, { type: `${PREFIX}-result`, payload: { requestId: payload.requestId, ok: true } }),
+      (error) => {
+        const message = error instanceof Error ? error.message : String(error);
+        post(frame, { type: `${PREFIX}-result`, payload: { requestId: payload.requestId, ok: false, error: message } });
+        handlers.onError?.(message);
+      },
+    );
+  };
   const handleMessage = (event: MessageEvent) => {
     // 只接受同源且确实来自当前引擎窗口的消息；其他 iframe 或扩展发来同名消息不算协议。
     if (event.origin !== window.location.origin || event.source !== getFrame()?.contentWindow) return;
@@ -127,6 +140,7 @@ export function subscribePrevisWorld(getFrame: () => HTMLIFrameElement | null, h
     if (!message || typeof message.type !== "string" || !message.type.startsWith(PREFIX)) return;
     const payload = message.payload ?? {};
     if (message.type === `${PREFIX}-ready`) return handlers.onReady();
+    if (message.type === `${PREFIX}-flush`) return respond(payload, () => handlers.onFlush());
     if (message.type === `${PREFIX}-close`) return handlers.onClose?.();
     if (message.type === `${PREFIX}-scene-changed`) {
       const scene = readPrevisScene(payload.scene);
@@ -134,12 +148,26 @@ export function subscribePrevisWorld(getFrame: () => HTMLIFrameElement | null, h
       return;
     }
     if (message.type === `${PREFIX}-captures`) {
-      handlers.onCaptures(readCaptures(payload.captures));
+      respond(payload, () => {
+        const captures = readCaptures(payload.captures);
+        if (!captures.length) throw new Error("缺少有效的导出文件");
+        return handlers.onCaptures(captures);
+      });
       return;
     }
     if (message.type === `${PREFIX}-add-canvas`) {
-      const [capture] = readCaptures([payload.capture]);
-      if (capture) handlers.onAddToCanvas(capture);
+      respond(payload, () => {
+        const [capture] = readCaptures([payload.capture]);
+        if (!capture) throw new Error("缺少有效的截图");
+        return handlers.onAddToCanvas(capture);
+      });
+      return;
+    }
+    if (message.type === `${PREFIX}-add-prompt`) {
+      respond(payload, () => {
+        if (typeof payload.prompt !== "string" || !payload.prompt.trim()) throw new Error("提示词为空");
+        return handlers.onAddPrompt(typeof payload.title === "string" ? payload.title : "", payload.prompt);
+      });
       return;
     }
     if (message.type === `${PREFIX}-error`) {
@@ -183,7 +211,10 @@ function readCaptures(value: unknown): PrevisWorldCapture[] {
     const dataUrl = typeof entry.dataUrl === "string" ? entry.dataUrl : "";
     if (!dataUrl) return;
     const fileName = typeof entry.fileName === "string" && entry.fileName ? entry.fileName : `previs-capture-${index + 1}.png`;
-    captures.push({ dataUrl, fileName, kind: entry.kind === "video" ? "video" : "image" });
+    captures.push({ dataUrl, fileName, kind: entry.kind === "video" ? "video" : "image",
+      ...(typeof entry.prompt === "string" ? { prompt: entry.prompt } : {}),
+      ...(typeof entry.renderMode === "string" ? { renderMode: entry.renderMode } : {}),
+    });
   });
   return captures;
 }

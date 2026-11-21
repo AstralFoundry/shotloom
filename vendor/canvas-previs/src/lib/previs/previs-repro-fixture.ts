@@ -140,7 +140,7 @@ export const PREVIS_REPRO_MODEL_IDS: Record<PrevisReproModelVariant, string> = {
 /** 同源本地资产，不依赖外网可达性。
  *  手写 glTF 2.0：内嵌 base64 buffer、无纹理、无压缩扩展，
  *  因此不需要 KTX2Loader / DRACOLoader 也能被 GLTFLoader 直接解析。 */
-export const PREVIS_REPRO_LOCAL_MODEL_URL = "/canvas/models/previs-repro-triangle.gltf";
+export const PREVIS_REPRO_LOCAL_MODEL_URL = "./canvas/models/previs-repro-triangle.gltf";
 /** 同源但确定不存在：稳定触发加载失败路径，不依赖外网可达性。 */
 export const PREVIS_REPRO_MISSING_MODEL_URL = "/__previs-repro-missing.glb";
 

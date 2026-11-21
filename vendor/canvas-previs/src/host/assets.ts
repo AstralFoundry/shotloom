@@ -69,12 +69,8 @@ function subscribe(listener: () => void) {
     };
 }
 
-function read() {
-    return store;
-}
-
 export function useModelAssets(): PrevisModelAsset[] {
-    return useSyncExternalStore(subscribe, read, read).assets;
+    return useSyncExternalStore(subscribe, () => store.assets, () => store.assets);
 }
 
 export function addPrevisModelAsset(asset: { title: string; data: PrevisModelAsset["data"] }): PrevisModelAsset {

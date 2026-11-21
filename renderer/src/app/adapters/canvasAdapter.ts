@@ -42,6 +42,7 @@ import {
 } from "../../store/nodeStore.ts";
 import {
   persistCanvasViewport,
+  flushProjectCheckpoint,
   store as rawStore,
   touchProject,
 } from "../../store/projectStore.ts";
@@ -824,6 +825,36 @@ export const nodeActions: WorkflowNodeActions = {
     recordCanvasHistory(t("ui.canvasAdapter.text.ea56bf47"));
     store.project.edges = store.project.edges.filter((item: any) => item.id !== edgeId);
     store.selectedEdgeId = null;
+    touchProject();
+  },
+  createDirectorVideo(imageId, title, prompt) {
+    const image: any = store.project.nodes.find((node: any) => node.id === imageId && !node.archived);
+    if (!image) throw new Error("截图节点已不存在");
+    const output: any = addNode("videoGeneration", { select: false });
+    output.title = title.replace(/\.[^.]+$/, "");
+    output.prompt = prompt;
+    output.x = (Number(image.x) || 0) + 430;
+    output.y = Number(image.y) || 0;
+    addCanvasEdge(store.project, imageId, output.id, { touch: false });
+    touchProject();
+  },
+  async flushDirectorScene(id) {
+    if (!store.project.nodes.some((node: any) => node.id === id && !node.archived)) throw new Error("世界引擎节点已不存在");
+    if (!await flushProjectCheckpoint()) throw new Error("世界引擎场景保存失败，请重试");
+  },
+  exportDirectorPrompt(id, title, prompt) {
+    const director: any = store.project.nodes.find((node: any) => node.id === id && !node.archived);
+    if (!director) throw new Error("世界引擎节点已不存在");
+    recordCanvasHistory(t("ui.canvasAdapter.text.3dfb5419"));
+    const output: any = addNode("textGeneration", { select: false });
+    output.title = title;
+    output.content = prompt;
+    output.textContent = prompt;
+    output.status = "completed";
+    output.x = (Number(director.x) || 0) + 600;
+    output.y = Number(director.y) || 0;
+    output.generatedFrom = { nodeId: id, type: "3d-director" };
+    addCanvasEdge(store.project, id, output.id, { touch: false });
     touchProject();
   },
   async exportDirectorAsset(id, dataUrl, name, kind, directorContext) {

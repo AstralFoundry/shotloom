@@ -17,6 +17,7 @@ import {
   previsWorldSummary,
   readPrevisScene,
   sendPrevisImages,
+  sendPrevisScene,
   sendPrevisSession,
   subscribePrevisWorld,
   type PrevisSceneDocument,
@@ -67,7 +68,11 @@ export const PrevisWorldNode: WorkflowNodeRenderer = memo(
     }, [incomingImages]);
 
     useEffect(() => {
-      void actions.getDirectorIncomingImages(node.id).then(setIncomingImages);
+      let active = true;
+      void actions.getDirectorIncomingImages(node.id).then((images) => {
+        if (active) setIncomingImages(images);
+      });
+      return () => { active = false; };
     }, [actions, inputRevision, node.id]);
 
     useEffect(() => {
@@ -93,12 +98,18 @@ export const PrevisWorldNode: WorkflowNodeRenderer = memo(
       sendImages();
     }, [incomingImages, sendImages]);
 
+    // Domain state is mutated in place, so depend on the serialized document, not its identity.
+    const sceneJson = JSON.stringify(scene);
+    useEffect(() => {
+      sendPrevisScene(detailIframeRef.current, scene);
+    }, [sceneJson, detailOpen]);
+
     // The card page posts a handshake once its listener is installed; the scene may have
     // changed between iframe load and that point, so this is the reliable sync point.
     useEffect(() => subscribePrevisCardReady(() => miniFrameRef.current, () => {
       sendPrevisCardScene(miniFrameRef.current, miniScene, getLocale());
       if (miniScene) sentMiniRef.current = `${miniScene.id}:${miniScene.updatedAt}`;
-    }), [miniScene]);
+    }), [sceneJson]);
 
     // Keep the card's mini viewport in sync with the saved scene; the iframe is lazy and
     // only exists once the scene has at least one object.
@@ -109,7 +120,7 @@ export const PrevisWorldNode: WorkflowNodeRenderer = memo(
       if (sentMiniRef.current === signature) return;
       sentMiniRef.current = signature;
       sendPrevisCardScene(frame, miniScene, getLocale());
-    }, [miniScene]);
+    }, [sceneJson]);
 
     useEffect(() => {
       const unsubscribe = subscribePrevisWorld(getFrame, {
@@ -129,12 +140,17 @@ export const PrevisWorldNode: WorkflowNodeRenderer = memo(
         onAddToCanvas: async (capture) => {
           const result = await actions.exportDirectorAsset(node.id, capture.dataUrl, capture.fileName, capture.kind);
           if (!result) throw new Error("未能创建导出节点");
+          if (capture.renderMode === "beauty" || capture.renderMode === "clay") {
+            actions.createDirectorVideo(result.nodeId, capture.fileName, capture.prompt || "");
+          }
         },
+        onAddPrompt: (title, prompt) => actions.exportDirectorPrompt(node.id, title, prompt),
+        onFlush: () => actions.flushDirectorScene(node.id),
         onClose: () => {
           setInteracting(false);
           setDetailOpen(false);
         },
-        onError: (error) => showToast(t("director.loadFailed", { error }), "error"),
+        onError: (error) => showToast(error, "error"),
       });
       return unsubscribe;
     }, [actions, getFrame, node, sendSession]);

@@ -1,11 +1,12 @@
 import { existsSync } from 'node:fs';
-import { cp, mkdir, rm } from 'node:fs/promises';
+import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const source = path.join(root, 'vendor/open-ai-canvas-previs');
+const source = path.join(root, 'vendor/canvas-previs');
 const output = path.join(root, 'renderer/public/previs-world-app');
 
 function runNpm(args) {
@@ -24,10 +25,15 @@ function runNpm(args) {
   }
 }
 
-if (!existsSync(path.join(source, 'node_modules'))) {
+const dependencyStamp = path.join(source, 'node_modules/.shotloom-dependencies');
+const lockHash = createHash('sha256').update(await readFile(path.join(source, 'package-lock.json'))).digest('hex');
+const installedHash = existsSync(dependencyStamp) ? await readFile(dependencyStamp, 'utf8') : '';
+if (installedHash !== lockHash) {
   runNpm(['ci', '--ignore-scripts']);
+  await writeFile(dependencyStamp, lockHash);
 }
 runNpm(['run', 'build']);
 await rm(output, { recursive: true, force: true });
 await mkdir(output, { recursive: true });
 await cp(path.join(source, 'dist'), output, { recursive: true });
+await cp(path.join(source, 'LICENSE'), path.join(output, 'LICENSE-open-ai-canvas.txt'));

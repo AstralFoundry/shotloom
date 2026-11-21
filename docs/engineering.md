@@ -14,15 +14,17 @@
 
 ## 第三方源码目录
 
-第三方源码统一放在项目根目录 `vendor/`：OpenReel 位于 `vendor/openreel/`，世界引擎（open-ai-canvas 性能预演工作台）位于 `vendor/open-ai-canvas-previs/`，固定在 open-ai-canvas `0dcf3f6` 快照并记录于该目录 README。不要在 `renderer/src` 下再建 vendor。世界引擎单独编译到 `renderer/public/previs-world-app/`，只通过 iframe 运行；产品通过 `app/adapters/previsBridge.ts` 的 postMessage 协议交互，不直接导入其运行时状态。根 `npm run typecheck` 同时检查产品与世界引擎，模块分层检查也覆盖这份 vendored 源码。
+第三方源码统一放在项目根目录 `vendor/`：OpenReel 位于 `vendor/openreel/`，世界引擎（open-ai-canvas 性能预演工作台）位于 `vendor/canvas-previs/`，固定在 open-ai-canvas `0dcf3f6` 快照并记录于该目录 README。不要在 `renderer/src` 下再建 vendor。世界引擎单独编译到 `renderer/public/previs-world-app/`，只通过 iframe 运行；产品通过 `app/adapters/previsBridge.ts` 的 postMessage 协议交互，不直接导入其运行时状态。根 `npm run typecheck` 同时检查产品与世界引擎，模块分层检查也覆盖这份 vendored 源码。
 
 世界引擎的文档是一份纯 JSON 场景（`PrevisScene`）：镜头、机位、灯光、天空/天气/地面和关键帧都在其中，产品只保存与转交，不解释渲染。画布节点、整页工作区与后台恢复共用同一份协议；节点数据存在 `directorData.scene`（沿用历史字段名以兼容既有工程），节点类型标识仍为 `threeDDirector`。
 
-引擎 → 宿主只有四类回执：`ready`、`scene-changed`（每次提交后的完整场景，节点据此保存并驱动卡片）、`captures`（构图/深度/法线/骨骼截图与白膜/深度视频，宿主用 `nodeActions.exportDirectorAsset` 落成节点）、`add-canvas`（把单张截图加入画布）。宿主 → 引擎只有 `init`、`scene`、`images` 三条下发。导出媒体不携带应用猜测的景别或剧情，模型需要据此编写下游提示词时必须自己读取真实画面。
+引擎通过 `ready` 握手、`scene-changed` 同步每次提交后的完整场景，节点据此保存并驱动卡片；`captures` 回写构图/深度/法线/骨骼截图与白膜/深度视频，宿主用 `nodeActions.exportDirectorAsset` 落成节点；`add-canvas` 添加单张截图，`add-prompt` 添加上游编译的镜头提示词，`flush` 请求实际保存。操作携带 requestId，宿主完成后用 `result` 确认成功或报告错误，工作台不能在文件或节点创建前宣称交付成功。构图/白膜截图同时建立带截图输入和上游镜头提示词的视频生成节点。宿主通过 `init`、`scene`、`images` 下发数据，同 ID 的外部修订会更新打开的工作台，图片更新不重新采用旧场景。导出媒体不携带应用猜测的景别或剧情，模型需要据此编写下游提示词时必须自己读取真实画面。
 
 画布节点卡片用上游的 PREVIS 布局：场景有对象时，嵌入 `card.html` 的迷你俯视视口（场景通过 `shotloom:previs-card` 下发，iframe 只渲染缩略图并禁用指针事件，点击仍由卡片打开工作台）；没有对象时显示「尚未生成预览」。这样卡片外观与参考项目一致，也不需要把 vendored 渲染器导入产品模块。
 
 世界引擎的 3D 素材库属于引擎自身：导入的 glb/gltf 与截图产物写进 iframe 内的 IndexedDB（`host/files.ts`），场景文档只存 storageKey，因此仍是可移植的 JSON。引擎自带的程序化布景、天气与天空不依赖联网，也不需要 Polyfork 或云端登录；历史导演台的 Polyfork 在线模型服务随旧引擎一并移除。
+
+上游人偶模型与 CC0 许可证随独立引擎发行，资源路径相对于 iframe。视频使用上游 FFmpeg.wasm 转码逻辑，worker、JS 和 WASM 均打入产物，按需加载，不依赖 CDN；白膜/深度视频输出真实 MP4，按镜头帧率和时长处理。底层存储写入失败必须报错，不能用仅当次会话有效的 blob URL 冒充持久素材。
 
 ## 官方 Harness 客户端隔离
 

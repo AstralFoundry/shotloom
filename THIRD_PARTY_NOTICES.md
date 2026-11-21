@@ -39,9 +39,9 @@ SOFTWARE.
 ## Open AI Canvas — previs world engine
 
 Source: https://github.com/ddcat-ai/open-ai-canvas
-Local source: `vendor/open-ai-canvas-previs/` (snapshot `0dcf3f6`)
+Local source: `vendor/canvas-previs/` (snapshot `0dcf3f6`)
 License: MIT. The upstream license is preserved in
-`vendor/open-ai-canvas-previs/LICENSE`.
+`vendor/canvas-previs/LICENSE`.
 
 MIT License
 

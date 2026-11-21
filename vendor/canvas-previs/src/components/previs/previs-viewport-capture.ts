@@ -7,7 +7,7 @@ import { PREVIS_WORLD_CAMERA_FAR } from "@/lib/previs/previs-world";
 import type { PrevisRenderMode } from "@/types/previs";
 import type { CaptureContext } from "./previs-viewport";
 
-export type PrevisCaptureOptions = { longEdge?: number; depthNear?: number; depthFar?: number; signal?: AbortSignal };
+export type PrevisCaptureOptions = { longEdge?: number; depthNear?: number; depthFar?: number; signal?: AbortSignal; onProgress?: (progress: number) => void };
 export type PrevisCaptureSource = () => CaptureContext | null;
 
 /** 近白远黑，固定米制范围。禁止逐帧自动归一化，否则深度视频会闪烁。 */
@@ -229,15 +229,18 @@ export async function recordCanvas(source: PrevisCaptureSource, duration: number
             options.signal?.addEventListener("abort", onAbort, { once: true });
             document.addEventListener("visibilitychange", onHidden);
             activeRecorder.start(250);
+            options.onProgress?.(0);
             const start = performance.now();
             const tick = () => {
                 try {
                     const elapsed = (performance.now() - start) / 1000;
                     if (elapsed >= duration) {
+                        options.onProgress?.(100);
                         stop();
                         return;
                     }
                     surface.render(mode, Math.floor(elapsed * fps) / fps);
+                    options.onProgress?.(Math.floor(elapsed / duration * 100));
                     timer = window.setTimeout(tick, 1000 / fps);
                 } catch (error) {
                     stop(error instanceof Error ? error : new Error("录制期间渲染失败"));

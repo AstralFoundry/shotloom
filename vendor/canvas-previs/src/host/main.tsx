@@ -41,35 +41,29 @@ function readBlob(blob: Blob): Promise<string> {
 
 async function capture(blob: Blob | undefined, fileName: string, kind: PrevisBridgeCapture["kind"]): Promise<PrevisBridgeCapture | null> {
     if (!blob) return null;
-    return { dataUrl: await readBlob(blob), fileName, kind };
+    const extension = blob.type.split(";")[0] === "video/webm" ? ".webm" : ".mp4";
+    return { dataUrl: await readBlob(blob), fileName: kind === "video" ? fileName.replace(/\.[^.]+$/, extension) : fileName, kind };
 }
 
 function PrevisHostApp() {
     const [scene, setScene] = useState<PrevisScene | null>(null);
     const [imageNodes, setImageNodes] = useState<ReturnType<typeof toContentNodes>>([]);
-    const sceneIdRef = useRef<string | null>(null);
+    const sceneRef = useRef<PrevisScene | null>(null);
 
-    /** Adopt a host scene exactly once per scene id; same-id echoes must not rebuild the session. */
-    const adopt = useCallback((init: PrevisBridgeInit) => {
+    /** Let the workbench distinguish external revisions from its own mirrored edits. */
+    const adopt = useCallback((init: PrevisBridgeInit, replace = false) => {
         if (init.brandName) setPrevisBrandName(init.brandName);
         if (init.locale) setPrevisLocale(init.locale);
         setImageNodes(toContentNodes(init.imageNodes));
-        const incomingId = init.scene?.id ?? null;
-        if (incomingId && incomingId !== sceneIdRef.current) {
-            sceneIdRef.current = incomingId;
-            setScene(init.scene ?? null);
-            return;
-        }
-        setScene((current) => {
-            if (current) return current;
-            const next = init.scene ?? createPrevisScene("未命名场景");
-            sceneIdRef.current = next.id;
-            return next;
-        });
+        const next = init.scene ?? (!replace ? sceneRef.current : null) ?? createPrevisScene("未命名场景");
+        if (JSON.stringify(next) === JSON.stringify(sceneRef.current)) return;
+        sceneRef.current = next;
+        setScene(next);
+        if (!init.scene) previsBridge.sceneChanged(next);
     }, []);
 
     useEffect(() => {
-        const dispose = installPrevisBridge({ onInit: adopt });
+        const dispose = installPrevisBridge({ onInit: adopt, onImages: (nodes) => setImageNodes(toContentNodes(nodes)) });
         previsBridge.ready(INSTANCE_ID);
         return dispose;
     }, [adopt]);
@@ -79,7 +73,8 @@ function PrevisHostApp() {
      * are derived from this message. `setScene` alone only updates the engine's own render.
      */
     const handleSceneChange = useCallback((next: PrevisScene) => {
-        setScene((current) => (current && current.id === next.id ? next : current));
+        sceneRef.current = next;
+        setScene(next);
         previsBridge.sceneChanged(next);
     }, []);
 
@@ -99,14 +94,14 @@ function PrevisHostApp() {
             capture(output.clayVideo, `${shotName}-白膜.mp4`, "video"),
             capture(output.depthVideo, `${shotName}-深度.mp4`, "video"),
         ])).filter((item): item is PrevisBridgeCapture => item !== null);
-        previsBridge.captures(captures);
+        await previsBridge.captures(captures);
     }, []);
 
     /** 「加入画布」：单张截图或纯提示词，由宿主决定落成哪个节点。 */
     const addToCanvas = useCallback(async (output: PrevisCanvasExport) => {
-        if (output.kind !== "screenshot") return;
+        if (output.kind === "prompt") return previsBridge.addPrompt(output.title, output.prompt);
         const shot = await capture(output.image, `${output.title || "构图"}.png`, "image");
-        if (shot) previsBridge.addToCanvas(shot);
+        if (shot) await previsBridge.addToCanvas({ ...shot, prompt: output.prompt, renderMode: output.renderMode });
     }, []);
 
     if (!scene) {
@@ -129,6 +124,7 @@ function PrevisHostApp() {
                     onboardingScope={BOOT_PARAMS.get("onboardingScope") || "shotloom-world-engine"}
                     onClose={handleClose}
                     onChange={handleSceneChange}
+                    onFlush={previsBridge.flush}
                     onApply={applyOutput}
                     onAddToCanvas={addToCanvas}
                     onDeleteImageNode={noopNode}

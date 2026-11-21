@@ -18,7 +18,7 @@ import type { PrevisActorArchetype, PrevisActorProfile, PrevisRig } from "@/type
  *
  * 贴地：用挂在 UAL 骨骼上的接触点（脚尖、脚跟、膝、肘、手、头、臀）求最低点，整体抬落到 y=0。
  */
-export const PREVIS_MANNEQUIN_URL = "/previs/mannequin.glb";
+export const PREVIS_MANNEQUIN_URL = "./previs/mannequin.glb";
 export const PREVIS_MANNEQUIN_HEIGHT = 1.83;
 
 export type PrevisMannequin = {

@@ -1,5 +1,5 @@
 {
-  "name": "open-ai-canvas-previs",
+  "name": "canvas-previs",
   "private": true,
   "version": "0.1.0",
   "description": "Open AI Canvas 世界引擎（性能预演工作台），按 Shotloom 的 iframe 宿主方式独立构建",
@@ -11,6 +11,9 @@
     "test": "node --test tests/*.test.mjs"
   },
   "dependencies": {
+    "@ffmpeg/core": "0.12.10",
+    "@ffmpeg/ffmpeg": "0.12.15",
+    "@ffmpeg/util": "0.12.2",
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.6.1",
     "antd": "6.7.0",
@@ -26,12 +29,12 @@
     "zustand": "5.1.0"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
     "@types/file-saver": "^2.0.7",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "@types/three": "0.185.4",
     "@vitejs/plugin-react": "6.3.0",
-    "@tailwindcss/vite": "^4.3.3",
     "tailwindcss": "^4.3.3",
     "typescript": "5.9.3",
     "vite": "8.2.2"

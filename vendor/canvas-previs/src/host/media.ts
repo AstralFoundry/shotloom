@@ -2,9 +2,8 @@
  * Video transcoding host port.
  *
  * Screen recordings arrive as WebM; downstream canvas nodes and some players only accept MP4.
- * The host provides a transcoder (ffmpeg.wasm in the browser app) and owns fps/duration
- * handling. Without one the recording is returned untouched with its original mime type,
- * never silently relabelled as MP4.
+ * The default is the upstream offline FFmpeg.wasm transcoder, loaded only on export.
+ * Hosts may supply an alternative implementation with the same fps/duration contract.
  */
 export type PrevisTranscodeProgress = { phase: "loading" | "encoding"; progress: number };
 
@@ -25,8 +24,13 @@ export function setPrevisVideoTranscoder(next: PrevisTranscode | null) {
     transcode = next;
 }
 
-/** Transcode to MP4 when the host can, otherwise pass the original recording through. */
+/** Transcode using the host implementation or the bundled upstream encoder. */
 export async function transcodeVideoToMp4(blob: Blob, options: PrevisTranscodeOptions = {}): Promise<Blob> {
-    if (blob.type === "video/mp4" || !transcode) return blob;
-    return transcode(blob, options);
+    if (blob.type.split(";")[0] === "video/mp4") return blob;
+    if (transcode) return transcode(blob, options);
+    const engine = await import("@/lib/previs/canvas-video-transcode");
+    return engine.transcodeVideoToMp4(blob, {
+        ...options,
+        onProgress: (progress) => options.onProgress?.({ phase: progress.phase === "loading" ? "loading" : "encoding", progress: progress.progress }),
+    });
 }

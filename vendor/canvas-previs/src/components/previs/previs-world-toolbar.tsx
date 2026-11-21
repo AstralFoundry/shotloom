@@ -1,4 +1,4 @@
-import { Building2, Camera, Clapperboard, Film, Globe2, Keyboard, Layers, ListTree, Map as MapIcon, Shapes, Trees, UserRound, Video, type LucideIcon } from "lucide-react";
+import { Building2, Camera, Clapperboard, Film, Globe2, Keyboard, Layers, ListTree, LoaderCircle, Map as MapIcon, Shapes, Trees, UserRound, Video, type LucideIcon } from "lucide-react";
 
 /**
  * 世界引擎左侧悬浮工具条：按工作流分组「搭世界 → 拍戏 → 出片」，每个入口直达对应面板或添加页。
@@ -37,7 +37,7 @@ const GROUPS: Array<{ title: string; items: ToolbarItem[] }> = [
     },
 ];
 
-export function PrevisWorldToolbar({ active, busy, onAction }: { active: Partial<Record<PrevisWorldToolbarAction, boolean>>; busy?: boolean; onAction: (action: PrevisWorldToolbarAction) => void }) {
+export function PrevisWorldToolbar({ active, busy, exporting, onAction }: { active: Partial<Record<PrevisWorldToolbarAction, boolean>>; busy?: boolean; exporting?: "clay" | "depth" | null; onAction: (action: PrevisWorldToolbarAction) => void }) {
     return (
         <nav className="pv-world-toolbar" aria-label="世界引擎工具" data-canvas-no-zoom>
             {GROUPS.map((group) => (
@@ -51,10 +51,11 @@ export function PrevisWorldToolbar({ active, busy, onAction }: { active: Partial
                             aria-pressed={active[item.action] ? true : undefined}
                             title={item.hint}
                             disabled={busy && (item.action === "clay" || item.action === "depth")}
+                            aria-busy={exporting === item.action || undefined}
                             onClick={() => onAction(item.action)}
                         >
-                            <item.icon className="size-[18px]" aria-hidden />
-                            <span>{item.label}</span>
+                            {exporting === item.action ? <LoaderCircle className="size-[18px] pv-export-spinner" aria-hidden /> : <item.icon className="size-[18px]" aria-hidden />}
+                            <span>{exporting === item.action ? "导出中" : item.label}</span>
                         </button>
                     ))}
                 </div>

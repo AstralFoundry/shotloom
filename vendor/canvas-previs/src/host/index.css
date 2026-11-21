@@ -1,4 +1,5 @@
 @import "tailwindcss" source(none);
+@import "./previs-foundation.css";
 
 /*
  * Scans only the world engine (never the Shotloom product, which has its own Tailwind setup)
@@ -91,6 +92,9 @@
     --space-1: 4px;
     --space-2: 8px;
     --space-3: 12px;
+    --space-half: 2px;
+    --space-4: 16px;
+    --space-5: 20px;
     --space-6: 24px;
     --space-8: 32px;
     --fs-nano: 7px;
@@ -106,6 +110,26 @@
     --previs-danger-soft: rgba(248, 113, 113, 0.14);
     --previs-swatch-inset: rgba(0, 0, 0, 0.18);
     --previs-sequencer-min-height: 180px;
+    --previs-sequencer-label-width: 208px;
+    --previs-sequencer-row-height: 30px;
+    --previs-sequencer-base-width: 860px;
+    --previs-sequencer-shot-select-width: 144px;
+    --previs-sequencer-surface: #fbfcfe;
+    --previs-sequencer-surface-raised: #f1f4f7;
+    --previs-sequencer-border: rgba(15, 23, 42, 0.12);
+    --previs-sequencer-muted: rgba(15, 23, 42, 0.5);
+    --previs-sequencer-grid: rgba(15, 23, 42, 0.07);
+    --previs-color-swatch-size: var(--space-6);
+    --previs-pose-button-height: var(--space-8);
+    --previs-dock-button-size: var(--space-8);
+    --previs-dock-bottom: var(--space-2);
+    --previs-dock-surface: rgba(255, 255, 255, 0.96);
+    --previs-dock-fg: rgba(15, 23, 42, 0.62);
+    --previs-dock-fg-strong: rgba(15, 23, 42, 0.94);
+    --previs-dock-active-surface: rgba(15, 23, 42, 0.09);
+    --previs-control-hover: rgba(15, 23, 42, 0.06);
+    --fs-body: 13px;
+    --r-xs: 4px;
     --pd-a-on-theme: #ffffff;
     --pd-a-bg-theme: rgba(29, 32, 38, 0.06);
     --pd-a-bd-theme: rgba(29, 32, 38, 0.55);

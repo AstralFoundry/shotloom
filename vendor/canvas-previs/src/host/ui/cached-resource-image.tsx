@@ -20,22 +20,22 @@ export type CachedResourceImageProps = Omit<ImgHTMLAttributes<HTMLImageElement>,
 const DIRECT = /^(?:data|blob|https?):/i;
 
 export function CachedResourceImage({ storageKey, src = "", fallback = null, eager: _eager = false, alt = "", ...props }: CachedResourceImageProps) {
-    const [resolved, setResolved] = useState<string | null>(DIRECT.test(src) ? src : null);
+    const [resolved, setResolved] = useState<{ key: string; url: string } | null>(null);
     const direct = DIRECT.test(src) ? src : null;
     const key = storageKey || (src && !DIRECT.test(src) ? src : undefined);
 
     useEffect(() => {
-        if (direct || !key) return;
+        if (!key) return;
         let active = true;
         void resolveMediaUrl(key, src).then((url) => {
-            if (active) setResolved(url || null);
+            if (active) setResolved(url ? { key, url } : null);
         });
         return () => {
             active = false;
         };
     }, [direct, key, src]);
 
-    const source = direct ?? resolved;
+    const source = resolved && resolved.key === key ? resolved.url : direct;
     if (!source) return <>{fallback}</>;
     return <img {...props} alt={alt} src={source} />;
 }
