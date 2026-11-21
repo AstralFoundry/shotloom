@@ -747,30 +747,20 @@ body.annotation-editor-open .screenshots-textarea {
 .react-workflow-canvas .react-flow__background { opacity: 0; }
 .react-workflow-canvas .react-flow__container { background: transparent; }
 
-/* 右上角只有一条工具栏：缩放、显示设置、缩略图开关共用同一块白底，
- * 分组之间用描边分隔，不再各自带边框和投影。 */
+/* View tools share the reference canvas's lower-left pill; creation stays centered. */
 .canvas-corner-controls {
   position: absolute;
-  right: 12px;
-  top: 10px;
-  bottom: auto;
+  left: 16px;
+  right: auto;
+  top: auto;
+  bottom: var(--canvas-view-bottom, 16px);
   z-index: var(--layer-canvas-popover);
   display: flex;
   align-items: center;
   gap: 4px;
   box-sizing: border-box;
-  height: var(--canvas-toolbar-height-compact);
-  padding: 2px 6px;
-  border: .5px solid var(--elevated-border);
-  border-radius: var(--radius);
-  background: var(--canvas-controls-bg);
-  box-shadow: var(--canvas-shadow-panel);
-}
-.forge-lite-main.agent-collapsed .canvas-corner-controls {
-  right: calc(22px + var(--agent-reopen-width));
-}
-.forge-lite-main.agent-collapsed .react-workflow-canvas .react-flow__minimap.canvas-minimap {
-  right: calc(22px + var(--agent-reopen-width));
+  height: 40px;
+  padding: 0;
 }
 .canvas-corner-divider {
   flex: none;
@@ -806,7 +796,7 @@ body.annotation-editor-open .screenshots-textarea {
 .canvas-zoom-group button:hover,
 .canvas-corner-map:hover,
 .canvas-corner-map.active { color: var(--text); background: var(--canvas-controls-hover); }
-.canvas-zoom-group .canvas-zoom-value { width: 48px; font-size: var(--text-body-12); line-height: var(--text-body-12--line-height); font-weight: 500; font-variant-numeric: tabular-nums; }
+.canvas-zoom-group .canvas-zoom-value { display: flex; gap: 8px; padding: 0 8px; width: auto; min-width: 80px; font-size: var(--text-body-12); line-height: var(--text-body-12--line-height); font-weight: 500; font-variant-numeric: tabular-nums; }
 .canvas-zoom-group > span { width: var(--toolbar-divider-width); height: 20px; margin: 0 3px; background: var(--line-strong); }
 .canvas-zoom-group svg,
 .canvas-corner-map svg { width: var(--icon-sm); height: var(--icon-sm); }
@@ -815,36 +805,26 @@ body.annotation-editor-open .screenshots-textarea {
   height: var(--canvas-toolbar-action-compact);
   border-radius: var(--radius-md);
 }
-.react-workflow-canvas .react-flow__minimap.canvas-minimap {
-  right: 12px;
-  /* 与右上角工具栏同一条竖线：紧贴在工具栏下方 8px。React Flow 默认给小地图 15px 外边距，
-   * 不清零的话工具栏与地图之间会叠出 30px 的空隙。 */
-  margin: 0;
-  top: calc(18px + var(--canvas-toolbar-height-compact));
-  bottom: auto;
-  /* 面板尺寸只由 <MiniMap style> 决定：内容盒必须正好等于 svg，
-     否则 overflow: hidden 会裁掉地图边缘的节点，那些节点既看不见也点不到。 */
-  border: 0;
-  border-radius: var(--radius);
+/* Reference minimap: 240×160, above the view pill, media type colors and a live viewport. */
+.canvas-minimap {
+  --minimap-image: var(--media-map-image);
+  --minimap-video: var(--media-map-video);
+  --minimap-audio: var(--media-map-audio);
+  --minimap-node: var(--media-map-node);
+  --minimap-frame: var(--text);
+  position: absolute;
+  z-index: var(--layer-canvas-popover);
+  left: 16px;
+  bottom: calc(var(--canvas-view-bottom, 16px) + 48px);
   overflow: hidden;
+  border-radius: var(--radius);
   background: var(--canvas-controls-bg);
-  box-shadow: var(--canvas-shadow-panel), inset 0 0 0 1px var(--elevated-border);
-  /* 缩略图的颜色同样只走令牌：点和遮罩由前景/底色推导，暗色主题下自动反向。 */
-  --xy-minimap-node-background-color: color-mix(in srgb, var(--text) 30%, transparent);
-  --xy-minimap-mask-background-color: color-mix(in srgb, var(--canvas-controls-bg) 72%, transparent);
+  box-shadow: var(--canvas-shadow-panel);
+  cursor: crosshair;
+  touch-action: none;
 }
-/* 小地图里的节点是定位入口：悬停加深、选中换成强调色，点一下把视野平移过去。
-   视口外的节点已经压了一层遮罩，所以只改填充，不再加描边。 */
-.react-workflow-canvas .react-flow__minimap.canvas-minimap .react-flow__minimap-node {
-  cursor: pointer;
-  transition: fill var(--duration-fast) var(--ease-std);
-}
-.react-workflow-canvas .react-flow__minimap.canvas-minimap .react-flow__minimap-node:hover {
-  fill: color-mix(in srgb, var(--text) 55%, transparent);
-}
-.react-workflow-canvas .react-flow__minimap.canvas-minimap .react-flow__minimap-node.selected {
-  fill: color-mix(in srgb, var(--brand-accent) 78%, transparent);
-}
+.canvas-minimap canvas { display: block; width: 100%; height: 100%; pointer-events: none; }
+.canvas-minimap-viewport { position: absolute; pointer-events: none; border-radius: var(--radius-xs); background: color-mix(in srgb, var(--text) 7%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text) 40%, transparent); }
 .canvas-empty-copy {
   position: absolute;
   left: 50%;
@@ -2177,9 +2157,8 @@ body.annotation-editor-open .screenshots-textarea {
 .canvas-display-triggers button, .canvas-display-panel header button { display: grid; place-items: center; width: var(--canvas-toolbar-action-compact); height: var(--canvas-toolbar-action-compact); border: 0; border-radius: var(--radius-md); color: var(--type-primary); background: transparent; cursor: pointer; }
 .canvas-display-triggers button:hover, .canvas-display-triggers button.active, .canvas-display-panel header button:hover { background: var(--canvas-controls-hover); }
 .canvas-display-triggers svg, .canvas-display-panel svg { width: var(--icon-sm); height: var(--icon-sm); flex-shrink: 0; }
-/* 弹层挂在合并后的右上角工具栏上：宽度、内边距和行高都按紧凑菜单计量，
-   面板只覆盖工具栏附近的一小块区域，不再撑到画布中部。 */
-.canvas-display-panel { position: absolute; top: 100%; margin-top: 8px; right: 0; width: min(252px, calc(100cqw - 80px)); max-height: min(520px, calc(100dvh - 150px)); box-sizing: border-box; overflow: auto; padding: 10px; border: 1px solid var(--elevated-border); border-radius: var(--radius-lg); background: var(--elevated-surface); color: var(--text); box-shadow: var(--canvas-shadow-menu); font-size: var(--text-body-12); line-height: var(--text-body-12--line-height); }
+/* Settings open upward from the lower-left view tools. */
+.canvas-display-panel { position: absolute; bottom: calc(100% + 12px); left: 0; width: min(252px, calc(100cqw - 80px)); max-height: min(520px, calc(100dvh - 150px)); box-sizing: border-box; overflow: auto; padding: 10px; border: 1px solid var(--elevated-border); border-radius: var(--radius-lg); background: var(--elevated-surface); color: var(--text); box-shadow: var(--canvas-shadow-menu); font-size: var(--text-body-12); line-height: var(--text-body-12--line-height); }
 .canvas-display-panel header { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
 .canvas-display-panel header strong { font-size: var(--text-body-13); font-weight: 600; }
 .canvas-display-panel header button { width: 24px; height: 24px; }
@@ -2317,3 +2296,36 @@ body.annotation-editor-open .screenshots-textarea {
   font-size: var(--text-body-12);
   text-align: center;
 }
+
+.canvas-corner-controls button:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+
+/* Geometry and grouping match canvas-zoom-controls / canvas-bottom-toolbar upstream. */
+.canvas-view-pill, .canvas-view-help {
+  display: inline-flex;
+  align-items: center;
+  box-sizing: border-box;
+  height: 40px;
+  border: 1px solid var(--elevated-border);
+  border-radius: 999px;
+  padding: 4px;
+  color: var(--muted);
+  background: var(--canvas-controls-bg);
+  box-shadow: var(--canvas-shadow-panel);
+}
+.canvas-view-help { width: 40px; justify-content: center; cursor: pointer; }
+.canvas-view-pill .canvas-corner-map, .canvas-view-pill .canvas-display-triggers button, .canvas-view-pill .canvas-zoom-value { border-radius: 50%; color: var(--muted); }
+.canvas-view-pill .canvas-corner-map[aria-pressed="true"], .canvas-view-pill .canvas-display-triggers button.active, .canvas-view-pill button:hover, .canvas-view-help:hover { color: var(--text); background: var(--canvas-controls-hover); }
+.canvas-view-pill .canvas-zoom-value { border-radius: 999px; }
+.canvas-corner-controls svg { width: 16px; height: 16px; stroke-width: 1.75; }
+.canvas-view-pill .canvas-corner-divider { height: 16px; width: 1px; margin: 0 4px; }
+
+.canvas-precision-menu { width: 204px; color: var(--text); font-size: var(--text-body-12); }
+.canvas-precision-menu > button { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 32px; padding: 4px 8px; border: 0; border-radius: var(--radius-sm); background: transparent; color: inherit; text-align: left; cursor: pointer; }
+.canvas-precision-menu button:hover { background: var(--canvas-controls-hover); }
+.canvas-precision-menu button:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+.canvas-precision-menu svg { width: 16px; height: 16px; }
+.canvas-precision-menu hr { border: 0; border-top: 1px solid var(--line); margin: 4px; }
+.canvas-precision-range { display: flex; align-items: center; gap: 8px; padding: 0 8px; font-variant-numeric: tabular-nums; }
+.canvas-precision-range .ant-slider { flex: 1; min-width: 0; }
+.canvas-precision-stops { display: flex; gap: 4px; padding: 4px; }
+.canvas-precision-stops button { flex: 1; padding: 4px 0; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--muted); cursor: pointer; font-size: var(--text-caption-11); }

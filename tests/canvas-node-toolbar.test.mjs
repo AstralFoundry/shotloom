@@ -340,27 +340,25 @@ test('排布偏好落盘后工具条与弹窗实时跟随，不靠节点重渲�
   assert.match(toolbar, /<CanvasToolbarCustomizeDialog[\s\S]*?customization=\{customization\}/);
 });
 
-test('小地图节点可点击定位、保持缩放且地图不被面板裁切', () => {
-  assert.match(workflowCanvas, /onNodeClick=\{\(_event, node\) => minimapNodeClick\.current\(node\.id\)\}/);
+test('参考小地图采用真实节点尺寸、媒体颜色和实时视口，并保持点击定位缩放', () => {
+  const minimap = readSource('renderer/src/app/canvas/CanvasMinimap.tsx');
+  assert.match(workflowCanvas, /<CanvasMinimap onNodeClick=\{nodeId => minimapNodeClick\.current\(nodeId\)\}/);
   assert.match(workflowCanvas, /minimapNodeClick\.current = \(nodeId: string\) => \{\n\s*controller\.selectNodes\(\[nodeId\]\);\n\s*focusCanvasNodes\(\[nodeId\], \{ keepZoom: true \}\);\n\s*\}/);
-  // 小地图只认节点对象上的尺寸；外部同步会丢掉 React Flow 的 measured。
-  assert.match(workflowCanvas, /style: \{ width, height \},\s*width,\s*height,[\s\S]*?measured: \{ width, height \}/);
-  assert.match(workflowCanvas, /const zoom = options\?\.keepZoom\n\s*\?\s*instance\.getZoom\(\)\n\s*: Math\.min\(/);
-  // 对话与计划的"定位"仍要把节点放大到可读，keepZoom 只属于小地图这一类概览入口。
-  assert.match(workflowCanvas, /singleNodeFocus \? 0\.78 : MIN_CANVAS_ZOOM/);
-  assert.match(workflowCanvas, /style=\{\{ width: MINIMAP_SIZE\.width, height: MINIMAP_SIZE\.height \}\}/);
-  assert.match(styles, /\.react-flow__minimap\.canvas-minimap \{[^}]*border: 0;/);
-  assert.doesNotMatch(styles, /\.react-flow__minimap\.canvas-minimap \{[^}]*\n\s*(width|height):/);
-  assert.match(styles, /\.react-flow__minimap\.canvas-minimap \.react-flow__minimap-node \{[^}]*cursor: pointer/);
-  assert.match(styles, /\.react-flow__minimap\.canvas-minimap \.react-flow__minimap-node:hover \{[^}]*fill: color-mix\(in srgb, var\(--text\) 55%, transparent\)/);
-  assert.match(styles, /\.react-flow__minimap\.canvas-minimap \.react-flow__minimap-node\.selected \{[^}]*fill: color-mix\(in srgb, var\(--brand-accent\) 78%, transparent\)/);
-  assert.doesNotMatch(styles, /react-flow__minimap[^}]*#[0-9a-f]{3,6}/i);
-  // 旧版自绘小地图留下的第二套盒子会重新裁掉 svg，尺寸只能由 MiniMap 的 style 决定。
-  assert.doesNotMatch(
-    readSource('../renderer/styles/workbench.css'),
-    /\.canvas-minimap|\.minimap-viewport|\.minimap-dot/,
-  );
+  assert.match(minimap, /const MAP_WIDTH = 240/);
+  assert.match(minimap, /const MAP_HEIGHT = 160/);
+  assert.match(minimap, /const WORLD_PADDING = 500/);
+  assert.match(minimap, /store\.subscribe\(\(\) => draw\(\)\)/);
+  assert.match(minimap, /node\.measured\?\.width \?\? node\.width/);
+  assert.match(minimap, /node\.hidden/);
+  assert.match(minimap, /state\.transform/);
+  assert.match(minimap, /flow\.setViewport\(viewport\)/);
+  assert.match(minimap, /setPointerCapture/);
+  assert.match(minimap, /onPointerCancel=\{finish\}/);
+  assert.match(styles, /--minimap-image: var\(--media-map-image\)/);
+  assert.match(styles, /--minimap-video: var\(--media-map-video\)/);
+  assert.match(styles, /canvas-minimap-viewport/);
 });
+
 
 
 test('收藏入口参与图片和视频排布，旧偏好保留并可从更多工具找回', () => {

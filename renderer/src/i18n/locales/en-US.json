@@ -1,4 +1,8 @@
 {
+  "canvas.minimap.label": "Canvas minimap",
+  "canvas.view.connections": "Hide node connections",
+  "canvas.zoom.precise": "Precise zoom",
+  "canvas.view.controls": "Canvas view controls",
   "assets.browser.title": "Asset library",
   "assets.browser.actions": "Asset library actions",
   "assets.browser.eyebrow": "Reference content",

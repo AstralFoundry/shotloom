@@ -39,3 +39,13 @@ export function canvasMenuPosition(
     ),
   };
 }
+
+/** Same bottom-row collision rule as open-ai-canvas's canvas-overlay-layout. */
+export function canvasBottomRowLayout(controls: { left: number; right: number }, row: { left: number; right: number }, toolbarWidth: number, gap: number) {
+  const maxShift = Math.max(0, Math.floor((row.right - row.left - toolbarWidth) / 2));
+  const shiftFrom = (start: number) => Math.min(maxShift, Math.max(0, Math.round((start - row.left) / 2)));
+  const besideControls = controls.right + gap;
+  if (besideControls + toolbarWidth > row.right) return { shift: shiftFrom(controls.left), stacked: true };
+  const clearControls = Math.ceil(besideControls - (row.left + row.right - toolbarWidth) / 2);
+  return { shift: Math.min(maxShift, Math.max(shiftFrom(controls.left), clearControls, 0)), stacked: false };
+}
