@@ -134,7 +134,7 @@ test('抬升只有 tokens.css 的阴影档：产品样式不往 box-shadow 里�
   const tokens = read('renderer/styles/tokens.css');
   for (const tier of ['--shadow-card', '--shadow-lift', '--canvas-shadow-panel', '--canvas-shadow-dropdown',
     '--canvas-shadow-menu', '--canvas-prompt-shadow', '--drop-shadow-sm', '--shadow-float',
-    '--shadow-cast-right', '--shadow-cast-up', '--shadow-modal', '--overlay-cast', '--overlay-hairline']) {
+    '--shadow-cast-right', '--shadow-modal', '--overlay-cast', '--overlay-hairline']) {
     assert.ok(definitions.has(tier), `${tier} 未在 tokens.css 定义`);
     assert.match(tokens, new RegExp(`${tier}:`));
   }

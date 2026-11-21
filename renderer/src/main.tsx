@@ -23,7 +23,6 @@ import '../styles/canvas-suite.css';
 import '../styles/image-recipes.css';
 import '../styles/project-materials.css';
 import '../styles/media-overlays.css';
-import '../styles/creation-view.css';
 import '../styles/skills.css';
 
 const container = document.getElementById('app');

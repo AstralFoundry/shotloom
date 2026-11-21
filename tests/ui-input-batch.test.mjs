@@ -11,9 +11,10 @@ const searchInput = readSource('renderer/src/app/components/SearchInput.tsx');
 const skills = readSource('renderer/src/app/views/SkillsView.tsx');
 const tasks = readSource('renderer/src/app/views/TasksView.tsx');
 const materials = readSource('renderer/src/app/views/MaterialsView.tsx');
-const assets = readSource('renderer/src/app/views/AssetsView.tsx');
+const library = readSource('renderer/src/app/components/AssetLibraryBrowser.tsx');
+const assets = readSource('renderer/src/app/views/AssetsView.tsx') + library;
 const projects = readSource('renderer/src/app/views/ProjectsView.tsx');
-const creation = readSource('renderer/src/app/views/CreationView.tsx');
+const creation = readSource('renderer/src/app/views/CreationView.tsx') + library;
 const settings = readSource('renderer/src/app/views/SettingsPanel.tsx');
 const skillEditor = readSource('renderer/src/app/views/SkillEditorPanel.tsx');
 const gate = readSource('scripts/verify-ui-components.mjs');
@@ -39,7 +40,7 @@ test('搜索框统一走 SearchInput，带图标前缀与清空按钮', () => {
 test('筛选与分档使用 Segmented', () => {
   assert.match(tasks, /<Segmented[\s\S]*?className="task-filter"[\s\S]*?options=\{filters\.map/);
   assert.match(tasks, /disabled: !filter\.count && filterKey !== filter\.key/);
-  assert.match(creation, /<Segmented[\s\S]*?className="canvas-material-tabs"/);
+  assert.match(library, /<nav[\s\S]*?className="asset-library-sources"/);
   assert.doesNotMatch(creation, /role="tablist"/, '素材分档不再手写 tablist');
 });
 
@@ -65,7 +66,7 @@ test('取色、范围分档与空态也走组件库', () => {
   assert.match(watermark, /<ColorPicker[\s\S]*?onChange=\{\(color\) => update\(\{ color: color\.toHexString\(\) \}\)\}/);
   assert.doesNotMatch(watermark, /type="color"/);
 
-  assert.match(assets, /<Segmented[\s\S]*?className="asset-scope-tabs"/);
+  assert.match(assets, /className="asset-library-sources"/);
   assert.doesNotMatch(assets, /role="tablist"/);
 
   assert.match(skills, /<Empty[\s\S]*?className="skills-empty"/);
