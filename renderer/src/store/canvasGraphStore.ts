@@ -1,3 +1,4 @@
+import { isStoryboardScriptNode, normalizeStoryboardShots, STORYBOARD_CONTEXT_HANDLE, storyboardShotIdFromHandle } from '@/domain/graph/StoryboardScript';
 import { t } from '../i18n/index.ts';
 import { store as rawStore, touchProject } from '@/store/projectStore';
 import { uid } from '@/utils/format';
@@ -124,7 +125,12 @@ export function addCanvasEdge(
   targetId: string,
   options: { id?: string; kind?: string; edge?: EdgeLike; touch?: boolean; updateExisting?: boolean } = {},
 ): CanvasConnectResult {
-  const result = canConnectCanvasNodes(project, sourceId, targetId, project.edges || []);
+  const targetHandle = typeof options.edge?.targetHandle === 'string' ? options.edge.targetHandle : '';
+  const storyboardTarget = targetHandle === STORYBOARD_CONTEXT_HANDLE || storyboardShotIdFromHandle(targetHandle, 'in');
+  const edges = project.edges || [];
+  const candidates = storyboardTarget ? edges.filter((edge) => edge.source !== sourceId || edge.target !== targetId
+    || edge.targetHandle === targetHandle) : edges;
+  const result = canConnectCanvasNodes(project, sourceId, targetId, candidates);
   if (!result.ok) return result;
   if (result.existed) {
     if (options.updateExisting && result.edge && options.edge) Object.assign(result.edge, options.edge);
@@ -142,10 +148,46 @@ export function addCanvasEdge(
   return { ok: true, edge, existed: false };
 }
 
-export function remapImportedNodeReferences(nodes: any[], _idMap?: Map<string, string>): any[] {
+export function remapImportedNodeReferences(nodes: any[], idMap?: Map<string, string>): any[] {
   return nodes.filter((node) => node.type !== 'group').map((node) => {
     if (node.parentGroupId) delete node.parentGroupId;
-    if (node.canvasSectionId) node.canvasSectionId = _idMap?.get(node.canvasSectionId) ?? null;
+    if (node.canvasSectionId) node.canvasSectionId = idMap?.get(node.canvasSectionId) ?? null;
+    if (!idMap) return node;
+    if (isStoryboardScriptNode(node)) {
+      node.storyboardShots = normalizeStoryboardShots(node.storyboardShots).map((shot) => {
+        const { assetRoles, actionBoardNodeId, ...row } = shot;
+        const copiedBoard = idMap.get(actionBoardNodeId || '');
+        const referenceNodeIds = row.referenceNodeIds.flatMap((id) => {
+          const copied = idMap.get(id);
+          return copied ? [copied] : [];
+        });
+        const copiedRoles = Object.fromEntries(Object.entries(assetRoles || {}).flatMap(([id, role]) => {
+          const copied = idMap.get(id);
+          return copied && role ? [[copied, role]] : [];
+        }));
+        return {
+          ...row, referenceNodeIds, assetRoles: copiedRoles,
+          imageNodeId: idMap.get(row.imageNodeId) || '',
+          videoNodeId: idMap.get(row.videoNodeId) || '',
+          ...(copiedBoard ? { actionBoardNodeId: copiedBoard } : {}),
+          status: 'idle', error: '',
+        };
+      });
+      if (Array.isArray(node.promptReferences)) {
+        node.promptReferences = node.promptReferences.flatMap((reference: { nodeId: string; alias: string }) => {
+          const mapped = idMap.get(reference.nodeId);
+          return mapped ? [{ ...reference, nodeId: mapped }] : [];
+        });
+      }
+      delete node.storyboardBatch;
+      delete node.storyboardBatches;
+    }
+    for (const field of ['storyboardSourceNodeId', 'storyboardFinalSourceId']) {
+      if (!node[field]) continue;
+      const mapped = idMap.get(node[field]);
+      if (mapped) node[field] = mapped;
+      else delete node[field];
+    }
     return node;
   });
 }

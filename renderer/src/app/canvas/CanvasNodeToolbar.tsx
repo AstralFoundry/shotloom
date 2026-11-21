@@ -41,13 +41,13 @@ import { CanvasToolbarCustomizeDialog } from "./CanvasToolbarCustomizeDialog";
 import type { WorkflowNodeActions, WorkflowNodeData } from "./WorkflowCanvas";
 
 /** Share the canvas stacking context with the detached clip editor and menus. */
-function NodeToolbar({ nodeId, root, children, className, isVisible, offset }: {
+function NodeToolbar({ nodeId, root, children, className, isVisible, subtle }: {
   nodeId: string;
   root: HTMLElement | null;
   children: ReactNode;
   className: string;
   isVisible: boolean;
-  offset: number;
+  subtle: boolean;
 }) {
   const transform = useStore((state) => {
     if (!isVisible) return null;
@@ -56,6 +56,7 @@ function NodeToolbar({ nodeId, root, children, className, isVisible, offset }: {
     const [x, y, zoom] = state.transform;
     const position = node.internals.positionAbsolute;
     const width = node.measured.width ?? node.width ?? 0;
+    const offset = canvasNodeToolbarOffset(zoom, subtle);
     return `translate(${(position.x + width / 2) * zoom + x}px, ${position.y * zoom + y - offset}px) translate(-50%, -100%)`;
   });
   if (!root || !isVisible || !transform) return null;
@@ -215,7 +216,6 @@ export function CanvasNodeToolbar({
   node,
   selected,
   dragging,
-  semanticZoom,
   actions,
   addNodeMention,
   canvasOverlayRoot,
@@ -238,7 +238,6 @@ export function CanvasNodeToolbar({
   node: WorkflowNodeData;
   selected: boolean;
   dragging: boolean;
-  semanticZoom: number;
   actions: WorkflowNodeActions;
   addNodeMention: ((nodeId: string) => void) | null;
   canvasOverlayRoot: HTMLElement | null;
@@ -335,7 +334,6 @@ export function CanvasNodeToolbar({
   // 3D 导演台在详情面板里和 Agent 一起工作，节点上不再挂引用入口；@ 引用仍然可用。
   const mentionNode = node.type === "threeDDirector" || node.type === "clipStudio" ? null : addNodeMention;
   const useSubtleUploadToolbar = canUpload && !isTextNode;
-  const toolbarOffset = canvasNodeToolbarOffset(semanticZoom, useSubtleUploadToolbar);
   const textOutputs = Array.isArray(node.generatedOutputs)
     ? node.generatedOutputs as Array<Record<string, unknown>>
     : [];
@@ -690,7 +688,7 @@ export function CanvasNodeToolbar({
           root={canvasOverlayRoot}
           className={`canvas-node-selection-toolbar${useSubtleUploadToolbar ? " canvas-node-selection-toolbar--subtle" : ""}${nodeChromeHidden ? " canvas-node-selection-toolbar--hidden" : ""} nodrag nopan`}
           isVisible={selected && !imageAnnotationOpen}
-          offset={toolbarOffset}
+          subtle={useSubtleUploadToolbar}
         >
           {canUpload && (
             <button

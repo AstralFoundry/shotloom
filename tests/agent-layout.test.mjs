@@ -49,8 +49,8 @@ test('布局和画布渲染共用唯一的节点尺寸契约', () => {
     width: 350,
     height: 500,
   });
-  assert.deepEqual(canvasNodeDimensions(node('image', 'imageGeneration')), { width: 350, height: 350 });
-  assert.deepEqual(canvasNodeDimensions(node('video', 'videoGeneration')), { width: 350, height: 280 });
+  assert.deepEqual(canvasNodeDimensions(node('image', 'imageGeneration')), { width: 480, height: 270 });
+  assert.deepEqual(canvasNodeDimensions(node('video', 'videoGeneration')), { width: 480, height: 270 });
   assert.deepEqual(canvasNodeDimensions(node('audio', 'audioGeneration')), { width: 350, height: 125 });
   assert.deepEqual(canvasNodeDimensions(node('resource', 'resource')), { width: 350, height: 150 });
   assert.deepEqual(canvasNodeDimensions(node('director', 'threeDDirector')), {
@@ -66,17 +66,17 @@ test('布局和画布渲染共用唯一的节点尺寸契约', () => {
 });
 
 test('图片节点按原图比例显示，并限制极端长宽比', () => {
-  assert.deepEqual(mediaCanvasNodeDimensions(1080, 1920), { width: 248, height: 440 });
-  assert.deepEqual(mediaCanvasNodeDimensions(1200, 1600), { width: 330, height: 440 });
-  assert.deepEqual(mediaCanvasNodeDimensions(1920, 1080), { width: 350, height: 197 });
-  assert.deepEqual(mediaCanvasNodeDimensions(4000, 500), { width: 350, height: 100 });
-  assert.deepEqual(mediaCanvasNodeDimensions(0, 0), { width: 350, height: 350 });
+  assert.deepEqual(mediaCanvasNodeDimensions(1080, 1920), { width: 146.5, height: 260 });
+  assert.deepEqual(mediaCanvasNodeDimensions(1200, 1600), { width: 195, height: 260 });
+  assert.deepEqual(mediaCanvasNodeDimensions(1920, 1080), { width: 360, height: 202.5 });
+  assert.deepEqual(mediaCanvasNodeDimensions(4000, 500), { width: 360, height: 100 });
+  assert.deepEqual(mediaCanvasNodeDimensions(0, 0), { width: 480, height: 270 });
 });
 
 test('媒体按真实比例自适应，但保留用户调整过的尺寸', () => {
   assert.deepEqual(
     reconcileMediaNodeDimensions(node('video', 'videoGeneration'), 1920, 1080),
-    { width: 350, height: 197 },
+    { width: 360, height: 202.5 },
   );
   assert.deepEqual(
     reconcileMediaNodeDimensions(
@@ -84,7 +84,15 @@ test('媒体按真实比例自适应，但保留用户调整过的尺寸', () =>
       1920,
       1080,
     ),
-    { width: 350, height: 197 },
+    { width: 360, height: 202.5 },
+  );
+  assert.equal(
+    reconcileMediaNodeDimensions(
+      node('video-old-wide', 'videoGeneration', { canvasWidth: 350, canvasHeight: 197 }),
+      1920,
+      1080,
+    ),
+    null,
   );
   assert.equal(
     reconcileMediaNodeDimensions(
@@ -99,16 +107,35 @@ test('媒体按真实比例自适应，但保留用户调整过的尺寸', () =>
 test('空媒体节点按模型配置比例自适应', () => {
   assert.deepEqual(
     canvasNodeDimensions(node('video-wide', 'videoGeneration', { config: { ratio: '16:9' } })),
-    { width: 350, height: 197 },
+    { width: 480, height: 270 },
   );
   assert.deepEqual(
     canvasNodeDimensions(node('image-portrait', 'imageGeneration', { config: { size: '1024x1536' } })),
-    { width: 293, height: 440 },
+    { width: 173.5, height: 260 },
   );
   assert.deepEqual(
     canvasNodeDimensions(node('video-adaptive', 'videoGeneration', { config: { ratio: 'adaptive' } })),
-    { width: 350, height: 280 },
+    { width: 480, height: 270 },
   );
+});
+
+test('旧工程的空媒体节点使用新版默认尺寸，有内容和自定义尺寸保留原尺寸', () => {
+  for (const [type, width, height] of [
+    ['videoGeneration', 350, 280],
+    ['imageGeneration', 350, 350],
+    ['imageGeneration', 350, 197],
+    ['videoGeneration', 360, 202.5],
+    ['imageGeneration', 360, 202.5],
+  ]) {
+    const geometry = { canvasWidth: width, canvasHeight: height };
+    assert.deepEqual(canvasNodeDimensions(node('old-empty', type, geometry)), { width: 480, height: 270 });
+    assert.deepEqual(canvasNodeDimensions(node('old-media', type, {
+      ...geometry, uploadedFile: { path: 'asset' },
+    })), { width, height });
+  }
+  assert.deepEqual(canvasNodeDimensions(node('custom', 'videoGeneration', {
+    canvasWidth: 420, canvasHeight: 300,
+  })), { width: 420, height: 300 });
 });
 
 test('依赖列按节点宽度和水平间距排布且不会重叠', () => {
@@ -143,7 +170,8 @@ test('按连接排序默认收紧横向间距并明显增加纵向间距', () =>
   );
 
   assert.equal(videoA.x - (imageA.x + canvasNodeDimensions(imageA).width), 160);
-  assert.equal(imageB.y - (imageA.y + canvasNodeDimensions(imageA).height), 120);
+  const rowGap = imageB.y - (imageA.y + canvasNodeDimensions(imageA).height);
+  assert.ok(Math.abs(rowGap - 120) <= 0.5, `expected a 120px row gap, got ${rowGap}px`);
 });
 
 test('整理选区保持原锚点并避开未选节点', () => {

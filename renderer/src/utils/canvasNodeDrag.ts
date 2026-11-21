@@ -10,7 +10,7 @@ export function reconcileCanvasNodes(
   const reconciled = canonicalNodes.map((canonical) => {
     const current = currentById.get(canonical.id);
     if (!current) return canonical;
-    if (!draggingIds.has(canonical.id)) return current === canonical ? current : canonical;
+    if (!draggingIds.has(canonical.id) && !current.resizing) return current === canonical ? current : canonical;
     // React Flow's active drag session holds the current user-node object.
     // Replacing it from an external snapshot can detach that session from the
     // internal node lookup, which also removes connected edge endpoints for a
@@ -18,11 +18,13 @@ export function reconcileCanvasNodes(
     return current;
   });
   for (const current of currentNodes) {
-    if (draggingIds.has(current.id) && !canonicalIds.has(current.id)) {
+    if ((draggingIds.has(current.id) || current.resizing) && !canonicalIds.has(current.id)) {
       reconciled.push(current);
     }
   }
-  return reconciled;
+  return reconciled.length === currentNodes.length && reconciled.every((node, index) => node === currentNodes[index])
+    ? currentNodes
+    : reconciled;
 }
 
 export function draggedCanvasPositions(primaryNode: DraggableNode, draggedNodes: DraggableNode[], semanticZoom: unknown) {

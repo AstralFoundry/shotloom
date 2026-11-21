@@ -5,7 +5,7 @@
 /* ============================================================
    OpenReel Editor — Shotloom design tokens.
    色阶/密度对齐 MiniMax Design 4.0 clip-studio（中性灰面 + 反相主操作 +
-   紫色 brand-accent 只给选中/片段/播放头），字体与 Shotloom 产品一致。
+   中性 brand-accent 只给选中/片段/播放头），字体与 Shotloom 产品一致。
    All values are CSS variables. Components use Tailwind utilities
    that map to these via tailwind.config.js.
    ============================================================ */
@@ -58,26 +58,26 @@
     --shadow-lg: 0 24px 60px rgba(0, 0, 0, 0.16);
     --track-bg: #f5f5f6;      /* 参考：track/tl/stage 同为浅灰，卡片才是白 */
     --tl-bg: #f5f5f6;
-    --waveform: rgba(109, 108, 255, 0.55);
+    --waveform: rgba(0, 0, 0, 0.55);
     /* 参考 light stage 是浅灰，屏幕保持白 */
     --stage-bg: #f5f5f6;
     --screen-bg: #ffffff;
 
     /* accent = 反相近黑（MiniMax --accent），主操作按钮用它；
-       brand-accent = Shotloom 紫 #6d6cff，只给选中/片段/播放头/强调。 */
+       brand-accent = 中性强调色，只给选中/片段/播放头/强调。 */
     --accent: #000000;
     --accent-strong: rgba(0, 0, 0, 0.82);
     --accent-soft: rgba(0, 0, 0, 0.06);
     --accent-fg: #ffffff;
     --accent-glow: rgba(0, 0, 0, 0.25);
-    --brand-accent: #6d6cff;
-    --brand-accent-soft: rgba(109, 108, 255, 0.12);
+    --brand-accent: #343434;
+    --brand-accent-soft: rgba(0, 0, 0, 0.12);
 
-    /* clip palette — 视频/图片/音频统一紫底（参考 brand-accent/25） */
-    --c-video: #6d6cff;
+    /* clip palette — 视频/图片/音频统一灰底（参考 brand-accent/25） */
+    --c-video: #343434;
     --c-text: #e8a44a;
-    --c-audio: #6d6cff;
-    --c-music: #6d6cff;
+    --c-audio: #343434;
+    --c-music: #343434;
   }
 
   /* dark theme — Shotloom 暗色镜像（与 renderer/styles/tokens.css 同值） */
@@ -101,7 +101,7 @@
     --shadow-lg: 0 1px 0 rgba(0, 0, 0, 0.6), 0 24px 60px rgba(0, 0, 0, 0.5);
     --track-bg: #101012;
     --tl-bg: #101012;
-    --waveform: rgba(139, 138, 255, 0.72);
+    --waveform: rgba(255, 255, 255, 0.72);
     --stage-bg: #101012;
     --screen-bg: #000000;
 
@@ -110,13 +110,13 @@
     --accent-soft: rgba(255, 255, 255, 0.1);
     --accent-fg: #161618;
     --accent-glow: rgba(255, 255, 255, 0.3);
-    --brand-accent: #8b8aff;
-    --brand-accent-soft: rgba(139, 138, 255, 0.16);
+    --brand-accent: #d4d4d4;
+    --brand-accent-soft: rgba(255, 255, 255, 0.16);
 
-    --c-video: #8b8aff;
+    --c-video: #d4d4d4;
     --c-text: #e8a44a;
-    --c-audio: #8b8aff;
-    --c-music: #8b8aff;
+    --c-audio: #d4d4d4;
+    --c-music: #d4d4d4;
     color-scheme: dark;
   }
 

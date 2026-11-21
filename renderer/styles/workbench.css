@@ -93,10 +93,9 @@
 }
 
 .create-type-options button.active {
-  border-color: var(--brand-accent);
-  color: var(--text);
-  background: var(--surface-2);
-  box-shadow: 0 0 0 2px var(--brand-accent-wash);
+  border-color: var(--brand-accent-border);
+  color: var(--type-primary);
+  background: var(--popup-item-active);
 }
 
 .create-type-options svg {
@@ -270,87 +269,89 @@
 .bottom-mode-switch {
   position: absolute;
   left: 50%;
-  bottom: 10px;
+  bottom: 12px;
   z-index: 7;
   transform: translateX(-50%);
-  height: 48px;
-  border: .5px solid var(--line-strong);
+  max-width: calc(100% - 16px);
+  overflow-x: auto;
+  scrollbar-width: none;
+  border: 1px solid var(--line-strong);
   border-radius: 999px;
-  padding: 5px 7px;
+  padding: 4px;
   display: flex;
   align-items: center;
-  gap: 6px;
-  background: var(--surface);
-  box-shadow: none;
-  pointer-events: none;
-}
-
-.bottom-mode-switch button {
-  width: 36px;
-  height: 36px;
-  border: 0;
-  border-radius: 999px;
-  display: grid;
-  place-items: center;
-  color: var(--muted);
-  background: transparent;
-  pointer-events: auto;
-}
-
-.bottom-mode-switch button:hover:not(:disabled) {
-  color: var(--text);
-  background: var(--surface-muted);
+  gap: 4px;
+  background: var(--canvas-controls-bg);
+  box-shadow: var(--canvas-shadow-panel);
 }
 
 .bottom-mode-group {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 2px;
+}
+
+.bottom-mode-group > button {
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  background: transparent;
+  cursor: pointer;
+}
+
+.bottom-mode-group > button:hover:not(:disabled) {
+  color: var(--type-primary);
+  background: var(--canvas-controls-hover);
+}
+
+.bottom-mode-group > button:is([aria-pressed="true"], [aria-expanded="true"], .ant-dropdown-open) {
+  color: var(--type-primary);
+  background: var(--canvas-controls-active);
+}
+
+.bottom-mode-group > button:focus-visible {
+  outline: 1px solid var(--muted);
+  outline-offset: -2px;
 }
 
 .bottom-mode-divider {
-  width: 1px;
-  height: 22px;
-  margin-inline: 4px;
-  flex-shrink: 0;
-  background: var(--surface-2);
+  flex: 0 0 1px;
+  height: 16px;
+  background: var(--line-strong);
 }
 
-.bottom-mode-switch button.active {
-  color: var(--text);
-  background: var(--surface-2);
+.bottom-mode-group > button:disabled {
+  cursor: default;
+  opacity: var(--canvas-toolbar-disabled-opacity);
 }
 
-.bottom-mode-switch button:disabled {
-  cursor: not-allowed;
-  opacity: 0.38;
-}
-
-.bottom-mode-switch > .bottom-mode-group > button > svg {
+.bottom-mode-group > button > svg,
+.canvas-dock-menu .ant-dropdown-menu-item-icon {
   width: 18px;
   height: 18px;
   stroke-width: 1.8;
 }
 
 .canvas-shortcut-help {
-  position: absolute;
-  left: 50%;
-  bottom: calc(100% + 10px);
-  width: 330px;
-  transform: translateX(-50%);
-  border: 1px solid var(--line-solid);
-  border-radius: var(--radius-xl);
-  padding: 12px 13px;
-  color: var(--type-primary);
-  background: var(--float-surface);
-  box-shadow: var(--shadow-float);
-  backdrop-filter: blur(12px);
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 0;
 }
 
-.canvas-shortcut-help strong { display: block; margin-bottom: 9px; font-size: var(--text-body-12); }
-.canvas-shortcut-help dl { margin: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 7px 14px; }
+.canvas-shortcut-help > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+
 .canvas-shortcut-help dt { color: var(--muted); font-size: var(--text-caption-11); }
-.canvas-shortcut-help dd { margin: 0; color: var(--type-primary); font-size: var(--text-caption-11); font-weight: 600; }
+.canvas-shortcut-help dd { margin: 0; color: var(--type-primary); font-size: var(--text-caption-11); text-align: right; }
 
 .canvas-layout-menu,
 .canvas-layout-confirm {

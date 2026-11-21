@@ -2,7 +2,7 @@ import { after, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRendererEnv } from './helpers/rendererSsr.mjs';
 
-const env = await createRendererEnv();
+const env = await createRendererEnv({ storage: new Map() });
 after(() => env.dispose());
 
 const rows = [
@@ -62,7 +62,45 @@ test('插入标题与目录统计可复现', async () => {
   const { parsePoseCatalog, poseInsertTitle, poseCatalogStats, defaultPoseAngle } = await env.load('domain/pose/PoseLibrary');
   const catalog = parsePoseCatalog(rows);
   const pose = catalog.poses.find((item) => item.code === 'P001');
+  assert.equal(defaultPoseAngle(pose).angle, '正面');
   const item = defaultPoseAngle(pose, '侧面');
   assert.equal(poseInsertTitle(pose, item), '姿势参考·对立式平衡·侧面');
   assert.deepEqual(poseCatalogStats(catalog), { poses: 2, items: 3, systems: 2 });
+});
+
+
+test('姿势库加载参考实例的两套体系，离线时保留已有缓存并提示首次打开失败', async (t) => {
+  const { loadPoseCatalog, importPoseCatalogText } = await env.load('services/poseLibraryService');
+  const standard = { ...rows[0], id: 'full_single_P040_front' };
+  const upper = { ...rows[2], 体系: '上半身单人' };
+  const outside = { ...rows[2], id: 'other_P010_front', 体系: '其他体系' };
+  const requests = [];
+  let online = false;
+  t.mock.method(globalThis, 'fetch', async (url) => {
+    requests.push(url);
+    return online ? Response.json([standard, upper, outside]) : new Response(null, { status: 503 });
+  });
+
+  await assert.rejects(loadPoseCatalog(), /503/);
+  assert.match(requests[0], /cdn\.jsdelivr\.net.*pose-zh\.json$/);
+  assert.match(requests[1], /raw\.githubusercontent\.com.*pose-zh\.json$/);
+  assert.equal(requests.length, 2);
+
+  online = true;
+  requests.length = 0;
+  const catalog = await loadPoseCatalog();
+  assert.deepEqual(catalog.poses.map(pose => pose.system), ['全身单人・标准系', '上半身单人']);
+  assert.match(catalog.poses[1].items[0].thumbUrl, /cdn\.jsdelivr\.net/);
+  assert.equal(requests.length, 1);
+  assert.equal((await loadPoseCatalog()).poses.length, 2);
+  assert.equal(requests.length, 1);
+
+  online = false;
+  assert.equal((await loadPoseCatalog({ force: true })).poses.length, 2);
+  assert.equal(requests.length, 3);
+
+  importPoseCatalogText(JSON.stringify([outside]));
+  const imported = await loadPoseCatalog({ force: true });
+  assert.equal(imported.poses[0].system, '其他体系');
+  assert.equal(requests.length, 3);
 });

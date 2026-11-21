@@ -18,6 +18,10 @@ const paths = {
     '<path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4Z"/>',
   camera:
     '<path d="M14.5 4 16 6h3a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3l1.5-2Z"/><circle cx="12" cy="12.5" r="3.5"/>',
+  "cinema-camera":
+    '<rect x="5.5" y="6.5" width="12" height="13" rx="2" fill="currentColor"/><rect x="2" y="8.5" width="5" height="9" rx="1" fill="currentColor"/><path d="M9 6.5V4h5v2.5M7 21.5h9"/><rect x="17" y="9" width="5" height="8" rx="1" fill="currentColor"/><circle cx="19.5" cy="13" r="1.4"/>',
+  "cinema-lens":
+    '<rect x="2" y="8" width="19" height="8" rx="2" fill="currentColor"/><path d="M6 8.5v7m4-7v7m4-7v7" stroke-width="1.5" opacity=".8"/><circle class="cinema-icon-detail" cx="19.5" cy="12" r="3"/><circle cx="19.5" cy="12" r="1.4" opacity=".65"/>',
   check: '<path d="m5 12 4 4L19 6"/>',
   "chevron-down": '<path d="m6 9 6 6 6-6"/>',
   "chevron-left": '<path d="m15 18-6-6 6-6"/>',
@@ -25,6 +29,8 @@ const paths = {
     '<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.7-.9L9.6 4A2 2 0 0 0 7.9 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>',
   file:
     '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><path d="M8 13h8"/><path d="M8 17h6"/>',
+  clapperboard:
+    '<path d="M4 10h16a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1ZM3 9l16-4-.6-2.4a1 1 0 0 0-1.2-.7L3.1 5.4a1 1 0 0 0-.7 1.2L3 9ZM6.5 4.6 9.3 7.4m2.5-4.1 2.8 2.8"/>',
   film:
     '<rect x="2" y="4" width="20" height="16" rx="2"/><path d="M7 4v16"/><path d="M17 4v16"/><path d="M2 9h5"/><path d="M17 9h5"/><path d="M2 15h5"/><path d="M17 15h5"/>',
   "add-to-editor":
@@ -106,6 +112,7 @@ const paths = {
   shuffle:
     '<path d="m18 14 4 4-4 4"/><path d="m18 2 4 4-4 4"/><path d="M2 18h2c6 0 8-12 14-12h4"/><path d="M2 6h2c2 0 3 1 4 3"/><path d="M14 15c1 2 2 3 4 3h4"/>',
   "arrow-up": '<path d="M12 19V5"/><path d="m5 12 7-7 7 7"/>',
+  "arrow-up-right": '<path d="M6 18 18 6M8 6h10v10"/>',
   clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/>',
   "chevron-right": '<path d="m9 18 6-6-6-6"/>',
   "chevron-up": '<path d="m18 15-6-6-6 6"/>',

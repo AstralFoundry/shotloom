@@ -15,7 +15,11 @@
   --ant-color-primary: var(--brand-accent);
   --ant-color-link: var(--brand-accent);
   --ant-color-primary-bg: var(--brand-accent-wash);
-  --ant-color-primary-border: var(--brand-accent-border);
+  --ant-color-primary-border: var(--ring);
+  --ant-control-item-bg-hover: var(--popup-item-hover);
+  --ant-control-item-bg-active: var(--popup-item-active);
+  --ant-control-item-bg-active-hover: var(--wash-inset);
+  --ant-control-outline: var(--line-soft);
 
   /* Surfaces */
   --ant-color-bg-container: var(--surface);
@@ -49,7 +53,7 @@
   --ant-border-radius-lg: var(--radius-lg);
   --ant-font-family: var(--font-ui);
   --ant-font-size-sm: var(--text-body-12);
-  --ant-font-size: var(--text-body-14);
+  --ant-font-size: var(--text-body-13);
   --ant-font-size-lg: var(--text-title-16);
 
   /* Elevation */
@@ -65,6 +69,48 @@
 .ant-modal:focus-visible,
 .ant-modal-container:focus-visible {
   outline: none;
+}
+
+/* Keep the current value readable while the list is open. The search input
+ * still takes precedence as soon as the user starts typing. */
+.ant-select.ant-select-open .ant-select-content-has-value:not(.ant-select-content-has-search-value) {
+  opacity: 1;
+}
+
+.ant-select-dropdown .ant-select-item-option-selected:not(.ant-select-item-option-disabled) {
+  color: var(--type-primary);
+  background: var(--popup-item-active);
+  font-weight: 500;
+}
+
+.ant-select-dropdown .ant-select-item-option-active:not(.ant-select-item-option-disabled, .ant-select-item-option-selected) {
+  background: var(--popup-item-hover);
+}
+
+.ant-select-dropdown .ant-select-item-option-selected.ant-select-item-option-active:not(.ant-select-item-option-disabled) {
+  background: var(--wash-inset);
+}
+
+/* The combobox input sits inside the visible control. Draw its keyboard
+ * focus on that control, once, instead of outlining both boxes. */
+.ant-select .ant-select-input:focus-visible {
+  outline: none;
+}
+
+.ant-select.ant-select-focused:not(.ant-select-status-error, .ant-select-status-warning):has(.ant-select-input:focus-visible) {
+  outline: 2px solid var(--ring);
+  outline-offset: -1px;
+}
+
+/* The filled controls use a light accent in dark mode. */
+.dark .ant-checkbox-checked:not(.ant-checkbox-disabled) .ant-checkbox-inner::after {
+  border-color: var(--brand-accent-foreground);
+}
+.dark .ant-radio-checked:not(.ant-radio-disabled) .ant-radio-inner::after {
+  background: var(--brand-accent-foreground);
+}
+.dark .ant-switch-checked:not(.ant-switch-disabled) .ant-switch-handle::before {
+  background: var(--brand-accent-foreground);
 }
 
 /*

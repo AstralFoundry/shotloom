@@ -50,13 +50,21 @@ function derivesFromLadder(value, depth = 0) {
 }
 
 test('字体栈只有一个入口：产品样式不写具体字体名', () => {
+  const tokensFile = 'renderer/styles/tokens.css';
+  const tokens = read(tokensFile);
+  // Font-face names register physical fonts; UI consumers still use the central stacks.
+  const faceLines = new Set();
+  for (const face of tokens.matchAll(/@font-face\s*\{[^}]*\}/g)) {
+    const firstLine = tokens.slice(0, face.index).split('\n').length;
+    face[0].split('\n').forEach((_, index) => faceLines.add(firstLine + index));
+  }
   const bad = lines
+    .filter((l) => l.rel !== tokensFile || !faceLines.has(l.no))
     .filter((l) => /font-family\s*:/.test(l.text))
     .filter((l) => !/var\(--font-|inherit|unset|initial/.test(valueOf(l.text, 'font-family:')))
     .map((l) => `${l.rel}:${l.no} ${l.text.trim()}`);
   assert.deepEqual(bad, []);
 
-  const tokens = read('renderer/styles/tokens.css');
   assert.match(tokens, /--font-ui:/);
   assert.match(tokens, /--font-mono:/);
   assert.match(tokens, /--font-serif:/);
@@ -172,7 +180,7 @@ test('动效只有 tokens.css 的时长与曲线档：过渡与一次性动画�
 
   const tokens = read('renderer/styles/tokens.css');
   for (const tier of ['--duration-fast', '--duration-base', '--duration-enter', '--duration-slow',
-    '--duration-stagger', '--ease-out', '--ease-std', '--ease-sheet', '--ease-pop']) {
+    '--duration-stagger', '--ease-out', '--ease-std', '--ease-sheet']) {
     assert.ok(definitions.has(tier), `${tier} 未在 tokens.css 定义`);
   }
 

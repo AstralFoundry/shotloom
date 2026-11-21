@@ -28,7 +28,7 @@ export function GenerationSettingsPanel({
 }: {
   nodeId: string;
   state: GenerationNodeState;
-  actions: WorkflowNodeActions;
+  actions: Pick<WorkflowNodeActions, 'setInputMode'>;
   onConfigChange: (key: string, value: unknown) => void;
 }) {
   const { activeInputMode, inputModes, params } = state;

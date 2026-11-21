@@ -711,7 +711,7 @@
 
 
 .ov-editor-mount.is-canvas { position: absolute; z-index: 2; }
-.ov-openreel.is-canvas { position: relative; inset: auto; display: block; background: transparent; }
+.ov-openreel.is-canvas { position: relative; inset: auto; display: block; height: 100%; background: transparent; }
 .ov-openreel.is-canvas > .ov-openreel-head { display: none; }
 .ov-openreel.is-canvas > .ov-openreel-stage { height: 100%; background: transparent; }
 .ov-openreel.is-canvas .clip-studio-runtime-host { background: transparent; }

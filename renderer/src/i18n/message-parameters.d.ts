@@ -10,6 +10,8 @@ export interface MessageParameters {
   "notification.pendingMessages": Record<"count", string | number>;
   "notification.pendingToasts": Record<"count", string | number>;
   "agent.deleteConversationFailed": Record<"error", string | number>;
+  "canvas.camera.previous": Record<"label", string | number>;
+  "canvas.camera.next": Record<"label", string | number>;
   "ui.ReactWorkbench.text.fe5e706d": Record<"value0", string | number>;
   "ui.ReactWorkbench.text.5b2c49d9": Record<"value0", string | number>;
   "ui.ReactWorkbench.text.7d1d4e69": Record<"value0", string | number>;
@@ -1225,8 +1227,27 @@ export interface MessageParameters {
   "canvas.storyboard.imageNodeTitle": Record<"index", string | number>;
   "canvas.storyboard.videoNodeTitle": Record<"index", string | number>;
   "canvas.storyboard.summary": Record<"count" | "seconds", string | number>;
+  "canvas.storyboard.createImages": Record<"count", string | number>;
+  "canvas.storyboard.createVideos": Record<"count", string | number>;
+  "canvas.storyboard.missingKeyframeInput": Record<"index", string | number>;
+  "canvas.storyboard.batchSummary": Record<"done" | "total" | "failed" | "waiting" | "running" | "stopped", string | number>;
+  "canvas.storyboard.batchAttempts": Record<"count", string | number>;
+  "canvas.storyboard.previewAsset": Record<"title", string | number>;
+  "canvas.storyboard.selectedAssets": Record<"count", string | number>;
+  "canvas.storyboard.assetUsage": Record<"title", string | number>;
+  "canvas.storyboard.removeAsset": Record<"title", string | number>;
+  "canvas.storyboard.mergeCount": Record<"count", string | number>;
+  "canvas.storyboard.mergeOrder": Record<"count" | "total", string | number>;
+  "canvas.storyboard.production": Record<"index", string | number>;
+  "canvas.storyboard.generateSelectedFrames": Record<"count", string | number>;
+  "canvas.storyboard.bulkMissingFrames": Record<"count", string | number>;
+  "canvas.storyboard.actionBoardTitle": Record<"index", string | number>;
+  "canvas.storyboard.confirmActionBoards": Record<"count", string | number>;
+  "canvas.storyboard.actionBoardPromptShot": Record<"index" | "action", string | number>;
+  "canvas.storyboard.actionBoardPromptCharacters": Record<"characters", string | number>;
   "canvas.storyboard.moreRows": Record<"count", string | number>;
   "canvas.batch.referenceCount": Record<"count", string | number>;
+  "canvas.batch.insertAfter": Record<"index", string | number>;
   "canvas.batch.enableRow": Record<"index", string | number>;
   "canvas.batch.promptPlaceholder": Record<"index", string | number>;
   "canvas.batch.imagesInProject": Record<"count", string | number>;
@@ -1265,6 +1286,7 @@ export interface MessageParameters {
   "canvas.storyboard.footVideos": Record<"count", string | number>;
   "canvas.batch.referenceCountMax": Record<"count" | "max", string | number>;
   "canvas.pose.poseCount": Record<"count", string | number>;
+  "canvas.batch.cellHandle": Record<"row" | "column", string | number>;
   "canvas.batch.columnHandle": Record<"index", string | number>;
   "tool.feedback.canvas.invalidBatchReferences": Record<"value0", string | number>;
   "canvas.storyboard.assetPickerTitle": Record<"index", string | number>;
@@ -1272,4 +1294,12 @@ export interface MessageParameters {
   "canvas.batch.mentionToken": Record<"index", string | number>;
   "canvas.batch.referenceIndex": Record<"index", string | number>;
   "canvas.storyboard.showingShots": Record<"shown" | "total", string | number>;
+  "canvas.storyboard.selectShot": Record<"index", string | number>;
+  "canvas.storyboard.selectedShots": Record<"count", string | number>;
+  "canvas.pose.previewName": Record<"name", string | number>;
+  "canvas.pose.removePicked": Record<"name" | "angle", string | number>;
+  "canvas.batch.generationSummary": Record<"count" | "concurrency", string | number>;
+  "canvas.storyboard.missingKeyframe": Record<"index", string | number>;
+  "canvas.storyboard.generateSelectedImages": Record<"count", string | number>;
+  "canvas.storyboard.generateSelectedVideos": Record<"count", string | number>;
 }

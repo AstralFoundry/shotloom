@@ -13,6 +13,8 @@ export interface CinemaCameraProfile {
   prompt: string;
   description: string;
   useCase: string;
+  bodyColor: string;
+  trimColor: string;
 }
 
 export interface CinemaLensProfile {
@@ -23,11 +25,15 @@ export interface CinemaLensProfile {
   prompt: string;
   description: string;
   useCase: string;
+  bodyColor: string;
+  trimColor: string;
 }
 
 export const CINEMA_CAMERAS: readonly CinemaCameraProfile[] = Object.freeze([
   {
     id: 'arri_alexa_35',
+    bodyColor: '#2a2a2a',
+    trimColor: '#c4a060',
     name: 'ARRI Alexa 35',
     zhName: '阿莱 Alexa 35',
     sensor: 'Super 35 · ALEV 4',
@@ -37,6 +43,8 @@ export const CINEMA_CAMERAS: readonly CinemaCameraProfile[] = Object.freeze([
   },
   {
     id: 'arri_alexa_mini_lf',
+    bodyColor: '#3a3a3a',
+    trimColor: '#d4d4d4',
     name: 'ARRI Alexa Mini LF',
     zhName: '阿莱 Mini LF',
     sensor: 'Large Format · ALEV III',
@@ -46,6 +54,8 @@ export const CINEMA_CAMERAS: readonly CinemaCameraProfile[] = Object.freeze([
   },
   {
     id: 'red_v_raptor',
+    bodyColor: '#701f1f',
+    trimColor: '#ff5555',
     name: 'RED V-Raptor 8K VV',
     zhName: 'RED V-Raptor 8K',
     sensor: 'Vista Vision · 8K',
@@ -55,6 +65,8 @@ export const CINEMA_CAMERAS: readonly CinemaCameraProfile[] = Object.freeze([
   },
   {
     id: 'sony_venice_2',
+    bodyColor: '#2d3a4d',
+    trimColor: '#4d90d0',
     name: 'Sony Venice 2',
     zhName: '索尼 Venice 2',
     sensor: 'Full Frame · 8.6K',
@@ -64,6 +76,8 @@ export const CINEMA_CAMERAS: readonly CinemaCameraProfile[] = Object.freeze([
   },
   {
     id: 'sony_fx6',
+    bodyColor: '#2d2d36',
+    trimColor: '#ff9000',
     name: 'Sony FX6',
     zhName: '索尼 FX6',
     sensor: 'Full Frame · 4K',
@@ -73,6 +87,8 @@ export const CINEMA_CAMERAS: readonly CinemaCameraProfile[] = Object.freeze([
   },
   {
     id: 'panavision_dxl2',
+    bodyColor: '#2a2a2a',
+    trimColor: '#e2a84f',
     name: 'Panavision DXL2',
     zhName: '潘那维申 DXL2',
     sensor: 'Large Format · 8K VV',
@@ -82,6 +98,8 @@ export const CINEMA_CAMERAS: readonly CinemaCameraProfile[] = Object.freeze([
   },
   {
     id: 'blackmagic_ursa_12k',
+    bodyColor: '#2e2e2e',
+    trimColor: '#ffb820',
     name: 'Blackmagic URSA Cine 12K',
     zhName: 'BMD URSA 12K',
     sensor: 'Super 35 · 12K',
@@ -91,6 +109,8 @@ export const CINEMA_CAMERAS: readonly CinemaCameraProfile[] = Object.freeze([
   },
   {
     id: 'canon_c400',
+    bodyColor: '#332a22',
+    trimColor: '#e8c070',
     name: 'Canon EOS C400',
     zhName: '佳能 C400',
     sensor: 'Full Frame · 6K',
@@ -103,6 +123,8 @@ export const CINEMA_CAMERAS: readonly CinemaCameraProfile[] = Object.freeze([
 export const CINEMA_LENSES: readonly CinemaLensProfile[] = Object.freeze([
   {
     id: 'arri_signature_prime',
+    bodyColor: '#2a2a2a',
+    trimColor: '#c4a060',
     name: 'ARRI Signature Prime',
     zhName: '阿莱大师定焦',
     mount: 'LPL · Large Format',
@@ -112,6 +134,8 @@ export const CINEMA_LENSES: readonly CinemaLensProfile[] = Object.freeze([
   },
   {
     id: 'cooke_s7i',
+    bodyColor: '#26231d',
+    trimColor: '#d0a060',
     name: 'Cooke S7/i',
     zhName: '库克 S7/i',
     mount: 'PL · Full Frame',
@@ -121,6 +145,8 @@ export const CINEMA_LENSES: readonly CinemaLensProfile[] = Object.freeze([
   },
   {
     id: 'zeiss_supreme_prime',
+    bodyColor: '#1e1e22',
+    trimColor: '#4d90d0',
     name: 'ZEISS Supreme Prime',
     zhName: '蔡司 Supreme',
     mount: 'PL · Full Frame',
@@ -130,6 +156,8 @@ export const CINEMA_LENSES: readonly CinemaLensProfile[] = Object.freeze([
   },
   {
     id: 'panavision_primo70',
+    bodyColor: '#272625',
+    trimColor: '#bbb4a6',
     name: 'Panavision Primo 70',
     zhName: '潘那维申 Primo 70',
     mount: 'PV · Large Format',
@@ -139,6 +167,8 @@ export const CINEMA_LENSES: readonly CinemaLensProfile[] = Object.freeze([
   },
   {
     id: 'sony_g_master',
+    bodyColor: '#29292e',
+    trimColor: '#e28345',
     name: 'Sony G Master',
     zhName: '索尼 G 大师',
     mount: 'E · Full Frame',
@@ -148,6 +178,8 @@ export const CINEMA_LENSES: readonly CinemaLensProfile[] = Object.freeze([
   },
   {
     id: 'canon_cn_e',
+    bodyColor: '#2c241c',
+    trimColor: '#de6360',
     name: 'Canon CN-E Prime',
     zhName: '佳能 CN-E 定焦',
     mount: 'EF · Full Frame',
@@ -157,6 +189,8 @@ export const CINEMA_LENSES: readonly CinemaLensProfile[] = Object.freeze([
   },
   {
     id: 'atlas_orion_anamorphic',
+    bodyColor: '#1b2228',
+    trimColor: '#40c0e0',
     name: 'Atlas Orion Anamorphic',
     zhName: 'Atlas Orion 变形',
     mount: 'PL · Anamorphic',
@@ -166,6 +200,8 @@ export const CINEMA_LENSES: readonly CinemaLensProfile[] = Object.freeze([
   },
   {
     id: 'leica_summilux_c',
+    bodyColor: '#3a2f1f',
+    trimColor: '#d04040',
     name: 'Leica Summilux-C',
     zhName: '徕卡 Summilux-C',
     mount: 'PL · Super 35',

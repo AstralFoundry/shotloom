@@ -1,3 +1,4 @@
+import { isBrowserFile, readBrowserFile, saveBrowserFile } from './browserFileStorage';
 import { createBrowserProviderPlugins } from './browserProviderPlugins';
 import { t } from '../i18n/index.ts';
 import { projectCoverSource } from '../utils/projectCover';
@@ -305,8 +306,11 @@ function createBrowserFallback() {
         _source: string | null | undefined,
       ): Promise<{ duration: number | null; width: number | null; height: number | null }> =>
         ({ duration: null, width: null, height: null }),
-      readArrayBuffer: async () => new ArrayBuffer(0),
-      readImagePreview: async () => new ArrayBuffer(0),
+      readArrayBuffer: async (path: string) => isBrowserFile(path) ? readBrowserFile(path) : new ArrayBuffer(0),
+      readImagePreview: async (path: string) => {
+        if (isBrowserFile(path)) throw new Error(t('media.preview.unreadable'));
+        return new ArrayBuffer(0);
+      },
       applyColoredPencil: async () => {
         throw new Error(t("errors.0aa2072862"));
       },
@@ -345,12 +349,10 @@ function createBrowserFallback() {
         name: preferredName || String(sourcePath || '').split(/[/\\]/).pop() || '',
         size: 0,
       }),
-      saveDataUrlToProject: async (_dataUrl: string, preferredName?: string) => ({
-        filePath: '',
-        path: '',
-        name: preferredName || 'resource.png',
-        size: 0,
-      }),
+      saveDataUrlToProject: async (dataUrl: string, preferredName = 'resource.png') => {
+        const response = await fetch(dataUrl);
+        return saveBrowserFile(await response.blob(), preferredName);
+      },
       writeFileChunk: async () => {
         throw new Error(t("errors.3fe609b867"));
       },

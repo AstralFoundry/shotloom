@@ -1,8 +1,11 @@
+import { batchColumnHandle, parseBatchCellHandle } from '@/domain/graph/BatchTable';
 import { PluginNodeContextMenu } from './PluginNodeContextMenu';
 import { capabilitiesForNode } from '../../domain/provider/plugins/PluginCapabilities';
+import { isStoryboardScriptNode } from "@/domain/graph/StoryboardScript";
 import { canvasInputIndex } from './canvasInputIndex';
-import { createCanvasWheelZoom } from "./canvasWheelZoom";
-import { createCanvasWheelPan } from './canvasWheelPan';
+import { createCanvasWheelZoom, zoomViewportAt } from "./canvasWheelZoom";
+import { CanvasConnectionDraft, canvasEdgeTypes } from "./CanvasConnection";
+import { CANVAS_WHEEL_IDLE_MS, createCanvasWheelOwnership, createCanvasWheelPan } from './canvasWheelPan';
 import { Button, Dropdown } from 'antd';
 import { alignCanvasSelection, type CanvasAlignment } from '../../utils/canvasSelectionLayout';
 import { CanvasDisplaySettings } from "./CanvasDisplaySettings";
@@ -12,12 +15,12 @@ import { subscribeDomain } from "../../store/domainReactivity";
 import type { AgentLayoutMode } from "../../services/agentLayoutService";
 import { t } from '@/i18n';
 import {
-  type CSSProperties,
   type ComponentType,
   createContext,
   type DragEvent as ReactDragEvent,
   forwardRef,
   memo,
+  type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
   type ReactNode,
   useCallback,
@@ -36,20 +39,20 @@ import {
   ConnectionMode,
   type Edge,
   Handle,
-  MarkerType,
   MiniMap,
   type Node,
   type NodeChange,
   type OnNodeDrag,
   NodeResizer,
   type NodeProps,
+  type ResizeParams,
   type OnMoveEnd,
-  type OnMoveStart,
   ReactFlow,
   type ReactFlowInstance,
   Position,
   useNodesState,
   useNodesInitialized,
+  useStore,
   type Viewport,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
@@ -108,6 +111,8 @@ export type WorkflowEdge = {
   id: string;
   source: string;
   target: string;
+  sourceHandle?: string | null;
+  targetHandle?: string | null;
   data?: WorkflowEdgeData;
 };
 export type WorkflowReferenceCandidate = {
@@ -197,6 +202,8 @@ export type WorkflowNodeRenderer = ComponentType<{
   imageEmotionOpen?: boolean;
   onImageEmotionClose?: () => void;
 }>;
+type CanvasPortSide = 'left' | 'right';
+
 export interface WorkflowCanvasController {
   createSection?: (position?: { x: number; y: number }) => void;
   moveNodes: (
@@ -205,7 +212,10 @@ export interface WorkflowCanvasController {
   ) => void;
   selectNodes: (ids: string[]) => void;
   selectEdge: (id: string | null) => void;
-  connect: (connection: Connection) => boolean | void | Promise<boolean | void>;
+  connect: (connection: Connection, options?: { history?: boolean }) => boolean | void | Promise<boolean | void>;
+  portNodeTypes?: (nodeId: string, side: CanvasPortSide) => readonly string[];
+  createNodeFromPort?: (nodeId: string, side: CanvasPortSide, type: string) => void | Promise<void>;
+  onViewportActivity?: () => void;
   saveViewport: (viewport: Viewport) => void;
   createNodeAt: (type: string, position: { x: number; y: number }) => void | Promise<void>;
   createArtifactNodeAt: (artifactId: string, position: { x: number; y: number }) => void | Promise<void>;
@@ -223,6 +233,7 @@ export interface WorkflowCanvasController {
 
 const RendererContext = createContext<Record<string, WorkflowNodeRenderer>>({});
 const ActionContext = createContext<WorkflowNodeActions | null>(null);
+const CanvasPortMenuContext = createContext<((nodeId: string, side: CanvasPortSide, anchor: HTMLElement) => void) | null>(null);
 export const MentionContext = createContext<((nodeId: string) => void) | null>(null);
 export const CanvasOverlayRootContext = createContext<HTMLElement | null>(null);
 export const CanvasHistoryContext = createContext<((nodeId: string) => void) | null>(null);
@@ -230,31 +241,18 @@ export const CanvasNodeLabelRootContext = createContext<HTMLElement | null>(null
 export const CanvasPreviewZoomContext = createContext(1);
 const CanvasFocusNodesContext = createContext<((nodeIds: string[]) => void) | null>(null);
 
-// Tauri on macOS is backed by WKWebView. Its CSS zoom implementation has
-// differed from Chromium in nested layout and form controls, so use the
-// standards-based scale property there while keeping CSS zoom for Chromium.
-const USE_WEBKIT_NODE_SCALE_FALLBACK =
-  typeof navigator !== "undefined" &&
-  /AppleWebKit/i.test(navigator.userAgent) &&
-  !/(Chrome|Chromium|CriOS|Edg)/i.test(navigator.userAgent);
-
-export function CanvasNodeSemanticContent({
+function CanvasNodeContent({
   width,
   height,
-  semanticZoom,
   children,
   deferOffscreen = false,
 }: {
   width: number;
   height: number;
-  semanticZoom: number;
   children: ReactNode;
   deferOffscreen?: boolean;
 }) {
   const [playing, setPlaying] = useState(false);
-  // CSS zoom 已让节点内容按最终屏幕尺寸重新布局，所以节点内样式只写逻辑像素。
-  // 再乘一次语义倍率（或给某块内容单独反向缩放）都会让它脱离节点外框所在的坐标系：
-  // 高倍率下溢出节点，低倍率下按第二套尺寸折行。
   return (
     <div
       className="canvas-node-semantic-frame"
@@ -262,25 +260,14 @@ export function CanvasNodeSemanticContent({
       onPauseCapture={() => setPlaying(false)}
       onEndedCapture={() => setPlaying(false)}
       style={{
-        width: width * semanticZoom,
-        height: height * semanticZoom,
+        width,
+        height,
         // Keep DOM, editor state and media leases. The browser can skip layout
         // and paint offscreen; selected and playing nodes remain fully active.
         contentVisibility: deferOffscreen && !playing ? 'auto' : 'visible',
       }}
     >
-      <div
-        className="canvas-node-semantic-content"
-        style={{
-          width,
-          height,
-          zoom: USE_WEBKIT_NODE_SCALE_FALLBACK ? 1 : semanticZoom,
-          scale: USE_WEBKIT_NODE_SCALE_FALLBACK ? semanticZoom : 1,
-          transformOrigin: "top left",
-          // 节点内 1px 描边写的是逻辑像素，会被 zoom 一起放大；扣回倍率后任何倍率下都是屏幕 1px。
-          "--canvas-node-zoom": String(semanticZoom),
-        } as CSSProperties}
-      >
+      <div className="canvas-node-semantic-content" style={{ width, height }}>
         {children}
       </div>
     </div>
@@ -307,12 +294,10 @@ type FlowNode = Node<{
   node: WorkflowNodeData;
   inputRevision: string;
   incomingInputs: WorkflowIncomingInput[];
-  semanticZoom: number;
 }>;
 type FlowNodeCacheEntry = {
   input: WorkflowNodeData;
   selected: boolean;
-  semanticZoom: number;
   inputRevision: string;
   output: FlowNode;
 };
@@ -338,7 +323,6 @@ function traceCanvasEvent(type: string, detail: unknown) {
 function toFlowNodes(
   nodes: WorkflowNodeData[],
   edges: WorkflowEdge[] = [],
-  semanticZoom = 1,
   cache?: Map<string, FlowNodeCacheEntry>,
 ): FlowNode[] {
   const inputs = canvasInputIndex(nodes, edges, t("ui.WorkflowCanvas.text.a4c9a837"));
@@ -346,27 +330,23 @@ function toFlowNodes(
     .filter((node) => !node.archived)
     .map((node) => {
       const dimensions = nodeDimensions(node);
-      const screenWidth = dimensions.width * semanticZoom;
-      const screenHeight = dimensions.height * semanticZoom;
+      const { width, height } = dimensions;
       const inputRevision = inputs.get(node.id)?.revision || '';
       const selected = Boolean(node.selected);
       const cached = cache?.get(node.id);
       const data = cached &&
           cached.input === node &&
-          cached.semanticZoom === semanticZoom &&
           cached.inputRevision === inputRevision
         ? cached.output.data
         : {
             node,
             inputRevision,
             incomingInputs: inputs.get(node.id)?.inputs || [],
-            semanticZoom,
           };
       if (
         cached &&
         cached.input === node &&
         cached.selected === selected &&
-        cached.semanticZoom === semanticZoom &&
         cached.inputRevision === inputRevision
       ) {
         return cached.output;
@@ -385,31 +365,24 @@ function toFlowNodes(
           .filter(Boolean)
           .join(" "),
         position: {
-          x: screenPixel((Number(node.x) || 0) * semanticZoom),
-          y: screenPixel((Number(node.y) || 0) * semanticZoom),
+          x: Number(node.x) || 0,
+          y: Number(node.y) || 0,
         },
         data,
         selected,
-        // React Flow otherwise keeps the previous DOM measurement for handle
-        // bounds while semantic zoom is changing. Supplying the screen-space
-        // bounds makes the edge and node geometry enter the store together.
-        handles: canvasNodePortBounds(screenWidth, screenHeight).filter(() => node.type !== 'canvasSection').map((handle) => ({
+        // Preserve measured row and column handles when React Flow adopts a new node snapshot.
+        ...(!isStoryboardScriptNode(node) && node.type !== "batchTable" && { handles: canvasNodePortBounds(width, height).filter(() => node.type !== 'canvasSection').map((handle) => ({
           ...handle,
           type: "source" as const,
           position: handle.id === "port-left" ? Position.Left : Position.Right,
-        })),
-        style: {
-          width: screenWidth,
-          height: screenHeight,
-        },
-        // 每次外部同步都会用新的规范快照替换界面节点，React Flow 的 measured 随之丢失；
-        // 小地图只认节点对象上的尺寸，所以显式带上与 style 同一套屏幕空间值。
-        width: screenWidth,
-        height: screenHeight,
-        // The resizer reads measured directly, including after an external sync.
-        ...(node.type === 'canvasSection' ? { measured: { width: screenWidth, height: screenHeight } } : {}),
+        })) }),
+        style: { width, height },
+        width,
+        height,
+        // These dimensions also seed the resizer and minimap on external sync.
+        measured: { width, height },
       };
-      cache?.set(node.id, { input: node, selected, semanticZoom, inputRevision, output });
+      cache?.set(node.id, { input: node, selected, inputRevision, output });
       return output;
     });
   if (cache && cache.size > result.length) {
@@ -433,12 +406,37 @@ function FallbackNodeInner({ node, selected }: { node: WorkflowNodeData; selecte
 }
 const FallbackNode = memo(FallbackNodeInner);
 
-function CanvasNode({ data, selected, dragging }: NodeProps<FlowNode>) {
+const CanvasNode = memo(function CanvasNode({ data, selected, dragging }: NodeProps<FlowNode>) {
   const registry = useContext(RendererContext);
   const actions = useContext(ActionContext)!;
   const addNodeMention = useContext(MentionContext);
   const item = data.node;
   const [resizing, setResizing] = useState(false);
+  const [resizeDimensions, setResizeDimensions] = useState<{ width: number; height: number } | null>(null);
+  const resizeBinding = useRef({ item, actions });
+  resizeBinding.current = { item, actions };
+  // Keep XYFlow's drag behavior bound while the node renders live dimensions.
+  const onResize = useCallback((_event: unknown, size: ResizeParams) => {
+    setResizing(true);
+    setResizeDimensions({ width: size.width, height: size.height });
+  }, []);
+  const onResizeEnd = useCallback((_event: unknown, size: ResizeParams) => {
+    const { item, actions } = resizeBinding.current;
+    const width = Math.round(size.width);
+    const height = Math.round(size.height);
+    setResizeDimensions({ width, height });
+    setResizing(false);
+    actions.update(item.id, {
+      x: Math.round(size.x), y: Math.round(size.y),
+      canvasWidth: width, canvasHeight: height, updatedAt: new Date().toISOString(),
+    });
+  }, []);
+  useEffect(() => {
+    const saved = nodeDimensions(item);
+    if (!resizing && resizeDimensions && saved.width === resizeDimensions.width && saved.height === resizeDimensions.height) {
+      setResizeDimensions(null);
+    }
+  }, [resizing, resizeDimensions, item.canvasWidth, item.canvasHeight]);
   const [imageCropMode, setImageCropMode] = useState<"crop" | "grid" | null>(null);
   const [imageAnnotationOpen, setImageAnnotationOpen] = useState(false);
   const [imageWatermarkOpen, setImageWatermarkOpen] = useState(false);
@@ -461,26 +459,50 @@ function CanvasNode({ data, selected, dragging }: NodeProps<FlowNode>) {
   const focusCanvasNodes = useContext(CanvasFocusNodesContext);
   const [labelRoot, setLabelRoot] = useState<HTMLElement | null>(null);
   const Renderer = registry[item.type] || FallbackNode;
+  const openPortMenu = useContext(CanvasPortMenuContext);
+  const imageToolZoom = useStore(state =>
+    imageWatermarkOpen || imageMaskOpen || imageEmotionOpen ? state.transform[2] : 1,
+  );
   const resizable =
     item.type === "textGeneration" || item.type === "batchTable" ||
     item.type === "threeDDirector" || item.type === "clipStudio";
   const defaultSize = defaultCanvasNodeDimensions(item.type);
-  const storyboardScript = item.type === "textGeneration" && item.canvasView === "storyboard-script";
+  const storyboardScript = isStoryboardScriptNode(item);
+  function portMenuProps(side: CanvasPortSide) {
+    if (!openPortMenu || storyboardScript || !item.type.endsWith('Generation')) return {};
+    const label = side === 'left' ? t('canvas.port.createUpstream') : t('canvas.port.createDownstream');
+    return {
+      tabIndex: 0,
+      role: 'button',
+      'aria-haspopup': 'menu' as const,
+      'aria-label': label,
+      title: label,
+      onClick: (event: ReactMouseEvent<HTMLDivElement>) => {
+        event.stopPropagation();
+        openPortMenu(item.id, side, event.currentTarget);
+      },
+      onKeyDown: (event: ReactKeyboardEvent<HTMLDivElement>) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        event.stopPropagation();
+        openPortMenu(item.id, side, event.currentTarget);
+      },
+    };
+  }
+  const showNodeToolbar = !storyboardScript && item.type !== "batchTable" && !imageMaskOpen && !imageEmotionOpen;
   const minimum =
     item.type === "threeDDirector" || item.type === "clipStudio"
       ? { ...defaultSize, width: item.type === "clipStudio" ? 720 : defaultSize.width }
-      : storyboardScript ? { width: 640, height: 300 }
+      : storyboardScript ? { width: 800, height: 300 }
         : item.type === "batchTable" ? { width: 760, height: 380 } : { width: 195, height: 135 };
-  const dimensions = nodeDimensions(item);
-  const semanticZoom = data.semanticZoom;
-  if (item.type === 'canvasSection') return <CanvasSectionNode node={item} selected={Boolean(selected)} dragging={dragging} zoom={semanticZoom} actions={actions} />;
+  const dimensions = resizeDimensions || nodeDimensions(item);
+  if (item.type === 'canvasSection') return <CanvasSectionNode node={item} selected={Boolean(selected)} dragging={dragging} actions={actions} />;
   return (
     <>
-      {!imageMaskOpen && !imageEmotionOpen && <CanvasNodeToolbar
+      {showNodeToolbar && <CanvasNodeToolbar
         node={item}
         selected={selected}
         dragging={dragging}
-        semanticZoom={semanticZoom}
         actions={actions}
         addNodeMention={addNodeMention}
         canvasOverlayRoot={canvasOverlayRoot}
@@ -571,47 +593,43 @@ function CanvasNode({ data, selected, dragging }: NodeProps<FlowNode>) {
           isVisible
           lineClassName="canvas-node-resize-line"
           keepAspectRatio={item.type === "threeDDirector"}
-          minHeight={minimum.height * semanticZoom}
-          minWidth={minimum.width * semanticZoom}
-          maxHeight={item.type === "clipStudio" ? dimensions.height * semanticZoom : Number.MAX_VALUE}
-          onResizeStart={() => setResizing(true)}
-          onResizeEnd={(_event, size) => {
-            setResizing(false);
-            actions.update(item.id, {
-              x: Math.round(size.x / semanticZoom),
-              y: Math.round(size.y / semanticZoom),
-              canvasWidth: Math.round(size.width / semanticZoom),
-              canvasHeight: Math.round(size.height / semanticZoom),
-              updatedAt: new Date().toISOString(),
-            });
-          }}
+          minHeight={minimum.height}
+          minWidth={minimum.width}
+          maxHeight={item.type === "clipStudio" ? dimensions.height : Number.MAX_VALUE}
+          onResize={onResize}
+          onResizeEnd={onResizeEnd}
         />
       )}
       <div
         ref={setLabelRoot}
         className="canvas-node-label-anchor"
         style={{
-          top: -CANVAS_NODE_LABEL_OFFSET * semanticZoom,
-          width: dimensions.width * semanticZoom,
-          height: CANVAS_NODE_LABEL_HEIGHT * semanticZoom,
-          "--node-label-zoom": semanticZoom,
-        } as CSSProperties}
+          top: -CANVAS_NODE_LABEL_OFFSET,
+          width: dimensions.width,
+          height: CANVAS_NODE_LABEL_HEIGHT,
+        }}
       />
       <Handle
         id="port-left"
+        isConnectable={!storyboardScript && item.type !== "batchTable"}
+        style={storyboardScript || item.type === "batchTable" ? { visibility: "hidden" } : undefined}
         className="canvas-flow-port canvas-flow-port-in"
+        {...portMenuProps('left')}
         type="source"
         position={Position.Left}
       />
       <Handle
         id="port-right"
+        isConnectable={!storyboardScript && item.type !== "batchTable"}
+        style={storyboardScript || item.type === "batchTable" ? { visibility: "hidden" } : undefined}
         className="canvas-flow-port canvas-flow-port-out"
+        {...portMenuProps('right')}
         type="source"
         position={Position.Right}
       />
       <CanvasNodeLabelRootContext.Provider value={labelRoot}>
-      <CanvasNodeSemanticContent width={dimensions.width} height={dimensions.height} semanticZoom={semanticZoom}
-        deferOffscreen={!selected && !resizing && !['threeDDirector', 'clipStudio', 'canvasSection'].includes(item.type)}>
+      <CanvasNodeContent width={dimensions.width} height={dimensions.height}
+        deferOffscreen={!storyboardScript && !selected && !resizing && !['threeDDirector', 'clipStudio', 'canvasSection', 'batchTable'].includes(item.type)}>
         <Renderer
           node={item}
           selected={selected}
@@ -619,7 +637,7 @@ function CanvasNode({ data, selected, dragging }: NodeProps<FlowNode>) {
           inputRevision={data.inputRevision}
           incomingInputs={data.incomingInputs}
           actions={actions}
-          semanticZoom={semanticZoom}
+          semanticZoom={imageToolZoom}
           imageCropMode={imageCropMode}
           onImageCropClose={() => setImageCropMode(null)}
           imageAnnotationOpen={imageAnnotationOpen}
@@ -635,17 +653,18 @@ function CanvasNode({ data, selected, dragging }: NodeProps<FlowNode>) {
           imageEmotionOpen={imageEmotionOpen}
           onImageEmotionClose={() => setImageEmotionOpen(false)}
         />
-      </CanvasNodeSemanticContent>
+      </CanvasNodeContent>
       </CanvasNodeLabelRootContext.Provider>
     </>
   );
-}
+}, (previous, next) => previous.data === next.data && previous.selected === next.selected && previous.dragging === next.dragging);
 const nodeTypes = { panel: CanvasNode };
 type CanvasMenuState = {
   x: number;
   y: number;
   flowX: number;
   flowY: number;
+  port?: { nodeId: string; side: CanvasPortSide; allowedTypes: readonly string[]; anchor: HTMLElement };
 };
 type CanvasMenuLayerHandle = {
   open: (menu: CanvasMenuState) => void;
@@ -672,7 +691,17 @@ const CanvasMenuLayer = memo(
         <CanvasContextMenu
           x={menu.x}
           y={menu.y}
+          {...(menu.port ? { port: menu.port } : {})}
+          onClose={() => {
+            menu.port?.anchor.focus({ preventScroll: true });
+            setMenu(null);
+          }}
           onCreate={async (type) => {
+            if (menu.port) {
+              setMenu(null);
+              await controller.createNodeFromPort?.(menu.port.nodeId, menu.port.side, type);
+              return;
+            }
             await controller.createNodeAt(type, {
               x: menu.flowX,
               y: menu.flowY,
@@ -700,9 +729,37 @@ function CanvasReadySignal({ count, onReady }: { count: number; onReady: () => v
   return null;
 }
 
+// Keep one extra tile around the screen so crossing world zero never exposes an edge.
+function positionCanvasPattern(layer: HTMLDivElement | null, viewport: Viewport) {
+  if (!layer || !Number.isFinite(viewport.zoom) || viewport.zoom <= 0) return;
+  const base = layer.dataset.pattern === "grid" ? 32 : 24;
+  let spacing = base * viewport.zoom;
+  while (spacing >= base * 4 / 3) spacing /= 2;
+  while (spacing < base * 2 / 3) spacing *= 2;
+  // Fractional compositor translations blend every dot with its neighbours at
+  // once. Align the repeating texture to display pixels, including at a tile wrap.
+  const dpr = layer.ownerDocument.defaultView?.devicePixelRatio || 1;
+  const tilePixels = Math.max(1, Math.round(spacing * dpr));
+  spacing = tilePixels / dpr;
+  const offset = (value: number) => {
+    const pixels = Math.round((value + 48) * dpr);
+    return ((pixels % tilePixels + tilePixels) % tilePixels) / dpr;
+  };
+  const size = `${spacing}px ${spacing}px`;
+  if (layer.style.backgroundSize !== size) layer.style.backgroundSize = size;
+  layer.style.transform = `translate3d(${offset(viewport.x)}px, ${offset(viewport.y)}px, 0)`;
+}
+
+export interface CanvasDockControls {
+  panMode: boolean;
+  setPanMode: (enabled: boolean) => void;
+  createNode: (type: string) => void;
+}
+
 export function WorkflowCanvas({
   nodes,
   edges,
+  selectedEdgeId,
   viewport,
   renderers = {},
   nodeActions,
@@ -715,11 +772,12 @@ export function WorkflowCanvas({
 }: {
   nodes: WorkflowNodeData[];
   edges: WorkflowEdge[];
+  selectedEdgeId?: string | null;
   viewport: Viewport;
   renderers?: Record<string, WorkflowNodeRenderer>;
   nodeActions: WorkflowNodeActions;
   controller: WorkflowCanvasController;
-  overlay?: ReactNode;
+  overlay?: (controls: CanvasDockControls) => ReactNode;
   addNodeMention?: (nodeId: string) => void;
   onOpenPoseLibrary?: (() => void) | undefined;
   onReady?: () => void;
@@ -729,15 +787,13 @@ export function WorkflowCanvas({
     MAX_CANVAS_ZOOM,
     Math.max(MIN_CANVAS_ZOOM, Number(viewport.zoom) || 1),
   );
-  const [semanticZoom, setSemanticZoom] = useState(initialZoom);
   const [previewZoom, setPreviewZoom] = useState(initialZoom);
-  const semanticZoomRef = useRef(initialZoom);
   const flowNodeCache = useRef(new Map<string, FlowNodeCacheEntry>());
   const flowEdgeCache = useRef(new Map<string, FlowEdgeCacheEntry>());
   // useNodesState consumes its argument only on mount; evaluating toFlowNodes
   // on every render both repeats graph work and overwrites the live zoom cache.
   const [initialFlowNodes] = useState(() =>
-    toFlowNodes(nodes, edges, initialZoom, flowNodeCache.current),
+    toFlowNodes(nodes, edges, flowNodeCache.current),
   );
   const [flowNodes, setFlowNodes, applyFlowNodeChanges] = useNodesState<FlowNode>(initialFlowNodes);
   const [instance, setInstance] = useState<ReactFlowInstance<
@@ -751,29 +807,24 @@ export function WorkflowCanvas({
   };
   const [minimapVisible, setMinimapVisible] = useState(false);
   const [historyNodeId, setHistoryNodeId] = useState<string | null>(null);
-  const [liveViewport, setLiveViewport] = useState({ ...viewport, zoom: initialZoom });
+  const [zoomPercent, setZoomPercent] = useState(() => Math.round(initialZoom * 100));
   const draggingNodeIds = useRef(new Set<string>());
   const [sectionFeedback, setSectionFeedback] = useState<ReadonlyMap<string, SectionDragFeedback>>(new Map());
   const sectionFeedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (sectionFeedbackTimer.current) clearTimeout(sectionFeedbackTimer.current); }, []);
   const sectionDrag = useRef<{ origin: { x: number; y: number }; canvasOrigin: { x: number; y: number }; members: Map<string, { x: number; y: number; canvasX: number; canvasY: number }> } | null>(null);
-  const movementEndTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const previewZoomTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const viewportAnimationFrame = useRef<number | null>(null);
   const canvasRoot = useRef<HTMLElement>(null);
+  const [panMode, setPanMode] = useState(false);
   const [canvasOverlayRoot, setCanvasOverlayRoot] = useState<HTMLElement | null>(null);
   const menuLayer = useRef<CanvasMenuLayerHandle>(null);
   const [pluginContext, setPluginContext] = useState<{ nodeId: string; x: number; y: number } | null>(null);
   const visible = useMemo(() => nodes.filter((node) => !node.archived), [nodes]);
   const canonicalNodes = useMemo(
-    () => toFlowNodes(visible, edges, semanticZoom, flowNodeCache.current),
-    [edges, semanticZoom, visible],
+    () => toFlowNodes(visible, edges, flowNodeCache.current),
+    [edges, visible],
   );
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      setPreviewZoom(semanticZoom);
-    }, MEDIA_PREVIEW_ZOOM_SETTLE_MS);
-    return () => window.clearTimeout(timer);
-  }, [semanticZoom]);
   useEffect(() => {
     traceCanvasEvent("external-sync", {
       canonicalIds: canonicalNodes.map((node) => node.id),
@@ -784,6 +835,8 @@ export function WorkflowCanvas({
     });
   }, [canonicalNodes]);
   const renderedNodes = flowNodes;
+  const renderedNodesRef = useRef(renderedNodes);
+  renderedNodesRef.current = renderedNodes;
   // A selected section moves its children through the existing controller;
   // do not independently align those same children a second time.
   const layoutSelection = useMemo(() => {
@@ -808,12 +861,23 @@ export function WorkflowCanvas({
           const sourceCenter = Number(source?.x || 0) + nodeDimensions(source!).width / 2;
           const targetCenter = Number(target?.x || 0) + nodeDimensions(target!).width / 2;
           const targetIsRight = targetCenter >= sourceCenter;
-          const sourceHandle = targetIsRight ? "port-right" : "port-left";
-          const targetHandle = targetIsRight ? "port-left" : "port-right";
+          const sourceHandle = edge.sourceHandle?.startsWith("storyboard-") ? edge.sourceHandle
+            : targetIsRight ? "port-right" : "port-left";
+          const batchColumnId = edge.data?.batchColumnId;
+          const batchCell = Boolean(parseBatchCellHandle(edge.targetHandle));
+          const targetHandle = target?.type === 'batchTable' && typeof batchColumnId === 'string' && batchColumnId
+            ? batchColumnHandle(batchColumnId)
+            : batchCell || edge.targetHandle?.startsWith("storyboard") || edge.targetHandle?.startsWith("batch-reference:")
+              ? edge.targetHandle ?? null
+              : targetIsRight ? "port-left" : "port-right";
+          const selected = edge.id === selectedEdgeId;
+          const connectedHighlight = Boolean(source?.selected || target?.selected);
           const signature = JSON.stringify([
             edge,
             sourceHandle,
             targetHandle,
+            selected,
+            connectedHighlight,
           ]);
           const cached = flowEdgeCache.current.get(edge.id);
           if (cached?.signature === signature) return cached.output;
@@ -821,12 +885,10 @@ export function WorkflowCanvas({
             ...edge,
             sourceHandle,
             targetHandle,
-            type: "default",
-            markerEnd: {
-              type: MarkerType.ArrowClosed,
-              width: 10,
-              height: 10,
-            },
+            selected,
+            className: connectedHighlight ? 'canvas-edge-connected-highlight' : '',
+            type: "connection",
+            ...(batchCell ? { zIndex: 11 } : {}),
           };
           flowEdgeCache.current.set(edge.id, { signature, output });
           return output;
@@ -837,7 +899,7 @@ export function WorkflowCanvas({
       }
       return result;
     },
-    [edges, ids, visibleById],
+    [edges, ids, visibleById, selectedEdgeId],
   );
   const displayedEdges = useMemo(
     () => flowEdges.filter(edge => canvasEdgeVisible(edge, appearance.edges)),
@@ -856,21 +918,19 @@ export function WorkflowCanvas({
           dragging: change.type === "position" ? change.dragging : undefined,
           position: change.type === "position" ? change.position : undefined,
         })),
-        nodeIds: renderedNodes.map((node) => node.id),
-        edgeIds: flowEdges.map((edge) => edge.id),
       });
       if (interactiveChanges.length) applyFlowNodeChanges(interactiveChanges);
       const selection = interactiveChanges.filter((change) => change.type === "select");
       if (selection.length) {
         const selected = new Set(
-          applyNodeChanges(interactiveChanges, renderedNodes)
+          applyNodeChanges(interactiveChanges, renderedNodesRef.current)
             .filter((node) => node.selected)
             .map((node) => node.id),
         );
         controller.selectNodes([...selected]);
       }
     },
-    [applyFlowNodeChanges, controller, flowEdges, renderedNodes],
+    [applyFlowNodeChanges, controller],
   );
   const sectionIndex = useMemo(() => {
     const sections = visible.filter(node => node.type === 'canvasSection');
@@ -887,7 +947,7 @@ export function WorkflowCanvas({
     for (const item of active) {
       const node = item.data.node;
       const target = canvasSectionDropTarget({ ...node,
-        x: Math.round(item.position.x / semanticZoomRef.current), y: Math.round(item.position.y / semanticZoomRef.current),
+        x: Math.round(item.position.x), y: Math.round(item.position.y),
       }, sectionIndex.sections);
       const owner = sectionIndex.owners.get(node.id);
       if (owner && owner !== target?.id && !feedback.has(owner)) feedback.set(owner, 'leave');
@@ -909,17 +969,17 @@ export function WorkflowCanvas({
       for (const section of activeNodes.filter(item => item.data.node.type === 'canvasSection')) {
         for (const member of canvasSectionMembers(section.data.node, visible)) {
           if (activeIds.has(member.id)) continue;
-          const flow = renderedNodes.find(item => item.id === member.id);
+          const flow = renderedNodesRef.current.find(item => item.id === member.id);
           if (flow) members.set(member.id, { ...flow.position, canvasX: Number(member.x) || 0, canvasY: Number(member.y) || 0 });
         }
       }
       members.forEach((_position, id) => draggingNodeIds.current.add(id));
       sectionDrag.current = { origin: { ...node.position }, canvasOrigin: { x: Number(node.data.node.x) || 0, y: Number(node.data.node.y) || 0 }, members };
     },
-    [renderedNodes, visible, previewSectionDrop, showSectionFeedback],
+    [visible, previewSectionDrop, showSectionFeedback],
   );
   const onNodeDrag: OnNodeDrag<FlowNode> = useCallback((_event, node, draggedNodes) => {
-    showSectionFeedback(previewSectionDrop(draggedNodes.length ? draggedNodes : [node]));
+    if (sectionIndex.sections.length) showSectionFeedback(previewSectionDrop(draggedNodes.length ? draggedNodes : [node]));
     const drag = sectionDrag.current;
     if (!drag?.members.size) return;
     const dx = node.position.x - drag.origin.x;
@@ -928,18 +988,16 @@ export function WorkflowCanvas({
       const origin = drag.members.get(item.id);
       return origin ? { ...item, position: { x: origin.x + dx, y: origin.y + dy } } : item;
     }));
-  }, [setFlowNodes, previewSectionDrop, showSectionFeedback]);
+  }, [setFlowNodes, previewSectionDrop, sectionIndex.sections.length, showSectionFeedback]);
   const onNodeDragStop: OnNodeDrag<FlowNode> = useCallback(
     (_event, node, draggedNodes) => {
       const stoppedNodes = draggedNodes.length ? draggedNodes : [node];
       stoppedNodes.forEach((item) => draggingNodeIds.current.delete(item.id));
-      const moved = draggedCanvasPositions(node, draggedNodes, semanticZoomRef.current);
+      const moved = draggedCanvasPositions(node, draggedNodes, 1);
       const drag = sectionDrag.current;
       if (drag) {
-        // Apply one canonical delta to every member; independently rounding
-        // screen coordinates would make contents drift at fractional zoom.
-        const dx = Math.round(node.position.x / semanticZoomRef.current) - drag.canvasOrigin.x;
-        const dy = Math.round(node.position.y / semanticZoomRef.current) - drag.canvasOrigin.y;
+        const dx = Math.round(node.position.x) - drag.canvasOrigin.x;
+        const dy = Math.round(node.position.y) - drag.canvasOrigin.y;
         for (const [id, origin] of drag.members) {
           moved.push({ id, x: origin.canvasX + dx, y: origin.canvasY + dy });
           draggingNodeIds.current.delete(id);
@@ -953,10 +1011,7 @@ export function WorkflowCanvas({
         return {
           ...item,
           dragging: false,
-          position: {
-            x: screenPixel(position.x * semanticZoomRef.current),
-            y: screenPixel(position.y * semanticZoomRef.current),
-          },
+          position: { x: position.x, y: position.y },
         };
       }));
       traceCanvasEvent("drag-stop", { moved });
@@ -992,13 +1047,14 @@ export function WorkflowCanvas({
       window.removeEventListener("keydown", finishInterruptedDrag, true);
     };
   }, []);
+  const wheelOwnership = useMemo(createCanvasWheelOwnership, []);
   const pendingViewportSave = useRef<{ timer: ReturnType<typeof setTimeout>; viewport: Viewport } | null>(null);
   const scheduleViewportSave = useCallback((viewport: Viewport) => {
     if (pendingViewportSave.current) clearTimeout(pendingViewportSave.current.timer);
     const timer = setTimeout(() => {
       pendingViewportSave.current = null;
       controller.saveViewport(viewport);
-    }, 160);
+    }, CANVAS_WHEEL_IDLE_MS);
     pendingViewportSave.current = { timer, viewport };
   }, [controller]);
   useEffect(() => () => {
@@ -1008,77 +1064,70 @@ export function WorkflowCanvas({
       pendingViewportSave.current = null;
     }
   }, [controller]);
-  const onMoveEnd: OnMoveEnd = useCallback(
-    (_event, next) => {
-      if (movementEndTimer.current) clearTimeout(movementEndTimer.current);
-      movementEndTimer.current = setTimeout(() => {
-        movementEndTimer.current = null;
-      }, 120);
-      const publicViewport = { x: next.x, y: next.y, zoom: semanticZoomRef.current };
-      setLiveViewport(publicViewport);
-      scheduleViewportSave({
-        x: Math.round(next.x),
-        y: Math.round(next.y),
-        zoom: semanticZoomRef.current,
-      });
-    },
-    [scheduleViewportSave],
-  );
-  const onMoveStart: OnMoveStart = useCallback(() => {
-    if (movementEndTimer.current) {
-      clearTimeout(movementEndTimer.current);
-      movementEndTimer.current = null;
-    }
+  const onMoveEnd: OnMoveEnd = useCallback((event, next) => {
+    if (event) scheduleViewportSave(next);
+  }, [scheduleViewportSave]);
+  const cancelViewportAnimation = useCallback(() => {
+    if (viewportAnimationFrame.current !== null) cancelAnimationFrame(viewportAnimationFrame.current);
+    viewportAnimationFrame.current = null;
   }, []);
-  useEffect(
-    () => () => {
-      if (movementEndTimer.current) clearTimeout(movementEndTimer.current);
-      if (viewportAnimationFrame.current !== null) cancelAnimationFrame(viewportAnimationFrame.current);
+  useEffect(() => () => {
+    if (previewZoomTimer.current !== null) clearTimeout(previewZoomTimer.current);
+    cancelViewportAnimation();
+  }, [cancelViewportAnimation]);
+
+  const applyCanvasViewport = useCallback((next: Viewport) => {
+    if (!instance) return;
+    const previousZoom = instance.getZoom();
+    void instance.setViewport(next);
+    scheduleViewportSave(next);
+    if (next.zoom === previousZoom) return;
+    setZoomPercent(Math.round(next.zoom * 100));
+    if (previewZoomTimer.current !== null) clearTimeout(previewZoomTimer.current);
+    previewZoomTimer.current = setTimeout(() => {
+      previewZoomTimer.current = null;
+      setPreviewZoom(next.zoom);
+    }, MEDIA_PREVIEW_ZOOM_SETTLE_MS);
+  }, [instance, scheduleViewportSave]);
+
+  const patternLayer = useRef<HTMLDivElement>(null);
+  const bindPattern = useCallback((element: HTMLDivElement | null) => {
+    patternLayer.current = element;
+    if (instance) positionCanvasPattern(element, instance.getViewport());
+  }, [instance, appearance.pattern]);
+  const onCameraMove = useCallback((_event: unknown, next: Viewport) => {
+    controller.onViewportActivity?.();
+    positionCanvasPattern(patternLayer.current, next);
+  }, [controller]);
+
+  // Keep the world and viewport subscribers on the same coordinates throughout the gesture.
+  const wheelPan = useMemo(() => createCanvasWheelPan({
+    read: () => instance?.getViewport() ?? { x: 0, y: 0 },
+    apply: position => {
+      if (instance) applyCanvasViewport({ ...position, zoom: instance.getZoom() });
     },
-    [],
-  );
-  const setCanvasZoomAt = useCallback(
-    (requestedZoom: number, clientPoint?: { x: number; y: number }) => {
-      if (!instance) return;
-      const zoom = Math.min(MAX_CANVAS_ZOOM, Math.max(MIN_CANVAS_ZOOM, requestedZoom));
-      const currentZoom = semanticZoomRef.current;
-      if (Math.abs(zoom - currentZoom) < 0.0005) return;
-      const bounds = canvasRoot.current?.getBoundingClientRect();
-      if (!bounds) return;
-      const current = instance.getViewport();
-      const center = clientPoint
-        ? { x: clientPoint.x - bounds.left, y: clientPoint.y - bounds.top }
-        : { x: bounds.width / 2, y: bounds.height / 2 };
-      const ratio = zoom / currentZoom;
-      const next = {
-        x: screenPixel(center.x - (center.x - current.x) * ratio),
-        y: screenPixel(center.y - (center.y - current.y) * ratio),
-        zoom: 1,
-      };
-      semanticZoomRef.current = zoom;
-      setSemanticZoom(zoom);
-      setLiveViewport({ x: next.x, y: next.y, zoom });
-      void instance.setViewport(next);
-      scheduleViewportSave({ x: Math.round(next.x), y: Math.round(next.y), zoom });
-    },
-    [instance, scheduleViewportSave],
-  );
+  }), [instance, applyCanvasViewport]);
+  useEffect(() => () => wheelPan.dispose(), [wheelPan]);
+  const setCanvasZoomAt = useCallback((requestedZoom: number, clientPoint?: { x: number; y: number }) => {
+    const bounds = canvasRoot.current?.getBoundingClientRect();
+    if (!instance || !bounds) return;
+    wheelPan.flush();
+    const current = instance.getViewport();
+    const zoom = Math.min(MAX_CANVAS_ZOOM, Math.max(MIN_CANVAS_ZOOM, requestedZoom));
+    if (Math.abs(zoom - current.zoom) < 0.0005) return;
+    cancelViewportAnimation();
+    const center = clientPoint
+      ? { x: clientPoint.x - bounds.left, y: clientPoint.y - bounds.top }
+      : { x: bounds.width / 2, y: bounds.height / 2 };
+    applyCanvasViewport(zoomViewportAt(current, zoom, center));
+  }, [instance, applyCanvasViewport, cancelViewportAnimation, wheelPan]);
   const wheelZoom = useMemo(() => createCanvasWheelZoom({
-    readZoom: () => semanticZoomRef.current,
+    readZoom: () => instance?.getZoom() ?? 1,
     applyZoom: setCanvasZoomAt,
     min: MIN_CANVAS_ZOOM,
     max: MAX_CANVAS_ZOOM,
-  }), [setCanvasZoomAt]);
+  }), [instance, setCanvasZoomAt]);
   useEffect(() => () => wheelZoom.dispose(), [wheelZoom]);
-  const wheelPan = useMemo(() => createCanvasWheelPan({
-    read: () => instance?.getViewport() || { x: 0, y: 0 },
-    apply: next => {
-      if (!instance) return;
-      void instance.setViewport({ ...next, zoom: 1 });
-      scheduleViewportSave({ ...next, zoom: semanticZoomRef.current });
-    },
-  }), [instance, scheduleViewportSave]);
-  useEffect(() => () => wheelPan.dispose(), [wheelPan]);
   useEffect(() => {
     const root = canvasRoot.current;
     if (!root) return;
@@ -1086,35 +1135,72 @@ export function WorkflowCanvas({
     // canvas boundary so scrolling inputs and portalled dialogs remain native.
     const onWheel = (event: WheelEvent) => {
       if (!isCanvasDomEvent(event, root)) return;
-      const target = event.target;
-      if (target instanceof Element && target.closest('.nowheel,input,textarea,select,button,video,audio,[contenteditable=true]')) return;
+      const target = event.target instanceof Element ? event.target : null;
+      if (event.defaultPrevented || !target || target.closest(
+        '.ant-modal,.ant-dropdown,.ant-select-dropdown,.ant-popover,[role="dialog"],[role="menu"],[role="listbox"]',
+      )) return;
+
+      const zooming = event.ctrlKey || event.metaKey;
+      const horizontal = event.shiftKey && !event.deltaX;
+      const dx = horizontal ? event.deltaY : event.deltaX;
+      const dy = horizontal ? 0 : event.deltaY;
+      const owner = wheelOwnership.resolve(event.timeStamp, zooming || event.shiftKey, () => {
+        if (Math.abs(dx) > Math.abs(dy)) return false;
+        if (target.closest('input,textarea,select,[contenteditable]:not([contenteditable="false"]),audio[controls],video[controls]')) return true;
+        const scroll = target.closest('.nowheel');
+        if (!scroll) return false;
+        const overflow = getComputedStyle(scroll);
+        return (dy !== 0 && scroll.scrollHeight > scroll.clientHeight && /^(auto|scroll)$/.test(overflow.overflowY))
+          || (dx !== 0 && scroll.scrollWidth > scroll.clientWidth && /^(auto|scroll)$/.test(overflow.overflowX));
+      });
+      if (owner === 'content') return;
       event.preventDefault();
-      // Chromium reports trackpad pinch as Ctrl+wheel. Ordinary two-finger
-      // scrolling pans on both axes; no device guessing from delta magnitude.
-      if (event.ctrlKey || event.metaKey) {
+      event.stopPropagation();
+
+      if (event.buttons || draggingNodeIds.current.size) return;
+      cancelViewportAnimation();
+      if (zooming) {
         wheelZoom.enqueue(event.deltaY, { x: event.clientX, y: event.clientY });
         return;
       }
-      wheelPan.enqueue(event.deltaX, event.deltaY, event.deltaMode, root.clientHeight);
+      wheelPan.enqueue(dx, dy, event.deltaMode, event.deltaMode === 2 ? root.clientHeight : 0);
     };
     root.addEventListener('wheel', onWheel, { passive: false, capture: true });
     return () => root.removeEventListener('wheel', onWheel, { capture: true });
-  }, [wheelZoom, wheelPan]);
-  const changeZoom = useCallback(
-    (delta: number) => {
-      const zoom = Math.round((semanticZoomRef.current + delta) * 10) / 10;
-      setCanvasZoomAt(zoom);
-    },
-    [setCanvasZoomAt],
-  );
+  }, [wheelZoom, wheelPan, wheelOwnership, cancelViewportAnimation]);
+  const changeZoom = (delta: number) => {
+    const zoom = Math.round(((instance?.getZoom() ?? initialZoom) + delta) * 10) / 10;
+    setCanvasZoomAt(zoom);
+  };
+  const animateCanvasViewport = useCallback((target: Viewport, duration: number) => {
+    if (!instance) return;
+    cancelViewportAnimation();
+    wheelZoom.dispose();
+    wheelPan.flush();
+    const current = instance.getViewport();
+    const startedAt = performance.now();
+    const animate = (now: number) => {
+      const progress = Math.min(1, (now - startedAt) / duration);
+      if (progress === 1) {
+        viewportAnimationFrame.current = null;
+        applyCanvasViewport(target);
+        return;
+      }
+      const eased = 1 - Math.pow(1 - progress, 3);
+      applyCanvasViewport({
+        x: current.x + (target.x - current.x) * eased,
+        y: current.y + (target.y - current.y) * eased,
+        zoom: current.zoom + (target.zoom - current.zoom) * eased,
+      });
+      viewportAnimationFrame.current = requestAnimationFrame(animate);
+    };
+    viewportAnimationFrame.current = requestAnimationFrame(animate);
+  }, [instance, applyCanvasViewport, cancelViewportAnimation, wheelPan, wheelZoom]);
   const fitCanvasView = useCallback(() => {
     if (!instance || !canvasRoot.current) return;
     const bounds = canvasRoot.current.getBoundingClientRect();
     if (!visible.length) {
-      semanticZoomRef.current = 1;
-      setSemanticZoom(1);
-      setLiveViewport({ x: 0, y: 0, zoom: 1 });
-      void instance.setViewport({ x: 0, y: 0, zoom: 1 }, { duration: 240 });
+      animateCanvasViewport({ x: 0, y: 0, zoom: 1 }, 240);
       return;
     }
     const nodeBounds = visible.reduce(
@@ -1136,17 +1222,13 @@ export function WorkflowCanvas({
       MAX_CANVAS_ZOOM,
       Math.max(
         MIN_CANVAS_ZOOM,
-        Math.min((bounds.width * 0.68) / contentWidth, (bounds.height * 0.68) / contentHeight),
+        Math.min((bounds.width * 0.78) / contentWidth, (bounds.height * 0.78) / contentHeight),
       ),
     );
     const x = screenPixel(bounds.width / 2 - ((nodeBounds.minX + nodeBounds.maxX) / 2) * zoom);
     const y = screenPixel(bounds.height / 2 - ((nodeBounds.minY + nodeBounds.maxY) / 2) * zoom);
-    semanticZoomRef.current = zoom;
-    setSemanticZoom(zoom);
-    setLiveViewport({ x, y, zoom });
-    void instance.setViewport({ x, y, zoom: 1 }, { duration: 240 });
-    scheduleViewportSave({ x: Math.round(x), y: Math.round(y), zoom });
-  }, [instance, scheduleViewportSave, visible]);
+    animateCanvasViewport({ x, y, zoom }, 240);
+  }, [instance, animateCanvasViewport, visible]);
   /**
    * 把目标节点居中，走一次 360ms 缓动。keepZoom 给小地图这类"只挪视野"的入口用：
    * 语义缩放会连节点内容一起放大，为了一个概览点击把画面推到贴合尺寸会让过渡失去参照。
@@ -1174,7 +1256,7 @@ export function WorkflowCanvas({
     const contentHeight = Math.max(1, bounds.maxY - bounds.minY);
     const singleNodeFocus = targets.length === 1;
     const zoom = options?.keepZoom
-      ? semanticZoomRef.current
+      ? instance.getZoom()
       : Math.min(
         MAX_CANVAS_ZOOM,
         Math.max(
@@ -1187,30 +1269,8 @@ export function WorkflowCanvas({
       );
     const x = screenPixel(viewport.width / 2 - (bounds.minX + bounds.maxX) / 2 * zoom);
     const y = screenPixel(viewport.height / 2 - (bounds.minY + bounds.maxY) / 2 * zoom);
-    if (viewportAnimationFrame.current !== null) cancelAnimationFrame(viewportAnimationFrame.current);
-    const fromZoom = semanticZoomRef.current;
-    const fromViewport = instance.getViewport();
-    const startedAt = performance.now();
-    const duration = 360;
-    const animate = (now: number) => {
-      const progress = Math.min(1, (now - startedAt) / duration);
-      const eased = 1 - Math.pow(1 - progress, 3);
-      const currentZoom = fromZoom + (zoom - fromZoom) * eased;
-      const currentX = fromViewport.x + (x - fromViewport.x) * eased;
-      const currentY = fromViewport.y + (y - fromViewport.y) * eased;
-      semanticZoomRef.current = currentZoom;
-      setSemanticZoom(currentZoom);
-      setLiveViewport({ x: currentX, y: currentY, zoom: currentZoom });
-      void instance.setViewport({ x: currentX, y: currentY, zoom: 1 });
-      if (progress < 1) {
-        viewportAnimationFrame.current = requestAnimationFrame(animate);
-      } else {
-        viewportAnimationFrame.current = null;
-        scheduleViewportSave({ x: Math.round(x), y: Math.round(y), zoom });
-      }
-    };
-    viewportAnimationFrame.current = requestAnimationFrame(animate);
-  }, [instance, scheduleViewportSave, visible]);
+    animateCanvasViewport({ x, y, zoom }, 360);
+  }, [instance, animateCanvasViewport, visible]);
   useEffect(() => {
     controller.registerFitView?.(instance ? fitCanvasView : null);
     return () => controller.registerFitView?.(null);
@@ -1221,11 +1281,23 @@ export function WorkflowCanvas({
   }, [controller, focusCanvasNodes, instance]);
   // MiniMap 内部用 useCallback([]) 冻结节点点击回调，只在挂载那一刻捕获一次闭包；
   // 入口因此只读一份最新实现，避免拿到挂载时的 instance 与节点快照。
+  const focusNodesRef = useRef(focusCanvasNodes);
+  focusNodesRef.current = focusCanvasNodes;
+  const focusNodesFromCanvas = useCallback((nodeIds: string[]) => focusNodesRef.current(nodeIds), []);
   const minimapNodeClick = useRef<(nodeId: string) => void>(() => {});
   minimapNodeClick.current = (nodeId: string) => {
     controller.selectNodes([nodeId]);
     focusCanvasNodes([nodeId], { keepZoom: true });
   };
+  function createNodeFromDock(type: string) {
+    const bounds = canvasRoot.current?.getBoundingClientRect();
+    if (!bounds || !instance) return;
+    const center = instance.screenToFlowPosition({
+      x: bounds.left + bounds.width / 2,
+      y: bounds.top + bounds.height / 2,
+    }, { snapToGrid: false });
+    void controller.createNodeAt(type, center);
+  }
   function openMenu(event: globalThis.MouseEvent | ReactMouseEvent<Element>) {
     event.preventDefault();
     const bounds = canvasRoot.current?.getBoundingClientRect();
@@ -1238,10 +1310,24 @@ export function WorkflowCanvas({
     menuLayer.current?.open({
       x: menuPosition.x,
       y: menuPosition.y,
-      flowX: point.x / semanticZoomRef.current,
-      flowY: point.y / semanticZoomRef.current,
+      flowX: point.x,
+      flowY: point.y,
     });
   }
+  const openPortMenu = useCallback((nodeId: string, side: CanvasPortSide, anchor: HTMLElement) => {
+    const bounds = canvasRoot.current?.getBoundingClientRect();
+    const allowedTypes = controller.portNodeTypes?.(nodeId, side);
+    if (!bounds || !allowedTypes?.length) {
+      menuLayer.current?.close();
+      return;
+    }
+    const port = anchor.getBoundingClientRect();
+    const clientX = side === 'left' ? port.left : port.right;
+    const clientY = port.top + port.height / 2;
+    const position = canvasMenuPosition(clientX, clientY, bounds, allowedTypes.length * 38 + 40, side);
+    menuLayer.current?.open({ ...position, flowX: 0, flowY: 0, port: { nodeId, side, allowedTypes, anchor } });
+  }, [controller]);
+
   function onArtifactDragOver(event: ReactDragEvent<HTMLElement>) {
     if (!event.dataTransfer.types.includes(ARTIFACT_DRAG_TYPE)) return;
     event.preventDefault();
@@ -1254,8 +1340,8 @@ export function WorkflowCanvas({
     event.stopPropagation();
     const point = instance.screenToFlowPosition({ x: event.clientX, y: event.clientY });
     void controller.createArtifactNodeAt(artifactId, {
-      x: point.x / semanticZoomRef.current,
-      y: point.y / semanticZoomRef.current,
+      x: point.x,
+      y: point.y,
     });
   }
   const bindCanvasRoot = useCallback((element: HTMLElement | null) => {
@@ -1269,27 +1355,34 @@ export function WorkflowCanvas({
         <MentionContext.Provider value={addNodeMention || null}>
         <CanvasPreviewZoomContext.Provider value={previewZoom}>
         <CanvasOverlayRootContext.Provider value={canvasOverlayRoot}>
-        <CanvasFocusNodesContext.Provider value={focusCanvasNodes}>
+        <CanvasFocusNodesContext.Provider value={focusNodesFromCanvas}>
         <CanvasHistoryContext.Provider value={setHistoryNodeId}>
         <SectionDragFeedbackContext.Provider value={sectionFeedback}>
         <CanvasSectionNodesContext.Provider value={visible}>
+        <CanvasPortMenuContext.Provider value={openPortMenu}>
         <section
           ref={bindCanvasRoot}
           onDragOver={onArtifactDragOver}
           onDrop={onArtifactDrop}
           data-pattern={appearance.pattern}
+          data-pointer-tool={panMode ? "pan" : "select"}
           data-color={appearance.color}
           className="react-workflow-canvas"
-          // 连线粗细与箭头按同一倍率缩放，样式侧只读这一个变量。
-          style={{ "--canvas-semantic-zoom": semanticZoom } as CSSProperties}
           tabIndex={0}
           onPointerDownCapture={(event) => {
             if (!isCanvasDomEvent(event.nativeEvent, event.currentTarget)) return;
+            cancelViewportAnimation();
+            wheelOwnership.reset();
+            wheelZoom.dispose();
+            wheelPan.flush();
             const target = event.target as Element;
             if (!target.closest("input,textarea,select,button,iframe,[contenteditable=true]")) {
               event.currentTarget.focus({ preventScroll: true });
             }
           }}
+          onFocusCapture={() => wheelPan.flush()}
+          onKeyDownCapture={() => wheelPan.flush()}
+          onDragEnterCapture={() => wheelPan.flush()}
           onKeyDown={(event) => {
             if (!isCanvasDomEvent(event.nativeEvent, event.currentTarget)) return;
             const editable = isEditableCanvasEvent(event.nativeEvent);
@@ -1359,8 +1452,8 @@ export function WorkflowCanvas({
                 .filter((node) => node.selected)
                 .map((node) => ({
                   id: node.id,
-                  x: node.position.x / semanticZoomRef.current + dx,
-                  y: node.position.y / semanticZoomRef.current + dy,
+                  x: node.position.x + dx,
+                  y: node.position.y + dy,
                 }));
               if (moved.length) {
                 setFlowNodes((current) =>
@@ -1370,8 +1463,8 @@ export function WorkflowCanvas({
                       ? {
                           ...node,
                           position: {
-                            x: next.x * semanticZoomRef.current,
-                            y: next.y * semanticZoomRef.current,
+                            x: next.x,
+                            y: next.y,
                           },
                         }
                       : node;
@@ -1385,6 +1478,7 @@ export function WorkflowCanvas({
             if ((event.target as Element).classList.contains("react-flow__pane")) openMenu(event);
           }}
         >
+          {appearance.pattern !== "solid" && <div aria-hidden="true" className="canvas-world-pattern" data-pattern={appearance.pattern} ref={bindPattern} />}
           {pluginContext && <PluginNodeContextMenu key={pluginContext.nodeId} {...pluginContext} onClose={() => setPluginContext(null)} />}
           <ReactFlow
             onNodeContextMenu={(event, flowNode) => {
@@ -1397,22 +1491,25 @@ export function WorkflowCanvas({
             edges={displayedEdges}
             nodeTypes={nodeTypes}
             proOptions={{ hideAttribution: true }}
-            // 空字符串让箭头不写行内 stroke/fill，颜色由 canvas.css 的 --canvas-edge 统一决定。
-            defaultMarkerColor=""
+            edgeTypes={canvasEdgeTypes}
+            connectionLineComponent={CanvasConnectionDraft}
             onlyRenderVisibleElements={false}
-            defaultViewport={{ x: viewport.x, y: viewport.y, zoom: 1 }}
-            minZoom={1}
-            maxZoom={1}
-            nodesDraggable
+            defaultViewport={{ x: viewport.x, y: viewport.y, zoom: initialZoom }}
+            minZoom={MIN_CANVAS_ZOOM}
+            maxZoom={MAX_CANVAS_ZOOM}
+            nodesDraggable={!panMode}
             autoPanOnNodeDrag={false}
             nodesConnectable
             connectOnClick
             connectionMode={ConnectionMode.Loose}
-            connectionRadius={64}
-            selectionOnDrag
-            panOnDrag={[1, 2]}
+            connectionRadius={64 / Math.max(MIN_CANVAS_ZOOM, zoomPercent / 100)}
+            selectionOnDrag={!panMode}
+            panOnDrag={panMode ? [0, 1, 2] : [1, 2]}
+            preventScrolling={false}
+            zoomActivationKeyCode={null}
             zoomOnScroll={false}
             zoomOnPinch={false}
+            zoomOnDoubleClick={false}
             multiSelectionKeyCode={["Meta", "Control", "Shift"]}
             deleteKeyCode={null}
             onInit={setInstance}
@@ -1428,7 +1525,7 @@ export function WorkflowCanvas({
               controller.selectNodes([]);
               controller.selectEdge(null);
             }}
-            onMoveStart={onMoveStart}
+            onMove={onCameraMove}
             onMoveEnd={onMoveEnd}
             onPaneContextMenu={openMenu}
           >
@@ -1496,7 +1593,7 @@ export function WorkflowCanvas({
                 title={t("ui.WorkflowCanvas.title.d598a5cd")}
                 onClick={fitCanvasView}
               >
-                {Math.round(liveViewport.zoom * 100)}%
+                {zoomPercent}%
               </button>
               <button type="button" title={t("ui.WorkflowCanvas.title.55c0d6cc")} onClick={() => changeZoom(0.1)}>
                 ＋
@@ -1522,13 +1619,14 @@ export function WorkflowCanvas({
               <IconSymbol name="map" />
             </button>
           </div>
-          {overlay}
+          {overlay?.({ panMode, setPanMode, createNode: createNodeFromDock })}
         </section>
         <GenerationHistoryDialog
           open={Boolean(historyNodeId)}
           nodeId={historyNodeId || ''}
           onClose={() => setHistoryNodeId(null)}
         />
+        </CanvasPortMenuContext.Provider>
         </CanvasSectionNodesContext.Provider>
         </SectionDragFeedbackContext.Provider>
         </CanvasHistoryContext.Provider>

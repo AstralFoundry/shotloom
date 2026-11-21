@@ -19,16 +19,19 @@ export function canvasMenuPosition(
   clientX: number,
   clientY: number,
   bounds: Pick<DOMRect, "left" | "top" | "width" | "height">,
+  menuHeight = CANVAS_MENU_HEIGHT,
+  side: 'left' | 'right' = 'right',
 ) {
   const maxX = Math.max(CANVAS_MENU_MARGIN, bounds.width - CANVAS_MENU_WIDTH - CANVAS_MENU_MARGIN);
   const maxY = Math.max(
     CANVAS_MENU_MARGIN,
-    bounds.height - CANVAS_MENU_HEIGHT - CANVAS_MENU_MARGIN,
+    bounds.height - menuHeight - CANVAS_MENU_MARGIN,
   );
   return {
     x: Math.min(
       maxX,
-      Math.max(CANVAS_MENU_MARGIN, clientX - bounds.left + CANVAS_MENU_POINTER_OFFSET),
+      Math.max(CANVAS_MENU_MARGIN, clientX - bounds.left + (side === 'left'
+        ? -CANVAS_MENU_WIDTH - CANVAS_MENU_POINTER_OFFSET : CANVAS_MENU_POINTER_OFFSET)),
     ),
     y: Math.min(
       maxY,

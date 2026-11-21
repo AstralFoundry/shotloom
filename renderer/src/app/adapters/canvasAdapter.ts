@@ -1,3 +1,5 @@
+import { getModelCredentialStatus } from '@/store/settingsStore';
+import { defaultCanvasNodeDimensions } from '@/domain/graph/CanvasNodeDimensions';
 import { t } from '@/i18n';
 import { confirmAction } from "../ui/confirm/confirmService";
 import { editorCanvasCandidate } from "../../services/editorMediaCatalog";
@@ -16,9 +18,10 @@ import {
 } from "../../store/assetStore.ts";
 import { useLocalAssetInProject } from "../../store/localAssetLibraryStore.ts";
 import { addCanvasEdge, wouldCreateCanvasCycle } from "../../store/canvasGraphStore.ts";
-import { getGenerationInputModes } from "../../domain/catalog/ModelCatalog";
+import { getGenerationInputModes, getModelIdsByType } from "../../domain/catalog/ModelCatalog";
 import {
   defaultInputSlot,
+  type GenerationInputModeDescriptor,
   isSlotValidForMode,
   reconcileGenerationInputEdges,
   type GenerationInputMode,
@@ -37,10 +40,12 @@ import {
   addNode,
   deleteNodeById,
   deleteSelectedNodes,
+  ensureGenerationConfig,
   selectNode,
   setSelectedNodeIds,
 } from "../../store/nodeStore.ts";
 import {
+  noteCanvasViewportActivity,
   persistCanvasViewport,
   store as rawStore,
   touchProject,
@@ -81,8 +86,11 @@ import {
   openWorkspaceVideoEditor,
   createClipNode,
 } from "./canvas/videoEditorActions";
-import { createStoryboardScriptNode } from "@/services/storyboardScriptService";
-import { isCanvasImageNode } from "@/services/batchTableService";
+import { canvasVideoSources, mergeCanvasVideos } from "@/services/canvasVideoMergeService";
+import { isStoryboardScriptNode, STORYBOARD_CONTEXT_HANDLE, storyboardShotIdFromHandle } from "@/domain/graph/StoryboardScript";
+import { connectStoryboardContext, connectStoryboardRowAsset, connectStoryboardRowOutput, createStoryboardScriptNode } from "@/services/storyboardScriptService";
+import { batchTableData, isCanvasImageNode, setBatchCellReference } from "@/services/batchTableService";
+import { batchColumnHandle, parseBatchCellEdgeId, parseBatchCellHandle } from '@/domain/graph/BatchTable';
 
 const store: any = rawStore;
 // 画布挂载后到布局稳定之间的一小段，跨路由定位要等它过去再推视口。
@@ -222,6 +230,36 @@ export function canvasViewData() {
   return buildCanvasViewData(store);
 }
 
+const portGenerationTypes = ['textGeneration', 'imageGeneration', 'videoGeneration', 'audioGeneration'];
+
+function portInputModeSupports(mode: GenerationInputModeDescriptor, role: string) {
+  return role === 'referenceImage' ? mode.maxImages > 0
+    : role === 'inputVideo' ? mode.maxVideos > 0
+      : role === 'referenceAudio' ? mode.maxAudios > 0 : true;
+}
+
+function portCreationPlan(node: WorkflowNodeData, type: string, side: 'left' | 'right'): { models: string[] } | null {
+  if (!portGenerationTypes.includes(node.type) || isStoryboardScriptNode(node)) return null;
+  if (side === 'right' && type === 'storyboardScript') {
+    return node.type === 'textGeneration' || isCanvasImageNode(node.id) ? { models: [] } : null;
+  }
+  if (side === 'right' && type === 'batchTable') return isCanvasImageNode(node.id) ? { models: [] } : null;
+  if (!portGenerationTypes.includes(type)) return null;
+  const prospective = { id: '__new_port_node__', type, title: '' };
+  const existing = { id: node.id, type: node.type, title: String(node.title || '') };
+  const source = side === 'left' ? prospective : existing;
+  const target = side === 'left' ? existing : prospective;
+  const validation = validateAgentInputRole(store.project, source, target);
+  if (!validation.valid) return null;
+  if (validation.role === 'textContext') return { models: [] };
+
+  const targetModel = side === 'left' ? String(node.model || '') : '';
+  const candidates = targetModel ? [targetModel] : getModelIdsByType(target.type);
+  const models = candidates.filter(model =>
+    getGenerationInputModes(model).some(mode => portInputModeSupports(mode, validation.role)));
+  return models.length ? { models } : null;
+}
+
 export const canvasController: WorkflowCanvasController = {
   createSection(position) {
     const viewport = store.project.canvasViewport || { x: 0, y: 0, zoom: 1 };
@@ -254,11 +292,33 @@ export const canvasController: WorkflowCanvasController = {
   selectEdge(id) {
     store.selectedEdgeId = id;
   },
-  connect(connection: Connection) {
+  connect(connection: Connection, { history = true } = {}) {
     if (!connection.source || !connection.target) return false;
-    recordCanvasHistory(t("ui.canvasAdapter.text.7a1f52e5"));
     const source = store.project.nodes.find((node: any) => node.id === connection.source);
     const target = store.project.nodes.find((node: any) => node.id === connection.target);
+    const batchCell = target?.type === 'batchTable' ? parseBatchCellHandle(connection.targetHandle) : null;
+    if (batchCell) {
+      if (!isCanvasImageNode(connection.source)) {
+        showToast(t('canvas.batch.onlyImages'));
+        return false;
+      }
+      return setBatchCellReference(connection.target, batchCell.rowId, batchCell.columnId, connection.source);
+    }
+    if (history) recordCanvasHistory(t("ui.canvasAdapter.text.7a1f52e5"));
+    const incomingShot = storyboardShotIdFromHandle(connection.targetHandle, 'in');
+    const outgoingShot = storyboardShotIdFromHandle(connection.sourceHandle, 'out');
+    if (incomingShot || outgoingShot) {
+      const connected = incomingShot
+        ? connectStoryboardRowAsset(connection.source, connection.target, incomingShot)
+        : connectStoryboardRowOutput(connection.source, outgoingShot, connection.target);
+      if (!connected) showToast(t(incomingShot ? 'canvas.storyboard.rowAssetConnection' : 'canvas.storyboard.rowOutputConnection'));
+      return connected;
+    }
+    if (connection.targetHandle === STORYBOARD_CONTEXT_HANDLE) {
+      const connected = connectStoryboardContext(connection.source, connection.target);
+      if (!connected) showToast(t('canvas.storyboard.contextConnection'));
+      return connected;
+    }
     if (target?.type === "clipStudio") {
       const candidate = editorCanvasCandidate(String(connection.source));
       if (!candidate) { showToast(t("ui.canvasAdapter.text.d210e170")); return false; }
@@ -289,6 +349,7 @@ export const canvasController: WorkflowCanvasController = {
           id: uid(),
           source: connection.source,
           target: connection.target,
+          targetHandle,
           kind: 'typed-input',
           data: { inputRole: 'referenceImage', batchColumnId: columnId, creationSource: 'batch-table-connection' },
         });
@@ -310,9 +371,7 @@ export const canvasController: WorkflowCanvasController = {
       return false;
     }
     const availableModes = getGenerationInputModes(String(target?.model || ""));
-    const supportsRole = (item: any) => validation.role === "referenceImage"
-      ? item.maxImages > 0
-      : validation.role === "inputVideo" ? item.maxVideos > 0 : validation.role === "referenceAudio" ? item.maxAudios > 0 : true;
+    const supportsRole = (item: GenerationInputModeDescriptor) => portInputModeSupports(item, validation.role);
     const activeMode = availableModes.find((item) => item.value === target?.inputMode && supportsRole(item))
       || availableModes.find(supportsRole);
     if (activeMode && validation.role !== "textContext") target.inputMode = activeMode.value;
@@ -336,6 +395,50 @@ export const canvasController: WorkflowCanvasController = {
     if (!result.ok) showToast(result.error || t("ui.canvasAdapter.text.2c056f18"));
     return result.ok;
   },
+  portNodeTypes(nodeId, side) {
+    const node = store.project.nodes.find((item: WorkflowNodeData) => item.id === nodeId && !item.archived);
+    const candidates = side === 'left' ? portGenerationTypes : [...portGenerationTypes, 'storyboardScript', 'batchTable'];
+    return node ? candidates.filter(type => portCreationPlan(node, type, side)) : [];
+  },
+  async createNodeFromPort(nodeId, side, type) {
+    const anchor: WorkflowNodeData | undefined = store.project.nodes.find((node: WorkflowNodeData) => node.id === nodeId && !node.archived);
+    if (!anchor) return;
+    const plan = portCreationPlan(anchor, type, side);
+    if (!plan) return;
+    const anchorSize = canvasNodeDimensions(anchor);
+    const size = defaultCanvasNodeDimensions(type);
+    const x = Math.round(Number(anchor.x || 0) + (side === 'left' ? -size.width - 96 : anchorSize.width + 96));
+    const y = Math.round(Number(anchor.y || 0) + (anchorSize.height - size.height) / 2);
+    recordCanvasHistory(t("ui.canvasAdapter.text.9d160ec2"));
+    const node = type === 'storyboardScript'
+      ? createStoryboardScriptNode({ x, y }, { history: false, select: false })
+      : addNode(type, { select: false });
+    const id = node.id;
+    if (!id) return;
+    node.x = x;
+    node.y = type === 'storyboardScript' ? Math.round(Number(anchor.y || 0)) : y;
+    node.canvasSectionId = canvasSectionDropTarget({ ...node, id, type: node.type || type }, store.project.nodes)?.id ?? null;
+    const fallbackModel = plan.models.find(model => getModelCredentialStatus(model).available) || plan.models[0];
+    if (side === 'right' && fallbackModel && !plan.models.includes(String(node.model || ''))) {
+      node.model = fallbackModel;
+      ensureGenerationConfig(node);
+    }
+    const firstColumn = type === 'batchTable' ? batchTableData(node).columns[0] : undefined;
+    const targetHandle = type === 'storyboardScript' ? STORYBOARD_CONTEXT_HANDLE
+      : firstColumn ? batchColumnHandle(firstColumn.id) : 'port-left';
+    const created = await this.connect({
+      source: side === 'left' ? id : nodeId,
+      target: side === 'left' ? nodeId : id,
+      sourceHandle: 'port-right',
+      targetHandle,
+    }, { history: false });
+    if (!created) {
+      deleteNodeById(id);
+      return;
+    }
+    setSelectedNodeIds([id]);
+  },
+  onViewportActivity: noteCanvasViewportActivity,
   saveViewport(viewport) {
     persistCanvasViewport(viewport);
   },
@@ -420,6 +523,12 @@ export const canvasController: WorkflowCanvasController = {
   deleteSelection() {
     if (!(store.selectedNodeIds?.length || store.selectedNodeId || store.selectedEdgeId)) return;
     const edgeId = store.selectedEdgeId;
+    const cell = edgeId && parseBatchCellEdgeId(edgeId);
+    if (cell) {
+      store.selectedEdgeId = null;
+      setBatchCellReference(cell.tableId, cell.rowId, cell.columnId, '');
+      return;
+    }
     const edge = edgeId
       ? store.project.edges.find((item: any) => item.id === edgeId)
       : undefined;
@@ -1074,74 +1183,13 @@ export const canvasCommands = {
           ? [store.selectedNodeId]
           : [],
     );
-    const sources = (store.project.nodes || [])
+    const nodes = (store.project.nodes || [])
       .filter((node: any) => ids.has(node.id) && !node.archived)
-      .sort(
-        (a: any, b: any) =>
-          (Number(a.x) || 0) - (Number(b.x) || 0) || (Number(a.y) || 0) - (Number(b.y) || 0),
-      )
-      .map((node: any) => {
-        const task = [...(store.project.tasks || [])]
-          .reverse()
-          .find((item: any) => item.nodeId === node.id && item.status === "completed");
-        const archived = task?.result?.archivedFiles?.find((file: any) =>
-          String(file.resourceType || file.type || "").includes("video"),
-        );
-        return {
-          node,
-          path:
-            node.videoEdit?.exportedFile && !node.videoEdit?.dirty
-              ? node.videoEdit.exportedFile
-              : archived?.filePath ||
-                archived?.path ||
-                node.uploadedFile?.path ||
-                (node.resourceType === "video" ? node.filePath : ""),
-        };
-      })
-      .filter((item: any) => item.path);
-    if (sources.length < 2) {
-      return showToast(t("ui.canvasAdapter.text.3cc12b43"));
-    }
+      .sort((a: any, b: any) => Number(a.x || 0) - Number(b.x || 0) || Number(a.y || 0) - Number(b.y || 0));
+    const sources = canvasVideoSources(nodes.map((node: any) => node.id));
     try {
-      const result = await desktopApi.file.concatVideos(
-        sources.map((item: any) => item.path),
-        { name: `${store.project.name || "project"}-merged.mp4` },
-      );
-      const path = result?.filePath || result?.path;
-      if (!path) return;
-      const registered = registerImportedMaterial(
-        {
-          name: result.name || "merged.mp4",
-          path,
-          type: "video/mp4",
-          size: result.size || 0,
-        },
-        {
-          resourceType: "video",
-          source: "video-concat",
-          sourceType: "video-concat",
-          nodeType: "videoGeneration",
-        },
-      );
-      const node: any = addNode("videoGeneration");
-      node.title = result.name || t("ui.canvasAdapter.text.55bef885");
-      node.prompt = "";
-      node.materialId = registered.material?.id || "";
-      node.resourceType = "video";
-      node.sourceType = "video-concat";
-      node.uploadedFile = {
-        name: node.title,
-        path,
-        type: "video/mp4",
-        size: result.size || 0,
-        materialId: node.materialId,
-        resourceType: "video",
-        source: "video-concat",
-      };
-      node.x = Math.max(...sources.map(({ node: source }: any) => Number(source.x) || 0)) + 380;
-      node.y = Math.min(...sources.map(({ node: source }: any) => Number(source.y) || 0));
-      touchProject();
-      showToast(t("ui.canvasAdapter.text.9174d1eb", { value0: result.sourceCount || sources.length }));
+      await mergeCanvasVideos(sources);
+      showToast(t("ui.canvasAdapter.text.9174d1eb", { value0: sources.length }));
     } catch (cause) {
       showToast(cause instanceof Error ? cause.message : t("ui.canvasAdapter.text.3b5e1c5d"));
     }

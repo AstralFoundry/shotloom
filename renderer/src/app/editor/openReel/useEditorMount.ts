@@ -79,27 +79,26 @@ export function useEditorMount(surface: HTMLElement | null, nodeId?: string, exp
       } else if (anchor && canvas && nodeRoot) {
         const box = anchor.getBoundingClientRect();
         const bounds = nodeRoot.getBoundingClientRect();
-        const zoom = box.width / (anchor.offsetWidth || 1);
-        const floating = clipNodePreviewHeight(anchor.offsetWidth);
-        const geometry = `${box.x},${box.y},${box.width},${box.height},${bounds.x},${bounds.y},${zoom},${selected},${Boolean(mount.firstElementChild)}`;
+        const width = anchor.offsetWidth;
+        const height = anchor.offsetHeight;
+        const zoom = width > 0 ? box.width / width : 0;
+        if (zoom <= 0) return;
+        const left = (box.left - bounds.left) / zoom;
+        const top = (box.top - bounds.top) / zoom;
+        const floating = clipNodePreviewHeight(width);
+        const geometry = `${left},${top},${width},${height},${selected}`;
         if (previous !== geometry) {
           previous = geometry;
           Object.assign(mount.style, {
-            left: `${box.left - bounds.left}px`, top: `${box.top - bounds.top - floating * zoom}px`,
-            width: `${box.width}px`, height: `${box.height + floating * zoom}px`,
+            // The portal is already inside the viewport transform.
+            left: `${left}px`, top: `${top - floating}px`,
+            width: `${width}px`, height: `${height + floating}px`,
             // Leave the title band unpainted and unhittable so native node
             // dragging reaches it, even while the preview is visible.
             clipPath: selected
-              ? `polygon(0 0, 100% 0, 100% ${(floating - CLIP_NODE_LAYOUT.previewGap) * zoom}px, 0 ${(floating - CLIP_NODE_LAYOUT.previewGap) * zoom}px, 0 ${floating * zoom}px, 100% ${floating * zoom}px, 100% 100%, 0 100%)`
-              : `inset(${floating * zoom}px 0 0 0)`,
+              ? `polygon(0 0, 100% 0, 100% ${floating - CLIP_NODE_LAYOUT.previewGap}px, 0 ${floating - CLIP_NODE_LAYOUT.previewGap}px, 0 ${floating}px, 100% ${floating}px, 100% 100%, 0 100%)`
+              : `inset(${floating}px 0 0 0)`,
             zIndex: "2",
-          });
-          const section = mount.firstElementChild as HTMLElement | null;
-          if (section) Object.assign(section.style, {
-            width: `${box.width / zoom}px`, height: `${box.height / zoom + floating}px`,
-            // Keep the embedded editor's logical size stable while the whole
-            // canvas node follows the viewport's semantic scale.
-            zoom: "1", transform: `scale(${zoom})`, transformOrigin: "top left",
           });
         }
         setActive(selected);
@@ -121,7 +120,7 @@ export function useEditorMount(surface: HTMLElement | null, nodeId?: string, exp
     observer.observe(surface);
     const placement = new MutationObserver(scheduleUpdate);
     placement.observe(mount, { childList: true });
-    for (const element of [anchor?.parentElement, anchor?.closest(".react-flow__node"), anchor?.closest(".react-flow__viewport")]) {
+    for (const element of [anchor?.parentElement, anchor?.closest(".react-flow__node")]) {
       if (element) placement.observe(element, { attributes: true, attributeFilter: ["style"] });
     }
     update();

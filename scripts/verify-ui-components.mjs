@@ -94,13 +94,13 @@ for (const file of sourceFiles(appRoot)) {
     }
 
     // 手写 tablist 要自己管键盘与选中态；分档/切换统一用 Segmented / Tabs。
-    for (const match of text.matchAll(/role=["']tablist["']/g)) {
+    for (const match of text.matchAll(/\srole\s*=\s*["']tablist["']/g)) {
       violations.push(`${relative}:${lineOf(text, match.index)} 手写 role="tablist"（改用 antd Segmented / Tabs）`);
     }
 
     // 自绘 role="menu" 要自己管定位、键盘和点外关闭；标准菜单统一用 Dropdown。
     if (!HANDWRITTEN_MENU_EXCEPTIONS.has(relative)) {
-      for (const match of text.matchAll(/role=["']menu["']/g)) {
+      for (const match of text.matchAll(/\srole\s*=\s*["']menu["']/g)) {
         violations.push(`${relative}:${lineOf(text, match.index)} 手写 role="menu"（改用 antd Dropdown + Menu；画布菜单请登记例外）`);
       }
     }
@@ -114,7 +114,7 @@ for (const file of sourceFiles(appRoot)) {
 
   // 手写 role="dialog" 通常意味着自己管遮罩、Esc 和焦点陷阱；统一交给 antd Modal。
   if (!HANDWRITTEN_DIALOG_EXCEPTIONS.has(relative)) {
-    for (const match of text.matchAll(/role=["']dialog["']/g)) {
+    for (const match of text.matchAll(/\srole\s*=\s*["']dialog["']/g)) {
       violations.push(`${relative}:${lineOf(text, match.index)} 手写 role="dialog"（改用 antd Modal；确实需要自绘时登记到脚本例外表）`);
     }
   }

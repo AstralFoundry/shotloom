@@ -29,9 +29,9 @@ const MIN_ZOOM = 30;
 const MAX_ZOOM = 800;
 const TRACK_LABEL_WIDTH = 196;
 const ZOOM_STEPS = [30, 40, 50, 60, 75, 100, 125, 150, 200, 250, 300, 400, 500, 600, 800];
-const TRACK_COLORS = ['#aa8be8', '#69bea9', '#d7ae70', '#7baee0', '#d58fa2', '#9fbd7c'];
+const TRACK_COLORS = ['#a3a3a3', '#69bea9', '#d7ae70', '#7baee0', '#d58fa2', '#9fbd7c'];
 const clipAccent = (action: Clip['action']): string => {
-    if (action === 'idle') return '#a99ad4';
+    if (action === 'idle') return '#a3a3a3';
     if (action === 'walk' || action === 'run' || action === 'crawl') return '#66cbb1';
     if (action === 'sit' || action === 'standup' || action === 'crouch' || action === 'lie') return '#dfb970';
     if (action === 'wave' || action === 'point' || action === 'turn' || action === 'guard') return '#83b8eb';

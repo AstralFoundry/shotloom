@@ -1,173 +1,182 @@
-import { t } from '@/i18n';
-import { Segmented, Select, Switch } from "antd";
-import { useRef, useState } from "react";
+import { getLocale, t } from '@/i18n';
+import { showSuccessToast, showToast } from '@/store/notificationStore';
+import { Button, Modal, Switch, Tooltip } from "antd";
+import { useState, type ReactNode } from "react";
 import { IconSymbol } from "../components/IconSymbol";
-import {
-  CINEMA_CAMERAS,
-  CINEMA_LENSES,
-  composeCinemaPrompt,
-  DEFAULT_CINEMA_CAMERA_ID,
-  DEFAULT_CINEMA_LENS_ID,
-  findCinemaCamera,
-  findCinemaLens,
-} from "../../utils/cinemaCameraLibrary.ts";
+import { CINEMA_CAMERAS, CINEMA_LENSES, findCinemaCamera, findCinemaLens } from "../../utils/cinemaCameraLibrary.ts";
 import {
   APERTURE_OPTIONS,
   DEFAULT_CAMERA_CONFIG,
   FOCAL_LENGTH_OPTIONS,
+  applyCameraConfigToPrompt,
   normalizeCameraConfig,
 } from "../../utils/cameraConfig.ts";
 
-interface CameraControlPanelProps {
-  config?: Record<string, unknown>;
-  enabled: boolean;
-  onChange: (config: Record<string, string>) => void;
-  onToggle: (enabled: boolean) => void;
-  onClose: () => void;
+type Direction = -1 | 1;
+
+function cycleOption<T>(options: readonly T[], index: number, direction: Direction): T {
+  const next = index < 0 ? (direction === 1 ? 0 : options.length - 1) : index + direction;
+  return options[(next + options.length) % options.length]!;
 }
 
-export function CameraControlPanel({
-  config = {},
-  enabled,
-  onChange,
-  onToggle,
-  onClose,
-}: CameraControlPanelProps) {
-  const root = useRef<HTMLElement>(null);
-  const [tab, setTab] = useState<'camera' | 'lens'>('camera');
-  const normalized = normalizeCameraConfig(config);
-  const camera = findCinemaCamera(normalized.cameraProfileId || DEFAULT_CINEMA_CAMERA_ID) ?? CINEMA_CAMERAS[0]!;
-  const lens = findCinemaLens(normalized.lensProfileId || DEFAULT_CINEMA_LENS_ID) ?? CINEMA_LENSES[0]!;
-  const prompt = composeCinemaPrompt({
-    cameraId: camera.id,
-    lensId: lens.id,
-    focalLength: normalized.focalLength,
-    aperture: normalized.aperture,
-  });
+function CameraSetting({ label, value, hint, children, onCycle }: {
+  label: string;
+  value: string;
+  hint?: string | undefined;
+  children: ReactNode;
+  onCycle: (direction: Direction) => void;
+}) {
+  const previous = t('canvas.camera.previous', { label });
+  const next = t('canvas.camera.next', { label });
+  return (
+    <div className="camera-setting" role="group" aria-label={label}>
+      <button type="button" className="camera-setting-step" title={previous} aria-label={previous} onClick={() => onCycle(-1)}>
+        <IconSymbol name="chevron-up" />
+      </button>
+      <Tooltip title={hint} placement="top" mouseEnterDelay={0.5}>
+        <div className="camera-setting-card">
+          <span>{label}</span>
+          <div className="camera-setting-value">{children}</div>
+        </div>
+      </Tooltip>
+      <button type="button" className="camera-setting-step" title={next} aria-label={next} onClick={() => onCycle(1)}>
+        <IconSymbol name="chevron-down" />
+      </button>
+      <span className="camera-setting-caption">{value}</span>
+    </div>
+  );
+}
 
-  function commit(patch: Record<string, string>) {
-    const nextCamera = findCinemaCamera(patch.cameraProfileId || camera.id) ?? camera;
-    const nextLens = findCinemaLens(patch.lensProfileId || lens.id) ?? lens;
-    onChange({
-      ...normalized,
-      ...patch,
-      camera: nextCamera.name,
-      lens: nextLens.name,
-      cameraProfileId: nextCamera.id,
-      lensProfileId: nextLens.id,
-    });
+export function CameraControlPanel({ config, enabled, onApply, onClose }: {
+  config: Record<string, unknown>;
+  enabled: boolean;
+  onApply: (config: Record<string, string>, enabled: boolean) => void;
+  onClose: () => void;
+}) {
+  const [draft, setDraft] = useState(() => normalizeCameraConfig(config));
+  const [applyToGeneration, setApplyToGeneration] = useState(enabled);
+  const camera = findCinemaCamera(draft.cameraProfileId);
+  const lens = findCinemaLens(draft.lensProfileId);
+  const chinese = getLocale() === 'zh-CN';
+  const cameraName = (chinese ? camera?.zhName : camera?.name) || draft.camera;
+  const lensName = (chinese ? lens?.zhName : lens?.name) || draft.lens;
+  const focal = Number.parseFloat(draft.focalLength);
+  const aperture = Number.parseFloat(draft.aperture.slice(2));
+  const focalCaption = focal < 35 ? t('canvas.camera.wide') : focal >= 85 ? t('canvas.camera.telephoto') : t('canvas.camera.normal');
+  const apertureCaption = aperture <= 2.8 ? t('canvas.camera.wideAperture') : aperture >= 8 ? t('canvas.camera.narrowAperture') : t('canvas.camera.mediumAperture');
+
+  function reset() {
+    setDraft({ ...DEFAULT_CAMERA_CONFIG });
+    setApplyToGeneration(false);
+  }
+
+  async function copyPrompt() {
+    try {
+      await navigator.clipboard.writeText(applyCameraConfigToPrompt('', draft));
+      showSuccessToast(t('canvas.camera.promptCopied'));
+    } catch {
+      showToast(t('canvas.camera.copyFailed'), 'error');
+    }
   }
 
   return (
-    <section
-      ref={root}
-      className="camera-control-panel nodrag nopan nowheel"
-      aria-label={t("ui.CameraControlPanel.arialabel.5b628c80")}
-      onClick={(event) => event.stopPropagation()}
-    >
-      <header className="camera-control-head">
-        <div>
-          <strong>{t("ui.CameraControlPanel.libraryTitle")}</strong>
-          <span>{camera.zhName} · {lens.zhName}</span>
+    <Modal
+      open
+      centered
+      keyboard={false}
+      width={780}
+      modalRender={(content) => (
+        <div onKeyDown={(event) => {
+          // React Flow receives key events through the portal's React ancestry.
+          event.stopPropagation();
+          if (event.key === 'Escape') {
+            event.preventDefault();
+            onClose();
+          }
+        }}>
+          {content}
         </div>
-        <button type="button" title={t("ui.CameraControlPanel.title.d0c1c6f9")} onClick={onClose}><IconSymbol name="check" /></button>
-      </header>
-
-      <Segmented
-        className="camera-library-tabs"
-        size="small"
-        value={tab}
-        onChange={(value) => setTab(value as 'camera' | 'lens')}
-        options={[
-          { value: 'camera', label: t('ui.CameraControlPanel.label.0756885e') },
-          { value: 'lens', label: t('ui.CameraControlPanel.label.c7d1925f') },
-        ]}
-      />
-
-      <div className="camera-profile-grid" role="group" aria-label={tab === 'camera' ? t('ui.CameraControlPanel.label.0756885e') : t('ui.CameraControlPanel.label.c7d1925f')}>
-        {tab === 'camera'
-          ? CINEMA_CAMERAS.map((profile) => (
-              <button
-                key={profile.id}
-                type="button"
-                className={`camera-profile-card is-camera${profile.id === camera.id ? ' is-active' : ''}`}
-                aria-pressed={profile.id === camera.id}
-                onClick={() => commit({ cameraProfileId: profile.id })}
-              >
-                <strong>{profile.zhName}</strong>
-                <em>{profile.name} · {profile.sensor}</em>
-                <span>{profile.description}</span>
-                <small>{profile.useCase}</small>
-              </button>
-            ))
-          : CINEMA_LENSES.map((profile) => (
-              <button
-                key={profile.id}
-                type="button"
-                className={`camera-profile-card is-lens${profile.id === lens.id ? ' is-active' : ''}`}
-                aria-pressed={profile.id === lens.id}
-                onClick={() => commit({ lensProfileId: profile.id })}
-              >
-                <strong>{profile.zhName}</strong>
-                <em>{profile.name} · {profile.mount}</em>
-                <span>{profile.description}</span>
-                <small>{profile.useCase}</small>
-              </button>
-            ))}
+      )}
+      className="camera-control-modal"
+      classNames={{ mask: "camera-control-mask" }}
+      onCancel={onClose}
+      title={
+        <div className="camera-control-heading">
+          <strong>{t('canvas.camera.title')}</strong>
+          <span>{t('canvas.camera.description')}</span>
+        </div>
+      }
+      footer={
+        <div className="camera-control-actions">
+          <Button type="text" icon={<IconSymbol name="rotate-ccw" />} onClick={reset}>
+            {t('canvas.camera.reset')}
+          </Button>
+          <div className="camera-control-actions-end">
+            <Button type="text" onClick={() => void copyPrompt()}>{t('canvas.camera.copyPrompt')}</Button>
+            <label className="camera-apply-toggle">
+              <span>{applyToGeneration ? t('canvas.camera.on') : t('canvas.camera.off')}</span>
+              <Switch
+                size="small"
+                checked={applyToGeneration}
+                onChange={setApplyToGeneration}
+                aria-label={t('canvas.camera.enable')}
+              />
+            </label>
+            <Button className="camera-control-apply" icon={<IconSymbol name="camera" />} onClick={() => onApply(draft, applyToGeneration)}>
+              {t('canvas.camera.apply')}
+            </Button>
+          </div>
+        </div>
+      }
+    >
+      <div className="camera-control-settings">
+        <CameraSetting
+          label={t('ui.CameraControlPanel.label.0756885e')}
+          value={cameraName}
+          hint={camera && chinese ? camera.description : camera?.sensor}
+          onCycle={direction => setDraft(current => {
+            const profile = cycleOption(CINEMA_CAMERAS, CINEMA_CAMERAS.findIndex(item => item.id === current.cameraProfileId), direction);
+            return { ...current, camera: profile.name, cameraProfileId: profile.id };
+          })}
+        >
+          <IconSymbol className="camera-setting-equipment" name="cinema-camera" style={{ color: camera?.bodyColor, stroke: camera?.trimColor }} />
+        </CameraSetting>
+        <CameraSetting
+          label={t('ui.CameraControlPanel.label.c7d1925f')}
+          value={lensName}
+          hint={lens && chinese ? lens.description : lens?.mount}
+          onCycle={direction => setDraft(current => {
+            const profile = cycleOption(CINEMA_LENSES, CINEMA_LENSES.findIndex(item => item.id === current.lensProfileId), direction);
+            return { ...current, lens: profile.name, lensProfileId: profile.id };
+          })}
+        >
+          <IconSymbol className="camera-setting-equipment" name="cinema-lens" style={{ color: lens?.bodyColor, stroke: lens?.trimColor }} />
+        </CameraSetting>
+        <CameraSetting
+          label={t('ui.CameraControlPanel.label.7bf130cc')}
+          value={focalCaption}
+          onCycle={direction => setDraft(current => ({
+            ...current,
+            focalLength: cycleOption(FOCAL_LENGTH_OPTIONS, FOCAL_LENGTH_OPTIONS.indexOf(current.focalLength), direction),
+          }))}
+        >
+          <strong>{focal}</strong><small>mm</small>
+        </CameraSetting>
+        <CameraSetting
+          label={t('ui.CameraControlPanel.label.dbce052d')}
+          value={apertureCaption}
+          onCycle={direction => setDraft(current => ({
+            ...current,
+            aperture: cycleOption(APERTURE_OPTIONS, APERTURE_OPTIONS.indexOf(current.aperture), direction),
+          }))}
+        >
+          <strong><span>f/</span>{draft.aperture.slice(2)}</strong>
+        </CameraSetting>
       </div>
-
-      <div className="camera-select-grid">
-        <label className="camera-select-field">
-          <span>{t("ui.CameraControlPanel.label.7bf130cc")}</span>
-          <Select
-            value={normalized.focalLength}
-            aria-label={t("ui.CameraControlPanel.label.7bf130cc")}
-            onChange={(value) => commit({ focalLength: value })}
-            options={FOCAL_LENGTH_OPTIONS.map((option) => ({ value: option, label: option }))}
-            popupMatchSelectWidth={false}
-            getPopupContainer={() => root.current || document.body}
-          />
-        </label>
-        <label className="camera-select-field">
-          <span>{t("ui.CameraControlPanel.label.dbce052d")}</span>
-          <Select
-            value={normalized.aperture}
-            aria-label={t("ui.CameraControlPanel.label.dbce052d")}
-            onChange={(value) => commit({ aperture: value })}
-            options={APERTURE_OPTIONS.map((option) => ({ value: option, label: option }))}
-            popupMatchSelectWidth={false}
-            getPopupContainer={() => root.current || document.body}
-          />
-        </label>
+      <div className="camera-control-summary">
+        <span>{t('canvas.camera.summary')}</span>
+        <div aria-live="polite">{cameraName} · {lensName} · {draft.focalLength} · {draft.aperture}</div>
       </div>
-
-      <div className="camera-prompt-preview">
-        <span>{t('ui.CameraControlPanel.promptPreview')}</span>
-        <p>{prompt}</p>
-      </div>
-
-      <footer>
-        <label className="camera-apply-toggle">
-          <Switch
-            size="small"
-            checked={enabled}
-            onChange={(next) => {
-              if (next && (!normalized.cameraProfileId || !normalized.lensProfileId)) {
-                onChange({
-                  ...normalized,
-                  camera: camera.name,
-                  lens: lens.name,
-                  cameraProfileId: camera.id,
-                  lensProfileId: lens.id,
-                });
-              }
-              onToggle(next);
-            }}
-          />
-          <span>{enabled ? t("ui.CameraControlPanel.text.a020d3f6") : t("ui.CameraControlPanel.text.f2ed5f47")}</span>
-        </label>
-        <button type="button" onClick={() => onChange({ ...normalizeCameraConfig(DEFAULT_CAMERA_CONFIG) })}>{t("ui.CameraControlPanel.text.a191935b")}</button>
-      </footer>
-    </section>
+    </Modal>
   );
 }

@@ -319,13 +319,13 @@
 .settings-row .ant-input-number .ant-input-number-input { padding: 0; }
 .settings-row .ant-select:not(.ant-select-disabled):hover,
 .settings-row .ant-input-number:not(.ant-input-number-disabled):hover {
-  border-color: var(--text);
+  border-color: var(--brand-accent-border);
 }
 .settings-row .ant-select-focused,
 .settings-row .ant-select:focus-within,
 .settings-row .ant-input-number-focused,
 .settings-row .ant-input-number:focus-within {
-  border-color: var(--text);
+  border-color: var(--brand-accent-border);
   box-shadow: none;
 }
 .settings-row .ant-select-disabled,

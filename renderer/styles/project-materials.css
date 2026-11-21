@@ -19,7 +19,7 @@
   color: var(--type-primary);
   font-size: var(--text-title-20);
   line-height: var(--text-title-20--line-height);
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .project-page-description {

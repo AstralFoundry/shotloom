@@ -2,9 +2,8 @@ import { uid } from '../../utils/format.ts';
 
 /**
  * 姿势库数据只描述参考图目录：分组、筛选与图片地址都在这里收窄，
- * 图片文件本身由运行时下载为用户自己的项目素材，不在仓库内携带第三方图片。
+ * 图片按需读取，插入时复制为用户自己的项目素材。
  */
-export const POSE_LIBRARY_SOURCE_URL = 'https://raw.githubusercontent.com/anhao/ai-pose-gallery-zh/main/data/pose-zh.json';
 export const POSE_LIBRARY_IMAGE_BASE = 'https://raw.githubusercontent.com/anhao/ai-pose-gallery-zh/main/';
 export const POSE_LIBRARY_HOMEPAGE = 'https://github.com/anhao/ai-pose-gallery-zh';
 export const POSE_LIBRARY_MAX_SELECTION = 16;
@@ -112,7 +111,10 @@ function mergePoseItems(poses: Pose[]): Pose[] {
   }
   return [...grouped.values()].map((pose) => ({
     ...pose,
-    items: pose.items.slice().sort((a, b) => a.angle.localeCompare(b.angle, 'zh-CN')),
+    items: pose.items.slice().sort((a, b) => {
+      const rank = (angle: string) => { const index = (POSE_LIBRARY_ANGLES as readonly string[]).indexOf(angle); return index < 0 ? POSE_LIBRARY_ANGLES.length : index; };
+      return rank(a.angle) - rank(b.angle) || a.angle.localeCompare(b.angle, 'zh-CN');
+    }),
   }));
 }
 

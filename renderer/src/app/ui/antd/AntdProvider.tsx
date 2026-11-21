@@ -16,9 +16,18 @@ import { useEffect, useState, type ReactNode } from "react";
  * `App` 只提供 `message` / `modal` / `notification` 的上下文，`component={false}`
  * 让它不额外包一层 div，避免打断 `#app` 的满高布局。
  */
-// 与 tokens.css 的 --brand-accent 同值：浅色 #6d6cff，暗色 #8b8aff。
-const SHOTLOOM_PRIMARY = { light: "#6d6cff", dark: "#8b8aff" };
+// 与 tokens.css 的 --brand-accent 同值：浅色 #343434，暗色 #d4d4d4。
+const SHOTLOOM_PRIMARY = { light: "#343434", dark: "#d4d4d4" };
 const standardControlSize = { controlHeight: 36, controlHeightLG: 40 };
+const neutralFieldBorders = {
+  hoverBorderColor: "var(--brand-accent-border)",
+  activeBorderColor: "var(--brand-accent-border)",
+};
+const inputField = {
+  ...standardControlSize,
+  ...neutralFieldBorders,
+  activeShadow: "0 0 0 1px var(--line-soft)",
+};
 
 function useDarkTheme() {
   const [dark, setDark] = useState(
@@ -55,7 +64,9 @@ export function AntdProvider({ children }: { children: ReactNode }) {
           colorPrimary: dark ? SHOTLOOM_PRIMARY.dark : SHOTLOOM_PRIMARY.light,
           colorInfo: dark ? SHOTLOOM_PRIMARY.dark : SHOTLOOM_PRIMARY.light,
           fontFamily: "var(--font-ui)",
-          fontSize: 14,
+          fontSize: 13,
+          lineHeight: 1.6,
+          lineWidthFocus: 2,
           // 控件圆角与 tokens.css 的 --radius-control 对齐；卡片/抽屉/弹窗走 LG 档。
           borderRadius: 10,
           borderRadiusLG: 16,
@@ -70,10 +81,32 @@ export function AntdProvider({ children }: { children: ReactNode }) {
           Button: {
             ...standardControlSize,
             fontWeight: 500,
+            primaryColor: dark ? "#161616" : "#ffffff",
           },
-          Input: standardControlSize,
-          InputNumber: standardControlSize,
-          Select: standardControlSize,
+          Dropdown: {
+            // Dropdown's scoped tokens override the CSS aliases on :root.
+            colorPrimary: "var(--type-primary)",
+            controlItemBgHover: "var(--popup-item-hover)",
+            controlItemBgActive: "var(--popup-item-active)",
+            controlItemBgActiveHover: "var(--wash-inset)",
+            boxShadowSecondary: "var(--canvas-shadow-menu)",
+          },
+          Input: inputField,
+          InputNumber: inputField,
+          Select: {
+            ...standardControlSize,
+            ...neutralFieldBorders,
+            activeOutlineColor: "transparent",
+            optionSelectedFontWeight: 500,
+          },
+          Segmented: {
+            trackBg: "var(--surface-2)",
+            itemHoverBg: "var(--popup-item-hover)",
+            itemActiveBg: "var(--popup-item-active)",
+            itemSelectedBg: "var(--elevated-surface)",
+            itemSelectedColor: "var(--type-primary)",
+          },
+          Radio: { buttonSolidCheckedColor: dark ? "#161616" : "#ffffff" },
         },
       }}
     >

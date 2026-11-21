@@ -32,7 +32,7 @@ after(async () => {
 
 test('画布底栏提供版本记录入口，并挂载抽屉', () => {
   assert.match(bottomBar, /onOpenHistory\?: \(\) => void/);
-  assert.match(bottomBar, /onClick=\{onOpenHistory\}/);
+  assert.match(bottomBar, /key: 'history'.*onClick: onOpenHistory/);
   assert.match(creationView, /<ProjectVersionHistory[\s\S]*?open=\{versionHistoryOpen\}/);
   assert.match(creationView, /onOpenHistory=\{\(\) => setVersionHistoryOpen\(true\)\}/);
 });

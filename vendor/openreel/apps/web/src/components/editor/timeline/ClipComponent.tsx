@@ -926,7 +926,7 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
 
       {isCompoundClip && (
         <div
-          className="absolute inset-0 flex items-center justify-center bg-gradient-to-r from-violet-600/80 via-fuchsia-600/65 to-violet-500/70 pointer-events-none"
+          className="absolute inset-0 flex items-center justify-center bg-gradient-to-r from-neutral-700/80 via-neutral-600/65 to-neutral-500/70 pointer-events-none"
           style={
             typeof clip.metadata?.compoundClipColor === "string"
               ? { backgroundColor: clip.metadata.compoundClipColor }

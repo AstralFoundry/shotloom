@@ -38,16 +38,16 @@ test('技能清单占满内容区，编辑与新建从右侧抽屉覆盖', () =>
   assert.match(skillsView, /className="skills-list-pane"/);
   assert.match(skillsView, /<Drawer[\s\S]*?placement="right"/);
   assert.match(skillsView, /rootClassName="skills-drawer"/);
-  assert.match(skillsView, /size=\{600\}/);
+  assert.match(skillsView, /size="clamp\(680px, 56vw, 880px\)"/);
   assert.match(skillsView, /<SkillEditorPanel/);
   assert.match(skillsStyles, /\.skills-list-pane \{[^}]*flex: 1 1 auto/);
   // 内容区自己已经有一层边框，清单不再套第二张卡片。
   assert.doesNotMatch(skillsStyles, /\.skills-list-pane \{[^}]*border:/);
-  // 抽屉外壳交给 antd，并贴住窗口四边：不要 4px 窗框、圆角和投影。
-  assert.match(skillsStyles, /\.skills-drawer \.ant-drawer-section \{[\s\S]*?border-radius: 0/);
+  // 抽屉贴住窗口右侧，左侧圆角由产品样式提供。
+  assert.match(skillsStyles, /\.skills-drawer \.ant-drawer-section \{[^}]*border-radius: var\(--radius-xl\) 0 0 var\(--radius-xl\)/);
   assert.match(skillsStyles, /\.skills-drawer \.ant-drawer-content-wrapper \{[\s\S]*?padding: 0/);
   assert.doesNotMatch(skillsStyles, /\.skills-drawer \.ant-drawer-section \{[^}]*box-shadow/);
-  assert.match(skillsView, /mask: \{ background: "var\(--scrim-modal\)"/);
+  assert.match(skillsView, /mask: \{ background: "color-mix\(in srgb, var\(--scrim-modal\) 55%, transparent\)"/);
   // 抽屉正文随窗口高度滚动，字段本身不能被 Flex 压缩裁切。
   assert.match(skillsStyles, /\.skill-editor-body \{[^}]*flex: 1 1 auto[^}]*overflow-y: auto/);
   assert.match(skillsStyles, /\.skill-editor-body > \* \{ flex-shrink: 0; \}/);

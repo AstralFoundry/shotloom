@@ -41,15 +41,17 @@ test('相机配置默认带镜头库 ID，旧配置仍回退到通用相机/镜�
   assert.match(camera.applyCameraConfigToPrompt('人物', legacy), /Camera: ARRI Alexa/);
 });
 
-test('相机控制面板使用镜头库而不是四个通用下拉', () => {
+test('相机控制在独立弹窗调整参数，提交时才更新节点', () => {
   const panel = readSource('renderer/src/app/canvas/CameraControlPanel.tsx');
-  const styles = readSource('renderer/styles/canvas.css');
-  assert.match(panel, /CINEMA_CAMERAS/);
-  assert.match(panel, /CINEMA_LENSES/);
-  assert.match(panel, /composeCinemaPrompt/);
-  assert.match(panel, /camera-profile-grid/);
-  assert.match(panel, /Segmented/);
-  assert.match(panel, /camera-prompt-preview/);
-  assert.match(styles, /\.camera-profile-grid \{/);
-  assert.match(styles, /\.camera-profile-card\.is-active \{/);
+  const composer = readSource('renderer/src/app/canvas/GenerationNodeComposer.tsx');
+  assert.match(panel, /<Modal[\s\S]*?onCancel=\{onClose\}/);
+  assert.match(panel, /onApply\(draft, applyToGeneration\)/);
+  assert.match(panel, /writeText\(applyCameraConfigToPrompt\('', draft\)\)/);
+  assert.match(composer, /aria-haspopup="dialog"[\s\S]*?onClick=\{\(\) => setOpenMenu\("camera"\)\}/);
+  assert.match(composer, /onApply=\{\(cameraConfig, enabled\) => \{[\s\S]*?cameraControl: enabled, cameraConfig/);
+});
+
+test('100mm 与 f/11 按实际配置写入生成提示词', () => {
+  const config = { ...camera.DEFAULT_CAMERA_CONFIG, focalLength: '100mm', aperture: 'f/11' };
+  assert.match(camera.applyCameraConfigToPrompt('人物', config), /100mm focal length at f\/11/);
 });

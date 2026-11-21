@@ -466,6 +466,7 @@ html[data-theme-transition] *::after { transition: none !important; }
   color: var(--muted);
   background: transparent;
   font-size: var(--text-body-14);
+  line-height: var(--text-body-14--line-height);
   font-weight: 500;
   text-align: left;
 }
@@ -490,7 +491,7 @@ html[data-theme-transition] *::after { transition: none !important; }
   color: var(--text);
   background: var(--wash-pressed);
   box-shadow: none;
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .side-item.active svg {

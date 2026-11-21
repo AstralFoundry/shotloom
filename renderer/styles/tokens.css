@@ -1,11 +1,20 @@
+@font-face {
+  font-family: "Inter Variable";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url("/fonts/inter-latin-wght-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
 /* Design tokens mirror the MiniMax Design 4.0 reference system:
    semantic palette with .dark mirrors, paired font-size/line-height scale,
    radius derived from a single --radius, purpose-based shadows and overlays. */
 :root {
   color-scheme: light;
 
-  --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC",
-    "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif;
+  --font-ui: "Inter Variable", "Inter", "PingFang SC", "Hiragino Sans GB",
+    "Microsoft YaHei", "Noto Sans SC", ui-sans-serif, system-ui, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   /* 正文编辑器与富文本工具条的衬线字体：Latin 用 Georgia，中文自动落到宋体。 */
   --font-serif: Georgia, "Songti SC", "Noto Serif CJK SC", "Times New Roman", serif;
@@ -56,16 +65,16 @@
   --float-surface: rgba(255, 255, 255, .94);
   --float-surface-solid: rgba(255, 255, 255, .98);
 
-  /* Brand: black for primary actions, one accent for clickable/active */
+  /* Brand: solid actions and neutral emphasis for interactive states. */
   --brand: #000000;
   --brand-hover: rgba(0, 0, 0, .82);
   --brand-soft: #f5f5f5;
-  --brand-accent: #6d6cff;
+  --brand-accent: #343434;
   --brand-accent-foreground: #ffffff;
-  --brand-accent-wash: rgba(109, 108, 255, .08);
+  --brand-accent-wash: rgba(0, 0, 0, .08);
   /* wash 是当前项底，tint 是给占位图这类大面积弱着色，border 是选中态描边。 */
-  --brand-accent-tint: rgba(109, 108, 255, .12);
-  --brand-accent-border: rgba(109, 108, 255, .22);
+  --brand-accent-tint: rgba(0, 0, 0, .12);
+  --brand-accent-border: rgba(0, 0, 0, .22);
   /* 音频波形的填充：canvas 里要用，所以它是一个可读的颜色值而不是 composite。 */
   /* 压在画面素材上的波形带：属于素材而不是界面，暗色主题不镜像（同 --overlay-*）。 */
   --accent: #202020;
@@ -90,7 +99,7 @@
   --text-body-13: 13px;
   --text-body-13--line-height: 20px;
   --text-body-14: 14px;
-  --text-body-14--line-height: 22px;
+  --text-body-14--line-height: 23px;
   --text-body-15: 15px;
   --text-body-15--line-height: 23px;
   --text-title-16: 16px;
@@ -159,15 +168,20 @@
   --canvas-bg: #fafafa;
   --canvas-section-bg: rgba(0, 0, 0, .045);
   --canvas-bg-dot: rgba(0, 0, 0, .12);
-  --canvas-node-radius: 10px;
-  --canvas-node-inner-radius: 8px;
+  --canvas-grid-line: rgba(0, 0, 0, .04);
+  --canvas-node-radius: 12px;
+  --canvas-node-inner-radius: 10px;
   --canvas-node-border: var(--line-solid);
   --canvas-node-border-selected: #141414;
-  --canvas-edge: #c4c4c4;
+  --canvas-card-border: rgba(17, 17, 17, .06);
+  --canvas-card-border-selected: color-mix(in srgb, var(--canvas-node-border-selected) 34%, var(--canvas-node-border));
+  --canvas-card-shadow: 0 6px 18px rgba(0, 0, 0, .08);
+  --canvas-card-shadow-selected: 0 8px 22px rgba(0, 0, 0, .10);
+  --canvas-edge: #a3a3a3;
   --canvas-edge-hover: #919191;
   --canvas-edge-selected: #525252;
-  --canvas-edge-flow: #8b72ff;
-  --canvas-edge-width: 1.5px;
+  --canvas-edge-flow: #404040;
+  --canvas-edge-width: 1.4px;
   --canvas-controls-bg: #ffffff;
   --canvas-controls-hover: rgba(0, 0, 0, .05);
   --canvas-controls-active: rgba(0, 0, 0, .08);
@@ -183,19 +197,17 @@
   /* 生成节点输入行的缩略图、添加位与发送钮是同一档（参考 file-chip 40×40）；
    * 与条高派生的 40 动作只是数值相遇，语义不同，所以分名。 */
   --canvas-slot-size: 40px;
-  /* 预设触发器浮在输入面板右上角，缩略图行按它的真实占位让位。行本身已经在 10px 内边距之内，
-   * 所以留位只需要"触发器宽 + 6 间距"；再加上内边距就会实测成 16px 的空档。
+  --canvas-composer-room-above: 100vh;
+  /* 预设触发器浮在输入面板右上角，缩略图行按它的真实占位让位。行本身已经在面板内边距之内，
+   * 所以留位只需要触发器宽和组间距。
    * 无条件扣掉一个 160 的魔法数更糟：没有触发器的节点会凭空少掉一整列宽度。 */
   --canvas-preset-trigger-width: 118px;
   --canvas-composer-trigger-reserve: calc(var(--canvas-preset-trigger-width) + 6px);
 
-  /* 画布初始化徽章（参考项目 MascotLoadingAnimation）：外壳比圆框高一截，
-   * 多出来的 8px 正好给徽章下方那枚接触阴影。orb 由品牌色与画布底色混合，
-   * 所以深色主题必须在下面重新声明一次——自定义属性在 :root 求值，
-   * 不会因为 .dark 改了 --brand-accent 就自动跟着变。 */
+  /* 画布加载徽章使用独立的紫色。外壳多出的 8px 留给接触阴影。 */
   --canvas-loader-size: 48px;
   --canvas-loader-shell-size: 56px;
-  --canvas-loader-orb: color-mix(in srgb, var(--brand-accent) 68%, var(--canvas-bg));
+  --canvas-loader-orb: color-mix(in srgb, #6d6cff 68%, var(--canvas-bg));
   --canvas-loader-shadow: color-mix(in srgb, var(--text) 16%, transparent);
   --canvas-loading-dot-bright: #7b76ff94;
 
@@ -280,7 +292,6 @@
   --ease-out: cubic-bezier(.2, .9, .2, 1);
   --ease-std: cubic-bezier(.4, 0, .2, 1);
   --ease-sheet: cubic-bezier(.22, 1, .36, 1);
-  --ease-pop: cubic-bezier(.34, 1.56, .64, 1);
 
   /* Layout */
   --workspace-sidebar-width: 260px;
@@ -327,11 +338,11 @@
   --brand: #fafafa;
   --brand-hover: #e2e2e2;
   --brand-soft: #1a1a1a;
-  --brand-accent: #8b8aff;
+  --brand-accent: #d4d4d4;
   --brand-accent-foreground: #161616;
-  --brand-accent-wash: rgba(139, 138, 255, .14);
-  --brand-accent-tint: rgba(139, 138, 255, .2);
-  --brand-accent-border: rgba(139, 138, 255, .3);
+  --brand-accent-wash: rgba(255, 255, 255, .14);
+  --brand-accent-tint: rgba(255, 255, 255, .2);
+  --brand-accent-border: rgba(255, 255, 255, .3);
   --accent: #d0d0d0;
 
   --good: #57bd94;
@@ -345,17 +356,21 @@
   --canvas-bg: #0a0a0a;
   --canvas-section-bg: rgba(255, 255, 255, .065);
   --canvas-bg-dot: rgba(255, 255, 255, .102);
+  --canvas-grid-line: rgba(255, 255, 255, .045);
   --canvas-node-border-selected: rgba(255, 255, 255, .93);
-  --canvas-edge: #525252;
+  --canvas-card-border: rgba(255, 255, 255, .09);
+  --canvas-card-shadow: 0 8px 24px rgba(0, 0, 0, .34);
+  --canvas-card-shadow-selected: 0 10px 26px rgba(0, 0, 0, .40);
+  --canvas-edge: #737373;
   --canvas-edge-hover: #86909c;
   --canvas-edge-selected: #737373;
-  --canvas-edge-flow: #c4b5fd;
+  --canvas-edge-flow: #d4d4d4;
   --canvas-controls-bg: #1a1a1a;
   --canvas-controls-hover: rgba(255, 255, 255, .1);
   --canvas-controls-active: rgba(255, 255, 255, .15);
   --canvas-selection-bg: rgba(255, 255, 255, .06);
-  /* 与浅色同一套公式，重新从深色值派生；波纹点色改用深底上的亮紫。 */
-  --canvas-loader-orb: color-mix(in srgb, var(--brand-accent) 68%, var(--canvas-bg));
+  /* 深色画布使用亮一些的紫色。 */
+  --canvas-loader-orb: color-mix(in srgb, #8b8aff 68%, var(--canvas-bg));
   --canvas-loader-shadow: color-mix(in srgb, var(--text) 16%, transparent);
   --canvas-loading-dot-bright: #e2ddff47;
 

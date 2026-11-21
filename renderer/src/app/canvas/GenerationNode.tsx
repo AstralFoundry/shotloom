@@ -1,5 +1,5 @@
 import { t } from '@/i18n';
-import { memo, useCallback, useContext, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { memo, useCallback, useContext, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { type ReactFlowState, useStore } from "@xyflow/react";
 import {
@@ -54,10 +54,14 @@ function ScreenSpaceComposer({
       if (revealTimer) window.clearTimeout(revealTimer);
     };
   }, [dragReleaseSettling, dragging]);
-  const [rootWidth, setRootWidth] = useState(570);
+  const [canvasSize, setCanvasSize] = useState({ width: 720, height: 600 });
   useLayoutEffect(() => {
     if (!root) return;
-    const measure = () => setRootWidth(root.clientWidth || 570);
+    const measure = () => {
+      const { clientWidth: width, clientHeight: height } = root;
+      setCanvasSize(previous => previous.width === width && previous.height === height
+        ? previous : { width, height });
+    };
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(root);
@@ -67,25 +71,40 @@ function ScreenSpaceComposer({
     const internal = state.nodeLookup.get(nodeId);
     const [viewportX, viewportY, zoom] = state.transform;
     const position = internal?.internals.positionAbsolute;
-    const width = Number(internal?.measured.width || internal?.width || 0);
-    const height = Number(internal?.measured.height || internal?.height || 0);
-    const composerWidth = Math.min(570, Math.max(320, rootWidth - 24));
-    const desiredLeft = viewportX + (Number(position?.x || 0) + width / 2) * zoom;
+    const nodeWidth = Number(internal?.measured.width || internal?.width || 0) * zoom;
+    const nodeHeight = Number(internal?.measured.height || internal?.height || 0) * zoom;
+    const inset = 16;
+    const gap = 12;
+    const width = Math.min(920, Math.max(720, Math.round(nodeWidth * 1.5)), Math.max(0, canvasSize.width - inset * 2));
+    const height = Math.min(216, Math.max(0, canvasSize.height - inset * 2));
+    const center = viewportX + Number(position?.x || 0) * zoom + nodeWidth / 2;
+    const nodeTop = viewportY + Number(position?.y || 0) * zoom;
+    const nodeBottom = nodeTop + nodeHeight;
+    const below = nodeBottom + gap;
+    const above = nodeTop - gap - height;
+    const lastTop = canvasSize.height - inset - height;
+    const nodeVisible = nodeBottom > 0 && nodeTop < canvasSize.height;
+    const top = nodeVisible && below > lastTop && above >= inset ? above : below;
     return {
-      left: Math.max(composerWidth / 2 + 12, Math.min(rootWidth - composerWidth / 2 - 12, desiredLeft)),
-      top: viewportY + (Number(position?.y || 0) + height) * zoom + 10,
-      width: composerWidth,
+      left: Math.max(inset + width / 2, Math.min(canvasSize.width - inset - width / 2, center)),
+      top: nodeVisible ? Math.max(inset, Math.min(lastTop, top)) : top,
+      width,
+      height,
     };
-  }, [nodeId, rootWidth]);
+  }, [nodeId, canvasSize]);
   const placement = useStore(
     selectPlacement,
-    (left, right) => left.left === right.left && left.top === right.top && left.width === right.width,
+    (left, right) => left.left === right.left && left.top === right.top
+      && left.width === right.width && left.height === right.height,
   );
   if (!root) return null;
   return createPortal(
     <div
       className={`work-composer-anchor${hidden ? " work-composer-anchor--hidden" : ""}`}
-      style={placement}
+      style={{
+        ...placement,
+        "--canvas-composer-room-above": `${placement.top + placement.height}px`,
+      } as CSSProperties}
       aria-hidden={hidden}
     >
       {children}

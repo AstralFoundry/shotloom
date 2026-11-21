@@ -1,10 +1,10 @@
 import { build } from 'esbuild';
 import { readFileSync } from 'node:fs';
-import { mkdtemp, readFile, writeFile, rm, mkdir } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile, rm, mkdir, readdir, access, lstat, unlink } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join, resolve, dirname } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const root = resolve(import.meta.dirname, '..');
@@ -22,14 +22,56 @@ export function runOpenReelPnpm(args, env = {}) {
   if (result.status !== 0) throw new Error(`OpenReel pnpm ${args.join(' ')} failed (${result.status})`);
 }
 
-export async function ensureOpenReelDependencies() {
+async function workspaceManifests(directory) {
+  const manifests = [join(directory, 'package.json')];
+  for (const group of ['apps', 'packages']) {
+    for (const entry of await readdir(join(directory, group), { withFileTypes: true }).catch(() => [])) {
+      if (!entry.isDirectory()) continue;
+      const file = join(directory, group, entry.name, 'package.json');
+      if (await access(file).then(() => true, () => false)) manifests.push(file);
+    }
+  }
+  return manifests.sort();
+}
+
+async function installedDependency(directory, name) {
+  // pnpm links dependencies beside each workspace package. A root node_modules
+  // link alone does not provide those links in a separate Git worktree.
+  for (let parent = directory; ; parent = dirname(parent)) {
+    if (await access(join(parent, 'node_modules', name, 'package.json')).then(() => true, () => false)) return true;
+    if (parent === dirname(parent)) return false;
+  }
+}
+
+export async function ensureOpenReelDependencies({ directory = vendor, install = () => runOpenReelPnpm(['install', '--frozen-lockfile']) } = {}) {
+  const manifests = await workspaceManifests(directory);
   const hash = createHash('sha256').update(`${process.platform}:${process.arch}:${process.version}`);
-  for (const file of ['package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml']) hash.update(await readFile(join(vendor, file)));
+  for (const file of [...manifests, join(directory, 'pnpm-lock.yaml'), join(directory, 'pnpm-workspace.yaml')]) {
+    hash.update(file.slice(directory.length));
+    hash.update(await readFile(file));
+  }
   const key = hash.digest('hex');
-  const stamp = join(vendor, 'node_modules/.shotloom-dependencies');
-  if (await readFile(stamp, 'utf8').catch(() => '') === key) return;
-  runOpenReelPnpm(['install', '--frozen-lockfile']);
-  await mkdir(join(vendor, 'node_modules'), { recursive: true });
+  const modules = join(directory, 'node_modules');
+  const stamp = join(modules, '.shotloom-dependencies');
+  const missingDependencies = async () => {
+    const missing = [];
+    for (const file of manifests) {
+      const pkg = JSON.parse(await readFile(file, 'utf8'));
+      for (const name of Object.keys({ ...pkg.dependencies, ...pkg.devDependencies })) {
+        if (!await installedDependency(dirname(file), name)) missing.push(`${pkg.name || file}: ${name}`);
+      }
+    }
+    return missing;
+  };
+  const missing = await missingDependencies();
+  if (await readFile(stamp, 'utf8').catch(() => '') === key && !missing.length) return;
+  if (missing.length) console.log(`[openreel] Repairing missing workspace dependencies: ${missing.join(', ')}`);
+  // Detach only this checkout's symlink; never purge another checkout's modules.
+  if (await lstat(modules).then(stat => stat.isSymbolicLink(), () => false)) await unlink(modules);
+  await install();
+  const unresolved = await missingDependencies();
+  if (unresolved.length) throw new Error(`OpenReel dependencies are still missing after install: ${unresolved.join(', ')}`);
+  await mkdir(modules, { recursive: true });
   await writeFile(stamp, key);
 }
 

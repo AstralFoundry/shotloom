@@ -280,6 +280,8 @@ interface VideoInfo {
   width: number;
   height: number;
   fps: number;
+  duration: number | null;
+  hasAudio: boolean;
 }
 
 function findDimensions(line: string): [number, number] | null {
@@ -329,27 +331,31 @@ async function probeVideo(ffmpeg: string, source: string): Promise<VideoInfo> {
   if (!dimensions) {
     throw new Error(localizedError('native.error.1c6c568315', { path: source }, `无法读取视频尺寸：${source}`));
   }
-  return { width: dimensions[0], height: dimensions[1], fps: findFps(line) ?? 30 };
+  return {
+    width: dimensions[0], height: dimensions[1], fps: findFps(line) ?? 30,
+    duration: parseDuration(result.stderr),
+    hasAudio: result.stderr.split(/\r?\n/).some((item) => item.includes('Audio:')),
+  };
 }
 
 /** 每个输入先等比缩放补黑边到基准尺寸、统一帧率与像素格式，再整体 concat。 */
-function buildConcatFilter(width: number, height: number, fps: number, count: number, withAudio: boolean): string {
+function buildConcatFilter(width: number, height: number, fps: number, clips: VideoInfo[], withAudio: boolean): string {
   const parts: string[] = [];
-  for (let index = 0; index < count; index += 1) {
-    parts.push(`[${index}:v]scale=${width}:${height}:force_original_aspect_ratio=decrease,`
+  const inputs: string[] = [];
+  clips.forEach((clip, index) => {
+    parts.push(`[${index}:v]setpts=PTS-STARTPTS,scale=${width}:${height}:force_original_aspect_ratio=decrease,`
       + `pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1,fps=${fps},format=yuv420p[v${index}]`);
-  }
-  if (withAudio) {
-    for (let index = 0; index < count; index += 1) {
-      parts.push(`[${index}:a]aresample=async=1:first_pts=0[a${index}]`);
+    inputs.push(`[v${index}]`);
+    if (!withAudio) return;
+    if (clip.hasAudio) {
+      const fit = clip.duration ? `,apad,atrim=duration=${clip.duration}` : '';
+      parts.push(`[${index}:a:0]aresample=48000:async=1:first_pts=0,aformat=channel_layouts=stereo${fit}[a${index}]`);
+    } else {
+      parts.push(`anullsrc=r=48000:cl=stereo:d=${clip.duration}[a${index}]`);
     }
-  }
-  let inputs = '';
-  for (let index = 0; index < count; index += 1) {
-    inputs += `[v${index}]`;
-    if (withAudio) inputs += `[a${index}]`;
-  }
-  parts.push(`${inputs}concat=n=${count}:v=1:a=${withAudio ? 1 : 0}${withAudio ? '[outv][outa]' : '[outv]'}`);
+    inputs.push(`[a${index}]`);
+  });
+  parts.push(`${inputs.join('')}concat=n=${clips.length}:v=1:a=${withAudio ? 1 : 0}${withAudio ? '[outv][outa]' : '[outv]'}`);
   return parts.join(';');
 }
 
@@ -371,16 +377,16 @@ defineCommand('file_concat_videos', async args => {
     throw detailError('native.error.0c0d67e058', '无法创建拼接目录', errorMessage(error));
   }
   const ffmpeg = await resolveMediaTool('ffmpeg');
-  const infos: VideoInfo[] = [];
-  const audios: boolean[] = [];
-  for (const path of sources) {
-    infos.push(await probeVideo(ffmpeg, path));
-    audios.push(await sourceHasAudio(ffmpeg, path));
+  const clips: VideoInfo[] = [];
+  for (const path of sources) clips.push(await probeVideo(ffmpeg, path));
+  const [base] = clips;
+  const width = Math.max(2, 2 * Math.floor(base.width / 2));
+  const height = Math.max(2, 2 * Math.floor(base.height / 2));
+  const withAudio = clips.some((clip) => clip.hasAudio);
+  if (withAudio && clips.some((clip) => !clip.hasAudio && !clip.duration)) {
+    throw new Error(localizedError('native.error.76ed3ab41a', {}, '无法读取媒体信息'));
   }
-  const base = infos[0];
-  // 混合音轨时拼接会因缺少输入流失败：保留画面并显式丢弃音频，由回执照实说明。
-  const withAudio = audios.every(Boolean);
-  const filter = buildConcatFilter(base.width, base.height, base.fps, sources.length, withAudio);
+  const filter = buildConcatFilter(width, height, base.fps, clips, withAudio);
   const command = ['-hide_banner', '-loglevel', 'error', '-y'];
   for (const path of sources) command.push('-i', path);
   command.push('-filter_complex', filter, '-map', '[outv]');
@@ -399,9 +405,10 @@ defineCommand('file_concat_videos', async args => {
   return {
     ...await fileResult(target),
     engine: 'rust-ffmpeg-concat',
-    audioDropped: !withAudio && audios.some(Boolean),
-    width: base.width,
-    height: base.height,
+    audioDropped: false,
+    sourceCount: clips.length,
+    width,
+    height,
   };
 });
 

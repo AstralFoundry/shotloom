@@ -41,11 +41,11 @@ export const LENS_OPTIONS = Object.freeze([
 ]);
 
 export const FOCAL_LENGTH_OPTIONS = Object.freeze([
-  '14mm', '24mm', '35mm', '50mm', '75mm', '85mm', '105mm', '135mm', '200mm',
+  '14mm', '18mm', '24mm', '35mm', '40mm', '50mm', '65mm', '75mm', '85mm', '100mm', '105mm', '135mm', '200mm',
 ]);
 
 export const APERTURE_OPTIONS = Object.freeze([
-  'f/1.2', 'f/1.4', 'f/2.0', 'f/2.8', 'f/4.0', 'f/5.6', 'f/8.0', 'f/11', 'f/16',
+  'f/1.2', 'f/1.4', 'f/1.8', 'f/2.0', 'f/2.8', 'f/4.0', 'f/5.6', 'f/8.0', 'f/11', 'f/16',
 ]);
 
 export const DEFAULT_CAMERA_CONFIG = Object.freeze({

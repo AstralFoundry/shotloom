@@ -25,6 +25,7 @@ const shell = readSource('renderer/src/app/AppShell.tsx');
 const adapter = readSource('renderer/src/app/adapters/canvasAdapter.ts') + readSource('renderer/src/app/adapters/canvas/canvasViewData.ts');
 const canvasHistory = readSource('renderer/src/store/canvasHistoryStore.ts');
 const canvasDrag = await import('../renderer/src/utils/canvasNodeDrag.ts');
+const { zoomViewportAt } = await import('../renderer/src/app/canvas/canvasWheelZoom.ts');
 const canvasDragSource = readSource('renderer/src/utils/canvasNodeDrag.ts');
 const nodeChrome = await import('../renderer/src/utils/canvasNodeChrome.ts');
 const migrationStyles = readSource('renderer/styles/canvas.css');
@@ -55,9 +56,11 @@ test('React Flow 保持节点挂载并在拖动结束后合并持久化', () => 
   assert.doesNotMatch(canvas, /onMove=\{\(_event, next\) => setLiveViewport\(next\)\}/);
   assert.doesNotMatch(canvas, /useInternalNode/);
   assert.match(canvas, /selected && resizable && \([\s\S]*?<NodeResizer/);
-  assert.match(canvas, /onResizeStart=\{\(\) => setResizing\(true\)\}/);
-  assert.doesNotMatch(canvas, /CanvasGrid|canvas-grid-layer/);
-  assert.match(canvas, /onMoveStart=\{onMoveStart\}/);
+  assert.match(canvas, /onResize=\{onResize\}/);
+  assert.match(canvas, /onResizeEnd=\{onResizeEnd\}/);
+  assert.match(canvas, /positionCanvasPattern\(patternLayer\.current, next\)/);
+  assert.match(canvas, /onMove=\{onCameraMove\}/);
+  assert.match(canvas, /onMoveEnd=\{onMoveEnd\}/);
   assert.match(canvas, /MEDIA_NODE_TYPES\.has\(node\.type\) \? "canvas-media-node"/);
   assert.doesNotMatch(migrationStyles, /viewport-moving[^\{]*react-flow__viewport/);
   assert.doesNotMatch(canvas, /pendingNodeChanges|nodeChangeFrame/);
@@ -241,38 +244,41 @@ test('节点与连线使用线性索引和稳定集合', () => {
   assert.match(canvas, /const ids = useMemo\(\(\) => new Set/);
   assert.match(canvas, /\.filter\(\(edge\) => ids\.has\(edge\.source\)/);
 });
-test('画布缩放使用最终布局尺寸并保持 React Flow 视口为 1x', () => {
-  assert.match(canvas, /x: screenPixel\(\(Number\(node\.x\) \|\| 0\) \* semanticZoom\)/);
-  assert.match(canvas, /width: dimensions\.width \* semanticZoom/);
-  assert.match(canvas, /semanticZoom,\s*\n\s*};/);
-  assert.match(canvas, /const semanticZoom = data\.semanticZoom/);
-  assert.match(canvas, /className="canvas-node-semantic-content"[\s\S]*?zoom: USE_WEBKIT_NODE_SCALE_FALLBACK \? 1 : semanticZoom/);
-  assert.match(canvas, /scale: USE_WEBKIT_NODE_SCALE_FALLBACK \? semanticZoom : 1/);
-  assert.match(canvas, /className="canvas-node-semantic-frame"[\s\S]*?width: width \* semanticZoom[\s\S]*?height: height \* semanticZoom/);
-  assert.doesNotMatch(canvas, /className="canvas-node-semantic-content"[\s\S]{0,220}?transform: `scale/);
-  assert.match(canvas, /"--canvas-node-zoom": String\(semanticZoom\)/);
-  assert.match(styles, /\.canvas-node-semantic-content \{\s*--canvas-hairline: calc\(1px \/ var\(--canvas-node-zoom, 1\)\)/);
-  assert.match(styles, /\.work-node \{[\s\S]*?border: var\(--canvas-hairline\) solid var\(--canvas-node-border\)/);
-  assert.match(styles, /\.canvas-node-semantic-frame \{[^}]*min-width:\s*0;[^}]*min-height:\s*0/);
-  assert.match(styles, /\.canvas-node-semantic-content \{[^}]*display:\s*block;[^}]*contain:\s*layout style;[^}]*-webkit-text-size-adjust:\s*none;[^}]*text-size-adjust:\s*none/);
-  assert.match(canvas, /defaultViewport=\{\{ x: viewport\.x, y: viewport\.y, zoom: 1 \}\}/);
-  assert.match(canvas, /minZoom=\{1\}[\s\S]*?maxZoom=\{1\}/);
+test('画布缩放只更新视口，缩放结束后无需重算节点坐标', () => {
+  assert.match(canvas, /position: \{\s*x: Number\(node\.x\) \|\| 0,\s*y: Number\(node\.y\) \|\| 0/);
+  assert.match(canvas, /toFlowNodes\(visible, edges, flowNodeCache\.current\),\s*\[edges, visible\]/);
+  assert.match(canvas, /defaultViewport=\{\{ x: viewport\.x, y: viewport\.y, zoom: initialZoom \}\}/);
+  assert.match(canvas, /minZoom=\{MIN_CANVAS_ZOOM\}[\s\S]*?maxZoom=\{MAX_CANVAS_ZOOM\}/);
   assert.match(canvas, /zoomOnScroll=\{false\}[\s\S]*?zoomOnPinch=\{false\}/);
-  assert.match(canvas, /if \(event\.ctrlKey \|\| event\.metaKey\) \{\s*wheelZoom\.enqueue/);
-  assert.match(canvas, /wheelPan\.enqueue\(event\.deltaX, event\.deltaY, event\.deltaMode, root\.clientHeight\)/);
-  assert.match(canvas, /panOnDrag=\{\[1, 2\]\}/);
+  assert.match(canvas, /if \(zooming\) \{[\s\S]*?wheelZoom\.enqueue/);
+  assert.match(canvas, /instance\.setViewport\(next\)/);
+  assert.match(canvas, /applyCanvasViewport\(zoomViewportAt\(current, zoom, center\)\)/);
+  assert.match(canvas, /createCanvasWheelPan\(\{[\s\S]*?applyCanvasViewport\(\{ \.\.\.position, zoom: instance\.getZoom\(\) \}\)/);
+  assert.doesNotMatch(canvas, /setSemanticZoom|finishViewportPreview/);
+  assert.match(canvas, /wheelPan\.enqueue\(dx, dy, event\.deltaMode, event\.deltaMode === 2 \? root\.clientHeight : 0\)/);
+  assert.match(canvas, /panOnDrag=\{panMode \? \[0, 1, 2\] : \[1, 2\]\}/);
+});
+test('连续缩放保留鼠标下的画布坐标', () => {
+  const anchor = { x: 217.25, y: 432.5 };
+  let viewport = { x: -183.75, y: 72.5, zoom: 0.63 };
+  const canvasX = (anchor.x - viewport.x) / viewport.zoom;
+  const canvasY = (anchor.y - viewport.y) / viewport.zoom;
+  for (const zoom of [0.615, 0.552, 0.913, 2.21, 0.1, 4, 0.637]) {
+    viewport = zoomViewportAt(viewport, zoom, anchor);
+    assert.ok(Math.abs(viewport.x + canvasX * zoom - anchor.x) < 1e-9);
+    assert.ok(Math.abs(viewport.y + canvasY * zoom - anchor.y) < 1e-9);
+  }
 });
 test('节点文字、图标和错误态共享语义尺寸并沿同一缩放轨道', () => {
   // 画布只按角色命名尺寸，值和字体阶梯/图标刻度仍归 tokens.css 所有。
-  assert.match(styles, /--canvas-node-title-size: var\(--text-body-14\)/);
+  assert.match(styles, /--canvas-node-title-size: var\(--text-body-12\)/);
   assert.match(styles, /--canvas-node-body-size: var\(--text-body-12\)/);
   assert.match(styles, /--canvas-node-error-size: var\(--text-body-12\)/);
   assert.match(styles, /--canvas-node-icon-size: var\(--icon-xs\)/);
   assert.match(styles, /--canvas-node-head-height: 24px/);
   assert.match(styles, /\.work-error \{[\s\S]*?font-size: var\(--canvas-node-error-size\)[\s\S]*?word-break: break-word/);
   assert.match(styles, /\.audio-waveform-download \{[\s\S]*?width: var\(--canvas-node-action-size\)[\s\S]*?height: var\(--canvas-node-action-size\)/);
-  assert.match(canvas, /"--node-label-zoom": semanticZoom/);
-  // 节点内容只做一次语义缩放：容器上的 CSS zoom 之外不得再乘语义倍率，否则文字图标按 zoom² 增长并溢出节点。
+  // 文字和图标与节点共享视口缩放。
   assert.doesNotMatch(canvas, /--node-semantic-zoom/);
   assert.doesNotMatch(styles, /--node-semantic-zoom/);
   assert.doesNotMatch(directorStyles, /--node-semantic-zoom/);
@@ -280,15 +286,13 @@ test('节点文字、图标和错误态共享语义尺寸并沿同一缩放轨�
 test('导演台名称使用画布外部标签并和语义缩放同步', () => {
   assert.match(director, /CanvasNodeLabelRootContext/);
   assert.match(director, /className="director-node-label"/);
-  assert.match(directorStyles, /\.director-node-label \{[\s\S]*?var\(--node-label-zoom, 1\)/);
+  assert.match(directorStyles, /\.director-node-label > svg \{\s*width: var\(--canvas-node-icon-size\)/);
   assert.match(directorStyles, /\.director-node-workspace \{[\s\S]*?height: 100%;/);
-  assert.match(canvas, /<CanvasNodeSemanticContent width=\{dimensions\.width\} height=\{dimensions\.height\} semanticZoom=\{semanticZoom\}/);
+  assert.match(canvas, /<CanvasNodeContent width=\{dimensions\.width\} height=\{dimensions\.height\}/);
   assert.match(directorStyles, /\.director-node-placeholder p \{[\s\S]*?font-size: var\(--canvas-node-body-size\)/);
   assert.match(directorStyles, /\.director-node-open-button \{[\s\S]*?font-size: var\(--canvas-node-body-size\)/);
   assert.doesNotMatch(migrationStyles, /canvas-zoom-overview :is\([\s\S]*?\.director-node-placeholder/);
   assert.doesNotMatch(migrationStyles, /canvas-zoom-overview :is\([\s\S]*?\.director-node-open-button/);
-  assert.match(canvas, /CanvasNodeSemanticContent/);
-  assert.match(canvas, /function CanvasNodeSemanticContent/);
 });
 test('语义缩放时端口与节点边缘使用同一屏幕坐标', () => {
   for (const zoom of [0.55, 1, 1.8]) {
@@ -300,8 +304,8 @@ test('语义缩放时端口与节点边缘使用同一屏幕坐标', () => {
     assert.equal(left.y + left.height / 2, height / 2);
     assert.equal(right.y + right.height / 2, height / 2);
   }
-  assert.match(canvas, /handles: canvasNodePortBounds\(screenWidth, screenHeight\)/);
-  assert.match(canvas, /width: screenWidth,[\s\S]*?height: screenHeight/);
+  assert.match(canvas, /handles: canvasNodePortBounds\(width, height\)/);
+  assert.match(canvas, /measured: \{ width, height \}/);
   assert.match(styles, /\.canvas-flow-port-in \{ left: 0;/);
   assert.match(styles, /\.canvas-flow-port-out \{ right: 0;/);
   assert.match(styles, /\.canvas-flow-port-out::before \{ left: 100%;/);
@@ -311,32 +315,28 @@ test('画布倍率变化不隐藏内容也不给连线单独降透明度', () =>
   assert.doesNotMatch(canvas, /const roleLabel/);
   assert.doesNotMatch(canvas, /opacity: semanticZoom|strokeWidth:/);
   assert.doesNotMatch(canvas, /canvas-zoom-(compact|distant|overview)/);
-  assert.match(canvas, /className="canvas-node-label-anchor"[\s\S]*?top: -CANVAS_NODE_LABEL_OFFSET \* semanticZoom,[\s\S]*?width: dimensions\.width \* semanticZoom/);
+  assert.match(canvas, /className="canvas-node-label-anchor"[\s\S]*?top: -CANVAS_NODE_LABEL_OFFSET,[\s\S]*?width: dimensions\.width/);
   assert.match(canvas, /CanvasNodeLabelRootContext\.Provider value=\{labelRoot\}/);
   assert.match(canvas, /className="react-workflow-canvas"/);
   assert.doesNotMatch(canvas, /--canvas-label-scale/);
   assert.doesNotMatch(migrationStyles, /--canvas-label-scale/);
   assert.doesNotMatch(migrationStyles, /canvas-zoom-overview/);
-  assert.match(migrationStyles, /max\(1, var\(--node-label-zoom, 1\)\)/);
+  assert.doesNotMatch(migrationStyles, /--node-label-zoom/);
   assert.doesNotMatch(migrationStyles, /canvas-zoom-compact \.work-node-kicker \{[^}]*?inset:/);
   assert.doesNotMatch(migrationStyles, /canvas-zoom-compact \.work-node-kicker > span/);
   assert.match(migrationStyles, /inset: -28px 0 auto;/);
-  // 低倍率不靠隐藏，也不给节点内某块内容套第二层缩放：入口与节点名称、卡片共用
-  // CanvasNodeSemanticContent 上唯一的一层 zoom，所以按卡片尺寸等比缩小，不会折行也不会溢出卡片。
+  // 入口和节点名称随卡片等比缩小。
   assert.doesNotMatch(canvas, /nodeActionCounterScale|--node-action-scale|--node-logical-width/);
   assert.doesNotMatch(migrationStyles, /(^|\n)\s*zoom:/);
   assert.doesNotMatch(migrationStyles, /canvas-zoom-compact[^{]*\.text-result-starters/);
   assert.doesNotMatch(migrationStyles, /canvas-zoom-overview :is/);
   assert.doesNotMatch(migrationStyles, /canvas-zoom-overview \.canvas-flow-port/);
 });
-test('连线粗细与箭头沿语义缩放轨道变化，不用固定屏幕像素', () => {
-  // React Flow 的 viewport 恒为 1，节点尺寸已经乘过倍率；线宽若留在固定 px，
-  // 鸟瞰时连线就会比节点本身还粗，箭头（markerUnits=strokeWidth）会跟着放大。
-  assert.match(canvas, /className="react-workflow-canvas"\s*\n\s*\/\/[^\n]*\n\s*style=\{\{ "--canvas-semantic-zoom": semanticZoom \} as CSSProperties\}/);
-  assert.match(migrationStyles, /\.react-workflow-canvas \.react-flow__connection-path \{ stroke-width: max\(0\.8px, calc\(2px \* var\(--canvas-semantic-zoom, 1\)\)\); \}/);
-  // 线宽只有一个来源：样式侧不得再给 edge-path 单独写一套宽度，组件侧也不得自己算箭头或线宽。
-  assert.doesNotMatch(migrationStyles, /--xy-edge-stroke-width: var\(--canvas-edge-width\);/);
-  assert.doesNotMatch(migrationStyles, /react-flow__edge-path[^{]*\{[^}]*stroke-width:/);
+test('画布缩放时连线保持屏幕线宽', () => {
+  assert.match(migrationStyles, /--xy-edge-stroke-width: var\(--canvas-edge-width\);/);
+  assert.match(migrationStyles, /\.react-workflow-canvas \.react-flow__connection-path \{ fill: none; stroke-width: var\(--canvas-edge-width\); \}/);
+  assert.match(migrationStyles, /\.react-flow__edge-path, \.react-flow__edge-interaction,[^}]*vector-effect: non-scaling-stroke/);
+  assert.doesNotMatch(migrationStyles, /--canvas-semantic-zoom/);
   assert.doesNotMatch(canvas, /markerWidth|markerUnits|strokeWidth/);
 });
 test('节点使用完整设计尺寸且旧画布只换算一次', () => {
@@ -355,17 +355,18 @@ test('画布右键菜单把屏幕坐标换算为画布局部坐标并限制在�
   assert.match(canvasGeometry, /clientX - bounds\.left/);
   assert.match(canvasGeometry, /clientY - bounds\.top/);
   assert.match(canvasGeometry, /bounds\.width - CANVAS_MENU_WIDTH/);
-  assert.match(canvasGeometry, /bounds\.height - CANVAS_MENU_HEIGHT/);
+  assert.match(canvasGeometry, /menuHeight = CANVAS_MENU_HEIGHT/);
+  assert.match(canvasGeometry, /bounds\.height - menuHeight/);
 });
 test('连线使用 Loose 模式、点击连接和恒定屏幕吸附范围', () => {
   assert.match(canvas, /connectOnClick/);
   assert.match(canvas, /ConnectionMode\.Loose/);
-  assert.match(canvas, /connectionRadius=\{64\}/);
+  assert.match(canvas, /connectionRadius=\{64 \/ Math\.max\(MIN_CANVAS_ZOOM, zoomPercent \/ 100\)\}/);
 });
 test('连线按节点相对位置选择最近端口且不会折返回头', () => {
   assert.match(canvas, /const targetIsRight = targetCenter >= sourceCenter/);
-  assert.match(canvas, /const sourceHandle = targetIsRight \? "port-right" : "port-left"/);
-  assert.match(canvas, /const targetHandle = targetIsRight \? "port-left" : "port-right"/);
+  assert.match(canvas, /: targetIsRight \? "port-right" : "port-left"/);
+  assert.match(canvas, /: targetIsRight \? "port-left" : "port-right"/);
   assert.equal(canvas.match(/<Handle/g)?.length, 2);
   assert.match(canvas, /className="canvas-flow-port canvas-flow-port-in"[\s\S]*?className="canvas-flow-port canvas-flow-port-out"/);
 });
@@ -449,8 +450,8 @@ test('并发任务轮询只在状态变化时触发合并持久化', () => {
 });
 test('图片预览在缩放稳定后升级清晰度且视频不订阅预览尺寸', () => {
   assert.match(canvas, /MEDIA_PREVIEW_ZOOM_SETTLE_MS = 220/);
-  assert.match(canvas, /setTimeout\(\(\) => \{[\s\S]*?setPreviewZoom\(semanticZoom\)[\s\S]*?MEDIA_PREVIEW_ZOOM_SETTLE_MS/);
-  assert.match(canvas, /toFlowNodes\(visible, edges, semanticZoom, flowNodeCache\.current\)/);
+  assert.match(canvas, /setTimeout\(\(\) => \{[\s\S]*?setPreviewZoom\(next\.zoom\)[\s\S]*?MEDIA_PREVIEW_ZOOM_SETTLE_MS/);
+  assert.match(canvas, /toFlowNodes\(visible, edges, flowNodeCache\.current\)/);
   assert.match(canvas, /CanvasPreviewZoomContext\.Provider value=\{previewZoom\}/);
   assert.doesNotMatch(canvas, /data: \{ node, inputRevision, incomingInputs, semanticZoom, previewZoom \}/);
   assert.match(node, /const previewZoom = useContext\(CanvasPreviewZoomContext\)/);
@@ -463,16 +464,32 @@ test('图片预览在缩放稳定后升级清晰度且视频不订阅预览尺�
   assert.match(api, /activeImagePreviewReads < 4/);
   assert.match(node, /className="work-node-wrapper"[\s\S]*?actions\.select\(node\.id\)/);
 });
-test('连线与箭头只在 CSS 主题变量里取色，缩放不再重建连线对象', () => {
+test('连线与端点只在 CSS 主题变量里取色，缩放不再重建连线对象', () => {
   assert.match(styles, /--xy-edge-stroke: var\(--canvas-edge\);/);
-  // 线宽基准同样只来自令牌；倍率轨道见“连线粗细与箭头沿语义缩放轨道变化”。
-  assert.match(styles, /--xy-edge-stroke-width: max\(0\.6px, calc\(var\(--canvas-edge-width\) \* var\(--canvas-semantic-zoom, 1\)\)\);/);
+  assert.match(styles, /--xy-edge-stroke-width: var\(--canvas-edge-width\);/);
   assert.match(styles, /--xy-edge-stroke-selected: var\(--canvas-edge-selected\);/);
   assert.match(styles, /--xy-connectionline-stroke: var\(--canvas-edge-flow\);/);
-  assert.match(styles, /\.react-flow__arrowhead polyline \{ stroke: var\(--canvas-edge\); \}/);
-  assert.match(styles, /\.react-flow__arrowhead polyline\.arrowclosed \{ fill: var\(--canvas-edge\); \}/);
-  // React Flow 把 marker color 写进行内 style；空 defaultMarkerColor 才能把取色权交给 CSS。
-  assert.match(canvas, /defaultMarkerColor=""/);
+  assert.match(styles, /\.canvas-connection-decoration circle \{ fill: var\(--canvas-edge\); \}/);
+  assert.match(styles, /\.canvas-connection-beam \{[\s\S]*?stroke: var\(--canvas-edge-flow\);/);
+  assert.match(canvas, /edgeTypes=\{canvasEdgeTypes\}/);
   assert.doesNotMatch(canvas, /stroke: "#|strokeWidth: 1\.5|color: "#c4c4c4"/);
-  assert.match(canvas, /\[edges, ids, visibleById\]/);
+  assert.match(canvas, /\[edges, ids, visibleById, selectedEdgeId\]/);
+});
+
+
+test('缩放时外部快照保留正在拖动的尺寸与锚点，松手后接收已保存的尺寸', () => {
+  const live = { id: 'script', resizing: true, position: { x: 60, y: 80 }, width: 760, height: 520, measured: { width: 760, height: 520 }, data: { revision: 1 } };
+  let current = [live];
+  for (let revision = 2; revision <= 5; revision++) {
+    const reconciled = canvasDrag.reconcileCanvasNodes(current, [{ id: 'script', position: { x: 100, y: 80 }, width: 920, height: 440, data: { revision } }], new Set());
+    assert.equal(reconciled, current);
+    current = reconciled;
+    assert.equal(current[0], live);
+    assert.equal(current[0].width, 760);
+    assert.equal(current[0].position.x, 60);
+  }
+  assert.equal(canvasDrag.reconcileCanvasNodes(current, [], new Set())[0], live);
+  const saved = { id: 'script', position: { x: 60, y: 80 }, width: 760, height: 520, data: { revision: 6 } };
+  const released = [{ ...live, resizing: false }];
+  assert.equal(canvasDrag.reconcileCanvasNodes(released, [saved], new Set())[0], saved);
 });

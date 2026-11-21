@@ -3,8 +3,7 @@ export const CANVAS_NODE_LABEL_HEIGHT = 24;
 // Reference geometry: a 4px air gap separates the name band from the node top.
 export const CANVAS_NODE_LABEL_OFFSET = 28;
 
-const LEFT_PORT_SIZE = 12;
-const RIGHT_PORT_SIZE = 20;
+const PORT_SIZE = 16;
 
 export function canvasNodePortBounds(width: unknown, height: unknown) {
   const screenWidth = Number(width);
@@ -14,16 +13,16 @@ export function canvasNodePortBounds(width: unknown, height: unknown) {
     {
       id: "port-left",
       x: 0,
-      y: screenHeight / 2 - LEFT_PORT_SIZE / 2,
-      width: LEFT_PORT_SIZE,
-      height: LEFT_PORT_SIZE,
+      y: screenHeight / 2 - PORT_SIZE / 2,
+      width: PORT_SIZE,
+      height: PORT_SIZE,
     },
     {
       id: "port-right",
-      x: screenWidth - RIGHT_PORT_SIZE,
-      y: screenHeight / 2 - RIGHT_PORT_SIZE / 2,
-      width: RIGHT_PORT_SIZE,
-      height: RIGHT_PORT_SIZE,
+      x: screenWidth - PORT_SIZE,
+      y: screenHeight / 2 - PORT_SIZE / 2,
+      width: PORT_SIZE,
+      height: PORT_SIZE,
     },
   ];
 }

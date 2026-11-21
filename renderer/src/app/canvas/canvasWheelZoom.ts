@@ -1,3 +1,14 @@
+type ZoomViewport = { x: number; y: number; zoom: number };
+
+export function zoomViewportAt(current: ZoomViewport, zoom: number, anchor: { x: number; y: number }): ZoomViewport {
+  const ratio = zoom / current.zoom;
+  return {
+    x: anchor.x - (anchor.x - current.x) * ratio,
+    y: anchor.y - (anchor.y - current.y) * ratio,
+    zoom,
+  };
+}
+
 /** Coalesce high-frequency wheel input while preserving every zoom delta. */
 export function createCanvasWheelZoom(options: {
   readZoom(): number;

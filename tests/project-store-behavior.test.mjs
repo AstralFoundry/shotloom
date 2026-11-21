@@ -147,3 +147,43 @@ test('renaming an open SQLite project carries the committed revision into the ne
     desktopApi.project.save = originalSave;
   }
 });
+
+test('background autosave waits for the canvas to settle and updates the storage revision without repainting the project', async (context) => {
+  await projectStore.createNewProject('canvas autosave', { openAfterCreate: false });
+  const { getDomainRevision } = await env.load('store/domainReactivity');
+  const originalSave = desktopApi.project.save;
+  const { setTimeout: setWindowTimeout, clearTimeout: clearWindowTimeout } = window;
+  const saves = [];
+  context.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: 1000 });
+  window.setTimeout = (callback, delay) => setTimeout(callback, delay);
+  window.clearTimeout = (timer) => clearTimeout(timer);
+  desktopApi.project.save = async (_directory, snapshot) => {
+    saves.push(snapshot);
+    return { filePath: store.filePath, project: { ...snapshot, storageRevision: 42 } };
+  };
+  try {
+    const viewport = { x: 24, y: -18, zoom: 0.9 };
+    projectStore.persistCanvasViewport(viewport);
+    context.mock.timers.tick(950);
+    projectStore.noteCanvasViewportActivity();
+    context.mock.timers.tick(50);
+    assert.equal(saves.length, 0);
+
+    context.mock.timers.tick(150);
+    projectStore.noteCanvasViewportActivity();
+    context.mock.timers.tick(299);
+    assert.equal(saves.length, 0);
+
+    const domainRevision = getDomainRevision();
+    context.mock.timers.tick(1);
+    assert.equal(saves.length, 1);
+    assert.deepEqual(saves[0].canvasViewport, viewport);
+    await new Promise(setImmediate);
+    assert.equal(store.project.storageRevision, 42);
+    assert.equal(getDomainRevision(), domainRevision);
+  } finally {
+    window.setTimeout = setWindowTimeout;
+    window.clearTimeout = clearWindowTimeout;
+    desktopApi.project.save = originalSave;
+  }
+});

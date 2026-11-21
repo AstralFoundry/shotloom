@@ -20,13 +20,14 @@ import {
 import {
   MAX_BATCH_REFERENCE_COLUMNS,
   MAX_BATCH_ROWS,
+  batchRowColumnReferences,
   batchRowReady,
   batchRowReferences,
   normalizeBatchTable,
   type BatchRow,
   type BatchTableData,
 } from '@/domain/graph/BatchTable';
-import { batchReferenceDefaults, batchTableData, ensureBatchTableData, isCanvasImageNode } from '@/services/batchTableService';
+import { batchReferenceInputs, batchTableData, ensureBatchTableData, isCanvasImageNode } from '@/services/batchTableService';
 import { isStoryboardRunActive, runStoryboardScriptGeneration, runStoryboardShots, storyboardShots } from '@/services/storyboardScriptService';
 import { isBatchTableRunActive, runBatchTable } from '@/services/batchTableService';
 
@@ -108,7 +109,7 @@ function storyboardResult(node: AnyRecord) {
 
 function batchResult(node: AnyRecord) {
   const table = batchTableData(node);
-  const defaults = batchReferenceDefaults(String(node.id));
+  const columns = batchReferenceInputs(String(node.id));
   return {
     success: true,
     nodeId: String(node.id),
@@ -117,14 +118,14 @@ function batchResult(node: AnyRecord) {
     concurrency: table.concurrency,
     globalPrompt: table.globalPrompt,
     columns: table.columns,
-    defaults,
+    defaults: batchRowColumnReferences(columns, 0),
     rows: table.rows.map((row: BatchRow, index: number) => ({
       index,
       id: row.id,
       enabled: row.enabled,
       prompt: row.prompt,
       referenceNodeIds: row.referenceNodeIds,
-      resolvedReferences: row.referenceNodeIds.map((id, position) => id || defaults[position] || ''),
+      resolvedReferences: batchRowReferences(row, batchRowColumnReferences(columns, index)),
       outputNodeId: row.outputNodeId,
     })),
   };
@@ -435,9 +436,10 @@ export function registerCanvasSuiteTools(): void {
       if (isBatchTableRunActive(String(node.id))) return { success: false, error: t('canvas.batch.runBusy') };
       const rowIds = Array.isArray(input.rowIds) ? input.rowIds.map(String) : undefined;
       const table = batchTableData(node);
-      const defaults = batchReferenceDefaults(String(node.id));
-      const targets = table.rows.filter((row) => (rowIds ? rowIds.includes(row.id) : row.enabled))
-        .filter((row) => batchRowReady(table, row, batchRowReferences(row, defaults)));
+      const columns = batchReferenceInputs(String(node.id));
+      const targets = table.rows.filter((row, index) =>
+        (!rowIds || rowIds.includes(row.id))
+        && batchRowReady(table, row, batchRowReferences(row, batchRowColumnReferences(columns, index))));
       if (!targets.length) return { success: false, error: t('canvas.batch.nothingToRun') };
       void runBatchTable(String(node.id), { ...(rowIds ? { rowIds } : {}), force: Boolean(rowIds) });
       return { success: true, started: targets.length, nodeId: String(node.id) };

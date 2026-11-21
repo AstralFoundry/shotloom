@@ -3,7 +3,6 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalS
 import { getDomainRevision, subscribeDomain } from "../../store/domainReactivity";
 import { getGenerationInputModes, getModelInfo, getModelSchema } from "../../domain/catalog/ModelCatalog";
 import { compileGenerationNodeConfig } from "../../domain/graph/GenerationNodeContract";
-import { DEFAULT_CAMERA_CONFIG } from "../../utils/cameraConfig.ts";
 import { IMAGE_STYLE_PRESETS } from "../../utils/imageStylePresets.ts";
 import { paramSummary } from "../../utils/modelPresentation.ts";
 import { openMediaViewer } from "../store/overlayStore";
@@ -572,19 +571,9 @@ export function GenerationNodeComposer({
                 ? `${activeCameraConfig.camera} · ${activeCameraConfig.lens} · ${activeCameraConfig.focalLength} · ${activeCameraConfig.aperture}`
                 : t("ui.GenerationNodeComposer.text.6ab25245")
             }
-            onClick={() => {
-              const opening = openMenu !== "camera";
-              setOpenMenu(opening ? "camera" : "");
-              if (opening && !cameraControlEnabled) {
-                actions.update(node.id, {
-                  config: {
-                    ...config,
-                    cameraControl: true,
-                    cameraConfig: { ...activeCameraConfig },
-                  },
-                });
-              }
-            }}
+            aria-haspopup="dialog"
+            aria-expanded={openMenu === "camera"}
+            onClick={() => setOpenMenu("camera")}
           >
             <IconSymbol name="camera" />
             <span>{cameraControlEnabled ? activeCameraConfig.focalLength : t("ui.CameraControlPanel.label.c7d1925f")}</span>
@@ -604,20 +593,10 @@ export function GenerationNodeComposer({
         <CameraControlPanel
           config={activeCameraConfig}
           enabled={cameraControlEnabled}
-          onChange={(value) =>
-            actions.update(node.id, {
-              config: { ...config, cameraControl: true, cameraConfig: value },
-            })
-          }
-          onToggle={(enabled) =>
-            actions.update(node.id, {
-              config: {
-                ...config,
-                cameraControl: enabled,
-                cameraConfig: config.cameraConfig || { ...DEFAULT_CAMERA_CONFIG },
-              },
-            })
-          }
+          onApply={(cameraConfig, enabled) => {
+            actions.update(node.id, { config: { ...config, cameraControl: enabled, cameraConfig } });
+            setOpenMenu("");
+          }}
           onClose={() => setOpenMenu("")}
         />
       )}

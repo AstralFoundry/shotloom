@@ -30,7 +30,7 @@ function PoseImage({ src, alt, className = 'pose-card-image' }: { src: string; a
       </span>
     );
   }
-  return <img src={src} alt={alt} loading="lazy" onError={() => setFailed(true)} />;
+  return <img className={className} src={src} alt={alt} loading="lazy" onError={() => setFailed(true)} />;
 }
 
 export function PoseLibraryModal({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -44,6 +44,7 @@ export function PoseLibraryModal({ open, onClose }: { open: boolean; onClose: ()
   const [angle, setAngle] = useState(ALL);
   const [shownAngles, setShownAngles] = useState<Record<string, string>>({});
   const [picked, setPicked] = useState<Map<string, PosePick>>(() => new Map());
+  const [preview, setPreview] = useState<PosePick | null>(null);
   const [inserting, setInserting] = useState(false);
   const [visibleCount, setVisibleCount] = useState(60);
   const abortRef = useRef<AbortController | null>(null);
@@ -52,6 +53,7 @@ export function PoseLibraryModal({ open, onClose }: { open: boolean; onClose: ()
   useEffect(() => {
     if (!open) return;
     setPicked(new Map());
+    setPreview(null);
     if (catalog) return;
     const controller = new AbortController();
     abortRef.current?.abort();
@@ -64,7 +66,9 @@ export function PoseLibraryModal({ open, onClose }: { open: boolean; onClose: ()
         if (controller.signal.aborted) return;
         setError(cause instanceof Error ? cause.message : String(cause));
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
     return () => controller.abort();
   }, [open, catalog]);
 
@@ -85,10 +89,11 @@ export function PoseLibraryModal({ open, onClose }: { open: boolean; onClose: ()
   }, [keyword, system, category, angle]);
 
   function shownItem(pose: Pose): PoseItem | undefined {
-    return defaultPoseAngle(pose, angle || shownAngles[pose.key]);
+    return defaultPoseAngle(pose, shownAngles[pose.key] || angle);
   }
 
   function toggle(pose: Pose, item: PoseItem) {
+    if (inserting) return;
     setPicked((current) => {
       const next = new Map(current);
       if (next.has(item.id)) next.delete(item.id);
@@ -110,7 +115,13 @@ export function PoseLibraryModal({ open, onClose }: { open: boolean; onClose: ()
       if (result.created) {
         message.success(t('canvas.pose.inserted', { count: result.created }));
         setPicked(new Map());
-        onClose();
+        if (!result.failed.length) onClose();
+        else
+          setPicked(
+            new Map(
+              selection.filter((pick) => !result.createdIds.includes(pick.item.id)).map((pick) => [pick.item.id, pick]),
+            ),
+          );
       }
       if (result.failed.length) {
         message.warning(t('canvas.pose.insertFailed', { count: result.failed.length, first: result.failed[0] || '' }));
@@ -123,24 +134,28 @@ export function PoseLibraryModal({ open, onClose }: { open: boolean; onClose: ()
   }
 
   function importPack(file: File) {
-    void file.text().then((text) => {
-      try {
-        const next = importPoseCatalogText(text);
-        setCatalog(next);
-        setKeyword('');
-        setSystem(ALL);
-        setCategory(ALL);
-        setAngle(ALL);
-        message.success(t('canvas.pose.imported', { count: next.poses.length }));
-      } catch (cause) {
-        message.error(cause instanceof Error ? cause.message : String(cause));
-      }
-    }).catch((cause) => message.error(cause instanceof Error ? cause.message : String(cause)));
+    void file
+      .text()
+      .then((text) => {
+        try {
+          const next = importPoseCatalogText(text);
+          setCatalog(next);
+          setKeyword('');
+          setSystem(ALL);
+          setCategory(ALL);
+          setAngle(ALL);
+          setPicked(new Map());
+          setPreview(null);
+          message.success(t('canvas.pose.imported', { count: next.poses.length }));
+        } catch (cause) {
+          message.error(cause instanceof Error ? cause.message : String(cause));
+        }
+      })
+      .catch((cause) => message.error(cause instanceof Error ? cause.message : String(cause)));
     return false;
   }
 
   function retry() {
-    setCatalog(null);
     setError('');
     setLoading(true);
     void loadPoseCatalog({ force: true })
@@ -153,151 +168,329 @@ export function PoseLibraryModal({ open, onClose }: { open: boolean; onClose: ()
   const scopeLabel = system || t('canvas.pose.allSystems');
 
   return (
-    <Modal
-      open={open}
-      onCancel={onClose}
-      width={1140}
-      destroyOnHidden
-      closable={false}
-      title={null}
-      footer={null}
-      className="pose-library-modal"
-      styles={{ body: { padding: 0 } }}
-    >
-      <div className="pose-library-shell">
-        <header className="pose-library-header">
-          <span className="pose-library-header-icon"><IconSymbol name="user" /></span>
-          <div className="pose-library-header-text">
-            <strong>{t('canvas.pose.title')}</strong>
-            <span>{t('canvas.pose.description')}</span>
-          </div>
-          <div className="pose-library-header-search">
-            <SearchInput value={keyword} onChange={setKeyword} placeholder={t('canvas.pose.search')} />
-          </div>
-          <button type="button" className="pose-library-close" aria-label={t('canvas.pose.close')} onClick={onClose}>✕</button>
-        </header>
-        <div className="pose-library-body">
-          <aside className="pose-library-sidebar" aria-label={t('canvas.pose.filters')}>
-            <div className="pose-sidebar-group">
-              <span className="pose-sidebar-label">{t('canvas.pose.systems')}</span>
-              <button type="button" className={system ? '' : 'is-active'} onClick={() => setSystem(ALL)}>
-                <span>{t('canvas.pose.allSystems')}</span><em>{stats?.poses || 0}</em>
-              </button>
-              {facets.systems.map((facet) => (
-                <button key={facet.name} type="button" className={system === facet.name ? 'is-active' : ''} onClick={() => { setSystem(facet.name); setCategory(ALL); }}>
-                  <span title={facet.name}>{facet.name}</span><em>{facet.count}</em>
+    <>
+      <Modal
+        open={open}
+        onCancel={() => {
+          if (!inserting) onClose();
+        }}
+        width={1140}
+        destroyOnHidden
+        closable={false}
+        title={null}
+        footer={null}
+        className="pose-library-modal"
+        styles={{ container: { padding: 0 }, body: { padding: 0 } }}
+      >
+        <div className="pose-library-shell">
+          <header className="pose-library-header">
+            <span className="pose-library-header-icon">
+              <IconSymbol name="user" />
+            </span>
+            <div className="pose-library-header-text">
+              <strong>{t('canvas.pose.title')}</strong>
+              <span>{t('canvas.pose.description')}</span>
+            </div>
+            <div className="pose-library-header-search">
+              <SearchInput value={keyword} onChange={setKeyword} placeholder={t('canvas.pose.search')} />
+            </div>
+            <button
+              type="button"
+              className="pose-library-close"
+              aria-label={t('canvas.pose.close')}
+              disabled={inserting}
+              onClick={onClose}
+            >
+              ✕
+            </button>
+          </header>
+          <div className="pose-library-body">
+            <aside className="pose-library-sidebar" aria-label={t('canvas.pose.filters')}>
+              <div className="pose-sidebar-group">
+                <span className="pose-sidebar-label">{t('canvas.pose.systems')}</span>
+                <button type="button" className={system ? '' : 'is-active'} onClick={() => setSystem(ALL)}>
+                  <span>{t('canvas.pose.allSystems')}</span>
+                  <em>{stats?.poses || 0}</em>
                 </button>
-              ))}
-            </div>
-            <div className="pose-sidebar-group">
-              <span className="pose-sidebar-label">{t('canvas.pose.categories')}</span>
-              <button type="button" className={category ? '' : 'is-active'} onClick={() => setCategory(ALL)}>
-                <span>{t('canvas.pose.allCategories')}</span><em>{stats?.poses || 0}</em>
-              </button>
-              {facets.categories.map((facet) => (
-                <button key={facet.name} type="button" className={category === facet.name ? 'is-active' : ''} onClick={() => setCategory(facet.name)}>
-                  <span title={facet.name}>{facet.name}</span><em>{facet.count}</em>
-                </button>
-              ))}
-            </div>
-            <div className="pose-sidebar-actions">
-              <Upload accept=".json,application/json" showUploadList={false} beforeUpload={(file) => importPack(file)}>
-                <Button size="small" block>{t('canvas.pose.importPack')}</Button>
-              </Upload>
-              <a href={POSE_LIBRARY_HOMEPAGE} target="_blank" rel="noreferrer">{t('canvas.pose.source')}</a>
-            </div>
-          </aside>
-          <main className="pose-library-main">
-            <div className="pose-library-main-head">
-              <span>{scopeLabel} <em>{t('canvas.pose.poseCount', { count: filtered.length })}</em></span>
-              <div className="pose-angle-chips" role="group" aria-label={t('canvas.pose.angles')}>
-                <button type="button" className={angle ? '' : 'is-active'} onClick={() => setAngle(ALL)}>{t('canvas.pose.allAngles')}</button>
-                {facets.angles.map((facet) => (
-                  <button key={facet.name} type="button" className={angle === facet.name ? 'is-active' : ''} onClick={() => setAngle(facet.name)}>{facet.name}</button>
+                {facets.systems.map((facet) => (
+                  <button
+                    key={facet.name}
+                    type="button"
+                    className={system === facet.name ? 'is-active' : ''}
+                    onClick={() => {
+                      setSystem(facet.name);
+                      setCategory(ALL);
+                    }}
+                  >
+                    <span title={facet.name}>{facet.name}</span>
+                    <em>{facet.count}</em>
+                  </button>
                 ))}
               </div>
-            </div>
-            {loading ? (
-              <div className="pose-library-state">{t('canvas.pose.loading')}</div>
-            ) : error ? (
-              <div className="pose-library-state is-error">
-                <span>{error}</span>
-                <Button onClick={retry}>{t('canvas.pose.retry')}</Button>
+              <div className="pose-sidebar-group">
+                <span className="pose-sidebar-label">{t('canvas.pose.categories')}</span>
+                <button type="button" className={category ? '' : 'is-active'} onClick={() => setCategory(ALL)}>
+                  <span>{t('canvas.pose.allCategories')}</span>
+                </button>
+                {facets.categories.map((facet) => (
+                  <button
+                    key={facet.name}
+                    type="button"
+                    className={category === facet.name ? 'is-active' : ''}
+                    onClick={() => setCategory(facet.name)}
+                  >
+                    <span title={facet.name}>{facet.name}</span>
+                    <em>{facet.count}</em>
+                  </button>
+                ))}
               </div>
-            ) : libraryEmpty ? (
-              <div className="pose-library-state">
-                <span className="pose-library-state-icon"><IconSymbol name="user" /></span>
-                <strong>{t('canvas.pose.emptyTitle')}</strong>
-                <span>{t('canvas.pose.emptyBody')}</span>
-                <Upload accept=".json,application/json" showUploadList={false} beforeUpload={(file) => importPack(file)}>
-                  <Button type="primary">{t('canvas.pose.importPack')}</Button>
+              <div className="pose-sidebar-actions">
+                <Upload
+                  accept=".json,application/json"
+                  showUploadList={false}
+                  beforeUpload={(file) => importPack(file)}
+                >
+                  <Button size="small" block>
+                    {t('canvas.pose.importPack')}
+                  </Button>
                 </Upload>
+                <a href={POSE_LIBRARY_HOMEPAGE} target="_blank" rel="noreferrer">
+                  {t('canvas.pose.source')}
+                </a>
               </div>
-            ) : !filtered.length ? (
-              <div className="pose-library-state">
-                <strong>{t('canvas.pose.noMatchTitle')}</strong>
-                <Button onClick={() => { setKeyword(''); setSystem(ALL); setCategory(ALL); setAngle(ALL); }}>{t('canvas.pose.reset')}</Button>
+            </aside>
+            <main className="pose-library-main">
+              <div className="pose-library-main-head">
+                <span>
+                  {scopeLabel} <em>{t('canvas.pose.poseCount', { count: filtered.length })}</em>
+                </span>
+                <div className="pose-angle-chips" role="group" aria-label={t('canvas.pose.angles')}>
+                  <button
+                    type="button"
+                    className={angle ? '' : 'is-active'}
+                    onClick={() => {
+                      setAngle(ALL);
+                      setShownAngles({});
+                    }}
+                  >
+                    {t('canvas.pose.allAngles')}
+                  </button>
+                  {facets.angles.map((facet) => (
+                    <button
+                      key={facet.name}
+                      type="button"
+                      className={angle === facet.name ? 'is-active' : ''}
+                      onClick={() => {
+                        setAngle(facet.name);
+                        setShownAngles({});
+                      }}
+                    >
+                      {facet.name}
+                    </button>
+                  ))}
+                </div>
               </div>
-            ) : (
-              <div
-                className="pose-library-grid"
-                ref={gridRef}
-                onScroll={(event) => {
-                  const element = event.currentTarget;
-                  if (element.scrollTop + element.clientHeight >= element.scrollHeight - 320) {
-                    setVisibleCount((count) => Math.min(filtered.length, count + POSE_LIBRARY_PAGE_SIZE * 2));
-                  }
-                }}
-              >
-                {filtered.slice(0, visibleCount).map((pose) => {
-                  const item = shownItem(pose);
-                  if (!item) return null;
-                  const selected = picked.has(item.id);
-                  return (
-                    <article className={`pose-card${selected ? ' is-selected' : ''}`} key={pose.key}>
-                      <div className="pose-card-visual">
-                        <button type="button" className="pose-card-image" onClick={() => toggle(pose, item)} aria-pressed={selected} aria-label={`${pose.name} · ${item.angle}`}>
-                          <PoseImage src={item.thumbUrl || item.imageUrl} alt={`${pose.name} · ${item.angle}`} />
-                        </button>
-                        {pose.code ? <span className="pose-card-code">{pose.code}</span> : null}
-                        <button type="button" className={`pose-card-select${selected ? ' is-selected' : ''}`} aria-label={t('canvas.pose.toggleSelect')} onClick={() => toggle(pose, item)}>
-                          {selected ? '✓' : ''}
-                        </button>
-                      </div>
-                      <div className="pose-card-body">
-                        <strong title={pose.name}>{pose.name}</strong>
-                        <span><em>{pose.category}</em><i>{item.angle}</i></span>
-                      </div>
-                      <div className="pose-card-angles">
-                        {pose.items.map((angleItem) => (
+              {loading ? (
+                <div className="pose-library-state">{t('canvas.pose.loading')}</div>
+              ) : error ? (
+                <div className="pose-library-state is-error">
+                  <span>{error}</span>
+                  <Button onClick={retry}>{t('canvas.pose.retry')}</Button>
+                </div>
+              ) : libraryEmpty ? (
+                <div className="pose-library-state">
+                  <span className="pose-library-state-icon">
+                    <IconSymbol name="user" />
+                  </span>
+                  <strong>{t('canvas.pose.emptyTitle')}</strong>
+                  <span>{t('canvas.pose.emptyBody')}</span>
+                  <Upload
+                    accept=".json,application/json"
+                    showUploadList={false}
+                    beforeUpload={(file) => importPack(file)}
+                  >
+                    <Button type="primary">{t('canvas.pose.importPack')}</Button>
+                  </Upload>
+                </div>
+              ) : !filtered.length ? (
+                <div className="pose-library-state">
+                  <strong>{t('canvas.pose.noMatchTitle')}</strong>
+                  <Button
+                    onClick={() => {
+                      setKeyword('');
+                      setSystem(ALL);
+                      setCategory(ALL);
+                      setAngle(ALL);
+                    }}
+                  >
+                    {t('canvas.pose.reset')}
+                  </Button>
+                </div>
+              ) : (
+                <div
+                  className="pose-library-grid"
+                  ref={gridRef}
+                  onScroll={(event) => {
+                    const element = event.currentTarget;
+                    if (element.scrollTop + element.clientHeight >= element.scrollHeight - 320) {
+                      setVisibleCount((count) => Math.min(filtered.length, count + POSE_LIBRARY_PAGE_SIZE * 2));
+                    }
+                  }}
+                >
+                  {filtered.slice(0, visibleCount).map((pose) => {
+                    const item = shownItem(pose);
+                    if (!item) return null;
+                    const selected = picked.has(item.id);
+                    return (
+                      <article className={`pose-card${selected ? ' is-selected' : ''}`} key={pose.key}>
+                        <div className="pose-card-visual">
                           <button
-                            key={angleItem.id}
                             type="button"
-                            className={`${angleItem.angle === item.angle ? 'is-active' : ''}${picked.has(angleItem.id) ? ' is-picked' : ''}`}
-                            onClick={() => setShownAngles((current) => ({ ...current, [pose.key]: angleItem.angle }))}
-                            title={t('canvas.pose.switchAngle', { angle: angleItem.angle })}
+                            className="pose-card-image"
+                            onClick={() => toggle(pose, item)}
+                            aria-pressed={selected}
+                            aria-label={`${pose.name} · ${item.angle}`}
                           >
-                            <PoseImage src={angleItem.thumbUrl || angleItem.imageUrl} alt={angleItem.angle} className="pose-angle-thumb" />
+                            <PoseImage src={item.thumbUrl || item.imageUrl} alt={`${pose.name} · ${item.angle}`} />
                           </button>
-                        ))}
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
-            )}
-          </main>
-        </div>
-        <footer className="pose-library-footer">
-          <span>{t('canvas.pose.footerHint')}</span>
-          <div className="pose-library-footer-right">
-            <span>{t('canvas.pose.selected', { count: selection.length, max: POSE_LIBRARY_MAX_SELECTION })}</span>
-            <Button type="primary" disabled={!selection.length || inserting} loading={inserting} onClick={() => void insert()}>
-              {t('canvas.pose.insert')}
-            </Button>
+                          <button
+                            type="button"
+                            className="pose-card-preview"
+                            aria-label={t('canvas.pose.previewName', { name: pose.name })}
+                            onClick={() => setPreview({ pose, item })}
+                          >
+                            <IconSymbol name="maximize" />
+                          </button>
+                          {pose.code ? <span className="pose-card-code">{pose.code}</span> : null}
+                          <button
+                            type="button"
+                            className={`pose-card-select${selected ? ' is-selected' : ''}`}
+                            aria-label={t('canvas.pose.toggleSelect')}
+                            onClick={() => toggle(pose, item)}
+                          >
+                            {selected ? '✓' : ''}
+                          </button>
+                        </div>
+                        <div className="pose-card-body">
+                          <strong title={pose.name}>{pose.name}</strong>
+                          <span>
+                            <em>{pose.category}</em>
+                            <i>{item.angle}</i>
+                          </span>
+                        </div>
+                        <div className="pose-card-angles">
+                          {pose.items.map((angleItem) => (
+                            <button
+                              key={angleItem.id}
+                              type="button"
+                              className={`${angleItem.angle === item.angle ? 'is-active' : ''}${picked.has(angleItem.id) ? ' is-picked' : ''}`}
+                              onClick={() => setShownAngles((current) => ({ ...current, [pose.key]: angleItem.angle }))}
+                              title={t('canvas.pose.switchAngle', { angle: angleItem.angle })}
+                            >
+                              <PoseImage
+                                src={angleItem.thumbUrl || angleItem.imageUrl}
+                                alt={angleItem.angle}
+                                className="pose-angle-thumb"
+                              />
+                            </button>
+                          ))}
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              )}
+            </main>
           </div>
-        </footer>
-      </div>
-    </Modal>
+          <footer className="pose-library-footer">
+            <div className="pose-selection-tray" aria-label={t('canvas.pose.selectionTray')}>
+              {selection.length ? (
+                selection.map(({ pose, item }) => (
+                  <button
+                    type="button"
+                    key={item.id}
+                    disabled={inserting}
+                    aria-label={t('canvas.pose.removePicked', { name: pose.name, angle: item.angle })}
+                    title={`${pose.name} · ${item.angle}`}
+                    onClick={() => toggle(pose, item)}
+                  >
+                    <PoseImage src={item.thumbUrl || item.imageUrl} alt="" />
+                    <span>×</span>
+                  </button>
+                ))
+              ) : (
+                <span>{t('canvas.pose.footerHint')}</span>
+              )}
+            </div>
+            <div className="pose-library-footer-right">
+              <span>{t('canvas.pose.selected', { count: selection.length, max: POSE_LIBRARY_MAX_SELECTION })}</span>
+              {selection.length ? (
+                <Button type="text" disabled={inserting} onClick={() => setPicked(new Map())}>
+                  {t('canvas.pose.clearSelection')}
+                </Button>
+              ) : null}
+              <Button
+                type="primary"
+                disabled={!selection.length || inserting}
+                loading={inserting}
+                onClick={() => void insert()}
+              >
+                {t('canvas.pose.insert')}
+              </Button>
+            </div>
+          </footer>
+        </div>
+      </Modal>
+      <Modal
+        open={Boolean(preview)}
+        title={null}
+        footer={null}
+        width="min(960px, calc(100vw - 32px))"
+        centered
+        onCancel={() => setPreview(null)}
+        className="pose-preview-modal"
+        destroyOnHidden
+      >
+        {preview ? (
+          <div className="pose-preview-layout">
+            <div className="pose-preview-stage">
+              <PoseImage
+                className="pose-preview-image"
+                src={preview.item.imageUrl || preview.item.thumbUrl}
+                alt={`${preview.pose.name} · ${preview.item.angle}`}
+              />
+            </div>
+            <aside>
+              <small>{preview.pose.code}</small>
+              <h3>{preview.pose.name}</h3>
+              <p>
+                {preview.pose.category} · {preview.pose.system}
+              </p>
+              <div className="pose-preview-angles">
+                {preview.pose.items.map((item) => (
+                  <button
+                    type="button"
+                    key={item.id}
+                    aria-pressed={item.id === preview.item.id}
+                    className={item.id === preview.item.id ? 'is-active' : ''}
+                    onClick={() => setPreview({ pose: preview.pose, item })}
+                  >
+                    <PoseImage src={item.thumbUrl || item.imageUrl} alt="" />
+                    <span>{item.angle}</span>
+                  </button>
+                ))}
+              </div>
+              <Button
+                disabled={inserting}
+                type={picked.has(preview.item.id) ? 'default' : 'primary'}
+                onClick={() => toggle(preview.pose, preview.item)}
+              >
+                {t(picked.has(preview.item.id) ? 'canvas.pose.removeSelection' : 'canvas.pose.toggleSelect')}
+              </Button>
+            </aside>
+          </div>
+        ) : null}
+      </Modal>
+    </>
   );
 }

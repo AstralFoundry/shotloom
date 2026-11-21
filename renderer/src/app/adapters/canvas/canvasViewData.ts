@@ -1,3 +1,4 @@
+import { batchCellEdgeId, batchCellHandle, batchColumnInputs, batchRowColumnReferences, normalizeBatchTable } from '@/domain/graph/BatchTable';
 import { createNodeMediaCatalog } from "../../../utils/nodeMedia.ts";
 import { canRedoCanvas, canUndoCanvas } from "../../../store/canvasHistoryStore.ts";
 import { getAvailableModelIdsByType } from "../../../store/settingsStore.ts";
@@ -46,9 +47,35 @@ export function buildCanvasViewData(store: any) {
   for (const id of canvasViewNodeCache.keys()) {
     if (!liveNodeIds.has(id)) canvasViewNodeCache.delete(id);
   }
+  const edges = store.project.edges || [];
+  const batchNodes = nodes.filter((node: WorkflowNodeData) => node.type === 'batchTable' && !node.archived);
+  const referenceIds = new Set(batchNodes.length ? nodes.filter((node: WorkflowNodeData) => {
+    if (node.type !== 'imageGeneration' || node.archived) return false;
+    const selectedMedia = media.selected(node);
+    return Boolean(selectedMedia.filePath || selectedMedia.path || selectedMedia.previewUrl || selectedMedia.url);
+  }).map((node: WorkflowNodeData) => node.id) : []);
+  const cellEdges = batchNodes.flatMap((node: WorkflowNodeData) => {
+    const table = normalizeBatchTable(node.batchTable);
+    const columns = batchColumnInputs(table, edges, node.id, id => referenceIds.has(id));
+    return table.rows.flatMap((row, rowIndex) => {
+      const defaults = batchRowColumnReferences(columns, rowIndex);
+      return table.columns.flatMap((column, index) => {
+        const source = row.referenceNodeIds[index];
+        if (!source || source === defaults[index] || !referenceIds.has(source)) return [];
+        return [{
+          id: batchCellEdgeId(node.id, row.id, column.id),
+          source,
+          target: node.id,
+          targetHandle: batchCellHandle(row.id, column.id),
+          data: { batchCell: true, skipTaskInput: true, creationSource: "manual" },
+        }];
+      });
+    });
+  });
   return {
     nodes,
-    edges: store.project.edges || [],
+    edges: cellEdges.length ? [...edges, ...cellEdges] : edges,
+    selectedEdgeId: store.selectedEdgeId,
     viewport: store.project.canvasViewport || { x: 0, y: 0, zoom: 1 },
     history: {
       canUndo: Boolean(canUndoCanvas.value),

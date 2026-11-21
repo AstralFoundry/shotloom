@@ -14,6 +14,45 @@ export const BATCH_CONCURRENCY_OPTIONS = [1, 5, 10] as const;
 export const TRY_ON_BATCH_PROMPT = '参考图1是人物原图，参考图2是目标服装。保持人物身份、五官、姿态和背景不变，将人物服装替换为参考图2中的款式。准确还原服装版型、颜色、材质、纹理和装饰细节，穿着关系自然，光影与原图一致。';
 export const CREATIVE_BATCH_PROMPT = '基于参考图创作一张新的商业图片，保留主体身份和关键产品细节，画面构图完整，光影自然。';
 
+const BATCH_CELL_HANDLE_PREFIX = 'batch-cell:';
+const BATCH_CELL_EDGE_PREFIX = 'batch-cell-edge:';
+
+export function batchColumnHandle(columnId: string) {
+  return `batch-reference:${columnId}`;
+}
+
+export function batchCellHandle(rowId: string, columnId: string) {
+  return `${BATCH_CELL_HANDLE_PREFIX}${encodeURIComponent(rowId)}:${encodeURIComponent(columnId)}`;
+}
+
+export function parseBatchCellHandle(handle?: string | null) {
+  if (!handle?.startsWith(BATCH_CELL_HANDLE_PREFIX)) return null;
+  const [row, column, extra] = handle.slice(BATCH_CELL_HANDLE_PREFIX.length).split(':');
+  if (!row || !column || extra !== undefined) return null;
+  try {
+    return { rowId: decodeURIComponent(row), columnId: decodeURIComponent(column) };
+  } catch {
+    return null;
+  }
+}
+
+export function batchCellEdgeId(tableId: string, rowId: string, columnId: string) {
+  return `${BATCH_CELL_EDGE_PREFIX}${encodeURIComponent(tableId)}:${batchCellHandle(rowId, columnId)}`;
+}
+
+export function parseBatchCellEdgeId(id: string) {
+  if (!id.startsWith(BATCH_CELL_EDGE_PREFIX)) return null;
+  const separator = id.indexOf(':', BATCH_CELL_EDGE_PREFIX.length);
+  if (separator < 0) return null;
+  const cell = parseBatchCellHandle(id.slice(separator + 1));
+  if (!cell) return null;
+  try {
+    return { tableId: decodeURIComponent(id.slice(BATCH_CELL_EDGE_PREFIX.length, separator)), ...cell };
+  } catch {
+    return null;
+  }
+}
+
 export type BatchOperation = 'try_on' | 'creative';
 
 export interface BatchReferenceColumn {
@@ -102,12 +141,12 @@ function normalizeRow(value: unknown): BatchRow | null {
   const source = record(value);
   if (!source) return null;
   const references = Array.isArray(source.referenceNodeIds)
-    ? source.referenceNodeIds.map((id) => text(id)).filter(Boolean)
+    ? source.referenceNodeIds.map((id) => text(id))
     : [];
   return {
     id: text(source.id) || uid(),
     enabled: source.enabled !== false,
-    prompt: text(source.prompt),
+    prompt: typeof source.prompt === 'string' ? source.prompt : '',
     referenceNodeIds: references,
     outputNodeId: text(source.outputNodeId),
   };
@@ -134,7 +173,7 @@ export function normalizeBatchTable(value: unknown): BatchTableData {
   return {
     operation,
     concurrency: BATCH_CONCURRENCY_OPTIONS.includes(concurrency as typeof BATCH_CONCURRENCY_OPTIONS[number]) ? concurrency : base.concurrency,
-    globalPrompt: text(source.globalPrompt),
+    globalPrompt: typeof source.globalPrompt === 'string' ? source.globalPrompt : '',
     columns: columns.length ? columns : base.columns,
     rows,
     ...(runState ? {
@@ -244,7 +283,7 @@ export function removeBatchColumn(table: BatchTableData): BatchTableData {
   return {
     ...table,
     columns: table.columns.slice(0, -1).map((column, index) => ({ ...column, label: `参考图 ${index + 1}` })),
-    rows: table.rows.map((row) => ({ ...row, referenceNodeIds: row.referenceNodeIds.slice(0, -1) })),
+    rows: table.rows.map((row) => ({ ...row, referenceNodeIds: row.referenceNodeIds.slice(0, table.columns.length - 1) })),
   };
 }
 
@@ -307,8 +346,13 @@ export function batchColumnReferences(
   return batchColumnInputs(table, edges, tableNodeId, isReferenceNode).map((column) => column[0] || '');
 }
 
+/** A single column reference fills every row. Multiple images follow row order. */
+export function batchRowColumnReferences(columns: string[][], rowIndex: number): string[] {
+  return columns.map(column => column[column.length === 1 ? 0 : rowIndex] || '');
+}
+
 export function batchRowReferences(row: BatchRow, defaults: string[]): string[] {
-  return row.referenceNodeIds.map((id, index) => id || defaults[index] || '');
+  return Array.from({ length: Math.max(row.referenceNodeIds.length, defaults.length) }, (_, index) => row.referenceNodeIds[index] || defaults[index] || '');
 }
 
 export function batchRowPrompt(table: BatchTableData, row: BatchRow): string {
@@ -335,7 +379,7 @@ export function batchRowsFromColumns(table: BatchTableData, columns: string[][])
   const rowCount = Math.max(0, ...columns.map((column) => column.length));
   const unmatched = [...table.rows];
   const synchronized = Array.from({ length: rowCount }, (_, index) => {
-    const references = columns.map((column) => column.length === 1 ? (column[0] || '') : (column[index] || ''));
+    const references = batchRowColumnReferences(columns, index);
     let previousIndex = unmatched.findIndex((row) => row.referenceNodeIds.length === references.length
       && row.referenceNodeIds.every((id, position) => id === references[position]));
     if (previousIndex < 0 && references[0]) previousIndex = unmatched.findIndex((row) => row.referenceNodeIds[0] === references[0]);

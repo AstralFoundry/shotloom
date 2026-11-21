@@ -41,7 +41,7 @@ test('编辑镜头只覆盖可编辑字段，保留行 ID、产出节点与状�
   assert.equal(patched.imageNodeId, 'image-a');
   assert.equal(patched.videoNodeId, 'video-a');
   assert.equal(patched.status, 'completed');
-  assert.equal(patched.plot, '新画面');
+  assert.equal(patched.plot, '  新画面  ');
   assert.equal(patched.durationSeconds, 5.5);
   assert.equal(patched.imagePrompt, '图');
 });
@@ -62,10 +62,10 @@ test('单镜提示词优先专用提示词，缺失时退回画面、景别、�
   });
   assert.match(storyboardShotPrompt(shot, 'image'), /人物回头/);
   assert.match(storyboardShotPrompt(shot, 'image'), /景别：近景/);
-  assert.match(storyboardShotPrompt(shot, 'video'), /台词：走/);
+  assert.match(storyboardShotPrompt(shot, 'video'), /台词\/旁白：走/);
   const withPrompt = { ...shot, imagePrompt: '专用图', videoPrompt: '专用视频' };
   assert.equal(storyboardShotPrompt(withPrompt, 'image'), '专用图');
-  assert.equal(storyboardShotPrompt(withPrompt, 'video'), '专用视频');
+  assert.equal(storyboardShotPrompt(withPrompt, 'video'), '专用视频\n台词/旁白：走');
 });
 
 test('镜头数量上限与重新编号只作用于真实行', async () => {
@@ -106,4 +106,20 @@ test('文本生成请求把分镜脚本视图编译成逐镜 JSON 合同', async
   assert.match(payload.prompt, /输出恰好 5 个镜头/);
   assert.match(payload.prompt, /"shots"/);
   assert.match(payload.prompt, /女孩在雨夜走进便利店/);
+});
+
+test('逐字段编辑不会重置其它镜头内容，连续编辑与重新加载保持原文', async () => {
+  const { createStoryboardShot, patchStoryboardShot, normalizeStoryboardShots } = await env.load('domain/graph/StoryboardScript');
+  let shot = createStoryboardShot(1, { plot: '雨夜街头', dialogue: '别回头', durationSeconds: 9, camera: '手持', imagePrompt: '图片提示', videoPrompt: '视频提示', sound: '雨声' });
+  shot = patchStoryboardShot(shot, { dialogue: '  快走 \n' });
+  shot = patchStoryboardShot(shot, { camera: '固定机位' });
+  const [restored] = normalizeStoryboardShots(JSON.parse(JSON.stringify([shot])));
+  assert.equal(restored.plot, '雨夜街头');
+  assert.equal(restored.durationSeconds, 9);
+  assert.equal(restored.imagePrompt, '图片提示');
+  assert.equal(restored.videoPrompt, '视频提示');
+  assert.equal(restored.sound, '雨声');
+  assert.equal(restored.dialogue, '  快走 \n');
+  assert.equal(restored.camera, '固定机位');
+  assert.equal(patchStoryboardShot(restored, { dialogue: '' }).dialogue, '');
 });

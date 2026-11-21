@@ -63,8 +63,10 @@ function restoreSession() {
 const restored = restoreSession();
 const AUTO_SAVE_DELAY_MS = 1_000;
 const AUTO_SAVE_MAX_DELAY_MS = 30_000;
+const CANVAS_AUTOSAVE_QUIET_MS = 300;
 let autoSaveTimer: number | null = null;
 let autoSaveQueuedAt = 0;
+let lastCanvasMoveAt = -Infinity;
 let sessionPersistTimer: number | null = null;
 const savedRevisions = new Map<string, number>();
 const projectSaveQueue = new LatestSaveQueue(
@@ -172,7 +174,7 @@ export function projectPersistenceSnapshot() {
   reconcilePendingProjectAssets(store.project);
   const startedAt = performance.now();
   // Official session persistence in SQLite owns conversation history.
-  const snapshot: AnyRecord = JSON.parse(JSON.stringify(store.project));
+  const snapshot: AnyRecord = JSON.parse(JSON.stringify(toRaw(store.project)));
   removeLegacyAgentState(snapshot);
   const result = snapshot;
   recordPerformanceMetric('project.snapshot.build', startedAt, {
@@ -237,10 +239,16 @@ export function touchProject({ sessionDelay = 100, coalesceSession = false }: { 
 
 export function persistCanvasViewport(viewport: AnyRecord) {
   const project = toRaw(store.project);
+  const previous = project.canvasViewport;
+  if (previous?.x === viewport.x && previous?.y === viewport.y && previous?.zoom === viewport.zoom) return;
   project.canvasViewport = viewport;
   project.updatedAt = new Date().toISOString();
   scheduleSessionPersist(400, { coalesce: true });
   scheduleAutoSave();
+}
+
+export function noteCanvasViewportActivity() {
+  lastCanvasMoveAt = Date.now();
 }
 
 export function isProjectAutoSaveEnabled() {
@@ -259,6 +267,12 @@ function scheduleAutoSave(delay = AUTO_SAVE_DELAY_MS) {
   autoSaveTimer = window.setTimeout(
     () => {
       autoSaveTimer = null;
+      const now = Date.now();
+      const quietDelay = CANVAS_AUTOSAVE_QUIET_MS - (now - lastCanvasMoveAt);
+      if (quietDelay > 0 && now - autoSaveQueuedAt < AUTO_SAVE_MAX_DELAY_MS) {
+        scheduleAutoSave(quietDelay);
+        return;
+      }
       flushAutoSave();
     },
     Math.min(delay, remaining),
@@ -276,7 +290,8 @@ async function writeProjectFile({ updateRecent = false }: { updateRecent?: boole
   );
   if (store.projectDir !== directory || String(store.project?.id || '') !== projectId) return result;
   if (result.filePath) store.filePath = result.filePath;
-  if (Number.isInteger(result.project?.storageRevision)) store.project.storageRevision = result.project.storageRevision;
+  // The storage revision is used for the next write. It has no UI subscribers.
+  if (Number.isInteger(result.project?.storageRevision)) toRaw(store.project).storageRevision = result.project.storageRevision;
   if (updateRecent) {
     await desktopApi.recent.add({
       name: store.project.name,

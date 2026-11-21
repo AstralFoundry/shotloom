@@ -130,7 +130,7 @@ test('批量创作表数据持久化时收窄任务类型、并发、参考列�
   });
   assert.equal(table.operation, 'creative');
   assert.equal(table.concurrency, 5);
-  assert.equal(table.globalPrompt, 'G');
+  assert.equal(table.globalPrompt, '  G  ', '编辑草稿保留空格，提交任务时再去除首尾空白');
   assert.equal(table.columns.length, MAX_BATCH_REFERENCE_COLUMNS);
   assert.equal(table.rows.length, MAX_BATCH_ROWS);
   assert.deepEqual(table.runState, { running: true, startedAt: 'now', total: 4, done: 2, failed: 1, cancelled: false });
@@ -138,4 +138,19 @@ test('批量创作表数据持久化时收窄任务类型、并发、参考列�
   assert.equal(fallback.operation, 'try_on');
   assert.equal(fallback.rows.length, 0);
   assert.equal(fallback.columns.length, 3);
+});
+
+test('空参考列在保存、重排与再次编辑后保留原位，不把服装图移到人物列', async () => {
+  const { defaultBatchTable, normalizeBatchTable, updateBatchRow, reorderBatchColumns, removeBatchColumn, batchRowReferences } = await env.load('domain/graph/BatchTable');
+  const table = { ...defaultBatchTable(), rows: [{ id: 'row', enabled: true, prompt: '保留人物 身份 ', referenceNodeIds: ['', 'clothes', ''], outputNodeId: '' }] };
+  const saved = normalizeBatchTable(JSON.parse(JSON.stringify(table)));
+  assert.deepEqual(saved.rows[0].referenceNodeIds, ['', 'clothes', '']);
+  const edited = normalizeBatchTable(updateBatchRow(saved, 'row', { prompt: 'red dress ' }));
+  assert.equal(edited.rows[0].prompt, 'red dress ');
+  assert.deepEqual(batchRowReferences(edited.rows[0], ['person', '', 'background']), ['person', 'clothes', 'background']);
+  const moved = normalizeBatchTable(reorderBatchColumns(edited, edited.columns[1].id, edited.columns[2].id));
+  assert.deepEqual(moved.rows[0].referenceNodeIds, ['', '', 'clothes']);
+  const sparse = { ...saved, rows: [{ ...saved.rows[0], referenceNodeIds: ['person'] }] };
+  assert.deepEqual(removeBatchColumn(sparse).rows[0].referenceNodeIds, ['person']);
+  assert.deepEqual(batchRowReferences({ ...saved.rows[0], referenceNodeIds: [] }, ['person', 'clothes', '']), ['person', 'clothes', '']);
 });

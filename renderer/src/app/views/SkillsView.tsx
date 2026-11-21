@@ -191,13 +191,13 @@ export function SkillsView({ data, controller }: SkillsViewProps) {
         <Drawer
           open={Boolean(data.editor)}
           placement="right"
-          size={600}
+          size="clamp(680px, 56vw, 880px)"
           closable={false}
           onClose={() => controller.close()}
           rootClassName="skills-drawer"
           styles={{
             body: { padding: 0, display: "flex", flexDirection: "column" },
-            mask: { background: "var(--scrim-modal)", backdropFilter: "blur(3px)" },
+            mask: { background: "color-mix(in srgb, var(--scrim-modal) 55%, transparent)", backdropFilter: "blur(1.5px)" },
           }}
           afterOpenChange={(open) => {
             if (!open) setCachedEditor(null);

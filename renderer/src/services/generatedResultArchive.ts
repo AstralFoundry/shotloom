@@ -9,7 +9,8 @@ import {
   parseSemanticSplitResult,
   parseStoryboardResult,
 } from '@/utils/textGenerationModes';
-import { isStoryboardScriptNode, parseStoryboardScriptResult, STORYBOARD_SCRIPT_SUBTASK } from '@/domain/graph/StoryboardScript';
+import { isStoryboardScriptNode, parseStoryboardScriptResult, normalizeStoryboardShots, pruneStoryboardRowEdges, STORYBOARD_SCRIPT_SUBTASK } from '@/domain/graph/StoryboardScript';
+import { defaultCanvasNodeDimensions } from '@/domain/graph/CanvasNodeDimensions';
 import { extractGeneratedFiles, extractGeneratedText } from '@/utils/generatedOutputParsing.ts';
 import {
   extensionForGeneratedFile,
@@ -173,9 +174,11 @@ export async function archiveGeneratedOutput({ project, node, task, output }: {
     archivedFiles.push(material);
     if (attachResults) {
       const index = archivedFiles.length - 1;
-      const result = { id: `plugin-result:${task.id}:${index}`, type: `${material.resourceType}Generation`,
+      const type = `${material.resourceType}Generation`;
+      const dimensions = defaultCanvasNodeDimensions(type);
+      const result = { id: `plugin-result:${task.id}:${index}`, type,
         title: material.name, x: Number(sourceNode?.x || node.x || 0) + 410, y: Number(sourceNode?.y || node.y || 0) + index * 300,
-        canvasWidth: 350, canvasHeight: 280, status: 'completed', progress: 100,
+        canvasWidth: dimensions.width, canvasHeight: dimensions.height, status: 'completed', progress: 100,
         uploadedFile: { ...material, filePath: material.path, url: material.remoteUrl },
         generatedFrom: { nodeId: sourceNodeIds[0], sourceNodeIds, taskId: task.id, plugin: processing.reference, capabilityId: processing.capability.id },
         createdAt: new Date().toISOString() };
@@ -198,8 +201,13 @@ export async function archiveGeneratedOutput({ project, node, task, output }: {
       const shots = parseStoryboardScriptResult(text);
       node.storyboardRawText = text;
       node.storyboardParseError = '';
-      if (shots?.length) {
+      const rowsChanged = typeof task.storyboardRowsAtSubmission === 'string'
+        && task.storyboardRowsAtSubmission !== JSON.stringify(normalizeStoryboardShots(node.storyboardShots));
+      if (rowsChanged) {
+        node.storyboardParseError = t("canvas.storyboard.rowsChanged");
+      } else if (shots?.length) {
         node.storyboardShots = shots;
+        if (Array.isArray(project.edges)) pruneStoryboardRowEdges({ edges: project.edges }, node.id, shots);
         node.storyboardLastGeneratedAt = new Date().toISOString();
       } else {
         node.storyboardParseError = t("generation.result.invalidStoryboardScript");

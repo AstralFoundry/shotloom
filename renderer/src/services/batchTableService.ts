@@ -1,10 +1,12 @@
+import { canvasNodeDimensions } from '@/domain/graph/CanvasNodeDimensions';
 import { t } from '@/i18n';
 import { store, touchProject } from '@/store/projectStore';
-import { addNode } from '@/store/nodeStore';
+import { addNode, ensureGenerationConfig } from '@/store/nodeStore';
 import { addCanvasEdge } from '@/store/canvasGraphStore';
 import { recordCanvasHistory } from '@/store/canvasHistoryStore';
 import { runNode } from '@/store/taskStore';
 import { showToast } from '@/store/notificationStore';
+import { selectedNodeMedia } from '@/utils/nodeMedia';
 import { getAvailableModelIdsByType } from '@/store/settingsStore';
 import { isActiveTaskStatus, isTerminalTaskStatus } from '@/domain/tasks/TaskStatus';
 import { getGenerationInputModes } from '@/domain/catalog/ModelCatalog';
@@ -13,12 +15,11 @@ import {
   addBatchColumn,
   addBatchRow,
   batchColumnInputs,
-  batchColumnReferences,
+  batchRowColumnReferences,
   batchRowPrompt,
   batchRowReady,
   batchRowReferences,
   batchRowsFromColumns,
-  batchTableSummary,
   defaultBatchTable,
   moveBatchReferenceCell,
   moveBatchRow,
@@ -101,12 +102,33 @@ export function patchBatchRow(nodeId: string, rowId: string, patch: Partial<Batc
   touchProject({ sessionDelay: 250, coalesceSession: true });
 }
 
+/** Row references own the binding; the canvas projects their edges from this data. */
+export function setBatchCellReference(nodeId: string, rowId: string, columnId: string, sourceId: string): boolean {
+  const node = projectNode(nodeId);
+  if (!node || node.archived || node.type !== 'batchTable') return false;
+  const table = batchTableData(node);
+  const row = table.rows.find(item => item.id === rowId);
+  const columnIndex = table.columns.findIndex(column => column.id === columnId);
+  if (!row || columnIndex < 0 || (sourceId && !isCanvasImageNode(sourceId))) return false;
+  if ((row.referenceNodeIds[columnIndex] || '') === sourceId) return true;
+  const references = table.columns.map((_, index) => index === columnIndex ? sourceId : row.referenceNodeIds[index] || '');
+  recordCanvasHistory(t('canvas.batch.edit'));
+  patchBatchRow(nodeId, rowId, { referenceNodeIds: references });
+  return true;
+}
+
 export function moveBatchColumn(nodeId: string, fromColumnId: string, toColumnId: string): void {
   updateBatchTable(nodeId, (table) => reorderBatchColumns(table, fromColumnId, toColumnId), { history: true });
 }
 
 export function moveBatchCell(nodeId: string, sourceRowId: string, sourceColumn: number, targetRowId: string, targetColumn: number): void {
-  updateBatchTable(nodeId, (table) => moveBatchReferenceCell(table, sourceRowId, sourceColumn, targetRowId, targetColumn), { history: true });
+  const columns = batchReferenceInputs(nodeId);
+  updateBatchTable(nodeId, (table) => moveBatchReferenceCell({
+    ...table,
+    rows: table.rows.map((row, index) => row.id === sourceRowId || row.id === targetRowId
+      ? { ...row, referenceNodeIds: batchRowReferences(row, batchRowColumnReferences(columns, index)) }
+      : row),
+  }, sourceRowId, sourceColumn, targetRowId, targetColumn), { history: true });
 }
 
 export function reorderBatchRow(nodeId: string, rowId: string, direction: -1 | 1): void {
@@ -122,6 +144,7 @@ export function deleteBatchColumn(nodeId: string): void {
   if (!node) return;
   const table = batchTableData(node);
   if (table.columns.length <= 1) return;
+  recordCanvasHistory(t('canvas.batch.edit'));
   const removedId = table.columns.at(-1)?.id;
   if (removedId) {
     const edges = store.project.edges as AnyRecord[];
@@ -131,7 +154,7 @@ export function deleteBatchColumn(nodeId: string): void {
       if (edge.data?.batchColumnId === removedId) edges.splice(index, 1);
     }
   }
-  updateBatchTable(nodeId, removeBatchColumn, { history: true });
+  updateBatchTable(nodeId, removeBatchColumn);
 }
 
 export function setBatchTableSettings(nodeId: string, settings: Partial<Pick<BatchTableData, 'operation' | 'concurrency' | 'globalPrompt'>>): void {
@@ -139,29 +162,33 @@ export function setBatchTableSettings(nodeId: string, settings: Partial<Pick<Bat
 }
 
 export function canvasImageNodes(): AnyRecord[] {
-  return (store.project.nodes as AnyRecord[]).filter((node) => {
-    if (node.archived || node.type !== 'imageGeneration') return false;
-    return Boolean(String(node.uploadedFile?.path || node.filePath || node.selectedOutputNodeId || '').trim())
-      || (store.project.materials as AnyRecord[]).some((material) => material.nodeId === node.id);
-  });
+  return (store.project.nodes as AnyRecord[]).filter((node) => isCanvasImageNode(String(node.id)));
 }
 
 export function isCanvasImageNode(nodeId: string): boolean {
   const node = projectNode(nodeId);
   if (!node || node.archived || node.type !== 'imageGeneration') return false;
-  return Boolean(String(node.uploadedFile?.path || node.filePath || node.selectedOutputNodeId || '').trim())
-    || (store.project.materials as AnyRecord[]).some((material) => material.nodeId === node.id);
+  const media = selectedNodeMedia(node, store.project);
+  return Boolean(String(media?.filePath || media?.path || '').trim());
+}
+
+export function batchRowCanRun(table: BatchTableData, row: BatchRow, defaults: string[]): boolean {
+  const references = batchRowReferences(row, defaults);
+  return batchRowReady(table, row, references) && references.filter(Boolean).every(isCanvasImageNode);
 }
 
 export function batchTableSummaryFor(nodeId: string) {
-  return batchTableSummary(batchTableData(projectNode(nodeId)), batchReferenceDefaults(nodeId));
+  const table = batchTableData(projectNode(nodeId));
+  const columns = batchReferenceInputs(nodeId);
+  const enabled = table.rows.filter((row, index) => batchRowCanRun(table, row, batchRowColumnReferences(columns, index))).length;
+  return { total: table.rows.length, enabled };
 }
 
 /** 表格级参考由真实连线决定；行级引用优先，空位使用列默认值。 */
-export function batchReferenceDefaults(nodeId: string): string[] {
+export function batchReferenceInputs(nodeId: string): string[][] {
   const node = projectNode(nodeId);
   if (!node) return [];
-  return batchColumnReferences(
+  return batchColumnInputs(
     batchTableData(node),
     store.project.edges as AnyRecord[],
     nodeId,
@@ -176,11 +203,11 @@ function connectRowReferences(output: AnyRecord, references: string[]): void {
     const edge = edges[index];
     if (!edge) continue;
     if (edge?.target !== output.id || edge.data?.creationSource !== 'batch-table') continue;
-    if (!references.includes(String(edge.source))) edges.splice(index, 1);
+    edges.splice(index, 1);
   }
   if (!references.length) return;
   const modes = getGenerationInputModes(String(output.model || ''));
-  const mode = modes.find((item) => item.maxImages > 0);
+  const mode = modes.find((item) => item.value === output.inputMode && item.maxImages > 0) || modes.find((item) => item.maxImages > 0);
   if (!mode) return;
   output.inputMode = mode.value;
   const occupied = (store.project.edges as AnyRecord[])
@@ -203,29 +230,34 @@ function connectRowReferences(output: AnyRecord, references: string[]): void {
 
 function ensureRowOutput(tableNode: AnyRecord, table: BatchTableData, row: BatchRow, index: number): AnyRecord | null {
   const existing = projectNode(row.outputNodeId);
-  const output = existing && existing.type === 'imageGeneration' ? existing : addNode('imageGeneration', { select: false });
+  const output = existing && !existing.archived && existing.type === 'imageGeneration' ? existing : addNode('imageGeneration', { select: false });
   output.title = t(table.operation === 'creative' ? 'canvas.batch.creativeRowTitle' : 'canvas.batch.tryOnRowTitle', { index: index + 1 });
   output.prompt = batchRowPrompt(table, row);
+  if (tableNode.batchGenerationSettings?.model) {
+    output.model = tableNode.batchGenerationSettings.model;
+    output.config = { ...tableNode.batchGenerationSettings.config };
+    output.inputMode = tableNode.batchGenerationSettings.inputMode;
+    ensureGenerationConfig(output);
+  }
   output.batchSourceNodeId = tableNode.id;
   output.batchRowId = row.id;
   output.canvasSectionId = tableNode.canvasSectionId ?? null;
-  if (!existing || existing.type !== 'imageGeneration') {
-    output.x = Math.round(Number(tableNode.x || 0) + Number(tableNode.canvasWidth || 1000) + 90 + (index % 3) * 380);
-    output.y = Math.round(Number(tableNode.y || 0) + Math.floor(index / 3) * 320);
+  if (!existing || existing.archived || existing.type !== 'imageGeneration') {
+    const { width, height } = canvasNodeDimensions({ ...output, type: 'imageGeneration' });
+    output.x = Math.round(Number(tableNode.x || 0) + Number(tableNode.canvasWidth || 1000) + 90 + (index % 3) * (width + 48));
+    output.y = Math.round(Number(tableNode.y || 0) + Math.floor(index / 3) * (height + 48));
     row.outputNodeId = output.id;
   }
   return output;
 }
 
-function waitForNode(nodeId: string, project: AnyRecord, timeoutMs = 15 * 60 * 1000): Promise<void> {
+function waitForNode(nodeId: string, project: AnyRecord): Promise<void> {
   return new Promise((resolve) => {
-    const startedAt = Date.now();
     const tick = () => {
       if (store.project !== project) return resolve();
       const node = projectNode(nodeId);
       if (!node || node.archived) return resolve();
       if (!isActiveTaskStatus(node.status) && (isTerminalTaskStatus(node.status) || node.error)) return resolve();
-      if (Date.now() - startedAt > timeoutMs) return resolve();
       window.setTimeout(tick, 1200);
     };
     tick();
@@ -254,12 +286,12 @@ export async function runBatchTable(nodeId: string, options: { rowIds?: string[]
     showToast(t('canvas.batch.noModel'));
     return;
   }
-  const defaults = batchReferenceDefaults(nodeId);
+  const columns = batchReferenceInputs(nodeId);
   const rowIds = options.rowIds ? new Set(options.rowIds) : null;
   const targets = table.rows
     .map((row, index) => ({ row, index }))
     .filter(({ row }) => (rowIds ? rowIds.has(row.id) : true))
-    .filter(({ row }) => batchRowReady(table, row, batchRowReferences(row, defaults)));
+    .filter(({ row, index }) => batchRowCanRun(table, row, batchRowColumnReferences(columns, index)));
   if (!targets.length) {
     showToast(t('canvas.batch.nothingToRun'));
     return;
@@ -274,18 +306,22 @@ export async function runBatchTable(nodeId: string, options: { rowIds?: string[]
   const concurrency = Math.max(1, Math.min(10, Number(table.concurrency) || 1));
   const worker = async () => {
     while (cursor < targets.length && !cancelledTables.has(nodeId)) {
+      if (store.project !== project || projectNode(nodeId) !== tableNode || tableNode.archived) return;
       const target = targets[cursor];
       cursor += 1;
       if (!target) continue;
       const { row, index } = target;
       const current = batchTableData(tableNode);
-      const currentRow = current.rows.find((item) => item.id === row.id);
-      const defaultsNow = batchReferenceDefaults(nodeId);
-      if (!currentRow || !batchRowReady(current, currentRow, batchRowReferences(currentRow, defaultsNow))) continue;
+      const currentIndex = current.rows.findIndex(item => item.id === row.id);
+      const currentRow = current.rows[currentIndex];
+      const defaultsNow = batchRowColumnReferences(batchReferenceInputs(nodeId), currentIndex);
+      if (!currentRow || !batchRowCanRun(current, currentRow, defaultsNow)) continue;
       const output = ensureRowOutput(tableNode, current, currentRow, index);
       if (!output) continue;
-      const references = batchRowReferences(currentRow, defaults).filter(Boolean);
+      const references = batchRowReferences(currentRow, defaultsNow).filter(isCanvasImageNode);
       connectRowReferences(output, references);
+      tableNode.batchTable = { ...current, runState: { ...runState } };
+      touchProject();
       const previousStatus = output.status;
       if (!options.force && previousStatus === 'completed' && !rowIds) {
         runState.done += 1;
@@ -293,11 +329,12 @@ export async function runBatchTable(nodeId: string, options: { rowIds?: string[]
         touchProject();
         continue;
       }
-      runNode(output);
-      await waitForNode(output.id, project);
+      const task = runNode(output);
+      if (task) await waitForNode(output.id, project);
+      if (store.project !== project) return;
       const finished = projectNode(output.id);
       runState.done += 1;
-      if (finished && finished.status !== 'completed') runState.failed += 1;
+      if (!task || !finished || finished.status !== 'completed') runState.failed += 1;
       const next = batchTableData(tableNode);
       tableNode.batchTable = { ...next, runState: { ...runState } };
       touchProject();
@@ -317,7 +354,7 @@ export async function runBatchTable(nodeId: string, options: { rowIds?: string[]
       },
     };
     cancelledTables.delete(nodeId);
-    touchProject();
+    if (store.project === project) touchProject();
   }
 }
 

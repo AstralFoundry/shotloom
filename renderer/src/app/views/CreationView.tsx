@@ -73,10 +73,15 @@ export interface CreationViewData {
   nodes: WorkflowNodeData[];
   artifactNodes: WorkflowNodeData[];
   edges: WorkflowEdge[];
+  selectedEdgeId?: string | null;
   viewport: Viewport;
   history: { canUndo: boolean; canRedo: boolean };
   shortcutLabels: { fitView: string; autoLayout: string };
   editor?: Omit<VideoEditorWorkspaceProps, 'controller' | 'agentPanel'>;
+}
+
+function dispatchCanvasNodeMention(nodeId: string) {
+  window.dispatchEvent(new CustomEvent("shotloom:mention-node", { detail: nodeId }));
 }
 
 export function CreationView({
@@ -312,18 +317,18 @@ function CreationCanvas({ data, controller }: { data: CreationViewData; controll
           onReady={markCanvasReady}
           nodes={data.nodes}
           edges={data.edges}
+          selectedEdgeId={data.selectedEdgeId ?? null}
           viewport={data.viewport}
           renderers={workflowNodeRenderers}
           nodeActions={controller.nodes}
           controller={controller.canvas}
           onAutoLayout={controller.autoLayout}
-          addNodeMention={(nodeId) => {
-            window.dispatchEvent(new CustomEvent("shotloom:mention-node", { detail: nodeId }));
-          }}
+          addNodeMention={dispatchCanvasNodeMention}
           onOpenPoseLibrary={() => setPoseLibraryOpen(true)}
-          overlay={
-            <>
+          overlay={(controls) => (
             <BottomModeBar
+              {...controls}
+              materialOpen={picker}
               canUndo={data.history.canUndo}
               canRedo={data.history.canRedo}
               shortcutLabels={data.shortcutLabels}
@@ -334,8 +339,7 @@ function CreationCanvas({ data, controller }: { data: CreationViewData; controll
               onOpenHistory={() => setVersionHistoryOpen(true)}
               onOpenPoseLibrary={() => setPoseLibraryOpen(true)}
             />
-            </>
-          }
+          )}
         />
         <PoseLibraryModal open={poseLibraryOpen} onClose={() => setPoseLibraryOpen(false)} />
         {agentPanelVisible && (

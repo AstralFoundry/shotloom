@@ -215,22 +215,28 @@ function promptReferences(node: CanvasNode): PromptReference[] {
     .filter((item): item is PromptReference => Boolean(item && typeof item.alias === 'string' && typeof item.nodeId === 'string'));
 }
 
-function mentionPattern(alias: string): RegExp {
-  const escaped = alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  return new RegExp(`@${escaped}(?=$|[\\s\\p{P}])`, 'gu');
+function escapeMentionAlias(alias: string): string {
+  return alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-function resolvePromptMentions(prompt: string, references: PromptReference[], inputs: GenerationInputs): string {
-  const numbered = [
-    ...inputs.images.map((item, index) => ({ nodeId: item.nodeId, token: `@图片${index + 1}` })),
-    ...inputs.videos.map((item, index) => ({ nodeId: item.nodeId, token: `@视频${index + 1}` })),
-    ...inputs.audios.map((item, index) => ({ nodeId: item.nodeId, token: `@音频${index + 1}` })),
-  ];
-  return [...references].sort((left, right) => right.alias.length - left.alias.length)
-    .reduce((text, reference) => {
-      const input = numbered.find((item) => item.nodeId === reference.nodeId);
-      return input ? text.replace(mentionPattern(reference.alias), input.token) : text;
-    }, prompt);
+function mentionPattern(alias: string): RegExp {
+  return new RegExp(`@${escapeMentionAlias(alias)}(?=$|[\\s\\p{P}])`, 'gu');
+}
+
+function resolvePromptMentions(prompt: string, references: PromptReference[], inputs: GenerationInputs, textContext: UpstreamInput[] = []): string {
+  const tokens = new Map([
+    ...inputs.images.map((item, index) => [item.nodeId, `@图片${index + 1}`] as const),
+    ...inputs.videos.map((item, index) => [item.nodeId, `@视频${index + 1}`] as const),
+    ...inputs.audios.map((item, index) => [item.nodeId, `@音频${index + 1}`] as const),
+    ...textContext.map((item) => [item.nodeId, `【项目设定：${item.title}】\n${item.prompt}`] as const),
+  ]);
+  const replacements = new Map(references.flatMap(({ alias, nodeId }) => {
+    const token = tokens.get(nodeId);
+    return alias && token ? [[alias, token] as const] : [];
+  }));
+  if (!replacements.size) return prompt;
+  const aliases = [...replacements.keys()].sort((a, b) => b.length - a.length).map(escapeMentionAlias);
+  return prompt.replace(new RegExp(`@(${aliases.join('|')})(?=$|[\\s\\p{P}])`, 'gu'), (match, alias) => replacements.get(alias) ?? match);
 }
 
 export interface GenerationPayload {
@@ -294,9 +300,16 @@ function basePayload(node: CanvasNode, config: GenerationNodeConfig, project: Ca
     inputRoles,
     hasMediaInputs ? resolveModeIdForInputMode(model, node.inputMode) : '',
   );
-  const upstreamContext = inputs
-    .filter((input) => input.inputRole === 'textContext'
-      || (input.inputRole === 'auto' && input.nodeType === 'textGeneration'))
+  const refs = promptReferences(node);
+  const rawPrompt = pickString(node.prompt);
+  const textInputs = inputs.filter((input) => input.inputRole === 'textContext'
+    || (input.inputRole === 'auto' && input.nodeType === 'textGeneration'));
+  const mentionedText = isStoryboardScriptNode(node) ? textInputs.filter((input) => input.prompt.trim() && refs.some((reference) => (
+    reference.nodeId === input.nodeId && mentionPattern(reference.alias).test(rawPrompt)
+  ))) : [];
+  const mentionedTextIds = new Set(mentionedText.map((input) => input.nodeId));
+  const upstreamContext = textInputs
+    .filter((input) => !mentionedTextIds.has(input.nodeId))
     .map((input) => `[${input.title}] ${input.prompt}`)
     .filter(Boolean)
     .join('\n');
@@ -306,8 +319,7 @@ function basePayload(node: CanvasNode, config: GenerationNodeConfig, project: Ca
     capability: modelContract,
     inputStrategy: config.inputStrategy || 'auto',
   });
-  const refs = promptReferences(node);
-  const ownPrompt = resolvePromptMentions(pickString(node.prompt), refs, modelInputs);
+  const ownPrompt = resolvePromptMentions(rawPrompt, refs, modelInputs, mentionedText);
   const mediaManifest = modelInputs.images.length + modelInputs.videos.length + modelInputs.audios.length > 1 || refs.length
     ? [
         ...modelInputs.images.map((image, index) => `@图片${index + 1}：${image.title || image.nodeId || '未命名图片'}${image.inputSlot && image.inputSlot !== 'reference' ? `（${image.inputSlot}）` : ''}`),
@@ -548,8 +560,11 @@ export function generationUpstreamReadiness(node: CanvasNode | null | undefined,
   ].map((item) => item.nodeId));
   for (const reference of promptReferences(node)) {
     if (!mentionPattern(reference.alias).test(String(node.prompt || ''))) continue;
-    if (!inputs.some((input) => input.nodeId === reference.nodeId)) {
+    const input = inputs.find((item) => item.nodeId === reference.nodeId);
+    if (!input) {
       issues.push(t("ui.generationPayload.text.98a622da", { value0: String(reference.alias) }));
+    } else if (isStoryboardScriptNode(node) && effectiveInputRole(input) === 'textContext' && input.prompt.trim()) {
+      continue;
     } else if (!deliveredIds.has(reference.nodeId)) {
       issues.push(t("ui.generationPayload.text.cfbaa83b", { value0: String(reference.alias) }));
     }

@@ -10,7 +10,9 @@ import { store, touchProject } from "../../../store/projectStore.ts";
 import { showToast } from "../../../store/notificationStore";
 
 export async function createUploadedNode(rawFile: any, position = { x: 120, y: 90 }) {
+  const project = store.project;
   const file: any = await copyFileIntoProjectAssets(rawFile);
+  if (store.project !== project) return;
   const path = file.path || file.filePath || "";
   if (!path) return showToast(t("ui.canvasUploadActions.text.578d2e03"));
   const resourceType = inferFileResourceType(file);

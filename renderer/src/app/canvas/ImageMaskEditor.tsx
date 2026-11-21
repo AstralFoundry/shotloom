@@ -12,7 +12,7 @@ import type { WorkflowNodeActions } from './WorkflowCanvas';
 const BOTTOMBAR_HEIGHT = 48;
 const PANEL_GAP = 12;
 /** 画布像素保持不透明，靠元素透明度让底图透出来；这样导出的蒙版才有完整 alpha。 */
-const PAINT_COLOR = '#6d6cff';
+const PAINT_COLOR = '#d58a47';
 
 type Rect = { left: number; top: number; width: number; height: number };
 type DrawMode = 'paint' | 'erase';

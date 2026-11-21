@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type CSSProperties } from 'react';
+import { createContext, useContext, useEffect, useState } from 'react';
 import { NodeResizer } from '@xyflow/react';
 import { t } from '@/i18n';
 import type { WorkflowNodeActions, WorkflowNodeData } from './WorkflowCanvas';
@@ -11,8 +11,8 @@ export const CanvasSectionNodesContext = createContext<WorkflowNodeData[]>([]);
 export const SectionDragFeedbackContext = createContext<ReadonlyMap<string, SectionDragFeedback>>(new Map());
 
 /** A section keeps its content together without generation controls or graph ports. */
-export function CanvasSectionNode({ node, selected, dragging, zoom, actions }: {
-  node: WorkflowNodeData; selected: boolean; dragging?: boolean; zoom: number; actions: WorkflowNodeActions;
+export function CanvasSectionNode({ node, selected, dragging, actions }: {
+  node: WorkflowNodeData; selected: boolean; dragging?: boolean; actions: WorkflowNodeActions;
 }) {
   const nodes = useContext(CanvasSectionNodesContext);
   const members = canvasSectionMembers(node, nodes);
@@ -30,19 +30,19 @@ export function CanvasSectionNode({ node, selected, dragging, zoom, actions }: {
     setEditing(false);
   };
   return <>
-    <NodeResizer isVisible={selected} minWidth={Math.max(240, ...(node.canvasSectionAutoLayout ? members.map(member => canvasNodeDimensions(member).width + 64) : [])) * zoom} minHeight={160 * zoom}
+    <NodeResizer isVisible={selected} minWidth={Math.max(240, ...(node.canvasSectionAutoLayout ? members.map(member => canvasNodeDimensions(member).width + 64) : []))} minHeight={160}
       shouldResize={(_event, size) => node.canvasSectionAutoLayout === true || members.every(member => {
         const bounds = canvasNodeDimensions(member);
-        return (Number(member.x) || 0) >= size.x / zoom + 32 && (Number(member.y) || 0) >= size.y / zoom + 56
-          && (Number(member.x) || 0) + bounds.width <= (size.x + size.width) / zoom - 32
-          && (Number(member.y) || 0) + bounds.height <= (size.y + size.height) / zoom - 32;
+        return (Number(member.x) || 0) >= size.x + 32 && (Number(member.y) || 0) >= size.y + 56
+          && (Number(member.x) || 0) + bounds.width <= (size.x + size.width) - 32
+          && (Number(member.y) || 0) + bounds.height <= (size.y + size.height) - 32;
       })}
       handleClassName="canvas-node-resize-handle canvas-section-resize nodrag" lineClassName="canvas-node-resize-line canvas-section-resize-line"
       onResizeEnd={(_event, size) => actions.update(node.id, {
-        x: Math.round(size.x / zoom), y: Math.round(size.y / zoom),
-        canvasWidth: Math.round(size.width / zoom), canvasHeight: Math.round(size.height / zoom),
+        x: Math.round(size.x), y: Math.round(size.y),
+        canvasWidth: Math.round(size.width), canvasHeight: Math.round(size.height),
       })} />
-    <div className={`canvas-section${selected ? ' is-selected' : ''}${dragging ? ' is-dragging' : ''}`} data-drop-state={feedback} style={{ '--section-zoom': zoom } as CSSProperties}>
+    <div className={`canvas-section${selected ? ' is-selected' : ''}${dragging ? ' is-dragging' : ''}`} data-drop-state={feedback}>
       <div className="canvas-section-surface" title={t('canvas.section.moveHint')} />
       <span className="canvas-section-drop-hint" role="status" aria-live="polite">
         {feedback === 'joined' && <IconSymbol name="check" />}{hint}

@@ -279,6 +279,7 @@ export function GenerationNodePreview({
           ) : (
             <div className="work-empty-state">
               <IconSymbol className="work-empty-type-icon" name={metaIcon} />
+              <span>{t(kind === "video" ? "canvas.emptyVideoNode" : kind === "audio" ? "canvas.emptyAudioNode" : "canvas.emptyImageNode")}</span>
             </div>
           )}
           <GenerationNodeImageOverlays

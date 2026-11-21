@@ -1,3 +1,12 @@
+export const STORYBOARD_CONTEXT_HANDLE = 'storyboard:context';
+export const storyboardRowHandle = (shotId: string, side: 'in' | 'out') => `storyboard-${side}:${shotId}`;
+
+export function storyboardShotIdFromHandle(handle: string | null | undefined, side: 'in' | 'out'): string {
+  const prefix = `storyboard-${side}:`;
+  return handle?.startsWith(prefix) ? handle.slice(prefix.length) : '';
+}
+
+import { t } from '../../i18n/index.ts';
 import { uid } from '../../utils/format.ts';
 
 /**
@@ -10,6 +19,26 @@ import { uid } from '../../utils/format.ts';
 export const STORYBOARD_SCRIPT_SUBTASK = 'storyboard-script';
 export const STORYBOARD_SCRIPT_VIEW = 'storyboard-script';
 export const MAX_STORYBOARD_SHOTS = 100;
+
+export const STORYBOARD_ASSET_ROLES = ['character', 'environment', 'wardrobe', 'prop', 'weapon', 'style', 'motion', 'audio'] as const;
+export type StoryboardAssetRole = typeof STORYBOARD_ASSET_ROLES[number];
+export type StoryboardAssetBinding = { nodeId: string; role: StoryboardAssetRole };
+
+export function storyboardAssetRole(value: unknown): StoryboardAssetRole | undefined {
+  return STORYBOARD_ASSET_ROLES.find((role) => role === value);
+}
+
+export type StoryboardOutputKind = 'image' | 'video' | 'actionBoard';
+
+export const storyboardOutputFields = {
+  image: 'imageNodeId',
+  video: 'videoNodeId',
+  actionBoard: 'actionBoardNodeId',
+} as const;
+
+export function storyboardOutputMedia(kind: StoryboardOutputKind): 'image' | 'video' {
+  return kind === 'video' ? 'video' : 'image';
+}
 
 export type StoryboardShotStatus = 'idle' | 'running' | 'completed' | 'failed';
 
@@ -27,10 +56,12 @@ export interface StoryboardShot {
   sound: string;
   characters: string;
   negativePrompt: string;
-  /** 这一镜自己关联的参考图；为空时继承分镜节点的上游参考。 */
+  /** 镜头单独关联的资产，兼容既有仅保存节点 ID 的分镜。 */
   referenceNodeIds: string[];
+  assetRoles?: Partial<Record<string, StoryboardAssetRole>>;
   imageNodeId: string;
   videoNodeId: string;
+  actionBoardNodeId?: string;
   status: StoryboardShotStatus;
   error: string;
 }
@@ -67,6 +98,11 @@ function firstText(source: UnknownRecord, keys: readonly string[]): string {
   return '';
 }
 
+function editableText(source: UnknownRecord, key: string, aliases: readonly string[]): string {
+  const value = source[key];
+  return typeof value === 'string' ? value : firstText(source, aliases);
+}
+
 function positiveNumber(value: unknown, fallback: number): number {
   const number = Number(String(value ?? '').replace(/\s*s(?:ec(?:onds?)?)?$/i, ''));
   return Number.isFinite(number) && number > 0 ? Math.round(number * 10) / 10 : fallback;
@@ -80,7 +116,7 @@ function characters(value: unknown): string {
       return entry ? firstText(entry, ['name', 'label', '角色', '姓名']) : '';
     }).filter(Boolean).join('、');
   }
-  return text(value);
+  return typeof value === 'string' ? value : '';
 }
 
 /** 镜头行按画布字段建模；未知输入只取真实存在的字段，缺失字段留空。 */
@@ -93,19 +129,19 @@ export function createStoryboardShot(shotNumber: number, patch: StoryboardShotPa
   }, shotNumber);
 }
 
-function normalizeShotFields(source: UnknownRecord): Omit<StoryboardShot, 'id' | 'shotNumber' | 'status' | 'referenceNodeIds' | 'imageNodeId' | 'videoNodeId' | 'error'> {
+function normalizeShotFields(source: UnknownRecord): Omit<StoryboardShot, 'id' | 'shotNumber' | 'status' | 'referenceNodeIds' | 'assetRoles' | 'imageNodeId' | 'videoNodeId' | 'actionBoardNodeId' | 'error'> {
   return {
     durationSeconds: positiveNumber(source.durationSeconds, 4),
-    plot: firstText(source, ['plot', 'plotDescription', 'content', '画面', '画面描述', '镜头内容', 'description']),
-    shotSize: firstText(source, ['shotSize', '景别']),
-    camera: firstText(source, ['camera', 'cameraMove', '机位', '运镜']),
-    motion: firstText(source, ['motion', 'cameraMove', '动作', '运动']),
-    imagePrompt: firstText(source, ['imagePrompt', 'imageGenerationPrompt', 'image', '图片提示词', '画面提示词']),
-    videoPrompt: firstText(source, ['videoPrompt', 'videoMotionPrompt', 'video', '视频提示词', '运动提示词']),
-    dialogue: firstText(source, ['dialogue', '台词', '对白']),
-    sound: firstText(source, ['sound', 'audioEffects', '音效', '声音']),
+    plot: editableText(source, 'plot', ['plotDescription', 'content', '画面', '画面描述', '镜头内容', 'description']),
+    shotSize: editableText(source, 'shotSize', ['景别']),
+    camera: editableText(source, 'camera', ['cameraMove', '机位', '运镜']),
+    motion: editableText(source, 'motion', ['cameraMove', '动作', '运动']),
+    imagePrompt: editableText(source, 'imagePrompt', ['imageGenerationPrompt', 'image', '图片提示词', '画面提示词']),
+    videoPrompt: editableText(source, 'videoPrompt', ['videoMotionPrompt', 'video', '视频提示词', '运动提示词']),
+    dialogue: editableText(source, 'dialogue', ['台词', '对白']),
+    sound: editableText(source, 'sound', ['audioEffects', '音效', '声音']),
     characters: characters(source.characters),
-    negativePrompt: firstText(source, ['negativePrompt', 'negative', '负面提示词']),
+    negativePrompt: editableText(source, 'negativePrompt', ['negative', '负面提示词']),
   };
 }
 
@@ -113,15 +149,24 @@ function normalizeStoryboardShot(source: UnknownRecord, fallbackNumber: number):
   const id = text(source.id) || uid();
   const number = Number(source.shotNumber);
   const status = source.status;
+  const actionBoardNodeId = text(source.actionBoardNodeId);
+  const referenceNodeIds = Array.isArray(source.referenceNodeIds)
+    ? [...new Set(source.referenceNodeIds.map((id) => text(id)).filter(Boolean))]
+    : [];
+  const savedRoles = record(source.assetRoles);
+  const assetRoles = Object.fromEntries(referenceNodeIds.flatMap((id) => {
+    const role = storyboardAssetRole(savedRoles?.[id]);
+    return role ? [[id, role]] : [];
+  }));
   return {
     id,
     shotNumber: Number.isFinite(number) && number > 0 ? Math.round(number) : fallbackNumber,
     ...normalizeShotFields(source),
-    referenceNodeIds: Array.isArray(source.referenceNodeIds)
-      ? [...new Set(source.referenceNodeIds.map((id) => text(id)).filter(Boolean))]
-      : [],
+    referenceNodeIds,
+    ...(Object.keys(assetRoles).length ? { assetRoles } : {}),
     imageNodeId: text(source.imageNodeId),
     videoNodeId: text(source.videoNodeId),
+    ...(actionBoardNodeId ? { actionBoardNodeId } : {}),
     status: status === 'running' || status === 'completed' || status === 'failed' ? status : 'idle',
     error: text(source.error),
   };
@@ -129,7 +174,7 @@ function normalizeStoryboardShot(source: UnknownRecord, fallbackNumber: number):
 
 /** 保留已有行 ID、产出节点和错误状态，只更新用户可编辑内容。 */
 export function patchStoryboardShot(shot: StoryboardShot, patch: StoryboardShotPatch): StoryboardShot {
-  return { ...shot, ...normalizeShotFields(patch as UnknownRecord) };
+  return { ...shot, ...normalizeShotFields({ ...shot, ...patch } as UnknownRecord) };
 }
 
 export function renumberStoryboardShots(shots: StoryboardShot[]): StoryboardShot[] {
@@ -217,7 +262,16 @@ export function storyboardScriptInstruction(
 }
 
 /** 单镜生成使用行内提示词；用户没写时退回画面描述，保证请求仍有真实内容。 */
-export function storyboardShotPrompt(shot: StoryboardShot, kind: 'image' | 'video'): string {
+export function storyboardShotPrompt(shot: StoryboardShot, kind: StoryboardOutputKind): string {
+  if (kind === 'actionBoard') {
+    const action = [shot.plot, shot.videoPrompt, shot.imagePrompt].find((value) => value.trim());
+    return action ? [
+      t('canvas.storyboard.actionBoardPromptLayout'),
+      t('canvas.storyboard.actionBoardPromptShot', { index: shot.shotNumber, action: action.trim() }),
+      shot.characters.trim() ? t('canvas.storyboard.actionBoardPromptCharacters', { characters: shot.characters.trim() }) : '',
+      t('canvas.storyboard.actionBoardPromptBeats'),
+    ].filter(Boolean).join('\n') : '';
+  }
   if (kind === 'image') {
     if (shot.imagePrompt.trim()) return shot.imagePrompt;
     return [
@@ -228,17 +282,32 @@ export function storyboardShotPrompt(shot: StoryboardShot, kind: 'image' | 'vide
       shot.negativePrompt ? `避免：${shot.negativePrompt}` : '',
     ].filter(Boolean).join('\n');
   }
-  if (shot.videoPrompt.trim()) return shot.videoPrompt;
-  return [
+  const base = shot.videoPrompt.trim() || [
     shot.plot,
     shot.motion ? `运动：${shot.motion}` : '',
     shot.camera ? `机位：${shot.camera}` : '',
-    shot.dialogue ? `台词：${shot.dialogue}` : '',
-    shot.sound ? `音效：${shot.sound}` : '',
+  ].filter(Boolean).join('\n').trim();
+  if (!base) return '';
+  const dialogue = shot.dialogue.trim();
+  const sound = shot.sound.trim();
+  return [
+    base,
+    dialogue && !base.includes(dialogue) ? `台词/旁白：${dialogue}` : '',
+    sound && !base.includes(sound) ? `音效：${sound}` : '',
   ].filter(Boolean).join('\n');
 }
 
 export function storyboardShotSummary(shots: StoryboardShot[]) {
   const totalDuration = shots.reduce((sum, shot) => sum + (Number(shot.durationSeconds) || 0), 0);
   return { count: shots.length, totalDuration: Math.round(totalDuration * 10) / 10 };
+}
+
+export function pruneStoryboardRowEdges(project: { edges: Array<{ source?: unknown; target?: unknown; sourceHandle?: string | null; targetHandle?: string | null }> }, scriptId: string, rows: StoryboardShot[]): void {
+  const live = new Set(rows.map((row) => row.id));
+  const retained = project.edges.filter((edge) => {
+    const shotId = edge.source === scriptId ? storyboardShotIdFromHandle(edge.sourceHandle, 'out')
+      : edge.target === scriptId ? storyboardShotIdFromHandle(edge.targetHandle, 'in') : '';
+    return !shotId || live.has(shotId);
+  });
+  if (retained.length !== project.edges.length) project.edges.splice(0, project.edges.length, ...retained);
 }

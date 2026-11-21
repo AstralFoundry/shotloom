@@ -35,14 +35,14 @@ test('画布节点优先显示可辨识名称且空节点回退到简短类型�
   assert.match(source, /labelRoot && createPortal\(nodeLabel, labelRoot\)/);
   assert.match(source, /className="work-node-type-icon" name=\{metaIcon\}[\s\S]*?<span[\s\S]*?title=\{displayTitle\}[\s\S]*?>\{displayTitle\}<\/span>[\s\S]*?className="work-node-kicker-actions"/);
   assert.match(styles, /\.canvas-node-label-anchor \.work-node-kicker \{[\s\S]*?inset: 0;[\s\S]*?height: 100%/);
-  assert.match(styles, /\.canvas-node-label-anchor \.work-node-kicker > svg \{[\s\S]*?var\(--node-label-zoom, 1\)/);
-  assert.match(styles, /\.work-node-kicker > \.work-node-type-icon \{[\s\S]*?background: var\(--muted\)/);
+  assert.match(styles, /\.canvas-node-label-anchor \.work-node-kicker > svg \{[\s\S]*?var\(--canvas-node-icon-size\)/);
+  assert.match(styles, /\.work-node-kicker > \.work-node-type-icon \{[^}]*color: var\(--muted\)/);
 });
 test('节点输入面板固定在屏幕空间，不跟随画布倍率缩放', () => {
   assert.match(source, /ScreenSpaceComposer/);
   assert.match(source, /createPortal/);
   assert.match(source, /CanvasOverlayRootContext/);
-  assert.match(source, /viewportX \+ .* \* zoom/);
+  assert.match(source, /viewportX \+ Number\(position\?\.x \|\| 0\) \* zoom/);
   assert.match(styles, /\.work-composer \{[\s\S]*?position:\s*relative/);
   assert.match(styles, /\.work-composer-anchor \{[\s\S]*?z-index:\s*var\(--layer-canvas-composer\)/);
   assert.doesNotMatch(styles, /\.work-composer \{[\s\S]*?top:\s*calc\(100% \+ 10px\)/);
@@ -58,9 +58,10 @@ test('纯上传资源节点不显示下方输入面板', () => {
   assert.match(source, /\{!uploadedResource && TEXT_NODE_STARTERS\.map/);
 });
 
-test('节点输入面板使用四分之三紧凑尺寸', () => {
-  assert.match(source, /Math\.min\(570, Math\.max\(320, rootWidth - 24\)\)/);
-  assert.match(styles, /\.work-composer \{[\s\S]*?height:\s*186px/);
+test('节点输入面板随屏幕上的节点宽度调整并留在画布内', () => {
+  assert.match(source, /Math\.min\(920, Math\.max\(720, Math\.round\(nodeWidth \* 1\.5\)\), Math\.max\(0, canvasSize\.width - inset \* 2\)\)/);
+  assert.match(source, /below > lastTop && above >= inset/);
+  assert.match(styles, /\.work-composer \{[\s\S]*?height:\s*100%/);
   assert.match(styles, /\.work-composer-add \{[\s\S]*?width:\s*var\(--canvas-slot-size\);[\s\S]*?height:\s*var\(--canvas-slot-size\)/);
   assert.match(styles, /\.work-composer-input \{[\s\S]*?width:\s*var\(--canvas-slot-size\);[\s\S]*?height:\s*var\(--canvas-slot-size\)/);
   // 缩略图行只在触发器在场时让位，让的宽度由触发器自身尺寸派生。

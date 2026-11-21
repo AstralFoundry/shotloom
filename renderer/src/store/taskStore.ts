@@ -664,6 +664,7 @@ export function runNode(node: AnyRecord | null | undefined, options: AnyRecord =
     type: node.type,
     model: requestPayload.model,
     requestPayload,
+    ...(typeof options.storyboardRowsAtSubmission === "string" ? { storyboardRowsAtSubmission: options.storyboardRowsAtSubmission } : {}),
     submissionId,
     requestFingerprint,
     attempt,

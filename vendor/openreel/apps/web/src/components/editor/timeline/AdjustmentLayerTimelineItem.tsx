@@ -99,8 +99,8 @@ export const AdjustmentLayerTimelineItem: React.FC<AdjustmentLayerTimelineItemPr
       aria-label={editorMessage("editor.timeline.adjustment.named", { name: layer.name })}
       className={`absolute top-1 z-20 flex h-5 min-w-[12px] items-center overflow-hidden rounded border text-[9px] font-semibold shadow-sm ${
         layer.enabled
-          ? "border-violet-300/70 bg-violet-500/85 text-white"
-          : "border-violet-400/30 bg-violet-500/30 text-violet-100/60"
+          ? "border-neutral-400/70 bg-neutral-700/85 text-white"
+          : "border-neutral-400/30 bg-neutral-600/30 text-white/70"
       } ${gesture === "move" ? "cursor-grabbing" : "cursor-grab"}`}
       style={{
         left: layer.startTime * pixelsPerSecond,

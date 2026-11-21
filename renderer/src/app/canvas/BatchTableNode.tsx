@@ -1,8 +1,8 @@
 import { t } from '@/i18n';
-import { memo, useContext, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { memo, useContext, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
-import { App, Button, Input, Modal, Segmented, Tooltip } from 'antd';
-import { Handle, Position } from '@xyflow/react';
+import { App, Button, Dropdown, Input, Modal, Segmented, Switch, Tooltip } from 'antd';
+import { Handle, Position, useUpdateNodeInternals } from '@xyflow/react';
 import { store } from '../../store/projectStore';
 import { selectNode } from '../../store/nodeStore';
 import { getDomainRevision, subscribeDomain } from '../../store/domainReactivity';
@@ -12,7 +12,8 @@ import { CanvasNodeLabelRootContext, type WorkflowNodeRenderer } from './Workflo
 import {
   appendBatchColumn,
   appendBatchRow,
-  batchReferenceDefaults,
+  batchReferenceInputs,
+  batchRowCanRun,
   batchTableData,
   cancelBatchTableRun,
   canvasImageNodes,
@@ -20,19 +21,26 @@ import {
   deleteBatchRow,
   fillBatchRowsFromColumns,
   isBatchTableRunActive,
+  isCanvasImageNode,
   moveBatchCell,
   moveBatchColumn,
   patchBatchRow,
   reorderBatchRow,
   runBatchTable,
+  setBatchCellReference,
   setBatchOperation,
   setBatchTableSettings,
 } from '@/services/batchTableService';
+import { BatchGenerationSettingsDialog, type BatchGenerationSettings } from './BatchGenerationSettingsDialog';
+import { touchProject } from '@/store/projectStore';
 import {
   BATCH_CONCURRENCY_OPTIONS,
-  batchRowReady,
+  MAX_BATCH_REFERENCE_COLUMNS,
+  MAX_BATCH_ROWS,
+  batchCellHandle,
+  batchColumnHandle,
+  batchRowColumnReferences,
   batchRowReferences,
-  batchTableSummary,
   minimumBatchReferences,
   type BatchRow,
 } from '@/domain/graph/BatchTable';
@@ -105,30 +113,48 @@ export const BatchTableNode: WorkflowNodeRenderer = memo(({ node, selected, acti
   const { modal } = App.useApp();
   const data = node as AnyRecord;
   const table = batchTableData(data);
-  const defaults = batchReferenceDefaults(String(node.id));
+  const updateNodeInternals = useUpdateNodeInternals();
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
+  const rowsKey = table.rows.map(row => row.id).join(',');
+  const columnsKey = table.columns.map(column => column.id).join(',');
+  useLayoutEffect(() => {
+    updateNodeInternals(node.id);
+  }, [node.id, rowsKey, columnsKey, updateNodeInternals]);
+  useLayoutEffect(() => {
+    if (!scrollRef.current || !gridRef.current) return;
+    const observer = new ResizeObserver(() => updateNodeInternals(node.id));
+    observer.observe(scrollRef.current);
+    observer.observe(gridRef.current);
+    return () => observer.disconnect();
+  }, [node.id, updateNodeInternals]);
+  const canAddRow = table.rows.length < MAX_BATCH_ROWS;
+  const columns = batchReferenceInputs(node.id);
   const labelRoot = useContext(CanvasNodeLabelRootContext);
+  const [generationRequest, setGenerationRequest] = useState<{ rowIds?: string[]; force?: boolean } | null>(null);
   const [picker, setPicker] = useState<{ rowId: string; column: number } | null>(null);
   const [expandedRowId, setExpandedRowId] = useState<string | null>(null);
   const [draggingCell, setDraggingCell] = useState<{ rowId: string; column: number } | null>(null);
   const dragStart = useRef<{ x: number; y: number; pointerId: number; rowId: string; column: number } | null>(null);
   const draggingRef = useRef<{ rowId: string; column: number } | null>(null);
   const suppressClick = useRef(false);
-  const running = Boolean(table.runState?.running) && (isBatchTableRunActive(String(node.id)) || table.rows.some((row) => {
+  const running = isBatchTableRunActive(String(node.id)) || (Boolean(table.runState?.running) && table.rows.some((row) => {
     const status = nodeById(row.outputNodeId)?.status;
     return status === 'running' || status === 'queued';
   }));
-  const imageCount = (store.project.materials as AnyRecord[]).filter((material) => material.resourceType === 'image').length;
-  const connected = new Set((store.project.edges as AnyRecord[])
-    .filter((edge) => edge.target === node.id && nodeById(String(edge.source))?.type === 'imageGeneration')
-    .map((edge) => String(edge.source))).size;
-  const readyRows = table.rows.filter((row) => batchRowReady(table, row, batchRowReferences(row, defaults)));
+  const connectedIds = new Set(columns.flat());
+  const cellReferenceIds = new Set(table.rows.flatMap(row => row.referenceNodeIds).filter(Boolean));
+  for (const id of cellReferenceIds) {
+    if (!connectedIds.has(id) && isCanvasImageNode(id)) connectedIds.add(id);
+  }
+  const connected = connectedIds.size;
+  const readyRows = table.rows.filter((row, index) => batchRowCanRun(table, row, batchRowColumnReferences(columns, index)));
   const unfinished = readyRows.filter((row) => {
     const output = nodeById(row.outputNodeId);
     return output?.status !== 'completed';
   });
   const completed = table.rows.filter((row) => outputState(row).tone === 'good').length;
   const expandedRow = table.rows.find((row) => row.id === expandedRowId);
-  const summary = batchTableSummary(table, defaults);
 
   useEffect(() => {
     const handleMove = (event: PointerEvent) => {
@@ -149,7 +175,8 @@ export const BatchTableNode: WorkflowNodeRenderer = memo(({ node, selected, acti
         const target = document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>('[data-batch-cell]');
         const targetRowId = target?.dataset.rowId;
         const targetColumn = Number(target?.dataset.columnIndex);
-        if (targetRowId && Number.isInteger(targetColumn)) {
+        if (target?.closest<HTMLElement>('[data-batch-table]')?.dataset.batchTable === node.id
+          && targetRowId && Number.isInteger(targetColumn)) {
           moveBatchCell(String(node.id), source.rowId, source.column, targetRowId, targetColumn);
         }
         window.setTimeout(() => { suppressClick.current = false; }, 0);
@@ -175,10 +202,8 @@ export const BatchTableNode: WorkflowNodeRenderer = memo(({ node, selected, acti
   }, [node.id]);
 
   function setCell(row: BatchRow, column: number, value: string) {
-    const references = [...row.referenceNodeIds];
-    while (references.length < table.columns.length) references.push('');
-    references[column] = value;
-    patchBatchRow(String(node.id), row.id, { referenceNodeIds: references });
+    const columnId = table.columns[column]?.id;
+    if (columnId) setBatchCellReference(node.id, row.id, columnId, value);
   }
 
   function addRow() {
@@ -205,7 +230,7 @@ export const BatchTableNode: WorkflowNodeRenderer = memo(({ node, selected, acti
     </div>
   );
 
-  const gridTemplateColumns = `64px repeat(${table.columns.length}, 92px) minmax(240px, 1fr) 96px 88px`;
+  const gridTemplateColumns = `80px repeat(${table.columns.length}, 84px) minmax(240px, 1fr) 84px 100px`;
 
   return (
     <div
@@ -217,17 +242,18 @@ export const BatchTableNode: WorkflowNodeRenderer = memo(({ node, selected, acti
       {table.columns.map((column, index) => (
         <Handle
           key={column.id}
-          id={`batch-reference:${column.id}`}
+          id={batchColumnHandle(column.id)}
           type="target"
           position={Position.Left}
-          className="batch-column-handle"
-          style={{ top: 144 + index * 40 }}
+          isConnectableStart={false}
+          className="batch-column-handle nodrag nopan"
+          style={{ top: 139 + index * 40 }}
           title={t('canvas.batch.columnHandle', { index: index + 1 })}
         >
           <span>{index + 1}</span>
         </Handle>
       ))}
-      <div className="batch-table-toolbar">
+      <div className="batch-table-toolbar nowheel">
         <Segmented
           size="small"
           value={table.operation}
@@ -237,33 +263,38 @@ export const BatchTableNode: WorkflowNodeRenderer = memo(({ node, selected, acti
           ]}
           onChange={(value) => setBatchOperation(String(node.id), value as 'try_on' | 'creative')}
         />
-        <span className="batch-table-label">{t('canvas.batch.concurrency')}</span>
-        <Segmented
-          size="small"
-          value={table.concurrency}
-          options={BATCH_CONCURRENCY_OPTIONS.map((value) => ({ value, label: String(value) }))}
-          onChange={(value) => setBatchTableSettings(String(node.id), { concurrency: Number(value) })}
-        />
+        <div className="batch-concurrency">
+          <span className="batch-table-label">{t('canvas.batch.concurrency')}</span>
+          <Segmented
+            size="small"
+            value={table.concurrency}
+            options={BATCH_CONCURRENCY_OPTIONS.map((value) => ({ value, label: String(value) }))}
+            onChange={(value) => setBatchTableSettings(String(node.id), { concurrency: Number(value) })}
+          />
+        </div>
         <div className="batch-ref-count">
-          <span>{t('canvas.batch.referenceCountMax', { count: table.columns.length, max: 10 })}</span>
-          <button type="button" aria-label={t('canvas.batch.removeColumn')} disabled={table.columns.length <= 1} onClick={() => deleteBatchColumn(String(node.id))}>−</button>
-          <button type="button" aria-label={t('canvas.batch.addColumn')} disabled={table.columns.length >= 10} onClick={() => appendBatchColumn(String(node.id))}>+</button>
+          <span>{t('canvas.batch.referenceCountMax', { count: table.columns.length, max: MAX_BATCH_REFERENCE_COLUMNS })}</span>
+          <Button type="text" size="small" icon={<IconSymbol name="minus" />} aria-label={t('canvas.batch.removeColumn')}
+            title={t('canvas.batch.removeColumn')} disabled={table.columns.length <= 1} onClick={() => deleteBatchColumn(String(node.id))} />
+          <Button type="text" size="small" icon={<IconSymbol name="plus" />} aria-label={t('canvas.batch.addColumn')}
+            title={t('canvas.batch.addColumn')} disabled={table.columns.length >= MAX_BATCH_REFERENCE_COLUMNS} onClick={() => appendBatchColumn(String(node.id))} />
         </div>
         <span className="batch-connection-stat">{t('canvas.batch.connectionStat', { connected, completed, total: table.rows.length })}</span>
         <span className="batch-table-spacer" />
-        <Button size="small" type="text" onClick={fillRows}>{t('canvas.batch.fillByColumns')}</Button>
+        <Button size="small" icon={<IconSymbol name="table" />} onClick={fillRows}>{t('canvas.batch.fillByColumns')}</Button>
         <Tooltip title={t('canvas.batch.runUnfinishedHint')}>
           <Button
             size="small"
             type="primary"
             disabled={!unfinished.length || running}
             loading={running}
-            onClick={() => void runBatchTable(String(node.id))}
+            icon={<IconSymbol name="play" />}
+            onClick={() => setGenerationRequest({})}
           >
             {t('canvas.batch.runUnfinished', { count: unfinished.length })}
           </Button>
         </Tooltip>
-        {running ? <Button size="small" danger onClick={() => cancelBatchTableRun(String(node.id))}>{t('canvas.batch.stop')}</Button> : null}
+        {running ? <Button size="small" danger icon={<IconSymbol name="stop" />} onClick={() => cancelBatchTableRun(String(node.id))}>{t('canvas.batch.stop')}</Button> : null}
       </div>
       <div className="batch-global">
         <div className="batch-global-head">
@@ -275,15 +306,16 @@ export const BatchTableNode: WorkflowNodeRenderer = memo(({ node, selected, acti
         </div>
         <Input
           value={table.globalPrompt}
+          size="small"
           placeholder={t('canvas.batch.globalPlaceholder')}
           aria-label={t('canvas.batch.globalPrompt')}
           onChange={(event) => setBatchTableSettings(String(node.id), { globalPrompt: event.target.value })}
           allowClear
         />
       </div>
-      <div className="batch-table-scroll">
-        <div className="batch-table-grid" style={{ gridTemplateColumns }}>
-          <span className="batch-table-head-cell batch-table-head-number">#</span>
+      <div className="batch-table-scroll nowheel" ref={scrollRef} onScroll={() => updateNodeInternals(node.id)}>
+        <div className="batch-table-grid" ref={gridRef} style={{ gridTemplateColumns }}>
+          <span className="batch-table-head-cell batch-table-head-number">{t('canvas.batch.taskColumn')}</span>
           {table.columns.map((column) => (
             <span
               className="batch-table-head-cell batch-table-column-head"
@@ -312,79 +344,90 @@ export const BatchTableNode: WorkflowNodeRenderer = memo(({ node, selected, acti
           <span className="batch-table-head-cell">{t('canvas.batch.actionsColumn')}</span>
           {table.rows.length ? table.rows.map((row, index) => {
             const status = outputState(row);
+            const defaults = batchRowColumnReferences(columns, index);
             const refs = batchRowReferences(row, defaults);
-            const ready = batchRowReady(table, row, refs);
+            const ready = batchRowCanRun(table, row, defaults);
             return (
-              <div className="batch-table-row-group" key={row.id}>
-                <span className="batch-table-cell batch-table-index">{index + 1}</span>
+              <div className="batch-table-row-group" data-disabled={!row.enabled || undefined} key={row.id}>
+                <div className="batch-table-cell batch-table-index">
+                  <div className="batch-task-toggle">
+                    <Switch
+                      size="small"
+                      checked={row.enabled}
+                      aria-label={t('canvas.batch.enableRow', { index: index + 1 })}
+                      onChange={(enabled) => patchBatchRow(String(node.id), row.id, { enabled })}
+                    />
+                    <span>{index + 1}</span>
+                  </div>
+                </div>
                 {table.columns.map((column, columnIndex) => {
                   const refId = refs[columnIndex] || '';
                   const rowOverride = Boolean(row.referenceNodeIds[columnIndex]);
                   return (
-                    <span key={column.id} className="batch-table-cell batch-table-ref-cell">
-                      <button
-                        type="button"
-                        data-batch-cell
-                        data-row-id={row.id}
-                        data-column-index={columnIndex}
-                        className={`batch-table-ref${rowOverride ? ' is-row' : refId ? ' is-linked' : ''}${draggingCell?.rowId === row.id && draggingCell.column === columnIndex ? ' is-dragging' : ''}`}
-                        onClick={() => {
-                          if (suppressClick.current) { suppressClick.current = false; return; }
-                          setPicker({ rowId: row.id, column: columnIndex });
-                        }}
-                        onPointerDown={(event) => {
-                          if (event.button !== 0 || (event.target as HTMLElement).closest('.batch-ref-clear')) return;
-                          event.stopPropagation();
-                          dragStart.current = { x: event.clientX, y: event.clientY, pointerId: event.pointerId, rowId: row.id, column: columnIndex };
-                        }}
-                        title={refId ? t('canvas.batch.replaceReference') : t('canvas.batch.pickReference')}
-                      >
-                        {refId ? <NodeThumb nodeId={refId} className="batch-thumb" empty="+" /> : <span className="batch-table-ref-empty">+</span>}
-                        {!rowOverride && refId ? <i>{t('canvas.batch.linked')}</i> : null}
-                      </button>
-                      {refId ? (
+                    <div key={column.id} className="batch-table-cell batch-table-ref-cell">
+                      <div className="batch-reference-slot" data-batch-cell data-row-id={row.id} data-column-index={columnIndex}>
                         <button
                           type="button"
-                          className="batch-ref-clear"
-                          aria-label={t('canvas.batch.clearReference')}
-                          onClick={(event) => { event.stopPropagation(); setCell(row, columnIndex, ''); }}
-                        >×</button>
-                      ) : null}
-                    </span>
+                          className={`batch-table-ref${rowOverride ? ' is-row' : refId ? ' is-linked' : ''}${draggingCell?.rowId === row.id && draggingCell.column === columnIndex ? ' is-dragging' : ''}`}
+                          onClick={() => {
+                            if (suppressClick.current) { suppressClick.current = false; return; }
+                            setPicker({ rowId: row.id, column: columnIndex });
+                          }}
+                          onPointerDown={(event) => {
+                            if (event.button !== 0) return;
+                            event.stopPropagation();
+                            dragStart.current = { x: event.clientX, y: event.clientY, pointerId: event.pointerId, rowId: row.id, column: columnIndex };
+                          }}
+                          title={refId ? t('canvas.batch.replaceReference') : t('canvas.batch.pickReference')}
+                        >
+                          {refId ? <NodeThumb nodeId={refId} className="batch-thumb" empty="+" /> : <IconSymbol name="upload" className="batch-table-ref-empty" />}
+                        </button>
+                        <button
+                          className="batch-reference-mention"
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            const token = t('canvas.batch.mentionToken', { index: columnIndex + 1 });
+                            patchBatchRow(String(node.id), row.id, { prompt: `${row.prompt}${row.prompt && !row.prompt.endsWith(' ') ? ' ' : ''}${token}` });
+                          }}
+                        >@{t('canvas.batch.referenceIndex', { index: columnIndex + 1 })}</button>
+                        <Handle
+                          id={batchCellHandle(row.id, column.id)}
+                          type="target"
+                          position={Position.Left}
+                          isConnectableStart={false}
+                          className="batch-cell-handle nodrag nopan"
+                          title={t('canvas.batch.cellHandle', { row: index + 1, column: columnIndex + 1 })}
+                          onClick={event => {
+                            event.stopPropagation();
+                            setPicker({ rowId: row.id, column: columnIndex });
+                          }}
+                        />
+                        {rowOverride ? (
+                          <button
+                            type="button"
+                            className="batch-ref-clear"
+                            aria-label={t('canvas.batch.clearReference')}
+                            onClick={(event) => { event.stopPropagation(); setCell(row, columnIndex, ''); }}
+                            ><IconSymbol name="x" /></button>
+                        ) : null}
+                      </div>
+                    </div>
                   );
                 })}
                 <span className="batch-table-cell batch-table-prompt">
                   <Input.TextArea
                     value={row.prompt}
-                    autoSize={{ minRows: 2, maxRows: 4 }}
+                    autoSize={{ minRows: 3, maxRows: 5 }}
                     placeholder={table.globalPrompt.trim() ? t('canvas.batch.rowPromptMuted') : t('canvas.batch.promptPlaceholder', { index: index + 1 })}
                     onChange={(event) => patchBatchRow(String(node.id), row.id, { prompt: event.target.value })}
                     onKeyDown={(event) => {
                       if (event.key === 'Enter' && (event.metaKey || event.ctrlKey) && ready && !running) {
                         event.preventDefault();
-                        void runBatchTable(String(node.id), { rowIds: [row.id], force: true });
+                        setGenerationRequest({ rowIds: [row.id], force: true });
                       }
                     }}
                   />
-                  <div className="batch-prompt-refs">
-                    {table.columns.map((column, columnIndex) => (
-                      <button
-                        key={column.id}
-                        type="button"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          const token = t('canvas.batch.mentionToken', { index: columnIndex + 1 });
-                          patchBatchRow(String(node.id), row.id, { prompt: `${row.prompt}${row.prompt && !row.prompt.endsWith(' ') ? ' ' : ''}${token}` });
-                        }}
-                      >@{t('canvas.batch.referenceIndex', { index: columnIndex + 1 })}</button>
-                    ))}
-                  </div>
-                  <div className="batch-prompt-foot">
-                    <span>{table.globalPrompt.trim() ? t('canvas.batch.globalActiveHint') : t('canvas.batch.rowPromptHint')}</span>
-                    <button type="button" aria-label={t('canvas.batch.expandPrompt')} onClick={() => setExpandedRowId(row.id)}>
-                      {t('canvas.batch.expandPrompt')}
-                    </button>
-                  </div>
                 </span>
                 <span className="batch-table-cell batch-table-output">
                   <button
@@ -395,24 +438,48 @@ export const BatchTableNode: WorkflowNodeRenderer = memo(({ node, selected, acti
                       if (output) { selectNode(String(output.id)); actions.select(String(output.id)); }
                     }}
                     disabled={!row.outputNodeId}
+                    aria-label={status.label}
+                    title={status.label}
                   >
-                    {row.outputNodeId ? <NodeThumb nodeId={row.outputNodeId} className="batch-output-thumb" /> : null}
-                    <em>{status.label}</em>
+                    {row.outputNodeId ? <NodeThumb nodeId={row.outputNodeId} className="batch-output-thumb" /> : <IconSymbol name="image" />}
+                    <span className="batch-output-status" aria-hidden="true" />
                   </button>
                 </span>
                 <span className="batch-table-cell batch-table-actions">
-                  <Tooltip title={ready ? t('canvas.batch.runRow') : t('canvas.batch.rowNotReady', { count: minimumBatchReferences(table.operation) })}>
+                  <Tooltip title={status.tone === 'warn' ? status.label
+                    : !row.enabled ? t('canvas.batch.enableRow', { index: index + 1 })
+                    : ready ? t('canvas.batch.runRow') : t('canvas.batch.rowNotReady', { count: minimumBatchReferences(table.operation) })}>
                     <Button
                       size="small"
                       type={status.tone === 'good' ? 'text' : 'primary'}
+                      loading={status.tone === 'warn'}
+                      icon={<IconSymbol name="play" />}
                       disabled={!ready || running}
-                      onClick={() => void runBatchTable(String(node.id), { rowIds: [row.id], force: true })}
-                    ><IconSymbol name="play" /></Button>
+                      aria-label={t('canvas.batch.runRow')}
+                      onClick={() => setGenerationRequest({ rowIds: [row.id], force: true })}
+                    />
                   </Tooltip>
-                  <Button size="small" onClick={() => reorderBatchRow(String(node.id), row.id, -1)} disabled={index === 0}>↑</Button>
-                  <Button size="small" onClick={() => reorderBatchRow(String(node.id), row.id, 1)} disabled={index === table.rows.length - 1}>↓</Button>
-                  <Button size="small" type="text" danger onClick={() => deleteBatchRow(String(node.id), row.id)}><IconSymbol name="trash" /></Button>
+                  <Button size="small" type="text" danger aria-label={t('canvas.batch.removeRow')} onClick={() => deleteBatchRow(String(node.id), row.id)}><IconSymbol name="trash" /></Button>
+                  <Dropdown trigger={['click']} menu={{ items: [
+                    { key: 'up', label: t('canvas.storyboard.moveUp'), disabled: index === 0, onClick: () => reorderBatchRow(String(node.id), row.id, -1) },
+                    { key: 'down', label: t('canvas.storyboard.moveDown'), disabled: index === table.rows.length - 1, onClick: () => reorderBatchRow(String(node.id), row.id, 1) },
+                  ] }}>
+                    <Button size="small" type="text" aria-label={t('canvas.batch.actionsColumn')} icon={<IconSymbol name="more" />} />
+                  </Dropdown>
                 </span>
+                <div className="batch-insert-row">
+                  <Button size="small" type="text" icon={<IconSymbol name="plus" />}
+                    aria-label={t('canvas.batch.insertAfter', { index: index + 1 })}
+                    title={t('canvas.batch.insertAfter', { index: index + 1 })}
+                    disabled={!canAddRow}
+                    onClick={() => appendBatchRow(String(node.id), row.id)} />
+                </div>
+                <div className="batch-prompt-foot">
+                  <span>{table.globalPrompt.trim() ? t('canvas.batch.globalActiveHint') : t('canvas.batch.rowPromptHint')}</span>
+                  <button type="button" aria-label={t('canvas.batch.expandPrompt')} onClick={() => setExpandedRowId(row.id)}>
+                    <IconSymbol name="maximize" /> {t('canvas.batch.expandPrompt')}
+                  </button>
+                </div>
               </div>
             );
           }) : (
@@ -434,24 +501,35 @@ export const BatchTableNode: WorkflowNodeRenderer = memo(({ node, selected, acti
               </div>
             </>
           )}
+          {table.rows.length ? (
+            <div className="batch-add-row-bar">
+              <Button block type="dashed" icon={<IconSymbol name="plus" />} disabled={!canAddRow} onClick={addRow}>{t('canvas.batch.addRow')}</Button>
+            </div>
+          ) : null}
         </div>
       </div>
-      <div className="batch-table-foot">
-        <span>{t('canvas.batch.summary', { total: summary.total, enabled: summary.enabled })}</span>
-        {table.runState ? (
+      {table.runState ? (
+        <div className="batch-table-foot">
           <span className={table.runState.cancelled ? 'status-muted' : running ? 'status-warn' : 'status-good'}>
             {running
               ? t('canvas.batch.progress', { done: table.runState.done, total: table.runState.total })
               : table.runState.cancelled ? t('canvas.batch.cancelled') : t('canvas.batch.finished', { failed: table.runState.failed })}
           </span>
-        ) : null}
-        <span className="batch-table-foot-note">{t('canvas.batch.imagesInProject', { count: imageCount })}</span>
-      </div>
-      {table.rows.length ? (
-        <div className="batch-add-row-bar">
-          <Button type="text" onClick={addRow}>+ {t('canvas.batch.addRow')}</Button>
         </div>
       ) : null}
+      {generationRequest ? <BatchGenerationSettingsDialog
+        initial={data.batchGenerationSettings as BatchGenerationSettings}
+        count={generationRequest.rowIds?.length || unfinished.length}
+        concurrency={table.concurrency}
+        onClose={() => setGenerationRequest(null)}
+        onConfirm={(settings) => {
+          data.batchGenerationSettings = settings;
+          touchProject();
+          const request = generationRequest;
+          setGenerationRequest(null);
+          void runBatchTable(String(node.id), request);
+        }}
+      /> : null}
       {picker ? (
         <ReferencePicker
           open

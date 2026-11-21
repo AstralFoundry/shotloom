@@ -35,7 +35,7 @@ test('画布节点外框与选中操作工具栏保持职责分离', () => {
 });
 
 test('加入对话只在节点选中工具栏中显示', () => {
-  assert.match(canvas, /<NodeToolbar[\s\S]*?canvas-node-selection-toolbar--hidden[\s\S]*?isVisible=\{selected && !imageAnnotationOpen\}[\s\S]*?offset=\{toolbarOffset\}[\s\S]*?>[\s\S]*?加入对话[\s\S]*?<\/NodeToolbar>/);
+  assert.match(canvas, /<NodeToolbar[\s\S]*?canvas-node-selection-toolbar--hidden[\s\S]*?isVisible=\{selected && !imageAnnotationOpen\}[\s\S]*?subtle=\{useSubtleUploadToolbar\}[\s\S]*?>[\s\S]*?加入对话[\s\S]*?<\/NodeToolbar>/);
   assert.match(canvas, /mentionNode\(node\.id\)/);
   // 3D 导演台不挂引用入口，工具栏整体不渲染，而不是留下一个空壳。
   assert.match(toolbar, /node\.type === "threeDDirector" \|\| node\.type === "clipStudio" \? null : addNodeMention/);
@@ -206,12 +206,12 @@ test('图片水印工具接线完整，预览与导出共用同一份几何', ()
 
 test('空媒体节点从顶部工具栏上传且节点内部只保留占位图标', () => {
   assert.match(canvas, /const canUpload = Boolean\(uploadLabel && !hasMediaContent\)/);
-  assert.match(canvas, /toolbarOffset = canvasNodeToolbarOffset\(semanticZoom, useSubtleUploadToolbar\)/);
-  assert.match(canvas, /useSubtleUploadToolbar[\s\S]*?canvas-node-selection-toolbar--subtle[\s\S]*?offset=\{toolbarOffset\}/);
+  assert.match(canvas, /offset = canvasNodeToolbarOffset\(zoom, subtle\)/);
+  assert.match(canvas, /useSubtleUploadToolbar[\s\S]*?canvas-node-selection-toolbar--subtle[\s\S]*?subtle=\{useSubtleUploadToolbar\}/);
   assert.match(canvas, /\{canUpload && \([\s\S]*?title=\{`上传\$\{uploadLabel\}`\}[\s\S]*?actions\.upload\(node\.id\)/);
   assert.doesNotMatch(generation, /className="work-empty-upload/);
   assert.doesNotMatch(generation, /上传\{metaLabel\.replace/);
-  assert.match(styles, /--canvas-node-state-icon-size:\s*34px/);
+  assert.match(styles, /--canvas-node-state-icon-size:\s*28px/);
   assert.match(styles, /\.work-preview \.work-empty-type-icon \{[^}]*width:\s*var\(--canvas-node-state-icon-size\)[^}]*height:\s*var\(--canvas-node-state-icon-size\)/);
   assert.match(styles, /\.canvas-node-selection-toolbar--subtle \{[\s\S]*?background:\s*transparent;[\s\S]*?box-shadow:\s*none/);
   assert.match(styles, /\.canvas-node-selection-toolbar--subtle button \{[\s\S]*?height:\s*var\(--canvas-toolbar-action-compact\);[\s\S]*?font-size:\s*var\(--text-body-12\)/);
@@ -224,8 +224,8 @@ test('节点顶部工具栏保持屏幕字号并随名称高度避让', () => {
   assert.equal(nodeChrome.canvasNodeToolbarOffset(0.55, false), 38);
   assert.equal(nodeChrome.canvasNodeToolbarOffset(1, false), 38);
   assert.equal(nodeChrome.canvasNodeToolbarOffset(1.8, false), 60.4);
-  assert.match(canvas, /top: -CANVAS_NODE_LABEL_OFFSET \* semanticZoom/);
-  assert.match(canvas, /height: CANVAS_NODE_LABEL_HEIGHT \* semanticZoom/);
+  assert.match(canvas, /top: -CANVAS_NODE_LABEL_OFFSET/);
+  assert.match(canvas, /height: CANVAS_NODE_LABEL_HEIGHT/);
   assert.match(styles, /\.canvas-node-selection-toolbar--subtle button \{[^}]*font-size:\s*var\(--text-body-12\)/);
   assert.doesNotMatch(styles, /canvas-node-selection-toolbar[^}]*transform:\s*scale/);
 });
@@ -344,8 +344,8 @@ test('小地图节点可点击定位、保持缩放且地图不被面板裁切',
   assert.match(workflowCanvas, /onNodeClick=\{\(_event, node\) => minimapNodeClick\.current\(node\.id\)\}/);
   assert.match(workflowCanvas, /minimapNodeClick\.current = \(nodeId: string\) => \{\n\s*controller\.selectNodes\(\[nodeId\]\);\n\s*focusCanvasNodes\(\[nodeId\], \{ keepZoom: true \}\);\n\s*\}/);
   // 小地图只认节点对象上的尺寸；外部同步会丢掉 React Flow 的 measured。
-  assert.ok((workflowCanvas.match(/\n\s+width: screenWidth,/g) || []).length >= 2, '节点必须把屏幕尺寸同时写进 style 与 width，否则小地图在外部同步后没有可点节点');
-  assert.match(workflowCanvas, /const zoom = options\?\.keepZoom\n\s*\?\s*semanticZoomRef\.current\n\s*: Math\.min\(/);
+  assert.match(workflowCanvas, /style: \{ width, height \},\s*width,\s*height,[\s\S]*?measured: \{ width, height \}/);
+  assert.match(workflowCanvas, /const zoom = options\?\.keepZoom\n\s*\?\s*instance\.getZoom\(\)\n\s*: Math\.min\(/);
   // 对话与计划的"定位"仍要把节点放大到可读，keepZoom 只属于小地图这一类概览入口。
   assert.match(workflowCanvas, /singleNodeFocus \? 0\.78 : MIN_CANVAS_ZOOM/);
   assert.match(workflowCanvas, /style=\{\{ width: MINIMAP_SIZE\.width, height: MINIMAP_SIZE\.height \}\}/);
