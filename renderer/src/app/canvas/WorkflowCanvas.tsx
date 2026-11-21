@@ -431,7 +431,7 @@ const CanvasNode = memo(function CanvasNode({ data, selected, dragging }: NodePr
     setResizing(false);
     actions.update(item.id, {
       x: Math.round(size.x), y: Math.round(size.y),
-      canvasWidth: width, canvasHeight: height, updatedAt: new Date().toISOString(),
+      canvasWidth: width, canvasHeight: height, canvasSizeManuallySet: true, updatedAt: new Date().toISOString(),
     });
   }, []);
   useEffect(() => {

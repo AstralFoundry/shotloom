@@ -49,8 +49,8 @@ test('布局和画布渲染共用唯一的节点尺寸契约', () => {
     width: 350,
     height: 500,
   });
-  assert.deepEqual(canvasNodeDimensions(node('image', 'imageGeneration')), { width: 480, height: 270 });
-  assert.deepEqual(canvasNodeDimensions(node('video', 'videoGeneration')), { width: 480, height: 270 });
+  assert.deepEqual(canvasNodeDimensions(node('image', 'imageGeneration')), { width: 720, height: 405 });
+  assert.deepEqual(canvasNodeDimensions(node('video', 'videoGeneration')), { width: 720, height: 405 });
   assert.deepEqual(canvasNodeDimensions(node('audio', 'audioGeneration')), { width: 350, height: 125 });
   assert.deepEqual(canvasNodeDimensions(node('resource', 'resource')), { width: 350, height: 150 });
   assert.deepEqual(canvasNodeDimensions(node('director', 'threeDDirector')), {
@@ -65,18 +65,26 @@ test('布局和画布渲染共用唯一的节点尺寸契约', () => {
   );
 });
 
-test('图片节点按原图比例显示，并限制极端长宽比', () => {
-  assert.deepEqual(mediaCanvasNodeDimensions(1080, 1920), { width: 146.5, height: 260 });
-  assert.deepEqual(mediaCanvasNodeDimensions(1200, 1600), { width: 195, height: 260 });
-  assert.deepEqual(mediaCanvasNodeDimensions(1920, 1080), { width: 360, height: 202.5 });
-  assert.deepEqual(mediaCanvasNodeDimensions(4000, 500), { width: 360, height: 100 });
-  assert.deepEqual(mediaCanvasNodeDimensions(0, 0), { width: 480, height: 270 });
+test('图片节点按参考项目的 720×520 边界适配，保留极端长宽比', () => {
+  assert.deepEqual(mediaCanvasNodeDimensions(1080, 1920), { width: 292.5, height: 520 });
+  assert.deepEqual(mediaCanvasNodeDimensions(1200, 1600), { width: 390, height: 520 });
+  assert.deepEqual(mediaCanvasNodeDimensions(1920, 1080), { width: 720, height: 405 });
+  assert.deepEqual(mediaCanvasNodeDimensions(4000, 500), { width: 720, height: 90 });
+  assert.deepEqual(mediaCanvasNodeDimensions(0, 0), { width: 720, height: 405 });
+});
+
+test('图片与视频分别遵守参考项目的尺寸规则', () => {
+  assert.deepEqual(mediaCanvasNodeDimensions(100, 50), { width: 320, height: 160 });
+  assert.deepEqual(mediaCanvasNodeDimensions(600, 400), { width: 600, height: 400 });
+  assert.deepEqual(mediaCanvasNodeDimensions(1920, 1080, 'videoGeneration'), { width: 720, height: 405 });
+  assert.deepEqual(mediaCanvasNodeDimensions(1080, 1920, 'videoGeneration'), { width: 420, height: 1920 * (420 / 1080) });
+  assert.deepEqual(mediaCanvasNodeDimensions(100, 50, 'videoGeneration'), { width: 472, height: 236 });
 });
 
 test('媒体按真实比例自适应，但保留用户调整过的尺寸', () => {
   assert.deepEqual(
     reconcileMediaNodeDimensions(node('video', 'videoGeneration'), 1920, 1080),
-    { width: 360, height: 202.5 },
+    { width: 720, height: 405 },
   );
   assert.deepEqual(
     reconcileMediaNodeDimensions(
@@ -84,7 +92,7 @@ test('媒体按真实比例自适应，但保留用户调整过的尺寸', () =>
       1920,
       1080,
     ),
-    { width: 360, height: 202.5 },
+    { width: 720, height: 405 },
   );
   assert.equal(
     reconcileMediaNodeDimensions(
@@ -104,18 +112,25 @@ test('媒体按真实比例自适应，但保留用户调整过的尺寸', () =>
   );
 });
 
+test('旧自动缩小的媒体恢复参考尺寸，手动尺寸不随加载变化', () => {
+  const oldWide = node('old-wide', 'imageGeneration', { canvasWidth: 360, canvasHeight: 202.5 });
+  assert.deepEqual(reconcileMediaNodeDimensions(oldWide, 1920, 1080), { width: 720, height: 405 });
+  assert.deepEqual(reconcileMediaNodeDimensions(node('old-portrait', 'videoGeneration', { canvasWidth: 146.5, canvasHeight: 260 }), 1080, 1920), { width: 420, height: 1920 * (420 / 1080) });
+  assert.equal(reconcileMediaNodeDimensions({ ...oldWide, canvasSizeManuallySet: true }, 1920, 1080), null);
+});
+
 test('空媒体节点按模型配置比例自适应', () => {
   assert.deepEqual(
     canvasNodeDimensions(node('video-wide', 'videoGeneration', { config: { ratio: '16:9' } })),
-    { width: 480, height: 270 },
+    { width: 720, height: 405 },
   );
   assert.deepEqual(
     canvasNodeDimensions(node('image-portrait', 'imageGeneration', { config: { size: '1024x1536' } })),
-    { width: 173.5, height: 260 },
+    { width: 1024 * (520 / 1536), height: 520 },
   );
   assert.deepEqual(
     canvasNodeDimensions(node('video-adaptive', 'videoGeneration', { config: { ratio: 'adaptive' } })),
-    { width: 480, height: 270 },
+    { width: 720, height: 405 },
   );
 });
 
@@ -128,7 +143,7 @@ test('旧工程的空媒体节点使用新版默认尺寸，有内容和自定�
     ['imageGeneration', 360, 202.5],
   ]) {
     const geometry = { canvasWidth: width, canvasHeight: height };
-    assert.deepEqual(canvasNodeDimensions(node('old-empty', type, geometry)), { width: 480, height: 270 });
+    assert.deepEqual(canvasNodeDimensions(node('old-empty', type, geometry)), { width: 720, height: 405 });
     assert.deepEqual(canvasNodeDimensions(node('old-media', type, {
       ...geometry, uploadedFile: { path: 'asset' },
     })), { width, height });
