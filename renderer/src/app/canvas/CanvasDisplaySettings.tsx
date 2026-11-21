@@ -1,10 +1,13 @@
+import { Grip } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { t } from '@/i18n';
 import { CANVAS_COLORS, CANVAS_EDGE_MODES, CANVAS_PATTERNS, type CanvasAppearance } from '../../utils/canvasAppearance';
 import type { AgentLayoutMode } from '../../services/agentLayoutService';
 import { IconSymbol } from '../components/IconSymbol';
 
-export function CanvasDisplaySettings({ appearance, onChange, onAutoLayout }: {
+export function CanvasDisplaySettings({ appearance, onChange, onAutoLayout, requestedPanel, layoutOnly = false }: {
+  requestedPanel?: { panel: 'background' | 'edges'; revision: number };
+  layoutOnly?: boolean;
   appearance: CanvasAppearance;
   onChange: (patch: Partial<CanvasAppearance>) => Promise<void>;
   onAutoLayout?: ((options?: { mode?: AgentLayoutMode; includeConnected?: boolean }) => boolean) | undefined;
@@ -14,6 +17,7 @@ export function CanvasDisplaySettings({ appearance, onChange, onAutoLayout }: {
   const [includeConnected, setIncludeConnected] = useState(true);
   const [saving, setSaving] = useState(false);
   const root = useRef<HTMLDivElement>(null);
+  useEffect(() => { if (requestedPanel) setPanel(requestedPanel.panel); }, [requestedPanel]);
   useEffect(() => {
     if (!panel) return;
     const close = (event: PointerEvent) => { if (!root.current?.contains(event.target as Node)) setPanel(null); };
@@ -28,9 +32,9 @@ export function CanvasDisplaySettings({ appearance, onChange, onAutoLayout }: {
   };
   return <div className="canvas-display-settings" ref={root}>
     <div className="canvas-display-triggers">
-      {([['layout', 'columns', t('canvas.display.layout')], ['background', 'grid', t('canvas.display.background')], ['edges', 'workflow', t('canvas.display.edges')]] as const).map(([id, icon, label]) =>
+      {([['layout', 'columns', t('canvas.display.layout')], ['background', 'grid', t('canvas.display.background')], ['edges', 'workflow', t('canvas.display.edges')]] as const).filter(([id]) => !layoutOnly || id === 'layout').map(([id, icon, label]) =>
         <button key={id} type="button" title={label} aria-label={label} aria-expanded={panel === id} aria-controls={`canvas-display-${id}`} className={panel === id ? 'active' : ''}
-          onClick={() => setPanel(current => current === id ? null : id)}><IconSymbol name={icon} /></button>)}
+          onClick={() => setPanel(current => current === id ? null : id)}>{layoutOnly && id === 'layout' ? <Grip /> : <IconSymbol name={icon} />}</button>)}
     </div>
     {panel && <div id={`canvas-display-${panel}`} className={`canvas-display-panel canvas-display-panel--${panel}`} role="dialog" aria-label={t(`canvas.display.${panel === 'background' ? 'background' : panel === 'layout' ? 'layout' : 'edges'}`)}>
       <header><strong>{panel === 'background' ? t('canvas.display.background') : panel === 'layout' ? t('canvas.display.layout') : t('canvas.display.edges')}</strong>

@@ -1,4 +1,8 @@
 {
+  "canvas.minimap.label": "画布小地图",
+  "canvas.view.connections": "隐藏节点连线",
+  "canvas.zoom.precise": "精确缩放",
+  "canvas.view.controls": "画布视图控制",
   "assets.browser.title": "素材库",
   "assets.browser.actions": "素材库操作",
   "assets.browser.eyebrow": "参考内容",

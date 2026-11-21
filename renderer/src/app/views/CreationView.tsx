@@ -12,6 +12,7 @@ import {
 } from "react";
 import type { Viewport } from "@xyflow/react";
 import { CanvasStartup } from "../canvas/CanvasStartup";
+import { IconSymbol } from "../components/IconSymbol";
 import { BottomModeBar } from "../canvas/BottomModeBar";
 import { PoseLibraryModal } from "../canvas/PoseLibraryModal";
 import { ProjectVersionHistory } from "../components/ProjectVersionHistory";
@@ -87,10 +88,25 @@ function CreationCanvas({ data, controller }: { data: CreationViewData; controll
   const [canvasReady, setCanvasReady] = useState(false);
   const [agentStatus, setAgentStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const markCanvasReady = useCallback(() => setCanvasReady(true), []);
-  const [agentPanelVisible, setAgentPanelVisible] = useState(true);
-  const starting = !canvasReady || (agentPanelVisible && agentStatus === 'loading');
+  const [agentPanelVisible, setAgentPanelVisible] = useState(false);
+  const [pendingMention, setPendingMention] = useState<string | null>(null);
+  function openAgentPanel() {
+    if (!agentPanelVisible) setAgentStatus('loading');
+    setAgentPanelVisible(true);
+  }
+  function mentionNode(nodeId: string) {
+    if (agentPanelVisible && agentStatus === 'ready') dispatchCanvasNodeMention(nodeId);
+    else { setPendingMention(nodeId); openAgentPanel(); }
+  }
+  useEffect(() => {
+    if (!agentPanelVisible || agentStatus !== 'ready' || !pendingMention) return;
+    dispatchCanvasNodeMention(pendingMention);
+    setPendingMention(null);
+  }, [agentPanelVisible, agentStatus, pendingMention]);
+  const starting = !canvasReady;
   const [versionHistoryOpen, setVersionHistoryOpen] = useState(false);
   const [poseLibraryOpen, setPoseLibraryOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [agentPanelWidth, setAgentPanelWidth] = useState(() => {
     const saved = Number(window.localStorage.getItem("shotloom:agent-panel-width-v4"));
     const preferred = Math.round(window.innerWidth * 0.4);
@@ -152,6 +168,7 @@ function CreationCanvas({ data, controller }: { data: CreationViewData; controll
       >
         <WorkflowCanvas
           onReady={markCanvasReady}
+          onOpenShortcuts={() => setShortcutsOpen(true)}
           nodes={data.nodes}
           edges={data.edges}
           selectedEdgeId={data.selectedEdgeId ?? null}
@@ -160,12 +177,14 @@ function CreationCanvas({ data, controller }: { data: CreationViewData; controll
           nodeActions={controller.nodes}
           controller={controller.canvas}
           onAutoLayout={controller.autoLayout}
-          addNodeMention={dispatchCanvasNodeMention}
+          addNodeMention={mentionNode}
           onOpenPoseLibrary={() => setPoseLibraryOpen(true)}
           overlay={(controls) => (
             <BottomModeBar
               {...controls}
               materialOpen={picker}
+              shortcutsOpen={shortcutsOpen}
+              onCloseShortcuts={() => setShortcutsOpen(false)}
               canUndo={data.history.canUndo}
               canRedo={data.history.canRedo}
               shortcutLabels={data.shortcutLabels}
@@ -197,8 +216,8 @@ function CreationCanvas({ data, controller }: { data: CreationViewData; controll
         {agentPanelVisible ? (
           <HarnessChatPanel agentId={CANVAS_AGENT_ID} onStatusChange={setAgentStatus} onClose={() => setAgentPanelVisible(false)} />
         ) : (
-          <button className="forge-agent-reopen" onClick={() => setAgentPanelVisible(true)}>
-            {t("ui.CreationView.text.e178fa71")}</button>
+          <button type="button" className="forge-agent-reopen" aria-expanded={false} onClick={openAgentPanel}>
+            <IconSymbol name="chat" />{t("ui.CreationView.text.e178fa71")}</button>
         )}
       <ProjectVersionHistory
         open={versionHistoryOpen}

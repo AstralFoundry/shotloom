@@ -78,6 +78,12 @@
   /* 压在画面素材上的波形带：属于素材而不是界面，暗色主题不镜像（同 --overlay-*）。 */
   --accent: #202020;
 
+  /* Media data colors follow the reference minimap and remain stable across themes. */
+  --media-map-image: #10b981;
+  --media-map-video: #f97316;
+  --media-map-audio: #a855f7;
+  --media-map-node: #6b7280;
+
   /* Status: the only hues allowed outside the accent, and only for real
      states (configured / incomplete / error). Low chroma so they stay quiet
      next to black-and-white chrome; each has a wash for its tag background. */

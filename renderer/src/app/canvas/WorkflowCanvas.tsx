@@ -6,8 +6,10 @@ import { canvasInputIndex } from './canvasInputIndex';
 import { createCanvasWheelZoom, zoomViewportAt } from "./canvasWheelZoom";
 import { CanvasConnectionDraft, canvasEdgeTypes } from "./CanvasConnection";
 import { CANVAS_WHEEL_IDLE_MS, createCanvasWheelOwnership, createCanvasWheelPan } from './canvasWheelPan';
-import { Button, Dropdown } from 'antd';
+import { CircleDashed, Search, Map as MapIcon, CircleHelp } from 'lucide-react';
+import { Button, Dropdown, Popover, Slider } from 'antd';
 import { alignCanvasSelection, type CanvasAlignment } from '../../utils/canvasSelectionLayout';
+import { CanvasMinimap } from "./CanvasMinimap";
 import { CanvasDisplaySettings } from "./CanvasDisplaySettings";
 import { canvasEdgeVisible, type CanvasAppearance } from "../../utils/canvasAppearance";
 import { settingsStore, saveAppSettings } from "../../store/settingsStore";
@@ -39,7 +41,6 @@ import {
   ConnectionMode,
   type Edge,
   Handle,
-  MiniMap,
   type Node,
   type NodeChange,
   type OnNodeDrag,
@@ -77,6 +78,7 @@ import { canvasSectionMembers, canvasSectionDropTarget } from "../../domain/grap
 import { ARTIFACT_DRAG_TYPE } from "../agent-chat/artifactHelpers";
 import {
   canvasMenuPosition,
+  canvasBottomRowLayout,
   screenPixel,
   workflowNodeDimensions as nodeDimensions,
 } from "./canvasScreenGeometry";
@@ -278,8 +280,6 @@ function CanvasNodeContent({
 }
 const MIN_CANVAS_ZOOM = 0.1;
 const MAX_CANVAS_ZOOM = 4;
-/** 小地图的 svg 尺寸：面板盒由它决定，画布样式不得再用另一套数字裁它。 */
-const MINIMAP_SIZE = { width: 168, height: 106 };
 const MEDIA_PREVIEW_ZOOM_SETTLE_MS = 220;
 /** 空画布示意图的三张幽灵节点：portX 决定连接桩落在卡片左边还是右边。 */
 const CANVAS_EMPTY_NODES = [
@@ -757,9 +757,11 @@ export interface CanvasDockControls {
   panMode: boolean;
   setPanMode: (enabled: boolean) => void;
   createNode: (type: string) => void;
+  openCanvasSettings: (panel: 'background' | 'edges') => void;
 }
 
 export function WorkflowCanvas({
+  onOpenShortcuts,
   nodes,
   edges,
   selectedEdgeId,
@@ -781,6 +783,7 @@ export function WorkflowCanvas({
   nodeActions: WorkflowNodeActions;
   controller: WorkflowCanvasController;
   overlay?: (controls: CanvasDockControls) => ReactNode;
+  onOpenShortcuts?: () => void;
   addNodeMention?: (nodeId: string) => void;
   onOpenPoseLibrary?: (() => void) | undefined;
   onReady?: () => void;
@@ -808,6 +811,9 @@ export function WorkflowCanvas({
     try { await saveAppSettings({ canvasAppearance: { ...settingsStore.canvasAppearance, ...patch } }); }
     catch (cause) { nodeActions.notify(cause instanceof Error ? cause.message : String(cause)); }
   };
+  const [displayRequest, setDisplayRequest] = useState<{ panel: 'background' | 'edges'; revision: number }>();
+  const openCanvasSettings = (panel: 'background' | 'edges') => setDisplayRequest(current => ({ panel, revision: (current?.revision || 0) + 1 }));
+  const [zoomMenuOpen, setZoomMenuOpen] = useState(false);
   const [minimapVisible, setMinimapVisible] = useState(false);
   const [historyNodeId, setHistoryNodeId] = useState<string | null>(null);
   const [zoomPercent, setZoomPercent] = useState(() => Math.round(initialZoom * 100));
@@ -819,6 +825,24 @@ export function WorkflowCanvas({
   const previewZoomTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const viewportAnimationFrame = useRef<number | null>(null);
   const canvasRoot = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const root = canvasRoot.current;
+    const dock = root?.querySelector<HTMLElement>('.bottom-mode-switch');
+    const controls = root?.querySelector<HTMLElement>('.canvas-corner-controls');
+    if (!root || !dock || !controls) return;
+    const measure = () => {
+      const bounds = root.getBoundingClientRect();
+      const view = controls.getBoundingClientRect();
+      const bar = dock.getBoundingClientRect();
+      const layout = canvasBottomRowLayout(view, { left: bounds.left + 16, right: bounds.right - 16 }, bar.width, 16);
+      root.style.setProperty('--canvas-main-toolbar-shift', `${layout.shift}px`);
+      root.style.setProperty('--canvas-view-bottom', layout.stacked ? `${bar.height + 32}px` : `${16 + (bar.height - view.height) / 2}px`);
+    };
+    const observer = new ResizeObserver(measure);
+    for (const element of [root, dock, controls]) observer.observe(element);
+    measure();
+    return () => observer.disconnect();
+  }, []);
   const [panMode, setPanMode] = useState(false);
   const [canvasOverlayRoot, setCanvasOverlayRoot] = useState<HTMLElement | null>(null);
   const menuLayer = useRef<CanvasMenuLayerHandle>(null);
@@ -1534,13 +1558,7 @@ export function WorkflowCanvas({
           >
             {instance && onReady && <CanvasReadySignal count={renderedNodes.length} onReady={onReady} />}
             {minimapVisible && (
-              <MiniMap
-                className="canvas-minimap"
-                style={{ width: MINIMAP_SIZE.width, height: MINIMAP_SIZE.height }}
-                pannable
-                zoomable={false}
-                onNodeClick={(_event, node) => minimapNodeClick.current(node.id)}
-              />
+              <CanvasMinimap onNodeClick={nodeId => minimapNodeClick.current(nodeId)} onViewportChange={controller.saveViewport} />
             )}
           </ReactFlow>
           {!visible.length && (
@@ -1584,45 +1602,43 @@ export function WorkflowCanvas({
           </div>}
           <div
             className="canvas-corner-controls"
+            role="toolbar" aria-label={t('canvas.view.controls')}
             onPointerDown={(event) => event.stopPropagation()}
           >
-            <div className="canvas-zoom-group">
-              <button type="button" title={t("ui.WorkflowCanvas.title.b7f9e266")} onClick={() => changeZoom(-0.1)}>
-                −
-              </button>
-              <button
-                className="canvas-zoom-value"
-                type="button"
-                title={t("ui.WorkflowCanvas.title.d598a5cd")}
-                onClick={fitCanvasView}
-              >
-                {zoomPercent}%
-              </button>
-              <button type="button" title={t("ui.WorkflowCanvas.title.55c0d6cc")} onClick={() => changeZoom(0.1)}>
-                ＋
-              </button>
-              <span aria-hidden="true" />
-              <button
-                type="button"
-                title={t("ui.WorkflowCanvas.title.d598a5cd")}
-                onClick={fitCanvasView}
-              >
-                <IconSymbol name="maximize" />
-              </button>
-            </div>
-            <span className="canvas-corner-divider" aria-hidden="true" />
-            <CanvasDisplaySettings appearance={appearance} onChange={updateAppearance} onAutoLayout={onAutoLayout} />
-            <span className="canvas-corner-divider" aria-hidden="true" />
+            <div className="canvas-view-pill">
+              <CanvasDisplaySettings appearance={appearance} onChange={updateAppearance} onAutoLayout={onAutoLayout} layoutOnly {...(displayRequest ? { requestedPanel: displayRequest } : {})} />
+              <button className="canvas-corner-map" type="button" title={t('canvas.view.connections')} aria-label={t('canvas.view.connections')} aria-pressed={appearance.edges === 'hidden'} onClick={() => void updateAppearance({ edges: appearance.edges === 'hidden' ? 'all' : 'hidden' })}><CircleDashed /></button>
+              <span className="canvas-corner-divider" aria-hidden="true" />
+              <div className="canvas-zoom-group">
+              <Popover trigger="click" placement="topLeft" open={zoomMenuOpen} onOpenChange={setZoomMenuOpen} arrow={false} styles={{ container: { padding: 4 } }} content={
+                <div className="canvas-precision-menu" onKeyDown={event => { if (event.key === 'Escape') setZoomMenuOpen(false); }}>
+                  <button type="button" onClick={() => changeZoom(0.1)}><IconSymbol name="plus" />{t('ui.WorkflowCanvas.title.55c0d6cc')}</button>
+                  <button type="button" onClick={() => changeZoom(-0.1)}><IconSymbol name="minus" />{t('ui.WorkflowCanvas.title.b7f9e266')}</button>
+                  <hr />
+                  <button type="button" onClick={fitCanvasView}><IconSymbol name="maximize" />{t('ui.WorkflowCanvas.title.d598a5cd')}</button>
+                  <button type="button" onClick={() => changeZoom(1 - (instance?.getZoom() || 1))}><IconSymbol name="undo" />100%</button>
+                  <hr />
+                  <div className="canvas-precision-range"><Slider min={MIN_CANVAS_ZOOM * 100} max={200} step={1} value={zoomPercent} tooltip={{ open: false }} ariaLabelForHandle={t('canvas.zoom.precise')} onChange={percent => changeZoom(percent / 100 - (instance?.getZoom() || 1))} /><span>{zoomPercent}%</span></div>
+                  <div className="canvas-precision-stops">{[25, 50, 100, 200].map(percent => <button type="button" key={percent} onClick={() => changeZoom(percent / 100 - (instance?.getZoom() || 1))}>{percent}%</button>)}</div>
+                </div>
+              }>
+                <button className="canvas-zoom-value" type="button" title={t('canvas.zoom.precise')} aria-label={t('canvas.zoom.precise')} aria-haspopup="dialog" aria-expanded={zoomMenuOpen}>
+                  <Search /><span>{zoomPercent}%</span>
+                </button>
+              </Popover>
+              </div>
             <button
               className={`canvas-corner-map${minimapVisible ? " active" : ""}`}
               type="button"
-              title={t("ui.WorkflowCanvas.title.088baf55")}
+              title={t("ui.WorkflowCanvas.title.088baf55")} aria-label={t("ui.WorkflowCanvas.title.088baf55")} aria-pressed={minimapVisible}
               onClick={() => setMinimapVisible((visible) => !visible)}
             >
-              <IconSymbol name="map" />
+              <MapIcon />
             </button>
+            </div>
+            <button type="button" className="canvas-view-help" aria-label={t('ui.BottomModeBar.title.31e33107')} title={t('ui.BottomModeBar.title.31e33107')} onClick={onOpenShortcuts}><CircleHelp /></button>
           </div>
-          {overlay?.({ panMode, setPanMode, createNode: createNodeFromDock })}
+          {overlay?.({ panMode, setPanMode, createNode: createNodeFromDock, openCanvasSettings })}
         </section>
         <GenerationHistoryDialog
           open={Boolean(historyNodeId)}

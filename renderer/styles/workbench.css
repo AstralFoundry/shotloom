@@ -268,14 +268,14 @@
 
 .bottom-mode-switch {
   position: absolute;
-  left: 50%;
-  bottom: 12px;
+  left: calc(50% + var(--canvas-main-toolbar-shift, 0px));
+  bottom: 16px;
   z-index: 7;
   transform: translateX(-50%);
   max-width: calc(100% - 16px);
   overflow-x: auto;
   scrollbar-width: none;
-  border: 1px solid var(--line-strong);
+  border: 1px solid var(--elevated-border);
   border-radius: 999px;
   padding: 4px;
   display: flex;
@@ -293,8 +293,8 @@
 
 .bottom-mode-group > button {
   flex: 0 0 auto;
-  width: 32px;
-  height: 32px;
+  width: 30px;
+  height: 30px;
   padding: 0;
   border: 0;
   border-radius: 50%;
@@ -333,9 +333,9 @@
 
 .bottom-mode-group > button > svg,
 .canvas-dock-menu .ant-dropdown-menu-item-icon {
-  width: 18px;
-  height: 18px;
-  stroke-width: 1.8;
+  width: 16px;
+  height: 16px;
+  stroke-width: 1.75;
 }
 
 .canvas-shortcut-help {
@@ -393,8 +393,12 @@
 .forge-agent-reopen {
   position: absolute;
   top: 10px;
-  right: 14px;
+  right: 16px;
   z-index: 80;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   width: var(--agent-reopen-width);
   height: var(--canvas-toolbar-height-compact);
   border: 1px solid var(--line-strong);
@@ -405,4 +409,10 @@
   box-shadow: var(--shadow-float);
   font-size: var(--text-body-12);
   font-weight: 600;
+}
+
+.forge-agent-reopen svg { width: var(--icon-sm); height: var(--icon-sm); }
+.bottom-mode-group > button { transition: background-color var(--duration-fast) var(--ease-std), color var(--duration-fast) var(--ease-std); }
+@media (pointer: coarse) {
+  .bottom-mode-group > button { width: 40px; height: 40px; }
 }
