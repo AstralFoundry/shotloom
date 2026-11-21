@@ -4,6 +4,7 @@ export interface CanvasSizedNode {
   type: string;
   canvasWidth?: unknown;
   canvasHeight?: unknown;
+  canvasSizeManuallySet?: unknown;
   config?: unknown;
   uploadedFile?: unknown;
   generatedOutputs?: unknown;
@@ -15,8 +16,9 @@ export const CANVAS_NODE_SIZE_SCALE = 1;
 export const CANVAS_NODE_SIZING_VERSION = 5;
 
 const scaled = (value: number) => Math.round(value * CANVAS_NODE_SIZE_SCALE);
-const MEDIA_NODE_WIDTH = scaled(480);
-const MEDIA_PREVIEW_MAX_WIDTH = scaled(360);
+const MEDIA_NODE_WIDTH = scaled(720);
+const MEDIA_PREVIEW_MAX_WIDTH = scaled(720);
+const LEGACY_PREVIEW_WIDTH = scaled(360);
 const MEDIA_NODE_HEIGHT = MEDIA_NODE_WIDTH * 9 / 16;
 const LEGACY_MEDIA_NODE_WIDTH = scaled(350);
 
@@ -34,28 +36,27 @@ export function defaultCanvasNodeDimensions(type: string) {
   return { width: scaled(370), height: scaled(270) };
 }
 
-const MEDIA_NODE_MIN_SIZE = scaled(100);
-export const MEDIA_NODE_MAX_HEIGHT = scaled(260);
+export const MEDIA_NODE_MAX_HEIGHT = scaled(520);
 
 function usesLegacyMediaDefault(type: string, width: number, height: number) {
   if (type !== "imageGeneration" && type !== "videoGeneration") return false;
   const legacyHeight = scaled(type === "imageGeneration" ? 350 : 280);
   return (Math.abs(width - LEGACY_MEDIA_NODE_WIDTH) <= 2
     && (Math.abs(height - legacyHeight) <= 2 || Math.abs(height - LEGACY_MEDIA_NODE_WIDTH * 9 / 16) <= 2))
-    || (Math.abs(width - MEDIA_PREVIEW_MAX_WIDTH) <= 2
-      && Math.abs(height - MEDIA_PREVIEW_MAX_WIDTH * 9 / 16) <= 2);
+    || (Math.abs(width - LEGACY_PREVIEW_WIDTH) <= 2
+      && Math.abs(height - LEGACY_PREVIEW_WIDTH * 9 / 16) <= 2);
 }
 
-/** Fit the source into the reference preview bounds, with a floor for extreme ratios. */
-export function mediaCanvasNodeDimensions(naturalWidth: number, naturalHeight: number) {
-  if (!(naturalWidth > 0) || !(naturalHeight > 0)) {
-    return defaultCanvasNodeDimensions("imageGeneration");
+/** Match the reference canvas: bounded image previews and readable video controls. */
+export function mediaCanvasNodeDimensions(naturalWidth: number, naturalHeight: number, type = "imageGeneration") {
+  if (!Number.isFinite(naturalWidth) || !Number.isFinite(naturalHeight) || !(naturalWidth > 0) || !(naturalHeight > 0)) {
+    return defaultCanvasNodeDimensions(type);
   }
-  const scale = Math.min(MEDIA_PREVIEW_MAX_WIDTH / naturalWidth, MEDIA_NODE_MAX_HEIGHT / naturalHeight);
-  return {
-    width: Math.max(MEDIA_NODE_MIN_SIZE, Math.round(naturalWidth * scale * 2) / 2),
-    height: Math.max(MEDIA_NODE_MIN_SIZE, Math.round(naturalHeight * scale * 2) / 2),
-  };
+  const limit = Math.min(MEDIA_PREVIEW_MAX_WIDTH / naturalWidth, MEDIA_NODE_MAX_HEIGHT / naturalHeight);
+  const scale = type === "videoGeneration"
+    ? Math.max(Math.min(1, limit), 420 / naturalWidth, 236 / naturalHeight)
+    : Math.min(limit, Math.max(Math.min(1, limit), 320 / Math.max(naturalWidth, naturalHeight)));
+  return { width: naturalWidth * scale, height: naturalHeight * scale };
 }
 
 export function reconcileMediaNodeDimensions(
@@ -63,10 +64,18 @@ export function reconcileMediaNodeDimensions(
   naturalWidth: number,
   naturalHeight: number,
 ) {
-  const target = mediaCanvasNodeDimensions(naturalWidth, naturalHeight);
+  if (node.canvasSizeManuallySet) return null;
+  const target = mediaCanvasNodeDimensions(naturalWidth, naturalHeight, node.type);
   const storedWidth = Number(node.canvasWidth);
   const storedHeight = Number(node.canvasHeight);
   if (!(storedWidth > 0) || !(storedHeight > 0)) return target;
+  // Recognize the previous automatic 360×260 fit without resizing custom bounds.
+  const oldScale = Math.min(360 / naturalWidth, 260 / naturalHeight);
+  const oldWidth = Math.max(100, Math.round(naturalWidth * oldScale * 2) / 2);
+  const oldHeight = Math.max(100, Math.round(naturalHeight * oldScale * 2) / 2);
+  if (Math.abs(storedWidth - oldWidth) < 0.01 && Math.abs(storedHeight - oldHeight) < 0.01) {
+    return Math.abs(storedWidth - target.width) < 0.01 && Math.abs(storedHeight - target.height) < 0.01 ? null : target;
+  }
   const sourceRatio = naturalWidth / naturalHeight;
   if (Math.abs(storedWidth / storedHeight - sourceRatio) / sourceRatio <= 0.02) return null;
   const typeDefaults = defaultCanvasNodeDimensions(node.type);
@@ -75,6 +84,7 @@ export function reconcileMediaNodeDimensions(
     (Math.abs(storedWidth - typeDefaults.width) <= 2 &&
       Math.abs(storedHeight - typeDefaults.height) <= 2) ||
     usesLegacyMediaDefault(node.type, storedWidth, storedHeight) ||
+    (Math.abs(storedWidth - 480) <= 2 && Math.abs(storedHeight - 270) <= 2) ||
     (configuredDefaults != null &&
       Math.abs(storedWidth - configuredDefaults.width) <= 2 &&
       Math.abs(storedHeight - configuredDefaults.height) <= 2);
@@ -92,7 +102,11 @@ function configuredMediaDimensions(node: CanvasSizedNode) {
   if (!raw || raw === "auto" || raw === "adaptive") return null;
   const match = raw.match(/^(\d+(?:\.\d+)?)\s*[:x/]\s*(\d+(?:\.\d+)?)$/);
   if (!match) return null;
-  return mediaCanvasNodeDimensions(Number(match[1]), Number(match[2]));
+  const width = Number(match[1]);
+  const height = Number(match[2]);
+  if (!(width > 0) || !(height > 0)) return null;
+  const scale = Math.min(MEDIA_PREVIEW_MAX_WIDTH / width, MEDIA_NODE_MAX_HEIGHT / height);
+  return mediaCanvasNodeDimensions(width * scale, height * scale, node.type);
 }
 
 export function canvasNodeDimensions(node: CanvasSizedNode) {

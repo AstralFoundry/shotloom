@@ -128,7 +128,7 @@ test('分镜产出保持镜头身份，图片与视频分列排布，镜头内�
   const video = script.ensureStoryboardShotNode(node.id, shot.id, 'video');
   assert.equal(script.storyboardShots(node)[0].dialogue, '有人吗？');
   assert.equal(script.storyboardShots(node)[0].durationSeconds, 9);
-  assert.deepEqual([image.canvasWidth, image.canvasHeight], [480, 270]);
+  assert.deepEqual([image.canvasWidth, image.canvasHeight], [720, 405]);
   assert.ok(image.x + image.canvasWidth < video.x);
   const second = script.storyboardShots(node)[1];
   const nextVideo = script.ensureStoryboardShotNode(node.id, second.id, 'video');
