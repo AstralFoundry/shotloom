@@ -24,7 +24,6 @@ function fixture(agentId = 'canvas-primary', nodeId) {
   const conversation = sessions.createHarnessSession(projects.store.project, {
     agentId, ...(nodeId && agentId === 'text-primary' ? { textNodeId: nodeId } : {}),
     ...(nodeId && agentId === 'editor-primary' ? { editorNodeId: nodeId } : {}),
-    ...(nodeId && agentId === 'director-primary' ? { directorNodeId: nodeId } : {}),
   });
   const binding = { sessionId: crypto.randomUUID(), projectKey: identity.getAgentProjectKey(), conversationId: conversation.id, agentId, ...(nodeId ? { nodeId } : {}) };
   const catalog = tools.productToolCatalog(binding);
@@ -150,8 +149,8 @@ test('empty section creation replays safely and automatically arranges later add
   assert.deepEqual([projects.store.project.nodes[1].x, projects.store.project.nodes[1].y], [-468, -144]);
 });
 
-test('canvas, editor and director all receive video frame tool with file path and contact sheet options', () => {
-  for (const agentId of ['canvas-primary', 'editor-primary', 'director-primary']) {
+test('canvas and editor all receive video frame tool with file path and contact sheet options', () => {
+  for (const agentId of ['canvas-primary', 'editor-primary']) {
     const { catalog } = fixture(agentId);
     const frame = catalog.find(tool => tool.name === 'canvas_media_frame');
     assert.ok(frame, `${agentId} should receive canvas_media_frame`);
@@ -163,33 +162,6 @@ test('canvas, editor and director all receive video frame tool with file path an
     assert.equal(frame.parameters.properties.timesSec.maxItems, 24);
   }
   assert.equal(fixture('text-primary').catalog.some(tool => tool.name === 'canvas_media_frame'), false);
-});
-
-test('director batch exposes rotation animation with hinge pivot and time keys', async () => {
-  const { catalog } = fixture('director-primary', 'director-scene');
-  const batch = catalog.find(tool => tool.name === 'director_desk_batch');
-  assert.ok(batch);
-  const editSchema = batch.parameters.properties.edits.items;
-  assert.ok(editSchema.properties.operation.enum.includes('set_rotation_animation'));
-  assert.ok(editSchema.properties.pivot);
-  assert.ok(editSchema.properties.keys);
-
-  const { validateToolInput } = await env.load('agent/core/toolRegistry');
-  const edit = {
-    operation: 'set_rotation_animation', entityId: 'door-leaf', pivot: [0.75, 0, 0],
-    keys: [
-      { timeSec: 0, rotationDegrees: [0, 0, 0] },
-      { timeSec: 2, rotationDegrees: [0, 90, 0], easing: 'smooth' },
-    ],
-  };
-  assert.doesNotThrow(() => validateToolInput(batch.parameters, { expectedSessionId: 'session-a', expectedRevision: 1, edits: [edit] }));
-  assert.throws(() => validateToolInput(batch.parameters, { expectedRevision: 1, edits: [edit] }), /expectedSessionId/);
-  assert.doesNotThrow(() => validateToolInput(batch.parameters, {
-    expectedSessionId: 'session-a', expectedRevision: 1, edits: [{ operation: 'set_rotation_animation', entityId: 'door-leaf', keys: null }],
-  }));
-  assert.throws(() => validateToolInput(batch.parameters, {
-    expectedSessionId: 'session-a', expectedRevision: 1, edits: [{ ...edit, pivot: [0, 0] }],
-  }), /pivot/);
 });
 
 test('editor receives supported OpenReel schemas and retains approval and node boundaries', async () => {
@@ -362,17 +334,6 @@ test('product boundary rejects forged bindings, switched project instances and d
   // The same path and project id with a new mounted instance is still a different owner.
   projects.store.project = { ...projects.store.project };
   await assert.rejects(tools.executeProductRequest(request(binding, 'canvas_list_nodes')), /项目已经切换/);
-});
-
-test('director session reads its bound scene and rejects a changed node binding', async () => {
-  const { binding } = fixture('director-primary', 'director-scene');
-  projects.store.project.nodes.push({ id: 'director-scene', type: 'threeDDirector', title: 'Director scene' });
-  const snapshot = await tools.executeProductRequest(request(binding, 'project_snapshot'));
-  assert.ok(snapshot.result);
-  const canvas = await tools.executeProductRequest(request(binding, 'canvas_list_nodes'));
-  assert.ok(canvas.result);
-  projects.store.project.harnessSessions.find(item => item.id === binding.conversationId).directorNodeId = 'another-scene';
-  await assert.rejects(tools.executeProductRequest(request(binding, 'project_snapshot')), { message: translate('agent.bindingNodeMissing') });
 });
 
 test('real text draft writes use native bound node and replay one call without repeating the write', async () => {

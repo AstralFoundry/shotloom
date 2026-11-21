@@ -1,0 +1,3 @@
+mannequin.glb — mannequin mesh and rig from "Universal Animation Library" (Standard) by Quaternius.
+Source: https://quaternius.itch.io/universal-animation-library (mirror: github.com/J-Ponzo/gltf-universal-animation-library)
+License: CC0 1.0 Universal (public domain). Animations, UVs and textures were stripped for size.

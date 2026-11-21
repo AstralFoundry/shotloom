@@ -14,13 +14,17 @@
 
 ## 第三方源码目录
 
-第三方源码统一放在项目根目录 `vendor/`：OpenReel 位于 `vendor/openreel/`，三维导演台位于 `vendor/shotloom-director-desk/`（从 AstralFoundry/shotloom-director-desk 引入）。旧版导演台源码可从 Git 历史回溯，不作为运行入口。不要在 `renderer/src` 下再建 vendor。新导演台单独编译到 `renderer/public/director-desk-app/`，只通过 iframe 运行；产品通过 `app/adapters/directorDeskBridge.ts` 的 postMessage 协议交互，不直接导入其运行时状态。根 `npm run typecheck` 同时检查产品与导演台，模块分层检查也覆盖导演台源码。
+第三方源码统一放在项目根目录 `vendor/`：OpenReel 位于 `vendor/openreel/`，世界引擎（open-ai-canvas 性能预演工作台）位于 `vendor/canvas-previs/`，固定在 open-ai-canvas `0dcf3f6` 快照并记录于该目录 README。不要在 `renderer/src` 下再建 vendor。世界引擎单独编译到 `renderer/public/previs-world-app/`，只通过 iframe 运行；产品通过 `app/adapters/previsBridge.ts` 的 postMessage 协议交互，不直接导入其运行时状态。根 `npm run typecheck` 同时检查产品与世界引擎，模块分层检查也覆盖这份 vendored 源码。
 
-画布 Agent 通过 `delegate_director` 委派绑定场景的导演子 Agent；后台宿主按需加载节点或独立工作区场景，不切换用户导航或当前聊天。工具按工程实例与导演台节点定位 iframe，只有已加载文档的会话才能接收命令；子 Agent 的写入沿用父会话审批。
+世界引擎的文档是一份纯 JSON 场景（`PrevisScene`）：镜头、机位、灯光、天空/天气/地面和关键帧都在其中，产品只保存与转交，不解释渲染。画布节点、整页工作区与后台恢复共用同一份协议；节点数据存在 `directorData.scene`（沿用历史字段名以兼容既有工程），节点类型标识仍为 `threeDDirector`。
 
-导演台 `revision` 是 iframe 会话内计数；批量写入必须同时携带快照的 `sessionId`（`expectedSessionId`）和 `revision`（`expectedRevision`）。重复 ready/load 初始化必须幂等，不能重新载入旧文档。冲突回执附带最近 32 个版本范围内的 `revisionDiff`；缓存缺失时明确标记不完整。`autoPreview` 在写入成功后取帧，预览失败保留 `applied: true`，避免调用方重复应用批次。导出媒体的 `directorContext` 只保存导出时的工程事实，并随素材和画布节点传递；由模型根据这些事实与真实画面编写下游提示词，应用不猜测景别、剧情或内容质量。
+引擎通过 `ready` 握手、`scene-changed` 同步每次提交后的完整场景，节点据此保存并驱动卡片；`captures` 回写构图/深度/法线/骨骼截图与白膜/深度视频，宿主用 `nodeActions.exportDirectorAsset` 落成节点；`add-canvas` 添加单张截图，`add-prompt` 添加上游编译的镜头提示词，`flush` 请求实际保存。操作携带 requestId，宿主完成后用 `result` 确认成功或报告错误，工作台不能在文件或节点创建前宣称交付成功。构图/白膜截图同时建立带截图输入和上游镜头提示词的视频生成节点。宿主通过 `init`、`scene`、`images` 下发数据，同 ID 的外部修订会更新打开的工作台，图片更新不重新采用旧场景。导出媒体不携带应用猜测的景别或剧情，模型需要据此编写下游提示词时必须自己读取真实画面。
 
-导演台在线模型走同源 `/api/polyfork/`，Electron 主进程与 Vite 开发服务共用 `electron/core/polyfork.ts`。处理器按需从固定的 Polyfork 主机获取免费 CC BY 4.0 GLB，不依赖云端登录或 Supabase。下载成功后写入同源 IndexedDB，资产侧栏「本地 → 已下载」可离线复用，且目录读取不加载模型文件。场景资源与下载 ZIP 均保留逐模型署名和许可；工程保存独立副本，重开导演台时先准备模型资源再载入场景，不依赖本地资产库或联网。
+画布节点卡片用上游的 PREVIS 布局：场景有对象时，嵌入 `card.html` 的迷你俯视视口（场景通过 `shotloom:previs-card` 下发，iframe 只渲染缩略图并禁用指针事件，点击仍由卡片打开工作台）；没有对象时显示「尚未生成预览」。这样卡片外观与参考项目一致，也不需要把 vendored 渲染器导入产品模块。
+
+世界引擎的 3D 素材库属于引擎自身：导入的 glb/gltf 与截图产物写进 iframe 内的 IndexedDB（`host/files.ts`），场景文档只存 storageKey，因此仍是可移植的 JSON。引擎自带的程序化布景、天气与天空不依赖联网，也不需要 Polyfork 或云端登录；历史导演台的 Polyfork 在线模型服务随旧引擎一并移除。
+
+上游人偶模型与 CC0 许可证随独立引擎发行，资源路径相对于 iframe。视频使用上游 FFmpeg.wasm 转码逻辑，worker、JS 和 WASM 均打入产物，按需加载，不依赖 CDN；白膜/深度视频输出真实 MP4，按镜头帧率和时长处理。底层存储写入失败必须报错，不能用仅当次会话有效的 blob URL 冒充持久素材。
 
 ## 官方 Harness 客户端隔离
 
@@ -41,7 +45,7 @@ Agent 模型请求由官方 `dsh-llm-pi-ai` 适配器序列化。连接级 `prov
 
 剪辑 Agent 的原生工具共 309 个，全量 schema 约 4.8 万 token。因此 `core/openReelTools.ts` 维护一个核心集常驻上下文，其余由 `editor_find_tools` 按关键词在会话内解锁。新增原生工具时默认不进入核心集；只有基础剪辑轮次真正需要的能力才加进 `EDITOR_CORE_TOOL_NAMES`。
 
-`tests/agent-prompt-tool-references.test.mjs` 会校验提示词、契约与 Skill 里引用的工具名是否真实存在，并校验导演台命令表每条命令都有参数契约。改动提示词时先跑它。
+`tests/agent-prompt-tool-references.test.mjs` 会校验提示词、契约与 Skill 里引用的工具名是否真实存在。改动提示词时先跑它。
 
 ## 厂商插件与内部协议
 
@@ -67,7 +71,7 @@ macOS 试包也必须有完整签名：`electron-package.mjs` 使用 `CSC_NAME` 
 
 新媒体写入当前项目的 `assets/`，不再优先写入旧的 library/series 共享目录。通用资产库保留全局原件，加入项目或拖入画布时复制一份；同项目重复使用复用项目副本。新文件记录的 `projectAssetOwnerId` 标识所有者，项目副本不再发布到旧的跨画布共享清单。
 
-删除节点后，把关联的项目文件登记到持久化的 `pendingAssetCleanup`。最后一个当前引用消失时移除素材与项目资产条目；撤销恢复节点时自动恢复条目。项目保存成功后才检查清理队列：其他节点、任务、剪辑、导演台文档、画布撤销/重做、历史版本、剪辑器独立数据库记录与未保存草稿均保护文件。确认无引用才移入系统回收站；读取失败、项目切换或回收失败均保留文件，后续保存自动重查。清理队列不进入历史版本，避免恢复旧版本时重新执行旧清理任务。
+删除节点后，把关联的项目文件登记到持久化的 `pendingAssetCleanup`。最后一个当前引用消失时移除素材与项目资产条目；撤销恢复节点时自动恢复条目。项目保存成功后才检查清理队列：其他节点、任务、剪辑、世界引擎场景文档、画布撤销/重做、历史版本、剪辑器独立数据库记录与未保存草稿均保护文件。确认无引用才移入系统回收站；读取失败、项目切换或回收失败均保留文件，后续保存自动重查。清理队列不进入历史版本，避免恢复旧版本时重新执行旧清理任务。
 
 旧的共享引用和外部文件缺少项目独占所有权，不自动删除。原生清理还校验真实文件路径在当前项目 `assets/` 内，拒绝越界路径及通过符号链接指向外部的文件。
 

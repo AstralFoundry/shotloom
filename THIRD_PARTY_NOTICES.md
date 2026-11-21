@@ -36,16 +36,16 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-## Shotloom Director Desk
+## Open AI Canvas — previs world engine
 
-Source: https://github.com/AstralFoundry/shotloom-director-desk
-Local source: `vendor/shotloom-director-desk/`
+Source: https://github.com/ddcat-ai/open-ai-canvas
+Local source: `vendor/canvas-previs/` (snapshot `0dcf3f6`)
 License: MIT. The upstream license is preserved in
-`vendor/shotloom-director-desk/LICENSE`.
+`vendor/canvas-previs/LICENSE`.
 
 MIT License
 
-Copyright (c) 2026 DirectorDesk contributors
+Copyright (c) 2026 ddcat and Open AI Canvas contributors
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -95,17 +95,6 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
-## Director Desk motion library
-
-The bundled motion library derives from Quaternius Universal Animation Library,
-Standard collection, under CC0-1.0.
-
-Source: https://quaternius.com/packs/universalanimationlibrary.html
-License: https://creativecommons.org/publicdomain/zero/1.0/
-
-The attribution and description of modifications are preserved in
-`vendor/shotloom-director-desk/src/core/animation/library/NOTICE.txt`.
 
 ## FFmpeg
 

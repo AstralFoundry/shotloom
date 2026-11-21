@@ -314,7 +314,7 @@ export async function mount(container: HTMLElement, native: NativeHost, host: Pr
   let mentionNode: ChatActions['mentionNode'] = () => {};
   await ctx.inject(['slots', 'inputTriggers', 'sessions'], scope => {
   disposeScope = () => scope.fiber.dispose();
-  mentionNode = ['canvas-primary', 'editor-primary', 'director-primary'].includes(host.agentId) ? installCanvasReferences(scope, host.sessionId as SessionId, host) : () => {};
+  mentionNode = ['canvas-primary', 'editor-primary'].includes(host.agentId) ? installCanvasReferences(scope, host.sessionId as SessionId, host) : () => {};
   });
   const surface = { root, host, reference, mentionNode };
   surfaces.add(surface); refresh();

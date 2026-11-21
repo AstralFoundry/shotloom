@@ -670,7 +670,7 @@ export async function trashRecentProject(project: AnyRecord) {
     if (deletedProjectId) {
       const { releaseAllLocalAssetReferences } = await import('@/store/localAssetLibraryStore');
       await releaseAllLocalAssetReferences(deletedProjectId);
-      try { window.localStorage.removeItem(`shotloom:director-workspace:${deletedProjectId}`); } catch { /* browser storage unavailable */ }
+      try { window.localStorage.removeItem(`shotloom.previs-world:${deletedProjectId}`); } catch { /* browser storage unavailable */ }
     }
     if (deletingCurrentProject) {
       stopActiveTaskPolling();
@@ -745,7 +745,7 @@ export async function trashProjectLibraryFolder(folderDir: string, projects: Arr
       if (project.filePath) await desktopApi.recent.remove(project.filePath).catch(() => {});
       if (project.id) {
         await releaseAllLocalAssetReferences(project.id).catch(() => {});
-        try { window.localStorage.removeItem(`shotloom:director-workspace:${project.id}`); } catch { /* browser storage unavailable */ }
+        try { window.localStorage.removeItem(`shotloom.previs-world:${project.id}`); } catch { /* browser storage unavailable */ }
       }
     }
     if (deletingCurrent) clearActiveProjectSession();

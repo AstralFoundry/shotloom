@@ -8,13 +8,7 @@ import type { MenuViewProps } from '@deepseek-ai/dsh-client-ui-input-trigger/cli
 export const referenceCategories = [
   ['all', t("ui.taskAdapter.label.778fc8f9")], ['character', t("ui.CanvasNodeToolbar.character.6b26695e")], ['storyboard', t("ui.CanvasNodeToolbar.storyboard.fcad7fe3")], ['scene', t("ui.CanvasNodeToolbar.scene.625b392c")], ['prop', t("ui.CanvasNodeToolbar.prop.51fd93fb")], ['video', t("ui.canvasMediaActions.text.fa4e33b6")], ['other', t("ui.CanvasNodeToolbar.other.1a26edf9")],
 ] as const;
-export const directorReferenceCategories = [
-  ['all', t("ui.taskAdapter.label.778fc8f9")],
-  ['director-entity', t("ui.ObjectTreePanel.text.62eb582c")],
-  ['director-asset', t("ui.ProjectSearch.kind.713fd96f")],
-  ['canvas', t("ui.ProjectSearch.kind.95b2102f")],
-] as const;
-export type ReferenceCategory = typeof referenceCategories[number][0] | typeof directorReferenceCategories[number][0];
+export type ReferenceCategory = typeof referenceCategories[number][0];
 
 /** Presentation only: picks, highlight, keyboard navigation and fetches remain in the official controller. */
 export function installCanvasReferenceMenu(ctx: Context, categories: {

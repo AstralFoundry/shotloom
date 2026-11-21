@@ -155,6 +155,9 @@ export interface WorkflowNodeActions {
     id: string,
   ) => Promise<Array<{ edgeId: string; nodeId: string; name: string; url: string }>>;
   removeDirectorIncomingEdge: (id: string, edgeId: string) => void;
+  exportDirectorPrompt: (id: string, title: string, prompt: string) => void;
+  flushDirectorScene: (id: string) => Promise<void>;
+  createDirectorVideo: (imageId: string, title: string, prompt: string) => void;
   exportDirectorAsset: (
     id: string,
     dataUrl: string,

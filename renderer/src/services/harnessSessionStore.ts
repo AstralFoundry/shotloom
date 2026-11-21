@@ -1,17 +1,17 @@
 import { t } from '@/i18n';
-import { CANVAS_AGENT_ID, DIRECTOR_AGENT_ID, EDITOR_AGENT_ID, TEXT_AGENT_ID } from '../agent/agents/definitions';
-const SCOPE_AGENT_IDS = { canvas: CANVAS_AGENT_ID, editor: EDITOR_AGENT_ID, text: TEXT_AGENT_ID, director: DIRECTOR_AGENT_ID };
-export type ConversationScope = 'canvas' | 'editor' | 'text' | 'director';
+import { CANVAS_AGENT_ID, EDITOR_AGENT_ID, TEXT_AGENT_ID } from '../agent/agents/definitions';
+const SCOPE_AGENT_IDS = { canvas: CANVAS_AGENT_ID, editor: EDITOR_AGENT_ID, text: TEXT_AGENT_ID };
+export type ConversationScope = 'canvas' | 'editor' | 'text';
 /** Product association metadata only. SQLite session persistence owns conversation content. */
 export interface HarnessSession {
-  id?: string; title?: string; agentId?: string; editorNodeId?: string; textNodeId?: string; directorNodeId?: string;
+  id?: string; title?: string; agentId?: string; editorNodeId?: string; textNodeId?: string;
   harnessSessionId?: string; updatedAt?: string; [key: string]: unknown;
 }
 export interface HarnessProject {
   id?: string; harnessSessions?: HarnessSession[]; trashedHarnessSessions?: HarnessSession[]; activeHarnessSessionId?: string | undefined;
   [key: string]: unknown;
 }
-export interface CreateConversationOptions { title?: string; agentId?: string; editorNodeId?: string; textNodeId?: string; directorNodeId?: string }
+export interface CreateConversationOptions { title?: string; agentId?: string; editorNodeId?: string; textNodeId?: string }
 function uid() { return crypto.randomUUID(); }
 export function ensureHarnessSessions(project: HarnessProject | null | undefined): HarnessSession[] {
   if (!project || typeof project !== 'object') return [];
@@ -58,7 +58,7 @@ export function getActiveHarnessSession(project: HarnessProject): HarnessSession
 }
 
 function boundNodeId(session: HarnessSession): string {
-  return String(session.textNodeId || session.editorNodeId || session.directorNodeId || '');
+  return String(session.textNodeId || session.editorNodeId || '');
 }
 
 /** Move node-owned conversations out of the active index while retaining their Host history for undo. */
@@ -110,16 +110,12 @@ export function scopedHarnessSessions(
     if (!nodeId) return [];
     return conversations.filter((item) => String(item.textNodeId || '') === nodeId);
   }
-  if (scope === 'director') return conversations.filter(item => item.agentId === DIRECTOR_AGENT_ID && String(item.directorNodeId || '') === nodeId);
   // 工作区会话（剪辑、文本）不属于画布列表，否则会在画布历史抽屉里互相污染。
   return conversations
-    .filter((item) => !item.editorNodeId && !item.textNodeId && item.agentId !== DIRECTOR_AGENT_ID)
+    .filter((item) => !item.editorNodeId && !item.textNodeId)
     .sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')));
 }
 
-export function directorHarnessSession(project: HarnessProject, directorNodeId = ''): HarnessSession {
-  return scopedHarnessSessions(project, 'director', directorNodeId)[0] || createHarnessSession(project, { agentId: DIRECTOR_AGENT_ID, title: '3D 导演台 Agent', ...(directorNodeId ? { directorNodeId } : {}) });
-}
 
 // 画布作用域的活动会话。画布面板必须始终落在画布会话上：即使项目级指针指向剪辑会话，
 // 也不能让画布面板读写剪辑会话。
@@ -170,7 +166,6 @@ export function createHarnessSession(project: HarnessProject, options: CreateCon
     // 工作区会话在建立时就绑定所属节点，避免先落成画布会话再改作用域。
     ...(options.editorNodeId ? { editorNodeId: String(options.editorNodeId) } : {}),
     ...(options.textNodeId ? { textNodeId: String(options.textNodeId) } : {}),
-    ...(options.directorNodeId ? { directorNodeId: String(options.directorNodeId) } : {}),
     createdAt: now,
     updatedAt: now,
   };

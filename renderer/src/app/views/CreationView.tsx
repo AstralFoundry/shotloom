@@ -16,9 +16,6 @@ import {
 import type { Viewport } from "@xyflow/react";
 import { App, Segmented, Select } from "antd";
 import { CanvasStartup } from "../canvas/CanvasStartup";
-import { DirectorWorkspace } from "./DirectorWorkspace";
-import { DirectorAgentPane } from '../agent-chat/DirectorAgentPane';
-import { directorDeskWorkspaceSrc } from "../adapters/directorDeskBridge";
 import { BottomModeBar } from "../canvas/BottomModeBar";
 import { PoseLibraryModal } from "../canvas/PoseLibraryModal";
 import { ProjectVersionHistory } from "../components/ProjectVersionHistory";
@@ -68,8 +65,6 @@ export interface CreationViewController {
 }
 export interface CreationViewData {
   /** 顶层「导演台」入口：整页交给导演台，关闭后回到同一个画布。 */
-  fullDirectorWorkspace?: boolean;
-  onLeaveFullDirectorWorkspace?: () => void;
   nodes: WorkflowNodeData[];
   artifactNodes: WorkflowNodeData[];
   edges: WorkflowEdge[];
@@ -91,26 +86,7 @@ export function CreationView({
   data: CreationViewData;
   controller: CreationViewController;
 }) {
-  if (data.fullDirectorWorkspace) return <FullDirectorWorkspace data={data} />;
   return <CreationCanvas data={data} controller={controller} />;
-}
-
-function FullDirectorWorkspace({ data }: { data: CreationViewData }) {
-  const [agentCollapsed, setAgentCollapsed] = useState(true);
-  const [entityRequest, setEntityRequest] = useState<{ id: string; nonce: number }>();
-  const entityRequestSerial = useRef(0);
-  return <div className="director-workspace-host" data-canvas-no-zoom>
-    <DirectorWorkspace
-      src={directorDeskWorkspaceSrc}
-      onExit={() => data.onLeaveFullDirectorWorkspace?.()}
-      onOpenAgent={(entityId) => {
-        setAgentCollapsed(false);
-        if (entityId) setEntityRequest({ id: entityId, nonce: ++entityRequestSerial.current });
-      }}
-    />
-    <DirectorAgentPane className="director-workspace-agent" collapsed={agentCollapsed} onCollapsedChange={setAgentCollapsed}
-      entityRequest={entityRequest} onEntityRequestHandled={nonce => setEntityRequest(current => current?.nonce === nonce ? undefined : current)} />
-  </div>;
 }
 
 function CreationCanvas({ data, controller }: { data: CreationViewData; controller: CreationViewController }) {

@@ -2,8 +2,7 @@ import { t } from '../../i18n/index.ts';
 export const CANVAS_AGENT_ID = 'canvas-primary';
 export const EDITOR_AGENT_ID = 'editor-primary';
 export const TEXT_AGENT_ID = 'text-primary';
-export const DIRECTOR_AGENT_ID = 'director-primary';
-export const AGENT_IDS = [CANVAS_AGENT_ID, EDITOR_AGENT_ID, DIRECTOR_AGENT_ID, TEXT_AGENT_ID] as const;
+export const AGENT_IDS = [CANVAS_AGENT_ID, EDITOR_AGENT_ID, TEXT_AGENT_ID] as const;
 export type AgentId = typeof AGENT_IDS[number];
 
 import type { AgentToolEffect } from '../core/types';
@@ -53,7 +52,6 @@ const videoEditorTools = [
   'video_project_diagnostics', 'video_project_frame', 'video_project_export', 'video_project_history',
 ];
 const textDraftTools = ['text_draft_read', 'text_draft_write'];
-const directorTools = ['director_editing_media', 'director_editing_handoff', 'director_desk_snapshot', 'director_desk_catalog', 'director_desk_query', 'director_desk_batch', 'director_desk_command'];
 
 export const AGENT_DEFINITIONS: AgentDefinition[] = [
   {
@@ -65,7 +63,6 @@ export const AGENT_DEFINITIONS: AgentDefinition[] = [
     tools: [
       ...canvasReadTools, ...canvasWriteTools, ...generationTools, ...catalogTools,
       'project_snapshot', 'project_save', 'project_export_package', 'canvas_prepare_editor',
-      'canvas_prepare_director',
       ...productionPlanWriteTools, ...productionPlanReadTools,
     ],
     skills: ['*'],
@@ -86,15 +83,6 @@ export const AGENT_DEFINITIONS: AgentDefinition[] = [
       'editor_find_tools',
     ],
     skills: ['video-editing', 'openreel-native-editing'],
-  },
-  {
-    id: DIRECTOR_AGENT_ID,
-    role: 'primary',
-    title: t('agent.role.director'),
-    description: '3D director desk agent with access to the open scene and canvas',
-    effects: ['read', 'agent_state_write', 'project_write', 'canvas_write'],
-    tools: [...directorTools, ...canvasReadTools, 'project_snapshot', 'canvas_prepare_editor'],
-    skills: ['director-desk-staging'],
   },
   {
     id: TEXT_AGENT_ID,

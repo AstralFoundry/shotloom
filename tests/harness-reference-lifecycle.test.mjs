@@ -23,7 +23,7 @@ function runtime() {
     const cleanup = [];
     const ctx = { inputTriggers: new Proxy(inputTriggers, { get(target, key) { return typeof key === 'symbol' ? target : Reflect.get(target, key); } }), sessions: { scope() {} }, effect(start) { cleanup.push(start()); } };
     installCanvasReferences(ctx, sessionId, {
-      agentId: 'director-primary', preview() {}, navigate() {},
+      agentId: 'canvas-primary', preview() {}, navigate() {},
       async readReference(id) { return id ? { node: { id, label, type: 'character', mediaType: 'other' } } : { nodes: [{ id: label, label, type: 'character', mediaType: 'other' }] }; },
     });
     return () => { for (const stop of cleanup.reverse()) stop(); };
@@ -32,7 +32,7 @@ function runtime() {
 }
 const candidates = (source, sessionId) => source.candidates({ sessionId }, { query: '' });
 
-test('overlapping director mounts share registration; old cleanup cannot remove the new owner', async () => {
+test('overlapping canvas mounts share registration; old cleanup cannot remove the new owner', async () => {
   const { sources, mount } = runtime();
   const old = mount('session-a', 'old');
   const newer = mount('session-a', 'new');
@@ -53,7 +53,7 @@ test('overlapping director mounts share registration; old cleanup cannot remove 
   retry();
 });
 
-test('different director sessions keep candidates and serialization isolated', async () => {
+test('different canvas sessions keep candidates and serialization isolated', async () => {
   const { sources, mount } = runtime();
   const stopA = mount('session-a', 'A');
   const stopB = mount('session-b', 'B');

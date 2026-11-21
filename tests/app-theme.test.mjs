@@ -49,17 +49,6 @@ test('theme preference persists and system changes apply only in system mode', a
   }
 });
 
-test('director theme updates use a view message without reloading the scene', async () => {
-  const env = await createRendererEnv();
-  try {
-    const bridge = await env.load('app/adapters/directorDeskBridge');
-    const sent = [];
-    globalThis.window = { location: { origin: 'http://localhost' } };
-    bridge.sendDirectorDeskTheme({ contentWindow: { postMessage: message => sent.push(message) } }, 'dark');
-    assert.deepEqual(sent, [{ type: 'storyai:director-desk-theme', payload: { theme: 'dark' } }]);
-    assert.match(bridge.directorDeskWorkspaceSrc('workspace', 'dark'), /theme=dark/);
-  } finally { delete globalThis.window; await env.dispose(); }
-});
 
 test('theme reveal suppresses component transitions until finish and cleans up failed updates', async () => {
   const env = await createRendererEnv({ storage: new Map(), withWindow: true });

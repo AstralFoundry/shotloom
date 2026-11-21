@@ -142,16 +142,16 @@ test('canvas_media_frame 可从本地文件路径逐张读取，并保留原有�
   };
   desktopApi.file.readImagePreview = async () => new Uint8Array([255, 216, 255, 217]).buffer;
   try {
-    const fromFile = await call('director-primary', 'canvas_media_frame', {
+    const fromFile = await call('canvas-primary', 'canvas_media_frame', {
       filePath: '/tmp/uploaded.mp4', timesSec: [0, 2.5], outputMode: 'frames',
     });
     assert.equal(fromFile.result.success, true);
     assert.equal(fromFile.result.__toolAttachments.length, 2);
     assert.deepEqual(captures, [{ source: '/tmp/uploaded.mp4', seconds: 0 }, { source: '/tmp/uploaded.mp4', seconds: 2.5 }]);
-    const fromNode = await call('director-primary', 'canvas_media_frame', { nodeId: 'video-1', timesSec: [1] });
+    const fromNode = await call('canvas-primary', 'canvas_media_frame', { nodeId: 'video-1', timesSec: [1] });
     assert.equal(fromNode.result.success, true);
     assert.equal(captures.at(-1).source, '/proj/assets/shot.mp4');
-    const ambiguous = await call('director-primary', 'canvas_media_frame', { nodeId: 'video-1', filePath: '/tmp/uploaded.mp4', timesSec: [0] });
+    const ambiguous = await call('canvas-primary', 'canvas_media_frame', { nodeId: 'video-1', filePath: '/tmp/uploaded.mp4', timesSec: [0] });
     assert.equal(ambiguous.result.success, false);
     assert.equal(captures.length, 3);
   } finally {
@@ -183,7 +183,7 @@ test('canvas_media_frame 拼图模式只返回一张带逐帧秒数的图', asyn
   };
   globalThis.document = { createElement: () => contactSheet };
   try {
-    const { result, prepared } = await call('director-primary', 'canvas_media_frame', {
+    const { result, prepared } = await call('canvas-primary', 'canvas_media_frame', {
       filePath: '/tmp/uploaded.mp4', timesSec, outputMode: 'contact_sheet',
     });
     assert.equal(result.success, true, JSON.stringify(result));

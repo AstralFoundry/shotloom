@@ -14,11 +14,10 @@ const previewQueue = readSource('renderer/src/app/canvas/previewLoadQueue.ts');
 const mediaCacheHook = readSource('renderer/src/app/canvas/useMediaPreviewCache.ts');
 const mediaCache = readSource('renderer/src/services/mediaPreviewCache.ts');
 const mediaCommands = readSource('electron/ipc/commands/media.ts') + readSource('electron/core/media.ts');
-const director = readSource('renderer/src/app/canvas/ThreeDDirectorNode.tsx');
-const directorStyles = readSource('renderer/src/app/canvas/ThreeDDirectorNode.css');
-const directorHost = readSource('renderer/src/app/adapters/directorDeskBridge.ts');
-const directorEditor = readRawSource('vendor/shotloom-director-desk/src/app/editor/editor-page.tsx');
-const directorBridge = readRawSource('vendor/shotloom-director-desk/src/app/host-bridge.ts');
+const director = readSource('renderer/src/app/canvas/PrevisWorldNode.tsx');
+const directorRaw = readRawSource('renderer/src/app/canvas/PrevisWorldNode.tsx');
+const directorStyles = readSource('renderer/src/app/canvas/PrevisWorldNode.css');
+const directorHost = readSource('renderer/src/app/adapters/previsBridge.ts');
 const workbench = readSource('renderer/src/app/ReactWorkbench.tsx');
 const creationView = readSource('renderer/src/app/views/CreationView.tsx');
 const shell = readSource('renderer/src/app/AppShell.tsx');
@@ -285,14 +284,15 @@ test('节点文字、图标和错误态共享语义尺寸并沿同一缩放轨�
 });
 test('导演台名称使用画布外部标签并和语义缩放同步', () => {
   assert.match(director, /CanvasNodeLabelRootContext/);
-  assert.match(director, /className="director-node-label"/);
-  assert.match(directorStyles, /\.director-node-label > svg \{\s*width: var\(--canvas-node-icon-size\)/);
-  assert.match(directorStyles, /\.director-node-workspace \{[\s\S]*?height: 100%;/);
+  assert.match(director, /className="previs-node-label"/);
+  assert.match(directorStyles, /\.previs-node-label > svg \{\s*width: var\(--canvas-node-icon-size\)/);
+  assert.match(directorStyles, /\.previs-node-workspace \{[\s\S]*?height: 100%;/);
   assert.match(canvas, /<CanvasNodeContent width=\{dimensions\.width\} height=\{dimensions\.height\}/);
-  assert.match(directorStyles, /\.director-node-placeholder p \{[\s\S]*?font-size: var\(--canvas-node-body-size\)/);
-  assert.match(directorStyles, /\.director-node-open-button \{[\s\S]*?font-size: var\(--canvas-node-body-size\)/);
-  assert.doesNotMatch(migrationStyles, /canvas-zoom-overview :is\([\s\S]*?\.director-node-placeholder/);
-  assert.doesNotMatch(migrationStyles, /canvas-zoom-overview :is\([\s\S]*?\.director-node-open-button/);
+  assert.match(directorStyles, /\.previs-card-title \{[\s\S]*?font-size: var\(--text-body-15\)/);
+  assert.match(directorStyles, /\.previs-card-shot \{[\s\S]*?font-size: var\(--text-caption-11\)/);
+  assert.doesNotMatch(migrationStyles, /canvas-zoom-overview :is\([\s\S]*?\.previs-card-title/);
+  assert.doesNotMatch(migrationStyles, /canvas-zoom-overview :is\([\s\S]*?\.previs-card-preview/);
+  assert.match(canvas, /function CanvasNodeContent/);
 });
 test('语义缩放时端口与节点边缘使用同一屏幕坐标', () => {
   for (const zoom of [0.55, 1, 1.8]) {
@@ -371,14 +371,14 @@ test('连线按节点相对位置选择最近端口且不会折返回头', () =>
   assert.match(canvas, /className="canvas-flow-port canvas-flow-port-in"[\s\S]*?className="canvas-flow-port canvas-flow-port-out"/);
 });
 test('3D 导演台随节点比例铺满，画布删除键删除当前节点选择', () => {
-  assert.match(director, /className="director-node-placeholder"/);
-  assert.match(director, /className="director-node-open-button nodrag"/);
-  assert.match(director, /打开导演台/);
+  assert.match(director, /className="previs-card"/);
+  assert.match(director, /className="previs-card-preview nodrag"/);
+  assert.match(directorRaw, /t\("ui\.previsWorld\.open"\)/);
   assert.match(canvas, /keepAspectRatio=\{item\.type === "threeDDirector"\}/);
   assert.match(canvas, /resizing=\{resizing\}/);
   assert.doesNotMatch(director, /if \(resizing\) return/);
   assert.match(director, /resizing \? " resizing"/);
-  assert.match(directorStyles, /\.director-node\.resizing[\s\S]*?pointer-events: none/);
+  assert.match(directorStyles, /\.previs-node\.resizing[\s\S]*?pointer-events: none/);
   assert.match(canvas, /tabIndex=\{0\}/);
   assert.match(canvas, /event\.currentTarget\.focus\(\{ preventScroll: true \}\)/);
   assert.equal(canvas.match(/if \(!isCanvasDomEvent\(event\.nativeEvent, event\.currentTarget\)\) return;/g)?.length, 2);
@@ -393,53 +393,45 @@ test('3D 导演台随节点比例铺满，画布删除键删除当前节点选�
   assert.match(adapter, /select\(id\) \{\s*store\.selectedEdgeId = null/);
 });
 test('3D 导演台的删除键只删除内部对象，不删除画布节点', () => {
-  assert.match(directorEditor, /event\.key === 'Delete' \|\| event\.key === 'Backspace'/);
-  assert.match(directorEditor, /session\.deleteSelected\(\)/);
-  assert.doesNotMatch(directorBridge, /storyai:director-desk-delete-node/);
-  assert.doesNotMatch(directorHost, /storyai:director-desk-delete-node|onDeleteNode/);
+  assert.doesNotMatch(directorHost, /onDeleteNode/);
   assert.doesNotMatch(director, /onDeleteNode/);
-  assert.match(director, /title="删除 3D 导演台"[\s\S]*?actions\.delete\(node\.id\)/);
+  assert.match(directorRaw, /title=\{t\("ui\.previsWorld\.delete"\)\}[\s\S]*?actions\.delete\(node\.id\)/);
 });
 test('3D 导演台默认整块可移动，双击后进入场景交互', () => {
   assert.doesNotMatch(canvas, /dragHandle: node\.type === "threeDDirector"/);
-  assert.match(director, /className="director-node-drag-handle"/);
+  assert.match(director, /className="previs-node-drag-handle"/);
   assert.match(director, /interacting \? " nodrag" : ""/);
   assert.match(director, /onDoubleClick=[\s\S]*?setInteracting\(true\)/);
   assert.match(director, /event\.key === "Escape"[\s\S]*?setInteracting\(false\)/);
-  assert.match(director, /onExitInteraction:[\s\S]*?setInteracting\(false\)/);
-  assert.match(director, /className="director-node-open-button nodrag"[\s\S]*?打开导演台/);
-  assert.match(directorStyles, /\.director-node-drag-handle[\s\S]*?cursor: grab/);
+  assert.match(director, /onClose: \(\) => \{[\s\S]*?setInteracting\(false\)/);
+  assert.match(directorRaw, /className="previs-card-preview nodrag"[\s\S]*?ui\.previsWorld\.open/);
+  assert.match(directorStyles, /\.previs-node-drag-handle[\s\S]*?cursor: grab/);
 });
 test('3D 导演台从真实上游连线同步当前图片输出', () => {
   assert.match(readSource('renderer/src/app/canvas/canvasInputIndex.ts'), /edge\.id[\s\S]*?source\?\.updatedAt/);
   assert.match(canvas, /inputRevision=\{data\.inputRevision\}/);
   assert.match(adapter, /edge\.target === id[\s\S]*?selectedNodeMedia\(node, store\.project\)/);
   assert.match(adapter, /edgeId: String\(edge\.id/);
-  assert.match(director, /incomingImages\.at\(-1\)/);
-  assert.match(director, /edgeId: image\.edgeId/);
-  assert.match(directorHost, /panoramaClear: "storyai:director-desk-panorama-clear"/);
-  assert.match(
-    director,
-    /onPanoramaRemoved:[\s\S]*?removeDirectorIncomingEdge/,
-  );
-  assert.match(directorBridge, /storyai:director-desk-panorama-clear'[\s\S]*?setPanorama\(''\)/);
+  assert.match(director, /toImageNodes\(incomingImages\)/);
+  assert.match(director, /sendPrevisImages\(detailIframeRef\.current, toImageNodes\(incomingImages\)\)/);
+  assert.match(directorHost, /\$\{PREFIX\}-images/);
 });
 
 test('vendored 导演台只通过宿主适配层通信', () => {
   // 上游私有协议在产品侧只有一个拥有者：消息名与 iframe 入口都写在宿主适配层里。
-  assert.match(directorHost, /session: "storyai:director-desk-session"/);
-  assert.match(directorHost, /capturesSent: "storyai:director-desk-captures-sent"/);
-  assert.match(directorHost, /director-desk-app\/index\.html\?instanceId=\$\{encodeURIComponent\(instanceId\)\}&theme=\$\{theme\}/);
+  assert.match(directorHost, /const PREFIX = "shotloom:previs"/);
+  assert.match(directorHost, /\$\{PREFIX\}-scene-changed/);
+  assert.match(directorHost, /previs-world-app\/index\.html\?instanceId=\$\{encodeURIComponent\(instanceId\)\}&theme=\$\{theme\}/);
   // 来源校验属于协议：别的窗口发来的同名消息不能被当成导演台回执。
   assert.match(
     directorHost,
     /event\.origin !== window\.location\.origin \|\| event\.source !== getFrame\(\)\?\.contentWindow/,
   );
   // 画布组件只消费类型化回调，不再自己比较协议字符串。
-  assert.doesNotMatch(director, /storyai:director-desk/);
-  assert.doesNotMatch(director, /director-desk\.html/);
-  assert.match(director, /subscribeDirectorDesk\(getFrame, \{/);
-  assert.match(director, /src=\{directorDeskFrameSrc\(node\.id, initialTheme\.current\)\}/);
+  assert.doesNotMatch(director, /shotloom:previs/);
+  assert.doesNotMatch(director, /previs-world-app/);
+  assert.match(director, /subscribePrevisWorld\(getFrame, \{/);
+  assert.match(director, /src=\{previsWorldFrameSrc\(node\.id, "light"\)\}/);
 });
 test('并发任务轮询只在状态变化时触发合并持久化', () => {
   const update =

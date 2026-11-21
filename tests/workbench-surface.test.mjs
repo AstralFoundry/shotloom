@@ -22,12 +22,12 @@ const viewerStyles = read('../renderer/styles/media-overlays.css');
 const searchSource = read('../renderer/src/app/components/ProjectSearch.tsx');
 const antdProvider = read('../renderer/src/app/ui/antd/AntdProvider.tsx');
 const antdThemeCss = read('../renderer/styles/antd-theme.css');
-const directorSource = read('../renderer/src/app/canvas/ThreeDDirectorNode.tsx');
-const directorStyles = read('../renderer/src/app/canvas/ThreeDDirectorNode.css');
+const directorSource = read('../renderer/src/app/canvas/PrevisWorldNode.tsx');
+const directorStyles = read('../renderer/src/app/canvas/PrevisWorldNode.css');
 
 const surfaces = [
   ['文本与媒体预览', viewerSource],
-  ['3D 导演台', directorSource],
+  ['世界引擎', directorSource],
 ];
 
 test('内容区提供唯一的大工作区挂载点', () => {
@@ -65,7 +65,7 @@ test('三个大工作区都挂进内容区挂载点而不是 document.body', () 
 test('浮层用内容区绝对定位，尺寸不再按整个窗口计算', () => {
   const positioning = [
     [editorLayout, '\\.ov-openreel', '10'],
-    [directorStyles, '\\.director-detail-backdrop', '20'],
+    [directorStyles, '\\.previs-detail-backdrop', '20'],
     [viewerStyles, '\\.media-viewer-backdrop', '30'],
   ];
   for (const [styles, selector, zIndex] of positioning) {
@@ -74,7 +74,7 @@ test('浮层用内容区绝对定位，尺寸不再按整个窗口计算', () =>
     assert.match(text, new RegExp(`position: absolute;\n  inset: 0;\n  z-index: ${zIndex};`));
     assert.doesNotMatch(text, /position: fixed/);
   }
-  assert.doesNotMatch(directorStyles, /\.director-detail-window \{[\s\S]*?calc\(100v[wh]/);
+  assert.doesNotMatch(directorStyles, /\.previs-detail-window \{[\s\S]*?calc\(100v[wh]/);
 });
 
 test('文本界面与导演台详情铺满内容区，不是压暗背景上的悬浮卡片', () => {
@@ -83,8 +83,8 @@ test('文本界面与导演台详情铺满内容区，不是压暗背景上的�
   assert.doesNotMatch(textSurface, /backdrop-filter|padding: 32px|align-content: center|--viewer-card-width/);
   assert.doesNotMatch(rule(viewerStyles, '\\.media-viewer-backdrop\\.is-text \\.media-viewer-stage'), /box-shadow|border-radius/);
   assert.doesNotMatch(rule(viewerStyles, '\\.media-viewer-backdrop\\.is-text \\.media-viewer-toolbar'), /border-radius|justify-self: center/);
-  assert.doesNotMatch(rule(directorStyles, '\\.director-detail-backdrop'), /backdrop-filter|place-items: center|padding/);
-  assert.doesNotMatch(rule(directorStyles, '\\.director-detail-window'), /box-shadow|border-radius|min\(1600px/);
+  assert.doesNotMatch(rule(directorStyles, '\\.previs-detail-backdrop'), /backdrop-filter|place-items: center|padding/);
+  assert.doesNotMatch(rule(directorStyles, '\\.previs-detail-window'), /box-shadow|border-radius|min\(1600px/);
   // 图片与视频预览仍是真正的灯箱：压暗背景保留。
   assert.match(viewerStyles, /\.media-viewer-backdrop:not\(\.is-text\) \{[\s\S]*?background: var\(--overlay-media\)/);
 });
