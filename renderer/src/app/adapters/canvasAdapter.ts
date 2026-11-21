@@ -1136,6 +1136,7 @@ export const canvasCommands = {
     return false;
   },
   async applyMaterial(item: any, scope?: "library" | "local" | "files") {
+    const project = store.project;
     if (scope === "files") {
       const target = findMaterialCanvasTarget(store.project, item);
       if (target) {
@@ -1149,7 +1150,9 @@ export const canvasCommands = {
       const referenced = await useLocalAssetInProject(item, { copy: true });
       material = { ...referenced.material, assetId: referenced.asset.id };
     }
+    if (store.project !== project) throw new Error(t('assets.browser.projectChanged'));
     const node = applyMaterialToCanvas(material);
+    if (!node) throw new Error(t('assets.browser.insertFailed'));
     if (scope === "files" && node) focusCanvasNodes([node.id]);
     return node;
   },

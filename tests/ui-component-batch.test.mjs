@@ -58,7 +58,6 @@ test('视图层的确认统一走 App.useApp().modal.confirm', () => {
     ['MaterialsView', materials],
     ['TasksView', tasks],
     ['SkillsFeature', skillsFeature],
-    ['CreationView', creation],
   ]) {
     assert.doesNotMatch(source, /window\.confirm/, `${name} 不得再用原生 confirm`);
     assert.match(source, /modal\.confirm\(/, `${name} 必须使用 modal.confirm`);

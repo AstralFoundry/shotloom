@@ -14,7 +14,7 @@ const settingsFeature = readSource('renderer/src/app/views/SettingsFeature.tsx')
 const styles = readSource('renderer/styles/app-shell.css');
 const workbenchStyles = readSource('renderer/styles/workbench.css');
 const settingsStyles = readSource('renderer/styles/settings.css');
-const reactMigrationStyles = ['canvas.css', 'project-materials.css', 'media-overlays.css', 'creation-view.css']
+const reactMigrationStyles = ['canvas.css', 'project-materials.css', 'media-overlays.css']
   .map((name) => readSource(`../renderer/styles/${name}`))
   .join('\n');
 

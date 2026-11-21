@@ -3,6 +3,8 @@ import { memo, useEffect, useRef, useState } from "react";
 import { formatSize } from "../../utils/format.ts";
 import { useMediaPreviewCache } from "../canvas/useMediaPreviewCache";
 import { type IconName, IconSymbol } from "./IconSymbol";
+import { assetCategoryFor } from "../../domain/asset/assetCategories";
+import { assetLibraryKey } from "../../domain/asset/AssetLibraryCatalog";
 
 export interface MaterialItem {
   id?: string;
@@ -26,6 +28,7 @@ export interface MaterialItem {
 }
 
 interface MaterialGridProps {
+  variant?: "default" | "library";
   focusedAssetId?: string;
   materials: MaterialItem[];
   selectedKeys?: Set<string>;
@@ -148,12 +151,14 @@ function observeNearViewport(element: Element, activate: () => void) {
 }
 
 const MaterialPreview = memo(function MaterialPreview({
+  compact = false,
   file,
   kind,
   onPreview,
 }: {
   file: MaterialItem;
   kind: Kind;
+  compact?: boolean;
   onPreview: MaterialGridProps["onPreview"];
 }) {
   const host = useRef<HTMLDivElement>(null);
@@ -240,7 +245,7 @@ const MaterialPreview = memo(function MaterialPreview({
         <video
           src={source}
           poster={poster}
-          controls
+          controls={!compact}
           playsInline
           preload="metadata"
           onPointerDown={(event) => event.stopPropagation()}
@@ -272,6 +277,7 @@ const MaterialPreview = memo(function MaterialPreview({
 });
 
 export function MaterialGrid({
+  variant = "default",
   focusedAssetId,
   materials,
   selectedKeys,
@@ -290,9 +296,9 @@ export function MaterialGrid({
   onAction,
 }: MaterialGridProps) {
   return (
-    <div className="material-node-grid">
+    <div className={`material-node-grid${variant === "library" ? " library-card-grid" : ""}`}>
       {materials.map((file) => {
-        const key = keyOf(file);
+        const key = variant === "library" ? assetLibraryKey(file) : keyOf(file);
         const kind = kindOf(file);
         const inLibrary = Boolean(file.id && assetMaterialIds.has(file.id));
         const action = (name: Parameters<MaterialGridProps["onAction"]>[0]) => onAction(name, file);
@@ -300,12 +306,24 @@ export function MaterialGrid({
           <article
             key={key}
             data-asset-id={file.assetId}
+            role={variant === "library" && onToggleSelected ? "checkbox" : undefined}
+            aria-checked={variant === "library" && onToggleSelected ? Boolean(selectedKeys?.has(key)) : undefined}
+            aria-label={variant === "library" ? String(file.name || "") : undefined}
+            tabIndex={variant === "library" && onToggleSelected ? 0 : undefined}
             className={`material-node-wrap${clickToApply ? " selectable" : ""}${selectedKeys?.has(key) ? " is-batch-selected" : ""}${focusedAssetId && file.assetId === focusedAssetId ? " is-located" : ""}`}
-            onClick={() => clickToApply && action("apply-to-canvas")}
+            onClick={() => {
+              if (variant === "library" && onToggleSelected) onToggleSelected(file);
+              else if (clickToApply) action("apply-to-canvas");
+            }}
+            onKeyDown={(event) => {
+              if (event.target !== event.currentTarget || variant !== "library" || !onToggleSelected) return;
+              if (event.key === " " || event.key === "Enter") { event.preventDefault(); onToggleSelected(file); }
+            }}
           >
             <div className="material-node">
               {onToggleSelected && <button type="button" className="material-batch-check" title={selectedKeys?.has(key) ? t("ui.MaterialGrid.text.f02e9439") : t("ui.MaterialGrid.text.2d9e0489")} aria-pressed={Boolean(selectedKeys?.has(key))} onClick={(event) => { event.stopPropagation(); onToggleSelected(file); }}><IconSymbol name={selectedKeys?.has(key) ? "check" : "plus"} /></button>}
-              <MaterialPreview file={file} kind={kind} onPreview={onPreview} />
+              <MaterialPreview compact={variant === "library"} file={file} kind={kind} onPreview={onPreview} />
+              {variant === "library" && <span className="library-card-kind"><IconSymbol name={iconOf(file)} />{typeOf(file)}</span>}
               <div className="material-node-kicker">
                 <IconSymbol name={iconOf(file)} />
                 <strong title={file.name}>{file.name || t("ui.canvasUploadActions.text.460d54d3")}</strong>
@@ -320,7 +338,8 @@ export function MaterialGrid({
                 )}
                 {inLibrary && <i title={t("ui.MaterialGrid.title.7b1cd8a3")} />}
               </div>
-              <div className="material-node-actions">
+              {variant === "library" && <span className="library-card-category">{assetCategoryFor(file.category).label}</span>}
+              <div className="material-node-actions" onClick={(event) => event.stopPropagation()}>
                 {showApplyAction && (
                   <button
                     title={t("ui.MaterialGrid.title.d4ed9b8c")}

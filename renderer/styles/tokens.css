@@ -55,7 +55,6 @@
   /* Scrims 压在界面内容之上（不是素材之上），遮罩只分两档：轻遮罩留给可就地取消的弹层，
    * modal 给真正打断操作的对话框。grip 是可拖拽细条的静止/强调两档，与滚动条拇指同族。 */
   --scrim-modal: rgba(0, 0, 0, .38);
-  --grip: rgba(0, 0, 0, .15);
   --grip-active: rgba(0, 0, 0, .24);
 
   /* Floating surfaces — 半透明白底浮在内容之上，只允许这四档（越靠下越不透明）。
@@ -226,7 +225,6 @@
   --drop-shadow-sm: 0 1px 2px rgba(0, 0, 0, .15);
   --shadow-float: 0 18px 44px rgba(0, 0, 0, .1);
   --shadow-cast-right: 16px 0 40px rgba(0, 0, 0, .055);
-  --shadow-cast-up: 0 -14px 36px rgba(0, 0, 0, .035);
   /* 模态框浮在暗色遮罩之上，需要比面板更深的抬升，否则会和遮罩一起塌成一层。 */
   --shadow-modal: 0 24px 70px rgba(0, 0, 0, .18), 0 4px 14px rgba(0, 0, 0, .06);
   --shadow: var(--canvas-shadow-panel);
@@ -326,7 +324,6 @@
   --wash-pressed: rgba(255, 255, 255, .09);
   --wash-inset: rgba(255, 255, 255, .12);
   --scrim-modal: rgba(0, 0, 0, .6);
-  --grip: rgba(255, 255, 255, .24);
   --grip-active: rgba(255, 255, 255, .4);
 
   /* 深色浮层用不透明深底 + 高 α，保留"浮在内容上"的边界；纯白 α 在暗底上会变灰。 */
@@ -381,7 +378,6 @@
   --canvas-shadow-menu: 0 8px 32px rgba(0, 0, 0, .15), 0 2px 8px rgba(0, 0, 0, .1);
   --shadow-float: 0 18px 44px rgba(0, 0, 0, .45);
   --shadow-cast-right: 16px 0 40px rgba(0, 0, 0, .1);
-  --shadow-cast-up: 0 -14px 36px rgba(0, 0, 0, .07);
   --shadow-modal: 0 24px 70px rgba(0, 0, 0, .5), 0 4px 14px rgba(0, 0, 0, .35);
 
   --ring: rgba(255, 255, 255, .3);
