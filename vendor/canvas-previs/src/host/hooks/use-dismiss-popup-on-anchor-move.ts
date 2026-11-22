@@ -1,13 +1,13 @@
-import { useEffect, type RefObject } from "react";
+import { useEffect } from "react";
 
 /**
  * Close a floating popup when its anchor moves (scroll, drag, canvas pan/zoom) so it never
  * floats detached from the control that opened it.
  */
-export function useDismissPopupOnAnchorMove(open: boolean, anchorRef: RefObject<HTMLElement | null>, dismiss: () => void) {
+export function useDismissPopupOnAnchorMove(open: boolean, getAnchor: () => HTMLElement | null, dismiss: () => void) {
     useEffect(() => {
         if (!open) return;
-        const anchor = anchorRef.current;
+        const anchor = getAnchor();
         let origin: DOMRect | null = anchor ? anchor.getBoundingClientRect() : null;
         const moved = () => {
             const next = anchor ? anchor.getBoundingClientRect() : null;
@@ -25,5 +25,5 @@ export function useDismissPopupOnAnchorMove(open: boolean, anchorRef: RefObject<
             window.removeEventListener("resize", dismiss);
             observer?.disconnect();
         };
-    }, [open, anchorRef, dismiss]);
+    }, [open, getAnchor, dismiss]);
 }
