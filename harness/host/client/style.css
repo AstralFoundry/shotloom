@@ -43,7 +43,10 @@
 }
 .shotloom-session-stats { container:shotloom-stats / inline-size; overflow:hidden;flex-wrap:nowrap;max-height:var(--shotloom-header-height,44px); }
 .shotloom-session-stats [data-slot="shotloom.stats"] { display:contents; }
-.shotloom-session-stats .shotloom-composer-control[aria-pressed="true"] { background:var(--dsw-alias-interactive-bg-hover); }
+.shotloom-chat-body:has(> .shotloom-context-meter:empty) .shotloom-session-stats { padding-right:0; }
+.shotloom-usage-toggle { flex:0 0 28px;width:28px;justify-content:center;margin-inline-start:auto;padding:0; }
+.shotloom-usage-toggle svg { width:15px;height:15px; }
+.shotloom-usage-toggle[aria-pressed="true"] { color:var(--dsw-alias-label-primary); }
 .shotloom-session-stats [data-composer-stat] { min-width:0;flex:0 1 auto; }
 .shotloom-session-stats [data-composer-stat] > button,
 .shotloom-session-stats [data-composer-stat] > span { min-width:0;max-width:100%;white-space:nowrap; }

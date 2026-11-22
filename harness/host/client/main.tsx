@@ -3,7 +3,7 @@ import { locale as productLocale } from './i18n';
 import { Context } from '@deepseek-ai/cordis';
 import Loader from '@deepseek-ai/cordis-plugin-loader';
 import { createContext, useContext, useEffect, useState, useSyncExternalStore, type ComponentType } from 'react';
-import { MarkdownText } from '@deepseek-ai/dsh-client-ui-primitives';
+import { IconGaugeOutlineRegular, MarkdownText } from '@deepseek-ai/dsh-client-ui-primitives';
 import { getStaticModules } from '@deepseek-ai/dsh-client-web';
 import type { ClientBundleRegistration } from '@deepseek-ai/dsh-client-modules/client';
 import { createPortal } from 'react-dom';
@@ -176,9 +176,10 @@ function installEmbeddedChat(ctx: ClientContext) {
     setPerformanceUsage(mode: 'compact' | 'detailed'): void;
   }) {
     const detailed = usePerformanceUsage(mode => mode === 'detailed');
-    return <button type="button" className="shotloom-composer-control" aria-pressed={detailed}
+    return <button type="button" className="shotloom-composer-control shotloom-usage-toggle"
+      aria-label={t('agent.usageDetails')} aria-pressed={detailed}
       title={t('agent.usageDetailsHint')} onClick={() => setPerformanceUsage(detailed ? 'compact' : 'detailed')}>
-      {t('agent.usageDetails')}
+      <IconGaugeOutlineRegular aria-hidden="true" />
     </button>;
   }
   ctx.slots.register({ name: 'shotloom.stats', id: 'usage-details', order: 20,
