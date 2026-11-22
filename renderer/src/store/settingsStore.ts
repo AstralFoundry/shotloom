@@ -6,6 +6,7 @@ import { reactive, toRaw } from '@/store/domainReactivity';
 import { desktopApi } from '@/services/desktopApi';
 import { normalizeCanvasActionShortcuts } from '@/utils/canvasActionShortcuts';
 import { normalizeCanvasAppearance } from '@/utils/canvasAppearance';
+import { normalizeImageStyleLibrary } from '@/utils/imageStylePresets';
 import {
   defaultCanvasToolbarCustomization,
   normalizeCanvasToolbarCustomization,
@@ -66,6 +67,7 @@ export const settingsStore = reactive({
   canvasActionShortcuts: normalizeCanvasActionShortcuts(),
   canvasToolbarCustomization: defaultCanvasToolbarCustomization(),
   canvasAppearance: normalizeCanvasAppearance(),
+  imageStyleLibrary: normalizeImageStyleLibrary(),
   layoutAlgorithm: shotloomDefaults.appSettings.layoutAlgorithm, updatedAt: '',
   runtimeProtection: { ...shotloomDefaults.appSettings.runtimeProtection } as RuntimeProtection,
   loading: false, syncing: false,
@@ -143,6 +145,7 @@ function toPlainSettings(patch: AnyRecord = {}) {
     canvasActionShortcuts: normalizeCanvasActionShortcuts(rawStore.canvasActionShortcuts),
     canvasToolbarCustomization: normalizeCanvasToolbarCustomization(rawStore.canvasToolbarCustomization),
     canvasAppearance: normalizeCanvasAppearance(rawStore.canvasAppearance),
+    imageStyleLibrary: rawStore.imageStyleLibrary,
     layoutAlgorithm: rawStore.layoutAlgorithm === 'elk-layered' ? 'elk-layered' : 'grid-aligned',
     runtimeProtection: { ...rawStore.runtimeProtection },
     ...rawPatch,
@@ -150,6 +153,7 @@ function toPlainSettings(patch: AnyRecord = {}) {
   next.themePreference = normalizeThemePreference(next.themePreference);
   next.tokenGroups = normalizeTokenGroups(next.tokenGroups);
   next.canvasAppearance = normalizeCanvasAppearance(next.canvasAppearance);
+  next.imageStyleLibrary = normalizeImageStyleLibrary(next.imageStyleLibrary);
   next.providerConfigs = normalizeProviderConfigs(next.providerConfigs);
   return clonePlainData(next);
 }
@@ -185,6 +189,7 @@ function applySettings(settings: AnyRecord) {
   settingsStore.canvasActionShortcuts = normalizeCanvasActionShortcuts(settings.canvasActionShortcuts);
   settingsStore.canvasToolbarCustomization = normalizeCanvasToolbarCustomization(settings.canvasToolbarCustomization);
   settingsStore.canvasAppearance = normalizeCanvasAppearance(settings.canvasAppearance);
+  settingsStore.imageStyleLibrary = normalizeImageStyleLibrary(settings.imageStyleLibrary);
   settingsStore.layoutAlgorithm = settings.layoutAlgorithm === 'elk-layered' || settings.layoutAlgorithm === 'grid-aligned'
     ? settings.layoutAlgorithm : shotloomDefaults.appSettings.layoutAlgorithm;
   settingsStore.runtimeProtection = {

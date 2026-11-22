@@ -1,9 +1,10 @@
 import { t, type MessageKey } from '@/i18n';
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type RefObject } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type RefObject } from "react";
 import { getDomainRevision, subscribeDomain } from "../../store/domainReactivity";
 import { getGenerationInputModes, getModelInfo, getModelSchema } from "../../domain/catalog/ModelCatalog";
-import { compileGenerationNodeConfig } from "../../domain/graph/GenerationNodeContract";
-import { IMAGE_STYLE_PRESETS } from "../../utils/imageStylePresets.ts";
+import { compileGenerationNodeConfig, imageCompositionSizeParams } from "../../domain/graph/GenerationNodeContract";
+import { getImageCompositionPreset } from "../../domain/graph/ImageCompositionPresets";
+import { normalizeCustomImageStyle, type ImageStylePreset } from "../../utils/imageStylePresets";
 import { paramSummary } from "../../utils/modelPresentation.ts";
 import { openMediaViewer } from "../store/overlayStore";
 import { mediaPosterUrl } from "../../services/mediaPoster";
@@ -11,6 +12,9 @@ import { IconSymbol } from "../components/IconSymbol";
 import { ProviderBrandIcon } from "../components/ProviderBrandIcon";
 import { CameraControlPanel } from "./CameraControlPanel";
 import { GenerationSettingsPanel } from "./GenerationSettingsPanel";
+import { ImageComposerTools } from "./ImageComposerTools";
+import { useAppStore } from "../store/appStore";
+import { Grid3x3, ImagePlus, Palette } from "lucide-react";
 import { isImeKeyEvent } from "./imeComposition";
 import { generationMediaKind, useGenerationLocalPreview } from "./generationNodeMedia";
 import { editorCaretOffset, editorPrompt, referenceLabels, renderPromptEditor, setEditorCaret } from "./promptReferenceEditor";
@@ -126,6 +130,9 @@ export function GenerationNodeComposer({
   promptRef: RefObject<HTMLDivElement | null>;
 }) {
   const [openMenu, setOpenMenu] = useState("");
+  const [expanded, setExpanded] = useState(false);
+  const fontSize = useAppStore(store => store.canvasPromptFontSize);
+  const dialogCaret = useRef(0);
   const [mention, setMention] = useState<{ query: string; start: number; end: number; index: number } | null>(null);
   const composing = useRef(false);
   const lastRenderedReferences = useRef("");
@@ -148,6 +155,18 @@ export function GenerationNodeComposer({
   const references = Array.isArray(node.promptReferences) ? node.promptReferences as Array<{ alias: string; nodeId: string }> : [];
   const inputLabels = referenceLabels(mediaInputs);
   const referencesKey = JSON.stringify({ references, inputs: inputLabels.map((item) => [item.nodeId, item.kind, item.number, item.input.previewUrl, item.input.filePath]) });
+  const promptDocument = useRef({ prompt: "", references, mediaInputs, referencesKey });
+  promptDocument.current = { prompt: String(node.prompt || ""), references, mediaInputs, referencesKey };
+  const attachPromptEditor = useCallback((element: HTMLDivElement | null) => {
+    if (!element) return;
+    promptRef.current = element;
+    const current = promptDocument.current;
+    renderPromptEditor(element, current.prompt, current.references, current.mediaInputs);
+    lastRenderedReferences.current = current.referencesKey;
+    return () => {
+      if (promptRef.current === element) promptRef.current = null;
+    };
+  }, [promptRef]);
   useLayoutEffect(() => {
     const element = promptRef.current;
     if (!element || composing.current) return;
@@ -161,7 +180,8 @@ export function GenerationNodeComposer({
 
   function setConfig(key: string, value: unknown) {
     const preset = state.params.find(param => param.key === key)?.valueDefaults?.[String(value)];
-    actions.update(node.id, { config: { ...config, ...preset, [key]: value } });
+    const sizeChange = node.type === "imageGeneration" && ["aspectRatio", "ratio", "size"].includes(key);
+    actions.update(node.id, { config: { ...config, ...preset, [key]: value, ...(sizeChange && { imageSizeManuallySet: true }) } });
   }
 
   function updateMention(value: string, caret: number) {
@@ -287,56 +307,47 @@ export function GenerationNodeComposer({
     });
   }
 
-  return (
+  function selectImageStyle(style: ImageStylePreset | null) {
+    const next = { ...config };
+    const custom = normalizeCustomImageStyle(style);
+    if (style) next.stylePresetId = style.id;
+    else delete next.stylePresetId;
+    if (custom) next.customImageStyle = { id: custom.id, label: custom.label, prompt: custom.prompt, category: custom.category };
+    else delete next.customImageStyle;
+    recordCanvasHistory(t("canvas.imageTools.style"));
+    actions.update(node.id, { config: next });
+  }
+
+  function selectImageComposition(value: string) {
+    if (value === (config.imageCompositionPresetId || "")) return;
+    recordCanvasHistory(t("canvas.imageTools.preset"));
+    const next = { ...config };
+    if (value) next.imageCompositionPresetId = value;
+    else delete next.imageCompositionPresetId;
+    actions.update(node.id, { config: next });
+  }
+
+  function changeExpanded(next: boolean) {
+    if (promptRef.current) dialogCaret.current = editorCaretOffset(promptRef.current);
+    setOpenMenu("");
+    setMention(null);
+    setExpanded(next);
+  }
+
+  const imageComposer = node.type === "imageGeneration";
+  const composition = imageComposer ? getImageCompositionPreset(config.imageCompositionPresetId) : undefined;
+  const displayedConfig = composition && composition.ratio !== "original"
+    ? { ...config, ...imageCompositionSizeParams(config, state.params.map(toGenerationConfigParam), composition.ratio) }
+    : config;
+  const composer = (
     <div
-      className="work-composer nodrag nopan nowheel"
+      className={`work-composer nodrag nopan nowheel${imageComposer ? " image-composer" : ""}${expanded ? " is-expanded" : ""}`}
       onPointerDown={(event) => event.stopPropagation()}
       onClick={(event) => event.stopPropagation()}
     >
       <div className="work-composer-row">
-        {node.type === "imageGeneration" && selectedPreset && (
-          <div className="preset-picker">
-            <button
-              className="preset-trigger"
-              type="button"
-              onClick={() => setOpenMenu(openMenu === "preset" ? "" : "preset")}
-            >
-              <span className="preset-icon" style={{ color: selectedPreset.tone }}>
-                <IconSymbol name={selectedPreset.icon} />
-              </span>
-              <span>{selectedPreset.label}</span>
-              <IconSymbol name="chevron-down" />
-            </button>
-            {openMenu === "preset" && (
-              <div className="preset-menu">
-                <div className="preset-menu-scroll">
-                  {IMAGE_STYLE_PRESETS.map((preset) => (
-                    <button
-                      key={preset.id || "none"}
-                      type="button"
-                      className={`preset-option${preset.id === selectedPreset.id ? " active" : ""}`}
-                      onClick={() => {
-                        const next = { ...config };
-                        if (preset.id) next.stylePresetId = preset.id;
-                        else delete next.stylePresetId;
-                        actions.update(node.id, { config: next });
-                        setOpenMenu("");
-                      }}
-                    >
-                      <span className="preset-icon" style={{ color: preset.tone }}>
-                        <IconSymbol name={preset.icon} />
-                      </span>
-                      <span>
-                        <strong>{preset.label}</strong>
-                        <em>{preset.description}</em>
-                      </span>
-                      {preset.id === selectedPreset.id && <IconSymbol name="check" />}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
+        {imageComposer && (
+          <span className="image-composer-title"><ImagePlus aria-hidden="true" />{t("ui.taskAdapter.imageGeneration.1f6a9dab")}</span>
         )}
         <button
           type="button"
@@ -358,6 +369,18 @@ export function GenerationNodeComposer({
             {t("canvas.composer.smartReference")}
             {smartMatches.length ? ` (${smartMatches.length})` : ""}
           </button>
+        )}
+        {imageComposer && (
+          <ImageComposerTools
+            menu={openMenu}
+            setMenu={setOpenMenu}
+            selectedStyle={selectedPreset}
+            compositionId={config.imageCompositionPresetId}
+            onStyle={selectImageStyle}
+            onComposition={selectImageComposition}
+            onExpand={expanded ? undefined : () => changeExpanded(true)}
+            onClose={expanded ? () => changeExpanded(false) : undefined}
+          />
         )}
       </div>
       <div className="work-prompt-shell">
@@ -403,9 +426,18 @@ export function GenerationNodeComposer({
             </button>
           )}
         </div>
+        {imageComposer && (selectedPreset.id || composition) && (
+          <div className="image-composer-prompt-tools">
+            {selectedPreset.id && <span><Palette aria-hidden />{selectedPreset.label}</span>}
+            {composition && <span>
+              <Grid3x3 aria-hidden />{t(`canvas.imageComposition.${composition.id}.label`)}
+            </span>}
+          </div>
+        )}
         <div
-          ref={promptRef}
+          ref={attachPromptEditor}
           className="work-prompt-editor"
+          style={imageComposer ? { fontSize } : undefined}
           contentEditable
           suppressContentEditableWarning
           role="textbox"
@@ -548,7 +580,7 @@ export function GenerationNodeComposer({
             {activeInputMode && <span>{activeInputMode.label}</span>}
             {summaryParams.slice(0, 4).map((param) => (
               <span key={param.key}>
-                {paramSummary(param, config[param.key] ?? param.default)}
+                {paramSummary(param, displayedConfig[param.key] ?? param.default)}
               </span>
             ))}
             <IconSymbol name="chevron-down" />
@@ -556,7 +588,7 @@ export function GenerationNodeComposer({
           {openMenu === "generationSettings" && (
             <GenerationSettingsPanel
               nodeId={node.id}
-              state={state}
+              state={{ ...state, config: displayedConfig }}
               actions={actions}
               onConfigChange={setConfig}
             />
@@ -601,62 +633,89 @@ export function GenerationNodeComposer({
         />
       )}
 
-      <Modal
-        title={t("canvas.optimizer.title")}
-        open={optimizer.open}
-        onCancel={closeOptimizer}
-        width={640}
-        footer={[
-          <button key="cancel" type="button" className="button ghost" onClick={closeOptimizer}>
-            {t("canvas.optimizer.cancel")}
-          </button>,
-          ...(optimizer.result
-            ? [
-                <button key="retry" type="button" className="button ghost" disabled={optimizer.busy} onClick={() => void runOptimizer(optimizer.mode)}>
-                  {t("canvas.optimizer.retry")}
-                </button>,
-                <button key="adopt" type="button" className="button primary" disabled={optimizer.busy || !optimizer.draft.trim()} onClick={adoptOptimizerResult}>
-                  {t("canvas.optimizer.adopt")}
-                </button>,
-              ]
-            : [
-                <button
-                  key="start"
-                  type="button"
-                  className="button primary"
-                  disabled={optimizer.busy || !optimizer.draft.trim()}
-                  onClick={() => void runOptimizer(optimizer.mode)}
-                >
-                  {t("canvas.optimizer.start")}
-                </button>,
-              ]),
-        ]}
-      >
-        <Segmented
-          value={optimizer.mode}
-          disabled={optimizer.busy}
-          onChange={(value) => setOptimizer((current) => ({ ...current, mode: value as OptimizerMode }))}
-          options={OPTIMIZER_MODES.map((mode) => ({ value: mode, label: t(OPTIMIZER_MODE_LABELS[mode]) }))}
-        />
-        <AntInput.TextArea
-          value={optimizer.draft}
-          onChange={(event) => setOptimizer((current) => ({ ...current, draft: event.target.value }))}
-          autoSize={{ minRows: 4, maxRows: 10 }}
-          aria-label={t("canvas.optimizer.title")}
-        />
-        {!optimizer.result && !optimizer.busy && <p className="optimizer-hint">{t("canvas.optimizer.requestHint")}</p>}
-        {optimizer.busy && <p className="optimizer-hint">{t("canvas.optimizer.running")}</p>}
-        {optimizer.error && <p className="optimizer-hint">{t("canvas.optimizer.failed")}</p>}
-        {optimizer.result && (
-          <>
-            {!optimizer.result.structured && <p className="optimizer-hint">{t("canvas.optimizer.unstructured")}</p>}
-            {optimizer.result.avoid.length > 0 && <p className="optimizer-hint">{t("canvas.optimizer.avoid")}：{optimizer.result.avoid.join("；")}</p>}
-            {optimizer.result.notes.length > 0 && <p className="optimizer-hint">{t("canvas.optimizer.notes")}：{optimizer.result.notes.join("；")}</p>}
-            {optimizer.result.assumptions.length > 0 && <p className="optimizer-hint">{t("canvas.optimizer.assumptions")}：{optimizer.result.assumptions.join("；")}</p>}
-            {optimizer.result.alternatives.length > 0 && <p className="optimizer-hint">{t("canvas.optimizer.alternatives")}：{optimizer.result.alternatives.join("；")}</p>}
-          </>
-        )}
-      </Modal>
     </div>
   );
+
+  return <>
+    {!expanded && composer}
+    {imageComposer && (
+      <Modal
+        aria-label={t("canvas.imageTools.expand")}
+        open={expanded}
+        onCancel={() => changeExpanded(false)}
+        afterOpenChange={() => {
+          const element = promptRef.current;
+          if (!element) return;
+          element.focus();
+          setEditorCaret(element, dialogCaret.current);
+        }}
+        focusTriggerAfterClose={false}
+        footer={null}
+        closable={false}
+        centered
+        destroyOnHidden
+        width="min(1200px, calc(100vw - 64px))"
+        className="image-composer-modal"
+        classNames={{ mask: "image-composer-modal-mask" }}
+      >
+        {expanded && composer}
+      </Modal>
+    )}
+    <Modal
+      title={t("canvas.optimizer.title")}
+      open={optimizer.open}
+      onCancel={closeOptimizer}
+      width={640}
+      footer={[
+        <button key="cancel" type="button" className="button ghost" onClick={closeOptimizer}>
+          {t("canvas.optimizer.cancel")}
+        </button>,
+        ...(optimizer.result
+          ? [
+              <button key="retry" type="button" className="button ghost" disabled={optimizer.busy} onClick={() => void runOptimizer(optimizer.mode)}>
+                {t("canvas.optimizer.retry")}
+              </button>,
+              <button key="adopt" type="button" className="button primary" disabled={optimizer.busy || !optimizer.draft.trim()} onClick={adoptOptimizerResult}>
+                {t("canvas.optimizer.adopt")}
+              </button>,
+            ]
+          : [
+              <button
+                key="start"
+                type="button"
+                className="button primary"
+                disabled={optimizer.busy || !optimizer.draft.trim()}
+                onClick={() => void runOptimizer(optimizer.mode)}
+              >
+                {t("canvas.optimizer.start")}
+              </button>,
+            ]),
+      ]}
+    >
+      <Segmented
+        value={optimizer.mode}
+        disabled={optimizer.busy}
+        onChange={(value) => setOptimizer((current) => ({ ...current, mode: value as OptimizerMode }))}
+        options={OPTIMIZER_MODES.map((mode) => ({ value: mode, label: t(OPTIMIZER_MODE_LABELS[mode]) }))}
+      />
+      <AntInput.TextArea
+        value={optimizer.draft}
+        onChange={(event) => setOptimizer((current) => ({ ...current, draft: event.target.value }))}
+        autoSize={{ minRows: 4, maxRows: 10 }}
+        aria-label={t("canvas.optimizer.title")}
+      />
+      {!optimizer.result && !optimizer.busy && <p className="optimizer-hint">{t("canvas.optimizer.requestHint")}</p>}
+      {optimizer.busy && <p className="optimizer-hint">{t("canvas.optimizer.running")}</p>}
+      {optimizer.error && <p className="optimizer-hint">{t("canvas.optimizer.failed")}</p>}
+      {optimizer.result && (
+        <>
+          {!optimizer.result.structured && <p className="optimizer-hint">{t("canvas.optimizer.unstructured")}</p>}
+          {optimizer.result.avoid.length > 0 && <p className="optimizer-hint">{t("canvas.optimizer.avoid")}：{optimizer.result.avoid.join("；")}</p>}
+          {optimizer.result.notes.length > 0 && <p className="optimizer-hint">{t("canvas.optimizer.notes")}：{optimizer.result.notes.join("；")}</p>}
+          {optimizer.result.assumptions.length > 0 && <p className="optimizer-hint">{t("canvas.optimizer.assumptions")}：{optimizer.result.assumptions.join("；")}</p>}
+          {optimizer.result.alternatives.length > 0 && <p className="optimizer-hint">{t("canvas.optimizer.alternatives")}：{optimizer.result.alternatives.join("；")}</p>}
+        </>
+      )}
+    </Modal>
+  </>;
 }

@@ -31,6 +31,8 @@ interface AppState {
   assetCategory: string;
   assetKeyword: string;
   sidebarCollapsed: boolean;
+  canvasPromptFontSize: number;
+  setCanvasPromptFontSize: (size: number) => void;
   currentProject: ProjectSummary | null;
   setRoute: (route: AppRoute) => boolean;
   setAssetCategory: (category: string) => void;
@@ -39,6 +41,12 @@ interface AppState {
 }
 
 const SIDEBAR_KEY = "shotloom:sidebar-collapsed";
+const PROMPT_FONT_SIZE_KEY = "shotloom:canvas-prompt-font-size";
+
+function initialPromptFontSize() {
+  const size = typeof window === "undefined" ? 0 : Number(window.localStorage.getItem(PROMPT_FONT_SIZE_KEY));
+  return Number.isInteger(size) && size >= 10 && size <= 20 ? size : 16;
+}
 
 function initialSidebarState() {
   if (typeof window === "undefined") return true;
@@ -55,6 +63,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   assetCategory: "characters",
   assetKeyword: "",
   sidebarCollapsed: initialSidebarState(),
+  canvasPromptFontSize: initialPromptFontSize(),
+  setCanvasPromptFontSize: (canvasPromptFontSize) => {
+    window.localStorage.setItem(PROMPT_FONT_SIZE_KEY, String(canvasPromptFontSize));
+    set({ canvasPromptFontSize });
+  },
   currentProject: null,
   setRoute: (route) => {
     if (!PROJECT_FREE_ROUTES.has(route) && !get().currentProject) return false;

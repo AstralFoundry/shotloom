@@ -53,7 +53,7 @@ test('纯上传资源节点不显示下方输入面板', () => {
   assert.match(source, /const uploadedResourceSourceTypes = new Set\(\["canvas-upload", "node-upload", "material-library"\]\)/);
   // 生成结果优先：节点有模型产物时面板照常出现，隐藏只看当前选中的那一份输出。
   assert.match(source, /const uploadedResource = !selectedOutput && Boolean\(uploaded\)/);
-  assert.match(source, /\{selected && !imageCropMode && !imageMaskOpen && !imageEmotionOpen && !state\.uploadedResource && \(\s*\n\s*<ScreenSpaceComposer nodeId=\{node\.id\}>\s*\n\s*<GenerationNodeComposer/);
+  assert.match(source, /\{selected && !imageCropMode && !imageMaskOpen && !imageEmotionOpen && !state\.uploadedResource && \(\s*\n\s*<ScreenSpaceComposer nodeId=\{node\.id\} image=\{node\.type === "imageGeneration"\}>\s*\n\s*<GenerationNodeComposer/);
   // 生成型 starter 把提示词写进这个面板，面板不在时不能留下无效入口。
   assert.match(source, /\{!uploadedResource && TEXT_NODE_STARTERS\.map/);
 });
@@ -64,9 +64,9 @@ test('节点输入面板随屏幕上的节点宽度调整并留在画布内', ()
   assert.match(styles, /\.work-composer \{[\s\S]*?height:\s*100%/);
   assert.match(styles, /\.work-composer-add \{[\s\S]*?width:\s*var\(--canvas-slot-size\);[\s\S]*?height:\s*var\(--canvas-slot-size\)/);
   assert.match(styles, /\.work-composer-input \{[\s\S]*?width:\s*var\(--canvas-slot-size\);[\s\S]*?height:\s*var\(--canvas-slot-size\)/);
-  // 缩略图行只在触发器在场时让位，让的宽度由触发器自身尺寸派生。
+  // 图片工具占独立标题行，参考素材行可以使用整行宽度。
   assert.doesNotMatch(styles, /width:\s*calc\(100% - 160px\)/);
-  assert.match(styles, /\.work-composer:has\(\.preset-picker\) \.work-composer-inputs \{ width: calc\(100% - var\(--canvas-composer-trigger-reserve\)\); \}/);
+  assert.match(styles, /\.image-composer \.work-composer-row \{[^}]*inset: auto/);
 });
 
 test('长提示词滚动时不会进入参考素材区域', () => {
@@ -134,12 +134,12 @@ test('生成参数收纳到分组面板且发送按钮保持在底栏', () => {
   assert.match(source, /sliderValueFromTrack\(param, next\)/);
   assert.doesNotMatch(source, /const min = Number\(presentation\.min\)/, '滑杆轨道域只能由 modelPresentation 一处计算');
   // 滑杆的值是裸数字，摘要里必须带参数名，否则"· 1 ·"读不出是哪项参数。
-  assert.match(source, /paramSummary\(param, config\[param\.key\] \?\? param\.default\)/);
+  assert.match(source, /paramSummary\(param, displayedConfig\[param\.key\] \?\? param\.default\)/);
   // 摘要由统一展示模块生成；双语和滑杆行为在 i18n.test.mjs 中执行验证。
-  assert.match(source, /import \{ paramSummary \} from "\.\.\/\.\.\/utils\/modelPresentation\.ts"/);
+  assert.match(source, /import \{[^}]*\bparamSummary\b[^}]*\} from "\.\.\/\.\.\/utils\/modelPresentation\.ts"/);
   assert.match(styles, /\.work-run-btn \{[^}]*?flex:\s*0 0 var\(--canvas-slot-size\)/);
   assert.match(styles, /\.work-composer \{[\s\S]*?width:\s*100%/);
-  assert.match(source, /className="work-composer nodrag nopan nowheel"[\s\S]*?onPointerDown=\{\(event\) => event\.stopPropagation\(\)\}/);
+  assert.match(source, /className=\{\x60work-composer nodrag nopan nowheel[^\n]*[\s\S]*?onPointerDown=\{\(event\) => event\.stopPropagation\(\)\}/);
   assert.match(source, /className="generation-settings-panel nodrag nopan nowheel"/);
 });
 
