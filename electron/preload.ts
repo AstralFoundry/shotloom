@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
+import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from 'electron';
 
 /**
  * 渲染进程唯一的原生入口。这里刻意保持与 Tauri 桌面桥同形的 API：
@@ -30,6 +30,7 @@ async function invoke(command: string, args?: Record<string, unknown>): Promise<
 
 const api = {
   invoke,
+  pathForFile: (file: File) => webUtils.getPathForFile(file),
   listen(event: string, handler: Listener): () => void {
     const name = `shotloom:event:${event}`;
     const wrapped = (_event: IpcRendererEvent, payload: unknown) => handler(payload);

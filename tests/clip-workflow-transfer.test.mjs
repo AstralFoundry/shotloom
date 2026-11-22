@@ -41,13 +41,16 @@ async function fixture() {
 test('通过实际暂存/粘贴入口复制完整工程、历史和视图，来源与文件引用映射到副本', async () => {
   const f = await fixture();
   try {
+    Object.assign(f.store.project.nodes[0], { x: 40, y: 80 });
+    Object.assign(f.store.project.nodes[1], { x: 360, y: 200 });
     await f.stageSelectedWorkflow();
     assert.equal(f.payload().nodes[1].clipTransfer.native.textClips[0].text, '中文字幕');
     assert.ok(f.payload().resources.some(resource => resource.filePath === '/original/source.mp4'));
-    await f.pasteStagedWorkflow();
+    await f.pasteStagedWorkflow({ x: 1000, y: 300 });
     const nodes = f.store.project.nodes;
     const copied = nodes.find(node => node.type === 'clipStudio' && node.id !== 'clip');
     const sourceCopy = nodes.find(node => node.type === 'videoGeneration' && node.id !== 'source');
+    assert.deepEqual([sourceCopy.x, sourceCopy.y, copied.x, copied.y], [1000, 300, 1320, 420]);
     const edge = f.store.project.edges.find(edge => edge.target === copied.id);
     const restored = f.files.get(`/copy-test/${copied.videoEditProject.openReelSnapshot}`);
     assert.notEqual(restored.id, f.native.id);

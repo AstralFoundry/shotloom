@@ -27,6 +27,7 @@ export interface ShotloomDesktopBridge {
   listen(event: string, handler: (payload: unknown) => void): () => void;
   createChannel(id: string, handler: (payload: unknown) => void): () => void;
   convertFileSrc(path: string): string;
+  pathForFile?(file: File): string;
   dialog: {
     open(options?: DesktopDialogOptions): Promise<string | string[] | null>;
     save(options?: DesktopDialogOptions): Promise<string | null>;

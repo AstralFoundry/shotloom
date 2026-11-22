@@ -96,6 +96,7 @@ export function BottomModeBar(
             menu={{
               items: [
                 { key: 'canvasSection', label: t('canvas.section.create'), icon: <IconSymbol name="layers" /> },
+                { key: '__upload__', label: t('canvas.insert.uploadTitle'), icon: <IconSymbol name="upload" /> },
                 { type: 'divider' },
                 ...nodeTypes.map(item => ({ key: item.id, label: item.label, icon: <IconSymbol name={item.icon} /> })),
               ],

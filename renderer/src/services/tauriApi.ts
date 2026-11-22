@@ -2,7 +2,7 @@ import { t } from '../i18n/index.ts';
 import { isRecord } from '@/utils/typeGuards';
 import { mediaExtension, MEDIA_MIME_BY_EXTENSION } from '@/utils/mediaType.ts';
 import { projectAssetRoot as resolveProjectAssetRoot } from '@/utils/assetPaths.ts';
-import { invoke as nativeInvoke, type InvokeArgs, type InvokeOptions } from '../desktop/core.ts';
+import { desktopBridge, invoke as nativeInvoke, type InvokeArgs, type InvokeOptions } from '../desktop/core.ts';
 import { localizeNativeError } from '../i18n/index.ts';
 
 async function invoke<T>(cmd: string, args?: InvokeArgs, options?: InvokeOptions): Promise<T> {
@@ -845,7 +845,7 @@ export function createTauriApi(browserFallback: BrowserFallback): BrowserFallbac
     },
     file: {
       ...browserFallback.file,
-      pathForFile: (file: unknown) => asRecord(file).path || '',
+      pathForFile: (file: File) => desktopBridge()?.pathForFile?.(file) || asRecord(file).path || '',
       importAsset: async () => {
         const paths = await openDialog({
           title: t("ui.MaterialsView.text.ddd18922"),

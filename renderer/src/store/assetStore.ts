@@ -96,7 +96,7 @@ function nodeTypeForMaterial(material: AnyRecord = {}) {
  * @param {Object} material
  * @returns {Object|null}
  */
-export function applyMaterialToCanvas(material: AnyRecord = {}): AnyRecord | null {
+export function applyMaterialToCanvas(material: AnyRecord = {}, position?: { x: number; y: number }): AnyRecord | null {
   if (!material || (!material.id && !material.assetId)) {
     showToast(t("ui.assetStore.text.f0393f83"));
     return null;
@@ -110,6 +110,10 @@ export function applyMaterialToCanvas(material: AnyRecord = {}): AnyRecord | nul
   recordCanvasHistory(t("ui.assetStore.text.6c80c55a"));
   const node: AnyRecord = addNode(nodeType);
   node.title = title;
+  if (position) {
+    node.x = Math.round(position.x);
+    node.y = Math.round(position.y);
+  }
   node.prompt = material.note || material.content || material.description || '';
   node.content = material.note || material.content || filePath || title;
   node.materialId = material.materialId || material.id || '';

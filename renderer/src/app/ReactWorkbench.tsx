@@ -405,8 +405,8 @@ export function ReactWorkbench() {
         controller={{
           canvas: canvasController,
           nodes: nodeActions,
-          async applyMaterial(item, scope) {
-            await canvasCommands.applyMaterial(item, scope);
+          async applyMaterial(item, scope, placement) {
+            await canvasCommands.applyMaterial(item, scope, placement);
           },
           previewMaterial: assetsController.preview,
           showMaterialInFolder: assetsController.showFile,

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { Button, Checkbox, Modal, Pagination } from 'antd';
 import { t } from '@/i18n';
 import { assetCategories, assetCategoryFor } from '../../domain/asset/assetCategories';
@@ -8,6 +8,7 @@ import { MaterialGrid, type MaterialItem } from './MaterialGrid';
 import { IconSymbol, type IconName } from './IconSymbol';
 import { SearchInput } from './SearchInput';
 import type { CreationViewController } from '../views/CreationView';
+import { useOverlayStore } from '../store/overlayStore';
 import './AssetLibraryBrowser.css';
 
 export type AssetLibraryScope = 'library' | 'local' | 'files';
@@ -55,8 +56,9 @@ export function AssetLibraryBrowser({ sources, initialScope, initialCategory = '
     assetMatchesSearch(item, keyword)), [items, kind, category, keyword]);
   const currentPage = Math.max(1, Math.min(page, Math.ceil(filtered.length / pageSize)));
   const visible = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
-  const selectedItems = sources.flatMap(source => source.items.filter(item => selected.has(selectionKey(source.id, item)))
-    .map(item => ({ item, scope: source.id })));
+  const selectedByKey = new Map(sources.flatMap(source => source.items.filter(item => selected.has(selectionKey(source.id, item)))
+    .map(item => [selectionKey(source.id, item), { item, scope: source.id }] as const)));
+  const selectedItems = [...selected].flatMap(key => selectedByKey.get(key) ?? []);
   const selectedPageKeys = new Set(visible.filter(item => selected.has(selectionKey(scope, item))).map(assetLibraryKey));
   const allPageSelected = visible.length > 0 && selectedPageKeys.size === visible.length;
   const countFor = (id: string) => id === 'all' ? items.length : items.filter(item => assetCategoryFor(item.category).id === id).length;
@@ -147,9 +149,18 @@ export function AssetLibraryBrowser({ sources, initialScope, initialCategory = '
   </section>;
 }
 
-export function AssetLibraryModal({ open, onClose, controller, request }: { open: boolean; onClose: () => void; controller: CreationViewController;
+export function AssetLibraryModal({ open, onClose, controller, request, position }: { open: boolean; onClose: () => void; controller: CreationViewController;
+  position?: { x: number; y: number } | undefined;
   request?: { scope: AssetLibraryScope; category: string; name: string; assetId: string } | null;
 }) {
+  const nextIndex = useRef(0);
+  const previewRoot = useRef<HTMLDivElement>(null);
+  const bindPreviewRoot = useCallback((element: HTMLDivElement | null) => {
+    const { media, closeMedia } = useOverlayStore.getState();
+    if (!element && media.portalTarget && media.portalTarget === previewRoot.current) closeMedia();
+    previewRoot.current = element;
+  }, []);
+  const previewOpen = useOverlayStore(state => state.media.open && Boolean(state.media.portalTarget) && state.media.portalTarget === previewRoot.current);
   const revision = useSyncExternalStore(subscribeDomain, getDomainRevision, getDomainRevision);
   const [busy, setBusy] = useState(false);
   const resources = useMemo(() => controller.loadMaterials(), [controller, revision]);
@@ -158,10 +169,15 @@ export function AssetLibraryModal({ open, onClose, controller, request }: { open
     { id: 'library', label: t('ui.ProjectSearch.text.96cb64ae'), icon: 'folder', items: resources.projectAssets },
     { id: 'local', label: t('ui.CreationView.text.d2199cbf'), icon: 'archive', items: resources.localAssets },
   ];
-  return <Modal open={open} centered title={null} footer={null} closable={false} destroyOnHidden width="min(1440px, calc(100vw - 48px))" className="asset-library-modal"
-    styles={{ container: { padding: 0 }, body: { padding: 0 } }} mask={{ closable: !busy }} keyboard={!busy} onCancel={() => { if (!busy) onClose(); }}>
+  return <Modal open={open} centered title={null} footer={null} closable={false} destroyOnHidden width="min(1240px, calc(100vw - 80px))" className="asset-library-modal"
+    modalRender={dialog => <>{dialog}<div className="asset-library-preview-layer" ref={bindPreviewRoot} /></>}
+    styles={{ container: { padding: 0 }, body: { padding: 0 } }} mask={{ closable: !busy && !previewOpen }} keyboard={!busy && !previewOpen}
+    onCancel={() => { if (!busy && !previewOpen) onClose(); }}>
     <AssetLibraryBrowser sources={sources} initialScope={request?.scope || (resources.materials.length ? 'files' : resources.projectAssets.length ? 'library' : 'local')}
       {...(request ? { initialCategory: request.category, initialKeyword: request.name, focusedAssetId: request.assetId } : {})}
-      onPreview={controller.previewMaterial} onClose={onClose} onInsert={controller.applyMaterial} onBusyChange={setBusy} onImport={controller.importMaterials} />
+      onPreview={(item, src, kind) => controller.previewMaterial(item, src, kind, previewRoot.current ?? undefined)} onClose={onClose} onInsert={async (item, scope) => {
+        await controller.applyMaterial(item, scope, position && { position, index: nextIndex.current });
+        nextIndex.current++;
+      }} onBusyChange={setBusy} onImport={controller.importMaterials} />
   </Modal>;
 }

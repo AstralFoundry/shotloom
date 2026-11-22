@@ -12,6 +12,7 @@ interface MediaPayload {
   onRenameVersion?: (id: string, name: string) => boolean;
   onCopyVersion?: (id: string) => boolean;
   onCaptureFrame?: (seconds: number) => void | Promise<void>;
+  portalTarget?: HTMLElement;
   /** 文本编辑器右侧文本 Agent 面板绑定的节点；为空则不显示面板。 */
   textAgentNodeId?: string;
 }
@@ -27,6 +28,7 @@ interface OverlayState {
     onRenameVersion: ((id: string, name: string) => boolean) | null;
     onCopyVersion: ((id: string) => boolean) | null;
     onCaptureFrame: ((seconds: number) => void | Promise<void>) | null;
+    portalTarget: HTMLElement | null;
     textAgentNodeId: string;
   };
   openMedia: (payload: MediaPayload) => boolean;
@@ -45,6 +47,7 @@ export const useOverlayStore = create<OverlayState>((set) => ({
     onRenameVersion: null,
     onCopyVersion: null,
     onCaptureFrame: null,
+    portalTarget: null,
     textAgentNodeId: "",
   },
   openMedia: (payload) => {
@@ -63,6 +66,7 @@ export const useOverlayStore = create<OverlayState>((set) => ({
         onRenameVersion: payload.onRenameVersion || null,
         onCopyVersion: payload.onCopyVersion || null,
         onCaptureFrame: payload.onCaptureFrame || null,
+        portalTarget: payload.portalTarget || null,
         textAgentNodeId: String(payload.textAgentNodeId || ""),
       },
     });
@@ -70,7 +74,7 @@ export const useOverlayStore = create<OverlayState>((set) => ({
   },
   closeMedia: () =>
     set((state) => ({
-      media: { ...state.media, open: false, onSave: null },
+      media: { ...state.media, open: false, onSave: null, portalTarget: null },
     })),
 }));
 

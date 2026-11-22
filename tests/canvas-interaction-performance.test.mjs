@@ -355,7 +355,8 @@ test('画布右键菜单把屏幕坐标换算为画布局部坐标并限制在�
   assert.match(canvas, /getBoundingClientRect\(\)/);
   assert.match(canvasGeometry, /clientX - bounds\.left/);
   assert.match(canvasGeometry, /clientY - bounds\.top/);
-  assert.match(canvasGeometry, /bounds\.width - CANVAS_MENU_WIDTH/);
+  assert.match(canvasGeometry, /menuWidth = CANVAS_MENU_WIDTH/);
+  assert.match(canvasGeometry, /bounds\.width - menuWidth/);
   assert.match(canvasGeometry, /menuHeight = CANVAS_MENU_HEIGHT/);
   assert.match(canvasGeometry, /bounds\.height - menuHeight/);
 });

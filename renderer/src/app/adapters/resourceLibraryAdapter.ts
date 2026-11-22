@@ -88,12 +88,13 @@ export function resourceLibraryData() {
   };
 }
 
-const preview = (item: MaterialItem, src: string, kind: "image" | "video") =>
+const preview = (item: MaterialItem, src: string, kind: "image" | "video", portalTarget?: HTMLElement) =>
   openMediaViewer({
     src,
     kind,
     title: String(item.name || t("ui.resourceLibraryAdapter.text.41b9abc7")),
     filePath: String(item.path || ""),
+    ...(portalTarget && { portalTarget }),
   });
 const showFile = async (item: MaterialItem) => {
   if (item.path) await desktopApi.file.showItemInFolder(item.path);
