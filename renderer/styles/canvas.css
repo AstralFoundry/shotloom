@@ -2586,3 +2586,23 @@ body.annotation-editor-open .screenshots-textarea {
 .canvas-precision-range .ant-slider { flex: 1; min-width: 0; }
 .canvas-precision-stops { display: flex; gap: 4px; padding: 4px; }
 .canvas-precision-stops button { flex: 1; padding: 4px 0; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--muted); cursor: pointer; font-size: var(--text-caption-11); }
+
+.video-composer-search.ant-input-affix-wrapper { min-height: 32px; padding: 4px 8px; border-radius: var(--radius-sm); }
+.video-composer-search .ant-input-prefix { color: var(--muted); }
+.video-composer-search .ant-input-prefix svg { width: var(--icon-sm); height: var(--icon-sm); }
+.video-template-popover { width: min(320px, calc(100vw - 24px)); }
+.video-template-list { display: grid; gap: 4px; max-height: min(320px, 48dvh); overflow-y: auto; padding: 0 8px 8px; }
+.video-template-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-align: start;
+  color: var(--type-primary);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-sm);
+  padding: 8px;
+}
+.video-template-option:hover { background: var(--wash-hover); }
+.video-template-option > svg { width: var(--icon-md); height: var(--icon-md); flex: none; }
+.video-template-option small { display: block; color: var(--muted); }

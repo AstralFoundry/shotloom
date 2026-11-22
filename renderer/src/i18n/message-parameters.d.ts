@@ -1313,4 +1313,5 @@ export interface MessageParameters {
   "canvas.storyboard.missingKeyframe": Record<"index", string | number>;
   "canvas.storyboard.generateSelectedImages": Record<"count", string | number>;
   "canvas.storyboard.generateSelectedVideos": Record<"count", string | number>;
+  "canvas.videoTools.removeMotion": Record<"name", string | number>;
 }

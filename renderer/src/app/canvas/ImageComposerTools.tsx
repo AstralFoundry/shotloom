@@ -23,7 +23,7 @@ const presetIcons = {
   characterFourView: ContactRound, characterThreeView: PersonStanding, faceThreeView: ScanFace, productThreeView: Package,
 };
 
-function popupContainer(trigger: HTMLElement) {
+export function popupContainer(trigger: HTMLElement) {
   return trigger.closest<HTMLElement>('.ant-modal') ?? document.body;
 }
 
@@ -79,13 +79,9 @@ export function ImageComposerTools({
   onExpand: (() => void) | undefined;
   onClose: (() => void) | undefined;
 }) {
-  const size = useAppStore(store => store.canvasPromptFontSize);
-  const setSize = useAppStore(store => store.setCanvasPromptFontSize);
   const composition = getImageCompositionPreset(compositionId)?.id;
   const styleLabel = t('canvas.imageTools.style');
   const presetLabel = t('canvas.imageTools.preset');
-  const fontLabel = t('canvas.imageTools.fontSize');
-  const expandLabel = t('canvas.imageTools.expand');
   const closePopup = () => setMenu('');
   const popupProps = {
     trigger: 'click' as const,
@@ -134,7 +130,21 @@ export function ImageComposerTools({
         <X aria-hidden />
       </button>}
     </div>
-    <div className="image-composer-view-tools">
+    <ComposerViewTools menu={menu} setMenu={setMenu} onExpand={onExpand} onClose={onClose} />
+  </div>;
+}
+
+export function ComposerViewTools({ menu, setMenu, onExpand, onClose }: {
+  menu: string;
+  setMenu: (menu: 'font' | '') => void;
+  onExpand?: (() => void) | undefined;
+  onClose?: (() => void) | undefined;
+}) {
+  const size = useAppStore(store => store.canvasPromptFontSize);
+  const setSize = useAppStore(store => store.setCanvasPromptFontSize);
+  const fontLabel = t('canvas.imageTools.fontSize');
+  const expandLabel = t('canvas.imageTools.expand');
+  return <div className="image-composer-view-tools">
       <Popover
         trigger="click"
         placement="topRight"
@@ -157,6 +167,5 @@ export function ImageComposerTools({
         aria-label={t('canvas.imageTools.closeExpanded')} onClick={onClose}>
         <X aria-hidden />
       </button>}
-    </div>
-  </div>;
+    </div>;
 }

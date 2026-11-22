@@ -11094,5 +11094,11 @@
   "canvas.batch.generationSummary": "即将生成 {count} 条任务，同时运行 {concurrency} 条。",
   "canvas.storyboard.missingKeyframe": "镜头 {index} 缺少首帧，请先生成分镜图。",
   "canvas.storyboard.generateSelectedImages": "生成分镜图 {count}",
-  "canvas.storyboard.generateSelectedVideos": "生成视频 {count}"
+  "canvas.storyboard.generateSelectedVideos": "生成视频 {count}",
+  "canvas.videoTools.motion": "运镜",
+  "canvas.videoTools.template": "提示词模板",
+  "canvas.videoTools.searchMotion": "搜索运镜名称或分类",
+  "canvas.videoTools.searchTemplate": "搜索提示词模板",
+  "canvas.videoTools.empty": "没有匹配的结果",
+  "canvas.videoTools.removeMotion": "移除运镜 {name}"
 }
