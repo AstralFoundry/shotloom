@@ -1,6 +1,6 @@
 import { useAppStore } from '../store/appStore';
 import { ConfigProvider, Segmented } from 'antd';
-import { PanelsTopLeft, Workflow } from 'lucide-react';
+import { PanelsLeftBottom, Workflow } from 'lucide-react';
 import { t } from '@/i18n';
 import { CANVAS_AGENT_ID } from '../../agent/agents/definitions';
 import {
@@ -14,6 +14,8 @@ import {
   useState,
 } from "react";
 import type { Viewport } from "@xyflow/react";
+import { CanvasHeader } from '../canvas/CanvasHeader';
+import type { ProjectSaveStatus } from '../../store/projectStore';
 import { CanvasStartup } from "../canvas/CanvasStartup";
 import { CanvasUploadDialog, type CanvasUploadEntry, type CanvasUploadFailure } from '../canvas/CanvasUploadDialog';
 import { CanvasAssetView } from "../canvas/CanvasAssetView";
@@ -48,6 +50,9 @@ type CanvasPoint = { x: number; y: number };
 
 export interface CreationViewController {
   canvas: WorkflowCanvasController;
+  renameProject: (name: string) => void;
+  saveProject: () => void;
+  openSearch: () => void;
   nodes: WorkflowNodeActions;
   applyMaterial: (item: MaterialItem, scope: "library" | "local" | "files", placement?: { position: CanvasPoint; index: number }) => void | Promise<void>;
   previewMaterial: (item: MaterialItem, src: string, kind: "image" | "video", portalTarget?: HTMLElement) => void;
@@ -72,6 +77,8 @@ export interface CreationViewController {
   editor?: VideoEditorController;
 }
 export interface CreationViewData {
+  projectName: string;
+  saveStatus: ProjectSaveStatus;
   /** 顶层「导演台」入口：整页交给导演台，关闭后回到同一个画布。 */
   nodes: WorkflowNodeData[];
   artifactNodes: WorkflowNodeData[];
@@ -253,31 +260,40 @@ function CreationCanvas({ data, controller }: { data: CreationViewData; controll
             onCreateMarkdown={() => controller.createCanvasMarkdown(canvasCenter())}
             onEditMarkdown={id => void controller.editCanvasMarkdown(id)}
           />}
-          <ConfigProvider theme={{ components: { Segmented: {
-            trackBg: 'var(--bg)',
-            itemSelectedBg: 'var(--type-primary)',
-            itemSelectedColor: 'var(--bg)',
-          } } }}>
-            <Segmented
-              className="canvas-view-switch"
-              aria-label={t('canvas.assetView.switch')}
-              shape="round"
-              value={view}
-              onChange={setView}
-              options={[
-                {
-                  value: 'canvas',
-                  label: <><Workflow aria-hidden="true" /><span className="canvas-view-switch-text">{t('canvas.assetView.canvas')}</span></>,
-                  title: t('canvas.assetView.canvas'),
-                },
-                {
-                  value: 'assets',
-                  label: <><PanelsTopLeft aria-hidden="true" /><span className="canvas-view-switch-text">{t('canvas.assetView.title')}</span></>,
-                  title: t('canvas.assetView.title'),
-                },
-              ]}
-            />
-          </ConfigProvider>
+          <CanvasHeader name={data.projectName} saveStatus={data.saveStatus} history={data.history}
+            onRename={controller.renameProject} onSave={controller.saveProject} onImport={() => openUpload()} onVersions={() => setVersionHistoryOpen(true)}
+            onFitView={() => {
+              setView('canvas');
+              controller.fitView();
+            }}
+            onSearch={controller.openSearch} onUndo={controller.undo} onRedo={controller.redo}>
+            <ConfigProvider theme={{ components: { Segmented: {
+              trackBg: 'var(--float-surface-solid)',
+              itemColor: 'var(--canvas-header-muted)',
+              itemSelectedBg: 'var(--canvas-header-ink)',
+              itemSelectedColor: 'var(--surface)',
+            } } }}>
+              <Segmented
+                className="canvas-view-switch"
+                aria-label={t('canvas.assetView.switch')}
+                shape="round"
+                value={view}
+                onChange={setView}
+                options={[
+                  {
+                    value: 'canvas',
+                    label: <><Workflow aria-hidden="true" /><span className="canvas-view-switch-text">{t('canvas.assetView.canvas')}</span></>,
+                    title: t('canvas.assetView.canvas'),
+                  },
+                  {
+                    value: 'assets',
+                    label: <><PanelsLeftBottom aria-hidden="true" /><span className="canvas-view-switch-text">{t('canvas.assetView.title')}</span></>,
+                    title: t('canvas.assetView.title'),
+                  },
+                ]}
+              />
+            </ConfigProvider>
+          </CanvasHeader>
         </div>
         <PoseLibraryModal open={poseLibraryOpen} onClose={() => setPoseLibraryOpen(false)} />
         {agentPanelVisible && (

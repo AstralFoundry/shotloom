@@ -22,6 +22,8 @@ test('projectStore 的工程写入只保留保存队列一个出口', () => {
 });
 
 test('新建、克隆与素材恢复写入都改走串行入口', () => {
-  const serializedCalls = [...source.matchAll(/saveProjectSerialized\(/g)].length;
-  assert.ok(serializedCalls >= 4, `统一写入入口应覆盖队列定义与三处调用，实际 ${serializedCalls} 次`);
+  assert.match(source, /async function createNewProject\([\s\S]*?await saveProjectSerialized\(/);
+  assert.match(source, /async function cloneRecentProject\([\s\S]*?await saveProjectSerialized\(/);
+  assert.match(source, /async function writeProjectFile\([\s\S]*?await projectSaveQueue\.enqueue\(/);
+  assert.match(source, /if \(restoration\.restored\) \{[\s\S]*?await writeProjectFile\(\)/);
 });

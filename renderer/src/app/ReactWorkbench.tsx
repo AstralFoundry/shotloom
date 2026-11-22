@@ -17,6 +17,9 @@ import {
   loadBoundWindowProject,
   loadRecentProjects,
   navigateToRoute,
+  projectSaveStatus,
+  renameCurrentProject,
+  saveProject,
   store,
   touchProject,
 } from "../store/projectStore.ts";
@@ -87,6 +90,10 @@ import { recordDiagnosticEvent } from "../services/diagnosticsService";
 /**
  * React 主工作台根；领域状态通过框架无关订阅同步到视图。
  */
+function reportCanvasSaveError(error: unknown) {
+  showErrorMessage(error instanceof Error ? error.message : String(error), t('canvas.header.failed'));
+}
+
 export function ReactWorkbench() {
   useEffect(mountAppTheme, []);
   const [, refresh] = useReducer((value) => value + 1, 0);
@@ -386,6 +393,8 @@ export function ReactWorkbench() {
         key={`${store.project.id}:${store.filePath || ""}`}
         data={{
           ...canvas!,
+          projectName: store.project.name || t("ui.ProjectCard.text.060f1435"),
+          saveStatus: projectSaveStatus(),
           artifactNodes: [
             ...canvas!.nodes,
             ...store.project.nodes.filter(
@@ -404,6 +413,13 @@ export function ReactWorkbench() {
         }}
         controller={{
           canvas: canvasController,
+          renameProject(name) {
+            void renameCurrentProject(name).catch(reportCanvasSaveError);
+          },
+          saveProject() {
+            void saveProject().catch(reportCanvasSaveError);
+          },
+          openSearch: () => setSearchOpen(true),
           nodes: nodeActions,
           async applyMaterial(item, scope, placement) {
             await canvasCommands.applyMaterial(item, scope, placement);

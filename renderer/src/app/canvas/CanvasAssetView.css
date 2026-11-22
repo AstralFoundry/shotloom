@@ -10,21 +10,15 @@
 .forge-canvas-stage .canvas-selection-layout { top: 65px; }
 
 .canvas-view-switch {
-  position: absolute;
-  z-index: 2;
-  top: 12px;
-  left: 50%;
-  transform: translateX(-50%);
   padding: 4px;
-  border: 1px solid var(--line);
   border-radius: 999px;
-  box-shadow: var(--shadow);
+  box-shadow: var(--shadow-lift);
 }
 
 .canvas-view-switch .ant-segmented-item-label {
   display: grid;
-  width: 36px;
-  min-height: 36px;
+  width: 34px;
+  min-height: 34px;
   padding: 0;
   place-items: center;
 }
@@ -38,7 +32,14 @@
   white-space: nowrap;
 }
 
-.canvas-view-switch svg,
+.canvas-view-switch svg {
+  width: var(--icon-md);
+  height: var(--icon-md);
+  stroke-width: 1.75;
+}
+
+.canvas-view-switch .ant-segmented-item-selected { box-shadow: var(--shadow-card); }
+
 .canvas-asset-view svg { width: var(--icon-md); height: var(--icon-md); }
 
 .canvas-asset-view {
