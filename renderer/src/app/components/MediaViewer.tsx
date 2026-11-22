@@ -3,6 +3,7 @@ import {
   type CSSProperties,
   type KeyboardEvent,
   type PointerEvent,
+  useCallback,
   useEffect,
   useRef,
   useState,
@@ -16,6 +17,7 @@ import {
 } from "../../services/mediaPreviewCache";
 import { IconSymbol } from "./IconSymbol";
 import { useWorkbenchSurfaceRoot } from "../layout/workbenchSurface";
+import { useAgentPetSurface } from "../agent-chat/AgentPetWorkspace";
 import { TextAgentPanel } from "../agent-chat/TextAgentPanel";
 import { registerTextDraftTarget } from "../../services/textDraftBridge";
 import { useOverlayStore } from "../store/overlayStore";
@@ -165,12 +167,18 @@ export function MediaViewer() {
     observer.observe(el);
     return () => observer.disconnect();
   }, [agentNodeId, agentOpen]);
-  if (!media.open || !surface) return null;
   /* 用户拖出来的宽度是偏好，实际列宽还要留出编辑器的最小空间：打开版本历史或
      缩小浮层时先按当前空间收窄，偏好本身保持不变。判定用舞台真实可用宽度，
      窗口宽度含侧栏，按它算会把编辑器挤成一条。 */
   const agentSpace = (stageWidth || window.innerWidth) - (historyOpen ? 286 : 0) - TEXT_EDITOR_MIN_WIDTH;
   const agentPanelWidth = Math.min(textAgentWidth, Math.max(TEXT_AGENT_MIN_WIDTH, Math.min(TEXT_AGENT_MAX_WIDTH, agentSpace)));
+  const toggleAgent = useCallback(() => setAgentOpen(open => !open), []);
+  const setPetPhase = useAgentPetSurface('media', media.open && Boolean(surface), {
+    expanded: Boolean(agentNodeId && agentOpen),
+    ...(agentNodeId && { onToggle: toggleAgent }),
+    inset: agentNodeId && agentOpen ? agentPanelWidth : 0,
+  });
+  if (!media.open || !surface) return null;
   function resizeTextAgentPanel(nextWidth: number) {
     // 只夹到硬边界：可用空间的变化由上面的渲染夹宽度处理，不把一时的窄空间写进偏好。
     const width = Math.round(Math.min(TEXT_AGENT_MAX_WIDTH, Math.max(TEXT_AGENT_MIN_WIDTH, nextWidth)));
@@ -373,6 +381,8 @@ export function MediaViewer() {
               <button title={t("ui.MediaViewer.title.2fddb1bf")} onMouseDown={(event) => { event.preventDefault(); insertTable(); }}><IconSymbol name="table" /></button>
             </div>
             <div className="text-editor-actions">
+              {agentNodeId && <button type="button" title={t("agentPet.textPanel")} aria-label={t("agentPet.textPanel")}
+                aria-pressed={agentOpen} onClick={toggleAgent}><IconSymbol name="spark" /></button>}
               {media.getTextVersions && <button title={t("ui.MediaViewer.title.8770418b")} aria-label={t("ui.MediaViewer.title.8770418b")} aria-pressed={historyOpen} onClick={() => setHistoryOpen((value) => !value)}><IconSymbol name="refresh" /></button>}
               {textSearchOpen && (
                 <input
@@ -527,23 +537,22 @@ export function MediaViewer() {
           </aside>
         )}
         {agentNodeId && agentOpen && (
-          <>
-            <div
-              className="text-agent-divider"
-              style={{ right: agentPanelWidth }}
-              role="separator"
-              aria-label={t("ui.MediaViewer.arialabel.21907d3a")}
-              aria-orientation="vertical"
-              aria-valuemin={TEXT_AGENT_MIN_WIDTH}
-              aria-valuemax={TEXT_AGENT_MAX_WIDTH}
-              aria-valuenow={agentPanelWidth}
-              tabIndex={0}
-              onPointerDown={startTextAgentResize}
-              onKeyDown={resizeTextAgentWithKeyboard}
-            />
-            <TextAgentPanel nodeId={agentNodeId} onClose={() => setAgentOpen(false)} />
-          </>
+          <div
+            className="text-agent-divider"
+            style={{ right: agentPanelWidth }}
+            role="separator"
+            aria-label={t("ui.MediaViewer.arialabel.21907d3a")}
+            aria-orientation="vertical"
+            aria-valuemin={TEXT_AGENT_MIN_WIDTH}
+            aria-valuemax={TEXT_AGENT_MAX_WIDTH}
+            aria-valuenow={agentPanelWidth}
+            tabIndex={0}
+            onPointerDown={startTextAgentResize}
+            onKeyDown={resizeTextAgentWithKeyboard}
+          />
         )}
+        {agentNodeId && <TextAgentPanel nodeId={agentNodeId} hidden={!agentOpen}
+          onActivityChange={setPetPhase} onClose={() => setAgentOpen(false)} />}
       </main>
       <footer className="media-viewer-hint">
         {media.kind !== "text" ? (

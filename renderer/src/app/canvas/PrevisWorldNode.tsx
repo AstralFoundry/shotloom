@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { getLocale, t } from "@/i18n";
 import { IconSymbol } from "../components/IconSymbol";
 import { showToast } from "../../store/notificationStore";
+import { useAgentPetSurface } from "../agent-chat/AgentPetWorkspace";
 import { useWorkbenchSurfaceRoot } from "../layout/workbenchSurface";
 import {
   CanvasNodeLabelRootContext,
@@ -45,6 +46,7 @@ export const PrevisWorldNode: WorkflowNodeRenderer = memo(
     const [incomingImages, setIncomingImages] = useState<IncomingImage[]>([]);
     const [interacting, setInteracting] = useState(false);
     const [detailOpen, setDetailOpen] = useState(false);
+    useAgentPetSurface('director', detailOpen && Boolean(surface));
     const scene = readNodeScene(node);
     const summary = previsWorldSummary(scene);
     const miniScene = scene && scene.objects.length > 0 ? scene : null;

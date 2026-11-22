@@ -161,12 +161,19 @@
 .project-card-grid .project-create-name { width: 100%; height: var(--control-height); border-color: var(--line-solid); border-radius: var(--radius-sm); font-size: var(--text-body-12); line-height: var(--text-body-12--line-height); font-weight: 400; }
 .project-library-empty {
   flex: 1;
+  user-select: none;
   display: grid;
   align-content: center;
   justify-items: center;
   gap: 4px;
 }
-.project-library-empty-art { width: 134px; margin-bottom: 20px; }
+.project-library-empty-art {
+  width: 134px;
+  margin-bottom: 20px;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-drag: none;
+}
 .project-library-empty strong { color: var(--type-primary); font-size: var(--text-title-16); font-weight: 500; }
 .project-library-empty span { color: var(--muted); font-size: var(--text-body-14); }
 

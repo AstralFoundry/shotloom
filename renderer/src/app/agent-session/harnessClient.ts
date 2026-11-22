@@ -1,3 +1,4 @@
+import type { AgentPetState } from '../../services/agentPetArchive';
 import { Channel, invoke } from '@/desktop/core.ts';
 
 export interface HarnessProductHost {
@@ -7,6 +8,7 @@ export interface HarnessProductHost {
   navigate(kind: 'nodes' | 'tasks', ids: string[]): void;
   status(phase: 'loading' | 'ready' | 'error', error?: string): void;
   onTurnStart?(): void;
+  onActivityChange?(phase: AgentPetState): void;
   subscribeMention(listener: (nodeId: string) => void): () => void;
 }
 interface NativeEvent { requestId: string; kind: string; value?: unknown; error?: string }

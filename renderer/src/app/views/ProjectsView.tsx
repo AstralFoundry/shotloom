@@ -539,6 +539,7 @@ export function ProjectsView(
                 <img
                   className="project-library-empty-art"
                   src="./noproject.svg"
+                  draggable={false}
                   alt=""
                   aria-hidden="true"
                 />
