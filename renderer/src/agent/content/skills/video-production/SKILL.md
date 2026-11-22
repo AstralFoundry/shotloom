@@ -23,6 +23,7 @@ metadata: {"category":"video","version":17}
 以下入口帮助画布 Agent 在加载 Skill 前依据完整请求选择。若用户已显式调用 `/video-production`，本轮仍由本 Skill 完成相应交付，不改选其他 Skill。
 
 - 用户给出剧本，要求人物/场景参考、站位、分镜图或细化镜头提示词，并希望本轮直接落地画布：`script-storyboard`。写入制作计划只是中间动作，应继续落实节点、真实输入边和要求生成的图片。
+- 用户明确要求从创意、小说、大纲或剧本贯通资产设计、参考图、分镜运镜与短片交付，或点名「剧本资产视频一条龙创作」：`script-assets-to-video`。
 - 用户给出完整剧本，要求从成片规格、元素资产、镜头提示词推进到视频和声音交接：`script-to-video`。按用户已授权范围连续制作；每个进入视频制作的 `shot_id` 先加载 `short-drama-video-prompt`，再根据动作连续性和构图风险决定是否建立时间板或镜头板，不强制建立两张板或 3×3 宫格；仅在用户明确要求逐阶段审阅时设置暂停点。
 - 用户只要角色板或三视图：`character-board`；只要关键帧动画编排：`keyframe-video`；指定具体视频模型时，由 `short-drama-video-prompt` 读取对应模型路由参考。
 
