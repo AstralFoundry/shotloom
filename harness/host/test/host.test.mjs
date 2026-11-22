@@ -8,6 +8,7 @@ import { createServer } from 'node:http';
 import { randomBytes } from 'node:crypto';
 import { LlmAdapter, ToolCallId, createUserMessage } from '@deepseek-ai/dsh-llm';
 import { openDatabase } from '../dist/db/connection.js';
+import { SessionCrud } from '../dist/crud/sessionCrud.js';
 import { HostCrud } from '../dist/crud/hostCrud.js';
 import { createHost } from '../dist/createHost.js';
 import { registerProductTools } from '../dist/productTools.js';
@@ -77,14 +78,38 @@ test('official Host starts, scopes prompts and rejects unbound editor sessions',
   assert.ok(skills.some(skill => skill.name === 'video-editing'));
 });
 
-test('director session binds without a node and can dispatch the editor agent', { timeout: 10000 }, async t => {
-  const { host } = await fixture(t);
-  const adapter = new ScriptedAdapter([text('ready')]);
+test('director Sessions require a node, never delegate, and purge only the deleted node history', { timeout: 10000 }, async t => {
+  const { host, dataRoot } = await fixture(t, { isolateDirectorSessions: true });
+  const adapter = new ScriptedAdapter([text('A'), text('B'), text('canvas')]);
   host.ctx.llm.registerAdapter(['test'], adapter);
-  const { agent } = await host.create({ ...binding, agentId: 'director-primary', conversationId: 'director-conversation' }, route);
-  await send(agent, 'Inspect the open 3D scene');
-  assert.ok(adapter.requests[0].tools.some(tool => tool.name === 'delegate_editor'));
-  assert.match(JSON.stringify(agent.session.snapshotEvents().find(e => e.type === 'system/message')), /3D 导演台 Agent/);
+  const director = { ...binding, agentId: 'director-primary', conversationId: 'director-conversation' };
+  await assert.rejects(host.create(director, route), /bound node/);
+  const a = await host.create({ ...director, nodeId: 'world-a' }, route);
+  const b = await host.create({ ...director, nodeId: 'world-b', conversationId: 'director-b' }, route);
+  const canvas = await host.create(binding, route);
+  await send(a.agent, 'Private conversation A');
+  await send(b.agent, 'Private conversation B');
+  await send(canvas.agent, 'Read the canvas');
+  for (const request of adapter.requests) {
+    assert.ok(!request.tools.some(tool => ['delegate_director', 'bash'].includes(tool.name)));
+  }
+  assert.ok(!adapter.requests[0].tools.some(tool => tool.name === 'delegate_editor'));
+  assert.match(JSON.stringify(a.agent.session.snapshotEvents().find(event => event.type === 'system/message')), /世界引擎 Agent/);
+  assert.doesNotMatch(JSON.stringify(adapter.requests[1].messages), /Private conversation A/);
+  assert.doesNotMatch(JSON.stringify(adapter.requests[2].messages), /Private conversation [AB]/);
+  const db = openDatabase(join(dataRoot, 'agent.sqlite'));
+  try {
+    await host.ctx.sessionPersistence.flush();
+    const crud = new SessionCrud(db);
+    assert.ok(crud.read(a.binding.sessionId).length);
+    await host.deleteDirectorSession(a.binding.sessionId, 'world-a-catalog');
+    assert.equal(host.binding(a.binding.sessionId), undefined);
+    assert.equal(crud.find(a.binding.sessionId), undefined);
+    assert.deepEqual(crud.read(a.binding.sessionId), []);
+    assert.ok(crud.read(b.binding.sessionId).length);
+    assert.ok(crud.read(canvas.binding.sessionId).length);
+    await assert.rejects(host.resume(a.binding.sessionId), /no trusted Shotloom binding/);
+  } finally { db.close(); }
 });
 
 test('official statistics and token usage projections are available to the embedded header', { timeout: 10000 }, async t => {
@@ -255,7 +280,7 @@ test('Full access runs director writes without per-tool approval', { timeout: 10
     call('director_explicit_delete', {}), text('explicit approval rejected'),
   ]);
   host.ctx.llm.registerAdapter(['test'], adapter);
-  const owner = await host.create({ ...binding, agentId: 'director-primary', conversationId: 'director-full-access' }, route);
+  const owner = await host.create({ ...binding, agentId: 'director-primary', conversationId: 'director-full-access', nodeId: 'world' }, route);
   host.ctx.permissionPresets.set(owner.agent.session, 'danger-full-access');
   await send(owner.agent, 'Perform the ordinary write');
   assert.equal(requests.filter(item => item.phase !== 'authorize').length, 1);
@@ -925,8 +950,9 @@ test('model-facing subagent tool starts a child and official runtime notifies it
   assert.ok(adapter.requests.some(request => request.messages.some(message => JSON.stringify(message).includes('咖啡杯特写'))));
 });
 
-for (const specialist of ['editor', 'director']) test(`canvas delegates a real ${specialist} child with live canvas tools, parent approvals and durable cold resume`, { timeout: 20000 }, async t => {
-  const writeTool = specialist === 'editor' ? 'video_project_import_media' : 'director_desk_batch';
+test('canvas delegates a real editor child with live canvas tools, parent approvals and durable cold resume', { timeout: 20000 }, async t => {
+  const specialist = 'editor';
+  const writeTool = 'video_project_import_media';
   const { startDesktopHost } = await import('../dist/desktopHost.js');
   const dataRoot = await mkdtemp(join(tmpdir(), 'shotloom-editor-delegation-'));
   let editorBinding, approved = true;
@@ -977,7 +1003,7 @@ for (const specialist of ['editor', 'director']) test(`canvas delegates a real $
       assert.ok(names.includes('canvas_get_node'));
       assert.ok(names.includes(writeTool));
       for (const forbidden of ['bash', 'subagent', `delegate_${specialist}`, `canvas_prepare_${specialist}`]) assert.ok(!names.includes(forbidden), forbidden);
-      if (specialist === 'editor') assert.match(JSON.stringify(request.messages), /Canvas Sources and Delegation/);
+      assert.match(JSON.stringify(request.messages), /Canvas Sources and Delegation/);
       if (this.childCalls++ === 0) yield* call('canvas_get_node', { nodeId: 'subtitle-source' });
       else if (this.childCalls === 2) {
         assert.match(JSON.stringify(request.messages), /真实字幕/);

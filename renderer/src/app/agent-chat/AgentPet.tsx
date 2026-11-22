@@ -132,15 +132,16 @@ export function AgentPetLauncher({ pet, phase, expanded, onToggle, onFinish, ins
   const [paused, setPaused] = useState(() => document.hidden);
   const [line, setLine] = useState(0);
   const hasAgent = Boolean(onToggle);
+  const showAgentStatus = phase !== 'idle';
   const nextIdleIndex = (idleIndex + 1) % idleClips.length;
   const nextClip = idleClips[nextIdleIndex] ?? 'idle';
   const clips = !hasAgent && phase === 'idle' ? [clip, nextClip] : [clip];
-  const caption = t(hasAgent ? labels[phase] : idleLines[line] ?? idleLines[0]);
+  const caption = t(showAgentStatus ? labels[phase] : idleLines[line] ?? idleLines[0]);
   useEffect(() => {
-    if (hasAgent || paused) return;
+    if (showAgentStatus || paused) return;
     const timer = window.setTimeout(() => setLine((line + 1) % idleLines.length), 7_000);
     return () => window.clearTimeout(timer);
-  }, [hasAgent, paused, line]);
+  }, [showAgentStatus, paused, line]);
   useEffect(() => {
     const preference = window.matchMedia('(prefers-reduced-motion: reduce)');
     const syncMotion = () => setMotion(!preference.matches);
@@ -226,7 +227,7 @@ export function AgentPetLauncher({ pet, phase, expanded, onToggle, onFinish, ins
     </span>
     <button type="button" className="agent-pet-trigger" aria-expanded={onToggle ? expanded : undefined}
       aria-label={t(onToggle ? expanded ? 'agentPet.closeAgent' : 'agentPet.openAgent' : 'agentPet.next', { name: pet.name })}
-      title={onToggle ? t(labels[phase]) : t('agentPet.next', { name: pet.name })}
+      title={onToggle ? caption : t('agentPet.next', { name: pet.name })}
       aria-description={`${caption} · ${t('agentPet.moveHint')}`}
       onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={finishDrag}
       onPointerCancel={finishDrag} onLostPointerCapture={finishDrag} onKeyDown={moveWithKeyboard}
@@ -242,7 +243,7 @@ export function AgentPetLauncher({ pet, phase, expanded, onToggle, onFinish, ins
       }}>
       <span ref={hit} className="agent-pet-hit-area" aria-hidden="true" />
       <span className="agent-pet-caption" aria-hidden="true">
-        {hasAgent && <span className="agent-pet-indicator" data-phase={phase} />}
+        {showAgentStatus && <span className="agent-pet-indicator" data-phase={phase} />}
         <span className="agent-pet-caption-text">{caption}</span>
       </span>
     </button>

@@ -349,6 +349,15 @@ export async function bindHarnessSession(config: Json): Promise<Json> {
   return result;
 }
 
+export async function deleteDirectorHarnessSessions(projectKey: string, nodeId: string, conversationIds: string[]): Promise<unknown> {
+  const result = await nativeRequest('delete-director-sessions', { projectKey, nodeId, conversationIds });
+  for (const [id, binding] of bridge.bindings) {
+    if (binding.agentId === 'director-primary' && binding.projectKey === projectKey && binding.nodeId === nodeId
+        && conversationIds.includes(String(binding.conversationId))) bridge.bindings.delete(id);
+  }
+  return result;
+}
+
 export function setHarnessSessionsArchived(projectKey: string, sessionIds: string[] | null, archived: boolean): Promise<unknown> {
   return nativeRequest('set-sessions-archived', { projectKey, sessionIds, archived });
 }

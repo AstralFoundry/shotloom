@@ -1,12 +1,12 @@
 import { t, localizeNativeError } from '@/i18n';
-import { CANVAS_AGENT_ID, EDITOR_AGENT_ID } from '../../agent/agents/definitions';
+import { CANVAS_AGENT_ID, EDITOR_AGENT_ID, DIRECTOR_AGENT_ID } from '../../agent/agents/definitions';
 import { invoke as nativeInvoke, type InvokeArgs } from '@/desktop/core.ts';
 import { listen } from '@/desktop/event.ts';
 import { harnessModelConfig } from '../../services/harnessModelConfig';
 import { availableAgentSkills } from '../../agent/tools/catalogTools';
 import { desktopApi } from '../../services/desktopApi';
 import { productToolCatalog, bindProductSession, registerEditorSessionBinder, executeProductRequest, type ProductBinding } from '../../services/harnessProductTools';
-import { canvasHarnessSession, editorHarnessSession, textHarnessSession } from '../../services/harnessSessionStore';
+import { boundHarnessNodeId, canvasHarnessSession, editorHarnessSession, textHarnessSession, directorHarnessSession } from '../../services/harnessSessionStore';
 import { getAgentProjectIdentity, assertAgentProject } from '../../services/agentProjectIdentity';
 import { store, touchProject } from '../../store/projectStore';
 import { initializeHarnessClient } from './harnessClient';
@@ -83,13 +83,17 @@ export function startHarnessIntegration(): Promise<void> {
 }
 
 export async function openHarnessPanel(role: ProductBinding['agentId'], nodeId?: string, conversationId?: string, background = false) {
-  await startHarnessIntegration();
   const identity = getAgentProjectIdentity();
+  await startHarnessIntegration();
+  assertAgentProject(identity.projectKey, identity.instanceId, identity.generation);
+  if (role === DIRECTOR_AGENT_ID && !store.project.nodes.some((node: { id: string; type: string; archived?: boolean }) =>
+    node.id === nodeId && node.type === 'threeDDirector' && !node.archived)) throw new Error(t('agent.bindingNodeMissing'));
   const previousActive = store.project.activeHarnessSessionId;
-  const selected = store.project.harnessSessions?.find((item: { id?: string; agentId?: string; textNodeId?: string; editorNodeId?: string }) => item.id === conversationId && item.agentId === role && (item.textNodeId || item.editorNodeId) === nodeId);
-  const conversation = selected ?? (role === CANVAS_AGENT_ID ? canvasHarnessSession(store.project)
+  const selected = store.project.harnessSessions?.find((item: Parameters<typeof boundHarnessNodeId>[0]) => item.id === conversationId && item.agentId === role && boundHarnessNodeId(item) === (nodeId || ''));
+  const conversation = role === DIRECTOR_AGENT_ID ? directorHarnessSession(store.project, nodeId!) : selected ?? (role === CANVAS_AGENT_ID ? canvasHarnessSession(store.project)
     : role === EDITOR_AGENT_ID ? editorHarnessSession(store.project, nodeId!) : textHarnessSession(store.project, nodeId!));
   if (background) store.project.activeHarnessSessionId = previousActive;
+  if (role === DIRECTOR_AGENT_ID && !conversation.harnessSessionId) touchProject({ sessionDelay: 0, coalesceSession: false });
   const binding = { projectKey: identity.projectKey, conversationId: conversation.id!, agentId: role, ...(nodeId ? { nodeId } : {}) };
   const result = await invoke<{ sessionId: string; tools: string[]; toolTitles: Record<string, string> }>('harness_bind_session', { config: {
     binding, tools: productToolCatalog(binding), skills: availableAgentSkills(role).map(skill => ({ id: skill.id, description: skill.description, instructions: skill.instructions || '', metadata: skill.metadata, builtIn: skill.builtIn === true })),
@@ -97,6 +101,7 @@ export async function openHarnessPanel(role: ProductBinding['agentId'], nodeId?:
     ...(conversation.harnessSessionId ? { sessionId: conversation.harnessSessionId } : {}),
   } });
   assertAgentProject(identity.projectKey, identity.instanceId, identity.generation);
+  if (!store.project.harnessSessions?.some((item: { id?: string }) => item.id === conversation.id)) throw new Error(t('agent.bindingChanged'));
   bindProductSession({ ...binding, sessionId: result.sessionId });
   conversation.harnessSessionId = result.sessionId;
   touchProject({ sessionDelay: 0, coalesceSession: false });

@@ -19,6 +19,11 @@ export default {
       input: {
         index: fileURLToPath(new URL("./index.html", import.meta.url)),
         card: fileURLToPath(new URL("./card.html", import.meta.url)),
+        "previs-agent": fileURLToPath(new URL("./src/host/agent.ts", import.meta.url)),
+      },
+      preserveEntrySignatures: "strict",
+      output: {
+        entryFileNames: (entry) => entry.name === "previs-agent" ? "previs-agent.js" : "assets/[name]-[hash].js",
       },
     },
   },

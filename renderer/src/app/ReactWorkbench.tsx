@@ -76,6 +76,8 @@ import { SkillsFeature } from "./views/SkillsFeature";
 import { TasksView } from "./views/TasksView";
 import { showToast, showErrorMessage } from "../store/notificationStore";
 import { registerVideoEditorLauncher } from '../services/videoEditorSession';
+import { flushDirectorSessionDeletes } from "../services/harnessArchive";
+import { getAgentProjectKey } from "../services/agentProjectIdentity";
 import { startHarnessIntegration } from "./agent-session/harnessIntegration";
 import { type AppRoute, useAppStore } from "./store/appStore";
 import { installMediaPreviewCacheMemoryPressureListener } from "../services/mediaPreviewCache";
@@ -99,6 +101,11 @@ export function ReactWorkbench() {
   const appRoute = useAppStore((state) => state.route);
   const currentProjectId = useAppStore((state) => state.currentProject?.id);
   useEffect(() => {
+    if (!currentProjectId) return;
+    const project = store.project;
+    void flushDirectorSessionDeletes(project, getAgentProjectKey(), () => {
+      if (store.project === project) touchProject();
+    }).catch(error => console.error('World engine session deletion is pending', error));
   }, [currentProjectId]);
   const domainRevision = useSyncExternalStore(
     subscribeDomain,

@@ -38,6 +38,8 @@ import {
     Square,
     FileUp,
     X,
+    PanelRightClose,
+    PanelRightOpen,
     Undo2,
     Redo2,
     Video,
@@ -51,7 +53,6 @@ import {
     Aperture,
     Circle as RecordDot,
     Layers,
-    MonitorUp,
     Keyboard,
     Globe2,
     Sun,
@@ -81,7 +82,7 @@ import { nanoid } from "nanoid";
 import { type PrevisShortcutAction, resolvePrevisShortcut, blocksPrevisShortcut, releasePrevisFocusAfterPointer, PREVIS_SHORTCUT_GUIDE, PREVIS_TOOL_LABELS } from "@/lib/previs/previs-shortcuts";
 import { saveAs } from "file-saver";
 import { previsAspectOption, resolvePrevisDepthRange } from "@/lib/previs/previs-optics";
-import { formatPrevisTimecode, openPrevisMonitorWindow, type PrevisMonitorHandle } from "./previs-monitor-window";
+import { formatPrevisTimecode } from "./previs-monitor-window";
 import { Euler, Vector3, type AnimationClip } from "three";
 import { compilePrevisPrompt } from "@/lib/previs/previs-prompt-compiler";
 import { Select } from "@/host/ui/select";
@@ -89,7 +90,7 @@ import { PrevisViewport } from "./previs-viewport";
 import { CanvasPrevisOnboarding } from "@/components/previs/canvas-previs-onboarding";
 import { PrevisSequencer } from "./previs-sequencer";
 import { App, type MenuProps, Input, InputNumber, Button } from "antd";
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent } from "react";
 import { type PrevisPathDragPoint, type PrevisPathMenuTarget, type PrevisViewportHandle } from "@/components/previs/previs-viewport";
 import { PrevisPathMenu } from "./previs-path-menu";
 import { transferPrevisPathToActor, type PrevisPathCameraMode, type PrevisPathSource } from "@/lib/previs/previs-path-transfer";
@@ -113,7 +114,8 @@ import { resolvePrevisLayoutInstanceWorld } from "./previs-prop-view";
 import { nextPrevisMarkerLabel, PrevisPointMenu } from "./previs-point-menu";
 import { applyPrevisActorTravel, resolvePrevisTravelStyle } from "@/lib/previs/previs-travel";
 import { addPrevisModelAsset, useModelAssets, type PrevisModelAsset } from "@/host/assets";
-import { useBrandName } from "@/host/appearance";
+import type { PrevisAgentFrame } from "@/host/bridge";
+import { usePrevisTranslate } from "@/host/i18n";
 import { usePrevisWorkbenchStore } from "@/stores/use-previs-workbench-store";
 import { PREVIS_MODES, previsModeCapabilities, type PrevisMode } from "@/lib/previs/previs-modes";
 import type { CanvasNodeData } from "@/types/canvas";
@@ -133,6 +135,7 @@ export function CanvasPrevisWorkbench({
     onAddToCanvas,
     onDeleteImageNode,
     onFlush,
+    registerAgentCapture,
 }: {
     open: boolean;
     canvasId?: string;
@@ -146,11 +149,13 @@ export function CanvasPrevisWorkbench({
     onAddToCanvas: (output: PrevisCanvasExport) => Promise<void>;
     onDeleteImageNode: (nodeId: string) => void;
     onFlush?: () => void | Promise<void>;
+    registerAgentCapture?: (capture: ((request: PrevisAgentFrame) => Promise<Blob>) | null) => void;
 }) {
     const { message, modal } = App.useApp();
+    const { t } = usePrevisTranslate();
+    const inspectorId = useId();
     // 世界引擎固定浅色：视口工具条等沿用画布组件的部件也用浅色画布主题，不跟随应用暗色模式。
     const theme = canvasThemes.light;
-    const brandName = useBrandName();
     const effectiveCanvasId = useMemo(() => {
         const explicit = canvasId?.trim();
         if (explicit) return explicit;
@@ -190,8 +195,6 @@ export function CanvasPrevisWorkbench({
     const outputLockRef = useRef(false);
     const [screenRecording, setScreenRecording] = useState<"shot" | "window" | null>(null);
     const [shortcutHelpOpen, setShortcutHelpOpen] = useState(false);
-    const [monitorOpen, setMonitorOpen] = useState(false);
-    const monitorRef = useRef<PrevisMonitorHandle | null>(null);
     const windowRecorderRef = useRef<{ stop: () => void } | null>(null);
     const recordAbortRef = useRef<AbortController | null>(null);
     const [trajectoryDrawing, setTrajectoryDrawing] = useState(false);
@@ -219,6 +222,13 @@ export function CanvasPrevisWorkbench({
         media.addEventListener("change", update);
         return () => media.removeEventListener("change", update);
     }, []);
+    const inspectorVisible = compactLayout ? inspectorOpen : inspectorDocked;
+    const toggleInspector = () => {
+        const visible = !inspectorVisible;
+        setInspectorOpen(visible);
+        setInspectorDocked(visible);
+    };
+    const inspectorToggleLabel = t(inspectorVisible ? "canvasC.previsInspector.hide" : "canvasC.previsInspector.show");
     const [onboardingRestartSignal, setOnboardingRestartSignal] = useState(0);
     const mode = usePrevisWorkbenchStore((state) => state.mode);
     const setMode = usePrevisWorkbenchStore((state) => state.setMode);
@@ -1301,48 +1311,8 @@ export function CanvasPrevisWorkbench({
         else recordAbortRef.current?.abort();
     };
 
-    /** 第二屏监看：镜头摄影机画面投放到独立窗口，可拖到外接屏全屏。 */
-    const toggleMonitor = () => {
-        if (monitorRef.current && !monitorRef.current.closed()) {
-            monitorRef.current.close();
-            return;
-        }
-        const viewport = viewportRef.current;
-        if (!viewport) return;
-        let surface: ReturnType<PrevisViewportHandle["createShotSurface"]> | null = null;
-        try {
-            surface = viewport.createShotSurface({ longEdge: 1920 });
-            const activeSurface = surface;
-            monitorRef.current = openPrevisMonitorWindow({
-                brandName,
-                renderFrame: () => {
-                    const state = monitorStateRef.current;
-                    if (!state.shot) return null;
-                    return { canvas: activeSurface.render(state.mode, state.playhead), shotName: state.shot.name, timecode: formatPrevisTimecode(state.playhead, state.shot.fps), mode: state.mode };
-                },
-                onClosed: () => {
-                    activeSurface.dispose();
-                    monitorRef.current = null;
-                    setMonitorOpen(false);
-                },
-            });
-            setMonitorOpen(true);
-            message.info("监看窗口已打开：拖到第二屏幕后按 F 全屏");
-        } catch (error) {
-            surface?.dispose();
-            message.error(error instanceof Error ? error.message : "无法打开监看窗口");
-        }
-    };
-
-    // 监看窗口每帧读取最新的镜头、渲染模式与播放头；只写 ref，不触发重渲染。
-    const monitorStateRef = useRef({ shot: activeShot, mode: renderMode, playhead });
-    monitorStateRef.current = { shot: activeShot, mode: renderMode, playhead };
-    useEffect(() => {
-        monitorRef.current?.setBrandName(brandName);
-    }, [brandName]);
     useEffect(
         () => () => {
-            monitorRef.current?.close();
             recordAbortRef.current?.abort();
             windowRecorderRef.current?.stop();
         },
@@ -1699,6 +1669,21 @@ export function CanvasPrevisWorkbench({
         return () => window.removeEventListener("previs:preview-requested", onPreviewRequested);
     }, [activeShot?.id, draft?.id, effectiveCanvasId, exportClayVideo, message]);
 
+    useEffect(() => {
+        if (!registerAgentCapture || !open) return;
+        registerAgentCapture(async ({ sceneId, shotId, updatedAt, mode }) => {
+            const current = draftRef.current;
+            const viewport = viewportRef.current;
+            if (!current || current.id !== sceneId || current.updatedAt !== updatedAt || current.activeShotId !== shotId
+                || activeShot?.id !== shotId || !viewport) throw new Error('The world engine is applying scene changes; read the scene and retry.');
+            if (outputLockRef.current) throw new Error('The world engine is already capturing.');
+            const image = await viewport.capture(mode, { longEdge: 1024 });
+            if (!isPrevisOutputSnapshotCurrent(draftRef.current, { scene: current, shotId })) throw new Error('The scene changed during capture.');
+            return image;
+        });
+        return () => registerAgentCapture(null);
+    }, [registerAgentCapture, activeShot?.id, open]);
+
     if (!open || !draft || !activeShot) return null;
 
     const saveStatusClass = saveIndicator.tone === "danger" ? "is-danger" : saveIndicator.busy ? "is-busy" : "";
@@ -1784,7 +1769,6 @@ export function CanvasPrevisWorkbench({
                             <Dropdown
                                 trigger={["click"]}
                                 placement="bottomRight"
-                                classNames={{ root: "previs-add-menu-overlay" }}
                                 menu={{
                                     items: [
                                         { key: "shot", label: "录制镜头画面（镜头摄影机，按镜头时长）", disabled: recording || depthExporting, onClick: () => void recordShotToFile() },
@@ -1798,10 +1782,6 @@ export function CanvasPrevisWorkbench({
                                 </button>
                             </Dropdown>
                         )}
-                        <button type="button" className={`previs-desk-header-action ${monitorOpen ? "is-active" : ""}`} aria-pressed={monitorOpen} title={monitorOpen ? "关闭第二屏监看" : "投放到第二屏幕：独立窗口显示镜头画面"} onClick={toggleMonitor}>
-                            <MonitorUp className="size-3.5" />
-                            {monitorOpen ? "关闭监看" : "第二屏"}
-                        </button>
                         <button
                             type="button"
                             className="previs-desk-header-action"
@@ -1850,8 +1830,8 @@ export function CanvasPrevisWorkbench({
                         busy={recording || depthExporting}
                         exporting={recording ? "clay" : depthExporting ? "depth" : null}
                         active={{
-                            world: !selectedObject && !selectedLight && sceneTab === "world" && inspectorDocked,
-                            shot: !selectedObject && !selectedLight && sceneTab === "shot" && inspectorDocked,
+                            world: !selectedObject && !selectedLight && sceneTab === "world" && inspectorVisible,
+                            shot: !selectedObject && !selectedLight && sceneTab === "shot" && inspectorVisible,
                             animate: mode === "animate",
                             list: compactLayout ? scenePanelOpen : sceneDocked,
                             shortcuts: shortcutHelpOpen,
@@ -2237,8 +2217,8 @@ export function CanvasPrevisWorkbench({
                             onToggleTimeline={() => (capabilities.timeline && sequencerVisible ? setSequencerVisible(false) : enterAnimationMode())}
                             scenePanelOpen={compactLayout ? scenePanelOpen : sceneDocked}
                             onToggleScenePanel={() => (compactLayout ? setScenePanelOpen((value) => !value) : setSceneDocked((value) => !value))}
-                            inspectorOpen={compactLayout ? inspectorOpen : inspectorDocked}
-                            onToggleInspector={() => (compactLayout ? setInspectorOpen((value) => !value) : setInspectorDocked((value) => !value))}
+                            inspectorOpen={inspectorVisible}
+                            onToggleInspector={toggleInspector}
                             shortcutHelpOpen={shortcutHelpOpen}
                             onToggleShortcutHelp={() => setShortcutHelpOpen((value) => !value)}
                         />
@@ -2269,8 +2249,15 @@ export function CanvasPrevisWorkbench({
                         ) : null}
                     </main>
 
+                    <button type="button" className="pv-icon-btn pv-inspector-toggle"
+                        aria-controls={inspectorId} aria-expanded={inspectorVisible}
+                        aria-label={inspectorToggleLabel} title={inspectorToggleLabel} onClick={toggleInspector}>
+                        {inspectorVisible ? <PanelRightClose className="size-4" aria-hidden /> : <PanelRightOpen className="size-4" aria-hidden />}
+                        {!inspectorVisible && <span>{t("canvasC.previsInspector.label")}</span>}
+                    </button>
                     {/* RIGHT: 属性面板。选中对象/灯光看对象，什么都没选看镜头；底部固定镜头列表与提示词。 */}
-                    <aside className={`pv-panel pv-panel--right thin-scrollbar ${inspectorOpen ? "is-open" : ""} ${!selectedObject && !selectedLight ? "is-scene-settings" : ""}`}>
+                    <aside id={inspectorId} inert={!inspectorVisible}
+                        className={`pv-panel pv-panel--right thin-scrollbar ${inspectorOpen ? "is-open" : ""} ${!selectedObject && !selectedLight ? "is-scene-settings" : ""}`}>
                         <div className="pv-panel-header">
                             <div className="pv-panel-header__title">
                                 <span className="pv-panel-header__sub">
@@ -2301,9 +2288,6 @@ export function CanvasPrevisWorkbench({
                                         返回镜头
                                     </button>
                                 ) : null}
-                                <button type="button" className="pv-icon-btn pv-mobile-inspector-close" aria-label="关闭属性面板" title="关闭属性面板" onClick={() => setInspectorOpen(false)}>
-                                    <X className="size-3.5" />
-                                </button>
                             </div>
                         </div>
 

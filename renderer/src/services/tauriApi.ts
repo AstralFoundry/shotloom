@@ -90,6 +90,7 @@ type CommandChannel =
   | 'harness:start-runtime'
   | 'harness:stop-runtime'
   | 'harness:restart-runtime'
+  | 'harness:delete-director-sessions'
   | 'harness:archive-sessions'
   | 'file:path-exists'
   | 'file:checksum'
@@ -357,6 +358,7 @@ const command = (channel: CommandChannel, ...args: unknown[]): Promise<unknown> 
     case 'harness:start-runtime': return invoke('start_harness_runtime', { options: args[0] || {} });
     case 'harness:stop-runtime': return invoke('stop_harness_runtime');
     case 'harness:restart-runtime': return invoke('restart_harness_runtime', { options: args[0] || {} });
+    case 'harness:delete-director-sessions': return invoke('harness_delete_director_sessions', { projectKey: args[0], nodeId: args[1], conversationIds: args[2] });
     case 'harness:archive-sessions': return invoke('harness_set_sessions_archived', { projectKey: args[0], sessionIds: args[1], archived: args[2] });
     case 'file:path-exists': return invoke('file_path_exists', { path: args[0] });
     case 'file:checksum': return invoke('file_checksum', { path: args[0] });
@@ -779,6 +781,7 @@ export function createTauriApi(browserFallback: BrowserFallback): BrowserFallbac
       start: (options: { sourceRoot?: string; dataRoot?: string } = {}) => commandJson<{ running: boolean; ready: boolean; error?: string | null }>('harness:start-runtime', options),
       stop: () => commandJson<{ running: boolean; ready: boolean; error?: string | null }>('harness:stop-runtime'),
       restart: (options: { sourceRoot?: string; dataRoot?: string } = {}) => commandJson<{ running: boolean; ready: boolean; error?: string | null }>('harness:restart-runtime', options),
+      deleteDirectorSessions: (projectKey: string, nodeId: string, conversationIds: string[]) => commandJson<unknown>('harness:delete-director-sessions', projectKey, nodeId, conversationIds),
       archiveSessions: (projectKey: string, sessionIds: string[] | undefined, archived: boolean) => commandJson<unknown>('harness:archive-sessions', projectKey, sessionIds, archived),
       onReady: (callback: () => void) => subscribe<void>((handler) => listen<void>('harness://ready', () => handler()), callback),
     },

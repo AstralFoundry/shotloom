@@ -477,6 +477,21 @@
   background: var(--surface-2);
 }
 
+.previs-detail-agent {
+  flex: 0 0 min(380px, 44%);
+  width: min(380px, 44%);
+  min-width: 0;
+  height: 100%;
+  border-left: 1px solid var(--line);
+}
+
+.previs-detail-agent-open {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  background: var(--surface);
+}
+
 /* Card summary: tells the difference between an untouched node and a built scene. */
 .previs-node-summary {
   display: flex;

@@ -551,6 +551,35 @@
     color: var(--pd-a-on);
 }
 
+.previs-desk.is-floating .pv-inspector-toggle {
+    position: absolute;
+    top: var(--pf-top);
+    right: var(--pf-gap);
+    z-index: 32;
+    gap: 6px;
+    width: auto;
+    min-width: 36px;
+    height: 36px;
+    padding: 0 9px;
+    border: 1px solid var(--pd-b0);
+    border-radius: 10px;
+    background: var(--pf-glass);
+    box-shadow: var(--pd-shadow-floating);
+    backdrop-filter: var(--pf-blur);
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+.previs-desk.is-floating .pv-inspector-toggle[aria-expanded="true"] {
+    right: calc(var(--pf-inspector) + var(--pf-gap) * 2);
+}
+
+@media (max-width: 860px) {
+    .previs-desk.is-floating .pv-inspector-toggle[aria-expanded="true"] {
+        right: min(calc(min(92vw, 360px) + 6px), calc(100% - 44px));
+    }
+}
+
 /* ── 右侧属性卡：内容留白、标题不重复、网格不溢出 ──────────────────────── */
 .previs-desk.is-floating .pv-panel--right {
     overflow-x: hidden;

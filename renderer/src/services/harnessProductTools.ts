@@ -2,8 +2,9 @@ import { registerPluginActionTools } from '../agent/tools/pluginActionTools';
 import { t } from '../i18n/index.ts';
 import { registerCanvasTools } from '../agent/tools/canvasTools';
 import { registerCanvasSuiteTools } from '../agent/tools/canvasSuiteTools';
-import { agentDefinition, CANVAS_AGENT_ID, EDITOR_AGENT_ID, type AgentId } from '../agent/agents/definitions';
+import { agentDefinition, CANVAS_AGENT_ID, EDITOR_AGENT_ID, DIRECTOR_AGENT_ID, type AgentId } from '../agent/agents/definitions';
 import { registerCatalogTools } from '../agent/tools/catalogTools';
+import { registerPrevisTools } from "../agent/tools/previsTools";
 import { registerProductionPlanTools } from '../agent/tools/productionPlanTools';
 import { registerTextDraftTools } from '../agent/tools/textTools';
 import { registerVideoEditorTools } from '../agent/tools/videoEditorTools';
@@ -19,6 +20,7 @@ import { supportsEditorTool, nativeToolUnlocked } from '../agent/core/openReelTo
 import { createNodeMediaCatalog, selectedNodeMedia, localMediaPath } from '../utils/nodeMedia';
 import { inferMediaType } from '../utils/mediaType';
 import { prepareVideoEditor, WORKSPACE_VIDEO_EDITOR_ID } from './videoEditorSession';
+import { boundHarnessNodeId } from './harnessSessionStore';
 import { settingsStore } from '../store/settingsStore';
 
 export interface ProductBinding {
@@ -36,7 +38,7 @@ export function registerEditorSessionBinder(binder: (nodeId: string) => Promise<
 function register() {
   if (hasAgentTool('canvas_list_nodes')) return;
   registerPluginActionTools(); registerCanvasTools(); registerCanvasSuiteTools(); registerCatalogTools(); registerProductionPlanTools();
-  registerTextDraftTools(); registerVideoEditorTools();
+  registerTextDraftTools(); registerVideoEditorTools(); registerPrevisTools();
   registerAgentTool({ id: 'canvas_prepare_editor', title: t('agent.role.editor'),
     description: '为剪辑委派打开并绑定真实剪辑工程。nodeId 指定现有剪辑节点；省略时打开独立剪辑工作台。不表示已完成剪辑；使用 delegate_editor 派发剪辑子 Agent。',
     effect: 'agent_state_write', inputSchema: { type: 'object', properties: { nodeId: { type: 'string' } }, additionalProperties: false },
@@ -107,11 +109,12 @@ export async function executeProductRequest(request: {
   assertAgentProject(context.projectKey, context.projectInstanceId, context.projectGeneration);
   const conversation = store.project.harnessSessions?.find((item: { id?: string }) => item.id === binding.conversationId);
   if (!conversation || conversation.agentId !== binding.agentId) throw new Error(t('agent.bindingChanged'));
+  if (binding.agentId === DIRECTOR_AGENT_ID && !binding.nodeId) throw new Error(t('agent.bindingNodeMissing'));
   if (binding.nodeId) {
     const node = binding.agentId === EDITOR_AGENT_ID && binding.nodeId === WORKSPACE_VIDEO_EDITOR_ID
       ? store.project.videoEditorSession : store.project.nodes.find((item: { id: string }) => item.id === binding.nodeId);
-    const boundNodeId = binding.agentId === EDITOR_AGENT_ID ? conversation.editorNodeId : conversation.textNodeId;
-    if (!node || boundNodeId !== binding.nodeId) throw new Error(t('agent.bindingNodeMissing'));
+    const boundNodeId = boundHarnessNodeId(conversation);
+    if (!node || boundNodeId !== binding.nodeId || (binding.agentId === DIRECTOR_AGENT_ID && (node.type !== 'threeDDirector' || node.archived))) throw new Error(t('agent.bindingNodeMissing'));
   }
   context.capabilities.nodeExecution = settingsStore.agentCanRunNodes === true;
   if (!supportsEditorTool(request.toolName, desktopApi.platform !== 'browser' && Boolean(store.projectDir))) {
@@ -193,5 +196,5 @@ export async function readHarnessCanvasReference(sessionId: string, nodeId?: str
   // Recheck after asynchronous file I/O; never return facts from an old project.
   assertAgentProject(context.projectKey, context.projectInstanceId, context.projectGeneration);
   if (!store.project.nodes.some((item: AgentNode) => item.id === nodeId && !item.archived)) throw new Error(t('agent.reference.deleted'));
-  return { node: { ...descriptor, ...(node.directorContext ? { directorContext: node.directorContext } : {}), ...(duration !== undefined ? { duration } : {}) }, snapshot: { revision: snapshot.revision, nodes: snapshot.nodes, edges: snapshot.edges, tasks: snapshot.tasks }, images };
+  return { node: { ...descriptor, ...(node.type !== 'threeDDirector' && node.directorContext ? { directorContext: node.directorContext } : {}), ...(duration !== undefined ? { duration } : {}) }, snapshot: { revision: snapshot.revision, nodes: snapshot.nodes, edges: snapshot.edges, tasks: snapshot.tasks }, images };
 }

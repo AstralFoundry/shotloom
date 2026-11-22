@@ -2,13 +2,14 @@
 export function presentUserReferences(source: string) {
   const canvasReferences: Array<{ id: string; label: string }> = [];
   const text = source.replace(
-    /<shotloom-canvas-reference>\s*([\s\S]*?)\s*<\/shotloom-canvas-reference>/g,
-    (original, payload: string) => {
+    /<shotloom-(canvas|director)-reference>\s*([\s\S]*?)\s*<\/shotloom-\1-reference>/g,
+    (original, kind: string, payload: string) => {
       try {
         const value = JSON.parse(payload);
         const id = value.node?.id;
         const label = value.node?.label;
         if (typeof id !== 'string' || typeof label !== 'string' || !value.snapshot) return original;
+        if (kind === 'director') return `@导演台「${label}」`;
         const display = label.replaceAll('"', '’');
         canvasReferences.push({ id, label });
         return `@"${display}"`;

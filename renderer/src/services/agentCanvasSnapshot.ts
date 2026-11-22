@@ -29,7 +29,13 @@ const OUTPUT_NODE_TYPES = new Set([
  */
 export function buildAgentCanvasSnapshot({ project, projectDir, filePath, selection, route, tempIds, history, request = {} }: SnapshotOptions) {
   const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
-  const rawNodes = clone(Array.isArray(project.nodes) ? project.nodes : []);
+  const rawNodes = clone((Array.isArray(project.nodes) ? project.nodes : []).map(node => {
+    if (node.type !== 'threeDDirector') return node;
+    const publicNode = { ...node };
+    delete publicNode.directorData;
+    delete publicNode.directorContext;
+    return publicNode;
+  }));
   const edges = clone(Array.isArray(project.edges) ? project.edges : []);
   const tasks = clone(Array.isArray(project.tasks) ? project.tasks : []);
   const maps = agentNodeAliasMaps(rawNodes);
