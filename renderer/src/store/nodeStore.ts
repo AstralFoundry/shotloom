@@ -101,13 +101,13 @@ export function ensureGenerationConfig(node: NodeLike | null | undefined): Recor
 // ── Node CRUD ───────────────────────────────────────────────────────────────
 
 /** 在画布上创建一个新节点。 */
-export function addNode(type = 'imageGeneration', options: { select?: boolean } = {}): NodeLike {
+export function addNode(type = 'imageGeneration', options: { select?: boolean } = {}): NodeLike & { id: string; type: string } {
   if (!canvasNodeTypes.includes(type)) type = 'imageGeneration';
   const isGenerationNode = generationNodeTypes.includes(type);
   const isDirector = type === 'threeDDirector';
   const count = store.project.nodes.filter((node: NodeLike) => canvasNodeTypes.includes(String(node.type))).length;
   const dimensions = defaultCanvasNodeDimensions(type);
-  const node: NodeLike = {
+  const node: NodeLike & { id: string; type: string } = {
     id: uid(),
     type,
     artifactType: 'other',

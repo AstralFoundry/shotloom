@@ -1,5 +1,6 @@
 import { canvasSectionDropTarget } from '../../../domain/graph/CanvasSections.ts';
 import { t } from '@/i18n';
+import { desktopApi } from "../../../services/desktopApi.ts";
 import {
   copyFileIntoProjectAssets,
   inferFileResourceType,
@@ -16,6 +17,12 @@ export async function createUploadedNode(rawFile: any, position = { x: 120, y: 9
   const path = file.path || file.filePath || "";
   if (!path) return showToast(t("ui.canvasUploadActions.text.578d2e03"));
   const resourceType = inferFileResourceType(file);
+  let textContent: string | undefined;
+  if (resourceType === "text") {
+    const bytes = await desktopApi.file.readArrayBuffer(path);
+    if (store.project !== project) return;
+    if (bytes) textContent = new TextDecoder().decode(bytes);
+  }
   const nodeType =
     resourceType === "video"
       ? "videoGeneration"
@@ -46,6 +53,7 @@ export async function createUploadedNode(rawFile: any, position = { x: 120, y: 9
   node.assetId = registered.asset?.id || "";
   node.resourceType = resourceType;
   node.sourceType = "canvas-upload";
+  if (textContent !== undefined) node.textContent = textContent;
   node.uploadedFile = {
     name: node.title,
     path,
@@ -57,6 +65,7 @@ export async function createUploadedNode(rawFile: any, position = { x: 120, y: 9
     materialId: node.materialId,
     assetId: node.assetId,
     resourceType,
+    ...(textContent !== undefined && { content: textContent }),
     source: "canvas-upload",
   };
   node.canvasSectionId = canvasSectionDropTarget(node, store.project.nodes)?.id ?? null;

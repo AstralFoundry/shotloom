@@ -412,6 +412,10 @@ export function ReactWorkbench() {
           showMaterialInFolder: assetsController.showFile,
           loadMaterials: resourceLibraryData,
           importMaterials: materialsController.importFiles,
+          uploadCanvasAssets: canvasCommands.uploadCanvasAssets,
+          createCanvasMarkdown: canvasCommands.createCanvasMarkdown,
+          editCanvasMarkdown: canvasCommands.editCanvasMarkdown,
+          focusCanvasNode: id => focusCanvasNodes([id]),
           deleteMaterial(item, scope) {
             if (scope === "library")
               return assetsController.deleteProjectAsset(item);

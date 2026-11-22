@@ -1,5 +1,8 @@
 // 从 locales/zh-CN.json 生成；请运行 node scripts/generate-i18n-types.mjs。
 export interface MessageParameters {
+  "canvas.assetView.version": Record<"number", string | number>;
+  "canvas.assetView.collapse": Record<"kind", string | number>;
+  "canvas.assetView.expand": Record<"kind", string | number>;
   "agentPet.removeMessage": Record<"name", string | number>;
   "agentPet.next": Record<"name", string | number>;
   "agentPet.openAgent": Record<"name", string | number>;
