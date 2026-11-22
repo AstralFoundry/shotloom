@@ -12,6 +12,9 @@ export type PrevisLocale = "zh-CN" | "en-US";
 type Catalog = Record<string, string>;
 
 const ZH_CN: Catalog = {
+    "canvasC.previsInspector.label": "属性",
+    "canvasC.previsInspector.show": "打开属性面板",
+    "canvasC.previsInspector.hide": "收起属性面板",
     "canvasC.previsOnboarding.label": "预演台上手引导",
     "canvasC.previsOnboarding.progress": "第 {{position}} 步 / 共 {{total}} 步",
     "canvasC.previsOnboarding.skip": "跳过引导",
@@ -38,6 +41,9 @@ const ZH_CN: Catalog = {
 };
 
 const EN_US: Catalog = {
+    "canvasC.previsInspector.label": "Properties",
+    "canvasC.previsInspector.show": "Show properties panel",
+    "canvasC.previsInspector.hide": "Collapse properties panel",
     "canvasC.previsOnboarding.label": "Previs getting-started guide",
     "canvasC.previsOnboarding.progress": "Step {{position}} of {{total}}",
     "canvasC.previsOnboarding.skip": "Skip guide",

@@ -486,7 +486,7 @@ test('全部产品工具标题切换语言，工具协议与草稿正文保持�
       for (const [module, register] of [
         ['canvasTools', 'registerCanvasTools'], ['canvasSuiteTools', 'registerCanvasSuiteTools'], ['catalogTools', 'registerCatalogTools'],
         ['productionPlanTools', 'registerProductionPlanTools'], ['videoEditorTools', 'registerVideoEditorTools'],
-        ['textTools', 'registerTextDraftTools'],
+        ['textTools', 'registerTextDraftTools'], ['previsTools', 'registerPrevisTools'],
       ]) (await instance.load(`agent/tools/${module}`))[register]();
       const registry = await instance.load('agent/core/toolRegistry');
       const tools = registry.allAgentTools();
@@ -771,7 +771,7 @@ test('技能分配角色和厂商图标名称随语言变化，执行身份、�
       const assignments = await instance.load('agent/core/skillAssignments');
       const icons = await instance.load('domain/provider/ProviderBrandIcons');
       assert.deepEqual(assignments.configurableSkillAgents.map(agent => agent.label), labels[locale].agents);
-      assert.deepEqual(definitions.AGENT_IDS.map(id => definitions.agentTitle(id)), labels[locale].agents);
+      assert.deepEqual(definitions.AGENT_IDS.map(id => definitions.agentTitle(id)), [...labels[locale].agents, locale === 'zh-CN' ? '世界引擎 Agent' : 'World Engine Agent']);
       const chosenIcons = ['volcengine', 'doubao', 'qwen', 'zhipu', 'custom'].map(id => icons.PROVIDER_ICON_OPTIONS.find(icon => icon.id === id));
       assert.deepEqual(chosenIcons.map(icon => icon.label), labels[locale].icons);
       assert.deepEqual(assignments.skillAgentLabels('user-skill', ['editor-primary']), [labels[locale].agents[1]]);

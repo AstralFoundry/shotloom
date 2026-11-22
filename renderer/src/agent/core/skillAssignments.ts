@@ -2,7 +2,7 @@ import { AGENT_DEFINITIONS } from '../agents/definitions.ts';
 import { selectAgentSkills } from './visibility.ts';
 
 export const configurableSkillAgents = AGENT_DEFINITIONS
-  .filter((agent) => agent.role === 'primary')
+  .filter((agent) => agent.role === 'primary' && agent.skills.length > 0)
   .map((agent) => ({ id: agent.id, label: agent.title }));
 
 /**

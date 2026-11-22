@@ -1340,51 +1340,6 @@
     background: oklch(1 0 0 / 0.14);
 }
 
-/* ── Dropdown overlay (add menus) ────────────────────────────────────────────── */
-.previs-add-menu-overlay {
-    min-width: 200px;
-}
-.previs-add-menu-overlay .ant-dropdown-menu {
-    background: var(--pd-s5);
-    border: 1px solid var(--pd-b1);
-    border-radius: var(--pd-r-lg);
-    padding: 4px;
-    box-shadow: var(--pd-shadow-floating);
-}
-.previs-add-menu-overlay .ant-dropdown-menu-item {
-    border-radius: var(--pd-r-sm);
-    color: var(--pd-t1);
-    font-size: var(--pd-ts-sm);
-    padding: 8px 12px;
-    gap: 8px;
-    transition:
-        background 150ms var(--pd-ease-snap),
-        color 150ms var(--pd-ease-snap);
-}
-.previs-add-menu-overlay .ant-dropdown-menu-item:hover,
-.previs-add-menu-overlay .ant-dropdown-menu-item-active {
-    background: var(--pd-s3);
-    color: var(--pd-t0);
-}
-.previs-add-menu-overlay .ant-dropdown-menu-item-divider {
-    background: var(--pd-b0);
-    margin: 4px 0;
-}
-.previs-add-menu-overlay .ant-dropdown-menu-submenu-title {
-    border-radius: var(--pd-r-sm);
-    color: var(--pd-t1);
-    font-size: var(--pd-ts-sm);
-    padding: 8px 12px;
-    transition: background 150ms;
-}
-.previs-add-menu-overlay .ant-dropdown-menu-submenu-title:hover {
-    background: var(--pd-s3);
-    color: var(--pd-t0);
-}
-.previs-add-menu-overlay .ant-dropdown-menu-submenu-arrow {
-    color: var(--pd-t2);
-}
-
 /* ── Responsive ──────────────────────────────────────────────────────────────── */
 @media (max-width: 1100px) {
     [data-canvas-previs-workbench].previs-desk {
@@ -1647,53 +1602,6 @@
     width: 1px;
     height: 16px;
     background: rgba(255, 255, 255, 0.16);
-}
-
-/* ── 添加角色 / 添加机位 dropdown overlay ─────────────────────────────────── */
-.previs-add-menu-overlay {
-    min-width: 200px;
-}
-.previs-add-menu-overlay .ant-dropdown-menu {
-    background: #1a1e26;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 8px;
-    padding: 4px;
-    box-shadow:
-        0 16px 40px rgba(0, 0, 0, 0.52),
-        0 2px 8px rgba(0, 0, 0, 0.28);
-}
-.previs-add-menu-overlay .ant-dropdown-menu-item {
-    border-radius: 8px;
-    color: rgba(255, 255, 255, 0.82);
-    font-size: 12px;
-    padding: 8px 12px;
-    gap: 8px;
-    transition:
-        background 150ms ease,
-        color 150ms ease;
-}
-.previs-add-menu-overlay .ant-dropdown-menu-item:hover,
-.previs-add-menu-overlay .ant-dropdown-menu-item-active {
-    background: rgba(255, 255, 255, 0.08);
-    color: #fff;
-}
-.previs-add-menu-overlay .ant-dropdown-menu-item-divider {
-    background: rgba(255, 255, 255, 0.1);
-    margin: 4px 0;
-}
-.previs-add-menu-overlay .ant-dropdown-menu-submenu-title {
-    border-radius: 8px;
-    color: rgba(255, 255, 255, 0.82);
-    font-size: 12px;
-    padding: 8px 12px;
-    transition: background 150ms ease;
-}
-.previs-add-menu-overlay .ant-dropdown-menu-submenu-title:hover {
-    background: rgba(255, 255, 255, 0.08);
-    color: #fff;
-}
-.previs-add-menu-overlay .ant-dropdown-menu-submenu-arrow {
-    color: rgba(255, 255, 255, 0.38);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -2964,9 +2872,6 @@
     .pv-viewport-pane--camera {
         display: none;
     }
-    .pv-mobile-inspector-close {
-        display: inline-flex;
-    }
 }
 @media (max-width: 640px) {
     .pv-layout,
@@ -3337,17 +3242,11 @@
     background: var(--pd-s2);
     border-bottom-color: var(--pd-b0);
 }
-.pv-mobile-inspector-close {
-    display: none;
-}
 .pv-move-grid--compact {
     margin-top: 8px;
 }
 
 @media (max-width: 860px) {
-    .pv-mobile-inspector-close {
-        display: inline-flex;
-    }
     .pv-inline-timeline {
         flex-basis: 280px;
     }

@@ -49,6 +49,7 @@ function availableByDefinition(agent: AgentDefinition, skillId: string): boolean
 
 /** Skill 可见性与设置页共用这份 Agent 定义解析。 */
 export function selectAgentSkills(agent: AgentDefinition, enabled: StoredSkill[]): StoredSkill[] {
+  if (!agent.skills.length) return [];
   const hasAssignments = enabled.some((skill) => Array.isArray(skill.agentIds) && skill.agentIds.length > 0);
   // Settings may assign custom Skills only among the user-facing primary Agents.
   // Subagents remain fail-closed to the explicit definitions.ts whitelist.

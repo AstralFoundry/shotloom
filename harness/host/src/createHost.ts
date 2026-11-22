@@ -48,8 +48,9 @@ import * as Checkpoints from '@deepseek-ai/dsh-session-checkpoint-policy';
 import Credentials from '@deepseek-ai/dsh-credentials-local';
 import AttachmentLocal from '@deepseek-ai/dsh-attachment-local';
 import type { FileAttachmentRef } from '@deepseek-ai/dsh-attachment';
-import { mkdir, readFile, readdir, realpath } from 'node:fs/promises';
+import { mkdir, readFile, readdir, realpath, rm } from 'node:fs/promises';
 import { join, resolve, relative, isAbsolute } from 'node:path';
+import { SessionCrud } from './crud/sessionCrud.js';
 import { randomUUID } from 'node:crypto';
 
 export const roles = ['canvas-primary', 'editor-primary', 'text-primary', 'director-primary'] as const;
@@ -73,6 +74,7 @@ export interface HostOptions {
   rulesPath: string;
   skillDirs?: string[];
   scopedSkills?: boolean;
+  isolateDirectorSessions?: boolean;
   /** Product tool registration runs in the unpublished official Agent scope. */
   registerTools?: (scope: Context, binding: Readonly<SessionBinding>) => void | Promise<void>;
 }
@@ -227,12 +229,16 @@ export async function createHost(options: HostOptions) {
         return { kind: 'ask', reason: '执行 Bash 命令（受当前会话文件权限限制）' };
       });
       await options.registerTools?.(scope, binding);
-      for (const specialist of ['editor', 'director'] as const) {
-        if (binding.toolSessionId || (specialist === 'director' ? binding.agentId !== 'canvas-primary' : !['canvas-primary', 'director-primary'].includes(binding.agentId))) continue;
-        const role = specialist === 'director' ? 'director-primary' : 'editor-primary';
+      if (binding.agentId === 'director-primary' || (options.isolateDirectorSessions && binding.agentId === 'canvas-primary')) {
+        // A shell could read the project/Agent database directly, bypassing scoped tools.
+        scope.tools.restrict({ deny: ['bash'] });
+      }
+      if (!binding.toolSessionId && binding.agentId === 'canvas-primary') {
+        const specialist = 'editor';
+        const role = 'editor-primary';
         scope.tools.register({
           name: `delegate_${specialist}`,
-          description: specialist === 'director' ? '派发可实际搭景、布置角色和机位、制作运镜并核验画面的导演子 Agent。nodeId 指定已有导演台节点，省略时绑定独立导演台场景。传递完整要求和已知素材节点 ID。后台准备对应场景，不切换用户界面；等待真实结果，写入审批归属当前父会话。' : '派发能实际剪辑的子 Agent。它绑定指定剪辑工程，可读取同一画布的剧本、字幕及真实媒体，导入视频并修改时间线。传递完整剪辑要求与已知节点 ID；nodeId 省略时使用独立剪辑工作台。等待子 Agent 执行结束并返回真实结果；运行期间写入审批显示在当前画布会话。',
+          description: '派发能实际剪辑的子 Agent。它绑定指定剪辑工程，可读取同一画布的剧本、字幕及真实媒体，导入视频并修改时间线。传递完整剪辑要求与已知节点 ID；nodeId 省略时使用独立剪辑工作台。等待子 Agent 执行结束并返回真实结果；运行期间写入审批显示在当前画布会话。',
           parameters: { type: 'object', properties: { nodeId: { type: 'string' }, prompt: { type: 'string' }, description: { type: 'string' } }, required: ['prompt', 'description'], additionalProperties: false },
           output: { schema: { type: 'object', additionalProperties: true }, render: (_args, value) => [{ type: 'text', text: JSON.stringify(value) }] },
           isConcurrencySafe: () => false,
@@ -360,8 +366,8 @@ export async function createHost(options: HostOptions) {
     async create(binding: Omit<SessionBinding, 'sessionId'>, agentOptions: AgentOptions = {}) {
       if (!roles.includes(binding.agentId)) throw new Error('Unknown Shotloom Agent role');
       if (!binding.projectKey || !binding.conversationId) throw new Error('Project and conversation are required');
-      if (binding.agentId === 'editor-primary' || binding.agentId === 'text-primary') {
-        if (!binding.nodeId) throw new Error('Editor/text session requires a bound node');
+      if (binding.agentId === 'editor-primary' || binding.agentId === 'text-primary' || binding.agentId === 'director-primary') {
+        if (!binding.nodeId) throw new Error('This Agent session requires a bound node');
       }
       const trusted = Object.freeze({ ...binding, sessionId: randomUUID() });
       // Official browser Session discovery requires a durable cwd. Attachments
@@ -383,6 +389,19 @@ export async function createHost(options: HostOptions) {
         throw error;
       }
       return own(handle, trusted);
+    },
+    async deleteDirectorSession(sessionId: string, catalogKey: string) {
+      const binding = bindings.find(item => item.sessionId === sessionId);
+      if (!binding || binding.agentId !== 'director-primary') return;
+      const crud = new SessionCrud(database);
+      if (crud.find(sessionId)) {
+        await ctx.get('workspaceRegistry')?.archiveSession(SessionId(sessionId), { stopActivity: true });
+      }
+      await live.get(sessionId)?.dispose();
+      await ctx.sessionPersistence.flush();
+      await rm(join(dataRoot, 'workspaces', sessionId), { recursive: true, force: true });
+      crud.purgeDirectorSession(sessionId, catalogKey);
+      bindings = bindings.filter(item => item.sessionId !== sessionId);
     },
     async resume(sessionId: string, agentOptions: AgentOptions = {}) {
       if (live.has(sessionId) || resuming.has(sessionId)) throw new Error('Session already has a live owner');

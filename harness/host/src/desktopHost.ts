@@ -35,7 +35,7 @@ export async function startDesktopHost(options: {
   const toolRegistrations = new Map<string, { scope: Context; dispose: () => void }>();
   for (const row of hostCrud.catalogs() as unknown as Catalog[]) catalogs.set(key(row.binding), { ...row, tools: supportedTools(row.tools) });
   const skillPath = (binding: BindingInput) => join(options.dataRoot, 'product-skills', createHash('sha256').update(key(binding)).digest('hex'));
-  const host = await createHost({ ...options, scopedSkills: true, async registerTools(scope, binding) {
+  const host = await createHost({ ...options, scopedSkills: true, isolateDirectorSessions: true, async registerTools(scope, binding) {
     const canonical = binding.toolSessionId ? host.binding(binding.toolSessionId) : binding;
     if (!canonical || canonical.agentId !== binding.agentId || canonical.projectKey !== binding.projectKey || canonical.nodeId !== binding.nodeId) {
       throw new Error('Delegated specialist binding is unavailable');
@@ -160,8 +160,10 @@ export async function startDesktopHost(options: {
         });
         composition = work.then(() => {}, () => {});
         const owner = await work;
-        return { sessionId: owner.binding.sessionId, tools: [...new Set([...catalogs.values()].flatMap(row => row.tools.map(tool => tool.name)))],
-          toolTitles: Object.fromEntries([...catalogs.values()].flatMap(row => row.tools.map(tool => [tool.name, tool.title || tool.name]))) };
+        const visibleCatalogs = [...catalogs.values()].filter(row => owner.binding.agentId === 'director-primary'
+          ? key(row.binding) === key(owner.binding) : row.binding.agentId !== 'director-primary');
+        return { sessionId: owner.binding.sessionId, tools: [...new Set(visibleCatalogs.flatMap(row => row.tools.map(tool => tool.name)))],
+          toolTitles: Object.fromEntries(visibleCatalogs.flatMap(row => row.tools.map(tool => [tool.name, tool.title || tool.name]))) };
     }
     async function setSessionsArchived(projectKey: string, sessionIds?: string[], archived = true) {
       const requested = sessionIds ? new Set(sessionIds) : undefined;
@@ -175,6 +177,24 @@ export async function startDesktopHost(options: {
       }
       return { sessionIds: changed };
     }
-    return { host, bind, setSessionsArchived };
+    function deleteDirectorSessions(projectKey: string, nodeId: string, conversationIds: string[]) {
+      const work = composition.then(async () => {
+        const requested = new Set(conversationIds);
+        for (const row of hostCrud.bindings() as unknown as SessionBinding[]) {
+          if (row.agentId !== 'director-primary' || row.projectKey !== projectKey || row.nodeId !== nodeId || !requested.has(row.conversationId)) continue;
+          const catalogKey = key(row);
+          await rm(skillPath(row), { recursive: true, force: true });
+          await host.deleteDirectorSession(row.sessionId, catalogKey);
+          owners.delete(row.sessionId);
+          catalogs.delete(catalogKey);
+          skillProviders.delete(catalogKey);
+          toolRegistrations.delete(catalogKey);
+          skillVersions.delete(catalogKey);
+        }
+      });
+      composition = work.then(() => {}, () => {});
+      return work;
+    }
+    return { host, bind, setSessionsArchived, deleteDirectorSessions };
   } catch (error) { await host.dispose(); throw error; }
 }

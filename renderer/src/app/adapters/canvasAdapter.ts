@@ -1,3 +1,4 @@
+import { readPrevisScene } from './previsBridge';
 import { getModelCredentialStatus } from '@/store/settingsStore';
 import { defaultCanvasNodeDimensions } from '@/domain/graph/CanvasNodeDimensions';
 import { t } from '@/i18n';
@@ -593,6 +594,19 @@ export const canvasController: WorkflowCanvasController = {
 
 export const nodeActions: WorkflowNodeActions = {
   createClipNode,
+  updateDirectorScene(id, scene, base) {
+    const node = store.project.nodes.find((item: WorkflowNodeData) => item.id === id && item.type === 'threeDDirector' && !item.archived);
+    if (!node) return undefined;
+    const data = (node.directorData || {}) as Record<string, unknown>;
+    const current = readPrevisScene(data.scene);
+    if (base !== undefined && (base?.id !== (current?.id) || base?.updatedAt !== current?.updatedAt)) return current;
+    if (JSON.stringify(current) !== JSON.stringify(scene)) {
+      node.directorData = { ...data, scene };
+      node.updatedAt = new Date().toISOString();
+      touchProject({ sessionDelay: 250, coalesceSession: true });
+    }
+    return undefined;
+  },
   update(id, patch) {
     const node = store.project.nodes.find((item: WorkflowNodeData) => item.id === id);
     if (node) {

@@ -3,10 +3,10 @@ import { t } from '../i18n/index.ts';
 import { store as rawStore, touchProject } from '@/store/projectStore';
 import { uid } from '@/utils/format';
 import { assertProjectOperationIdle } from '@/services/projectOperationGuards';
-import { trashBoundHarnessSessions } from '@/services/harnessSessionStore';
+import { removeDirectorHarnessSessions, trashBoundHarnessSessions } from '@/services/harnessSessionStore';
 import { getAgentProjectKey } from '@/services/agentProjectIdentity';
 import { desktopApi } from '@/services/desktopApi';
-import { setHarnessSessionsArchived } from '@/services/harnessArchive';
+import { flushDirectorSessionDeletes, setHarnessSessionsArchived } from '@/services/harnessArchive';
 import { queueDeletedNodeAssets } from '@/services/projectAssetCleanup';
 
 // projectStore 的顶层字段只有最小类型，画布图对象在这里放宽为 any 边界。
@@ -14,6 +14,7 @@ type ProjectLike = {
   nodes: any[];
   edges: EdgeLike[];
   tasks: any[];
+  pendingDirectorSessionDeletes?: Array<{ nodeId: string; conversationId: string }>;
   [key: string]: any;
 };
 type StoreShape = {
@@ -43,6 +44,7 @@ export function deleteCanvasNodeData(nodeId: string, { touch = true }: { touch?:
   const before = new Set((current.project.harnessSessions || []).filter((session: any) =>
     session.textNodeId === nodeId || session.editorNodeId === nodeId,
   ).map((session: any) => session.harnessSessionId).filter(Boolean));
+  if (node.type === 'threeDDirector') removeDirectorHarnessSessions(current.project, nodeId);
   trashBoundHarnessSessions(current.project, nodeId);
   for (const member of current.project.nodes) {
     if (member.canvasSectionId === nodeId) member.canvasSectionId = null;
@@ -60,6 +62,9 @@ export function deleteCanvasNodeData(nodeId: string, { touch = true }: { touch?:
   }
   if (current.connectFromId === nodeId) current.connectFromId = null;
   if (touch) touchProject();
+  if (node.type === 'threeDDirector') void flushDirectorSessionDeletes(current.project, projectKey, () => {
+    if (store().project === current.project) touchProject();
+  }).catch(error => console.error('World engine session deletion is pending', error));
   if (desktopApi.platform !== 'browser' && before.size) void setHarnessSessionsArchived(projectKey, [...before] as string[], true)
     .catch(error => console.error('Failed to archive deleted node sessions', error));
   return true;

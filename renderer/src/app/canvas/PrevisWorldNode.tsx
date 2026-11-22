@@ -3,6 +3,10 @@ import { createPortal } from "react-dom";
 import { getLocale, t } from "@/i18n";
 import { IconSymbol } from "../components/IconSymbol";
 import { showToast } from "../../store/notificationStore";
+import { registerPrevisAgentPreview } from "../../services/previsAgentPreview";
+import { DIRECTOR_AGENT_ID } from "../../agent/agents/definitions";
+import { HarnessChatPanel } from "../agent-chat/HarnessChatPanel";
+import { useAgentPets } from "../agent-chat/AgentPet";
 import { useAgentPetSurface } from "../agent-chat/AgentPetWorkspace";
 import { useWorkbenchSurfaceRoot } from "../layout/workbenchSurface";
 import {
@@ -17,11 +21,11 @@ import {
   subscribePrevisCardReady,
   previsWorldSummary,
   readPrevisScene,
+  requestPrevisAgentFrame,
   sendPrevisImages,
   sendPrevisScene,
   sendPrevisSession,
   subscribePrevisWorld,
-  type PrevisSceneDocument,
   type PrevisWorldImageNode,
 } from "../adapters/previsBridge";
 import "./PrevisWorldNode.css";
@@ -46,7 +50,13 @@ export const PrevisWorldNode: WorkflowNodeRenderer = memo(
     const [incomingImages, setIncomingImages] = useState<IncomingImage[]>([]);
     const [interacting, setInteracting] = useState(false);
     const [detailOpen, setDetailOpen] = useState(false);
-    useAgentPetSurface('director', detailOpen && Boolean(surface));
+    const [agentOpen, setAgentOpen] = useState(false);
+    const { visible: petVisible } = useAgentPets();
+    const toggleAgent = useCallback(() => setAgentOpen(open => !open), []);
+    const closeAgent = useCallback(() => setAgentOpen(false), []);
+    const setAgentPhase = useAgentPetSurface('director', detailOpen && Boolean(surface), {
+      expanded: agentOpen, onToggle: toggleAgent, inset: agentOpen ? 380 : 0,
+    });
     const scene = readNodeScene(node);
     const summary = previsWorldSummary(scene);
     const miniScene = scene && scene.objects.length > 0 ? scene : null;
@@ -54,6 +64,9 @@ export const PrevisWorldNode: WorkflowNodeRenderer = memo(
     const sentMiniRef = useRef<string>("");
     const detailIframeRef = useRef<HTMLIFrameElement>(null);
     const getFrame = useCallback(() => detailIframeRef.current, []);
+    useEffect(() => {
+      if (detailOpen && surface) return registerPrevisAgentPreview(node.id, request => requestPrevisAgentFrame(getFrame(), request));
+    }, [node.id, detailOpen, surface, getFrame]);
 
     const sendSession = useCallback(() => {
       sendPrevisSession(detailIframeRef.current, {
@@ -127,11 +140,9 @@ export const PrevisWorldNode: WorkflowNodeRenderer = memo(
     useEffect(() => {
       const unsubscribe = subscribePrevisWorld(getFrame, {
         onReady: () => sendSession(),
-        onSceneChanged: (scene: PrevisSceneDocument) => {
-          actions.update(node.id, {
-            directorData: { ...((node.directorData as Record<string, unknown>) || {}), scene },
-            updatedAt: new Date().toISOString(),
-          });
+        onSceneChanged: (scene, base) => {
+          const current = actions.updateDirectorScene(node.id, scene, base);
+          if (current !== undefined) sendPrevisScene(getFrame(), current);
         },
         onCaptures: async (captures) => {
           for (const capture of captures) {
@@ -278,6 +289,12 @@ export const PrevisWorldNode: WorkflowNodeRenderer = memo(
                 className="previs-detail-frame"
                 onLoad={() => sendSession()}
               />
+              {agentOpen ? <aside className="previs-detail-agent" aria-label={t('agent.role.director')}>
+                <HarnessChatPanel agentId={DIRECTOR_AGENT_ID} nodeId={node.id} onClose={closeAgent}
+                  onActivityChange={setAgentPhase} />
+              </aside> : !petVisible && <button type="button" className="button ghost previs-detail-agent-open" onClick={toggleAgent}>
+                <IconSymbol name="spark" />{t('agent.role.director')}
+              </button>}
             </div>
           </div>,
           surface,

@@ -1,3 +1,5 @@
+import type { PrevisAgentFrameRequest } from '../../services/previsAgentPreview';
+
 // 世界引擎（open-ai-canvas 性能预演工作台）从 vendor/canvas-previs 独立构建，
 // 通过 iframe 运行，与产品之间唯一的通道就是 postMessage。这里拥有那份私有协议：
 // 消息名、消息构造、来源校验和回执整形都只写一次，画布与工作区只消费类型化的回调。
@@ -24,6 +26,8 @@ export type PrevisSceneDocument = {
   updatedAt: string;
 };
 
+export type PrevisSceneRevision = Pick<PrevisSceneDocument, "id" | "updatedAt">;
+
 export type PrevisWorldImageNode = {
   id: string;
   title: string;
@@ -48,7 +52,7 @@ export type PrevisWorldSummary = {
 
 export type PrevisWorldHandlers = {
   onReady(): void;
-  onSceneChanged(scene: PrevisSceneDocument): void;
+  onSceneChanged(scene: PrevisSceneDocument, base?: PrevisSceneRevision | null): void;
   onCaptures(captures: PrevisWorldCapture[]): void | Promise<void>;
   onAddToCanvas(capture: PrevisWorldCapture): void | Promise<void>;
   onAddPrompt(title: string, prompt: string): void | Promise<void>;
@@ -91,6 +95,31 @@ export function subscribePrevisCardReady(getFrame: () => HTMLIFrameElement | nul
  */
 export function sendPrevisScene(frame: HTMLIFrameElement | null, scene: PrevisSceneDocument | null) {
   post(frame, { type: `${PREFIX}-scene`, payload: { scene } });
+}
+
+export function requestPrevisAgentFrame(frame: HTMLIFrameElement | null, request: PrevisAgentFrameRequest): Promise<string> {
+  const source = frame?.contentWindow;
+  if (!source || !frame) return Promise.reject(new Error('World engine is not ready'));
+  const requestId = crypto.randomUUID();
+  return new Promise((resolve, reject) => {
+    const finish = (error?: Error, dataUrl?: string) => {
+      window.removeEventListener('message', receive);
+      window.clearTimeout(timer);
+      if (error) reject(error);
+      else if (dataUrl) resolve(dataUrl);
+      else reject(new Error('World engine returned no preview image'));
+    };
+    const receive = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin || event.source !== source) return;
+      const { type, payload } = event.data ?? {};
+      if (type !== `${PREFIX}-agent-frame-result` || payload?.requestId !== requestId) return;
+      if (payload.ok === true && typeof payload.dataUrl === 'string' && payload.dataUrl.startsWith('data:image/png;base64,')) finish(undefined, payload.dataUrl);
+      else finish(new Error(String(payload.error || 'World engine returned no preview image')));
+    };
+    const timer = window.setTimeout(() => finish(new Error('World engine did not confirm capture')), 20_000);
+    window.addEventListener('message', receive);
+    post(frame, { type: `${PREFIX}-agent-frame`, payload: { ...request, requestId } });
+  });
 }
 
 export function sendPrevisImages(frame: HTMLIFrameElement | null, imageNodes: PrevisWorldImageNode[]) {
@@ -144,7 +173,10 @@ export function subscribePrevisWorld(getFrame: () => HTMLIFrameElement | null, h
     if (message.type === `${PREFIX}-close`) return handlers.onClose?.();
     if (message.type === `${PREFIX}-scene-changed`) {
       const scene = readPrevisScene(payload.scene);
-      if (scene) handlers.onSceneChanged(scene);
+      const base = payload.base;
+      if (scene && (base === undefined || base === null || (isRecord(base) && typeof base.id === "string" && typeof base.updatedAt === "string"))) {
+        handlers.onSceneChanged(scene, base as PrevisSceneRevision | null | undefined);
+      }
       return;
     }
     if (message.type === `${PREFIX}-captures`) {

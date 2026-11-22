@@ -1,17 +1,28 @@
 import { t } from '@/i18n';
-import { CANVAS_AGENT_ID, EDITOR_AGENT_ID, TEXT_AGENT_ID } from '../agent/agents/definitions';
-const SCOPE_AGENT_IDS = { canvas: CANVAS_AGENT_ID, editor: EDITOR_AGENT_ID, text: TEXT_AGENT_ID };
-export type ConversationScope = 'canvas' | 'editor' | 'text';
+import { CANVAS_AGENT_ID, EDITOR_AGENT_ID, TEXT_AGENT_ID, DIRECTOR_AGENT_ID, type AgentId } from '../agent/agents/definitions';
+const SCOPE_AGENT_IDS = { canvas: CANVAS_AGENT_ID, editor: EDITOR_AGENT_ID, text: TEXT_AGENT_ID, director: DIRECTOR_AGENT_ID };
+export type ConversationScope = keyof typeof SCOPE_AGENT_IDS;
+const nodeFields = { editor: 'editorNodeId', text: 'textNodeId', director: 'directorNodeId' } as const;
+export function harnessSessionScope(agentId: AgentId): ConversationScope {
+  if (agentId === DIRECTOR_AGENT_ID) return 'director';
+  if (agentId === EDITOR_AGENT_ID) return 'editor';
+  if (agentId === TEXT_AGENT_ID) return 'text';
+  return 'canvas';
+}
+export function harnessSessionOptions(scope: ConversationScope, nodeId?: string): CreateConversationOptions {
+  return { agentId: SCOPE_AGENT_IDS[scope], ...(scope !== 'canvas' && nodeId && { [nodeFields[scope]]: nodeId }) };
+}
 /** Product association metadata only. SQLite session persistence owns conversation content. */
 export interface HarnessSession {
-  id?: string; title?: string; agentId?: string; editorNodeId?: string; textNodeId?: string;
+  id?: string; title?: string; agentId?: string; editorNodeId?: string; textNodeId?: string; directorNodeId?: string;
   harnessSessionId?: string; updatedAt?: string; [key: string]: unknown;
 }
 export interface HarnessProject {
   id?: string; harnessSessions?: HarnessSession[]; trashedHarnessSessions?: HarnessSession[]; activeHarnessSessionId?: string | undefined;
+  pendingDirectorSessionDeletes?: Array<{ nodeId: string; conversationId: string }>;
   [key: string]: unknown;
 }
-export interface CreateConversationOptions { title?: string; agentId?: string; editorNodeId?: string; textNodeId?: string }
+export interface CreateConversationOptions { title?: string; agentId?: string; editorNodeId?: string; textNodeId?: string; directorNodeId?: string }
 function uid() { return crypto.randomUUID(); }
 export function ensureHarnessSessions(project: HarnessProject | null | undefined): HarnessSession[] {
   if (!project || typeof project !== 'object') return [];
@@ -34,7 +45,7 @@ export function ensureHarnessSessions(project: HarnessProject | null | undefined
     else if (typeof conversation.id !== 'string') conversation.id = String(conversation.id);
     // agentId 决定这个会话能使用哪个 Agent 的工具与 Skill 集合，必须显式存在于记录上。
     if (!conversation.agentId) {
-      conversation.agentId = conversation.textNodeId
+      conversation.agentId = conversation.directorNodeId ? SCOPE_AGENT_IDS.director : conversation.textNodeId
         ? SCOPE_AGENT_IDS.text
         : conversation.editorNodeId ? SCOPE_AGENT_IDS.editor : SCOPE_AGENT_IDS.canvas;
     }
@@ -57,16 +68,28 @@ export function getActiveHarnessSession(project: HarnessProject): HarnessSession
   return conversations.find((item) => item.id === project.activeHarnessSessionId) || conversations[0] || null;
 }
 
-function boundNodeId(session: HarnessSession): string {
-  return String(session.textNodeId || session.editorNodeId || '');
+export function boundHarnessNodeId(session: HarnessSession): string {
+  return String(session.directorNodeId || session.textNodeId || session.editorNodeId || '');
+}
+
+export function removeDirectorHarnessSessions(project: HarnessProject, nodeId: string) {
+  const matches = (session: HarnessSession) => session.agentId === DIRECTOR_AGENT_ID && session.directorNodeId === nodeId;
+  const removed = [...(project.harnessSessions || []), ...(project.trashedHarnessSessions || [])].filter(matches);
+  if (!removed.length) return;
+  project.harnessSessions = (project.harnessSessions || []).filter(session => !matches(session));
+  project.trashedHarnessSessions = (project.trashedHarnessSessions || []).filter(session => !matches(session));
+  if (removed.some(session => session.id === project.activeHarnessSessionId)) project.activeHarnessSessionId = project.harnessSessions[0]?.id;
+  const pending = project.pendingDirectorSessionDeletes || [];
+  project.pendingDirectorSessionDeletes = [...pending, ...removed.flatMap(session =>
+    session.id && !pending.some(item => item.conversationId === session.id) ? [{ nodeId, conversationId: session.id }] : [])];
 }
 
 /** Move node-owned conversations out of the active index while retaining their Host history for undo. */
 export function trashBoundHarnessSessions(project: HarnessProject, nodeId: string): void {
   const active = ensureHarnessSessions(project);
-  const removed = active.filter(session => boundNodeId(session) === nodeId);
+  const removed = active.filter(session => boundHarnessNodeId(session) === nodeId);
   if (!removed.length) return;
-  project.harnessSessions = active.filter(session => boundNodeId(session) !== nodeId);
+  project.harnessSessions = active.filter(session => boundHarnessNodeId(session) !== nodeId);
   project.trashedHarnessSessions = [...(project.trashedHarnessSessions || []), ...removed];
   if (removed.some(session => session.id === project.activeHarnessSessionId)) {
     project.activeHarnessSessionId = project.harnessSessions[0]?.id;
@@ -76,10 +99,13 @@ export function trashBoundHarnessSessions(project: HarnessProject, nodeId: strin
 /** Canvas undo/redo restores or trashes only conversations whose node presence changed. */
 export function reconcileBoundHarnessSessions(project: HarnessProject & { nodes?: Array<{ id: string }> }): void {
   const nodeIds = new Set((project.nodes || []).map(node => node.id));
+  for (const session of [...(project.harnessSessions || []), ...(project.trashedHarnessSessions || [])]) {
+    if (session.directorNodeId && !nodeIds.has(session.directorNodeId)) removeDirectorHarnessSessions(project, session.directorNodeId);
+  }
   const active = ensureHarnessSessions(project);
   const trashed = project.trashedHarnessSessions || [];
   const isMissing = (session: HarnessSession) => {
-    const id = boundNodeId(session);
+    const id = boundHarnessNodeId(session);
     return id && id !== 'workspace-video-editor' && !nodeIds.has(id);
   };
   const restored = trashed.filter(session => !isMissing(session));
@@ -100,19 +126,12 @@ export function scopedHarnessSessions(
   scope: ConversationScope = 'canvas',
   boundNodeId = '',
 ): HarnessSession[] {
-  const conversations = ensureHarnessSessions(project);
+  const conversations = scope !== 'canvas' && !project.harnessSessions?.length ? [] : ensureHarnessSessions(project);
   const nodeId = String(boundNodeId || '');
-  if (scope === 'editor') {
-    if (!nodeId) return [];
-    return conversations.filter((item) => String(item.editorNodeId || '') === nodeId);
-  }
-  if (scope === 'text') {
-    if (!nodeId) return [];
-    return conversations.filter((item) => String(item.textNodeId || '') === nodeId);
-  }
-  // 工作区会话（剪辑、文本）不属于画布列表，否则会在画布历史抽屉里互相污染。
+  if (scope !== 'canvas') return nodeId ? conversations.filter(item =>
+    item.agentId === SCOPE_AGENT_IDS[scope] && item[nodeFields[scope]] === nodeId) : [];
   return conversations
-    .filter((item) => !item.editorNodeId && !item.textNodeId)
+    .filter(item => item.agentId === SCOPE_AGENT_IDS.canvas && !boundHarnessNodeId(item))
     .sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')));
 }
 
@@ -154,6 +173,13 @@ export function textHarnessSession(project: HarnessProject, textNodeId: string):
   });
 }
 
+export function directorHarnessSession(project: HarnessProject, nodeId: string): HarnessSession {
+  if (!nodeId) throw new Error('A world engine session requires a node');
+  return scopedHarnessSessions(project, 'director', nodeId)[0] ?? createHarnessSession(project, {
+    ...harnessSessionOptions('director', nodeId), title: t('agent.role.director'),
+  });
+}
+
 export function createHarnessSession(project: HarnessProject, options: CreateConversationOptions = {}): HarnessSession {
   // Creating the first scoped conversation must not also bootstrap an unrelated canvas conversation.
   const canonical = Array.isArray(project.harnessSessions) && project.harnessSessions.length
@@ -166,6 +192,7 @@ export function createHarnessSession(project: HarnessProject, options: CreateCon
     // 工作区会话在建立时就绑定所属节点，避免先落成画布会话再改作用域。
     ...(options.editorNodeId ? { editorNodeId: String(options.editorNodeId) } : {}),
     ...(options.textNodeId ? { textNodeId: String(options.textNodeId) } : {}),
+    ...(options.directorNodeId ? { directorNodeId: String(options.directorNodeId) } : {}),
     createdAt: now,
     updatedAt: now,
   };

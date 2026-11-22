@@ -2,7 +2,8 @@ import { t } from '../../i18n/index.ts';
 export const CANVAS_AGENT_ID = 'canvas-primary';
 export const EDITOR_AGENT_ID = 'editor-primary';
 export const TEXT_AGENT_ID = 'text-primary';
-export const AGENT_IDS = [CANVAS_AGENT_ID, EDITOR_AGENT_ID, TEXT_AGENT_ID] as const;
+export const DIRECTOR_AGENT_ID = 'director-primary';
+export const AGENT_IDS = [CANVAS_AGENT_ID, EDITOR_AGENT_ID, TEXT_AGENT_ID, DIRECTOR_AGENT_ID] as const;
 export type AgentId = typeof AGENT_IDS[number];
 
 import type { AgentToolEffect } from '../core/types';
@@ -93,6 +94,15 @@ export const AGENT_DEFINITIONS: AgentDefinition[] = [
     effects: ['read', 'agent_state_write'],
     tools: [...textDraftTools],
     skills: ['text-writing', 'short-drama-writing'],
+  },
+  {
+    id: DIRECTOR_AGENT_ID,
+    role: 'primary',
+    title: t('agent.role.director'),
+    description: 'World engine agent bound to a single scene node',
+    effects: ['read', 'canvas_write'],
+    tools: ['previs_scene_read', 'previs_scene_create', 'previs_apply_patch', 'previs_preview'],
+    skills: [],
   },
 ];
 

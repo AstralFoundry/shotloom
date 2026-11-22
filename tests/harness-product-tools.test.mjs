@@ -86,6 +86,52 @@ test('named product catalog covers workbenches and excludes generic forwarding a
   assert.ok(!clip.some(tool => tool.name === 'canvas_create_node'));
 });
 
+test('world engine state and history are scoped to each world node', async () => {
+  const { binding: canvas, catalog } = fixture();
+  assert.ok(!catalog.some(tool => tool.name.startsWith('previs_')));
+  const project = projects.store.project;
+  const camera = { id: 'private-a', name: 'PRIVATE_WORLD_CONTENT_A' };
+  project.nodes = [
+    { id: 'world-a', type: 'threeDDirector', title: 'World A', directorData: { scene: { id: 'a', title: 'A', cameras: [camera] } } },
+    { id: 'world-b', type: 'threeDDirector', title: 'World B', directorData: { scene: { id: 'b', title: 'B' } } },
+  ];
+  const snapshot = await tools.executeProductRequest(request(canvas, 'canvas_get_node', { nodeId: 'world-a' }));
+  assert.equal(snapshot.result.nodes[0].id, 'world-a');
+  assert.doesNotMatch(JSON.stringify(snapshot), /PRIVATE_WORLD_CONTENT_A|directorData/);
+  const full = await tools.executeProductRequest(request(canvas, 'canvas_list_nodes', { view: 'full' }));
+  assert.doesNotMatch(JSON.stringify(full), /PRIVATE_WORLD_CONTENT_A|directorData/);
+  const directorBinding = nodeId => {
+    const conversation = sessions.directorHarnessSession(project, nodeId);
+    const binding = { ...canvas, agentId: 'director-primary', sessionId: crypto.randomUUID(), conversationId: conversation.id, nodeId };
+    tools.bindProductSession(binding);
+    return { binding, conversation };
+  };
+  const a = directorBinding('world-a');
+  const b = directorBinding('world-b');
+  assert.notEqual(a.conversation.id, b.conversation.id);
+  assert.equal(sessions.directorHarnessSession(project, 'world-a').id, a.conversation.id);
+  assert.equal(sessions.scopedHarnessSessions(project, 'canvas').some(session => session.agentId === 'director-primary'), false);
+  const readA = await tools.executeProductRequest(request(a.binding, 'previs_scene_read'));
+  assert.deepEqual(readA.result.scene.cameras, [camera]);
+  const readB = await tools.executeProductRequest(request(b.binding, 'previs_scene_read'));
+  assert.equal(readB.result.scene.id, 'b');
+  await assert.rejects(tools.executeProductRequest(request(a.binding, 'canvas_get_node', { nodeId: 'world-b' })));
+  await assert.rejects(tools.executeProductRequest(request(canvas, 'previs_scene_read')));
+  const edit = request(a.binding, 'previs_apply_patch', { revision: readA.result.revision, operations: [{ type: 'scene_update', fields: { title: 'Stale' } }] });
+  assert.equal((await tools.executeProductRequest(edit)).code, 'APPROVAL_REQUIRED');
+  project.nodes[0].directorData.scene.title = 'Changed by hand';
+  assert.equal((await tools.executeProductRequest({ ...edit, approvedByHarness: true })).result.code, 'PREVIS_REVISION_CONFLICT');
+
+  const graph = await env.load('store/canvasGraphStore');
+  assert.equal(graph.deleteCanvasNodeData('world-a'), true);
+  assert.deepEqual(project.pendingDirectorSessionDeletes, [{ nodeId: 'world-a', conversationId: a.conversation.id }]);
+  await assert.rejects(tools.executeProductRequest(request(a.binding, 'previs_scene_read')));
+  assert.equal((await tools.executeProductRequest(request(b.binding, 'previs_scene_read'))).result.scene.id, 'b');
+  project.nodes.push({ id: 'world-a', type: 'threeDDirector' });
+  sessions.reconcileBoundHarnessSessions(project);
+  assert.notEqual(sessions.directorHarnessSession(project, 'world-a').id, a.conversation.id);
+});
+
 test('canvas sections support real membership, moving, undo and deletion through product tools', async () => {
   const { binding, catalog } = fixture();
   assert.equal(catalog.find(tool => tool.name === 'canvas_manage_section').effect, 'write');

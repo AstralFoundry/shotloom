@@ -34,7 +34,9 @@ export type PrevisBridgeCapture = { dataUrl: string; fileName: string; kind: "im
  * Host → engine messages. Scene changes, captures and close/error travel the other way
  * through `previsBridge`, so they are not handlers here.
  */
+export type PrevisAgentFrame = { sceneId: string; shotId: string; updatedAt: string; mode: 'clay' | 'beauty' };
 export type PrevisBridgeHandlers = {
+    onAgentFrame?(request: PrevisAgentFrame): Promise<string>;
     onInit(init: PrevisBridgeInit, replace?: boolean): void;
     onImages(imageNodes: PrevisBridgeContentNode[]): void;
 };
@@ -84,6 +86,20 @@ export function installPrevisBridge(handlers: PrevisBridgeHandlers) {
             else job.reject(new Error(String(result.error || "宿主操作失败，请重试")));
             return;
         }
+        if (event.data?.type === `${PREFIX}-agent-frame`) {
+            const payload = event.data.payload;
+            if (!current || typeof payload?.requestId !== 'string') return;
+            const { requestId, sceneId, shotId, updatedAt, mode } = payload;
+            void Promise.resolve().then(async () => {
+                if (!handlers.onAgentFrame || typeof sceneId !== 'string' || typeof shotId !== 'string'
+                    || typeof updatedAt !== 'string' || (mode !== 'clay' && mode !== 'beauty')) throw new Error('Invalid world engine preview request');
+                return handlers.onAgentFrame({ sceneId, shotId, updatedAt, mode });
+            }).then(
+                dataUrl => send('agent-frame-result', { requestId, ok: true, dataUrl }),
+                error => send('agent-frame-result', { requestId, ok: false, error: error instanceof Error ? error.message : String(error) }),
+            );
+            return;
+        }
         const data = event.data as HostMessage | null;
         if (!data || typeof data.type !== "string" || !data.type.startsWith(PREFIX)) return;
         if (!data.payload || typeof data.payload !== "object") return;
@@ -119,8 +135,9 @@ export const previsBridge = {
     ready(instanceId: string) {
         send("ready", { instanceId });
     },
-    sceneChanged(scene: PrevisScene) {
-        send("scene-changed", { scene, sceneId: scene.id, updatedAt: scene.updatedAt });
+    sceneChanged(scene: PrevisScene, base: PrevisScene | null) {
+        send("scene-changed", { scene, sceneId: scene.id, updatedAt: scene.updatedAt,
+            base: base ? { id: base.id, updatedAt: base.updatedAt } : null });
     },
     captures(captures: PrevisBridgeCapture[]) {
         return captures.length ? request("captures", { captures }) : Promise.resolve();

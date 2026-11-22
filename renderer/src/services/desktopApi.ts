@@ -102,6 +102,7 @@ function createBrowserFallback() {
       start: async () => ({ running: false, ready: false }),
       stop: async () => ({ running: false, ready: false }),
       restart: async () => ({ running: false, ready: false }),
+      deleteDirectorSessions: async (_projectKey: string, _nodeId: string, _conversationIds: string[]): Promise<unknown> => undefined,
       archiveSessions: async (_projectKey: string, _sessionIds: string[] | undefined, _archived: boolean): Promise<unknown> => undefined,
       onReady: (_callback: () => void) => () => {},
     },

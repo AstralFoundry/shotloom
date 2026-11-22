@@ -4,7 +4,7 @@ import { store, touchProject } from '@/store/projectStore';
 import { reconcileBoundHarnessSessions } from '@/services/harnessSessionStore';
 import { getAgentProjectKey } from '@/services/agentProjectIdentity';
 import { desktopApi } from '@/services/desktopApi';
-import { setHarnessSessionsArchived } from '@/services/harnessArchive';
+import { flushDirectorSessionDeletes, setHarnessSessionsArchived } from '@/services/harnessArchive';
 import {
   applyCanvasTransaction,
   captureCanvasTransaction,
@@ -46,10 +46,15 @@ export const canRedoCanvas = computed(
 );
 
 function restore(entry: { [key: string]: any }) {
-  const previous = new Set((store.project.harnessSessions || []).map((session: { harnessSessionId?: string }) => session.harnessSessionId).filter(Boolean));
+  const project = store.project;
+  const previous = new Set((project.harnessSessions || []).filter((session: { directorNodeId?: string }) => !session.directorNodeId)
+    .map((session: { harnessSessionId?: string }) => session.harnessSessionId).filter(Boolean));
   const projectKey = getAgentProjectKey();
   const syncSessions = () => {
-    const current = new Set((store.project.harnessSessions || []).map((session: { harnessSessionId?: string }) => session.harnessSessionId).filter(Boolean));
+    void flushDirectorSessionDeletes(project, projectKey, () => {
+      if (store.project === project) touchProject();
+    }).catch(error => console.error('World engine session deletion is pending', error));
+    const current = new Set((store.project.harnessSessions || []).filter((session: { directorNodeId?: string }) => !session.directorNodeId).map((session: { harnessSessionId?: string }) => session.harnessSessionId).filter(Boolean));
     const restored = [...current].filter(id => !previous.has(id));
     const trashed = [...previous].filter(id => !current.has(id));
     if (desktopApi.platform !== 'browser' && (restored.length || trashed.length)) void (async () => {

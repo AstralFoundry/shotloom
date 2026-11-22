@@ -6,7 +6,8 @@ import type { HarnessSession } from '../../services/harnessSessionStore';
 import { IconSymbol } from '../components/IconSymbol';
 
 /** Product conversation navigation; official Harness owns the conversation itself. */
-export function HarnessSessionToolbar({ sessions, selectedId, onSelect, onCreate, onDelete, onClose }: {
+export function HarnessSessionToolbar({ sessions, selectedId, onSelect, onCreate, onDelete, onClose, single = false }: {
+  single?: boolean;
   sessions: HarnessSession[];
   selectedId: string | undefined;
   onSelect: (id: string) => void;
@@ -58,7 +59,10 @@ export function HarnessSessionToolbar({ sessions, selectedId, onSelect, onCreate
     }]
     : [{ key: "empty", disabled: true, label: t("ui.HarnessSessionToolbar.text.1b7abf96") }];
   return <nav className="harness-chat-toolbar" aria-label={t("ui.HarnessSessionToolbar.arialabel.9da5449a")}>
-    <Dropdown
+    {single ? <span className="harness-session-trigger">
+      <IconSymbol name="chat" className="harness-session-mark" />
+      <span>{t('agent.role.director')}</span>
+    </span> : <Dropdown
       open={open}
       onOpenChange={setOpen}
       trigger={["click"]}
@@ -78,9 +82,9 @@ export function HarnessSessionToolbar({ sessions, selectedId, onSelect, onCreate
         <span>{selected?.title || t("ui.HarnessSessionToolbar.text.1b7abf96")}</span>
         <IconSymbol name="chevron-down" className="harness-session-chevron" />
       </button>
-    </Dropdown>
+    </Dropdown>}
     <div className="harness-session-actions">
-      <button type="button" className="harness-session-icon" aria-label={t("ui.HarnessSessionToolbar.arialabel.b3e55858")} title={t("ui.HarnessSessionToolbar.arialabel.b3e55858")} onClick={onCreate}><IconSymbol name="plus" /></button>
+      {!single && <button type="button" className="harness-session-icon" aria-label={t("ui.HarnessSessionToolbar.arialabel.b3e55858")} title={t("ui.HarnessSessionToolbar.arialabel.b3e55858")} onClick={onCreate}><IconSymbol name="plus" /></button>}
       {onClose && <button type="button" className="harness-session-icon" onClick={onClose} aria-label={t("ui.HarnessSessionToolbar.arialabel.d3d63447")} title={t("ui.HarnessSessionToolbar.arialabel.d3d63447")}><IconSymbol name="x" /></button>}
     </div>
   </nav>;

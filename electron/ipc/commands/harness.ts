@@ -1,7 +1,7 @@
 import { defineCommand } from '../registry';
 import type { CommandArgs } from '../registry';
 import {
-  bindHarnessSession, harnessBridgeStatus, harnessStatus, harnessTransport, respondHarnessTool,
+  bindHarnessSession, deleteDirectorHarnessSessions, harnessBridgeStatus, harnessStatus, harnessTransport, respondHarnessTool,
   restartHarnessRuntime, setHarnessSessionsArchived, startHarnessRuntime, stopHarnessRuntime,
 } from '../../core/harness';
 
@@ -40,6 +40,14 @@ defineCommand('harness_set_sessions_archived', (args) => {
   const projectKey = String(args.projectKey ?? '');
   const sessionIds = Array.isArray(args.sessionIds) ? args.sessionIds.map(String) : null;
   return setHarnessSessionsArchived(projectKey, sessionIds, Boolean(args.archived));
+});
+
+defineCommand('harness_delete_director_sessions', (args) => {
+  const projectKey = String(args.projectKey ?? '');
+  const nodeId = String(args.nodeId ?? '');
+  const conversationIds = Array.isArray(args.conversationIds) ? args.conversationIds.filter((id): id is string => typeof id === 'string' && Boolean(id)) : [];
+  if (!projectKey || !nodeId || !conversationIds.length) throw new Error('World engine session deletion requires its project, node and conversations');
+  return deleteDirectorHarnessSessions(projectKey, nodeId, conversationIds);
 });
 
 defineCommand('harness_transport', (args) => {

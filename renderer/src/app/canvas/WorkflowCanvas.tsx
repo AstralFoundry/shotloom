@@ -1,3 +1,4 @@
+import type { PrevisSceneDocument, PrevisSceneRevision } from '../adapters/previsBridge';
 import { batchColumnHandle, parseBatchCellHandle } from '@/domain/graph/BatchTable';
 import { PluginNodeContextMenu } from './PluginNodeContextMenu';
 import { capabilitiesForNode } from '../../domain/provider/plugins/PluginCapabilities';
@@ -129,6 +130,7 @@ export interface WorkflowNodeActions {
   arrangeSection?: (id: string) => void;
   createClipNode: (id: string) => void | Promise<void>;
   update: (id: string, patch: Record<string, unknown>) => void;
+  updateDirectorScene: (id: string, scene: PrevisSceneDocument, base?: PrevisSceneRevision | null) => PrevisSceneDocument | null | undefined;
   select: (id: string) => void;
   delete: (id: string) => void;
   upload: (id: string) => void | Promise<void>;
