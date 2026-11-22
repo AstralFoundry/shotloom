@@ -1,4 +1,6 @@
 import { useAppStore } from '../store/appStore';
+import { ConfigProvider, Segmented } from 'antd';
+import { PanelsTopLeft, Workflow } from 'lucide-react';
 import { t } from '@/i18n';
 import { CANVAS_AGENT_ID } from '../../agent/agents/definitions';
 import {
@@ -8,10 +10,12 @@ import {
   type PointerEvent,
   useEffect,
   useCallback,
+  useRef,
   useState,
 } from "react";
 import type { Viewport } from "@xyflow/react";
 import { CanvasStartup } from "../canvas/CanvasStartup";
+import { CanvasAssetView } from "../canvas/CanvasAssetView";
 import { IconSymbol } from "../components/IconSymbol";
 import { BottomModeBar } from "../canvas/BottomModeBar";
 import { PoseLibraryModal } from "../canvas/PoseLibraryModal";
@@ -51,6 +55,10 @@ export interface CreationViewController {
     materials: MaterialItem[];
   };
   importMaterials: () => void | Promise<void>;
+  uploadCanvasAssets: (position: { x: number; y: number }, files?: File[]) => Promise<void>;
+  createCanvasMarkdown: (position: { x: number; y: number }) => void;
+  editCanvasMarkdown: (id: string) => Promise<void>;
+  focusCanvasNode: (id: string) => void;
   deleteMaterial: (item: MaterialItem, scope: "library" | "local" | "files") => boolean | void | Promise<boolean | void>;
   undo: () => void;
   redo: () => void;
@@ -88,6 +96,8 @@ export function CreationView({
 
 function CreationCanvas({ data, controller }: { data: CreationViewData; controller: CreationViewController }) {
   const [canvasReady, setCanvasReady] = useState(false);
+  const [view, setView] = useState<'canvas' | 'assets'>('canvas');
+  const workspace = useRef<HTMLDivElement>(null);
   const [agentStatus, setAgentStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const markCanvasReady = useCallback(() => setCanvasReady(true), []);
   const [agentPanelVisible, setAgentPanelVisible] = useState(false);
@@ -168,6 +178,13 @@ function CreationCanvas({ data, controller }: { data: CreationViewData; controll
     event.preventDefault();
     resizeAgentPanel(agentPanelWidth + (event.key === "ArrowLeft" ? 16 : -16));
   }
+  function canvasCenter() {
+    const { x, y, zoom } = data.viewport;
+    return {
+      x: ((workspace.current?.clientWidth || 0) / 2 - x) / zoom,
+      y: ((workspace.current?.clientHeight || 0) / 2 - y) / zoom,
+    };
+  }
   return (
     <div className="forge-lite">
       <main
@@ -177,37 +194,77 @@ function CreationCanvas({ data, controller }: { data: CreationViewData; controll
           agentPanelVisible ? { gridTemplateColumns: `minmax(0, 1fr) ${agentPanelWidth}px` } : undefined
         }
       >
-        <WorkflowCanvas
-          onReady={markCanvasReady}
-          onOpenShortcuts={() => setShortcutsOpen(true)}
-          nodes={data.nodes}
-          edges={data.edges}
-          selectedEdgeId={data.selectedEdgeId ?? null}
-          viewport={data.viewport}
-          renderers={workflowNodeRenderers}
-          nodeActions={controller.nodes}
-          controller={controller.canvas}
-          onAutoLayout={controller.autoLayout}
-          addNodeMention={mentionNode}
-          onOpenPoseLibrary={() => setPoseLibraryOpen(true)}
-          overlay={(controls) => (
-            <BottomModeBar
-              {...controls}
-              materialOpen={picker}
-              shortcutsOpen={shortcutsOpen}
-              onCloseShortcuts={() => setShortcutsOpen(false)}
-              canUndo={data.history.canUndo}
-              canRedo={data.history.canRedo}
-              shortcutLabels={data.shortcutLabels}
-              onUndo={controller.undo}
-              onRedo={controller.redo}
-              onMaterialPicker={openPicker}
-              onMergeVideos={controller.mergeVideos}
-              onOpenHistory={() => setVersionHistoryOpen(true)}
+        <div ref={workspace} className="forge-canvas-workspace">
+          <div className="forge-canvas-stage" inert={view === 'assets'}>
+            <WorkflowCanvas
+              onReady={markCanvasReady}
+              onOpenShortcuts={() => setShortcutsOpen(true)}
+              nodes={data.nodes}
+              edges={data.edges}
+              selectedEdgeId={data.selectedEdgeId ?? null}
+              viewport={data.viewport}
+              renderers={workflowNodeRenderers}
+              nodeActions={controller.nodes}
+              controller={controller.canvas}
+              onAutoLayout={controller.autoLayout}
+              addNodeMention={mentionNode}
               onOpenPoseLibrary={() => setPoseLibraryOpen(true)}
+              overlay={(controls) => (
+                <BottomModeBar
+                  {...controls}
+                  materialOpen={picker}
+                  shortcutsOpen={shortcutsOpen}
+                  onCloseShortcuts={() => setShortcutsOpen(false)}
+                  canUndo={data.history.canUndo}
+                  canRedo={data.history.canRedo}
+                  shortcutLabels={data.shortcutLabels}
+                  onUndo={controller.undo}
+                  onRedo={controller.redo}
+                  onMaterialPicker={openPicker}
+                  onMergeVideos={controller.mergeVideos}
+                  onOpenHistory={() => setVersionHistoryOpen(true)}
+                  onOpenPoseLibrary={() => setPoseLibraryOpen(true)}
+                />
+              )}
             />
-          )}
-        />
+          </div>
+          {view === 'assets' && <CanvasAssetView
+            nodes={data.nodes}
+            onLocate={id => {
+              setView('canvas');
+              controller.focusCanvasNode(id);
+              requestAnimationFrame(() => workspace.current?.querySelector<HTMLElement>('.react-workflow-canvas')?.focus({ preventScroll: true }));
+            }}
+            onUpload={files => controller.uploadCanvasAssets(canvasCenter(), files)}
+            onCreateMarkdown={() => controller.createCanvasMarkdown(canvasCenter())}
+            onEditMarkdown={id => void controller.editCanvasMarkdown(id)}
+          />}
+          <ConfigProvider theme={{ components: { Segmented: {
+            trackBg: 'var(--bg)',
+            itemSelectedBg: 'var(--type-primary)',
+            itemSelectedColor: 'var(--bg)',
+          } } }}>
+            <Segmented
+              className="canvas-view-switch"
+              aria-label={t('canvas.assetView.switch')}
+              shape="round"
+              value={view}
+              onChange={setView}
+              options={[
+                {
+                  value: 'canvas',
+                  label: <><Workflow aria-hidden="true" /><span className="canvas-view-switch-text">{t('canvas.assetView.canvas')}</span></>,
+                  title: t('canvas.assetView.canvas'),
+                },
+                {
+                  value: 'assets',
+                  label: <><PanelsTopLeft aria-hidden="true" /><span className="canvas-view-switch-text">{t('canvas.assetView.title')}</span></>,
+                  title: t('canvas.assetView.title'),
+                },
+              ]}
+            />
+          </ConfigProvider>
+        </div>
         <PoseLibraryModal open={poseLibraryOpen} onClose={() => setPoseLibraryOpen(false)} />
         {agentPanelVisible && (
           <div

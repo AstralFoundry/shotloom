@@ -9,7 +9,7 @@ export const MEDIA_MIME_BY_EXTENSION: Readonly<Record<string, string>> = {
   mkv: 'video/x-matroska', avi: 'video/x-msvideo',
   mp3: 'audio/mpeg', wav: 'audio/wav', m4a: 'audio/mp4', aac: 'audio/aac',
   ogg: 'audio/ogg', flac: 'audio/flac',
-  txt: 'text/plain', md: 'text/markdown', json: 'application/json',
+  txt: 'text/plain', md: 'text/markdown', markdown: 'text/markdown', json: 'application/json',
   csv: 'text/csv', log: 'text/plain',
 };
 

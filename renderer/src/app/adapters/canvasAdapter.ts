@@ -4,13 +4,16 @@ import { defaultCanvasNodeDimensions } from '@/domain/graph/CanvasNodeDimensions
 import { t } from '@/i18n';
 import { confirmAction } from "../ui/confirm/confirmService";
 import { editorCanvasCandidate } from "../../services/editorMediaCatalog";
-import { localMediaPath, selectedNodeMedia } from "../../utils/nodeMedia.ts";
+import { createNodeMediaCatalog, localMediaPath, selectedNodeMedia } from "../../utils/nodeMedia.ts";
+import { textNodeContent } from "../../utils/textNodeContent";
 import { findMaterialCanvasTarget } from "./canvas/canvasMediaSelection";
 import type { Connection } from "@xyflow/react";
 import { canvasNodeDimensions, layoutAgentNodes } from "../../services/agentLayoutService";
 import { createColoredPencilImageNode } from "../../services/coloredPencilNodeService";
 // Canonical edge persistence: addCanvasEdge(store.project, connection.source, connection.target).
 import { desktopApi } from "../../services/desktopApi.ts";
+import { saveBrowserFile } from "../../services/browserFileStorage";
+import { openMediaViewer } from "../store/overlayStore";
 import {
   applyMaterialToCanvas,
   copyFileIntoProjectAssets,
@@ -1117,9 +1120,94 @@ export const nodeActions: WorkflowNodeActions = {
   },
 };
 
+async function editCanvasMarkdown(id: string) {
+  const project = store.project;
+  const node = project.nodes.find((item: WorkflowNodeData) => item.id === id && item.type === 'textGeneration' && !item.archived);
+  if (!node) return;
+  const catalog = createNodeMediaCatalog(project);
+  const selected = catalog.selected(node);
+  const isOutput = catalog.outputs(node).includes(selected);
+  const path = localMediaPath(selected);
+  let content = String((isOutput ? selected.content : undefined) ?? textNodeContent(node));
+  if (!content && typeof node.textContent !== 'string' && !isOutput) content = String(selected.content || '');
+  if (!content && typeof node.textContent !== 'string' && path) {
+    try {
+      const bytes = await desktopApi.file.readArrayBuffer(path);
+      if (!bytes) throw new Error(t('canvas.assetView.previewError'));
+      content = new TextDecoder().decode(bytes);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : String(error));
+      return;
+    }
+  }
+  if (store.project !== project || !project.nodes.includes(node)) return;
+  openMediaViewer({
+    src: content,
+    kind: 'text',
+    title: node.title || t('canvas.assetView.untitledMarkdown'),
+    filePath: path,
+    onSave: text => {
+      if (store.project !== project || !project.nodes.includes(node)) return;
+      const outputs = isOutput ? createNodeMediaCatalog(project).outputs(node) : [];
+      nodeActions.update(id, {
+        textContent: text,
+        textFormat: 'markdown',
+        updatedAt: new Date().toISOString(),
+        ...(outputs.some(output => output.id === selected.id) && {
+          generatedOutputs: outputs.map(output => output.id === selected.id ? { ...output, content: text } : output),
+        }),
+      });
+    },
+    getTextVersions: () => node.textVersions || [],
+    onRenameVersion: (versionId, name) => renameTextNodeVersion(id, versionId, name),
+    onCopyVersion: versionId => copyTextNodeVersion(id, versionId),
+  });
+}
+
 export const canvasCommands = {
   undo: undoCanvas,
   redo: redoCanvas,
+  editCanvasMarkdown,
+  createCanvasMarkdown(position: { x: number; y: number }) {
+    recordCanvasHistory(t('canvas.assetView.createMarkdown'));
+    const node = addNode('textGeneration');
+    Object.assign(node, {
+      title: t('canvas.assetView.untitledMarkdown'),
+      textFormat: 'markdown',
+      textContent: '',
+      x: Math.round(position.x),
+      y: Math.round(position.y),
+    });
+    node.canvasSectionId = canvasSectionDropTarget(node, store.project.nodes)?.id ?? null;
+    touchProject();
+    void editCanvasMarkdown(node.id);
+  },
+  async uploadCanvasAssets(position: { x: number; y: number }, browserFiles?: File[]) {
+    const project = store.project;
+    try {
+      const files: Array<Record<string, unknown> | File> = browserFiles ?? await desktopApi.file.importAsset();
+      if (!files.length || store.project !== project) return;
+      const supported = files.filter(file => inferFileResourceType(file instanceof File ? { name: file.name, type: file.type } : file) !== 'file');
+      if (supported.length !== files.length) showToast(t('canvas.assetView.unsupportedFiles'));
+      if (!supported.length) return;
+      recordCanvasHistory(t('ui.canvasAdapter.text.d3ac5ec3'));
+      for (const [index, file] of supported.entries()) {
+        if (store.project !== project) break;
+        try {
+          const source = file instanceof File ? await saveBrowserFile(file, file.name) : file;
+          if (store.project !== project) break;
+          await createUploadedNode(source, {
+            x: position.x + (index % 3) * 320,
+            y: position.y + Math.floor(index / 3) * 360,
+          });
+        } catch (error) {
+          showToast(error instanceof Error ? error.message : String(error));
+        }
+      }
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : String(error));
+    }
+  },
   fitView() {
     fitViewHandler?.();
   },
