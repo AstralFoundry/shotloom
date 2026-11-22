@@ -9,6 +9,7 @@ import { useEditorMount } from "./openReel/useEditorMount";
 import { ClipStudioRuntimeHost } from "./openReel/ClipStudioRuntimeHost";
 import { CLIP_NODE_LAYOUT } from "../../utils/clipNodeLayout";
 import { useOpenReelBridge } from "./openReel/useOpenReelBridge";
+import { useAgentPetSurface } from "../agent-chat/AgentPetWorkspace";
 import { OpenReelAgentPanel } from "./openReel/OpenReelAgentPanel";
 import type {
   VideoEditorWorkspaceProps,
@@ -63,7 +64,8 @@ export function VideoEditorWorkspace({
     canvasNode,
   });
   // Inline canvas timelines must not mount a chat Session for every clip node.
-  const agentOpen = expanded && agentPanel && agentVisible;
+  const hasAgent = Boolean(expanded && agentPanel);
+  const agentOpen = hasAgent && agentVisible;
 
   const resizeAgentPanel = useCallback((nextWidth: number) => {
     const width = clampAgentWidth(nextWidth, stageRef.current?.clientWidth ?? window.innerWidth);
@@ -102,6 +104,11 @@ export function VideoEditorWorkspace({
   }, [agentWidth, resizeAgentPanel]);
 
   const toggleAgent = useCallback(() => setAgentVisible(value => !value), []);
+  const setPetPhase = useAgentPetSurface('editor', expanded && Boolean(surface), {
+    expanded: agentOpen,
+    ...(hasAgent && { onToggle: toggleAgent }),
+    inset: agentOpen ? agentWidth : 0,
+  });
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -223,29 +230,23 @@ export function VideoEditorWorkspace({
           flushSnapshot={bridge.flushSnapshot}
         />
         {agentOpen && (
-          <>
-            <div
-              className="ov-openreel-agent-divider"
-              style={{ right: agentWidth }}
-              role="separator"
-              aria-label={t("ui.VideoEditorWorkspace.arialabel.a7fd53a7")}
-              aria-orientation="vertical"
-              aria-valuemin={AGENT_WIDTH_MIN}
-              aria-valuemax={AGENT_WIDTH_MAX}
-              aria-valuenow={agentWidth}
-              tabIndex={0}
-              onPointerDown={startAgentResize}
-              onKeyDown={resizeAgentWithKeyboard}
-            />
-            <OpenReelAgentPanel
-              nodeId={nodeId}
-              width={agentWidth}
-              onClose={() => {
-                setAgentVisible(false);
-
-              }}
-            />
-          </>
+          <div
+            className="ov-openreel-agent-divider"
+            style={{ right: agentWidth }}
+            role="separator"
+            aria-label={t("ui.VideoEditorWorkspace.arialabel.a7fd53a7")}
+            aria-orientation="vertical"
+            aria-valuemin={AGENT_WIDTH_MIN}
+            aria-valuemax={AGENT_WIDTH_MAX}
+            aria-valuenow={agentWidth}
+            tabIndex={0}
+            onPointerDown={startAgentResize}
+            onKeyDown={resizeAgentWithKeyboard}
+          />
+        )}
+        {hasAgent && (
+          <OpenReelAgentPanel nodeId={nodeId} width={agentWidth} hidden={!agentOpen}
+            onActivityChange={setPetPhase} onClose={() => setAgentVisible(false)} />
         )}
       </div>
       {bridge.exportAnchor && <ClipExportMenu anchor={bridge.exportAnchor} project={bridge.exportProject}

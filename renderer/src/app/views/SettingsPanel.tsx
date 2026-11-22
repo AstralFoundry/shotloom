@@ -6,6 +6,7 @@ import {
   useState,
 } from "react";
 import { type IconName, IconSymbol } from "../components/IconSymbol";
+import { AgentPetSettings } from '../agent-chat/AgentPetSettings';
 import { ProviderBrandIcon } from "../components/ProviderBrandIcon";
 
 export interface SettingsModel {
@@ -385,6 +386,7 @@ export function SettingsPanel(
           )}
           {tab === "agent" && (
             <>
+              <AgentPetSettings />
               <section className="settings-section">
                 <h4>{t("ui.SettingsPanel.text.b5bff31c")}</h4>
                 {agentRows.map(([key, type, label, description]) => (

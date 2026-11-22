@@ -30,6 +30,7 @@ import {
 } from "../store/domainReactivity.ts";
 import { canvasActionShortcutLabel } from "../utils/canvasActionShortcuts.ts";
 import { APPLICATION_ROUTES } from "../utils/projectNavigation.ts";
+import { AgentPetWorkspace } from "./agent-chat/AgentPetWorkspace";
 import { AppShell } from "./AppShell";
 import {
   canvasCommands,
@@ -423,7 +424,7 @@ export function ReactWorkbench() {
     );
   }
   return (
-    <>
+    <AgentPetWorkspace>
       <AppShell
         platform={desktopApi.platform}
         view={activeView}
@@ -475,6 +476,6 @@ export function ReactWorkbench() {
       <MediaViewer />
       <ToastHost />
       <ConfirmHost />
-    </>
+    </AgentPetWorkspace>
   );
 }

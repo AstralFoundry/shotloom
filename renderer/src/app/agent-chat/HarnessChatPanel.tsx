@@ -14,10 +14,13 @@ import { createHarnessSession, deleteHarnessSession, scopedHarnessSessions } fro
 import { focusCanvasNodes } from '../adapters/canvasAdapter';
 import { useAppStore } from '../store/appStore';
 import { mountHarnessClient } from '../agent-session/harnessClient';
+import type { AgentPetState } from '../../services/agentPetArchive';
 import { HarnessSessionToolbar } from './HarnessSessionToolbar';
 
 /** Official chat keeps its own React and state engines inside a ShadowRoot. */
-export function HarnessChatPanel({ agentId, nodeId, onClose, onStatusChange, onTurnStart }: {
+export function HarnessChatPanel({ agentId, nodeId, onClose, onStatusChange, onTurnStart, onActivityChange, hidden }: {
+  hidden?: boolean;
+  onActivityChange?: (phase: AgentPetState) => void;
   onTurnStart?: () => void;
   agentId: ProductBinding['agentId']; nodeId?: string; onClose?: () => void; onStatusChange?: (status: 'loading' | 'ready' | 'error') => void;
 }) {
@@ -55,6 +58,7 @@ export function HarnessChatPanel({ agentId, nodeId, onClose, onStatusChange, onT
   useEffect(() => {
     let active = true;
     onStatusChange?.('loading');
+    onActivityChange?.('idle');
     setPanel({ key });
     setFrameError('');
     const timeout = window.setTimeout(() => {
@@ -67,7 +71,7 @@ export function HarnessChatPanel({ agentId, nodeId, onClose, onStatusChange, onT
       }
     }).catch(error => { if (active) { window.clearTimeout(timeout); setPanel({ key, error: String(error) }); onStatusChange?.('error'); } });
     return () => { active = false; window.clearTimeout(timeout); };
-  }, [key, agentId, nodeId, selected?.id, retry, onStatusChange]);
+  }, [key, agentId, nodeId, selected?.id, retry, onStatusChange, onActivityChange]);
   useEffect(() => {
     if (panel?.key !== key || !panel.sessionId || !surface.current) return;
     let active = true;
@@ -81,6 +85,7 @@ export function HarnessChatPanel({ agentId, nodeId, onClose, onStatusChange, onT
     window.addEventListener('shotloom:mention-node', mention);
     void mountHarnessClient(surface.current, {
       onTurnStart: () => turnStartRef.current?.(),
+      ...(onActivityChange && { onActivityChange: (phase: AgentPetState) => { if (active) onActivityChange(phase); } }),
       sessionId, agentId, locale: getLocale(), tools: panel.tools ?? [], toolTitles: panel.toolTitles ?? {},
       readReference: (nodeId, withImage) => readHarnessCanvasReference(sessionId, nodeId, withImage),
       preview(nodeId) {
@@ -102,8 +107,8 @@ export function HarnessChatPanel({ agentId, nodeId, onClose, onStatusChange, onT
       if (active) { setFrameError(String(error)); onStatusChange?.('error'); }
     });
     return () => { active = false; mounted?.dispose(); window.removeEventListener('shotloom:mention-node', mention); };
-  }, [panel, key, agentId, onStatusChange]);
-  return <section ref={container} className="harness-chat-panel">
+  }, [panel, key, agentId, onStatusChange, onActivityChange]);
+  return <section ref={container} className="harness-chat-panel" hidden={hidden}>
     <HarnessSessionToolbar sessions={sessions} selectedId={selected?.id} onSelect={setSelectedId} onClose={onClose}
       onDelete={async id => {
         const target = sessions.find(session => session.id === id);

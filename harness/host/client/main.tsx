@@ -25,7 +25,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-user-questions/client';
 import type {} from '@deepseek-ai/dsh-api-session-controller/client';
 import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client';
 import type { SessionId } from '@deepseek-ai/dsh-session/types';
-import type { SessionReference } from '@deepseek-ai/dsh-api-session-controller/client';
+import type { SessionEventSource, SessionReference } from '@deepseek-ai/dsh-api-session-controller/client';
 import type { InjectFace, PropsRenderFactories, PropsRenderSlots, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots';
 import type { ConversationViewsProps } from '@deepseek-ai/dsh-client-ui-conversation/client';
 import type { ThemeSnapshot } from '@deepseek-ai/dsh-client-ui-theme/client';
@@ -297,6 +297,43 @@ async function runtime(native: NativeHost): Promise<ClientContext> {
   return singleton;
 }
 
+function observeActivity(source: SessionEventSource, emit: NonNullable<ProductHost['onActivityChange']>) {
+  type Phase = Parameters<typeof emit>[0];
+  let phase: Phase = 'idle';
+  let turn: number | undefined;
+  function process(entries: ReturnType<SessionEventSource['getSnapshot']>['entries'], live: boolean) {
+    for (const { event } of entries) {
+      if (event.type === 'turn/start') {
+        turn = event.data.turn;
+        phase = 'thinking';
+      } else if (turn !== undefined && event.type === 'turn/end' && event.data.turn === turn) {
+        turn = undefined;
+        phase = live && event.data.reason.kind === 'completed' ? 'completed' : 'idle';
+      } else if (turn !== undefined && event.type === 'step/start' && event.data.turn === turn) {
+        phase = 'thinking';
+      } else if (turn !== undefined && event.type === 'tool/call' && event.data.turn === turn) {
+        phase = 'working';
+      } else if (turn !== undefined && event.type === 'assistant/live-chunk' && event.data.turn === turn
+        && (event.data.chunk.type === 'text-delta' || event.data.chunk.type === 'tool-call-delta')) {
+        phase = 'working';
+      }
+    }
+  }
+  process(source.getSnapshot().entries, false);
+  emit(phase);
+  return source.subscribe(() => {
+    const { change, entries } = source.getSnapshot();
+    const previous = phase;
+    if (change.kind === 'append') process(change.entries, true);
+    if (change.kind === 'replace') {
+      phase = 'idle';
+      turn = undefined;
+      process(entries, false);
+    }
+    if (previous !== phase) emit(phase);
+  });
+}
+
 export async function mount(container: HTMLElement, native: NativeHost, host: ProductHost) {
   const ctx = await runtime(native);
   const shadow = container.shadowRoot ?? container.attachShadow({ mode: 'open' });
@@ -305,12 +342,14 @@ export async function mount(container: HTMLElement, native: NativeHost, host: Pr
   const root = globalThis.document.createElement('div'); root.className = 'shotloom-agent-chat'; root.dataset.shotloomEmbedded = 'true'; shadow.append(root);
   root.style.cssText = 'height:100%;min-height:0;position:relative';
   let release = () => {};
+  let stopActivity = () => {};
   let disposeScope = async () => {};
   try {
   if (!ctx.sessions.list.getSnapshot().byId[host.sessionId as SessionId]) await ctx.sessions.refresh();
   const reference = ctx.sessions.retain(host.sessionId as SessionId, { source: 'mainView' });
   release = () => reference.release();
   await reference.ready;
+  if (host.onActivityChange) stopActivity = observeActivity(reference.binding.eventSource, host.onActivityChange);
   let mentionNode: ChatActions['mentionNode'] = () => {};
   await ctx.inject(['slots', 'inputTriggers', 'sessions'], scope => {
   disposeScope = () => scope.fiber.dispose();
@@ -319,9 +358,9 @@ export async function mount(container: HTMLElement, native: NativeHost, host: Pr
   const surface = { root, host, reference, mentionNode };
   surfaces.add(surface); refresh();
   let disposed = false;
-  return { dispose() { if (disposed) return; disposed = true; surfaces.delete(surface); refresh(); release(); void disposeScope(); unregister(); root.remove(); style.remove(); } };
+  return { dispose() { if (disposed) return; disposed = true; surfaces.delete(surface); refresh(); stopActivity(); release(); void disposeScope(); unregister(); root.remove(); style.remove(); } };
   } catch (error) {
-    release(); await disposeScope(); unregister(); root.remove(); style.remove();
+    stopActivity(); release(); await disposeScope(); unregister(); root.remove(); style.remove();
     throw error;
   }
 }

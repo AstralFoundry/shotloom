@@ -1,5 +1,9 @@
 // 从 locales/zh-CN.json 生成；请运行 node scripts/generate-i18n-types.mjs。
 export interface MessageParameters {
+  "agentPet.removeMessage": Record<"name", string | number>;
+  "agentPet.next": Record<"name", string | number>;
+  "agentPet.openAgent": Record<"name", string | number>;
+  "agentPet.closeAgent": Record<"name", string | number>;
   "assets.browser.total": Record<"count", string | number>;
   "assets.browser.selection": Record<"count", string | number>;
   "catalog.validation.agentCompat": Record<"value0", string | number>;

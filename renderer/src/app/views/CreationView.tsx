@@ -26,6 +26,8 @@ import {
 import { workflowNodeRenderers } from "../canvas/nodeRegistry";
 import type { MaterialItem } from "../components/MaterialGrid";
 import { AssetLibraryModal } from "../components/AssetLibraryBrowser";
+import { useAgentPets } from "../agent-chat/AgentPet";
+import { useAgentPetSurface } from "../agent-chat/AgentPetWorkspace";
 import { HarnessChatPanel } from "../agent-chat/HarnessChatPanel";
 import type { VideoEditorController } from "../editor/VideoEditorWorkspace";
 import type { VideoEditorWorkspaceProps } from "../editor/openReel/types";
@@ -89,11 +91,15 @@ function CreationCanvas({ data, controller }: { data: CreationViewData; controll
   const [agentStatus, setAgentStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const markCanvasReady = useCallback(() => setCanvasReady(true), []);
   const [agentPanelVisible, setAgentPanelVisible] = useState(false);
+  const [agentPanelOpened, setAgentPanelOpened] = useState(false);
+  const { visible: petVisible } = useAgentPets();
+  const closeAgentPanel = useCallback(() => setAgentPanelVisible(false), []);
   const [pendingMention, setPendingMention] = useState<string | null>(null);
-  function openAgentPanel() {
-    if (!agentPanelVisible) setAgentStatus('loading');
+  const openAgentPanel = useCallback(() => {
+    if (!agentPanelOpened || !petVisible) setAgentStatus('loading');
+    setAgentPanelOpened(true);
     setAgentPanelVisible(true);
-  }
+  }, [agentPanelOpened, petVisible]);
   function mentionNode(nodeId: string) {
     if (agentPanelVisible && agentStatus === 'ready') dispatchCanvasNodeMention(nodeId);
     else { setPendingMention(nodeId); openAgentPanel(); }
@@ -128,6 +134,11 @@ function CreationCanvas({ data, controller }: { data: CreationViewData; controll
     setPicker(true);
     useAppStore.getState().clearAssetBrowserRequest();
   }, [assetBrowserRequest]);
+  const setPetPhase = useAgentPetSurface('canvas', canvasReady, {
+    expanded: agentPanelVisible,
+    onToggle: agentPanelVisible ? closeAgentPanel : openAgentPanel,
+    inset: agentPanelVisible ? agentPanelWidth : 0,
+  });
   function resizeAgentPanel(nextWidth: number) {
     const maxWidth = Math.max(360, Math.min(680, window.innerWidth - 420));
     const width = Math.round(Math.min(maxWidth, Math.max(360, nextWidth)));
@@ -213,9 +224,11 @@ function CreationCanvas({ data, controller }: { data: CreationViewData; controll
             onKeyDown={resizeAgentPanelWithKeyboard}
           />
         )}
-        {agentPanelVisible ? (
-          <HarnessChatPanel agentId={CANVAS_AGENT_ID} onStatusChange={setAgentStatus} onClose={() => setAgentPanelVisible(false)} />
-        ) : (
+        {(agentPanelVisible || (agentPanelOpened && petVisible)) && (
+          <HarnessChatPanel agentId={CANVAS_AGENT_ID} hidden={!agentPanelVisible} onStatusChange={setAgentStatus}
+            {...(petVisible && { onActivityChange: setPetPhase })} onClose={closeAgentPanel} />
+        )}
+        {!agentPanelVisible && !petVisible && (
           <button type="button" className="forge-agent-reopen" aria-expanded={false} onClick={openAgentPanel}>
             <IconSymbol name="chat" />{t("ui.CreationView.text.e178fa71")}</button>
         )}
