@@ -22,7 +22,7 @@ test('节点派生值只在状态模块计算一次，子组件只消费结果',
     /textNodeContent\(\{ \.\.\.node, generatedOutputs: outputs \}\)/,
     /getGenerationInputModes\(selectedModel\)/,
     /normalizeCameraConfig\(/,
-    /getImageStylePreset\(config\.stylePresetId\)/,
+    /getImageStylePreset\(config\.stylePresetId, config\.customImageStyle\)/,
   ];
   for (const pattern of derived) {
     const owners = modules.filter((name) => pattern.test(sources[name]));
@@ -32,7 +32,7 @@ test('节点派生值只在状态模块计算一次，子组件只消费结果',
 
 test('节点外壳只负责组装，媒体体与输入面板各自拥有交互状态', () => {
   assert.match(sources['GenerationNode.tsx'], /<GenerationNodePreview[\s\S]*?state=\{state\}/);
-  assert.match(sources['GenerationNode.tsx'], /<ScreenSpaceComposer nodeId=\{node\.id\}>[\s\S]*?<GenerationNodeComposer/);
+  assert.match(sources['GenerationNode.tsx'], /<ScreenSpaceComposer nodeId=\{node\.id\} image=\{node\.type === "imageGeneration"\}>[\s\S]*?<GenerationNodeComposer/);
   assert.match(sources['GenerationNodePreview.tsx'], /videoPreviewRef/);
   assert.match(sources['GenerationNodeComposer.tsx'], /isImeKeyEvent\(e\.nativeEvent\)/);
   assert.match(sources['GenerationNodeComposer.tsx'], /<GenerationSettingsPanel[\s\S]*?onConfigChange=\{setConfig\}/);

@@ -39,6 +39,8 @@
   --faint: #a3a3a3;
   --fg-disabled: rgba(0, 0, 0, .35);
   --type-primary: #171717;
+  --canvas-header-ink: #111827;
+  --canvas-header-muted: #6b7280;
 
   /* Lines */
   --line: rgba(0, 0, 0, .08);
@@ -203,12 +205,6 @@
    * 与条高派生的 40 动作只是数值相遇，语义不同，所以分名。 */
   --canvas-slot-size: 40px;
   --canvas-composer-room-above: 100vh;
-  /* 预设触发器浮在输入面板右上角，缩略图行按它的真实占位让位。行本身已经在面板内边距之内，
-   * 所以留位只需要触发器宽和组间距。
-   * 无条件扣掉一个 160 的魔法数更糟：没有触发器的节点会凭空少掉一整列宽度。 */
-  --canvas-preset-trigger-width: 118px;
-  --canvas-composer-trigger-reserve: calc(var(--canvas-preset-trigger-width) + 6px);
-
   /* 画布加载徽章使用独立的紫色。外壳多出的 8px 留给接触阴影。 */
   --canvas-loader-size: 48px;
   --canvas-loader-shell-size: 56px;
@@ -320,6 +316,8 @@
   --faint: #737373;
   --fg-disabled: rgba(255, 255, 255, .3);
   --type-primary: #ededed;
+  --canvas-header-ink: var(--type-primary);
+  --canvas-header-muted: var(--muted);
 
   --line: rgba(255, 255, 255, .1);
   --line-soft: rgba(255, 255, 255, .05);

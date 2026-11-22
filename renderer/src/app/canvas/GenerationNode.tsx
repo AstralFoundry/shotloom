@@ -24,9 +24,11 @@ const generationTypes = new Set([
 
 function ScreenSpaceComposer({
   nodeId,
+  image,
   children,
 }: {
   nodeId: string;
+  image: boolean;
   children: ReactNode;
 }) {
   const root = useContext(CanvasOverlayRootContext);
@@ -76,7 +78,7 @@ function ScreenSpaceComposer({
     const inset = 16;
     const gap = 12;
     const width = Math.min(920, Math.max(720, Math.round(nodeWidth * 1.5)), Math.max(0, canvasSize.width - inset * 2));
-    const height = Math.min(216, Math.max(0, canvasSize.height - inset * 2));
+    const height = Math.min(image ? 264 : 216, Math.max(0, canvasSize.height - inset * 2));
     const center = viewportX + Number(position?.x || 0) * zoom + nodeWidth / 2;
     const nodeTop = viewportY + Number(position?.y || 0) * zoom;
     const nodeBottom = nodeTop + nodeHeight;
@@ -91,7 +93,7 @@ function ScreenSpaceComposer({
       width,
       height,
     };
-  }, [nodeId, canvasSize]);
+  }, [nodeId, canvasSize, image]);
   const placement = useStore(
     selectPlacement,
     (left, right) => left.left === right.left && left.top === right.top
@@ -257,7 +259,7 @@ export const GenerationNode: WorkflowNodeRenderer = memo(({
       />
       {/* 纯上传资源节点的内容就是那个文件本身，没有可再生成的提示词语义，不显示下方输入面板。 */}
       {selected && !imageCropMode && !imageMaskOpen && !imageEmotionOpen && !state.uploadedResource && (
-        <ScreenSpaceComposer nodeId={node.id}>
+        <ScreenSpaceComposer nodeId={node.id} image={node.type === "imageGeneration"}>
           <GenerationNodeComposer
             node={node}
             state={state}

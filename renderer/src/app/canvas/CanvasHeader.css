@@ -1,8 +1,6 @@
 .forge-canvas-workspace { container-type: inline-size; }
 
 .canvas-workspace-header {
-  --canvas-header-ink: #111827;
-  --canvas-header-muted: #6b7280;
   position: absolute;
   z-index: 2;
   inset: 8px 10px auto;
@@ -15,11 +13,6 @@
   pointer-events: none;
 }
 
-.dark .canvas-workspace-header {
-  --canvas-header-ink: var(--type-primary);
-  --canvas-header-muted: var(--muted);
-}
-
 .canvas-workspace-header > * { pointer-events: auto; }
 
 .canvas-workspace-title,
@@ -29,7 +22,7 @@
   align-items: center;
   padding: 3px 8px;
   border: 1px solid var(--line);
-  border-radius: 16px;
+  border-radius: calc(var(--radius) + 4px);
   background: var(--float-surface-solid);
 }
 
@@ -50,7 +43,7 @@
   height: 36px;
   gap: 7px;
   padding-inline: 8px;
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   color: inherit;
   font-family: inherit;
   font-size: var(--text-body-12);

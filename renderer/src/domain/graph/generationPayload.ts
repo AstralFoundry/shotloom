@@ -8,10 +8,11 @@ import { applyCameraConfigToPrompt, normalizeCameraConfig } from '@/utils/camera
 import { applyImageStylePreset } from '@/utils/imageStylePresets.ts';
 import { normalizeInputRole } from '@/utils/generationInputRole.ts';
 import { defaultGenerationModel } from '@/config/defaultGenerationModels';
-import { compileGenerationNodeConfig } from '@/domain/graph/GenerationNodeContract';
+import { compileGenerationNodeConfig, imageCompositionSizeParams } from '@/domain/graph/GenerationNodeContract';
 import { inputSlotOrder, isSlotValidForMode } from '@/domain/graph/GenerationInputContract';
 import { textNodeContent } from '@/utils/textNodeContent.ts';
 import { isStoryboardScriptNode, storyboardScriptInstruction, STORYBOARD_SCRIPT_SUBTASK } from './StoryboardScript.ts';
+import { applyImageCompositionPreset, getImageCompositionPreset } from './ImageCompositionPresets.ts';
 
 // 节点、任务与素材记录来自尚未类型化的 store/JS 调用方，这里按本文件真实读取的字段建模；
 // 可选字段一律显式允许 undefined，避免为了通过检查而使用 any 或非空断言。
@@ -362,6 +363,19 @@ export function buildGenerationPayload(node: CanvasNode, project: CanvasProject 
   const sourceConfig: GenerationNodeConfig = { ...(node.config || {}) };
   const payload = basePayload(node, sourceConfig, project);
   const schema = getModelSchema(node.type, payload.model, payload.modelContract?.modeId || '');
+  if (node.type === 'imageGeneration') {
+    const preset = getImageCompositionPreset(sourceConfig.imageCompositionPresetId);
+    let aspectRatio = preset?.ratio;
+    if (aspectRatio === 'original') {
+      const referenceId = payload.modelInputs.images[0]?.nodeId;
+      const reference = referenceId && project?.nodes?.find(item => item.id === referenceId);
+      const width = Number(reference ? reference.naturalWidth ?? reference.width : 0);
+      const height = Number(reference ? reference.naturalHeight ?? reference.height : 0);
+      aspectRatio = Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0
+        ? `${width}:${height}` : undefined;
+    }
+    Object.assign(sourceConfig, imageCompositionSizeParams(sourceConfig, schema.params, aspectRatio));
+  }
   const config = compileGenerationNodeConfig(sourceConfig, schema.params, node.outputSpec) as GenerationNodeConfig;
   const schemaParams = schemaParamsPayload(node.type, config, payload.model, payload.modelContract?.modeId || '');
 
@@ -376,7 +390,8 @@ export function buildGenerationPayload(node: CanvasNode, project: CanvasProject 
           maskFile: node.imageEdit.maskFile,
         }
       : null;
-    const styledPrompt = applyImageStylePreset(payload.prompt, config.stylePresetId);
+    const composedPrompt = applyImageCompositionPreset(payload.prompt, config.imageCompositionPresetId);
+    const styledPrompt = applyImageStylePreset(composedPrompt, config.stylePresetId, config.customImageStyle);
     return {
       ...payload,
       prompt: cameraControl ? applyCameraConfigToPrompt(styledPrompt, cameraConfig) : styledPrompt,

@@ -179,7 +179,7 @@ export function generationNodeState(
   const fixedImageSlots = activeInputMode?.value === "firstLastFrame"
     ? ["firstFrame", "lastFrame"]
     : activeInputMode?.value === "firstFrame" ? ["firstFrame"] : [];
-  const selectedPreset = getImageStylePreset(config.stylePresetId);
+  const selectedPreset = getImageStylePreset(config.stylePresetId, config.customImageStyle);
   const activeCameraConfig = normalizeCameraConfig(
     config.cameraConfig || DEFAULT_CAMERA_CONFIG,
   ) as Record<string, string>;

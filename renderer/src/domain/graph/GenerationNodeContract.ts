@@ -16,7 +16,8 @@ export interface GenerationConfigParam {
 
 /** 本地编排控制，不会原样发送给模型供应商。 */
 const LOCAL_CONFIG_KEYS = new Set([
-  'mode', 'inputStrategy', 'cameraControl', 'cameraConfig', 'stylePresetId', 'textSubtask',
+  'mode', 'inputStrategy', 'cameraControl', 'cameraConfig', 'stylePresetId', 'customImageStyle',
+  'imageCompositionPresetId', 'imageSizeManuallySet', 'textSubtask',
 ]);
 
 const OUTPUT_SPEC_KEYS_BY_TYPE: Record<string, Set<string>> = {
@@ -70,14 +71,38 @@ function ratioValue(value: unknown): number | null {
   return width > 0 && height > 0 ? width / height : null;
 }
 
-function closestSize(aspectRatio: unknown, options: unknown[]): unknown {
+function pixelArea(value: unknown): number {
+  const [width = 0, height = 0] = String(value || '').toLowerCase().split('x').map(Number);
+  return width > 0 && height > 0 ? width * height : 0;
+}
+
+function closestSize(aspectRatio: unknown, options: unknown[], currentSize?: unknown): unknown {
   const requested = ratioValue(aspectRatio);
   if (!requested) return undefined;
+  const currentArea = pixelArea(currentSize);
+  const areaDistance = (value: unknown) => {
+    const area = pixelArea(value);
+    return currentArea && area ? Math.abs(Math.log(area / currentArea)) : 0;
+  };
   return options
     .map(optionValue)
     .map((value) => ({ value, ratio: ratioValue(value) }))
     .filter((item): item is { value: unknown; ratio: number } => item.ratio !== null)
-    .sort((a, b) => Math.abs(a.ratio - requested) - Math.abs(b.ratio - requested))[0]?.value;
+    .sort((a, b) => Math.abs(a.ratio - requested) - Math.abs(b.ratio - requested)
+      || areaDistance(a.value) - areaDistance(b.value))[0]?.value;
+}
+
+export function imageCompositionSizeParams(
+  config: UnknownRecord, params: GenerationConfigParam[], aspectRatio: string | undefined,
+): UnknownRecord {
+  if (!aspectRatio || config.imageSizeManuallySet) return {};
+  const param = params.find(({ key }) => key === 'aspectRatio' || key === 'ratio')
+    ?? params.find(({ key }) => key === 'size');
+  if (!param) return {};
+  const value = param.options?.length ? closestSize(aspectRatio, param.options, config[param.key] ?? param.default) : (
+    param.key === 'size' ? undefined : aspectRatio
+  );
+  return value === undefined ? {} : { [param.key]: value };
 }
 
 /**

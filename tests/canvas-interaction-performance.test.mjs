@@ -173,7 +173,7 @@ test('拖动节点时隐藏上下浮层并在松手后由 React Flow 状态恢�
   assert.doesNotMatch(canvas, /className="canvas-node-label-anchor"[\s\S]*?visibility: nodeChromeHidden/);
   assert.doesNotMatch(canvas, /<Renderer[\s\S]*?dragging=\{dragging\}/);
   assert.match(node, /labelRoot && createPortal\(nodeLabel/);
-  assert.match(node, /<ScreenSpaceComposer nodeId=\{node\.id\}>/);
+  assert.match(node, /<ScreenSpaceComposer nodeId=\{node\.id\}[^>]*>/);
   assert.match(node, /state\.nodeLookup\.get\(nodeId\)\?\.dragging/);
   assert.match(styles, /\.work-composer-anchor--hidden \{[\s\S]*?opacity:\s*0;[\s\S]*?translate:\s*0 -10px;[\s\S]*?transition:\s*none;[\s\S]*?pointer-events:\s*none;/);
   assert.match(styles, /\.canvas-node-selection-toolbar--hidden \{[\s\S]*?opacity:\s*0;[\s\S]*?translate:\s*0 8px;[\s\S]*?transition:\s*none;[\s\S]*?pointer-events:\s*none;/);
