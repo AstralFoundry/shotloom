@@ -49,11 +49,11 @@ test('templates are accessible without a loaded Skill, but disabled and missing 
 test('built-in skills start enabled or disabled according to SKILL.md metadata', () => {
   const byId = new Map(skills.builtInSkills.map((item) => [item.id, item]));
   assert.equal(byId.get('script-storyboard').enabled, true);
-  assert.equal(byId.get('3d-animation-short-generator').enabled, false);
+  assert.equal(byId.get('scene-reference').enabled, false);
 
   const hydrated = skills.withBuiltInSkills({ storageVersion: 1, skills: [] });
   assert.equal(hydrated.skills.find((item) => item.id === 'script-storyboard').enabled, true);
-  assert.equal(hydrated.skills.find((item) => item.id === '3d-animation-short-generator').enabled, false);
+  assert.equal(hydrated.skills.find((item) => item.id === 'scene-reference').enabled, false);
 });
 
 test('Skill persistence retains custom instructions and removes obsolete template bindings', () => {

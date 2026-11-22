@@ -93,7 +93,7 @@ export const AGENT_DEFINITIONS: AgentDefinition[] = [
     // 文本工具只读写绑定编辑器的草稿。
     effects: ['read', 'agent_state_write'],
     tools: [...textDraftTools],
-    skills: ['text-writing', 'short-drama-writing'],
+    skills: ['short-drama-writing'],
   },
   {
     id: DIRECTOR_AGENT_ID,

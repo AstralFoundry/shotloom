@@ -1,7 +1,7 @@
 ---
 name: 剧本资产视频一条龙创作
 description: 从创意、小说片段、剧情大纲或完整剧本出发，完成标准剧本、人物场景道具设定、资产参考图、分镜运镜、参考图匹配和短片交付。适用于明确要求贯通这些阶段的短片创作。
-metadata: {"category":"video","version":1,"author":"娜乌斯嘉"}
+metadata: {"category":"video","version":2,"author":"娜乌斯嘉"}
 contracts:
   - safety-rules
   - production-governance
@@ -12,6 +12,12 @@ contracts:
 改编自 Open AI Canvas 同名内置技能（原作者：娜乌斯嘉）。以用户提供的内容与授权为准，将创意推进为可生成、可核验的短片。用户可以指定要审阅的阶段、跳过生成或使用已有素材。若仅要求某个单项产物，按该范围工作。
 
 用 `plan_write` 维护 Production Plan、依赖、顺序和真实 `runtimeRefs`。在画布中用 `canvas_list_nodes`、`canvas_get_node` 核对素材与结果。使用 `canvas_create_node`、`canvas_update_node` 和 `canvas_connect_nodes` 保存阶段产物、生成配置和真实输入边。说明影响下游的决定，在用户指定的审阅点暂停。关键设定缺失或有实质不同选择时，用 `ask_user_question` 集中提问。已经明确的设定和授权继续沿用。
+
+## 使用完整原版
+
+启动本技能后，先通过 `skill` 读取 [参考完整原文](references/upstream-skill.md)。七阶段流程、阶段审阅方式、剧本场次大纲模板、场次内精细切分模板和微片段运镜模板均在原文中。按用户选择的范围使用相应阶段与模板。
+
+在 Shotloom 执行时，以本文件的工具与权限约定为准。原文的子技能启停、写文件、表单、Dreamina、模型 ID、素材 output ID 与积分机制属于参考项目。使用 Shotloom 的 `skill`、制作计划、画布节点、真实素材与任务回执；有模型、时长、并发或费用选择时以当前目录、用户授权与真实任务能力为准。用户要求按原流程逐阶段审阅时，保留相应确认点；已有明确授权时按约定范围持续推进。
 
 ## 1. 标准剧本
 

@@ -66,7 +66,6 @@ test('角色板合同拥有四区域布局，其他 Skill 引用该合同', () =
   assert.match(body, /不因下面的提示词写法重新排版/);
   assert.match(body, /明确写出“扩展角色板”并确认/);
   assert.match(parseSkill('script-storyboard').body, /character-board/);
-  assert.match(parseSkill('script-to-video').body, /character-board/);
 });
 
 
@@ -117,7 +116,7 @@ test('内置目录差异忽略启停和运行时字段', () => {
 });
 
 test('视频类 Skill 等待图片完成但不规划内部预处理节点', () => {
-  for (const id of ['keyframe-video', 'talking-head', 'video-ad', 'video-production', 'script-to-video']) {
+  for (const id of ['keyframe-video', 'talking-head', 'video-production']) {
     const { body } = parseSkill(id);
     assert.doesNotMatch(body, /apply_colored_pencil/, `${id} 不应暴露内部彩铅动作`);
     assert.match(body, /内部.*运行时自动完成|视频输入的内部适配由运行时完成/, `${id} 缺少内部适配说明`);

@@ -25,7 +25,7 @@ Prompt 模板本身可以脱离 Shotloom 使用；涉及工具名、字段、输
 
 ## 什么时候加载
 
-只要本轮要创建、配置、修改或重写视频生成节点，或把剧本、分镜、关键帧、参考素材转成视频 Prompt，就先加载本 Skill。`script-storyboard`、`script-to-video`、`video-production` 和普通画布 Agent 都应在写入视频节点前加载它。
+只要本轮要创建、配置、修改或重写视频生成节点，或把剧本、分镜、关键帧、参考素材转成视频 Prompt，就先加载本 Skill。`script-storyboard`、`script-assets-to-video`、`video-production` 和普通画布 Agent 都应在写入视频节点前加载它。
 
 本 Skill 只负责视频 Prompt 的内容组织与写法，不替代主流程的剧本事实、画布写入、模型选择和生成核验。人物身份板细节取自 `character-board`，场景/道具/分镜静帧的图片 Prompt 取自 `visual-prompt-craft`。
 
