@@ -12,6 +12,7 @@ import { compileGenerationNodeConfig, imageCompositionSizeParams } from '@/domai
 import { inputSlotOrder, isSlotValidForMode } from '@/domain/graph/GenerationInputContract';
 import { textNodeContent } from '@/utils/textNodeContent.ts';
 import { isStoryboardScriptNode, storyboardScriptInstruction, STORYBOARD_SCRIPT_SUBTASK } from './StoryboardScript.ts';
+import { applyVideoMotions } from './VideoComposerPresets.ts';
 import { applyImageCompositionPreset, getImageCompositionPreset } from './ImageCompositionPresets.ts';
 
 // 节点、任务与素材记录来自尚未类型化的 store/JS 调用方，这里按本文件真实读取的字段建模；
@@ -406,6 +407,7 @@ export function buildGenerationPayload(node: CanvasNode, project: CanvasProject 
     return {
       ...payload,
       ...schemaParams,
+      prompt: applyVideoMotions(payload.prompt, config.videoMotionIds),
       inputStrategy: config.inputStrategy || 'auto',
     };
   }

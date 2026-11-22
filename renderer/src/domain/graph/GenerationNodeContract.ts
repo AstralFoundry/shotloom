@@ -17,7 +17,7 @@ export interface GenerationConfigParam {
 /** 本地编排控制，不会原样发送给模型供应商。 */
 const LOCAL_CONFIG_KEYS = new Set([
   'mode', 'inputStrategy', 'cameraControl', 'cameraConfig', 'stylePresetId', 'customImageStyle',
-  'imageCompositionPresetId', 'imageSizeManuallySet', 'textSubtask',
+  'imageCompositionPresetId', 'videoMotionIds', 'imageSizeManuallySet', 'textSubtask',
 ]);
 
 const OUTPUT_SPEC_KEYS_BY_TYPE: Record<string, Set<string>> = {

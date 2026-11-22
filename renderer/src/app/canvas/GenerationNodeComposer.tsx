@@ -12,9 +12,11 @@ import { IconSymbol } from "../components/IconSymbol";
 import { ProviderBrandIcon } from "../components/ProviderBrandIcon";
 import { CameraControlPanel } from "./CameraControlPanel";
 import { GenerationSettingsPanel } from "./GenerationSettingsPanel";
+import { VideoComposerTools, VideoMotionTags } from "./VideoComposerTools";
+import { selectedVideoMotions } from "@/domain/graph/VideoComposerPresets";
 import { ImageComposerTools } from "./ImageComposerTools";
 import { useAppStore } from "../store/appStore";
-import { Grid3x3, ImagePlus, Palette } from "lucide-react";
+import { Grid3x3, ImagePlus, Palette, Video } from "lucide-react";
 import { isImeKeyEvent } from "./imeComposition";
 import { generationMediaKind, useGenerationLocalPreview } from "./generationNodeMedia";
 import { editorCaretOffset, editorPrompt, referenceLabels, renderPromptEditor, setEditorCaret } from "./promptReferenceEditor";
@@ -133,6 +135,7 @@ export function GenerationNodeComposer({
   const [expanded, setExpanded] = useState(false);
   const fontSize = useAppStore(store => store.canvasPromptFontSize);
   const dialogCaret = useRef(0);
+  const templateCaret = useRef<number | null>(null);
   const [mention, setMention] = useState<{ query: string; start: number; end: number; index: number } | null>(null);
   const composing = useRef(false);
   const lastRenderedReferences = useRef("");
@@ -327,6 +330,28 @@ export function GenerationNodeComposer({
     actions.update(node.id, { config: next });
   }
 
+  function toggleVideoMotion(id: string) {
+    const selected = selectedVideoMotions(config.videoMotionIds).map(item => item.id);
+    const videoMotionIds = selected.includes(id) ? selected.filter(item => item !== id) : [...selected, id];
+    recordCanvasHistory(t("canvas.videoTools.motion"));
+    actions.update(node.id, { config: { ...config, videoMotionIds } });
+  }
+
+  function insertVideoTemplate(template: string) {
+    const prompt = promptRef.current ? editorPrompt(promptRef.current) : String(node.prompt || "");
+    const position = Math.min(templateCaret.current ?? prompt.length, prompt.length);
+    templateCaret.current = null;
+    const before = prompt.slice(0, position);
+    const after = prompt.slice(position);
+    const inserted = `${before && !/\s$/.test(before) ? "\n\n" : ""}${template}`;
+    recordCanvasHistory(t("canvas.videoTools.template"));
+    actions.update(node.id, { prompt: `${before}${inserted}${after && !/^\s/.test(after) ? "\n\n" : ""}${after}` });
+    requestAnimationFrame(() => {
+      promptRef.current?.focus();
+      if (promptRef.current) setEditorCaret(promptRef.current, before.length + inserted.length);
+    });
+  }
+
   function changeExpanded(next: boolean) {
     if (promptRef.current) dialogCaret.current = editorCaretOffset(promptRef.current);
     setOpenMenu("");
@@ -335,19 +360,24 @@ export function GenerationNodeComposer({
   }
 
   const imageComposer = node.type === "imageGeneration";
+  const videoComposer = node.type === "videoGeneration";
+  const mediaComposer = imageComposer || videoComposer;
   const composition = imageComposer ? getImageCompositionPreset(config.imageCompositionPresetId) : undefined;
   const displayedConfig = composition && composition.ratio !== "original"
     ? { ...config, ...imageCompositionSizeParams(config, state.params.map(toGenerationConfigParam), composition.ratio) }
     : config;
   const composer = (
     <div
-      className={`work-composer nodrag nopan nowheel${imageComposer ? " image-composer" : ""}${expanded ? " is-expanded" : ""}`}
+      className={`work-composer nodrag nopan nowheel${mediaComposer ? " image-composer" : ""}${expanded ? " is-expanded" : ""}`}
       onPointerDown={(event) => event.stopPropagation()}
       onClick={(event) => event.stopPropagation()}
     >
       <div className="work-composer-row">
         {imageComposer && (
           <span className="image-composer-title"><ImagePlus aria-hidden="true" />{t("ui.taskAdapter.imageGeneration.1f6a9dab")}</span>
+        )}
+        {videoComposer && (
+          <span className="image-composer-title"><Video aria-hidden="true" />{t("ui.taskAdapter.videoGeneration.19978a8d")}</span>
         )}
         <button
           type="button"
@@ -381,6 +411,13 @@ export function GenerationNodeComposer({
             onExpand={expanded ? undefined : () => changeExpanded(true)}
             onClose={expanded ? () => changeExpanded(false) : undefined}
           />
+        )}
+        {videoComposer && (
+          <VideoComposerTools menu={openMenu} setMenu={setOpenMenu} motionIds={config.videoMotionIds}
+            onToggleMotion={toggleVideoMotion} onTemplate={insertVideoTemplate}
+            onTemplateOpen={() => { templateCaret.current = promptRef.current ? editorCaretOffset(promptRef.current) : null; }}
+            onExpand={expanded ? undefined : () => changeExpanded(true)}
+            onClose={expanded ? () => changeExpanded(false) : undefined} />
         )}
       </div>
       <div className="work-prompt-shell">
@@ -434,10 +471,11 @@ export function GenerationNodeComposer({
             </span>}
           </div>
         )}
+        {videoComposer && <VideoMotionTags ids={config.videoMotionIds} onRemove={toggleVideoMotion} />}
         <div
           ref={attachPromptEditor}
           className="work-prompt-editor"
-          style={imageComposer ? { fontSize } : undefined}
+          style={mediaComposer ? { fontSize } : undefined}
           contentEditable
           suppressContentEditableWarning
           role="textbox"
@@ -638,7 +676,7 @@ export function GenerationNodeComposer({
 
   return <>
     {!expanded && composer}
-    {imageComposer && (
+    {mediaComposer && (
       <Modal
         aria-label={t("canvas.imageTools.expand")}
         open={expanded}

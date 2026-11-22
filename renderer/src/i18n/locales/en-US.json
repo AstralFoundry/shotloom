@@ -11094,5 +11094,11 @@
   "canvas.batch.generationSummary": "Generate {count} tasks with {concurrency} running at once.",
   "canvas.storyboard.missingKeyframe": "Shot {index} needs a first frame. Generate its storyboard image first.",
   "canvas.storyboard.generateSelectedImages": "Generate {count} images",
-  "canvas.storyboard.generateSelectedVideos": "Generate {count} videos"
+  "canvas.storyboard.generateSelectedVideos": "Generate {count} videos",
+  "canvas.videoTools.motion": "Camera motion",
+  "canvas.videoTools.template": "Prompt templates",
+  "canvas.videoTools.searchMotion": "Search camera motions or categories",
+  "canvas.videoTools.searchTemplate": "Search prompt templates",
+  "canvas.videoTools.empty": "No matching results",
+  "canvas.videoTools.removeMotion": "Remove motion {name}"
 }
