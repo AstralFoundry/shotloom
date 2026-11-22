@@ -3,6 +3,8 @@ export interface MessageParameters {
   "canvas.assetView.version": Record<"number", string | number>;
   "canvas.assetView.collapse": Record<"kind", string | number>;
   "canvas.assetView.expand": Record<"kind", string | number>;
+  "canvas.insert.fileCount": Record<"count", string | number>;
+  "canvas.insert.removeFile": Record<"name", string | number>;
   "agentPet.removeMessage": Record<"name", string | number>;
   "agentPet.next": Record<"name", string | number>;
   "agentPet.openAgent": Record<"name", string | number>;

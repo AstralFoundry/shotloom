@@ -36,7 +36,8 @@ function formatMediaTime(value: number) {
 export function MediaViewer() {
   const media = useOverlayStore((state) => state.media);
   const close = useOverlayStore((state) => state.closeMedia);
-  const surface = useWorkbenchSurfaceRoot();
+  const workbenchSurface = useWorkbenchSurfaceRoot();
+  const surface = media.portalTarget ?? workbenchSurface;
   const [zoom, setZoom] = useState(1);
   const [rotation, setRotation] = useState(0);
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -129,7 +130,13 @@ export function MediaViewer() {
   useEffect(() => {
     function key(event: globalThis.KeyboardEvent) {
       if (!media.open) return;
-      if (event.key === "Escape") closeViewer();
+      if (event.key === "Escape") {
+        if (media.portalTarget) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+        closeViewer();
+      }
       else if (media.kind === "image" && ["+", "="].includes(event.key)) {
         adjust(STEP);
       } else if (media.kind === "image" && event.key === "-") adjust(-STEP);

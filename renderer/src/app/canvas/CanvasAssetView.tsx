@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Button, Select, Upload } from 'antd';
+import { Button, Select } from 'antd';
 import { AudioLines, Crosshair, FileText, Image, Pencil, Plus, Video } from 'lucide-react';
 import { getLocale, t } from '@/i18n';
 import { desktopApi } from '../../services/desktopApi';
@@ -153,7 +153,7 @@ function assetMetadata(version: AssetVersion) {
 
 export function CanvasAssetView({ nodes, onUpload, onLocate, onCreateMarkdown, onEditMarkdown }: {
   nodes: WorkflowNodeData[];
-  onUpload: (files?: File[]) => Promise<void>;
+  onUpload: () => void;
   onLocate: (id: string) => void;
   onCreateMarkdown: () => void;
   onEditMarkdown: (id: string) => void;
@@ -164,7 +164,6 @@ export function CanvasAssetView({ nodes, onUpload, onLocate, onCreateMarkdown, o
   const [selectedId, setSelectedId] = useState('');
   const [versionId, setVersionId] = useState('current');
   const [collapsed, setCollapsed] = useState<Kind[]>([]);
-  const [uploading, setUploading] = useState(false);
   const search = query.trim().toLocaleLowerCase();
   const groups = new Map<Kind, CanvasAsset[]>();
   for (const asset of assets) {
@@ -188,31 +187,12 @@ export function CanvasAssetView({ nodes, onUpload, onLocate, onCreateMarkdown, o
     setVersionId('current');
   }
 
-  async function upload(files?: File[]) {
-    setUploading(true);
-    try { await onUpload(files); }
-    finally { setUploading(false); }
-  }
-
-  function uploadButton(compact: boolean) {
-    const browser = desktopApi.platform === 'browser';
-    const button = <Button type={compact ? 'text' : 'default'} size={compact ? 'small' : 'middle'}
-      loading={uploading} icon={<IconSymbol name="upload" />} onClick={browser ? undefined : () => void upload()}>
-      {t('canvas.assetView.upload')}
-    </Button>;
-    if (!browser) return button;
-    return <Upload multiple showUploadList={false} disabled={uploading} beforeUpload={(file, files) => {
-      if (file === files[0]) void upload(files);
-      return Upload.LIST_IGNORE;
-    }}>{button}</Upload>;
-  }
-
   return <div className="canvas-asset-view">
     <aside className="canvas-asset-sidebar" aria-label={t('canvas.assetView.title')}>
       <header>
         <strong>{t('canvas.assetView.title')}</strong>
         <span>{assets.length}</span>
-        {uploadButton(true)}
+        <Button type="text" size="small" icon={<IconSymbol name="upload" />} onClick={onUpload}>{t('canvas.assetView.upload')}</Button>
       </header>
       <div className="canvas-asset-search">
         <SearchInput value={query} onChange={value => { setQuery(value); setSelectedId(''); }} placeholder={t('canvas.assetView.search')} />
@@ -284,7 +264,7 @@ export function CanvasAssetView({ nodes, onUpload, onLocate, onCreateMarkdown, o
         </li>)}
       </ul> : <div className="canvas-asset-empty">
         <p>{t(search ? 'canvas.assetView.noMatches' : assets.length ? 'canvas.assetView.emptyKind' : 'canvas.assetView.empty')}</p>
-        {!search && !assets.length && uploadButton(false)}
+        {!search && !assets.length && <Button icon={<IconSymbol name="upload" />} onClick={onUpload}>{t('canvas.assetView.upload')}</Button>}
       </div>}
     </section>
   </div>;

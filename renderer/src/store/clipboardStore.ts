@@ -280,7 +280,7 @@ export async function stageSelectedWorkflow(options: AnyRecord = {}) {
  * 从系统剪贴板 sentinel 加载暂存工作流并粘贴到当前画布。
  * 读取 sentinel → 加载 payload → 重新映射 ID → 追加节点和边。
  */
-export async function pasteStagedWorkflow() {
+export async function pasteStagedWorkflow(position?: { x: number; y: number }) {
   const owner = store.project;
   const directory = store.projectDir;
   const sentinel = await desktopApi.clipboard.readStagedSentinel();
@@ -293,14 +293,18 @@ export async function pasteStagedWorkflow() {
   const resources = await copyClipWorkflowResources(payload.nodes, payload.resources || [], String(directory || ''));
   if (store.project !== owner || store.projectDir !== directory) throw new Error(t("errors.de659eff9f"));
   const pastedMaterials = buildPastedMaterials(resources);
+  const origin = position && payload.nodes.reduce((bounds: { x: number; y: number }, node: AnyRecord) => ({
+    x: Math.min(bounds.x, Number(node.x) || 0),
+    y: Math.min(bounds.y, Number(node.y) || 0),
+  }), { x: Infinity, y: Infinity });
   const nodes: AnyRecord[] = payload.nodes.map((node: AnyRecord, index: number) => {
     const nextId = uid();
     idMap.set(node.id, nextId);
     const next: AnyRecord = {
       ...clone(node),
       id: nextId,
-      x: (node.x || 0) + 60 + index * 16,
-      y: (node.y || 0) + 60 + index * 16,
+      x: (node.x || 0) + (position && origin ? position.x - origin.x : 60 + index * 16),
+      y: (node.y || 0) + (position && origin ? position.y - origin.y : 60 + index * 16),
       title: t("ui.clipboardStore.text.2d813dfb", { value0: String(node.title || nodeTypeLabel(node.type)) }),
     };
     resetRuntimeState(next);

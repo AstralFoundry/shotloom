@@ -228,7 +228,7 @@ export interface WorkflowCanvasController {
   createArtifactNodeAt: (artifactId: string, position: { x: number; y: number }) => void | Promise<void>;
   deleteSelection: () => void;
   copySelection?: (withUpstream?: boolean) => void | Promise<void>;
-  pasteSelection?: () => void | Promise<void>;
+  pasteSelection?: (position?: { x: number; y: number }) => void | Promise<void>;
   undo?: () => void;
   redo?: () => void;
   runSelection?: (stop?: boolean) => void;
@@ -669,53 +669,61 @@ type CanvasMenuState = {
   y: number;
   flowX: number;
   flowY: number;
+  compact?: boolean;
   port?: { nodeId: string; side: CanvasPortSide; allowedTypes: readonly string[]; anchor: HTMLElement };
 };
 type CanvasMenuLayerHandle = {
   open: (menu: CanvasMenuState) => void;
   close: () => void;
 };
+type CanvasMenuActions = {
+  controller: WorkflowCanvasController;
+  onOpenUpload?: ((position: { x: number; y: number }, files?: File[]) => void) | undefined;
+  onOpenAssetLibrary?: ((position: { x: number; y: number }) => void) | undefined;
+  onOpenPoseLibrary?: (() => void) | undefined;
+  canUndo: boolean;
+  canRedo: boolean;
+};
+
 const CanvasMenuLayer = memo(
-  forwardRef<CanvasMenuLayerHandle, { controller: WorkflowCanvasController; onOpenPoseLibrary?: (() => void) | undefined }>(
-    function CanvasMenuLayer({ controller, onOpenPoseLibrary }, ref) {
+  forwardRef<CanvasMenuLayerHandle, CanvasMenuActions>(
+    function CanvasMenuLayer({ controller, onOpenPoseLibrary, onOpenUpload, onOpenAssetLibrary, canUndo, canRedo }, ref) {
       const [menu, setMenu] = useState<CanvasMenuState | null>(null);
-      useImperativeHandle(
-        ref,
-        () => ({
-          open(next) {
-            flushSync(() => setMenu(next));
-          },
-          close() {
-            setMenu(null);
-          },
-        }),
-        [],
-      );
+      useImperativeHandle(ref, () => ({
+        open(next) { flushSync(() => setMenu(next)); },
+        close() { setMenu(null); },
+      }), []);
       if (!menu) return null;
-      return (
-        <CanvasContextMenu
-          x={menu.x}
-          y={menu.y}
-          {...(menu.port ? { port: menu.port } : {})}
-          onClose={() => {
-            menu.port?.anchor.focus({ preventScroll: true });
-            setMenu(null);
-          }}
-          onCreate={async (type) => {
-            if (menu.port) {
-              setMenu(null);
-              await controller.createNodeFromPort?.(menu.port.nodeId, menu.port.side, type);
-              return;
-            }
-            await controller.createNodeAt(type, {
-              x: menu.flowX,
-              y: menu.flowY,
-            });
-            setMenu(null);
-          }}
-          onOpenPoseLibrary={onOpenPoseLibrary ? () => { onOpenPoseLibrary(); setMenu(null); } : undefined}
-        />
-      );
+      const position = { x: menu.flowX, y: menu.flowY };
+      function closeBefore(action: () => unknown) {
+        setMenu(null);
+        action();
+      }
+      return <CanvasContextMenu
+        key={`${menu.x}:${menu.y}:${menu.port?.nodeId || ''}`}
+        x={menu.x}
+        y={menu.y}
+        {...(menu.port ? { port: menu.port } : {})}
+        {...(menu.compact ? { compact: true } : {})}
+        commands={{
+          canUndo, canRedo,
+          undo: () => closeBefore(() => controller.undo?.()),
+          redo: () => closeBefore(() => controller.redo?.()),
+          paste: () => closeBefore(() => controller.pasteSelection?.(position)),
+          upload: () => closeBefore(() => onOpenUpload ? onOpenUpload(position) : controller.createNodeAt('__upload__', position)),
+          assets: () => closeBefore(() => onOpenAssetLibrary?.(position)),
+        }}
+        onClose={() => {
+          menu.port?.anchor.focus({ preventScroll: true });
+          setMenu(null);
+        }}
+        onCreate={async type => {
+          setMenu(null);
+          if (menu.port) await controller.createNodeFromPort?.(menu.port.nodeId, menu.port.side, type);
+          else await controller.createNodeAt(type, position);
+        }}
+        onOpenPoseLibrary={onOpenPoseLibrary ? () => closeBefore(onOpenPoseLibrary) : undefined}
+      />;
     },
   ),
 );
@@ -764,6 +772,10 @@ export interface CanvasDockControls {
 
 export function WorkflowCanvas({
   onOpenShortcuts,
+  onOpenUpload,
+  onOpenAssetLibrary,
+  canUndo = false,
+  canRedo = false,
   nodes,
   edges,
   selectedEdgeId,
@@ -785,6 +797,10 @@ export function WorkflowCanvas({
   nodeActions: WorkflowNodeActions;
   controller: WorkflowCanvasController;
   overlay?: (controls: CanvasDockControls) => ReactNode;
+  onOpenUpload?: CanvasMenuActions['onOpenUpload'];
+  onOpenAssetLibrary?: CanvasMenuActions['onOpenAssetLibrary'];
+  canUndo?: boolean;
+  canRedo?: boolean;
   onOpenShortcuts?: () => void;
   addNodeMention?: (nodeId: string) => void;
   onOpenPoseLibrary?: (() => void) | undefined;
@@ -1325,18 +1341,21 @@ export function WorkflowCanvas({
       x: bounds.left + bounds.width / 2,
       y: bounds.top + bounds.height / 2,
     }, { snapToGrid: false });
-    void controller.createNodeAt(type, center);
+    if (type === "__upload__" && onOpenUpload) onOpenUpload(center);
+    else void controller.createNodeAt(type, center);
   }
   function openMenu(event: globalThis.MouseEvent | ReactMouseEvent<Element>) {
     event.preventDefault();
     const bounds = canvasRoot.current?.getBoundingClientRect();
     if (!bounds) return;
-    const menuPosition = canvasMenuPosition(event.clientX, event.clientY, bounds);
+    const compact = bounds.width < 570;
+    const menuPosition = canvasMenuPosition(event.clientX, event.clientY, bounds, compact ? 550 : 350, 'right', compact ? 344 : 548);
     const point = instance?.screenToFlowPosition({ x: event.clientX, y: event.clientY }) || {
       x: 120,
       y: 90,
     };
     menuLayer.current?.open({
+      compact,
       x: menuPosition.x,
       y: menuPosition.y,
       flowX: point.x,
@@ -1358,16 +1377,22 @@ export function WorkflowCanvas({
   }, [controller]);
 
   function onArtifactDragOver(event: ReactDragEvent<HTMLElement>) {
-    if (!event.dataTransfer.types.includes(ARTIFACT_DRAG_TYPE)) return;
+    if (!event.dataTransfer.types.includes(ARTIFACT_DRAG_TYPE)
+      && !(onOpenUpload && event.dataTransfer.types.includes("Files"))) return;
     event.preventDefault();
     event.dataTransfer.dropEffect = "copy";
   }
   function onArtifactDrop(event: ReactDragEvent<HTMLElement>) {
     const artifactId = event.dataTransfer.getData(ARTIFACT_DRAG_TYPE);
-    if (!artifactId || !instance) return;
+    const files = Array.from(event.dataTransfer.files);
+    if (!instance || (!artifactId && !(onOpenUpload && files.length))) return;
     event.preventDefault();
     event.stopPropagation();
     const point = instance.screenToFlowPosition({ x: event.clientX, y: event.clientY });
+    if (!artifactId && onOpenUpload) {
+      onOpenUpload(point, files);
+      return;
+    }
     void controller.createArtifactNodeAt(artifactId, {
       x: point.x,
       y: point.y,
@@ -1594,7 +1619,8 @@ export function WorkflowCanvas({
               </div>
             </div>
           )}
-          <CanvasMenuLayer ref={menuLayer} controller={controller} onOpenPoseLibrary={onOpenPoseLibrary} />
+          <CanvasMenuLayer ref={menuLayer} controller={controller} onOpenPoseLibrary={onOpenPoseLibrary}
+            onOpenUpload={onOpenUpload} onOpenAssetLibrary={onOpenAssetLibrary} canUndo={canUndo} canRedo={canRedo} />
           {layoutSelection.length > 1 && <div className="canvas-selection-layout" onPointerDown={event => event.stopPropagation()}>
             <Dropdown menu={{ items: (['left', 'centerX', 'right', 'top', 'centerY', 'bottom', 'distributeX', 'distributeY'] as const).map(mode => ({
               key: mode, label: t(`canvas.selection.${mode}`), disabled: mode.startsWith('distribute') && layoutSelection.length < 3,

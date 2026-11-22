@@ -15,6 +15,7 @@ import {
 } from "react";
 import type { Viewport } from "@xyflow/react";
 import { CanvasStartup } from "../canvas/CanvasStartup";
+import { CanvasUploadDialog, type CanvasUploadEntry, type CanvasUploadFailure } from '../canvas/CanvasUploadDialog';
 import { CanvasAssetView } from "../canvas/CanvasAssetView";
 import { IconSymbol } from "../components/IconSymbol";
 import { BottomModeBar } from "../canvas/BottomModeBar";
@@ -43,11 +44,13 @@ const VideoEditorWorkspace = lazy(() =>
   })),
 );
 
+type CanvasPoint = { x: number; y: number };
+
 export interface CreationViewController {
   canvas: WorkflowCanvasController;
   nodes: WorkflowNodeActions;
-  applyMaterial: (item: MaterialItem, scope: "library" | "local" | "files") => void | Promise<void>;
-  previewMaterial: (item: MaterialItem, src: string, kind: "image" | "video") => void;
+  applyMaterial: (item: MaterialItem, scope: "library" | "local" | "files", placement?: { position: CanvasPoint; index: number }) => void | Promise<void>;
+  previewMaterial: (item: MaterialItem, src: string, kind: "image" | "video", portalTarget?: HTMLElement) => void;
   showMaterialInFolder: (item: MaterialItem) => void | Promise<void>;
   loadMaterials: () => {
     projectAssets: MaterialItem[];
@@ -55,7 +58,7 @@ export interface CreationViewController {
     materials: MaterialItem[];
   };
   importMaterials: () => void | Promise<void>;
-  uploadCanvasAssets: (position: { x: number; y: number }, files?: File[]) => Promise<void>;
+  uploadCanvasAssets: (position: CanvasPoint, entries: CanvasUploadEntry[]) => Promise<CanvasUploadFailure[]>;
   createCanvasMarkdown: (position: { x: number; y: number }) => void;
   editCanvasMarkdown: (id: string) => Promise<void>;
   focusCanvasNode: (id: string) => void;
@@ -132,15 +135,22 @@ function CreationCanvas({ data, controller }: { data: CreationViewData; controll
       : Math.min(available, Math.min(620, Math.max(420, preferred)));
   });
   const [picker, setPicker] = useState(false);
+  const [pickerPosition, setPickerPosition] = useState<CanvasPoint>();
+  const [upload, setUpload] = useState<{ position: CanvasPoint; files: File[] }>();
   const [pickerRequest, setPickerRequest] = useState<NonNullable<ReturnType<typeof useAppStore.getState>['assetBrowserRequest']> | null>(null);
-  function openPicker() {
+  function openPicker(position = canvasCenter()) {
     setPickerRequest(null);
-    setPicker(value => !value);
+    setPickerPosition(position);
+    setPicker(true);
+  }
+  function openUpload(position = canvasCenter(), files: File[] = []) {
+    setUpload({ position, files });
   }
   const assetBrowserRequest = useAppStore(state => state.assetBrowserRequest);
   useEffect(() => {
     if (!assetBrowserRequest) return;
     setPickerRequest(assetBrowserRequest);
+    setPickerPosition(undefined);
     setPicker(true);
     useAppStore.getState().clearAssetBrowserRequest();
   }, [assetBrowserRequest]);
@@ -198,6 +208,10 @@ function CreationCanvas({ data, controller }: { data: CreationViewData; controll
           <div className="forge-canvas-stage" inert={view === 'assets'}>
             <WorkflowCanvas
               onReady={markCanvasReady}
+              onOpenUpload={openUpload}
+              onOpenAssetLibrary={openPicker}
+              canUndo={data.history.canUndo}
+              canRedo={data.history.canRedo}
               onOpenShortcuts={() => setShortcutsOpen(true)}
               nodes={data.nodes}
               edges={data.edges}
@@ -220,7 +234,7 @@ function CreationCanvas({ data, controller }: { data: CreationViewData; controll
                   shortcutLabels={data.shortcutLabels}
                   onUndo={controller.undo}
                   onRedo={controller.redo}
-                  onMaterialPicker={openPicker}
+                  onMaterialPicker={() => openPicker()}
                   onMergeVideos={controller.mergeVideos}
                   onOpenHistory={() => setVersionHistoryOpen(true)}
                   onOpenPoseLibrary={() => setPoseLibraryOpen(true)}
@@ -235,7 +249,7 @@ function CreationCanvas({ data, controller }: { data: CreationViewData; controll
               controller.focusCanvasNode(id);
               requestAnimationFrame(() => workspace.current?.querySelector<HTMLElement>('.react-workflow-canvas')?.focus({ preventScroll: true }));
             }}
-            onUpload={files => controller.uploadCanvasAssets(canvasCenter(), files)}
+            onUpload={() => openUpload()}
             onCreateMarkdown={() => controller.createCanvasMarkdown(canvasCenter())}
             onEditMarkdown={id => void controller.editCanvasMarkdown(id)}
           />}
@@ -293,7 +307,9 @@ function CreationCanvas({ data, controller }: { data: CreationViewData; controll
         open={versionHistoryOpen}
         onClose={() => setVersionHistoryOpen(false)}
       />
-      {picker && <AssetLibraryModal open onClose={() => setPicker(false)} controller={controller} request={pickerRequest} />}
+      {picker && <AssetLibraryModal open onClose={() => setPicker(false)} controller={controller} request={pickerRequest} position={pickerPosition} />}
+      {upload && <CanvasUploadDialog initialFiles={upload.files} onClose={() => setUpload(undefined)}
+        onConfirm={entries => controller.uploadCanvasAssets(upload.position, entries)} />}
       </main>
       {starting && <CanvasStartup canvasReady={canvasReady} />}
       {data.editor && controller.editor && (

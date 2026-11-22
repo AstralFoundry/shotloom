@@ -10,7 +10,8 @@
   background: var(--surface);
   color: var(--text);
 }
-.asset-library-modal .asset-library-browser { height: min(850px, calc(100dvh - 64px)); }
+.asset-library-modal .asset-library-browser { height: min(740px, calc(100dvh - 96px)); }
+.asset-library-preview-layer:not(:empty) { position: fixed; inset: 0; z-index: 1; pointer-events: auto; }
 .asset-library-header { display: flex; align-items: center; gap: 14px; padding: 18px 24px; border-bottom: 1px solid var(--line); }
 .asset-library-heading-icon { display: grid; place-items: center; width: 42px; height: 42px; flex: 0 0 auto; border-radius: var(--radius-lg); background: var(--surface-2); }
 .asset-library-heading-icon svg { width: 23px; height: 23px; }

@@ -1,0 +1,40 @@
+.canvas-upload-heading, .canvas-upload-footer { display: flex; align-items: center; gap: 10px; }
+.canvas-upload-heading { margin-inline-end: 32px; justify-content: space-between; }
+.canvas-upload-heading small, .canvas-upload-heading > span, .canvas-upload-footer > span {
+  display: block;
+  color: var(--muted);
+  font-size: var(--text-body-13);
+  font-weight: 400;
+}
+.canvas-upload-footer { margin-top: 16px; flex-wrap: wrap; justify-content: flex-end; }
+.canvas-upload-footer > span { margin-inline-end: auto; text-align: start; }
+.canvas-upload-dialog .ant-modal-body { max-height: 65dvh; overflow-y: auto; padding: 12px 0 0; }
+.canvas-upload-drop-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: clamp(148px, 29dvh, 228px);
+  text-align: center;
+}
+.canvas-upload-drop-content > strong { font-size: var(--text-body-14); font-weight: 600; }
+.canvas-upload-drop-hint, .canvas-upload-types { color: var(--muted); font-size: var(--text-body-12); }
+.canvas-upload-drop-icon {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+}
+.canvas-upload-drop-icon svg { width: 24px; height: 24px; }
+.canvas-upload-types, .canvas-upload-types > span { display: inline-flex; align-items: center; gap: 6px; }
+.canvas-upload-types { flex-wrap: wrap; justify-content: center; gap: 6px 12px; margin-top: 6px; }
+.canvas-upload-types svg, .canvas-upload-footer svg, .canvas-upload-queue svg { width: var(--icon-md); height: var(--icon-md); }
+.canvas-upload-queue { margin: 10px 0 0; padding: 0; list-style: none; }
+.canvas-upload-queue li { display: flex; gap: 10px; align-items: center; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+.canvas-upload-queue li > span { flex: 1; min-width: 0; display: grid; }
+.canvas-upload-queue strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.canvas-upload-queue small { color: var(--muted); }
+.canvas-upload-dialog .canvas-upload-error { color: var(--bad); }

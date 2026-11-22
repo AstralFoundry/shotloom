@@ -4,18 +4,20 @@ import { desktopApi } from "../../../services/desktopApi.ts";
 import {
   copyFileIntoProjectAssets,
   inferFileResourceType,
+  isProjectAssetPath,
   registerImportedMaterial,
 } from "../../../store/assetStore.ts";
 import { addNode } from "../../../store/nodeStore.ts";
 import { store, touchProject } from "../../../store/projectStore.ts";
 import { showToast } from "../../../store/notificationStore";
 
-export async function createUploadedNode(rawFile: any, position = { x: 120, y: 90 }) {
+export async function createUploadedNode(rawFile: any, position = { x: 120, y: 90 }, requireProjectCopy = false) {
   const project = store.project;
   const file: any = await copyFileIntoProjectAssets(rawFile);
   if (store.project !== project) return;
   const path = file.path || file.filePath || "";
   if (!path) return showToast(t("ui.canvasUploadActions.text.578d2e03"));
+  if (requireProjectCopy && !isProjectAssetPath(path)) throw new Error(t('canvas.insert.fileUnavailable'));
   const resourceType = inferFileResourceType(file);
   let textContent: string | undefined;
   if (resourceType === "text") {

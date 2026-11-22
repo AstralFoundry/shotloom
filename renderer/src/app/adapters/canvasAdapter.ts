@@ -448,6 +448,7 @@ export const canvasController: WorkflowCanvasController = {
     persistCanvasViewport(viewport);
   },
   async createNodeAt(type, position) {
+    if (type === '__markdown__') { canvasCommands.createCanvasMarkdown(position); return; }
     if (type === 'canvasSection') { this.createSection?.(position); return; }
     if (type === 'storyboardScript') {
       const node: any = createStoryboardScriptNode(position);
@@ -563,14 +564,14 @@ export const canvasController: WorkflowCanvasController = {
     try { await stageSelectedWorkflow({ withUpstream }); }
     catch (cause) { showToast(cause instanceof Error ? cause.message : String(cause)); }
   },
-  async pasteSelection() {
+  async pasteSelection(position) {
     try {
-      const pasted = await pasteStagedWorkflow();
+      const pasted = await pasteStagedWorkflow(position);
       if (pasted) return;
       const media = await desktopApi.clipboard.readMedia?.();
       if (!media) return showToast(t("ui.canvasAdapter.text.b78cd0e2"));
       recordCanvasHistory(t("ui.canvasAdapter.text.d745aaeb"));
-      await createUploadedNode(media);
+      await createUploadedNode(media, position);
     } catch (cause) { showToast(cause instanceof Error ? cause.message : String(cause)); }
   },
   undo: undoCanvas,
@@ -1164,6 +1165,10 @@ async function editCanvasMarkdown(id: string) {
   });
 }
 
+function canvasInsertPosition(origin: { x: number; y: number }, index: number) {
+  return { x: origin.x + (index % 3) * 320, y: origin.y + Math.floor(index / 3) * 360 };
+}
+
 export const canvasCommands = {
   undo: undoCanvas,
   redo: redoCanvas,
@@ -1182,31 +1187,26 @@ export const canvasCommands = {
     touchProject();
     void editCanvasMarkdown(node.id);
   },
-  async uploadCanvasAssets(position: { x: number; y: number }, browserFiles?: File[]) {
+  async uploadCanvasAssets(position: { x: number; y: number }, entries: { file: File; index: number }[]) {
     const project = store.project;
-    try {
-      const files: Array<Record<string, unknown> | File> = browserFiles ?? await desktopApi.file.importAsset();
-      if (!files.length || store.project !== project) return;
-      const supported = files.filter(file => inferFileResourceType(file instanceof File ? { name: file.name, type: file.type } : file) !== 'file');
-      if (supported.length !== files.length) showToast(t('canvas.assetView.unsupportedFiles'));
-      if (!supported.length) return;
-      recordCanvasHistory(t('ui.canvasAdapter.text.d3ac5ec3'));
-      for (const [index, file] of supported.entries()) {
-        if (store.project !== project) break;
-        try {
-          const source = file instanceof File ? await saveBrowserFile(file, file.name) : file;
-          if (store.project !== project) break;
-          await createUploadedNode(source, {
-            x: position.x + (index % 3) * 320,
-            y: position.y + Math.floor(index / 3) * 360,
-          });
-        } catch (error) {
-          showToast(error instanceof Error ? error.message : String(error));
-        }
+    if (!entries.length) return [];
+    const failures: Array<{ file: File; error: string }> = [];
+    recordCanvasHistory(t('ui.canvasAdapter.text.d3ac5ec3'));
+    for (const { file, index } of entries) {
+      if (store.project !== project) throw new Error(t('assets.browser.projectChanged'));
+      try {
+        const source = desktopApi.platform === 'browser'
+          ? await saveBrowserFile(file, file.name)
+          : { path: desktopApi.file.pathForFile(file), name: file.name, size: file.size, mimeType: file.type };
+        if (store.project !== project) throw new Error(t('assets.browser.projectChanged'));
+        if (!source.path) throw new Error(t('canvas.insert.fileUnavailable'));
+        const node = await createUploadedNode(source, canvasInsertPosition(position, index), desktopApi.platform !== 'browser');
+        if (!node) throw new Error(t('canvas.insert.fileUnavailable'));
+      } catch (error) {
+        failures.push({ file, error: error instanceof Error ? error.message : String(error) });
       }
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : String(error));
     }
+    return failures;
   },
   fitView() {
     fitViewHandler?.();
@@ -1237,9 +1237,9 @@ export const canvasCommands = {
     else showToast(t("ui.canvasAdapter.text.8354ee30"));
     return false;
   },
-  async applyMaterial(item: any, scope?: "library" | "local" | "files") {
+  async applyMaterial(item: any, scope?: "library" | "local" | "files", placement?: { position: { x: number; y: number }; index: number }) {
     const project = store.project;
-    if (scope === "files") {
+    if (scope === "files" && !placement) {
       const target = findMaterialCanvasTarget(store.project, item);
       if (target) {
         if (target.outputId) nodeActions.update(target.nodeId, { selectedOutputNodeId: target.outputId });
@@ -1252,10 +1252,18 @@ export const canvasCommands = {
       const referenced = await useLocalAssetInProject(item, { copy: true });
       material = { ...referenced.material, assetId: referenced.asset.id };
     }
+    if (placement && inferFileResourceType(material) === 'text') {
+      const path = localMediaPath(material);
+      if (path) {
+        const bytes = await desktopApi.file.readArrayBuffer(path);
+        if (!bytes) throw new Error(t('canvas.insert.fileUnavailable'));
+        material = { ...material, content: new TextDecoder().decode(bytes) };
+      }
+    }
     if (store.project !== project) throw new Error(t('assets.browser.projectChanged'));
-    const node = applyMaterialToCanvas(material);
+    const node = applyMaterialToCanvas(material, placement && canvasInsertPosition(placement.position, placement.index));
     if (!node) throw new Error(t('assets.browser.insertFailed'));
-    if (scope === "files" && node) focusCanvasNodes([node.id]);
+    if (scope === "files" && !placement) focusCanvasNodes([node.id]);
     return node;
   },
   openBlankVideoEditor() {

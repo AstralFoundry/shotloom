@@ -301,32 +301,34 @@ export function AssetPickerDialog({
                 </button>
               )}
             </div>
-            <Spin spinning={busy}>
-              <div className={`ov-picker-grid${view === "list" ? " list" : ""}`}>
-                <button
-                  type="button"
-                  className="ov-picker-upload"
-                  data-view={view}
-                  disabled={busy}
-                  onClick={() => void onLocalUpload()}
-                >
-                  <IconSymbol name="upload" />
-                  {t("ui.AssetPickerDialog.text.16367f3d")}</button>
-                {visible.map(renderTile)}
-                {/* 空态在滚动区里排在上传入口之后：筛选没命中时本地上传依然可用。 */}
-                {!visible.length && (
-                  <div className="ov-picker-empty">
-                    <Empty
-                      image={Empty.PRESENTED_IMAGE_SIMPLE}
-                      description={filtered || availableOnly ? t("ui.AssetPickerDialog.text.eaab7302") : TABS.find((item) => item.id === tab)?.empty}
-                    />
-                    {filtersActive && (
-                      <button type="button" onClick={clearFilters}>{t("ui.AssetPickerDialog.text.4bbc4e5f")}</button>
-                    )}
-                  </div>
-                )}
-              </div>
-            </Spin>
+            <div className="ov-picker-scroll">
+              <Spin spinning={busy}>
+                <div className={`ov-picker-grid${view === "list" ? " list" : ""}`}>
+                  <button
+                    type="button"
+                    className="ov-picker-upload"
+                    data-view={view}
+                    disabled={busy}
+                    onClick={() => void onLocalUpload()}
+                  >
+                    <IconSymbol name="upload" />
+                    {t("ui.AssetPickerDialog.text.16367f3d")}</button>
+                  {visible.map(renderTile)}
+                  {/* 空态在滚动区里排在上传入口之后：筛选没命中时本地上传依然可用。 */}
+                  {!visible.length && (
+                    <div className="ov-picker-empty">
+                      <Empty
+                        image={Empty.PRESENTED_IMAGE_SIMPLE}
+                        description={filtered || availableOnly ? t("ui.AssetPickerDialog.text.eaab7302") : TABS.find((item) => item.id === tab)?.empty}
+                      />
+                      {filtersActive && (
+                        <button type="button" onClick={clearFilters}>{t("ui.AssetPickerDialog.text.4bbc4e5f")}</button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </Spin>
+            </div>
           </div>
         </div>
         {failures.length > 0 && <div className="ov-picker-failures" role="alert">
