@@ -132,6 +132,43 @@ export const store = reactive({
 
 bindProjectSource(() => store);
 
+type ProjectWriteStatus = 'saved' | 'saving' | 'unsaved' | 'failed';
+export type ProjectSaveStatus = ProjectWriteStatus | 'pending';
+interface ProjectWriteState {
+  revision: number;
+  savedRevision: number;
+  writing: number;
+  failed: boolean;
+  status: { value: ProjectWriteStatus };
+}
+const projectWriteStates = new WeakMap<object, ProjectWriteState>();
+
+function projectWriteState(project = store.project) {
+  let state = projectWriteStates.get(project);
+  if (!state) {
+    state = { revision: 0, savedRevision: 0, writing: 0, failed: false, status: reactive({ value: 'saved' }) };
+    projectWriteStates.set(project, state);
+  }
+  return state;
+}
+
+function updateProjectSaveStatus(state: ProjectWriteState) {
+  state.status.value = state.writing ? 'saving' : state.failed ? 'failed'
+    : state.savedRevision === state.revision ? 'saved' : 'unsaved';
+}
+
+function markProjectEdited() {
+  const state = projectWriteState();
+  state.revision++;
+  updateProjectSaveStatus(state);
+}
+
+export function projectSaveStatus(): ProjectSaveStatus {
+  const { value } = projectWriteState().status;
+  if (value === 'unsaved' && autoSaveTimer !== null && canAutoSaveProject()) return 'pending';
+  return !store.filePath && value === 'saved' ? 'unsaved' : value;
+}
+
 export function hasOpenProject() {
   return hasPersistedProject(store);
 }
@@ -230,6 +267,7 @@ function scheduleSessionPersist(delay = 100, { coalesce = false }: { coalesce?: 
 }
 
 export function touchProject({ sessionDelay = 100, coalesceSession = false }: { sessionDelay?: number; coalesceSession?: boolean } = {}) {
+  markProjectEdited();
   reconcilePendingProjectAssets(store.project);
   arrangeAutomaticCanvasSections(store.project.nodes);
   store.project.updatedAt = new Date().toISOString();
@@ -241,6 +279,7 @@ export function persistCanvasViewport(viewport: AnyRecord) {
   const project = toRaw(store.project);
   const previous = project.canvasViewport;
   if (previous?.x === viewport.x && previous?.y === viewport.y && previous?.zoom === viewport.zoom) return;
+  markProjectEdited();
   project.canvasViewport = viewport;
   project.updatedAt = new Date().toISOString();
   scheduleSessionPersist(400, { coalesce: true });
@@ -280,15 +319,30 @@ function scheduleAutoSave(delay = AUTO_SAVE_DELAY_MS) {
 }
 
 async function writeProjectFile({ updateRecent = false }: { updateRecent?: boolean } = {}) {
+  const project = store.project;
+  const state = projectWriteState(project);
+  const revision = state.revision;
   const snapshot = projectPersistenceSnapshot();
   const hash = JSON.stringify({ ...snapshot, updatedAt: '' });
   const directory = store.projectDir;
-  const projectId = String(snapshot.id || '');
-  const result: AnyRecord = await projectSaveQueue.enqueue(
-    { directory, snapshot },
-    { key: `${directory}:${hash}`, scope: String(directory || '') },
-  );
-  if (store.projectDir !== directory || String(store.project?.id || '') !== projectId) return result;
+  state.writing++;
+  updateProjectSaveStatus(state);
+  let result: AnyRecord;
+  try {
+    result = await projectSaveQueue.enqueue(
+      { directory, snapshot },
+      { key: `${directory}:${hash}`, scope: String(directory || '') },
+    );
+    state.savedRevision = Math.max(state.savedRevision, revision);
+    state.failed = false;
+  } catch (error) {
+    state.failed = true;
+    throw error;
+  } finally {
+    state.writing--;
+    updateProjectSaveStatus(state);
+  }
+  if (store.projectDir !== directory || store.project !== project) return result;
   if (result.filePath) store.filePath = result.filePath;
   // The storage revision is used for the next write. It has no UI subscribers.
   if (Number.isInteger(result.project?.storageRevision)) toRaw(store.project).storageRevision = result.project.storageRevision;
@@ -465,6 +519,14 @@ export async function saveProject() {
   await loadRecentProjects();
   showToast(t('project.saved'), 'success');
   return true;
+}
+
+export async function renameCurrentProject(name: string) {
+  const title = name.trim();
+  if (!title || title === store.project.name) return;
+  store.project.name = title;
+  touchProject();
+  await saveProject();
 }
 
 export async function openProjectFromDialog() {
@@ -844,6 +906,7 @@ export async function restoreProjectSnapshot(snapshotId: string) {
   }
   stopActiveTaskPolling();
   store.project = next;
+  markProjectEdited();
   store.selectedNodeId = null;
   store.selectedNodeIds = [];
   store.selectedEdgeId = null;
@@ -870,13 +933,9 @@ async function applyOpenedProject(result: AnyRecord) {
   await reconcileCurrentProjectLocalAssetReferences();
   const restoration = await restoreMissingGeneratedFiles(store.project);
   if (restoration.restored) {
+    markProjectEdited();
     store.project.updatedAt = new Date().toISOString();
-    const saved: AnyRecord = await saveProjectSerialized(
-      store.projectDir,
-      projectPersistenceSnapshot(),
-    );
-    if (saved?.filePath) store.filePath = saved.filePath;
-    if (Number.isInteger(saved?.project?.storageRevision)) store.project.storageRevision = saved.project.storageRevision;
+    await writeProjectFile();
     showToast(t('project.restored', { count: restoration.restored }));
   }
   if (restoration.failures.length) {

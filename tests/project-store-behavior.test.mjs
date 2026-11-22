@@ -34,6 +34,38 @@ test('createNewProject 成功时写入全新的 projectDir/filePath 并切换项
   assert.equal(store.project.name, '回归用项目');
 });
 
+test('画布保存状态保留写入期间的新改动，失败后可重试', async () => {
+  await projectStore.createNewProject('canvas status', { openAfterCreate: false });
+  store.project.settings.autoSave = false;
+  store.project.name = 'first edit';
+  projectStore.touchProject();
+  const originalSave = desktopApi.project.save;
+  try {
+    let finishWrite;
+    desktopApi.project.save = (...args) => new Promise(resolve => {
+      finishWrite = () => resolve(originalSave(...args));
+    });
+    const pending = projectStore.saveProject();
+    assert.equal(projectStore.projectSaveStatus(), 'saving');
+    store.project.name = 'edit while saving';
+    projectStore.touchProject();
+    finishWrite();
+    await pending;
+    assert.equal(projectStore.projectSaveStatus(), 'unsaved');
+
+    desktopApi.project.save = async () => { throw new Error('disk full'); };
+    await assert.rejects(projectStore.saveProject(), /disk full/);
+    assert.equal(projectStore.projectSaveStatus(), 'failed');
+
+    desktopApi.project.save = originalSave;
+    await projectStore.renameCurrentProject('Renamed canvas');
+    assert.equal(projectStore.projectSaveStatus(), 'saved');
+    assert.equal((await desktopApi.project.readFile(store.filePath)).name, 'Renamed canvas');
+  } finally {
+    desktopApi.project.save = originalSave;
+  }
+});
+
 test('createNewProject 中途失败时回滚，不把空白项目绑到旧目录', async () => {
   // 先建立一个已知的「原项目」状态。
   await projectStore.createNewProject('原项目', { openAfterCreate: false });
@@ -148,7 +180,7 @@ test('renaming an open SQLite project carries the committed revision into the ne
   }
 });
 
-test('background autosave waits for the canvas to settle and updates the storage revision without repainting the project', async (context) => {
+test('background autosave waits for the canvas to settle and publishes the save status after the write', async (context) => {
   await projectStore.createNewProject('canvas autosave', { openAfterCreate: false });
   const { getDomainRevision } = await env.load('store/domainReactivity');
   const originalSave = desktopApi.project.save;
@@ -163,7 +195,9 @@ test('background autosave waits for the canvas to settle and updates the storage
   };
   try {
     const viewport = { x: 24, y: -18, zoom: 0.9 };
+    assert.equal(projectStore.projectSaveStatus(), 'saved');
     projectStore.persistCanvasViewport(viewport);
+    assert.equal(projectStore.projectSaveStatus(), 'pending');
     context.mock.timers.tick(950);
     projectStore.noteCanvasViewportActivity();
     context.mock.timers.tick(50);
@@ -177,10 +211,12 @@ test('background autosave waits for the canvas to settle and updates the storage
     const domainRevision = getDomainRevision();
     context.mock.timers.tick(1);
     assert.equal(saves.length, 1);
+    assert.equal(projectStore.projectSaveStatus(), 'saving');
     assert.deepEqual(saves[0].canvasViewport, viewport);
     await new Promise(setImmediate);
     assert.equal(store.project.storageRevision, 42);
-    assert.equal(getDomainRevision(), domainRevision);
+    assert.equal(projectStore.projectSaveStatus(), 'saved');
+    assert.equal(getDomainRevision(), domainRevision + 2, 'only the two save status transitions notify the domain');
   } finally {
     window.setTimeout = setWindowTimeout;
     window.clearTimeout = clearWindowTimeout;
