@@ -51,7 +51,9 @@ export function CanvasContextMenu({ x, y, port, compact, commands, onCreate, onC
   const mac = typeof navigator !== 'undefined' && navigator.platform.startsWith('Mac');
   const shortcut = mac ? '⌘' : 'Ctrl+';
   useEffect(() => {
-    menuRef.current?.querySelector<HTMLButtonElement>('button')?.focus({ preventScroll: true });
+    const menu = menuRef.current;
+    const target = port ? menu?.querySelector<HTMLButtonElement>('button') : menu;
+    target?.focus({ preventScroll: true });
   }, [port]);
   useEffect(() => {
     if (expanded && focusPalette.current) {
@@ -96,7 +98,8 @@ export function CanvasContextMenu({ x, y, port, compact, commands, onCreate, onC
       const buttons = [...group.querySelectorAll<HTMLButtonElement>('button:not(:disabled)')];
       if (!buttons.length) return;
       const index = buttons.indexOf(active as HTMLButtonElement);
-      const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1
+      const next = event.key === 'Home' || (index < 0 && event.key === 'ArrowDown') ? 0
+        : event.key === 'End' || (index < 0 && event.key === 'ArrowUp') ? buttons.length - 1
         : (index + (event.key === 'ArrowDown' ? 1 : -1) + buttons.length) % buttons.length;
       buttons[next]?.focus({ preventScroll: true });
     }}>
@@ -107,9 +110,12 @@ export function CanvasContextMenu({ x, y, port, compact, commands, onCreate, onC
     </div> : <>
       <div className="canvas-insert-commands" role="menu" aria-label={t('canvas.insert.menu')}>
         <button ref={addRef} type="button" role="menuitem" aria-haspopup="menu" aria-expanded={expanded}
-          onPointerEnter={() => setExpanded(true)} onClick={() => {
-            if (expanded) paletteRef.current?.querySelector('button')?.focus({ preventScroll: true });
-            else setExpanded(true);
+          onPointerEnter={() => setExpanded(true)} onClick={event => {
+            if (event.detail === 0) {
+              if (expanded) paletteRef.current?.querySelector('button')?.focus({ preventScroll: true });
+              else focusPalette.current = true;
+            }
+            setExpanded(true);
           }}>
           <Plus /><span>{title}</span><i className="canvas-insert-chevron"><ChevronRight /></i>
         </button>

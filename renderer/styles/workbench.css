@@ -437,6 +437,7 @@
   backdrop-filter: blur(18px);
 }
 .canvas-insert-commands { display: grid; gap: 4px; width: 196px; flex: none; overflow-y: auto; max-height: inherit; }
+.canvas-insert-menu:focus { outline: none; }
 .canvas-insert-palette { display: grid; gap: 8px; width: 344px; max-width: 100%; min-width: 0; overflow-y: auto; max-height: inherit; }
 .canvas-insert-palette > strong {
   display: flex;
