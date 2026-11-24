@@ -29,7 +29,7 @@ test('读产品源码与起 SSR 各自只有一个实现，测试只能调用它
 
 test('共享装配层暴露的正是测试需要的三件事', () => {
   assert.match(ssrHelper, /export async function createRendererEnv\(/);
-  assert.match(ssrHelper, /server: \{ middlewareMode: true, hmr: false \}/);
+  assert.match(ssrHelper, /server: \{ middlewareMode: true, hmr: false, ws: false \}/);
   assert.match(ssrHelper, /configFile: false/);
   // 存储替身由测试自己的 Map 承接，断言完还能读回写入内容。
   assert.match(ssrHelper, /getItem: \(key\) => backing\.get\(key\) \?\? null/);

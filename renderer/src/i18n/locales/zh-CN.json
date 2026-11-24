@@ -3202,6 +3202,7 @@
   "skill.description.openreel-native-editing": "在 Shotloom 绑定的剪辑节点内使用 OpenReel 原生工具完成时间线、声音、Motion、Creation 场景、预览和导出，依据真实状态与回执核验。",
   "skill.description.oriental-diffusion-aesthetic": "将上传主体转成保留轮廓与色域的东方弥散静图，确认后延展为克制的固定机位循环视频。",
   "skill.description.scene-reference": "根据场景设定与拍摄方向建立可复用的空间参考，统一地标陈设和光源关系，支持后续镜头保持场景一致。",
+  "skill.description.script-assets-to-video": "从创意、小说片段、剧情大纲或完整剧本出发，完成标准剧本、人物场景道具设定、资产参考图、分镜运镜、参考图匹配和短片交付。适用于明确要求贯通这些阶段的短片创作。",
   "skill.description.script-storyboard": "从剧本规划逐镜画面，建立人物与场景参考、时间故事版、镜头分镜板及视频节点。",
   "skill.description.short-drama-video-prompt": "编写 Shotloom 视频节点 Prompt。按真实输入和模型能力选择帧驱动（短稿）、单段完整或段落驱动，写清素材职责、空间锁定、动作链、镜头时间码、声音和段尾承接；模型、模式、时长、槽位必须来自 Shotloom 模型目录与真实输入边。用户要求生成视频、逐镜提示词、剧本或分镜转视频、参考图生视频、对白运镜、跨镜连续性或爆款提示词复刻时必须加载。",
   "skill.description.short-drama-writing": "在文本编辑器中创作或修改短剧企划、人物设定、分集大纲与可拍摄的分场剧本，并检查跨集连续性。适用于短剧文本创作，不负责画布分镜、素材生成或视频执行。",

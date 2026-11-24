@@ -64,7 +64,7 @@ export async function createRendererEnv({ storage, withWindow = false, realTimer
     optimizeDeps: { noDiscovery: true, include: [] },
     root: rendererRoot,
     resolve: { alias: { '@': path.join(rendererRoot, 'src') } },
-    server: { middlewareMode: true, hmr: false },
+    server: { middlewareMode: true, hmr: false, ws: false },
     appType: 'custom',
   });
 
